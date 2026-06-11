@@ -146,6 +146,49 @@ body {
   animation: ring-fill 1.3s cubic-bezier(0.22, 1, 0.36, 1) 0.3s both;
 }
 
+/* food-score marquee: track holds two copies of the list; slide one copy's width */
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.marquee-track {
+  animation: marquee 42s linear infinite;
+}
+
+.marquee:hover .marquee-track {
+  animation-play-state: paused;
+}
+
+/* subtle paper grain on marketing surfaces */
+.grain {
+  position: relative;
+}
+.grain::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* gentle lift for marketing cards */
+.lift {
+  transition:
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.lift:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 40px -20px rgba(29, 31, 28, 0.18);
+}
+
 /* scroll reveal — Reveal component adds .reveal-pending below the fold,
    then .reveal-in when the element scrolls into view */
 .reveal-pending {

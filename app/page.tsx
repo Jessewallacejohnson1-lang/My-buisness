@@ -1,8 +1,101 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import ScoreRing from './components/ScoreRing'
+import ScoreRing, { scoreTone } from './components/ScoreRing'
 import Reveal from './components/Reveal'
 import { IconBarcode, IconCheck, IconFlame, IconLeaf } from './components/Icons'
+
+/* Korina is a tonewood — the hero wears its grain. Deterministic SVG, no randomness. */
+function WoodGrain({ className = '' }: { className?: string }) {
+  const lines = Array.from({ length: 14 }, (_, i) => {
+    const x = 40 + i * 44
+    const sway = (i % 3) * 10 - 10
+    return `M ${x} -20 C ${x + 18 + sway} 220, ${x - 20 - sway} 480, ${x + 12} 840`
+  })
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 640 820"
+      preserveAspectRatio="xMidYMid slice"
+      className={`pointer-events-none ${className}`}
+      fill="none"
+      stroke="var(--color-moss-600)"
+      strokeWidth="1.2"
+    >
+      <g opacity="0.13">
+        {lines.map((d, i) => (
+          <path key={i} d={d} />
+        ))}
+        {/* the knot */}
+        {[14, 34, 58, 86, 118].map((rx, i) => (
+          <ellipse key={rx} cx="356" cy="330" rx={rx} ry={rx * 1.55} opacity={1 - i * 0.15} />
+        ))}
+      </g>
+    </svg>
+  )
+}
+
+const TICKER: [string, number][] = [
+  ['Blueberries', 97],
+  ['Wild salmon', 94],
+  ['Lentils', 95],
+  ['Greek yogurt', 92],
+  ['Steel-cut oats', 91],
+  ['Almonds', 89],
+  ['Olive oil', 88],
+  ['Sourdough', 72],
+  ['Dark chocolate', 64],
+  ['Granola bar', 41],
+  ['Instant noodles', 22],
+  ['Diet cola', 14],
+]
+
+function TickerChip({ name, score }: { name: string; score: number }) {
+  const tone = scoreTone(score)
+  return (
+    <span className="flex items-center gap-2.5 bg-paper border border-black/[0.08] rounded-full pl-4 pr-3 py-2 shrink-0">
+      <span className="text-sm text-ink whitespace-nowrap">{name}</span>
+      <span
+        className={`font-mono text-xs tabular-nums px-2 py-0.5 rounded-full ${tone.text}`}
+        style={{ background: 'color-mix(in srgb, currentColor 10%, transparent)' }}
+      >
+        {score}
+      </span>
+    </span>
+  )
+}
+
+function StepArt({ n }: { n: string }) {
+  const common = {
+    viewBox: '0 0 56 56',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.5,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+  }
+  if (n === '01')
+    return (
+      <svg {...common} className="w-12 h-12 text-ink">
+        <path d="M10 30h36a18 18 0 0 1-36 0Z" />
+        <path d="M21 30c0-8 3-14 11-17" opacity="0.45" />
+        <circle cx="40" cy="14" r="8" stroke="var(--color-moss-600)" strokeDasharray="38 13" transform="rotate(-90 40 14)" />
+      </svg>
+    )
+  if (n === '02')
+    return (
+      <svg {...common} className="w-12 h-12 text-ink">
+        <path d="M16 16v24M40 16v24M9 21v14M47 21v14M16 28h24" />
+        <path d="M22 9c4 2 8 2 12 0" stroke="var(--color-moss-600)" />
+      </svg>
+    )
+  return (
+    <svg {...common} className="w-12 h-12 text-ink">
+      <circle cx="28" cy="28" r="7" stroke="var(--color-moss-600)" />
+      <circle cx="28" cy="28" r="14" strokeDasharray="66 22" transform="rotate(-90 28 28)" opacity="0.7" />
+      <circle cx="28" cy="28" r="21" strokeDasharray="106 26" transform="rotate(-90 28 28)" opacity="0.4" />
+    </svg>
+  )
+}
 
 /* Static tri-ring for the hero preview — CSS animates the fill on load. */
 function PreviewRings() {
@@ -112,7 +205,7 @@ export default async function Home() {
   const appHref = user ? '/dashboard' : '/login'
 
   return (
-    <div className="min-h-screen overflow-x-clip">
+    <div className="min-h-screen overflow-x-clip grain">
       {/* nav */}
       <nav className="sticky top-0 z-50 bg-paper/80 backdrop-blur-md border-b border-black/[0.07]">
         <div className="max-w-6xl mx-auto px-5 md:px-8 h-16 flex items-center justify-between">
@@ -150,15 +243,8 @@ export default async function Home() {
 
       {/* hero */}
       <section className="relative">
-        {/* growth-rings ornament */}
-        <div
-          aria-hidden
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background:
-              'repeating-radial-gradient(circle at 78% 38%, transparent 0px, transparent 89px, rgba(88,119,71,0.06) 90px, transparent 91px)',
-          }}
-        />
+        {/* korina wood-grain ornament */}
+        <WoodGrain className="absolute right-0 top-0 h-full w-[55%] hidden md:block" />
         <div
           aria-hidden
           className="absolute right-[-10%] top-[10%] w-[480px] h-[480px] rounded-full bg-moss-500/10 blur-[120px] pointer-events-none"
@@ -196,9 +282,13 @@ export default async function Home() {
             </div>
           </div>
 
-          {/* app preview */}
-          <div className="rise relative max-w-sm w-full mx-auto lg:ml-auto" style={{ animationDelay: '150ms' }}>
-            <div className="bg-paper-50 border border-black/[0.09] rounded-3xl p-5 shadow-[0_24px_80px_-24px_rgba(0,0,0,0.12)]">
+          {/* app preview — phone frame */}
+          <div className="rise relative max-w-[330px] w-full mx-auto lg:ml-auto" style={{ animationDelay: '150ms' }}>
+            <div className="rounded-[2.8rem] border-[9px] border-ink bg-paper-50 shadow-[0_44px_90px_-32px_rgba(29,31,28,0.4)] overflow-hidden">
+              <div className="h-8 flex items-center justify-center">
+                <span className="w-16 h-1.5 rounded-full bg-paper-300" />
+              </div>
+              <div className="px-5 pb-7">
               <div className="flex items-center justify-between mb-4">
                 <span className="text-[11px] uppercase tracking-[0.18em] text-ink-2">Today</span>
                 <span className="flex items-center gap-1.5 font-mono text-[11px] text-honey-600 tabular-nums">
@@ -246,8 +336,25 @@ export default async function Home() {
                   <span className="text-[10px] text-ink-2">Done</span>
                 </div>
               </div>
+              </div>
             </div>
           </div>
+        </div>
+
+        {/* food ticker */}
+        <div className="marquee relative overflow-hidden py-5 border-t border-black/[0.07]">
+          <div className="marquee-track flex gap-3 w-max pr-3">
+            {TICKER.map(([name, score]) => (
+              <TickerChip key={name} name={name} score={score} />
+            ))}
+            <span aria-hidden className="flex gap-3">
+              {TICKER.map(([name, score]) => (
+                <TickerChip key={`dup-${name}`} name={name} score={score} />
+              ))}
+            </span>
+          </div>
+          <div className="absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-paper to-transparent pointer-events-none" />
+          <div className="absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-paper to-transparent pointer-events-none" />
         </div>
 
         {/* data strip */}
@@ -270,7 +377,7 @@ export default async function Home() {
       {/* clean score */}
       <section id="score" className="max-w-6xl mx-auto px-5 md:px-8 py-24 md:py-32 grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
         <Reveal className="order-2 lg:order-1">
-          <div className="bg-paper-50 border border-black/[0.09] rounded-3xl p-6 max-w-sm mx-auto lg:mx-0">
+          <div className="lift bg-paper-50 border border-black/[0.09] rounded-3xl p-6 max-w-sm mx-auto lg:mx-0">
             <p className="text-[11px] uppercase tracking-[0.18em] text-ink-2 mb-5">Clean score</p>
             <div className="flex items-center gap-5 mb-6">
               <ScoreRing score={92} size={72} />
@@ -365,7 +472,7 @@ export default async function Home() {
           </Reveal>
 
           <Reveal className="relative max-w-sm w-full mx-auto lg:ml-auto">
-            <div className="bg-paper-50 border border-black/[0.09] rounded-3xl p-5">
+            <div className="lift bg-paper-50 border border-black/[0.09] rounded-3xl p-5">
               <div className="flex items-center justify-between mb-4">
                 <span className="text-[11px] uppercase tracking-[0.18em] text-ink-2">Scan</span>
                 <span className="w-1.5 h-1.5 rounded-full bg-moss-700 animate-pulse" />
@@ -411,7 +518,10 @@ export default async function Home() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-8">
           {STEPS.map((s) => (
             <Reveal key={s.n} className="border-t border-black/[0.12] pt-6">
-              <p className="font-mono text-xs text-moss-700 mb-4 tabular-nums">{s.n}</p>
+              <div className="flex items-start justify-between mb-5">
+                <StepArt n={s.n} />
+                <p className="font-mono text-xs text-ink-3 tabular-nums">{s.n}</p>
+              </div>
               <h3 className="text-lg text-ink mb-3">{s.title}</h3>
               <p className="text-sm text-ink-2 leading-relaxed">{s.desc}</p>
             </Reveal>
@@ -431,7 +541,7 @@ export default async function Home() {
             {TESTIMONIALS.map((t) => (
               <Reveal
                 key={t.name}
-                className="bg-paper-50 border border-black/[0.07] rounded-3xl p-7"
+                className="lift bg-paper-50 border border-black/[0.07] rounded-3xl p-7"
               >
                 <figure className="flex flex-col h-full">
                 <blockquote className="text-ink/90 leading-relaxed flex-1 mb-7">
@@ -455,14 +565,19 @@ export default async function Home() {
 
       {/* CTA */}
       <section className="relative border-t border-black/[0.07] overflow-hidden">
-        <div
+        {/* half-buried growth rings */}
+        <svg
           aria-hidden
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background:
-              'repeating-radial-gradient(circle at 50% 130%, transparent 0px, transparent 79px, rgba(88,119,71,0.07) 80px, transparent 81px)',
-          }}
-        />
+          viewBox="0 0 800 400"
+          className="absolute left-1/2 -translate-x-1/2 bottom-[-200px] w-[800px] pointer-events-none"
+          fill="none"
+          strokeWidth="16"
+          strokeLinecap="round"
+        >
+          <circle cx="400" cy="400" r="180" stroke="var(--color-ink)" opacity="0.06" />
+          <circle cx="400" cy="400" r="260" stroke="var(--color-moss-600)" opacity="0.14" strokeDasharray="1230 400" transform="rotate(140 400 400)" />
+          <circle cx="400" cy="400" r="340" stroke="var(--color-honey-600)" opacity="0.12" strokeDasharray="1600 535" transform="rotate(155 400 400)" />
+        </svg>
         <Reveal className="relative max-w-2xl mx-auto px-5 md:px-8 py-24 md:py-32 text-center">
           <h2 className="font-display text-4xl md:text-5xl text-ink leading-tight mb-5">
             Start your first ring today.
