@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { DIET_LABELS, type Diet } from '@/lib/profile'
 
 const FoodItem = z.object({
   name: z.string().describe('Short food name, e.g. "Grilled chicken breast"'),
@@ -69,6 +70,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Send { image: base64, media_type }.' }, { status: 400 })
   }
 
+  // Personalize: flag foods that conflict with the user's diet.
+  const { data: prof } = await supabase.from('profiles').select('diet').maybeSingle()
+  const diet = prof?.diet as Diet | undefined
+  const dietNote =
+    diet && diet !== 'none'
+      ? `\nThis user follows a ${DIET_LABELS[diet]} diet. If any food in the photo conflicts with it, add a flag stating the conflict (e.g. "Contains meat — not vegetarian").`
+      : ''
+
   const client = new Anthropic()
 
   try {
@@ -76,7 +85,7 @@ export async function POST(req: Request) {
       model: 'claude-opus-4-8',
       max_tokens: 16000,
       thinking: { type: 'adaptive' },
-      system: SYSTEM,
+      system: SYSTEM + dietNote,
       messages: [
         {
           role: 'user',

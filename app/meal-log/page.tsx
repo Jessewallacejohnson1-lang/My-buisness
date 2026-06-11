@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useState, useEffect, useCallback } from 'react'
-import { getFoodLogs, addFoodLog, deleteFoodLog, localDate, type FoodLog } from '@/lib/db'
+import { getFoodLogs, addFoodLog, deleteFoodLog, getProfile, localDate, type FoodLog } from '@/lib/db'
 import { searchFood, toLogEntry, type FoodResult } from '@/lib/food-search'
 import AppShell from '../components/AppShell'
 import ScoreRing, { scoreTone } from '../components/ScoreRing'
@@ -207,6 +207,7 @@ function SearchSheet({
 
 export default function MealLogPage() {
   const [logs, setLogs] = useState<FoodLog[]>([])
+  const [goalCalState, setGoalCalState] = useState(2100)
   const [loading, setLoading] = useState(true)
   const [sheet, setSheet] = useState<Meal | null>(null)
 
@@ -214,7 +215,12 @@ export default function MealLogPage() {
 
   const load = useCallback(async () => {
     try {
-      setLogs(await getFoodLogs(localDate()))
+      const [foods, prof] = await Promise.all([
+        getFoodLogs(localDate()),
+        getProfile().catch(() => null),
+      ])
+      setLogs(foods)
+      if (prof) setGoalCalState(prof.goal_calories)
     } finally {
       setLoading(false)
     }
@@ -239,7 +245,7 @@ export default function MealLogPage() {
   const avgScore = logs.length
     ? Math.round(logs.reduce((s, f) => s + f.score, 0) / logs.length)
     : 0
-  const goalCal = 2100
+  const goalCal = goalCalState
   const tone = scoreTone(avgScore || 100)
 
   return (

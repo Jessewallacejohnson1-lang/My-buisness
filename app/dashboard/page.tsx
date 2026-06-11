@@ -1,26 +1,29 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useState, useEffect, useCallback } from 'react'
 import {
   getFoodLogs,
   getWorkouts,
   getStreak,
   getWeeklyCalories,
+  getProfile,
   toggleWorkoutComplete,
   localDate,
   type FoodLog,
   type Workout,
 } from '@/lib/db'
+import type { Profile } from '@/lib/profile'
 import AppShell from '../components/AppShell'
 import { GrowthRings, useCountUp } from '../components/GrowthRings'
 import { IconBarcode, IconBowl, IconCheck, IconFlame, IconPlus } from '../components/Icons'
 
-const GOAL_CAL = 2100
-const GOAL_PROTEIN = 140
-const GOAL_CARBS = 210
-const GOAL_FAT = 70
-const GOAL_FIBRE = 30
+const DEFAULT_CAL = 2100
+const DEFAULT_PROTEIN = 140
+const DEFAULT_CARBS = 210
+const DEFAULT_FAT = 70
+const DEFAULT_FIBRE = 30
 
 function scoreColor(score: number) {
   if (score >= 70) return 'var(--color-moss-700)'
@@ -76,34 +79,57 @@ function Skeleton() {
 }
 
 export default function DashboardPage() {
+  const router = useRouter()
   const [logs, setLogs] = useState<FoodLog[]>([])
   const [workouts, setWorkouts] = useState<Workout[]>([])
   const [streak, setStreak] = useState(0)
   const [weekCals, setWeekCals] = useState<{ date: string; total: number }[]>([])
+  const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
 
   const today = localDate()
 
+  const GOAL_CAL = profile?.goal_calories ?? DEFAULT_CAL
+  const GOAL_PROTEIN = profile?.goal_protein ?? DEFAULT_PROTEIN
+  const GOAL_CARBS = profile?.goal_carbs ?? DEFAULT_CARBS
+  const GOAL_FAT = profile?.goal_fat ?? DEFAULT_FAT
+  const GOAL_FIBRE = profile?.goal_fibre ?? DEFAULT_FIBRE
+
+  const [needsOnboarding, setNeedsOnboarding] = useState(false)
+
   const load = useCallback(async () => {
     try {
-      const [foodLogs, todayWorkouts, streakCount, weekly] = await Promise.all([
+      const [foodLogs, todayWorkouts, streakCount, weekly, prof] = await Promise.all([
         getFoodLogs(localDate()),
         getWorkouts(localDate()),
         getStreak(),
         getWeeklyCalories(),
+        getProfile().catch(() => null),
       ])
+      if (!prof) {
+        setNeedsOnboarding(true)
+        return
+      }
+      setProfile(prof)
       setLogs(foodLogs)
       setWorkouts(todayWorkouts)
       setStreak(streakCount)
       setWeekCals(weekly)
-    } finally {
+      setLoading(false)
+    } catch {
       setLoading(false)
     }
   }, [])
 
   useEffect(() => {
+    // All state updates inside load() happen after awaits — nothing synchronous.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load()
   }, [load])
+
+  useEffect(() => {
+    if (needsOnboarding) router.push('/onboarding')
+  }, [needsOnboarding, router])
 
   const handleToggleWorkout = async (id: string, completed: boolean) => {
     setWorkouts((ws) => ws.map((w) => (w.id === id ? { ...w, completed: !completed } : w)))
@@ -153,6 +179,9 @@ export default function DashboardPage() {
             <h1 className="font-display text-3xl md:text-4xl text-ink">{greeting()}</h1>
             <p className="font-mono text-[11px] uppercase tracking-wider text-ink-2 mt-2">
               {dateLabel}
+              <Link href="/onboarding" className="ml-3 normal-case tracking-normal font-sans text-ink-3 hover:text-moss-700 transition-colors">
+                Edit goals
+              </Link>
             </p>
           </div>
           <p className="hidden md:block text-sm text-ink-2">

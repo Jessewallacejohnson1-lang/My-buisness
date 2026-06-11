@@ -1,6 +1,33 @@
 import { createClient } from './supabase/client'
+import { computeTargets, type Profile, type ProfileAnswers } from './profile'
 
 const supabase = createClient()
+
+export async function getProfile(): Promise<Profile | null> {
+  const { data, error } = await supabase.from('profiles').select('*').maybeSingle()
+  if (error) throw error
+  return data
+}
+
+export async function saveProfile(answers: ProfileAnswers): Promise<Profile> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not signed in')
+  const row = {
+    user_id: user.id,
+    ...answers,
+    ...computeTargets(answers),
+    updated_at: new Date().toISOString(),
+  }
+  const { data, error } = await supabase
+    .from('profiles')
+    .upsert(row, { onConflict: 'user_id' })
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
 
 export type FoodLog = {
   id: string
