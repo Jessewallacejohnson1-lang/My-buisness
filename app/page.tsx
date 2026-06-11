@@ -2,14 +2,14 @@ import Link from 'next/link'
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-900 font-sans">
+    <div className="min-h-screen bg-stone-50 text-stone-900" style={{ fontFamily: 'var(--font-nunito), sans-serif' }}>
 
       {/* Navbar */}
       <nav className="flex items-center justify-between px-6 py-5 max-w-6xl mx-auto">
-        <span className="text-2xl font-bold text-green-800">Grove</span>
+        <span className="text-xl font-bold text-green-800 tracking-[0.2em] uppercase" style={{ fontFamily: 'var(--font-nunito), sans-serif' }}>Grove</span>
         <div className="flex items-center gap-6">
-          <a href="#features" className="text-stone-500 hover:text-stone-800 text-sm transition-colors">Features</a>
-          <a href="#how-it-works" className="text-stone-500 hover:text-stone-800 text-sm transition-colors">How it works</a>
+          <Link href="/dashboard" className="text-stone-500 hover:text-stone-800 text-sm transition-colors">Dashboard</Link>
+          <Link href="/meal-log" className="text-stone-500 hover:text-stone-800 text-sm transition-colors">Meal log</Link>
           <Link href="/scan" className="border border-green-800 text-green-800 px-5 py-2.5 rounded-full text-sm font-medium hover:bg-green-50 transition-colors">
             📷 Scan food
           </Link>
@@ -25,7 +25,7 @@ export default function Home() {
           <span className="inline-block bg-amber-100 text-amber-800 text-xs font-semibold px-3 py-1 rounded-full mb-6 tracking-widest uppercase">
             Your wellness companion
           </span>
-          <h1 className="text-5xl font-bold leading-tight text-stone-900 mb-6">
+          <h1 className="text-5xl leading-tight text-stone-900 mb-6" style={{ fontFamily: 'var(--font-dm-serif), serif', fontWeight: 400 }}>
             Feel good,<br />inside and out.
           </h1>
           <p className="text-lg text-stone-500 mb-10 leading-relaxed max-w-md">
@@ -99,7 +99,7 @@ export default function Home() {
       {/* Features */}
       <section id="features" className="bg-amber-50 py-24">
         <div className="max-w-6xl mx-auto px-6">
-          <h2 className="text-3xl font-bold text-center text-stone-900 mb-4">Everything you need</h2>
+          <h2 className="text-4xl text-center text-stone-900 mb-4" style={{ fontFamily: 'var(--font-dm-serif), serif', fontWeight: 400 }}>Everything you need</h2>
           <p className="text-center text-stone-500 mb-14 max-w-xl mx-auto">
             No fluff. Just the tools that actually help you build sustainable habits.
           </p>
@@ -133,7 +133,7 @@ export default function Home() {
 
       {/* How it works */}
       <section id="how-it-works" className="py-24 max-w-6xl mx-auto px-6">
-        <h2 className="text-3xl font-bold text-center text-stone-900 mb-4">Simple by design</h2>
+        <h2 className="text-4xl text-center text-stone-900 mb-4" style={{ fontFamily: 'var(--font-dm-serif), serif', fontWeight: 400 }}>Simple by design</h2>
         <p className="text-center text-stone-500 mb-16 max-w-xl mx-auto">
           Getting started takes two minutes. Building the habit takes consistency — we make that easy.
         </p>
@@ -166,10 +166,126 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Barcode scanner spotlight */}
+      <section className="py-24 bg-stone-900 overflow-hidden">
+        <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+          {/* Scanner mock */}
+          <div className="relative">
+            <div className="bg-stone-800 rounded-3xl p-6 border border-stone-700 shadow-2xl">
+              <div className="flex items-center justify-between mb-5">
+                <span className="text-stone-400 text-xs tracking-widest uppercase">Scan food</span>
+                <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+              </div>
+              {/* Viewfinder */}
+              <div className="relative bg-stone-900 rounded-2xl aspect-video flex items-center justify-center overflow-hidden">
+                <div className="absolute inset-0 opacity-20" style={{
+                  backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 30px, #6b7280 30px, #6b7280 31px), repeating-linear-gradient(90deg, transparent, transparent 30px, #6b7280 30px, #6b7280 31px)'
+                }} />
+                <div className="absolute inset-6 border-2 border-green-400 rounded-xl" style={{ boxShadow: '0 0 30px rgba(74,222,128,0.2)' }}>
+                  <span className="absolute -top-px left-4 right-4 h-px bg-green-400 opacity-80" style={{ animation: 'none' }} />
+                  <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-green-400 rounded-tl" />
+                  <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-green-400 rounded-tr" />
+                  <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-green-400 rounded-bl" />
+                  <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-green-400 rounded-br" />
+                </div>
+                <span className="text-stone-500 text-sm">Point at a barcode</span>
+              </div>
+              {/* Result card */}
+              <div className="mt-4 bg-stone-700/60 rounded-2xl p-4 flex items-center gap-4 border border-stone-600">
+                <div className="w-12 h-12 rounded-xl bg-amber-500/20 flex items-center justify-center text-2xl shrink-0">🥜</div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white font-semibold text-sm truncate">Kind Dark Chocolate Nuts</p>
+                  <p className="text-stone-400 text-xs mt-0.5">1 bar · 200 cal · 6g protein</p>
+                </div>
+                <button className="bg-green-600 text-white text-xs font-medium px-3 py-1.5 rounded-full shrink-0 hover:bg-green-500 transition-colors">
+                  Add
+                </button>
+              </div>
+            </div>
+            {/* Glow */}
+            <div className="absolute -inset-4 bg-green-800/20 rounded-3xl blur-3xl -z-10" />
+          </div>
+          {/* Copy */}
+          <div>
+            <span className="inline-block text-green-400 text-xs font-semibold tracking-widest uppercase mb-5">Instant logging</span>
+            <h2 className="text-4xl text-white mb-6 leading-snug" style={{ fontFamily: 'var(--font-dm-serif), serif', fontWeight: 400 }}>
+              Scan it.<br />Logged in a second.
+            </h2>
+            <p className="text-stone-400 leading-relaxed mb-8 text-lg">
+              Point your camera at any barcode and get the full nutrition breakdown instantly — calories, protein, carbs, fats. No typing, no searching.
+            </p>
+            <ul className="space-y-3 mb-10">
+              {[
+                'Works on 700,000+ packaged foods',
+                'Instantly adds to your daily log',
+                'Remembers your frequent foods',
+              ].map((item) => (
+                <li key={item} className="flex items-center gap-3 text-stone-300 text-sm">
+                  <span className="w-5 h-5 rounded-full bg-green-800 border border-green-600 flex items-center justify-center shrink-0">
+                    <svg viewBox="0 0 10 10" className="w-3 h-3 text-green-400" fill="none">
+                      <path d="M2 5l2 2 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </span>
+                  {item}
+                </li>
+              ))}
+            </ul>
+            <Link href="/scan" className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-500 text-white px-7 py-3.5 rounded-full font-medium transition-colors">
+              Try the scanner
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Testimonials */}
+      <section className="py-24 bg-amber-50">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="text-center mb-14">
+            <span className="text-amber-700 text-xs font-semibold tracking-widest uppercase block mb-3">Real people, real results</span>
+            <h2 className="text-4xl text-stone-900" style={{ fontFamily: 'var(--font-dm-serif), serif', fontWeight: 400 }}>
+              The habit sticks this time
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              {
+                quote: "I've tried every fitness app. Grove is the only one I've kept open for more than a week. The scanner alone saves me ten minutes a day.",
+                name: 'Maya R.',
+                detail: 'Lost 14 lbs in 3 months',
+                avatar: '🧘‍♀️',
+              },
+              {
+                quote: "Seeing the calendar fill up with green streaks is more motivating than any notification or reward badge I've ever earned.",
+                name: 'Jordan T.',
+                detail: '62-day streak',
+                avatar: '🏃‍♂️',
+              },
+              {
+                quote: "I finally understand what I'm actually eating. The macro breakdown changed how I cook, not just how I log.",
+                name: 'Priya S.',
+                detail: 'Hit protein goal 47 days straight',
+                avatar: '🥗',
+              },
+            ].map((t) => (
+              <div key={t.name} className="bg-white rounded-2xl p-7 border border-stone-100 shadow-sm flex flex-col">
+                <p className="text-stone-600 leading-relaxed flex-1 mb-6">&ldquo;{t.quote}&rdquo;</p>
+                <div className="flex items-center gap-3 pt-5 border-t border-stone-100">
+                  <span className="text-2xl">{t.avatar}</span>
+                  <div>
+                    <p className="font-semibold text-stone-900 text-sm">{t.name}</p>
+                    <p className="text-stone-400 text-xs">{t.detail}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* CTA */}
       <section className="bg-green-800 py-24 text-white text-center">
         <div className="max-w-2xl mx-auto px-6">
-          <h2 className="text-4xl font-bold mb-4">Ready to start?</h2>
+          <h2 className="text-5xl mb-4" style={{ fontFamily: 'var(--font-dm-serif), serif', fontWeight: 400 }}>Ready to start?</h2>
           <p className="text-green-200 text-lg mb-10">
             Join the waitlist and be the first to know when we launch.
           </p>
@@ -188,7 +304,7 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="bg-stone-900 text-stone-400 py-10 text-center text-sm">
-        <p className="text-white font-semibold text-xl mb-2">Grove</p>
+        <p className="text-white font-bold text-xl mb-2 tracking-[0.2em] uppercase">Grove</p>
         <p>© 2026 Grove. Built with care.</p>
       </footer>
     </div>
