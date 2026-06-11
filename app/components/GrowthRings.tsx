@@ -9,7 +9,7 @@ type RingSpec = {
 }
 
 /**
- * Concentric growth rings — Grove's signature dial.
+ * Concentric growth rings — Korina's signature dial.
  * Rings sweep in from zero on mount, outermost first.
  */
 export function GrowthRings({
@@ -45,7 +45,7 @@ export function GrowthRings({
                 cy="100"
                 r={r}
                 fill="none"
-                stroke="rgba(255,255,255,0.06)"
+                stroke="rgba(0,0,0,0.07)"
                 strokeWidth={stroke}
               />
               <circle

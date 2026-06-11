@@ -91,8 +91,8 @@ export default function WorkoutsPage() {
       <div className="max-w-lg md:max-w-2xl mx-auto px-5 md:px-8 pt-6 md:pt-10">
         <header className="rise mb-8 flex items-end justify-between">
           <div>
-            <h1 className="font-display text-3xl text-cream">Train</h1>
-            <p className="font-mono text-[11px] uppercase tracking-wider text-fog mt-2">
+            <h1 className="font-display text-3xl text-ink">Train</h1>
+            <p className="font-mono text-[11px] uppercase tracking-wider text-ink-2 mt-2">
               {new Date().toLocaleDateString('en-US', {
                 weekday: 'long',
                 month: 'long',
@@ -101,8 +101,8 @@ export default function WorkoutsPage() {
             </p>
           </div>
           {workouts.length > 0 && (
-            <p className="font-mono text-sm text-fog tabular-nums">
-              <span className="text-cream">{done}</span>/{workouts.length} done
+            <p className="font-mono text-sm text-ink-2 tabular-nums">
+              <span className="text-ink">{done}</span>/{workouts.length} done
             </p>
           )}
         </header>
@@ -112,7 +112,7 @@ export default function WorkoutsPage() {
             {[0, 1, 2].map((i) => (
               <div
                 key={i}
-                className="h-16 bg-bark-900 border border-white/[0.06] rounded-2xl animate-pulse"
+                className="h-16 bg-paper-50 border border-black/[0.07] rounded-2xl animate-pulse"
               />
             ))}
           </div>
@@ -120,22 +120,22 @@ export default function WorkoutsPage() {
           <>
             {workouts.length > 0 && (
               <section className="rise mb-9" style={{ animationDelay: '60ms' }}>
-                <h2 className="text-[11px] uppercase tracking-[0.18em] text-fog mb-3 px-0.5">
+                <h2 className="text-[11px] uppercase tracking-[0.18em] text-ink-2 mb-3 px-0.5">
                   Logged today
                 </h2>
                 <div className="space-y-2">
                   {workouts.map((w) => (
                     <div
                       key={w.id}
-                      className="bg-bark-900 border border-white/[0.06] rounded-2xl px-4 py-3.5 flex items-center gap-3.5"
+                      className="bg-paper-50 border border-black/[0.07] rounded-2xl px-4 py-3.5 flex items-center gap-3.5"
                     >
                       <button
                         onClick={() => handleToggle(w)}
                         aria-label={w.completed ? `Mark ${w.name} incomplete` : `Mark ${w.name} complete`}
                         className={`w-7 h-7 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
                           w.completed
-                            ? 'bg-moss-400 border-moss-400 text-bark-950'
-                            : 'border-bark-600 hover:border-moss-500'
+                            ? 'bg-moss-700 border-moss-700 text-white'
+                            : 'border-paper-300 hover:border-moss-600'
                         }`}
                       >
                         {w.completed && <IconCheck className="w-4 h-4" strokeWidth={2.5} />}
@@ -143,12 +143,12 @@ export default function WorkoutsPage() {
                       <div className="flex-1 min-w-0">
                         <p
                           className={`text-sm truncate ${
-                            w.completed ? 'line-through text-fog-dim' : 'text-cream'
+                            w.completed ? 'line-through text-ink-3' : 'text-ink'
                           }`}
                         >
                           {w.name}
                         </p>
-                        <p className="font-mono text-[11px] text-fog-dim mt-0.5 tabular-nums">
+                        <p className="font-mono text-[11px] text-ink-3 mt-0.5 tabular-nums">
                           {w.exercises.length > 0 ? `${w.exercises.length} exercises · ` : ''}
                           {w.duration_min} min
                         </p>
@@ -156,7 +156,7 @@ export default function WorkoutsPage() {
                       <button
                         onClick={() => handleDelete(w.id)}
                         aria-label={`Delete ${w.name}`}
-                        className="text-fog-dim hover:text-clay-300 transition-colors p-1 -m-1"
+                        className="text-ink-3 hover:text-clay-700 transition-colors p-1 -m-1"
                       >
                         <IconX className="w-4 h-4" />
                       </button>
@@ -167,7 +167,7 @@ export default function WorkoutsPage() {
             )}
 
             <section className="rise mb-9" style={{ animationDelay: '120ms' }}>
-              <h2 className="text-[11px] uppercase tracking-[0.18em] text-fog mb-3 px-0.5">
+              <h2 className="text-[11px] uppercase tracking-[0.18em] text-ink-2 mb-3 px-0.5">
                 Quick start
               </h2>
               <div className="space-y-2">
@@ -178,18 +178,18 @@ export default function WorkoutsPage() {
                       key={p.name}
                       onClick={() => handleAddPreset(p)}
                       disabled={adding || logged}
-                      className="w-full bg-bark-900 border border-white/[0.06] rounded-2xl px-4 py-3.5 flex items-center justify-between gap-3 text-left hover:border-moss-500/30 transition-colors disabled:opacity-40 disabled:hover:border-white/[0.06]"
+                      className="w-full bg-paper-50 border border-black/[0.07] rounded-2xl px-4 py-3.5 flex items-center justify-between gap-3 text-left hover:border-moss-700/30 transition-colors disabled:opacity-40 disabled:hover:border-black/[0.07]"
                     >
                       <div className="min-w-0">
-                        <p className="text-sm text-cream truncate">{p.name}</p>
-                        <p className="font-mono text-[11px] text-fog-dim mt-0.5 tabular-nums">
+                        <p className="text-sm text-ink truncate">{p.name}</p>
+                        <p className="font-mono text-[11px] text-ink-3 mt-0.5 tabular-nums">
                           {p.exercises.length} exercises · {p.duration_min} min
                         </p>
                       </div>
                       {logged ? (
-                        <IconCheck className="w-4 h-4 text-moss-400 shrink-0" />
+                        <IconCheck className="w-4 h-4 text-moss-700 shrink-0" />
                       ) : (
-                        <IconPlus className="w-4 h-4 text-moss-300 shrink-0" />
+                        <IconPlus className="w-4 h-4 text-moss-700 shrink-0" />
                       )}
                     </button>
                   )
@@ -198,24 +198,24 @@ export default function WorkoutsPage() {
             </section>
 
             <section className="rise pb-4" style={{ animationDelay: '180ms' }}>
-              <h2 className="text-[11px] uppercase tracking-[0.18em] text-fog mb-3 px-0.5">
+              <h2 className="text-[11px] uppercase tracking-[0.18em] text-ink-2 mb-3 px-0.5">
                 Custom
               </h2>
               {!showCustom ? (
                 <button
                   onClick={() => setShowCustom(true)}
-                  className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl border border-dashed border-bark-600 text-fog text-sm hover:border-moss-500/50 hover:text-moss-300 transition-colors"
+                  className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl border border-dashed border-paper-300 text-ink-2 text-sm hover:border-moss-700/50 hover:text-moss-700 transition-colors"
                 >
                   <IconPlus className="w-4 h-4" /> Log a custom session
                 </button>
               ) : (
-                <div className="bg-bark-900 border border-white/[0.06] rounded-2xl p-4 space-y-3">
+                <div className="bg-paper-50 border border-black/[0.07] rounded-2xl p-4 space-y-3">
                   <input
                     autoFocus
                     value={customName}
                     onChange={(e) => setCustomName(e.target.value)}
                     placeholder="Session name"
-                    className="w-full bg-bark-800 border border-white/[0.07] rounded-xl px-4 py-3 text-sm text-cream placeholder:text-fog-dim focus:border-moss-500/50 focus:outline-none transition-colors"
+                    className="w-full bg-paper-100 border border-black/[0.08] rounded-xl px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:border-moss-700/50 focus:outline-none transition-colors"
                   />
                   <input
                     value={customDuration}
@@ -223,19 +223,19 @@ export default function WorkoutsPage() {
                     placeholder="Duration (minutes)"
                     type="number"
                     min={1}
-                    className="w-full bg-bark-800 border border-white/[0.07] rounded-xl px-4 py-3 text-sm text-cream placeholder:text-fog-dim focus:border-moss-500/50 focus:outline-none transition-colors"
+                    className="w-full bg-paper-100 border border-black/[0.08] rounded-xl px-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:border-moss-700/50 focus:outline-none transition-colors"
                   />
                   <div className="flex gap-2">
                     <button
                       onClick={() => setShowCustom(false)}
-                      className="flex-1 py-3 rounded-xl border border-white/[0.07] text-fog text-sm hover:text-cream hover:bg-bark-800 transition-colors"
+                      className="flex-1 py-3 rounded-xl border border-black/[0.08] text-ink-2 text-sm hover:text-ink hover:bg-paper-100 transition-colors"
                     >
                       Cancel
                     </button>
                     <button
                       onClick={handleAddCustom}
                       disabled={!customName.trim() || adding}
-                      className="flex-1 py-3 rounded-xl bg-moss-400 hover:bg-moss-300 text-bark-950 text-sm font-semibold transition-colors disabled:opacity-50"
+                      className="flex-1 py-3 rounded-xl bg-moss-700 hover:bg-moss-800 text-white text-sm font-semibold transition-colors disabled:opacity-50"
                     >
                       {adding ? 'Logging…' : 'Log session'}
                     </button>

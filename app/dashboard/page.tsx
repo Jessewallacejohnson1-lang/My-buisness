@@ -23,9 +23,9 @@ const GOAL_FAT = 70
 const GOAL_FIBRE = 30
 
 function scoreColor(score: number) {
-  if (score >= 70) return 'var(--color-moss-400)'
-  if (score >= 40) return 'var(--color-honey-400)'
-  return 'var(--color-clay-400)'
+  if (score >= 70) return 'var(--color-moss-700)'
+  if (score >= 40) return 'var(--color-honey-600)'
+  return 'var(--color-clay-700)'
 }
 
 function greeting() {
@@ -46,7 +46,7 @@ function Card({
 }) {
   return (
     <section
-      className={`rise bg-bark-900 border border-white/[0.06] rounded-2xl p-5 ${className}`}
+      className={`rise bg-paper-50 border border-black/[0.07] rounded-2xl p-5 ${className}`}
       style={{ animationDelay: `${delay}ms` }}
     >
       {children}
@@ -56,20 +56,20 @@ function Card({
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-[11px] uppercase tracking-[0.18em] text-fog mb-4">{children}</p>
+    <p className="text-[11px] uppercase tracking-[0.18em] text-ink-2 mb-4">{children}</p>
   )
 }
 
 function Skeleton() {
   return (
     <div className="max-w-5xl mx-auto px-5 md:px-8 pt-6 md:pt-10">
-      <div className="h-9 w-56 bg-bark-800 rounded-lg animate-pulse mb-8" />
+      <div className="h-9 w-56 bg-paper-100 rounded-lg animate-pulse mb-8" />
       <div className="grid grid-cols-2 lg:grid-cols-12 gap-3 md:gap-4">
-        <div className="col-span-2 lg:col-span-7 lg:row-span-2 h-80 bg-bark-900 border border-white/[0.06] rounded-2xl animate-pulse" />
-        <div className="col-span-1 lg:col-span-5 h-36 bg-bark-900 border border-white/[0.06] rounded-2xl animate-pulse" />
-        <div className="col-span-1 lg:col-span-5 h-36 bg-bark-900 border border-white/[0.06] rounded-2xl animate-pulse" />
-        <div className="col-span-2 lg:col-span-7 h-48 bg-bark-900 border border-white/[0.06] rounded-2xl animate-pulse" />
-        <div className="col-span-2 lg:col-span-5 h-48 bg-bark-900 border border-white/[0.06] rounded-2xl animate-pulse" />
+        <div className="col-span-2 lg:col-span-7 lg:row-span-2 h-80 bg-paper-50 border border-black/[0.07] rounded-2xl animate-pulse" />
+        <div className="col-span-1 lg:col-span-5 h-36 bg-paper-50 border border-black/[0.07] rounded-2xl animate-pulse" />
+        <div className="col-span-1 lg:col-span-5 h-36 bg-paper-50 border border-black/[0.07] rounded-2xl animate-pulse" />
+        <div className="col-span-2 lg:col-span-7 h-48 bg-paper-50 border border-black/[0.07] rounded-2xl animate-pulse" />
+        <div className="col-span-2 lg:col-span-5 h-48 bg-paper-50 border border-black/[0.07] rounded-2xl animate-pulse" />
       </div>
     </div>
   )
@@ -150,12 +150,12 @@ export default function DashboardPage() {
       <div className="max-w-5xl mx-auto px-5 md:px-8 pt-6 md:pt-10">
         <header className="rise mb-6 md:mb-8 flex items-end justify-between">
           <div>
-            <h1 className="font-display text-3xl md:text-4xl text-cream">{greeting()}</h1>
-            <p className="font-mono text-[11px] uppercase tracking-wider text-fog mt-2">
+            <h1 className="font-display text-3xl md:text-4xl text-ink">{greeting()}</h1>
+            <p className="font-mono text-[11px] uppercase tracking-wider text-ink-2 mt-2">
               {dateLabel}
             </p>
           </div>
-          <p className="hidden md:block text-sm text-fog">
+          <p className="hidden md:block text-sm text-ink-2">
             {logs.length === 0
               ? 'Nothing logged yet'
               : `${logs.length} food${logs.length !== 1 ? 's' : ''} logged`}
@@ -170,15 +170,15 @@ export default function DashboardPage() {
               <GrowthRings
                 size={210}
                 rings={[
-                  { pct: totalCal / GOAL_CAL, color: 'var(--color-honey-400)' },
-                  { pct: totalProtein / GOAL_PROTEIN, color: 'var(--color-moss-400)' },
+                  { pct: totalCal / GOAL_CAL, color: 'var(--color-honey-600)' },
+                  { pct: totalProtein / GOAL_PROTEIN, color: 'var(--color-moss-700)' },
                   { pct: avgScore / 100, color: scoreColor(avgScore || 100) },
                 ]}
               >
-                <span className="font-mono text-4xl text-cream tabular-nums">
+                <span className="font-mono text-4xl text-ink tabular-nums">
                   {calLeftAnimated.toLocaleString()}
                 </span>
-                <span className="text-[11px] uppercase tracking-[0.18em] text-fog mt-1">
+                <span className="text-[11px] uppercase tracking-[0.18em] text-ink-2 mt-1">
                   kcal left
                 </span>
               </GrowthRings>
@@ -188,29 +188,29 @@ export default function DashboardPage() {
                   {
                     label: 'Calories',
                     value: `${totalCal.toLocaleString()} / ${GOAL_CAL.toLocaleString()}`,
-                    color: 'bg-honey-400',
+                    color: 'bg-honey-600',
                   },
                   {
                     label: 'Protein',
                     value: `${Math.round(totalProtein)}g / ${GOAL_PROTEIN}g`,
-                    color: 'bg-moss-400',
+                    color: 'bg-moss-700',
                   },
                   {
                     label: 'Clean score',
                     value: logs.length ? `${avgScore} / 100` : '—',
-                    color: avgScore >= 70 || !logs.length ? 'bg-moss-400' : avgScore >= 40 ? 'bg-honey-400' : 'bg-clay-400',
+                    color: avgScore >= 70 || !logs.length ? 'bg-moss-700' : avgScore >= 40 ? 'bg-honey-600' : 'bg-clay-700',
                   },
                 ].map((row) => (
                   <div key={row.label} className="flex items-center justify-between gap-4">
-                    <span className="flex items-center gap-2.5 text-sm text-fog">
+                    <span className="flex items-center gap-2.5 text-sm text-ink-2">
                       <span className={`w-2 h-2 rounded-full ${row.color}`} />
                       {row.label}
                     </span>
-                    <span className="font-mono text-sm text-cream tabular-nums">{row.value}</span>
+                    <span className="font-mono text-sm text-ink tabular-nums">{row.value}</span>
                   </div>
                 ))}
                 {logs.length === 0 && (
-                  <p className="text-sm text-fog-dim leading-relaxed pt-2">
+                  <p className="text-sm text-ink-3 leading-relaxed pt-2">
                     Log your first food and the rings start to grow.
                   </p>
                 )}
@@ -223,18 +223,18 @@ export default function DashboardPage() {
             <div className="flex items-start justify-between">
               <Eyebrow>Streak</Eyebrow>
               <IconFlame
-                className={`w-5 h-5 ${streak > 0 ? 'text-honey-400' : 'text-fog-dim'}`}
+                className={`w-5 h-5 ${streak > 0 ? 'text-honey-600' : 'text-ink-3'}`}
               />
             </div>
-            <p className="font-mono text-4xl text-cream tabular-nums">{streak}</p>
-            <p className="text-sm text-fog mt-1">{streak === 1 ? 'day' : 'days'} in a row</p>
+            <p className="font-mono text-4xl text-ink tabular-nums">{streak}</p>
+            <p className="text-sm text-ink-2 mt-1">{streak === 1 ? 'day' : 'days'} in a row</p>
             <div className="flex gap-1.5 mt-4">
               {weekCals.map((d) => (
                 <span
                   key={d.date}
                   className={`h-1.5 flex-1 rounded-full ${
-                    d.total > 0 ? 'bg-moss-400' : 'bg-bark-700'
-                  } ${d.date === today ? 'ring-1 ring-moss-300/40' : ''}`}
+                    d.total > 0 ? 'bg-moss-700' : 'bg-paper-200'
+                  } ${d.date === today ? 'ring-1 ring-moss-700/40' : ''}`}
                   title={d.date}
                 />
               ))}
@@ -246,19 +246,19 @@ export default function DashboardPage() {
             <Eyebrow>Macros</Eyebrow>
             <div className="space-y-3">
               {[
-                { label: 'Protein', value: totalProtein, goal: GOAL_PROTEIN, color: 'bg-moss-400' },
-                { label: 'Carbs', value: totalCarbs, goal: GOAL_CARBS, color: 'bg-honey-400' },
-                { label: 'Fat', value: totalFat, goal: GOAL_FAT, color: 'bg-clay-300' },
-                { label: 'Fibre', value: totalFibre, goal: GOAL_FIBRE, color: 'bg-moss-200' },
+                { label: 'Protein', value: totalProtein, goal: GOAL_PROTEIN, color: 'bg-moss-700' },
+                { label: 'Carbs', value: totalCarbs, goal: GOAL_CARBS, color: 'bg-honey-600' },
+                { label: 'Fat', value: totalFat, goal: GOAL_FAT, color: 'bg-clay-700' },
+                { label: 'Fibre', value: totalFibre, goal: GOAL_FIBRE, color: 'bg-moss-400' },
               ].map((m) => (
                 <div key={m.label}>
                   <div className="flex justify-between items-baseline mb-1">
-                    <span className="text-xs text-fog">{m.label}</span>
-                    <span className="font-mono text-[11px] text-fog tabular-nums">
-                      <span className="text-cream">{Math.round(m.value)}</span>/{m.goal}g
+                    <span className="text-xs text-ink-2">{m.label}</span>
+                    <span className="font-mono text-[11px] text-ink-2 tabular-nums">
+                      <span className="text-ink">{Math.round(m.value)}</span>/{m.goal}g
                     </span>
                   </div>
-                  <div className="h-1 bg-bark-700 rounded-full overflow-hidden">
+                  <div className="h-1 bg-paper-200 rounded-full overflow-hidden">
                     <div
                       className={`h-full rounded-full ${m.color} transition-all duration-700`}
                       style={{ width: `${Math.min(100, (m.value / m.goal) * 100)}%` }}
@@ -279,22 +279,22 @@ export default function DashboardPage() {
                 return (
                   <div key={d.date} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
                     {d.total > 0 && (
-                      <span className="font-mono text-[9px] text-fog-dim tabular-nums">
+                      <span className="font-mono text-[9px] text-ink-3 tabular-nums">
                         {d.total.toLocaleString()}
                       </span>
                     )}
                     <div
                       className={`w-full rounded-md transition-all duration-700 ${
                         d.total === 0
-                          ? 'bg-bark-800 border border-white/[0.04]'
+                          ? 'bg-paper-100 border border-black/[0.05]'
                           : isToday
-                            ? 'bg-honey-400'
-                            : 'bg-moss-600'
+                            ? 'bg-honey-600'
+                            : 'bg-moss-500'
                       }`}
                       style={{ height: d.total === 0 ? 4 : `${pct}%` }}
                     />
                     <span
-                      className={`text-[10px] ${isToday ? 'text-cream' : 'text-fog-dim'}`}
+                      className={`text-[10px] ${isToday ? 'text-ink' : 'text-ink-3'}`}
                     >
                       {weekLabels[i]}
                     </span>
@@ -302,11 +302,11 @@ export default function DashboardPage() {
                 )
               })}
             </div>
-            <div className="flex justify-between mt-4 pt-3 border-t border-white/[0.06]">
-              <span className="font-mono text-[11px] text-fog tabular-nums">
+            <div className="flex justify-between mt-4 pt-3 border-t border-black/[0.07]">
+              <span className="font-mono text-[11px] text-ink-2 tabular-nums">
                 avg {Math.round(avgWeekCal).toLocaleString()} kcal
               </span>
-              <span className="font-mono text-[11px] text-fog-dim tabular-nums">
+              <span className="font-mono text-[11px] text-ink-3 tabular-nums">
                 goal {GOAL_CAL.toLocaleString()} kcal
               </span>
             </div>
@@ -315,20 +315,20 @@ export default function DashboardPage() {
           {/* Today's training */}
           <Card className="col-span-2 lg:col-span-5" delay={280}>
             <div className="flex items-center justify-between mb-4">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-fog">Training</p>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-ink-2">Training</p>
               <Link
                 href="/workouts"
-                className="flex items-center gap-1 text-xs text-moss-300 hover:text-moss-200 transition-colors"
+                className="flex items-center gap-1 text-xs text-moss-700 hover:text-moss-400 transition-colors"
               >
                 <IconPlus className="w-3.5 h-3.5" /> Add
               </Link>
             </div>
             {workouts.length === 0 ? (
               <div className="py-4">
-                <p className="text-sm text-fog-dim mb-4">No session logged today.</p>
+                <p className="text-sm text-ink-3 mb-4">No session logged today.</p>
                 <Link
                   href="/workouts"
-                  className="inline-block bg-bark-800 hover:bg-bark-700 border border-white/[0.07] text-cream text-sm px-4 py-2.5 rounded-xl transition-colors"
+                  className="inline-block bg-paper-100 hover:bg-paper-200 border border-black/[0.08] text-ink text-sm px-4 py-2.5 rounded-xl transition-colors"
                 >
                   Start a workout
                 </Link>
@@ -342,8 +342,8 @@ export default function DashboardPage() {
                       aria-label={w.completed ? `Mark ${w.name} incomplete` : `Mark ${w.name} complete`}
                       className={`w-6 h-6 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
                         w.completed
-                          ? 'bg-moss-400 border-moss-400 text-bark-950'
-                          : 'border-bark-600 hover:border-moss-500'
+                          ? 'bg-moss-700 border-moss-700 text-white'
+                          : 'border-paper-300 hover:border-moss-600'
                       }`}
                     >
                       {w.completed && <IconCheck className="w-3.5 h-3.5" strokeWidth={2.5} />}
@@ -351,12 +351,12 @@ export default function DashboardPage() {
                     <div className="flex-1 min-w-0">
                       <p
                         className={`text-sm truncate ${
-                          w.completed ? 'line-through text-fog-dim' : 'text-cream'
+                          w.completed ? 'line-through text-ink-3' : 'text-ink'
                         }`}
                       >
                         {w.name}
                       </p>
-                      <p className="font-mono text-[11px] text-fog-dim tabular-nums">
+                      <p className="font-mono text-[11px] text-ink-3 tabular-nums">
                         {w.exercises.length > 0 ? `${w.exercises.length} exercises · ` : ''}
                         {w.duration_min} min
                       </p>
@@ -370,23 +370,23 @@ export default function DashboardPage() {
           {/* Quick actions — mobile only; desktop has the rail */}
           <Link
             href="/meal-log"
-            className="rise md:hidden col-span-1 bg-bark-900 border border-white/[0.06] rounded-2xl p-5 hover:border-moss-500/30 transition-colors"
+            className="rise md:hidden col-span-1 bg-paper-50 border border-black/[0.07] rounded-2xl p-5 hover:border-moss-700/30 transition-colors"
             style={{ animationDelay: '340ms' }}
           >
-            <IconBowl className="w-5 h-5 text-moss-400 mb-3" />
-            <p className="text-sm text-cream">Log a meal</p>
-            <p className="font-mono text-[11px] text-fog-dim mt-0.5 tabular-nums">
+            <IconBowl className="w-5 h-5 text-moss-700 mb-3" />
+            <p className="text-sm text-ink">Log a meal</p>
+            <p className="font-mono text-[11px] text-ink-3 mt-0.5 tabular-nums">
               {logs.length} today
             </p>
           </Link>
           <Link
             href="/scan"
-            className="rise md:hidden col-span-1 bg-bark-900 border border-white/[0.06] rounded-2xl p-5 hover:border-moss-500/30 transition-colors"
+            className="rise md:hidden col-span-1 bg-paper-50 border border-black/[0.07] rounded-2xl p-5 hover:border-moss-700/30 transition-colors"
             style={{ animationDelay: '380ms' }}
           >
-            <IconBarcode className="w-5 h-5 text-moss-400 mb-3" />
-            <p className="text-sm text-cream">Scan a barcode</p>
-            <p className="text-[11px] text-fog-dim mt-0.5">instant log</p>
+            <IconBarcode className="w-5 h-5 text-moss-700 mb-3" />
+            <p className="text-sm text-ink">Scan a barcode</p>
+            <p className="text-[11px] text-ink-3 mt-0.5">instant log</p>
           </Link>
         </div>
       </div>

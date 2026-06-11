@@ -25,14 +25,14 @@ npm run lint      # Run ESLint
 - **`lib/food-search.ts`** — Open Food Facts search/barcode lookup, clean-score algorithm, `toLogEntry()` (strips display-only fields before insert)
 - **`supabase/migration-auth.sql`** — per-user `user_id` columns + RLS policies (run in Supabase SQL editor)
 
-## Design system ("forest at dusk")
+## Design system (white minimal)
 
 Defined as Tailwind v4 `@theme` tokens in `app/globals.css`:
-- **Surfaces** `bark-950…600` (green-tinted darks — never neutral black), hairline borders `border-white/[0.06]`
-- **Text** `cream` (primary), `fog` (secondary), `fog-dim` (tertiary)
-- **Accents** `moss-*` (primary/clean/positive), `honey-*` (energy/calories/moderate), `clay-*` (warnings/avoid)
+- **Surfaces** `paper` (white) + `paper-50…300` (warm tints), hairline borders `border-black/[0.07]`
+- **Text** `ink` (primary), `ink-2` (secondary), `ink-3` (tertiary)
+- **Accents** reserved for data only: `moss-*` (clean/positive, buttons moss-700), `honey-*` (energy/moderate), `clay-*` (warnings/avoid)
 - **Type roles** `font-display` DM Serif Display (wordmark, H1s) · `font-sans` Outfit (UI) · `font-mono` Geist Mono (all numbers/data, with `tabular-nums`)
-- Score tones: ≥70 moss, 40–69 honey, <40 clay (`scoreTone()` in `ScoreRing.tsx`)
+- Score tones: ≥70 moss-600, 40–69 honey-600, <40 clay-700 (`scoreTone()` in `ScoreRing.tsx`)
 - Stored badge `icon`/`color` fields in old DB rows are light-theme legacy — ignore them and restyle at render time
 - Motion: `.rise` entrance (stagger via inline `animationDelay`), `Reveal` for scroll, `prefers-reduced-motion` respected
 

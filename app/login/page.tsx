@@ -58,15 +58,15 @@ function LoginForm() {
   if (checkEmail) {
     return (
       <div className="text-center rise">
-        <div className="mx-auto mb-6 w-14 h-14 rounded-full border border-moss-500/40 bg-moss-500/10 flex items-center justify-center">
-          <svg viewBox="0 0 24 24" className="w-6 h-6 text-moss-300" fill="none" stroke="currentColor" strokeWidth="1.5">
+        <div className="mx-auto mb-6 w-14 h-14 rounded-full border border-moss-700/40 bg-moss-700/10 flex items-center justify-center">
+          <svg viewBox="0 0 24 24" className="w-6 h-6 text-moss-700" fill="none" stroke="currentColor" strokeWidth="1.5">
             <rect x="3" y="5" width="18" height="14" rx="2" />
             <path d="M3 7l9 6 9-6" />
           </svg>
         </div>
-        <h1 className="font-display text-2xl text-cream mb-2">Check your email</h1>
-        <p className="text-fog text-sm leading-relaxed max-w-xs mx-auto">
-          We sent a confirmation link to <span className="text-cream">{email}</span>.
+        <h1 className="font-display text-2xl text-ink mb-2">Check your email</h1>
+        <p className="text-ink-2 text-sm leading-relaxed max-w-xs mx-auto">
+          We sent a confirmation link to <span className="text-ink">{email}</span>.
           Open it on this device to start tracking.
         </p>
       </div>
@@ -76,10 +76,10 @@ function LoginForm() {
   return (
     <div className="w-full max-w-sm rise">
       <div className="text-center mb-8">
-        <Link href="/" className="font-display text-cream text-2xl tracking-[0.25em] uppercase">
-          Grove
+        <Link href="/" className="font-display text-ink text-2xl tracking-[0.25em] uppercase">
+          Korina
         </Link>
-        <p className="text-fog text-sm mt-3">
+        <p className="text-ink-2 text-sm mt-3">
           {mode === 'signin' ? 'Welcome back. Pick up the streak.' : 'Start your first ring today.'}
         </p>
       </div>
@@ -94,7 +94,7 @@ function LoginForm() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="Email"
-            className="w-full bg-bark-800 border border-white/[0.07] rounded-xl px-4 py-3.5 text-sm text-cream placeholder:text-fog-dim focus:border-moss-500/50 focus:outline-none transition-colors"
+            className="w-full bg-paper-100 border border-black/[0.08] rounded-xl px-4 py-3.5 text-sm text-ink placeholder:text-ink-3 focus:border-moss-700/50 focus:outline-none transition-colors"
           />
         </label>
         <label className="block">
@@ -107,12 +107,12 @@ function LoginForm() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder={mode === 'signin' ? 'Password' : 'Password (6+ characters)'}
-            className="w-full bg-bark-800 border border-white/[0.07] rounded-xl px-4 py-3.5 text-sm text-cream placeholder:text-fog-dim focus:border-moss-500/50 focus:outline-none transition-colors"
+            className="w-full bg-paper-100 border border-black/[0.08] rounded-xl px-4 py-3.5 text-sm text-ink placeholder:text-ink-3 focus:border-moss-700/50 focus:outline-none transition-colors"
           />
         </label>
 
         {error && (
-          <p className="text-clay-300 text-xs leading-relaxed px-1" role="alert">
+          <p className="text-clay-700 text-xs leading-relaxed px-1" role="alert">
             {error}
           </p>
         )}
@@ -120,7 +120,7 @@ function LoginForm() {
         <button
           type="submit"
           disabled={busy}
-          className="w-full bg-moss-400 hover:bg-moss-300 text-bark-950 font-semibold py-3.5 rounded-xl text-sm transition-colors disabled:opacity-60"
+          className="w-full bg-moss-700 hover:bg-moss-800 text-white font-semibold py-3.5 rounded-xl text-sm transition-colors disabled:opacity-60"
         >
           {busy ? 'One moment…' : mode === 'signin' ? 'Sign in' : 'Create account'}
         </button>
@@ -131,7 +131,7 @@ function LoginForm() {
           setMode(mode === 'signin' ? 'signup' : 'signin')
           setError(null)
         }}
-        className="block mx-auto mt-6 text-sm text-fog hover:text-cream transition-colors"
+        className="block mx-auto mt-6 text-sm text-ink-2 hover:text-ink transition-colors"
       >
         {mode === 'signin' ? 'New here? Create an account' : 'Already tracking? Sign in'}
       </button>
@@ -148,7 +148,7 @@ export default function LoginPage() {
         className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            'repeating-radial-gradient(circle at 50% 120%, transparent 0px, transparent 79px, rgba(164,193,143,0.05) 80px, transparent 81px)',
+            'repeating-radial-gradient(circle at 50% 120%, transparent 0px, transparent 79px, rgba(88,119,71,0.05) 80px, transparent 81px)',
         }}
       />
       <Suspense>

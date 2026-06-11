@@ -1,9 +1,9 @@
 export function scoreTone(score: number) {
   if (score >= 70)
-    return { stroke: 'var(--color-moss-400)', text: 'text-moss-300', word: 'Clean' }
+    return { stroke: 'var(--color-moss-700)', text: 'text-moss-700', word: 'Clean' }
   if (score >= 40)
-    return { stroke: 'var(--color-honey-400)', text: 'text-honey-300', word: 'Moderate' }
-  return { stroke: 'var(--color-clay-400)', text: 'text-clay-300', word: 'Avoid' }
+    return { stroke: 'var(--color-honey-600)', text: 'text-honey-600', word: 'Moderate' }
+  return { stroke: 'var(--color-clay-700)', text: 'text-clay-700', word: 'Avoid' }
 }
 
 /** Small clean-score ring used on food rows and search results. */
@@ -20,7 +20,7 @@ export default function ScoreRing({ score, size = 44 }: { score: number; size?: 
           cy="18"
           r={r}
           fill="none"
-          stroke="rgba(255,255,255,0.08)"
+          stroke="rgba(0,0,0,0.09)"
           strokeWidth="3"
         />
         <circle

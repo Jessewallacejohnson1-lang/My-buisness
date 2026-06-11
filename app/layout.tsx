@@ -21,13 +21,13 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "Grove — Eat clean. Train hard. Watch it compound.",
+  title: "Korina — Eat clean. Train hard. Watch it compound.",
   description:
-    "Grove scores every food you log from 1 to 100, tracks your training, and turns daily habits into visible growth.",
+    "Korina scores every food you log from 1 to 100, tracks your training, and turns daily habits into visible growth.",
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0a0d0b",
+  themeColor: "#ffffff",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",

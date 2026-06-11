@@ -1,35 +1,34 @@
 @import "tailwindcss";
 
 /*
-  Grove design system — "the forest at dusk"
-  Surfaces are green-tinted bark, never neutral black.
-  Data colors come from natural materials: moss / honey / clay.
+  Korina design system — white minimal.
+  Named for korina (white limba), the pale blonde tonewood: warm white
+  surfaces, near-black ink, color reserved for data only —
+  moss (clean), honey (energy), clay (avoid).
 */
 @theme {
   /* surfaces */
-  --color-bark-950: #0a0d0b;
-  --color-bark-900: #0f1411;
-  --color-bark-800: #151c18;
-  --color-bark-700: #1d2722;
-  --color-bark-600: #2b3830;
+  --color-paper: #ffffff;
+  --color-paper-50: #fafaf7;
+  --color-paper-100: #f4f3ee;
+  --color-paper-200: #e9e8e0;
+  --color-paper-300: #d8d7cd;
 
   /* text */
-  --color-cream: #ece9e1;
-  --color-fog: #95a096;
-  --color-fog-dim: #5c685f;
+  --color-ink: #1d1f1c;
+  --color-ink-2: #61675e;
+  --color-ink-3: #a3a89e;
 
-  /* accents */
-  --color-moss-200: #d6e3cb;
-  --color-moss-300: #bfd3af;
-  --color-moss-400: #a4c18f;
-  --color-moss-500: #82a36c;
-  --color-moss-600: #5e7c4b;
-  --color-honey-300: #ebc97e;
-  --color-honey-400: #dfae54;
-  --color-honey-500: #c2913c;
-  --color-clay-300: #dc9477;
-  --color-clay-400: #cb7352;
-  --color-clay-500: #a85a3d;
+  /* data accents */
+  --color-moss-400: #a4be91;
+  --color-moss-500: #7d9c6a;
+  --color-moss-600: #587747;
+  --color-moss-700: #415e33;
+  --color-moss-800: #32491f;
+  --color-honey-600: #9c7117;
+  --color-honey-700: #7d590e;
+  --color-clay-700: #a8492c;
+  --color-clay-800: #8c3a21;
 
   /* type roles: display = voice, sans = UI, mono = data */
   --font-display: var(--font-dm-serif), ui-serif, Georgia, serif;
@@ -38,23 +37,23 @@
 }
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 body {
-  background: var(--color-bark-950);
-  color: var(--color-cream);
+  background: var(--color-paper);
+  color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-tap-highlight-color: transparent;
 }
 
 ::selection {
-  background: var(--color-moss-500);
-  color: var(--color-bark-950);
+  background: var(--color-ink);
+  color: var(--color-paper);
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-moss-400);
+  outline: 2px solid var(--color-moss-600);
   outline-offset: 2px;
   border-radius: 2px;
 }
@@ -67,9 +66,9 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--color-bark-600);
+  background: var(--color-paper-300);
   border-radius: 5px;
-  border: 2px solid var(--color-bark-950);
+  border: 2px solid var(--color-paper);
 }
 
 /* entrance: cards rise into place, staggered via inline animation-delay */
