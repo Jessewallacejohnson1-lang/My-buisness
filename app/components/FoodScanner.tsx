@@ -1,18 +1,21 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
+import { lookupBarcode, toLogEntry, type FoodResult } from '@/lib/food-search'
+import { addFoodLog, localDate } from '@/lib/db'
+import ScoreRing, { scoreTone } from './ScoreRing'
+import { IconAlert, IconBarcode, IconCheck, IconLeaf } from './Icons'
 
-interface FoodResult {
-  name: string
-  brand?: string
-  calories: number
-  protein: number
-  carbs: number
-  fat: number
-  fiber: number
-  servingSize?: string
-  image?: string
-  barcode: string
+const MEALS = ['Breakfast', 'Lunch', 'Dinner', 'Snacks'] as const
+type Meal = (typeof MEALS)[number]
+
+function mealForNow(): Meal {
+  const h = new Date().getHours()
+  if (h < 11) return 'Breakfast'
+  if (h < 15) return 'Lunch'
+  if (h >= 17 && h < 21) return 'Dinner'
+  return 'Snacks'
 }
 
 export default function FoodScanner() {
@@ -21,30 +24,39 @@ export default function FoodScanner() {
   const [result, setResult] = useState<FoodResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [meal, setMeal] = useState<Meal>(mealForNow())
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
   const stopRef = useRef<(() => void) | null>(null)
 
   const startScanner = async () => {
     setScanning(true)
     setResult(null)
     setError(null)
+    setSaved(false)
 
-    const { BrowserMultiFormatReader } = await import('@zxing/browser')
-    const reader = new BrowserMultiFormatReader()
+    try {
+      const { BrowserMultiFormatReader } = await import('@zxing/browser')
+      const reader = new BrowserMultiFormatReader()
 
-    const controls = await reader.decodeFromVideoDevice(
-      undefined,
-      videoRef.current!,
-      async (scanResult, err, ctrl) => {
-        if (scanResult) {
-          ctrl.stop()
-          stopRef.current = null
-          setScanning(false)
-          await lookupFood(scanResult.getText())
+      const controls = await reader.decodeFromVideoDevice(
+        undefined,
+        videoRef.current!,
+        async (scanResult, _err, ctrl) => {
+          if (scanResult) {
+            ctrl.stop()
+            stopRef.current = null
+            setScanning(false)
+            await lookupFood(scanResult.getText())
+          }
         }
-      }
-    )
+      )
 
-    stopRef.current = () => controls.stop()
+      stopRef.current = () => controls.stop()
+    } catch {
+      setScanning(false)
+      setError('Camera unavailable. Allow camera access and try again.')
+    }
   }
 
   const stopScanner = () => {
@@ -58,35 +70,30 @@ export default function FoodScanner() {
   const lookupFood = async (barcode: string) => {
     setLoading(true)
     try {
-      const res = await fetch(
-        `https://world.openfoodfacts.org/api/v2/product/${barcode}.json`
-      )
-      const data = await res.json()
-
-      if (data.status === 0 || !data.product) {
-        setError('Food not found. Try scanning another barcode.')
+      const food = await lookupBarcode(barcode)
+      if (!food) {
+        setError('That barcode isn’t in the database. Try another item or search it by name.')
         return
       }
-
-      const p = data.product
-      const n = p.nutriments || {}
-
-      setResult({
-        barcode,
-        name: p.product_name || p.abbreviated_product_name || 'Unknown product',
-        brand: p.brands?.split(',')[0].trim(),
-        calories: Math.round(n['energy-kcal_100g'] ?? n['energy-kcal'] ?? 0),
-        protein: Math.round((n.proteins_100g ?? 0) * 10) / 10,
-        carbs: Math.round((n.carbohydrates_100g ?? 0) * 10) / 10,
-        fat: Math.round((n.fat_100g ?? 0) * 10) / 10,
-        fiber: Math.round((n.fiber_100g ?? 0) * 10) / 10,
-        servingSize: p.serving_size,
-        image: p.image_front_url ?? p.image_url,
-      })
+      setResult(food)
+      setMeal(mealForNow())
     } catch {
-      setError('Could not fetch food data. Check your connection.')
+      setError('Couldn’t fetch the food data. Check your connection and try again.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleSave = async () => {
+    if (!result) return
+    setSaving(true)
+    try {
+      await addFoodLog(toLogEntry(result, meal, localDate()))
+      setSaved(true)
+    } catch {
+      setError('Couldn’t save the log. Try again.')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -96,57 +103,70 @@ export default function FoodScanner() {
     }
   }, [])
 
-  return (
-    <div className="max-w-md mx-auto px-4 py-10">
-      <h1 className="text-2xl font-bold text-stone-900 mb-2">Scan Food</h1>
-      <p className="text-stone-500 text-sm mb-8">
-        Point your camera at any food barcode to instantly see nutrition info.
-      </p>
+  const tone = result ? scoreTone(result.score) : null
 
-      {/* Scanner */}
+  return (
+    <div className="max-w-md mx-auto px-5 pt-6 md:pt-10 pb-8">
+      <header className="rise mb-6">
+        <h1 className="font-display text-3xl text-cream">Scan</h1>
+        <p className="text-sm text-fog mt-2 leading-relaxed">
+          Point at any barcode. Nutrition and clean score, instantly.
+        </p>
+      </header>
+
+      {/* viewfinder */}
       {!result && (
-        <div className="mb-6">
-          <div
-            className={`relative rounded-3xl overflow-hidden bg-stone-900 aspect-square flex items-center justify-center ${
-              scanning ? 'border-2 border-green-500' : 'border-2 border-stone-200'
-            }`}
-          >
+        <div className="rise" style={{ animationDelay: '60ms' }}>
+          <div className="relative rounded-3xl overflow-hidden bg-bark-900 border border-white/[0.08] aspect-square flex items-center justify-center">
             <video
               ref={videoRef}
               className={`w-full h-full object-cover ${scanning ? 'block' : 'hidden'}`}
               muted
               playsInline
             />
-            {!scanning && (
-              <div className="text-center px-8">
-                <div className="text-6xl mb-4">📷</div>
-                <p className="text-stone-400 text-sm">Camera will appear here</p>
+            {!scanning && !loading && (
+              <div className="text-center px-10">
+                <IconBarcode className="w-10 h-10 text-fog-dim mx-auto mb-4" />
+                <p className="text-fog-dim text-sm">Camera preview appears here</p>
               </div>
             )}
             {scanning && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="w-56 h-56 border-2 border-white/60 rounded-2xl relative">
-                  <span className="absolute -top-px -left-px w-8 h-8 border-t-4 border-l-4 border-green-400 rounded-tl-xl" />
-                  <span className="absolute -top-px -right-px w-8 h-8 border-t-4 border-r-4 border-green-400 rounded-tr-xl" />
-                  <span className="absolute -bottom-px -left-px w-8 h-8 border-b-4 border-l-4 border-green-400 rounded-bl-xl" />
-                  <span className="absolute -bottom-px -right-px w-8 h-8 border-b-4 border-r-4 border-green-400 rounded-br-xl" />
+              <div className="absolute inset-0 pointer-events-none">
+                <div className="absolute inset-10">
+                  <span className="absolute top-0 left-0 w-9 h-9 border-t-2 border-l-2 border-moss-300 rounded-tl-2xl" />
+                  <span className="absolute top-0 right-0 w-9 h-9 border-t-2 border-r-2 border-moss-300 rounded-tr-2xl" />
+                  <span className="absolute bottom-0 left-0 w-9 h-9 border-b-2 border-l-2 border-moss-300 rounded-bl-2xl" />
+                  <span className="absolute bottom-0 right-0 w-9 h-9 border-b-2 border-r-2 border-moss-300 rounded-br-2xl" />
+                  <span
+                    className="absolute left-3 right-3 h-px bg-moss-300/80"
+                    style={{
+                      animation: 'beam 2.4s ease-in-out infinite',
+                      boxShadow: '0 0 12px rgba(191,211,175,0.5)',
+                    }}
+                  />
                 </div>
+              </div>
+            )}
+            {loading && (
+              <div className="absolute inset-0 bg-bark-950/70 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
+                <div className="w-8 h-8 border-2 border-moss-400 border-t-transparent rounded-full animate-spin" />
+                <p className="text-fog text-sm">Reading the label…</p>
               </div>
             )}
           </div>
 
-          <div className="mt-4 flex gap-3">
+          <div className="mt-4">
             {!scanning ? (
               <button
                 onClick={startScanner}
-                className="flex-1 bg-green-800 text-white py-3.5 rounded-full font-medium hover:bg-green-900 transition-colors"
+                className="w-full bg-moss-400 hover:bg-moss-300 text-bark-950 font-semibold py-3.5 rounded-xl text-sm transition-colors"
               >
                 Start scanning
               </button>
             ) : (
               <button
                 onClick={stopScanner}
-                className="flex-1 border border-stone-300 text-stone-700 py-3.5 rounded-full font-medium hover:bg-stone-100 transition-colors"
+                className="w-full border border-white/[0.08] text-fog hover:text-cream py-3.5 rounded-xl text-sm transition-colors hover:bg-bark-800"
               >
                 Cancel
               </button>
@@ -154,92 +174,167 @@ export default function FoodScanner() {
           </div>
 
           {scanning && (
-            <p className="text-center text-xs text-stone-400 mt-3">
-              Hold steady over a barcode — it'll detect automatically
+            <p className="text-center text-xs text-fog-dim mt-3">
+              Hold steady — it detects automatically
             </p>
+          )}
+
+          {error && (
+            <div className="mt-4 flex items-start gap-2.5 text-sm text-clay-300 bg-clay-500/10 border border-clay-500/20 rounded-2xl px-4 py-3.5 leading-relaxed">
+              <IconAlert className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{error}</span>
+            </div>
           )}
         </div>
       )}
 
-      {/* Loading */}
-      {loading && (
-        <div className="text-center py-12">
-          <div className="w-10 h-10 border-4 border-green-800 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-stone-500 text-sm">Looking up food...</p>
-        </div>
-      )}
-
-      {/* Error */}
-      {error && !loading && (
-        <div className="bg-red-50 border border-red-200 rounded-2xl p-5 mb-6 text-center">
-          <p className="text-red-700 text-sm mb-4">{error}</p>
-          <button
-            onClick={startScanner}
-            className="bg-green-800 text-white px-6 py-2.5 rounded-full text-sm font-medium hover:bg-green-900 transition-colors"
-          >
-            Try again
-          </button>
-        </div>
-      )}
-
-      {/* Result */}
+      {/* result */}
       {result && !loading && (
-        <div className="space-y-4">
-          <div className="bg-white rounded-3xl border border-stone-100 shadow-sm overflow-hidden">
+        <div className="rise space-y-4">
+          <div className="bg-bark-900 border border-white/[0.06] rounded-3xl overflow-hidden">
             {result.image && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={result.image}
-                alt={result.name}
-                className="w-full h-48 object-contain bg-stone-50 p-4"
+                alt={result.food_name}
+                className="w-full h-44 object-contain bg-bark-800 p-4"
               />
             )}
-            <div className="p-6">
-              <div className="mb-4">
-                {result.brand && (
-                  <p className="text-xs text-stone-400 uppercase tracking-widest mb-1">{result.brand}</p>
-                )}
-                <h2 className="text-xl font-bold text-stone-900">{result.name}</h2>
-                {result.servingSize && (
-                  <p className="text-sm text-stone-400 mt-1">Serving size: {result.servingSize}</p>
-                )}
+            <div className="p-5">
+              <div className="flex items-start justify-between gap-4 mb-5">
+                <div className="min-w-0">
+                  {result.brand && (
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-fog mb-1 truncate">
+                      {result.brand}
+                    </p>
+                  )}
+                  <h2 className="text-lg text-cream leading-snug">{result.food_name}</h2>
+                  {tone && (
+                    <p className={`text-[11px] uppercase tracking-[0.18em] mt-1.5 ${tone.text}`}>
+                      {tone.word}
+                    </p>
+                  )}
+                </div>
+                <ScoreRing score={result.score} size={56} />
               </div>
 
-              {/* Calories */}
-              <div className="bg-green-800 rounded-2xl p-4 text-white text-center mb-4">
-                <p className="text-4xl font-bold">{result.calories}</p>
-                <p className="text-green-200 text-sm mt-1">kcal per 100g</p>
-              </div>
-
-              {/* Macros */}
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-4 gap-2 mb-4">
                 {[
-                  { label: 'Protein', value: result.protein, unit: 'g', color: 'bg-amber-100 text-amber-800' },
-                  { label: 'Carbs', value: result.carbs, unit: 'g', color: 'bg-orange-100 text-orange-800' },
-                  { label: 'Fat', value: result.fat, unit: 'g', color: 'bg-green-100 text-green-800' },
-                  { label: 'Fiber', value: result.fiber, unit: 'g', color: 'bg-stone-100 text-stone-700' },
+                  { label: 'kcal', value: result.calories },
+                  { label: 'protein', value: `${result.protein}g` },
+                  { label: 'carbs', value: `${result.carbs}g` },
+                  { label: 'fat', value: `${result.fat}g` },
                 ].map((m) => (
-                  <div key={m.label} className={`${m.color} rounded-xl p-3 text-center`}>
-                    <p className="text-lg font-bold">{m.value}{m.unit}</p>
-                    <p className="text-xs mt-0.5 opacity-70">{m.label}</p>
+                  <div
+                    key={m.label}
+                    className="bg-bark-800 border border-white/[0.05] rounded-xl py-3 text-center"
+                  >
+                    <p className="font-mono text-sm text-cream tabular-nums">{m.value}</p>
+                    <p className="text-[10px] text-fog-dim mt-0.5">{m.label}</p>
                   </div>
                 ))}
               </div>
+
+              {result.badges.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  {result.badges.map((b) => (
+                    <span
+                      key={b.label}
+                      className="inline-flex items-center gap-1.5 text-[11px] text-moss-300 bg-moss-500/10 border border-moss-500/20 px-2.5 py-1 rounded-full"
+                    >
+                      <IconLeaf className="w-3 h-3" />
+                      {b.label}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {result.flags.map((f) => (
+                <div
+                  key={f}
+                  className="flex items-start gap-2.5 text-xs text-clay-300 bg-clay-500/10 border border-clay-500/20 rounded-xl px-3 py-2.5 mb-1.5 leading-relaxed"
+                >
+                  <IconAlert className="w-3.5 h-3.5 shrink-0 mt-px" />
+                  <span>{f}</span>
+                </div>
+              ))}
             </div>
           </div>
 
-          <button
-            className="w-full bg-green-800 text-white py-3.5 rounded-full font-medium hover:bg-green-900 transition-colors"
-          >
-            Add to today&apos;s log
-          </button>
+          {saved ? (
+            <div className="bg-moss-500/10 border border-moss-500/25 rounded-2xl p-5 text-center">
+              <div className="mx-auto mb-3 w-10 h-10 rounded-full bg-moss-400 text-bark-950 flex items-center justify-center">
+                <IconCheck className="w-5 h-5" strokeWidth={2.5} />
+              </div>
+              <p className="text-sm text-cream mb-4">
+                Logged to {meal.toLowerCase()}.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setResult(null)
+                    setSaved(false)
+                    setError(null)
+                  }}
+                  className="flex-1 py-3 rounded-xl bg-moss-400 hover:bg-moss-300 text-bark-950 text-sm font-semibold transition-colors"
+                >
+                  Scan another
+                </button>
+                <Link
+                  href="/meal-log"
+                  className="flex-1 py-3 rounded-xl border border-white/[0.08] text-cream text-sm text-center hover:bg-bark-800 transition-colors"
+                >
+                  View meals
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.18em] text-fog mb-2.5 px-0.5">
+                  Log as
+                </p>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {MEALS.map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => setMeal(m)}
+                      className={`py-2.5 rounded-xl text-xs transition-colors border ${
+                        meal === m
+                          ? 'bg-moss-400 border-moss-400 text-bark-950 font-semibold'
+                          : 'bg-bark-900 border-white/[0.07] text-fog hover:text-cream'
+                      }`}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-          <button
-            onClick={() => { setResult(null); setError(null) }}
-            className="w-full border border-stone-300 text-stone-700 py-3.5 rounded-full font-medium hover:bg-stone-100 transition-colors"
-          >
-            Scan another
-          </button>
+              {error && (
+                <div className="flex items-start gap-2.5 text-sm text-clay-300 bg-clay-500/10 border border-clay-500/20 rounded-2xl px-4 py-3.5 leading-relaxed">
+                  <IconAlert className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="w-full bg-moss-400 hover:bg-moss-300 text-bark-950 font-semibold py-3.5 rounded-xl text-sm transition-colors disabled:opacity-60"
+              >
+                {saving ? 'Saving…' : `Add to ${meal.toLowerCase()}`}
+              </button>
+              <button
+                onClick={() => {
+                  setResult(null)
+                  setError(null)
+                }}
+                className="w-full border border-white/[0.08] text-fog hover:text-cream py-3.5 rounded-xl text-sm transition-colors hover:bg-bark-800"
+              >
+                Scan another
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

@@ -2,77 +2,72 @@
 
 import Link from 'next/link'
 import { useState, useEffect, useCallback } from 'react'
-import { getFoodLogs, addFoodLog, deleteFoodLog, type FoodLog } from '@/lib/db'
-import { searchFood, type FoodResult } from '@/lib/food-search'
+import { getFoodLogs, addFoodLog, deleteFoodLog, localDate, type FoodLog } from '@/lib/db'
+import { searchFood, toLogEntry, type FoodResult } from '@/lib/food-search'
+import AppShell from '../components/AppShell'
+import ScoreRing, { scoreTone } from '../components/ScoreRing'
+import {
+  IconAlert,
+  IconBarcode,
+  IconChevronDown,
+  IconLeaf,
+  IconPlus,
+  IconSearch,
+  IconX,
+} from '../components/Icons'
 
 const MEALS = ['Breakfast', 'Lunch', 'Dinner', 'Snacks'] as const
-type Meal = typeof MEALS[number]
-
-const MEAL_ICONS: Record<Meal, string> = {
-  Breakfast: '🌅', Lunch: '☀️', Dinner: '🌙', Snacks: '🍃',
-}
-
-const TODAY = new Date().toISOString().split('T')[0]
-
-function scoreColor(score: number) {
-  if (score >= 70) return { stroke: '#166534', text: 'text-green-800', bg: 'bg-green-50' }
-  if (score >= 40) return { stroke: '#b45309', text: 'text-amber-700', bg: 'bg-amber-50' }
-  return { stroke: '#b91c1c', text: 'text-red-700', bg: 'bg-red-50' }
-}
-
-function ScoreRing({ score, size = 48 }: { score: number; size?: number }) {
-  const { stroke, text } = scoreColor(score)
-  const r = 15.9
-  const circ = 2 * Math.PI * r
-  const dash = (score / 100) * circ
-  return (
-    <div className="relative shrink-0" style={{ width: size, height: size }}>
-      <svg viewBox="0 0 36 36" width={size} height={size} className="-rotate-90">
-        <circle cx="18" cy="18" r={r} fill="none" stroke="#e7e5e4" strokeWidth="3" />
-        <circle cx="18" cy="18" r={r} fill="none" stroke={stroke} strokeWidth="3"
-          strokeDasharray={`${dash} ${circ - dash}`} strokeLinecap="round" />
-      </svg>
-      <span className={`absolute inset-0 flex items-center justify-center text-xs font-bold ${text}`}>{score}</span>
-    </div>
-  )
-}
+type Meal = (typeof MEALS)[number]
 
 function FoodCard({ food, onDelete }: { food: FoodLog; onDelete: () => void }) {
   const [open, setOpen] = useState(false)
-  const { bg } = scoreColor(food.score)
   return (
-    <div className="border border-stone-100 rounded-2xl overflow-hidden bg-white shadow-sm">
-      <button onClick={() => setOpen(!open)} className="w-full text-left px-4 py-3.5 flex items-center gap-3">
+    <div className="bg-bark-900 border border-white/[0.06] rounded-2xl overflow-hidden">
+      <button
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        className="w-full text-left px-4 py-3.5 flex items-center gap-3.5"
+      >
         <ScoreRing score={food.score} />
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-stone-900 text-sm truncate">{food.food_name}</p>
-          {food.brand && <p className="text-stone-400 text-xs truncate">{food.brand}</p>}
-          <div className="flex gap-3 mt-1 text-xs text-stone-500 flex-wrap">
-            <span>{food.calories} cal</span>
-            <span>{food.protein}g protein</span>
-            <span>{food.carbs}g carbs</span>
-            <span>{food.fat}g fat</span>
-          </div>
+          <p className="text-sm text-cream truncate">{food.food_name}</p>
+          {food.brand && <p className="text-xs text-fog-dim truncate mt-0.5">{food.brand}</p>}
+          <p className="font-mono text-[11px] text-fog mt-1 tabular-nums">
+            {food.calories} kcal · {food.protein}P · {food.carbs}C · {food.fat}F
+          </p>
         </div>
-        <span className="text-stone-300 text-xs shrink-0">{open ? '▲' : '▼'}</span>
+        <IconChevronDown
+          className={`w-4 h-4 text-fog-dim shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
+        />
       </button>
       {open && (
-        <div className={`px-4 pb-4 pt-1 border-t border-stone-100 ${bg}`}>
+        <div className="px-4 pb-4 pt-3 border-t border-white/[0.06]">
           {food.badges.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-3">
+            <div className="flex flex-wrap gap-1.5 mb-3">
               {food.badges.map((b) => (
-                <span key={b.label} className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full ${b.color}`}>
-                  {b.icon} {b.label}
+                <span
+                  key={b.label}
+                  className="inline-flex items-center gap-1.5 text-[11px] text-moss-300 bg-moss-500/10 border border-moss-500/20 px-2.5 py-1 rounded-full"
+                >
+                  <IconLeaf className="w-3 h-3" />
+                  {b.label}
                 </span>
               ))}
             </div>
           )}
           {food.flags.map((f) => (
-            <div key={f} className="flex items-start gap-2 text-xs text-red-700 bg-red-50 rounded-xl px-3 py-2 mb-1.5">
-              <span className="shrink-0">⚠️</span><span>{f}</span>
+            <div
+              key={f}
+              className="flex items-start gap-2.5 text-xs text-clay-300 bg-clay-500/10 border border-clay-500/20 rounded-xl px-3 py-2.5 mb-1.5 leading-relaxed"
+            >
+              <IconAlert className="w-3.5 h-3.5 shrink-0 mt-px" />
+              <span>{f}</span>
             </div>
           ))}
-          <button onClick={onDelete} className="mt-3 text-xs text-red-400 hover:text-red-600 transition-colors">
+          <button
+            onClick={onDelete}
+            className="mt-2 text-xs text-fog-dim hover:text-clay-300 transition-colors"
+          >
             Remove from log
           </button>
         </div>
@@ -81,71 +76,126 @@ function FoodCard({ food, onDelete }: { food: FoodLog; onDelete: () => void }) {
   )
 }
 
-function SearchModal({ meal, onClose, onAdd }: { meal: Meal; onClose: () => void; onAdd: (food: FoodResult) => Promise<void> }) {
+function SearchSheet({
+  meal,
+  onClose,
+  onAdd,
+}: {
+  meal: Meal
+  onClose: () => void
+  onAdd: (food: FoodResult) => Promise<void>
+}) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<FoodResult[]>([])
   const [loading, setLoading] = useState(false)
+  const [searched, setSearched] = useState(false)
   const [adding, setAdding] = useState<string | null>(null)
 
   const search = useCallback(async () => {
     if (!query.trim()) return
     setLoading(true)
     try {
-      const res = await searchFood(query)
-      setResults(res)
+      setResults(await searchFood(query))
+      setSearched(true)
     } finally {
       setLoading(false)
     }
   }, [query])
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-end">
-      <div className="bg-white w-full max-h-[90vh] rounded-t-3xl flex flex-col">
-        <div className="px-5 pt-5 pb-3 border-b border-stone-100">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-semibold text-stone-900">Add to {meal}</h2>
-            <button onClick={onClose} className="text-stone-400 hover:text-stone-700 text-xl leading-none">×</button>
-          </div>
-          <div className="flex gap-2">
-            <input
-              autoFocus
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && search()}
-              placeholder="Search foods..."
-              className="flex-1 bg-stone-100 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-700"
-            />
-            <button onClick={search} className="bg-green-800 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-green-900 transition-colors">
-              {loading ? '...' : 'Search'}
+    <div
+      className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center md:justify-center fade-in"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-label={`Add food to ${meal}`}
+        onClick={(e) => e.stopPropagation()}
+        className="sheet-up bg-bark-900 border-t md:border border-white/[0.08] w-full md:max-w-lg max-h-[88vh] md:max-h-[80vh] rounded-t-3xl md:rounded-3xl flex flex-col"
+      >
+        <div className="px-5 pt-5 pb-4 border-b border-white/[0.06]">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-cream">
+              Add to <span className="text-moss-300">{meal}</span>
+            </h2>
+            <button
+              onClick={onClose}
+              aria-label="Close"
+              className="text-fog hover:text-cream transition-colors p-1 -m-1"
+            >
+              <IconX className="w-5 h-5" />
             </button>
           </div>
-          <Link href="/scan" className="block text-center text-xs text-green-700 mt-2 hover:underline">
-            📷 Scan a barcode instead
+          <div className="flex gap-2">
+            <div className="flex-1 relative">
+              <IconSearch className="w-4 h-4 text-fog-dim absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && search()}
+                placeholder="Search any food…"
+                className="w-full bg-bark-800 border border-white/[0.07] rounded-xl pl-10 pr-4 py-3 text-sm text-cream placeholder:text-fog-dim focus:border-moss-500/50 focus:outline-none transition-colors"
+              />
+            </div>
+            <button
+              onClick={search}
+              disabled={loading}
+              className="bg-moss-400 hover:bg-moss-300 text-bark-950 font-semibold px-4 rounded-xl text-sm transition-colors disabled:opacity-60"
+            >
+              {loading ? '…' : 'Search'}
+            </button>
+          </div>
+          <Link
+            href="/scan"
+            className="flex items-center justify-center gap-2 text-xs text-fog hover:text-moss-300 mt-3 transition-colors"
+          >
+            <IconBarcode className="w-3.5 h-3.5" /> Scan a barcode instead
           </Link>
         </div>
-        <div className="overflow-y-auto flex-1 px-5 py-3 space-y-2">
-          {results.length === 0 && !loading && (
-            <p className="text-center text-stone-400 text-sm py-8">Search for a food above</p>
+
+        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-2 min-h-[200px]">
+          {!searched && !loading && (
+            <p className="text-center text-fog-dim text-sm py-10">
+              Search the Open Food Facts database — 700,000+ foods, each one scored.
+            </p>
+          )}
+          {searched && !loading && results.length === 0 && (
+            <p className="text-center text-fog-dim text-sm py-10">
+              Nothing found for “{query}”. Try a simpler name or scan the barcode.
+            </p>
           )}
           {results.map((r, i) => (
-            <div key={i} className="flex items-center gap-3 bg-stone-50 rounded-2xl px-4 py-3">
+            <div
+              key={i}
+              className="flex items-center gap-3.5 bg-bark-800 border border-white/[0.05] rounded-2xl px-4 py-3"
+            >
               <ScoreRing score={r.score} size={40} />
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-stone-900 text-sm truncate">{r.food_name}</p>
-                {r.brand && <p className="text-stone-400 text-xs truncate">{r.brand}</p>}
-                <p className="text-xs text-stone-500 mt-0.5">{r.calories} cal · {r.protein}g P · {r.carbs}g C · {r.fat}g F</p>
+                <p className="text-sm text-cream truncate">{r.food_name}</p>
+                {r.brand && <p className="text-xs text-fog-dim truncate mt-0.5">{r.brand}</p>}
+                <p className="font-mono text-[11px] text-fog mt-1 tabular-nums">
+                  {r.calories} kcal · {r.protein}P · {r.carbs}C · {r.fat}F
+                </p>
               </div>
               <button
                 onClick={async () => {
                   setAdding(r.food_name)
-                  await onAdd(r)
-                  setAdding(null)
-                  onClose()
+                  try {
+                    await onAdd(r)
+                    onClose()
+                  } finally {
+                    setAdding(null)
+                  }
                 }}
-                disabled={adding === r.food_name}
-                className="shrink-0 bg-green-800 text-white text-xs px-3 py-1.5 rounded-full hover:bg-green-700 transition-colors disabled:opacity-50"
+                disabled={adding !== null}
+                className="shrink-0 flex items-center gap-1 bg-moss-400 hover:bg-moss-300 text-bark-950 font-semibold text-xs px-3 py-2 rounded-lg transition-colors disabled:opacity-60"
               >
-                {adding === r.food_name ? '...' : 'Add'}
+                {adding === r.food_name ? '…' : (
+                  <>
+                    <IconPlus className="w-3.5 h-3.5" strokeWidth={2.5} /> Add
+                  </>
+                )}
               </button>
             </div>
           ))}
@@ -158,142 +208,135 @@ function SearchModal({ meal, onClose, onAdd }: { meal: Meal; onClose: () => void
 export default function MealLogPage() {
   const [logs, setLogs] = useState<FoodLog[]>([])
   const [loading, setLoading] = useState(true)
-  const [modal, setModal] = useState<Meal | null>(null)
+  const [sheet, setSheet] = useState<Meal | null>(null)
+
+  const today = localDate()
 
   const load = useCallback(async () => {
-    setLoading(true)
-    try { setLogs(await getFoodLogs(TODAY)) } finally { setLoading(false) }
+    try {
+      setLogs(await getFoodLogs(localDate()))
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    load()
+  }, [load])
 
   const handleAdd = async (meal: Meal, food: FoodResult) => {
-    await addFoodLog({ ...food, meal, date: TODAY })
+    await addFoodLog(toLogEntry(food, meal, today))
     await load()
   }
 
   const handleDelete = async (id: string) => {
+    setLogs((ls) => ls.filter((l) => l.id !== id))
     await deleteFoodLog(id)
-    await load()
+    load()
   }
 
   const totalCal = logs.reduce((s, f) => s + f.calories, 0)
-  const totalProtein = logs.reduce((s, f) => s + f.protein, 0)
-  const totalCarbs = logs.reduce((s, f) => s + f.carbs, 0)
-  const totalFat = logs.reduce((s, f) => s + f.fat, 0)
-  const avgScore = logs.length ? Math.round(logs.reduce((s, f) => s + f.score, 0) / logs.length) : 0
+  const avgScore = logs.length
+    ? Math.round(logs.reduce((s, f) => s + f.score, 0) / logs.length)
+    : 0
   const goalCal = 2100
-  const { stroke: avgStroke } = scoreColor(avgScore || 50)
-
-  const dateLabel = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
+  const tone = scoreTone(avgScore || 100)
 
   return (
-    <div className="min-h-screen bg-stone-50" style={{ fontFamily: 'var(--font-nunito), sans-serif' }}>
-      <nav className="flex items-center px-5 py-4 max-w-lg mx-auto">
-        <Link href="/" className="text-stone-400 hover:text-stone-700 text-sm flex items-center gap-1.5 transition-colors">← Back</Link>
-        <span className="font-bold text-green-800 tracking-[0.2em] uppercase text-lg mx-auto pr-8">Grove</span>
-      </nav>
-
-      <div className="max-w-lg mx-auto px-5 pb-20">
-        <p className="text-stone-400 text-sm mb-4">{dateLabel}</p>
-
-        {/* Summary card */}
-        <div className="bg-white rounded-3xl border border-stone-100 shadow-sm p-5 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <p className="text-xs text-stone-400 uppercase tracking-widest mb-0.5">Today&apos;s overview</p>
-              <p className="text-2xl font-bold text-stone-900">{totalCal.toLocaleString()} <span className="text-base font-normal text-stone-400">/ {goalCal.toLocaleString()} cal</span></p>
+    <AppShell>
+      <div className="max-w-lg md:max-w-2xl mx-auto px-5 md:px-8 pt-6 md:pt-10">
+        <header className="rise mb-6 flex items-end justify-between">
+          <div>
+            <h1 className="font-display text-3xl text-cream">Meals</h1>
+            <p className="font-mono text-[11px] uppercase tracking-wider text-fog mt-2">
+              {new Date().toLocaleDateString('en-US', {
+                weekday: 'long',
+                month: 'long',
+                day: 'numeric',
+              })}
+            </p>
+          </div>
+          {logs.length > 0 && (
+            <div className="text-right">
+              <p className="font-mono text-2xl text-cream tabular-nums">{avgScore}</p>
+              <p className={`text-[11px] uppercase tracking-[0.18em] ${tone.text}`}>
+                {tone.word} day
+              </p>
             </div>
-            {logs.length > 0 && (
-              <div className="text-center">
-                <div className="relative w-16 h-16">
-                  <svg viewBox="0 0 36 36" className="w-16 h-16 -rotate-90">
-                    <circle cx="18" cy="18" r="15.9" fill="none" stroke="#e7e5e4" strokeWidth="3" />
-                    <circle cx="18" cy="18" r="15.9" fill="none" stroke={avgStroke} strokeWidth="3"
-                      strokeDasharray={`${(avgScore / 100) * 100} ${100 - (avgScore / 100) * 100}`} strokeLinecap="round" />
-                  </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-sm font-bold text-stone-800">{avgScore}</span>
-                </div>
-                <p className="text-xs text-stone-400 mt-1">Clean score</p>
-              </div>
-            )}
-          </div>
-          <div className="h-2 bg-stone-100 rounded-full overflow-hidden mb-1">
-            <div className="h-full bg-green-700 rounded-full transition-all" style={{ width: `${Math.min(100, (totalCal / goalCal) * 100)}%` }} />
-          </div>
-          <p className="text-xs text-stone-400 mb-4">{Math.max(0, goalCal - totalCal)} cal remaining</p>
-          <div className="grid grid-cols-3 gap-3">
-            {[
-              { label: 'Protein', value: totalProtein, goal: 140, unit: 'g', color: 'bg-amber-400' },
-              { label: 'Carbs', value: totalCarbs, goal: 210, unit: 'g', color: 'bg-orange-400' },
-              { label: 'Fat', value: totalFat, goal: 70, unit: 'g', color: 'bg-green-500' },
-            ].map((m) => (
-              <div key={m.label} className="bg-stone-50 rounded-xl p-3">
-                <p className="text-xs text-stone-400 mb-0.5">{m.label}</p>
-                <p className="font-semibold text-sm text-stone-800">{Math.round(m.value)}{m.unit}</p>
-                <div className="mt-1.5 h-1.5 bg-stone-200 rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full ${m.color}`} style={{ width: `${Math.min(100, (m.value / m.goal) * 100)}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+          )}
+        </header>
 
-        {/* Legend */}
-        <div className="flex items-center gap-4 mb-6 px-1">
-          <p className="text-xs text-stone-400 font-medium">Clean score:</p>
-          <div className="flex gap-3">
-            {[{ label: 'Clean', color: 'bg-green-700' }, { label: 'Moderate', color: 'bg-amber-500' }, { label: 'Avoid', color: 'bg-red-600' }].map(l => (
-              <div key={l.label} className="flex items-center gap-1.5">
-                <span className={`w-2 h-2 rounded-full ${l.color}`} />
-                <span className="text-xs text-stone-500">{l.label}</span>
-              </div>
-            ))}
+        {/* day summary */}
+        <div
+          className="rise bg-bark-900 border border-white/[0.06] rounded-2xl p-5 mb-8"
+          style={{ animationDelay: '60ms' }}
+        >
+          <div className="flex justify-between items-baseline mb-2">
+            <span className="text-[11px] uppercase tracking-[0.18em] text-fog">Energy</span>
+            <span className="font-mono text-sm text-cream tabular-nums">
+              {totalCal.toLocaleString()}{' '}
+              <span className="text-fog-dim">/ {goalCal.toLocaleString()} kcal</span>
+            </span>
+          </div>
+          <div className="h-1.5 bg-bark-700 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-honey-400 rounded-full transition-all duration-700"
+              style={{ width: `${Math.min(100, (totalCal / goalCal) * 100)}%` }}
+            />
           </div>
         </div>
 
         {loading ? (
-          <div className="text-center py-20 text-stone-400 text-sm">Loading...</div>
+          <div className="space-y-3">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="h-20 bg-bark-900 border border-white/[0.06] rounded-2xl animate-pulse"
+              />
+            ))}
+          </div>
         ) : (
-          MEALS.map((meal) => {
-            const foods = logs.filter(f => f.meal === meal)
+          MEALS.map((meal, mi) => {
+            const foods = logs.filter((f) => f.meal === meal)
+            const mealCal = foods.reduce((s, f) => s + f.calories, 0)
             return (
-              <div key={meal} className="mb-7">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <span>{MEAL_ICONS[meal]}</span>
-                    <h2 className="font-semibold text-stone-800">{meal}</h2>
-                  </div>
-                  <span className="text-xs text-stone-400">{foods.reduce((s, f) => s + f.calories, 0)} cal</span>
+              <section
+                key={meal}
+                className="rise mb-8"
+                style={{ animationDelay: `${120 + mi * 60}ms` }}
+              >
+                <div className="flex items-baseline justify-between mb-3 px-0.5">
+                  <h2 className="text-[11px] uppercase tracking-[0.18em] text-fog">{meal}</h2>
+                  <span className="font-mono text-[11px] text-fog-dim tabular-nums">
+                    {mealCal > 0 ? `${mealCal.toLocaleString()} kcal` : '—'}
+                  </span>
                 </div>
                 <div className="space-y-2">
-                  {foods.map(food => (
+                  {foods.map((food) => (
                     <FoodCard key={food.id} food={food} onDelete={() => handleDelete(food.id)} />
                   ))}
                 </div>
                 <button
-                  onClick={() => setModal(meal)}
-                  className="w-full mt-2 py-2.5 rounded-2xl border border-dashed border-stone-300 text-stone-400 text-sm hover:border-green-700 hover:text-green-700 transition-colors"
+                  onClick={() => setSheet(meal)}
+                  className={`w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-dashed border-bark-600 text-fog text-sm hover:border-moss-500/50 hover:text-moss-300 transition-colors ${
+                    foods.length > 0 ? 'mt-2' : ''
+                  }`}
                 >
-                  + Add food
+                  <IconPlus className="w-4 h-4" /> Add food
                 </button>
-              </div>
+              </section>
             )
           })
         )}
-
-        <Link href="/scan" className="flex items-center justify-center gap-3 w-full bg-green-800 hover:bg-green-900 text-white py-4 rounded-2xl font-medium transition-colors">
-          <span>📷</span> Scan a barcode to add food
-        </Link>
       </div>
 
-      {modal && (
-        <SearchModal
-          meal={modal}
-          onClose={() => setModal(null)}
-          onAdd={(food) => handleAdd(modal, food)}
+      {sheet && (
+        <SearchSheet
+          meal={sheet}
+          onClose={() => setSheet(null)}
+          onAdd={(food) => handleAdd(sheet, food)}
         />
       )}
-    </div>
+    </AppShell>
   )
 }

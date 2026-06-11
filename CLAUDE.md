@@ -16,16 +16,31 @@ npm run lint      # Run ESLint
 
 ## Architecture
 
-- **`app/`** — App Router pages and layouts. Each folder is a route; `page.tsx` is the UI, `layout.tsx` wraps children.
-- **`app/page.tsx`** — Homepage / landing page
-- **`public/`** — Static assets (images, icons)
-- **`next.config.ts`** — Next.js configuration
+- **`app/`** — App Router pages: `/` (marketing, server component, session-aware), `/login`, `/dashboard`, `/meal-log`, `/workouts`, `/scan`
+- **`app/components/`** — `AppShell` (mobile bottom tabs + desktop rail + sign-out), `Icons` (inline SVG set — no emoji in UI), `GrowthRings` (animated tri-ring dial + `useCountUp`), `ScoreRing`/`scoreTone` (clean-score ring), `Reveal` (IntersectionObserver scroll reveal), `FoodScanner` (zxing barcode → lookup → save)
+- **`lib/supabase/client.ts` / `server.ts`** — Supabase clients (`@supabase/ssr`); browser client for `'use client'` pages, server client for RSC/route handlers
+- **`proxy.ts`** — Next 16 renamed `middleware.ts` → `proxy.ts`. Refreshes the session and gates `/dashboard`, `/meal-log`, `/workouts`, `/scan` behind `/login`
+- **`app/auth/callback/route.ts`** — exchanges the email-confirmation code for a session
+- **`lib/db.ts`** — typed DB helpers + `localDate()` (always use it, never `toISOString()` — dates are user-timezone)
+- **`lib/food-search.ts`** — Open Food Facts search/barcode lookup, clean-score algorithm, `toLogEntry()` (strips display-only fields before insert)
+- **`supabase/migration-auth.sql`** — per-user `user_id` columns + RLS policies (run in Supabase SQL editor)
+
+## Design system ("forest at dusk")
+
+Defined as Tailwind v4 `@theme` tokens in `app/globals.css`:
+- **Surfaces** `bark-950…600` (green-tinted darks — never neutral black), hairline borders `border-white/[0.06]`
+- **Text** `cream` (primary), `fog` (secondary), `fog-dim` (tertiary)
+- **Accents** `moss-*` (primary/clean/positive), `honey-*` (energy/calories/moderate), `clay-*` (warnings/avoid)
+- **Type roles** `font-display` DM Serif Display (wordmark, H1s) · `font-sans` Outfit (UI) · `font-mono` Geist Mono (all numbers/data, with `tabular-nums`)
+- Score tones: ≥70 moss, 40–69 honey, <40 clay (`scoreTone()` in `ScoreRing.tsx`)
+- Stored badge `icon`/`color` fields in old DB rows are light-theme legacy — ignore them and restyle at render time
+- Motion: `.rise` entrance (stagger via inline `animationDelay`), `Reveal` for scroll, `prefers-reduced-motion` respected
 
 ## Stack
 
-- **Next.js** (App Router) — routing, SSR, API routes
-- **TypeScript** — strict typing throughout
-- **Tailwind CSS** — utility-first styling via `@tailwindcss/postcss`
+- **Next.js 16** (App Router) — `cookies()` is async; middleware file is `proxy.ts`
+- **TypeScript**, **Tailwind CSS v4** (CSS-based config via `@theme`, no tailwind.config)
+- **Supabase** — auth (email+password, confirmation ON) + Postgres (`food_logs`, `workouts`, per-user RLS)
 
 ## Notes
 

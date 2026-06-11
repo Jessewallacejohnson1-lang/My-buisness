@@ -9,6 +9,17 @@ export type FoodResult = {
   score: number
   badges: { label: string; icon: string; color: string }[]
   flags: string[]
+  image?: string | null
+}
+
+/** Picks exactly the food_logs columns — strips display-only fields like image. */
+export function toLogEntry(
+  food: FoodResult,
+  meal: 'Breakfast' | 'Lunch' | 'Dinner' | 'Snacks',
+  date: string
+) {
+  const { food_name, brand, calories, protein, carbs, fat, fibre, score, badges, flags } = food
+  return { food_name, brand, calories, protein, carbs, fat, fibre, score, badges, flags, meal, date }
 }
 
 function computeScore(product: Record<string, unknown>): { score: number; badges: FoodResult['badges']; flags: string[] } {
@@ -98,8 +109,8 @@ export async function lookupBarcode(barcode: string): Promise<FoodResult | null>
   const n = (p.nutriments as Record<string, number>) ?? {}
   const { score, badges, flags } = computeScore(p)
   return {
-    food_name: p.product_name as string,
-    brand: (p.brands as string | undefined) ?? null,
+    food_name: (p.product_name as string | undefined) ?? 'Unknown product',
+    brand: (p.brands as string | undefined)?.split(',')[0]?.trim() ?? null,
     calories: Math.round(n['energy-kcal_100g'] ?? n['energy-kcal'] ?? 0),
     protein: Math.round((n['proteins_100g'] ?? 0) * 10) / 10,
     carbs: Math.round((n['carbohydrates_100g'] ?? 0) * 10) / 10,
@@ -108,5 +119,6 @@ export async function lookupBarcode(barcode: string): Promise<FoodResult | null>
     score,
     badges,
     flags,
+    image: (p.image_front_url as string | undefined) ?? (p.image_url as string | undefined) ?? null,
   }
 }

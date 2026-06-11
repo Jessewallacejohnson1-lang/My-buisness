@@ -1,10 +1,16 @@
 'use client'
 
-import Link from 'next/link'
 import { useState, useEffect, useCallback } from 'react'
-import { getWorkouts, addWorkout, deleteWorkout, toggleWorkoutComplete, type Workout } from '@/lib/db'
-
-const TODAY = new Date().toISOString().split('T')[0]
+import {
+  getWorkouts,
+  addWorkout,
+  deleteWorkout,
+  toggleWorkoutComplete,
+  localDate,
+  type Workout,
+} from '@/lib/db'
+import AppShell from '../components/AppShell'
+import { IconCheck, IconPlus, IconX } from '../components/Icons'
 
 const PRESET_WORKOUTS = [
   { name: 'Upper Body Strength', duration_min: 45, exercises: [{ name: 'Bench Press', sets: 4, reps: 8, weight: 0 }, { name: 'Shoulder Press', sets: 3, reps: 10, weight: 0 }, { name: 'Lat Pulldown', sets: 3, reps: 12, weight: 0 }, { name: 'Bicep Curls', sets: 3, reps: 12, weight: 0 }] },
@@ -22,129 +28,224 @@ export default function WorkoutsPage() {
   const [customDuration, setCustomDuration] = useState('')
   const [adding, setAdding] = useState(false)
 
+  const today = localDate()
+
   const load = useCallback(async () => {
-    setLoading(true)
-    try { setWorkouts(await getWorkouts(TODAY)) } finally { setLoading(false) }
+    try {
+      setWorkouts(await getWorkouts(localDate()))
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    load()
+  }, [load])
 
-  const handleAddPreset = async (preset: typeof PRESET_WORKOUTS[0]) => {
+  const handleAddPreset = async (preset: (typeof PRESET_WORKOUTS)[0]) => {
     setAdding(true)
     try {
-      await addWorkout({ ...preset, date: TODAY, completed: false })
+      await addWorkout({ ...preset, date: today, completed: false })
       await load()
-    } finally { setAdding(false) }
+    } finally {
+      setAdding(false)
+    }
   }
 
   const handleAddCustom = async () => {
     if (!customName.trim()) return
     setAdding(true)
     try {
-      await addWorkout({ name: customName.trim(), duration_min: parseInt(customDuration) || 30, exercises: [], date: TODAY, completed: false })
+      await addWorkout({
+        name: customName.trim(),
+        duration_min: parseInt(customDuration) || 30,
+        exercises: [],
+        date: today,
+        completed: false,
+      })
       setCustomName('')
       setCustomDuration('')
       setShowCustom(false)
       await load()
-    } finally { setAdding(false) }
+    } finally {
+      setAdding(false)
+    }
   }
 
-  const dateLabel = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
+  const handleToggle = async (w: Workout) => {
+    setWorkouts((ws) => ws.map((x) => (x.id === w.id ? { ...x, completed: !w.completed } : x)))
+    await toggleWorkoutComplete(w.id, !w.completed)
+    load()
+  }
+
+  const handleDelete = async (id: string) => {
+    setWorkouts((ws) => ws.filter((x) => x.id !== id))
+    await deleteWorkout(id)
+    load()
+  }
+
+  const done = workouts.filter((w) => w.completed).length
 
   return (
-    <div className="min-h-screen bg-stone-50" style={{ fontFamily: 'var(--font-nunito), sans-serif' }}>
-      <nav className="flex items-center px-5 py-4 max-w-lg mx-auto">
-        <Link href="/dashboard" className="text-stone-400 hover:text-stone-700 text-sm transition-colors">← Dashboard</Link>
-        <span className="font-bold text-green-800 tracking-[0.2em] uppercase text-lg mx-auto pr-8">Grove</span>
-      </nav>
-
-      <div className="max-w-lg mx-auto px-5 pb-20">
-        <p className="text-stone-400 text-sm mb-1">{dateLabel}</p>
-        <h1 className="text-2xl text-stone-900 mb-6" style={{ fontFamily: 'var(--font-dm-serif), serif' }}>Workouts</h1>
-
-        {/* Today's logged workouts */}
-        {!loading && workouts.length > 0 && (
-          <div className="mb-8">
-            <p className="text-xs text-stone-400 uppercase tracking-widest mb-3">Logged today</p>
-            <div className="space-y-2">
-              {workouts.map(w => (
-                <div key={w.id} className="bg-white rounded-2xl border border-stone-100 shadow-sm px-4 py-3 flex items-center gap-3">
-                  <button
-                    onClick={async () => { await toggleWorkoutComplete(w.id, !w.completed); await load() }}
-                    className={`w-7 h-7 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${w.completed ? 'bg-green-700 border-green-700' : 'border-stone-300 hover:border-green-500'}`}
-                  >
-                    {w.completed && <span className="text-white text-xs font-bold">✓</span>}
-                  </button>
-                  <div className="flex-1 min-w-0">
-                    <p className={`font-semibold text-sm ${w.completed ? 'line-through text-stone-400' : 'text-stone-900'}`}>{w.name}</p>
-                    <p className="text-stone-400 text-xs">{w.exercises.length > 0 ? `${w.exercises.length} exercises · ` : ''}{w.duration_min} min</p>
-                  </div>
-                  <button onClick={async () => { await deleteWorkout(w.id); await load() }} className="text-stone-300 hover:text-red-400 transition-colors text-lg leading-none">×</button>
-                </div>
-              ))}
-            </div>
+    <AppShell>
+      <div className="max-w-lg md:max-w-2xl mx-auto px-5 md:px-8 pt-6 md:pt-10">
+        <header className="rise mb-8 flex items-end justify-between">
+          <div>
+            <h1 className="font-display text-3xl text-cream">Train</h1>
+            <p className="font-mono text-[11px] uppercase tracking-wider text-fog mt-2">
+              {new Date().toLocaleDateString('en-US', {
+                weekday: 'long',
+                month: 'long',
+                day: 'numeric',
+              })}
+            </p>
           </div>
-        )}
+          {workouts.length > 0 && (
+            <p className="font-mono text-sm text-fog tabular-nums">
+              <span className="text-cream">{done}</span>/{workouts.length} done
+            </p>
+          )}
+        </header>
 
-        {/* Quick add presets */}
-        <div className="mb-8">
-          <p className="text-xs text-stone-400 uppercase tracking-widest mb-3">Quick add</p>
-          <div className="space-y-2">
-            {PRESET_WORKOUTS.map(p => (
-              <button
-                key={p.name}
-                onClick={() => handleAddPreset(p)}
-                disabled={adding || workouts.some(w => w.name === p.name)}
-                className="w-full bg-white rounded-2xl border border-stone-100 shadow-sm px-4 py-3 flex items-center justify-between hover:border-green-600 transition-colors disabled:opacity-50 text-left"
-              >
-                <div>
-                  <p className="font-semibold text-stone-900 text-sm">{p.name}</p>
-                  <p className="text-stone-400 text-xs">{p.exercises.length} exercises · {p.duration_min} min</p>
-                </div>
-                <span className="text-green-700 text-lg shrink-0">
-                  {workouts.some(w => w.name === p.name) ? '✓' : '+'}
-                </span>
-              </button>
+        {loading ? (
+          <div className="space-y-3">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="h-16 bg-bark-900 border border-white/[0.06] rounded-2xl animate-pulse"
+              />
             ))}
           </div>
-        </div>
+        ) : (
+          <>
+            {workouts.length > 0 && (
+              <section className="rise mb-9" style={{ animationDelay: '60ms' }}>
+                <h2 className="text-[11px] uppercase tracking-[0.18em] text-fog mb-3 px-0.5">
+                  Logged today
+                </h2>
+                <div className="space-y-2">
+                  {workouts.map((w) => (
+                    <div
+                      key={w.id}
+                      className="bg-bark-900 border border-white/[0.06] rounded-2xl px-4 py-3.5 flex items-center gap-3.5"
+                    >
+                      <button
+                        onClick={() => handleToggle(w)}
+                        aria-label={w.completed ? `Mark ${w.name} incomplete` : `Mark ${w.name} complete`}
+                        className={`w-7 h-7 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
+                          w.completed
+                            ? 'bg-moss-400 border-moss-400 text-bark-950'
+                            : 'border-bark-600 hover:border-moss-500'
+                        }`}
+                      >
+                        {w.completed && <IconCheck className="w-4 h-4" strokeWidth={2.5} />}
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <p
+                          className={`text-sm truncate ${
+                            w.completed ? 'line-through text-fog-dim' : 'text-cream'
+                          }`}
+                        >
+                          {w.name}
+                        </p>
+                        <p className="font-mono text-[11px] text-fog-dim mt-0.5 tabular-nums">
+                          {w.exercises.length > 0 ? `${w.exercises.length} exercises · ` : ''}
+                          {w.duration_min} min
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleDelete(w.id)}
+                        aria-label={`Delete ${w.name}`}
+                        className="text-fog-dim hover:text-clay-300 transition-colors p-1 -m-1"
+                      >
+                        <IconX className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
 
-        {/* Custom workout */}
-        <div>
-          <p className="text-xs text-stone-400 uppercase tracking-widest mb-3">Custom</p>
-          {!showCustom ? (
-            <button
-              onClick={() => setShowCustom(true)}
-              className="w-full py-3 rounded-2xl border border-dashed border-stone-300 text-stone-400 text-sm hover:border-green-700 hover:text-green-700 transition-colors"
-            >
-              + Log a custom workout
-            </button>
-          ) : (
-            <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4 space-y-3">
-              <input
-                autoFocus
-                value={customName}
-                onChange={e => setCustomName(e.target.value)}
-                placeholder="Workout name"
-                className="w-full bg-stone-50 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-700"
-              />
-              <input
-                value={customDuration}
-                onChange={e => setCustomDuration(e.target.value)}
-                placeholder="Duration (minutes)"
-                type="number"
-                className="w-full bg-stone-50 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-700"
-              />
-              <div className="flex gap-2">
-                <button onClick={() => setShowCustom(false)} className="flex-1 py-2.5 rounded-xl border border-stone-200 text-stone-500 text-sm hover:bg-stone-50 transition-colors">Cancel</button>
-                <button onClick={handleAddCustom} disabled={!customName.trim() || adding} className="flex-1 py-2.5 rounded-xl bg-green-800 text-white text-sm font-medium hover:bg-green-900 transition-colors disabled:opacity-50">
-                  {adding ? 'Adding...' : 'Log workout'}
-                </button>
+            <section className="rise mb-9" style={{ animationDelay: '120ms' }}>
+              <h2 className="text-[11px] uppercase tracking-[0.18em] text-fog mb-3 px-0.5">
+                Quick start
+              </h2>
+              <div className="space-y-2">
+                {PRESET_WORKOUTS.map((p) => {
+                  const logged = workouts.some((w) => w.name === p.name)
+                  return (
+                    <button
+                      key={p.name}
+                      onClick={() => handleAddPreset(p)}
+                      disabled={adding || logged}
+                      className="w-full bg-bark-900 border border-white/[0.06] rounded-2xl px-4 py-3.5 flex items-center justify-between gap-3 text-left hover:border-moss-500/30 transition-colors disabled:opacity-40 disabled:hover:border-white/[0.06]"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm text-cream truncate">{p.name}</p>
+                        <p className="font-mono text-[11px] text-fog-dim mt-0.5 tabular-nums">
+                          {p.exercises.length} exercises · {p.duration_min} min
+                        </p>
+                      </div>
+                      {logged ? (
+                        <IconCheck className="w-4 h-4 text-moss-400 shrink-0" />
+                      ) : (
+                        <IconPlus className="w-4 h-4 text-moss-300 shrink-0" />
+                      )}
+                    </button>
+                  )
+                })}
               </div>
-            </div>
-          )}
-        </div>
+            </section>
+
+            <section className="rise pb-4" style={{ animationDelay: '180ms' }}>
+              <h2 className="text-[11px] uppercase tracking-[0.18em] text-fog mb-3 px-0.5">
+                Custom
+              </h2>
+              {!showCustom ? (
+                <button
+                  onClick={() => setShowCustom(true)}
+                  className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl border border-dashed border-bark-600 text-fog text-sm hover:border-moss-500/50 hover:text-moss-300 transition-colors"
+                >
+                  <IconPlus className="w-4 h-4" /> Log a custom session
+                </button>
+              ) : (
+                <div className="bg-bark-900 border border-white/[0.06] rounded-2xl p-4 space-y-3">
+                  <input
+                    autoFocus
+                    value={customName}
+                    onChange={(e) => setCustomName(e.target.value)}
+                    placeholder="Session name"
+                    className="w-full bg-bark-800 border border-white/[0.07] rounded-xl px-4 py-3 text-sm text-cream placeholder:text-fog-dim focus:border-moss-500/50 focus:outline-none transition-colors"
+                  />
+                  <input
+                    value={customDuration}
+                    onChange={(e) => setCustomDuration(e.target.value)}
+                    placeholder="Duration (minutes)"
+                    type="number"
+                    min={1}
+                    className="w-full bg-bark-800 border border-white/[0.07] rounded-xl px-4 py-3 text-sm text-cream placeholder:text-fog-dim focus:border-moss-500/50 focus:outline-none transition-colors"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setShowCustom(false)}
+                      className="flex-1 py-3 rounded-xl border border-white/[0.07] text-fog text-sm hover:text-cream hover:bg-bark-800 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleAddCustom}
+                      disabled={!customName.trim() || adding}
+                      className="flex-1 py-3 rounded-xl bg-moss-400 hover:bg-moss-300 text-bark-950 text-sm font-semibold transition-colors disabled:opacity-50"
+                    >
+                      {adding ? 'Logging…' : 'Log session'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </section>
+          </>
+        )}
       </div>
-    </div>
+    </AppShell>
   )
 }

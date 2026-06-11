@@ -1,11 +1,6 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono, DM_Serif_Display, Nunito } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Geist_Mono, DM_Serif_Display, Outfit } from "next/font/google";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
@@ -16,17 +11,26 @@ const dmSerif = DM_Serif_Display({
   variable: "--font-dm-serif",
   subsets: ["latin"],
   weight: "400",
+  style: ["normal", "italic"],
 });
 
-const nunito = Nunito({
-  variable: "--font-nunito",
+const outfit = Outfit({
+  variable: "--font-outfit",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700", "800"],
+  weight: ["300", "400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
-  title: "Grove — Feel good, inside and out",
-  description: "Track nutrition, follow guided workouts, and watch your progress unfold.",
+  title: "Grove — Eat clean. Train hard. Watch it compound.",
+  description:
+    "Grove scores every food you log from 1 to 100, tracks your training, and turns daily habits into visible growth.",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0a0d0b",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -37,7 +41,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${dmSerif.variable} ${nunito.variable} h-full antialiased`}
+      className={`${geistMono.variable} ${dmSerif.variable} ${outfit.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

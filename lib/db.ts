@@ -1,4 +1,6 @@
-import { supabase } from './supabase'
+import { createClient } from './supabase/client'
+
+const supabase = createClient()
 
 export type FoodLog = {
   id: string
@@ -25,6 +27,11 @@ export type Workout = {
   exercises: { name: string; sets: number; reps: number; weight?: number }[]
   completed: boolean
   created_at: string
+}
+
+/** YYYY-MM-DD in the user's timezone — not UTC, so evening logs stay on today. */
+export function localDate(d: Date = new Date()): string {
+  return d.toLocaleDateString('en-CA')
 }
 
 export async function getFoodLogs(date: string): Promise<FoodLog[]> {
@@ -94,8 +101,7 @@ export async function getStreak(): Promise<number> {
   for (let i = 0; i < uniqueDates.length; i++) {
     const expected = new Date(today)
     expected.setDate(today.getDate() - i)
-    const exp = expected.toISOString().split('T')[0]
-    if (uniqueDates[i] === exp) streak++
+    if (uniqueDates[i] === localDate(expected)) streak++
     else break
   }
   return streak
@@ -105,7 +111,7 @@ export async function getWeeklyCalories(): Promise<{ date: string; total: number
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date()
     d.setDate(d.getDate() - (6 - i))
-    return d.toISOString().split('T')[0]
+    return localDate(d)
   })
   const { data, error } = await supabase
     .from('food_logs')

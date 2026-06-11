@@ -1,312 +1,494 @@
 import Link from 'next/link'
+import { createClient } from '@/lib/supabase/server'
+import ScoreRing from './components/ScoreRing'
+import Reveal from './components/Reveal'
+import { IconBarcode, IconCheck, IconFlame, IconLeaf } from './components/Icons'
 
-export default function Home() {
+/* Static tri-ring for the hero preview — CSS animates the fill on load. */
+function PreviewRings() {
+  const rings = [
+    { r: 84, pct: 0.71, color: 'var(--color-honey-400)' },
+    { r: 67, pct: 0.64, color: 'var(--color-moss-400)' },
+    { r: 50, pct: 0.88, color: 'var(--color-cream)' },
+  ]
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-900" style={{ fontFamily: 'var(--font-nunito), sans-serif' }}>
+    <div className="relative w-[180px] h-[180px] shrink-0">
+      <svg viewBox="0 0 200 200" width={180} height={180} className="-rotate-90">
+        {rings.map((ring, i) => {
+          const circ = 2 * Math.PI * ring.r
+          const target = circ * (1 - ring.pct)
+          return (
+            <g key={i}>
+              <circle cx="100" cy="100" r={ring.r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="10" />
+              <circle
+                cx="100"
+                cy="100"
+                r={ring.r}
+                fill="none"
+                stroke={ring.color}
+                strokeWidth="10"
+                strokeLinecap="round"
+                strokeDasharray={circ}
+                className="ring-fill"
+                style={
+                  {
+                    '--circ': circ,
+                    '--target': target,
+                    animationDelay: `${0.3 + i * 0.15}s`,
+                  } as React.CSSProperties
+                }
+              />
+            </g>
+          )
+        })}
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="font-mono text-3xl text-cream tabular-nums">612</span>
+        <span className="text-[10px] uppercase tracking-[0.18em] text-fog mt-0.5">kcal left</span>
+      </div>
+    </div>
+  )
+}
 
-      {/* Navbar */}
-      <nav className="flex items-center justify-between px-6 py-5 max-w-6xl mx-auto">
-        <span className="text-xl font-bold text-green-800 tracking-[0.2em] uppercase" style={{ fontFamily: 'var(--font-nunito), sans-serif' }}>Grove</span>
-        <div className="flex items-center gap-6">
-          <Link href="/dashboard" className="text-stone-500 hover:text-stone-800 text-sm transition-colors">Dashboard</Link>
-          <Link href="/meal-log" className="text-stone-500 hover:text-stone-800 text-sm transition-colors">Meal log</Link>
-          <Link href="/scan" className="border border-green-800 text-green-800 px-5 py-2.5 rounded-full text-sm font-medium hover:bg-green-50 transition-colors">
-            📷 Scan food
-          </Link>
-          <button className="bg-green-800 text-white px-5 py-2.5 rounded-full text-sm font-medium hover:bg-green-900 transition-colors">
-            Get started free
-          </button>
+const EARNS = [
+  { label: 'Whole, unprocessed food', delta: '+20' },
+  { label: 'Nutri-Score A', delta: '+15' },
+  { label: 'Zero additives', delta: '+10' },
+  { label: 'Certified organic', delta: '+8' },
+]
+
+const LOSES = [
+  { label: 'Ultra-processed (NOVA 4)', delta: '−25' },
+  { label: 'Artificial sweeteners', delta: '−15' },
+  { label: 'Artificial dyes', delta: '−10' },
+  { label: 'High-fructose corn syrup', delta: '−10' },
+]
+
+const STEPS = [
+  {
+    n: '01',
+    title: 'Log what you eat',
+    desc: 'Scan a barcode or search 700,000+ foods. Every item is scored 1–100 the moment it hits your log.',
+  },
+  {
+    n: '02',
+    title: 'Train',
+    desc: 'Quick-start strength, HIIT, yoga, or cardio sessions — or log your own. One tap to mark it done.',
+  },
+  {
+    n: '03',
+    title: 'Watch it compound',
+    desc: 'Rings close. Streaks grow. The weekly chart fills in. Progress you can actually see.',
+  },
+]
+
+const TESTIMONIALS = [
+  {
+    quote:
+      'Grove is the only tracker I’ve kept open past a week. The scanner alone saves me ten minutes a day.',
+    name: 'Maya R.',
+    detail: 'Lost 14 lbs in 3 months',
+  },
+  {
+    quote:
+      'Watching the rings close is more motivating than any badge an app has ever given me.',
+    name: 'Jordan T.',
+    detail: '62-day streak',
+  },
+  {
+    quote:
+      'I finally understand what I’m actually eating. The clean score changed how I cook, not just how I log.',
+    name: 'Priya S.',
+    detail: 'Hit protein goal 47 days straight',
+  },
+]
+
+export default async function Home() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  const appHref = user ? '/dashboard' : '/login'
+
+  return (
+    <div className="min-h-screen overflow-x-clip">
+      {/* nav */}
+      <nav className="sticky top-0 z-50 bg-bark-950/80 backdrop-blur-md border-b border-white/[0.06]">
+        <div className="max-w-6xl mx-auto px-5 md:px-8 h-16 flex items-center justify-between">
+          <span className="font-display text-cream tracking-[0.25em] uppercase text-lg">Grove</span>
+          <div className="flex items-center gap-6">
+            <a href="#score" className="hidden md:block text-sm text-fog hover:text-cream transition-colors">
+              The score
+            </a>
+            <a href="#scanner" className="hidden md:block text-sm text-fog hover:text-cream transition-colors">
+              Scanner
+            </a>
+            {user ? (
+              <Link
+                href="/dashboard"
+                className="bg-moss-400 hover:bg-moss-300 text-bark-950 font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors"
+              >
+                Open Grove
+              </Link>
+            ) : (
+              <>
+                <Link href="/login" className="hidden sm:block text-sm text-fog hover:text-cream transition-colors">
+                  Sign in
+                </Link>
+                <Link
+                  href="/login"
+                  className="bg-moss-400 hover:bg-moss-300 text-bark-950 font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors"
+                >
+                  Start free
+                </Link>
+              </>
+            )}
+          </div>
         </div>
       </nav>
 
-      {/* Hero */}
-      <section className="max-w-6xl mx-auto px-6 pt-16 pb-24 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-        <div>
-          <span className="inline-block bg-amber-100 text-amber-800 text-xs font-semibold px-3 py-1 rounded-full mb-6 tracking-widest uppercase">
-            Your wellness companion
-          </span>
-          <h1 className="text-5xl leading-tight text-stone-900 mb-6" style={{ fontFamily: 'var(--font-dm-serif), serif', fontWeight: 400 }}>
-            Feel good,<br />inside and out.
-          </h1>
-          <p className="text-lg text-stone-500 mb-10 leading-relaxed max-w-md">
-            Track your nutrition, follow guided workouts, and watch your progress
-            unfold — all in one place, built for the long game.
-          </p>
-          <div className="flex gap-4 flex-wrap">
-            <button className="bg-green-800 text-white px-7 py-3.5 rounded-full font-medium hover:bg-green-900 transition-colors">
-              Start for free
-            </button>
-            <button className="border border-stone-300 text-stone-700 px-7 py-3.5 rounded-full font-medium hover:bg-stone-100 transition-colors">
-              See how it works
-            </button>
-          </div>
-        </div>
+      {/* hero */}
+      <section className="relative">
+        {/* growth-rings ornament */}
+        <div
+          aria-hidden
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background:
+              'repeating-radial-gradient(circle at 78% 38%, transparent 0px, transparent 89px, rgba(164,193,143,0.06) 90px, transparent 91px)',
+          }}
+        />
+        <div
+          aria-hidden
+          className="absolute right-[-10%] top-[10%] w-[480px] h-[480px] rounded-full bg-moss-600/10 blur-[120px] pointer-events-none"
+        />
 
-        {/* App preview card */}
-        <div className="bg-white rounded-3xl shadow-xl p-6 space-y-4 border border-stone-100">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-stone-400 uppercase tracking-widest">Today&apos;s progress</p>
-              <p className="text-xl font-bold text-stone-900 mt-0.5">Monday, Jun 9</p>
+        <div className="relative max-w-6xl mx-auto px-5 md:px-8 pt-16 md:pt-24 pb-20 grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
+          <div className="rise">
+            <p className="text-[11px] uppercase tracking-[0.22em] text-moss-300 mb-6">
+              Nutrition-first fitness tracking
+            </p>
+            <h1 className="font-display text-5xl md:text-6xl text-cream leading-[1.04] mb-7">
+              Eat clean.
+              <br />
+              Train hard.
+              <br />
+              <em className="text-moss-300">Watch it compound.</em>
+            </h1>
+            <p className="text-fog text-lg leading-relaxed max-w-md mb-10">
+              Every food you log gets a clean score from 1 to 100. Every workout counts.
+              Grove turns daily habits into rings you can watch grow.
+            </p>
+            <div className="flex gap-3 flex-wrap">
+              <Link
+                href={appHref}
+                className="bg-moss-400 hover:bg-moss-300 text-bark-950 font-semibold px-7 py-3.5 rounded-xl text-sm transition-colors"
+              >
+                {user ? 'Open Grove' : 'Start free'}
+              </Link>
+              <a
+                href="#score"
+                className="border border-white/[0.1] text-cream px-7 py-3.5 rounded-xl text-sm hover:bg-bark-800 transition-colors"
+              >
+                How foods score
+              </a>
             </div>
-            <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-lg">🌱</div>
           </div>
 
-          <div className="bg-stone-50 rounded-2xl p-4 flex items-center gap-4">
-            <div className="relative w-16 h-16 shrink-0">
-              <svg viewBox="0 0 36 36" className="w-16 h-16 -rotate-90">
-                <circle cx="18" cy="18" r="15.9" fill="none" stroke="#e7e5e4" strokeWidth="3" />
-                <circle cx="18" cy="18" r="15.9" fill="none" stroke="#166534" strokeWidth="3"
-                  strokeDasharray="68 32" strokeLinecap="round" />
-              </svg>
-              <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-stone-800">68%</span>
-            </div>
-            <div>
-              <p className="font-semibold text-stone-800">1,420 / 2,100 cal</p>
-              <p className="text-xs text-stone-400 mt-0.5">680 calories remaining</p>
-            </div>
-          </div>
+          {/* app preview */}
+          <div className="rise relative max-w-sm w-full mx-auto lg:ml-auto" style={{ animationDelay: '150ms' }}>
+            <div className="bg-bark-900 border border-white/[0.08] rounded-3xl p-5 shadow-[0_24px_80px_-24px_rgba(0,0,0,0.8)]">
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-[11px] uppercase tracking-[0.18em] text-fog">Today</span>
+                <span className="flex items-center gap-1.5 font-mono text-[11px] text-honey-300 tabular-nums">
+                  <IconFlame className="w-3.5 h-3.5" /> 12 days
+                </span>
+              </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            {[
-              { label: 'Protein', value: '82g', pct: '74%', color: 'bg-amber-400' },
-              { label: 'Carbs', value: '156g', pct: '60%', color: 'bg-orange-400' },
-              { label: 'Fat', value: '44g', pct: '55%', color: 'bg-green-500' },
-            ].map((m) => (
-              <div key={m.label} className="bg-stone-50 rounded-xl p-3">
-                <p className="text-xs text-stone-400 mb-1">{m.label}</p>
-                <p className="font-semibold text-sm text-stone-800">{m.value}</p>
-                <div className="mt-2 h-1.5 bg-stone-200 rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full ${m.color}`} style={{ width: m.pct }} />
+              <div className="flex justify-center py-2">
+                <PreviewRings />
+              </div>
+
+              <div className="space-y-1.5 mt-4 mb-4">
+                {[
+                  { label: 'Calories', value: '1,488 / 2,100', color: 'bg-honey-400' },
+                  { label: 'Protein', value: '90g / 140g', color: 'bg-moss-400' },
+                  { label: 'Clean score', value: '88 / 100', color: 'bg-cream' },
+                ].map((row) => (
+                  <div key={row.label} className="flex items-center justify-between">
+                    <span className="flex items-center gap-2 text-xs text-fog">
+                      <span className={`w-1.5 h-1.5 rounded-full ${row.color}`} />
+                      {row.label}
+                    </span>
+                    <span className="font-mono text-xs text-cream tabular-nums">{row.value}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="border-t border-white/[0.06] pt-3 space-y-2.5">
+                <div className="flex items-center gap-3">
+                  <ScoreRing score={92} size={34} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-cream truncate">Greek yogurt, plain</p>
+                    <p className="font-mono text-[10px] text-fog-dim tabular-nums">146 kcal · 20P</p>
+                  </div>
+                  <span className="text-[10px] text-moss-300">Clean</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="w-[34px] h-[34px] rounded-full bg-moss-400 text-bark-950 flex items-center justify-center shrink-0">
+                    <IconCheck className="w-4 h-4" strokeWidth={2.5} />
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-cream truncate">Upper Body Strength</p>
+                    <p className="font-mono text-[10px] text-fog-dim tabular-nums">4 exercises · 45 min</p>
+                  </div>
+                  <span className="text-[10px] text-fog">Done</span>
                 </div>
               </div>
-            ))}
-          </div>
-
-          <div className="bg-green-800 rounded-2xl p-4 text-white flex items-center justify-between">
-            <div>
-              <p className="text-xs text-green-300 mb-1">Today&apos;s workout</p>
-              <p className="font-semibold">Upper Body Strength</p>
-              <p className="text-xs text-green-300 mt-0.5">6 exercises · 45 min</p>
-            </div>
-            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white font-bold">
-              ▶
             </div>
           </div>
         </div>
-      </section>
 
-      {/* Features */}
-      <section id="features" className="bg-amber-50 py-24">
-        <div className="max-w-6xl mx-auto px-6">
-          <h2 className="text-4xl text-center text-stone-900 mb-4" style={{ fontFamily: 'var(--font-dm-serif), serif', fontWeight: 400 }}>Everything you need</h2>
-          <p className="text-center text-stone-500 mb-14 max-w-xl mx-auto">
-            No fluff. Just the tools that actually help you build sustainable habits.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        {/* data strip */}
+        <div className="relative border-y border-white/[0.06]">
+          <div className="max-w-6xl mx-auto px-5 md:px-8 grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-white/[0.06]">
             {[
-              {
-                icon: '🥦',
-                title: 'Daily Nutrition',
-                desc: 'Log meals and track calories, protein, carbs, fats, vitamins, and minerals — with a database of thousands of foods.',
-              },
-              {
-                icon: '🏋️',
-                title: 'Workout Guidance',
-                desc: 'Follow curated workout plans or build your own. Log sets, reps, and weight. Every session tracked.',
-              },
-              {
-                icon: '📅',
-                title: 'Progress Calendar',
-                desc: 'See months of data at a glance. Streaks, milestones, weight trends — your journey, visualized.',
-              },
-            ].map((f) => (
-              <div key={f.title} className="bg-white rounded-2xl p-8 shadow-sm border border-stone-100">
-                <div className="text-4xl mb-5">{f.icon}</div>
-                <h3 className="text-xl font-semibold text-stone-900 mb-3">{f.title}</h3>
-                <p className="text-stone-500 leading-relaxed">{f.desc}</p>
+              ['700,000+', 'foods in the database'],
+              ['1–100', 'clean score on every log'],
+              ['~2 sec', 'from barcode to logged'],
+            ].map(([num, label]) => (
+              <div key={label} className="py-6 sm:px-8 first:pl-0 flex items-baseline gap-3">
+                <span className="font-mono text-xl text-cream tabular-nums">{num}</span>
+                <span className="text-sm text-fog">{label}</span>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* How it works */}
-      <section id="how-it-works" className="py-24 max-w-6xl mx-auto px-6">
-        <h2 className="text-4xl text-center text-stone-900 mb-4" style={{ fontFamily: 'var(--font-dm-serif), serif', fontWeight: 400 }}>Simple by design</h2>
-        <p className="text-center text-stone-500 mb-16 max-w-xl mx-auto">
-          Getting started takes two minutes. Building the habit takes consistency — we make that easy.
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
-          {[
-            {
-              step: '01',
-              title: 'Set your goals',
-              desc: 'Tell us where you want to go — lose weight, build muscle, eat better, or all three.',
-            },
-            {
-              step: '02',
-              title: 'Log your day',
-              desc: "Quickly log meals and workouts. We'll do the math and keep you on track.",
-            },
-            {
-              step: '03',
-              title: 'Watch yourself grow',
-              desc: 'Your calendar fills up. Your habits compound. The results follow.',
-            },
-          ].map((s) => (
-            <div key={s.step} className="flex gap-5">
-              <span className="text-5xl font-bold text-stone-200 shrink-0 leading-none">{s.step}</span>
-              <div className="pt-1">
-                <h3 className="text-xl font-semibold text-stone-900 mb-2">{s.title}</h3>
-                <p className="text-stone-500 leading-relaxed">{s.desc}</p>
+      {/* clean score */}
+      <section id="score" className="max-w-6xl mx-auto px-5 md:px-8 py-24 md:py-32 grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
+        <Reveal className="order-2 lg:order-1">
+          <div className="bg-bark-900 border border-white/[0.08] rounded-3xl p-6 max-w-sm mx-auto lg:mx-0">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-fog mb-5">Clean score</p>
+            <div className="flex items-center gap-5 mb-6">
+              <ScoreRing score={92} size={72} />
+              <div>
+                <p className="text-cream">Greek yogurt, plain</p>
+                <p className="text-[11px] uppercase tracking-[0.18em] text-moss-300 mt-1">Clean</p>
+                <div className="flex gap-1.5 mt-2.5 flex-wrap">
+                  {['Whole food', 'High protein'].map((b) => (
+                    <span
+                      key={b}
+                      className="inline-flex items-center gap-1 text-[10px] text-moss-300 bg-moss-500/10 border border-moss-500/20 px-2 py-0.5 rounded-full"
+                    >
+                      <IconLeaf className="w-2.5 h-2.5" />
+                      {b}
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
+            <div className="flex items-center gap-5 pt-5 border-t border-white/[0.06]">
+              <ScoreRing score={14} size={72} />
+              <div>
+                <p className="text-cream">Diet cola</p>
+                <p className="text-[11px] uppercase tracking-[0.18em] text-clay-300 mt-1">Avoid</p>
+                <p className="text-[11px] text-fog mt-2 leading-relaxed">
+                  Ultra-processed · artificial sweeteners
+                </p>
+              </div>
+            </div>
+          </div>
+        </Reveal>
+
+        <Reveal className="order-1 lg:order-2">
+          <p className="text-[11px] uppercase tracking-[0.22em] text-moss-300 mb-5">The clean score</p>
+          <h2 className="font-display text-4xl md:text-5xl text-cream leading-tight mb-6">
+            We read the label
+            <br />
+            so you don&apos;t have to.
+          </h2>
+          <p className="text-fog leading-relaxed mb-10 max-w-md">
+            Calories never told the whole story. Grove scores every food on how processed it
+            really is — the same rules, applied to everything you log.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-1">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-fog mb-3">Earns points</p>
+              {EARNS.map((f) => (
+                <div
+                  key={f.label}
+                  className="flex items-center justify-between gap-4 py-2.5 border-t border-white/[0.06]"
+                >
+                  <span className="text-sm text-cream">{f.label}</span>
+                  <span className="font-mono text-sm text-moss-300 tabular-nums">{f.delta}</span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-6 sm:mt-0">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-fog mb-3">Loses points</p>
+              {LOSES.map((f) => (
+                <div
+                  key={f.label}
+                  className="flex items-center justify-between gap-4 py-2.5 border-t border-white/[0.06]"
+                >
+                  <span className="text-sm text-cream">{f.label}</span>
+                  <span className="font-mono text-sm text-clay-300 tabular-nums">{f.delta}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Reveal>
+      </section>
+
+      {/* scanner */}
+      <section id="scanner" className="border-y border-white/[0.06] bg-bark-900/40">
+        <div className="max-w-6xl mx-auto px-5 md:px-8 py-24 md:py-32 grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
+          <Reveal>
+            <p className="text-[11px] uppercase tracking-[0.22em] text-moss-300 mb-5">Instant logging</p>
+            <h2 className="font-display text-4xl md:text-5xl text-cream leading-tight mb-6">
+              Scan it. Logged.
+            </h2>
+            <p className="text-fog leading-relaxed mb-8 max-w-md">
+              Point your camera at any barcode and the full breakdown lands in your log —
+              calories, macros, and the clean score. No typing, no searching.
+            </p>
+            <Link
+              href={user ? '/scan' : '/login'}
+              className="inline-flex items-center gap-2.5 bg-moss-400 hover:bg-moss-300 text-bark-950 font-semibold px-7 py-3.5 rounded-xl text-sm transition-colors"
+            >
+              <IconBarcode className="w-4 h-4" />
+              Try the scanner
+            </Link>
+          </Reveal>
+
+          <Reveal className="relative max-w-sm w-full mx-auto lg:ml-auto">
+            <div className="bg-bark-900 border border-white/[0.08] rounded-3xl p-5">
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-[11px] uppercase tracking-[0.18em] text-fog">Scan</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-moss-400 animate-pulse" />
+              </div>
+              <div className="relative bg-bark-950 rounded-2xl aspect-video overflow-hidden">
+                <div className="absolute inset-5">
+                  <span className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-moss-300 rounded-tl-lg" />
+                  <span className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-moss-300 rounded-tr-lg" />
+                  <span className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-moss-300 rounded-bl-lg" />
+                  <span className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-moss-300 rounded-br-lg" />
+                  <span
+                    className="absolute left-2 right-2 h-px bg-moss-300/80"
+                    style={{ animation: 'beam 2.4s ease-in-out infinite', boxShadow: '0 0 12px rgba(191,211,175,0.5)' }}
+                  />
+                </div>
+                <IconBarcode className="absolute inset-0 m-auto w-12 h-12 text-fog-dim" />
+              </div>
+              <div className="mt-4 bg-bark-800 border border-white/[0.05] rounded-2xl p-3.5 flex items-center gap-3">
+                <ScoreRing score={78} size={38} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-cream truncate">Dark chocolate almonds</p>
+                  <p className="font-mono text-[10px] text-fog-dim tabular-nums">200 kcal · 6P · 13C</p>
+                </div>
+                <span className="bg-moss-400 text-bark-950 text-[11px] font-semibold px-3 py-1.5 rounded-lg shrink-0">
+                  Add
+                </span>
+              </div>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* daily loop */}
+      <section className="max-w-6xl mx-auto px-5 md:px-8 py-24 md:py-32">
+        <Reveal className="max-w-xl mb-14">
+          <p className="text-[11px] uppercase tracking-[0.22em] text-moss-300 mb-5">The daily loop</p>
+          <h2 className="font-display text-4xl md:text-5xl text-cream leading-tight">
+            Two minutes a day.
+            <br />
+            That&apos;s the whole system.
+          </h2>
+        </Reveal>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-8">
+          {STEPS.map((s) => (
+            <Reveal key={s.n} className="border-t border-white/[0.1] pt-6">
+              <p className="font-mono text-xs text-moss-300 mb-4 tabular-nums">{s.n}</p>
+              <h3 className="text-lg text-cream mb-3">{s.title}</h3>
+              <p className="text-sm text-fog leading-relaxed">{s.desc}</p>
+            </Reveal>
           ))}
         </div>
       </section>
 
-      {/* Barcode scanner spotlight */}
-      <section className="py-24 bg-stone-900 overflow-hidden">
-        <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-          {/* Scanner mock */}
-          <div className="relative">
-            <div className="bg-stone-800 rounded-3xl p-6 border border-stone-700 shadow-2xl">
-              <div className="flex items-center justify-between mb-5">
-                <span className="text-stone-400 text-xs tracking-widest uppercase">Scan food</span>
-                <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-              </div>
-              {/* Viewfinder */}
-              <div className="relative bg-stone-900 rounded-2xl aspect-video flex items-center justify-center overflow-hidden">
-                <div className="absolute inset-0 opacity-20" style={{
-                  backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 30px, #6b7280 30px, #6b7280 31px), repeating-linear-gradient(90deg, transparent, transparent 30px, #6b7280 30px, #6b7280 31px)'
-                }} />
-                <div className="absolute inset-6 border-2 border-green-400 rounded-xl" style={{ boxShadow: '0 0 30px rgba(74,222,128,0.2)' }}>
-                  <span className="absolute -top-px left-4 right-4 h-px bg-green-400 opacity-80" style={{ animation: 'none' }} />
-                  <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-green-400 rounded-tl" />
-                  <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-green-400 rounded-tr" />
-                  <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-green-400 rounded-bl" />
-                  <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-green-400 rounded-br" />
-                </div>
-                <span className="text-stone-500 text-sm">Point at a barcode</span>
-              </div>
-              {/* Result card */}
-              <div className="mt-4 bg-stone-700/60 rounded-2xl p-4 flex items-center gap-4 border border-stone-600">
-                <div className="w-12 h-12 rounded-xl bg-amber-500/20 flex items-center justify-center text-2xl shrink-0">🥜</div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-white font-semibold text-sm truncate">Kind Dark Chocolate Nuts</p>
-                  <p className="text-stone-400 text-xs mt-0.5">1 bar · 200 cal · 6g protein</p>
-                </div>
-                <button className="bg-green-600 text-white text-xs font-medium px-3 py-1.5 rounded-full shrink-0 hover:bg-green-500 transition-colors">
-                  Add
-                </button>
-              </div>
-            </div>
-            {/* Glow */}
-            <div className="absolute -inset-4 bg-green-800/20 rounded-3xl blur-3xl -z-10" />
-          </div>
-          {/* Copy */}
-          <div>
-            <span className="inline-block text-green-400 text-xs font-semibold tracking-widest uppercase mb-5">Instant logging</span>
-            <h2 className="text-4xl text-white mb-6 leading-snug" style={{ fontFamily: 'var(--font-dm-serif), serif', fontWeight: 400 }}>
-              Scan it.<br />Logged in a second.
-            </h2>
-            <p className="text-stone-400 leading-relaxed mb-8 text-lg">
-              Point your camera at any barcode and get the full nutrition breakdown instantly — calories, protein, carbs, fats. No typing, no searching.
+      {/* testimonials */}
+      <section className="border-t border-white/[0.06]">
+        <div className="max-w-6xl mx-auto px-5 md:px-8 py-24 md:py-32">
+          <Reveal>
+            <p className="text-[11px] uppercase tracking-[0.22em] text-moss-300 mb-12 text-center">
+              From the grove
             </p>
-            <ul className="space-y-3 mb-10">
-              {[
-                'Works on 700,000+ packaged foods',
-                'Instantly adds to your daily log',
-                'Remembers your frequent foods',
-              ].map((item) => (
-                <li key={item} className="flex items-center gap-3 text-stone-300 text-sm">
-                  <span className="w-5 h-5 rounded-full bg-green-800 border border-green-600 flex items-center justify-center shrink-0">
-                    <svg viewBox="0 0 10 10" className="w-3 h-3 text-green-400" fill="none">
-                      <path d="M2 5l2 2 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
+          </Reveal>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {TESTIMONIALS.map((t) => (
+              <Reveal
+                key={t.name}
+                className="bg-bark-900 border border-white/[0.06] rounded-3xl p-7"
+              >
+                <figure className="flex flex-col h-full">
+                <blockquote className="text-cream/90 leading-relaxed flex-1 mb-7">
+                  “{t.quote}”
+                </blockquote>
+                <figcaption className="flex items-center gap-3.5 pt-5 border-t border-white/[0.06]">
+                  <span className="w-9 h-9 rounded-full bg-moss-500/15 border border-moss-500/25 text-moss-300 text-sm flex items-center justify-center">
+                    {t.name[0]}
                   </span>
-                  {item}
-                </li>
-              ))}
-            </ul>
-            <Link href="/scan" className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-500 text-white px-7 py-3.5 rounded-full font-medium transition-colors">
-              Try the scanner
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* Testimonials */}
-      <section className="py-24 bg-amber-50">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="text-center mb-14">
-            <span className="text-amber-700 text-xs font-semibold tracking-widest uppercase block mb-3">Real people, real results</span>
-            <h2 className="text-4xl text-stone-900" style={{ fontFamily: 'var(--font-dm-serif), serif', fontWeight: 400 }}>
-              The habit sticks this time
-            </h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[
-              {
-                quote: "I've tried every fitness app. Grove is the only one I've kept open for more than a week. The scanner alone saves me ten minutes a day.",
-                name: 'Maya R.',
-                detail: 'Lost 14 lbs in 3 months',
-                avatar: '🧘‍♀️',
-              },
-              {
-                quote: "Seeing the calendar fill up with green streaks is more motivating than any notification or reward badge I've ever earned.",
-                name: 'Jordan T.',
-                detail: '62-day streak',
-                avatar: '🏃‍♂️',
-              },
-              {
-                quote: "I finally understand what I'm actually eating. The macro breakdown changed how I cook, not just how I log.",
-                name: 'Priya S.',
-                detail: 'Hit protein goal 47 days straight',
-                avatar: '🥗',
-              },
-            ].map((t) => (
-              <div key={t.name} className="bg-white rounded-2xl p-7 border border-stone-100 shadow-sm flex flex-col">
-                <p className="text-stone-600 leading-relaxed flex-1 mb-6">&ldquo;{t.quote}&rdquo;</p>
-                <div className="flex items-center gap-3 pt-5 border-t border-stone-100">
-                  <span className="text-2xl">{t.avatar}</span>
                   <div>
-                    <p className="font-semibold text-stone-900 text-sm">{t.name}</p>
-                    <p className="text-stone-400 text-xs">{t.detail}</p>
+                    <p className="text-sm text-cream">{t.name}</p>
+                    <p className="font-mono text-[11px] text-fog-dim mt-0.5 tabular-nums">{t.detail}</p>
                   </div>
-                </div>
-              </div>
+                </figcaption>
+                </figure>
+              </Reveal>
             ))}
           </div>
         </div>
       </section>
 
       {/* CTA */}
-      <section className="bg-green-800 py-24 text-white text-center">
-        <div className="max-w-2xl mx-auto px-6">
-          <h2 className="text-5xl mb-4" style={{ fontFamily: 'var(--font-dm-serif), serif', fontWeight: 400 }}>Ready to start?</h2>
-          <p className="text-green-200 text-lg mb-10">
-            Join the waitlist and be the first to know when we launch.
+      <section className="relative border-t border-white/[0.06] overflow-hidden">
+        <div
+          aria-hidden
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background:
+              'repeating-radial-gradient(circle at 50% 130%, transparent 0px, transparent 79px, rgba(164,193,143,0.07) 80px, transparent 81px)',
+          }}
+        />
+        <Reveal className="relative max-w-2xl mx-auto px-5 md:px-8 py-24 md:py-32 text-center">
+          <h2 className="font-display text-4xl md:text-5xl text-cream leading-tight mb-5">
+            Start your first ring today.
+          </h2>
+          <p className="text-fog mb-10">
+            Free to use. Your first meal is logged in under a minute.
           </p>
-          <div className="flex gap-3 max-w-sm mx-auto">
-            <input
-              type="email"
-              placeholder="your@email.com"
-              className="flex-1 px-5 py-3 rounded-full text-stone-900 focus:outline-none min-w-0"
-            />
-            <button className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-3 rounded-full font-medium whitespace-nowrap transition-colors">
-              Join waitlist
-            </button>
-          </div>
-        </div>
+          <Link
+            href={appHref}
+            className="inline-block bg-moss-400 hover:bg-moss-300 text-bark-950 font-semibold px-9 py-4 rounded-xl transition-colors"
+          >
+            {user ? 'Open Grove' : 'Start free'}
+          </Link>
+        </Reveal>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-stone-900 text-stone-400 py-10 text-center text-sm">
-        <p className="text-white font-bold text-xl mb-2 tracking-[0.2em] uppercase">Grove</p>
-        <p>© 2026 Grove. Built with care.</p>
+      {/* footer */}
+      <footer className="border-t border-white/[0.06]">
+        <div className="max-w-6xl mx-auto px-5 md:px-8 py-12 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div>
+            <p className="font-display text-cream tracking-[0.25em] uppercase">Grove</p>
+            <p className="text-sm text-fog-dim mt-1.5">Feel good, inside and out.</p>
+          </div>
+          <p className="font-mono text-[11px] text-fog-dim">© 2026 Grove</p>
+        </div>
       </footer>
     </div>
-  );
+  )
 }
