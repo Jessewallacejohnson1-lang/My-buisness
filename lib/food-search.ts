@@ -10,6 +10,22 @@ export type FoodResult = {
   badges: { label: string; icon: string; color: string }[]
   flags: string[]
   image?: string | null
+  serving_size?: string | null
+  serving_grams?: number | null
+}
+
+/** Scales per-100g nutrition to the chosen number of grams. Score is unaffected. */
+export function scaleFood(food: FoodResult, grams: number): FoodResult {
+  const f = grams / 100
+  const r1 = (n: number) => Math.round(n * f * 10) / 10
+  return {
+    ...food,
+    calories: Math.round(food.calories * f),
+    protein: r1(food.protein),
+    carbs: r1(food.carbs),
+    fat: r1(food.fat),
+    fibre: r1(food.fibre),
+  }
 }
 
 /** Picks exactly the food_logs columns — strips display-only fields like image. */
@@ -120,5 +136,7 @@ export async function lookupBarcode(barcode: string): Promise<FoodResult | null>
     badges,
     flags,
     image: (p.image_front_url as string | undefined) ?? (p.image_url as string | undefined) ?? null,
+    serving_size: (p.serving_size as string | undefined) ?? null,
+    serving_grams: Number(p.serving_quantity) > 0 ? Math.round(Number(p.serving_quantity)) : null,
   }
 }

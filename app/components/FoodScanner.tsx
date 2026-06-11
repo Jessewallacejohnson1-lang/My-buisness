@@ -2,20 +2,43 @@
 
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
-import { lookupBarcode, toLogEntry, type FoodResult } from '@/lib/food-search'
+import { lookupBarcode, scaleFood, toLogEntry, type FoodResult } from '@/lib/food-search'
 import { addFoodLog, localDate } from '@/lib/db'
 import ScoreRing, { scoreTone } from './ScoreRing'
 import { IconAlert, IconBarcode, IconCheck, IconLeaf } from './Icons'
 
-const MEALS = ['Breakfast', 'Lunch', 'Dinner', 'Snacks'] as const
-type Meal = (typeof MEALS)[number]
+export const MEALS = ['Breakfast', 'Lunch', 'Dinner', 'Snacks'] as const
+export type Meal = (typeof MEALS)[number]
 
-function mealForNow(): Meal {
+export function mealForNow(): Meal {
   const h = new Date().getHours()
   if (h < 11) return 'Breakfast'
   if (h < 15) return 'Lunch'
   if (h >= 17 && h < 21) return 'Dinner'
   return 'Snacks'
+}
+
+export function MealPicker({ meal, onChange }: { meal: Meal; onChange: (m: Meal) => void }) {
+  return (
+    <div>
+      <p className="text-[11px] uppercase tracking-[0.18em] text-ink-2 mb-2.5 px-0.5">Log as</p>
+      <div className="grid grid-cols-4 gap-1.5">
+        {MEALS.map((m) => (
+          <button
+            key={m}
+            onClick={() => onChange(m)}
+            className={`py-2.5 rounded-xl text-xs transition-colors border ${
+              meal === m
+                ? 'bg-moss-700 border-moss-700 text-white font-semibold'
+                : 'bg-paper-50 border-black/[0.08] text-ink-2 hover:text-ink'
+            }`}
+          >
+            {m}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 export default function FoodScanner() {
@@ -25,6 +48,7 @@ export default function FoodScanner() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [meal, setMeal] = useState<Meal>(mealForNow())
+  const [grams, setGrams] = useState(100)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const stopRef = useRef<(() => void) | null>(null)
@@ -39,8 +63,9 @@ export default function FoodScanner() {
       const { BrowserMultiFormatReader } = await import('@zxing/browser')
       const reader = new BrowserMultiFormatReader()
 
-      const controls = await reader.decodeFromVideoDevice(
-        undefined,
+      // Prefer the back camera on phones; falls back automatically on desktop.
+      const controls = await reader.decodeFromConstraints(
+        { video: { facingMode: 'environment' } },
         videoRef.current!,
         async (scanResult, _err, ctrl) => {
           if (scanResult) {
@@ -72,11 +97,12 @@ export default function FoodScanner() {
     try {
       const food = await lookupBarcode(barcode)
       if (!food) {
-        setError('That barcode isn’t in the database. Try another item or search it by name.')
+        setError('That barcode isn’t in the database. Try another item or use Photo mode.')
         return
       }
       setResult(food)
       setMeal(mealForNow())
+      setGrams(food.serving_grams ?? 100)
     } catch {
       setError('Couldn’t fetch the food data. Check your connection and try again.')
     } finally {
@@ -88,7 +114,7 @@ export default function FoodScanner() {
     if (!result) return
     setSaving(true)
     try {
-      await addFoodLog(toLogEntry(result, meal, localDate()))
+      await addFoodLog(toLogEntry(scaleFood(result, grams), meal, localDate()))
       setSaved(true)
     } catch {
       setError('Couldn’t save the log. Try again.')
@@ -104,20 +130,17 @@ export default function FoodScanner() {
   }, [])
 
   const tone = result ? scoreTone(result.score) : null
+  const scaled = result ? scaleFood(result, grams) : null
+  const presets = result?.serving_grams
+    ? [{ label: `1 serving · ${result.serving_grams}g`, g: result.serving_grams }, { label: '50g', g: 50 }, { label: '100g', g: 100 }, { label: '200g', g: 200 }]
+    : [{ label: '50g', g: 50 }, { label: '100g', g: 100 }, { label: '150g', g: 150 }, { label: '200g', g: 200 }]
 
   return (
-    <div className="max-w-md mx-auto px-5 pt-6 md:pt-10 pb-8">
-      <header className="rise mb-6">
-        <h1 className="font-display text-3xl text-ink">Scan</h1>
-        <p className="text-sm text-ink-2 mt-2 leading-relaxed">
-          Point at any barcode. Nutrition and clean score, instantly.
-        </p>
-      </header>
-
+    <div>
       {/* viewfinder */}
       {!result && (
-        <div className="rise" style={{ animationDelay: '60ms' }}>
-          <div className="relative rounded-3xl overflow-hidden bg-paper-50 border border-black/[0.09] aspect-square flex items-center justify-center">
+        <div className="rise">
+          <div className="relative rounded-3xl overflow-hidden bg-paper-100 border border-black/[0.08] aspect-square flex items-center justify-center">
             <video
               ref={videoRef}
               className={`w-full h-full object-cover ${scanning ? 'block' : 'hidden'}`}
@@ -189,7 +212,7 @@ export default function FoodScanner() {
       )}
 
       {/* result */}
-      {result && !loading && (
+      {result && !loading && scaled && (
         <div className="rise space-y-4">
           <div className="bg-paper-50 border border-black/[0.07] rounded-3xl overflow-hidden">
             {result.image && (
@@ -218,12 +241,43 @@ export default function FoodScanner() {
                 <ScoreRing score={result.score} size={56} />
               </div>
 
+              {/* portion */}
+              <div className="mb-4">
+                <div className="flex items-baseline justify-between mb-2">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-ink-2">Portion</p>
+                  <span className="font-mono text-xs text-ink tabular-nums">{grams}g</span>
+                </div>
+                <div className="flex gap-1.5 flex-wrap">
+                  {presets.map((p) => (
+                    <button
+                      key={p.label}
+                      onClick={() => setGrams(p.g)}
+                      className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${
+                        grams === p.g
+                          ? 'bg-ink border-ink text-white'
+                          : 'bg-paper border-black/[0.08] text-ink-2 hover:text-ink'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                  <input
+                    type="number"
+                    min={1}
+                    value={grams}
+                    onChange={(e) => setGrams(Math.max(1, parseInt(e.target.value) || 1))}
+                    aria-label="Portion in grams"
+                    className="w-20 px-2 py-1.5 rounded-lg text-xs bg-paper border border-black/[0.08] text-ink font-mono tabular-nums focus:border-moss-700/50 focus:outline-none"
+                  />
+                </div>
+              </div>
+
               <div className="grid grid-cols-4 gap-2 mb-4">
                 {[
-                  { label: 'kcal', value: result.calories },
-                  { label: 'protein', value: `${result.protein}g` },
-                  { label: 'carbs', value: `${result.carbs}g` },
-                  { label: 'fat', value: `${result.fat}g` },
+                  { label: 'kcal', value: scaled.calories },
+                  { label: 'protein', value: `${scaled.protein}g` },
+                  { label: 'carbs', value: `${scaled.carbs}g` },
+                  { label: 'fat', value: `${scaled.fat}g` },
                 ].map((m) => (
                   <div
                     key={m.label}
@@ -266,7 +320,7 @@ export default function FoodScanner() {
                 <IconCheck className="w-5 h-5" strokeWidth={2.5} />
               </div>
               <p className="text-sm text-ink mb-4">
-                Logged to {meal.toLowerCase()}.
+                Logged {grams}g to {meal.toLowerCase()}.
               </p>
               <div className="flex gap-2">
                 <button
@@ -289,26 +343,7 @@ export default function FoodScanner() {
             </div>
           ) : (
             <>
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.18em] text-ink-2 mb-2.5 px-0.5">
-                  Log as
-                </p>
-                <div className="grid grid-cols-4 gap-1.5">
-                  {MEALS.map((m) => (
-                    <button
-                      key={m}
-                      onClick={() => setMeal(m)}
-                      className={`py-2.5 rounded-xl text-xs transition-colors border ${
-                        meal === m
-                          ? 'bg-moss-700 border-moss-700 text-white font-semibold'
-                          : 'bg-paper-50 border-black/[0.08] text-ink-2 hover:text-ink'
-                      }`}
-                    >
-                      {m}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <MealPicker meal={meal} onChange={setMeal} />
 
               {error && (
                 <div className="flex items-start gap-2.5 text-sm text-clay-700 bg-clay-700/10 border border-clay-700/20 rounded-2xl px-4 py-3.5 leading-relaxed">
@@ -322,7 +357,7 @@ export default function FoodScanner() {
                 disabled={saving}
                 className="w-full bg-moss-700 hover:bg-moss-800 text-white font-semibold py-3.5 rounded-xl text-sm transition-colors disabled:opacity-60"
               >
-                {saving ? 'Saving…' : `Add to ${meal.toLowerCase()}`}
+                {saving ? 'Saving…' : `Add ${grams}g to ${meal.toLowerCase()}`}
               </button>
               <button
                 onClick={() => {
