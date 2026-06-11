@@ -19,6 +19,37 @@ import AppShell from '../components/AppShell'
 import { GrowthRings, useCountUp } from '../components/GrowthRings'
 import { IconBarcode, IconBowl, IconCheck, IconFlame, IconPlus } from '../components/Icons'
 
+function ChecklistRow({
+  done,
+  label,
+  href,
+}: {
+  done: boolean
+  label: string
+  href?: string
+}) {
+  const inner = (
+    <>
+      <span
+        className={`w-6 h-6 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
+          done ? 'bg-moss-700 border-moss-700 text-white' : 'border-black/[0.15]'
+        }`}
+      >
+        {done && <IconCheck className="w-3.5 h-3.5" strokeWidth={2.5} />}
+      </span>
+      <span className={`text-sm ${done ? 'text-ink-3 line-through' : 'text-ink'}`}>{label}</span>
+      {!done && href && <span className="ml-auto text-moss-700 text-xs">Do it →</span>}
+    </>
+  )
+  if (href && !done)
+    return (
+      <Link href={href} className="flex items-center gap-3 py-2 group">
+        {inner}
+      </Link>
+    )
+  return <div className="flex items-center gap-3 py-2">{inner}</div>
+}
+
 const DEFAULT_CAL = 2100
 const DEFAULT_PROTEIN = 140
 const DEFAULT_CARBS = 210
@@ -190,6 +221,23 @@ export default function DashboardPage() {
               : `${logs.length} food${logs.length !== 1 ? 's' : ''} logged`}
           </p>
         </header>
+
+        {/* Getting started — only while the account is brand new */}
+        {loggedDays <= 1 && streak <= 1 && (
+          <section className="rise bg-moss-700/[0.05] border border-moss-700/20 rounded-2xl p-5 mb-3 md:mb-4">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-moss-700 mb-2">
+              Getting started
+            </p>
+            <ChecklistRow done label="Set your daily plan" />
+            <ChecklistRow
+              done={logs.length > 0 || loggedDays > 0}
+              label="Log your first food — scan, photo, or search"
+              href="/scan"
+            />
+            <ChecklistRow done={workouts.length > 0} label="Log a workout" href="/workouts" />
+            <ChecklistRow done={streak >= 2} label="Come back tomorrow to start a streak" />
+          </section>
+        )}
 
         <div className="grid grid-cols-2 lg:grid-cols-12 gap-3 md:gap-4">
           {/* Daily rings */}

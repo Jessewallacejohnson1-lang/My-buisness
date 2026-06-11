@@ -9,6 +9,7 @@ import {
   IconBarcode,
   IconDumbbell,
   IconLogout,
+  IconSliders,
 } from './Icons'
 
 const TABS = [
@@ -63,7 +64,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             )
           })}
         </nav>
-        <div className="px-3 pb-5">
+        <div className="px-3 pb-5 space-y-1">
+          <Link
+            href="/onboarding"
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors ${
+              pathname === '/onboarding'
+                ? 'bg-paper-100 text-ink'
+                : 'text-ink-2 hover:text-ink hover:bg-paper-50'
+            }`}
+          >
+            <IconSliders className="w-[18px] h-[18px]" />
+            Goals
+          </Link>
           <button
             onClick={signOut}
             className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-ink-2 hover:text-ink hover:bg-paper-50 transition-colors w-full"
@@ -81,6 +93,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </Link>
         <div className="flex items-center gap-4">
           <span className="font-mono text-[11px] text-ink-2 uppercase tracking-wider">{dateLabel}</span>
+          <Link href="/onboarding" aria-label="Edit goals" className="text-ink-2 hover:text-ink transition-colors p-1 -m-1">
+            <IconSliders className="w-[18px] h-[18px]" />
+          </Link>
           <button onClick={signOut} aria-label="Sign out" className="text-ink-2 hover:text-ink transition-colors p-1 -m-1">
             <IconLogout className="w-[18px] h-[18px]" />
           </button>

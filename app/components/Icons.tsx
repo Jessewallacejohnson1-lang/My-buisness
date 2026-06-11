@@ -132,6 +132,14 @@ export function IconLeaf(props: IconProps) {
   )
 }
 
+export function IconSliders(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M4 7.5h9M17.5 7.5H20M13 4.8v5.4M4 16.5h2.5M11 16.5h9M6.5 13.8v5.4" />
+    </svg>
+  )
+}
+
 export function IconAlert(props: IconProps) {
   return (
     <svg {...base(props)}>

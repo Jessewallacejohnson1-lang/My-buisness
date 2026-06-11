@@ -92,6 +92,7 @@ export default function WorkoutsPage() {
         <header className="rise mb-8 flex items-end justify-between">
           <div>
             <h1 className="font-display text-3xl text-ink">Train</h1>
+            <p className="text-sm text-ink-2 mt-1.5">Tap a session to add it, tap the circle when done.</p>
             <p className="font-mono text-[11px] uppercase tracking-wider text-ink-2 mt-2">
               {new Date().toLocaleDateString('en-US', {
                 weekday: 'long',

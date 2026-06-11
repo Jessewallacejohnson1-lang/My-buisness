@@ -146,12 +146,21 @@ function SearchSheet({
               {loading ? '…' : 'Search'}
             </button>
           </div>
-          <Link
-            href="/scan"
-            className="flex items-center justify-center gap-2 text-xs text-ink-2 hover:text-moss-700 mt-3 transition-colors"
-          >
-            <IconBarcode className="w-3.5 h-3.5" /> Scan a barcode instead
-          </Link>
+          <div className="flex items-center justify-center gap-5 mt-3">
+            <Link
+              href="/scan"
+              className="flex items-center gap-2 text-xs text-ink-2 hover:text-moss-700 transition-colors"
+            >
+              <IconBarcode className="w-3.5 h-3.5" /> Scan a barcode
+            </Link>
+            <span className="text-ink-3 text-xs">·</span>
+            <Link
+              href="/scan"
+              className="text-xs text-ink-2 hover:text-moss-700 transition-colors"
+            >
+              Photograph your plate
+            </Link>
+          </div>
         </div>
 
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-2 min-h-[200px]">
@@ -254,6 +263,7 @@ export default function MealLogPage() {
         <header className="rise mb-6 flex items-end justify-between">
           <div>
             <h1 className="font-display text-3xl text-ink">Meals</h1>
+            <p className="text-sm text-ink-2 mt-1.5">Everything you eat, scored 1–100.</p>
             <p className="font-mono text-[11px] uppercase tracking-wider text-ink-2 mt-2">
               {new Date().toLocaleDateString('en-US', {
                 weekday: 'long',
@@ -289,6 +299,19 @@ export default function MealLogPage() {
               className="h-full bg-honey-600 rounded-full transition-all duration-700"
               style={{ width: `${Math.min(100, (totalCal / goalCal) * 100)}%` }}
             />
+          </div>
+          <div className="flex items-center gap-4 mt-4 pt-3 border-t border-black/[0.06]">
+            <span className="text-[11px] text-ink-3">Score colors:</span>
+            {[
+              ['bg-moss-600', 'Clean 70+'],
+              ['bg-honey-600', 'Moderate'],
+              ['bg-clay-700', 'Avoid'],
+            ].map(([dot, label]) => (
+              <span key={label} className="flex items-center gap-1.5 text-[11px] text-ink-2">
+                <span className={`w-2 h-2 rounded-full ${dot}`} />
+                {label}
+              </span>
+            ))}
           </div>
         </div>
 
