@@ -21,6 +21,44 @@ export type ProfileAnswers = {
   pace: Pace
   diet: Diet
   training_days: number
+  focus: string[]
+}
+
+/** Habit focus areas — shown as multi-select chips during onboarding. */
+export const FOCUS_OPTIONS: { key: string; label: string }[] = [
+  { key: 'protein', label: 'Eat more protein' },
+  { key: 'calories', label: 'Track calories' },
+  { key: 'macros', label: 'Track macros' },
+  { key: 'whole_foods', label: 'Eat whole foods' },
+  { key: 'vegetables', label: 'Eat more veg' },
+  { key: 'fruit', label: 'Eat more fruit' },
+  { key: 'fiber', label: 'Eat more fiber' },
+  { key: 'less_sugar', label: 'Cut back on sugar' },
+  { key: 'water', label: 'Drink more water' },
+  { key: 'meal_prep', label: 'Meal prep & cook' },
+  { key: 'mindful', label: 'Eat mindfully' },
+  { key: 'workout', label: 'Work out more' },
+  { key: 'move', label: 'Move more' },
+  { key: 'sleep', label: 'Prioritize sleep' },
+  { key: 'streak', label: 'Build a streak' },
+]
+
+export const FOCUS_LABELS: Record<string, string> = Object.fromEntries(
+  FOCUS_OPTIONS.map((o) => [o.key, o.label])
+)
+
+/** Pre-selected, goal- and diet-aware suggestions for the focus step. */
+export function recommendFocus(goal: Goal, diet: Diet): string[] {
+  const byGoal: Record<Goal, string[]> = {
+    lose: ['calories', 'vegetables', 'move'],
+    build: ['protein', 'macros', 'workout'],
+    maintain: ['streak', 'mindful', 'move'],
+    clean: ['whole_foods', 'less_sugar', 'vegetables'],
+  }
+  const rec = [...byGoal[goal]]
+  if ((diet === 'vegan' || diet === 'vegetarian') && !rec.includes('protein')) rec.push('protein')
+  if (diet === 'keto' && !rec.includes('less_sugar')) rec.push('less_sugar')
+  return rec.slice(0, 6)
 }
 
 export type Targets = {
@@ -74,8 +112,11 @@ export function computeTargets(a: ProfileAnswers): Targets {
   calories = Math.max(calories, a.sex === 'male' ? 1500 : 1200)
   const goal_calories = Math.round(calories / 10) * 10
 
-  const proteinPerKg = a.goal === 'build' ? 2.0 : a.goal === 'lose' ? 1.8 : 1.6
-  const goal_protein = Math.min(220, Math.round(a.weight_kg * proteinPerKg))
+  // Focus areas nudge the macro split toward what the user cares about.
+  const focus = a.focus ?? []
+  let proteinPerKg = a.goal === 'build' ? 2.0 : a.goal === 'lose' ? 1.8 : 1.6
+  if (focus.includes('protein')) proteinPerKg += 0.3
+  const goal_protein = Math.min(240, Math.round(a.weight_kg * proteinPerKg))
 
   const fatShare = a.diet === 'keto' ? 0.7 : a.diet === 'paleo' ? 0.4 : 0.3
   const goal_fat = Math.round((goal_calories * fatShare) / 9)
@@ -84,7 +125,8 @@ export function computeTargets(a: ProfileAnswers): Targets {
   const goal_carbs =
     a.diet === 'keto' ? Math.min(30, Math.round(carbCalories / 4)) : Math.round(carbCalories / 4)
 
-  const goal_fibre = Math.round((goal_calories / 1000) * 14)
+  let goal_fibre = Math.round((goal_calories / 1000) * 14)
+  if (focus.includes('fiber')) goal_fibre = Math.round(goal_fibre * 1.3)
 
   return { goal_calories, goal_protein, goal_carbs, goal_fat, goal_fibre }
 }

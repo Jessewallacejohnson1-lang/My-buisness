@@ -76,7 +76,7 @@ function LoginForm() {
   return (
     <div className="w-full max-w-sm rise">
       <div className="text-center mb-8">
-        <Link href="/" className="font-display text-ink text-2xl tracking-[0.25em] uppercase">
+        <Link href="/" className="font-display text-sky-500 text-2xl tracking-[0.25em] uppercase">
           Korina
         </Link>
         <p className="text-ink-2 text-sm mt-3">

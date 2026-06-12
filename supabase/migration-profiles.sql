@@ -19,9 +19,13 @@ create table if not exists public.profiles (
   goal_carbs     int  not null,
   goal_fat       int  not null,
   goal_fibre     int  not null,
+  focus          text[] not null default '{}',
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now()
 );
+
+-- Safe to re-run: adds the focus column to an already-created table.
+alter table public.profiles add column if not exists focus text[] not null default '{}';
 
 alter table public.profiles enable row level security;
 

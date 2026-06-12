@@ -5,9 +5,12 @@ import { useRouter } from 'next/navigation'
 import { getProfile, saveProfile } from '@/lib/db'
 import {
   computeTargets,
+  recommendFocus,
   CM_PER_IN,
   KG_PER_LB,
   DIET_LABELS,
+  FOCUS_OPTIONS,
+  FOCUS_LABELS,
   type Activity,
   type Diet,
   type Goal,
@@ -18,7 +21,31 @@ import {
 import { GrowthRings } from '../components/GrowthRings'
 import { IconCheck } from '../components/Icons'
 
-const STEPS = ['Goal', 'About you', 'Activity', 'Diet', 'Your plan'] as const
+const STEPS = ['Goal', 'Focus', 'About you', 'Activity', 'Diet', 'Your plan'] as const
+
+function Chip({
+  label,
+  selected,
+  onClick,
+}: {
+  label: string
+  selected: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={selected}
+      className={`rounded-full border px-4 py-2.5 text-sm transition-all ${
+        selected
+          ? 'border-moss-700 bg-moss-700/[0.08] text-moss-700 font-semibold'
+          : 'border-black/[0.12] bg-paper-50 text-ink hover:border-black/[0.24]'
+      }`}
+    >
+      {label}
+    </button>
+  )
+}
 
 function OptionCard({
   label,
@@ -91,6 +118,8 @@ export default function OnboardingPage() {
   const [activity, setActivity] = useState<Activity>('light')
   const [trainingDays, setTrainingDays] = useState(3)
   const [diet, setDiet] = useState<Diet>('none')
+  const [focus, setFocus] = useState<string[]>([])
+  const [focusTouched, setFocusTouched] = useState(false)
 
   // Pre-fill when editing an existing profile.
   useEffect(() => {
@@ -106,9 +135,27 @@ export default function OnboardingPage() {
         setActivity(p.activity)
         setTrainingDays(p.training_days)
         setDiet(p.diet)
+        if (p.focus?.length) {
+          setFocus(p.focus)
+          setFocusTouched(true)
+        }
       })
       .catch(() => {})
   }, [])
+
+  const recommended = recommendFocus(goal, diet)
+  const others = FOCUS_OPTIONS.filter((o) => !recommended.includes(o.key))
+
+  const toggleFocus = (key: string) => {
+    setFocusTouched(true)
+    setFocus((cur) => (cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]))
+  }
+
+  // Advancing past the Goal step pre-selects sensible defaults the first time.
+  const next = () => {
+    if (step === 0 && !focusTouched) setFocus(recommendFocus(goal, diet))
+    setStep(step + 1)
+  }
 
   const answers: ProfileAnswers = {
     sex,
@@ -120,6 +167,7 @@ export default function OnboardingPage() {
     pace,
     diet,
     training_days: trainingDays,
+    focus,
   }
   const targets = computeTargets(answers)
 
@@ -143,7 +191,7 @@ export default function OnboardingPage() {
 
   return (
     <div className="min-h-screen max-w-md mx-auto px-5 pt-8 pb-16">
-      <p className="font-display text-ink tracking-[0.25em] uppercase text-base mb-8">Korina</p>
+      <p className="font-display text-sky-500 tracking-[0.25em] uppercase text-base mb-8">Korina</p>
 
       {/* progress */}
       <div className="flex gap-1.5 mb-8">
@@ -197,6 +245,41 @@ export default function OnboardingPage() {
       )}
 
       {step === 1 && (
+        <section className="rise">
+          <h1 className="font-display text-3xl text-ink mb-2">Which habits matter most?</h1>
+          <p className="text-sm text-ink-2 mb-7">
+            Pick as many as you like — Korina keeps them front and center.
+          </p>
+
+          <p className="text-[11px] uppercase tracking-[0.18em] text-moss-700 mb-3">
+            Recommended for you
+          </p>
+          <div className="flex flex-wrap gap-2 mb-7">
+            {recommended.map((key) => (
+              <Chip
+                key={key}
+                label={FOCUS_LABELS[key]}
+                selected={focus.includes(key)}
+                onClick={() => toggleFocus(key)}
+              />
+            ))}
+          </div>
+
+          <p className="text-[11px] uppercase tracking-[0.18em] text-ink-2 mb-3">More habits</p>
+          <div className="flex flex-wrap gap-2">
+            {others.map((o) => (
+              <Chip
+                key={o.key}
+                label={o.label}
+                selected={focus.includes(o.key)}
+                onClick={() => toggleFocus(o.key)}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {step === 2 && (
         <section className="rise">
           <h1 className="font-display text-3xl text-ink mb-2">About you</h1>
           <p className="text-sm text-ink-2 mb-7">Used once, to estimate your energy needs.</p>
@@ -275,7 +358,7 @@ export default function OnboardingPage() {
         </section>
       )}
 
-      {step === 2 && (
+      {step === 3 && (
         <section className="rise">
           <h1 className="font-display text-3xl text-ink mb-2">How active are you?</h1>
           <p className="text-sm text-ink-2 mb-7">Outside of workouts — your typical day.</p>
@@ -304,7 +387,7 @@ export default function OnboardingPage() {
         </section>
       )}
 
-      {step === 3 && (
+      {step === 4 && (
         <section className="rise">
           <h1 className="font-display text-3xl text-ink mb-2">How do you eat?</h1>
           <p className="text-sm text-ink-2 mb-7">
@@ -332,7 +415,7 @@ export default function OnboardingPage() {
         </section>
       )}
 
-      {step === 4 && (
+      {step === 5 && (
         <section className="rise">
           <h1 className="font-display text-3xl text-ink mb-2">Your daily plan</h1>
           <p className="text-sm text-ink-2 mb-7">
@@ -369,6 +452,24 @@ export default function OnboardingPage() {
             </div>
           </div>
 
+          {focus.length > 0 && (
+            <div className="mb-6">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-ink-2 mb-3">
+                You&apos;re focusing on
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {focus.map((key) => (
+                  <span
+                    key={key}
+                    className="rounded-full border border-moss-700/25 bg-moss-700/[0.08] text-moss-700 px-3 py-1.5 text-xs"
+                  >
+                    {FOCUS_LABELS[key]}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
           {error && (
             <p className="text-clay-700 text-xs leading-relaxed mb-4" role="alert">
               {error}
@@ -389,7 +490,7 @@ export default function OnboardingPage() {
         )}
         {step < STEPS.length - 1 ? (
           <button
-            onClick={() => setStep(step + 1)}
+            onClick={next}
             className="flex-[2] py-3.5 rounded-xl bg-moss-700 hover:bg-moss-800 text-white text-sm font-semibold transition-colors"
           >
             Continue
