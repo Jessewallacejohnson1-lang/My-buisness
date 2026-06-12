@@ -24,16 +24,16 @@
   --color-sky-500: #4aa8d4;
   --color-sky-600: #2e8db8;
 
-  /* data accents */
-  --color-moss-400: #a4be91;
-  --color-moss-500: #7d9c6a;
-  --color-moss-600: #587747;
-  --color-moss-700: #415e33;
-  --color-moss-800: #32491f;
-  --color-honey-600: #9c7117;
-  --color-honey-700: #7d590e;
-  --color-clay-700: #a8492c;
-  --color-clay-800: #8c3a21;
+  /* data accents — all blue family */
+  --color-moss-400: #7ec3e8;
+  --color-moss-500: #4aa8d4;
+  --color-moss-600: #2989bf;
+  --color-moss-700: #1a6fa8;
+  --color-moss-800: #124e7a;
+  --color-honey-600: #2e9dba;
+  --color-honey-700: #22809a;
+  --color-clay-700: #5577a8;
+  --color-clay-800: #3f5d8c;
 
   /* type roles: display = voice, sans = UI, mono = data */
   --font-display: var(--font-dm-serif), ui-serif, Georgia, serif;
