@@ -21,6 +21,7 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://my-buisness.vercel.app'),
   title: "Korina — Eat clean. Train hard. Watch it compound.",
   description:
     "Korina scores every food you log from 1 to 100, tracks your training, and turns daily habits into visible growth.",

@@ -37,7 +37,7 @@ export async function proxy(request: NextRequest) {
     (p) => path === p || path.startsWith(p + '/')
   )
 
-  if (false && !user && isProtected) {
+  if (!user && isProtected) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     url.searchParams.set('next', path)
