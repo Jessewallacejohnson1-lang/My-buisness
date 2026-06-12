@@ -141,7 +141,7 @@ function SearchSheet({
             <button
               onClick={search}
               disabled={loading}
-              className="bg-moss-700 hover:bg-moss-800 text-white font-semibold px-4 rounded-xl text-sm transition-colors disabled:opacity-60"
+              className="bg-sky-700 hover:bg-sky-800 text-white font-semibold px-4 rounded-xl text-sm transition-colors disabled:opacity-60"
             >
               {loading ? '…' : 'Search'}
             </button>
@@ -198,7 +198,7 @@ function SearchSheet({
                   }
                 }}
                 disabled={adding !== null}
-                className="shrink-0 flex items-center gap-1 bg-moss-700 hover:bg-moss-800 text-white font-semibold text-xs px-3 py-2 rounded-lg transition-colors disabled:opacity-60"
+                className="shrink-0 flex items-center gap-1 bg-sky-700 hover:bg-sky-800 text-white font-semibold text-xs px-3 py-2 rounded-lg transition-colors disabled:opacity-60"
               >
                 {adding === r.food_name ? '…' : (
                   <>

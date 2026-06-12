@@ -19,10 +19,12 @@
   --color-ink-2: #61675e;
   --color-ink-3: #a3a89e;
 
-  /* brand */
+  /* brand — sky carries identity + actions + navigation */
   --color-sky-400: #78c3e8;
   --color-sky-500: #4aa8d4;
   --color-sky-600: #2e8db8;
+  --color-sky-700: #1f6e93; /* button bg — AA contrast with white text */
+  --color-sky-800: #164f6b;
 
   /* data accents — all blue family */
   --color-moss-400: #7ec3e8;
@@ -58,7 +60,7 @@ body {
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-moss-600);
+  outline: 2px solid var(--color-sky-600);
   outline-offset: 2px;
   border-radius: 2px;
 }

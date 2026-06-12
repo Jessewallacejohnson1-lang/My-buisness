@@ -182,7 +182,7 @@ export default function FoodScanner() {
             {!scanning ? (
               <button
                 onClick={startScanner}
-                className="w-full bg-moss-700 hover:bg-moss-800 text-white font-semibold py-3.5 rounded-xl text-sm transition-colors"
+                className="w-full bg-sky-700 hover:bg-sky-800 text-white font-semibold py-3.5 rounded-xl text-sm transition-colors"
               >
                 Start scanning
               </button>
@@ -329,7 +329,7 @@ export default function FoodScanner() {
                     setSaved(false)
                     setError(null)
                   }}
-                  className="flex-1 py-3 rounded-xl bg-moss-700 hover:bg-moss-800 text-white text-sm font-semibold transition-colors"
+                  className="flex-1 py-3 rounded-xl bg-sky-700 hover:bg-sky-800 text-white text-sm font-semibold transition-colors"
                 >
                   Scan another
                 </button>
@@ -355,7 +355,7 @@ export default function FoodScanner() {
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="w-full bg-moss-700 hover:bg-moss-800 text-white font-semibold py-3.5 rounded-xl text-sm transition-colors disabled:opacity-60"
+                className="w-full bg-sky-700 hover:bg-sky-800 text-white font-semibold py-3.5 rounded-xl text-sm transition-colors disabled:opacity-60"
               >
                 {saving ? 'Saving…' : `Add ${grams}g to ${meal.toLowerCase()}`}
               </button>

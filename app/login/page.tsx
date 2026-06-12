@@ -120,7 +120,7 @@ function LoginForm() {
         <button
           type="submit"
           disabled={busy}
-          className="w-full bg-moss-700 hover:bg-moss-800 text-white font-semibold py-3.5 rounded-xl text-sm transition-colors disabled:opacity-60"
+          className="w-full bg-sky-700 hover:bg-sky-800 text-white font-semibold py-3.5 rounded-xl text-sm transition-colors disabled:opacity-60"
         >
           {busy ? 'One moment…' : mode === 'signin' ? 'Sign in' : 'Create account'}
         </button>

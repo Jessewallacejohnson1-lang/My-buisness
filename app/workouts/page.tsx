@@ -236,7 +236,7 @@ export default function WorkoutsPage() {
                     <button
                       onClick={handleAddCustom}
                       disabled={!customName.trim() || adding}
-                      className="flex-1 py-3 rounded-xl bg-moss-700 hover:bg-moss-800 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+                      className="flex-1 py-3 rounded-xl bg-sky-700 hover:bg-sky-800 text-white text-sm font-semibold transition-colors disabled:opacity-50"
                     >
                       {adding ? 'Logging…' : 'Log session'}
                     </button>

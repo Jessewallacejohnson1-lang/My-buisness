@@ -220,7 +220,7 @@ export default async function Home() {
             {user ? (
               <Link
                 href="/dashboard"
-                className="bg-moss-700 hover:bg-moss-800 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors"
+                className="bg-sky-700 hover:bg-sky-800 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors"
               >
                 Open Korina
               </Link>
@@ -231,7 +231,7 @@ export default async function Home() {
                 </Link>
                 <Link
                   href="/login"
-                  className="bg-moss-700 hover:bg-moss-800 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors"
+                  className="bg-sky-700 hover:bg-sky-800 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors"
                 >
                   Start free
                 </Link>
@@ -269,7 +269,7 @@ export default async function Home() {
             <div className="flex gap-3 flex-wrap">
               <Link
                 href={appHref}
-                className="bg-moss-700 hover:bg-moss-800 text-white font-semibold px-7 py-3.5 rounded-xl text-sm transition-colors"
+                className="bg-sky-700 hover:bg-sky-800 text-white font-semibold px-7 py-3.5 rounded-xl text-sm transition-colors"
               >
                 {user ? 'Open Korina' : 'Start free'}
               </Link>
@@ -464,7 +464,7 @@ export default async function Home() {
             </p>
             <Link
               href={user ? '/scan' : '/login'}
-              className="inline-flex items-center gap-2.5 bg-moss-700 hover:bg-moss-800 text-white font-semibold px-7 py-3.5 rounded-xl text-sm transition-colors"
+              className="inline-flex items-center gap-2.5 bg-sky-700 hover:bg-sky-800 text-white font-semibold px-7 py-3.5 rounded-xl text-sm transition-colors"
             >
               <IconBarcode className="w-4 h-4" />
               Try the scanner
@@ -587,7 +587,7 @@ export default async function Home() {
           </p>
           <Link
             href={appHref}
-            className="inline-block bg-moss-700 hover:bg-moss-800 text-white font-semibold px-9 py-4 rounded-xl transition-colors"
+            className="inline-block bg-sky-700 hover:bg-sky-800 text-white font-semibold px-9 py-4 rounded-xl transition-colors"
           >
             {user ? 'Open Korina' : 'Start free'}
           </Link>
