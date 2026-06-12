@@ -24,6 +24,12 @@ export const metadata: Metadata = {
   title: "Korina — Eat clean. Train hard. Watch it compound.",
   description:
     "Korina scores every food you log from 1 to 100, tracks your training, and turns daily habits into visible growth.",
+  applicationName: "Korina",
+  appleWebApp: {
+    capable: true,
+    title: "Korina",
+    statusBarStyle: "default",
+  },
 };
 
 export const viewport: Viewport = {
