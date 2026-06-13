@@ -107,7 +107,7 @@ function LoginForm() {
   return (
     <div className="w-full max-w-sm rise">
       <div className="text-center mb-8">
-        <Link href="/" className="font-display text-sky-500 text-2xl tracking-[0.25em] uppercase">
+        <Link href="/" className="font-display text-sky-600 text-2xl tracking-[0.25em] uppercase">
           Korina
         </Link>
         <p className="text-ink-2 text-sm mt-3">
@@ -161,7 +161,7 @@ function LoginForm() {
         <button
           type="submit"
           disabled={busy}
-          className="w-full bg-sky-700 hover:bg-sky-800 text-white font-semibold py-3.5 rounded-xl text-sm transition-colors disabled:opacity-60"
+          className="w-full bg-moss-700 hover:bg-moss-800 text-white font-semibold py-3.5 rounded-xl text-sm transition-colors disabled:opacity-60"
         >
           {busy ? 'One moment…' : mode === 'signin' ? 'Sign in' : 'Create account'}
         </button>

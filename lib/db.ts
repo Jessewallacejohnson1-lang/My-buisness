@@ -121,13 +121,18 @@ export async function getStreak(): Promise<number> {
     .from('food_logs')
     .select('date')
     .order('date', { ascending: false })
+    .limit(60)
   if (error || !data) return 0
   const uniqueDates = [...new Set(data.map(r => r.date))].sort().reverse()
+  if (uniqueDates.length === 0) return 0
+  const today = localDate()
+  // If today has no log yet, still count the streak from yesterday so the
+  // number doesn't drop to 0 mid-day for a user who logs later in the day.
+  const offset = uniqueDates[0] === today ? 0 : 1
   let streak = 0
-  const today = new Date()
   for (let i = 0; i < uniqueDates.length; i++) {
-    const expected = new Date(today)
-    expected.setDate(today.getDate() - i)
+    const expected = new Date()
+    expected.setDate(expected.getDate() - offset - i)
     if (uniqueDates[i] === localDate(expected)) streak++
     else break
   }

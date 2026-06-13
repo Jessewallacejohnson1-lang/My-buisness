@@ -209,7 +209,7 @@ export default async function Home() {
       {/* nav */}
       <nav className="sticky top-0 z-50 bg-paper/80 backdrop-blur-md border-b border-black/[0.07]">
         <div className="max-w-6xl mx-auto px-5 md:px-8 h-16 flex items-center justify-between">
-          <span className="font-display text-sky-500 tracking-[0.25em] uppercase text-lg">Korina</span>
+          <span className="font-display text-sky-600 tracking-[0.25em] uppercase text-lg">Korina</span>
           <div className="flex items-center gap-6">
             <a href="#score" className="hidden md:block text-sm text-ink-2 hover:text-ink transition-colors">
               The score
@@ -220,7 +220,7 @@ export default async function Home() {
             {user ? (
               <Link
                 href="/dashboard"
-                className="bg-sky-700 hover:bg-sky-800 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors"
+                className="bg-sky-700 hover:bg-sky-800 text-white font-semibold px-5 py-3 rounded-xl text-sm transition-colors"
               >
                 Open Korina
               </Link>
@@ -231,7 +231,7 @@ export default async function Home() {
                 </Link>
                 <Link
                   href="/login"
-                  className="bg-sky-700 hover:bg-sky-800 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors"
+                  className="bg-sky-700 hover:bg-sky-800 text-white font-semibold px-5 py-3 rounded-xl text-sm transition-colors"
                 >
                   Start free
                 </Link>
@@ -598,7 +598,7 @@ export default async function Home() {
       <footer className="border-t border-black/[0.07]">
         <div className="max-w-6xl mx-auto px-5 md:px-8 py-12 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>
-            <p className="font-display text-sky-500 tracking-[0.25em] uppercase">Korina</p>
+            <p className="font-display text-sky-600 tracking-[0.25em] uppercase">Korina</p>
             <p className="text-sm text-ink-3 mt-1.5">Feel good, inside and out.</p>
           </div>
           <p className="font-mono text-[11px] text-ink-3">© 2026 Korina</p>

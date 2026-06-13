@@ -92,36 +92,53 @@ function computeScore(product: Record<string, unknown>): { score: number; badges
 }
 
 export async function searchFood(query: string): Promise<FoodResult[]> {
-  const res = await fetch(
-    `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&json=1&page_size=10&fields=product_name,brands,nutriments,nova_group,nutriscore_grade,additives_tags,labels_tags,packaging_tags,ingredients_text`
-  )
-  const json = await res.json()
-  const products = (json.products ?? []) as Record<string, unknown>[]
-  return products
-    .filter(p => p.product_name)
-    .map(p => {
-      const n = (p.nutriments as Record<string, number>) ?? {}
-      const { score, badges, flags } = computeScore(p)
-      return {
-        food_name: p.product_name as string,
-        brand: (p.brands as string | undefined) ?? null,
-        calories: Math.round(n['energy-kcal_100g'] ?? n['energy-kcal'] ?? 0),
-        protein: Math.round((n['proteins_100g'] ?? 0) * 10) / 10,
-        carbs: Math.round((n['carbohydrates_100g'] ?? 0) * 10) / 10,
-        fat: Math.round((n['fat_100g'] ?? 0) * 10) / 10,
-        fibre: Math.round((n['fiber_100g'] ?? 0) * 10) / 10,
-        score,
-        badges,
-        flags,
-      }
-    })
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 8000)
+  try {
+    const res = await fetch(
+      `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&json=1&page_size=10&fields=product_name,brands,nutriments,nova_group,nutriscore_grade,additives_tags,labels_tags,packaging_tags,ingredients_text`,
+      { signal: controller.signal }
+    )
+    if (!res.ok) return []
+    const json = await res.json()
+    const products = (json.products ?? []) as Record<string, unknown>[]
+    return products
+      .filter(p => p.product_name)
+      .map(p => {
+        const n = (p.nutriments as Record<string, number>) ?? {}
+        const { score, badges, flags } = computeScore(p)
+        return {
+          food_name: p.product_name as string,
+          brand: (p.brands as string | undefined) ?? null,
+          calories: Math.round(n['energy-kcal_100g'] ?? n['energy-kcal'] ?? 0),
+          protein: Math.round((n['proteins_100g'] ?? 0) * 10) / 10,
+          carbs: Math.round((n['carbohydrates_100g'] ?? 0) * 10) / 10,
+          fat: Math.round((n['fat_100g'] ?? 0) * 10) / 10,
+          fibre: Math.round((n['fiber_100g'] ?? 0) * 10) / 10,
+          score,
+          badges,
+          flags,
+        }
+      })
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 export async function lookupBarcode(barcode: string): Promise<FoodResult | null> {
-  const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`)
-  const json = await res.json()
-  if (json.status !== 1 || !json.product) return null
-  const p = json.product as Record<string, unknown>
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 8000)
+  let json: Record<string, unknown>
+  try {
+    const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`, { signal: controller.signal })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    json = await res.json() as Record<string, unknown>
+  } finally {
+    clearTimeout(timeout)
+  }
+  // If try threw, finally re-throws and we never reach here; json is always assigned
+  if (json!.status !== 1 || !json!.product) return null
+  const p = json!.product as Record<string, unknown>
   const n = (p.nutriments as Record<string, number>) ?? {}
   const { score, badges, flags } = computeScore(p)
   return {

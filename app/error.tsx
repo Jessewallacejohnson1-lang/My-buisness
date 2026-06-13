@@ -25,7 +25,7 @@ export default function Error({
         <div className="flex gap-2 justify-center">
           <button
             onClick={reset}
-            className="bg-sky-700 hover:bg-sky-800 text-white font-semibold px-6 py-3 rounded-xl text-sm transition-colors"
+            className="bg-moss-700 hover:bg-moss-800 text-white font-semibold px-6 py-3 rounded-xl text-sm transition-colors"
           >
             Try again
           </button>

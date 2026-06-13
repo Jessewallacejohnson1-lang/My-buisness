@@ -237,7 +237,7 @@ export default function PhotoAnalyzer() {
           <button
             onClick={handleSave}
             disabled={saving || totals.n === 0}
-            className="w-full bg-sky-700 hover:bg-sky-800 text-white font-semibold py-3.5 rounded-xl text-sm transition-colors disabled:opacity-60"
+            className="w-full bg-moss-700 hover:bg-moss-800 text-white font-semibold py-3.5 rounded-xl text-sm transition-colors disabled:opacity-60"
           >
             {saving
               ? 'Saving…'
@@ -263,7 +263,7 @@ export default function PhotoAnalyzer() {
           <div className="flex gap-2">
             <button
               onClick={reset}
-              className="flex-1 py-3 rounded-xl bg-sky-700 hover:bg-sky-800 text-white text-sm font-semibold transition-colors"
+              className="flex-1 py-3 rounded-xl bg-moss-700 hover:bg-moss-800 text-white text-sm font-semibold transition-colors"
             >
               Analyze another
             </button>

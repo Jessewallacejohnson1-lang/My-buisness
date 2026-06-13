@@ -89,13 +89,21 @@ function SearchSheet({
   const [results, setResults] = useState<FoodResult[]>([])
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
+  const [searchError, setSearchError] = useState<string | null>(null)
   const [adding, setAdding] = useState<string | null>(null)
 
   const search = useCallback(async () => {
     if (!query.trim()) return
     setLoading(true)
+    setSearchError(null)
     try {
       setResults(await searchFood(query))
+      setSearched(true)
+    } catch (err) {
+      const isTimeout = err instanceof DOMException && err.name === 'AbortError'
+      setSearchError(isTimeout
+        ? 'Search timed out. Check your connection and try again.'
+        : 'Search failed. Check your connection and try again.')
       setSearched(true)
     } finally {
       setLoading(false)
@@ -106,9 +114,11 @@ function SearchSheet({
     <div
       className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center md:justify-center fade-in"
       onClick={onClose}
+      onKeyDown={(e) => e.key === 'Escape' && onClose()}
     >
       <div
         role="dialog"
+        aria-modal="true"
         aria-label={`Add food to ${meal}`}
         onClick={(e) => e.stopPropagation()}
         className="sheet-up bg-paper-50 border-t md:border border-black/[0.09] w-full md:max-w-lg max-h-[88vh] md:max-h-[80vh] rounded-t-3xl md:rounded-3xl flex flex-col"
@@ -141,7 +151,7 @@ function SearchSheet({
             <button
               onClick={search}
               disabled={loading}
-              className="bg-sky-700 hover:bg-sky-800 text-white font-semibold px-4 rounded-xl text-sm transition-colors disabled:opacity-60"
+              className="bg-moss-700 hover:bg-moss-800 text-white font-semibold px-4 rounded-xl text-sm transition-colors disabled:opacity-60"
             >
               {loading ? '…' : 'Search'}
             </button>
@@ -169,14 +179,20 @@ function SearchSheet({
               Search the Open Food Facts database — 700,000+ foods, each one scored.
             </p>
           )}
-          {searched && !loading && results.length === 0 && (
+          {searched && !loading && !searchError && results.length === 0 && (
             <p className="text-center text-ink-3 text-sm py-10">
-              Nothing found for “{query}”. Try a simpler name or scan the barcode.
+              Nothing found for &ldquo;{query}&rdquo;. Try a simpler name or scan the barcode.
             </p>
+          )}
+          {searchError && (
+            <div className="flex items-start gap-2.5 text-sm text-clay-700 bg-clay-700/10 border border-clay-700/20 rounded-2xl px-4 py-3.5 leading-relaxed mt-2">
+              <IconAlert className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{searchError}</span>
+            </div>
           )}
           {results.map((r, i) => (
             <div
-              key={i}
+              key={`${r.food_name}-${r.brand ?? ''}-${i}`}
               className="flex items-center gap-3.5 bg-paper-100 border border-black/[0.06] rounded-2xl px-4 py-3"
             >
               <ScoreRing score={r.score} size={40} />
@@ -198,7 +214,7 @@ function SearchSheet({
                   }
                 }}
                 disabled={adding !== null}
-                className="shrink-0 flex items-center gap-1 bg-sky-700 hover:bg-sky-800 text-white font-semibold text-xs px-3 py-2 rounded-lg transition-colors disabled:opacity-60"
+                className="shrink-0 flex items-center gap-1 bg-moss-700 hover:bg-moss-800 text-white font-semibold text-xs px-3 py-2 rounded-lg transition-colors disabled:opacity-60"
               >
                 {adding === r.food_name ? '…' : (
                   <>
@@ -250,9 +266,14 @@ export default function MealLogPage() {
   }
 
   const handleDelete = async (id: string) => {
+    const snapshot = logs
     setLogs((ls) => ls.filter((l) => l.id !== id))
-    await deleteFoodLog(id)
-    load()
+    try {
+      await deleteFoodLog(id)
+      load()
+    } catch {
+      setLogs(snapshot)
+    }
   }
 
   const totalCal = logs.reduce((s, f) => s + f.calories, 0)

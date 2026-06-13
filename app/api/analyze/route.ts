@@ -66,7 +66,12 @@ export async function POST(req: Request) {
     media_type = body.media_type ?? 'image/jpeg'
     if (typeof image !== 'string' || image.length === 0) throw new Error('missing image')
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(media_type)) throw new Error('bad type')
-  } catch {
+    // base64 encodes ~4/3 of the original bytes; 6MB base64 ≈ 4.5MB image
+    if (image.length > 6_000_000) throw new Error('too large')
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : ''
+    if (msg === 'too large')
+      return NextResponse.json({ error: 'Image too large. Max 4.5 MB.' }, { status: 413 })
     return NextResponse.json({ error: 'Send { image: base64, media_type }.' }, { status: 400 })
   }
 

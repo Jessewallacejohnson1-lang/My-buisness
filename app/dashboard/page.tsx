@@ -147,6 +147,7 @@ export default function DashboardPage() {
     }
     if (!prof) {
       setNeedsOnboarding(true)
+      setLoading(false)
       return
     }
     try {
@@ -180,9 +181,14 @@ export default function DashboardPage() {
   }, [needsOnboarding, router])
 
   const handleToggleWorkout = async (id: string, completed: boolean) => {
+    const snapshot = workouts
     setWorkouts((ws) => ws.map((w) => (w.id === id ? { ...w, completed: !completed } : w)))
-    await toggleWorkoutComplete(id, !completed)
-    load()
+    try {
+      await toggleWorkoutComplete(id, !completed)
+      load()
+    } catch {
+      setWorkouts(snapshot)
+    }
   }
 
   const totalCal = logs.reduce((s, f) => s + f.calories, 0)
@@ -230,7 +236,7 @@ export default function DashboardPage() {
           <p className="text-sm text-ink-2 leading-relaxed mb-6">{setupError}</p>
           <button
             onClick={() => window.location.reload()}
-            className="bg-sky-700 hover:bg-sky-800 text-white font-semibold px-6 py-3 rounded-xl text-sm transition-colors"
+            className="bg-moss-700 hover:bg-moss-800 text-white font-semibold px-6 py-3 rounded-xl text-sm transition-colors"
           >
             Reload
           </button>

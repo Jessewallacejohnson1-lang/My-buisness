@@ -41,7 +41,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <aside className="hidden md:flex fixed inset-y-0 left-0 w-52 flex-col border-r border-black/[0.07] bg-paper z-40">
         <Link
           href="/dashboard"
-          className="font-display text-sky-500 tracking-[0.25em] uppercase text-lg px-6 pt-7 pb-8"
+          className="font-display text-sky-600 tracking-[0.25em] uppercase text-lg px-6 pt-7 pb-8"
         >
           Korina
         </Link>
@@ -88,7 +88,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* mobile header */}
       <header className="md:hidden sticky top-0 z-40 flex items-center justify-between px-5 h-14 bg-paper/85 backdrop-blur-md border-b border-black/[0.07]">
-        <Link href="/dashboard" className="font-display text-sky-500 tracking-[0.25em] uppercase text-base">
+        <Link href="/dashboard" className="font-display text-sky-600 tracking-[0.25em] uppercase text-base">
           Korina
         </Link>
         <div className="flex items-center gap-4">
@@ -125,7 +125,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     className={`flex items-center justify-center w-10 h-10 -mt-4 rounded-full border transition-colors ${
                       active
                         ? 'bg-moss-700 border-moss-700 text-white'
-                        : 'bg-moss-700 border-moss-700 text-white'
+                        : 'bg-paper border-black/[0.15] text-ink-2'
                     }`}
                   >
                     <tab.icon className="w-5 h-5" />

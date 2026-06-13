@@ -194,7 +194,7 @@ export default function OnboardingPage() {
 
   return (
     <div className="min-h-screen max-w-md mx-auto px-5 pt-8 pb-16">
-      <p className="font-display text-sky-500 tracking-[0.25em] uppercase text-base mb-8">Korina</p>
+      <p className="font-display text-sky-600 tracking-[0.25em] uppercase text-base mb-8">Korina</p>
 
       {/* progress */}
       <div className="flex gap-1.5 mb-8">
@@ -494,7 +494,7 @@ export default function OnboardingPage() {
         {step < STEPS.length - 1 ? (
           <button
             onClick={next}
-            className="flex-[2] py-3.5 rounded-xl bg-sky-700 hover:bg-sky-800 text-white text-sm font-semibold transition-colors"
+            className="flex-[2] py-3.5 rounded-xl bg-moss-700 hover:bg-moss-800 text-white text-sm font-semibold transition-colors"
           >
             Continue
           </button>
@@ -502,7 +502,7 @@ export default function OnboardingPage() {
           <button
             onClick={finish}
             disabled={saving}
-            className="flex-[2] py-3.5 rounded-xl bg-sky-700 hover:bg-sky-800 text-white text-sm font-semibold transition-colors disabled:opacity-60"
+            className="flex-[2] py-3.5 rounded-xl bg-moss-700 hover:bg-moss-800 text-white text-sm font-semibold transition-colors disabled:opacity-60"
           >
             {saving ? 'Saving…' : 'Start tracking'}
           </button>

@@ -73,15 +73,25 @@ export default function WorkoutsPage() {
   }
 
   const handleToggle = async (w: Workout) => {
+    const snapshot = workouts
     setWorkouts((ws) => ws.map((x) => (x.id === w.id ? { ...x, completed: !w.completed } : x)))
-    await toggleWorkoutComplete(w.id, !w.completed)
-    load()
+    try {
+      await toggleWorkoutComplete(w.id, !w.completed)
+      load()
+    } catch {
+      setWorkouts(snapshot)
+    }
   }
 
   const handleDelete = async (id: string) => {
+    const snapshot = workouts
     setWorkouts((ws) => ws.filter((x) => x.id !== id))
-    await deleteWorkout(id)
-    load()
+    try {
+      await deleteWorkout(id)
+      load()
+    } catch {
+      setWorkouts(snapshot)
+    }
   }
 
   const done = workouts.filter((w) => w.completed).length
@@ -236,7 +246,7 @@ export default function WorkoutsPage() {
                     <button
                       onClick={handleAddCustom}
                       disabled={!customName.trim() || adding}
-                      className="flex-1 py-3 rounded-xl bg-sky-700 hover:bg-sky-800 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+                      className="flex-1 py-3 rounded-xl bg-moss-700 hover:bg-moss-800 text-white text-sm font-semibold transition-colors disabled:opacity-50"
                     >
                       {adding ? 'Logging…' : 'Log session'}
                     </button>
