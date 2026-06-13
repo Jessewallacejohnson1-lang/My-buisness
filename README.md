@@ -1,36 +1,42 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Korina
 
-## Getting Started
+Nutrition-first fitness tracker. Every food you log is scored 1–100 on how clean it is,
+every workout counts, and daily habits turn into growth rings you can watch fill.
 
-First, run the development server:
+Built with Next.js (App Router), TypeScript, Tailwind CSS v4, and Supabase.
+
+## Develop
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev      # http://localhost:3000
+npm run build    # production build
+npm run lint
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Environment (`.env.local`)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+ANTHROPIC_API_KEY=...        # AI photo scanning (optional)
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Database setup
 
-## Learn More
+Run these once in the Supabase SQL editor:
 
-To learn more about Next.js, take a look at the following resources:
+- `supabase/migration-auth.sql` — per-user `user_id` columns + RLS on `food_logs` / `workouts`
+- `supabase/migration-profiles.sql` — `profiles` table (onboarding answers + computed targets)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Check setup anytime at **`/api/health`** — it reports which tables/columns and env vars are present.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Map
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `app/` — routes: `/` landing, `/login`, `/onboarding`, `/dashboard`, `/meal-log`, `/workouts`,
+  `/scan`, plus `api/analyze` (photo AI) and `api/health` (diagnostics)
+- `app/components/` — `AppShell`, `Icons`, `ScoreRing`, `GrowthRings`, `FoodScanner`,
+  `PhotoAnalyzer`, `Reveal`
+- `lib/` — `db.ts` (DB helpers + `localDate`), `food-search.ts` (Open Food Facts + clean score),
+  `profile.ts` (targets from onboarding), `supabase/`
+- See `CLAUDE.md` for the design system and architecture notes.
