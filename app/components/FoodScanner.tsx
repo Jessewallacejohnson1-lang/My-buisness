@@ -4,8 +4,9 @@ import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { lookupBarcode, scaleFood, toLogEntry, type FoodResult } from '@/lib/food-search'
 import { addFoodLog, localDate } from '@/lib/db'
+import { haptic } from '@/lib/haptics'
 import ScoreRing, { scoreTone } from './ScoreRing'
-import { IconAlert, IconBarcode, IconCheck, IconLeaf } from './Icons'
+import { IconAlert, IconBarcode, IconCheck, IconLeaf, IconMinus, IconPlus } from './Icons'
 
 export const MEALS = ['Breakfast', 'Lunch', 'Dinner', 'Snacks'] as const
 export type Meal = (typeof MEALS)[number]
@@ -26,8 +27,8 @@ export function MealPicker({ meal, onChange }: { meal: Meal; onChange: (m: Meal)
         {MEALS.map((m) => (
           <button
             key={m}
-            onClick={() => onChange(m)}
-            className={`py-2.5 rounded-xl text-xs transition-colors border ${
+            onClick={() => { haptic('select'); onChange(m) }}
+            className={`press py-2.5 rounded-xl text-xs transition-colors border ${
               meal === m
                 ? 'bg-moss-700 border-moss-700 text-white font-semibold'
                 : 'bg-paper-50 border-black/[0.08] text-ink-2 hover:text-ink'
@@ -51,6 +52,7 @@ export default function FoodScanner() {
   const [grams, setGrams] = useState(100)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [caught, setCaught] = useState(false)
   const stopRef = useRef<(() => void) | null>(null)
 
   const startScanner = async () => {
@@ -58,6 +60,7 @@ export default function FoodScanner() {
     setResult(null)
     setError(null)
     setSaved(false)
+    setCaught(false)
 
     try {
       const { BrowserMultiFormatReader } = await import('@zxing/browser')
@@ -71,7 +74,12 @@ export default function FoodScanner() {
           if (scanResult) {
             ctrl.stop()
             stopRef.current = null
+            // A satisfying "got it" beat before the lookup spinner takes over.
+            haptic('success')
+            setCaught(true)
+            await new Promise((r) => setTimeout(r, 280))
             setScanning(false)
+            setCaught(false)
             await lookupFood(scanResult.getText())
           }
         }
@@ -115,8 +123,10 @@ export default function FoodScanner() {
     setSaving(true)
     try {
       await addFoodLog(toLogEntry(scaleFood(result, grams), meal, localDate()))
+      haptic('success')
       setSaved(true)
     } catch {
+      haptic('error')
       setError('Couldn’t save the log. Try again.')
     } finally {
       setSaving(false)
@@ -155,18 +165,33 @@ export default function FoodScanner() {
             )}
             {scanning && (
               <div className="absolute inset-0 pointer-events-none">
-                <div className="absolute inset-10">
-                  <span className="absolute top-0 left-0 w-9 h-9 border-t-2 border-l-2 border-moss-700 rounded-tl-2xl" />
-                  <span className="absolute top-0 right-0 w-9 h-9 border-t-2 border-r-2 border-moss-700 rounded-tr-2xl" />
-                  <span className="absolute bottom-0 left-0 w-9 h-9 border-b-2 border-l-2 border-moss-700 rounded-bl-2xl" />
-                  <span className="absolute bottom-0 right-0 w-9 h-9 border-b-2 border-r-2 border-moss-700 rounded-br-2xl" />
-                  <span
-                    className="absolute left-3 right-3 h-px bg-moss-700/80"
-                    style={{
-                      animation: 'beam 2.4s ease-in-out infinite',
-                      boxShadow: '0 0 12px rgba(26,111,168,0.5)',
-                    }}
-                  />
+                <div className={`absolute inset-10 ${caught ? 'caught' : ''}`}>
+                  {(['tl', 'tr', 'bl', 'br'] as const).map((corner) => (
+                    <span
+                      key={corner}
+                      className={`absolute w-9 h-9 border-moss-700 ${caught ? 'border-[3px]' : 'border-2'} transition-all ${
+                        corner === 'tl' ? 'top-0 left-0 border-t-2 border-l-2 rounded-tl-2xl' :
+                        corner === 'tr' ? 'top-0 right-0 border-t-2 border-r-2 rounded-tr-2xl' :
+                        corner === 'bl' ? 'bottom-0 left-0 border-b-2 border-l-2 rounded-bl-2xl' :
+                        'bottom-0 right-0 border-b-2 border-r-2 rounded-br-2xl'
+                      }`}
+                    />
+                  ))}
+                  {caught ? (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="pop w-12 h-12 rounded-full bg-moss-700 text-white flex items-center justify-center">
+                        <IconCheck className="w-6 h-6" strokeWidth={2.5} />
+                      </span>
+                    </div>
+                  ) : (
+                    <span
+                      className="absolute left-3 right-3 h-px bg-moss-700/80"
+                      style={{
+                        animation: 'beam 2.4s ease-in-out infinite',
+                        boxShadow: '0 0 12px rgba(26,111,168,0.5)',
+                      }}
+                    />
+                  )}
                 </div>
               </div>
             )}
@@ -181,15 +206,15 @@ export default function FoodScanner() {
           <div className="mt-4">
             {!scanning ? (
               <button
-                onClick={startScanner}
-                className="w-full bg-moss-700 hover:bg-moss-800 text-white font-semibold py-3.5 rounded-xl text-sm transition-colors"
+                onClick={() => { haptic('tap'); startScanner() }}
+                className="press w-full bg-moss-700 hover:bg-moss-800 text-white font-semibold py-3.5 rounded-xl text-sm transition-colors"
               >
                 Start scanning
               </button>
             ) : (
               <button
-                onClick={stopScanner}
-                className="w-full border border-black/[0.09] text-ink-2 hover:text-ink py-3.5 rounded-xl text-sm transition-colors hover:bg-paper-100"
+                onClick={() => { haptic('tap'); stopScanner() }}
+                className="press w-full border border-black/[0.09] text-ink-2 hover:text-ink py-3.5 rounded-xl text-sm transition-colors hover:bg-paper-100"
               >
                 Cancel
               </button>
@@ -243,16 +268,41 @@ export default function FoodScanner() {
 
               {/* portion */}
               <div className="mb-4">
-                <div className="flex items-baseline justify-between mb-2">
+                <div className="flex items-baseline justify-between mb-2.5">
                   <p className="text-[11px] uppercase tracking-[0.18em] text-ink-2">Portion</p>
                   <span className="font-mono text-xs text-ink tabular-nums">{grams}g</span>
+                </div>
+                {/* fine stepper — nudge by 5g either way */}
+                <div className="flex items-center gap-2 mb-2.5">
+                  <button
+                    onClick={() => { haptic('tap'); setGrams((g) => Math.max(1, g - 5)) }}
+                    aria-label="Decrease portion by 5 grams"
+                    className="press w-9 h-9 shrink-0 rounded-lg bg-paper border border-black/[0.08] text-ink-2 hover:text-ink flex items-center justify-center transition-colors"
+                  >
+                    <IconMinus className="w-4 h-4" />
+                  </button>
+                  <input
+                    type="number"
+                    min={1}
+                    value={grams}
+                    onChange={(e) => setGrams(Math.max(1, parseInt(e.target.value) || 1))}
+                    aria-label="Portion in grams"
+                    className="flex-1 min-w-0 text-center py-2 rounded-lg text-sm bg-paper border border-black/[0.08] text-ink font-mono tabular-nums focus:border-moss-700/50 focus:outline-none"
+                  />
+                  <button
+                    onClick={() => { haptic('tap'); setGrams((g) => g + 5) }}
+                    aria-label="Increase portion by 5 grams"
+                    className="press w-9 h-9 shrink-0 rounded-lg bg-paper border border-black/[0.08] text-ink-2 hover:text-ink flex items-center justify-center transition-colors"
+                  >
+                    <IconPlus className="w-4 h-4" />
+                  </button>
                 </div>
                 <div className="flex gap-1.5 flex-wrap">
                   {presets.map((p) => (
                     <button
                       key={p.label}
-                      onClick={() => setGrams(p.g)}
-                      className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${
+                      onClick={() => { haptic('select'); setGrams(p.g) }}
+                      className={`press px-3 py-1.5 rounded-lg text-xs border transition-colors ${
                         grams === p.g
                           ? 'bg-ink border-ink text-white'
                           : 'bg-paper border-black/[0.08] text-ink-2 hover:text-ink'
@@ -261,14 +311,6 @@ export default function FoodScanner() {
                       {p.label}
                     </button>
                   ))}
-                  <input
-                    type="number"
-                    min={1}
-                    value={grams}
-                    onChange={(e) => setGrams(Math.max(1, parseInt(e.target.value) || 1))}
-                    aria-label="Portion in grams"
-                    className="w-20 px-2 py-1.5 rounded-lg text-xs bg-paper border border-black/[0.08] text-ink font-mono tabular-nums focus:border-moss-700/50 focus:outline-none"
-                  />
                 </div>
               </div>
 
@@ -315,9 +357,12 @@ export default function FoodScanner() {
           </div>
 
           {saved ? (
-            <div className="bg-moss-700/10 border border-moss-700/25 rounded-2xl p-5 text-center">
-              <div className="mx-auto mb-3 w-10 h-10 rounded-full bg-moss-700 text-white flex items-center justify-center">
-                <IconCheck className="w-5 h-5" strokeWidth={2.5} />
+            <div className="bounce-in bg-moss-700/10 border border-moss-700/25 rounded-2xl p-5 text-center">
+              <div className="relative mx-auto mb-3 w-10 h-10">
+                <span className="absolute inset-0 rounded-full bg-moss-700/30 ping-out" />
+                <div className="pop relative w-10 h-10 rounded-full bg-moss-700 text-white flex items-center justify-center">
+                  <IconCheck className="w-5 h-5" strokeWidth={2.5} />
+                </div>
               </div>
               <p className="text-sm text-ink mb-4">
                 Logged {grams}g to {meal.toLowerCase()}.
@@ -325,17 +370,18 @@ export default function FoodScanner() {
               <div className="flex gap-2">
                 <button
                   onClick={() => {
+                    haptic('tap')
                     setResult(null)
                     setSaved(false)
                     setError(null)
                   }}
-                  className="flex-1 py-3 rounded-xl bg-moss-700 hover:bg-moss-800 text-white text-sm font-semibold transition-colors"
+                  className="press flex-1 py-3 rounded-xl bg-moss-700 hover:bg-moss-800 text-white text-sm font-semibold transition-colors"
                 >
                   Scan another
                 </button>
                 <Link
                   href="/meal-log"
-                  className="flex-1 py-3 rounded-xl border border-black/[0.09] text-ink text-sm text-center hover:bg-paper-100 transition-colors"
+                  className="press flex-1 py-3 rounded-xl border border-black/[0.09] text-ink text-sm text-center hover:bg-paper-100 transition-colors"
                 >
                   View meals
                 </Link>
@@ -355,16 +401,17 @@ export default function FoodScanner() {
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="w-full bg-moss-700 hover:bg-moss-800 text-white font-semibold py-3.5 rounded-xl text-sm transition-colors disabled:opacity-60"
+                className="press w-full bg-moss-700 hover:bg-moss-800 text-white font-semibold py-3.5 rounded-xl text-sm transition-colors disabled:opacity-60"
               >
                 {saving ? 'Saving…' : `Add ${grams}g to ${meal.toLowerCase()}`}
               </button>
               <button
                 onClick={() => {
+                  haptic('tap')
                   setResult(null)
                   setError(null)
                 }}
-                className="w-full border border-black/[0.09] text-ink-2 hover:text-ink py-3.5 rounded-xl text-sm transition-colors hover:bg-paper-100"
+                className="press w-full border border-black/[0.09] text-ink-2 hover:text-ink py-3.5 rounded-xl text-sm transition-colors hover:bg-paper-100"
               >
                 Scan another
               </button>

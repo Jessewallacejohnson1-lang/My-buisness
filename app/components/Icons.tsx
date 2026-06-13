@@ -65,6 +65,14 @@ export function IconPlus(props: IconProps) {
   )
 }
 
+export function IconMinus(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M5 12h14" />
+    </svg>
+  )
+}
+
 export function IconCheck(props: IconProps) {
   return (
     <svg {...base(props)}>

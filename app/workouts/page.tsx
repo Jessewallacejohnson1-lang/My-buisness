@@ -11,6 +11,7 @@ import {
 } from '@/lib/db'
 import AppShell from '../components/AppShell'
 import { IconAlert, IconCheck, IconPlus, IconX } from '../components/Icons'
+import { haptic } from '@/lib/haptics'
 
 const PRESET_WORKOUTS = [
   { name: 'Upper Body Strength', duration_min: 45, exercises: [{ name: 'Bench Press', sets: 4, reps: 8, weight: 0 }, { name: 'Shoulder Press', sets: 3, reps: 10, weight: 0 }, { name: 'Lat Pulldown', sets: 3, reps: 12, weight: 0 }, { name: 'Bicep Curls', sets: 3, reps: 12, weight: 0 }] },
@@ -45,9 +46,12 @@ export default function WorkoutsPage() {
 
   const handleAddPreset = async (preset: (typeof PRESET_WORKOUTS)[0]) => {
     setAdding(true)
+    haptic('tap')
     try {
       await addWorkout({ ...preset, date: today, completed: false })
       await load()
+    } catch {
+      haptic('error')
     } finally {
       setAdding(false)
     }
@@ -56,6 +60,7 @@ export default function WorkoutsPage() {
   const handleAddCustom = async () => {
     if (!customName.trim()) return
     setAdding(true)
+    haptic('tap')
     try {
       await addWorkout({
         name: customName.trim(),
@@ -75,14 +80,19 @@ export default function WorkoutsPage() {
 
   const handleToggle = async (w: Workout) => {
     const snapshot = workouts
+    const next = workouts.map((x) => (x.id === w.id ? { ...x, completed: !w.completed } : x))
     setActionError(null)
-    setWorkouts((ws) => ws.map((x) => (x.id === w.id ? { ...x, completed: !w.completed } : x)))
+    setWorkouts(next)
+    // Strong, celebratory buzz when this tap finishes the whole session.
+    const justFinishedSession = !w.completed && next.every((x) => x.completed)
+    haptic(justFinishedSession ? 'success' : !w.completed ? 'select' : 'tap')
     try {
       await toggleWorkoutComplete(w.id, !w.completed)
       load()
     } catch {
       setWorkouts(snapshot)
       setActionError("Couldn't update the workout. Check your connection.")
+      haptic('error')
     }
   }
 
@@ -144,7 +154,7 @@ export default function WorkoutsPage() {
             {workouts.length > 0 && (
               <section className="rise mb-9" style={{ animationDelay: '60ms' }}>
                 {done === workouts.length && workouts.length > 0 && (
-                  <div className="flex items-center gap-3 bg-moss-700/10 border border-moss-700/20 rounded-2xl px-4 py-3.5 mb-4">
+                  <div className="bounce-in flex items-center gap-3 bg-moss-700/10 border border-moss-700/20 rounded-2xl px-4 py-3.5 mb-4">
                     <span className="w-7 h-7 rounded-full bg-moss-700 text-white flex items-center justify-center shrink-0">
                       <IconCheck className="w-4 h-4" strokeWidth={2.5} />
                     </span>
@@ -166,13 +176,13 @@ export default function WorkoutsPage() {
                       <button
                         onClick={() => handleToggle(w)}
                         aria-label={w.completed ? `Mark ${w.name} incomplete` : `Mark ${w.name} complete`}
-                        className={`w-7 h-7 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
+                        className={`press w-7 h-7 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
                           w.completed
                             ? 'bg-moss-700 border-moss-700 text-white'
                             : 'border-paper-300 hover:border-moss-600'
                         }`}
                       >
-                        {w.completed && <IconCheck className="w-4 h-4" strokeWidth={2.5} />}
+                        {w.completed && <IconCheck className="pop w-4 h-4" strokeWidth={2.5} />}
                       </button>
                       <div className="flex-1 min-w-0">
                         <p
@@ -190,7 +200,7 @@ export default function WorkoutsPage() {
                       <button
                         onClick={() => handleDelete(w.id)}
                         aria-label={`Delete ${w.name}`}
-                        className="text-ink-3 hover:text-clay-700 transition-colors p-1 -m-1"
+                        className="press text-ink-3 hover:text-clay-700 transition-colors p-1 -m-1"
                       >
                         <IconX className="w-4 h-4" />
                       </button>
@@ -212,7 +222,7 @@ export default function WorkoutsPage() {
                       key={p.name}
                       onClick={() => handleAddPreset(p)}
                       disabled={adding || logged}
-                      className="w-full bg-paper-50 border border-black/[0.07] rounded-2xl px-4 py-3.5 flex items-center justify-between gap-3 text-left hover:border-moss-700/30 transition-colors disabled:opacity-40 disabled:hover:border-black/[0.07]"
+                      className="press w-full bg-paper-50 border border-black/[0.07] rounded-2xl px-4 py-3.5 flex items-center justify-between gap-3 text-left hover:border-moss-700/30 transition-colors disabled:opacity-40 disabled:hover:border-black/[0.07]"
                     >
                       <div className="min-w-0">
                         <p className="text-sm text-ink truncate">{p.name}</p>
@@ -221,7 +231,7 @@ export default function WorkoutsPage() {
                         </p>
                       </div>
                       {logged ? (
-                        <IconCheck className="w-4 h-4 text-moss-700 shrink-0" />
+                        <IconCheck className="pop w-4 h-4 text-moss-700 shrink-0" />
                       ) : (
                         <IconPlus className="w-4 h-4 text-moss-700 shrink-0" />
                       )}
@@ -237,8 +247,8 @@ export default function WorkoutsPage() {
               </h2>
               {!showCustom ? (
                 <button
-                  onClick={() => setShowCustom(true)}
-                  className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl border border-dashed border-paper-300 text-ink-2 text-sm hover:border-moss-700/50 hover:text-moss-700 transition-colors"
+                  onClick={() => { haptic('tap'); setShowCustom(true) }}
+                  className="press w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl border border-dashed border-paper-300 text-ink-2 text-sm hover:border-moss-700/50 hover:text-moss-700 transition-colors"
                 >
                   <IconPlus className="w-4 h-4" /> Log a custom session
                 </button>
@@ -262,14 +272,14 @@ export default function WorkoutsPage() {
                   <div className="flex gap-2">
                     <button
                       onClick={() => setShowCustom(false)}
-                      className="flex-1 py-3 rounded-xl border border-black/[0.08] text-ink-2 text-sm hover:text-ink hover:bg-paper-100 transition-colors"
+                      className="press flex-1 py-3 rounded-xl border border-black/[0.08] text-ink-2 text-sm hover:text-ink hover:bg-paper-100 transition-colors"
                     >
                       Cancel
                     </button>
                     <button
                       onClick={handleAddCustom}
                       disabled={!customName.trim() || adding}
-                      className="flex-1 py-3 rounded-xl bg-moss-700 hover:bg-moss-800 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+                      className="press flex-1 py-3 rounded-xl bg-moss-700 hover:bg-moss-800 text-white text-sm font-semibold transition-colors disabled:opacity-50"
                     >
                       {adding ? 'Logging…' : 'Log session'}
                     </button>

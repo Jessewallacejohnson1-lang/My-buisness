@@ -1,14 +1,16 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { getFoodLogs, addFoodLog, deleteFoodLog, getProfile, localDate, type FoodLog } from '@/lib/db'
 import { searchFood, toLogEntry, type FoodResult } from '@/lib/food-search'
+import { haptic } from '@/lib/haptics'
 import AppShell from '../components/AppShell'
 import ScoreRing, { scoreTone } from '../components/ScoreRing'
 import {
   IconAlert,
   IconBarcode,
+  IconCheck,
   IconChevronDown,
   IconLeaf,
   IconPlus,
@@ -24,9 +26,9 @@ function FoodCard({ food, onDelete }: { food: FoodLog; onDelete: () => void }) {
   return (
     <div className="bg-paper-50 border border-black/[0.07] rounded-2xl overflow-hidden">
       <button
-        onClick={() => setOpen(!open)}
+        onClick={() => { haptic('select'); setOpen(!open) }}
         aria-expanded={open}
-        className="w-full text-left px-4 py-3.5 flex items-center gap-3.5"
+        className="w-full text-left px-4 py-3.5 flex items-center gap-3.5 transition-colors hover:bg-paper-100/50"
       >
         <ScoreRing score={food.score} />
         <div className="flex-1 min-w-0">
@@ -65,8 +67,8 @@ function FoodCard({ food, onDelete }: { food: FoodLog; onDelete: () => void }) {
             </div>
           ))}
           <button
-            onClick={onDelete}
-            className="mt-2 text-xs text-ink-3 hover:text-clay-700 transition-colors"
+            onClick={() => { haptic('warn'); onDelete() }}
+            className="press mt-2 text-xs text-ink-3 hover:text-clay-700 transition-colors"
           >
             Remove from log
           </button>
@@ -91,24 +93,47 @@ function SearchSheet({
   const [searched, setSearched] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
   const [adding, setAdding] = useState<string | null>(null)
+  const [recentlyAdded, setRecentlyAdded] = useState<Set<string>>(new Set())
+  // Monotonic request id — guards against a slow earlier response overwriting
+  // the results of a later, faster one as the user keeps typing.
+  const reqId = useRef(0)
 
-  const search = useCallback(async () => {
-    if (!query.trim()) return
+  const search = useCallback(async (q: string) => {
+    const term = q.trim()
+    if (term.length < 2) return
+    const id = ++reqId.current
     setLoading(true)
     setSearchError(null)
     try {
-      setResults(await searchFood(query))
+      const found = await searchFood(term)
+      if (id !== reqId.current) return // a newer search superseded this one
+      setResults(found)
       setSearched(true)
     } catch (err) {
+      if (id !== reqId.current) return
       const isTimeout = err instanceof DOMException && err.name === 'AbortError'
       setSearchError(isTimeout
         ? 'Search timed out. Check your connection and try again.'
         : 'Search failed. Check your connection and try again.')
       setSearched(true)
     } finally {
-      setLoading(false)
+      if (id === reqId.current) setLoading(false)
     }
-  }, [query])
+  }, [])
+
+  // Live search — fire 450ms after the user stops typing.
+  useEffect(() => {
+    const term = query.trim()
+    if (term.length < 2) {
+      reqId.current++ // cancel any in-flight result from a now-too-short query
+      setResults([])
+      setSearched(false)
+      setLoading(false)
+      return
+    }
+    const t = setTimeout(() => search(term), 450)
+    return () => clearTimeout(t)
+  }, [query, search])
 
   return (
     <div
@@ -136,25 +161,29 @@ function SearchSheet({
               <IconX className="w-5 h-5" />
             </button>
           </div>
-          <div className="flex gap-2">
-            <div className="flex-1 relative">
-              <IconSearch className="w-4 h-4 text-ink-3 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                autoFocus
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && search()}
-                placeholder="Search any food…"
-                className="w-full bg-paper-100 border border-black/[0.08] rounded-xl pl-10 pr-4 py-3 text-sm text-ink placeholder:text-ink-3 focus:border-moss-700/50 focus:outline-none transition-colors"
-              />
-            </div>
-            <button
-              onClick={search}
-              disabled={loading}
-              className="bg-moss-700 hover:bg-moss-800 text-white font-semibold px-4 rounded-xl text-sm transition-colors disabled:opacity-60"
-            >
-              {loading ? '…' : 'Search'}
-            </button>
+          <div className="relative">
+            <IconSearch className="w-4 h-4 text-ink-3 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && search(query)}
+              placeholder="Search any food…"
+              className="w-full bg-paper-100 border border-black/[0.08] rounded-xl pl-10 pr-10 py-3 text-sm text-ink placeholder:text-ink-3 focus:border-moss-700/50 focus:outline-none transition-colors"
+            />
+            <span className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center">
+              {loading ? (
+                <span className="w-4 h-4 border-2 border-moss-700 border-t-transparent rounded-full animate-spin" />
+              ) : query ? (
+                <button
+                  onClick={() => setQuery('')}
+                  aria-label="Clear search"
+                  className="press text-ink-3 hover:text-ink transition-colors"
+                >
+                  <IconX className="w-4 h-4" />
+                </button>
+              ) : null}
+            </span>
           </div>
           <div className="flex items-center justify-center gap-5 mt-3">
             <Link
@@ -176,7 +205,9 @@ function SearchSheet({
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-2 min-h-[200px]">
           {!searched && !loading && (
             <p className="text-center text-ink-3 text-sm py-10">
-              Search the Open Food Facts database — 700,000+ foods, each one scored.
+              {query.trim().length === 1
+                ? 'Keep typing…'
+                : 'Start typing to search 700,000+ foods — each one scored as you go.'}
             </p>
           )}
           {searched && !loading && !searchError && results.length === 0 && (
@@ -205,18 +236,31 @@ function SearchSheet({
               </div>
               <button
                 onClick={async () => {
+                  const key = `${r.food_name}-${r.brand ?? ''}-${i}`
                   setAdding(r.food_name)
                   try {
                     await onAdd(r)
-                    onClose()
+                    haptic('success')
+                    setRecentlyAdded((s) => new Set(s).add(key))
+                    setTimeout(() => setRecentlyAdded((s) => { const n = new Set(s); n.delete(key); return n }), 1800)
+                  } catch {
+                    haptic('error')
                   } finally {
                     setAdding(null)
                   }
                 }}
                 disabled={adding !== null}
-                className="shrink-0 flex items-center gap-1 bg-moss-700 hover:bg-moss-800 text-white font-semibold text-xs px-3 py-2 rounded-lg transition-colors disabled:opacity-60"
+                className={`press shrink-0 flex items-center gap-1 font-semibold text-xs px-3 py-2 rounded-lg transition-colors disabled:opacity-60 ${
+                  recentlyAdded.has(`${r.food_name}-${r.brand ?? ''}-${i}`)
+                    ? 'bg-moss-700/20 border border-moss-700/30 text-moss-700'
+                    : 'bg-moss-700 hover:bg-moss-800 text-white'
+                }`}
               >
-                {adding === r.food_name ? '…' : (
+                {adding === r.food_name ? '…' : recentlyAdded.has(`${r.food_name}-${r.brand ?? ''}-${i}`) ? (
+                  <span className="pop flex items-center gap-1">
+                    <IconCheck className="w-3.5 h-3.5" strokeWidth={2.5} /> Added
+                  </span>
+                ) : (
                   <>
                     <IconPlus className="w-3.5 h-3.5" strokeWidth={2.5} /> Add
                   </>
@@ -277,6 +321,9 @@ export default function MealLogPage() {
   }
 
   const totalCal = logs.reduce((s, f) => s + f.calories, 0)
+  const totalProtein = logs.reduce((s, f) => s + f.protein, 0)
+  const totalCarbs = logs.reduce((s, f) => s + f.carbs, 0)
+  const totalFat = logs.reduce((s, f) => s + f.fat, 0)
   const avgScore = logs.length
     ? Math.round(logs.reduce((s, f) => s + f.score, 0) / logs.length)
     : 0
@@ -326,19 +373,38 @@ export default function MealLogPage() {
               style={{ width: `${Math.min(100, (totalCal / goalCal) * 100)}%` }}
             />
           </div>
-          <div className="flex items-center gap-4 mt-4 pt-3 border-t border-black/[0.06]">
-            <span className="text-[11px] text-ink-3">Score colors:</span>
-            {[
-              ['bg-moss-600', 'Clean 70+'],
-              ['bg-honey-600', 'Moderate'],
-              ['bg-clay-700', 'Avoid'],
-            ].map(([dot, label]) => (
-              <span key={label} className="flex items-center gap-1.5 text-[11px] text-ink-2">
-                <span className={`w-2 h-2 rounded-full ${dot}`} />
-                {label}
-              </span>
-            ))}
-          </div>
+          {logs.length > 0 && (
+            <div className="flex gap-3 mt-4 pt-3 border-t border-black/[0.06]">
+              {[
+                { label: 'Protein', value: Math.round(totalProtein), unit: 'g', color: 'bg-moss-700' },
+                { label: 'Carbs', value: Math.round(totalCarbs), unit: 'g', color: 'bg-honey-600' },
+                { label: 'Fat', value: Math.round(totalFat), unit: 'g', color: 'bg-clay-700' },
+              ].map((m) => (
+                <div key={m.label} className="flex-1 text-center">
+                  <p className="font-mono text-sm text-ink tabular-nums">{m.value}{m.unit}</p>
+                  <div className="flex items-center justify-center gap-1 mt-0.5">
+                    <span className={`w-1.5 h-1.5 rounded-full ${m.color}`} />
+                    <span className="text-[10px] text-ink-3">{m.label}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {logs.length === 0 && (
+            <div className="flex items-center gap-4 mt-4 pt-3 border-t border-black/[0.06]">
+              <span className="text-[11px] text-ink-3">Score colors:</span>
+              {[
+                ['bg-moss-600', 'Clean 70+'],
+                ['bg-honey-600', 'Moderate'],
+                ['bg-clay-700', 'Avoid'],
+              ].map(([dot, label]) => (
+                <span key={label} className="flex items-center gap-1.5 text-[11px] text-ink-2">
+                  <span className={`w-2 h-2 rounded-full ${dot}`} />
+                  {label}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         {loading ? (
@@ -372,8 +438,8 @@ export default function MealLogPage() {
                   ))}
                 </div>
                 <button
-                  onClick={() => setSheet(meal)}
-                  className={`w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-dashed border-paper-300 text-ink-2 text-sm hover:border-moss-700/50 hover:text-moss-700 transition-colors ${
+                  onClick={() => { haptic('tap'); setSheet(meal) }}
+                  className={`press w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-dashed border-paper-300 text-ink-2 text-sm hover:border-moss-700/50 hover:text-moss-700 transition-colors ${
                     foods.length > 0 ? 'mt-2' : ''
                   }`}
                 >

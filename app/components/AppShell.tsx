@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { haptic } from '@/lib/haptics'
 import {
   IconRings,
   IconBowl,
@@ -118,7 +119,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <Link
                 key={tab.href}
                 href={tab.href}
-                className="flex flex-col items-center justify-center gap-1"
+                onClick={() => { if (!active) haptic('select') }}
+                className="press flex flex-col items-center justify-center gap-1"
               >
                 {isScan ? (
                   <span

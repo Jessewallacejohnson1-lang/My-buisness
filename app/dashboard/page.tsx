@@ -15,6 +15,7 @@ import {
   type Workout,
 } from '@/lib/db'
 import type { Profile } from '@/lib/profile'
+import { haptic } from '@/lib/haptics'
 import AppShell from '../components/AppShell'
 import { GrowthRings, useCountUp } from '../components/GrowthRings'
 import { IconAlert, IconBarcode, IconBowl, IconCheck, IconFlame, IconPlus } from '../components/Icons'
@@ -193,13 +194,18 @@ export default function DashboardPage() {
 
   const handleToggleWorkout = async (id: string, completed: boolean) => {
     const snapshot = workouts
-    setWorkouts((ws) => ws.map((w) => (w.id === id ? { ...w, completed: !completed } : w)))
+    const next = workouts.map((w) => (w.id === id ? { ...w, completed: !completed } : w))
+    setWorkoutError(null)
+    setWorkouts(next)
+    const justFinishedSession = !completed && next.every((w) => w.completed)
+    haptic(justFinishedSession ? "success" : !completed ? "select" : "tap")
     try {
       await toggleWorkoutComplete(id, !completed)
       load()
     } catch {
       setWorkouts(snapshot)
-      setWorkoutError('Couldn’t update the workout. Check your connection and try again.')
+      setWorkoutError("Couldn’t update the workout. Check your connection and try again.")
+      haptic("error")
     }
   }
 
@@ -356,7 +362,7 @@ export default function DashboardPage() {
             <div className="flex items-start justify-between">
               <Eyebrow>Streak</Eyebrow>
               <IconFlame
-                className={`w-5 h-5 ${streak > 0 ? 'text-honey-600' : 'text-ink-3'}`}
+                className={`w-5 h-5 ${streak > 0 ? 'text-honey-600 flicker' : 'text-ink-3'}`}
               />
             </div>
             <p className="font-mono text-4xl text-ink tabular-nums">{streak}</p>
@@ -487,7 +493,7 @@ export default function DashboardPage() {
             ) : (
               <>
                 {workouts.every((w) => w.completed) && (
-                  <div className="flex items-center gap-2.5 bg-moss-700/10 border border-moss-700/20 rounded-xl px-3 py-2.5 mb-3">
+                  <div className="bounce-in flex items-center gap-2.5 bg-moss-700/10 border border-moss-700/20 rounded-xl px-3 py-2.5 mb-3">
                     <span className="w-5 h-5 rounded-full bg-moss-700 text-white flex items-center justify-center shrink-0">
                       <IconCheck className="w-3 h-3" strokeWidth={3} />
                     </span>
@@ -500,13 +506,13 @@ export default function DashboardPage() {
                       <button
                         onClick={() => handleToggleWorkout(w.id, w.completed)}
                         aria-label={w.completed ? `Mark ${w.name} incomplete` : `Mark ${w.name} complete`}
-                        className={`w-6 h-6 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
+                        className={`press w-6 h-6 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
                           w.completed
                             ? 'bg-moss-700 border-moss-700 text-white'
                             : 'border-paper-300 hover:border-moss-600'
                         }`}
                       >
-                        {w.completed && <IconCheck className="w-3.5 h-3.5" strokeWidth={2.5} />}
+                        {w.completed && <IconCheck className="pop w-3.5 h-3.5" strokeWidth={2.5} />}
                       </button>
                       <div className="flex-1 min-w-0">
                         <p
@@ -531,7 +537,8 @@ export default function DashboardPage() {
           {/* Quick actions — mobile only; desktop has the rail */}
           <Link
             href="/meal-log"
-            className="rise md:hidden col-span-1 bg-paper-50 border border-black/[0.07] rounded-2xl p-5 hover:border-moss-700/30 transition-colors"
+            onClick={() => haptic('tap')}
+            className="press rise md:hidden col-span-1 bg-paper-50 border border-black/[0.07] rounded-2xl p-5 hover:border-moss-700/30 transition-colors"
             style={{ animationDelay: '340ms' }}
           >
             <IconBowl className="w-5 h-5 text-moss-700 mb-3" />
@@ -542,7 +549,8 @@ export default function DashboardPage() {
           </Link>
           <Link
             href="/scan"
-            className="rise md:hidden col-span-1 bg-paper-50 border border-black/[0.07] rounded-2xl p-5 hover:border-moss-700/30 transition-colors"
+            onClick={() => haptic('tap')}
+            className="press rise md:hidden col-span-1 bg-paper-50 border border-black/[0.07] rounded-2xl p-5 hover:border-moss-700/30 transition-colors"
             style={{ animationDelay: '380ms' }}
           >
             <IconBarcode className="w-5 h-5 text-moss-700 mb-3" />

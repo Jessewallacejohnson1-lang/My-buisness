@@ -6,8 +6,17 @@ export function scoreTone(score: number) {
   return { stroke: 'var(--color-clay-700)', text: 'text-clay-700', word: 'Avoid' }
 }
 
-/** Small clean-score ring used on food rows and search results. */
-export default function ScoreRing({ score, size = 44 }: { score: number; size?: number }) {
+/** Small clean-score ring used on food rows and search results.
+ *  The stroke draws itself in on mount via a pure-CSS animation. */
+export default function ScoreRing({
+  score,
+  size = 44,
+  animate = true,
+}: {
+  score: number
+  size?: number
+  animate?: boolean
+}) {
   const { stroke, text } = scoreTone(score)
   const r = 15.9
   const circ = 2 * Math.PI * r
@@ -30,8 +39,15 @@ export default function ScoreRing({ score, size = 44 }: { score: number; size?: 
           fill="none"
           stroke={stroke}
           strokeWidth="3"
-          strokeDasharray={`${dash} ${circ - dash}`}
+          strokeDasharray={circ}
+          strokeDashoffset={circ - dash}
           strokeLinecap="round"
+          className={animate ? 'score-draw' : ''}
+          style={
+            animate
+              ? ({ '--circ': circ, '--score-offset': circ - dash } as React.CSSProperties)
+              : undefined
+          }
         />
       </svg>
       <span

@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useRef, useState } from 'react'
 import { addFoodLog, localDate } from '@/lib/db'
+import { haptic } from '@/lib/haptics'
 import ScoreRing from './ScoreRing'
 import { IconAlert, IconCheck, IconLeaf } from './Icons'
 import { MealPicker, mealForNow, type Meal } from './FoodScanner'
@@ -50,11 +51,13 @@ export default function PhotoAnalyzer() {
         setStage('idle')
         return
       }
+      haptic('success')
       setAnalysis(data)
       setIncluded(data.foods.map(() => true))
       setMeal(mealForNow())
       setStage('results')
     } catch (err) {
+      haptic('error')
       setError(err instanceof Error ? err.message : 'Analysis failed. Try again.')
       setStage('idle')
     }
@@ -83,9 +86,11 @@ export default function PhotoAnalyzer() {
           date: localDate(),
         })
       }
+      haptic('success')
       setSavedCount(foods.length)
       setStage('saved')
     } catch {
+      haptic('error')
       setError('Couldn’t save the log. Try again.')
     } finally {
       setSaving(false)
@@ -124,8 +129,8 @@ export default function PhotoAnalyzer() {
       {stage === 'idle' && (
         <div className="rise">
           <button
-            onClick={() => inputRef.current?.click()}
-            className="w-full rounded-3xl bg-paper-100 border border-dashed border-black/[0.12] aspect-square flex flex-col items-center justify-center gap-4 hover:border-moss-700/50 transition-colors"
+            onClick={() => { haptic('tap'); inputRef.current?.click() }}
+            className="press w-full rounded-3xl bg-paper-100 border border-dashed border-black/[0.12] aspect-square flex flex-col items-center justify-center gap-4 hover:border-moss-700/50 transition-colors"
           >
             <svg viewBox="0 0 24 24" className="w-10 h-10 text-ink-3" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 8a2 2 0 0 1 2-2h1.5l1.2-1.8A1 1 0 0 1 8.5 4h7a1 1 0 0 1 .8.4L17.5 6H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8Z" />
@@ -172,18 +177,29 @@ export default function PhotoAnalyzer() {
             />
           )}
 
+          {analysis.confidence !== 'high' && (
+            <div className="flex items-start gap-2.5 text-xs text-clay-700 bg-clay-700/10 border border-clay-700/20 rounded-xl px-3 py-2.5 leading-relaxed">
+              <IconAlert className="w-3.5 h-3.5 shrink-0 mt-px" />
+              <span>
+                {analysis.confidence === 'low'
+                  ? 'Low confidence — the photo was hard to read. Check portions carefully before saving.'
+                  : 'Moderate confidence — portions may be off. Adjust if needed.'}
+              </span>
+            </div>
+          )}
           <p className="text-xs text-ink-3 leading-relaxed px-0.5">
-            {analysis.note} Estimates from a photo — tap any item to exclude it.
+            {analysis.note} Tap any item to exclude it.
           </p>
 
           <div className="space-y-2">
             {analysis.foods.map((f, i) => (
               <button
                 key={i}
-                onClick={() =>
+                onClick={() => {
+                  haptic('select')
                   setIncluded((arr) => arr.map((v, j) => (j === i ? !v : v)))
-                }
-                className={`w-full text-left bg-paper-50 border rounded-2xl px-4 py-3.5 flex items-start gap-3.5 transition-all ${
+                }}
+                className={`press w-full text-left bg-paper-50 border rounded-2xl px-4 py-3.5 flex items-start gap-3.5 transition-all ${
                   included[i] ? 'border-black/[0.07]' : 'border-black/[0.05] opacity-40'
                 }`}
               >
@@ -219,7 +235,7 @@ export default function PhotoAnalyzer() {
                     included[i] ? 'bg-moss-700 border-moss-700 text-white' : 'border-black/[0.15]'
                   }`}
                 >
-                  {included[i] && <IconCheck className="w-3 h-3" strokeWidth={3} />}
+                  {included[i] && <IconCheck className="pop w-3 h-3" strokeWidth={3} />}
                 </span>
               </button>
             ))}
@@ -237,15 +253,15 @@ export default function PhotoAnalyzer() {
           <button
             onClick={handleSave}
             disabled={saving || totals.n === 0}
-            className="w-full bg-moss-700 hover:bg-moss-800 text-white font-semibold py-3.5 rounded-xl text-sm transition-colors disabled:opacity-60"
+            className="press w-full bg-moss-700 hover:bg-moss-800 text-white font-semibold py-3.5 rounded-xl text-sm transition-colors disabled:opacity-60"
           >
             {saving
               ? 'Saving…'
               : `Add ${totals.n} food${totals.n !== 1 ? 's' : ''} · ${Math.round(totals.cal)} kcal to ${meal.toLowerCase()}`}
           </button>
           <button
-            onClick={reset}
-            className="w-full border border-black/[0.09] text-ink-2 hover:text-ink py-3.5 rounded-xl text-sm transition-colors hover:bg-paper-100"
+            onClick={() => { haptic('tap'); reset() }}
+            className="press w-full border border-black/[0.09] text-ink-2 hover:text-ink py-3.5 rounded-xl text-sm transition-colors hover:bg-paper-100"
           >
             Try a different photo
           </button>
@@ -253,23 +269,26 @@ export default function PhotoAnalyzer() {
       )}
 
       {stage === 'saved' && (
-        <div className="rise bg-moss-700/10 border border-moss-700/25 rounded-2xl p-5 text-center">
-          <div className="mx-auto mb-3 w-10 h-10 rounded-full bg-moss-700 text-white flex items-center justify-center">
-            <IconCheck className="w-5 h-5" strokeWidth={2.5} />
+        <div className="bounce-in bg-moss-700/10 border border-moss-700/25 rounded-2xl p-5 text-center">
+          <div className="relative mx-auto mb-3 w-10 h-10">
+            <span className="absolute inset-0 rounded-full bg-moss-700/30 ping-out" />
+            <div className="pop relative w-10 h-10 rounded-full bg-moss-700 text-white flex items-center justify-center">
+              <IconCheck className="w-5 h-5" strokeWidth={2.5} />
+            </div>
           </div>
           <p className="text-sm text-ink mb-4">
             Logged {savedCount} food{savedCount !== 1 ? 's' : ''} to {meal.toLowerCase()}.
           </p>
           <div className="flex gap-2">
             <button
-              onClick={reset}
-              className="flex-1 py-3 rounded-xl bg-moss-700 hover:bg-moss-800 text-white text-sm font-semibold transition-colors"
+              onClick={() => { haptic('tap'); reset() }}
+              className="press flex-1 py-3 rounded-xl bg-moss-700 hover:bg-moss-800 text-white text-sm font-semibold transition-colors"
             >
               Analyze another
             </button>
             <Link
               href="/meal-log"
-              className="flex-1 py-3 rounded-xl border border-black/[0.09] text-ink text-sm text-center hover:bg-paper-100 transition-colors"
+              className="press flex-1 py-3 rounded-xl border border-black/[0.09] text-ink text-sm text-center hover:bg-paper-100 transition-colors"
             >
               View meals
             </Link>
