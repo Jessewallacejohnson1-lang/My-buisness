@@ -247,7 +247,7 @@ export default async function Home() {
         <WoodGrain className="absolute right-0 top-0 h-full w-[55%] hidden md:block" />
         <div
           aria-hidden
-          className="absolute right-[-10%] top-[10%] w-[480px] h-[480px] rounded-full bg-moss-500/10 blur-[120px] pointer-events-none"
+          className="absolute right-[-10%] top-[10%] w-[480px] h-[480px] rounded-full bg-sky-500/10 blur-[120px] pointer-events-none"
         />
 
         <div className="relative max-w-6xl mx-auto px-5 md:px-8 pt-16 md:pt-24 pb-20 grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
@@ -545,7 +545,7 @@ export default async function Home() {
               >
                 <figure className="flex flex-col h-full">
                 <blockquote className="text-ink/90 leading-relaxed flex-1 mb-7">
-                  “{t.quote}”
+                  &#8220;{t.quote}&#8221;
                 </blockquote>
                 <figcaption className="flex items-center gap-3.5 pt-5 border-t border-black/[0.07]">
                   <span className="w-9 h-9 rounded-full bg-moss-700/15 border border-moss-700/25 text-moss-700 text-sm flex items-center justify-center">

@@ -10,7 +10,7 @@ import {
   type Workout,
 } from '@/lib/db'
 import AppShell from '../components/AppShell'
-import { IconCheck, IconPlus, IconX } from '../components/Icons'
+import { IconAlert, IconCheck, IconPlus, IconX } from '../components/Icons'
 
 const PRESET_WORKOUTS = [
   { name: 'Upper Body Strength', duration_min: 45, exercises: [{ name: 'Bench Press', sets: 4, reps: 8, weight: 0 }, { name: 'Shoulder Press', sets: 3, reps: 10, weight: 0 }, { name: 'Lat Pulldown', sets: 3, reps: 12, weight: 0 }, { name: 'Bicep Curls', sets: 3, reps: 12, weight: 0 }] },
@@ -27,6 +27,7 @@ export default function WorkoutsPage() {
   const [customName, setCustomName] = useState('')
   const [customDuration, setCustomDuration] = useState('')
   const [adding, setAdding] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const today = localDate()
 
@@ -74,23 +75,27 @@ export default function WorkoutsPage() {
 
   const handleToggle = async (w: Workout) => {
     const snapshot = workouts
+    setActionError(null)
     setWorkouts((ws) => ws.map((x) => (x.id === w.id ? { ...x, completed: !w.completed } : x)))
     try {
       await toggleWorkoutComplete(w.id, !w.completed)
       load()
     } catch {
       setWorkouts(snapshot)
+      setActionError("Couldn't update the workout. Check your connection.")
     }
   }
 
   const handleDelete = async (id: string) => {
     const snapshot = workouts
+    setActionError(null)
     setWorkouts((ws) => ws.filter((x) => x.id !== id))
     try {
       await deleteWorkout(id)
       load()
     } catch {
       setWorkouts(snapshot)
+      setActionError("Couldn't remove the workout. Check your connection.")
     }
   }
 
@@ -118,6 +123,13 @@ export default function WorkoutsPage() {
           )}
         </header>
 
+        {actionError && (
+          <div className="rise flex items-start gap-2.5 text-sm text-clay-700 bg-clay-700/10 border border-clay-700/20 rounded-2xl px-4 py-3.5 mb-5 leading-relaxed">
+            <IconAlert className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{actionError}</span>
+          </div>
+        )}
+
         {loading ? (
           <div className="space-y-3">
             {[0, 1, 2].map((i) => (
@@ -131,6 +143,17 @@ export default function WorkoutsPage() {
           <>
             {workouts.length > 0 && (
               <section className="rise mb-9" style={{ animationDelay: '60ms' }}>
+                {done === workouts.length && workouts.length > 0 && (
+                  <div className="flex items-center gap-3 bg-moss-700/10 border border-moss-700/20 rounded-2xl px-4 py-3.5 mb-4">
+                    <span className="w-7 h-7 rounded-full bg-moss-700 text-white flex items-center justify-center shrink-0">
+                      <IconCheck className="w-4 h-4" strokeWidth={2.5} />
+                    </span>
+                    <div>
+                      <p className="text-sm text-ink font-semibold">Session complete</p>
+                      <p className="text-xs text-ink-2 mt-0.5">All {workouts.length} {workouts.length === 1 ? 'workout' : 'workouts'} done — great work today.</p>
+                    </div>
+                  </div>
+                )}
                 <h2 className="text-[11px] uppercase tracking-[0.18em] text-ink-2 mb-3 px-0.5">
                   Logged today
                 </h2>
