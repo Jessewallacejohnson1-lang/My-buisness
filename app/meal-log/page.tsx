@@ -121,15 +121,19 @@ function SearchSheet({
     }
   }, [])
 
-  // Live search — fire 450ms after the user stops typing.
+  // Live search — fire 450ms after the user stops typing. Both branches defer
+  // their state writes to the timer/microtask so nothing runs synchronously in
+  // the effect body (avoids cascading renders).
   useEffect(() => {
     const term = query.trim()
     if (term.length < 2) {
       reqId.current++ // cancel any in-flight result from a now-too-short query
-      setResults([])
-      setSearched(false)
-      setLoading(false)
-      return
+      const t = setTimeout(() => {
+        setResults([])
+        setSearched(false)
+        setLoading(false)
+      }, 0)
+      return () => clearTimeout(t)
     }
     const t = setTimeout(() => search(term), 450)
     return () => clearTimeout(t)

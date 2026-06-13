@@ -175,24 +175,18 @@ const STEPS = [
   },
 ]
 
-const TESTIMONIALS = [
+const TRUST = [
   {
-    quote:
-      'Korina is the only tracker I’ve kept open past a week. The scanner alone saves me ten minutes a day.',
-    name: 'Maya R.',
-    detail: 'Lost 14 lbs in 3 months',
+    title: 'Built on open data',
+    desc: 'Every score starts from Open Food Facts — the world’s open, community-run food database. 700,000+ real products, not numbers we made up.',
   },
   {
-    quote:
-      'Watching the rings close is more motivating than any badge an app has ever given me.',
-    name: 'Jordan T.',
-    detail: '62-day streak',
+    title: 'Transparent scoring',
+    desc: 'Tap any food to see exactly why it scored what it did — the points it earned and the points it lost. No black box.',
   },
   {
-    quote:
-      'I finally understand what I’m actually eating. The clean score changed how I cook, not just how I log.',
-    name: 'Priya S.',
-    detail: 'Hit protein goal 47 days straight',
+    title: 'Free, and yours',
+    desc: 'No card to start. Your log is private to your account, and you can delete anything you’ve logged, anytime.',
   },
 ]
 
@@ -529,37 +523,32 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* testimonials */}
+      {/* why trust it — real substance instead of invented reviews */}
       <section className="border-t border-black/[0.07]">
         <div className="max-w-6xl mx-auto px-5 md:px-8 py-24 md:py-32">
-          <Reveal>
-            <p className="text-[11px] uppercase tracking-[0.22em] text-moss-700 mb-12 text-center">
-              From our users
+          <Reveal className="max-w-xl mb-12 md:mb-14">
+            <p className="text-[11px] uppercase tracking-[0.22em] text-moss-700 mb-5">
+              Built to be trusted
             </p>
+            <h2 className="font-display text-4xl md:text-5xl text-ink leading-tight">
+              No hype — just how it works.
+            </h2>
           </Reveal>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {TESTIMONIALS.map((t) => (
+            {TRUST.map((c) => (
               <Reveal
-                key={t.name}
+                key={c.title}
                 className="lift bg-paper-50 border border-black/[0.07] rounded-3xl p-7"
               >
-                <figure className="flex flex-col h-full">
-                <blockquote className="text-ink/90 leading-relaxed flex-1 mb-7">
-                  &#8220;{t.quote}&#8221;
-                </blockquote>
-                <figcaption className="flex items-center gap-3.5 pt-5 border-t border-black/[0.07]">
-                  <span className="w-9 h-9 rounded-full bg-moss-700/15 border border-moss-700/25 text-moss-700 text-sm flex items-center justify-center">
-                    {t.name[0]}
-                  </span>
-                  <div>
-                    <p className="text-sm text-ink">{t.name}</p>
-                    <p className="font-mono text-[11px] text-ink-3 mt-0.5 tabular-nums">{t.detail}</p>
-                  </div>
-                </figcaption>
-                </figure>
+                <h3 className="text-ink mb-2.5">{c.title}</h3>
+                <p className="text-sm text-ink-2 leading-relaxed">{c.desc}</p>
               </Reveal>
             ))}
           </div>
+          {/* Once you have real signups, add an honest count here, e.g.:
+              <p className="text-center text-sm text-ink-2 mt-12">
+                <span className="text-ink font-medium">312</span> people have started. Be next.
+              </p> */}
         </div>
       </section>
 

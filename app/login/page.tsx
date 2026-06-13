@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { Suspense, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { haptic } from '@/lib/haptics'
 
 type Mode = 'signin' | 'signup'
 
@@ -161,7 +162,8 @@ function LoginForm() {
         <button
           type="submit"
           disabled={busy}
-          className="w-full bg-moss-700 hover:bg-moss-800 text-white font-semibold py-3.5 rounded-xl text-sm transition-colors disabled:opacity-60"
+          onClick={() => haptic('tap')}
+          className="press w-full bg-moss-700 hover:bg-moss-800 text-white font-semibold py-3.5 rounded-xl text-sm transition-colors disabled:opacity-60"
         >
           {busy ? 'One moment…' : mode === 'signin' ? 'Sign in' : 'Create account'}
         </button>
@@ -169,10 +171,11 @@ function LoginForm() {
 
       <button
         onClick={() => {
+          haptic('select')
           setMode(mode === 'signin' ? 'signup' : 'signin')
           setError(null)
         }}
-        className="block mx-auto mt-6 text-sm text-ink-2 hover:text-ink transition-colors"
+        className="press block mx-auto mt-6 text-sm text-ink-2 hover:text-ink transition-colors"
       >
         {mode === 'signin' ? 'New here? Create an account' : 'Already tracking? Sign in'}
       </button>

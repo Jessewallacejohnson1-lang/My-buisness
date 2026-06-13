@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic'
 import { useState } from 'react'
+import { haptic } from '@/lib/haptics'
 import AppShell from '../components/AppShell'
 import PhotoAnalyzer from '../components/PhotoAnalyzer'
 
@@ -33,8 +34,8 @@ export default function ScanPage() {
           ).map(([m, label]) => (
             <button
               key={m}
-              onClick={() => setMode(m)}
-              className={`py-2.5 rounded-lg text-sm transition-colors ${
+              onClick={() => { if (mode !== m) haptic('select'); setMode(m) }}
+              className={`press py-2.5 rounded-lg text-sm transition-colors ${
                 mode === m
                   ? 'bg-paper text-ink font-semibold shadow-sm'
                   : 'text-ink-2 hover:text-ink'
