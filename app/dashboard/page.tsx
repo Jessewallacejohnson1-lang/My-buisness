@@ -128,6 +128,7 @@ export default function DashboardPage() {
 
   const [needsOnboarding, setNeedsOnboarding] = useState(false)
   const [setupError, setSetupError] = useState<string | null>(null)
+  const [workoutError, setWorkoutError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     // Fetch the profile on its own so we can tell "no profile yet" (→ onboarding)
@@ -171,9 +172,19 @@ export default function DashboardPage() {
   }, [])
 
   useEffect(() => {
-    // All state updates inside load() happen after awaits — nothing synchronous.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     load()
+  }, [load])
+
+  // Re-fetch when the user returns from another tab/page (e.g. after logging a meal)
+  useEffect(() => {
+    const onFocus = () => load()
+    const onVisible = () => { if (!document.hidden) load() }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [load])
 
   useEffect(() => {
@@ -188,6 +199,7 @@ export default function DashboardPage() {
       load()
     } catch {
       setWorkouts(snapshot)
+      setWorkoutError('Couldn’t update the workout. Check your connection and try again.')
     }
   }
 
@@ -200,8 +212,9 @@ export default function DashboardPage() {
     ? Math.round(logs.reduce((s, f) => s + f.score, 0) / logs.length)
     : 0
 
-  const calLeft = Math.max(0, GOAL_CAL - totalCal)
-  const calLeftAnimated = useCountUp(loading ? 0 : calLeft)
+  const calOver = totalCal > GOAL_CAL
+  const calDelta = Math.abs(GOAL_CAL - totalCal)
+  const calLeftAnimated = useCountUp(loading ? 0 : calDelta)
 
   const maxWeekCal = Math.max(...weekCals.map((d) => d.total), GOAL_CAL)
   const weekLabels = weekCals.map((d) =>
@@ -265,8 +278,8 @@ export default function DashboardPage() {
           </p>
         </header>
 
-        {/* Getting started — only while the account is brand new */}
-        {loggedDays <= 1 && streak <= 1 && (
+        {/* Getting started — only when the account has never logged anything */}
+        {loggedDays === 0 && streak === 0 && (
           <section className="rise bg-moss-700/[0.05] border border-moss-700/20 rounded-2xl p-5 mb-3 md:mb-4">
             <p className="text-[11px] uppercase tracking-[0.18em] text-moss-700 mb-2">
               Getting started
@@ -290,16 +303,16 @@ export default function DashboardPage() {
               <GrowthRings
                 size={210}
                 rings={[
-                  { pct: totalCal / GOAL_CAL, color: 'var(--color-honey-600)' },
+                  { pct: totalCal / GOAL_CAL, color: calOver ? 'var(--color-clay-700)' : 'var(--color-honey-600)' },
                   { pct: totalProtein / GOAL_PROTEIN, color: 'var(--color-moss-700)' },
-                  { pct: avgScore / 100, color: scoreColor(avgScore || 100) },
+                  { pct: logs.length ? avgScore / 100 : 0, color: logs.length ? scoreColor(avgScore) : 'var(--color-paper-300)' },
                 ]}
               >
-                <span className="font-mono text-4xl text-ink tabular-nums">
+                <span className={`font-mono text-4xl tabular-nums ${calOver ? 'text-clay-700' : 'text-ink'}`}>
                   {calLeftAnimated.toLocaleString()}
                 </span>
                 <span className="text-[11px] uppercase tracking-[0.18em] text-ink-2 mt-1">
-                  kcal left
+                  {calOver ? 'kcal over' : 'kcal left'}
                 </span>
               </GrowthRings>
 
@@ -347,8 +360,13 @@ export default function DashboardPage() {
               />
             </div>
             <p className="font-mono text-4xl text-ink tabular-nums">{streak}</p>
-            <p className="text-sm text-ink-2 mt-1">{streak === 1 ? 'day' : 'days'} in a row</p>
-            <div className="flex gap-1.5 mt-4">
+            <p className="text-sm text-ink-2 mt-1">
+              {streak === 0 ? 'Log today to start one' : streak === 1 ? 'day in a row' : 'days in a row'}
+            </p>
+            <p className="text-xs text-ink-3 mt-1">
+              {streak === 0 ? 'Log something today to start your streak.' : streak >= 7 ? 'Great consistency — keep it going.' : streak >= 3 ? 'You\'re building a habit.' : 'Log tomorrow to keep it alive.'}
+            </p>
+            <div className="flex gap-1.5 mt-3">
               {weekCals.map((d) => (
                 <span
                   key={d.date}
@@ -369,7 +387,7 @@ export default function DashboardPage() {
                 { label: 'Protein', value: totalProtein, goal: GOAL_PROTEIN, color: 'bg-moss-700' },
                 { label: 'Carbs', value: totalCarbs, goal: GOAL_CARBS, color: 'bg-honey-600' },
                 { label: 'Fat', value: totalFat, goal: GOAL_FAT, color: 'bg-clay-700' },
-                { label: 'Fibre', value: totalFibre, goal: GOAL_FIBRE, color: 'bg-moss-400' },
+                { label: 'Fibre', value: totalFibre, goal: GOAL_FIBRE, color: 'bg-sky-500' },
               ].map((m) => (
                 <div key={m.label}>
                   <div className="flex justify-between items-baseline mb-1">
@@ -392,39 +410,46 @@ export default function DashboardPage() {
           {/* This week */}
           <Card className="col-span-2 lg:col-span-7" delay={220}>
             <Eyebrow>This week</Eyebrow>
-            <div className="flex items-end gap-2 h-28">
-              {weekCals.map((d, i) => {
-                const isToday = d.date === today
-                const pct = d.total ? Math.max(8, (d.total / maxWeekCal) * 100) : 0
-                return (
-                  <div key={d.date} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
-                    {d.total > 0 && (
-                      <span className="font-mono text-[9px] text-ink-3 tabular-nums">
-                        {d.total.toLocaleString()}
+            {loggedDays === 0 ? (
+              <div className="h-28 flex flex-col items-center justify-center gap-2">
+                <p className="text-sm text-ink-3">Nothing logged this week yet.</p>
+                <p className="text-xs text-ink-3">Your calorie bars will appear here as you log meals.</p>
+              </div>
+            ) : (
+              <div className="flex items-end gap-2 h-28">
+                {weekCals.map((d, i) => {
+                  const isToday = d.date === today
+                  const pct = d.total ? Math.max(8, (d.total / maxWeekCal) * 100) : 0
+                  return (
+                    <div key={d.date} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
+                      {d.total > 0 && (
+                        <span className="font-mono text-[9px] text-ink-3 tabular-nums">
+                          {d.total.toLocaleString()}
+                        </span>
+                      )}
+                      <div
+                        className={`w-full rounded-md transition-all duration-700 ${
+                          d.total === 0
+                            ? 'bg-paper-100 border border-black/[0.05]'
+                            : isToday
+                              ? 'bg-honey-600'
+                              : 'bg-moss-600'
+                        }`}
+                        style={{ height: d.total === 0 ? 4 : `${pct}%` }}
+                      />
+                      <span
+                        className={`text-[10px] ${isToday ? 'text-ink' : 'text-ink-3'}`}
+                      >
+                        {weekLabels[i]}
                       </span>
-                    )}
-                    <div
-                      className={`w-full rounded-md transition-all duration-700 ${
-                        d.total === 0
-                          ? 'bg-paper-100 border border-black/[0.05]'
-                          : isToday
-                            ? 'bg-honey-600'
-                            : 'bg-moss-500'
-                      }`}
-                      style={{ height: d.total === 0 ? 4 : `${pct}%` }}
-                    />
-                    <span
-                      className={`text-[10px] ${isToday ? 'text-ink' : 'text-ink-3'}`}
-                    >
-                      {weekLabels[i]}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
             <div className="flex justify-between mt-4 pt-3 border-t border-black/[0.07]">
               <span className="font-mono text-[11px] text-ink-2 tabular-nums">
-                avg {Math.round(avgWeekCal).toLocaleString()} kcal
+                {loggedDays > 0 ? `avg ${Math.round(avgWeekCal).toLocaleString()} kcal` : `${loggedDays} days logged`}
               </span>
               <span className="font-mono text-[11px] text-ink-3 tabular-nums">
                 goal {GOAL_CAL.toLocaleString()} kcal
@@ -438,11 +463,17 @@ export default function DashboardPage() {
               <p className="text-[11px] uppercase tracking-[0.18em] text-ink-2">Training</p>
               <Link
                 href="/workouts"
-                className="flex items-center gap-1 text-xs text-moss-700 hover:text-moss-400 transition-colors"
+                className="flex items-center gap-1 text-xs text-moss-700 hover:text-moss-800 transition-colors"
               >
                 <IconPlus className="w-3.5 h-3.5" /> Add
               </Link>
             </div>
+            {workoutError && (
+              <div className="flex items-start gap-2 text-xs text-clay-700 bg-clay-700/10 border border-clay-700/20 rounded-xl px-3 py-2.5 mb-3 leading-relaxed">
+                <IconAlert className="w-3.5 h-3.5 shrink-0 mt-px" />
+                <span>{workoutError}</span>
+              </div>
+            )}
             {workouts.length === 0 ? (
               <div className="py-4">
                 <p className="text-sm text-ink-3 mb-4">No session logged today.</p>
@@ -454,36 +485,46 @@ export default function DashboardPage() {
                 </Link>
               </div>
             ) : (
-              <ul className="space-y-2.5">
-                {workouts.map((w) => (
-                  <li key={w.id} className="flex items-center gap-3">
-                    <button
-                      onClick={() => handleToggleWorkout(w.id, w.completed)}
-                      aria-label={w.completed ? `Mark ${w.name} incomplete` : `Mark ${w.name} complete`}
-                      className={`w-6 h-6 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
-                        w.completed
-                          ? 'bg-moss-700 border-moss-700 text-white'
-                          : 'border-paper-300 hover:border-moss-600'
-                      }`}
-                    >
-                      {w.completed && <IconCheck className="w-3.5 h-3.5" strokeWidth={2.5} />}
-                    </button>
-                    <div className="flex-1 min-w-0">
-                      <p
-                        className={`text-sm truncate ${
-                          w.completed ? 'line-through text-ink-3' : 'text-ink'
+              <>
+                {workouts.every((w) => w.completed) && (
+                  <div className="flex items-center gap-2.5 bg-moss-700/10 border border-moss-700/20 rounded-xl px-3 py-2.5 mb-3">
+                    <span className="w-5 h-5 rounded-full bg-moss-700 text-white flex items-center justify-center shrink-0">
+                      <IconCheck className="w-3 h-3" strokeWidth={3} />
+                    </span>
+                    <p className="text-xs text-moss-700 font-semibold">Session complete — great work today.</p>
+                  </div>
+                )}
+                <ul className="space-y-2.5">
+                  {workouts.map((w) => (
+                    <li key={w.id} className="flex items-center gap-3">
+                      <button
+                        onClick={() => handleToggleWorkout(w.id, w.completed)}
+                        aria-label={w.completed ? `Mark ${w.name} incomplete` : `Mark ${w.name} complete`}
+                        className={`w-6 h-6 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
+                          w.completed
+                            ? 'bg-moss-700 border-moss-700 text-white'
+                            : 'border-paper-300 hover:border-moss-600'
                         }`}
                       >
-                        {w.name}
-                      </p>
-                      <p className="font-mono text-[11px] text-ink-3 tabular-nums">
-                        {w.exercises.length > 0 ? `${w.exercises.length} exercises · ` : ''}
-                        {w.duration_min} min
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                        {w.completed && <IconCheck className="w-3.5 h-3.5" strokeWidth={2.5} />}
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <p
+                          className={`text-sm truncate ${
+                            w.completed ? 'line-through text-ink-3' : 'text-ink'
+                          }`}
+                        >
+                          {w.name}
+                        </p>
+                        <p className="font-mono text-[11px] text-ink-3 tabular-nums">
+                          {w.exercises.length > 0 ? `${w.exercises.length} exercises · ` : ''}
+                          {w.duration_min} min
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </>
             )}
           </Card>
 
