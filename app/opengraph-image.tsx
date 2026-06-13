@@ -53,7 +53,7 @@ export default function OpengraphImage() {
             }}
           >
             <span>Eat clean. Train hard.</span>
-            <span style={{ fontStyle: 'italic', color: '#415e33' }}>
+            <span style={{ fontStyle: 'italic', color: '#1a6fa8' }}>
               Watch it compound.
             </span>
           </div>
@@ -78,8 +78,8 @@ export default function OpengraphImage() {
             justifyContent: 'center',
           }}
         >
-          {ring(330, '#9c7117', 40)}
-          {ring(244, '#587747', 110)}
+          {ring(330, '#2e9dba', 40)}
+          {ring(244, '#1a6fa8', 110)}
           {ring(158, '#1d1f1c', 200)}
           <div
             style={{

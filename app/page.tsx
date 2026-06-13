@@ -485,7 +485,7 @@ export default async function Home() {
                   <span className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-moss-700 rounded-br-lg" />
                   <span
                     className="absolute left-2 right-2 h-px bg-moss-700/80"
-                    style={{ animation: 'beam 2.4s ease-in-out infinite', boxShadow: '0 0 12px rgba(88,119,71,0.5)' }}
+                    style={{ animation: 'beam 2.4s ease-in-out infinite', boxShadow: '0 0 12px rgba(26,111,168,0.5)' }}
                   />
                 </div>
                 <IconBarcode className="absolute inset-0 m-auto w-12 h-12 text-ink-3" />

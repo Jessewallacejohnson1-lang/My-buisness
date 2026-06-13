@@ -224,9 +224,14 @@ export default function MealLogPage() {
 
   const load = useCallback(async () => {
     try {
+      // Profile is only used for the calorie goal here — a failure shouldn't
+      // block the log, but log it so it's not silently invisible.
       const [foods, prof] = await Promise.all([
         getFoodLogs(localDate()),
-        getProfile().catch(() => null),
+        getProfile().catch((e) => {
+          console.error('meal-log: profile load failed', e)
+          return null
+        }),
       ])
       setLogs(foods)
       if (prof) setGoalCalState(prof.goal_calories)

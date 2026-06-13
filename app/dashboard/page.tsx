@@ -17,7 +17,7 @@ import {
 import type { Profile } from '@/lib/profile'
 import AppShell from '../components/AppShell'
 import { GrowthRings, useCountUp } from '../components/GrowthRings'
-import { IconBarcode, IconBowl, IconCheck, IconFlame, IconPlus } from '../components/Icons'
+import { IconAlert, IconBarcode, IconBowl, IconCheck, IconFlame, IconPlus } from '../components/Icons'
 
 function ChecklistRow({
   done,
@@ -127,27 +127,44 @@ export default function DashboardPage() {
   const GOAL_FIBRE = profile?.goal_fibre ?? DEFAULT_FIBRE
 
   const [needsOnboarding, setNeedsOnboarding] = useState(false)
+  const [setupError, setSetupError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
+    // Fetch the profile on its own so we can tell "no profile yet" (→ onboarding)
+    // apart from a real DB/setup error (→ show it, don't loop).
+    let prof: Profile | null
     try {
-      const [foodLogs, todayWorkouts, streakCount, weekly, prof] = await Promise.all([
+      prof = await getProfile()
+    } catch (err) {
+      const e = err as { code?: string; message?: string }
+      setSetupError(
+        e.code === '42703' || e.code === '42P01'
+          ? 'Your database is missing the latest changes. Re-run supabase/migration-profiles.sql in the Supabase SQL editor, then reload.'
+          : e.message || 'Couldn’t reach the database. Check your connection and reload.'
+      )
+      setLoading(false)
+      return
+    }
+    if (!prof) {
+      setNeedsOnboarding(true)
+      return
+    }
+    try {
+      const [foodLogs, todayWorkouts, streakCount, weekly] = await Promise.all([
         getFoodLogs(localDate()),
         getWorkouts(localDate()),
         getStreak(),
         getWeeklyCalories(),
-        getProfile().catch(() => null),
       ])
-      if (!prof) {
-        setNeedsOnboarding(true)
-        return
-      }
       setProfile(prof)
       setLogs(foodLogs)
       setWorkouts(todayWorkouts)
       setStreak(streakCount)
       setWeekCals(weekly)
-      setLoading(false)
-    } catch {
+    } catch (err) {
+      const e = err as { message?: string }
+      setSetupError(e.message || 'Couldn’t load your data. Reload to try again.')
+    } finally {
       setLoading(false)
     }
   }, [])
@@ -198,6 +215,26 @@ export default function DashboardPage() {
     return (
       <AppShell>
         <Skeleton />
+      </AppShell>
+    )
+  }
+
+  if (setupError) {
+    return (
+      <AppShell>
+        <div className="max-w-md mx-auto px-5 pt-16 text-center">
+          <div className="mx-auto mb-5 w-12 h-12 rounded-full bg-clay-700/10 border border-clay-700/20 flex items-center justify-center">
+            <IconAlert className="w-5 h-5 text-clay-700" />
+          </div>
+          <h1 className="font-display text-2xl text-ink mb-2">Something needs setup</h1>
+          <p className="text-sm text-ink-2 leading-relaxed mb-6">{setupError}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-sky-700 hover:bg-sky-800 text-white font-semibold px-6 py-3 rounded-xl text-sm transition-colors"
+          >
+            Reload
+          </button>
+        </div>
       </AppShell>
     )
   }

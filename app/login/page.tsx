@@ -21,6 +21,7 @@ function LoginForm() {
     linkError ? 'That sign-in link expired. Enter your details to continue.' : null
   )
   const [checkEmail, setCheckEmail] = useState(false)
+  const [unconfirmed, setUnconfirmed] = useState(false)
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -49,7 +50,37 @@ function LoginForm() {
         router.refresh()
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong. Try again.')
+      const msg = err instanceof Error ? err.message : ''
+      const m = msg.toLowerCase()
+      if (m.includes('not confirmed') || m.includes('confirm')) {
+        setUnconfirmed(true)
+        setError('Your email isn’t confirmed yet. Check your inbox for the link, or resend it below.')
+      } else if (m.includes('invalid login') || m.includes('credentials')) {
+        setError('That email or password doesn’t match. Try again.')
+      } else if (m.includes('already registered') || m.includes('already exists')) {
+        setError('You already have an account with that email — switch to Sign in.')
+      } else {
+        setError(msg || 'Something went wrong. Try again.')
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const resendConfirmation = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+        options: { emailRedirectTo: `${location.origin}/auth/callback` },
+      })
+      if (error) throw error
+      setCheckEmail(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Couldn’t resend. Try again shortly.')
     } finally {
       setBusy(false)
     }
@@ -112,9 +143,19 @@ function LoginForm() {
         </label>
 
         {error && (
-          <p className="text-clay-700 text-xs leading-relaxed px-1" role="alert">
-            {error}
-          </p>
+          <div className="px-1" role="alert">
+            <p className="text-clay-700 text-xs leading-relaxed">{error}</p>
+            {unconfirmed && (
+              <button
+                type="button"
+                onClick={resendConfirmation}
+                disabled={busy}
+                className="mt-1.5 text-xs text-sky-600 hover:text-sky-700 transition-colors disabled:opacity-60"
+              >
+                Resend confirmation email
+              </button>
+            )}
+          </div>
         )}
 
         <button
@@ -148,7 +189,7 @@ export default function LoginPage() {
         className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            'repeating-radial-gradient(circle at 50% 120%, transparent 0px, transparent 79px, rgba(88,119,71,0.05) 80px, transparent 81px)',
+            'repeating-radial-gradient(circle at 50% 120%, transparent 0px, transparent 79px, rgba(26,111,168,0.05) 80px, transparent 81px)',
         }}
       />
       <Suspense>

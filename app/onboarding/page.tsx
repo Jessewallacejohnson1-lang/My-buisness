@@ -181,9 +181,12 @@ export default function OnboardingPage() {
     try {
       await saveProfile(answers)
       router.push('/dashboard')
-    } catch {
+    } catch (err) {
+      const e = err as { code?: string; message?: string }
       setError(
-        'Couldn’t save your plan. If this keeps happening, the profiles table may not exist yet.'
+        e.code === '42703' || e.code === '42P01'
+          ? 'Your database is missing the latest changes. Re-run supabase/migration-profiles.sql in the Supabase SQL editor, then try again.'
+          : e.message || 'Couldn’t save your plan. Check your connection and try again.'
       )
       setSaving(false)
     }
