@@ -25,6 +25,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter()
 
   const signOut = async () => {
+    haptic('tap')
     await createClient().auth.signOut()
     router.push('/')
     router.refresh()

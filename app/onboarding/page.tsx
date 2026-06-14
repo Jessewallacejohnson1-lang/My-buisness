@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getProfile, saveProfile } from '@/lib/db'
+import { haptic } from '@/lib/haptics'
 import {
   computeTargets,
   recommendFocus,
@@ -34,9 +35,9 @@ function Chip({
 }) {
   return (
     <button
-      onClick={onClick}
+      onClick={() => { haptic('select'); onClick() }}
       aria-pressed={selected}
-      className={`rounded-full border px-4 py-2.5 text-sm transition-all ${
+      className={`press rounded-full border px-4 py-2.5 text-sm transition-all ${
         selected
           ? 'border-moss-700 bg-moss-700/[0.08] text-moss-700 font-semibold'
           : 'border-black/[0.12] bg-paper-50 text-ink hover:border-black/[0.24]'
@@ -60,8 +61,8 @@ function OptionCard({
 }) {
   return (
     <button
-      onClick={onClick}
-      className={`w-full text-left rounded-2xl border px-4 py-3.5 transition-all ${
+      onClick={() => { haptic('select'); onClick() }}
+      className={`press w-full text-left rounded-2xl border px-4 py-3.5 transition-all ${
         selected
           ? 'border-moss-700 bg-moss-700/[0.06] shadow-[0_0_0_1px_var(--color-moss-700)]'
           : 'border-black/[0.08] bg-paper-50 hover:border-black/[0.16]'
@@ -77,7 +78,7 @@ function OptionCard({
             selected ? 'bg-moss-700 border-moss-700 text-white' : 'border-black/[0.15]'
           }`}
         >
-          {selected && <IconCheck className="w-3 h-3" strokeWidth={3} />}
+          {selected && <IconCheck className="pop w-3 h-3" strokeWidth={3} />}
         </span>
       </span>
     </button>
@@ -231,8 +232,8 @@ export default function OnboardingPage() {
                 ).map(([p, label]) => (
                   <button
                     key={p}
-                    onClick={() => setPace(p)}
-                    className={`py-2.5 rounded-xl text-xs border transition-colors ${
+                    onClick={() => { haptic('select'); setPace(p) }}
+                    className={`press py-2.5 rounded-xl text-xs border transition-colors ${
                       pace === p
                         ? 'bg-moss-700 border-moss-700 text-white font-semibold'
                         : 'bg-paper-50 border-black/[0.08] text-ink-2 hover:text-ink'
@@ -298,8 +299,8 @@ export default function OnboardingPage() {
             ).map(([s, label]) => (
               <button
                 key={s}
-                onClick={() => setSex(s)}
-                className={`py-2.5 rounded-xl text-xs border transition-colors ${
+                onClick={() => { haptic('select'); setSex(s) }}
+                className={`press py-2.5 rounded-xl text-xs border transition-colors ${
                   sex === s
                     ? 'bg-moss-700 border-moss-700 text-white font-semibold'
                     : 'bg-paper-50 border-black/[0.08] text-ink-2 hover:text-ink'
@@ -324,8 +325,8 @@ export default function OnboardingPage() {
                 ).map(([v, label]) => (
                   <button
                     key={label}
-                    onClick={() => setImperial(v)}
-                    className={`py-2 rounded-lg text-xs transition-colors ${
+                    onClick={() => { haptic('select'); setImperial(v) }}
+                    className={`press py-2 rounded-lg text-xs transition-colors ${
                       imperial === v ? 'bg-paper text-ink font-semibold shadow-sm' : 'text-ink-2'
                     }`}
                   >
@@ -376,8 +377,8 @@ export default function OnboardingPage() {
             {[0, 1, 2, 3, 4, 5, 6].map((d) => (
               <button
                 key={d}
-                onClick={() => setTrainingDays(d)}
-                className={`py-2.5 rounded-xl text-sm font-mono tabular-nums border transition-colors ${
+                onClick={() => { haptic('select'); setTrainingDays(d) }}
+                className={`press py-2.5 rounded-xl text-sm font-mono tabular-nums border transition-colors ${
                   trainingDays === d
                     ? 'bg-moss-700 border-moss-700 text-white'
                     : 'bg-paper-50 border-black/[0.08] text-ink-2 hover:text-ink'
@@ -485,24 +486,24 @@ export default function OnboardingPage() {
       <div className="flex gap-2 mt-9">
         {step > 0 && (
           <button
-            onClick={() => setStep(step - 1)}
-            className="flex-1 py-3.5 rounded-xl border border-black/[0.09] text-ink-2 hover:text-ink text-sm transition-colors hover:bg-paper-100"
+            onClick={() => { haptic('tap'); setStep(step - 1) }}
+            className="press flex-1 py-3.5 rounded-xl border border-black/[0.09] text-ink-2 hover:text-ink text-sm transition-colors hover:bg-paper-100"
           >
             Back
           </button>
         )}
         {step < STEPS.length - 1 ? (
           <button
-            onClick={next}
-            className="flex-[2] py-3.5 rounded-xl bg-moss-700 hover:bg-moss-800 text-white text-sm font-semibold transition-colors"
+            onClick={() => { haptic('tap'); next() }}
+            className="press flex-[2] py-3.5 rounded-xl bg-moss-700 hover:bg-moss-800 text-white text-sm font-semibold transition-colors"
           >
             Continue
           </button>
         ) : (
           <button
-            onClick={finish}
+            onClick={() => { haptic('success'); finish() }}
             disabled={saving}
-            className="flex-[2] py-3.5 rounded-xl bg-moss-700 hover:bg-moss-800 text-white text-sm font-semibold transition-colors disabled:opacity-60"
+            className="press flex-[2] py-3.5 rounded-xl bg-moss-700 hover:bg-moss-800 text-white text-sm font-semibold transition-colors disabled:opacity-60"
           >
             {saving ? 'Saving…' : 'Start tracking'}
           </button>

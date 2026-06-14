@@ -42,3 +42,8 @@ next-env.d.ts
 
 # Local Claude Code MCP config (machine-specific paths — not for the repo)
 .mcp.json
+
+# Agent / skill tooling (machine-local, not part of the app)
+.agents/
+.claude/skills/karpathy-llm-wiki
+skills-lock.json

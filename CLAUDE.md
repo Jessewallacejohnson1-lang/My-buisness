@@ -42,6 +42,30 @@ Defined as Tailwind v4 `@theme` tokens in `app/globals.css`:
 - **TypeScript**, **Tailwind CSS v4** (CSS-based config via `@theme`, no tailwind.config)
 - **Supabase** — auth (email+password, confirmation ON) + Postgres (`food_logs`, `workouts`, per-user RLS)
 
+## Plugins
+
+Installed at `~/.claude/plugins/cache/claude-plugins-official/`:
+- `frontend-design` — UI skill for distinctive, production-grade interfaces
+- `supabase` v0.1.11
+- `superpowers` v5.1.0
+- `vercel` v0.43.0
+
+**ruflo** (manual install from github.com/ruvnet/ruflo):
+- 168 slash commands → `~/.claude/commands/`
+- 108 specialized agents → `~/.claude/agents/`
+- Hook scripts → `~/.claude/ruflo/scripts/`
+- Hooks registered in `~/.claude/settings.json` (PreToolUse/PostToolUse/Stop)
+- MCP servers (optional, not yet installed): `claude-flow@alpha`, `ruv-swarm`, `flow-nexus`
+
+**open-design** (github.com/nexu-io/open-design):
+- MCP server wired in `.mcp.json` at project root — connects to local `od` daemon on port 7456
+- `/od-contribute` slash command → `~/.claude/commands/od-contribute.md`
+- 139 skills + 150 design systems exposed via MCP once daemon is running
+- **Requires**: Download the Open Design desktop app (macOS DMG) from github.com/nexu-io/open-design/releases — this installs the `od` CLI
+
+Marketplace index (all available plugins): `~/.claude/plugins/marketplaces/claude-plugins-official/plugins/`
+Plugin persistent data: `~/.claude/plugins/data/`
+
 ## Notes
 
 - Read `node_modules/next/dist/docs/` before writing Next.js code — this version may differ from training data.
