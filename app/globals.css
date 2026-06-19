@@ -1,81 +1,160 @@
 @import "tailwindcss";
 
 /*
-  Korina design system — white minimal.
-  Named for korina (white limba), the pale blonde tonewood: warm white
-  surfaces, near-black ink, color reserved for data only —
-  moss (clean), honey (energy), clay (avoid).
+  Hygge Health design system.
+  Named for hygge (Danish, pron. hoo-guh): coziness, warmth, togetherness.
+  Four locked brand colours:
+    Slate Blue Grey #6B7B84 · Beige Sand #E1DBC9 · Charcoal #3C3C3C · Dark Pine #2D4530
+  Semantic colour (pine/ochre/terracotta) always means clean/moderate/avoid.
+  Never use data colours decoratively.
 */
 @theme {
-  /* surfaces */
-  --color-paper: #ffffff;
-  --color-paper-50: #fafaf7;
-  --color-paper-100: #f4f3ee;
-  --color-paper-200: #e9e8e0;
-  --color-paper-300: #d8d7cd;
+  /* surfaces — warm linen & sand */
+  --color-paper: #fbfaf5;       /* linen-50 — app canvas, cards */
+  --color-paper-50: #fbfaf5;    /* same — raised sections */
+  --color-paper-100: #f5f1e8;   /* linen-100 — inputs, wells */
+  --color-paper-200: #eae4d4;   /* sand-200 — dividers */
+  --color-paper-300: #e1dbc9;   /* Beige Sand (LOCKED) — marketing canvas */
 
-  /* text */
-  --color-ink: #1d1f1c;
-  --color-ink-2: #61675e;
-  --color-ink-3: #a3a89e;
+  /* text — charcoal family */
+  --color-ink: #2a2a28;         /* char-900 — display headings */
+  --color-ink-2: #5e5d56;       /* char-500 — secondary labels */
+  --color-ink-3: #8a887e;       /* char-400 — tertiary, metadata */
 
-  /* brand — sky carries identity + actions + navigation */
-  --color-sky-400: #78c3e8;
-  --color-sky-500: #4aa8d4;
-  --color-sky-600: #2e8db8;
-  --color-sky-700: #1f6e93; /* button bg — AA contrast with white text */
-  --color-sky-800: #164f6b;
+  /* sky → slate blue-grey — primary brand accent (LOCKED: #6B7B84) */
+  --color-sky-400: #a6b1b6;
+  --color-sky-500: #87959c;
+  --color-sky-600: #6b7b84;     /* Slate Blue Grey — brand (LOCKED) */
+  --color-sky-700: #55636b;
+  --color-sky-800: #3e4d54;
 
-  /* data accents — all blue family */
-  --color-moss-400: #7ec3e8;
-  --color-moss-500: #5b9e6a;
-  --color-moss-600: #2989bf;
-  --color-moss-700: #1a6fa8;
-  --color-moss-800: #124e7a;
-  --color-honey-600: #2e9dba;
-  --color-honey-700: #22809a;
-  --color-clay-700: #5577a8;
-  --color-clay-800: #3f5d8c;
+  /* moss → dark pine — clean / positive / primary action (LOCKED: #2D4530) */
+  --color-moss-400: #4f7053;
+  --color-moss-500: #3c5a40;
+  --color-moss-600: #3c5a40;    /* clean-600 — score ≥ 70 */
+  --color-moss-700: #2d4530;    /* Dark Pine (LOCKED) — primary CTA, hover */
+  --color-moss-800: #1f3022;
 
-  /* type roles: display = voice, sans = UI, mono = data */
-  --font-display: var(--font-dm-serif), ui-serif, Georgia, serif;
-  --font-sans: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  /* honey → ochre — moderate / energy (score 40–69) */
+  --color-honey-600: #b07d2b;
+  --color-honey-700: #8a5f1c;
+
+  /* clay → terracotta — avoid / warning (score < 40) */
+  --color-clay-700: #b0573a;
+  --color-clay-800: #8c4329;
+
+  /* type roles: display = Spectral, sans = Schibsted Grotesk, mono = data */
+  --font-display: var(--font-spectral), ui-serif, Georgia, "Times New Roman", serif;
+  --font-sans: var(--font-schibsted-grotesk), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SFMono-Regular", Menlo, monospace;
 }
 
 :root {
   color-scheme: light;
+
+  /* Hygge token aliases — used in inline styles and non-Tailwind components */
+  --linen-50:  #fbfaf5;
+  --linen-100: #f5f1e8;
+  --sand-200:  #eae4d4;
+  --sand-300:  #e1dbc9;
+  --sand-400:  #d2cab3;
+  --sand-500:  #b9ae93;
+
+  --char-900: #2a2a28;
+  --char-700: #3c3c3c;
+  --char-500: #5e5d56;
+  --char-400: #8a887e;
+
+  --slate-700: #55636b;
+  --slate-600: #6b7b84;
+  --slate-500: #87959c;
+  --slate-400: #a6b1b6;
+  --slate-200: #d2d9dc;
+  --slate-100: #e8eced;
+
+  --pine-800: #1f3022;
+  --pine-700: #2d4530;
+  --pine-600: #3c5a40;
+  --pine-500: #4f7053;
+
+  --clean-600:    #3c5a40;
+  --moderate-600: #b07d2b;
+  --moderate-700: #8a5f1c;
+  --avoid-600:    #b0573a;
+  --avoid-700:    #8c4329;
+
+  --surface-page:    var(--sand-300);
+  --surface-app:     var(--linen-50);
+  --surface-card:    var(--linen-50);
+  --surface-raised:  var(--linen-100);
+  --surface-sunken:  var(--sand-200);
+
+  --text-strong: var(--char-900);
+  --text-body:   var(--char-700);
+  --text-muted:  var(--char-500);
+  --text-faint:  var(--char-400);
+  --text-onDark: var(--linen-50);
+
+  --brand:        var(--slate-600);
+  --cta-bg:       var(--char-700);
+  --cta-bg-hover: var(--pine-700);
+  --cta-fg:       var(--linen-50);
+
+  --border-hairline: rgba(60, 60, 60, 0.10);
+  --border-strong:   rgba(60, 60, 60, 0.18);
+  --border-onSand:   rgba(45, 69, 48, 0.12);
+
+  --shadow-sm:    0 1px 2px rgba(45, 69, 48, 0.05);
+  --shadow-card:  0 1px 2px rgba(45, 69, 48, 0.04), 0 10px 26px -18px rgba(45, 69, 48, 0.20);
+  --shadow-lift:  0 2px 4px rgba(45, 69, 48, 0.05), 0 22px 48px -24px rgba(45, 69, 48, 0.28);
+
+  --radius-xs:   0.375rem;
+  --radius-sm:   0.625rem;
+  --radius-md:   0.875rem;
+  --radius-lg:   1.125rem;
+  --radius-xl:   1.5rem;
+  --radius-2xl:  2rem;
+  --radius-pill: 9999px;
+
+  /* motion curves — house ease + confirmation spring */
+  --ease-out:    cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --score-clean:    var(--clean-600);
+  --score-moderate: var(--moderate-600);
+  --score-avoid:    var(--avoid-600);
 }
 
 body {
-  background: var(--color-paper);
-  color: var(--color-ink);
+  background: var(--linen-50);
+  color: var(--char-900);
   font-family: var(--font-sans);
   -webkit-tap-highlight-color: transparent;
 }
 
 ::selection {
-  background: var(--color-ink);
-  color: var(--color-paper);
+  background: var(--char-900);
+  color: var(--linen-50);
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-sky-600);
-  outline-offset: 2px;
-  border-radius: 2px;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(107, 123, 132, 0.30);
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--color-paper-300);
-  border-radius: 5px;
-  border: 2px solid var(--color-paper);
+  background: var(--sand-400);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: content-box;
 }
 
 /* entrance: cards rise into place, staggered via inline animation-delay */
@@ -100,78 +179,51 @@ body {
   transition: stroke-dashoffset 1.1s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* bottom sheet slides up over a fading backdrop */
+/* bottom sheet slides up */
 @keyframes sheet-up {
-  from {
-    transform: translateY(100%);
-  }
-  to {
-    transform: translateY(0);
-  }
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
 }
-
 .sheet-up {
   animation: sheet-up 0.32s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
-
 .fade-in {
   animation: fade-in 0.25s ease-out;
 }
 
 /* scanner beam */
 @keyframes beam {
-  0%,
-  100% {
-    top: 8%;
-  }
-  50% {
-    top: 88%;
-  }
+  0%, 100% { top: 8%; }
+  50%       { top: 88%; }
 }
 
-/* CSS-only ring fill for server-rendered marketing pages.
-   Set --circ (full circumference) and --target (final offset) inline. */
+/* CSS-only ring fill for server-rendered marketing pages */
 @keyframes ring-fill {
-  from {
-    stroke-dashoffset: var(--circ);
-  }
-  to {
-    stroke-dashoffset: var(--target);
-  }
+  from { stroke-dashoffset: var(--circ); }
+  to   { stroke-dashoffset: var(--target); }
 }
-
 .ring-fill {
   animation: ring-fill 1.3s cubic-bezier(0.22, 1, 0.36, 1) 0.3s both;
 }
 
-/* food-score marquee: track holds two copies of the list; slide one copy's width */
+/* food-score marquee */
 @keyframes marquee {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-50%);
-  }
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
 }
-
 .marquee-track {
   animation: marquee 42s linear infinite;
 }
-
 .marquee:hover .marquee-track {
   animation-play-state: paused;
 }
 
-/* subtle paper grain on marketing surfaces */
+/* paper grain overlay on marketing surfaces */
 .grain {
   position: relative;
 }
@@ -181,11 +233,11 @@ body {
   inset: 0;
   z-index: 10;
   pointer-events: none;
-  opacity: 0.035;
+  opacity: 0.04;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
-/* gentle lift for marketing cards */
+/* gentle lift for marketing cards on hover */
 .lift {
   transition:
     transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
@@ -193,11 +245,10 @@ body {
 }
 .lift:hover {
   transform: translateY(-3px);
-  box-shadow: 0 18px 40px -20px rgba(29, 31, 28, 0.18);
+  box-shadow: var(--shadow-lift);
 }
 
-/* scroll reveal — Reveal component adds .reveal-pending below the fold,
-   then .reveal-in when the element scrolls into view */
+/* scroll reveal */
 .reveal-pending {
   opacity: 0;
   transform: translateY(16px);
@@ -205,13 +256,12 @@ body {
     opacity 0.6s ease-out,
     transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
 }
-
 .reveal-pending.reveal-in {
   opacity: 1;
   transform: none;
 }
 
-/* tactile press — every tappable control dips slightly under the finger */
+/* tactile press — every tappable control dips under the finger */
 .press {
   transition: transform 0.12s cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -219,37 +269,21 @@ body {
   transform: scale(0.96);
 }
 
-/* satisfying pop — checkmarks, "Added" confirmations, completed states */
+/* satisfying pop — checkmarks, "Added" confirmations */
 @keyframes pop {
-  0% {
-    transform: scale(0.6);
-    opacity: 0;
-  }
-  60% {
-    transform: scale(1.12);
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
+  0%   { transform: scale(0.6); opacity: 0; }
+  60%  { transform: scale(1.12); }
+  100% { transform: scale(1); opacity: 1; }
 }
 .pop {
   animation: pop 0.34s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-/* a small celebratory bounce for banners that announce completion */
+/* celebratory bounce for completion banners */
 @keyframes bounce-in {
-  0% {
-    transform: scale(0.94) translateY(6px);
-    opacity: 0;
-  }
-  55% {
-    transform: scale(1.02) translateY(0);
-  }
-  100% {
-    transform: scale(1) translateY(0);
-    opacity: 1;
-  }
+  0%   { transform: scale(0.94) translateY(6px); opacity: 0; }
+  55%  { transform: scale(1.02) translateY(0); }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
 }
 .bounce-in {
   animation: bounce-in 0.42s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -257,80 +291,75 @@ body {
 
 /* the streak flame breathes while a streak is live */
 @keyframes flicker {
-  0%,
-  100% {
-    transform: scale(1) rotate(-1deg);
-    opacity: 0.92;
-  }
-  50% {
-    transform: scale(1.08) rotate(1deg);
-    opacity: 1;
-  }
+  0%, 100% { transform: scale(1) rotate(-1deg); opacity: 0.92; }
+  50%      { transform: scale(1.08) rotate(1deg); opacity: 1; }
 }
 .flicker {
   animation: flicker 2.4s ease-in-out infinite;
   transform-origin: center bottom;
 }
 
-/* a ring's stroke draws itself in — used by the small score rings */
+/* score ring draws itself in */
 @keyframes score-draw {
-  from {
-    stroke-dashoffset: var(--circ);
-  }
-  to {
-    stroke-dashoffset: var(--score-offset);
-  }
+  from { stroke-dashoffset: var(--circ); }
+  to   { stroke-dashoffset: var(--score-offset); }
 }
 .score-draw {
   animation: score-draw 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-/* scanner viewfinder gives a quick squeeze the instant a barcode is caught */
+/* scanner viewfinder squeeze on capture */
 @keyframes caught {
-  0% {
-    transform: scale(1);
-  }
-  40% {
-    transform: scale(1.04);
-  }
-  100% {
-    transform: scale(1);
-  }
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.04); }
+  100% { transform: scale(1); }
 }
 .caught {
   animation: caught 0.3s ease-out;
 }
 
-/* brief glow ring that radiates out when something is logged successfully */
+/* glow ring radiates out on successful log */
 @keyframes ping-out {
-  0% {
-    transform: scale(0.8);
-    opacity: 0.5;
-  }
-  100% {
-    transform: scale(1.8);
-    opacity: 0;
-  }
+  0%   { transform: scale(0.8); opacity: 0.5; }
+  100% { transform: scale(1.8); opacity: 0; }
 }
 .ping-out {
   animation: ping-out 0.6s cubic-bezier(0, 0, 0.2, 1) forwards;
 }
 
+/* community tier — daypart bird flies across the morning strip once */
+@keyframes birdFly {
+  from { transform: translateX(-20%) translateY(0); opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  to   { transform: translateX(360px) translateY(-10px); opacity: 0; }
+}
+/* wings flap during the flight */
+@keyframes wingFlap {
+  0%, 100% { transform: rotate(0deg); }
+  50%      { transform: rotate(-26deg); }
+}
+/* collapsible folder body + tab content reveal */
+@keyframes sectionIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.section-in { animation: sectionIn 0.22s var(--ease-out) both; }
+/* quest "you're a Hygger" radial burst fades out */
+@keyframes burstFade {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+.burst-fade { animation: burstFade 0.9s ease-out forwards; }
+
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-  .rise {
-    opacity: 1;
-  }
-  .press:active {
-    transform: none;
-  }
-  .flicker {
-    animation: none;
-  }
+  .rise    { opacity: 1; }
+  .press:active { transform: none; }
+  .flicker { animation: none; }
+  .section-in { opacity: 1; transform: none; }
 }
