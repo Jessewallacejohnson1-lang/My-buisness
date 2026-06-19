@@ -11,7 +11,7 @@ type Mode = 'signin' | 'signup'
 function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const next = searchParams.get('next') ?? '/dashboard'
+  const next = searchParams.get('next') ?? '/community'
   const linkError = searchParams.get('error') === 'link'
 
   const [mode, setMode] = useState<Mode>('signin')
@@ -55,9 +55,9 @@ function LoginForm() {
       const m = msg.toLowerCase()
       if (m.includes('not confirmed') || m.includes('confirm')) {
         setUnconfirmed(true)
-        setError('Your email isn’t confirmed yet. Check your inbox for the link, or resend it below.')
+        setError("Your email isn't confirmed yet. Check your inbox for the link, or resend it below.")
       } else if (m.includes('invalid login') || m.includes('credentials')) {
-        setError('That email or password doesn’t match. Try again.')
+        setError("That email or password doesn't match. Try again.")
       } else if (m.includes('already registered') || m.includes('already exists')) {
         setError('You already have an account with that email — switch to Sign in.')
       } else {
@@ -81,7 +81,7 @@ function LoginForm() {
       if (error) throw error
       setCheckEmail(true)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Couldn’t resend. Try again shortly.')
+      setError(err instanceof Error ? err.message : "Couldn't resend. Try again shortly.")
     } finally {
       setBusy(false)
     }
@@ -90,68 +90,91 @@ function LoginForm() {
   if (checkEmail) {
     return (
       <div className="text-center rise">
-        <div className="mx-auto mb-6 w-14 h-14 rounded-full border border-moss-700/40 bg-moss-700/10 flex items-center justify-center">
-          <svg viewBox="0 0 24 24" className="w-6 h-6 text-moss-700" fill="none" stroke="currentColor" strokeWidth="1.5">
+        <div
+          className="mx-auto mb-6 w-16 h-16 rounded-full flex items-center justify-center"
+          style={{
+            background: 'color-mix(in srgb, var(--pine-700) 12%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--pine-700) 30%, transparent)',
+          }}
+        >
+          <svg viewBox="0 0 24 24" className="w-7 h-7" fill="none" stroke="currentColor"
+            strokeWidth={1.5} style={{ color: 'var(--pine-700)' }}>
             <rect x="3" y="5" width="18" height="14" rx="2" />
             <path d="M3 7l9 6 9-6" />
           </svg>
         </div>
-        <h1 className="font-display text-2xl text-ink mb-2">Check your email</h1>
-        <p className="text-ink-2 text-sm leading-relaxed max-w-xs mx-auto">
-          We sent a confirmation link to <span className="text-ink">{email}</span>.
-          Open it on this device to start tracking.
+        <h2 className="font-display text-2xl text-ink mb-2">Check your email</h2>
+        <p className="text-sm leading-relaxed max-w-xs mx-auto" style={{ color: 'var(--char-400)' }}>
+          We sent a link to <span className="text-ink font-medium">{email}</span>.
+          Open it to step inside.
         </p>
       </div>
     )
   }
 
   return (
-    <div className="w-full max-w-sm rise">
-      <div className="text-center mb-8">
-        <Link href="/" className="font-display text-sky-600 text-2xl tracking-[0.25em] uppercase">
-          Korina
+    <div className="w-full max-w-[360px] rise">
+      {/* wordmark */}
+      <div className="text-center mb-10">
+        <Link href="/" className="inline-block mb-5">
+          <span
+            className="font-display tracking-[0.22em] uppercase"
+            style={{ fontSize: '28px', color: 'var(--char-800)', letterSpacing: '0.22em' }}
+          >
+            HYGGE
+          </span>
         </Link>
-        <p className="text-ink-2 text-sm mt-3">
-          {mode === 'signin' ? 'Welcome back. Pick up the streak.' : 'Start your first ring today.'}
+        <p className="font-display text-xl" style={{ color: 'var(--char-600)', fontStyle: 'italic' }}>
+          {mode === 'signin' ? 'Welcome back.' : 'Find your people.'}
+        </p>
+        <p className="text-sm mt-1.5" style={{ color: 'var(--char-400)' }}>
+          {mode === 'signin'
+            ? 'Your neighborhood is waiting.'
+            : 'Good people. Close by.'}
         </p>
       </div>
 
       <form onSubmit={submit} className="space-y-3">
-        <label className="block">
-          <span className="sr-only">Email</span>
-          <input
-            type="email"
-            required
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email"
-            className="w-full bg-paper-100 border border-black/[0.08] rounded-xl px-4 py-3.5 text-sm text-ink placeholder:text-ink-3 focus:border-moss-700/50 focus:outline-none transition-colors"
-          />
-        </label>
-        <label className="block">
-          <span className="sr-only">Password</span>
-          <input
-            type="password"
-            required
-            minLength={6}
-            autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder={mode === 'signin' ? 'Password' : 'Password (6+ characters)'}
-            className="w-full bg-paper-100 border border-black/[0.08] rounded-xl px-4 py-3.5 text-sm text-ink placeholder:text-ink-3 focus:border-moss-700/50 focus:outline-none transition-colors"
-          />
-        </label>
+        <input
+          type="email"
+          required
+          autoComplete="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="Email"
+          className="w-full rounded-xl px-4 py-3.5 text-sm text-ink placeholder:text-ink-3 focus:outline-none transition-shadow"
+          style={{
+            background: 'rgba(255,255,255,0.72)',
+            border: '1px solid rgba(0,0,0,0.10)',
+            boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.04)',
+          }}
+        />
+        <input
+          type="password"
+          required
+          minLength={6}
+          autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder={mode === 'signin' ? 'Password' : 'Password (6+ characters)'}
+          className="w-full rounded-xl px-4 py-3.5 text-sm text-ink placeholder:text-ink-3 focus:outline-none transition-shadow"
+          style={{
+            background: 'rgba(255,255,255,0.72)',
+            border: '1px solid rgba(0,0,0,0.10)',
+            boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.04)',
+          }}
+        />
 
         {error && (
-          <div className="px-1" role="alert">
-            <p className="text-clay-700 text-xs leading-relaxed">{error}</p>
+          <div role="alert" className="px-1">
+            <p className="text-xs leading-relaxed" style={{ color: 'var(--clay-700)' }}>{error}</p>
             {unconfirmed && (
               <button
                 type="button"
                 onClick={resendConfirmation}
                 disabled={busy}
-                className="mt-1.5 text-xs text-sky-600 hover:text-sky-700 transition-colors disabled:opacity-60"
+                className="mt-1.5 text-xs underline underline-offset-2 transition-opacity disabled:opacity-50"
+                style={{ color: 'var(--slate-600)' }}
               >
                 Resend confirmation email
               </button>
@@ -163,9 +186,10 @@ function LoginForm() {
           type="submit"
           disabled={busy}
           onClick={() => haptic('tap')}
-          className="press w-full bg-moss-700 hover:bg-moss-800 text-white font-semibold py-3.5 rounded-xl text-sm transition-colors disabled:opacity-60"
+          className="press w-full font-medium py-3.5 rounded-xl text-sm transition-opacity disabled:opacity-60"
+          style={{ background: 'var(--char-800)', color: 'var(--linen-50)' }}
         >
-          {busy ? 'One moment…' : mode === 'signin' ? 'Sign in' : 'Create account'}
+          {busy ? 'One moment…' : mode === 'signin' ? 'Come on in' : 'Join the community'}
         </button>
       </form>
 
@@ -175,9 +199,10 @@ function LoginForm() {
           setMode(mode === 'signin' ? 'signup' : 'signin')
           setError(null)
         }}
-        className="press block mx-auto mt-6 text-sm text-ink-2 hover:text-ink transition-colors"
+        className="press block mx-auto mt-6 text-sm transition-colors"
+        style={{ color: 'var(--char-400)' }}
       >
-        {mode === 'signin' ? 'New here? Create an account' : 'Already tracking? Sign in'}
+        {mode === 'signin' ? 'New here? Create an account' : 'Already a member? Sign in'}
       </button>
     </div>
   )
@@ -185,16 +210,31 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen relative flex items-center justify-center px-6 py-16">
-      {/* growth rings ornament */}
+    <div
+      className="min-h-screen flex items-center justify-center px-6 py-16 relative overflow-hidden"
+      style={{ background: 'var(--sand-200)' }}
+    >
+      {/* warm texture rings */}
       <div
         aria-hidden
-        className="absolute inset-0 pointer-events-none"
+        className="pointer-events-none absolute inset-0"
         style={{
-          background:
-            'repeating-radial-gradient(circle at 50% 120%, transparent 0px, transparent 79px, rgba(26,111,168,0.05) 80px, transparent 81px)',
+          background: [
+            'radial-gradient(ellipse 80% 60% at 50% 100%, color-mix(in srgb, var(--pine-700) 8%, transparent) 0%, transparent 70%)',
+            'radial-gradient(ellipse 50% 40% at 20% 10%, color-mix(in srgb, var(--honey-400) 12%, transparent) 0%, transparent 60%)',
+          ].join(', '),
         }}
       />
+      {/* subtle dot grid */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-[0.18]"
+        style={{
+          backgroundImage: 'radial-gradient(circle, var(--char-600) 1px, transparent 1px)',
+          backgroundSize: '28px 28px',
+        }}
+      />
+
       <Suspense>
         <LoginForm />
       </Suspense>
