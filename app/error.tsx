@@ -17,7 +17,7 @@ export default function Error({
   return (
     <div className="min-h-screen flex items-center justify-center px-6 text-center">
       <div className="max-w-sm">
-        <p className="font-display text-sky-500 tracking-[0.25em] uppercase text-base mb-6">Korina</p>
+        <p className="font-display text-ink tracking-[0.28em] uppercase text-sm font-medium mb-6">HYGGE</p>
         <h1 className="font-display text-2xl text-ink mb-2">That didn’t load right</h1>
         <p className="text-sm text-ink-2 leading-relaxed mb-6">
           Something hit a snag on this screen. Try again — if it keeps happening, reload the app.

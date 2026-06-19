@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist_Mono, DM_Serif_Display, Outfit } from "next/font/google";
+import { Geist_Mono, Spectral, Schibsted_Grotesk } from "next/font/google";
 import "./globals.css";
 
 const geistMono = Geist_Mono({
@@ -7,34 +7,34 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const dmSerif = DM_Serif_Display({
-  variable: "--font-dm-serif",
+const spectral = Spectral({
+  variable: "--font-spectral",
   subsets: ["latin"],
-  weight: "400",
+  weight: ["300", "400", "500"],
   style: ["normal", "italic"],
 });
 
-const outfit = Outfit({
-  variable: "--font-outfit",
+const schibstedGrotesk = Schibsted_Grotesk({
+  variable: "--font-schibsted-grotesk",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://my-buisness.vercel.app'),
-  title: "Korina — Eat clean. Train hard. Watch it compound.",
+  title: "Hygge Health — Eat clean. Train hard. Watch it compound.",
   description:
-    "Korina scores every food you log from 1 to 100, tracks your training, and turns daily habits into visible growth.",
-  applicationName: "Korina",
+    "Hygge Health scores every food you log from 1 to 100, tracks your training, and turns daily habits into visible growth. Built for Saint Joseph, MN.",
+  applicationName: "Hygge Health",
   appleWebApp: {
     capable: true,
-    title: "Korina",
+    title: "Hygge Health",
     statusBarStyle: "default",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#ffffff",
+  themeColor: "#e1dbc9",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
@@ -48,7 +48,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistMono.variable} ${dmSerif.variable} ${outfit.variable} h-full antialiased`}
+      className={`${geistMono.variable} ${spectral.variable} ${schibstedGrotesk.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

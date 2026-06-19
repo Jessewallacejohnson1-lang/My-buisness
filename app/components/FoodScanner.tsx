@@ -5,8 +5,10 @@ import { useEffect, useRef, useState } from 'react'
 import { lookupBarcode, scaleFood, toLogEntry, type FoodResult } from '@/lib/food-search'
 import { addFoodLog, localDate } from '@/lib/db'
 import { haptic } from '@/lib/haptics'
+import ManualFoodForm from './ManualFoodForm'
+import ScoreWhy from './ScoreWhy'
 import ScoreRing, { scoreTone } from './ScoreRing'
-import { IconAlert, IconBarcode, IconCheck, IconLeaf, IconMinus, IconPlus } from './Icons'
+import { IconAlert, IconBarcode, IconCheck, IconLeaf, IconMinus, IconPlus, IconSearch } from './Icons'
 
 export const MEALS = ['Breakfast', 'Lunch', 'Dinner', 'Snacks'] as const
 export type Meal = (typeof MEALS)[number]
@@ -53,6 +55,9 @@ export default function FoodScanner() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [caught, setCaught] = useState(false)
+  const [notFound, setNotFound] = useState<string | null>(null)
+  const [manual, setManual] = useState(false)
+  const [showWhy, setShowWhy] = useState(false)
   const stopRef = useRef<(() => void) | null>(null)
 
   const startScanner = async () => {
@@ -102,10 +107,14 @@ export default function FoodScanner() {
 
   const lookupFood = async (barcode: string) => {
     setLoading(true)
+    setNotFound(null)
     try {
       const food = await lookupBarcode(barcode)
       if (!food) {
-        setError('That barcode isn’t in the database. Try another item or use Photo mode.')
+        // Not an error — most fresh/local/store-brand items simply aren't in Open
+        // Food Facts yet. Offer a way forward instead of a dead end.
+        haptic('warn')
+        setNotFound(barcode)
         return
       }
       setResult(food)
@@ -116,6 +125,23 @@ export default function FoodScanner() {
     } finally {
       setLoading(false)
     }
+  }
+
+  // A manually-entered food behaves exactly like a looked-up one from here on.
+  const acceptManual = (food: FoodResult) => {
+    setManual(false)
+    setNotFound(null)
+    setResult(food)
+    setMeal(mealForNow())
+    setGrams(food.serving_grams ?? 100)
+  }
+
+  const reset = () => {
+    setResult(null)
+    setSaved(false)
+    setError(null)
+    setNotFound(null)
+    setManual(false)
   }
 
   const handleSave = async () => {
@@ -147,8 +173,52 @@ export default function FoodScanner() {
 
   return (
     <div>
+      {/* manual entry — for store-brand / fresh items OFF doesn't have */}
+      {manual && (
+        <div className="rise flex flex-col h-[78vh] bg-paper-50 border border-black/[0.07] rounded-3xl overflow-hidden">
+          <ManualFoodForm
+            onBack={() => { setManual(false); setNotFound(null) }}
+            onSubmit={acceptManual}
+          />
+        </div>
+      )}
+
+      {/* barcode not found — a fork in the road, not an error */}
+      {notFound && !manual && (
+        <div className="rise">
+          <div className="bg-paper-50 border border-black/[0.07] rounded-3xl p-6 text-center">
+            <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-honey-600/10 border border-honey-600/20 flex items-center justify-center">
+              <IconBarcode className="w-5 h-5 text-honey-600" />
+            </div>
+            <h2 className="text-lg text-ink mb-1.5">Not in the database yet</h2>
+            <p className="text-sm text-ink-2 leading-relaxed mb-1">
+              Plenty of fresh and store-brand items aren’t in Open Food Facts. You can add it in a few seconds.
+            </p>
+            <p className="font-mono text-[11px] text-ink-3 tabular-nums mb-5">barcode {notFound}</p>
+            <button
+              onClick={() => { haptic('tap'); setManual(true) }}
+              className="press w-full bg-moss-700 hover:bg-moss-800 text-white font-semibold py-3.5 rounded-xl text-sm transition-colors flex items-center justify-center gap-2 mb-2"
+            >
+              <IconPlus className="w-4 h-4" strokeWidth={2.5} /> Enter it manually
+            </button>
+            <Link
+              href="/meal-log"
+              className="press w-full border border-black/[0.09] text-ink py-3.5 rounded-xl text-sm transition-colors hover:bg-paper-100 flex items-center justify-center gap-2 mb-2"
+            >
+              <IconSearch className="w-4 h-4" /> Search by name instead
+            </Link>
+            <button
+              onClick={() => { haptic('tap'); reset(); startScanner() }}
+              className="press w-full text-ink-2 hover:text-ink py-2.5 rounded-xl text-sm transition-colors"
+            >
+              Scan another
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* viewfinder */}
-      {!result && (
+      {!result && !notFound && !manual && (
         <div className="rise">
           <div className="relative rounded-3xl overflow-hidden bg-paper-100 border border-black/[0.08] aspect-square flex items-center justify-center">
             <video
@@ -188,7 +258,7 @@ export default function FoodScanner() {
                       className="absolute left-3 right-3 h-px bg-moss-700/80"
                       style={{
                         animation: 'beam 2.4s ease-in-out infinite',
-                        boxShadow: '0 0 12px rgba(26,111,168,0.5)',
+                        boxShadow: '0 0 12px rgba(29,135,141,0.55)',
                       }}
                     />
                   )}
@@ -353,6 +423,8 @@ export default function FoodScanner() {
                   <span>{f}</span>
                 </div>
               ))}
+
+              <ScoreWhy score={result.score} reasons={result.reasons} open={showWhy} onToggle={() => setShowWhy((v) => !v)} />
             </div>
           </div>
 
@@ -369,12 +441,7 @@ export default function FoodScanner() {
               </p>
               <div className="flex gap-2">
                 <button
-                  onClick={() => {
-                    haptic('tap')
-                    setResult(null)
-                    setSaved(false)
-                    setError(null)
-                  }}
+                  onClick={() => { haptic('tap'); reset() }}
                   className="press flex-1 py-3 rounded-xl bg-moss-700 hover:bg-moss-800 text-white text-sm font-semibold transition-colors"
                 >
                   Scan another
@@ -406,11 +473,7 @@ export default function FoodScanner() {
                 {saving ? 'Saving…' : `Add ${grams}g to ${meal.toLowerCase()}`}
               </button>
               <button
-                onClick={() => {
-                  haptic('tap')
-                  setResult(null)
-                  setError(null)
-                }}
+                onClick={() => { haptic('tap'); reset() }}
                 className="press w-full border border-black/[0.09] text-ink-2 hover:text-ink py-3.5 rounded-xl text-sm transition-colors hover:bg-paper-100"
               >
                 Scan another

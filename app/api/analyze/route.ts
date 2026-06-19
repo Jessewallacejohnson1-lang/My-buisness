@@ -34,7 +34,7 @@ const Analysis = z.object({
 
 export type PhotoAnalysis = z.infer<typeof Analysis>
 
-const SYSTEM = `You are the nutrition analyst inside Korina, a clean-eating fitness tracker.
+const SYSTEM = `You are the nutrition analyst inside Hygge Health, a clean-eating fitness tracker.
 Given a photo of food, identify each distinct food item and estimate its nutrition for the
 portion actually visible (not per 100g). Use the same clean-score philosophy as the rest of
 the app: whole, unprocessed foods (fresh produce, plain meats, whole grains) score 80-100;

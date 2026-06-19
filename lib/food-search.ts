@@ -1,3 +1,11 @@
+/**
+ * One line of the score breakdown. `delta` is the points this signal added
+ * (positive) or removed (negative) from the 70-point baseline. Surfaced in the
+ * UI so every score is defendable — the user can see exactly why broccoli is a
+ * 92 and a soda is a 28.
+ */
+export type ScoreReason = { label: string; delta: number }
+
 export type FoodResult = {
   food_name: string
   brand: string | null
@@ -9,9 +17,15 @@ export type FoodResult = {
   score: number
   badges: { label: string; icon: string; color: string }[]
   flags: string[]
+  /** Plain-language breakdown of how the score was reached. Display-only. */
+  reasons: ScoreReason[]
   image?: string | null
   serving_size?: string | null
   serving_grams?: number | null
+  /** True for curated single-ingredient basics from the whole-food list. */
+  whole?: boolean
+  /** True for user-entered foods (homemade, leftovers, missing barcodes). */
+  manual?: boolean
 }
 
 /** Scales per-100g nutrition to the chosen number of grams. Score is unaffected. */
@@ -38,29 +52,45 @@ export function toLogEntry(
   return { food_name, brand, calories, protein, carbs, fat, fibre, score, badges, flags, meal, date }
 }
 
-function computeScore(product: Record<string, unknown>): { score: number; badges: FoodResult['badges']; flags: string[] } {
+/**
+ * The clean score, made defendable.
+ *
+ * Every food starts at a neutral 70 — "an average packaged food." From there the
+ * score moves only for reasons we can name out loud, and each move is recorded in
+ * `reasons` so the user sees the exact math. The dominant lever is *processing*
+ * (NOVA), because that's what "clean eating" actually means; nutritional quality
+ * (Nutri-Score), additives, and specific red-flag ingredients adjust from there.
+ *
+ * Rule of thumb the score is built to honor:
+ *   whole/unprocessed → 85-100 · lightly processed → 65-85 · processed → 45-65 ·
+ *   ultra-processed → 1-45. If a user disagrees with a number, the breakdown
+ *   tells them precisely which signal they'd have to argue with.
+ */
+function computeScore(product: Record<string, unknown>): { score: number; badges: FoodResult['badges']; flags: string[]; reasons: ScoreReason[] } {
   let score = 70
   const badges: FoodResult['badges'] = []
   const flags: string[] = []
+  const reasons: ScoreReason[] = []
+  const add = (label: string, delta: number) => { score += delta; reasons.push({ label, delta }) }
 
   const nova = product.nova_group as number | undefined
-  if (nova === 1) { score += 20; badges.push({ label: 'Whole Food', icon: '🌿', color: 'bg-green-100 text-green-800' }) }
-  else if (nova === 2) score += 10
-  else if (nova === 3) score -= 10
-  else if (nova === 4) { score -= 25; flags.push('Ultra-processed food (NOVA group 4)') }
+  if (nova === 1) { add('Whole, unprocessed food', 22); badges.push({ label: 'Whole Food', icon: '🌿', color: 'bg-green-100 text-green-800' }) }
+  else if (nova === 2) add('Minimally processed', 8)
+  else if (nova === 3) add('Processed food', -12)
+  else if (nova === 4) { add('Ultra-processed (NOVA 4)', -28); flags.push('Ultra-processed food (NOVA group 4)') }
 
   const nutriscore = (product.nutriscore_grade as string | undefined)?.toLowerCase()
-  if (nutriscore === 'a') score += 15
-  else if (nutriscore === 'b') score += 8
-  else if (nutriscore === 'd') score -= 10
-  else if (nutriscore === 'e') score -= 20
+  if (nutriscore === 'a') add('Excellent nutrition (Nutri-Score A)', 12)
+  else if (nutriscore === 'b') add('Good nutrition (Nutri-Score B)', 6)
+  else if (nutriscore === 'd') add('Below-average nutrition (Nutri-Score D)', -8)
+  else if (nutriscore === 'e') add('Poor nutrition (Nutri-Score E)', -16)
 
   const additives = (product.additives_tags as string[] | undefined) ?? []
-  if (additives.length === 0) { score += 10; badges.push({ label: 'No Additives', icon: '✓', color: 'bg-emerald-100 text-emerald-800' }) }
-  else if (additives.length > 5) { score -= 15; flags.push(`Contains ${additives.length} additives`) }
+  if (additives.length === 0) { add('No additives', 8); badges.push({ label: 'No Additives', icon: '✓', color: 'bg-emerald-100 text-emerald-800' }) }
+  else if (additives.length > 5) { add(`${additives.length} additives`, -12); flags.push(`Contains ${additives.length} additives`) }
 
   const labels = ((product.labels_tags as string[] | undefined) ?? []).join(' ')
-  if (labels.includes('organic')) { score += 8; badges.push({ label: 'Organic', icon: '🌿', color: 'bg-green-100 text-green-800' }) }
+  if (labels.includes('organic')) { add('Certified organic', 6); badges.push({ label: 'Organic', icon: '🌿', color: 'bg-green-100 text-green-800' }) }
   if (labels.includes('non-gmo') || labels.includes('no-gmo')) badges.push({ label: 'Non-GMO', icon: '✓', color: 'bg-emerald-100 text-emerald-800' })
   if (labels.includes('gluten-free')) badges.push({ label: 'Gluten Free', icon: '🌾', color: 'bg-yellow-100 text-yellow-800' })
   if (labels.includes('vegan')) badges.push({ label: 'Vegan', icon: '🌱', color: 'bg-green-100 text-green-800' })
@@ -71,15 +101,15 @@ function computeScore(product: Record<string, unknown>): { score: number; badges
   const ingredients = ((product.ingredients_text as string | undefined) ?? '').toLowerCase()
   if (ingredients.includes('aspartame') || ingredients.includes('sucralose') || ingredients.includes('saccharin')) {
     flags.push('Contains artificial sweeteners — linked to gut microbiome disruption')
-    score -= 15
+    add('Artificial sweeteners', -12)
   }
   if (ingredients.includes('high fructose') || ingredients.includes('corn syrup')) {
     flags.push('Contains high fructose corn syrup')
-    score -= 10
+    add('High fructose corn syrup', -10)
   }
   if (/red\s*4[05]|yellow\s*[56]|blue\s*[12]/.test(ingredients)) {
     flags.push('Contains artificial dyes')
-    score -= 10
+    add('Artificial dyes', -10)
   }
 
   const nutriments = (product.nutriments as Record<string, number> | undefined) ?? {}
@@ -88,7 +118,11 @@ function computeScore(product: Record<string, unknown>): { score: number; badges
   const protein = nutriments['proteins_100g'] ?? 0
   if (protein > 15) badges.push({ label: 'High Protein', icon: '💪', color: 'bg-amber-100 text-amber-800' })
 
-  return { score: Math.max(1, Math.min(100, score)), badges, flags }
+  // When Open Food Facts gives us nothing to judge, say so rather than leaving a
+  // bare 70 that looks arbitrary. This is the honest answer to "why a 70?".
+  if (reasons.length === 0) reasons.push({ label: 'Limited data — neutral baseline', delta: 0 })
+
+  return { score: Math.max(1, Math.min(100, score)), badges, flags, reasons }
 }
 
 export async function searchFood(query: string): Promise<FoodResult[]> {
@@ -96,7 +130,7 @@ export async function searchFood(query: string): Promise<FoodResult[]> {
   const timeout = setTimeout(() => controller.abort(), 8000)
   try {
     const res = await fetch(
-      `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&json=1&page_size=10&fields=product_name,brands,nutriments,nova_group,nutriscore_grade,additives_tags,labels_tags,packaging_tags,ingredients_text`,
+      `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&json=1&page_size=10&fields=product_name,brands,nutriments,nova_group,nutriscore_grade,additives_tags,labels_tags,packaging_tags,ingredients_text,serving_quantity,serving_size`,
       { signal: controller.signal }
     )
     if (!res.ok) return []
@@ -106,7 +140,7 @@ export async function searchFood(query: string): Promise<FoodResult[]> {
       .filter(p => p.product_name)
       .map(p => {
         const n = (p.nutriments as Record<string, number>) ?? {}
-        const { score, badges, flags } = computeScore(p)
+        const { score, badges, flags, reasons } = computeScore(p)
         return {
           food_name: p.product_name as string,
           brand: (p.brands as string | undefined) ?? null,
@@ -118,6 +152,9 @@ export async function searchFood(query: string): Promise<FoodResult[]> {
           score,
           badges,
           flags,
+          reasons,
+          serving_size: (p.serving_size as string | undefined) ?? null,
+          serving_grams: Number(p.serving_quantity) > 0 ? Math.round(Number(p.serving_quantity)) : null,
         }
       })
   } finally {
@@ -140,7 +177,7 @@ export async function lookupBarcode(barcode: string): Promise<FoodResult | null>
   if (json!.status !== 1 || !json!.product) return null
   const p = json!.product as Record<string, unknown>
   const n = (p.nutriments as Record<string, number>) ?? {}
-  const { score, badges, flags } = computeScore(p)
+  const { score, badges, flags, reasons } = computeScore(p)
   return {
     food_name: (p.product_name as string | undefined) ?? 'Unknown product',
     brand: (p.brands as string | undefined)?.split(',')[0]?.trim() ?? null,
@@ -152,6 +189,7 @@ export async function lookupBarcode(barcode: string): Promise<FoodResult | null>
     score,
     badges,
     flags,
+    reasons,
     image: (p.image_front_url as string | undefined) ?? (p.image_url as string | undefined) ?? null,
     serving_size: (p.serving_size as string | undefined) ?? null,
     serving_grams: Number(p.serving_quantity) > 0 ? Math.round(Number(p.serving_quantity)) : null,

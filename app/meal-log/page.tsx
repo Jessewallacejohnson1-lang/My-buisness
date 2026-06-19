@@ -3,16 +3,22 @@
 import Link from 'next/link'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { getFoodLogs, addFoodLog, deleteFoodLog, getProfile, localDate, type FoodLog } from '@/lib/db'
-import { searchFood, toLogEntry, type FoodResult } from '@/lib/food-search'
+import { searchFood, scaleFood, toLogEntry, type FoodResult } from '@/lib/food-search'
+import { searchWholeFoods } from '@/lib/whole-foods'
+import { unitOptions, gramsFor, roundCount } from '@/lib/units'
 import { haptic } from '@/lib/haptics'
 import AppShell from '../components/AppShell'
+import ManualFoodForm from '../components/ManualFoodForm'
+import ScoreWhy from '../components/ScoreWhy'
 import ScoreRing, { scoreTone } from '../components/ScoreRing'
 import {
   IconAlert,
+  IconArrowLeft,
   IconBarcode,
   IconCheck,
   IconChevronDown,
   IconLeaf,
+  IconMinus,
   IconPlus,
   IconSearch,
   IconX,
@@ -78,6 +84,180 @@ function FoodCard({ food, onDelete }: { food: FoodLog; onDelete: () => void }) {
   )
 }
 
+/** Portion step: pick a unit (serving, grams, oz, cup…), with macros scaling live. */
+function PortionView({
+  food,
+  meal,
+  onBack,
+  onConfirm,
+}: {
+  food: FoodResult
+  meal: Meal
+  onBack: () => void
+  onConfirm: (scaled: FoodResult) => Promise<void>
+}) {
+  const opts = unitOptions(food)
+  const [unitKey, setUnitKey] = useState(opts[0].key)
+  const unit = opts.find((o) => o.key === unitKey) ?? opts[0]
+  const [amount, setAmount] = useState(1)
+  const [saving, setSaving] = useState(false)
+  const [showWhy, setShowWhy] = useState(false)
+
+  const step = unit.decimal ? 0.5 : 10
+  const minAmt = unit.decimal ? 0.5 : 1
+  const effectiveGrams = gramsFor(amount, unit)
+  const scaled = scaleFood(food, effectiveGrams)
+
+  const stepAmount = (delta: number) => {
+    haptic('select')
+    setAmount((a) => Math.max(minAmt, roundCount(a + delta)))
+  }
+
+  // Switching units resets to one of the new unit — predictable, no stale grams.
+  const pickUnit = (key: string) => {
+    if (key !== unitKey) { haptic('select'); setUnitKey(key); setAmount(1) }
+  }
+
+  const confirm = async () => {
+    setSaving(true)
+    haptic('tap')
+    try {
+      await onConfirm(scaled)
+      haptic('success')
+    } catch {
+      haptic('error')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <>
+      <div className="px-5 pt-5 pb-4 border-b border-black/[0.07]">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onBack}
+            aria-label="Back to search"
+            className="press text-ink-2 hover:text-ink transition-colors p-1 -m-1"
+          >
+            <IconArrowLeft className="w-5 h-5" />
+          </button>
+          <h2 className="text-ink">
+            Add to <span className="text-moss-700">{meal}</span>
+          </h2>
+        </div>
+      </div>
+
+      <div className="overflow-y-auto flex-1 px-5 py-5">
+        {/* food + live total */}
+        <div className="flex items-center gap-4 mb-6">
+          <ScoreRing score={food.score} size={48} />
+          <div className="min-w-0 flex-1">
+            <p className="text-ink truncate">{food.food_name}</p>
+            {food.whole ? (
+              <p className="flex items-center gap-1 text-[11px] text-moss-700 mt-0.5">
+                <IconLeaf className="w-3 h-3" /> Whole food
+              </p>
+            ) : food.manual ? (
+              <p className="text-[11px] text-ink-3 mt-0.5">Your entry</p>
+            ) : (
+              food.brand && <p className="text-xs text-ink-3 truncate mt-0.5">{food.brand}</p>
+            )}
+          </div>
+          <div className="text-right shrink-0">
+            <p className="font-mono text-2xl text-ink tabular-nums leading-none">{scaled.calories}</p>
+            <p className="text-[10px] uppercase tracking-[0.16em] text-ink-2 mt-1">kcal</p>
+          </div>
+        </div>
+
+        {/* unit selector */}
+        <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 mb-4">
+          {opts.map((o) => (
+            <button
+              key={o.key}
+              onClick={() => pickUnit(o.key)}
+              className={`press shrink-0 px-3.5 py-2 rounded-lg text-xs transition-colors border ${
+                unitKey === o.key
+                  ? 'bg-moss-700 border-moss-700 text-white font-semibold'
+                  : 'bg-paper-50 border-black/[0.08] text-ink-2 hover:text-ink'
+              }`}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+
+        {/* amount stepper */}
+        <div className="flex items-center justify-center gap-5 py-2">
+          <button
+            onClick={() => stepAmount(-step)}
+            aria-label="Less"
+            disabled={amount <= minAmt}
+            className="press w-11 h-11 rounded-full border border-black/[0.1] flex items-center justify-center text-ink hover:bg-paper-100 transition-colors disabled:opacity-40"
+          >
+            <IconMinus className="w-4 h-4" />
+          </button>
+          <input
+            type="number"
+            min={minAmt}
+            step={step}
+            inputMode="decimal"
+            value={amount}
+            onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) setAmount(v) }}
+            onBlur={(e) => setAmount(Math.max(minAmt, roundCount(parseFloat(e.target.value) || minAmt)))}
+            className="w-24 text-center font-mono text-3xl text-ink tabular-nums bg-transparent focus:outline-none"
+          />
+          <button
+            onClick={() => stepAmount(step)}
+            aria-label="More"
+            className="press w-11 h-11 rounded-full border border-black/[0.1] flex items-center justify-center text-ink hover:bg-paper-100 transition-colors"
+          >
+            <IconPlus className="w-4 h-4" />
+          </button>
+        </div>
+        <p className="text-center text-xs text-ink-3 mt-1">
+          {unit.key === 'g' ? `${effectiveGrams}g total` : `${amount} ${unit.label.replace(' ≈', '')} = ${effectiveGrams}g`}
+          {unit.approx && ' · volume is approximate'}
+        </p>
+
+        {/* scaled macros */}
+        <div className="grid grid-cols-4 gap-2 mt-6 pt-5 border-t border-black/[0.07]">
+          {[
+            { label: 'Protein', value: scaled.protein, color: 'bg-moss-700' },
+            { label: 'Carbs', value: scaled.carbs, color: 'bg-honey-600' },
+            { label: 'Fat', value: scaled.fat, color: 'bg-clay-700' },
+            { label: 'Fibre', value: scaled.fibre, color: 'bg-sky-500' },
+          ].map((m) => (
+            <div key={m.label} className="text-center">
+              <p className="font-mono text-base text-ink tabular-nums">{m.value}g</p>
+              <div className="flex items-center justify-center gap-1 mt-0.5">
+                <span className={`w-1.5 h-1.5 rounded-full ${m.color}`} />
+                <span className="text-[10px] text-ink-3">{m.label}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <ScoreWhy score={food.score} reasons={food.reasons} open={showWhy} onToggle={() => setShowWhy((v) => !v)} />
+      </div>
+
+      <div className="px-5 py-4 border-t border-black/[0.07]">
+        <button
+          onClick={confirm}
+          disabled={saving}
+          className="press w-full bg-moss-700 hover:bg-moss-800 text-white font-semibold py-3.5 rounded-xl text-sm transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+        >
+          {saving ? 'Adding…' : (
+            <>
+              <IconPlus className="w-4 h-4" strokeWidth={2.5} />
+              Add {scaled.calories} kcal to {meal}
+            </>
+          )}
+        </button>
+      </div>
+    </>
+  )
+}
+
 function SearchSheet({
   meal,
   onClose,
@@ -92,8 +272,10 @@ function SearchSheet({
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
-  const [adding, setAdding] = useState<string | null>(null)
+  const [portioning, setPortioning] = useState<FoodResult | null>(null)
+  const [manual, setManual] = useState(false)
   const [recentlyAdded, setRecentlyAdded] = useState<Set<string>>(new Set())
+  const addedKey = (r: FoodResult) => `${r.food_name}|${r.brand ?? ''}`
   // Monotonic request id — guards against a slow earlier response overwriting
   // the results of a later, faster one as the user keeps typing.
   const reqId = useRef(0)
@@ -104,17 +286,27 @@ function SearchSheet({
     const id = ++reqId.current
     setLoading(true)
     setSearchError(null)
+    // Curated whole foods (eggs, banana, rice…) match instantly and sit on top,
+    // since Open Food Facts is unreliable for unbranded basics.
+    const whole = searchWholeFoods(term)
+    if (whole.length) {
+      setResults(whole)
+      setSearched(true)
+    }
     try {
       const found = await searchFood(term)
       if (id !== reqId.current) return // a newer search superseded this one
-      setResults(found)
+      setResults([...whole, ...found])
       setSearched(true)
     } catch (err) {
       if (id !== reqId.current) return
-      const isTimeout = err instanceof DOMException && err.name === 'AbortError'
-      setSearchError(isTimeout
-        ? 'Search timed out. Check your connection and try again.'
-        : 'Search failed. Check your connection and try again.')
+      // Whole-food matches already shown? Don't alarm the user about the network.
+      if (whole.length === 0) {
+        const isTimeout = err instanceof DOMException && err.name === 'AbortError'
+        setSearchError(isTimeout
+          ? 'Search timed out. Check your connection and try again.'
+          : 'Search failed. Check your connection and try again.')
+      }
       setSearched(true)
     } finally {
       if (id === reqId.current) setLoading(false)
@@ -152,6 +344,30 @@ function SearchSheet({
         onClick={(e) => e.stopPropagation()}
         className="sheet-up bg-paper-50 border-t md:border border-black/[0.09] w-full md:max-w-lg max-h-[88vh] md:max-h-[80vh] rounded-t-3xl md:rounded-3xl flex flex-col"
       >
+        {manual ? (
+          <ManualFoodForm
+            initialName={query.trim()}
+            onBack={() => setManual(false)}
+            onSubmit={(food) => { setManual(false); setPortioning(food) }}
+          />
+        ) : portioning ? (
+          <PortionView
+            food={portioning}
+            meal={meal}
+            onBack={() => setPortioning(null)}
+            onConfirm={async (scaled) => {
+              await onAdd(scaled)
+              const key = addedKey(scaled)
+              setRecentlyAdded((s) => new Set(s).add(key))
+              setTimeout(
+                () => setRecentlyAdded((s) => { const n = new Set(s); n.delete(key); return n }),
+                2400
+              )
+              setPortioning(null)
+            }}
+          />
+        ) : (
+          <>
         <div className="px-5 pt-5 pb-4 border-b border-black/[0.07]">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-ink">
@@ -203,6 +419,13 @@ function SearchSheet({
             >
               Photograph your plate
             </Link>
+            <span className="text-ink-3 text-xs">·</span>
+            <button
+              onClick={() => { haptic('tap'); setManual(true) }}
+              className="text-xs text-ink-2 hover:text-moss-700 transition-colors"
+            >
+              Enter manually
+            </button>
           </div>
         </div>
 
@@ -211,13 +434,21 @@ function SearchSheet({
             <p className="text-center text-ink-3 text-sm py-10">
               {query.trim().length === 1
                 ? 'Keep typing…'
-                : 'Start typing to search 700,000+ foods — each one scored as you go.'}
+                : 'Search whole foods like eggs, rice, or chicken — plus 700,000+ packaged products. Each one scored as you go.'}
             </p>
           )}
           {searched && !loading && !searchError && results.length === 0 && (
-            <p className="text-center text-ink-3 text-sm py-10">
-              Nothing found for &ldquo;{query}&rdquo;. Try a simpler name or scan the barcode.
-            </p>
+            <div className="text-center py-10">
+              <p className="text-ink-3 text-sm">
+                Nothing found for &ldquo;{query}&rdquo;.
+              </p>
+              <button
+                onClick={() => { haptic('tap'); setManual(true) }}
+                className="press mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-moss-700 hover:text-moss-800 transition-colors"
+              >
+                <IconPlus className="w-4 h-4" strokeWidth={2.5} /> Enter it manually
+              </button>
+            </div>
           )}
           {searchError && (
             <div className="flex items-start gap-2.5 text-sm text-clay-700 bg-clay-700/10 border border-clay-700/20 rounded-2xl px-4 py-3.5 leading-relaxed mt-2">
@@ -225,54 +456,44 @@ function SearchSheet({
               <span>{searchError}</span>
             </div>
           )}
-          {results.map((r, i) => (
-            <div
-              key={`${r.food_name}-${r.brand ?? ''}-${i}`}
-              className="flex items-center gap-3.5 bg-paper-100 border border-black/[0.06] rounded-2xl px-4 py-3"
-            >
-              <ScoreRing score={r.score} size={40} />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-ink truncate">{r.food_name}</p>
-                {r.brand && <p className="text-xs text-ink-3 truncate mt-0.5">{r.brand}</p>}
-                <p className="font-mono text-[11px] text-ink-2 mt-1 tabular-nums">
-                  {r.calories} kcal · {r.protein}P · {r.carbs}C · {r.fat}F
-                </p>
-              </div>
+          {results.map((r, i) => {
+            const added = recentlyAdded.has(addedKey(r))
+            return (
               <button
-                onClick={async () => {
-                  const key = `${r.food_name}-${r.brand ?? ''}-${i}`
-                  setAdding(r.food_name)
-                  try {
-                    await onAdd(r)
-                    haptic('success')
-                    setRecentlyAdded((s) => new Set(s).add(key))
-                    setTimeout(() => setRecentlyAdded((s) => { const n = new Set(s); n.delete(key); return n }), 1800)
-                  } catch {
-                    haptic('error')
-                  } finally {
-                    setAdding(null)
-                  }
-                }}
-                disabled={adding !== null}
-                className={`press shrink-0 flex items-center gap-1 font-semibold text-xs px-3 py-2 rounded-lg transition-colors disabled:opacity-60 ${
-                  recentlyAdded.has(`${r.food_name}-${r.brand ?? ''}-${i}`)
-                    ? 'bg-moss-700/20 border border-moss-700/30 text-moss-700'
-                    : 'bg-moss-700 hover:bg-moss-800 text-white'
-                }`}
+                key={`${r.food_name}-${r.brand ?? ''}-${i}`}
+                onClick={() => { haptic('select'); setPortioning(r) }}
+                className="press w-full text-left flex items-center gap-3.5 bg-paper-100 border border-black/[0.06] rounded-2xl px-4 py-3 hover:border-moss-700/30 transition-colors"
               >
-                {adding === r.food_name ? '…' : recentlyAdded.has(`${r.food_name}-${r.brand ?? ''}-${i}`) ? (
-                  <span className="pop flex items-center gap-1">
+                <ScoreRing score={r.score} size={40} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-ink truncate">{r.food_name}</p>
+                  {r.whole ? (
+                    <p className="flex items-center gap-1 text-[11px] text-moss-700 mt-0.5">
+                      <IconLeaf className="w-3 h-3" /> Whole food
+                    </p>
+                  ) : (
+                    r.brand && <p className="text-xs text-ink-3 truncate mt-0.5">{r.brand}</p>
+                  )}
+                  <p className="font-mono text-[11px] text-ink-2 mt-1 tabular-nums">
+                    {r.calories} kcal · {r.protein}P · {r.carbs}C · {r.fat}F
+                    <span className="text-ink-3"> · per 100g</span>
+                  </p>
+                </div>
+                {added ? (
+                  <span className="pop shrink-0 flex items-center gap-1 text-xs font-semibold text-moss-700 bg-moss-700/15 border border-moss-700/30 px-2.5 py-1.5 rounded-lg">
                     <IconCheck className="w-3.5 h-3.5" strokeWidth={2.5} /> Added
                   </span>
                 ) : (
-                  <>
+                  <span className="shrink-0 flex items-center gap-1 text-xs text-moss-700">
                     <IconPlus className="w-3.5 h-3.5" strokeWidth={2.5} /> Add
-                  </>
+                  </span>
                 )}
               </button>
-            </div>
-          ))}
+            )
+          })}
         </div>
+          </>
+        )}
       </div>
     </div>
   )

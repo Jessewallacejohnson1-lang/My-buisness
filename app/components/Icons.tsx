@@ -156,3 +156,22 @@ export function IconAlert(props: IconProps) {
     </svg>
   )
 }
+
+/** Rising trend line — the Progress / history mark. */
+export function IconTrend(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M4 16.5l4.5-4.5 3 3L20 7" />
+      <path d="M20 11.5V7h-4.5" />
+    </svg>
+  )
+}
+
+/** Balance scale — body-weight logging. */
+export function IconScale(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M12 4v16M7 20h10M5 8h14M5 8l-2.5 5.5a3 3 0 0 0 5 0L5 8ZM19 8l-2.5 5.5a3 3 0 0 0 5 0L19 8Z" />
+    </svg>
+  )
+}

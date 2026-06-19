@@ -195,7 +195,7 @@ export default function OnboardingPage() {
 
   return (
     <div className="min-h-screen max-w-md mx-auto px-5 pt-8 pb-16">
-      <p className="font-display text-sky-600 tracking-[0.25em] uppercase text-base mb-8">Korina</p>
+      <p className="font-display text-ink tracking-[0.28em] uppercase text-sm font-medium mb-8">HYGGE</p>
 
       {/* progress */}
       <div className="flex gap-1.5 mb-8">
@@ -252,7 +252,7 @@ export default function OnboardingPage() {
         <section className="rise">
           <h1 className="font-display text-3xl text-ink mb-2">Which habits matter most?</h1>
           <p className="text-sm text-ink-2 mb-7">
-            Pick as many as you like — Korina keeps them front and center.
+            Pick as many as you like — Hygge keeps them front and center.
           </p>
 
           <p className="text-[11px] uppercase tracking-[0.18em] text-moss-700 mb-3">
@@ -313,7 +313,10 @@ export default function OnboardingPage() {
 
           <div className="grid grid-cols-2 gap-3 mb-6">
             <Field label="Age">
-              <input type="number" min={13} max={100} value={age} onChange={(e) => setAge(Math.min(100, Math.max(13, parseInt(e.target.value) || 13)))} className={inputCls} />
+              <input type="number" min={13} max={100} value={age}
+                onChange={(e) => { const v = parseInt(e.target.value); if (!isNaN(v)) setAge(v) }}
+                onBlur={(e) => setAge(Math.min(100, Math.max(13, parseInt(e.target.value) || 13)))}
+                className={inputCls} />
             </Field>
             <Field label="Units">
               <div className="grid grid-cols-2 gap-1 p-1 bg-paper-100 rounded-xl">
@@ -340,22 +343,37 @@ export default function OnboardingPage() {
           {imperial ? (
             <div className="grid grid-cols-3 gap-3">
               <Field label="Height (ft)">
-                <input type="number" min={3} max={7} value={feet} onChange={(e) => { const f = parseInt(e.target.value) || 5; setHeightCm(Math.round((f * 12 + inches) * CM_PER_IN)) }} className={inputCls} />
+                <input type="number" min={3} max={7} value={feet}
+                  onChange={(e) => { const f = parseInt(e.target.value); if (!isNaN(f)) setHeightCm(Math.round((f * 12 + inches) * CM_PER_IN)) }}
+                  onBlur={(e) => { const f = Math.min(7, Math.max(3, parseInt(e.target.value) || 5)); setHeightCm(Math.round((f * 12 + inches) * CM_PER_IN)) }}
+                  className={inputCls} />
               </Field>
               <Field label="(in)">
-                <input type="number" min={0} max={11} value={inches} onChange={(e) => { const i = Math.min(11, Math.max(0, parseInt(e.target.value) || 0)); setHeightCm(Math.round((feet * 12 + i) * CM_PER_IN)) }} className={inputCls} />
+                <input type="number" min={0} max={11} value={inches}
+                  onChange={(e) => { const i = parseInt(e.target.value); if (!isNaN(i)) setHeightCm(Math.round((feet * 12 + i) * CM_PER_IN)) }}
+                  onBlur={(e) => { const i = Math.min(11, Math.max(0, parseInt(e.target.value) || 0)); setHeightCm(Math.round((feet * 12 + i) * CM_PER_IN)) }}
+                  className={inputCls} />
               </Field>
               <Field label="Weight (lb)">
-                <input type="number" min={60} max={700} value={pounds} onChange={(e) => setWeightKg(Math.round(((parseInt(e.target.value) || 60) * KG_PER_LB) * 10) / 10)} className={inputCls} />
+                <input type="number" min={60} max={700} value={pounds}
+                  onChange={(e) => { const p = parseInt(e.target.value); if (!isNaN(p)) setWeightKg(Math.round(p * KG_PER_LB * 10) / 10) }}
+                  onBlur={(e) => { const p = Math.min(700, Math.max(60, parseInt(e.target.value) || 60)); setWeightKg(Math.round(p * KG_PER_LB * 10) / 10) }}
+                  className={inputCls} />
               </Field>
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3">
               <Field label="Height (cm)">
-                <input type="number" min={100} max={230} value={heightCm} onChange={(e) => setHeightCm(Math.min(230, Math.max(100, parseInt(e.target.value) || 100)))} className={inputCls} />
+                <input type="number" min={100} max={230} value={heightCm}
+                  onChange={(e) => { const v = parseInt(e.target.value); if (!isNaN(v)) setHeightCm(v) }}
+                  onBlur={(e) => setHeightCm(Math.min(230, Math.max(100, parseInt(e.target.value) || 100)))}
+                  className={inputCls} />
               </Field>
               <Field label="Weight (kg)">
-                <input type="number" min={30} max={300} value={weightKg} onChange={(e) => setWeightKg(Math.min(300, Math.max(30, parseFloat(e.target.value) || 30)))} className={inputCls} />
+                <input type="number" min={30} max={300} value={weightKg}
+                  onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) setWeightKg(v) }}
+                  onBlur={(e) => setWeightKg(Math.min(300, Math.max(30, parseFloat(e.target.value) || 30)))}
+                  className={inputCls} />
               </Field>
             </div>
           )}

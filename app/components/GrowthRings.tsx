@@ -9,7 +9,7 @@ type RingSpec = {
 }
 
 /**
- * Concentric growth rings — Korina's signature dial.
+ * Concentric growth rings — Hygge Health's signature dial.
  * Rings sweep in from zero on mount, outermost first.
  */
 export function GrowthRings({

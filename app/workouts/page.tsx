@@ -6,11 +6,13 @@ import {
   addWorkout,
   deleteWorkout,
   toggleWorkoutComplete,
+  updateWorkoutExercises,
   localDate,
   type Workout,
+  type Exercise,
 } from '@/lib/db'
 import AppShell from '../components/AppShell'
-import { IconAlert, IconCheck, IconPlus, IconX } from '../components/Icons'
+import { IconAlert, IconCheck, IconChevronDown, IconPlus, IconX } from '../components/Icons'
 import { haptic } from '@/lib/haptics'
 
 const PRESET_WORKOUTS = [
@@ -20,6 +22,125 @@ const PRESET_WORKOUTS = [
   { name: 'Yoga & Stretch', duration_min: 40, exercises: [{ name: 'Sun Salutation', sets: 5, reps: 1, weight: 0 }, { name: 'Hip Flexor Stretch', sets: 2, reps: 1, weight: 0 }, { name: 'Pigeon Pose', sets: 2, reps: 1, weight: 0 }] },
   { name: 'Cardio Run', duration_min: 35, exercises: [{ name: 'Warm-up walk', sets: 1, reps: 1, weight: 0 }, { name: 'Steady run', sets: 1, reps: 1, weight: 0 }, { name: 'Cool-down walk', sets: 1, reps: 1, weight: 0 }] },
 ]
+
+/** A logged session: completion toggle plus an expandable per-exercise weight/reps editor. */
+function LoggedWorkout({
+  workout,
+  onToggle,
+  onDelete,
+  onSaveExercises,
+}: {
+  workout: Workout
+  onToggle: (w: Workout) => void
+  onDelete: (id: string) => void
+  onSaveExercises: (id: string, exercises: Exercise[]) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [draft, setDraft] = useState<Exercise[]>(workout.exercises)
+  const hasExercises = workout.exercises.length > 0
+
+  const update = (i: number, field: 'weight' | 'reps', value: string) => {
+    const n = value === '' ? 0 : Math.max(0, parseFloat(value) || 0)
+    setDraft((d) => d.map((ex, idx) => (idx === i ? { ...ex, [field]: n } : ex)))
+  }
+
+  const commit = () => {
+    // Only persist if something actually changed.
+    if (JSON.stringify(draft) !== JSON.stringify(workout.exercises)) {
+      onSaveExercises(workout.id, draft)
+    }
+  }
+
+  return (
+    <div className="bg-paper-50 border border-black/[0.07] rounded-2xl overflow-hidden">
+      <div className="px-4 py-3.5 flex items-center gap-3.5">
+        <button
+          onClick={() => onToggle(workout)}
+          aria-label={workout.completed ? `Mark ${workout.name} incomplete` : `Mark ${workout.name} complete`}
+          className={`press w-7 h-7 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
+            workout.completed
+              ? 'bg-moss-700 border-moss-700 text-white'
+              : 'border-paper-300 hover:border-moss-600'
+          }`}
+        >
+          {workout.completed && <IconCheck className="pop w-4 h-4" strokeWidth={2.5} />}
+        </button>
+        <button
+          onClick={() => { if (hasExercises) { haptic('select'); setOpen((o) => !o) } }}
+          disabled={!hasExercises}
+          aria-expanded={hasExercises ? open : undefined}
+          className="flex-1 min-w-0 text-left"
+        >
+          <p className={`text-sm truncate ${workout.completed ? 'line-through text-ink-3' : 'text-ink'}`}>
+            {workout.name}
+          </p>
+          <p className="font-mono text-[11px] text-ink-3 mt-0.5 tabular-nums">
+            {hasExercises ? `${workout.exercises.length} exercises · ` : ''}
+            {workout.duration_min} min
+          </p>
+        </button>
+        {hasExercises && (
+          <button
+            onClick={() => { haptic('select'); setOpen((o) => !o) }}
+            aria-label={open ? 'Hide exercises' : 'Edit exercises'}
+            className="press text-ink-3 hover:text-ink transition-colors p-1"
+          >
+            <IconChevronDown className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+          </button>
+        )}
+        <button
+          onClick={() => onDelete(workout.id)}
+          aria-label={`Delete ${workout.name}`}
+          className="press text-ink-3 hover:text-clay-700 transition-colors p-1 -m-1"
+        >
+          <IconX className="w-4 h-4" />
+        </button>
+      </div>
+      {open && hasExercises && (
+        <div className="px-4 pb-4 pt-1 border-t border-black/[0.07] space-y-2">
+          <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 items-center text-[10px] uppercase tracking-[0.14em] text-ink-3 pb-1">
+            <span>Exercise</span>
+            <span className="w-16 text-center">Weight kg</span>
+            <span className="w-14 text-center">Reps</span>
+          </div>
+          {draft.map((ex, i) => (
+            <div key={i} className="grid grid-cols-[1fr_auto_auto] gap-x-3 items-center">
+              <span className="text-sm text-ink truncate">
+                {ex.name}
+                <span className="font-mono text-[11px] text-ink-3 ml-1.5">×{ex.sets}</span>
+              </span>
+              <input
+                type="number"
+                min="0"
+                step="0.5"
+                inputMode="decimal"
+                value={ex.weight || ''}
+                onChange={(e) => update(i, 'weight', e.target.value)}
+                onBlur={commit}
+                placeholder="—"
+                className="w-16 bg-paper-100 border border-black/[0.08] rounded-lg px-2 py-1.5 text-sm text-ink text-center font-mono tabular-nums placeholder:text-ink-3 focus:border-moss-700/50 focus:outline-none transition-colors"
+              />
+              <input
+                type="number"
+                min="0"
+                step="1"
+                inputMode="numeric"
+                value={ex.reps || ''}
+                onChange={(e) => update(i, 'reps', e.target.value)}
+                onBlur={commit}
+                placeholder="—"
+                className="w-14 bg-paper-100 border border-black/[0.08] rounded-lg px-2 py-1.5 text-sm text-ink text-center font-mono tabular-nums placeholder:text-ink-3 focus:border-moss-700/50 focus:outline-none transition-colors"
+              />
+            </div>
+          ))}
+          <p className="text-[11px] text-ink-3 pt-1 leading-relaxed">
+            Log your working weight — your heaviest set shows up as a personal record on Progress.
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function WorkoutsPage() {
   const [workouts, setWorkouts] = useState<Workout[]>([])
@@ -92,6 +213,20 @@ export default function WorkoutsPage() {
     } catch {
       setWorkouts(snapshot)
       setActionError("Couldn't update the workout. Check your connection.")
+      haptic('error')
+    }
+  }
+
+  const handleSaveExercises = async (id: string, exercises: Exercise[]) => {
+    const snapshot = workouts
+    setActionError(null)
+    setWorkouts((ws) => ws.map((w) => (w.id === id ? { ...w, exercises } : w)))
+    haptic('tap')
+    try {
+      await updateWorkoutExercises(id, exercises)
+    } catch {
+      setWorkouts(snapshot)
+      setActionError("Couldn't save your exercise weights. Check your connection.")
       haptic('error')
     }
   }
@@ -169,42 +304,13 @@ export default function WorkoutsPage() {
                 </h2>
                 <div className="space-y-2">
                   {workouts.map((w) => (
-                    <div
+                    <LoggedWorkout
                       key={w.id}
-                      className="bg-paper-50 border border-black/[0.07] rounded-2xl px-4 py-3.5 flex items-center gap-3.5"
-                    >
-                      <button
-                        onClick={() => handleToggle(w)}
-                        aria-label={w.completed ? `Mark ${w.name} incomplete` : `Mark ${w.name} complete`}
-                        className={`press w-7 h-7 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
-                          w.completed
-                            ? 'bg-moss-700 border-moss-700 text-white'
-                            : 'border-paper-300 hover:border-moss-600'
-                        }`}
-                      >
-                        {w.completed && <IconCheck className="pop w-4 h-4" strokeWidth={2.5} />}
-                      </button>
-                      <div className="flex-1 min-w-0">
-                        <p
-                          className={`text-sm truncate ${
-                            w.completed ? 'line-through text-ink-3' : 'text-ink'
-                          }`}
-                        >
-                          {w.name}
-                        </p>
-                        <p className="font-mono text-[11px] text-ink-3 mt-0.5 tabular-nums">
-                          {w.exercises.length > 0 ? `${w.exercises.length} exercises · ` : ''}
-                          {w.duration_min} min
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => handleDelete(w.id)}
-                        aria-label={`Delete ${w.name}`}
-                        className="press text-ink-3 hover:text-clay-700 transition-colors p-1 -m-1"
-                      >
-                        <IconX className="w-4 h-4" />
-                      </button>
-                    </div>
+                      workout={w}
+                      onToggle={handleToggle}
+                      onDelete={handleDelete}
+                      onSaveExercises={handleSaveExercises}
+                    />
                   ))}
                 </div>
               </section>

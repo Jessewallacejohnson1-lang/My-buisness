@@ -31,24 +31,24 @@ export default function GlobalError({
         <div style={{ maxWidth: 360 }}>
           <p
             style={{
-              letterSpacing: '0.25em',
+              letterSpacing: '0.28em',
               textTransform: 'uppercase',
-              color: '#4aa8d4',
-              fontSize: 14,
+              color: '#2a2a28',
+              fontSize: 13,
               marginBottom: 24,
             }}
           >
-            Korina
+            HYGGE
           </p>
           <h1 style={{ fontSize: 24, marginBottom: 8 }}>The app crashed</h1>
-          <p style={{ fontSize: 14, color: '#61675e', lineHeight: 1.6, marginBottom: 24 }}>
-            Something went wrong loading Korina. Reload to get back in.
+          <p style={{ fontSize: 14, color: '#5e5d56', lineHeight: 1.6, marginBottom: 24 }}>
+            Something went wrong loading Hygge Health. Reload to get back in.
           </p>
           <button
             onClick={reset}
             style={{
-              background: '#1f6e93',
-              color: '#fff',
+              background: '#3c3c3c',
+              color: '#fbfaf5',
               fontWeight: 600,
               fontSize: 14,
               padding: '12px 24px',

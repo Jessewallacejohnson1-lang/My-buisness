@@ -2,7 +2,7 @@ import { ImageResponse } from 'next/og'
 
 export const size = { width: 1200, height: 630 }
 export const contentType = 'image/png'
-export const alt = 'Korina — Eat clean. Train hard. Watch it compound.'
+export const alt = 'Hygge Health — Eat clean. Train hard. Watch it compound.'
 
 export default function OpengraphImage() {
   const ring = (d: number, color: string, deg: number) => (
@@ -27,7 +27,7 @@ export default function OpengraphImage() {
           height: '100%',
           display: 'flex',
           alignItems: 'center',
-          background: '#ffffff',
+          background: '#e1dbc9',
           padding: '0 90px',
           fontFamily: 'Georgia, serif',
         }}
@@ -35,13 +35,14 @@ export default function OpengraphImage() {
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
           <div
             style={{
-              fontSize: 30,
-              letterSpacing: 14,
-              color: '#1d1f1c',
+              fontSize: 20,
+              letterSpacing: 10,
+              color: '#2a2a28',
               marginBottom: 36,
+              textTransform: 'uppercase',
             }}
           >
-            K O R I N A
+            HYGGE
           </div>
           <div
             style={{
@@ -49,11 +50,11 @@ export default function OpengraphImage() {
               flexDirection: 'column',
               fontSize: 76,
               lineHeight: 1.12,
-              color: '#1d1f1c',
+              color: '#2a2a28',
             }}
           >
             <span>Eat clean. Train hard.</span>
-            <span style={{ fontStyle: 'italic', color: '#1a6fa8' }}>
+            <span style={{ fontStyle: 'italic', color: '#2d4530' }}>
               Watch it compound.
             </span>
           </div>
@@ -78,8 +79,8 @@ export default function OpengraphImage() {
             justifyContent: 'center',
           }}
         >
-          {ring(330, '#2e9dba', 40)}
-          {ring(244, '#1a6fa8', 110)}
+          {ring(330, '#c6881f', 40)}
+          {ring(244, '#237a44', 110)}
           {ring(158, '#1d1f1c', 200)}
           <div
             style={{
