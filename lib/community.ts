@@ -47,6 +47,7 @@ export type TimelineEvent = {
   id: string
   title: string
   start_time: string | null
+  location: string | null          // ← add this line
   going_count: number
   rsvpd: boolean
   /** event belongs to a club the viewer has joined — drives the "for you" vs count display */
@@ -186,6 +187,7 @@ export async function getTodayEvents(): Promise<TimelineEvent[]> {
     id: e.id,
     title: e.title,
     start_time: e.start_time,
+    location: e.location ?? null,   // ← add this line
     going_count: counts.get(e.id) ?? 0,
     rsvpd: mine.has(e.id),
     from_joined_club: e.club_id ? joinedClubs.has(e.club_id) : false,
@@ -252,4 +254,136 @@ function addDays(n: number): Date {
 function weekdayLabel(ymd: string): string {
   const [y, m, d] = ymd.split('-').map(Number)
   return new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'short' })
+}
+
+// ── Event submission ─────────────────────────────────────────────────────────
+
+export type NewEventInput = {
+  title: string
+  event_date: string   // YYYY-MM-DD
+  start_time: string   // display string e.g. '7pm'
+  location: string
+  description?: string
+}
+
+export async function addEvent(input: NewEventInput): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not signed in')
+  const { error } = await supabase.from('club_events').insert({
+    ...input,
+    submitted_by: user.id,
+    status: 'approved',
+    club_id: null,
+  })
+  if (error) throw error
+}
+
+// ── Calendar helpers ─────────────────────────────────────────────────────────
+
+/** All events on a specific date, with RSVP state. */
+export async function getEventsByDate(date: string): Promise<TimelineEvent[]> {
+  const uid = await currentUserId()
+  const { data: events, error } = await supabase
+    .from('club_events')
+    .select('*')
+    .eq('status', 'approved')
+    .eq('event_date', date)
+    .order('start_time', { ascending: true })
+  if (error) throw error
+  const ids = (events ?? []).map((e) => e.id)
+  const counts = new Map<string, number>()
+  const mine = new Set<string>()
+  if (ids.length) {
+    const { data: rsvps } = await supabase
+      .from('event_rsvps')
+      .select('event_id, user_id')
+      .in('event_id', ids)
+    ;(rsvps ?? []).forEach((r) => {
+      counts.set(r.event_id, (counts.get(r.event_id) ?? 0) + 1)
+      if (uid && r.user_id === uid) mine.add(r.event_id)
+    })
+  }
+  return (events ?? []).map((e) => ({
+    id: e.id,
+    title: e.title,
+    start_time: e.start_time,
+    location: e.location ?? null,
+    going_count: counts.get(e.id) ?? 0,
+    rsvpd: mine.has(e.id),
+    from_joined_club: false,
+  }))
+}
+
+/** Returns YYYY-MM-DD strings that have at least one approved event in the given month. */
+export async function getMonthEventDates(year: number, month: number): Promise<string[]> {
+  // month is 1-indexed
+  const from = `${year}-${String(month).padStart(2, '0')}-01`
+  const lastDay = new Date(year, month, 0).getDate()
+  const to = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+  const { data, error } = await supabase
+    .from('club_events')
+    .select('event_date')
+    .eq('status', 'approved')
+    .gte('event_date', from)
+    .lte('event_date', to)
+  if (error) throw error
+  return [...new Set((data ?? []).map((e) => e.event_date))]
+}
+
+// ── Quests ───────────────────────────────────────────────────────────────────
+
+export type DailyQuest = {
+  id: string
+  title: string
+  description: string | null
+  date: string
+}
+
+export async function getTodayQuest(): Promise<DailyQuest | null> {
+  const today = localDate()
+  const { data, error } = await supabase
+    .from('daily_quests')
+    .select('id, title, description, date')
+    .eq('date', today)
+    .maybeSingle()
+  if (error) throw error
+  return data
+}
+
+export async function getQuestCompletionCount(questId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('quest_completions')
+    .select('*', { count: 'exact', head: true })
+    .eq('quest_id', questId)
+  if (error) throw error
+  return count ?? 0
+}
+
+export async function hasUserCompletedQuest(questId: string, userId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('quest_completions')
+    .select('id')
+    .eq('quest_id', questId)
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (error) throw error
+  return data !== null
+}
+
+export async function completeQuest(questId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not signed in')
+  const { error } = await supabase
+    .from('quest_completions')
+    .insert({ quest_id: questId, user_id: user.id })
+  if (error) throw error
+}
+
+export async function setQuest(title: string, description: string, date: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not signed in')
+  const { error } = await supabase
+    .from('daily_quests')
+    .upsert({ title, description, date, created_by: user.id }, { onConflict: 'date' })
+  if (error) throw error
 }
