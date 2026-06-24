@@ -4,19 +4,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-**Hygge Health** — nutrition-first fitness tracker built for Saint Joseph, MN. Every food is scored 1–100 on how clean it is; workouts count; daily habits turn into growth rings. The community tier (clubs + events) is the flagship launch surface.
+**Hygge** — a hyper-local community app for the real town of **St. Joseph, MN**. One calm place for everything happening in town: a daily timeline of local events, a shared calendar anyone can add to, and a daily quest that nudges neighbors to get out and connect.
 
 Built with Next.js (App Router), TypeScript, Tailwind CSS v4, and Supabase.
 
 ## Product & principles
 
-The flagship surface is the **St. Joe community page** (`/community`) for the real town of **St. Joseph, MN**. Its core job, in priority order: **① get neighbors together IRL → ② be a calm daily ritual → ③ help people find their people.** Judge community work against ① first.
+The whole app is the **St. Joe community experience** (`/community`). Its core job, in priority order: **① get neighbors together IRL → ② be a calm daily ritual → ③ help people find their people.** Judge every change against ① first.
 
 **On-brand bar — reject a change if it:** feels like a corporate app (notification-spam, growth-hacky, badges/streaks/feeds/follower-counts, performative posting) **or** is too busy / not calm. Keep it warm, quiet, neighborly, hyper-local. Honesty over fake social proof — real counts only, never seeded/inflated numbers. Voice is a neighbor ("— Jesse"), not a brand.
 
 **Design default:** for any new or reshaped UI, invoke a design skill (`frontend-design` / `ui-ux-pro-max`, both installed at project level) rather than hand-rolling defaults, so output stays consistent with the warm-minimal system below.
 
-**Done means verified:** community work isn't done until it's confirmed in the running app via the preview tools, matches the design tokens, and clears the on-brand bar — not just written. See `.claude/TOOLKIT.md` for which tool to reach for, and the project memory (`product-vision`, `target-user`, `on-brand-bar`, `definition-of-done`) for the full intent.
+**Done means verified:** work isn't done until it's confirmed in the running app via the preview tools, matches the design tokens, and clears the on-brand bar — not just written. See `.claude/TOOLKIT.md` for which tool to reach for, and the project memory (`product-vision`, `target-user`, `on-brand-bar`, `definition-of-done`) for the full intent.
 
 ## Commands
 
@@ -31,10 +31,7 @@ npm run lint      # Run ESLint
 ```
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
-ANTHROPIC_API_KEY=...        # AI photo scanning (optional)
 ```
-
-Check setup at `/api/health` — reports which tables, columns, and env vars are present.
 
 ## Architecture
 
@@ -42,108 +39,96 @@ Check setup at `/api/health` — reports which tables, columns, and env vars are
 
 | Route | Notes |
 |---|---|
-| `/` | Marketing landing — server component, session-aware, uses `.grain` texture |
+| `/` | Marketing landing — server component, session-aware, uses `.grain` texture. Signed-in CTA → `/community`, signed-out → `/login` |
 | `/login` | Auth form (email + password, confirmation ON) |
-| `/onboarding` | Multi-step profile wizard; calls `lib/profile.ts` → saves `profiles` table |
-| `/community` | Default landing; clubs + events (no auth required to browse) |
-| `/dashboard` | Daily summary: GrowthRings, streak, weekly bar chart |
-| `/meal-log` | Log food by search, barcode, photo, or manual entry |
-| `/workouts` | Log + track workout sessions |
-| `/scan` | Dedicated barcode scanner page |
-| `/progress` | Trailing history charts: calories, macros, weight, workout count |
-| `/api/analyze` | POST — photo → Anthropic SDK (structured output via Zod) → food estimates |
-| `/api/health` | GET — diagnostics: table/column presence + env var check |
 | `/auth/callback` | Exchanges email-confirmation code for a session |
+| `/community` | The entire app — auth-gated, a 4-tab mobile-first client experience |
+
+### The `/community` app
+
+A single client component (`app/community/page.tsx`) with a fixed bottom tab bar of four tabs:
+
+- **Timeline** (default) — today's events in chronological order, each with an optimistic RSVP toggle and a live going-count.
+- **Calendar** — month grid with a dot on days that have events; tapping a day opens a `.sheet-up` panel of that day's events (reuses the same event card).
+- **Add Event** — anyone signed in can post (title, date, time, location required; description optional). No moderation queue — events insert as `approved` and appear immediately.
+- **Quest** — today's quest with a live "X people completed" count and a one-tap-per-day Done button. Admin (gated by email) gets a form to set a quest for any date.
+
+Icons are inline `<svg>` defined in-file; there is no shared component/icon module and no emoji.
 
 ### Key components (`app/components/`)
 
-- **`AppShell`** — bottom tab bar (mobile) + side rail (desktop) + sign-out. Never put nav logic in page components.
-- **`GrowthRings`** — tri-ring SVG dial (protein/carbs/fat/fibre) + `useCountUp`. Rings animate via `.ring-sweep`.
-- **`ScoreRing`** — SVG ring for a 1–100 clean score; color from `scoreTone()` in same file.
-- **`FoodScanner`** — zxing barcode → Open Food Facts lookup → log entry. Viewfinder plays `.caught` on lock; `.ping-out` on save.
-- **`PhotoAnalyzer`** — captures/uploads image → `/api/analyze` → multi-item confirm UI.
-- **`ManualFoodForm`** — fallback manual nutrition entry.
-- **`Icons`** — inline SVG set. No emoji anywhere in the UI.
-- **`Reveal`** — `IntersectionObserver` scroll entrance; respects `prefers-reduced-motion`.
+- **`Reveal`** — `IntersectionObserver` scroll entrance for the marketing landing; respects `prefers-reduced-motion`.
 
 ### Lib layer (`lib/`)
 
-- **`db.ts`** — all DB helpers + `localDate()`. **Always use `localDate()`, never `toISOString()`** — dates are user-timezone so evening logs stay on today. Types: `FoodLog`, `Workout`, `WeightLog`, `DayStat`.
-- **`food-search.ts`** — Open Food Facts search + barcode lookup, clean-score algorithm, `toLogEntry()` (strips display-only fields before DB insert).
-- **`profile.ts`** — `ProfileAnswers`, `computeTargets()` (Mifflin-St Jeor BMR → macro targets), `FOCUS_OPTIONS`. Also exports `KG_PER_LB` / `CM_PER_IN`.
-- **`community.ts`** — all club/event/RSVP DB helpers. `ADMIN_EMAIL` / `isAdminEmail()` gate admin actions (approve clubs, etc.). `firstNameFromEmail()` derives display names from email local-parts.
-- **`community-content.ts`** — static copy/seed data for the community page.
-- **`manual-food.ts`** — logic for the manual food entry flow.
-- **`whole-foods.ts`** — curated whole-food reference data used in scoring.
-- **`units.ts`** — unit conversion utilities (kg↔lb, cm↔in).
-- **`haptics.ts`** — thin wrapper for `navigator.vibrate`; used on key interactions (sign-out, onboarding confirms).
+- **`community.ts`** — all event / RSVP / calendar / quest DB helpers. `ADMIN_EMAIL` / `isAdminEmail()` gate admin actions; `firstNameFromEmail()` derives display names from email local-parts; `currentUserId()` is the shared auth helper. Key helpers: `getTodayEvents`, `getEventsByDate`, `getMonthEventDates`, `addEvent`, `rsvpEvent`/`unRsvpEvent`, `getTodayQuest`, `getQuestCompletionCount`, `hasUserCompletedQuest`, `completeQuest`, `setQuest`. (Club helpers remain for future use.)
+- **`db.ts`** — `localDate()` only. **Always use `localDate()`, never `toISOString()`** — dates are user-timezone so an evening event stays on today.
+- **`haptics.ts`** — thin wrapper for `navigator.vibrate`; `haptic(kind)` where kind is `'tap' | 'select' | 'success' | 'warn' | 'error'`.
 - **`supabase/client.ts`** — browser Supabase client for `'use client'` components.
 - **`supabase/server.ts`** — server Supabase client for RSC and route handlers.
 
 ### Auth & middleware
 
-- **`proxy.ts`** (≡ `middleware.ts`) — refreshes the session and gates `/dashboard`, `/meal-log`, `/workouts`, `/scan`, `/progress`, `/onboarding` behind `/login`. The file is named `proxy.ts` because Next 16 renamed the middleware convention.
+- **`proxy.ts`** (≡ `middleware.ts`) — refreshes the session and gates `/community` behind `/login`. The file is named `proxy.ts` because Next 16 renamed the middleware convention.
 
 ### Database (Supabase)
 
 Run migrations once in the Supabase SQL editor, in order:
 
-1. `supabase/migration-auth.sql` — `user_id` columns + RLS on `food_logs` / `workouts`
-2. `supabase/migration-profiles.sql` — `profiles` table (onboarding answers + computed targets)
-3. `supabase/migration-community.sql` — `clubs`, `club_members`, `club_events`, `event_rsvps`
-4. `supabase/migration-progress.sql` — `weight_logs`
-5. `supabase/migration-all.sql` — combined/latest (use this for a fresh setup)
+1. `supabase/migration-community.sql` — `clubs`, `club_members`, `club_events`, `event_rsvps`, the `is_admin()` function, and per-table RLS
+2. `supabase/migration-quests.sql` — adds `location`/`description` to `club_events`, opens event submission to all signed-in users, and creates `daily_quests` + `quest_completions` with RLS
+
+All tables have RLS. Reads of events/quests are public to signed-in users; writes are scoped to `auth.uid()` (and quest authoring to `is_admin()`).
 
 ---
 
 ## Design system — Hygge
 
-Named for *hygge* (Danish, pron. "hoo-guh"): coziness, warmth, togetherness. Warm white surfaces, near-black ink, color reserved for data and meaning only. Full reference: `DESIGN.md`.
+Named for *hygge* (Danish, pron. "hoo-guh"): coziness, warmth, togetherness. Warm linen surfaces, charcoal ink, color reserved for meaning only. Full reference: `DESIGN.md`.
 
 ### Three rules
 
-1. **White first.** Default surface is paper-white. Tints lift from it.
+1. **Warm-white first.** Default surface is linen paper. Tints lift from it.
 2. **Color means something.** Never use an accent decoratively.
 3. **Motion confirms, never decorates.** Animations answer "did that work?" — not draw attention.
 
 ### Tailwind v4 tokens (defined in `app/globals.css` via `@theme`)
 
-**Surfaces:** `paper` (white) · `paper-50/100/200/300` (warm tints) · borders always `border-black/[0.07]`
+**Surfaces:** `paper`/`paper-50` (`#fbfaf5` linen) · `paper-100/200/300` (warmer tints; `paper-300` is the marketing canvas) · borders always `border-black/[0.07]`
 
-**Text:** `ink` (primary) · `ink-2` (secondary) · `ink-3` (tertiary/placeholder)
+**Text:** `ink` (`#2a2a28`, primary) · `ink-2` (secondary) · `ink-3` (tertiary/placeholder)
 
 **Semantic accents — one job each, never swapped:**
 
 | Token | Meaning |
 |---|---|
-| `moss-*` (buttons: `moss-700`) | Clean / positive / primary action |
-| `honey-*` | Moderate / energy / carbs ring |
-| `clay-*` | Avoid / warning / fat ring |
-| `sky-*` (focus rings, fibre ring) | Brand identity |
-
-**Score tones** — `scoreTone()` in `ScoreRing.tsx`: ≥70 → `moss-600`, 40–69 → `honey-600`, <40 → `clay-700`
+| `moss-*` (primary button: `moss-700` `#2d4530`) | Positive / primary action / RSVP'd / completed |
+| `sky-*` (brand: `sky-600` `#6b7b84`) | Brand identity, focus rings |
+| `honey-*` | Warmth / energy (use sparingly) |
+| `clay-*` (`clay-700`) | Warning / error only |
 
 ### Typography — strict roles, never swapped
 
 | Role | Font | Token | Use |
 |---|---|---|---|
-| Display | DM Serif Display | `font-display` | Wordmark, H1s, marketing hero |
-| UI | Outfit | `font-sans` | All labels, body, buttons |
-| Data | Geist Mono | `font-mono` | Every number, score, calorie — always with `tabular-nums` |
+| Display | Spectral | `font-display` | Wordmark, H1s, marketing hero |
+| UI | Schibsted Grotesk | `font-sans` | All labels, body, buttons |
+| Data | Geist Mono | `font-mono` | Every number — dates, counts, prices — always with `tabular-nums` |
 
 ### Motion classes (defined in `app/globals.css`)
 
-`.rise` · `.ring-sweep` · `.sheet-up` · `.fade-in` · `.ring-fill` · `.press` · `.pop` · `.bounce-in` · `.flicker` · `.score-draw` · `.caught` · `.ping-out` · `.lift` · `.marquee-track`
+`.rise` · `.sheet-up` · `.fade-in` · `.press` · `.pop` · `.bounce-in` · `.lift` · `.grain` (texture) · `.reveal-pending`/`.reveal-in` (Reveal)
 
 All animation durations collapse to `0.01ms` under `prefers-reduced-motion`.
 
 ### What not to do
 
-- Don't use accent colors decoratively — moss is not "a nice green," it means clean.
+- Don't use accent colors decoratively — moss means positive/primary action, not "a nice green."
 - Don't use `toISOString()` for dates — always `localDate()` from `lib/db.ts`.
-- Don't render numbers in `font-sans` — scores, calories, macros always get `font-mono tabular-nums`.
-- Don't reference badge `icon`/`color` fields from old DB rows — they are legacy light-theme values; restyle at render time.
+- Don't render numbers in `font-sans` — counts, dates, prices always get `font-mono tabular-nums`.
+- Don't show fake/seeded counts — real numbers only.
 - Don't add animation without a stated job; remove it if the job isn't clear.
+- Don't add emoji — inline SVG only.
 - `color-scheme: light` is declared on `:root` — dark mode is not supported.
 
 ---
@@ -152,8 +137,7 @@ All animation durations collapse to `0.01ms` under `prefers-reduced-motion`.
 
 - **Next.js 16** (App Router) — `cookies()` is async; middleware file is `proxy.ts` not `middleware.ts`
 - **TypeScript**, **Tailwind CSS v4** — CSS-based config via `@theme`, no `tailwind.config` file
-- **Supabase** — auth (email+password, confirmation ON) + Postgres, all tables have per-user RLS
-- **Anthropic SDK** — photo analysis via structured output (Zod schema) in `app/api/analyze/route.ts`
+- **Supabase** — auth (email+password, confirmation ON) + Postgres, all tables have RLS
 - Read `node_modules/next/dist/docs/` before writing Next.js code — this version may differ from training data.
 
 ## Plugins

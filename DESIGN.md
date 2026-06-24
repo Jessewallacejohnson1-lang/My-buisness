@@ -1,93 +1,83 @@
 # Hygge Design System
 
-> Named for *hygge* (Danish, pron. "hoo-guh"): coziness, warmth, togetherness. Warm white surfaces, near-black ink, color reserved for data and meaning only.
+> Named for *hygge* (Danish, pron. "hoo-guh"): coziness, warmth, togetherness. Warm linen surfaces, charcoal ink, color reserved for meaning only.
 
 ---
 
 ## Philosophy
 
-Hygge's UI does one thing: get out of the way of the data. The design is calm, minimal, and warm — never cold or clinical. Color is semantic, not decorative. Every hue carries a specific meaning and should never be used outside of it.
+Hygge's UI does one thing: get out of the way so neighbors can find each other. The design is calm, minimal, and warm — never busy, never corporate. Color is semantic, not decorative. Every hue carries a specific meaning and should never be used outside it.
 
 The three rules:
-1. **White first.** The default surface is paper-white. Tints and cards lift from it.
-2. **Color means something.** Moss = clean/positive. Honey = moderate/energy. Clay = avoid/warning. Sky = brand identity. Never use a hue just to fill space.
-3. **Motion confirms, never decorates.** Animations should answer the question "did that work?" — not draw attention to themselves.
+1. **Warm-white first.** The default surface is linen paper. Tints and cards lift from it.
+2. **Color means something.** Moss = positive / primary action. Sky = brand. Honey = warmth/energy. Clay = warning. Never use a hue just to fill space.
+3. **Motion confirms, never decorates.** Animations answer "did that work?" — not draw attention to themselves.
 
 ---
 
 ## Color
 
-### Surfaces
+Tokens are defined in `app/globals.css` via Tailwind v4 `@theme`. Values below are the source of truth.
+
+### Surfaces — warm linen & sand
 
 | Token | Value | Use |
 |---|---|---|
-| `paper` | `#ffffff` | Base background |
-| `paper-50` | `#fafaf7` | Subtle section backgrounds |
-| `paper-100` | `#f4f3ee` | Cards, inputs |
-| `paper-200` | `#e9e8e0` | Dividers, borders (low emphasis) |
-| `paper-300` | `#d8d7cd` | Borders (medium emphasis), scrollbar |
+| `paper` / `paper-50` | `#fbfaf5` | App canvas, cards, raised sections |
+| `paper-100` | `#f5f1e8` | Inputs, wells |
+| `paper-200` | `#eae4d4` | Dividers |
+| `paper-300` | `#e1dbc9` | Marketing canvas *(LOCKED — Beige Sand)* |
 
 All borders use `border-black/[0.07]` (opacity-based) so they stay proportional across tints.
 
-### Text
+### Text — charcoal family
 
 | Token | Value | Use |
 |---|---|---|
-| `ink` | `#1d1f1c` | Primary text, headings |
-| `ink-2` | `#5b6157` | Secondary text, labels |
-| `ink-3` | `#9aa093` | Tertiary text, placeholders, metadata |
+| `ink` | `#2a2a28` | Primary text, display headings |
+| `ink-2` | `#5e5d56` | Secondary text, labels |
+| `ink-3` | `#8a887e` | Tertiary text, placeholders, metadata |
 
 ### Semantic Accents
 
-These four hues are the entire accent palette. Each has one job.
+Each hue has one job. Never swap them.
 
-#### Sky — Brand identity
-A calm teal used for the wordmark, focus rings, and the fibre macro ring.
-
-| Token | Value |
-|---|---|
-| `sky-400` | `#5bc0c4` |
-| `sky-500` | `#2fa6ac` |
-| `sky-600` | `#1d878d` |
-| `sky-700` | `#14696f` *(AA contrast on white)* |
-| `sky-800` | `#0e4d52` |
-
-#### Moss — Clean / Positive / Primary action
-Deep leaf green. Used for high clean-score foods, completed states, and all primary buttons.
+#### Sky — Brand identity *(LOCKED: `#6b7b84`, Slate Blue-Grey)*
+Calm slate blue-grey. Wordmark accents and focus rings.
 
 | Token | Value |
 |---|---|
-| `moss-400` | `#74c98c` |
-| `moss-500` | `#4aa867` |
-| `moss-600` | `#318a4e` |
-| `moss-700` | `#237a44` *(primary button — AA contrast)* |
-| `moss-800` | `#185c33` |
+| `sky-400` | `#a6b1b6` |
+| `sky-500` | `#87959c` |
+| `sky-600` | `#6b7b84` *(brand)* |
+| `sky-700` | `#55636b` |
+| `sky-800` | `#3e4d54` |
 
-#### Honey — Moderate / Energy / Carbs
-Warm amber. Used for mid-range clean scores and the carbs macro ring.
-
-| Token | Value |
-|---|---|
-| `honey-600` | `#c6881f` |
-| `honey-700` | `#9a6713` |
-
-#### Clay — Avoid / Warning / Fat
-Terracotta. Used for low clean scores and the fat macro ring.
+#### Moss — Positive / Primary action *(LOCKED: `#2d4530`, Dark Pine)*
+Deep pine green. Primary buttons, RSVP'd / completed states, positive confirmations.
 
 | Token | Value |
 |---|---|
-| `clay-700` | `#b1532e` |
-| `clay-800` | `#8b3f22` |
+| `moss-400` | `#4f7053` |
+| `moss-500` / `moss-600` | `#3c5a40` |
+| `moss-700` | `#2d4530` *(primary CTA, hover)* |
+| `moss-800` | `#1f3022` |
 
-### Score Tones
+#### Honey — Warmth / Energy
+Warm ochre. Used sparingly for energy/highlight accents.
 
-The `scoreTone()` helper in `ScoreRing.tsx` maps a 1–100 clean score to a color:
+| Token | Value |
+|---|---|
+| `honey-600` | `#b07d2b` |
+| `honey-700` | `#8a5f1c` |
 
-| Score | Token | Meaning |
-|---|---|---|
-| ≥ 70 | `moss-600` | Clean |
-| 40–69 | `honey-600` | Moderate |
-| < 40 | `clay-700` | Avoid |
+#### Clay — Warning / Error
+Terracotta. Error messages and destructive affordances only.
+
+| Token | Value |
+|---|---|
+| `clay-700` | `#b0573a` |
+| `clay-800` | `#8c4329` |
 
 ---
 
@@ -97,43 +87,23 @@ Three font roles, each with a strict purpose. Never swap them.
 
 | Role | Font | Token | Use |
 |---|---|---|---|
-| Display | DM Serif Display | `font-display` | Wordmark, H1s, marketing hero text |
-| UI | Outfit | `font-sans` | All interface labels, body copy, buttons |
-| Data | Geist Mono | `font-mono` | Every number, score, calorie count, macro value — always with `tabular-nums` |
+| Display | Spectral | `font-display` | Wordmark, H1s, marketing hero text |
+| UI | Schibsted Grotesk | `font-sans` | All interface labels, body copy, buttons |
+| Data | Geist Mono | `font-mono` | Every number — dates, counts, prices — always with `tabular-nums` |
 
-The mono rule is strict: if a value changes over time or sits next to other numbers, it's `font-mono`. This prevents layout shift and gives data a consistent feel.
+Fonts are loaded via `next/font/google` in `app/layout.tsx` and exposed as the `--font-*` CSS variables the `@theme` block points at.
+
+The mono rule is strict: if a value is a number — a going-count, a date, the `$2` price — it's `font-mono tabular-nums`. This prevents layout shift and gives data a consistent feel.
 
 ---
 
 ## Components
 
-### ScoreRing
-
-An SVG ring that visualizes a clean score 1–100. The stroke color is driven by `scoreTone()`. Animates via `.score-draw` on mount.
-
-Props: `score` (number), `size` (px), optional `label`.
-
-### GrowthRings
-
-A tri-ring dial showing daily macro progress (protein, carbs, fat). Each ring maps to a semantic color:
-- Protein → `moss`
-- Carbs → `honey`  
-- Fat → `clay`
-- Fibre → `sky`
-
-Rings sweep in via `.ring-sweep` on data load.
-
-### AppShell
-
-Responsive navigation: bottom tab bar on mobile, side rail on desktop. Contains sign-out. Never put navigation logic in page components.
-
 ### Reveal
 
-`IntersectionObserver`-based scroll entrance. Wraps any content. Adds `.reveal-pending` on mount, swaps to `.reveal-in` when the element enters the viewport. Respects `prefers-reduced-motion`.
+`IntersectionObserver`-based scroll entrance. Wraps any content; adds `.reveal-pending` on mount, swaps to `.reveal-in` when the element enters the viewport. Respects `prefers-reduced-motion`. Used on the marketing landing.
 
-### FoodScanner
-
-Barcode scanning via `zxing`. On a successful scan, the viewfinder plays `.caught` (a quick squeeze). After the food is logged, a `.ping-out` ring radiates from the confirmation button.
+> The `/community` app builds its UI inline (no shared component library yet) using the tokens and motion classes below. Icons are inline `<svg>` defined where they're used — there is no shared icon module, and no emoji.
 
 ---
 
@@ -144,19 +114,12 @@ Every animation has a job. If you can't state the job in one sentence, remove th
 | Class | Job | Curve |
 |---|---|---|
 | `.rise` | Cards enter — stagger with inline `animationDelay` | `cubic-bezier(0.22, 1, 0.36, 1)` 0.55s |
-| `.ring-sweep` | Macro rings fill on data load | `cubic-bezier(0.22, 1, 0.36, 1)` 1.1s |
-| `.sheet-up` | Bottom sheet slides over backdrop | `cubic-bezier(0.22, 1, 0.36, 1)` 0.32s |
+| `.sheet-up` | Bottom sheet slides over backdrop (calendar day view) | `cubic-bezier(0.22, 1, 0.36, 1)` 0.32s |
 | `.fade-in` | Generic opacity entrance | `ease-out` 0.25s |
-| `.ring-fill` | CSS-only ring for server-rendered pages | `cubic-bezier(0.22, 1, 0.36, 1)` 1.3s, 0.3s delay |
 | `.press` | Tactile dip on tap — every tappable element | `cubic-bezier(0.22, 1, 0.36, 1)` 0.12s |
-| `.pop` | Checkmarks, "Added" confirmations | Spring `cubic-bezier(0.34, 1.56, 0.64, 1)` 0.34s |
-| `.bounce-in` | Completion banners | Spring `cubic-bezier(0.34, 1.56, 0.64, 1)` 0.42s |
-| `.flicker` | Streak flame — loops while streak is live | `ease-in-out` 2.4s infinite |
-| `.score-draw` | Small score rings draw in | `cubic-bezier(0.22, 1, 0.36, 1)` 0.7s |
-| `.caught` | Viewfinder squeeze on barcode lock | `ease-out` 0.3s |
-| `.ping-out` | Success glow radiates from logged item | `cubic-bezier(0, 0, 0.2, 1)` 0.6s |
+| `.pop` | Checkmarks / confirmations | Spring `cubic-bezier(0.34, 1.56, 0.64, 1)` 0.34s |
+| `.bounce-in` | Completion / celebratory banners | Spring `cubic-bezier(0.34, 1.56, 0.64, 1)` 0.42s |
 | `.lift` | Marketing cards rise on hover | `cubic-bezier(0.22, 1, 0.36, 1)` 0.35s |
-| `.marquee-track` | Food-score ticker | `linear` 42s infinite, pauses on hover |
 
 All animations are disabled under `prefers-reduced-motion`. The `.rise` class additionally resets to `opacity: 1` so content stays visible without animating.
 
@@ -166,7 +129,7 @@ All animations are disabled under `prefers-reduced-motion`. The `.rise` class ad
 
 ### Paper Grain
 
-The `.grain` class applies a subtle SVG noise texture as a `::before` pseudo-element fixed to the viewport at `opacity: 0.035`. Used on marketing/landing surfaces only — not in the logged-in app. It gives warmth without weight.
+The `.grain` class applies a subtle SVG noise texture as a fixed `::before` overlay at low opacity. Used on the marketing landing only — not in the `/community` app. It gives warmth without weight.
 
 ### Hairline Borders
 
@@ -176,35 +139,30 @@ Use `border-black/[0.07]` everywhere. Opacity-based borders adapt naturally to a
 
 ## Layout
 
-### Navigation
+### The app (`/community`)
 
-- **Mobile**: Bottom tab bar (4 tabs), always visible
-- **Desktop**: Side rail, collapsible
+A single mobile-first column (max-width ~480px, centered) with a fixed bottom tab bar of four tabs: **Timeline · Calendar · Add · Quest**. Tab icons are inline SVG; the active tab is shown by ink color + weight, never a decorative accent.
 
-### Data Density
+### Marketing vs. app
 
-Logged-in views are dense by design. Users are logging food mid-meal — every interaction should complete in under 3 taps. Keep form fields short, confirmations instant, and never require a page navigation to log something.
-
-### Marketing vs. App
-
-The landing page (`/`) uses `.grain`, `.lift`, `.marquee-track`, and `font-display` headings freely. The logged-in app is calmer — `font-display` only appears in the wordmark.
+The landing page (`/`) uses `.grain`, `.lift`, and `font-display` headings freely, and is server-rendered. The `/community` app is calmer — `font-display` appears only in the header wordmark.
 
 ---
 
 ## Accessibility
 
-- Focus ring: `2px solid sky-600`, `outline-offset: 2px`, `border-radius: 2px` — always visible, never hidden
-- All semantic accent colors meet AA contrast on white backgrounds
-- No emoji in the UI — inline SVG icons only (`Icons.tsx`)
-- `prefers-reduced-motion` collapses all animation durations to `0.01ms`
-- `color-scheme: light` declared on `:root` — dark mode is not supported
+- Focus rings use the `sky` brand color and stay visible — never hidden.
+- All text colors meet AA contrast on the linen surfaces.
+- No emoji in the UI — inline SVG icons only.
+- `prefers-reduced-motion` collapses all animation durations to `0.01ms`.
+- `color-scheme: light` declared on `:root` — dark mode is not supported.
 
 ---
 
 ## What Not To Do
 
-- **Don't use accent colors decoratively.** Moss is not "a nice green." It means clean.
-- **Don't use `toISOString()` for dates.** Always use `localDate()` from `lib/db.ts`.
-- **Don't put plain numbers in `font-sans`.** Scores, calories, macros — always `font-mono tabular-nums`.
+- **Don't use accent colors decoratively.** Moss means positive/primary action, not "a nice green."
+- **Don't use `toISOString()` for dates.** Always use `localDate()` from `lib/db.ts` — dates are user-timezone so an evening event stays on today.
+- **Don't put plain numbers in `font-sans`.** Counts, dates, prices — always `font-mono tabular-nums`.
 - **Don't add animation without a job.** State the job before writing the keyframe.
-- **Don't reference badge `icon`/`color` fields from old DB rows.** They are legacy light-theme values — restyle at render time.
+- **Don't show fake counts.** Real numbers only — never seed or inflate "X going" / "X completed."

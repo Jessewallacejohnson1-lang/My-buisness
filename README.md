@@ -1,8 +1,9 @@
-# Hygge Health
+# Hygge
 
-Nutrition-first fitness tracker. Every food you log is scored 1–100 on how clean it is,
-every workout counts, and daily habits turn into growth rings you can watch fill.
-Built for Saint Joseph, MN — the people on your street.
+Everything happening in **St. Joseph, MN**, in one calm place. A daily timeline of
+local events you can RSVP to, a shared calendar anyone can add to, and a daily quest
+that nudges neighbors to get out and connect. Hyper-local, warm, and quiet — built for
+the people on your street.
 
 Built with Next.js (App Router), TypeScript, Tailwind CSS v4, and Supabase.
 
@@ -20,24 +21,21 @@ npm run lint
 ```
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
-ANTHROPIC_API_KEY=...        # AI photo scanning (optional)
 ```
 
 ## Database setup
 
-Run these once in the Supabase SQL editor:
+Run these once in the Supabase SQL editor, in order:
 
-- `supabase/migration-auth.sql` — per-user `user_id` columns + RLS on `food_logs` / `workouts`
-- `supabase/migration-profiles.sql` — `profiles` table (onboarding answers + computed targets)
-
-Check setup anytime at **`/api/health`** — it reports which tables/columns and env vars are present.
+1. `supabase/migration-community.sql` — `clubs`, `club_members`, `club_events`, `event_rsvps` + `is_admin()` + RLS
+2. `supabase/migration-quests.sql` — `location`/`description` on `club_events`, opens event submission to all signed-in users, adds `daily_quests` + `quest_completions` + RLS
 
 ## Map
 
-- `app/` — routes: `/` landing, `/login`, `/onboarding`, `/dashboard`, `/meal-log`, `/workouts`,
-  `/scan`, plus `api/analyze` (photo AI) and `api/health` (diagnostics)
-- `app/components/` — `AppShell`, `Icons`, `ScoreRing`, `GrowthRings`, `FoodScanner`,
-  `PhotoAnalyzer`, `Reveal`
-- `lib/` — `db.ts` (DB helpers + `localDate`), `food-search.ts` (Open Food Facts + clean score),
-  `profile.ts` (targets from onboarding), `supabase/`
-- See `CLAUDE.md` for the design system and architecture notes.
+- `app/` — routes: `/` landing (server, session-aware), `/login`, `/auth/callback`, and
+  `/community` (the whole app: a 4-tab client experience — Timeline, Calendar, Add Event, Quest)
+- `app/components/` — `Reveal` (scroll entrance)
+- `lib/` — `community.ts` (events/RSVP/quest DB helpers + admin gate), `db.ts` (`localDate()`),
+  `haptics.ts`, `supabase/` (browser + server clients)
+- `proxy.ts` — middleware gating `/community` behind `/login`
+- See `CLAUDE.md` for architecture and `DESIGN.md` for the design system.
