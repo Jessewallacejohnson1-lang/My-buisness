@@ -10,8 +10,14 @@ import {
   unRsvpEvent,
   getCurrentUser,
   isAdminEmail,
+  getTodayQuest,
+  getQuestCompletionCount,
+  hasUserCompletedQuest,
+  completeQuest,
+  setQuest,
   type TimelineEvent,
   type NewEventInput,
+  type DailyQuest,
 } from '@/lib/community'
 import { haptic } from '@/lib/haptics'
 
@@ -533,8 +539,197 @@ function AddEventTab({ onSuccess }: { onSuccess: () => void }) {
   )
 }
 function QuestTab({ isAdmin }: { isAdmin: boolean }) {
-  void isAdmin
-  return <div style={{ padding: 24, fontFamily: 'var(--font-sans)', color: 'var(--color-ink-3)' }}>Quest — coming in Task 7</div>
+  const [quest, setQuest_] = useState<DailyQuest | null>(null)
+  const [count, setCount] = useState(0)
+  const [done, setDone] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [completing, setCompleting] = useState(false)
+  // Admin form state
+  const [adminTitle, setAdminTitle] = useState('')
+  const [adminDesc, setAdminDesc] = useState('')
+  const [adminDate, setAdminDate] = useState('')
+  const [adminSaving, setAdminSaving] = useState(false)
+  const [adminMsg, setAdminMsg] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function load() {
+      const q = await getTodayQuest()
+      setQuest_(q)
+      if (q) {
+        const [c, user] = await Promise.all([
+          getQuestCompletionCount(q.id),
+          getCurrentUser(),
+        ])
+        setCount(c)
+        if (user) setDone(await hasUserCompletedQuest(q.id, user.id))
+      }
+      setLoading(false)
+    }
+    load()
+  }, [])
+
+  const handleComplete = async () => {
+    if (!quest || done || completing) return
+    setCompleting(true)
+    haptic('success')
+    try {
+      await completeQuest(quest.id)
+      setDone(true)
+      setCount((c) => c + 1)
+    } finally {
+      setCompleting(false)
+    }
+  }
+
+  const handleSetQuest = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!adminTitle.trim() || !adminDate) return
+    setAdminSaving(true)
+    setAdminMsg(null)
+    try {
+      await setQuest(adminTitle.trim(), adminDesc.trim(), adminDate)
+      setAdminMsg('Quest saved!')
+      setAdminTitle('')
+      setAdminDesc('')
+      setAdminDate('')
+    } catch {
+      setAdminMsg('Failed to save.')
+    } finally {
+      setAdminSaving(false)
+    }
+  }
+
+  if (loading) {
+    return <div style={{ padding: 48, textAlign: 'center', fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--color-ink-3)' }}>Loading…</div>
+  }
+
+  const fieldStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '11px 13px',
+    borderRadius: 10,
+    border: '1.5px solid rgba(0,0,0,0.12)',
+    background: 'var(--color-paper)',
+    fontSize: 15,
+    color: 'var(--color-ink)',
+    fontFamily: 'var(--font-sans)',
+    outline: 'none',
+    boxSizing: 'border-box',
+  }
+  const labelStyle: React.CSSProperties = {
+    fontSize: 11,
+    color: 'var(--color-ink-3)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.06em',
+    marginBottom: 5,
+    display: 'block',
+    fontFamily: 'var(--font-sans)',
+  }
+
+  return (
+    <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* Today's quest card */}
+      {quest ? (
+        <div
+          className="rise"
+          style={{
+            background: 'var(--color-paper)',
+            border: '1px solid rgba(0,0,0,0.07)',
+            borderRadius: 16,
+            padding: '20px 18px',
+          }}
+        >
+          <p className="font-sans" style={{ fontSize: 11, color: 'var(--color-ink-3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+            Today&apos;s Quest
+          </p>
+          <p className="font-sans" style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-ink)', marginBottom: 6, lineHeight: 1.3 }}>
+            {quest.title}
+          </p>
+          {quest.description && (
+            <p className="font-sans" style={{ fontSize: 14, color: 'var(--color-ink-2)', marginBottom: 16, lineHeight: 1.5 }}>
+              {quest.description}
+            </p>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <p className="font-mono" style={{ fontSize: 13, color: 'var(--color-ink-3)', fontVariantNumeric: 'tabular-nums' }}>
+              <span>{count}</span> {count === 1 ? 'person' : 'people'} completed this today
+            </p>
+            <button
+              onClick={handleComplete}
+              disabled={done || completing}
+              className="press"
+              style={{
+                padding: '8px 18px',
+                borderRadius: 20,
+                border: 'none',
+                background: done ? 'var(--color-moss-700)' : 'var(--color-paper-100)',
+                color: done ? '#fff' : 'var(--color-ink)',
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: done ? 'default' : 'pointer',
+                fontFamily: 'var(--font-sans)',
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              {done ? <>Done<CheckIcon /></> : completing ? '…' : 'Mark Done'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ padding: '48px 0', textAlign: 'center' }}>
+          <p className="font-sans" style={{ fontSize: 15, color: 'var(--color-ink-3)' }}>No quest today</p>
+          <p className="font-sans" style={{ fontSize: 13, color: 'var(--color-ink-3)', marginTop: 6 }}>Check back tomorrow</p>
+        </div>
+      )}
+
+      {/* Admin: set quest */}
+      {isAdmin && (
+        <div style={{ borderTop: '1px solid rgba(0,0,0,0.07)', paddingTop: 20 }}>
+          <p className="font-sans" style={{ fontSize: 12, color: 'var(--color-ink-3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 14 }}>
+            Set a Quest (Admin)
+          </p>
+          <form onSubmit={handleSetQuest} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Date</label>
+              <input type="date" style={fieldStyle} value={adminDate} onChange={(e) => setAdminDate(e.target.value)} />
+            </div>
+            <div>
+              <label style={labelStyle}>Title</label>
+              <input style={fieldStyle} placeholder="Walk to the park" value={adminTitle} onChange={(e) => setAdminTitle(e.target.value)} />
+            </div>
+            <div>
+              <label style={labelStyle}>Description</label>
+              <textarea
+                style={{ ...fieldStyle, minHeight: 70, resize: 'vertical' }}
+                placeholder="Optional details…"
+                value={adminDesc}
+                onChange={(e) => setAdminDesc(e.target.value)}
+              />
+            </div>
+            {adminMsg && <p className="font-sans" style={{ fontSize: 13, color: adminMsg === 'Quest saved!' ? 'var(--color-moss-700)' : 'var(--color-clay-700)' }}>{adminMsg}</p>}
+            <button
+              type="submit"
+              disabled={adminSaving}
+              className="press"
+              style={{
+                padding: '11px',
+                borderRadius: 10,
+                border: 'none',
+                background: adminSaving ? 'var(--color-paper-200)' : 'var(--color-ink)',
+                color: adminSaving ? 'var(--color-ink-3)' : '#fff',
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: adminSaving ? 'not-allowed' : 'pointer',
+                fontFamily: 'var(--font-sans)',
+              }}
+            >
+              {adminSaving ? 'Saving…' : 'Save Quest'}
+            </button>
+          </form>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ── Page shell ────────────────────────────────────────────────────────────────
