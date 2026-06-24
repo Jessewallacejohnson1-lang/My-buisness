@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   getTodayEvents,
   getEventsByDate,
@@ -240,6 +240,7 @@ function CalendarTab() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [loadingDays, setLoadingDays] = useState(true)
   const [loadingEvents, setLoadingEvents] = useState(false)
+  const requestedDateRef = useRef<string | null>(null)
 
   useEffect(() => {
     setLoadingDays(true)
@@ -252,8 +253,12 @@ function CalendarTab() {
     setSelectedDate(ymd)
     setSheetOpen(true)
     setLoadingEvents(true)
-    const evs = await getEventsByDate(ymd).finally(() => setLoadingEvents(false))
-    setDayEvents(evs)
+    requestedDateRef.current = ymd
+    const evs = await getEventsByDate(ymd)
+    if (requestedDateRef.current === ymd) {
+      setDayEvents(evs)
+      setLoadingEvents(false)
+    }
   }
 
   const handleRsvp = useCallback(async (id: string, rsvpd: boolean) => {
@@ -544,6 +549,7 @@ function QuestTab({ isAdmin }: { isAdmin: boolean }) {
   const [done, setDone] = useState(false)
   const [loading, setLoading] = useState(true)
   const [completing, setCompleting] = useState(false)
+  const [completeError, setCompleteError] = useState<string | null>(null)
   // Admin form state
   const [adminTitle, setAdminTitle] = useState('')
   const [adminDesc, setAdminDesc] = useState('')
@@ -571,11 +577,14 @@ function QuestTab({ isAdmin }: { isAdmin: boolean }) {
   const handleComplete = async () => {
     if (!quest || done || completing) return
     setCompleting(true)
-    haptic('success')
+    setCompleteError(null)
     try {
       await completeQuest(quest.id)
+      haptic('success')
       setDone(true)
       setCount((c) => c + 1)
+    } catch {
+      setCompleteError('Could not mark done — try again.')
     } finally {
       setCompleting(false)
     }
@@ -648,6 +657,9 @@ function QuestTab({ isAdmin }: { isAdmin: boolean }) {
             <p className="font-sans" style={{ fontSize: 14, color: 'var(--color-ink-2)', marginBottom: 16, lineHeight: 1.5 }}>
               {quest.description}
             </p>
+          )}
+          {completeError && (
+            <p className="font-sans" style={{ fontSize: 13, color: 'var(--color-clay-700)', marginBottom: 10 }}>{completeError}</p>
           )}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <p className="font-mono" style={{ fontSize: 13, color: 'var(--color-ink-3)', fontVariantNumeric: 'tabular-nums' }}>
