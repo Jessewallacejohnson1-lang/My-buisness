@@ -24,9 +24,11 @@ create table if not exists public.daily_quests (
 
 alter table public.daily_quests enable row level security;
 
+drop policy if exists "read quests" on public.daily_quests;
 create policy "read quests" on public.daily_quests
   for select using (true);
 
+drop policy if exists "write quests" on public.daily_quests;
 create policy "write quests" on public.daily_quests
   for all using (public.is_admin()) with check (public.is_admin());
 
@@ -41,9 +43,11 @@ create table if not exists public.quest_completions (
 
 alter table public.quest_completions enable row level security;
 
+drop policy if exists "read completions" on public.quest_completions;
 create policy "read completions" on public.quest_completions
   for select using (true);
 
+drop policy if exists "insert completion" on public.quest_completions;
 create policy "insert completion" on public.quest_completions
   for insert with check (user_id = auth.uid());
 
