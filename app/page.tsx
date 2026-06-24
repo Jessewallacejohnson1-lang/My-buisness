@@ -134,8 +134,7 @@ export default async function Home() {
           {/* cta */}
           <Link
             href={ctaHref}
-            className="press font-sans text-sm font-semibold px-5 py-2 rounded-[8px] transition-colors"
-            style={{ background: 'var(--pine-700)', color: 'var(--linen-50)' }}
+            className="press font-sans text-sm font-semibold px-5 py-2 rounded-[8px] transition-colors bg-moss-700 text-[var(--linen-50)]"
           >
             {ctaLabel}
           </Link>
@@ -176,8 +175,7 @@ export default async function Home() {
             <div className="flex items-center gap-4 flex-wrap">
               <Link
                 href={ctaHref}
-                className="press font-sans font-semibold text-sm px-7 py-3.5 rounded-[9px] transition-colors"
-                style={{ background: 'var(--pine-700)', color: 'var(--linen-50)' }}
+                className="press font-sans font-semibold text-sm px-7 py-3.5 rounded-[9px] transition-colors bg-moss-700 text-[var(--linen-50)]"
               >
                 {ctaLabel}
               </Link>
@@ -328,7 +326,7 @@ export default async function Home() {
                 <span className="font-sans text-[11px] uppercase tracking-[0.18em] text-ink-3">
                   Today's quest
                 </span>
-                <span className="font-sans text-[11px] text-ink-3">Tuesday</span>
+                <span className="font-sans text-[11px] text-ink-3">{new Date().toLocaleDateString('en-US', { weekday: 'long' })}</span>
               </div>
 
               {/* the quest itself — italic display, the signature visual risk */}
@@ -423,8 +421,7 @@ export default async function Home() {
           </p>
           <Link
             href={ctaHref}
-            className="press font-sans font-semibold text-base px-9 py-4 rounded-[9px] transition-colors"
-            style={{ background: 'var(--pine-700)', color: 'var(--linen-50)' }}
+            className="press font-sans font-semibold text-base px-9 py-4 rounded-[9px] transition-colors bg-moss-700 text-[var(--linen-50)]"
           >
             {ctaLabel}
           </Link>
