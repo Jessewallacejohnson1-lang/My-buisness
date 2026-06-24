@@ -30,7 +30,7 @@ export default function Error({
             Try again
           </button>
           <Link
-            href="/dashboard"
+            href="/community"
             className="border border-black/[0.09] text-ink-2 hover:text-ink px-6 py-3 rounded-xl text-sm transition-colors hover:bg-paper-100"
           >
             Home

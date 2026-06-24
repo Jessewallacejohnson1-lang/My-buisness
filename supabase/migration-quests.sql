@@ -8,9 +8,9 @@ drop policy if exists "submit events" on public.club_events;
 create policy "submit events" on public.club_events for insert with check (
   submitted_by = auth.uid()
 );
--- Note: status defaults to 'pending' at DB level but we insert 'approved' from the app.
--- The read policy already shows rows where submitted_by = auth.uid(), so the submitter
--- always sees their own event immediately.
+-- Note: the app inserts events with status='approved' (no moderation queue), so they
+-- appear in everyone's timeline immediately. This insert policy only verifies the
+-- submitter is the authed user; the existing read policy surfaces approved rows to all.
 
 -- daily_quests: one per day, set by admin
 create table if not exists public.daily_quests (
