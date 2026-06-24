@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   getTodayEvents,
+  getEventsByDate,
+  getMonthEventDates,
   rsvpEvent,
   unRsvpEvent,
   getCurrentUser,
@@ -221,7 +223,195 @@ function TimelineTab() {
 // ── Placeholder tabs (filled in later tasks) ──────────────────────────────────
 
 function CalendarTab() {
-  return <div style={{ padding: 24, fontFamily: 'var(--font-sans)', color: 'var(--color-ink-3)' }}>Calendar — coming in Task 5</div>
+  const today = new Date()
+  const [year, setYear] = useState(today.getFullYear())
+  const [month, setMonth] = useState(today.getMonth() + 1) // 1-indexed
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const [eventDates, setEventDates] = useState<Set<string>>(new Set())
+  const [dayEvents, setDayEvents] = useState<TimelineEvent[]>([])
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [loadingDays, setLoadingDays] = useState(true)
+  const [loadingEvents, setLoadingEvents] = useState(false)
+
+  useEffect(() => {
+    setLoadingDays(true)
+    getMonthEventDates(year, month)
+      .then((dates) => setEventDates(new Set(dates)))
+      .finally(() => setLoadingDays(false))
+  }, [year, month])
+
+  const selectDate = async (ymd: string) => {
+    setSelectedDate(ymd)
+    setSheetOpen(true)
+    setLoadingEvents(true)
+    const evs = await getEventsByDate(ymd).finally(() => setLoadingEvents(false))
+    setDayEvents(evs)
+  }
+
+  const handleRsvp = useCallback(async (id: string, rsvpd: boolean) => {
+    setDayEvents((prev) =>
+      prev.map((e) =>
+        e.id === id ? { ...e, rsvpd: !rsvpd, going_count: e.going_count + (rsvpd ? -1 : 1) } : e
+      )
+    )
+    try {
+      if (rsvpd) await unRsvpEvent(id)
+      else await rsvpEvent(id)
+    } catch {
+      setDayEvents((prev) =>
+        prev.map((e) =>
+          e.id === id ? { ...e, rsvpd, going_count: e.going_count + (rsvpd ? 1 : -1) } : e
+        )
+      )
+    }
+  }, [])
+
+  // Build month grid
+  const firstDay = new Date(year, month - 1, 1).getDay() // 0=Sun
+  const daysInMonth = new Date(year, month, 0).getDate()
+  const cells: (number | null)[] = [
+    ...Array(firstDay).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ]
+  // pad to complete weeks
+  while (cells.length % 7 !== 0) cells.push(null)
+
+  const monthLabel = new Date(year, month - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+  const todayYmd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+
+  return (
+    <div style={{ padding: '16px' }}>
+      {/* Month navigation */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <button
+          onClick={() => {
+            if (month === 1) { setYear(y => y - 1); setMonth(12) } else setMonth(m => m - 1)
+          }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 8, color: 'var(--color-ink-2)' }}
+          aria-label="Previous month"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6" /></svg>
+        </button>
+        <span className="font-sans" style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-ink)' }}>{monthLabel}</span>
+        <button
+          onClick={() => {
+            if (month === 12) { setYear(y => y + 1); setMonth(1) } else setMonth(m => m + 1)
+          }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 8, color: 'var(--color-ink-2)' }}
+          aria-label="Next month"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
+        </button>
+      </div>
+
+      {/* Day-of-week headers */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginBottom: 4 }}>
+        {['S','M','T','W','T','F','S'].map((d, i) => (
+          <div key={i} className="font-sans" style={{ textAlign: 'center', fontSize: 11, color: 'var(--color-ink-3)', padding: '4px 0', letterSpacing: '0.04em' }}>{d}</div>
+        ))}
+      </div>
+
+      {/* Calendar grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2, opacity: loadingDays ? 0.5 : 1, transition: 'opacity 0.2s' }}>
+        {cells.map((day, i) => {
+          if (!day) return <div key={i} />
+          const ymd = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+          const hasEvent = eventDates.has(ymd)
+          const isToday = ymd === todayYmd
+          const isSelected = ymd === selectedDate
+          return (
+            <button
+              key={i}
+              onClick={() => selectDate(ymd)}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 3,
+                padding: '8px 0',
+                borderRadius: 8,
+                border: 'none',
+                background: isSelected ? 'var(--color-moss-700)' : isToday ? 'var(--color-paper-100)' : 'transparent',
+                cursor: 'pointer',
+              }}
+            >
+              <span
+                className="font-sans"
+                style={{
+                  fontSize: 14,
+                  fontWeight: isToday ? 700 : 400,
+                  color: isSelected ? '#fff' : isToday ? 'var(--color-moss-700)' : 'var(--color-ink)',
+                }}
+              >
+                {day}
+              </span>
+              {hasEvent && (
+                <span style={{
+                  width: 4, height: 4, borderRadius: '50%',
+                  background: isSelected ? 'rgba(255,255,255,0.7)' : 'var(--color-moss-600)',
+                }} />
+              )}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Event sheet */}
+      {sheetOpen && selectedDate && (
+        <div
+          className="sheet-up"
+          style={{
+            position: 'fixed',
+            bottom: 0,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: '100%',
+            maxWidth: 480,
+            background: 'var(--color-paper)',
+            borderTop: '1px solid rgba(0,0,0,0.1)',
+            borderRadius: '16px 16px 0 0',
+            padding: '16px 16px max(16px, env(safe-area-inset-bottom))',
+            maxHeight: '60dvh',
+            overflowY: 'auto',
+            zIndex: 10,
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <span className="font-sans" style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-ink)' }}>
+              {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+            </span>
+            <button
+              onClick={() => setSheetOpen(false)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-ink-3)', padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              aria-label="Close"
+            >
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+                <line x1="3" y1="3" x2="15" y2="15" />
+                <line x1="15" y1="3" x2="3" y2="15" />
+              </svg>
+            </button>
+          </div>
+          {loadingEvents ? (
+            <p className="font-sans" style={{ color: 'var(--color-ink-3)', fontSize: 14 }}>Loading…</p>
+          ) : dayEvents.length === 0 ? (
+            <p className="font-sans" style={{ color: 'var(--color-ink-3)', fontSize: 14 }}>No events this day.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {dayEvents.map((e) => <EventCard key={e.id} event={e} onRsvp={handleRsvp} />)}
+            </div>
+          )}
+        </div>
+      )}
+      {/* Sheet backdrop */}
+      {sheetOpen && (
+        <div
+          onClick={() => setSheetOpen(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 9 }}
+        />
+      )}
+    </div>
+  )
 }
 function AddEventTab({ onSuccess }: { onSuccess: () => void }) {
   void onSuccess
