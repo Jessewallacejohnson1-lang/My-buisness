@@ -5,11 +5,13 @@ import {
   getTodayEvents,
   getEventsByDate,
   getMonthEventDates,
+  addEvent,
   rsvpEvent,
   unRsvpEvent,
   getCurrentUser,
   isAdminEmail,
   type TimelineEvent,
+  type NewEventInput,
 } from '@/lib/community'
 import { haptic } from '@/lib/haptics'
 
@@ -414,8 +416,121 @@ function CalendarTab() {
   )
 }
 function AddEventTab({ onSuccess }: { onSuccess: () => void }) {
-  void onSuccess
-  return <div style={{ padding: 24, fontFamily: 'var(--font-sans)', color: 'var(--color-ink-3)' }}>Add Event — coming in Task 6</div>
+  const todayYmd = (() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  })()
+  const [form, setForm] = useState<NewEventInput>({
+    title: '',
+    event_date: todayYmd,
+    start_time: '',
+    location: '',
+    description: '',
+  })
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const set = (field: keyof NewEventInput) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setForm((f) => ({ ...f, [field]: e.target.value }))
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!form.title.trim() || !form.event_date || !form.start_time.trim() || !form.location.trim()) {
+      setError('Title, date, time, and location are required.')
+      return
+    }
+    setError(null)
+    setSubmitting(true)
+    try {
+      await addEvent({ ...form, title: form.title.trim(), location: form.location.trim() })
+      haptic('success')
+      onSuccess()
+    } catch {
+      setError('Failed to add event. Try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const fieldStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '11px 13px',
+    borderRadius: 10,
+    border: '1.5px solid rgba(0,0,0,0.12)',
+    background: 'var(--color-paper)',
+    fontSize: 15,
+    color: 'var(--color-ink)',
+    fontFamily: 'var(--font-sans)',
+    outline: 'none',
+    boxSizing: 'border-box',
+  }
+  const labelStyle: React.CSSProperties = {
+    fontSize: 11,
+    color: 'var(--color-ink-3)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.06em',
+    marginBottom: 5,
+    display: 'block',
+    fontFamily: 'var(--font-sans)',
+  }
+
+  return (
+    <div style={{ padding: '20px 16px' }}>
+      <h2 className="font-sans" style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-ink)', marginBottom: 20 }}>
+        Add an Event
+      </h2>
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div>
+          <label style={labelStyle}>Title *</label>
+          <input style={fieldStyle} placeholder="Saturday Farmers Market" value={form.title} onChange={set('title')} />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div>
+            <label style={labelStyle}>Date *</label>
+            <input type="date" style={fieldStyle} value={form.event_date} onChange={set('event_date')} />
+          </div>
+          <div>
+            <label style={labelStyle}>Time *</label>
+            <input style={fieldStyle} placeholder="7am" value={form.start_time} onChange={set('start_time')} />
+          </div>
+        </div>
+        <div>
+          <label style={labelStyle}>Location *</label>
+          <input style={fieldStyle} placeholder="Riverside Park" value={form.location} onChange={set('location')} />
+        </div>
+        <div>
+          <label style={labelStyle}>Description</label>
+          <textarea
+            style={{ ...fieldStyle, minHeight: 80, resize: 'vertical' }}
+            placeholder="Tell people what to expect…"
+            value={form.description}
+            onChange={set('description')}
+          />
+        </div>
+        {error && (
+          <p className="font-sans" style={{ fontSize: 13, color: 'var(--color-clay-700)' }}>{error}</p>
+        )}
+        <button
+          type="submit"
+          disabled={submitting}
+          className="press"
+          style={{
+            padding: '13px',
+            borderRadius: 12,
+            border: 'none',
+            background: submitting ? 'var(--color-paper-200)' : 'var(--color-moss-700)',
+            color: submitting ? 'var(--color-ink-3)' : '#fff',
+            fontSize: 15,
+            fontWeight: 600,
+            cursor: submitting ? 'not-allowed' : 'pointer',
+            fontFamily: 'var(--font-sans)',
+          }}
+        >
+          {submitting ? 'Adding…' : 'Add Event'}
+        </button>
+      </form>
+    </div>
+  )
 }
 function QuestTab({ isAdmin }: { isAdmin: boolean }) {
   void isAdmin
