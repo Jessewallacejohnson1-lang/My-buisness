@@ -243,6 +243,7 @@ function CalendarTab() {
   const requestedDateRef = useRef<string | null>(null)
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoadingDays(true)
     getMonthEventDates(year, month)
       .then((dates) => setEventDates(new Set(dates)))

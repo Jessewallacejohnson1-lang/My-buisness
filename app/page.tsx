@@ -45,16 +45,6 @@ function IconPeople({ size = 20 }: { size?: number }) {
   )
 }
 
-function IconWalk({ size = 20 }: { size?: number }) {
-  return (
-    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor"
-      strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <circle cx="13" cy="4.5" r="1.5" />
-      <path d="M10 8.5l3-2 2.5 4-3.5 1.5-1 4.5M13 10.5l2.5 3M8.5 13l1.5-1.5" />
-      <path d="M9 18l1-3.5M15.5 18l-1-3" />
-    </svg>
-  )
-}
 
 // ─── event data (realistic St. Joe events — no RSVP counts) ──────────────────
 
@@ -168,7 +158,7 @@ export default async function Home() {
             </h1>
 
             <p className="font-sans text-lg leading-relaxed text-ink-2 max-w-[36ch] mb-8">
-              Hygge is a quiet place to see what's happening in St. Joe, join a neighbor for a walk,
+              Hygge is a quiet place to see what&rsquo;s happening in St. Joe, join a neighbor for a walk,
               and make the place you live feel a little smaller.
             </p>
 
@@ -308,7 +298,7 @@ export default async function Home() {
             </h2>
             <p className="font-sans text-sm leading-relaxed text-ink-2 max-w-[38ch]">
               Each morning, Hygge offers a single, quiet prompt — a short walk, a wave to someone
-              at the trail, a stop at the market. You mark it done when you're back. That's the whole thing.
+              at the trail, a stop at the market. You mark it done when you&rsquo;re back. That&rsquo;s the whole thing.
             </p>
           </Reveal>
 
@@ -324,7 +314,7 @@ export default async function Home() {
             >
               <div className="flex items-center justify-between mb-6">
                 <span className="font-sans text-[11px] uppercase tracking-[0.18em] text-ink-3">
-                  Today's quest
+                  Today&rsquo;s quest
                 </span>
                 <span className="font-sans text-[11px] text-ink-3">{new Date().toLocaleDateString('en-US', { weekday: 'long' })}</span>
               </div>
@@ -389,8 +379,8 @@ export default async function Home() {
                 letterSpacing: '-0.01em',
               }}
             >
-              "I built Hygge because none of the apps I tried felt like they were made
-              for anyone on my actual street."
+              &ldquo;I built Hygge because none of the apps I tried felt like they were made
+              for anyone on my actual street.&rdquo;
             </blockquote>
 
             <p
@@ -413,7 +403,7 @@ export default async function Home() {
             className="font-display text-3xl md:text-4xl leading-tight mb-4 max-w-[20ch]"
             style={{ color: 'var(--char-900)', fontWeight: 500, letterSpacing: '-0.015em' }}
           >
-            See what's happening<br />in your town.
+            See what&rsquo;s happening<br />in your town.
           </h2>
           <p className="font-sans text-sm text-ink-2 mb-8 max-w-[32ch]">
             Hygge is built for the people on your street — no global leaderboard, no feed to scroll.
