@@ -292,26 +292,136 @@ function TimelineTab() {
 
 // ── Calendar tab ─────────────────────────────────────────────────────────────
 
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+function MonthBlock({
+  year,
+  month,
+  eventDates,
+  selectedDate,
+  todayYmd,
+  onSelect,
+}: {
+  year: number
+  month: number
+  eventDates: Set<string>
+  selectedDate: string | null
+  todayYmd: string
+  onSelect: (d: string) => void
+}) {
+  const label = new Date(year, month - 1, 1).toLocaleDateString('en-US', { month: 'long' })
+  const firstDay = new Date(year, month - 1, 1).getDay()
+  const daysInMonth = new Date(year, month, 0).getDate()
+  const cells: (number | null)[] = [
+    ...Array(firstDay).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ]
+  while (cells.length % 7 !== 0) cells.push(null)
+
+  return (
+    <div style={{ marginBottom: 4 }}>
+      <h2 className="font-sans" style={{ fontSize: 28, fontWeight: 700, color: 'var(--color-ink)', letterSpacing: '-0.015em', margin: '24px 0 6px' }}>
+        {label}
+      </h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+        {cells.map((day, i) => {
+          if (!day) return <div key={i} />
+          const date = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+          const hasEvent = eventDates.has(date)
+          const isSelected = date === selectedDate
+          const isToday = date === todayYmd
+          const isPast = date < todayYmd
+          return (
+            <button
+              key={i}
+              onClick={() => onSelect(date)}
+              className="hygge-tap"
+              aria-label={`${label} ${day}${hasEvent ? ', has events' : ''}`}
+              style={{
+                position: 'relative',
+                height: 60,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 0,
+              }}
+            >
+              <span
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 46,
+                  height: 46,
+                  borderRadius: '50%',
+                  background: isSelected ? 'var(--color-moss-700)' : 'transparent',
+                  border: isToday && !isSelected ? '1.5px solid var(--color-moss-700)' : '1.5px solid transparent',
+                }}
+              >
+                <span
+                  className="font-sans"
+                  style={{
+                    fontSize: 19,
+                    fontWeight: 600,
+                    fontVariantNumeric: 'tabular-nums',
+                    color: isSelected ? 'var(--color-paper)' : isPast ? 'var(--color-ink-3)' : 'var(--color-ink)',
+                  }}
+                >
+                  {day}
+                </span>
+              </span>
+              <span
+                style={{
+                  position: 'absolute',
+                  bottom: 7,
+                  width: 5,
+                  height: 5,
+                  borderRadius: '50%',
+                  background: hasEvent && !isSelected ? 'var(--color-moss-600)' : 'transparent',
+                }}
+              />
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function CalendarTab() {
   const today = new Date()
-  const [year, setYear] = useState(today.getFullYear())
-  const [month, setMonth] = useState(today.getMonth() + 1) // 1-indexed
+  const todayYmd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [eventDates, setEventDates] = useState<Set<string>>(new Set())
   const [dayEvents, setDayEvents] = useState<TimelineEvent[]>([])
   const [sheetOpen, setSheetOpen] = useState(false)
-  const [loadingDays, setLoadingDays] = useState(true)
   const [loadingEvents, setLoadingEvents] = useState(false)
   const requestedDateRef = useRef<string | null>(null)
   const handleRsvp = useRsvpHandler(setDayEvents)
 
+  // 12 months starting from the current one.
+  const months = Array.from({ length: 12 }, (_, k) => {
+    const idx = today.getMonth() + k
+    return { year: today.getFullYear() + Math.floor(idx / 12), month: (idx % 12) + 1 }
+  })
+
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLoadingDays(true)
-    getMonthEventDates(year, month)
-      .then((dates) => setEventDates(new Set(dates)))
-      .finally(() => setLoadingDays(false))
-  }, [year, month])
+    let alive = true
+    Promise.all(
+      Array.from({ length: 12 }, (_, k) => {
+        const idx = today.getMonth() + k
+        const y = today.getFullYear() + Math.floor(idx / 12)
+        const m = (idx % 12) + 1
+        return getMonthEventDates(y, m).catch(() => [] as string[])
+      })
+    ).then((res) => { if (alive) setEventDates(new Set(res.flat())) })
+    return () => { alive = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const selectDate = async (ymd: string) => {
     setSelectedDate(ymd)
@@ -325,107 +435,44 @@ function CalendarTab() {
     }
   }
 
-  // Build month grid
-  const firstDay = new Date(year, month - 1, 1).getDay() // 0=Sun
-  const daysInMonth = new Date(year, month, 0).getDate()
-  const cells: (number | null)[] = [
-    ...Array(firstDay).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
-  ]
-  while (cells.length % 7 !== 0) cells.push(null)
-
-  const monthLabel = new Date(year, month - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-  const todayYmd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-
-  const chevron = (dir: 'prev' | 'next') => (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <polyline points={dir === 'prev' ? '15 18 9 12 15 6' : '9 18 15 12 9 6'} />
-    </svg>
-  )
-
   return (
-    <div style={{ padding: '20px 18px' }}>
-      {/* Month navigation */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-        <h1 className="font-display" style={{ fontSize: 22, color: 'var(--color-ink)' }}>{monthLabel}</h1>
-        <div style={{ display: 'flex', gap: 2 }}>
-          <button
-            onClick={() => { if (month === 1) { setYear((y) => y - 1); setMonth(12) } else setMonth((m) => m - 1) }}
-            className="press hygge-tap"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 8, color: 'var(--color-ink-2)' }}
-            aria-label="Previous month"
-          >
-            {chevron('prev')}
-          </button>
-          <button
-            onClick={() => { if (month === 12) { setYear((y) => y + 1); setMonth(1) } else setMonth((m) => m + 1) }}
-            className="press hygge-tap"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 8, color: 'var(--color-ink-2)' }}
-            aria-label="Next month"
-          >
-            {chevron('next')}
-          </button>
-        </div>
-      </div>
+    <div style={{ padding: '4px 20px 0' }}>
+      <h1 className="font-sans" style={{ fontSize: 28, fontWeight: 700, color: 'var(--color-ink)', letterSpacing: '-0.02em', margin: '16px 0 18px', lineHeight: 1.1 }}>
+        What&rsquo;s coming up?
+      </h1>
 
-      {/* Day-of-week headers */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginBottom: 6 }}>
-        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
-          <div key={i} className="font-sans" style={{ textAlign: 'center', fontSize: 11, color: 'var(--color-ink-3)', padding: '2px 0', letterSpacing: '0.04em' }}>{d}</div>
+      {/* Pinned weekday header */}
+      <div
+        style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 2,
+          background: 'var(--color-paper)',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(7, 1fr)',
+          paddingTop: 6,
+          paddingBottom: 6,
+        }}
+      >
+        {WEEKDAYS.map((d) => (
+          <div key={d} className="font-sans" style={{ textAlign: 'center', fontSize: 13, fontWeight: 600, color: 'var(--color-ink)' }}>
+            {d}
+          </div>
         ))}
       </div>
 
-      {/* Calendar grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2, opacity: loadingDays ? 0.5 : 1, transition: 'opacity 0.2s' }}>
-        {cells.map((day, i) => {
-          if (!day) return <div key={i} />
-          const ymd = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-          const hasEvent = eventDates.has(ymd)
-          const isToday = ymd === todayYmd
-          const isSelected = ymd === selectedDate
-          return (
-            <button
-              key={i}
-              onClick={() => selectDate(ymd)}
-              className="hygge-tap"
-              aria-label={`${monthLabel} ${day}${hasEvent ? ', has events' : ''}`}
-              style={{
-                position: 'relative',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 4,
-                padding: '9px 0 7px',
-                borderRadius: 10,
-                border: isToday && !isSelected ? '1px solid rgba(0,0,0,0.18)' : '1px solid transparent',
-                background: isSelected ? 'var(--color-ink)' : 'transparent',
-                cursor: 'pointer',
-              }}
-            >
-              <span
-                className="font-mono"
-                style={{
-                  fontSize: 14,
-                  fontVariantNumeric: 'tabular-nums',
-                  fontWeight: isToday || isSelected ? 600 : 400,
-                  color: isSelected ? 'var(--color-paper)' : 'var(--color-ink)',
-                }}
-              >
-                {day}
-              </span>
-              <span
-                style={{
-                  width: 4,
-                  height: 4,
-                  borderRadius: '50%',
-                  background: hasEvent ? (isSelected ? 'var(--color-paper)' : 'var(--color-moss-600)') : 'transparent',
-                }}
-              />
-            </button>
-          )
-        })}
-      </div>
+      {months.map((m) => (
+        <MonthBlock
+          key={`${m.year}-${m.month}`}
+          year={m.year}
+          month={m.month}
+          eventDates={eventDates}
+          selectedDate={selectedDate}
+          todayYmd={todayYmd}
+          onSelect={selectDate}
+        />
+      ))}
+      <div style={{ height: 24 }} />
 
       {/* Event sheet */}
       {sheetOpen && selectedDate && (
