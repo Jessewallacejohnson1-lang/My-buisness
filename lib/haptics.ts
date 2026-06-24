@@ -7,9 +7,9 @@
 type HapticKind = 'tap' | 'select' | 'success' | 'warn' | 'error'
 
 const PATTERNS: Record<HapticKind, number | number[]> = {
-  tap: 8, // light confirm — adding a food, pressing a primary button
-  select: 12, // toggling a choice — meal picker, portion preset
-  success: [14, 40, 24], // a goal closed, a workout done
+  tap: 8, // light confirm — switching tabs, pressing a primary button
+  select: 12, // toggling a choice — RSVP, calendar day
+  success: [14, 40, 24], // an event added, a quest marked done
   warn: [20, 30, 20],
   error: [40, 30, 40],
 }
