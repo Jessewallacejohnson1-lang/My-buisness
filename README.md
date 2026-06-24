@@ -1,7 +1,8 @@
-# Korina
+# Hygge Health
 
 Nutrition-first fitness tracker. Every food you log is scored 1–100 on how clean it is,
 every workout counts, and daily habits turn into growth rings you can watch fill.
+Built for Saint Joseph, MN — the people on your street.
 
 Built with Next.js (App Router), TypeScript, Tailwind CSS v4, and Supabase.
 

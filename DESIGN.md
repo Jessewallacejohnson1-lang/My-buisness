@@ -1,12 +1,12 @@
-# Korina Design System
+# Hygge Design System
 
-> Named for *korina* (white limba), the pale blonde tonewood: warm white surfaces, near-black ink, color reserved for data and meaning only.
+> Named for *hygge* (Danish, pron. "hoo-guh"): coziness, warmth, togetherness. Warm white surfaces, near-black ink, color reserved for data and meaning only.
 
 ---
 
 ## Philosophy
 
-Korina's UI does one thing: get out of the way of the data. The design is calm, minimal, and warm — never cold or clinical. Color is semantic, not decorative. Every hue carries a specific meaning and should never be used outside of it.
+Hygge's UI does one thing: get out of the way of the data. The design is calm, minimal, and warm — never cold or clinical. Color is semantic, not decorative. Every hue carries a specific meaning and should never be used outside of it.
 
 The three rules:
 1. **White first.** The default surface is paper-white. Tints and cards lift from it.

@@ -42,7 +42,7 @@ export default function GlobalError({
           </p>
           <h1 style={{ fontSize: 24, marginBottom: 8 }}>The app crashed</h1>
           <p style={{ fontSize: 14, color: '#5e5d56', lineHeight: 1.6, marginBottom: 24 }}>
-            Something went wrong loading Hygge Health. Reload to get back in.
+            Something went wrong loading Hygge. Reload to get back in.
           </p>
           <button
             onClick={reset}
