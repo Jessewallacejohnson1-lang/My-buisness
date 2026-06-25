@@ -6,7 +6,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Hygge** — a hyper-local community app for the real town of **St. Joseph, MN**. One calm place for everything happening in town: a daily timeline of local events, a shared calendar anyone can add to, and a daily quest that nudges neighbors to get out and connect.
 
-Built with Next.js (App Router), TypeScript, Tailwind CSS v4, and Supabase.
+A **monorepo** (npm workspaces) with two front-ends over one shared core:
+- **`apps/mobile`** — the real product: an Expo / React Native app (Expo Router,
+  NativeWind) that ships to the App Store **and** renders as the website on web.
+  **This is the active codebase — work here.**
+- **`apps/web`** — the original Next.js (App Router) site, kept as `legacy-web`,
+  not actively edited. The live website is now served from the Expo web build
+  (`npm run site:build` → `apps/mobile/dist`, see `vercel.json`).
+- **`packages/core`** (`@hygge/core`) — client-agnostic Supabase queries/types
+  shared by both via `createCommunityApi(supabase)`.
+
+Built with TypeScript, Tailwind CSS v4 (web) / NativeWind (mobile), and Supabase.
+The Expo app is both the iPhone app and the web front door, so one change ships
+everywhere — don't maintain screens in two places.
 
 ## Product & principles
 
@@ -20,65 +32,88 @@ The whole app is the **St. Joe community experience** (`/community`). Its core j
 
 ## Commands
 
+Run from the repo root (npm workspaces):
+
 ```bash
-npm run dev       # Start development server (localhost:3000)
-npm run build     # Production build
-npm run lint      # Run ESLint
+npm run mobile        # Expo dev server — run on iPhone (Expo Go) or simulator
+npm run site          # the website locally (Expo app on web, ~localhost:19006)
+npm run site:build    # production web build → apps/mobile/dist (what Vercel deploys)
+npm run legacy-web     # the old Next.js site (reference only)
+
+# inside apps/mobile:
+npx tsc --noEmit -p tsconfig.json   # typecheck
+npx expo export --platform web      # bundle-verify the whole app device-free
 ```
 
-## Environment (`.env.local`)
+**Verify on-device by bundling.** `npx expo export --platform web` (or `--platform
+ios`) compiles the entire app and surfaces errors without a phone — the fastest
+proof a change is sound when no simulator/device is attached.
 
-```
-NEXT_PUBLIC_SUPABASE_URL=...
-NEXT_PUBLIC_SUPABASE_ANON_KEY=...
-```
+## Environment
+
+- **`apps/mobile/.env`** — `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+- **`apps/web/.env.local`** — `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
 ## Architecture
 
-### Routes
+The active app is **`apps/mobile`** (Expo Router, file-based routes under
+`src/app/`). It runs natively on iOS and renders the same screens on web.
 
-| Route | Notes |
-|---|---|
-| `/` | Marketing landing — server component, session-aware, uses `.grain` texture. Signed-in CTA → `/community`, signed-out → `/login` |
-| `/login` | Auth form (email + password, confirmation ON) |
-| `/auth/callback` | Exchanges email-confirmation code for a session |
-| `/community` | The entire app — auth-gated, a 4-tab mobile-first client experience |
+### Routes (`apps/mobile/src/app/`)
 
-### The `/community` app
+| Route | File | Notes |
+|---|---|---|
+| `/` | `index.tsx` | Marketing landing (ported from the old web site). Signed-out land here → tap to `/login`; the auth gate routes signed-in users to the tabs. |
+| `/login` | `login.tsx` | Auth form (email + password, confirmation ON), Log in / Sign up toggle. |
+| `/(tabs)` | `(tabs)/` | The app — auth-gated, a 5-tab mobile experience. |
 
-A single client component (`app/community/page.tsx`) with a fixed bottom tab bar of four tabs:
+`_layout.tsx` loads fonts, wraps everything in `AuthProvider`, keeps the Supabase
+session fresh on `AppState` change, and runs the **auth gate** (`RootNav`):
+signed-out + in tabs → `/login`; signed-in + outside tabs → `/(tabs)`.
 
-- **Timeline** (default) — today's events in chronological order, each with an optimistic RSVP toggle and a live going-count.
-- **Calendar** — month grid with a dot on days that have events; tapping a day opens a `.sheet-up` panel of that day's events (reuses the same event card).
-- **Add Event** — anyone signed in can post (title, date, time, location required; description optional). No moderation queue — events insert as `approved` and appear immediately.
-- **Quest** — today's quest with a live "X people completed" count and a one-tap-per-day Done button. Admin (gated by email) gets a form to set a quest for any date.
+### The tabs (`apps/mobile/src/app/(tabs)/`)
 
-Icons are inline `<svg>` defined in-file; there is no shared component/icon module and no emoji.
+A custom frosted `TabBar` (BlurView) over five screens:
 
-### Key components (`app/components/`)
+- **`index`** (Home/Timeline) — masthead, glass search/account circles, real-photo
+  `WeatherBar` (Ken-Burns drift), auto-scrolling `AroundTown` carousel, today's events.
+- **`clubs`** — view/search/join real clubs; tap a card for a slide-up detail sheet
+  (when/where/about/what-to-expect); a Start-a-club form. **No seeded/sample clubs.**
+- **`calendar`** — vertical scrolling multi-month calendar; a fixed Sun–Sat weekday row.
+- **`add`** — anyone signed in posts an event (title/date/time/location required,
+  description + a real **photo upload** optional via `expo-image-picker`).
+- **`quest`** — today's quest with a live completion count + one-tap-per-day Done;
+  admin (gated by email) can set a quest for any date.
 
-- **`Reveal`** — `IntersectionObserver` scroll entrance for the marketing landing; respects `prefers-reduced-motion`.
+Icons are inline `react-native-svg` in `src/components/icons.tsx` — no emoji.
 
-### Lib layer (`lib/`)
+### Shared core (`packages/core`, `@hygge/core`)
 
-- **`community.ts`** — all event / RSVP / calendar / quest DB helpers. `ADMIN_EMAIL` / `isAdminEmail()` gate admin actions; `firstNameFromEmail()` derives display names from email local-parts; `currentUserId()` is the shared auth helper. Key helpers: `getTodayEvents`, `getEventsByDate`, `getMonthEventDates`, `addEvent`, `rsvpEvent`/`unRsvpEvent`, `getTodayQuest`, `getQuestCompletionCount`, `hasUserCompletedQuest`, `completeQuest`, `setQuest`. (Club helpers remain for future use.)
-- **`db.ts`** — `localDate()` only. **Always use `localDate()`, never `toISOString()`** — dates are user-timezone so an evening event stays on today.
-- **`haptics.ts`** — thin wrapper for `navigator.vibrate`; `haptic(kind)` where kind is `'tap' | 'select' | 'success' | 'warn' | 'error'`.
-- **`supabase/client.ts`** — browser Supabase client for `'use client'` components.
-- **`supabase/server.ts`** — server Supabase client for RSC and route handlers.
+`createCommunityApi(supabase)` returns all event / RSVP / calendar / quest / club
+helpers — **client-agnostic**, so web and mobile pass their own Supabase client.
+`isAdminEmail()` gates admin actions; types live in `src/types.ts`. Mobile binds
+it once in `src/lib/api.ts`. **Always derive dates with `localDate()`, never
+`toISOString()`** — dates are user-timezone so an evening event stays on today.
 
-### Auth & middleware
+### Mobile lib (`apps/mobile/src/lib/`)
 
-- **`proxy.ts`** (≡ `middleware.ts`) — refreshes the session and gates `/community` behind `/login`. The file is named `proxy.ts` because Next 16 renamed the middleware convention.
+- **`supabase.ts`** — browser/native Supabase client; session persisted via
+  `AsyncStorage` (not SecureStore — 2 KB limit).
+- **`auth.tsx`** — `AuthProvider` / `useAuth` (`session`, `signIn/signUp/signOut`).
+- **`uploadImage.ts`** — `uploadEventImage()` → the `event-images` storage bucket.
+- **`theme.ts`** — JS tokens (`C` colors, `F` fonts, `HAIRLINE`) + the bundled
+  weather / around-town image maps. Mirrors `tailwind.config.js`.
 
 ### Database (Supabase)
 
 Run migrations once in the Supabase SQL editor, in order:
 
-1. `supabase/migration-community.sql` — `clubs`, `club_members`, `club_events`, `event_rsvps`, the `is_admin()` function, and per-table RLS
+1. `supabase/migration-community.sql` — `clubs`, `club_members`, `club_events`, `event_rsvps`, the `is_admin()` function, and per-table RLS. **No seed data** — clubs/events are real only.
 2. `supabase/migration-quests.sql` — adds `location`/`description` to `club_events`, opens event submission to all signed-in users, and creates `daily_quests` + `quest_completions` with RLS
+3. `supabase/migration-event-images.sql` — `image_url` on `club_events` + the public `event-images` storage bucket and its policies
+4. `supabase/migration-clubs-detail.sql` — deletes any previously-seeded sample clubs and adds `location`/`description`/`expectations` to `clubs`
 
-All tables have RLS. Reads of events/quests are public to signed-in users; writes are scoped to `auth.uid()` (and quest authoring to `is_admin()`).
+All tables have RLS. Reads of events/quests are public to signed-in users; writes are scoped to `auth.uid()` (and quest authoring to `is_admin()`). **Never add seed/sample rows** — real residents create real clubs and events.
 
 ---
 
@@ -135,10 +170,17 @@ All animation durations collapse to `0.01ms` under `prefers-reduced-motion`.
 
 ## Stack
 
-- **Next.js 16** (App Router) — `cookies()` is async; middleware file is `proxy.ts` not `middleware.ts`
-- **TypeScript**, **Tailwind CSS v4** — CSS-based config via `@theme`, no `tailwind.config` file
-- **Supabase** — auth (email+password, confirmation ON) + Postgres, all tables have RLS
-- Read `node_modules/next/dist/docs/` before writing Next.js code — this version may differ from training data.
+- **Mobile (active):** Expo SDK 54 + React Native 0.81 + Expo Router 6, **NativeWind 4**
+  (Tailwind for RN) — tokens in `apps/mobile/tailwind.config.js`. `react-native-reanimated`
+  (needs the `react-native-worklets/plugin` Babel plugin), `react-native-svg`, `expo-blur`,
+  `expo-image`, `expo-image-picker`, `expo-haptics`. Pin React to `19.1.0` across the workspace
+  so RN hoists; installs need `--legacy-peer-deps`. App Store target is the goal (EAS build).
+- **Web:** the Expo app builds to a web SPA (`output: "single"` in `app.json`). `apps/web` is
+  the legacy **Next.js 16** site (App Router; `cookies()` async; middleware is `proxy.ts`) —
+  reference only.
+- **Shared:** **TypeScript**, **Supabase** — auth (email+password, confirmation ON) + Postgres,
+  all tables have RLS.
+- Verify changes with `npx expo export --platform web` (bundles the whole app, no device needed).
 
 ## Plugins
 
