@@ -39,6 +39,7 @@ function RootNav() {
 
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: C.paper } }}>
+      <Stack.Screen name="index" />
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="login" />
     </Stack>
