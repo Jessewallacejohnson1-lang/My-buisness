@@ -283,6 +283,16 @@ body {
 }
 .burst-fade { animation: burstFade 0.9s ease-out forwards; }
 
+/* ── Weather backdrop — real photo, slow Ken-Burns drift ───────────────────── */
+/* A live-condition photo sits behind the weather bar and drifts/zooms slowly so */
+/* it feels alive without demanding attention. Under prefers-reduced-motion it    */
+/* collapses to a still frame.                                                    */
+@keyframes wxKen {
+  0%   { transform: scale(1.06) translate(0, 0); }
+  100% { transform: scale(1.16) translate(-2.5%, -2%); }
+}
+.wx-ken { animation: wxKen 30s ease-in-out infinite alternate; transform-origin: 60% 50%; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

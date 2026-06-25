@@ -1,7 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# dependencies
-/node_modules
+# dependencies (root + every workspace in the monorepo)
+node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -13,9 +13,11 @@
 # testing
 /coverage
 
-# next.js
-/.next/
+# next.js / expo build output (any workspace)
+.next/
 /out/
+.expo/
+apps/web/public/sw.js
 
 # production
 /build

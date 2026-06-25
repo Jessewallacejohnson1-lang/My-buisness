@@ -83,6 +83,16 @@ legitimate allowance become an excuse to leave real gaps unfixed.
   or a default, the reference wins — unless it also conflicts with the project's
   design system, in which case surface the tension to the user rather than
   silently picking one.
+- **Match the content, not the capture artifacts.** Your screenshot may include a
+  framework dev overlay, browser chrome, a scrollbar, or a focus ring; the
+  reference may include a phone status bar, a browser toolbar, or a cursor. None
+  of those are the design. Ignore them — don't burn rounds trying to reproduce a
+  Next.js dev badge or a macOS scrollbar.
+- **A compressed screenshot lies about exact values.** Screenshots are great for
+  layout, structure, and "does this read the same," but JPEG compression and scaling
+  make them unreliable for an exact hex color or a 1px size. When a color or size
+  needs to be precise, read the computed style with an inspector rather than trusting
+  the pixels in the image.
 
 ## Animations and live graphics
 
