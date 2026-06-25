@@ -62,7 +62,7 @@ export default function Add() {
             <View style={{ flex: 1 }}><Field label="Date" value={form.event_date} onChangeText={set('event_date')} placeholder="2026-06-25" autoCapitalize="none" /></View>
             <View style={{ flex: 1 }}><Field label="Time" value={form.start_time} onChangeText={set('start_time')} placeholder="7am" /></View>
           </View>
-          <View style={{ marginTop: 16 }}><Field label="Location" value={form.location} onChangeText={set('location')} placeholder="Millstream Park" /></View>
+          <View style={{ marginTop: 16 }}><Field label="Location · opens in Maps" value={form.location} onChangeText={set('location')} placeholder="Place or full address, St. Joseph, MN" /></View>
           <View style={{ marginTop: 16 }}>
             <Field label="Description · optional" value={form.description ?? ''} onChangeText={set('description')} placeholder="Tell people what to expect…" multiline />
           </View>

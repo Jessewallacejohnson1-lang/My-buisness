@@ -4,7 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import * as Haptics from 'expo-haptics'
 import { localDate, type ClubView, type NewEventInput } from '@hygge/core'
 import { api } from '../../lib/api'
-import { SearchIcon, PlusIcon, CloseIcon } from '../../components/icons'
+import { SearchIcon, PlusIcon, CloseIcon, PinIcon } from '../../components/icons'
+import { openInMaps, copyAddress } from '../../lib/maps'
 import { C, F, HAIRLINE } from '../../theme'
 
 export default function Clubs() {
@@ -104,7 +105,7 @@ export default function Clubs() {
               <CField label="Name" value={name} onChangeText={setName} placeholder="Tuesday Trail Walkers" />
               <CField label="Host" value={host} onChangeText={setHost} placeholder="Your name" />
               <CField label="When" value={schedule} onChangeText={setSchedule} placeholder="Tuesdays, 6pm" />
-              <CField label="Where" value={location} onChangeText={setLocation} placeholder="Millstream Park trailhead" />
+              <CField label="Where · opens in Maps" value={location} onChangeText={setLocation} placeholder="Place or full address, St. Joseph, MN" />
               <CField label="Vibe · short" value={vibe} onChangeText={setVibe} placeholder="Easygoing, all paces welcome" />
               <CField label="About" value={description} onChangeText={setDescription} placeholder="What the club is, who it's for…" multiline />
               <CField label="What to expect / bring" value={expectations} onChangeText={setExpectations} placeholder="Good shoes, water, ~3 miles at a chatty pace" multiline />
@@ -182,7 +183,16 @@ function ClubDetail({ club, onClose, onToggleJoin }: { club: ClubView | null; on
               {/* meta rows */}
               <View style={{ marginTop: 18, gap: 12 }}>
                 {!!club.schedule && <MetaRow label="When" value={club.schedule} mono />}
-                {!!club.location && <MetaRow label="Where" value={club.location} />}
+                {!!club.location && (
+                  <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 12 }}>
+                    <Text style={{ width: 78, fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1, textTransform: 'uppercase' }}>Where</Text>
+                    <Pressable onPress={() => openInMaps(club.location!)} onLongPress={() => copyAddress(club.location!)}
+                      style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                      <PinIcon size={13} color={C.sky600} />
+                      <Text style={{ flex: 1, fontFamily: F.sans, fontSize: 14, color: C.sky600, textDecorationLine: 'underline' }}>{club.location}</Text>
+                    </Pressable>
+                  </View>
+                )}
                 <MetaRow label="Members" value={`${club.member_count} ${club.member_count === 1 ? 'neighbor' : 'neighbors'}`} mono />
               </View>
 
@@ -198,7 +208,7 @@ function ClubDetail({ club, onClose, onToggleJoin }: { club: ClubView | null; on
                 <Text style={{ fontFamily: F.sansSemi, fontSize: 15, color: club.joined ? C.paper : C.ink }}>{club.joined ? 'Joined — tap to leave' : 'Join this club'}</Text>
               </Pressable>
 
-              <ClubEventComposer clubId={club.id} clubName={club.name} />
+              <ClubEventComposer clubId={club.id} />
             </ScrollView>
           )}
         </Pressable>
@@ -208,7 +218,7 @@ function ClubDetail({ club, onClose, onToggleJoin }: { club: ClubView | null; on
 }
 
 /** Post an event tied to this club — it lands on the Timeline & Calendar tagged with the club. */
-function ClubEventComposer({ clubId, clubName }: { clubId: string; clubName: string }) {
+function ClubEventComposer({ clubId }: { clubId: string }) {
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<NewEventInput>({ title: '', event_date: localDate(), start_time: '', location: '', description: '' })
   const [saving, setSaving] = useState(false)
@@ -219,7 +229,7 @@ function ClubEventComposer({ clubId, clubName }: { clubId: string; clubName: str
     if (!form.title.trim() || !form.event_date || !form.start_time?.trim()) { setMsg('Add a title, date, and time.'); return }
     setSaving(true); setMsg(null)
     try {
-      await api.addEvent({ ...form, title: form.title.trim(), location: form.location?.trim() || `${clubName}` }, clubId)
+      await api.addEvent({ ...form, title: form.title.trim(), location: form.location.trim() }, clubId)
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
       setForm({ title: '', event_date: localDate(), start_time: '', location: '', description: '' })
       setOpen(false)
@@ -246,7 +256,7 @@ function ClubEventComposer({ clubId, clubName }: { clubId: string; clubName: str
             <View style={{ flex: 1 }}><CField label="Date" value={form.event_date} onChangeText={set('event_date')} placeholder={localDate()} autoCapitalize="none" /></View>
             <View style={{ flex: 1 }}><CField label="Time" value={form.start_time ?? ''} onChangeText={set('start_time')} placeholder="7am" /></View>
           </View>
-          <CField label="Where" value={form.location ?? ''} onChangeText={set('location')} placeholder="Millstream Park" />
+          <CField label="Where · opens in Maps" value={form.location ?? ''} onChangeText={set('location')} placeholder="Place or full address, St. Joseph, MN" />
           {msg && <Text style={{ fontFamily: F.sans, fontSize: 13, color: msg.includes('Could not') ? C.clay700 : C.moss700 }}>{msg}</Text>}
           <Pressable onPress={post} disabled={saving}
             style={({ pressed }) => ({ paddingVertical: 12, borderRadius: 10, backgroundColor: C.moss700, alignItems: 'center', opacity: pressed ? 0.85 : 1 })}>

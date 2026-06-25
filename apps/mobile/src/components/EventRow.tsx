@@ -1,7 +1,8 @@
 import { Pressable, Text, View } from 'react-native'
 import type { TimelineEvent } from '@hygge/core'
 import { C, F, HAIRLINE } from '../theme'
-import { CheckIcon } from './icons'
+import { CheckIcon, PinIcon } from './icons'
+import { openInMaps, copyAddress } from '../lib/maps'
 
 /** Printed-paper agenda row (mirrors the web EventRow). */
 export function EventRow({
@@ -33,7 +34,14 @@ export function EventRow({
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={{ fontFamily: F.sansSemi, fontSize: 15, color: C.ink, lineHeight: 20 }}>{event.title}</Text>
         {!!event.location && (
-          <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.ink2, marginTop: 2 }}>{event.location}</Text>
+          <Pressable
+            onPress={() => openInMaps(event.location!)}
+            onLongPress={() => copyAddress(event.location!)}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3, alignSelf: 'flex-start' }}
+          >
+            <PinIcon size={12} color={C.sky600} />
+            <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.sky600, textDecorationLine: 'underline' }}>{event.location}</Text>
+          </Pressable>
         )}
         <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 7 }}>
           {!!event.club_name && (

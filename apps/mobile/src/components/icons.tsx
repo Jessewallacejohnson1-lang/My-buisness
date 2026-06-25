@@ -118,3 +118,12 @@ export function PlusIcon({ size = 14, color = C.ink2 }: { size?: number; color?:
     </Svg>
   )
 }
+
+export function PinIcon({ size = 13, color = C.sky600 }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path d="M12 21c4-4.5 7-7.6 7-11a7 7 0 1 0-14 0c0 3.4 3 6.5 7 11Z" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+      <Circle cx={12} cy={10} r={2.4} fill="none" stroke={color} strokeWidth={1.8} />
+    </Svg>
+  )
+}
