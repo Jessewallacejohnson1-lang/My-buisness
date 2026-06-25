@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator, Modal, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import * as Haptics from 'expo-haptics'
-import type { ClubView } from '@hygge/core'
+import { localDate, type ClubView, type NewEventInput } from '@hygge/core'
 import { api } from '../../lib/api'
 import { SearchIcon, PlusIcon, CloseIcon } from '../../components/icons'
 import { C, F, HAIRLINE } from '../../theme'
@@ -197,11 +197,65 @@ function ClubDetail({ club, onClose, onToggleJoin }: { club: ClubView | null; on
                 style={({ pressed }) => ({ marginTop: 26, paddingVertical: 15, borderRadius: 12, alignItems: 'center', borderWidth: 1.5, borderColor: club.joined ? 'transparent' : 'rgba(0,0,0,0.14)', backgroundColor: club.joined ? C.moss700 : 'transparent', opacity: pressed ? 0.85 : 1 })}>
                 <Text style={{ fontFamily: F.sansSemi, fontSize: 15, color: club.joined ? C.paper : C.ink }}>{club.joined ? 'Joined — tap to leave' : 'Join this club'}</Text>
               </Pressable>
+
+              <ClubEventComposer clubId={club.id} clubName={club.name} />
             </ScrollView>
           )}
         </Pressable>
       </Pressable>
     </Modal>
+  )
+}
+
+/** Post an event tied to this club — it lands on the Timeline & Calendar tagged with the club. */
+function ClubEventComposer({ clubId, clubName }: { clubId: string; clubName: string }) {
+  const [open, setOpen] = useState(false)
+  const [form, setForm] = useState<NewEventInput>({ title: '', event_date: localDate(), start_time: '', location: '', description: '' })
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+  const set = (k: keyof NewEventInput) => (v: string) => setForm((f) => ({ ...f, [k]: v }))
+
+  const post = async () => {
+    if (!form.title.trim() || !form.event_date || !form.start_time?.trim()) { setMsg('Add a title, date, and time.'); return }
+    setSaving(true); setMsg(null)
+    try {
+      await api.addEvent({ ...form, title: form.title.trim(), location: form.location?.trim() || `${clubName}` }, clubId)
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+      setForm({ title: '', event_date: localDate(), start_time: '', location: '', description: '' })
+      setOpen(false)
+      setMsg('Posted! It’s on the timeline now.')
+    } catch {
+      setMsg('Could not post — try again.')
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <View style={{ marginTop: 22, paddingTop: 18, borderTopWidth: 1, borderTopColor: HAIRLINE }}>
+      <Pressable onPress={() => { Haptics.selectionAsync(); setOpen((o) => !o); setMsg(null) }}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <View style={{ width: 24, height: 24, borderRadius: 7, backgroundColor: C.paper100, alignItems: 'center', justifyContent: 'center' }}>
+          <PlusIcon />
+        </View>
+        <Text style={{ fontFamily: F.sansMed, fontSize: 14, color: C.ink2 }}>{open ? 'Close' : 'Add an event for this club'}</Text>
+      </Pressable>
+
+      {open && (
+        <View style={{ marginTop: 12, gap: 10 }}>
+          <CField label="Title" value={form.title} onChangeText={set('title')} placeholder="Saturday morning run" />
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <View style={{ flex: 1 }}><CField label="Date" value={form.event_date} onChangeText={set('event_date')} placeholder={localDate()} autoCapitalize="none" /></View>
+            <View style={{ flex: 1 }}><CField label="Time" value={form.start_time ?? ''} onChangeText={set('start_time')} placeholder="7am" /></View>
+          </View>
+          <CField label="Where" value={form.location ?? ''} onChangeText={set('location')} placeholder="Millstream Park" />
+          {msg && <Text style={{ fontFamily: F.sans, fontSize: 13, color: msg.includes('Could not') ? C.clay700 : C.moss700 }}>{msg}</Text>}
+          <Pressable onPress={post} disabled={saving}
+            style={({ pressed }) => ({ paddingVertical: 12, borderRadius: 10, backgroundColor: C.moss700, alignItems: 'center', opacity: pressed ? 0.85 : 1 })}>
+            <Text style={{ fontFamily: F.sansSemi, fontSize: 14, color: C.paper }}>{saving ? 'Posting…' : 'Post event'}</Text>
+          </Pressable>
+        </View>
+      )}
+      {!open && msg && <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.moss700, marginTop: 10 }}>{msg}</Text>}
+    </View>
   )
 }
 

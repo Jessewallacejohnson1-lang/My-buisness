@@ -36,6 +36,8 @@ export type TimelineEvent = {
   location: string | null
   going_count: number
   rsvpd: boolean
+  /** name of the club this event belongs to, or null for a plain town event */
+  club_name: string | null
   /** event belongs to a club the viewer has joined */
   from_joined_club: boolean
 }

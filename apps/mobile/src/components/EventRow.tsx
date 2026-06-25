@@ -35,7 +35,15 @@ export function EventRow({
         {!!event.location && (
           <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.ink2, marginTop: 2 }}>{event.location}</Text>
         )}
-        <Text style={{ fontFamily: F.mono, fontSize: 11, color: C.ink3, marginTop: 7 }}>{event.going_count} going</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 7 }}>
+          {!!event.club_name && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 11, backgroundColor: event.from_joined_club ? 'rgba(45,69,48,0.10)' : C.paper100 }}>
+              {event.from_joined_club && <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: C.moss700 }} />}
+              <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: event.from_joined_club ? C.moss700 : C.ink2 }}>{event.club_name}</Text>
+            </View>
+          )}
+          <Text style={{ fontFamily: F.mono, fontSize: 11, color: C.ink3 }}>{event.going_count} going</Text>
+        </View>
       </View>
 
       <Pressable

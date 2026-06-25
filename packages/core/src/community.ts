@@ -83,7 +83,7 @@ export function createCommunityApi(supabase: SupabaseClient, adminEmail = DEFAUL
     const uid = await currentUserId()
     const today = localDate()
     const { data: events, error } = await supabase
-      .from('club_events').select('*').eq('status', 'approved').eq('event_date', today).order('start_time', { ascending: true })
+      .from('club_events').select('*, clubs(name)').eq('status', 'approved').eq('event_date', today).order('start_time', { ascending: true })
     if (error) throw error
     const ids = (events ?? []).map((e) => e.id)
     const counts = new Map<string, number>()
@@ -103,6 +103,7 @@ export function createCommunityApi(supabase: SupabaseClient, adminEmail = DEFAUL
     return (events ?? []).map((e) => ({
       id: e.id, title: e.title, start_time: e.start_time, location: e.location ?? null,
       going_count: counts.get(e.id) ?? 0, rsvpd: mine.has(e.id),
+      club_name: e.clubs?.name ?? null,
       from_joined_club: e.club_id ? joinedClubs.has(e.club_id) : false,
     }))
   }
@@ -136,10 +137,10 @@ export function createCommunityApi(supabase: SupabaseClient, adminEmail = DEFAUL
     if (error) throw error
   }
 
-  async function addEvent(input: NewEventInput): Promise<void> {
+  async function addEvent(input: NewEventInput, clubId?: string | null): Promise<void> {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) throw new Error('Not signed in')
-    const base = { ...input, submitted_by: user.id, status: 'approved', club_id: null }
+    const base = { ...input, submitted_by: user.id, status: 'approved', club_id: clubId ?? null }
     const { error } = await supabase.from('club_events').insert(base)
     // If the image_url column hasn't been added yet (migration-event-images.sql),
     // retry once without it so the event still posts.
@@ -157,7 +158,7 @@ export function createCommunityApi(supabase: SupabaseClient, adminEmail = DEFAUL
   async function getEventsByDate(date: string): Promise<TimelineEvent[]> {
     const uid = await currentUserId()
     const { data: events, error } = await supabase
-      .from('club_events').select('*').eq('status', 'approved').eq('event_date', date).order('start_time', { ascending: true })
+      .from('club_events').select('*, clubs(name)').eq('status', 'approved').eq('event_date', date).order('start_time', { ascending: true })
     if (error) throw error
     const ids = (events ?? []).map((e) => e.id)
     const counts = new Map<string, number>()
@@ -169,9 +170,16 @@ export function createCommunityApi(supabase: SupabaseClient, adminEmail = DEFAUL
         if (uid && r.user_id === uid) mine.add(r.event_id)
       })
     }
+    const joinedClubs = new Set<string>()
+    if (uid) {
+      const { data: mem } = await supabase.from('club_members').select('club_id').eq('user_id', uid)
+      ;(mem ?? []).forEach((m) => joinedClubs.add(m.club_id))
+    }
     return (events ?? []).map((e) => ({
       id: e.id, title: e.title, start_time: e.start_time, location: e.location ?? null,
-      going_count: counts.get(e.id) ?? 0, rsvpd: mine.has(e.id), from_joined_club: false,
+      going_count: counts.get(e.id) ?? 0, rsvpd: mine.has(e.id),
+      club_name: e.clubs?.name ?? null,
+      from_joined_club: e.club_id ? joinedClubs.has(e.club_id) : false,
     }))
   }
 
