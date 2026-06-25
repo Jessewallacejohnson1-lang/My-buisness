@@ -8,8 +8,11 @@ export type ClubRow = {
   status: ClubStatus
   name: string
   host: string | null
-  schedule: string | null
-  vibe: string | null
+  schedule: string | null        // when — "Every Saturday, 7am"
+  location: string | null        // where — "Millstream Park"
+  vibe: string | null            // short one-liner
+  description: string | null     // the longer "about"
+  expectations: string | null    // what to expect / bring
   created_at: string
 }
 
@@ -19,7 +22,10 @@ export type ClubInput = {
   name: string
   host?: string
   schedule?: string
+  location?: string
   vibe?: string
+  description?: string
+  expectations?: string
 }
 
 /** One timeline row: a club event with the viewer's RSVP state + going count. */

@@ -120,43 +120,5 @@ create policy "rsvp insert" on public.event_rsvps for insert with check (user_id
 drop policy if exists "rsvp delete" on public.event_rsvps;
 create policy "rsvp delete" on public.event_rsvps for delete using (user_id = auth.uid());
 
--- ── Seed: a handful of approved clubs + today's / this week's events ─────────
--- (Run once. Safe to re-run: guarded by NOT EXISTS on name.)
-insert into public.clubs (status, name, host, schedule, vibe)
-select * from (values
-  ('approved','Saturday Run Club','Marcus T.','Every Saturday, 7am','Show up. No pace required.'),
-  ('approved','Yoga in the Park','Sarah K.','Tues & Thurs, 5:30pm','All levels. Bring a mat.'),
-  ('approved','Trivia Night','Bad Habit Bar','Every Thursday, 7pm','Teams of 2–6. Free to play.'),
-  ('approved','Book Club','Anna R.','First Sunday, 2pm','One book a month. Bring snacks, not opinions.'),
-  ('approved','Cold Plunge Club','Jesse V.','Sunday mornings','60 seconds. You''ll be glad you did.')
-) as v(status,name,host,schedule,vibe)
-where not exists (select 1 from public.clubs c where c.name = v.name);
-
--- Today's timeline (attach to the run club + yoga where it fits).
-insert into public.club_events (status, club_id, title, event_date, start_time)
-select 'approved',
-       (select id from public.clubs where name = v.club limit 1),
-       v.title, current_date, v.start_time
-from (values
-  ('Saturday Run Club','Run Club at Riverside','7am'),
-  ('Yoga in the Park','Yoga in the Park','5pm'),
-  ('Trivia Night','Trivia at Bad Habit','7pm')
-) as v(club,title,start_time)
-where not exists (
-  select 1 from public.club_events e where e.title = v.title and e.event_date = current_date
-);
-
--- This week (next few days) for the WeekScroll.
-insert into public.club_events (status, club_id, title, event_date, start_time)
-select 'approved',
-       (select id from public.clubs where name = v.club limit 1),
-       v.title, current_date + v.day_offset, v.start_time
-from (values
-  ('Saturday Run Club','Farmers Market', 2, '8am'),
-  ('Saturday Run Club','Run Club',       2, '7am'),
-  ('Trivia Night','Trivia Night',        4, '7pm'),
-  ('Book Club','Book Club',              5, '2pm')
-) as v(club,title,day_offset,start_time)
-where not exists (
-  select 1 from public.club_events e where e.title = v.title and e.event_date = current_date + v.day_offset
-);
+-- No seed data: clubs and events are real, created by St. Joseph residents in
+-- the app. Never insert sample/placeholder clubs or events here.
