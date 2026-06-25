@@ -17,6 +17,7 @@ node_modules/
 .next/
 /out/
 .expo/
+dist/
 apps/web/public/sw.js
 
 # production
