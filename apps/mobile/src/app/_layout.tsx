@@ -1,5 +1,5 @@
 import '../global.css'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { AppState, View } from 'react-native'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
@@ -15,6 +15,7 @@ import { GeistMono_400Regular, GeistMono_500Medium } from '@expo-google-fonts/ge
 
 import { AuthProvider, useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
+import { isOnboarded, isOnboardedSync } from '../lib/interests'
 import { C } from '../theme'
 
 SplashScreen.preventAutoHideAsync()
@@ -29,19 +30,28 @@ function RootNav() {
   const { session, loading } = useAuth()
   const segments = useSegments()
   const router = useRouter()
+  // Bump once the onboarded flag is primed so the gate below re-runs with a real value.
+  const [primed, setPrimed] = useState(false)
+
+  useEffect(() => { isOnboarded().then(() => setPrimed(true)) }, [session])
 
   useEffect(() => {
     if (loading) return
-    const inTabs = segments[0] === '(tabs)'
-    if (!session && inTabs) router.replace('/login')
-    else if (session && !inTabs) router.replace('/(tabs)')
-  }, [session, loading, segments, router])
+    const onboarded = isOnboardedSync()
+    if (onboarded === null) return // not primed yet
+    const loc = segments[0]
+    const inApp = loc === '(tabs)' || loc === 'onboarding'
+    if (!session && inApp) router.replace('/login')
+    else if (session && !onboarded && loc !== 'onboarding') router.replace('/onboarding')
+    else if (session && onboarded && !inApp) router.replace('/(tabs)')
+  }, [session, loading, segments, router, primed])
 
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: C.paper } }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="login" />
+      <Stack.Screen name="onboarding" />
     </Stack>
   )
 }

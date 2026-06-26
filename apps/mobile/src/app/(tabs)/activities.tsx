@@ -6,6 +6,7 @@ import { Image } from 'expo-image'
 import { isAdminEmail, localDate, type ClubView, type ClubRow, type NewEventInput, type Trail, type PendingPost } from '@hygge/core'
 import { api } from '../../lib/api'
 import { supabase } from '../../lib/supabase'
+import { getInterests, matchesInterests } from '../../lib/interests'
 import { SearchIcon, PlusIcon, CloseIcon, PinIcon } from '../../components/icons'
 import { openInMaps, copyAddress } from '../../lib/maps'
 import { C, F, HAIRLINE } from '../../theme'
@@ -20,6 +21,7 @@ export default function Activities() {
   const [refreshing, setRefreshing] = useState(false)
   const [selected, setSelected] = useState<ClubView | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [interests, setInterestsState] = useState<string[]>([])
 
   const load = useCallback(async (admin: boolean) => {
     const [list, trailList] = await Promise.all([api.getApprovedClubs(), api.getTrails()])
@@ -37,6 +39,7 @@ export default function Activities() {
       const user = await api.getCurrentUser()
       const admin = isAdminEmail(user?.email)
       setIsAdmin(admin)
+      setInterestsState(await getInterests())
       await load(admin)
       setLoading(false)
     })()
@@ -95,6 +98,13 @@ export default function Activities() {
 
   const hasPending = isAdmin && (pendingPosts.length > 0 || pendingClubs.length > 0)
 
+  // "Suggested for you" — keyword-match the viewer's onboarding interests (real matches only).
+  const suggestedClubs = clubs.filter((c) =>
+    matchesInterests(`${c.name} ${c.host ?? ''} ${c.vibe ?? ''} ${c.schedule ?? ''} ${c.description ?? ''}`, interests))
+  const suggestedTrails = trails.filter((t) =>
+    matchesInterests(`${t.title} ${t.location ?? ''} ${t.description ?? ''}`, interests, true))
+  const hasSuggested = !loading && (suggestedClubs.length > 0 || suggestedTrails.length > 0)
+
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: C.paper }}>
       <ScrollView contentContainerStyle={{ paddingBottom: 130 }} keyboardShouldPersistTaps="handled"
@@ -152,6 +162,31 @@ export default function Activities() {
                 </View>
               </View>
             ))}
+          </View>
+        )}
+
+        {/* Suggested for you — from onboarding interests */}
+        {hasSuggested && (
+          <View style={{ paddingHorizontal: 20, paddingTop: 22, gap: 12 }}>
+            <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: C.moss700, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 2 }}>Suggested for you</Text>
+            {suggestedClubs.map((c) => (
+              <Pressable key={`s-${c.id}`} onPress={() => { Haptics.selectionAsync(); setSelected(c) }}
+                style={({ pressed }) => ({ borderRadius: 16, backgroundColor: C.paper100, borderWidth: 1, borderColor: HAIRLINE, padding: 16, opacity: pressed ? 0.92 : 1 })}>
+                <Text style={{ fontFamily: F.mono, fontSize: 10, color: C.ink3, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>Club</Text>
+                <Text style={{ fontFamily: F.sansBold, fontSize: 17, color: C.ink, letterSpacing: -0.2 }}>{c.name}</Text>
+                {!!c.vibe && <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.ink2, marginTop: 4, lineHeight: 18 }}>{c.vibe}</Text>}
+              </Pressable>
+            ))}
+            {suggestedTrails.map((t) => {
+              const meta = [t.location, t.length, t.difficulty].filter(Boolean).join(' · ')
+              return (
+                <View key={`s-${t.id}`} style={{ borderRadius: 16, backgroundColor: C.paper100, borderWidth: 1, borderColor: HAIRLINE, padding: 16 }}>
+                  <Text style={{ fontFamily: F.mono, fontSize: 10, color: C.ink3, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>Trail</Text>
+                  <Text style={{ fontFamily: F.sansBold, fontSize: 17, color: C.ink, letterSpacing: -0.2 }}>{t.title}</Text>
+                  {!!meta && <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.ink3, marginTop: 6 }}>{meta}</Text>}
+                </View>
+              )
+            })}
           </View>
         )}
 
