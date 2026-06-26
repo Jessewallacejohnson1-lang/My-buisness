@@ -1,18 +1,20 @@
 import { useState } from 'react'
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import Animated, { FadeIn, FadeInDown, useReducedMotion } from 'react-native-reanimated'
 import { Image } from 'expo-image'
 import * as ImagePicker from 'expo-image-picker'
 import { useRouter } from 'expo-router'
 import * as Haptics from 'expo-haptics'
-import { localDate, type ClubInput, type NewEventInput, type NewTrailInput } from '@hygge/core'
+import { localDate } from '@hygge/core'
 import { api } from '../../lib/api'
 import { supabase } from '../../lib/supabase'
 import { uploadEventImage } from '../../lib/uploadImage'
-import { PlusIcon, CloseIcon } from '../../components/icons'
+import { PlusIcon, CloseIcon, EventIcon, ClubIcon, TrailIcon, ChevronRightIcon, BackIcon } from '../../components/icons'
 import { C, F, HAIRLINE } from '../../theme'
 
 type PostKind = 'event' | 'club' | 'trail'
+type Phase = 'choose' | 'form'
 
 type FormState = {
   // shared
@@ -46,9 +48,18 @@ const EMPTY_FORM: FormState = {
   expectations: '',
 }
 
-export default function Add() {
+// The one decision the chooser asks for. Voice is a neighbor, not a brand.
+const KINDS: { id: PostKind; title: string; sub: string; Icon: typeof EventIcon; heading: string }[] = [
+  { id: 'event', title: 'Event', sub: 'A one-time happening', Icon: EventIcon, heading: 'Add an event' },
+  { id: 'club', title: 'Club', sub: 'A group that meets regularly', Icon: ClubIcon, heading: 'Start a club' },
+  { id: 'trail', title: 'Trail', sub: 'A walk or ride worth sharing', Icon: TrailIcon, heading: 'Add a trail' },
+]
+
+export default function Add({ initialPhase = 'choose', initialKind = 'event' }: { initialPhase?: Phase; initialKind?: PostKind } = {}) {
   const router = useRouter()
-  const [kind, setKind] = useState<PostKind>('event')
+  const reduce = useReducedMotion()
+  const [phase, setPhase] = useState<Phase>(initialPhase)
+  const [kind, setKind] = useState<PostKind>(initialKind)
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [photo, setPhoto] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -63,11 +74,25 @@ export default function Add() {
     setError(null)
   }
 
+  const openKind = (k: PostKind) => {
+    Haptics.selectionAsync()
+    setKind(k)
+    setError(null)
+    setNotice(null)
+    setPhase('form')
+  }
+
+  const backToChoose = () => {
+    Haptics.selectionAsync()
+    setError(null)
+    setPhase('choose')
+  }
+
   const pickPhoto = async () => {
     const res = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
-      aspect: [1, 1],
+      aspect: [4, 3],
       quality: 0.7,
     })
     if (!res.canceled && res.assets[0]) setPhoto(res.assets[0].uri)
@@ -120,9 +145,11 @@ export default function Add() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
       if (status === 'pending') {
         resetForm()
+        setPhase('choose')
         setNotice('Thanks! Your post is waiting for review before it shows up.')
       } else {
         resetForm()
+        setPhase('choose')
         router.replace(kind === 'event' ? '/(tabs)' : '/(tabs)/activities')
       }
     } catch {
@@ -132,119 +159,151 @@ export default function Add() {
     }
   }
 
+  const active = KINDS.find((k) => k.id === kind)!
+
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: C.paper }}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 18, paddingBottom: 140 }} keyboardShouldPersistTaps="handled">
-          <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.8, textTransform: 'uppercase', marginBottom: 3 }}>New</Text>
-          <Text style={{ fontFamily: F.display, fontSize: 24, color: C.ink, marginBottom: 18 }}>New post</Text>
+        {phase === 'choose' ? (
+          /* ── Phase 1 · Chooser ───────────────────────────────── */
+          <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 22, paddingBottom: 140 }} keyboardShouldPersistTaps="handled">
+            <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.8, textTransform: 'uppercase', marginBottom: 4 }}>New</Text>
+            <Text style={{ fontFamily: F.display, fontSize: 27, color: C.ink, lineHeight: 33 }}>What would you like to add?</Text>
+            <Text style={{ fontFamily: F.sans, fontSize: 14, color: C.ink2, marginTop: 6, marginBottom: 24, lineHeight: 20 }}>Share something happening around St. Joe.</Text>
 
-          {/* Kind picker */}
-          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 22 }}>
-            {(['event', 'club', 'trail'] as PostKind[]).map((k) => {
-              const active = kind === k
-              return (
-                <Pressable key={k} onPress={() => { Haptics.selectionAsync(); setKind(k); setError(null); setNotice(null) }}
-                  style={({ pressed }) => ({
-                    paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20,
-                    borderWidth: 1.5,
-                    borderColor: active ? 'transparent' : 'rgba(0,0,0,0.14)',
-                    backgroundColor: active ? C.moss700 : C.paper100,
-                    opacity: pressed ? 0.85 : 1,
-                  })}>
-                  <Text style={{ fontFamily: F.sansMed, fontSize: 13, color: active ? C.paper : C.ink2, textTransform: 'capitalize' }}>{k}</Text>
-                </Pressable>
-              )
-            })}
-          </View>
-
-          {/* Pending notice */}
-          {notice && <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.ink2, marginBottom: 16, lineHeight: 19 }}>{notice}</Text>}
-
-          {/* Title — always shown */}
-          <Field label="Title" value={form.title} onChangeText={set('title')} placeholder={
-            kind === 'event' ? 'Saturday Farmers Market' :
-            kind === 'club' ? 'Tuesday Trail Walkers' :
-            'Millstream Trail'
-          } />
-
-          {/* Event fields */}
-          {kind === 'event' && (
-            <>
-              <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
-                <View style={{ flex: 1 }}><Field label="Date" value={form.event_date} onChangeText={set('event_date')} placeholder="2026-06-25" autoCapitalize="none" /></View>
-                <View style={{ flex: 1 }}><Field label="Time" value={form.start_time} onChangeText={set('start_time')} placeholder="7am" /></View>
-              </View>
-              <View style={{ marginTop: 16 }}><Field label="Location · opens in Maps" value={form.location} onChangeText={set('location')} placeholder="Place or full address, St. Joseph, MN" /></View>
-              <View style={{ marginTop: 16 }}>
-                <Field label="Description · optional" value={form.description} onChangeText={set('description')} placeholder="Tell people what to expect…" multiline />
-              </View>
-            </>
-          )}
-
-          {/* Club fields */}
-          {kind === 'club' && (
-            <>
-              <View style={{ marginTop: 16 }}><Field label="Host" value={form.host} onChangeText={set('host')} placeholder="Your name" /></View>
-              <View style={{ marginTop: 16 }}><Field label="When" value={form.schedule} onChangeText={set('schedule')} placeholder="Tuesdays, 6pm" /></View>
-              <View style={{ marginTop: 16 }}><Field label="Where · opens in Maps" value={form.location} onChangeText={set('location')} placeholder="Place or full address, St. Joseph, MN" /></View>
-              <View style={{ marginTop: 16 }}><Field label="Vibe · short" value={form.vibe} onChangeText={set('vibe')} placeholder="Easygoing, all paces welcome" /></View>
-              <View style={{ marginTop: 16 }}>
-                <Field label="About" value={form.description} onChangeText={set('description')} placeholder="What the club is, who it's for…" multiline />
-              </View>
-              <View style={{ marginTop: 16 }}>
-                <Field label="What to expect / bring" value={form.expectations} onChangeText={set('expectations')} placeholder="Good shoes, water, ~3 miles at a chatty pace" multiline />
-              </View>
-            </>
-          )}
-
-          {/* Trail fields */}
-          {kind === 'trail' && (
-            <>
-              <View style={{ marginTop: 16 }}><Field label="Location / trailhead" value={form.location} onChangeText={set('location')} placeholder="Millstream Park, St. Joseph, MN" /></View>
-              <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
-                <View style={{ flex: 1 }}><Field label="Length" value={form.length} onChangeText={set('length')} placeholder="3.2 mi" /></View>
-                <View style={{ flex: 1 }}><Field label="Difficulty" value={form.difficulty} onChangeText={set('difficulty')} placeholder="Easy" /></View>
-              </View>
-              <View style={{ marginTop: 16 }}>
-                <Field label="Description · optional" value={form.description} onChangeText={set('description')} placeholder="What the trail is like, highlights…" multiline />
-              </View>
-            </>
-          )}
-
-          {/* Photo upload square */}
-          <View style={{ marginTop: 18 }}>
-            <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 8 }}>Photo · optional</Text>
-            {photo ? (
-              <View style={{ width: 150, height: 150, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: HAIRLINE }}>
-                <Image source={{ uri: photo }} style={{ flex: 1 }} contentFit="cover" />
-                <Pressable onPress={() => setPhoto(null)} style={{ position: 'absolute', top: 6, right: 6, width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' }}>
-                  <CloseIcon size={14} color="#fff" />
-                </Pressable>
-                <Pressable onPress={pickPhoto} style={{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingVertical: 7, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center' }}>
-                  <Text style={{ fontFamily: F.sansMed, fontSize: 12, color: '#fff' }}>Change</Text>
-                </Pressable>
-              </View>
-            ) : (
-              <Pressable onPress={pickPhoto}
-                style={({ pressed }) => ({ width: 150, height: 150, borderRadius: 14, borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.14)', borderStyle: 'dashed', backgroundColor: C.paper100, alignItems: 'center', justifyContent: 'center', gap: 8, opacity: pressed ? 0.8 : 1 })}>
-                <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: C.paper, alignItems: 'center', justifyContent: 'center' }}>
-                  <PlusIcon size={16} />
-                </View>
-                <Text style={{ fontFamily: F.sansMed, fontSize: 13, color: C.ink2 }}>Add a photo</Text>
-              </Pressable>
+            {notice && (
+              <Animated.View entering={reduce ? undefined : FadeIn.duration(260)} style={{ backgroundColor: C.paper100, borderRadius: 12, borderWidth: 1, borderColor: HAIRLINE, padding: 14, marginBottom: 18 }}>
+                <Text style={{ fontFamily: F.sans, fontSize: 13.5, color: C.ink2, lineHeight: 20 }}>{notice}</Text>
+              </Animated.View>
             )}
-          </View>
 
-          {error && <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.clay700, marginTop: 14 }}>{error}</Text>}
+            {KINDS.map((k, i) => (
+              <Animated.View key={k.id} entering={reduce ? undefined : FadeInDown.delay(i * 60).duration(360)}>
+                <Pressable onPress={() => openKind(k.id)}
+                  style={({ pressed }) => ({
+                    flexDirection: 'row', alignItems: 'center', gap: 14,
+                    paddingVertical: 16, paddingHorizontal: 16, marginBottom: 12,
+                    borderRadius: 16, borderWidth: 1, borderColor: HAIRLINE,
+                    backgroundColor: C.paper,
+                    transform: [{ scale: pressed ? 0.985 : 1 }],
+                    opacity: pressed ? 0.92 : 1,
+                  })}>
+                  <View style={{ width: 52, height: 52, borderRadius: 14, backgroundColor: C.paper100, alignItems: 'center', justifyContent: 'center' }}>
+                    <k.Icon size={26} color={C.moss700} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontFamily: F.sansSemi, fontSize: 17, color: C.ink, marginBottom: 2 }}>{k.title}</Text>
+                    <Text style={{ fontFamily: F.sans, fontSize: 13.5, color: C.ink2 }}>{k.sub}</Text>
+                  </View>
+                  <ChevronRightIcon size={18} color={C.ink3} />
+                </Pressable>
+              </Animated.View>
+            ))}
+          </ScrollView>
+        ) : (
+          /* ── Phase 2 · Clean form ────────────────────────────── */
+          <Animated.View key={kind} entering={reduce ? undefined : FadeIn.duration(240)} style={{ flex: 1 }}>
+            <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 12, paddingBottom: 140 }} keyboardShouldPersistTaps="handled">
+              <Pressable onPress={backToChoose} hitSlop={10} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start', paddingVertical: 6, opacity: pressed ? 0.6 : 1 })}>
+                <BackIcon size={20} color={C.ink2} />
+                <Text style={{ fontFamily: F.sansMed, fontSize: 13, color: C.ink2 }}>{active.title}</Text>
+              </Pressable>
+              <Text style={{ fontFamily: F.display, fontSize: 25, color: C.ink, marginTop: 4, marginBottom: 18 }}>{active.heading}</Text>
 
-          <Pressable onPress={submit} disabled={submitting}
-            style={({ pressed }) => ({ marginTop: 22, paddingVertical: 15, borderRadius: 12, backgroundColor: submitting ? C.paper200 : C.moss700, alignItems: 'center', opacity: pressed ? 0.85 : 1 })}>
-            <Text style={{ fontFamily: F.sansSemi, fontSize: 15, color: submitting ? C.ink3 : C.paper }}>{submitting ? 'Posting…' : 'Post'}</Text>
-          </Pressable>
-        </ScrollView>
+              {/* Photo — leads the form, Marketplace-style. Optional. */}
+              <PhotoZone photo={photo} onPick={pickPhoto} onClear={() => setPhoto(null)} />
+
+              {/* Title — always first field */}
+              <View style={{ marginTop: 18 }}>
+                <Field label="Title" value={form.title} onChangeText={set('title')} placeholder={
+                  kind === 'event' ? 'Saturday Farmers Market' :
+                  kind === 'club' ? 'Tuesday Trail Walkers' :
+                  'Millstream Trail'
+                } />
+              </View>
+
+              {/* Event fields */}
+              {kind === 'event' && (
+                <>
+                  <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+                    <View style={{ flex: 1 }}><Field label="Date" value={form.event_date} onChangeText={set('event_date')} placeholder="2026-06-25" autoCapitalize="none" /></View>
+                    <View style={{ flex: 1 }}><Field label="Time" value={form.start_time} onChangeText={set('start_time')} placeholder="7am" /></View>
+                  </View>
+                  <View style={{ marginTop: 16 }}><Field label="Location · opens in Maps" value={form.location} onChangeText={set('location')} placeholder="Place or full address, St. Joseph, MN" /></View>
+                  <View style={{ marginTop: 16 }}>
+                    <Field label="Description · optional" value={form.description} onChangeText={set('description')} placeholder="Tell people what to expect…" multiline />
+                  </View>
+                </>
+              )}
+
+              {/* Club fields */}
+              {kind === 'club' && (
+                <>
+                  <View style={{ marginTop: 16 }}><Field label="Host" value={form.host} onChangeText={set('host')} placeholder="Your name" /></View>
+                  <View style={{ marginTop: 16 }}><Field label="When" value={form.schedule} onChangeText={set('schedule')} placeholder="Tuesdays, 6pm" /></View>
+                  <View style={{ marginTop: 16 }}><Field label="Where · opens in Maps" value={form.location} onChangeText={set('location')} placeholder="Place or full address, St. Joseph, MN" /></View>
+                  <View style={{ marginTop: 16 }}><Field label="Vibe · short" value={form.vibe} onChangeText={set('vibe')} placeholder="Easygoing, all paces welcome" /></View>
+                  <View style={{ marginTop: 16 }}>
+                    <Field label="About · optional" value={form.description} onChangeText={set('description')} placeholder="What the club is, who it's for…" multiline />
+                  </View>
+                  <View style={{ marginTop: 16 }}>
+                    <Field label="What to expect / bring · optional" value={form.expectations} onChangeText={set('expectations')} placeholder="Good shoes, water, ~3 miles at a chatty pace" multiline />
+                  </View>
+                </>
+              )}
+
+              {/* Trail fields */}
+              {kind === 'trail' && (
+                <>
+                  <View style={{ marginTop: 16 }}><Field label="Location / trailhead" value={form.location} onChangeText={set('location')} placeholder="Millstream Park, St. Joseph, MN" /></View>
+                  <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+                    <View style={{ flex: 1 }}><Field label="Length · optional" value={form.length} onChangeText={set('length')} placeholder="3.2 mi" /></View>
+                    <View style={{ flex: 1 }}><Field label="Difficulty · optional" value={form.difficulty} onChangeText={set('difficulty')} placeholder="Easy" /></View>
+                  </View>
+                  <View style={{ marginTop: 16 }}>
+                    <Field label="Description · optional" value={form.description} onChangeText={set('description')} placeholder="What the trail is like, highlights…" multiline />
+                  </View>
+                </>
+              )}
+
+              {error && <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.clay700, marginTop: 14 }}>{error}</Text>}
+
+              <Pressable onPress={submit} disabled={submitting}
+                style={({ pressed }) => ({ marginTop: 24, paddingVertical: 15, borderRadius: 12, backgroundColor: submitting ? C.paper200 : C.moss700, alignItems: 'center', opacity: pressed ? 0.85 : 1 })}>
+                <Text style={{ fontFamily: F.sansSemi, fontSize: 15, color: submitting ? C.ink3 : C.paper }}>{submitting ? 'Posting…' : 'Post'}</Text>
+              </Pressable>
+            </ScrollView>
+          </Animated.View>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
+  )
+}
+
+/** Full-width photo add zone — leads the form. */
+function PhotoZone({ photo, onPick, onClear }: { photo: string | null; onPick: () => void; onClear: () => void }) {
+  if (photo) {
+    return (
+      <View style={{ width: '100%', height: 190, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: HAIRLINE }}>
+        <Image source={{ uri: photo }} style={{ flex: 1 }} contentFit="cover" />
+        <Pressable onPress={onClear} style={{ position: 'absolute', top: 8, right: 8, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' }}>
+          <CloseIcon size={15} color="#fff" />
+        </Pressable>
+        <Pressable onPress={onPick} style={{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingVertical: 9, backgroundColor: 'rgba(0,0,0,0.42)', alignItems: 'center' }}>
+          <Text style={{ fontFamily: F.sansMed, fontSize: 12.5, color: '#fff' }}>Change photo</Text>
+        </Pressable>
+      </View>
+    )
+  }
+  return (
+    <Pressable onPress={onPick}
+      style={({ pressed }) => ({ width: '100%', height: 150, borderRadius: 16, borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.14)', borderStyle: 'dashed', backgroundColor: C.paper100, alignItems: 'center', justifyContent: 'center', gap: 9, opacity: pressed ? 0.85 : 1 })}>
+      <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: C.paper, alignItems: 'center', justifyContent: 'center' }}>
+        <PlusIcon size={17} />
+      </View>
+      <Text style={{ fontFamily: F.sansMed, fontSize: 14, color: C.ink2 }}>Add a photo</Text>
+      <Text style={{ fontFamily: F.sans, fontSize: 12, color: C.ink3 }}>Optional</Text>
+    </Pressable>
   )
 }
 

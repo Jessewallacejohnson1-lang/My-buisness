@@ -122,3 +122,61 @@ export function PinIcon({ size = 13, color = C.sky600 }: { size?: number; color?
     </Svg>
   )
 }
+
+// — Post-kind icons (chooser cards). Line style matches the rest: ~1.8 stroke, round caps. —
+
+/** Event — a clock: a one-time happening at a set time. */
+export function EventIcon({ size = 24, color = C.moss700 }: { size?: number; color?: string }) {
+  const p = { fill: 'none', stroke: color, strokeWidth: 1.8, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Circle cx={12} cy={12} r={9} {...p} />
+      <Polyline points="12 7 12 12 15.5 14" {...p} />
+    </Svg>
+  )
+}
+
+/** Club — two figures: a group that meets. */
+export function ClubIcon({ size = 24, color = C.moss700 }: { size?: number; color?: string }) {
+  const p = { fill: 'none', stroke: color, strokeWidth: 1.8, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Circle cx={9} cy={8.5} r={3.1} {...p} />
+      <Path d="M3.5 19.5c0-3.2 2.5-5.2 5.5-5.2s5.5 2 5.5 5.2" {...p} />
+      <Path d="M16 6.4a2.5 2.5 0 0 1 0 4.9" {...p} />
+      <Path d="M17 14.6c2.3.4 3.9 2.3 3.9 4.9" {...p} />
+    </Svg>
+  )
+}
+
+/** Trail — a winding path between two markers: a walk or ride to share. */
+export function TrailIcon({ size = 24, color = C.moss700 }: { size?: number; color?: string }) {
+  const p = { fill: 'none', stroke: color, strokeWidth: 1.8, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path d="M7 20c0-3.2 3.2-3 3.2-6.2S7 11 7 7.8 10.2 4 13 4" {...p} />
+      <Circle cx={7} cy={20} r={1.7} fill={color} />
+      <Circle cx={17} cy={4} r={1.7} fill={color} />
+    </Svg>
+  )
+}
+
+/** Chevron pointing right — affordance on chooser cards. */
+export function ChevronRightIcon({ size = 18, color = C.ink3 }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Polyline points="9 5 16 12 9 19" fill="none" stroke={color} strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  )
+}
+
+/** Arrow pointing left — back affordance. */
+export function BackIcon({ size = 22, color = C.ink }: { size?: number; color?: string }) {
+  const p = { fill: 'none', stroke: color, strokeWidth: 1.9, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Line x1={20} y1={12} x2={5} y2={12} {...p} />
+      <Polyline points="11 6 5 12 11 18" {...p} />
+    </Svg>
+  )
+}

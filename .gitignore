@@ -50,3 +50,6 @@ next-env.d.ts
 .agents/
 .claude/skills/karpathy-llm-wiki
 skills-lock.json
+
+# Supabase admin creds (machine-local, never commit)
+.supabase-admin.env

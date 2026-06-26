@@ -1,18 +1,40 @@
 import { useEffect, useRef, useState } from 'react'
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import Animated, { SlideInDown } from 'react-native-reanimated'
+import { Gesture, GestureDetector } from 'react-native-gesture-handler'
+import Animated, {
+  interpolate, runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming,
+  SlideInDown, type SharedValue,
+} from 'react-native-reanimated'
+import * as Haptics from 'expo-haptics'
 import type { TimelineEvent } from '@hygge/core'
+import { localDate } from '@hygge/core'
 import { api } from '../../lib/api'
 import { useRsvp } from '../../lib/useRsvp'
 import { EventRow } from '../../components/EventRow'
+import { ExpandedWeek, type WeekDay } from '../../components/ExpandedWeek'
 import { CloseIcon } from '../../components/icons'
 import { C, F, HAIRLINE } from '../../theme'
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const SPRING = { damping: 18, stiffness: 200, mass: 0.7 }
 
 function ymd(y: number, m: number, d: number) {
   return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+}
+
+function tick() { Haptics.selectionAsync().catch(() => {}) }
+
+/** The real Sun–Sat dates of a week chunk, incl. spillover into adjacent months. */
+function weekDatesFrom(year: number, month: number, week: (number | null)[]): WeekDay[] {
+  const firstReal = week.find((d): d is number => d != null) ?? 1
+  const anchor = new Date(year, month - 1, firstReal)
+  const sunday = new Date(anchor)
+  sunday.setDate(anchor.getDate() - anchor.getDay())
+  return Array.from({ length: 7 }, (_, i) => {
+    const dt = new Date(sunday); dt.setDate(sunday.getDate() + i)
+    return { ymd: localDate(dt), day: dt.getDate(), weekday: WEEKDAYS[i], inMonth: dt.getMonth() === month - 1 }
+  })
 }
 
 function DayCell({ day, year, month, eventDates, selectedDate, todayYmd, onSelect }: {
@@ -35,8 +57,43 @@ function DayCell({ day, year, month, eventDates, selectedDate, todayYmd, onSelec
   )
 }
 
-function MonthBlock({ year, month, eventDates, selectedDate, todayYmd, onSelect }: {
-  year: number; month: number; eventDates: Set<string>; selectedDate: string | null; todayYmd: string; onSelect: (d: string) => void
+/** One week of a month, wrapped in a pinch gesture that zooms it into a week view. */
+function WeekRow({ week, year, month, eventDates, selectedDate, todayYmd, onSelect, progress, onExpandStart, onAbort, onCommit }: {
+  week: (number | null)[]; year: number; month: number; eventDates: Set<string>; selectedDate: string | null; todayYmd: string
+  onSelect: (d: string) => void; progress: SharedValue<number>
+  onExpandStart: (days: WeekDay[]) => void; onAbort: () => void; onCommit: () => void
+}) {
+  const days = weekDatesFrom(year, month, week)
+
+  // Pinch out → drive progress; release past the threshold commits the zoom.
+  const pinch = Gesture.Pinch()
+    .onStart(() => { 'worklet'; runOnJS(onExpandStart)(days) })
+    .onUpdate((e) => { 'worklet'; progress.value = Math.max(0, Math.min(1, (e.scale - 1) / 0.6)) })
+    .onEnd(() => {
+      'worklet'
+      if (progress.value > 0.4) { progress.value = withSpring(1, SPRING); runOnJS(onCommit)() }
+      else { progress.value = withTiming(0, { duration: 160 }, (f) => { if (f) runOnJS(onAbort)() }) }
+    })
+
+  // Press-and-hold fallback (works on web/desktop, where pinch isn't available).
+  const longPress = Gesture.LongPress().minDuration(360)
+    .onStart(() => { 'worklet'; runOnJS(onExpandStart)(days); progress.value = withSpring(1, SPRING); runOnJS(onCommit)() })
+
+  return (
+    <GestureDetector gesture={Gesture.Race(pinch, longPress)}>
+      <View style={{ flexDirection: 'row' }}>
+        {week.map((day, di) => (
+          <DayCell key={di} day={day} year={year} month={month} eventDates={eventDates} selectedDate={selectedDate} todayYmd={todayYmd} onSelect={onSelect} />
+        ))}
+      </View>
+    </GestureDetector>
+  )
+}
+
+function MonthBlock({ year, month, eventDates, selectedDate, todayYmd, onSelect, progress, onExpandStart, onAbort, onCommit }: {
+  year: number; month: number; eventDates: Set<string>; selectedDate: string | null; todayYmd: string
+  onSelect: (d: string) => void; progress: SharedValue<number>
+  onExpandStart: (days: WeekDay[]) => void; onAbort: () => void; onCommit: () => void
 }) {
   const label = new Date(year, month - 1, 1).toLocaleDateString('en-US', { month: 'long' })
   const firstDay = new Date(year, month - 1, 1).getDay()
@@ -51,11 +108,10 @@ function MonthBlock({ year, month, eventDates, selectedDate, todayYmd, onSelect 
     <View style={{ marginBottom: 4 }}>
       <Text style={{ fontFamily: F.sansBold, fontSize: 26, color: C.ink, letterSpacing: -0.4, marginTop: 22, marginBottom: 6 }}>{label}</Text>
       {weeks.map((week, wi) => (
-        <View key={wi} style={{ flexDirection: 'row' }}>
-          {week.map((day, di) => (
-            <DayCell key={di} day={day} year={year} month={month} eventDates={eventDates} selectedDate={selectedDate} todayYmd={todayYmd} onSelect={onSelect} />
-          ))}
-        </View>
+        <WeekRow
+          key={wi} week={week} year={year} month={month} eventDates={eventDates} selectedDate={selectedDate} todayYmd={todayYmd}
+          onSelect={onSelect} progress={progress} onExpandStart={onExpandStart} onAbort={onAbort} onCommit={onCommit}
+        />
       ))}
     </View>
   )
@@ -69,6 +125,8 @@ export default function Calendar() {
   const [dayEvents, setDayEvents] = useState<TimelineEvent[]>([])
   const [sheetOpen, setSheetOpen] = useState(false)
   const [loadingEvents, setLoadingEvents] = useState(false)
+  const [expanded, setExpanded] = useState<WeekDay[] | null>(null)
+  const progress = useSharedValue(0)
   const reqRef = useRef<string | null>(null)
   const handleRsvp = useRsvp(setDayEvents)
 
@@ -91,24 +149,48 @@ export default function Calendar() {
     if (reqRef.current === d) { setDayEvents(evs); setLoadingEvents(false) }
   }
 
+  // Zoom-into-a-week wiring (driven by the pinch in WeekRow).
+  const onExpandStart = (days: WeekDay[]) => setExpanded(days)
+  const onAbort = () => setExpanded(null)
+  const onCommit = () => tick()
+  const clearExpanded = () => setExpanded(null)
+  const closeExpand = () => {
+    tick()
+    progress.value = withTiming(0, { duration: 200 }, (f) => { if (f) runOnJS(clearExpanded)() })
+  }
+
   const sheetTitle = selectedDate
     ? new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
     : ''
 
+  const gridStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: interpolate(progress.value, [0, 1], [1, 0.97]) }],
+    opacity: interpolate(progress.value, [0, 1], [1, 0.5]),
+  }))
+
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: C.paper }}>
-      <Text style={{ fontFamily: F.sansBold, fontSize: 28, color: C.ink, letterSpacing: -0.5, marginTop: 16, marginBottom: 10, paddingHorizontal: 20 }}>What&rsquo;s coming up?</Text>
-      {/* Weekday header — a fixed row of 7 even columns, pinned above the scroll */}
-      <View style={{ flexDirection: 'row', width: '100%', paddingHorizontal: 20, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: HAIRLINE }}>
-        {WEEKDAYS.map((d) => (
-          <Text key={d} style={{ flexGrow: 1, flexBasis: 0, textAlign: 'center', fontFamily: F.sansSemi, fontSize: 13, color: C.ink2 }}>{d}</Text>
-        ))}
-      </View>
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 120 }}>
-        {months.map((m) => (
-          <MonthBlock key={`${m.year}-${m.month}`} year={m.year} month={m.month} eventDates={eventDates} selectedDate={selectedDate} todayYmd={todayYmd} onSelect={selectDate} />
-        ))}
-      </ScrollView>
+      <Animated.View style={[{ flex: 1 }, gridStyle]}>
+        <Text style={{ fontFamily: F.sansBold, fontSize: 28, color: C.ink, letterSpacing: -0.5, marginTop: 16, marginBottom: 10, paddingHorizontal: 20 }}>What&rsquo;s coming up?</Text>
+        {/* Weekday header — a fixed row of 7 even columns, pinned above the scroll */}
+        <View style={{ flexDirection: 'row', width: '100%', paddingHorizontal: 20, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: HAIRLINE }}>
+          {WEEKDAYS.map((d) => (
+            <Text key={d} style={{ flexGrow: 1, flexBasis: 0, textAlign: 'center', fontFamily: F.sansSemi, fontSize: 13, color: C.ink2 }}>{d}</Text>
+          ))}
+        </View>
+        <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 120 }}>
+          {months.map((m) => (
+            <MonthBlock
+              key={`${m.year}-${m.month}`} year={m.year} month={m.month} eventDates={eventDates} selectedDate={selectedDate} todayYmd={todayYmd}
+              onSelect={selectDate} progress={progress} onExpandStart={onExpandStart} onAbort={onAbort} onCommit={onCommit}
+            />
+          ))}
+        </ScrollView>
+      </Animated.View>
+
+      {expanded && (
+        <ExpandedWeek week={expanded} progress={progress} todayYmd={todayYmd} onClose={closeExpand} onSelectDay={selectDate} />
+      )}
 
       <Modal visible={sheetOpen} transparent animationType="fade" onRequestClose={() => setSheetOpen(false)}>
         <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.28)' }} onPress={() => setSheetOpen(false)} />
