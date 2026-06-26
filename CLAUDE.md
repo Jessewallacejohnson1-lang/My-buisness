@@ -43,6 +43,16 @@ When given a task, **run it to completion in a loop — don't stop to ask "good 
 
 Quality bar = typecheck clean + bundle builds + clears the on-brand bar + real data only (never fake/seeded). Don't declare done from memory — declare it from a fresh check.
 
+### Refactoring
+
+When asked to refactor: **refactor until the architecture is genuinely sound — don't stop at "it compiles."** After each significant step:
+
+1. **Live-test the system** — run the app (`npm run site` / preview) and confirm the touched flows still work, not just that it builds.
+2. **Autoreview** — run `/code-review` (or `/simplify`) on the diff and address what it surfaces.
+3. **Commit** that step before moving on.
+
+Track progress in `/tmp/refactor-{projectname}.md` (`{projectname}` = the workspace, e.g. `hygge`): a running checklist of what's done, what's next, and what each step verified. Keep behavior identical across the refactor — typecheck + bundle clean at every commit.
+
 ## Commands
 
 Run from the repo root (npm workspaces):
