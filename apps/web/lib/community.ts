@@ -159,7 +159,6 @@ export async function getTodayEvents(): Promise<TimelineEvent[]> {
     .from('club_events')
     .select('*')
     .eq('status', 'approved')
-    .eq('kind', 'event')
     .eq('event_date', today)
     .order('start_time', { ascending: true })
   if (error) throw error
@@ -259,120 +258,23 @@ function weekdayLabel(ymd: string): string {
 
 // ── Event submission ─────────────────────────────────────────────────────────
 
-export type PostKind = 'event' | 'club' | 'trail' | 'notice'
-
-export type NewPostInput = {
-  kind: PostKind
+export type NewEventInput = {
   title: string
-  image_url?: string | null
-  event_date?: string | null   // Event only (YYYY-MM-DD)
-  start_time?: string | null   // Event only, display string e.g. '7pm'
-  location?: string | null
-  description?: string | null
-  cadence?: string | null      // Club only
-  length?: string | null       // Trail only
-  difficulty?: string | null   // Trail only
+  event_date: string   // YYYY-MM-DD
+  start_time: string   // display string e.g. '7pm'
+  location: string
+  description?: string
 }
 
-export type BoardPost = {
-  id: string
-  kind: PostKind
-  title: string
-  image_url: string | null
-  location: string | null
-  description: string | null
-  cadence: string | null
-  length: string | null
-  difficulty: string | null
-  status: ClubStatus
-  created_at: string
-}
-
-/** Upload a post photo to the public `post-images` bucket; returns its public URL. */
-export async function uploadPostImage(file: File): Promise<string> {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Not signed in')
-  const ext = file.name.includes('.') ? file.name.split('.').pop() : 'jpg'
-  const path = `${user.id}/${Date.now()}.${ext}`
-  const { error } = await supabase.storage.from('post-images').upload(path, file, {
-    cacheControl: '3600',
-    upsert: false,
-  })
-  if (error) throw error
-  const { data } = supabase.storage.from('post-images').getPublicUrl(path)
-  return data.publicUrl
-}
-
-/** Insert a post. status defaults to 'approved' (goes live); pass 'pending' for the review queue. */
-export async function addPost(input: NewPostInput, status: ClubStatus = 'approved'): Promise<void> {
+export async function addEvent(input: NewEventInput): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not signed in')
   const { error } = await supabase.from('club_events').insert({
-    kind: input.kind,
-    title: input.title,
-    image_url: input.image_url ?? null,
-    event_date: input.event_date ?? null,
-    start_time: input.start_time ?? null,
-    location: input.location ?? null,
-    description: input.description ?? null,
-    cadence: input.cadence ?? null,
-    length: input.length ?? null,
-    difficulty: input.difficulty ?? null,
+    ...input,
     submitted_by: user.id,
-    status,
+    status: 'approved',
     club_id: null,
   })
-  if (error) throw error
-}
-
-const BOARD_KINDS = ['club', 'trail', 'notice'] as const
-
-function toBoardPost(e: Record<string, unknown>): BoardPost {
-  return {
-    id: e.id as string,
-    kind: e.kind as PostKind,
-    title: e.title as string,
-    image_url: (e.image_url as string) ?? null,
-    location: (e.location as string) ?? null,
-    description: (e.description as string) ?? null,
-    cadence: (e.cadence as string) ?? null,
-    length: (e.length as string) ?? null,
-    difficulty: (e.difficulty as string) ?? null,
-    status: e.status as ClubStatus,
-    created_at: e.created_at as string,
-  }
-}
-
-/** Approved Club/Trail/Notice posts for the Board tab, newest first. */
-export async function getBoardPosts(): Promise<BoardPost[]> {
-  const { data, error } = await supabase
-    .from('club_events')
-    .select('*')
-    .eq('status', 'approved')
-    .in('kind', BOARD_KINDS as unknown as string[])
-    .order('created_at', { ascending: false })
-  if (error) throw error
-  return (data ?? []).map(toBoardPost)
-}
-
-/** Pending posts awaiting manual admin approval, newest first. */
-export async function getPendingPosts(): Promise<BoardPost[]> {
-  const { data, error } = await supabase
-    .from('club_events')
-    .select('*')
-    .eq('status', 'pending')
-    .order('created_at', { ascending: false })
-  if (error) throw error
-  return (data ?? []).map(toBoardPost)
-}
-
-export async function approvePost(id: string): Promise<void> {
-  const { error } = await supabase.from('club_events').update({ status: 'approved' }).eq('id', id)
-  if (error) throw error
-}
-
-export async function rejectPost(id: string): Promise<void> {
-  const { error } = await supabase.from('club_events').update({ status: 'rejected' }).eq('id', id)
   if (error) throw error
 }
 
@@ -385,7 +287,6 @@ export async function getEventsByDate(date: string): Promise<TimelineEvent[]> {
     .from('club_events')
     .select('*')
     .eq('status', 'approved')
-    .eq('kind', 'event')
     .eq('event_date', date)
     .order('start_time', { ascending: true })
   if (error) throw error
@@ -423,7 +324,6 @@ export async function getMonthEventDates(year: number, month: number): Promise<s
     .from('club_events')
     .select('event_date')
     .eq('status', 'approved')
-    .eq('kind', 'event')
     .gte('event_date', from)
     .lte('event_date', to)
   if (error) throw error
