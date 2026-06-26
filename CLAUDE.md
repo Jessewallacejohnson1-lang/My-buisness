@@ -30,6 +30,17 @@ The whole app is the **St. Joe community experience** (`/community`). Its core j
 
 **Done means verified:** work isn't done until it's confirmed in the running app via the preview tools, matches the design tokens, and clears the on-brand bar — not just written. See `.claude/TOOLKIT.md` for which tool to reach for, and the project memory (`product-vision`, `target-user`, `on-brand-bar`, `definition-of-done`) for the full intent.
 
+## How to work a task
+
+When given a task, **run it to completion in a loop — don't stop to ask "good enough?"** Follow the `karpathy-guidelines` skill (think before coding, simplest solution, surgical changes, goal-driven execution):
+
+1. **Define the success check** up front (a test, a passing typecheck + clean `expo export`, the on-brand bar, or a visible result in the running app).
+2. **Implement the minimum** that meets it — nothing speculative, edits trace to the request.
+3. **Verify, then loop.** Re-run the check; if it fails, fix and repeat until it passes. Close your own loop.
+4. Only stop early for a genuine fork (the user's call) or a blocker you can't resolve — name it, don't guess.
+
+Quality bar = typecheck clean + bundle builds + clears the on-brand bar + real data only (never fake/seeded). Don't declare done from memory — declare it from a fresh check.
+
 ## Commands
 
 Run from the repo root (npm workspaces):
