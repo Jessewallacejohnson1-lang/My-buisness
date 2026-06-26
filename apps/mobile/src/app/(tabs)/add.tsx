@@ -55,11 +55,11 @@ const KINDS: { id: PostKind; title: string; sub: string; Icon: typeof EventIcon;
   { id: 'trail', title: 'Trail', sub: 'A walk or ride worth sharing', Icon: TrailIcon, heading: 'Add a trail' },
 ]
 
-export default function Add({ initialPhase = 'choose', initialKind = 'event' }: { initialPhase?: Phase; initialKind?: PostKind } = {}) {
+export default function Add() {
   const router = useRouter()
   const reduce = useReducedMotion()
-  const [phase, setPhase] = useState<Phase>(initialPhase)
-  const [kind, setKind] = useState<PostKind>(initialKind)
+  const [phase, setPhase] = useState<Phase>('choose')
+  const [kind, setKind] = useState<PostKind>('event')
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [photo, setPhoto] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
