@@ -1,178 +1,102 @@
-# Post composer + Board + Claude moderation — design
+# Post composer + Activities + Claude moderation — design (v2, Expo stack)
 
-**Date:** 2026-06-24
-**Status:** Approved (design), pending implementation plan
-**App:** Hygge — St. Joseph, MN community app (`/community`)
+**Date:** 2026-06-24 (revised after discovering v1 targeted the legacy `apps/web` site)
+**Status:** Pending approval
+**App:** Hygge — St. Joseph, MN community app. **Active codebase: `apps/mobile` (Expo/React Native) + `packages/core` (`@hygge/core`).** The shipping web build is the Expo web export (static SPA, no server).
+
+## Why v2
+
+v1 of this spec/plan was written against `apps/web` — the **legacy, non-shipping** Next.js site. Work there (a Next.js API route, edits to `apps/web/lib/community.ts`) was reverted. This v2 targets the real app: React Native screens in `apps/mobile`, shared queries in `packages/core`, and a **Supabase Edge Function** for moderation (the SPA has no server to host an API route).
 
 ## Summary
 
-Replace the single-purpose **Add Event** form with an Instagram-style **Post**
-composer that supports four kinds of community post — **Event, Club, Trail,
-Notice** — each with an optional uploaded photo and kind-specific fields. Every
-submission is reviewed by the Claude API (text **and** image) before it can go
-live. A new **Board** tab surfaces the undated kinds (Club / Trail / Notice) and
-hosts an admin-only "Waiting for review" queue as a manual safety valve.
-
-This serves the product's #1 job — getting neighbors together IRL — by lowering
-the bar to share anything local (a group to join, a trail to walk, a heads-up),
-not just dated events, while keeping the timeline a calm "what's happening today."
-
-## Goals
-
-- One friendly composer for any community post, modeled on making an Instagram post.
-- Optional photo on every post, stored in Supabase Storage.
-- Claude moderation gate (on-brand + safe, image included) before a post goes live.
-- Keep the daily timeline and calendar purely dated **events** — unchanged feel.
-- Give undated posts (Club / Trail / Notice) a calm home: the **Board** tab.
-- Never let a post be permanently stuck: admin can manually approve.
-
-## Non-goals
-
-- No public moderation/voting, reporting, or comment threads.
-- No per-user profiles, follower counts, feeds, badges, or streaks (off-brand).
-- No second storage system (Supabase only; not Vercel Blob).
-- No editing/deleting of already-live posts in this iteration (future work).
+Turn the **Add an event** tab into a single **Post** composer with a kind picker — **Event · Club · Trail** — each adapting its fields, with the existing optional photo upload. Every submission is screened by Claude (text + image) via a Supabase Edge Function before going live. Reshuffle navigation to **4 calm tabs**, fold the daily Quest into Home, and add an **Activities** tab (replacing Clubs) that browses Clubs + Trails and hosts an admin review queue.
 
 ## Decisions (from brainstorming)
 
 | Question | Decision |
 |---|---|
-| Section name | **Post** ("New post"); tab label "Post" |
-| Photo | **Optional** on every kind |
-| Kinds | **Event, Club, Trail, Notice** |
-| Extra fields | **Real columns**, not folded into description |
-| Non-event home | **New "Board" tab** (5 tabs total) |
-| Image storage | **Supabase Storage** (`post-images` bucket) |
-| Moderation scope | On-brand + safe; **reviews the image too** (Claude vision) |
-| Claude flags post | **Warn + edit & resubmit** (not saved) |
-| Check can't run | **Fail-closed** → save as `pending`; **admin manual approve** valve |
+| Section name | **Post** ("New post") |
+| Photo | **Optional** (reuses existing `uploadEventImage` → `event-images` bucket) |
+| Kinds | **Event, Club, Trail** (Notice dropped) |
+| "Club" kind | **Reuses the existing `clubs` system** (`submitClub`), not a new table |
+| "Trail" kind | **New, lightweight:** `club_events` row with `kind='trail'` (undated) |
+| Moderation | Claude reviews text **and image**; **on-brand + safe** |
+| Claude flags | **Warn + edit & resubmit** (nothing saved) |
+| Check can't run | **Fail-closed → save as `pending`**; admin manual-approve valve |
+| Moderation backend | **Supabase Edge Function** `moderate-post` (key = Supabase secret) |
+| Navigation | **4 tabs:** Home (+Quest) · Activities · Calendar · Post |
+| Quest | Folded into the **bottom of Home**; Quest tab removed |
+| Activities tab | Replaces Clubs; groups **Clubs + Trails** + admin review queue |
 
-## Navigation
+## Navigation (apps/mobile/src/app/(tabs)/_layout.tsx)
 
-Tab bar goes 4 → 5: **Home · Calendar · Post · Board · Quest**.
-`Tab` type adds `'board'`; `'add'` tab id becomes `'post'`. This is the calm
-ceiling — no further tabs should be added later.
+From 5 tabs (index, clubs, calendar, add, quest) → **4**: `index` (Home, now with Quest), `activities` (was `clubs`), `calendar`, `add` (now "Post"). The `quest` route/screen is removed as a tab; its logic moves into a Home section.
 
-## The composer (`PostTab`, replaces `AddEventTab`)
+## The composer (apps/mobile/src/app/(tabs)/add.tsx → Post)
 
-Top-to-bottom, Instagram-style:
+Reworks the existing screen (which already has a photo square + `uploadEventImage`):
+1. **Kind picker first** — three pill toggles: Event · Club · Trail (RN `Pressable`s, moss-tinted when active). Default Event.
+2. **Photo square** — the existing optional 150×150 upload (keep as-is; it already uploads to `event-images`).
+3. **Title** — always.
+4. **Adaptive fields:**
+   - **Event** — date, time, location (required) + description → `api.addEvent`.
+   - **Club** — host, when (`schedule`), where (`location`), vibe, about (`description`), what-to-expect (`expectations`) — maps to `ClubInput` → `api.submitClub`.
+   - **Trail** — location/trailhead (required), length, difficulty (optional) + description → `api.addPost({kind:'trail', …})`.
+5. **Submit** → moderation (below) → route to Home (event) or Activities (club/trail).
 
-1. **Kind picker first** — four quiet pill toggles: Event · Club · Trail · Notice.
-   Selecting one reveals only that kind's fields. Default: Event.
-2. **Image square** — large 1:1 tap-to-upload area, optional for all kinds.
-   Shows preview thumbnail with a remove ✕ once chosen. Uploads to Supabase
-   Storage on file-select; keeps the returned public URL in form state.
-3. **Title** — always shown, required.
-4. **Adaptive fields by kind:**
-   - **Event** — `event_date`, `start_time`, `location` (all required) + `description` (optional).
-   - **Club** — `cadence` (optional, e.g. "Thursdays 6pm"), `location` (optional) + `description` (optional).
-   - **Trail** — `location`/trailhead (required), `length` (optional), `difficulty` (optional) + `description` (optional).
-   - **Notice** — `description` (required); `location` (optional). No date.
-5. **Submit** → moderation (below) → on pass route to Home (event) or Board (others);
-   on pending route to Board with the "waiting for review" note.
+Uses existing theme tokens (`C`, `F`, `HAIRLINE`), `react-native-svg` icons from `components/icons.tsx`, `expo-haptics`. No emoji. Numbers in `F.mono` with tabular figures.
 
-Reuse existing `labelStyle` / `fieldStyle` / `.hygge-field` form styling and the
-moss primary button. All numbers (dates, length) render `font-mono tabular-nums`.
+## Moderation: Supabase Edge Function
+
+- **`supabase/functions/moderate-post/index.ts`** (Deno). Receives `{ kind, title, location?, description?, image_url?, … }`, calls the Anthropic API (text + image-by-URL when present), returns `{ ok: boolean, reason: string }`. `ANTHROPIC_API_KEY` is a **Supabase secret** (`supabase secrets set`).
+- Client calls `supabase.functions.invoke('moderate-post', { body })` from the composer.
+- **Before writing the function, follow the `claude-api` skill** for the current model id, vision block shape, and message format.
+- **Outcomes:** `ok=true` → save approved (live). `ok=false` → show reason, edit & resubmit, nothing saved. invoke throws / non-2xx (key missing, outage) → **fail-closed**: save as `pending`, "waiting for review" confirmation.
 
 ## Data model
 
-### `club_events` (reused as the posts table — no new table)
+- **`supabase/migration-posts.sql`** (already revised): `club_events` gets `kind` (`event|trail`, default `event`), `length`, `difficulty`; `event_date`/`start_time` made nullable. Reuses existing `image_url` + `event-images` bucket. **Clubs unchanged** (separate `clubs` table).
+- Trails ride on `club_events` with `kind='trail'`, no date.
 
-New / changed columns via `supabase/migration-posts.sql`:
+## packages/core (community.ts + types.ts)
 
-- `kind text not null default 'event'` — one of `event | club | trail | notice`.
-  Add a `check (kind in ('event','club','trail','notice'))` constraint.
-- `image_url text` — public URL of the uploaded photo (nullable).
-- `cadence text` — Club only (nullable).
-- `length text` — Trail only (nullable).
-- `difficulty text` — Trail only (nullable).
-- `event_date date` and `start_time` made **nullable** (only Event requires them).
-
-`status` (`pending | approved | rejected`) already exists and is reused:
-moderation pass → `approved`; check-can't-run → `pending`; admin decline → `rejected`.
-
-### Storage: `post-images` bucket
-
-- New **public** Supabase Storage bucket `post-images`.
-- RLS: signed-in users may `insert` objects under their own `auth.uid()` path
-  prefix; public `select` (read). No update/delete by clients in this iteration.
-- Path convention: `post-images/{auth.uid()}/{timestamp}-{filename}`.
+- `types.ts`: add `PostKind = 'event' | 'trail'`; `NewTrailInput`; `Trail` (board row); `image_url`/`status` already present where needed.
+- `community.ts` (`createCommunityApi`): 
+  - `addPost(input)` — inserts a `kind='trail'` row (status param; default `'approved'`).
+  - `getTrails()` — approved trails for Activities.
+  - `getPendingPosts()` / `getPendingClubs()` — admin queues (events/trails + clubs).
+  - `approvePost(id)` / `rejectPost(id)` and `setClubStatus(id, status)` — admin actions.
+  - Event readers (`getTodayEvents`, `getEventsByDate`, `getMonthEventDates`) gain `kind='event'` so trails never leak into the timeline/calendar.
+  - `addEvent` gains an optional `status` so the composer can save events as `pending`.
+  - Add all new fns to the returned api object.
 
 ## Surfacing
 
-- **Home (timeline) & Calendar** — filter to `kind = 'event'` AND a non-null
-  `event_date` AND `status = 'approved'`. Behavior/appearance unchanged.
-- **Board (new `BoardTab`)** — `status = 'approved'` AND `kind in (club, trail,
-  notice)`, grouped by kind (Clubs, Trails, Notices). Reuses the event-card
-  visual; photo on top when `image_url` present; shows kind-specific fields
-  (cadence / length+difficulty / location) instead of date.
-- **Admin "Waiting for review"** — at the top of Board, only when
-  `isAdminEmail(user.email)`: lists `status = 'pending'` posts with photo +
-  **Approve** / **Decline**. Empty state hidden when queue is empty.
-
-## Claude moderation
-
-### Server route `app/api/moderate-post/route.ts`
-
-- POST handler; uses the already-installed `@anthropic-ai/sdk` with
-  `ANTHROPIC_API_KEY` (server-side only — the browser SDK is unsafe).
-- Request body: the post fields (kind, title, fields, description) and, if a
-  photo was uploaded, its public URL (fetched and passed to Claude as an image
-  block for vision review).
-- Prompt asks Claude to judge: (a) a real St. Joseph community post of its kind,
-  not spam/ad/abusive/inappropriate; (b) the image (if any) is appropriate;
-  (c) reads neighborly / on-brand. Returns strict JSON `{ ok: boolean,
-  reason: string }` (reason shown to the user when `ok=false`).
-- **Before writing this route, follow the `claude-api` skill** (model id,
-  message shape, vision blocks, structured output).
-
-### Client flow on submit
-
-1. POST fields (+ image URL) to `/api/moderate-post`.
-2. **`ok = true`** → `addPost(...)` with `status='approved'`; route to Home/Board; `haptic('success')`.
-3. **`ok = false`** → show `reason` inline (clay text); do **not** insert; user edits & resubmits.
-4. **Route throws / non-200 / key missing** (fail-closed) → `addPost(...)` with
-   `status='pending'`; show calm "Your post is waiting for review" confirmation;
-   route to Board.
-
-## Lib changes (`lib/community.ts`)
-
-- Generalize `NewEventInput` → `NewPostInput` (adds `kind`, `image_url`,
-  `cadence`, `length`, `difficulty`; `event_date`/`start_time` optional).
-- `addEvent` → `addPost(input, status)` (status defaults to `'approved'`).
-- New: `uploadPostImage(file)` → Supabase Storage upload, returns public URL.
-- New: `getBoardPosts()` (approved club/trail/notice), `getPendingPosts()`
-  (admin), `approvePost(id)`, `rejectPost(id)`.
-- `getTodayEvents` / `getEventsByDate` / `getMonthEventDates` add
-  `kind = 'event'` + non-null-date filters.
+- **Home** — timeline (events) unchanged + **Quest section** appended (moved from the Quest tab; reuses `getTodayQuest`/`completeQuest`/count).
+- **Calendar** — events only (unchanged once `kind='event'` filter lands).
+- **Activities** (was Clubs) — existing Clubs list (join/leave, detail sheet, Start-a-club moves into the Post composer's Club kind) **+ a Trails group** + admin **"Waiting for review"** (pending clubs + pending trails, Approve/Decline). Admin gated by `isAdminEmail`.
 
 ## Error handling
 
-- Image upload failure → inline error, photo cleared, rest of form preserved.
-- Moderation route failure → fail-closed `pending` path (above), never blocks the
-  neighbor from submitting.
+- Image upload failure → existing behavior (returns null; post continues photo-less).
+- `functions.invoke` failure → fail-closed `pending` path; never blocks the neighbor.
 - Admin approve/decline failure → inline error, row stays in queue.
-- Missing `ANTHROPIC_API_KEY` → route returns a non-200 the client treats as
-  fail-closed; surfaced once to admin via the pending queue filling up.
 
 ## What the user must do (out-of-band)
 
-1. Paste the key into `ANTHROPIC_API_KEY` in `.env.local`.
-2. Run `supabase/migration-posts.sql` in the Supabase SQL editor.
-3. Create the public `post-images` Storage bucket + RLS policies (SQL provided
-   with the migration).
+1. Run `supabase/migration-posts.sql` in Supabase.
+2. Deploy the Edge Function: `supabase functions deploy moderate-post`.
+3. Set the secret: `supabase secrets set ANTHROPIC_API_KEY=…`.
 
 ## On-brand check
 
-- Calm, neighborly, hyper-local; no badges/streaks/feeds/follower-counts.
-- Real counts only (RSVP/going counts unchanged; no seeded numbers).
-- Moss = approved/primary, clay = the moderation warning only, sky = focus.
-- Inline `<svg>` icons only; no emoji. Numbers in `font-mono tabular-nums`.
-- Dates via `localDate()` from `lib/db.ts`, never `toISOString()`.
+Calm, neighborly, hyper-local; 4 tabs (down from 5) is *more* on-brand. No badges/streaks/feeds. Real counts only. Moss = approved/primary; clay = moderation warning only; sky = brand/focus. Inline svg, no emoji. Dates via `localDate()`.
+
+## Scope note (phasing option)
+
+The heart of the request is the **Post composer + moderation** (+ Activities so trails/clubs have a home). The **Quest→Home** relocation is independent polish. These can ship as one branch or be split (composer+moderation first, nav reshuffle second) if a smaller diff is preferred.
 
 ## Definition of done
 
-Verified in the running app via preview tools at ~390px: composer for all four
-kinds, optional photo upload to Storage, moderation pass/flag/pending paths,
-Board rendering + admin queue, timeline/calendar still events-only. Matches design
-tokens; clears the on-brand bar.
+Verified in the running Expo app (preview/simulator) at phone width: composer for all three kinds with photo; moderation pass/flag/pending paths; Activities shows clubs + trails + admin queue; Quest on Home; timeline/calendar still events-only. Matches `C`/`F` tokens; clears the on-brand bar.

@@ -1,37 +1,23 @@
--- migration-posts.sql — multi-kind posts on club_events + photo storage.
--- Run AFTER migration-community.sql and migration-quests.sql.
+-- migration-posts.sql — adds the Trail post-kind to club_events.
+-- Run AFTER migration-community.sql, migration-quests.sql, migration-event-images.sql.
+--
+-- Context: Events already live in club_events (with image_url + the event-images
+-- bucket). Clubs are a separate table (clubs) with their own flow. This migration
+-- only adds Trails as a lightweight, undated kind on club_events — reusing
+-- image_url, location, description, and the existing event-images bucket.
 
--- 1. Kind + photo + kind-specific columns on the reused posts table.
+-- 1. Kind discriminator (event today; trail new). Clubs are NOT here — separate table.
 alter table public.club_events
   add column if not exists kind       text not null default 'event',
-  add column if not exists image_url  text,
-  add column if not exists cadence    text,   -- Club: e.g. "Thursdays 6pm"
   add column if not exists length     text,   -- Trail: e.g. "2.4 mi"
   add column if not exists difficulty text;   -- Trail: e.g. "Easy"
 
--- Constrain kind to the four supported values.
 alter table public.club_events
   drop constraint if exists club_events_kind_check;
 alter table public.club_events
   add constraint club_events_kind_check
-  check (kind in ('event', 'club', 'trail', 'notice'));
+  check (kind in ('event', 'trail'));
 
--- 2. Only Events require a date/time; other kinds are undated.
+-- 2. Only Events require a date/time; Trails are undated.
 alter table public.club_events alter column event_date drop not null;
 alter table public.club_events alter column start_time drop not null;
-
--- 3. Photo storage: public bucket, signed-in users upload under their own uid.
-insert into storage.buckets (id, name, public)
-values ('post-images', 'post-images', true)
-on conflict (id) do nothing;
-
-drop policy if exists "post-images public read" on storage.objects;
-create policy "post-images public read" on storage.objects
-  for select using (bucket_id = 'post-images');
-
-drop policy if exists "post-images owner insert" on storage.objects;
-create policy "post-images owner insert" on storage.objects
-  for insert to authenticated with check (
-    bucket_id = 'post-images'
-    and (storage.foldername(name))[1] = auth.uid()::text
-  );
