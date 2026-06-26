@@ -7,12 +7,19 @@ import { COLLECTIONS } from '../theme'
 import { C, F } from '../theme'
 import { CheckIcon } from './icons'
 
-const CARD_W = 208
-const CARD_H = 196
-const GAP = 12
+const CARD_W = 220
+const CARD_H = 200
+const GAP = 14
 const STEP = CARD_W + GAP
+const N = COLLECTIONS.length
 
-/** "Around town" — auto-playing photo carousel of real St. Joe places (mirrors web). */
+// Triple the list so the carousel scrolls forever in either direction: we keep
+// the viewport parked in the *middle* copy and recenter invisibly at the seams,
+// so the user never reaches an end or sees a snap-back.
+const LOOP = [...COLLECTIONS, ...COLLECTIONS, ...COLLECTIONS]
+const MID = N // index where the middle copy starts
+
+/** "Around town" — endlessly-looping photo carousel of real St. Joe places. */
 export function AroundTown({
   selected,
   onSelect,
@@ -21,15 +28,47 @@ export function AroundTown({
   onSelect: (i: number) => void
 }) {
   const scrollRef = useRef<ScrollView>(null)
-  const idx = useRef(0)
+  const idx = useRef(MID)
   const paused = useRef(false)
+  const ready = useRef(false)
 
-  // Drift the carousel forward on its own; pause while the user is touching it.
+  // Park on the middle copy once the content is sized, so there's always a copy
+  // of every card to the left and right to scroll into.
+  const onContentSizeChange = () => {
+    if (ready.current) return
+    ready.current = true
+    scrollRef.current?.scrollTo({ x: MID * STEP, animated: false })
+  }
+
+  // Whenever idx drifts out of the middle band [N, 2N), hop the identical card
+  // one copy back/forward with no animation — same image, surroundings, and
+  // offset-within-step, so the seam is invisible.
+  const recenter = () => {
+    if (idx.current >= 2 * N) {
+      idx.current -= N
+      scrollRef.current?.scrollTo({ x: idx.current * STEP, animated: false })
+    } else if (idx.current < N) {
+      idx.current += N
+      scrollRef.current?.scrollTo({ x: idx.current * STEP, animated: false })
+    }
+  }
+
+  // Drift forward on its own; pause while the user is touching it.
   useEffect(() => {
     const id = setInterval(() => {
-      if (paused.current) return
-      idx.current = (idx.current + 1) % COLLECTIONS.length
-      scrollRef.current?.scrollTo({ x: idx.current * STEP, animated: true })
+      if (paused.current || !ready.current) return
+      const next = idx.current + 1
+      if (next >= 2 * N) {
+        // About to enter the last copy — silently hop back one copy to the
+        // identical card, then animate one step forward so motion stays smooth.
+        const here = next - 1 - N
+        scrollRef.current?.scrollTo({ x: here * STEP, animated: false })
+        idx.current = here + 1
+        scrollRef.current?.scrollTo({ x: (here + 1) * STEP, animated: true })
+      } else {
+        idx.current = next
+        scrollRef.current?.scrollTo({ x: next * STEP, animated: true })
+      }
     }, 3200)
     return () => clearInterval(id)
   }, [])
@@ -37,6 +76,7 @@ export function AroundTown({
   const onMomentumEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     idx.current = Math.round(e.nativeEvent.contentOffset.x / STEP)
     paused.current = false
+    recenter()
   }
 
   return (
@@ -51,19 +91,22 @@ export function AroundTown({
         decelerationRate="fast"
         snapToInterval={STEP}
         snapToAlignment="start"
+        contentOffset={{ x: MID * STEP, y: 0 }}
+        onContentSizeChange={onContentSizeChange}
         onTouchStart={() => { paused.current = true }}
         onScrollBeginDrag={() => { paused.current = true }}
         onMomentumScrollEnd={onMomentumEnd}
         contentContainerStyle={{ gap: GAP, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 6 }}
       >
-        {COLLECTIONS.map((c, i) => {
-          const active = selected === i
+        {LOOP.map((c, i) => {
+          const ci = i % N
+          const active = selected === ci
           return (
             // Outer = shadow host (no clipping, so the soft drop shadow shows).
             <View
-              key={c.name}
+              key={i}
               style={{
-                width: CARD_W, height: CARD_H, borderRadius: 24,
+                width: CARD_W, height: CARD_H, borderRadius: 28,
                 shadowColor: '#1f3022',
                 shadowOpacity: active ? 0.22 : 0.12,
                 shadowRadius: active ? 22 : 16,
@@ -72,10 +115,10 @@ export function AroundTown({
               }}
             >
               <Pressable
-                onPress={() => { Haptics.selectionAsync(); onSelect(i) }}
+                onPress={() => { Haptics.selectionAsync(); onSelect(ci) }}
                 style={({ pressed }) => ({
-                  flex: 1, borderRadius: 24, overflow: 'hidden',
-                  justifyContent: 'flex-end', padding: 18,
+                  flex: 1, borderRadius: 28, overflow: 'hidden',
+                  justifyContent: 'flex-end', paddingHorizontal: 16, paddingBottom: 18, paddingTop: 18,
                   transform: [{ scale: pressed ? 0.985 : 1 }],
                   borderWidth: active ? 2.5 : 0, borderColor: active ? C.ink : 'transparent',
                 })}
@@ -91,10 +134,10 @@ export function AroundTown({
                     <CheckIcon size={12} color={C.ink} />
                   </View>
                 )}
-                <Text style={{ fontFamily: F.sansBold, fontSize: 22, color: '#fbfaf5', letterSpacing: -0.4, textShadowColor: 'rgba(0,0,0,0.45)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8 }}>
+                <Text numberOfLines={1} style={{ fontFamily: F.sansBold, fontSize: 17, color: '#fbfaf5', letterSpacing: -0.3, textShadowColor: 'rgba(0,0,0,0.45)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8 }}>
                   {c.name}
                 </Text>
-                <Text style={{ fontFamily: F.sans, fontSize: 13, color: 'rgba(251,250,245,0.92)', marginTop: 5, textShadowColor: 'rgba(0,0,0,0.45)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6 }}>
+                <Text numberOfLines={1} style={{ fontFamily: F.sans, fontSize: 13, color: 'rgba(251,250,245,0.92)', marginTop: 4, textShadowColor: 'rgba(0,0,0,0.45)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6 }}>
                   {c.blurb}
                 </Text>
               </Pressable>
