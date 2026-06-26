@@ -34,6 +34,8 @@ The whole app is the **St. Joe community experience** (`/community`). Its core j
 
 When given a task, **run it to completion in a loop — don't stop to ask "good enough?"** Follow the `karpathy-guidelines` skill (think before coding, simplest solution, surgical changes, goal-driven execution):
 
+**First, scan the available skills and subagents** — if one would improve the output or the reliability of finishing the task, use it (e.g. `frontend-design` / `ui-ux-pro-max` for new UI, `match-design` for a reference image, `supabase` for DB work, `Explore` for broad code search, a verify/review skill before claiming done). Re-check this before declaring the task complete: would a skill catch what you'd otherwise miss?
+
 1. **Define the success check** up front (a test, a passing typecheck + clean `expo export`, the on-brand bar, or a visible result in the running app).
 2. **Implement the minimum** that meets it — nothing speculative, edits trace to the request.
 3. **Verify, then loop.** Re-run the check; if it fails, fix and repeat until it passes. Close your own loop.
