@@ -64,6 +64,7 @@ export type NewTrailInput = {
   title: string
   location: string
   length?: string
+  difficulty?: string
   description?: string
   image_url?: string
 }

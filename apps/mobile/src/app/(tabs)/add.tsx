@@ -110,7 +110,7 @@ export default function Add() {
       if (kind === 'event') {
         await api.addEvent({ title: form.title.trim(), event_date: form.event_date, start_time: form.start_time.trim(), location: form.location.trim(), description: form.description, image_url }, null, status)
       } else if (kind === 'trail') {
-        await api.addTrail({ title: form.title.trim(), location: form.location.trim(), length: form.length, description: form.description, image_url }, status)
+        await api.addTrail({ title: form.title.trim(), location: form.location.trim(), length: form.length, difficulty: form.difficulty, description: form.description, image_url }, status)
       } else {
         // club → existing clubs system (submitClub already sets pending for non-admins;
         // pass the moderation result through where the API allows). Reuse submitClub.

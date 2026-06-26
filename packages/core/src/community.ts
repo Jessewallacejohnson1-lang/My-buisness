@@ -245,6 +245,7 @@ export function createCommunityApi(supabase: SupabaseClient, adminEmail = DEFAUL
       title: input.title,
       location: input.location,
       length: input.length ?? null,
+      difficulty: input.difficulty ?? null,
       description: input.description ?? null,
       image_url: input.image_url ?? null,
       event_date: null,
