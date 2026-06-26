@@ -2,38 +2,50 @@ import { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator, Modal, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import * as Haptics from 'expo-haptics'
-import { localDate, type ClubView, type NewEventInput } from '@hygge/core'
+import { Image } from 'expo-image'
+import { isAdminEmail, localDate, type ClubView, type ClubRow, type NewEventInput, type Trail, type PendingPost } from '@hygge/core'
 import { api } from '../../lib/api'
 import { SearchIcon, PlusIcon, CloseIcon, PinIcon } from '../../components/icons'
 import { openInMaps, copyAddress } from '../../lib/maps'
 import { C, F, HAIRLINE } from '../../theme'
 
-export default function Clubs() {
+export default function Activities() {
   const [clubs, setClubs] = useState<ClubView[]>([])
+  const [trails, setTrails] = useState<Trail[]>([])
+  const [pendingPosts, setPendingPosts] = useState<PendingPost[]>([])
+  const [pendingClubs, setPendingClubs] = useState<ClubRow[]>([])
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [showForm, setShowForm] = useState(false)
   const [selected, setSelected] = useState<ClubView | null>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
 
-  // start-a-club form
-  const [name, setName] = useState('')
-  const [host, setHost] = useState('')
-  const [schedule, setSchedule] = useState('')
-  const [location, setLocation] = useState('')
-  const [vibe, setVibe] = useState('')
-  const [description, setDescription] = useState('')
-  const [expectations, setExpectations] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [msg, setMsg] = useState<string | null>(null)
-
-  const load = useCallback(async () => {
-    const list = await api.getApprovedClubs()
+  const load = useCallback(async (admin: boolean) => {
+    const [list, trailList] = await Promise.all([api.getApprovedClubs(), api.getTrails()])
     setClubs(list)
+    setTrails(trailList)
+    if (admin) {
+      const [pp, pc] = await Promise.all([api.getPendingPosts(), api.getPendingClubs()])
+      setPendingPosts(pp)
+      setPendingClubs(pc)
+    }
   }, [])
 
-  useEffect(() => { load().finally(() => setLoading(false)) }, [load])
-  const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false) }
+  useEffect(() => {
+    (async () => {
+      const user = await api.getCurrentUser()
+      const admin = isAdminEmail(user?.email)
+      setIsAdmin(admin)
+      await load(admin)
+      setLoading(false)
+    })()
+  }, [load])
+
+  const onRefresh = async () => {
+    setRefreshing(true)
+    await load(isAdmin)
+    setRefreshing(false)
+  }
 
   const toggleJoin = async (club: ClubView) => {
     Haptics.selectionAsync()
@@ -49,32 +61,38 @@ export default function Clubs() {
     }
   }
 
-  const create = async () => {
-    if (!name.trim()) { setMsg('Give your club a name.'); return }
-    setSaving(true); setMsg(null)
-    try {
-      await api.submitClub({
-        name: name.trim(),
-        host: host.trim() || undefined,
-        schedule: schedule.trim() || undefined,
-        location: location.trim() || undefined,
-        vibe: vibe.trim() || undefined,
-        description: description.trim() || undefined,
-        expectations: expectations.trim() || undefined,
-      })
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
-      setName(''); setHost(''); setSchedule(''); setLocation(''); setVibe(''); setDescription(''); setExpectations('')
-      setShowForm(false)
-      await load()
-      setMsg('Club added!')
-    } catch {
-      setMsg('Could not save — try again.')
-    } finally { setSaving(false) }
+  const approvePost = async (id: string) => {
+    Haptics.selectionAsync()
+    await api.approvePost(id)
+    setPendingPosts((l) => l.filter((p) => p.id !== id))
+    const [trailList] = await Promise.all([api.getTrails()])
+    setTrails(trailList)
+  }
+
+  const rejectPost = async (id: string) => {
+    Haptics.selectionAsync()
+    await api.rejectPost(id)
+    setPendingPosts((l) => l.filter((p) => p.id !== id))
+  }
+
+  const approveClub = async (id: string) => {
+    Haptics.selectionAsync()
+    await api.setClubStatus(id, 'approved')
+    setPendingClubs((l) => l.filter((c) => c.id !== id))
+    setClubs(await api.getApprovedClubs())
+  }
+
+  const rejectClub = async (id: string) => {
+    Haptics.selectionAsync()
+    await api.setClubStatus(id, 'rejected')
+    setPendingClubs((l) => l.filter((c) => c.id !== id))
   }
 
   const q = query.trim().toLowerCase()
   const filtered = clubs.filter((c) => !q ||
     `${c.name} ${c.host ?? ''} ${c.vibe ?? ''} ${c.schedule ?? ''} ${c.location ?? ''} ${c.description ?? ''}`.toLowerCase().includes(q))
+
+  const hasPending = isAdmin && (pendingPosts.length > 0 || pendingClubs.length > 0)
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: C.paper }}>
@@ -82,7 +100,7 @@ export default function Clubs() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.ink3} />}>
         <View style={{ paddingHorizontal: 20, paddingTop: 14 }}>
           <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.8, textTransform: 'uppercase', marginBottom: 3 }}>Find your people</Text>
-          <Text style={{ fontFamily: F.display, fontSize: 26, color: C.ink, marginBottom: 16 }}>Clubs &amp; activities</Text>
+          <Text style={{ fontFamily: F.display, fontSize: 26, color: C.ink, marginBottom: 16 }}>Activities</Text>
 
           {/* Search */}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, height: 48, borderRadius: 12, paddingHorizontal: 14, backgroundColor: C.paper100, borderWidth: 1, borderColor: HAIRLINE }}>
@@ -90,42 +108,61 @@ export default function Clubs() {
             <TextInput value={query} onChangeText={setQuery} placeholder="Search clubs & activities…" placeholderTextColor={C.ink3}
               style={{ flex: 1, fontFamily: F.sans, fontSize: 15, color: C.ink }} autoCapitalize="none" />
           </View>
-
-          {/* Start a club toggle */}
-          <Pressable onPress={() => { Haptics.selectionAsync(); setShowForm((s) => !s); setMsg(null) }}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14 }}>
-            <View style={{ width: 26, height: 26, borderRadius: 8, backgroundColor: C.paper100, alignItems: 'center', justifyContent: 'center' }}>
-              <PlusIcon />
-            </View>
-            <Text style={{ fontFamily: F.sansMed, fontSize: 14, color: C.ink2 }}>{showForm ? 'Close' : 'Start a club'}</Text>
-          </Pressable>
-
-          {showForm && (
-            <View style={{ marginTop: 14, gap: 10, padding: 14, borderRadius: 14, backgroundColor: C.paper100, borderWidth: 1, borderColor: HAIRLINE }}>
-              <CField label="Name" value={name} onChangeText={setName} placeholder="Tuesday Trail Walkers" />
-              <CField label="Host" value={host} onChangeText={setHost} placeholder="Your name" />
-              <CField label="When" value={schedule} onChangeText={setSchedule} placeholder="Tuesdays, 6pm" />
-              <CField label="Where · opens in Maps" value={location} onChangeText={setLocation} placeholder="Place or full address, St. Joseph, MN" />
-              <CField label="Vibe · short" value={vibe} onChangeText={setVibe} placeholder="Easygoing, all paces welcome" />
-              <CField label="About" value={description} onChangeText={setDescription} placeholder="What the club is, who it's for…" multiline />
-              <CField label="What to expect / bring" value={expectations} onChangeText={setExpectations} placeholder="Good shoes, water, ~3 miles at a chatty pace" multiline />
-              {msg && <Text style={{ fontFamily: F.sans, fontSize: 13, color: msg.includes('added') ? C.moss700 : C.clay700 }}>{msg}</Text>}
-              <Pressable onPress={create} disabled={saving}
-                style={({ pressed }) => ({ marginTop: 2, paddingVertical: 12, borderRadius: 10, backgroundColor: C.moss700, alignItems: 'center', opacity: pressed ? 0.85 : 1 })}>
-                <Text style={{ fontFamily: F.sansSemi, fontSize: 14, color: C.paper }}>{saving ? 'Saving…' : 'Add club'}</Text>
-              </Pressable>
-            </View>
-          )}
         </View>
 
-        {/* List */}
+        {/* Admin: Waiting for review */}
+        {hasPending && (
+          <View style={{ marginHorizontal: 20, marginTop: 22, padding: 14, borderRadius: 14, backgroundColor: C.paper100, borderWidth: 1, borderColor: HAIRLINE }}>
+            <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 12 }}>Waiting for review · admin</Text>
+
+            {pendingPosts.map((p) => (
+              <View key={p.id} style={{ paddingVertical: 12, borderTopWidth: 1, borderTopColor: HAIRLINE }}>
+                <Text style={{ fontFamily: F.sansBold, fontSize: 14, color: C.ink }}>{p.title}</Text>
+                <Text style={{ fontFamily: F.mono, fontSize: 11, color: C.ink3, marginTop: 3 }}>
+                  {p.kind} {p.location ? `· ${p.location}` : ''}
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                  <Pressable onPress={() => approvePost(p.id)}
+                    style={({ pressed }) => ({ flex: 1, paddingVertical: 9, borderRadius: 8, backgroundColor: C.moss700, alignItems: 'center', opacity: pressed ? 0.85 : 1 })}>
+                    <Text style={{ fontFamily: F.sansSemi, fontSize: 13, color: C.paper }}>Approve</Text>
+                  </Pressable>
+                  <Pressable onPress={() => rejectPost(p.id)}
+                    style={({ pressed }) => ({ flex: 1, paddingVertical: 9, borderRadius: 8, borderWidth: 1.5, borderColor: C.clay700, alignItems: 'center', opacity: pressed ? 0.85 : 1 })}>
+                    <Text style={{ fontFamily: F.sansSemi, fontSize: 13, color: C.clay700 }}>Decline</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ))}
+
+            {pendingClubs.map((c) => (
+              <View key={c.id} style={{ paddingVertical: 12, borderTopWidth: 1, borderTopColor: HAIRLINE }}>
+                <Text style={{ fontFamily: F.sansBold, fontSize: 14, color: C.ink }}>{c.name}</Text>
+                {!!c.host && <Text style={{ fontFamily: F.sans, fontSize: 12, color: C.ink2, marginTop: 2 }}>with {c.host}</Text>}
+                <Text style={{ fontFamily: F.mono, fontSize: 11, color: C.ink3, marginTop: 3 }}>club</Text>
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                  <Pressable onPress={() => approveClub(c.id)}
+                    style={({ pressed }) => ({ flex: 1, paddingVertical: 9, borderRadius: 8, backgroundColor: C.moss700, alignItems: 'center', opacity: pressed ? 0.85 : 1 })}>
+                    <Text style={{ fontFamily: F.sansSemi, fontSize: 13, color: C.paper }}>Approve</Text>
+                  </Pressable>
+                  <Pressable onPress={() => rejectClub(c.id)}
+                    style={({ pressed }) => ({ flex: 1, paddingVertical: 9, borderRadius: 8, borderWidth: 1.5, borderColor: C.clay700, alignItems: 'center', opacity: pressed ? 0.85 : 1 })}>
+                    <Text style={{ fontFamily: F.sansSemi, fontSize: 13, color: C.clay700 }}>Decline</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Clubs list */}
         <View style={{ paddingHorizontal: 20, paddingTop: 18, gap: 12 }}>
+          <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 2 }}>Clubs</Text>
           {loading ? (
             <ActivityIndicator color={C.ink3} style={{ marginTop: 20 }} />
           ) : filtered.length === 0 ? (
             <View style={{ borderRadius: 16, borderWidth: 1.5, borderStyle: 'dashed', borderColor: 'rgba(0,0,0,0.13)', padding: 18 }}>
               <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.ink2 }}>
-                {clubs.length === 0 ? 'No clubs yet — be the first to start one.' : 'No clubs match your search.'}
+                {clubs.length === 0 ? 'No clubs yet — start one via the + tab.' : 'No clubs match your search.'}
               </Text>
             </View>
           ) : (
@@ -149,6 +186,28 @@ export default function Clubs() {
             ))
           )}
         </View>
+
+        {/* Trails section */}
+        {!loading && trails.length > 0 && (
+          <View style={{ paddingHorizontal: 20, paddingTop: 28, gap: 12 }}>
+            <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 2 }}>Trails</Text>
+            {trails.map((t) => {
+              const meta = [t.location, t.length, t.difficulty].filter(Boolean).join(' · ')
+              return (
+                <View key={t.id} style={{ borderRadius: 16, backgroundColor: C.paper100, borderWidth: 1, borderColor: HAIRLINE, overflow: 'hidden' }}>
+                  {!!t.image_url && (
+                    <Image source={{ uri: t.image_url }} style={{ width: '100%', height: 160 }} contentFit="cover" />
+                  )}
+                  <View style={{ padding: 16 }}>
+                    <Text style={{ fontFamily: F.sansBold, fontSize: 17, color: C.ink, letterSpacing: -0.2 }}>{t.title}</Text>
+                    {!!meta && <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.ink3, marginTop: 6 }}>{meta}</Text>}
+                    {!!t.description && <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.ink2, marginTop: 8, lineHeight: 19 }}>{t.description}</Text>}
+                  </View>
+                </View>
+              )
+            })}
+          </View>
+        )}
       </ScrollView>
 
       <ClubDetail club={selected} onClose={() => setSelected(null)} onToggleJoin={toggleJoin} />
