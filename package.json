@@ -9,8 +9,6 @@
   "scripts": {
     "mobile": "npm run start --workspace @hygge/mobile",
     "site": "npm run web --workspace @hygge/mobile",
-    "site:build": "npm run build:web --workspace @hygge/mobile",
-    "legacy-web": "npm run dev --workspace @hygge/web",
-    "legacy-web:build": "npm run build --workspace @hygge/web"
+    "site:build": "npm run build:web --workspace @hygge/mobile"
   }
 }

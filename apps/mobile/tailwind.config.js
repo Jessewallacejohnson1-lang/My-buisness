@@ -1,5 +1,5 @@
 /** @type {import('tailwindcss').Config} */
-// Hygge design tokens ported from apps/web/app/globals.css (@theme). Keep in sync.
+// Hygge design tokens (NativeWind). Mirror src/theme.ts (JS tokens) — keep them in sync.
 module.exports = {
   content: ['./src/**/*.{js,jsx,ts,tsx}'],
   presets: [require('nativewind/preset')],

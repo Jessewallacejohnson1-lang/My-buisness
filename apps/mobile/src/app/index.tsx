@@ -6,7 +6,7 @@ import Svg, { Circle, Path, Rect } from 'react-native-svg'
 import { useAuth } from '../lib/auth'
 import { C, F, HAIRLINE } from '../theme'
 
-// ─── inline icons (mirror apps/web landing) ──────────────────────────────────
+// ─── inline icons ────────────────────────────────────────────────────────────
 function MapPin({ size = 16, color = C.ink }: { size?: number; color?: string }) {
   return (
     <Svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">

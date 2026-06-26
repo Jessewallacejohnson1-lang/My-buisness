@@ -1,5 +1,5 @@
 // Hygge tokens for use in JS (gradients, image maps, font names). Colours mirror
-// tailwind.config.js / apps/web globals.css — keep them in sync.
+// tailwind.config.js — keep them in sync.
 export const C = {
   paper: '#fbfaf5',
   paper100: '#f5f1e8',
@@ -31,7 +31,7 @@ export const F = {
   monoMed: 'GeistMonoMed',
 } as const
 
-// Real-photo weather backdrops, bundled as assets (mirrors apps/web/public/weather).
+// Real-photo weather backdrops, bundled as assets.
 export const WEATHER_IMAGES = {
   clearDay: require('../assets/weather/clear-day.jpg'),
   clearNight: require('../assets/weather/clear-night.jpg'),
@@ -45,7 +45,7 @@ export const WEATHER_IMAGES = {
 
 export type WeatherKey = keyof typeof WEATHER_IMAGES
 
-// "Around town" carousel — real St. Joseph places (mirrors apps/web).
+// "Around town" carousel — real St. Joseph places.
 export type Collection = { name: string; blurb: string; image: number; kw: string[] | null }
 export const COLLECTIONS: Collection[] = [
   { name: 'Downtown', blurb: 'Shops & cafés on Minnesota St', image: require('../assets/around-town/downtown.jpg'), kw: ['downtown', 'minnesota st', 'local blend', 'krewe', 'bo diddley', 'middy', 'college ave'] },

@@ -6,17 +6,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Hygge** — a hyper-local community app for the real town of **St. Joseph, MN**. One calm place for everything happening in town: a daily timeline of local events, a shared calendar anyone can add to, and a daily quest that nudges neighbors to get out and connect.
 
-A **monorepo** (npm workspaces) with two front-ends over one shared core:
-- **`apps/mobile`** — the real product: an Expo / React Native app (Expo Router,
-  NativeWind) that ships to the App Store **and** renders as the website on web.
-  **This is the active codebase — work here.**
-- **`apps/web`** — the original Next.js (App Router) site, kept as `legacy-web`,
-  not actively edited. The live website is now served from the Expo web build
-  (`npm run site:build` → `apps/mobile/dist`, see `vercel.json`).
+A **monorepo** (npm workspaces) — one Expo front-end over a shared core:
+- **`apps/mobile`** — the product: an Expo / React Native app (Expo Router,
+  NativeWind) that ships to the App Store **and** renders as the website on web
+  (`npm run site:build` → `apps/mobile/dist`, deployed per `vercel.json`).
+  **This is the codebase — work here.**
 - **`packages/core`** (`@hygge/core`) — client-agnostic Supabase queries/types
-  shared by both via `createCommunityApi(supabase)`.
+  consumed by mobile via `createCommunityApi(supabase)`.
 
-Built with TypeScript, Tailwind CSS v4 (web) / NativeWind (mobile), and Supabase.
+(A legacy Next.js site once lived in `apps/web`; it was removed — the live
+website is now the Expo web build. Recover from git history if ever needed.)
+
+Built with TypeScript, NativeWind (Tailwind for RN), and Supabase.
 The Expo app is both the iPhone app and the web front door, so one change ships
 everywhere — don't maintain screens in two places.
 
@@ -61,7 +62,6 @@ Run from the repo root (npm workspaces):
 npm run mobile        # Expo dev server — run on iPhone (Expo Go) or simulator
 npm run site          # the website locally (Expo app on web, ~localhost:19006)
 npm run site:build    # production web build → apps/mobile/dist (what Vercel deploys)
-npm run legacy-web     # the old Next.js site (reference only)
 
 # inside apps/mobile:
 npx tsc --noEmit -p tsconfig.json   # typecheck
@@ -75,7 +75,7 @@ proof a change is sound when no simulator/device is attached.
 ## Environment
 
 - **`apps/mobile/.env`** — `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`
-- **`apps/web/.env.local`** — `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- **Supabase Edge Function secret** — `ANTHROPIC_API_KEY` (used by the `moderate-post` function)
 
 ## Architecture
 
@@ -198,11 +198,11 @@ All animation durations collapse to `0.01ms` under `prefers-reduced-motion`.
   (needs the `react-native-worklets/plugin` Babel plugin), `react-native-svg`, `expo-blur`,
   `expo-image`, `expo-image-picker`, `expo-haptics`. Pin React to `19.1.0` across the workspace
   so RN hoists; installs need `--legacy-peer-deps`. App Store target is the goal (EAS build).
-- **Web:** the Expo app builds to a web SPA (`output: "single"` in `app.json`). `apps/web` is
-  the legacy **Next.js 16** site (App Router; `cookies()` async; middleware is `proxy.ts`) —
-  reference only.
-- **Shared:** **TypeScript**, **Supabase** — auth (email+password, confirmation ON) + Postgres,
-  all tables have RLS.
+- **Web:** the Expo app builds to a web SPA (`output: "single"` in `app.json`), deployed via
+  `vercel.json` (`outputDirectory: apps/mobile/dist`, static — no server).
+- **Backend:** **Supabase** — auth (email+password, confirmation ON) + Postgres (all tables
+  have RLS) + **Edge Functions** (`supabase/functions/moderate-post` runs Claude moderation).
+- **Shared:** **TypeScript**, `packages/core` (`@hygge/core`).
 - Verify changes with `npx expo export --platform web` (bundles the whole app, no device needed).
 
 ## Plugins
