@@ -3,7 +3,17 @@ import { localDate, addDays, weekdayLabel } from './db'
 import type {
   ClubInput, ClubRow, ClubStatus, ClubView,
   DailyQuest, NewEventInput, TimelineEvent, WeekEvent,
+  NewTrailInput, Trail, PendingPost, PostKind,
 } from './types'
+
+function mapTrail(e: Record<string, any>): Trail {
+  return {
+    id: e.id, title: e.title,
+    location: e.location ?? null, length: e.length ?? null, difficulty: e.difficulty ?? null,
+    description: e.description ?? null, image_url: e.image_url ?? null,
+    status: e.status, created_at: e.created_at,
+  }
+}
 
 export const DEFAULT_ADMIN_EMAIL = 'jessewallacejohnson1@icloud.com'
 
@@ -83,7 +93,7 @@ export function createCommunityApi(supabase: SupabaseClient, adminEmail = DEFAUL
     const uid = await currentUserId()
     const today = localDate()
     const { data: events, error } = await supabase
-      .from('club_events').select('*, clubs(name)').eq('status', 'approved').eq('event_date', today).order('start_time', { ascending: true })
+      .from('club_events').select('*, clubs(name)').eq('status', 'approved').eq('kind', 'event').eq('event_date', today).order('start_time', { ascending: true })
     if (error) throw error
     const ids = (events ?? []).map((e) => e.id)
     const counts = new Map<string, number>()
@@ -137,10 +147,10 @@ export function createCommunityApi(supabase: SupabaseClient, adminEmail = DEFAUL
     if (error) throw error
   }
 
-  async function addEvent(input: NewEventInput, clubId?: string | null): Promise<void> {
+  async function addEvent(input: NewEventInput, clubId?: string | null, status: ClubStatus = 'approved'): Promise<void> {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) throw new Error('Not signed in')
-    const base = { ...input, submitted_by: user.id, status: 'approved', club_id: clubId ?? null }
+    const base = { ...input, submitted_by: user.id, status, club_id: clubId ?? null }
     const { error } = await supabase.from('club_events').insert(base)
     // If the image_url column hasn't been added yet (migration-event-images.sql),
     // retry once without it so the event still posts.
@@ -158,7 +168,7 @@ export function createCommunityApi(supabase: SupabaseClient, adminEmail = DEFAUL
   async function getEventsByDate(date: string): Promise<TimelineEvent[]> {
     const uid = await currentUserId()
     const { data: events, error } = await supabase
-      .from('club_events').select('*, clubs(name)').eq('status', 'approved').eq('event_date', date).order('start_time', { ascending: true })
+      .from('club_events').select('*, clubs(name)').eq('status', 'approved').eq('kind', 'event').eq('event_date', date).order('start_time', { ascending: true })
     if (error) throw error
     const ids = (events ?? []).map((e) => e.id)
     const counts = new Map<string, number>()
@@ -188,7 +198,7 @@ export function createCommunityApi(supabase: SupabaseClient, adminEmail = DEFAUL
     const lastDay = new Date(year, month, 0).getDate()
     const to = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
     const { data, error } = await supabase
-      .from('club_events').select('event_date').eq('status', 'approved').gte('event_date', from).lte('event_date', to)
+      .from('club_events').select('event_date').eq('status', 'approved').eq('kind', 'event').gte('event_date', from).lte('event_date', to)
     if (error) throw error
     return [...new Set((data ?? []).map((e) => e.event_date))]
   }
@@ -227,12 +237,74 @@ export function createCommunityApi(supabase: SupabaseClient, adminEmail = DEFAUL
     if (error) throw error
   }
 
+  async function addTrail(input: NewTrailInput, status: ClubStatus = 'approved'): Promise<void> {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not signed in')
+    const { error } = await supabase.from('club_events').insert({
+      kind: 'trail',
+      title: input.title,
+      location: input.location,
+      length: input.length ?? null,
+      description: input.description ?? null,
+      image_url: input.image_url ?? null,
+      event_date: null,
+      start_time: null,
+      submitted_by: user.id,
+      status,
+      club_id: null,
+    })
+    if (error) throw error
+  }
+
+  async function getTrails(): Promise<Trail[]> {
+    const { data, error } = await supabase
+      .from('club_events').select('*')
+      .eq('status', 'approved').eq('kind', 'trail')
+      .order('created_at', { ascending: false })
+    if (error) throw error
+    return (data ?? []).map(mapTrail)
+  }
+
+  async function getPendingPosts(): Promise<PendingPost[]> {
+    const { data, error } = await supabase
+      .from('club_events').select('*')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+    if (error) throw error
+    return (data ?? []).map((e) => ({ ...mapTrail(e), kind: (e.kind ?? 'event') as PostKind, event_date: e.event_date ?? null, start_time: e.start_time ?? null }))
+  }
+
+  async function getPendingClubs(): Promise<ClubRow[]> {
+    const { data, error } = await supabase
+      .from('clubs').select('*')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+    if (error) throw error
+    return (data ?? []) as ClubRow[]
+  }
+
+  async function approvePost(id: string): Promise<void> {
+    const { error } = await supabase.from('club_events').update({ status: 'approved' }).eq('id', id)
+    if (error) throw error
+  }
+
+  async function rejectPost(id: string): Promise<void> {
+    const { error } = await supabase.from('club_events').update({ status: 'rejected' }).eq('id', id)
+    if (error) throw error
+  }
+
+  async function setClubStatus(id: string, status: ClubStatus): Promise<void> {
+    const { error } = await supabase.from('clubs').update({ status }).eq('id', id)
+    if (error) throw error
+  }
+
   return {
     currentUserId, getCurrentUser,
     getApprovedClubs, joinClub, leaveClub, submitClub,
     getTodayEvents, getWeekEvents, rsvpEvent, unRsvpEvent, addEvent,
     getEventsByDate, getMonthEventDates,
     getTodayQuest, getQuestCompletionCount, hasUserCompletedQuest, completeQuest, setQuest,
+    addTrail, getTrails, getPendingPosts, getPendingClubs, approvePost, rejectPost, setClubStatus,
   }
 }
 

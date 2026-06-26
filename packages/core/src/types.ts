@@ -58,6 +58,34 @@ export type NewEventInput = {
   image_url?: string // optional event image (needs migration-event-images.sql)
 }
 
+export type PostKind = 'event' | 'trail'
+
+export type NewTrailInput = {
+  title: string
+  location: string
+  length?: string
+  description?: string
+  image_url?: string
+}
+
+export type Trail = {
+  id: string
+  title: string
+  location: string | null
+  length: string | null
+  difficulty: string | null
+  description: string | null
+  image_url: string | null
+  status: ClubStatus
+  created_at: string
+}
+
+export type PendingPost = Trail & {
+  kind: PostKind
+  event_date: string | null
+  start_time: string | null
+}
+
 export type DailyQuest = {
   id: string
   title: string
