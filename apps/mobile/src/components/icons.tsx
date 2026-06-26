@@ -1,20 +1,19 @@
-import Svg, { Circle, Line, Path, Polyline, Polygon, Rect } from 'react-native-svg'
+import Svg, { Circle, Line, Path, Polyline, Rect } from 'react-native-svg'
 import { C } from '../theme'
 
-export type TabId = 'home' | 'clubs' | 'calendar' | 'add' | 'quest'
+export type TabId = 'home' | 'activities' | 'calendar' | 'add'
 export type Scope = 'today' | 'week' | 'going'
 
 export function TabIcon({ id, active }: { id: TabId; active: boolean }) {
   const c = active ? C.moss700 : C.ink3
   const sw = id === 'add' ? 2.1 : 1.7
   const p = { fill: 'none', stroke: c, strokeWidth: sw, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
-  if (id === 'clubs')
+  if (id === 'activities')
     return (
       <Svg width={22} height={22} viewBox="0 0 24 24">
-        <Circle cx={9} cy={8} r={3.2} {...p} />
-        <Path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5" {...p} />
-        <Path d="M16 5.5a3.2 3.2 0 0 1 0 6.2" {...p} />
-        <Path d="M17.5 14.2c2.4.5 4 2.3 4 4.8" {...p} />
+        {/* Compass: outer circle + cardinal needle */}
+        <Circle cx={12} cy={12} r={9} {...p} />
+        <Path d="M16.2 7.8 13.5 13.5 7.8 16.2 10.5 10.5z" {...p} />
       </Svg>
     )
   if (id === 'home')
@@ -41,11 +40,7 @@ export function TabIcon({ id, active }: { id: TabId; active: boolean }) {
         <Line x1={8} y1={12} x2={16} y2={12} {...p} />
       </Svg>
     )
-  return (
-    <Svg width={22} height={22} viewBox="0 0 24 24">
-      <Polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" {...p} />
-    </Svg>
-  )
+  return null
 }
 
 export function CheckIcon({ size = 14, color = C.paper }: { size?: number; color?: string }) {

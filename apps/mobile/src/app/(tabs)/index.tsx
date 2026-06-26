@@ -10,6 +10,7 @@ import { useAuth } from '../../lib/auth'
 import { WeatherBar } from '../../components/WeatherBar'
 import { AroundTown } from '../../components/AroundTown'
 import { AccountMenu } from '../../components/AccountMenu'
+import { QuestSection } from '../../components/QuestSection'
 import { SearchIcon, ScopeIcon, PlusIcon } from '../../components/icons'
 import { C, F, HAIRLINE, COLLECTIONS, matchesKw as kwMatch } from '../../theme'
 
@@ -180,6 +181,9 @@ export default function Home() {
 
         {/* Around town carousel */}
         <AroundTown selected={collection} onSelect={selectCollection} />
+
+        {/* Daily quest */}
+        <QuestSection />
       </ScrollView>
     </SafeAreaView>
   )

@@ -8,10 +8,9 @@ export default function TabsLayout() {
       tabBar={(props) => <TabBar {...props} />}
     >
       <Tabs.Screen name="index" />
-      <Tabs.Screen name="clubs" />
+      <Tabs.Screen name="activities" />
       <Tabs.Screen name="calendar" />
       <Tabs.Screen name="add" />
-      <Tabs.Screen name="quest" />
     </Tabs>
   )
 }

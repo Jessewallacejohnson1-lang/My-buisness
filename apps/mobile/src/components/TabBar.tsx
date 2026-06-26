@@ -6,8 +6,8 @@ import type { BottomTabBarProps } from '@react-navigation/bottom-tabs'
 import { C, F } from '../theme'
 import { TabIcon, type TabId } from './icons'
 
-const ICON_FOR: Record<string, TabId> = { index: 'home', clubs: 'clubs', calendar: 'calendar', add: 'add', quest: 'quest' }
-const LABEL_FOR: Record<string, string> = { index: 'Home', clubs: 'Clubs', calendar: 'Calendar', add: 'Add', quest: 'Quest' }
+const ICON_FOR: Record<string, TabId> = { index: 'home', activities: 'activities', calendar: 'calendar', add: 'add' }
+const LABEL_FOR: Record<string, string> = { index: 'Home', activities: 'Activities', calendar: 'Calendar', add: 'Post' }
 
 /** Floating frosted-glass pill nav (mirrors the web bottom nav). */
 export function TabBar({ state, navigation }: BottomTabBarProps) {
