@@ -5,6 +5,7 @@ import * as Haptics from 'expo-haptics'
 import { Image } from 'expo-image'
 import { isAdminEmail, localDate, type ClubView, type ClubRow, type NewEventInput, type Trail, type PendingPost } from '@hygge/core'
 import { api } from '../../lib/api'
+import { supabase } from '../../lib/supabase'
 import { SearchIcon, PlusIcon, CloseIcon, PinIcon } from '../../components/icons'
 import { openInMaps, copyAddress } from '../../lib/maps'
 import { C, F, HAIRLINE } from '../../theme'
@@ -288,13 +289,28 @@ function ClubEventComposer({ clubId }: { clubId: string }) {
     if (!form.title.trim() || !form.event_date || !form.start_time?.trim()) { setMsg('Add a title, date, and time.'); return }
     setSaving(true); setMsg(null)
     try {
-      await api.addEvent({ ...form, title: form.title.trim(), location: form.location.trim() }, clubId)
+      // Moderation -- fail-closed: if the function errors, save as pending.
+      let status: 'approved' | 'pending' = 'approved'
+      try {
+        const { data, error: modErr } = await supabase.functions.invoke('moderate-post', {
+          body: { kind: 'event', title: form.title.trim(), location: form.location.trim(), description: form.description?.trim() },
+        })
+        if (modErr || !data) {
+          status = 'pending'
+        } else if (!data.ok) {
+          setMsg(data.reason || "That didn't pass review -- tweak it and try again.")
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)
+          setSaving(false); return
+        }
+      } catch { status = 'pending' }
+
+      await api.addEvent({ ...form, title: form.title.trim(), location: form.location.trim() }, clubId, status)
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
       setForm({ title: '', event_date: localDate(), start_time: '', location: '', description: '' })
       setOpen(false)
-      setMsg('Posted! It’s on the timeline now.')
+      setMsg(status === 'pending' ? 'Thanks! Your post is waiting for review before it shows up.' : "Posted! It's on the timeline now.")
     } catch {
-      setMsg('Could not post — try again.')
+      setMsg('Could not post -- try again.')
     } finally { setSaving(false) }
   }
 

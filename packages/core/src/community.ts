@@ -122,7 +122,7 @@ export function createCommunityApi(supabase: SupabaseClient, adminEmail = DEFAUL
     const today = localDate()
     const until = localDate(addDays(7))
     const { data: events, error } = await supabase
-      .from('club_events').select('*').eq('status', 'approved').gt('event_date', today).lte('event_date', until).order('event_date', { ascending: true })
+      .from('club_events').select('*').eq('status', 'approved').eq('kind', 'event').gt('event_date', today).lte('event_date', until).order('event_date', { ascending: true })
     if (error) throw error
     const ids = (events ?? []).map((e) => e.id)
     const counts = new Map<string, number>()

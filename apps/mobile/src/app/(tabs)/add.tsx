@@ -53,8 +53,9 @@ export default function Add() {
   const [photo, setPhoto] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
 
-  const set = (field: keyof FormState) => (v: string) => setForm((f) => ({ ...f, [field]: v }))
+  const set = (field: keyof FormState) => (v: string) => { setNotice(null); return setForm((f) => ({ ...f, [field]: v })) }
 
   const resetForm = () => {
     setForm({ ...EMPTY_FORM, event_date: localDate() })
@@ -117,8 +118,13 @@ export default function Add() {
         await api.submitClub({ name: form.title.trim(), host: form.host, schedule: form.schedule, location: form.location, vibe: form.vibe, description: form.description, expectations: form.expectations })
       }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
-      resetForm()
-      router.replace(kind === 'event' ? '/(tabs)' : '/(tabs)/activities')
+      if (status === 'pending') {
+        resetForm()
+        setNotice('Thanks! Your post is waiting for review before it shows up.')
+      } else {
+        resetForm()
+        router.replace(kind === 'event' ? '/(tabs)' : '/(tabs)/activities')
+      }
     } catch {
       setError('Could not post — try again.')
     } finally {
@@ -138,7 +144,7 @@ export default function Add() {
             {(['event', 'club', 'trail'] as PostKind[]).map((k) => {
               const active = kind === k
               return (
-                <Pressable key={k} onPress={() => { Haptics.selectionAsync(); setKind(k); setError(null) }}
+                <Pressable key={k} onPress={() => { Haptics.selectionAsync(); setKind(k); setError(null); setNotice(null) }}
                   style={({ pressed }) => ({
                     paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20,
                     borderWidth: 1.5,
@@ -151,6 +157,9 @@ export default function Add() {
               )
             })}
           </View>
+
+          {/* Pending notice */}
+          {notice && <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.ink2, marginBottom: 16, lineHeight: 19 }}>{notice}</Text>}
 
           {/* Title — always shown */}
           <Field label="Title" value={form.title} onChangeText={set('title')} placeholder={
