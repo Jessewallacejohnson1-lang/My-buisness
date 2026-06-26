@@ -20,6 +20,7 @@ export default function Activities() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [selected, setSelected] = useState<ClubView | null>(null)
+  const [selectedTrail, setSelectedTrail] = useState<Trail | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [interests, setInterestsState] = useState<string[]>([])
 
@@ -180,11 +181,12 @@ export default function Activities() {
             {suggestedTrails.map((t) => {
               const meta = [t.location, t.length, t.difficulty].filter(Boolean).join(' · ')
               return (
-                <View key={`s-${t.id}`} style={{ borderRadius: 16, backgroundColor: C.paper100, borderWidth: 1, borderColor: HAIRLINE, padding: 16 }}>
+                <Pressable key={`s-${t.id}`} onPress={() => { Haptics.selectionAsync(); setSelectedTrail(t) }}
+                  style={({ pressed }) => ({ borderRadius: 16, backgroundColor: C.paper100, borderWidth: 1, borderColor: HAIRLINE, padding: 16, opacity: pressed ? 0.92 : 1 })}>
                   <Text style={{ fontFamily: F.mono, fontSize: 10, color: C.ink3, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>Trail</Text>
                   <Text style={{ fontFamily: F.sansBold, fontSize: 17, color: C.ink, letterSpacing: -0.2 }}>{t.title}</Text>
                   {!!meta && <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.ink3, marginTop: 6 }}>{meta}</Text>}
-                </View>
+                </Pressable>
               )
             })}
           </View>
@@ -230,16 +232,18 @@ export default function Activities() {
             {trails.map((t) => {
               const meta = [t.location, t.length, t.difficulty].filter(Boolean).join(' · ')
               return (
-                <View key={t.id} style={{ borderRadius: 16, backgroundColor: C.paper100, borderWidth: 1, borderColor: HAIRLINE, overflow: 'hidden' }}>
+                <Pressable key={t.id} onPress={() => { Haptics.selectionAsync(); setSelectedTrail(t) }}
+                  style={({ pressed }) => ({ borderRadius: 16, backgroundColor: C.paper100, borderWidth: 1, borderColor: HAIRLINE, overflow: 'hidden', opacity: pressed ? 0.92 : 1 })}>
                   {!!t.image_url && (
                     <Image source={{ uri: t.image_url }} style={{ width: '100%', height: 160 }} contentFit="cover" />
                   )}
                   <View style={{ padding: 16 }}>
                     <Text style={{ fontFamily: F.sansBold, fontSize: 17, color: C.ink, letterSpacing: -0.2 }}>{t.title}</Text>
                     {!!meta && <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.ink3, marginTop: 6 }}>{meta}</Text>}
-                    {!!t.description && <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.ink2, marginTop: 8, lineHeight: 19 }}>{t.description}</Text>}
+                    {!!t.description && <Text numberOfLines={2} style={{ fontFamily: F.sans, fontSize: 13, color: C.ink2, marginTop: 8, lineHeight: 19 }}>{t.description}</Text>}
+                    <Text style={{ fontFamily: F.mono, fontSize: 11, color: C.ink3, marginTop: 8 }}>tap for details</Text>
                   </View>
-                </View>
+                </Pressable>
               )
             })}
           </View>
@@ -247,7 +251,58 @@ export default function Activities() {
       </ScrollView>
 
       <ClubDetail club={selected} onClose={() => setSelected(null)} onToggleJoin={toggleJoin} />
+      <TrailDetail trail={selectedTrail} onClose={() => setSelectedTrail(null)} />
     </SafeAreaView>
+  )
+}
+
+/** Slide-up detail sheet for a single trail. */
+function TrailDetail({ trail, onClose }: { trail: Trail | null; onClose: () => void }) {
+  const meta = trail ? [trail.length, trail.difficulty].filter(Boolean).join(' · ') : ''
+  return (
+    <Modal visible={!!trail} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable onPress={onClose} style={{ flex: 1, backgroundColor: 'rgba(20,18,14,0.38)', justifyContent: 'flex-end' }}>
+        <Pressable onPress={(e) => e.stopPropagation()} style={{ backgroundColor: C.paper, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingTop: 8, paddingBottom: 36, maxHeight: '88%' }}>
+          <View style={{ alignSelf: 'center', width: 38, height: 4, borderRadius: 2, backgroundColor: 'rgba(0,0,0,0.14)', marginBottom: 6 }} />
+          {trail && (
+            <ScrollView contentContainerStyle={{ paddingHorizontal: 22, paddingTop: 8 }} showsVerticalScrollIndicator={false}>
+              {!!trail.image_url && (
+                <Image source={{ uri: trail.image_url }} style={{ width: '100%', height: 180, borderRadius: 14, marginBottom: 14 }} contentFit="cover" />
+              )}
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                <Text style={{ flex: 1, fontFamily: F.display, fontSize: 26, color: C.ink, letterSpacing: -0.4 }}>{trail.title}</Text>
+                <Pressable onPress={onClose} hitSlop={8} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: C.paper100, alignItems: 'center', justifyContent: 'center' }}>
+                  <CloseIcon size={16} color={C.ink2} />
+                </Pressable>
+              </View>
+
+              {!!meta && <Text style={{ fontFamily: F.mono, fontSize: 13, color: C.ink3, marginTop: 8 }}>{meta}</Text>}
+              {!!trail.description && (
+                <Text style={{ fontFamily: F.sans, fontSize: 15, color: C.ink2, lineHeight: 22, marginTop: 14 }}>{trail.description}</Text>
+              )}
+
+              {!!trail.location && (
+                <View style={{ marginTop: 18, flexDirection: 'row', alignItems: 'baseline', gap: 12 }}>
+                  <Text style={{ width: 78, fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1, textTransform: 'uppercase' }}>Where</Text>
+                  <Pressable onPress={() => openInMaps(trail.location!)} onLongPress={() => copyAddress(trail.location!)}
+                    style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    <PinIcon size={14} color={C.moss700} />
+                    <Text style={{ flex: 1, fontFamily: F.sans, fontSize: 14, color: C.moss700 }}>{trail.location}</Text>
+                  </Pressable>
+                </View>
+              )}
+
+              {!!trail.location && (
+                <Pressable onPress={() => openInMaps(trail.location!)}
+                  style={({ pressed }) => ({ marginTop: 22, paddingVertical: 14, borderRadius: 12, backgroundColor: C.moss700, alignItems: 'center', opacity: pressed ? 0.9 : 1 })}>
+                  <Text style={{ fontFamily: F.sansSemi, fontSize: 15, color: C.paper }}>Open in Maps</Text>
+                </Pressable>
+              )}
+            </ScrollView>
+          )}
+        </Pressable>
+      </Pressable>
+    </Modal>
   )
 }
 
