@@ -49,6 +49,26 @@ export type WeekEvent = {
   going_count: number
 }
 
+/** Lightweight event for the calendar's expanded-week agenda (grouped by date). */
+export type AgendaEvent = {
+  id: string
+  title: string
+  event_date: string // YYYY-MM-DD
+  start_time: string | null
+  location: string | null
+}
+
+/** A future event for the Activities browse list. */
+export type UpcomingEvent = {
+  id: string
+  title: string
+  event_date: string   // YYYY-MM-DD
+  start_time: string | null
+  location: string | null
+  going_count: number
+  created_at: string
+}
+
 export type NewEventInput = {
   title: string
   event_date: string // YYYY-MM-DD

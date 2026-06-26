@@ -3,13 +3,45 @@ import { ActivityIndicator, Modal, Pressable, RefreshControl, ScrollView, Text, 
 import { SafeAreaView } from 'react-native-safe-area-context'
 import * as Haptics from 'expo-haptics'
 import { Image } from 'expo-image'
-import { isAdminEmail, localDate, type ClubView, type ClubRow, type NewEventInput, type Trail, type PendingPost } from '@hygge/core'
+import { isAdminEmail, localDate, type ClubView, type ClubRow, type NewEventInput, type Trail, type PendingPost, type UpcomingEvent } from '@hygge/core'
 import { api } from '../../lib/api'
 import { supabase } from '../../lib/supabase'
 import { getInterests, matchesInterests } from '../../lib/interests'
 import { SearchIcon, PlusIcon, CloseIcon, PinIcon } from '../../components/icons'
 import { openInMaps, copyAddress } from '../../lib/maps'
 import { C, F, HAIRLINE } from '../../theme'
+
+type FilterId = 'all' | 'events' | 'clubs' | 'trails'
+const FILTERS: { id: FilterId; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'events', label: 'Events' },
+  { id: 'clubs', label: 'Clubs' },
+  { id: 'trails', label: 'Trails' },
+]
+// Sort options adapt to the active filter; the first is the default.
+const SORTS: Record<FilterId, { key: string; label: string }[]> = {
+  all: [{ key: 'newest', label: 'Newest' }, { key: 'az', label: 'A–Z' }],
+  events: [{ key: 'date', label: 'Date' }, { key: 'az', label: 'A–Z' }],
+  clubs: [{ key: 'members', label: 'Members' }, { key: 'az', label: 'A–Z' }, { key: 'newest', label: 'Newest' }],
+  trails: [{ key: 'distance', label: 'Distance' }, { key: 'difficulty', label: 'Difficulty' }, { key: 'az', label: 'A–Z' }],
+}
+
+/** First number found in the free-text length, e.g. "2.3–5.9 mi" → 2.3. Unparseable sorts last. */
+function parseMiles(s: string | null): number {
+  if (!s) return Infinity
+  const m = s.match(/(\d+(?:\.\d+)?)/)
+  return m ? parseFloat(m[1]) : Infinity
+}
+const DIFF_RANK: Record<string, number> = { easy: 1, moderate: 3, intermediate: 3, hard: 4, difficult: 4 }
+function difficultyRank(s: string | null): number {
+  if (!s) return 99
+  const first = s.toLowerCase().split(/[\s–-]+/)[0]
+  return DIFF_RANK[first] ?? 50
+}
+function formatEventDate(ymd: string): string {
+  const [y, m, d] = ymd.split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+}
 
 export default function Activities() {
   const [clubs, setClubs] = useState<ClubView[]>([])
@@ -23,11 +55,17 @@ export default function Activities() {
   const [selectedTrail, setSelectedTrail] = useState<Trail | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [interests, setInterestsState] = useState<string[]>([])
+  const [events, setEvents] = useState<UpcomingEvent[]>([])
+  const [filter, setFilter] = useState<FilterId>('all')
+  const [sort, setSort] = useState<string>('newest')
+
+  const pickFilter = (f: FilterId) => { Haptics.selectionAsync(); setFilter(f); setSort(SORTS[f][0].key) }
 
   const load = useCallback(async (admin: boolean) => {
-    const [list, trailList] = await Promise.all([api.getApprovedClubs(), api.getTrails()])
+    const [list, trailList, eventList] = await Promise.all([api.getApprovedClubs(), api.getTrails(), api.getUpcomingEvents()])
     setClubs(list)
     setTrails(trailList)
+    setEvents(eventList)
     if (admin) {
       const [pp, pc] = await Promise.all([api.getPendingPosts(), api.getPendingClubs()])
       setPendingPosts(pp)
@@ -94,17 +132,42 @@ export default function Activities() {
   }
 
   const q = query.trim().toLowerCase()
-  const filtered = clubs.filter((c) => !q ||
-    `${c.name} ${c.host ?? ''} ${c.vibe ?? ''} ${c.schedule ?? ''} ${c.location ?? ''} ${c.description ?? ''}`.toLowerCase().includes(q))
+  const matchQ = (s: string) => !q || s.toLowerCase().includes(q)
+
+  const clubsF = clubs.filter((c) => matchQ(`${c.name} ${c.host ?? ''} ${c.vibe ?? ''} ${c.schedule ?? ''} ${c.location ?? ''} ${c.description ?? ''}`))
+  const trailsF = trails.filter((t) => matchQ(`${t.title} ${t.location ?? ''} ${t.length ?? ''} ${t.difficulty ?? ''} ${t.description ?? ''}`))
+  const eventsF = events.filter((e) => matchQ(`${e.title} ${e.location ?? ''}`))
+
+  const sortClubs = (l: ClubView[]) => [...l].sort((a, b) =>
+    sort === 'members' ? b.member_count - a.member_count
+    : sort === 'az' ? a.name.localeCompare(b.name)
+    : b.created_at.localeCompare(a.created_at))
+  const sortTrails = (l: Trail[]) => [...l].sort((a, b) =>
+    sort === 'distance' ? parseMiles(a.length) - parseMiles(b.length)
+    : sort === 'difficulty' ? difficultyRank(a.difficulty) - difficultyRank(b.difficulty)
+    : a.title.localeCompare(b.title))
+  const sortEvents = (l: UpcomingEvent[]) => [...l].sort((a, b) =>
+    sort === 'az' ? a.title.localeCompare(b.title) : a.event_date.localeCompare(b.event_date))
+  // In the "All" view the sort keys are newest|az, applied to each section.
+  const allSort = <T extends { created_at?: string }>(l: T[], nameOf: (x: T) => string) => [...l].sort((a, b) =>
+    sort === 'az' ? nameOf(a).localeCompare(nameOf(b)) : (b.created_at ?? '').localeCompare(a.created_at ?? ''))
+
+  const shownClubs = filter === 'all' ? allSort(clubsF, (c) => c.name) : sortClubs(clubsF)
+  const shownTrails = filter === 'all' ? allSort(trailsF, (t) => t.title) : sortTrails(trailsF)
+  const shownEvents = filter === 'all' ? allSort(eventsF, (e) => e.title) : sortEvents(eventsF)
+  const visibleCount = filter === 'events' ? shownEvents.length
+    : filter === 'clubs' ? shownClubs.length
+    : filter === 'trails' ? shownTrails.length
+    : shownEvents.length + shownClubs.length + shownTrails.length
 
   const hasPending = isAdmin && (pendingPosts.length > 0 || pendingClubs.length > 0)
 
-  // "Suggested for you" — keyword-match the viewer's onboarding interests (real matches only).
+  // "Suggested for you" — keyword-match the viewer's onboarding interests (real matches only). All view, no search.
   const suggestedClubs = clubs.filter((c) =>
     matchesInterests(`${c.name} ${c.host ?? ''} ${c.vibe ?? ''} ${c.schedule ?? ''} ${c.description ?? ''}`, interests))
   const suggestedTrails = trails.filter((t) =>
     matchesInterests(`${t.title} ${t.location ?? ''} ${t.description ?? ''}`, interests, true))
-  const hasSuggested = !loading && (suggestedClubs.length > 0 || suggestedTrails.length > 0)
+  const hasSuggested = !loading && filter === 'all' && !q && (suggestedClubs.length > 0 || suggestedTrails.length > 0)
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: C.paper }}>
@@ -119,6 +182,32 @@ export default function Activities() {
             <SearchIcon color={C.ink3} />
             <TextInput value={query} onChangeText={setQuery} placeholder="Search clubs & activities…" placeholderTextColor={C.ink3}
               style={{ flex: 1, fontFamily: F.sans, fontSize: 15, color: C.ink }} autoCapitalize="none" />
+          </View>
+
+          {/* Filter pills */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingTop: 14 }}>
+            {FILTERS.map((f) => {
+              const active = f.id === filter
+              return (
+                <Pressable key={f.id} onPress={() => pickFilter(f.id)}
+                  style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: active ? 0 : 1, borderColor: HAIRLINE, backgroundColor: active ? C.ink : 'transparent' }}>
+                  <Text style={{ fontFamily: active ? F.sansSemi : F.sansMed, fontSize: 13.5, color: active ? C.paper : C.ink2 }}>{f.label}</Text>
+                </Pressable>
+              )
+            })}
+          </ScrollView>
+
+          {/* Sort */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingTop: 12 }}>
+            <Text style={{ fontFamily: F.mono, fontSize: 10, color: C.ink3, letterSpacing: 1, textTransform: 'uppercase' }}>Sort</Text>
+            {SORTS[filter].map((s) => {
+              const on = s.key === sort
+              return (
+                <Pressable key={s.key} onPress={() => { Haptics.selectionAsync(); setSort(s.key) }} hitSlop={6}>
+                  <Text style={{ fontFamily: on ? F.sansSemi : F.sansMed, fontSize: 13, color: on ? C.ink : C.ink3 }}>{s.label}</Text>
+                </Pressable>
+              )
+            })}
           </View>
         </View>
 
@@ -166,7 +255,7 @@ export default function Activities() {
           </View>
         )}
 
-        {/* Suggested for you — from onboarding interests */}
+        {/* Suggested for you — from onboarding interests (All view) */}
         {hasSuggested && (
           <View style={{ paddingHorizontal: 20, paddingTop: 22, gap: 12 }}>
             <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: C.moss700, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 2 }}>Suggested for you</Text>
@@ -192,19 +281,34 @@ export default function Activities() {
           </View>
         )}
 
-        {/* Clubs list */}
-        <View style={{ paddingHorizontal: 20, paddingTop: 18, gap: 12 }}>
-          <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 2 }}>Clubs</Text>
-          {loading ? (
-            <ActivityIndicator color={C.ink3} style={{ marginTop: 20 }} />
-          ) : filtered.length === 0 ? (
-            <View style={{ borderRadius: 16, borderWidth: 1.5, borderStyle: 'dashed', borderColor: 'rgba(0,0,0,0.13)', padding: 18 }}>
-              <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.ink2 }}>
-                {clubs.length === 0 ? 'No clubs yet — start one via the + tab.' : 'No clubs match your search.'}
-              </Text>
-            </View>
-          ) : (
-            filtered.map((c) => (
+        {loading && <ActivityIndicator color={C.ink3} style={{ marginTop: 28 }} />}
+
+        {/* Events */}
+        {!loading && (filter === 'all' || filter === 'events') && shownEvents.length > 0 && (
+          <View style={{ paddingHorizontal: 20, paddingTop: 22, gap: 12 }}>
+            {filter === 'all' && <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 2 }}>Events</Text>}
+            {shownEvents.map((e) => (
+              <View key={e.id} style={{ borderRadius: 16, backgroundColor: C.paper100, borderWidth: 1, borderColor: HAIRLINE, padding: 16 }}>
+                <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.moss700, marginBottom: 4 }}>{formatEventDate(e.event_date)}{e.start_time ? ` · ${e.start_time}` : ''}</Text>
+                <Text style={{ fontFamily: F.sansBold, fontSize: 17, color: C.ink, letterSpacing: -0.2 }}>{e.title}</Text>
+                {!!e.location && (
+                  <Pressable onPress={() => openInMaps(e.location!)} onLongPress={() => copyAddress(e.location!)}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 }}>
+                    <PinIcon size={13} color={C.ink3} />
+                    <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.ink2 }}>{e.location}</Text>
+                  </Pressable>
+                )}
+                <Text style={{ fontFamily: F.mono, fontSize: 11, color: C.ink3, marginTop: 8 }}>{e.going_count} going</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Clubs */}
+        {!loading && (filter === 'all' || filter === 'clubs') && shownClubs.length > 0 && (
+          <View style={{ paddingHorizontal: 20, paddingTop: 22, gap: 12 }}>
+            {filter === 'all' && <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 2 }}>Clubs</Text>}
+            {shownClubs.map((c) => (
               <Pressable key={c.id} onPress={() => { Haptics.selectionAsync(); setSelected(c) }}
                 style={({ pressed }) => ({ borderRadius: 16, backgroundColor: C.paper100, borderWidth: 1, borderColor: HAIRLINE, padding: 16, opacity: pressed ? 0.92 : 1 })}>
                 <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
@@ -221,15 +325,15 @@ export default function Activities() {
                   </Pressable>
                 </View>
               </Pressable>
-            ))
-          )}
-        </View>
+            ))}
+          </View>
+        )}
 
-        {/* Trails section */}
-        {!loading && trails.length > 0 && (
-          <View style={{ paddingHorizontal: 20, paddingTop: 28, gap: 12 }}>
-            <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 2 }}>Trails</Text>
-            {trails.map((t) => {
+        {/* Trails */}
+        {!loading && (filter === 'all' || filter === 'trails') && shownTrails.length > 0 && (
+          <View style={{ paddingHorizontal: 20, paddingTop: 22, gap: 12 }}>
+            {filter === 'all' && <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 2 }}>Trails</Text>}
+            {shownTrails.map((t) => {
               const meta = [t.location, t.length, t.difficulty].filter(Boolean).join(' · ')
               return (
                 <Pressable key={t.id} onPress={() => { Haptics.selectionAsync(); setSelectedTrail(t) }}
@@ -246,6 +350,19 @@ export default function Activities() {
                 </Pressable>
               )
             })}
+          </View>
+        )}
+
+        {/* Empty */}
+        {!loading && visibleCount === 0 && (
+          <View style={{ marginHorizontal: 20, marginTop: 22, borderRadius: 16, borderWidth: 1.5, borderStyle: 'dashed', borderColor: 'rgba(0,0,0,0.13)', padding: 18 }}>
+            <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.ink2 }}>
+              {q ? `Nothing matches "${query.trim()}".`
+                : filter === 'events' ? 'No upcoming events yet — post one from the + tab.'
+                : filter === 'clubs' ? 'No clubs yet — start one from the + tab.'
+                : filter === 'trails' ? 'No trails yet.'
+                : 'Nothing here yet — add something from the + tab.'}
+            </Text>
           </View>
         )}
       </ScrollView>

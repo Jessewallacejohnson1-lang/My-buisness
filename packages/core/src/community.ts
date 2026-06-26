@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { localDate, addDays, weekdayLabel } from './db'
 import type {
   ClubInput, ClubRow, ClubStatus, ClubView,
-  DailyQuest, NewEventInput, TimelineEvent, WeekEvent,
+  DailyQuest, NewEventInput, TimelineEvent, WeekEvent, UpcomingEvent, AgendaEvent,
   NewTrailInput, Trail, PendingPost, PostKind,
 } from './types'
 
@@ -133,6 +133,24 @@ export function createCommunityApi(supabase: SupabaseClient, adminEmail = DEFAUL
     return (events ?? []).map((e) => ({ id: e.id, title: e.title, date_label: weekdayLabel(e.event_date), going_count: counts.get(e.id) ?? 0 }))
   }
 
+  /** All approved, upcoming events (today onward) for the Activities browse list. */
+  async function getUpcomingEvents(): Promise<UpcomingEvent[]> {
+    const today = localDate()
+    const { data: events, error } = await supabase
+      .from('club_events').select('*').eq('status', 'approved').eq('kind', 'event').gte('event_date', today).order('event_date', { ascending: true })
+    if (error) throw error
+    const ids = (events ?? []).map((e) => e.id)
+    const counts = new Map<string, number>()
+    if (ids.length) {
+      const { data: rsvps } = await supabase.from('event_rsvps').select('event_id').in('event_id', ids)
+      ;(rsvps ?? []).forEach((r) => counts.set(r.event_id, (counts.get(r.event_id) ?? 0) + 1))
+    }
+    return (events ?? []).map((e) => ({
+      id: e.id, title: e.title, event_date: e.event_date, start_time: e.start_time ?? null,
+      location: e.location ?? null, going_count: counts.get(e.id) ?? 0, created_at: e.created_at,
+    }))
+  }
+
   async function rsvpEvent(eventId: string): Promise<void> {
     const uid = await currentUserId()
     if (!uid) throw new Error('Not signed in')
@@ -201,6 +219,21 @@ export function createCommunityApi(supabase: SupabaseClient, adminEmail = DEFAUL
       .from('club_events').select('event_date').eq('status', 'approved').eq('kind', 'event').gte('event_date', from).lte('event_date', to)
     if (error) throw error
     return [...new Set((data ?? []).map((e) => e.event_date))]
+  }
+
+  /** Approved events between two dates (inclusive) — for the expanded-week agenda. */
+  async function getEventsForRange(from: string, to: string): Promise<AgendaEvent[]> {
+    const { data, error } = await supabase
+      .from('club_events')
+      .select('id, title, event_date, start_time, location')
+      .eq('status', 'approved').eq('kind', 'event')
+      .gte('event_date', from).lte('event_date', to)
+      .order('event_date', { ascending: true }).order('start_time', { ascending: true })
+    if (error) throw error
+    return (data ?? []).map((e) => ({
+      id: e.id, title: e.title, event_date: e.event_date,
+      start_time: e.start_time ?? null, location: e.location ?? null,
+    }))
   }
 
   // ── Quests ──────────────────────────────────────────────────────────────────
@@ -302,8 +335,8 @@ export function createCommunityApi(supabase: SupabaseClient, adminEmail = DEFAUL
   return {
     currentUserId, getCurrentUser,
     getApprovedClubs, joinClub, leaveClub, submitClub,
-    getTodayEvents, getWeekEvents, rsvpEvent, unRsvpEvent, addEvent,
-    getEventsByDate, getMonthEventDates,
+    getTodayEvents, getWeekEvents, getUpcomingEvents, rsvpEvent, unRsvpEvent, addEvent,
+    getEventsByDate, getMonthEventDates, getEventsForRange,
     getTodayQuest, getQuestCompletionCount, hasUserCompletedQuest, completeQuest, setQuest,
     addTrail, getTrails, getPendingPosts, getPendingClubs, approvePost, rejectPost, setClubStatus,
   }
