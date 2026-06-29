@@ -3,7 +3,7 @@ import { Text, View } from 'react-native'
 import { Image } from 'expo-image'
 import { LinearGradient } from 'expo-linear-gradient'
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated'
-import { C, F, WEATHER_IMAGES, HAIRLINE, type WeatherKey } from '../theme'
+import { C, F, WEATHER_IMAGES, CARD_SHADOW, type WeatherKey } from '../theme'
 
 type Weather = { temp: number; code: number; hi: number; lo: number; day: boolean }
 
@@ -63,7 +63,8 @@ export function WeatherBar() {
   const key = w ? wxKey(w.code, w.day) : null
 
   return (
-    <View style={{ marginHorizontal: 16, height: 52, borderRadius: 18, borderWidth: 1, borderColor: HAIRLINE, backgroundColor: C.paper100, overflow: 'hidden' }}>
+    <View style={{ marginHorizontal: 20, marginTop: 6, height: 52, borderRadius: 20, backgroundColor: C.paper100, ...CARD_SHADOW }}>
+      <View style={{ flex: 1, borderRadius: 20, overflow: 'hidden' }}>
       {key && (
         <Animated.View style={[{ position: 'absolute', top: -8, left: -8, right: -8, bottom: -8 }, kenStyle]}>
           <Image
@@ -93,6 +94,7 @@ export function WeatherBar() {
         ) : (
           <Text style={{ fontFamily: F.sansMed, fontSize: 14.5, color: C.ink3 }}>Loading today&rsquo;s weather…</Text>
         )}
+      </View>
       </View>
     </View>
   )

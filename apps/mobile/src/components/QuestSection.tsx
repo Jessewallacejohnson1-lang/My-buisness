@@ -1,10 +1,29 @@
 import { useEffect, useState } from 'react'
 import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native'
 import * as Haptics from 'expo-haptics'
+import { useReducedMotion } from 'react-native-reanimated'
 import { isAdminEmail, localDate, type DailyQuest } from '@hygge/core'
 import { api } from '../lib/api'
 import { CheckIcon } from './icons'
-import { C, F, HAIRLINE } from '../theme'
+import { C, F, HAIRLINE, CARD_SHADOW } from '../theme'
+
+/** Count up to `target` with an ease-out curve; instant when disabled. */
+function useCountUp(target: number, enabled: boolean, ms = 650) {
+  const [n, setN] = useState(0)
+  useEffect(() => {
+    if (!enabled || target <= 0) { setN(target); return }
+    const start = Date.now()
+    let id: ReturnType<typeof setTimeout>
+    const tick = () => {
+      const t = Math.min(1, (Date.now() - start) / ms)
+      setN(Math.round(target * (1 - Math.pow(1 - t, 3))))
+      if (t < 1) id = setTimeout(tick, 16)
+    }
+    tick()
+    return () => clearTimeout(id)
+  }, [target, enabled, ms])
+  return n
+}
 
 /** Quest UI embedded in the Home ScrollView — no SafeAreaView/ScrollView wrapper. */
 export function QuestSection() {
@@ -20,6 +39,9 @@ export function QuestSection() {
   const [aDate, setADate] = useState(localDate())
   const [aSaving, setASaving] = useState(false)
   const [aMsg, setAMsg] = useState<string | null>(null)
+  const [showForm, setShowForm] = useState(false)
+  const reduce = useReducedMotion()
+  const shownCount = useCountUp(count, !reduce)
 
   useEffect(() => {
     (async () => {
@@ -54,52 +76,62 @@ export function QuestSection() {
   }
 
   return (
-    <View style={{ paddingHorizontal: 20, paddingTop: 28, borderTopWidth: 1, borderTopColor: HAIRLINE, marginTop: 24 }}>
-      <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.8, textTransform: 'uppercase', marginBottom: 14 }}>Today's quest</Text>
+    <View style={{ marginHorizontal: 20, marginTop: 28 }}>
+      <Text style={{ fontFamily: F.sansBold, fontSize: 24, color: C.ink, letterSpacing: -0.6, marginBottom: 14 }}>Today's quest</Text>
 
-      {loading ? (
-        <ActivityIndicator color={C.ink3} style={{ alignSelf: 'flex-start', marginBottom: 20 }} />
-      ) : quest ? (
-        <View>
-          <Text style={{ fontFamily: F.display, fontSize: 33, color: C.ink, lineHeight: 38, marginBottom: 14 }}>{quest.title}</Text>
-          {!!quest.description && <Text style={{ fontFamily: F.sans, fontSize: 16, color: C.ink2, lineHeight: 25, marginBottom: 20 }}>{quest.description}</Text>}
-          <Text style={{ fontFamily: F.mono, fontSize: 13, color: C.ink3, marginBottom: 22 }}>
-            {count}<Text style={{ fontFamily: F.sans }}> {count === 1 ? 'neighbor' : 'neighbors'} did this today</Text>
-          </Text>
-
-          {done ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 15, borderRadius: 12, borderWidth: 1.5, borderColor: C.moss700 }}>
-              <Text style={{ fontFamily: F.sansSemi, fontSize: 15, color: C.moss700 }}>Done for today</Text>
-              <CheckIcon size={16} color={C.moss700} />
+      <View style={{ padding: 16, borderRadius: 20, backgroundColor: C.paper, borderWidth: 1, borderColor: HAIRLINE, ...CARD_SHADOW }}>
+        {loading ? (
+          <ActivityIndicator color={C.ink3} style={{ alignSelf: 'flex-start' }} />
+        ) : quest ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontFamily: F.display, fontSize: 18, color: C.ink, lineHeight: 24 }}>{quest.title}</Text>
+              <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.ink3, marginTop: 8 }}>
+                {shownCount}<Text style={{ fontFamily: F.sans }}> {count === 1 ? 'neighbor' : 'neighbors'} did this</Text>
+              </Text>
             </View>
-          ) : (
-            <Pressable onPress={complete} disabled={completing}
-              style={({ pressed }) => ({ paddingVertical: 15, borderRadius: 12, backgroundColor: C.moss700, alignItems: 'center', opacity: pressed ? 0.85 : 1 })}>
-              <Text style={{ fontFamily: F.sansSemi, fontSize: 15, color: C.paper }}>{completing ? '…' : 'Mark done'}</Text>
-            </Pressable>
-          )}
-        </View>
-      ) : (
-        <View style={{ paddingVertical: 32, alignItems: 'center' }}>
-          <Text style={{ fontFamily: F.sans, fontSize: 16, color: C.ink2 }}>No quest today.</Text>
-          <Text style={{ fontFamily: F.sans, fontSize: 14, color: C.ink3, marginTop: 6 }}>Check back tomorrow.</Text>
-        </View>
-      )}
+            {done ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 9, paddingHorizontal: 14, borderRadius: 18, borderWidth: 1.5, borderColor: C.moss700 }}>
+                <CheckIcon size={14} color={C.moss700} />
+                <Text style={{ fontFamily: F.sansSemi, fontSize: 13, color: C.moss700 }}>Done</Text>
+              </View>
+            ) : (
+              <Pressable onPress={complete} disabled={completing}
+                style={({ pressed }) => ({ paddingVertical: 11, paddingHorizontal: 18, borderRadius: 18, backgroundColor: C.moss700, opacity: pressed ? 0.85 : 1 })}>
+                <Text style={{ fontFamily: F.sansSemi, fontSize: 13.5, color: C.paper }}>{completing ? '…' : 'Mark done'}</Text>
+              </Pressable>
+            )}
+          </View>
+        ) : (
+          <Text style={{ fontFamily: F.sans, fontSize: 15, color: C.ink2, lineHeight: 22 }}>
+            No quest today — a fresh one lands tomorrow.
+          </Text>
+        )}
+      </View>
 
       {isAdmin && (
-        <View style={{ borderTopWidth: 1, borderTopColor: HAIRLINE, marginTop: 28, paddingTop: 22 }}>
-          <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 14 }}>Set a quest · admin</Text>
-          <AdminField label="Date" value={aDate} onChangeText={setADate} placeholder="2026-06-25" autoCapitalize="none" />
-          <View style={{ height: 12 }} />
-          <AdminField label="Title" value={aTitle} onChangeText={setATitle} placeholder="Walk to the park" />
-          <View style={{ height: 12 }} />
-          <AdminField label="Description" value={aDesc} onChangeText={setADesc} placeholder="Optional details…" multiline />
-          {aMsg && <Text style={{ fontFamily: F.sans, fontSize: 13, color: aMsg.startsWith('Quest saved') ? C.moss700 : C.clay700, marginTop: 12 }}>{aMsg}</Text>}
-          <Pressable onPress={saveQuest} disabled={aSaving}
-            style={({ pressed }) => ({ marginTop: 14, paddingVertical: 12, borderRadius: 10, backgroundColor: aSaving ? C.paper200 : C.ink, alignItems: 'center', opacity: pressed ? 0.85 : 1 })}>
-            <Text style={{ fontFamily: F.sansSemi, fontSize: 14, color: aSaving ? C.ink3 : C.paper }}>{aSaving ? 'Saving…' : 'Save quest'}</Text>
+        showForm ? (
+          <View style={{ marginTop: 12, padding: 16, borderRadius: 20, backgroundColor: C.paper, borderWidth: 1, borderColor: HAIRLINE }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.2, textTransform: 'uppercase' }}>Set a quest · admin</Text>
+              <Pressable onPress={() => setShowForm(false)} hitSlop={10}><Text style={{ fontFamily: F.sansMed, fontSize: 13, color: C.ink3 }}>Close</Text></Pressable>
+            </View>
+            <AdminField label="Date" value={aDate} onChangeText={setADate} placeholder="2026-06-25" autoCapitalize="none" />
+            <View style={{ height: 12 }} />
+            <AdminField label="Quest" value={aTitle} onChangeText={setATitle} placeholder="Say hi to one new neighbor." />
+            <View style={{ height: 12 }} />
+            <AdminField label="Note (optional)" value={aDesc} onChangeText={setADesc} placeholder="A wave on the trail counts." multiline />
+            {aMsg && <Text style={{ fontFamily: F.sans, fontSize: 13, color: aMsg.startsWith('Quest saved') ? C.moss700 : C.clay700, marginTop: 12 }}>{aMsg}</Text>}
+            <Pressable onPress={saveQuest} disabled={aSaving}
+              style={({ pressed }) => ({ marginTop: 14, paddingVertical: 12, borderRadius: 12, backgroundColor: aSaving ? C.paper200 : C.ink, alignItems: 'center', opacity: pressed ? 0.85 : 1 })}>
+              <Text style={{ fontFamily: F.sansSemi, fontSize: 14, color: aSaving ? C.ink3 : C.paper }}>{aSaving ? 'Saving…' : 'Save quest'}</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <Pressable onPress={() => setShowForm(true)} style={({ pressed }) => ({ alignSelf: 'flex-start', marginTop: 12, opacity: pressed ? 0.6 : 1 })}>
+            <Text style={{ fontFamily: F.sansMed, fontSize: 13, color: C.ink3 }}>Set today's quest · admin</Text>
           </Pressable>
-        </View>
+        )
       )}
     </View>
   )

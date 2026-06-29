@@ -41,7 +41,9 @@ function RootNav() {
     const onboarded = isOnboardedSync()
     if (onboarded === null) return // not primed yet
     const loc = segments[0]
-    const inApp = loc === '(tabs)' || loc === 'onboarding'
+    // `place` is an authed full-screen route (the Around Town showcase). Treat it
+    // as in-app so this gate doesn't bounce it straight back to the tabs.
+    const inApp = loc === '(tabs)' || loc === 'onboarding' || loc === 'place'
     if (!session && inApp) router.replace('/login')
     else if (session && !onboarded && loc !== 'onboarding') router.replace('/onboarding')
     else if (session && onboarded && !inApp) router.replace('/(tabs)')
@@ -53,6 +55,9 @@ function RootNav() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="login" />
       <Stack.Screen name="onboarding" />
+      {/* Full-screen place showcase — crossfades in; the screen drives its own
+          scale-bloom entrance, so we keep the native transition a plain fade. */}
+      <Stack.Screen name="place/[slug]" options={{ presentation: 'transparentModal', animation: 'fade' }} />
     </Stack>
   )
 }

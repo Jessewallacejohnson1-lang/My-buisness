@@ -1,9 +1,8 @@
 import { useState } from 'react'
 import { Modal, Pressable, Text, View } from 'react-native'
-import { BlurView } from 'expo-blur'
 import { useRouter } from 'expo-router'
 import * as Haptics from 'expo-haptics'
-import { C, F } from '../theme'
+import { C, F, HAIRLINE, CARD_SHADOW } from '../theme'
 import { AccountIcon } from './icons'
 
 export function AccountMenu({ name, onSignOut }: { name: string | null; onSignOut: () => void }) {
@@ -14,17 +13,16 @@ export function AccountMenu({ name, onSignOut }: { name: string | null; onSignOu
       <Pressable
         onPress={() => { Haptics.selectionAsync(); setOpen(true) }}
         style={({ pressed }) => ({
-          width: 44, height: 44, borderRadius: 22, overflow: 'hidden',
-          borderWidth: 1, borderColor: 'rgba(255,255,255,0.55)', opacity: pressed ? 0.85 : 1,
+          width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center',
+          backgroundColor: C.paper, borderWidth: 1, borderColor: HAIRLINE,
+          opacity: pressed ? 0.7 : 1, ...CARD_SHADOW,
         })}
       >
-        <BlurView intensity={28} tint="light" style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.42)' }}>
-          {name ? (
-            <Text style={{ fontFamily: F.sansSemi, fontSize: 15, color: C.ink }}>{name[0]}</Text>
-          ) : (
-            <AccountIcon />
-          )}
-        </BlurView>
+        {name ? (
+          <Text style={{ fontFamily: F.sansSemi, fontSize: 15, color: C.ink }}>{name[0].toUpperCase()}</Text>
+        ) : (
+          <AccountIcon />
+        )}
       </Pressable>
 
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
