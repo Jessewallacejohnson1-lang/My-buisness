@@ -39,12 +39,12 @@ function weekDatesFrom(year: number, month: number, week: (number | null)[]): We
   })
 }
 
-function DayCell({ day, year, month, eventDates, selectedDate, todayYmd, onSelect }: {
-  day: number | null; year: number; month: number; eventDates: Set<string>; selectedDate: string | null; todayYmd: string; onSelect: (d: string) => void
+function DayCell({ day, year, month, counts, selectedDate, todayYmd, onSelect }: {
+  day: number | null; year: number; month: number; counts: Record<string, number>; selectedDate: string | null; todayYmd: string; onSelect: (d: string) => void
 }) {
   if (!day) return <View style={{ flex: 1, height: 54 }} />
   const date = ymd(year, month, day)
-  const hasEvent = eventDates.has(date)
+  const count = counts[date] ?? 0
   const isSelected = date === selectedDate
   const isToday = date === todayYmd
   const isPast = date < todayYmd
@@ -54,14 +54,21 @@ function DayCell({ day, year, month, eventDates, selectedDate, todayYmd, onSelec
       <View style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: isSelected ? C.moss700 : 'transparent', borderWidth: 1.5, borderColor: isToday && !isSelected ? C.moss700 : 'transparent' }}>
         <Text style={{ fontFamily: F.sansSemi, fontSize: 17, lineHeight: 20, color: isSelected ? C.paper : isPast ? C.ink3 : C.ink }}>{day}</Text>
       </View>
-      <View style={{ width: 5, height: 5, borderRadius: 2.5, marginTop: 4, backgroundColor: hasEvent && !isSelected ? C.moss500 : 'transparent' }} />
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2, height: 5, marginTop: 4 }}>
+        {!isSelected && Array.from({ length: Math.min(count, 3) }).map((_, i) => (
+          <View key={i} style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: C.moss500 }} />
+        ))}
+        {!isSelected && count > 3 && (
+          <Text style={{ fontFamily: F.mono, fontSize: 9, lineHeight: 9, color: C.moss500 }}>+</Text>
+        )}
+      </View>
     </Pressable>
   )
 }
 
 /** One week of a month, wrapped in a pinch gesture that zooms it into a week view. */
-function WeekRow({ week, year, month, eventDates, selectedDate, todayYmd, onSelect, progress, onExpandStart, onAbort, onCommit }: {
-  week: (number | null)[]; year: number; month: number; eventDates: Set<string>; selectedDate: string | null; todayYmd: string
+function WeekRow({ week, year, month, counts, selectedDate, todayYmd, onSelect, progress, onExpandStart, onAbort, onCommit }: {
+  week: (number | null)[]; year: number; month: number; counts: Record<string, number>; selectedDate: string | null; todayYmd: string
   onSelect: (d: string) => void; progress: SharedValue<number>
   onExpandStart: (days: WeekDay[]) => void; onAbort: () => void; onCommit: () => void
 }) {
@@ -85,15 +92,15 @@ function WeekRow({ week, year, month, eventDates, selectedDate, todayYmd, onSele
     <GestureDetector gesture={Gesture.Race(pinch, longPress)}>
       <View style={{ flexDirection: 'row' }}>
         {week.map((day, di) => (
-          <DayCell key={di} day={day} year={year} month={month} eventDates={eventDates} selectedDate={selectedDate} todayYmd={todayYmd} onSelect={onSelect} />
+          <DayCell key={di} day={day} year={year} month={month} counts={counts} selectedDate={selectedDate} todayYmd={todayYmd} onSelect={onSelect} />
         ))}
       </View>
     </GestureDetector>
   )
 }
 
-function MonthBlock({ year, month, eventDates, selectedDate, todayYmd, onSelect, progress, onExpandStart, onAbort, onCommit }: {
-  year: number; month: number; eventDates: Set<string>; selectedDate: string | null; todayYmd: string
+function MonthBlock({ year, month, counts, selectedDate, todayYmd, onSelect, progress, onExpandStart, onAbort, onCommit }: {
+  year: number; month: number; counts: Record<string, number>; selectedDate: string | null; todayYmd: string
   onSelect: (d: string) => void; progress: SharedValue<number>
   onExpandStart: (days: WeekDay[]) => void; onAbort: () => void; onCommit: () => void
 }) {
@@ -111,7 +118,7 @@ function MonthBlock({ year, month, eventDates, selectedDate, todayYmd, onSelect,
       <Text style={{ fontFamily: F.sansBold, fontSize: 26, color: C.ink, letterSpacing: -0.4, marginTop: 22, marginBottom: 6 }}>{label}</Text>
       {weeks.map((week, wi) => (
         <WeekRow
-          key={wi} week={week} year={year} month={month} eventDates={eventDates} selectedDate={selectedDate} todayYmd={todayYmd}
+          key={wi} week={week} year={year} month={month} counts={counts} selectedDate={selectedDate} todayYmd={todayYmd}
           onSelect={onSelect} progress={progress} onExpandStart={onExpandStart} onAbort={onAbort} onCommit={onCommit}
         />
       ))}
@@ -123,7 +130,7 @@ export default function Calendar() {
   const today = new Date()
   const todayYmd = ymd(today.getFullYear(), today.getMonth() + 1, today.getDate())
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
-  const [eventDates, setEventDates] = useState<Set<string>>(new Set())
+  const [counts, setCounts] = useState<Record<string, number>>({})
   const [dayEvents, setDayEvents] = useState<TimelineEvent[]>([])
   const [sheetOpen, setSheetOpen] = useState(false)
   const [loadingEvents, setLoadingEvents] = useState(false)
@@ -146,8 +153,8 @@ export default function Calendar() {
 
   useEffect(() => {
     let alive = true
-    Promise.all(months.map((m) => api.getMonthEventDates(m.year, m.month).catch(() => [] as string[])))
-      .then((res) => { if (alive) setEventDates(new Set(res.flat())) })
+    Promise.all(months.map((m) => api.getMonthEventCounts(m.year, m.month).catch(() => ({} as Record<string, number>))))
+      .then((res) => { if (alive) setCounts(Object.assign({}, ...res)) })
     return () => { alive = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -199,7 +206,7 @@ export default function Calendar() {
                 } : undefined}
               >
                 <MonthBlock
-                  year={m.year} month={m.month} eventDates={eventDates} selectedDate={selectedDate} todayYmd={todayYmd}
+                  year={m.year} month={m.month} counts={counts} selectedDate={selectedDate} todayYmd={todayYmd}
                   onSelect={selectDate} progress={progress} onExpandStart={onExpandStart} onAbort={onAbort} onCommit={onCommit}
                 />
               </View>
