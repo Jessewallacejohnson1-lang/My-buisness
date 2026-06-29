@@ -128,11 +128,17 @@ export default function Calendar() {
   const [expanded, setExpanded] = useState<WeekDay[] | null>(null)
   const progress = useSharedValue(0)
   const reqRef = useRef<string | null>(null)
+  const scrollRef = useRef<ScrollView>(null)
+  const didScroll = useRef(false)
   const handleRsvp = useRsvp(setDayEvents)
 
-  const months = Array.from({ length: 12 }, (_, k) => {
-    const idx = today.getMonth() + k
-    return { year: today.getFullYear() + Math.floor(idx / 12), month: (idx % 12) + 1 }
+  // Current month forward, plus a few months back so you can scroll up into
+  // history — past events are never deleted, they just drop off upcoming surfaces.
+  const PAST_MONTHS = 4
+  const monthBase = today.getFullYear() * 12 + today.getMonth()
+  const months = Array.from({ length: PAST_MONTHS + 12 }, (_, k) => {
+    const m = monthBase + k - PAST_MONTHS
+    return { year: Math.floor(m / 12), month: (m % 12) + 1 }
   })
 
   useEffect(() => {
@@ -178,13 +184,24 @@ export default function Calendar() {
             <Text key={d} style={{ flexGrow: 1, flexBasis: 0, textAlign: 'center', fontFamily: F.sansSemi, fontSize: 13, color: C.ink2 }}>{d}</Text>
           ))}
         </View>
-        <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 120 }}>
-          {months.map((m) => (
-            <MonthBlock
-              key={`${m.year}-${m.month}`} year={m.year} month={m.month} eventDates={eventDates} selectedDate={selectedDate} todayYmd={todayYmd}
-              onSelect={selectDate} progress={progress} onExpandStart={onExpandStart} onAbort={onAbort} onCommit={onCommit}
-            />
-          ))}
+        <ScrollView ref={scrollRef} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 120 }}>
+          {months.map((m) => {
+            const isCurrent = m.year === today.getFullYear() && m.month === today.getMonth() + 1
+            return (
+              <View
+                key={`${m.year}-${m.month}`}
+                onLayout={isCurrent ? (e) => {
+                  const y = e.nativeEvent.layout.y
+                  if (!didScroll.current && y > 0) { didScroll.current = true; scrollRef.current?.scrollTo({ y, animated: false }) }
+                } : undefined}
+              >
+                <MonthBlock
+                  year={m.year} month={m.month} eventDates={eventDates} selectedDate={selectedDate} todayYmd={todayYmd}
+                  onSelect={selectDate} progress={progress} onExpandStart={onExpandStart} onAbort={onAbort} onCommit={onCommit}
+                />
+              </View>
+            )
+          })}
         </ScrollView>
       </Animated.View>
 
