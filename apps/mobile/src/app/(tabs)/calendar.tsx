@@ -7,13 +7,15 @@ import Animated, {
   SlideInDown, type SharedValue,
 } from 'react-native-reanimated'
 import * as Haptics from 'expo-haptics'
+import { useRouter } from 'expo-router'
 import type { TimelineEvent } from '@hygge/core'
 import { localDate } from '@hygge/core'
 import { api } from '../../lib/api'
 import { useRsvp } from '../../lib/useRsvp'
 import { EventRow } from '../../components/EventRow'
+import { EventActions } from '../../components/EventActions'
 import { ExpandedWeek, type WeekDay } from '../../components/ExpandedWeek'
-import { CloseIcon } from '../../components/icons'
+import { CloseIcon, PlusIcon } from '../../components/icons'
 import { C, F, HAIRLINE } from '../../theme'
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -130,6 +132,7 @@ export default function Calendar() {
   const reqRef = useRef<string | null>(null)
   const scrollRef = useRef<ScrollView>(null)
   const didScroll = useRef(false)
+  const router = useRouter()
   const handleRsvp = useRsvp(setDayEvents)
 
   // Current month forward, plus a few months back so you can scroll up into
@@ -223,9 +226,20 @@ export default function Calendar() {
             {loadingEvents ? (
               <Text style={{ fontFamily: F.sans, fontSize: 14, color: C.ink3, paddingVertical: 12 }}>Loading…</Text>
             ) : dayEvents.length === 0 ? (
-              <Text style={{ fontFamily: F.sans, fontSize: 14, color: C.ink3, paddingVertical: 12 }}>No events this day.</Text>
+              <Pressable
+                onPress={() => { setSheetOpen(false); router.push({ pathname: '/(tabs)/add', params: { date: selectedDate! } }) }}
+                style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 16, opacity: pressed ? 0.6 : 1 })}
+              >
+                <PlusIcon size={16} color={C.moss700} />
+                <Text style={{ fontFamily: F.sansMed, fontSize: 14, color: C.moss700 }}>Add something on this day</Text>
+              </Pressable>
             ) : (
-              dayEvents.map((e, i) => <EventRow key={e.id} event={e} onRsvp={handleRsvp} last={i === dayEvents.length - 1} />)
+              dayEvents.map((e, i) => (
+                <View key={e.id}>
+                  <EventRow event={e} onRsvp={handleRsvp} last />
+                  <EventActions event={e} date={selectedDate!} />
+                </View>
+              ))
             )}
           </ScrollView>
         </Animated.View>
