@@ -74,10 +74,10 @@ Platform split, behind one shared `addEventToCalendar(event)` helper:
 - **Web** — build an `.ics` string (VCALENDAR/VEVENT: UID, DTSTART/DTEND or
   all-day DTSTART, SUMMARY, LOCATION, DESCRIPTION) and trigger a Blob download
   via an `<a download>`. **Zero dependencies.**
-- **Native (iOS app)** — **decision required at review** (see Open decision).
-  Recommended: write the same `.ics` to cache and hand it to the OS share sheet
-  so iOS offers "Add to Calendar." This needs `expo-file-system` + `expo-sharing`
-  (both Expo first-party, Expo Go-compatible).
+- **Native (iOS app)** — **decided: `.ics` + OS share sheet.** Write the same
+  `.ics` to cache and hand it to the OS share sheet so iOS offers "Add to
+  Calendar." Adds `expo-file-system` + `expo-sharing` (both Expo first-party,
+  Expo Go-compatible). Install with `--legacy-peer-deps` per the workspace rule.
 
 Confirm with a quiet toast ("Added to your calendar" / "Calendar file ready").
 Motion confirms only.
@@ -129,21 +129,15 @@ Add to `createCommunityApi` (`packages/core/src/community.ts`):
   glyphs there if needed (calendar-plus, directions/pin, share).
 - Calm over busy: ship **3 solid actions**, not 6.
 
-## Open decision (resolve at spec review)
+## Decisions log
 
-**Native "Add to my calendar" mechanism** — pick one:
-
-1. **`.ics` + OS share** (recommended): neutral (Apple/Google/Outlook), matches
-   web. Cost: `expo-file-system` + `expo-sharing` (2 small Expo deps).
-2. **`expo-calendar` direct write**: smoothest native UX (writes straight to the
-   device calendar + system confirm), 1 dep, but adds a calendar **permission
-   prompt** and a config plugin.
-3. **Google Calendar template URL via `expo-linking`**: truly **zero new deps**,
-   works app + web, but Google-centric (Apple users land on a Google web page).
-
-> Note: my brainstorm pitch implied native add-to-calendar could be
-> dependency-free. It can't — a native file/share path needs deps. This decision
-> is the one real tradeoff to confirm before implementation.
+- **Calendar tab role:** plan ahead + commit (Home = today, Activities = browse).
+- **Landing view:** grid-first, enhanced (no agenda-first rewrite).
+- **Event actions:** RSVP (exists) + Add to calendar + Directions + Tell a
+  neighbor. **Reminders explicitly cut.**
+- **Native add-to-calendar:** `.ics` + OS share sheet (`expo-file-system` +
+  `expo-sharing`). Considered and rejected: `expo-calendar` (permission prompt),
+  Google template URL (Google-centric). Web uses a zero-dep `.ics` Blob download.
 
 ## Done = verified
 
