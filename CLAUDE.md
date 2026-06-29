@@ -27,7 +27,7 @@ The whole app is the **St. Joe community experience** (`/community`). Its core j
 
 **On-brand bar — reject a change if it:** feels like a corporate app (notification-spam, growth-hacky, badges/streaks/feeds/follower-counts, performative posting) **or** is too busy / not calm. Keep it warm, quiet, neighborly, hyper-local. Honesty over fake social proof — real counts only, never seeded/inflated numbers. Voice is a neighbor ("— Jesse"), not a brand.
 
-**Design default:** for any new or reshaped UI, invoke a design skill (`frontend-design` / `ui-ux-pro-max`, both installed at project level) rather than hand-rolling defaults, so output stays consistent with the warm-minimal system below.
+**Design default:** for any new or reshaped UI, invoke a design skill (`frontend-design` / `ui-ux-pro-max`, both installed at project level) rather than hand-rolling defaults, so output stays consistent with the warm-minimal system below. **Build on the Hygge-tuned [react-native-reusables](https://github.com/founded-labs/react-native-reusables) primitives in `apps/mobile/src/components/ui/`** (Button, Card, Input, Textarea, Label, Badge, Switch, Avatar, Separator, Skeleton, Text) as the base component layer — they map shadcn's variant API onto Hygge tokens. Pull more on demand: `cd apps/mobile && npx @react-native-reusables/cli@latest add <name>` (the RN registry is aliased `@rnr` in `components.json`); the **shadcn MCP** (`.mcp.json`, active after a Claude restart) browses component patterns for reference. **Type rule for these components:** RN has no synthetic bolding, so weight comes from the *family* class — use `font-sans` / `font-sans-medium` / `font-sans-semibold` / `font-sans-bold` / `font-display` / `font-display-semi` / `font-mono`, never the numeric `font-medium`/`font-semibold`/`font-bold` utilities (they silently fall back to the regular weight on native).
 
 **Done means verified:** work isn't done until it's confirmed in the running app via the preview tools, matches the design tokens, and clears the on-brand bar — not just written. See `.claude/TOOLKIT.md` for which tool to reach for, and the project memory (`product-vision`, `target-user`, `on-brand-bar`, `definition-of-done`) for the full intent.
 
@@ -65,12 +65,18 @@ npm run site:build    # production web build → apps/mobile/dist (what Vercel d
 
 # inside apps/mobile:
 npx tsc --noEmit -p tsconfig.json   # typecheck
+npm run lint                        # expo lint (ESLint via eslint-config-expo)
 npx expo export --platform web      # bundle-verify the whole app device-free
 ```
 
 **Verify on-device by bundling.** `npx expo export --platform web` (or `--platform
 ios`) compiles the entire app and surfaces errors without a phone — the fastest
 proof a change is sound when no simulator/device is attached.
+
+**There is no test runner** (no Jest/Vitest, no `*.test.*` files). "Verified" here
+means: typecheck clean + `npm run lint` clean + `expo export` bundles + the change
+confirmed in the running app (preview tools). Don't reach for `npm test` — it
+doesn't exist. If you add logic that warrants a unit test, set up the runner first.
 
 ## Environment
 
@@ -88,7 +94,9 @@ The active app is **`apps/mobile`** (Expo Router, file-based routes under
 |---|---|---|
 | `/` | `index.tsx` | Marketing landing (ported from the old web site). Signed-out land here → tap to `/login`; the auth gate routes signed-in users to the tabs. |
 | `/login` | `login.tsx` | Auth form (email + password, confirmation ON), Log in / Sign up toggle. |
-| `/(tabs)` | `(tabs)/` | The app — auth-gated, a 5-tab mobile experience. |
+| `/onboarding` | `onboarding.tsx` | First-run interests flow (`hello → interests → suggest`). Picks interests (`lib/interests.ts` → `INTERESTS`), persists `onboarded`, then suggests matching clubs/trails via `matchesInterests`. |
+| `/(tabs)` | `(tabs)/` | The app — auth-gated, a 4-tab mobile experience. |
+| `/place/[slug]` | `place/[slug].tsx` | Full-screen "Around Town" place showcase, sourced from `src/data/places.ts` (the `AroundTown` carousel links here). |
 
 `_layout.tsx` loads fonts, wraps everything in `AuthProvider`, keeps the Supabase
 session fresh on `AppState` change, and runs the **auth gate** (`RootNav`):
@@ -96,17 +104,23 @@ signed-out + in tabs → `/login`; signed-in + outside tabs → `/(tabs)`.
 
 ### The tabs (`apps/mobile/src/app/(tabs)/`)
 
-A custom frosted `TabBar` (BlurView) over five screens:
+A custom frosted `TabBar` (BlurView) over **four** screens. The `community-rebuild`
+branch folded the old standalone `clubs` and `quest` tabs into the timeline + the
+unified `activities` browser — the underlying club/quest/RSVP data and `@hygge/core`
+helpers still exist; only the navigation was consolidated.
 
 - **`index`** (Home/Timeline) — masthead, glass search/account circles, real-photo
-  `WeatherBar` (Ken-Burns drift), auto-scrolling `AroundTown` carousel, today's events.
-- **`clubs`** — view/search/join real clubs; tap a card for a slide-up detail sheet
-  (when/where/about/what-to-expect); a Start-a-club form. **No seeded/sample clubs.**
+  `WeatherBar` (Ken-Burns drift), auto-scrolling `AroundTown` carousel (cards link to
+  `/place/[slug]`), today's events, and the daily `QuestSection` (live completion count,
+  one-tap-per-day Done).
+- **`activities`** — the unified browse surface. One searchable, sortable list across
+  filters **All / Events / Clubs / Trails** (sort adapts per filter); join clubs, open
+  detail sheets, "Open in Maps". Personalized by the user's interests (`matchesInterests`).
+  **No seeded/sample content** — real clubs/events/trails only.
 - **`calendar`** — vertical scrolling multi-month calendar; a fixed Sun–Sat weekday row.
+  Day sheet with event actions + add-to-calendar (`expo-calendar` / ICS via `lib/ics.ts`).
 - **`add`** — anyone signed in posts an event (title/date/time/location required,
   description + a real **photo upload** optional via `expo-image-picker`).
-- **`quest`** — today's quest with a live completion count + one-tap-per-day Done;
-  admin (gated by email) can set a quest for any date.
 
 Icons are inline `react-native-svg` in `src/components/icons.tsx` — no emoji.
 
@@ -124,8 +138,29 @@ it once in `src/lib/api.ts`. **Always derive dates with `localDate()`, never
   `AsyncStorage` (not SecureStore — 2 KB limit).
 - **`auth.tsx`** — `AuthProvider` / `useAuth` (`session`, `signIn/signUp/signOut`).
 - **`uploadImage.ts`** — `uploadEventImage()` → the `event-images` storage bucket.
+- **`interests.ts`** — `INTERESTS` taxonomy + `getInterests`/`setInterests`,
+  `isOnboarded`, and `matchesInterests()` (keyword match used by onboarding + `activities`).
+- **`maps.ts`** — `openInMaps()` / `copyAddress()`. **`ics.ts`** + **`ics.check.ts`** —
+  build/validate `.ics` files. **`eventActions.ts`**, **`useRsvp.ts`** — shared event/RSVP actions.
+- **`utils.ts`** — `cn()` (clsx + tailwind-merge) for the UI primitives below.
 - **`theme.ts`** — JS tokens (`C` colors, `F` fonts, `HAIRLINE`) + the bundled
   weather / around-town image maps. Mirrors `tailwind.config.js`.
+
+### UI primitives & curated data (`community-rebuild`)
+
+The rebuild added a **react-native-reusables** layer (shadcn-for-RN). `components.json`
+(`new-york` style, `cssVariables`, `@rnr` registry → `reactnativereusables.com`) configures
+the CLI; primitives live in **`src/components/ui/`** (`button`, `card`, `input`, `badge`,
+`avatar`, `label`, `separator`, `skeleton`, `switch`, `text`, `textarea`) — built on
+`@rn-primitives/*` + `class-variance-authority`, styled with NativeWind and `cn()`.
+
+- **Build new UI on these primitives**, not hand-rolled `View`/`Text`. Add more via the
+  react-native-reusables registry (the `@rnr` source in `components.json`).
+- **Path aliases:** `@/*` → `src/*`, `@/assets/*` → `assets/*` (so `@/components/ui`, `@/lib/utils`).
+- **Use font-family classes** (`font-display`/`font-sans`/`font-mono`), **not numeric weights**.
+- **`src/data/places.ts`** — curated, real St. Joseph places (the single source of truth for
+  `AroundTown` + `/place/[slug]`). Static **content** (names, taglines, photos) is intentional
+  and allowed; **counts are never invented here** — any number shown comes from real event data.
 
 ### Database (Supabase)
 
@@ -150,7 +185,13 @@ Named for *hygge* (Danish, pron. "hoo-guh"): coziness, warmth, togetherness. War
 2. **Color means something.** Never use an accent decoratively.
 3. **Motion confirms, never decorates.** Animations answer "did that work?" — not draw attention.
 
-### Tailwind v4 tokens (defined in `app/globals.css` via `@theme`)
+### Tokens
+
+> **Where they live (mobile):** `apps/mobile/tailwind.config.js` (NativeWind classes)
+> and `src/lib/theme.ts` (the `C`/`F`/`HAIRLINE` JS mirror). `src/global.css` is only
+> `@tailwind base/components/utilities` — there is **no** `@theme` block. The
+> `app/globals.css` + Tailwind-v4 `@theme` references below and in `DESIGN.md` describe
+> the **removed** Next.js web app; the token *values* still hold, the file does not.
 
 **Surfaces:** `paper`/`paper-50` (`#fbfaf5` linen) · `paper-100/200/300` (warmer tints; `paper-300` is the marketing canvas) · borders always `border-black/[0.07]`
 
@@ -173,11 +214,14 @@ Named for *hygge* (Danish, pron. "hoo-guh"): coziness, warmth, togetherness. War
 | UI | Schibsted Grotesk | `font-sans` | All labels, body, buttons |
 | Data | Geist Mono | `font-mono` | Every number — dates, counts, prices — always with `tabular-nums` |
 
-### Motion classes (defined in `app/globals.css`)
+### Motion (mobile)
 
-`.rise` · `.sheet-up` · `.fade-in` · `.press` · `.pop` · `.bounce-in` · `.lift` · `.grain` (texture) · `.reveal-pending`/`.reveal-in` (Reveal)
-
-All animation durations collapse to `0.01ms` under `prefers-reduced-motion`.
+Motion is **`react-native-reanimated`** (`useSharedValue` / `withTiming` / `withSpring`),
+not CSS. See `Ring.tsx`, `WeatherBar.tsx`, `AroundTown.tsx`, `QuestSection.tsx`,
+`ExpandedWeek.tsx` for the house patterns. The CSS classes `.rise` / `.sheet-up` /
+`.fade-in` / `.press` / `.pop` etc. were the **web** app's — they do **not** exist here;
+don't reach for a `className` animation. Keep the rule intact: motion confirms, never
+decorates, and should honor the OS reduce-motion setting.
 
 ### What not to do
 
