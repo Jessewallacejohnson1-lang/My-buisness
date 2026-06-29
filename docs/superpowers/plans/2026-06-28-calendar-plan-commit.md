@@ -570,6 +570,8 @@ In `Calendar`, replace the `eventDates` state and its effect:
 
 In `MonthBlock`, `WeekRow`, and `DayCell` prop types and JSX, replace every `eventDates: Set<string>` with `counts: Record<string, number>` and pass `counts` where `eventDates` was passed (in `Calendar`'s `<MonthBlock ... counts={counts} />`, `MonthBlock`'s `<WeekRow ... counts={counts} />`, and `WeekRow`'s `<DayCell ... counts={counts} />`).
 
+> **WIP note:** In the current `calendar.tsx`, the `Calendar`-level `<MonthBlock>` call is wrapped in a `<View key=... onLayout={isCurrent ? … : undefined}>` (the scrollback / auto-scroll-to-current work). **Leave that wrapper and its `onLayout` exactly as-is** — only change the `eventDates={eventDates}` prop on `<MonthBlock>` to `counts={counts}`. Do not remove the wrapper or the auto-scroll.
+
 - [ ] **Step 3: Render density in `DayCell`**
 
 In `DayCell`, replace `const hasEvent = eventDates.has(date)` with `const count = counts[date] ?? 0`, and replace the single reserved-dot `View` (the `width: 5, height: 5 …` block) with:
@@ -604,20 +606,21 @@ git commit -m "feat(mobile): real event-density dots on calendar days"
 
 ---
 
-### Task 10: "This weekend" chip + "Today" jump
+### Task 10: "This weekend" chip + "Today" jump (integrate with existing scrollback)
 
 **Files:**
-- Modify: `apps/mobile/src/app/(tabs)/calendar.tsx` (`Calendar` — header + `ScrollView`)
+- Modify: `apps/mobile/src/app/(tabs)/calendar.tsx` (`Calendar` — header + the existing `ScrollView`/`onLayout`)
+
+**WIP baseline (already in the file — do NOT re-add):** `const scrollRef = useRef<ScrollView>(null)` and `const didScroll = useRef(false)`; the `<ScrollView ref={scrollRef} …>`; and the `months.map` whose `<View onLayout={isCurrent ? … : undefined}>` auto-scrolls to the current month once on mount. This task EXTENDS that — it must not duplicate `scrollRef` or break the auto-scroll.
 
 **Interfaces:**
-- Consumes: existing `selectDate`, `months`, `todayYmd`.
-- Produces: a header with two pills; "This weekend" scrolls to today's month and opens Saturday's sheet; "Today" appears after scrolling past today and snaps back.
+- Consumes: existing `scrollRef`, `didScroll`, `selectDate`, `months`, `today`, `todayYmd`.
+- Produces: a header with two pills; "This weekend" scrolls to the current month and opens Saturday's sheet; "Today" appears whenever the user has scrolled away from the current month (in either direction — scrollback means they can be in past months too) and snaps back.
 
-- [ ] **Step 1: Add scroll ref + offset tracking**
+- [ ] **Step 1: Add offset tracking + helpers (reuse the existing `scrollRef`)**
 
-In `Calendar`, add:
+In `Calendar`, immediately AFTER the existing `const didScroll = useRef(false)` line, add (do NOT re-declare `scrollRef`):
 ```ts
-  const scrollRef = useRef<ScrollView>(null)
   const offsets = useRef<Record<string, number>>({})
   const [showToday, setShowToday] = useState(false)
   const todayKey = `${today.getFullYear()}-${today.getMonth() + 1}`
@@ -633,28 +636,33 @@ In `Calendar`, add:
 ```
 (`localDate` is already imported.)
 
-- [ ] **Step 2: Wire the ScrollView**
+- [ ] **Step 2: Add `onScroll` to the existing ScrollView, and capture ALL month offsets in the existing `onLayout`**
 
-Give the `ScrollView` the ref + scroll handler:
+Add `scrollEventThrottle` + `onScroll` to the EXISTING `<ScrollView ref={scrollRef} …>` opening tag (keep `ref={scrollRef}` and the existing `contentContainerStyle`):
 ```tsx
         <ScrollView
           ref={scrollRef}
           scrollEventThrottle={16}
-          onScroll={(e) => setShowToday(e.nativeEvent.contentOffset.y > (offsets.current[todayKey] ?? 0) + 120)}
+          onScroll={(e) => {
+            const y = e.nativeEvent.contentOffset.y
+            const t = offsets.current[todayKey] ?? 0
+            setShowToday(Math.abs(y - t) > 200)
+          }}
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 120 }}
         >
 ```
-And capture each month's offset by wrapping each `<MonthBlock>` with an `onLayout` View — change the `months.map` to:
+Then change the EXISTING per-month `<View>`'s `onLayout` so it records every month's offset while preserving the auto-scroll-to-current. Replace the existing wrapper `<View key=… onLayout={isCurrent ? (e) => { … } : undefined}>` with:
 ```tsx
-          {months.map((m) => (
-            <View key={`${m.year}-${m.month}`} onLayout={(e) => { offsets.current[`${m.year}-${m.month}`] = e.nativeEvent.layout.y }}>
-              <MonthBlock
-                year={m.year} month={m.month} counts={counts} selectedDate={selectedDate} todayYmd={todayYmd}
-                onSelect={selectDate} progress={progress} onExpandStart={onExpandStart} onAbort={onAbort} onCommit={onCommit}
-              />
-            </View>
-          ))}
+              <View
+                key={`${m.year}-${m.month}`}
+                onLayout={(e) => {
+                  const y = e.nativeEvent.layout.y
+                  offsets.current[`${m.year}-${m.month}`] = y
+                  if (isCurrent && !didScroll.current && y > 0) { didScroll.current = true; scrollRef.current?.scrollTo({ y, animated: false }) }
+                }}
+              >
 ```
+Leave the `<MonthBlock … counts={counts} … />` inside it (Task 9 already swapped the prop) untouched.
 
 - [ ] **Step 3: Add the header pills**
 
@@ -681,7 +689,7 @@ Expected: both pass.
 
 - [ ] **Step 5: Verify in preview**
 
-"This weekend" scrolls to the current month and opens Saturday's sheet. Scroll down a few months → "Today" pill appears; tapping it snaps back to today's month and the pill disappears.
+On mount the grid auto-scrolls to the current month (existing WIP) and the "Today" pill is hidden. "This weekend" scrolls to the current month and opens Saturday's sheet. Scroll away in either direction (down into future months OR up into the past-months scrollback) → "Today" pill appears; tapping it snaps back to the current month and the pill disappears.
 
 - [ ] **Step 6: Commit**
 
