@@ -1,5 +1,5 @@
 import { Platform, Share } from 'react-native'
-import { buildIcs, type CalendarEventInput } from './ics'
+import { buildIcs, parseStartTime, type CalendarEventInput } from './ics'
 import { openInMaps } from './maps'
 
 const fmtWhen = (ev: CalendarEventInput) => {
@@ -8,10 +8,13 @@ const fmtWhen = (ev: CalendarEventInput) => {
   return ev.start_time ? `${day} · ${ev.start_time}` : day
 }
 
-/** Add to calendar: web downloads an .ics; native writes it then opens the share sheet. */
+/**
+ * Add to calendar. Native opens the OS calendar editor prefilled (the event
+ * lands in the user's Calendar app on save); web downloads an .ics file.
+ */
 export async function addEventToCalendar(ev: CalendarEventInput): Promise<void> {
-  const ics = buildIcs(ev)
   if (Platform.OS === 'web') {
+    const ics = buildIcs(ev)
     const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -23,19 +26,21 @@ export async function addEventToCalendar(ev: CalendarEventInput): Promise<void> 
     URL.revokeObjectURL(url)
     return
   }
-  // native: write to cache, hand to the OS share sheet ("Add to Calendar")
-  const FileSystem = await import('expo-file-system/legacy')
-  const Sharing = await import('expo-sharing')
-  const slug = `${ev.title}-${ev.event_date}`.replace(/[^a-z0-9]+/gi, '-').toLowerCase() || 'event'
-  const uri = `${FileSystem.cacheDirectory}${slug}.ics`
-  await FileSystem.writeAsStringAsync(uri, ics, { encoding: FileSystem.EncodingType.UTF8 })
-  if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(uri, {
-      mimeType: 'text/calendar',
-      UTI: 'com.apple.ical.ics',
-      dialogTitle: 'Add to calendar',
-    })
-  }
+  // native: launch the system "new event" sheet prefilled — saving it puts the
+  // event straight into the device Calendar (no file, no share sheet).
+  const Calendar = await import('expo-calendar')
+  const [y, mo, d] = ev.event_date.split('-').map((x) => parseInt(x, 10))
+  const t = parseStartTime(ev.start_time)
+  const start = t ? new Date(y, mo - 1, d, t.h, t.m) : new Date(y, mo - 1, d)
+  const end = t ? new Date(start.getTime() + 2 * 60 * 60 * 1000) : new Date(y, mo - 1, d, 23, 59)
+  await Calendar.createEventInCalendarAsync({
+    title: ev.title,
+    startDate: start,
+    endDate: end,
+    allDay: !t,
+    location: ev.location ?? undefined,
+    notes: ev.description ?? undefined,
+  })
 }
 
 /** Tell a neighbor: OS share sheet on native; navigator.share/clipboard on web. */
