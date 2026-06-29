@@ -139,6 +139,18 @@ export default function Calendar() {
   const reqRef = useRef<string | null>(null)
   const scrollRef = useRef<ScrollView>(null)
   const didScroll = useRef(false)
+  const offsets = useRef<Record<string, number>>({})
+  const [showToday, setShowToday] = useState(false)
+  const todayKey = `${today.getFullYear()}-${today.getMonth() + 1}`
+
+  const upcomingSaturday = (() => {
+    const d = new Date(today)
+    d.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7)) // today if already Sat
+    return localDate(d)
+  })()
+
+  const jumpToToday = () => scrollRef.current?.scrollTo({ y: Math.max(0, (offsets.current[todayKey] ?? 0) - 8), animated: true })
+  const goThisWeekend = () => { jumpToToday(); selectDate(upcomingSaturday) }
   const router = useRouter()
   const handleRsvp = useRsvp(setDayEvents)
 
@@ -188,22 +200,42 @@ export default function Calendar() {
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: C.paper }}>
       <Animated.View style={[{ flex: 1 }, gridStyle]}>
         <Text style={{ fontFamily: F.sansBold, fontSize: 28, color: C.ink, letterSpacing: -0.5, marginTop: 16, marginBottom: 10, paddingHorizontal: 20 }}>What&rsquo;s coming up?</Text>
+        <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 20, marginBottom: 12 }}>
+          <Pressable onPress={goThisWeekend} style={({ pressed }) => ({ paddingVertical: 7, paddingHorizontal: 14, borderRadius: 18, backgroundColor: C.moss700, opacity: pressed ? 0.85 : 1 })}>
+            <Text style={{ fontFamily: F.sansMed, fontSize: 13, color: C.paper }}>This weekend</Text>
+          </Pressable>
+          {showToday && (
+            <Pressable onPress={jumpToToday} style={({ pressed }) => ({ paddingVertical: 7, paddingHorizontal: 14, borderRadius: 18, borderWidth: 1, borderColor: HAIRLINE, opacity: pressed ? 0.6 : 1 })}>
+              <Text style={{ fontFamily: F.sansMed, fontSize: 13, color: C.ink2 }}>Today</Text>
+            </Pressable>
+          )}
+        </View>
         {/* Weekday header — a fixed row of 7 even columns, pinned above the scroll */}
         <View style={{ flexDirection: 'row', width: '100%', paddingHorizontal: 20, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: HAIRLINE }}>
           {WEEKDAYS.map((d) => (
             <Text key={d} style={{ flexGrow: 1, flexBasis: 0, textAlign: 'center', fontFamily: F.sansSemi, fontSize: 13, color: C.ink2 }}>{d}</Text>
           ))}
         </View>
-        <ScrollView ref={scrollRef} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 120 }}>
+        <ScrollView
+          ref={scrollRef}
+          scrollEventThrottle={16}
+          onScroll={(e) => {
+            const y = e.nativeEvent.contentOffset.y
+            const t = offsets.current[todayKey] ?? 0
+            setShowToday(Math.abs(y - t) > 200)
+          }}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 120 }}
+        >
           {months.map((m) => {
             const isCurrent = m.year === today.getFullYear() && m.month === today.getMonth() + 1
             return (
               <View
                 key={`${m.year}-${m.month}`}
-                onLayout={isCurrent ? (e) => {
+                onLayout={(e) => {
                   const y = e.nativeEvent.layout.y
-                  if (!didScroll.current && y > 0) { didScroll.current = true; scrollRef.current?.scrollTo({ y, animated: false }) }
-                } : undefined}
+                  offsets.current[`${m.year}-${m.month}`] = y
+                  if (isCurrent && !didScroll.current && y > 0) { didScroll.current = true; scrollRef.current?.scrollTo({ y, animated: false }) }
+                }}
               >
                 <MonthBlock
                   year={m.year} month={m.month} counts={counts} selectedDate={selectedDate} todayYmd={todayYmd}
