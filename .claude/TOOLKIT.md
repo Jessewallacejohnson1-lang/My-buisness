@@ -22,15 +22,25 @@ memorize this — skim it when you're starting a task and unsure what to use.
 ## 1. Design & build the community UI
 
 The community app's in-product screens (Today / Clubs / Letter / Hello) are
-**multi-step product UI**, so:
+**multi-step product UI**. The design skills are now **grouped into four category
+routers** under `.claude/skills/` — start at the router, it points you to the
+right sub-skill:
 
-| Want | Reach for |
-|------|-----------|
-| Distinctive, intentional UI that isn't templated | `/frontend-design` or `/ui-ux-pro-max` (palettes, type pairings, components) |
-| Polish/critique/harden an existing screen, iterate live in browser | `/impeccable` (args: `craft`, `audit`, `polish`, `clarify`, `bolder`…) |
-| The **marketing landing page** to stand out | `/design-taste-frontend` (taste-skill) — built for landing pages/portfolios. ⚠️ NOT for dashboards or multi-step product UI — use the row above for in-app screens. |
-| Turn a mockup image into code | `/image-to-code` (taste-skill) |
-| React/Next.js component & state patterns | `/frontend-patterns` (everything-claude-code) |
+| Want | Reach for | Routes to |
+|------|-----------|-----------|
+| **Design / build / lay out a screen or component** | `/ui-layout` | frontend-design (taste), ui-ux-pro-max (palettes/type/patterns), ui-styling (shadcn/Tailwind/NativeWind), mobile-app-ui-design, match-design |
+| **Animate / add motion** (tweens, scroll, transitions) | `/animation` | the 8 official GSAP skills (core, timeline, scrolltrigger, plugins, react, frameworks, performance, utils) |
+| **Brand, tokens, banners, slides** | `/brand-visual` | brand (voice/identity), design-system (tokens), banner-design, slides |
+| **Generate brand assets** (logo, CIP, icons, social photos) | `/design` | built-in AI generators; routes back to `/brand-visual` for voice & tokens |
+| Match a reference design pixel-for-pixel | `/ui-layout` → `match-design` | screenshot → diff → fix loop |
+| Polish/critique/harden an existing screen, iterate live in browser | `/impeccable` (args: `craft`, `audit`, `polish`, `clarify`, `bolder`…) | — |
+| Find real-world references for one screen | `reference-finder` agent (`.claude/agents/`) | — |
+| The **marketing landing page** to stand out | `/design-taste-frontend` (taste-skill) — ⚠️ NOT for in-app screens; use `/ui-layout` for those | — |
+| Turn a mockup image into code | `/image-to-code` (taste-skill) | — |
+
+> The individual skills (e.g. `gsap-core`, `ui-styling`) now live *inside* these
+> category folders, so reach them through the router rather than as a flat
+> `/name`. The router's `SKILL.md` tells Claude exactly which sub-skill to open.
 
 > On-brand guardrail: whatever you use, hold the result to the **on-brand bar**
 > (calm, warm, neighborly — not corporate, not busy). Tell the design skill that
