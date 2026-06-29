@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import Animated, { FadeIn, FadeInDown, useReducedMotion } from 'react-native-reanimated'
 import { Image } from 'expo-image'
 import * as ImagePicker from 'expo-image-picker'
-import { useRouter } from 'expo-router'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import * as Haptics from 'expo-haptics'
 import { localDate } from '@hygge/core'
 import { api } from '../../lib/api'
@@ -57,6 +57,10 @@ const KINDS: { id: PostKind; title: string; sub: string; Icon: typeof EventIcon;
 
 export default function Add() {
   const router = useRouter()
+  const { date } = useLocalSearchParams<{ date?: string }>()
+  useEffect(() => {
+    if (date) setForm((f) => ({ ...f, event_date: date }))
+  }, [date])
   const reduce = useReducedMotion()
   const [phase, setPhase] = useState<Phase>('choose')
   const [kind, setKind] = useState<PostKind>('event')
