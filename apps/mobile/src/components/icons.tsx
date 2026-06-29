@@ -180,3 +180,21 @@ export function BackIcon({ size = 22, color = C.ink }: { size?: number; color?: 
     </Svg>
   )
 }
+
+export function CalendarPlusIcon({ size = 16, color = '#2a2a28' }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M7 3v3M17 3v3M4 8.5h16M5 6.5h14a1 1 0 0 1 1 1V19a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7.5a1 1 0 0 1 1-1Z" stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M12 12.5v4M10 14.5h4" stroke={color} strokeWidth={1.6} strokeLinecap="round" />
+    </Svg>
+  )
+}
+
+export function ShareIcon({ size = 16, color = '#2a2a28' }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M12 14V4M12 4 8.5 7.5M12 4l3.5 3.5" stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M6 11v7a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-7" stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  )
+}
