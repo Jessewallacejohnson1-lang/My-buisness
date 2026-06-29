@@ -26,7 +26,8 @@ export async function addEventToCalendar(ev: CalendarEventInput): Promise<void> 
   // native: write to cache, hand to the OS share sheet ("Add to Calendar")
   const FileSystem = await import('expo-file-system/legacy')
   const Sharing = await import('expo-sharing')
-  const uri = `${FileSystem.cacheDirectory}event.ics`
+  const slug = `${ev.title}-${ev.event_date}`.replace(/[^a-z0-9]+/gi, '-').toLowerCase() || 'event'
+  const uri = `${FileSystem.cacheDirectory}${slug}.ics`
   await FileSystem.writeAsStringAsync(uri, ics, { encoding: FileSystem.EncodingType.UTF8 })
   if (await Sharing.isAvailableAsync()) {
     await Sharing.shareAsync(uri, {
@@ -43,7 +44,8 @@ export async function shareEvent(ev: CalendarEventInput): Promise<void> {
   if (Platform.OS === 'web') {
     const nav: any = (globalThis as any).navigator
     if (nav?.share) {
-      try { await nav.share({ title: ev.title, text: message }); return } catch { return /* user cancelled */ }
+      try { await nav.share({ title: ev.title, text: message }); return }
+      catch (e) { if ((e as any)?.name === 'AbortError') return /* user cancelled — don't fall back */ }
     }
     const Clipboard = await import('expo-clipboard')
     await Clipboard.setStringAsync(message)
