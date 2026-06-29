@@ -221,6 +221,18 @@ export function createCommunityApi(supabase: SupabaseClient, adminEmail = DEFAUL
     return [...new Set((data ?? []).map((e) => e.event_date))]
   }
 
+  async function getMonthEventCounts(year: number, month: number): Promise<Record<string, number>> {
+    const from = `${year}-${String(month).padStart(2, '0')}-01`
+    const lastDay = new Date(year, month, 0).getDate()
+    const to = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+    const { data, error } = await supabase
+      .from('club_events').select('event_date').eq('status', 'approved').eq('kind', 'event').gte('event_date', from).lte('event_date', to)
+    if (error) throw error
+    const counts: Record<string, number> = {}
+    for (const e of data ?? []) counts[e.event_date] = (counts[e.event_date] ?? 0) + 1
+    return counts
+  }
+
   /** Approved events between two dates (inclusive) — for the expanded-week agenda. */
   async function getEventsForRange(from: string, to: string): Promise<AgendaEvent[]> {
     const { data, error } = await supabase
@@ -336,7 +348,7 @@ export function createCommunityApi(supabase: SupabaseClient, adminEmail = DEFAUL
     currentUserId, getCurrentUser,
     getApprovedClubs, joinClub, leaveClub, submitClub,
     getTodayEvents, getWeekEvents, getUpcomingEvents, rsvpEvent, unRsvpEvent, addEvent,
-    getEventsByDate, getMonthEventDates, getEventsForRange,
+    getEventsByDate, getMonthEventDates, getMonthEventCounts, getEventsForRange,
     getTodayQuest, getQuestCompletionCount, hasUserCompletedQuest, completeQuest, setQuest,
     addTrail, getTrails, getPendingPosts, getPendingClubs, approvePost, rejectPost, setClubStatus,
   }
