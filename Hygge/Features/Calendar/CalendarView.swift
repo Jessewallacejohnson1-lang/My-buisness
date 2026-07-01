@@ -127,7 +127,7 @@ struct DaySheet: View {
                     }
                     .frame(maxWidth: .infinity).padding(.vertical, 36)
                 } else {
-                    ForEach(events) { EventRow(event: $0) }
+                    ForEach(events) { EventRow(event: $0, date: date) }
                 }
             }
             .padding(.horizontal, 18)

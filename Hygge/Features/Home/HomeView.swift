@@ -60,7 +60,7 @@ struct HomeView: View {
                         .foregroundStyle(Hue.ink3)
                 }
                 ForEach(model.today) { event in
-                    EventRow(event: event) {
+                    EventRow(event: event, date: DateHelpers.localDate()) {
                         Task { await model.toggleRsvp(api, event) }
                     }
                 }

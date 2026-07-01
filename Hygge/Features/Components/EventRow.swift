@@ -7,7 +7,10 @@ import SwiftUI
 
 struct EventRow: View {
     let event: TimelineEvent
+    var date: String?               // YYYY-MM-DD — enables the "Remind me" bell
     var onToggleRsvp: (() -> Void)?
+
+    @State private var reminderOn = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -57,9 +60,33 @@ struct EventRow: View {
                         .monospacedDigit()
                         .foregroundStyle(Hue.ink3)
                 }
+                if date != nil {
+                    Button(action: toggleReminder) {
+                        Image(systemName: reminderOn ? "bell.fill" : "bell")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(reminderOn ? Hue.moss500 : Hue.ink3)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .hyggeCard(padding: 16)
+        .task {
+            if date != nil { reminderOn = await Reminders.isScheduled(eventId: event.id) }
+        }
+    }
+
+    private func toggleReminder() {
+        guard let date else { return }
+        Task {
+            if reminderOn {
+                Reminders.cancel(eventId: event.id)
+                reminderOn = false
+            } else if await Reminders.requestAuth() {
+                await Reminders.schedule(eventId: event.id, title: event.title, date: date, startTime: event.startTime)
+                reminderOn = true
+            }
+        }
     }
 }
