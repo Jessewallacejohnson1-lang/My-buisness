@@ -30,6 +30,7 @@ struct ActivitiesView: View {
                 if model.loading && !model.loaded {
                     ProgressView().tint(Hue.ink3).frame(maxWidth: .infinity).padding(.top, 40)
                 } else {
+                    suggestedSection
                     content
                 }
 
@@ -62,6 +63,38 @@ struct ActivitiesView: View {
     }
     private var trails: [Trail] {
         showTrails ? model.trails.filter { matches($0.title, $0.location ?? "", $0.description ?? "") } : []
+    }
+
+    // MARK: - Suggested for you (interest-matched)
+
+    private var interestIds: [String] { Interests.get() }
+
+    private var suggestedClubs: [ClubView] {
+        guard !interestIds.isEmpty else { return [] }
+        return model.clubs.filter { Interests.matches("\($0.name) \($0.vibe ?? "") \($0.schedule ?? "") \($0.host ?? "")", interestIds) }
+    }
+    private var suggestedTrails: [Trail] {
+        guard !interestIds.isEmpty else { return [] }
+        return model.trails.filter { Interests.matches("\($0.title) \($0.description ?? "") \($0.location ?? "")", interestIds, isTrail: true) }
+    }
+
+    @ViewBuilder
+    private var suggestedSection: some View {
+        let show = filter == .all
+            && query.trimmingCharacters(in: .whitespaces).isEmpty
+            && (!suggestedClubs.isEmpty || !suggestedTrails.isEmpty)
+        if show {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Suggested for you")
+                    .font(.displaySemi(20))
+                    .foregroundStyle(Hue.ink)
+                ForEach(suggestedClubs) { club in
+                    ClubCard(club: club) { Task { await model.toggleJoin(api, club) } }
+                }
+                ForEach(suggestedTrails) { TrailCard(trail: $0) }
+                Rectangle().fill(Hue.hairline).frame(height: 1).padding(.top, 4)
+            }
+        }
     }
 
     @ViewBuilder

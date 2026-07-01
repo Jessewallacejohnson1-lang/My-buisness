@@ -6,6 +6,8 @@
 import SwiftUI
 
 struct TodayCard: View {
+    var onAdd: (() -> Void)?
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("TODAY")
@@ -23,7 +25,7 @@ struct TodayCard: View {
                 .foregroundStyle(Hue.ink2)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Button { } label: {
+            Button { onAdd?() } label: {
                 HStack(spacing: 7) {
                     Image(systemName: "plus")
                         .font(.system(size: 13, weight: .semibold))

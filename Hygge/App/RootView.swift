@@ -64,7 +64,7 @@ struct MainTabsView: View {
 
             Group {
                 switch tab {
-                case .home: HomeView()
+                case .home: HomeView(onCompose: { tab = .add })
                 case .activities: ActivitiesView()
                 case .calendar: CalendarView()
                 case .add: AddView()

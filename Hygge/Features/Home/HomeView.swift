@@ -6,6 +6,8 @@
 import SwiftUI
 
 struct HomeView: View {
+    var onCompose: (() -> Void)?
+
     @EnvironmentObject private var auth: AuthStore
     @StateObject private var model = HomeModel()
 
@@ -44,7 +46,7 @@ struct HomeView: View {
         if model.loading && !model.loaded {
             TodayLoadingCard()
         } else if model.today.isEmpty {
-            TodayCard()
+            TodayCard(onAdd: onCompose)
         } else {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
