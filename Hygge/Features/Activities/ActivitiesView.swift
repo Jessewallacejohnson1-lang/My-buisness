@@ -199,9 +199,16 @@ private struct EventBrowseCard: View {
                     Text(loc).font(.sans(13))
                 }.foregroundStyle(Hue.ink2)
             }
-            if event.goingCount > 0 {
-                Text("\(event.goingCount) going").font(.mono(11)).monospacedDigit().foregroundStyle(Hue.ink3)
+            HStack {
+                if event.goingCount > 0 {
+                    Text("\(event.goingCount) going").font(.mono(11)).monospacedDigit().foregroundStyle(Hue.ink3)
+                }
+                Spacer()
+                InviteButton(title: event.title,
+                             dateLabel: DateHelpers.prettyDate(event.eventDate),
+                             time: event.startTime, location: event.location)
             }
+            .padding(.top, 2)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .hyggeCard(padding: 16)
