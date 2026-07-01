@@ -8,17 +8,20 @@ import SwiftUI
 
 struct AddView: View {
     private struct Kind: Identifiable {
-        let id = UUID()
+        let addKind: AddKind
         let symbol: String
         let title: String
         let subtitle: String
+        var id: String { addKind.rawValue }
     }
 
     private let kinds = [
-        Kind(symbol: "calendar", title: "Event", subtitle: "Something happening on a day and time"),
-        Kind(symbol: "person.2", title: "Club", subtitle: "A group that meets again and again"),
-        Kind(symbol: "figure.walk", title: "Trail", subtitle: "A walk, ride, or run worth sharing"),
+        Kind(addKind: .event, symbol: "calendar", title: "Event", subtitle: "Something happening on a day and time"),
+        Kind(addKind: .club, symbol: "person.2", title: "Club", subtitle: "A group that meets again and again"),
+        Kind(addKind: .trail, symbol: "figure.walk", title: "Trail", subtitle: "A walk, ride, or run worth sharing"),
     ]
+
+    @State private var selected: AddKind?
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -35,7 +38,7 @@ struct AddView: View {
 
                 VStack(spacing: 12) {
                     ForEach(kinds) { kind in
-                        Button { } label: { kindRow(kind) }
+                        Button { selected = kind.addKind } label: { kindRow(kind) }
                             .buttonStyle(.plain)
                     }
                 }
@@ -45,6 +48,9 @@ struct AddView: View {
             .padding(.horizontal, 18)
         }
         .background(Hue.canvas)
+        .sheet(item: $selected) { kind in
+            AddFormView(kind: kind)
+        }
     }
 
     private func kindRow(_ kind: Kind) -> some View {
