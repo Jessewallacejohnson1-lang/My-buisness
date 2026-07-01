@@ -1,17 +1,25 @@
 //
 //  HyggeApp.swift
-//  Hygge
+//  Hygge — a hyper-local community app for St. Joseph, MN.
 //
-//  Created by Owner on 6/30/26.
+//  Native SwiftUI build, ported from the Expo / React Native app.
 //
 
 import SwiftUI
 
 @main
 struct HyggeApp: App {
+    @StateObject private var auth = AuthStore.shared
+
+    init() {
+        registerHyggeFonts()
+    }
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootView()
+                .environmentObject(auth)
+                .task { await auth.restore() }
         }
     }
 }
