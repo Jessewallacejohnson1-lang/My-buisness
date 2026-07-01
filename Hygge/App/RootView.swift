@@ -30,6 +30,7 @@ enum Tab: Int, CaseIterable, Identifiable {
 
 struct RootView: View {
     @EnvironmentObject private var auth: AuthStore
+    @State private var needsOnboarding = !Interests.isOnboarded()
 
     var body: some View {
         Group {
@@ -41,7 +42,11 @@ struct RootView: View {
                         .foregroundStyle(Hue.ink)
                 }
             } else if auth.isSignedIn {
-                MainTabsView()
+                if needsOnboarding {
+                    OnboardingView { needsOnboarding = false }
+                } else {
+                    MainTabsView()
+                }
             } else {
                 LoginView()
             }
