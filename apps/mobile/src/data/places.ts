@@ -32,7 +32,7 @@ export const PLACES: Place[] = [
       { label: 'Coffee', value: 'The Local Blend' },
       { label: 'Pint', value: 'Bad Habit Brewing' },
     ],
-    where: 'Minnesota Street, St. Joseph, MN',
+    where: 'Minnesota St W & College Ave N, St. Joseph, MN 56374',
   },
   {
     slug: 'saint-bens',
@@ -49,7 +49,7 @@ export const PLACES: Place[] = [
       { label: 'Type', value: "Women's liberal arts" },
       { label: 'Partner', value: "Saint John's" },
     ],
-    where: 'College of Saint Benedict, St. Joseph, MN',
+    where: 'College of Saint Benedict, 37 College Ave S, St. Joseph, MN 56374',
   },
   {
     slug: 'sacred-heart-chapel',
@@ -66,7 +66,7 @@ export const PLACES: Place[] = [
       { label: 'Home to', value: 'Benedictine sisters' },
       { label: 'Open for', value: 'Prayer & song' },
     ],
-    where: 'Sacred Heart Chapel, St. Joseph, MN',
+    where: 'Sacred Heart Chapel, 104 Chapel Lane, St. Joseph, MN 56374',
   },
   {
     slug: 'saint-johns',
@@ -83,7 +83,7 @@ export const PLACES: Place[] = [
       { label: 'Architect', value: 'Marcel Breuer' },
       { label: 'Grounds', value: '2,700 acres' },
     ],
-    where: "Saint John's Abbey, Collegeville, MN",
+    where: "Saint John's Abbey, 2900 Abbey Plaza, Collegeville, MN 56321",
   },
   {
     slug: 'wobegon-trail',
@@ -100,7 +100,7 @@ export const PLACES: Place[] = [
       { label: 'Named for', value: "Keillor's Lake Wobegon" },
       { label: 'Good for', value: 'Bikes, runs, strollers' },
     ],
-    where: 'Lake Wobegon Trail, St. Joseph, MN',
+    where: 'Lake Wobegon Trailhead, 605 1st Ave NE, St. Joseph, MN 56374',
   },
 ]
 

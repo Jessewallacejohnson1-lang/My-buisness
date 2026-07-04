@@ -31,6 +31,14 @@ The whole app is the **St. Joe community experience** (`/community`). Its core j
 
 **Done means verified:** work isn't done until it's confirmed in the running app via the preview tools, matches the design tokens, and clears the on-brand bar — not just written. See `.claude/TOOLKIT.md` for which tool to reach for, and the project memory (`product-vision`, `target-user`, `on-brand-bar`, `definition-of-done`) for the full intent.
 
+## Never make the same mistake twice
+
+Standing instruction from Jesse: **capture every lesson so it can't recur.** The moment something wastes time — a mistake, a wrong assumption, a confusing setup, or a preference Jesse states out loud — write it down *before moving on*:
+- A durable project rule, gotcha, or workflow fix → add it to **this file**, in the most relevant section, as a short concrete rule.
+- A fact about Jesse, his preferences, or how he wants you to work → write it to **project memory** (`memory/` + the `MEMORY.md` index).
+
+Both CLAUDE.md and memory load every session, so a lesson logged once is applied forever. Don't wait to be asked — logging the lesson is part of finishing the task.
+
 ## How to work a task
 
 When given a task, **run it to completion in a loop — don't stop to ask "good enough?"** Follow the `karpathy-guidelines` skill (think before coding, simplest solution, surgical changes, goal-driven execution):
@@ -77,6 +85,35 @@ proof a change is sound when no simulator/device is attached.
 means: typecheck clean + `npm run lint` clean + `expo export` bundles + the change
 confirmed in the running app (preview tools). Don't reach for `npm test` — it
 doesn't exist. If you add logic that warrants a unit test, set up the runner first.
+
+### Running on a phone (Expo Go) — read this when "my changes aren't showing up"
+
+Jesse tests on a real iPhone via **Expo Go** (often over iPhone Mirroring). The #1
+time-sink is **multiple Expo dev servers at once**: parallel agents/editor tabs and
+Claude each spawn their own Metro on a different port (8081, 8082, 8090…), the servers
+die unpredictably, and the phone ends up pinned to a dead one showing a **frozen,
+stale bundle**. It looks exactly like "my edit didn't work" — but the code is fine;
+the bundle never reached the phone. **Debug the pipe before the code:**
+
+1. **One server, Claude-controlled, kept alive.** Don't trust an agent tab's volatile
+   server. See what's listening and which folder it serves:
+   `lsof -nP -iTCP -sTCP:LISTEN | grep -i node`, then `lsof -a -p <pid> -d cwd`.
+2. **Never hand out an unverified link/QR.** First confirm the server answers:
+   `curl -s -o /dev/null -w "%{http_code}" -H "Expo-Platform: ios" http://127.0.0.1:<port>/`
+   must be `200`.
+3. **Prove the served bundle has the change before re-editing code.** Read the
+   manifest's `launchAsset.url`, fetch it, `grep` for a unique string you just added.
+   Present → the server is right and the problem is the phone, not the code.
+4. **One QR only.** Close stale QR windows (`osascript -e 'quit app "Preview"'`) and
+   open just the live one — scanning a dead QR is the usual culprit.
+5. **Force a fresh load:** fully quit Expo Go and rescan the live QR. Hot reload can't
+   help if the server it was on is dead.
+6. **Fastest reliable verification is the iOS Simulator** (localhost — no LAN, QR,
+   firewall, or phone variables): press `i` in the Metro terminal, or `npx expo run:ios`.
+
+Parallel agents (e.g. Antigravity tabs) on this same tree: partition by **disjoint
+files** (no two editors per file); **idle ≠ done** (resuming a tab after Claude edits
+its files re-introduces conflicts); expect each tab to spawn its own dev server.
 
 ## Environment
 
@@ -142,6 +179,22 @@ it once in `src/lib/api.ts`. **Always derive dates with `localDate()`, never
   `isOnboarded`, and `matchesInterests()` (keyword match used by onboarding + `activities`).
 - **`maps.ts`** — `openInMaps()` / `copyAddress()`. **`ics.ts`** + **`ics.check.ts`** —
   build/validate `.ics` files. **`eventActions.ts`**, **`useRsvp.ts`** — shared event/RSVP actions.
+- **`geo.ts`** — curated, building-accurate coordinates for known St. Joe venues
+  (`venueCoords()`). **Never trust device geocoding for known venues** — it drops
+  pins on the wrong building. Resolve here first; `geocodeAsync` is only the
+  fallback for unknowns. A new venue showing up in events? Verify its coordinates
+  (OSM / the venue's published address) and add it to the table.
+- **`time.ts`** — display-time parsing (`minutesOf`, `nowMinutes`) + `isLiveNow()`:
+  live only when the start time has arrived and it's within the last 2 h.
+  **Live-only glow rule:** glowing/pulsing treatments (map pins, the NOW marker)
+  are reserved for things happening *right now* — never for merely "today." The
+  live color is `GRAPH.amber` (the timeline's NOW color) — **not** `moss700`,
+  which this branch redefined to near-black (#1C1C1E, primary actions), so a
+  "moss glow" reads as a black shadow.
+- **`react-native-maps` is native-only** — importing it from any web-bundled file
+  breaks `expo export --platform web` (the Vercel site). Keep map UI platform-split:
+  `components/TownMap.tsx` (native) / `TownMap.web.tsx` (web fallback); route files
+  stay thin wrappers.
 - **`utils.ts`** — `cn()` (clsx + tailwind-merge) for the UI primitives below.
 - **`theme.ts`** — JS tokens (`C` colors, `F` fonts, `HAIRLINE`) + the bundled
   weather / around-town image maps. Mirrors `tailwind.config.js`.
