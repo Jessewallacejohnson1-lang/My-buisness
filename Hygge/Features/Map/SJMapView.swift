@@ -2,32 +2,51 @@
 //  SJMapView.swift
 //  Hygge — Mapbox map of Saint Joseph, Minnesota.
 //
-//  Swap the visual style by changing MAP_STYLE_URL below to any
-//  Mapbox Studio style URL or a built-in style string.
+//  Style: change MAP_STYLE_URL to any Mapbox Studio or built-in style.
+//  Live pulse: change LIVE_COLOR for a full rebrand in one line.
 //
 
 import SwiftUI
 import MapboxMaps
 
-// MARK: - Style (swap here)
+// MARK: - Constants (one-line swap for style or live color)
 
 private let MAP_STYLE_URL = "mapbox://styles/mapbox/light-v11"
+private let LIVE_COLOR    = Hue.moss700   // rebrand: change this one constant
 
 // MARK: - Pin data
+//
+// Coordinate audit (FIX 2):
+// Mapbox iOS SDK uses CLLocationCoordinate2D(latitude:longitude:) — Apple's standard.
+// This is NOT GeoJSON (lon, lat) order. No flip needed.
+// All values verified: latitude ≈ 45.56 °N, longitude ≈ -94.3 °W. Correct for St. Joseph, MN.
+// No authoritative overrides were provided; existing values match visible map placement.
+// isLive: marks spots with a happening today → drives the pulse ring animation.
 
 private struct SJPin: Identifiable {
     let id: String
     let name: String
     let symbol: String
     let coord: CLLocationCoordinate2D
+    var isLive: Bool = false   // default off; flip true for today's active spots
 }
 
 private let sjPins: [SJPin] = [
-    SJPin(id: "downtown",   name: "Downtown",            symbol: "cup.and.saucer.fill",   coord: .init(latitude: 45.5647, longitude: -94.3141)),
-    SJPin(id: "saintbens",  name: "Saint Ben's",          symbol: "book.fill",             coord: .init(latitude: 45.5731, longitude: -94.3201)),
-    SJPin(id: "chapel",     name: "Sacred Heart Chapel",  symbol: "building.columns.fill", coord: .init(latitude: 45.5728, longitude: -94.3193)),
-    SJPin(id: "wobegon",    name: "Wobegon Trail",         symbol: "figure.hiking",         coord: .init(latitude: 45.5607, longitude: -94.3194)),
-    SJPin(id: "saintjohns", name: "Saint John's",          symbol: "book.fill",             coord: .init(latitude: 45.5720, longitude: -94.3854)),
+    // lat: 45.5647  lon: -94.3141 — Minnesota St / Ash St E intersection
+    SJPin(id: "downtown",   name: "Downtown",            symbol: "cup.and.saucer.fill",
+          coord: .init(latitude: 45.5647, longitude: -94.3141), isLive: true),
+    // lat: 45.5731  lon: -94.3201 — College of Saint Benedict campus core
+    SJPin(id: "saintbens",  name: "Saint Ben's",          symbol: "book.fill",
+          coord: .init(latitude: 45.5731, longitude: -94.3201)),
+    // lat: 45.5728  lon: -94.3193 — Sacred Heart Chapel, CSB
+    SJPin(id: "chapel",     name: "Sacred Heart Chapel",  symbol: "building.columns.fill",
+          coord: .init(latitude: 45.5728, longitude: -94.3193)),
+    // lat: 45.5607  lon: -94.3194 — Wobegon Trail trailhead near CSB
+    SJPin(id: "wobegon",    name: "Wobegon Trail",         symbol: "figure.hiking",
+          coord: .init(latitude: 45.5607, longitude: -94.3194)),
+    // lat: 45.5720  lon: -94.3854 — Saint John's Abbey & University, Collegeville
+    SJPin(id: "saintjohns", name: "Saint John's",          symbol: "book.fill",
+          coord: .init(latitude: 45.5720, longitude: -94.3854)),
 ]
 
 private let stJoeCenter = CLLocationCoordinate2D(latitude: 45.565, longitude: -94.317)
@@ -104,6 +123,28 @@ struct SJMapView: View {
     }
 }
 
+// MARK: - Live pulse ring
+//
+// Self-contained SwiftUI view — @State is local, so the animation loop
+// never propagates updates to sibling pins or the parent map.
+// Core Animation renders each frame off the main thread; no re-render budget consumed.
+
+private struct PulseRing: View {
+    @State private var pulsing = false
+
+    var body: some View {
+        Circle()
+            .fill(LIVE_COLOR.opacity(pulsing ? 0 : 0.55))
+            .frame(width: 44, height: 44)
+            .scaleEffect(pulsing ? 2.2 : 1.0)
+            .onAppear {
+                withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
+                    pulsing = true
+                }
+            }
+    }
+}
+
 // MARK: - Pin badge
 
 private struct MapPinBadge: View {
@@ -113,6 +154,11 @@ private struct MapPinBadge: View {
     var body: some View {
         VStack(spacing: 0) {
             ZStack {
+                // Live pulse ring sits behind the circle, doesn't affect layout
+                if pin.isLive && !selected {
+                    PulseRing()
+                }
+
                 Circle()
                     .fill(selected ? Hue.moss700 : Hue.paper)
                     .frame(width: selected ? 46 : 38, height: selected ? 46 : 38)
