@@ -42,4 +42,20 @@ extension View {
                 .stroke(Hue.hairline, lineWidth: 1)
         )
     }
+
+    // MARK: Map shadows (soft, diffuse — no hard dark edges)
+
+    /// Standard floating element: y=2, blur=10, 10% opacity.
+    func mapFloatShadow(pressed: Bool = false) -> some View {
+        self.shadow(
+            color: .black.opacity(pressed ? 0.18 : 0.10),
+            radius: pressed ? 14 : 10,
+            x: 0, y: 2
+        )
+    }
+
+    /// Bottom sheet: y=−2 (upward), blur=16, 8% opacity.
+    func mapSheetShadow() -> some View {
+        self.shadow(color: .black.opacity(0.08), radius: 16, x: 0, y: -2)
+    }
 }

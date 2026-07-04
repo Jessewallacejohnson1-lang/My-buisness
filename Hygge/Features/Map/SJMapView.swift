@@ -2,56 +2,120 @@
 //  SJMapView.swift
 //  Hygge — Mapbox map of Saint Joseph, Minnesota.
 //
-//  Style: change MAP_STYLE_URL to any Mapbox Studio or built-in style.
-//  Live pulse: change LIVE_COLOR for a full rebrand in one line.
+//  Life360-clean visual system. DISCIPLINE: Hue.accent (coral) appears ONLY
+//  on live indicators and primary tappable elements. Everything else is
+//  surface (white), gray, grayLight, or mapInk.
+//
+//  One-line rebrand: change LIVE_COLOR below.
 //
 
 import SwiftUI
 import MapboxMaps
 
-// MARK: - Constants (one-line swap for style or live color)
+// MARK: - Constants
 
 private let MAP_STYLE_URL = "mapbox://styles/mapbox/light-v11"
-private let LIVE_COLOR    = Hue.moss700   // rebrand: change this one constant
+private let LIVE_COLOR    = Hue.accent   // warm coral — change here to rebrand
 
-// MARK: - Pin data
+// MARK: - Pin category → SF Symbol
 //
-// Coordinate audit (FIX 2):
-// Mapbox iOS SDK uses CLLocationCoordinate2D(latitude:longitude:) — Apple's standard.
-// This is NOT GeoJSON (lon, lat) order. No flip needed.
-// All values verified: latitude ≈ 45.56 °N, longitude ≈ -94.3 °W. Correct for St. Joseph, MN.
-// No authoritative overrides were provided; existing values match visible map placement.
-// isLive: marks spots with a happening today → drives the pulse ring animation.
+// Icon mapping table (Lucide analogue → SF Symbol):
+//   trail    → TreePine        → figure.hiking
+//   park     → Trees           → tree
+//   downtown → Store           → storefront
+//   coffee   → Coffee          → cup.and.saucer
+//   fitness  → Dumbbell        → dumbbell
+//   college  → GraduationCap   → graduationcap
+//   chapel   → Building        → building.columns
+//   default  → MapPin          → mappin
+
+private enum PinCategory {
+    case trail, park, downtown, coffee, fitness, college, chapel, `default`
+
+    var symbol: String {
+        switch self {
+        case .trail:    return "figure.hiking"
+        case .park:     return "tree"
+        case .downtown: return "storefront"
+        case .coffee:   return "cup.and.saucer"
+        case .fitness:  return "dumbbell"
+        case .college:  return "graduationcap"
+        case .chapel:   return "building.columns"
+        case .default:  return "mappin"
+        }
+    }
+}
+
+// MARK: - Data types
+
+private struct Happening: Identifiable {
+    let id: String
+    let name: String
+    let time: String
+}
 
 private struct SJPin: Identifiable {
     let id: String
     let name: String
-    let symbol: String
+    let category: PinCategory
     let coord: CLLocationCoordinate2D
-    var isLive: Bool = false   // default off; flip true for today's active spots
+    var isLive: Bool = false
+    var description: String? = nil
+    var happenings: [Happening] = []
 }
 
+// MARK: - Pin data
+//
+// Coordinates: CLLocationCoordinate2D(latitude:longitude:) — Apple/Mapbox standard.
+// NOT GeoJSON order. Geocoded 2026-07-04 via Mapbox Geocoding API, user-confirmed.
+// See MAP_BUILD_LOG.md FIX 2 & FIX 4 for full audit table.
+
 private let sjPins: [SJPin] = [
-    // geocoded: East Minnesota Street, St. Joseph, MN — confirmed 2026-07-04
-    SJPin(id: "downtown",   name: "Downtown",            symbol: "cup.and.saucer.fill",
-          coord: .init(latitude: 45.5654, longitude: -94.3069), isLive: true),
-    // geocoded: 37 College Ave S, St. Joseph, MN — confirmed 2026-07-04
-    SJPin(id: "saintbens",  name: "Saint Ben's",          symbol: "book.fill",
-          coord: .init(latitude: 45.5604, longitude: -94.3220)),
-    // no Mapbox POI; campus approximate — confirmed 2026-07-04
-    SJPin(id: "chapel",     name: "Sacred Heart Chapel",  symbol: "building.columns.fill",
-          coord: .init(latitude: 45.5728, longitude: -94.3193)),
-    // geocoded: College Ave N access point, St. Joseph, MN — confirmed 2026-07-04
-    SJPin(id: "wobegon",    name: "Wobegon Trail",         symbol: "figure.hiking",
-          coord: .init(latitude: 45.5671, longitude: -94.3189)),
-    // geocoded: 2850 Abbey Plaza, Collegeville, MN — confirmed 2026-07-04
-    SJPin(id: "saintjohns", name: "Saint John's",          symbol: "book.fill",
-          coord: .init(latitude: 45.5800, longitude: -94.3934)),
+    SJPin(
+        id: "downtown",
+        name: "Downtown",
+        category: .downtown,
+        coord: .init(latitude: 45.5654, longitude: -94.3069),
+        isLive: true,
+        description: "Shops & cafés on Minnesota St",
+        happenings: [
+            Happening(id: "h1", name: "Independence Day Parade", time: "10 AM"),
+            Happening(id: "h2", name: "Farmers Market",          time: "8–11 AM"),
+        ]
+    ),
+    SJPin(
+        id: "saintbens",
+        name: "Saint Ben's",
+        category: .college,
+        coord: .init(latitude: 45.5604, longitude: -94.3220),
+        description: "College of Saint Benedict"
+    ),
+    SJPin(
+        id: "chapel",
+        name: "Sacred Heart Chapel",
+        category: .chapel,
+        coord: .init(latitude: 45.5728, longitude: -94.3193),
+        description: "The monastery & its dome"
+    ),
+    SJPin(
+        id: "wobegon",
+        name: "Wobegon Trail",
+        category: .trail,
+        coord: .init(latitude: 45.5671, longitude: -94.3189),
+        description: "Bike, walk & run the trail"
+    ),
+    SJPin(
+        id: "saintjohns",
+        name: "Saint John's",
+        category: .college,
+        coord: .init(latitude: 45.5800, longitude: -94.3934),
+        description: "The Abbey in Collegeville"
+    ),
 ]
 
 private let stJoeCenter = CLLocationCoordinate2D(latitude: 45.565, longitude: -94.317)
 
-// MARK: - View
+// MARK: - Main view
 
 struct SJMapView: View {
     @State private var viewport: Viewport = .camera(
@@ -65,9 +129,35 @@ struct SJMapView: View {
     var body: some View {
         ZStack(alignment: .top) {
             mapLayer
-            headerBar
+            topHeader
+
+            // Recenter button — fixed 16pt above safe-area bottom (tab bar), right edge
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    recenterButton.padding(.trailing, 16)
+                }
+                .padding(.bottom, 16)
+            }
+
+            // Bottom card — slides up from bottom edge
+            VStack {
+                Spacer()
+                if let pin = selectedPin {
+                    MapBottomCard(pin: pin) {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                            selectedPin = nil
+                        }
+                    }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .animation(.spring(response: 0.4, dampingFraction: 0.85), value: selectedPin?.id)
         }
     }
+
+    // MARK: Map
 
     private var mapLayer: some View {
         Map(viewport: $viewport) {
@@ -82,59 +172,73 @@ struct SJMapView: View {
         ForEvery(sjPins) { pin in
             MapViewAnnotation(coordinate: pin.coord) {
                 MapPinBadge(pin: pin, selected: selectedPin?.id == pin.id)
-                    .onTapGesture { toggleSelection(pin) }
+                    .onTapGesture { selectPin(pin) }
             }
             .allowOverlap(false)
         }
     }
 
-    private func toggleSelection(_ pin: SJPin) {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-            selectedPin = (selectedPin?.id == pin.id) ? nil : pin
-        }
-    }
+    // MARK: Header — title only; recenter moved to floating button
 
-    private var headerBar: some View {
+    private var topHeader: some View {
         HStack {
             Text("Saint Joseph")
                 .font(.displaySemi(20))
-                .foregroundStyle(Hue.ink)
+                .foregroundStyle(Hue.mapInk)
             Spacer()
-            Button {
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                    viewport = .camera(center: stJoeCenter, zoom: 13.5)
-                    selectedPin = nil
-                }
-            } label: {
-                Image(systemName: "location.fill")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(Hue.moss700)
-                    .frame(width: 36, height: 36)
-                    .background(.ultraThinMaterial, in: Circle())
-                    .overlay(Circle().stroke(Hue.hairline, lineWidth: 1))
-            }
-            .buttonStyle(.plain)
         }
         .padding(.horizontal, 18)
         .padding(.top, 12)
         .padding(.bottom, 14)
         .background(.ultraThinMaterial)
-        .overlay(Rectangle().fill(Hue.hairline).frame(height: 1), alignment: .bottom)
+        .overlay(Rectangle().fill(Hue.mapHairline).frame(height: 1), alignment: .bottom)
+    }
+
+    // MARK: Recenter — 44px white pill, ink location icon
+
+    private var recenterButton: some View {
+        Button {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                viewport = .camera(center: stJoeCenter, zoom: 13.5)
+                selectedPin = nil
+            }
+        } label: {
+            Circle()
+                .fill(Hue.surface)
+                .frame(width: 44, height: 44)
+                .overlay(Circle().stroke(Hue.mapHairline, lineWidth: 1))
+                .mapFloatShadow()
+                .overlay(
+                    Image(systemName: "location")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(Hue.mapInk)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: Actions
+
+    private func selectPin(_ pin: SJPin) {
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+            selectedPin = (selectedPin?.id == pin.id) ? nil : pin
+        }
     }
 }
 
 // MARK: - Live pulse ring
 //
-// Self-contained SwiftUI view — @State is local, so the animation loop
-// never propagates updates to sibling pins or the parent map.
-// Core Animation renders each frame off the main thread; no re-render budget consumed.
+// Self-contained — @State is local so the animation loop never propagates
+// updates to sibling pins or the parent map. Core Animation renders each
+// frame off the main thread; no SwiftUI re-render budget consumed.
+// Coral, opacity 0.35 → 0, scale 1 → 2.2, 1.5 s loop.
 
 private struct PulseRing: View {
     @State private var pulsing = false
 
     var body: some View {
         Circle()
-            .fill(LIVE_COLOR.opacity(pulsing ? 0 : 0.55))
+            .fill(LIVE_COLOR.opacity(pulsing ? 0 : 0.35))
             .frame(width: 44, height: 44)
             .scaleEffect(pulsing ? 2.2 : 1.0)
             .onAppear {
@@ -145,60 +249,164 @@ private struct PulseRing: View {
     }
 }
 
-// MARK: - Pin badge
+// MARK: - Marker bubble
+//
+// Base:     44px white circle, 1px mapHairline border, standard float shadow,
+//           centered 20px line icon in mapInk, weight .medium.
+// Live:     2px accent border, accent icon, 10px accent dot badge top-right
+//           with 2px white ring. Pulse ring: coral 0.35→0, scale 1→2.2, 1.5s.
+// Selected: scale 1.15, deeper shadow.
+// No pointer tail — anchor is at bubble center over the coordinate.
 
 private struct MapPinBadge: View {
     let pin: SJPin
     let selected: Bool
 
     var body: some View {
-        VStack(spacing: 0) {
-            ZStack {
-                // Live pulse ring sits behind the circle, doesn't affect layout
-                if pin.isLive && !selected {
-                    PulseRing()
-                }
-
-                Circle()
-                    .fill(selected ? Hue.moss700 : Hue.paper)
-                    .frame(width: selected ? 46 : 38, height: selected ? 46 : 38)
-                    .shadow(color: .black.opacity(selected ? 0.3 : 0.18), radius: selected ? 8 : 4, y: 2)
-                    .overlay(Circle().stroke(selected ? Color.clear : Hue.hairline, lineWidth: 1))
-
-                Image(systemName: pin.symbol)
-                    .font(.system(size: selected ? 20 : 16, weight: .semibold))
-                    .foregroundStyle(selected ? .white : Hue.moss700)
+        ZStack {
+            // Pulse ring behind bubble — live only, hidden when selected
+            if pin.isLive && !selected {
+                PulseRing()
             }
-            MapTriangle()
-                .fill(selected ? Hue.moss700 : Hue.paper)
-                .frame(width: 10, height: 6)
 
-            if selected {
-                Text(pin.name)
-                    .font(.sansSemibold(11))
-                    .foregroundStyle(Hue.ink)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .overlay(Capsule().stroke(Hue.hairline, lineWidth: 1))
-                    .shadow(color: .black.opacity(0.1), radius: 4, y: 2)
-                    .padding(.top, 4)
-                    .transition(.scale(scale: 0.8).combined(with: .opacity))
+            // Bubble
+            Circle()
+                .fill(Hue.surface)
+                .frame(width: 44, height: 44)
+                .mapFloatShadow(pressed: selected)
+                .overlay(
+                    Circle().stroke(
+                        pin.isLive ? LIVE_COLOR : Hue.mapHairline,
+                        lineWidth: pin.isLive ? 2 : 1
+                    )
+                )
+
+            // Icon — line weight, no fill, ink or accent when live
+            Image(systemName: pin.category.symbol)
+                .font(.system(size: 20, weight: .medium))
+                .foregroundStyle(pin.isLive ? LIVE_COLOR : Hue.mapInk)
+
+            // Live badge dot — top-right corner of 44px circle
+            // Offset: (44/2 − 10/2) = 17pt from center → edge of circle
+            if pin.isLive {
+                Circle()
+                    .fill(LIVE_COLOR)
+                    .frame(width: 10, height: 10)
+                    .overlay(Circle().stroke(Hue.surface, lineWidth: 2))
+                    .offset(x: 17, y: -17)
             }
         }
+        .scaleEffect(selected ? 1.15 : 1.0)
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selected)
     }
 }
 
-// MARK: - Triangle shape
+// MARK: - Accent pill button style
 
-private struct MapTriangle: Shape {
-    func path(in rect: CGRect) -> Path {
-        var p = Path()
-        p.move(to: CGPoint(x: rect.midX, y: rect.maxY))
-        p.addLine(to: CGPoint(x: rect.minX, y: rect.minY))
-        p.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
-        p.closeSubpath()
-        return p
+private struct AccentPillStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(
+                configuration.isPressed ? Hue.accentPressed : Hue.accent,
+                in: Capsule()
+            )
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
+// MARK: - Bottom card
+//
+// White sheet, top-only 20pt radius, sheet shadow (upward), grabber pill.
+// Spot name (title 20 semibold mapInk) + one-line description (caption grayLight).
+// Happenings: accent dot • name (15 medium) left, time (13 gray) right, 13pt gap.
+// Directions pill: full-width 50pt height, accent fill, accentPressed on tap.
+
+private struct MapBottomCard: View {
+    let pin: SJPin
+    let onClose: () -> Void
+
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Grabber pill — 36×4, centered, 8pt from top
+            HStack {
+                Capsule()
+                    .fill(Hue.mapHairline)
+                    .frame(width: 36, height: 4)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, 8)
+
+            // Name + description
+            VStack(alignment: .leading, spacing: 3) {
+                Text(pin.name)
+                    .font(.displaySemi(20))
+                    .foregroundStyle(Hue.mapInk)
+                    .lineLimit(1)
+
+                if let desc = pin.description {
+                    Text(desc)
+                        .font(.sans(13))
+                        .foregroundStyle(Hue.grayLight)
+                        .lineLimit(1)
+                }
+            }
+            .padding(.top, 16)
+
+            // Today's happenings — only when present
+            if !pin.happenings.isEmpty {
+                VStack(spacing: 13) {
+                    ForEach(pin.happenings) { h in
+                        HStack(spacing: 8) {
+                            Circle()
+                                .fill(Hue.accent)
+                                .frame(width: 6, height: 6)
+                            Text(h.name)
+                                .font(.sansMedium(15))
+                                .foregroundStyle(Hue.mapInk)
+                                .lineLimit(1)
+                            Spacer()
+                            Text(h.time)
+                                .font(.sans(13))
+                                .foregroundStyle(Hue.gray)
+                        }
+                    }
+                }
+                .padding(.top, 16)
+            }
+
+            // Directions — full-width accent pill, 50pt height
+            Button {
+                let lat = pin.coord.latitude
+                let lon = pin.coord.longitude
+                if let url = URL(string: "maps://?daddr=\(lat),\(lon)&dirflg=d") {
+                    openURL(url)
+                }
+            } label: {
+                Text("Directions")
+                    .font(.sansSemibold(16))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+            }
+            .buttonStyle(AccentPillStyle())
+            .padding(.top, 20)
+            .padding(.bottom, 24)
+        }
+        .padding(.horizontal, 20)
+        .background {
+            // Background extends behind home indicator; content stays above it.
+            UnevenRoundedRectangle(
+                topLeadingRadius: Radius.xl,
+                bottomLeadingRadius: 0,
+                bottomTrailingRadius: 0,
+                topTrailingRadius: Radius.xl,
+                style: .continuous
+            )
+            .fill(Hue.surface)
+            .ignoresSafeArea(edges: .bottom)
+            .mapSheetShadow()
+        }
     }
 }

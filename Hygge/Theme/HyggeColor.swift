@@ -56,4 +56,20 @@ enum Hue {
 
     // Hairline border — border-black/[0.07]
     static let hairline = Color.black.opacity(0.07)
+
+    // MARK: Map visual system (Life360-clean, warm coral)
+    // Discipline: coral appears ONLY on live indicators and primary/tappable elements.
+    // Everything else uses surface, gray, grayLight, or mapInk.
+    static let accent        = Color(hex: 0xFF6B57)  // warm coral — live + tappable
+    static let accentPressed = Color(hex: 0xE5503C)  // button pressed state
+    static let accentSoft    = Color(hex: 0xFFF0EC)  // soft tint
+
+    static let surface  = Color(hex: 0xFFFFFF)  // pure white floating elements
+    static let bgSubtle = Color(hex: 0xF6F7F8)  // subtle background
+
+    static let gray      = Color(hex: 0x6B7280)  // secondary text
+    static let grayLight = Color(hex: 0x9CA3AF)  // captions
+
+    static let mapInk      = Color(hex: 0x1A1D21)  // primary text + icons on map
+    static let mapHairline = Color(hex: 0xE5E7EB)  // borders / grabber pill
 }

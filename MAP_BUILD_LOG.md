@@ -88,10 +88,111 @@ Sacred Heart Chapel has no Mapbox POI entry; campus approximate kept.
 
 ---
 
+---
+
+## VISUAL SYSTEM — Life360-clean, warm coral (2026-07-04)
+
+Mission: replace emoji/filled-SF-Symbol markers with a clean icon system, coral accent,
+bottom card, floating recenter button. All four phases land in a single build.
+
+### Design tokens added
+
+**HyggeColor.swift** — new `// MARK: Map visual system` section:
+
+| Token | Hex | Role |
+|-------|-----|------|
+| `Hue.accent` | `#FF6B57` | Live indicators + primary tappable elements |
+| `Hue.accentPressed` | `#E5503C` | Directions button pressed state |
+| `Hue.accentSoft` | `#FFF0EC` | Soft tint (reserved) |
+| `Hue.surface` | `#FFFFFF` | Floating bubbles, card, recenter button |
+| `Hue.bgSubtle` | `#F6F7F8` | Subtle backgrounds (reserved) |
+| `Hue.gray` | `#6B7280` | Secondary text (happening times) |
+| `Hue.grayLight` | `#9CA3AF` | Caption text (spot description) |
+| `Hue.mapInk` | `#1A1D21` | Primary text + icons |
+| `Hue.mapHairline` | `#E5E7EB` | Borders + grabber pill |
+
+**HyggeMetrics.swift** — two new shadow extensions:
+- `mapFloatShadow(pressed:)` — y=2, blur=10/14, 10%/18% (floating elements)
+- `mapSheetShadow()` — y=−2, blur=16, 8% (bottom sheet)
+
+DISCIPLINE RULE enforced: `grep` for stray hex codes and old palette tokens
+(`moss`, `clay`, `honey`, `paper`, `sky[0-9]`, `ink[23]`) in `Features/Map` → **0 matches**.
+
+---
+
+### Phase 1 — Icon system
+
+`SJPin.symbol: String` replaced by `PinCategory` enum with computed `symbol: String`.
+All SF Symbols use non-filled, `.medium` weight — clean line appearance.
+
+**Icon mapping table (Lucide analogue → SF Symbol):**
+
+| Category | Lucide icon | SF Symbol | Used by |
+|----------|-------------|-----------|---------|
+| `.trail` | `TreePine` | `figure.hiking` | Wobegon Trail |
+| `.park` | `Trees` | `tree` | (reserved) |
+| `.downtown` | `Store` | `storefront` | Downtown |
+| `.coffee` | `Coffee` | `cup.and.saucer` | (reserved) |
+| `.fitness` | `Dumbbell` | `dumbbell` | (reserved) |
+| `.college` | `GraduationCap` | `graduationcap` | Saint Ben's, Saint John's |
+| `.chapel` | `Building` | `building.columns` | Sacred Heart Chapel |
+| `.default` | `MapPin` | `mappin` | fallback |
+
+Zero emoji remain. Zero `book.fill`, `cup.and.saucer.fill`, `building.columns.fill` (filled).
+
+---
+
+### Phase 2 — Marker bubbles
+
+- **Base:** 44px `Hue.surface` circle, 1px `mapHairline` border, `mapFloatShadow()`,
+  20px icon in `mapInk` at weight `.medium`. No pointer tail; bubble anchors at center.
+- **Live:** 2px `accent` border, accent icon, 10px accent dot badge offset `(+17, −17)`
+  (top-right edge of 44px circle) with 2px `surface` ring.
+- **Pulse:** `PulseRing` recolored to `LIVE_COLOR` (now coral). Opacity `0.35→0`,
+  scale `1→2.2`, 1.5 s linear loop, local `@State` — zero sibling re-renders.
+- **Selected:** `scaleEffect(1.15)`, `mapFloatShadow(pressed: true)` (deeper shadow).
+  `MapTriangle` shape removed.
+
+---
+
+### Phase 3 — Bottom card
+
+`MapBottomCard` private struct. Slides up from bottom via `.move(edge: .bottom)` +
+`.opacity` transition, spring `response: 0.4, dampingFraction: 0.85`.
+
+- White sheet, `UnevenRoundedRectangle(topLeadingRadius: 20, topTrailingRadius: 20)`,
+  `mapSheetShadow()`. Background uses `.ignoresSafeArea(edges: .bottom)` to fill
+  behind the home indicator; content padding stops at safe area.
+- Grabber pill: 36×4 `mapHairline`, centered, 8pt from top.
+- Name: `displaySemi(20)` `mapInk`. Description: `sans(13)` `grayLight`.
+- Happenings: 6px accent dot • `sansMedium(15)` `mapInk` left, `sans(13)` `gray` right,
+  13pt row gap.
+- Directions: full-width 50pt `AccentPillStyle` (accent → accentPressed on press),
+  `sansSemibold(16)` white. Opens `maps://` via `@Environment(\.openURL)`.
+
+Sample data: Downtown (live) carries 2 happenings. Quiet spots show name + description only.
+
+---
+
+### Phase 4 — Chrome
+
+- **Recenter:** moved from header to floating bottom-right, 16pt trailing + 16pt above
+  safe-area bottom (tab bar). 44px `surface` circle, `mapHairline` border,
+  `mapFloatShadow()`, `location` icon (non-filled) in `mapInk`. Press clears selection.
+- **Header:** title-only "Saint Joseph" in `displaySemi(20)` `mapInk` + `ultraThinMaterial`
+  + `mapHairline` bottom line.
+- **Loading/error:** no change needed — no explicit loading/error states existed.
+
+**Build:** ✓ (0 errors, 0 warnings) | **Grep audit:** ✓ (0 stray values in map components)
+
+---
+
 ## Final state
 
 - Style: `light-v11` (single constant `MAP_STYLE_URL`)
-- Pins: 5, geocoded + user-confirmed coordinates
-- Live pulse: Downtown only today; wire `isLive` to real event data by checking today's events
-  against each spot's ID in `SJMapView` or a parent ViewModel
-- `LIVE_COLOR`: `Hue.moss700` — one-line rebrand
+- Pins: 5, geocoded + user-confirmed coordinates, category-based SF Symbol icons
+- Live pulse: Downtown only today (coral); wire `isLive` to real event data by checking
+  today's events against each spot's ID in `SJMapView` or a parent ViewModel
+- `LIVE_COLOR = Hue.accent` — one-line rebrand
+- One theme file (`HyggeColor.swift`) governs all map colors; `HyggeMetrics.swift` governs
+  all map shadows. Zero hardcoded values in `Features/Map`.
