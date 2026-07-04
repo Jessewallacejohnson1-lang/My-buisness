@@ -64,10 +64,34 @@ triggers a SwiftUI re-render of anything outside `PulseRing`.
 
 ---
 
+## FIX 4 — Geocoded pin locations (address-based, user-confirmed)
+
+**Method:** Mapbox Geocoding API, `proximity=-94.317,45.565`, one-time at dev time.
+Coordinates stored in source; never geocoded at app runtime.
+
+**Final resolved coordinates (user confirmed 2026-07-04):**
+
+| Spot | Resolved address | Latitude | Longitude | Confidence |
+|------|-----------------|----------|-----------|------------|
+| Downtown | East Minnesota Street, St. Joseph, MN | 45.5654 | -94.3069 | 0.79 |
+| Saint Ben's | 37 College Ave S, St. Joseph, MN | 45.5604 | -94.3220 | 1.00 |
+| Sacred Heart Chapel | Campus approx (no Mapbox POI) | 45.5728 | -94.3193 | — |
+| Wobegon Trail | College Ave N access, St. Joseph, MN | 45.5671 | -94.3189 | 1.00 |
+| Saint John's | 2850 Abbey Plaza, Collegeville, MN | 45.5800 | -94.3934 | 0.95 |
+
+**Notes:** Saint John's is in Collegeville (~7 mi west) — visible only when panning west.
+Sacred Heart Chapel has no Mapbox POI entry; campus approximate kept.
+
+**Verification:** Build ✓ | Screenshot ✓ — all visible pins sit on correct streets/labels.
+
+**Commit:** see below
+
+---
+
 ## Final state
 
 - Style: `light-v11` (single constant `MAP_STYLE_URL`)
-- Pins: 5, all correct `(latitude, longitude)` — no flip
+- Pins: 5, geocoded + user-confirmed coordinates
 - Live pulse: Downtown only today; wire `isLive` to real event data by checking today's events
   against each spot's ID in `SJMapView` or a parent ViewModel
 - `LIVE_COLOR`: `Hue.moss700` — one-line rebrand

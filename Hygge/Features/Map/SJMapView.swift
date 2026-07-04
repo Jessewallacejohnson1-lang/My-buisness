@@ -32,21 +32,21 @@ private struct SJPin: Identifiable {
 }
 
 private let sjPins: [SJPin] = [
-    // lat: 45.5647  lon: -94.3141 — Minnesota St / Ash St E intersection
+    // geocoded: East Minnesota Street, St. Joseph, MN — confirmed 2026-07-04
     SJPin(id: "downtown",   name: "Downtown",            symbol: "cup.and.saucer.fill",
-          coord: .init(latitude: 45.5647, longitude: -94.3141), isLive: true),
-    // lat: 45.5731  lon: -94.3201 — College of Saint Benedict campus core
+          coord: .init(latitude: 45.5654, longitude: -94.3069), isLive: true),
+    // geocoded: 37 College Ave S, St. Joseph, MN — confirmed 2026-07-04
     SJPin(id: "saintbens",  name: "Saint Ben's",          symbol: "book.fill",
-          coord: .init(latitude: 45.5731, longitude: -94.3201)),
-    // lat: 45.5728  lon: -94.3193 — Sacred Heart Chapel, CSB
+          coord: .init(latitude: 45.5604, longitude: -94.3220)),
+    // no Mapbox POI; campus approximate — confirmed 2026-07-04
     SJPin(id: "chapel",     name: "Sacred Heart Chapel",  symbol: "building.columns.fill",
           coord: .init(latitude: 45.5728, longitude: -94.3193)),
-    // lat: 45.5607  lon: -94.3194 — Wobegon Trail trailhead near CSB
+    // geocoded: College Ave N access point, St. Joseph, MN — confirmed 2026-07-04
     SJPin(id: "wobegon",    name: "Wobegon Trail",         symbol: "figure.hiking",
-          coord: .init(latitude: 45.5607, longitude: -94.3194)),
-    // lat: 45.5720  lon: -94.3854 — Saint John's Abbey & University, Collegeville
+          coord: .init(latitude: 45.5671, longitude: -94.3189)),
+    // geocoded: 2850 Abbey Plaza, Collegeville, MN — confirmed 2026-07-04
     SJPin(id: "saintjohns", name: "Saint John's",          symbol: "book.fill",
-          coord: .init(latitude: 45.5720, longitude: -94.3854)),
+          coord: .init(latitude: 45.5800, longitude: -94.3934)),
 ]
 
 private let stJoeCenter = CLLocationCoordinate2D(latitude: 45.565, longitude: -94.317)
