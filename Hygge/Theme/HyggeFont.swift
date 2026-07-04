@@ -3,13 +3,12 @@
 //  Hygge — design tokens (typography)
 //
 //  Three strict roles, never swapped:
-//    • Display  → Spectral          (wordmark, H1s, hero)
-//    • UI/body  → Schibsted Grotesk (labels, body, buttons)
-//    • Data     → Geist Mono        (every number, with tabular figures)
+//    • Display  → Spectral   (wordmark, H1s, hero)
+//    • UI/body  → DM Sans    (labels, body, buttons)
+//    • Data     → Geist Mono (every number, with tabular figures)
 //
-//  RN has no synthetic bolding, so each weight is its own family. We mirror that
-//  here by addressing fonts through their PostScript names. The .ttf files live
-//  in Resources/Fonts and are registered at launch (see registerHyggeFonts()).
+//  Each weight is its own PostScript name. The .ttf files live in
+//  Resources/Fonts and are registered at launch (see registerHyggeFonts()).
 //
 
 import SwiftUI
@@ -19,10 +18,10 @@ import CoreText
 enum Face {
     static let display     = "Spectral-Bold"             // 700
     static let displaySemi = "Spectral-SemiBold"         // 600
-    static let sans        = "SchibstedGrotesk-Regular"  // 400
-    static let sansMedium  = "SchibstedGrotesk-Medium"   // 500
-    static let sansSemibold = "SchibstedGrotesk-SemiBold" // 600
-    static let sansBold    = "SchibstedGrotesk-Bold"     // 700
+    static let sans         = "DMSans-Regular"   // 400
+    static let sansMedium   = "DMSans-Medium"    // 500
+    static let sansSemibold = "DMSans-SemiBold"  // 600
+    static let sansBold     = "DMSans-Bold"      // 700
     static let mono        = "GeistMono-Regular"         // 400
     static let monoMedium  = "GeistMono-Medium"          // 500
 }
@@ -40,7 +39,7 @@ extension Font {
     static func display(_ size: CGFloat) -> Font { .custom(Face.display, size: size, relativeTo: .largeTitle) }
     static func displaySemi(_ size: CGFloat) -> Font { .custom(Face.displaySemi, size: size, relativeTo: .title) }
 
-    // UI / body — Schibsted Grotesk.
+    // UI / body — DM Sans.
     static func sans(_ size: CGFloat) -> Font { .custom(Face.sans, size: size, relativeTo: .body) }
     static func sansMedium(_ size: CGFloat) -> Font { .custom(Face.sansMedium, size: size, relativeTo: .body) }
     static func sansSemibold(_ size: CGFloat) -> Font { .custom(Face.sansSemibold, size: size, relativeTo: .headline) }

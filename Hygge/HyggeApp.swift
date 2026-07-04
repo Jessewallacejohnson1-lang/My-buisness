@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import MapboxMaps
 
 @main
 struct HyggeApp: App {
@@ -13,6 +14,7 @@ struct HyggeApp: App {
 
     init() {
         registerHyggeFonts()
+        MapboxOptions.accessToken = MAPBOX_ACCESS_TOKEN
     }
 
     var body: some Scene {

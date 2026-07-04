@@ -7,6 +7,8 @@ import SwiftUI
 
 struct HomeView: View {
     var onCompose: (() -> Void)?
+    @Binding var expandedPlace: Place?
+    var cardNS: Namespace.ID
 
     @EnvironmentObject private var auth: AuthStore
     @StateObject private var model = HomeModel()
@@ -16,7 +18,7 @@ struct HomeView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 18) {
-                Masthead(name: model.name)
+                Masthead(name: model.name, onAdd: onCompose)
                     .padding(.horizontal, 18)
                     .padding(.top, 8)
 
@@ -26,14 +28,14 @@ struct HomeView: View {
                 todaySection
                     .padding(.horizontal, 18)
 
-                AroundTownCarousel()
+                AroundTownCarousel(expanded: $expandedPlace, ns: cardNS)
 
                 QuestSection(quest: model.quest, count: model.questCount, done: model.questDone) {
                     Task { await model.completeQuest(api) }
                 }
                 .padding(.horizontal, 18)
 
-                Color.clear.frame(height: 96) // clear the floating tab bar
+                Color.clear.frame(height: 96)
             }
         }
         .background(Hue.canvas)

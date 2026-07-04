@@ -11,35 +11,50 @@ struct ActivitiesView: View {
 
     @State private var filter: Filter = .all
     @State private var query = ""
+    @State private var trailsShowingMap = false
 
     private var api: CommunityAPI { CommunityAPI(auth: auth) }
 
     enum Filter: String, CaseIterable { case all = "All", events = "Events", clubs = "Clubs", trails = "Trails" }
 
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Activities")
-                    .font(.display(30))
-                    .foregroundStyle(Hue.ink)
-                    .padding(.top, 8)
-
-                searchField
-                filterPills
-
-                if model.loading && !model.loaded {
-                    ProgressView().tint(Hue.ink3).frame(maxWidth: .infinity).padding(.top, 40)
+        Group {
+            if filter == .trails {
+                if trailsShowingMap {
+                    TrailsMapView(trails: trails, onBack: { trailsShowingMap = false })
                 } else {
-                    suggestedSection
-                    content
+                    TrailsListView(
+                        trails: trails,
+                        onBack: { filter = .all },
+                        onViewMap: { trailsShowingMap = true }
+                    )
                 }
+            } else {
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Activities")
+                            .font(.display(30))
+                            .foregroundStyle(Hue.ink)
+                            .padding(.top, 8)
 
-                Color.clear.frame(height: 96)
+                        searchField
+                        filterPills
+
+                        if model.loading && !model.loaded {
+                            ProgressView().tint(Hue.ink3).frame(maxWidth: .infinity).padding(.top, 40)
+                        } else {
+                            suggestedSection
+                            content
+                        }
+
+                        Color.clear.frame(height: 96)
+                    }
+                    .padding(.horizontal, 18)
+                }
+                .background(Hue.canvas)
+                .refreshable { await model.load(api) }
             }
-            .padding(.horizontal, 18)
         }
-        .background(Hue.canvas)
-        .refreshable { await model.load(api) }
         .task { await model.load(api) }
     }
 

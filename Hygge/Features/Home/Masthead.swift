@@ -7,6 +7,7 @@ import SwiftUI
 
 struct Masthead: View {
     var name: String?
+    var onAdd: (() -> Void)?       // "+" button — like Instagram top-right
 
     private var dateLine: String {
         let f = DateFormatter()
@@ -35,6 +36,18 @@ struct Masthead: View {
             }
             Spacer()
             HStack(spacing: 10) {
+                // "+" composer — Instagram-style top-right
+                if let onAdd {
+                    Button(action: onAdd) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(Hue.paper)
+                            .frame(width: 38, height: 38)
+                            .background(Circle().fill(Hue.moss700))
+                            .shadow(color: Hue.moss700.opacity(0.35), radius: 6, y: 2)
+                    }
+                    .buttonStyle(.plain)
+                }
                 glassCircle("magnifyingglass")
                 glassCircle("person")
             }

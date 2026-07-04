@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		EBD0A26B2FF82901009CD00C /* MapboxMaps in Frameworks */ = {isa = PBXBuildFile; productRef = EBD0A26A2FF82901009CD00C /* MapboxMaps */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		EBBFA6F02FF473FB00A2EDB1 /* Hygge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Hygge.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -23,6 +27,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EBD0A26B2FF82901009CD00C /* MapboxMaps in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,6 +70,7 @@
 			);
 			name = Hygge;
 			packageProductDependencies = (
+				EBD0A26A2FF82901009CD00C /* MapboxMaps */,
 			);
 			productName = Hygge;
 			productReference = EBBFA6F02FF473FB00A2EDB1 /* Hygge.app */;
@@ -94,6 +100,9 @@
 			);
 			mainGroup = EBBFA6E72FF473FB00A2EDB1;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				EBD0A2692FF82901009CD00C /* XCRemoteSwiftPackageReference "mapbox-maps-ios" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = EBBFA6F12FF473FB00A2EDB1 /* Products */;
 			projectDirPath = "";
@@ -328,6 +337,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		EBD0A2692FF82901009CD00C /* XCRemoteSwiftPackageReference "mapbox-maps-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/mapbox/mapbox-maps-ios";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 11.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		EBD0A26A2FF82901009CD00C /* MapboxMaps */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = EBD0A2692FF82901009CD00C /* XCRemoteSwiftPackageReference "mapbox-maps-ios" */;
+			productName = MapboxMaps;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = EBBFA6E82FF473FB00A2EDB1 /* Project object */;
 }

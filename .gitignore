@@ -16,3 +16,6 @@ xcuserdata/
 
 # XcodeBuildMCP / config
 .xcodebuildmcp/
+
+# Mapbox token — never commit
+Hygge/Config/MapboxConfig.swift
