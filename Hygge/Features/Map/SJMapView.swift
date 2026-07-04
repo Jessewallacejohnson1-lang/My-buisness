@@ -195,9 +195,16 @@ struct SJMapView: View {
             .mapStyle(MapStyle(uri: StyleURI(rawValue: MAP_STYLE_URL)!))
             .onStyleLoaded { _ in
                 guard let map = proxy.map else { return }
-                try? map.setLayerProperty(for: "water",    property: "fill-color", value: "#B0CAE0")
-                try? map.setLayerProperty(for: "park",     property: "fill-color", value: "#BACFB5")
-                try? map.setLayerProperty(for: "building", property: "fill-color", value: "#C8C8C8")
+                // Water — blue
+                try? map.setLayerProperty(for: "water",          property: "fill-color", value: "#4A90D9")
+                try? map.setLayerProperty(for: "waterway",       property: "line-color", value: "#4A90D9")
+                // Grass / parks — green
+                for id in ["landuse", "national-park", "landcover", "park"] {
+                    try? map.setLayerProperty(for: id, property: "fill-color", value: "#7AB870")
+                }
+                // Buildings — grey
+                try? map.setLayerProperty(for: "building",       property: "fill-color",         value: "#B8B8B8")
+                try? map.setLayerProperty(for: "building",       property: "fill-outline-color",  value: "#B8B8B8")
             }
             .ignoresSafeArea(edges: .bottom)
         }
