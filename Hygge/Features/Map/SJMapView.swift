@@ -11,7 +11,7 @@ import MapboxMaps
 
 // MARK: - Style (swap here)
 
-private let MAP_STYLE_URL = "mapbox://styles/mapbox/streets-v12"
+private let MAP_STYLE_URL = "mapbox://styles/mapbox/light-v11"
 
 // MARK: - Pin data
 
