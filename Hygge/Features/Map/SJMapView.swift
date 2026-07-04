@@ -137,11 +137,12 @@ struct SJMapView: View {
 
     private var api: CommunityAPI { CommunityAPI(auth: auth) }
 
-    /// Real events at this pin today, matched by location keywords.
+    /// Real events at this pin today — searches title AND location so an event
+    /// like "Independence Day Parade" at location "Downtown" (or nil) still matches.
     private func events(at pin: SJPin) -> [TimelineEvent] {
         todayEvents.filter { ev in
-            guard let loc = ev.location?.lowercased() else { return false }
-            return pin.kw.contains { loc.contains($0) }
+            let haystack = [ev.title, ev.location].compactMap { $0 }.joined(separator: " ").lowercased()
+            return pin.kw.contains { haystack.contains($0) }
         }
     }
 
@@ -181,6 +182,9 @@ struct SJMapView: View {
         }
         .task {
             todayEvents = (try? await api.getTodayEvents()) ?? []
+            NSLog("SJMap DEBUG tz=%@ nowMin=%d events=%d locs=%@",
+                  TimeZone.current.identifier, DateHelpers.nowMinutes(), todayEvents.count,
+                  todayEvents.map { "\($0.location ?? "-")@\($0.startTime ?? "-")" }.joined(separator: "|"))
         }
     }
 
@@ -201,7 +205,9 @@ struct SJMapView: View {
                 MapPinBadge(pin: pin, live: isLive(pin), selected: selectedPin?.id == pin.id)
                     .onTapGesture { selectPin(pin) }
             }
-            .allowOverlap(false)
+            // Six curated pins — never cull; culling was hiding downtown
+            // (and its live glow) behind the nearby chapel pin.
+            .allowOverlap(true)
         }
     }
 
