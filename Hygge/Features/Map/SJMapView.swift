@@ -48,67 +48,74 @@ private enum PinCategory {
 
 // MARK: - Data types
 
-private struct Happening: Identifiable {
-    let id: String
-    let name: String
-    let time: String
-}
-
 private struct SJPin: Identifiable {
     let id: String
     let name: String
     let category: PinCategory
     let coord: CLLocationCoordinate2D
-    var isLive: Bool = false
+    /// lowercase keywords matched against real events' location strings
+    let kw: [String]
     var description: String? = nil
-    var happenings: [Happening] = []
 }
 
 // MARK: - Pin data
 //
 // Coordinates: CLLocationCoordinate2D(latitude:longitude:) — Apple/Mapbox standard.
-// NOT GeoJSON order. Geocoded 2026-07-04 via Mapbox Geocoding API, user-confirmed.
-// See MAP_BUILD_LOG.md FIX 2 & FIX 4 for full audit table.
+// NOT GeoJSON order. Verified 2026-07-04 against OpenStreetMap building
+// footprints + published street addresses (Mapbox geocoding had put Downtown
+// ~900 m east and the chapel ~1 km north — see MAP_BUILD_LOG.md FIX 5).
+//
+// isLive and "today's happenings" are NEVER hardcoded here — they come from
+// real events (CommunityAPI.getTodayEvents) matched to a pin by keyword, and
+// a pin only glows while an event is actually happening (start ≤ now ≤ +2 h).
 
 private let sjPins: [SJPin] = [
     SJPin(
         id: "downtown",
         name: "Downtown",
         category: .downtown,
-        coord: .init(latitude: 45.5654, longitude: -94.3069),
-        isLive: true,
-        description: "Shops & cafés on Minnesota St",
-        happenings: [
-            Happening(id: "h1", name: "Independence Day Parade", time: "10 AM"),
-            Happening(id: "h2", name: "Farmers Market",          time: "8–11 AM"),
-        ]
+        coord: .init(latitude: 45.5648, longitude: -94.3183), // Minnesota St W at College Ave (The Local Blend block)
+        kw: ["downtown", "minnesota st", "local blend", "krewe", "bad habit", "college ave", "church of st"],
+        description: "Shops & cafés on Minnesota St"
     ),
     SJPin(
         id: "saintbens",
         name: "Saint Ben's",
         category: .college,
-        coord: .init(latitude: 45.5604, longitude: -94.3220),
+        coord: .init(latitude: 45.5604, longitude: -94.3218), // Gorecki Center, CSB campus
+        kw: ["saint ben", "st. ben", "st ben", "csb", "benedict", "gorecki"],
         description: "College of Saint Benedict"
     ),
     SJPin(
         id: "chapel",
         name: "Sacred Heart Chapel",
         category: .chapel,
-        coord: .init(latitude: 45.5728, longitude: -94.3193),
+        coord: .init(latitude: 45.5631, longitude: -94.3189), // the chapel building itself (OSM footprint)
+        kw: ["chapel", "sacred heart", "monastery"],
         description: "The monastery & its dome"
     ),
     SJPin(
         id: "wobegon",
         name: "Wobegon Trail",
         category: .trail,
-        coord: .init(latitude: 45.5671, longitude: -94.3189),
+        coord: .init(latitude: 45.5665, longitude: -94.3161), // trailhead park, 605 1st Ave NE (water tower)
+        kw: ["wobegon", "trailhead"],
         description: "Bike, walk & run the trail"
+    ),
+    SJPin(
+        id: "millstream",
+        name: "Millstream Park",
+        category: .park,
+        coord: .init(latitude: 45.5701, longitude: -94.3287), // 725 CR-75 W, NW edge of town
+        kw: ["millstream"],
+        description: "Shelter, disc golf & the stream"
     ),
     SJPin(
         id: "saintjohns",
         name: "Saint John's",
         category: .college,
-        coord: .init(latitude: 45.5800, longitude: -94.3934),
+        coord: .init(latitude: 45.5800, longitude: -94.3923), // Abbey church, Collegeville
+        kw: ["saint john", "st. john", "st john", "sju", "abbey", "collegeville"],
         description: "The Abbey in Collegeville"
     ),
 ]
@@ -118,6 +125,7 @@ private let stJoeCenter = CLLocationCoordinate2D(latitude: 45.565, longitude: -9
 // MARK: - Main view
 
 struct SJMapView: View {
+    @EnvironmentObject private var auth: AuthStore
     @State private var viewport: Viewport = .camera(
         center: stJoeCenter,
         zoom: 13.5,
@@ -125,6 +133,22 @@ struct SJMapView: View {
         pitch: 0
     )
     @State private var selectedPin: SJPin?
+    @State private var todayEvents: [TimelineEvent] = []
+
+    private var api: CommunityAPI { CommunityAPI(auth: auth) }
+
+    /// Real events at this pin today, matched by location keywords.
+    private func events(at pin: SJPin) -> [TimelineEvent] {
+        todayEvents.filter { ev in
+            guard let loc = ev.location?.lowercased() else { return false }
+            return pin.kw.contains { loc.contains($0) }
+        }
+    }
+
+    /// A pin glows only while one of its events is actually happening.
+    private func isLive(_ pin: SJPin) -> Bool {
+        events(at: pin).contains { DateHelpers.isLiveNow($0.startTime) }
+    }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -145,7 +169,7 @@ struct SJMapView: View {
             VStack {
                 Spacer()
                 if let pin = selectedPin {
-                    MapBottomCard(pin: pin) {
+                    MapBottomCard(pin: pin, happenings: events(at: pin)) {
                         withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
                             selectedPin = nil
                         }
@@ -154,6 +178,9 @@ struct SJMapView: View {
                 }
             }
             .animation(.spring(response: 0.4, dampingFraction: 0.85), value: selectedPin?.id)
+        }
+        .task {
+            todayEvents = (try? await api.getTodayEvents()) ?? []
         }
     }
 
@@ -171,7 +198,7 @@ struct SJMapView: View {
     private var annotations: some MapContent {
         ForEvery(sjPins) { pin in
             MapViewAnnotation(coordinate: pin.coord) {
-                MapPinBadge(pin: pin, selected: selectedPin?.id == pin.id)
+                MapPinBadge(pin: pin, live: isLive(pin), selected: selectedPin?.id == pin.id)
                     .onTapGesture { selectPin(pin) }
             }
             .allowOverlap(false)
@@ -260,12 +287,13 @@ private struct PulseRing: View {
 
 private struct MapPinBadge: View {
     let pin: SJPin
+    let live: Bool
     let selected: Bool
 
     var body: some View {
         ZStack {
             // Pulse ring behind bubble — live only, hidden when selected
-            if pin.isLive && !selected {
+            if live && !selected {
                 PulseRing()
             }
 
@@ -276,19 +304,19 @@ private struct MapPinBadge: View {
                 .mapFloatShadow(pressed: selected)
                 .overlay(
                     Circle().stroke(
-                        pin.isLive ? LIVE_COLOR : Hue.mapHairline,
-                        lineWidth: pin.isLive ? 2 : 1
+                        live ? LIVE_COLOR : Hue.mapHairline,
+                        lineWidth: live ? 2 : 1
                     )
                 )
 
             // Icon — line weight, no fill, ink or accent when live
             Image(systemName: pin.category.symbol)
                 .font(.system(size: 20, weight: .medium))
-                .foregroundStyle(pin.isLive ? LIVE_COLOR : Hue.mapInk)
+                .foregroundStyle(live ? LIVE_COLOR : Hue.mapInk)
 
             // Live badge dot — top-right corner of 44px circle
             // Offset: (44/2 − 10/2) = 17pt from center → edge of circle
-            if pin.isLive {
+            if live {
                 Circle()
                     .fill(LIVE_COLOR)
                     .frame(width: 10, height: 10)
@@ -323,6 +351,7 @@ private struct AccentPillStyle: ButtonStyle {
 
 private struct MapBottomCard: View {
     let pin: SJPin
+    let happenings: [TimelineEvent]
     let onClose: () -> Void
 
     @Environment(\.openURL) private var openURL
@@ -354,20 +383,20 @@ private struct MapBottomCard: View {
             }
             .padding(.top, 16)
 
-            // Today's happenings — only when present
-            if !pin.happenings.isEmpty {
+            // Today's happenings — real events only; accent dot only while live
+            if !happenings.isEmpty {
                 VStack(spacing: 13) {
-                    ForEach(pin.happenings) { h in
+                    ForEach(happenings) { h in
                         HStack(spacing: 8) {
                             Circle()
-                                .fill(Hue.accent)
+                                .fill(DateHelpers.isLiveNow(h.startTime) ? Hue.accent : Hue.grayLight)
                                 .frame(width: 6, height: 6)
-                            Text(h.name)
+                            Text(h.title)
                                 .font(.sansMedium(15))
                                 .foregroundStyle(Hue.mapInk)
                                 .lineLimit(1)
                             Spacer()
-                            Text(h.time)
+                            Text(h.startTime ?? "all day")
                                 .font(.sans(13))
                                 .foregroundStyle(Hue.gray)
                         }
