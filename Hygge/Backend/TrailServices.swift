@@ -66,8 +66,10 @@ final class GeocoderService {
 
     private var cache: [String: CLLocationCoordinate2D] = [:]
 
-    /// Geocodes `query` via OSM Nominatim. Returns nil if not found.
+    /// Geocodes `query` — curated St. Joe venues first (building-accurate,
+    /// see KnownVenues.swift), then OSM Nominatim. Returns nil if not found.
     func coordinate(for query: String) async -> CLLocationCoordinate2D? {
+        if let known = KnownVenues.coordinate(for: query) { return known }
         if let hit = cache[query] { return hit }
 
         var comps = URLComponents(string: "https://nominatim.openstreetmap.org/search")!

@@ -196,3 +196,33 @@ Sample data: Downtown (live) carries 2 happenings. Quiet spots show name + descr
 - `LIVE_COLOR = Hue.accent` — one-line rebrand
 - One theme file (`HyggeColor.swift`) governs all map colors; `HyggeMetrics.swift` governs
   all map shadows. Zero hardcoded values in `Features/Map`.
+
+## FIX 5 — Coordinate re-audit + live-from-real-data (2026-07-04)
+
+FIX 4's Mapbox geocoding was wrong for two pins and the map hardcoded liveness:
+
+| Pin | FIX 4 (wrong) | FIX 5 (verified) | Source |
+|---|---|---|---|
+| Downtown | 45.5654, -94.3069 (~900 m east — "East Minnesota Street") | 45.5648, -94.3183 | OSM: The Local Blend block, Minnesota St W at College Ave |
+| Sacred Heart Chapel | 45.5728, -94.3193 (~1 km north, "campus approx") | 45.5631, -94.3189 | OSM building footprint of the chapel |
+| Wobegon Trail | 45.5671, -94.3189 | 45.5665, -94.3161 | Trailhead park, 605 1st Ave NE |
+| Saint Ben's | 45.5604, -94.3220 | 45.5604, -94.3218 (unchanged — Gorecki, was correct) | OSM: Gorecki Center |
+| Saint John's | 45.5800, -94.3934 | 45.5800, -94.3923 | OSM: Abbey church |
+| Millstream Park | — (missing) | 45.5701, -94.3287 | City/UDisc, 725 CR-75 W |
+
+**Method change:** stop trusting one-shot geocoders for small-town venues. Curated
+table lives in `Backend/KnownVenues.swift` (also consulted by GeocoderService before
+Nominatim); mirrors `apps/mobile/src/lib/geo.ts` in the Expo repo.
+
+**Liveness:** `isLive` / happenings are no longer hardcoded. Pins match real
+`getTodayEvents()` rows by keyword; a pin glows only while an event is happening
+(start ≤ now ≤ start + 2 h, `DateHelpers.isLiveNow`). Two gotchas fixed en route:
+`.allowOverlap(false)` culled the downtown pin behind the chapel pin (now `true`),
+and Mapbox `ForEvery` does not re-render an annotation whose element identity is
+unchanged — liveness is baked into the annotation id (`PinState`) so the badge
+rebuilds when it flips. `DateHelpers.nowMinutes` now pins `Calendar` to
+`TimeZone.current` so it can't disagree with the env-aware timezone.
+
+**Verified on sim:** parade (10 AM, Downtown) glowed coral 10:00–12:00 and went
+quiet at noon; all other pins stayed quiet. DEBUG launch arg `-open-tab map`
+(RootView) opens the app on any tab for headless screenshot verification.

@@ -56,7 +56,25 @@ struct RootView: View {
 
 /// The authed shell: four tabs + global "+" composer sheet.
 struct MainTabsView: View {
-    @State private var tab: Tab = .home
+    @State private var tab: Tab = MainTabsView.initialTab()
+
+    /// DEBUG-only: `-open-tab map|activities|calendar` launch argument selects
+    /// the starting tab, so simulator verification can screenshot any tab
+    /// without UI driving. No effect in release builds or without the flag.
+    private static func initialTab() -> Tab {
+        #if DEBUG
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-open-tab"), i + 1 < args.count {
+            switch args[i + 1] {
+            case "map":        return .map
+            case "activities": return .activities
+            case "calendar":   return .calendar
+            default:           break
+            }
+        }
+        #endif
+        return .home
+    }
     @State private var expandedPlace: Place?
     @State private var composing = false
     @Namespace private var cardNS

@@ -49,6 +49,47 @@ enum DateHelpers {
         f.dateFormat = "EEE"
         return f.string(from: date)
     }
+
+    // MARK: Display-time parsing — ported from apps/mobile/src/lib/time.ts.
+    // start_time is a free-text display string ("7am", "10 AM", "noon", nil);
+    // parse to minutes-from-midnight only for sorting / liveness, never an axis.
+
+    /// Free-text display time → minutes from midnight; undated/unparseable → end of day.
+    static func minutesOf(_ s: String?) -> Int {
+        guard let raw = s?.trimmingCharacters(in: .whitespaces).lowercased(), !raw.isEmpty
+        else { return 24 * 60 }
+        if raw.contains("noon") { return 12 * 60 }
+        if raw.contains("midnight") { return 0 }
+        guard let m = raw.range(of: #"(\d{1,2})(?::(\d{2}))?\s*(a|p)"#, options: .regularExpression)
+        else { return 24 * 60 }
+        let match = String(raw[m])
+        let digits = match.split(whereSeparator: { !$0.isNumber }).compactMap { Int($0) }
+        guard var h = digits.first else { return 24 * 60 }
+        let min = digits.count > 1 ? digits[1] : 0
+        let isPM = match.contains("p")
+        if isPM && h < 12 { h += 12 }
+        if !isPM && h == 12 { h = 0 }
+        return h * 60 + min
+    }
+
+    /// Current wall-clock minutes from midnight, in the local timezone.
+    /// Uses TimeZone.current explicitly — Calendar.current caches the system
+    /// zone and can disagree with TimeZone.current (which honors the TZ env).
+    static func nowMinutes(_ d: Date = Date()) -> Int {
+        var cal = Calendar.current
+        cal.timeZone = TimeZone.current
+        let c = cal.dateComponents([.hour, .minute], from: d)
+        return (c.hour ?? 0) * 60 + (c.minute ?? 0)
+    }
+
+    /// Live right now: the start time has arrived and it's within the last two
+    /// hours — not just "some time today." Untimed events are never live.
+    static func isLiveNow(_ startTime: String?, now: Int = nowMinutes()) -> Bool {
+        guard startTime != nil else { return false }
+        let start = minutesOf(startTime)
+        guard start < 24 * 60 else { return false } // unparseable / all-day
+        return now >= start && now <= start + 120
+    }
 }
 
 /// Admin gate — mirrors isAdminEmail / DEFAULT_ADMIN_EMAIL from @hygge/core.

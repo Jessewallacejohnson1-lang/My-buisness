@@ -182,28 +182,43 @@ struct SJMapView: View {
         }
         .task {
             todayEvents = (try? await api.getTodayEvents()) ?? []
-            NSLog("SJMap DEBUG tz=%@ nowMin=%d events=%d locs=%@",
-                  TimeZone.current.identifier, DateHelpers.nowMinutes(), todayEvents.count,
-                  todayEvents.map { "\($0.location ?? "-")@\($0.startTime ?? "-")" }.joined(separator: "|"))
         }
     }
 
     // MARK: Map
 
     private var mapLayer: some View {
-        Map(viewport: $viewport) {
-            annotations
+        MapReader { proxy in
+            Map(viewport: $viewport) {
+                annotations
+            }
+            .mapStyle(MapStyle(uri: StyleURI(rawValue: MAP_STYLE_URL)!))
+            .onStyleLoaded { _ in
+                guard let map = proxy.map else { return }
+                try? map.setLayerProperty(for: "water",    property: "fill-color", value: "#B0CAE0")
+                try? map.setLayerProperty(for: "park",     property: "fill-color", value: "#BACFB5")
+                try? map.setLayerProperty(for: "building", property: "fill-color", value: "#C8C8C8")
+            }
+            .ignoresSafeArea(edges: .bottom)
         }
-        .mapStyle(MapStyle(uri: StyleURI(rawValue: MAP_STYLE_URL)!))
-        .ignoresSafeArea(edges: .bottom)
+    }
+
+    /// Pin + liveness snapshot. The id changes when liveness flips so ForEvery
+    /// rebuilds the annotation view — Mapbox doesn't re-render an annotation
+    /// whose element identity is unchanged, which left stale non-live badges
+    /// after today's events finished loading.
+    private struct PinState: Identifiable {
+        let pin: SJPin
+        let live: Bool
+        var id: String { "\(pin.id)-\(live)" }
     }
 
     @MapContentBuilder
     private var annotations: some MapContent {
-        ForEvery(sjPins) { pin in
-            MapViewAnnotation(coordinate: pin.coord) {
-                MapPinBadge(pin: pin, live: isLive(pin), selected: selectedPin?.id == pin.id)
-                    .onTapGesture { selectPin(pin) }
+        ForEvery(sjPins.map { PinState(pin: $0, live: isLive($0)) }) { state in
+            MapViewAnnotation(coordinate: state.pin.coord) {
+                MapPinBadge(pin: state.pin, live: state.live, selected: selectedPin?.id == state.pin.id)
+                    .onTapGesture { selectPin(state.pin) }
             }
             // Six curated pins — never cull; culling was hiding downtown
             // (and its live glow) behind the nearby chapel pin.

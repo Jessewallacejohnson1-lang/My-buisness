@@ -3,8 +3,8 @@
 //  Hygge — interactive trails map with draggable bottom sheet.
 //
 //  Map pinned on the real Lake Wobegon Trail trailhead in St. Joseph
-//  (45.5611, -94.3175 — College Ave access). "Map" buttons deep-link to
-//  Google Maps (falls back to Apple Maps if not installed).
+//  (45.5665, -94.3161 — the trailhead park at 605 1st Ave NE, under the water
+//  tower). "Map" buttons deep-link to Google Maps (falls back to Apple Maps).
 //
 
 import SwiftUI
@@ -12,9 +12,9 @@ import MapKit
 
 // MARK: - Coordinates
 
-// College Ave (MN-75) trailhead — verified against OSM / Nominatim
-private let wobegonCoord = CLLocationCoordinate2D(latitude: 45.5607, longitude: -94.3194)
-private let stJoeCenter  = CLLocationCoordinate2D(latitude: 45.5625, longitude: -94.3194)
+// Trailhead park, 605 1st Ave NE — verified 2026-07-04 (see KnownVenues.swift)
+private let wobegonCoord = CLLocationCoordinate2D(latitude: 45.5665, longitude: -94.3161)
+private let stJoeCenter  = CLLocationCoordinate2D(latitude: 45.5650, longitude: -94.3180)
 
 // MARK: - Maps helper
 
