@@ -43,20 +43,24 @@ export default function Login() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-paper">
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1">
+    <SafeAreaView style={{ flex: 1, backgroundColor: C.paper }}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView
-          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: 28 }}
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-start', paddingHorizontal: 28, paddingTop: 64, paddingBottom: 40 }}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
           showsVerticalScrollIndicator={false}
         >
           {/* Wordmark */}
-          <View className="mb-8 flex-row items-center gap-3">
-            <View className="h-9 w-9 items-center justify-center rounded-[10px] bg-moss-700">
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+            <View style={{ height: 36, width: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: C.moss700 }}>
               <Text style={{ fontFamily: F.displaySemi, color: C.paper, fontSize: 20 }}>H</Text>
             </View>
-            <Text style={{ fontFamily: F.sansBold, fontSize: 30, color: C.ink, letterSpacing: -0.5 }}>Joetown</Text>
+            <Text style={{ fontFamily: F.displaySemi, fontSize: 30, color: C.ink, letterSpacing: -0.3 }}>Joetown</Text>
           </View>
+          <Text style={{ fontFamily: F.sans, fontSize: 15, color: C.ink2, marginBottom: 28, lineHeight: 21 }}>
+            Your town, in one calm place.
+          </Text>
 
           {/* Mode toggle — Log in / Sign up */}
           <View style={{ flexDirection: 'row', backgroundColor: C.paper100, borderRadius: 12, padding: 4, marginBottom: 20 }}>

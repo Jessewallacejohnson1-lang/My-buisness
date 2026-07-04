@@ -11,9 +11,11 @@ function Textarea({
   return (
     <TextInput
       className={cn(
-        'text-foreground border-input dark:bg-input/30 font-sans flex min-h-16 w-full flex-row rounded-md border bg-transparent px-3 py-2 text-base shadow-sm shadow-black/5 md:text-sm',
+        // Flat multi-line field — matches Input: hairline border, md12 corners,
+        // no shadow.
+        'text-foreground border-input font-sans flex min-h-16 w-full flex-row rounded-md12 border bg-background px-3 py-2 text-base',
         Platform.select({
-          web: 'placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive field-sizing-content resize-y outline-none transition-[color,box-shadow] focus-visible:ring-[3px] disabled:cursor-not-allowed',
+          web: 'placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 aria-invalid:border-destructive field-sizing-content resize-y outline-none transition-[color,box-shadow] focus-visible:ring-[3px] disabled:cursor-not-allowed',
         }),
         props.editable === false && 'opacity-50',
         className

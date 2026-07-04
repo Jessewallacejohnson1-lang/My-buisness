@@ -7,11 +7,10 @@ import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
 import * as SplashScreen from 'expo-splash-screen'
 import { useFonts } from 'expo-font'
-import { Spectral_600SemiBold, Spectral_700Bold } from '@expo-google-fonts/spectral'
 import {
-  SchibstedGrotesk_400Regular, SchibstedGrotesk_500Medium,
-  SchibstedGrotesk_600SemiBold, SchibstedGrotesk_700Bold,
-} from '@expo-google-fonts/schibsted-grotesk'
+  Inter_400Regular, Inter_500Medium,
+  Inter_600SemiBold, Inter_700Bold,
+} from '@expo-google-fonts/inter'
 import { GeistMono_400Regular, GeistMono_500Medium } from '@expo-google-fonts/geist-mono'
 
 import { AuthProvider, useAuth } from '../lib/auth'
@@ -64,12 +63,10 @@ function RootNav() {
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
-    Spectral: Spectral_700Bold,
-    SpectralSemi: Spectral_600SemiBold,
-    Schibsted: SchibstedGrotesk_400Regular,
-    SchibstedMed: SchibstedGrotesk_500Medium,
-    SchibstedSemi: SchibstedGrotesk_600SemiBold,
-    SchibstedBold: SchibstedGrotesk_700Bold,
+    Inter: Inter_400Regular,
+    InterMed: Inter_500Medium,
+    InterSemi: Inter_600SemiBold,
+    InterBold: Inter_700Bold,
     GeistMono: GeistMono_400Regular,
     GeistMonoMed: GeistMono_500Medium,
   })

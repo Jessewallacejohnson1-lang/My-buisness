@@ -3,9 +3,13 @@ import { cn } from '@/lib/utils';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { Platform, Pressable } from 'react-native';
 
+// Hygge buttons are flat — no drop shadow. Elevation in this system is reserved
+// for the card lift (CARD_SHADOW); controls lean on fill + the hairline border.
+// The three canonical shapes (see ui/README.md): Primary = `default` (moss fill),
+// Secondary = `secondary` (paper-200) or `outline`, Pill = any variant + `size="pill"`.
 const buttonVariants = cva(
   cn(
-    'group shrink-0 flex-row items-center justify-center gap-2 rounded-md shadow-none',
+    'group shrink-0 flex-row items-center justify-center gap-2 rounded-md12',
     Platform.select({
       web: "focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive whitespace-nowrap outline-none transition-all focus-visible:ring-[3px] disabled:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
     })
@@ -13,37 +17,42 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
+        // Primary — moss fill, paper text. The town's one strong call to action.
         default: cn(
-          'bg-primary active:bg-primary/90 shadow-sm shadow-black/5',
+          'bg-primary active:bg-primary/90',
           Platform.select({ web: 'hover:bg-primary/90' })
         ),
         destructive: cn(
-          'bg-destructive active:bg-destructive/90 dark:bg-destructive/60 shadow-sm shadow-black/5',
+          'bg-destructive active:bg-destructive/90',
           Platform.select({
-            web: 'hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40',
+            web: 'hover:bg-destructive/90 focus-visible:ring-destructive/20',
           })
         ),
+        // Secondary (bordered) — quiet, paper surface with the hairline.
         outline: cn(
-          'border-border bg-background active:bg-accent dark:bg-input/30 dark:border-input dark:active:bg-input/50 border shadow-sm shadow-black/5',
+          'border-border bg-background active:bg-accent border',
           Platform.select({
-            web: 'hover:bg-accent dark:hover:bg-input/50',
+            web: 'hover:bg-accent',
           })
         ),
+        // Secondary (filled) — soft paper-200 chip, ink text.
         secondary: cn(
-          'bg-secondary active:bg-secondary/80 shadow-sm shadow-black/5',
+          'bg-secondary active:bg-secondary/80',
           Platform.select({ web: 'hover:bg-secondary/80' })
         ),
         ghost: cn(
-          'active:bg-accent dark:active:bg-accent/50',
-          Platform.select({ web: 'hover:bg-accent dark:hover:bg-accent/50' })
+          'active:bg-accent',
+          Platform.select({ web: 'hover:bg-accent' })
         ),
         link: '',
       },
       size: {
-        default: cn('h-10 px-4 py-2 sm:h-9', Platform.select({ web: 'has-[>svg]:px-3' })),
-        sm: cn('h-9 gap-1.5 rounded-md px-3 sm:h-8', Platform.select({ web: 'has-[>svg]:px-2.5' })),
-        lg: cn('h-11 rounded-md px-6 sm:h-10', Platform.select({ web: 'has-[>svg]:px-4' })),
-        icon: 'h-10 w-10 sm:h-9 sm:w-9',
+        default: cn('h-11 px-4 py-2', Platform.select({ web: 'has-[>svg]:px-3' })),
+        sm: cn('h-9 gap-1.5 rounded-md12 px-3', Platform.select({ web: 'has-[>svg]:px-2.5' })),
+        lg: cn('h-12 rounded-md12 px-6', Platform.select({ web: 'has-[>svg]:px-4' })),
+        // Pill — rounded-full filter/toggle chip (All / Events / Clubs / Trails).
+        pill: cn('h-9 rounded-full px-5', Platform.select({ web: 'has-[>svg]:px-4' })),
+        icon: 'h-11 w-11',
       },
     },
     defaultVariants: {
@@ -78,6 +87,7 @@ const buttonTextVariants = cva(
         default: '',
         sm: '',
         lg: '',
+        pill: '',
         icon: '',
       },
     },

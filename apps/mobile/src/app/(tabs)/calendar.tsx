@@ -3,8 +3,8 @@ import { Modal, Pressable, ScrollView, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import Animated, {
-  interpolate, runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming,
-  SlideInDown, type SharedValue,
+  Easing, interpolate, runOnJS, useAnimatedStyle, useReducedMotion, useSharedValue,
+  withRepeat, withSpring, withTiming, SlideInDown, type SharedValue,
 } from 'react-native-reanimated'
 import * as Haptics from 'expo-haptics'
 import { useRouter } from 'expo-router'
@@ -126,6 +126,32 @@ function MonthBlock({ year, month, counts, selectedDate, todayYmd, onSelect, pro
   )
 }
 
+/** Event-row-shaped placeholder while a day's events load. Pulse confirms the
+ *  wait; collapses to a steady opacity when reduce-motion is on. */
+function SheetSkeleton({ reduce }: { reduce: boolean }) {
+  const o = useSharedValue(0.5)
+  useEffect(() => {
+    if (reduce) { o.value = 0.6; return }
+    o.value = withRepeat(withTiming(0.85, { duration: 900, easing: Easing.inOut(Easing.ease) }), -1, true)
+  }, [reduce, o])
+  const style = useAnimatedStyle(() => ({ opacity: o.value }))
+  return (
+    <Animated.View style={style} accessible accessibilityLabel="Looking…">
+      {[0, 1].map((i) => (
+        <View key={i} style={{ flexDirection: 'row', gap: 14, alignItems: 'flex-start', paddingVertical: 15, borderBottomWidth: i === 1 ? 0 : 1, borderBottomColor: HAIRLINE }}>
+          <View style={{ width: 50, paddingTop: 2 }}>
+            <View style={{ width: 34, height: 11, borderRadius: 5, backgroundColor: 'rgba(0,0,0,0.06)' }} />
+          </View>
+          <View style={{ flex: 1, gap: 8 }}>
+            <View style={{ width: '66%', height: 14, borderRadius: 6, backgroundColor: 'rgba(0,0,0,0.06)' }} />
+            <View style={{ width: '40%', height: 11, borderRadius: 5, backgroundColor: 'rgba(0,0,0,0.06)' }} />
+          </View>
+        </View>
+      ))}
+    </Animated.View>
+  )
+}
+
 export default function Calendar() {
   const today = new Date()
   const todayYmd = ymd(today.getFullYear(), today.getMonth() + 1, today.getDate())
@@ -136,6 +162,7 @@ export default function Calendar() {
   const [loadingEvents, setLoadingEvents] = useState(false)
   const [expanded, setExpanded] = useState<WeekDay[] | null>(null)
   const progress = useSharedValue(0)
+  const reduce = useReducedMotion()
   const reqRef = useRef<string | null>(null)
   const scrollRef = useRef<ScrollView>(null)
   const didScroll = useRef(false)
@@ -199,7 +226,7 @@ export default function Calendar() {
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: C.paper }}>
       <Animated.View style={[{ flex: 1 }, gridStyle]}>
-        <Text style={{ fontFamily: F.sansBold, fontSize: 28, color: C.ink, letterSpacing: -0.5, marginTop: 16, marginBottom: 10, paddingHorizontal: 20 }}>What&rsquo;s coming up?</Text>
+        <Text style={{ fontFamily: F.display, fontSize: 28, color: C.ink, letterSpacing: -0.5, marginTop: 16, marginBottom: 10, paddingHorizontal: 20 }}>What&rsquo;s coming up?</Text>
         <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 20, marginBottom: 12 }}>
           <Pressable onPress={goThisWeekend} style={({ pressed }) => ({ paddingVertical: 7, paddingHorizontal: 14, borderRadius: 18, backgroundColor: C.moss700, opacity: pressed ? 0.85 : 1 })}>
             <Text style={{ fontFamily: F.sansMed, fontSize: 13, color: C.paper }}>This weekend</Text>
@@ -252,10 +279,10 @@ export default function Calendar() {
       )}
 
       <Modal visible={sheetOpen} transparent animationType="fade" onRequestClose={() => setSheetOpen(false)}>
-        <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.28)' }} onPress={() => setSheetOpen(false)} />
-        <Animated.View entering={SlideInDown.duration(320)} style={{ position: 'absolute', bottom: 0, left: 0, right: 0, maxHeight: '62%', backgroundColor: C.paper, borderTopLeftRadius: 18, borderTopRightRadius: 18, borderTopWidth: 1, borderColor: HAIRLINE, paddingHorizontal: 18, paddingTop: 10, paddingBottom: 28 }}>
+        <Pressable style={{ flex: 1, backgroundColor: 'rgba(20,20,18,0.28)' }} onPress={() => setSheetOpen(false)} />
+        <Animated.View entering={SlideInDown.duration(320)} style={{ position: 'absolute', bottom: 0, left: 0, right: 0, maxHeight: '62%', backgroundColor: C.paper, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderColor: HAIRLINE, paddingHorizontal: 18, paddingTop: 10, paddingBottom: 28 }}>
           <View style={{ alignItems: 'center', paddingBottom: 8 }}>
-            <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: 'rgba(0,0,0,0.14)' }} />
+            <View style={{ width: 38, height: 4, borderRadius: 2, backgroundColor: 'rgba(0,0,0,0.12)' }} />
           </View>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
             <Text style={{ fontFamily: F.display, fontSize: 18, color: C.ink }}>{sheetTitle}</Text>
@@ -263,7 +290,7 @@ export default function Calendar() {
           </View>
           <ScrollView>
             {loadingEvents ? (
-              <Text style={{ fontFamily: F.sans, fontSize: 14, color: C.ink3, paddingVertical: 12 }}>Loading…</Text>
+              <SheetSkeleton reduce={reduce} />
             ) : dayEvents.length === 0 ? (
               <Pressable
                 onPress={() => { setSheetOpen(false); router.push({ pathname: '/(tabs)/add', params: { date: selectedDate! } }) }}

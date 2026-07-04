@@ -115,10 +115,10 @@ function Showcase({ place }: { place: Place }) {
           style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
         />
         <View style={{ position: 'absolute', left: 22, right: 22, bottom: PEEK + 16 }}>
-          <Text style={{ fontFamily: F.display, fontSize: 36, lineHeight: 40, color: '#fbfaf5', letterSpacing: -0.6, textShadowColor: 'rgba(0,0,0,0.4)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 10 }}>
+          <Text style={{ fontFamily: F.display, fontSize: 36, lineHeight: 40, color: '#FFFFFF', letterSpacing: -0.6, textShadowColor: 'rgba(0,0,0,0.4)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 10 }}>
             {place.name}
           </Text>
-          <Text style={{ fontFamily: F.sansMed, fontSize: 15, color: 'rgba(251,250,245,0.92)', marginTop: 6, textShadowColor: 'rgba(0,0,0,0.4)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6 }}>
+          <Text style={{ fontFamily: F.sansMed, fontSize: 15, color: 'rgba(255,255,255,0.92)', marginTop: 6, textShadowColor: 'rgba(0,0,0,0.4)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6 }}>
             {place.tagline}
           </Text>
         </View>
@@ -182,7 +182,7 @@ function Body({ place, reduce, onMaps }: { place: Place; reduce: boolean; onMaps
         <View style={{ gap: 11 }}>
           {place.facts.map((f) => (
             <View key={f.label} style={{ flexDirection: 'row', alignItems: 'baseline', gap: 12 }}>
-              <Text style={{ width: 92, fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1, textTransform: 'uppercase' }}>{f.label}</Text>
+              <Text style={{ width: 92, fontFamily: F.sansMed, fontSize: 11, color: C.ink2, letterSpacing: 0.2 }}>{f.label}</Text>
               <Text style={{ flex: 1, fontFamily: isNumeric(f.value) ? F.mono : F.sans, fontSize: 14.5, color: C.ink }}>{f.value}</Text>
             </View>
           ))}
@@ -193,7 +193,7 @@ function Body({ place, reduce, onMaps }: { place: Place; reduce: boolean; onMaps
       <Animated.View entering={enter(2)} style={{ marginTop: 28 }}>
         <SectionLabel>Happening here</SectionLabel>
         {events === null ? (
-          <Text style={{ fontFamily: F.sans, fontSize: 14, color: C.ink3 }}>Looking…</Text>
+          <HappeningSkeleton reduce={reduce} />
         ) : events.length === 0 ? (
           <View style={{ paddingHorizontal: 16, paddingVertical: 16, borderRadius: 14, borderWidth: 1.5, borderStyle: 'dashed', borderColor: 'rgba(0,0,0,0.12)' }}>
             <Text style={{ fontFamily: F.sans, fontSize: 13.5, color: C.ink2 }}>Nothing scheduled here yet.</Text>
@@ -227,13 +227,39 @@ function EventRow({ e }: { e: UpcomingEvent }) {
         <Text numberOfLines={1} style={{ fontFamily: F.sansSemi, fontSize: 14.5, color: C.ink }}>{e.title}</Text>
         {!!e.location && <Text numberOfLines={1} style={{ fontFamily: F.sans, fontSize: 12.5, color: C.ink2, marginTop: 2 }}>{e.location}</Text>}
       </View>
-      {e.going_count > 0 && <Text style={{ fontFamily: F.mono, fontSize: 11, color: C.ink3 }}>{e.going_count} going</Text>}
+      {e.going_count > 0 && <Text style={{ fontFamily: F.mono, fontSize: 11, color: C.ink2 }}>{e.going_count} going</Text>}
     </View>
   )
 }
 
 function SectionLabel({ children }: { children: string }) {
-  return <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>{children}</Text>
+  return <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: C.ink2, letterSpacing: 0.2, marginBottom: 10 }}>{children}</Text>
+}
+
+/** Event-row-shaped placeholder while "Happening here" loads. Pulse confirms the
+ *  wait; collapses to a steady opacity when reduce-motion is on. */
+function HappeningSkeleton({ reduce }: { reduce: boolean }) {
+  const o = useSharedValue(0.5)
+  useEffect(() => {
+    if (reduce) { o.value = 0.6; return }
+    o.value = withRepeat(withTiming(0.85, { duration: 900, easing: Easing.inOut(Easing.ease) }), -1, true)
+  }, [reduce, o])
+  const style = useAnimatedStyle(() => ({ opacity: o.value }))
+  return (
+    <Animated.View style={style} accessible accessibilityLabel="Looking…">
+      <View style={{ gap: 2 }}>
+        {[0, 1].map((i) => (
+          <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.06)' }}>
+            <View style={{ width: 78, height: 12, borderRadius: 5, backgroundColor: 'rgba(0,0,0,0.06)' }} />
+            <View style={{ flex: 1, gap: 7 }}>
+              <View style={{ width: '68%', height: 13, borderRadius: 6, backgroundColor: 'rgba(0,0,0,0.06)' }} />
+              <View style={{ width: '44%', height: 11, borderRadius: 5, backgroundColor: 'rgba(0,0,0,0.06)' }} />
+            </View>
+          </View>
+        ))}
+      </View>
+    </Animated.View>
+  )
 }
 
 /** Treat values like "1887" or "2,700 acres" as numeric → render in mono (tabular). */

@@ -77,19 +77,19 @@ export function ExpandedWeek({ week, progress, todayYmd, onClose, onSelectDay }:
 
   return (
     <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
-      <Animated.View style={[{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(20,20,18,0.22)' }, backdropStyle]}>
+      <Animated.View style={[{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(20,20,18,0.28)' }, backdropStyle]}>
         <Pressable style={{ flex: 1 }} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close week" />
       </Animated.View>
 
       <GestureDetector gesture={pinchClose}>
         <Animated.View style={[{
           position: 'absolute', top: insets.top + 6, left: 0, right: 0, bottom: 0,
-          backgroundColor: C.paper, borderTopLeftRadius: 22, borderTopRightRadius: 22,
+          backgroundColor: C.paper, borderTopLeftRadius: 24, borderTopRightRadius: 24,
           borderTopWidth: 1, borderColor: HAIRLINE, overflow: 'hidden',
         }, cardStyle]}>
           {/* grab handle */}
           <View style={{ alignItems: 'center', paddingTop: 10, paddingBottom: 2 }}>
-            <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: 'rgba(0,0,0,0.12)' }} />
+            <View style={{ width: 38, height: 4, borderRadius: 2, backgroundColor: 'rgba(0,0,0,0.12)' }} />
           </View>
 
           {/* header — week range in the data face */}
@@ -140,7 +140,7 @@ export function ExpandedWeek({ week, progress, todayYmd, onClose, onSelectDay }:
                           <Text style={{ fontFamily: F.sansSemi, fontSize: 15, color: C.ink, lineHeight: 20 }}>{e.title}</Text>
                           {(!!e.start_time || !!e.location) && (
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 }}>
-                              {!!e.start_time && <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.ink3 }}>{e.start_time}</Text>}
+                              {!!e.start_time && <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.ink2 }}>{e.start_time}</Text>}
                               {!!e.location && <Text style={{ fontFamily: F.sans, fontSize: 12, color: C.sky600 }} numberOfLines={1}>{e.location}</Text>}
                             </View>
                           )}

@@ -43,11 +43,22 @@
       "expo-web-browser",
       [
         "expo-image-picker",
-        { "photosPermission": "Hygge uses your photos so you can add a picture to an event." }
+        {
+          "photosPermission": "Hygge uses your photos so you can add a picture to an event."
+        }
       ],
       [
         "expo-calendar",
-        { "calendarPermission": "Hygge adds town events to your calendar so you don't miss them." }
+        {
+          "calendarPermission": "Hygge adds town events to your calendar so you don't miss them."
+        }
+      ],
+      "@react-native-community/datetimepicker",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Hygge shows you what's happening near you on the map."
+        }
       ]
     ],
     "experiments": {

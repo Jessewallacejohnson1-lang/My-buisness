@@ -1,12 +1,12 @@
 import Svg, { Circle, Line, Path, Polyline, Rect } from 'react-native-svg'
 import { C } from '../theme'
 
-export type TabId = 'home' | 'activities' | 'calendar' | 'add'
+export type TabId = 'home' | 'activities' | 'calendar' | 'map'
 export type Scope = 'today' | 'week' | 'going'
 
 export function TabIcon({ id, active }: { id: TabId; active: boolean }) {
   const c = active ? C.moss700 : C.ink3
-  const sw = id === 'add' ? 2.1 : 1.7
+  const sw = 1.7
   const p = { fill: 'none', stroke: c, strokeWidth: sw, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
   if (id === 'activities')
     return (
@@ -32,12 +32,12 @@ export function TabIcon({ id, active }: { id: TabId; active: boolean }) {
         <Line x1={3} y1={10} x2={21} y2={10} {...p} />
       </Svg>
     )
-  if (id === 'add')
+  if (id === 'map')
     return (
       <Svg width={22} height={22} viewBox="0 0 24 24">
-        <Circle cx={12} cy={12} r={9} {...p} />
-        <Line x1={12} y1={8} x2={12} y2={16} {...p} />
-        <Line x1={8} y1={12} x2={16} y2={12} {...p} />
+        {/* Map pin drop */}
+        <Path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" {...p} />
+        <Circle cx={12} cy={9} r={2.5} {...p} />
       </Svg>
     )
   return null
@@ -181,7 +181,7 @@ export function BackIcon({ size = 22, color = C.ink }: { size?: number; color?: 
   )
 }
 
-export function CalendarPlusIcon({ size = 16, color = '#2a2a28' }: { size?: number; color?: string }) {
+export function CalendarPlusIcon({ size = 16, color = C.ink }: { size?: number; color?: string }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path d="M7 3v3M17 3v3M4 8.5h16M5 6.5h14a1 1 0 0 1 1 1V19a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7.5a1 1 0 0 1 1-1Z" stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
@@ -190,11 +190,52 @@ export function CalendarPlusIcon({ size = 16, color = '#2a2a28' }: { size?: numb
   )
 }
 
-export function ShareIcon({ size = 16, color = '#2a2a28' }: { size?: number; color?: string }) {
+export function ShareIcon({ size = 16, color = C.ink }: { size?: number; color?: string }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path d="M12 14V4M12 4 8.5 7.5M12 4l3.5 3.5" stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
       <Path d="M6 11v7a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-7" stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  )
+}
+
+// — Almanac readout marks (Today bar) —
+
+/** Small up-arrow — sunrise in the almanac SUN cell. */
+export function ArrowUpIcon({ size = 11, color = C.ink2 }: { size?: number; color?: string }) {
+  const p = { fill: 'none', stroke: color, strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
+  return (
+    <Svg width={size} height={size} viewBox="0 0 12 12">
+      <Line x1={6} y1={10} x2={6} y2={2.5} {...p} />
+      <Polyline points="2.8 5.4 6 2.2 9.2 5.4" {...p} />
+    </Svg>
+  )
+}
+
+/** Small down-arrow — sunset in the almanac SUN cell. */
+export function ArrowDownIcon({ size = 11, color = C.ink3 }: { size?: number; color?: string }) {
+  const p = { fill: 'none', stroke: color, strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
+  return (
+    <Svg width={size} height={size} viewBox="0 0 12 12">
+      <Line x1={6} y1={2} x2={6} y2={9.5} {...p} />
+      <Polyline points="2.8 6.6 6 9.8 9.2 6.6" {...p} />
+    </Svg>
+  )
+}
+
+/** Sun rising over a horizon rule — the clear-day empty state on the schedule. */
+export function SunArcIcon({ size = 34, color = C.ink3 }: { size?: number; color?: string }) {
+  const p = { fill: 'none', stroke: color, strokeWidth: 1.6, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
+  return (
+    <Svg width={size} height={size} viewBox="0 0 40 40">
+      {/* horizon */}
+      <Line x1={4} y1={30} x2={36} y2={30} {...p} />
+      {/* sun arc */}
+      <Path d="M11 30a9 9 0 0 1 18 0" {...p} />
+      {/* rays */}
+      <Line x1={20} y1={9} x2={20} y2={13.5} {...p} />
+      <Line x1={7.5} y1={14} x2={10.2} y2={16.7} {...p} />
+      <Line x1={32.5} y1={14} x2={29.8} y2={16.7} {...p} />
     </Svg>
   )
 }

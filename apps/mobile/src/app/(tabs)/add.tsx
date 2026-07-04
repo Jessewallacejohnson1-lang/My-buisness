@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { createElement, useState, useEffect } from 'react'
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import Animated, { FadeIn, FadeInDown, useReducedMotion } from 'react-native-reanimated'
 import { Image } from 'expo-image'
@@ -12,6 +12,10 @@ import { supabase } from '../../lib/supabase'
 import { uploadEventImage } from '../../lib/uploadImage'
 import { PlusIcon, CloseIcon, EventIcon, ClubIcon, TrailIcon, ChevronRightIcon, BackIcon } from '../../components/icons'
 import { C, F, HAIRLINE } from '../../theme'
+
+// Native date/time picker — required only off-web so the web bundle never
+// evaluates the native module (we render an HTML <input> on web instead).
+const RNDateTimePicker: any = Platform.OS === 'web' ? null : require('@react-native-community/datetimepicker').default
 
 type PostKind = 'event' | 'club' | 'trail'
 type Phase = 'choose' | 'form'
@@ -108,6 +112,9 @@ export default function Add() {
       if (!form.event_date || !form.start_time.trim() || !form.location.trim()) {
         return 'Add a title, date, time, and location.'
       }
+      // Native blocks past dates at the picker; on web the input's `min` is only
+      // advisory, so guard here too. String compare is safe for YYYY-MM-DD.
+      if (form.event_date < localDate()) return "Pick a date that hasn't passed."
     } else if (kind === 'trail') {
       if (!form.location.trim()) return 'Add a title and trailhead location.'
     } else if (kind === 'club') {
@@ -230,8 +237,8 @@ export default function Add() {
               {kind === 'event' && (
                 <>
                   <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
-                    <View style={{ flex: 1 }}><Field label="Date" value={form.event_date} onChangeText={set('event_date')} placeholder="2026-06-25" autoCapitalize="none" /></View>
-                    <View style={{ flex: 1 }}><Field label="Time" value={form.start_time} onChangeText={set('start_time')} placeholder="7am" /></View>
+                    <View style={{ flex: 1 }}><DateTimeField label="Date" mode="date" value={form.event_date} onChange={set('event_date')} minDate={today()} /></View>
+                    <View style={{ flex: 1 }}><DateTimeField label="Time" mode="time" value={form.start_time} onChange={set('start_time')} /></View>
                   </View>
                   <View style={{ marginTop: 16 }}><Field label="Location · opens in Maps" value={form.location} onChangeText={set('location')} placeholder="Place or full address, St. Joseph, MN" /></View>
                   <View style={{ marginTop: 16 }}>
@@ -314,13 +321,137 @@ function PhotoZone({ photo, onPick, onClear }: { photo: string | null; onPick: (
 function Field({ label, multiline, ...props }: { label: string; multiline?: boolean } & React.ComponentProps<typeof TextInput>) {
   return (
     <View>
-      <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 6 }}>{label}</Text>
+      <FieldLabel>{label}</FieldLabel>
       <TextInput
-        placeholderTextColor={C.ink3}
+        placeholderTextColor={C.ink2}
         multiline={multiline}
         style={{ minHeight: multiline ? 84 : 46, borderRadius: 8, paddingHorizontal: 13, paddingTop: multiline ? 11 : 0, backgroundColor: C.paper, borderWidth: 1, borderColor: HAIRLINE, fontFamily: F.sans, fontSize: 15, color: C.ink, textAlignVertical: multiline ? 'top' : 'center' }}
         {...props}
       />
+    </View>
+  )
+}
+
+/** Sentence-case form label (not an uppercase eyebrow). */
+function FieldLabel({ children }: { children: string }) {
+  return <Text style={{ fontFamily: F.sansMed, fontSize: 13, color: C.ink2, marginBottom: 6 }}>{children}</Text>
+}
+
+// ── Date / time picker ─────────────────────────────────────────────
+// Real pickers (no free-text). Dates are stored YYYY-MM-DD via localDate();
+// times as a friendly display string ("7:00 AM"). A picked value is always
+// valid, so an invalid date/time can't reach submit.
+
+function today(): Date { const d = new Date(); d.setHours(0, 0, 0, 0); return d }
+
+function ymdToDate(ymd: string): Date {
+  const [y, m, d] = (ymd || '').split('-').map(Number)
+  if (!y || !m || !d) return today()
+  return new Date(y, m - 1, d)
+}
+function prettyDate(ymd: string): string {
+  const [y, m, d] = (ymd || '').split('-').map(Number)
+  if (!y || !m || !d) return ''
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+}
+function timeToDate(s: string): Date {
+  const base = new Date(); base.setSeconds(0, 0)
+  const m = (s || '').match(/(\d{1,2})(?::(\d{2}))?\s*([ap]\.?m\.?)?/i)
+  if (m) {
+    let h = parseInt(m[1], 10)
+    const min = m[2] ? parseInt(m[2], 10) : 0
+    const ap = m[3]?.toLowerCase().replace(/\./g, '')
+    if (ap === 'pm' && h < 12) h += 12
+    if (ap === 'am' && h === 12) h = 0
+    base.setHours(h, min)
+  } else { base.setHours(9, 0) }
+  return base
+}
+function fmtTime(d: Date): string {
+  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+}
+const pad2 = (n: number) => String(n).padStart(2, '0')
+const toInputTime = (display: string) => { const d = timeToDate(display); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}` }
+const fromInputTime = (hhmm: string) => { const [h, mi] = hhmm.split(':').map(Number); const d = new Date(); d.setHours(h || 0, mi || 0, 0, 0); return fmtTime(d) }
+
+function DateTimeField({ label, mode, value, onChange, minDate }: {
+  label: string
+  mode: 'date' | 'time'
+  value: string
+  onChange: (v: string) => void
+  minDate?: Date
+}) {
+  const [show, setShow] = useState(false)
+  const [temp, setTemp] = useState<Date | null>(null) // iOS: pending until "Done"
+  const current = mode === 'date' ? ymdToDate(value) : timeToDate(value)
+  const displayText = mode === 'date' ? prettyDate(value) : value
+  const commit = (d: Date) => onChange(mode === 'date' ? localDate(d) : fmtTime(d))
+
+  // Web: real HTML <input>. Rendered via createElement to skip RN's JSX intrinsics.
+  if (Platform.OS === 'web') {
+    return (
+      <View>
+        <FieldLabel>{label}</FieldLabel>
+        {createElement('input', {
+          type: mode === 'date' ? 'date' : 'time',
+          value: mode === 'date' ? value : (value ? toInputTime(value) : ''),
+          min: mode === 'date' && minDate ? localDate(minDate) : undefined,
+          onChange: (e: any) => {
+            const v = e.target.value
+            onChange(!v ? '' : mode === 'date' ? v : fromInputTime(v))
+          },
+          style: {
+            height: 46, width: '100%', boxSizing: 'border-box',
+            borderRadius: 8, padding: '0 13px',
+            background: C.paper, border: `1px solid ${HAIRLINE}`,
+            fontFamily: F.mono, fontSize: 15, color: value ? C.ink : C.ink2,
+            outline: 'none',
+          },
+        })}
+      </View>
+    )
+  }
+
+  return (
+    <View>
+      <FieldLabel>{label}</FieldLabel>
+      <Pressable
+        onPress={() => { Haptics.selectionAsync(); setTemp(current); setShow(true) }}
+        style={({ pressed }) => ({ minHeight: 46, borderRadius: 8, paddingHorizontal: 13, justifyContent: 'center', backgroundColor: C.paper, borderWidth: 1, borderColor: HAIRLINE, opacity: pressed ? 0.85 : 1 })}>
+        <Text style={{ fontFamily: displayText ? F.mono : F.sans, fontSize: 15, color: displayText ? C.ink : C.ink2 }}>
+          {displayText || (mode === 'date' ? 'Pick a date' : 'Pick a time')}
+        </Text>
+      </Pressable>
+
+      {/* Android shows its own dialog when mounted. */}
+      {show && Platform.OS === 'android' && (
+        <RNDateTimePicker
+          value={current} mode={mode}
+          minimumDate={mode === 'date' ? minDate : undefined}
+          onChange={(e: any, d?: Date) => { setShow(false); if (e.type === 'set' && d) commit(d) }}
+        />
+      )}
+
+      {/* iOS: a calm bottom sheet with a spinner + Done. */}
+      {Platform.OS === 'ios' && (
+        <Modal visible={show} transparent animationType="slide" onRequestClose={() => setShow(false)}>
+          <Pressable onPress={() => setShow(false)} style={{ flex: 1, backgroundColor: 'rgba(20,18,14,0.38)', justifyContent: 'flex-end' }}>
+            <Pressable onPress={(e) => e.stopPropagation()} style={{ backgroundColor: C.paper, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingBottom: 28 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingTop: 14, paddingBottom: 4 }}>
+                <Pressable onPress={() => setShow(false)} hitSlop={10}><Text style={{ fontFamily: F.sansMed, fontSize: 15, color: C.ink3 }}>Cancel</Text></Pressable>
+                <Text style={{ fontFamily: F.sansSemi, fontSize: 14, color: C.ink }}>{label}</Text>
+                <Pressable onPress={() => { if (temp) commit(temp); setShow(false) }} hitSlop={10}><Text style={{ fontFamily: F.sansSemi, fontSize: 15, color: C.moss700 }}>Done</Text></Pressable>
+              </View>
+              <RNDateTimePicker
+                value={temp ?? current} mode={mode} display="spinner" themeVariant="light"
+                minimumDate={mode === 'date' ? minDate : undefined}
+                onChange={(_e: any, d?: Date) => d && setTemp(d)}
+                style={{ alignSelf: 'stretch' }}
+              />
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
     </View>
   )
 }

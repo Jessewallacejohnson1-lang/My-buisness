@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { ActivityIndicator, Modal, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native'
+import { createElement, useCallback, useEffect, useState } from 'react'
+import { Modal, Platform, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import * as Haptics from 'expo-haptics'
 import { Image } from 'expo-image'
@@ -10,6 +10,10 @@ import { getInterests, matchesInterests } from '../../lib/interests'
 import { SearchIcon, PlusIcon, CloseIcon, PinIcon } from '../../components/icons'
 import { openInMaps, copyAddress } from '../../lib/maps'
 import { C, F, HAIRLINE } from '../../theme'
+
+// Native date/time picker — required only off-web so the web bundle never
+// evaluates the native module (we render an HTML <input> on web instead).
+const RNDateTimePicker: any = Platform.OS === 'web' ? null : require('@react-native-community/datetimepicker').default
 
 type FilterId = 'all' | 'events' | 'clubs' | 'trails'
 const FILTERS: { id: FilterId; label: string }[] = [
@@ -173,14 +177,14 @@ export default function Activities() {
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: C.paper }}>
       <ScrollView contentContainerStyle={{ paddingBottom: 130 }} keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.ink3} />}>
-        <View style={{ paddingHorizontal: 20, paddingTop: 14 }}>
+        <View style={{ paddingHorizontal: 20, paddingTop: 14, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: HAIRLINE }}>
           <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.8, textTransform: 'uppercase', marginBottom: 3 }}>Find your people</Text>
           <Text style={{ fontFamily: F.display, fontSize: 26, color: C.ink, marginBottom: 16 }}>Activities</Text>
 
           {/* Search */}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, height: 48, borderRadius: 12, paddingHorizontal: 14, backgroundColor: C.paper100, borderWidth: 1, borderColor: HAIRLINE }}>
             <SearchIcon color={C.ink3} />
-            <TextInput value={query} onChangeText={setQuery} placeholder="Search clubs & activities…" placeholderTextColor={C.ink3}
+            <TextInput value={query} onChangeText={setQuery} placeholder="Search clubs & activities…" placeholderTextColor={C.ink2}
               style={{ flex: 1, fontFamily: F.sans, fontSize: 15, color: C.ink }} autoCapitalize="none" />
           </View>
 
@@ -189,26 +193,27 @@ export default function Activities() {
             {FILTERS.map((f) => {
               const active = f.id === filter
               return (
-                <Pressable key={f.id} onPress={() => pickFilter(f.id)}
-                  style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: active ? 0 : 1, borderColor: HAIRLINE, backgroundColor: active ? C.ink : 'transparent' }}>
+                <Pressable key={f.id} onPress={() => pickFilter(f.id)} hitSlop={6}
+                  style={{ minHeight: 44, paddingHorizontal: 16, justifyContent: 'center', borderRadius: 22, borderWidth: active ? 0 : 1, borderColor: HAIRLINE, backgroundColor: active ? C.ink : 'transparent' }}>
                   <Text style={{ fontFamily: active ? F.sansSemi : F.sansMed, fontSize: 13.5, color: active ? C.paper : C.ink2 }}>{f.label}</Text>
                 </Pressable>
               )
             })}
           </ScrollView>
 
-          {/* Sort */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingTop: 12 }}>
-            <Text style={{ fontFamily: F.mono, fontSize: 10, color: C.ink3, letterSpacing: 1, textTransform: 'uppercase' }}>Sort</Text>
+          {/* Sort — chips, lighter than the dark filter pills so the hierarchy reads */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingTop: 10, alignItems: 'center' }}>
+            <Text style={{ fontFamily: F.mono, fontSize: 10, color: C.ink3, letterSpacing: 1, textTransform: 'uppercase', marginRight: 2 }}>Sort</Text>
             {SORTS[filter].map((s) => {
               const on = s.key === sort
               return (
-                <Pressable key={s.key} onPress={() => { Haptics.selectionAsync(); setSort(s.key) }} hitSlop={6}>
-                  <Text style={{ fontFamily: on ? F.sansSemi : F.sansMed, fontSize: 13, color: on ? C.ink : C.ink3 }}>{s.label}</Text>
+                <Pressable key={s.key} onPress={() => { Haptics.selectionAsync(); setSort(s.key) }} hitSlop={6}
+                  style={{ minHeight: 44, paddingHorizontal: 14, justifyContent: 'center', borderRadius: 22, borderWidth: on ? 0 : 1, borderColor: HAIRLINE, backgroundColor: on ? C.paper200 : 'transparent' }}>
+                  <Text style={{ fontFamily: on ? F.sansSemi : F.sansMed, fontSize: 13, color: on ? C.ink : C.ink2 }}>{s.label}</Text>
                 </Pressable>
               )
             })}
-          </View>
+          </ScrollView>
         </View>
 
         {/* Admin: Waiting for review */}
@@ -281,7 +286,18 @@ export default function Activities() {
           </View>
         )}
 
-        {loading && <ActivityIndicator color={C.ink3} style={{ marginTop: 28 }} />}
+        {/* Loading: calm skeleton rows that echo the card shape (no spinner). */}
+        {loading && (
+          <View style={{ paddingHorizontal: 20, paddingTop: 22, gap: 12 }}>
+            {[0, 1, 2, 3].map((i) => (
+              <View key={i} style={{ borderRadius: 16, backgroundColor: C.paper100, borderWidth: 1, borderColor: HAIRLINE, padding: 16 }}>
+                <View style={{ width: 64, height: 10, borderRadius: 5, backgroundColor: C.paper300 }} />
+                <View style={{ width: '68%', height: 16, borderRadius: 6, backgroundColor: C.paper300, marginTop: 10 }} />
+                <View style={{ width: '44%', height: 11, borderRadius: 5, backgroundColor: C.paper200, marginTop: 12 }} />
+              </View>
+            ))}
+          </View>
+        )}
 
         {/* Events */}
         {!loading && (filter === 'all' || filter === 'events') && shownEvents.length > 0 && (
@@ -309,22 +325,25 @@ export default function Activities() {
           <View style={{ paddingHorizontal: 20, paddingTop: 22, gap: 12 }}>
             {filter === 'all' && <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 2 }}>Clubs</Text>}
             {shownClubs.map((c) => (
-              <Pressable key={c.id} onPress={() => { Haptics.selectionAsync(); setSelected(c) }}
-                style={({ pressed }) => ({ borderRadius: 16, backgroundColor: C.paper100, borderWidth: 1, borderColor: HAIRLINE, padding: 16, opacity: pressed ? 0.92 : 1 })}>
+              // Card is a plain View so the Join button is a SIBLING of the
+              // open-details tap target, not nested inside it — edge taps on
+              // Join no longer fall through and open the sheet.
+              <View key={c.id} style={{ borderRadius: 16, backgroundColor: C.paper100, borderWidth: 1, borderColor: HAIRLINE, padding: 16 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-                  <View style={{ flex: 1 }}>
+                  <Pressable onPress={() => { Haptics.selectionAsync(); setSelected(c) }}
+                    style={({ pressed }) => ({ flex: 1, opacity: pressed ? 0.6 : 1 })}>
                     <Text style={{ fontFamily: F.sansBold, fontSize: 17, color: C.ink, letterSpacing: -0.2 }}>{c.name}</Text>
                     {!!c.host && <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.ink2, marginTop: 2 }}>with {c.host}</Text>}
                     {!!c.schedule && <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.ink3, marginTop: 6 }}>{c.schedule}</Text>}
                     {!!c.vibe && <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.ink2, marginTop: 6, lineHeight: 18 }}>{c.vibe}</Text>}
                     <Text style={{ fontFamily: F.mono, fontSize: 11, color: C.ink3, marginTop: 8 }}>{c.member_count} {c.member_count === 1 ? 'member' : 'members'} · tap for details</Text>
-                  </View>
+                  </Pressable>
                   <Pressable onPress={() => toggleJoin(c)} hitSlop={8}
-                    style={({ pressed }) => ({ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: c.joined ? 'transparent' : 'rgba(0,0,0,0.14)', backgroundColor: c.joined ? C.moss700 : 'transparent', opacity: pressed ? 0.85 : 1 })}>
+                    style={({ pressed }) => ({ minHeight: 44, paddingHorizontal: 18, justifyContent: 'center', borderRadius: 22, borderWidth: 1.5, borderColor: c.joined ? 'transparent' : 'rgba(0,0,0,0.14)', backgroundColor: c.joined ? C.moss700 : 'transparent', opacity: pressed ? 0.85 : 1 })}>
                     <Text style={{ fontFamily: F.sansMed, fontSize: 13, color: c.joined ? C.paper : C.ink2 }}>{c.joined ? 'Joined' : 'Join'}</Text>
                   </Pressable>
                 </View>
-              </Pressable>
+              </View>
             ))}
           </View>
         )}
@@ -494,6 +513,8 @@ function ClubEventComposer({ clubId }: { clubId: string }) {
 
   const post = async () => {
     if (!form.title.trim() || !form.event_date || !form.start_time?.trim()) { setMsg('Add a title, date, and time.'); return }
+    // Native blocks past dates at the picker; web's input `min` is advisory, so guard here too.
+    if (form.event_date < localDate()) { setMsg("Pick a date that hasn't passed."); return }
     setSaving(true); setMsg(null)
     try {
       // Moderation -- fail-closed: if the function errors, save as pending.
@@ -535,8 +556,8 @@ function ClubEventComposer({ clubId }: { clubId: string }) {
         <View style={{ marginTop: 12, gap: 10 }}>
           <CField label="Title" value={form.title} onChangeText={set('title')} placeholder="Saturday morning run" />
           <View style={{ flexDirection: 'row', gap: 10 }}>
-            <View style={{ flex: 1 }}><CField label="Date" value={form.event_date} onChangeText={set('event_date')} placeholder={localDate()} autoCapitalize="none" /></View>
-            <View style={{ flex: 1 }}><CField label="Time" value={form.start_time ?? ''} onChangeText={set('start_time')} placeholder="7am" /></View>
+            <View style={{ flex: 1 }}><DateTimeField label="Date" mode="date" value={form.event_date} onChange={set('event_date')} minDate={today()} /></View>
+            <View style={{ flex: 1 }}><DateTimeField label="Time" mode="time" value={form.start_time ?? ''} onChange={set('start_time')} /></View>
           </View>
           <CField label="Where · opens in Maps" value={form.location ?? ''} onChangeText={set('location')} placeholder="Place or full address, St. Joseph, MN" />
           {msg && <Text style={{ fontFamily: F.sans, fontSize: 13, color: msg.includes('Could not') ? C.clay700 : C.moss700 }}>{msg}</Text>}
@@ -572,10 +593,132 @@ function Section({ title, children }: { title: string; children: string }) {
 function CField({ label, multiline, ...props }: { label: string; multiline?: boolean } & React.ComponentProps<typeof TextInput>) {
   return (
     <View>
-      <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 5 }}>{label}</Text>
-      <TextInput placeholderTextColor={C.ink3} multiline={multiline}
+      <FieldLabel>{label}</FieldLabel>
+      <TextInput placeholderTextColor={C.ink2} multiline={multiline}
         style={{ minHeight: multiline ? 66 : 44, borderRadius: 8, paddingHorizontal: 12, paddingTop: multiline ? 11 : 0, backgroundColor: C.paper, borderWidth: 1, borderColor: HAIRLINE, fontFamily: F.sans, fontSize: 15, color: C.ink, textAlignVertical: multiline ? 'top' : 'center' }}
         {...props} />
+    </View>
+  )
+}
+
+/** Sentence-case form label (not an uppercase eyebrow). */
+function FieldLabel({ children }: { children: string }) {
+  return <Text style={{ fontFamily: F.sansMed, fontSize: 13, color: C.ink2, marginBottom: 5 }}>{children}</Text>
+}
+
+// ── Date / time picker ─────────────────────────────────────────────
+// Real pickers (no free-text). Dates stored YYYY-MM-DD via localDate(); times
+// as a friendly display string ("7:00 AM"). A picked value is always valid.
+
+function today(): Date { const d = new Date(); d.setHours(0, 0, 0, 0); return d }
+function ymdToDate(ymd: string): Date {
+  const [y, m, d] = (ymd || '').split('-').map(Number)
+  if (!y || !m || !d) return today()
+  return new Date(y, m - 1, d)
+}
+function prettyDate(ymd: string): string {
+  const [y, m, d] = (ymd || '').split('-').map(Number)
+  if (!y || !m || !d) return ''
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+}
+function timeToDate(s: string): Date {
+  const base = new Date(); base.setSeconds(0, 0)
+  const m = (s || '').match(/(\d{1,2})(?::(\d{2}))?\s*([ap]\.?m\.?)?/i)
+  if (m) {
+    let h = parseInt(m[1], 10)
+    const min = m[2] ? parseInt(m[2], 10) : 0
+    const ap = m[3]?.toLowerCase().replace(/\./g, '')
+    if (ap === 'pm' && h < 12) h += 12
+    if (ap === 'am' && h === 12) h = 0
+    base.setHours(h, min)
+  } else { base.setHours(9, 0) }
+  return base
+}
+function fmtTime(d: Date): string {
+  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+}
+const pad2 = (n: number) => String(n).padStart(2, '0')
+const toInputTime = (display: string) => { const d = timeToDate(display); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}` }
+const fromInputTime = (hhmm: string) => { const [h, mi] = hhmm.split(':').map(Number); const d = new Date(); d.setHours(h || 0, mi || 0, 0, 0); return fmtTime(d) }
+
+function DateTimeField({ label, mode, value, onChange, minDate }: {
+  label: string
+  mode: 'date' | 'time'
+  value: string
+  onChange: (v: string) => void
+  minDate?: Date
+}) {
+  const [show, setShow] = useState(false)
+  const [temp, setTemp] = useState<Date | null>(null) // iOS: pending until "Done"
+  const current = mode === 'date' ? ymdToDate(value) : timeToDate(value)
+  const displayText = mode === 'date' ? prettyDate(value) : value
+  const commit = (d: Date) => onChange(mode === 'date' ? localDate(d) : fmtTime(d))
+
+  // Web: real HTML <input>, via createElement to skip RN's JSX intrinsics.
+  if (Platform.OS === 'web') {
+    return (
+      <View>
+        <FieldLabel>{label}</FieldLabel>
+        {createElement('input', {
+          type: mode === 'date' ? 'date' : 'time',
+          value: mode === 'date' ? value : (value ? toInputTime(value) : ''),
+          min: mode === 'date' && minDate ? localDate(minDate) : undefined,
+          onChange: (e: any) => {
+            const v = e.target.value
+            onChange(!v ? '' : mode === 'date' ? v : fromInputTime(v))
+          },
+          style: {
+            height: 44, width: '100%', boxSizing: 'border-box',
+            borderRadius: 8, padding: '0 12px',
+            background: C.paper, border: `1px solid ${HAIRLINE}`,
+            fontFamily: F.mono, fontSize: 15, color: value ? C.ink : C.ink2,
+            outline: 'none',
+          },
+        })}
+      </View>
+    )
+  }
+
+  return (
+    <View>
+      <FieldLabel>{label}</FieldLabel>
+      <Pressable
+        onPress={() => { Haptics.selectionAsync(); setTemp(current); setShow(true) }}
+        style={({ pressed }) => ({ minHeight: 44, borderRadius: 8, paddingHorizontal: 12, justifyContent: 'center', backgroundColor: C.paper, borderWidth: 1, borderColor: HAIRLINE, opacity: pressed ? 0.85 : 1 })}>
+        <Text style={{ fontFamily: displayText ? F.mono : F.sans, fontSize: 15, color: displayText ? C.ink : C.ink2 }}>
+          {displayText || (mode === 'date' ? 'Pick a date' : 'Pick a time')}
+        </Text>
+      </Pressable>
+
+      {/* Android shows its own dialog when mounted. */}
+      {show && Platform.OS === 'android' && (
+        <RNDateTimePicker
+          value={current} mode={mode}
+          minimumDate={mode === 'date' ? minDate : undefined}
+          onChange={(e: any, d?: Date) => { setShow(false); if (e.type === 'set' && d) commit(d) }}
+        />
+      )}
+
+      {/* iOS: a calm bottom sheet with a spinner + Done. */}
+      {Platform.OS === 'ios' && (
+        <Modal visible={show} transparent animationType="slide" onRequestClose={() => setShow(false)}>
+          <Pressable onPress={() => setShow(false)} style={{ flex: 1, backgroundColor: 'rgba(20,18,14,0.38)', justifyContent: 'flex-end' }}>
+            <Pressable onPress={(e) => e.stopPropagation()} style={{ backgroundColor: C.paper, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingBottom: 28 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingTop: 14, paddingBottom: 4 }}>
+                <Pressable onPress={() => setShow(false)} hitSlop={10}><Text style={{ fontFamily: F.sansMed, fontSize: 15, color: C.ink3 }}>Cancel</Text></Pressable>
+                <Text style={{ fontFamily: F.sansSemi, fontSize: 14, color: C.ink }}>{label}</Text>
+                <Pressable onPress={() => { if (temp) commit(temp); setShow(false) }} hitSlop={10}><Text style={{ fontFamily: F.sansSemi, fontSize: 15, color: C.moss700 }}>Done</Text></Pressable>
+              </View>
+              <RNDateTimePicker
+                value={temp ?? current} mode={mode} display="spinner" themeVariant="light"
+                minimumDate={mode === 'date' ? minDate : undefined}
+                onChange={(_e: any, d?: Date) => d && setTemp(d)}
+                style={{ alignSelf: 'stretch' }}
+              />
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
     </View>
   )
 }

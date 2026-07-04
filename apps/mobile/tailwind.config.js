@@ -1,81 +1,91 @@
 /** @type {import('tailwindcss').Config} */
-// Hygge design tokens (NativeWind). Mirror src/theme.ts (JS tokens) — keep them in sync.
+// Design tokens (NativeWind). Mirror src/theme.ts (JS tokens) — keep them in sync.
 module.exports = {
   content: ['./src/**/*.{js,jsx,ts,tsx}'],
   presets: [require('nativewind/preset')],
   theme: {
     extend: {
       colors: {
-        // Surfaces — warm linen first
+        // Surfaces — pure white + iOS system grays
         paper: {
-          DEFAULT: '#fbfaf5',
-          50: '#fbfaf5',
-          100: '#f5f1e8',
-          200: '#eae4d4',
-          300: '#e1dbc9',
+          DEFAULT: '#FFFFFF',
+          50: '#FFFFFF',
+          100: '#F2F2F7',
+          200: '#E5E5EA',
+          300: '#D1D1D6',
         },
-        // Text — charcoal ink
+        // Text — WCAG 2.1 contrast on white (#FFFFFF):
+        //   DEFAULT #000000 → 21:1   (primary, AAA)
+        //   2       #3C3C43 →  9.4:1 (secondary, AAA)
+        //   3       #8E8E93 →  3.5:1 (tertiary/placeholder ≥3 floor)
+        // Keep in sync with the ink ramp + ratios in src/theme.ts.
         ink: {
-          DEFAULT: '#2a2a28',
-          2: '#5e5d56',
-          3: '#8a887e',
+          DEFAULT: '#000000',
+          2: '#3C3C43',
+          3: '#8E8E93',
         },
-        // sky → slate blue-grey (brand / focus)
+        // sky → system blue (links, focus)
         sky: {
-          400: '#a6b1b6',
-          500: '#87959c',
-          600: '#6b7b84',
-          700: '#55636b',
-          800: '#3e4d54',
+          400: '#64B5F6',
+          500: '#2196F3',
+          600: '#007AFF',
+          700: '#0062CC',
+          800: '#004999',
         },
-        // moss → dark pine (positive / primary action / completed)
+        // moss → near-black (primary actions)
         moss: {
-          400: '#4f7053',
-          500: '#3c5a40',
-          600: '#3c5a40',
-          700: '#2d4530',
-          800: '#1f3022',
+          400: '#636366',
+          500: '#48484A',
+          600: '#3A3A3C',
+          700: '#1C1C1E',
+          800: '#000000',
         },
-        // honey → warmth (sparingly)
-        honey: {
-          600: '#b07d2b',
-          700: '#8a5f1c',
-        },
-        // clay → warning / error only
+        // clay → system red (errors only)
         clay: {
-          700: '#b0573a',
-          800: '#8c4329',
+          700: '#FF3B30',
+          800: '#D70015',
         },
 
-        // shadcn / react-native-reusables semantic aliases — mapped onto Hygge
-        // tokens so RNR components (`bg-primary`, `text-foreground`, …) render
-        // on-brand. These are aliases, not new colors; keep them in sync above.
-        border: 'rgba(0,0,0,0.07)',     // border-black/[0.07]
-        input: 'rgba(0,0,0,0.07)',
-        ring: '#6b7b84',                // sky-600 — focus
-        background: '#fbfaf5',          // paper
-        foreground: '#2a2a28',          // ink
-        primary: { DEFAULT: '#2d4530', foreground: '#fbfaf5' },   // moss-700 / paper
-        secondary: { DEFAULT: '#eae4d4', foreground: '#2a2a28' }, // paper-200 / ink
-        muted: { DEFAULT: '#f5f1e8', foreground: '#8a887e' },     // paper-100 / ink-3
-        accent: { DEFAULT: '#f5f1e8', foreground: '#2a2a28' },    // paper-100 / ink
-        destructive: { DEFAULT: '#b0573a', foreground: '#fbfaf5' }, // clay-700 / paper
-        card: { DEFAULT: '#fbfaf5', foreground: '#2a2a28' },     // paper / ink
-        popover: { DEFAULT: '#fbfaf5', foreground: '#2a2a28' },  // paper / ink
+        // shadcn / react-native-reusables semantic aliases
+        border: 'rgba(0,0,0,0.08)',
+        input: 'rgba(0,0,0,0.08)',
+        ring: '#007AFF',                // sky-600 — focus
+        background: '#F2F2F7',          // canvas
+        foreground: '#000000',          // ink
+        primary: { DEFAULT: '#1C1C1E', foreground: '#FFFFFF' },   // moss-700 / paper
+        secondary: { DEFAULT: '#E5E5EA', foreground: '#000000' }, // paper-200 / ink
+        muted: { DEFAULT: '#F2F2F7', foreground: '#8E8E93' },     // paper-100 / ink-3
+        accent: { DEFAULT: '#F2F2F7', foreground: '#000000' },    // paper-100 / ink
+        destructive: { DEFAULT: '#FF3B30', foreground: '#FFFFFF' }, // clay-700 / paper
+        card: { DEFAULT: '#FFFFFF', foreground: '#000000' },      // paper / ink
+        popover: { DEFAULT: '#FFFFFF', foreground: '#000000' },   // paper / ink
       },
       fontFamily: {
         // Names MUST match the expo-font useFonts() keys in src/app/_layout.tsx.
         // RN registers each weight as its own family (no synthetic bolding), so we
         // expose a class per weight — `font-sans-semibold` etc. — instead of
         // relying on `font-semibold` (which RN can't synthesize on a 400-only face).
-        display: ['Spectral'],            // Spectral 700 — wordmark, H1/hero
-        'display-semi': ['SpectralSemi'], // Spectral 600 — softer headings
-        sans: ['Schibsted'],              // Schibsted 400 — UI body (default)
-        'sans-medium': ['SchibstedMed'],  // 500
-        'sans-semibold': ['SchibstedSemi'], // 600 — labels, buttons
-        'sans-bold': ['SchibstedBold'],   // 700
+        display: ['InterBold'],            // Inter 700 — wordmark, H1/hero
+        'display-semi': ['InterSemi'],    // Inter 600 — softer headings
+        sans: ['Inter'],                  // Inter 400 — UI body (default)
+        'sans-medium': ['InterMed'],      // 500
+        'sans-semibold': ['InterSemi'],   // 600 — labels, buttons
+        'sans-bold': ['InterBold'],       // 700
         mono: ['GeistMono'],              // Geist Mono 400 — every number
         'mono-medium': ['GeistMonoMed'],  // 500
+      },
+      // Radius scale — named by px value so the class and the JS token never
+      // drift (mirrors RADIUS in src/theme.ts). Extends, doesn't replace, the
+      // Tailwind defaults, so existing `rounded-md/lg/xl/full` keep their values.
+      //   rounded-sm8 (8)  small chips / insets
+      //   rounded-md12 (12) inputs, buttons        ← control default
+      //   rounded-lg16 (16) cards                  ← card default
+      //   rounded-xl20 (20) full-bleed sheets / hero
+      borderRadius: {
+        sm8: '8px',
+        md12: '12px',
+        lg16: '16px',
+        xl20: '20px',
       },
     },
   },

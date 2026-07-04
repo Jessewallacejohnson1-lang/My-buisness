@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native'
 import * as Haptics from 'expo-haptics'
 import { useReducedMotion } from 'react-native-reanimated'
@@ -7,11 +7,17 @@ import { api } from '../lib/api'
 import { CheckIcon } from './icons'
 import { C, F, HAIRLINE, CARD_SHADOW } from '../theme'
 
-/** Count up to `target` with an ease-out curve; instant when disabled. */
+// The count-up plays once a session — not every time you return to Home. After
+// the first sweep this stays true and the number updates instantly.
+let questCounted = false
+
+/** Count up to `target` with an ease-out curve, once per session; instant after. */
 function useCountUp(target: number, enabled: boolean, ms = 650) {
-  const [n, setN] = useState(0)
+  const [n, setN] = useState(target)
+  const swept = useRef(false)
   useEffect(() => {
-    if (!enabled || target <= 0) { setN(target); return }
+    if (!enabled || target <= 0 || questCounted || swept.current) { setN(target); return }
+    swept.current = true; questCounted = true
     const start = Date.now()
     let id: ReturnType<typeof setTimeout>
     const tick = () => {
@@ -32,6 +38,7 @@ export function QuestSection() {
   const [done, setDone] = useState(false)
   const [loading, setLoading] = useState(true)
   const [completing, setCompleting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   // admin form
   const [aTitle, setATitle] = useState('')
@@ -45,25 +52,35 @@ export function QuestSection() {
 
   useEffect(() => {
     (async () => {
-      const [q, user] = await Promise.all([api.getTodayQuest(), api.getCurrentUser()])
-      setQuest_(q)
-      setIsAdmin(isAdminEmail(user?.email))
-      if (q) {
-        setCount(await api.getQuestCompletionCount(q.id))
-        if (user) setDone(await api.hasUserCompletedQuest(q.id, user.id))
+      try {
+        const [q, user] = await Promise.all([api.getTodayQuest(), api.getCurrentUser()])
+        setQuest_(q)
+        setIsAdmin(isAdminEmail(user?.email))
+        if (q) {
+          setCount(await api.getQuestCompletionCount(q.id))
+          if (user) setDone(await api.hasUserCompletedQuest(q.id, user.id))
+        }
+      } catch {
+        // Leave quest null → falls through to the calm "No quest today" state
+        // instead of spinning forever on a failed fetch.
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
     })()
   }, [])
 
   const complete = async () => {
     if (!quest || done || completing) return
-    setCompleting(true)
+    setCompleting(true); setError(null)
+    setDone(true); setCount((c) => c + 1) // optimistic — feels instant
     try {
       await api.completeQuest(quest.id)
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
-      setDone(true); setCount((c) => c + 1)
-    } catch { /* ignore */ } finally { setCompleting(false) }
+    } catch {
+      setDone(false); setCount((c) => Math.max(0, c - 1)) // revert
+      setError("Couldn't save — try again.")
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)
+    } finally { setCompleting(false) }
   }
 
   const saveQuest = async () => {
@@ -77,31 +94,34 @@ export function QuestSection() {
 
   return (
     <View style={{ marginHorizontal: 20, marginTop: 28 }}>
-      <Text style={{ fontFamily: F.sansBold, fontSize: 24, color: C.ink, letterSpacing: -0.6, marginBottom: 14 }}>Today's quest</Text>
+      <Text style={{ fontFamily: F.display, fontSize: 24, color: C.ink, letterSpacing: -0.3, marginBottom: 14 }}>Today's quest</Text>
 
       <View style={{ padding: 16, borderRadius: 20, backgroundColor: C.paper, borderWidth: 1, borderColor: HAIRLINE, ...CARD_SHADOW }}>
         {loading ? (
           <ActivityIndicator color={C.ink3} style={{ alignSelf: 'flex-start' }} />
         ) : quest ? (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontFamily: F.display, fontSize: 18, color: C.ink, lineHeight: 24 }}>{quest.title}</Text>
-              <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.ink3, marginTop: 8 }}>
-                {shownCount}<Text style={{ fontFamily: F.sans }}> {count === 1 ? 'neighbor' : 'neighbors'} did this</Text>
-              </Text>
-            </View>
-            {done ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 9, paddingHorizontal: 14, borderRadius: 18, borderWidth: 1.5, borderColor: C.moss700 }}>
-                <CheckIcon size={14} color={C.moss700} />
-                <Text style={{ fontFamily: F.sansSemi, fontSize: 13, color: C.moss700 }}>Done</Text>
+          <>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontFamily: F.display, fontSize: 18, color: C.ink, lineHeight: 24 }}>{quest.title}</Text>
+                <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.ink2, marginTop: 8 }}>
+                  {shownCount}<Text style={{ fontFamily: F.sans }}> {count === 1 ? 'neighbor' : 'neighbors'} did this</Text>
+                </Text>
               </View>
-            ) : (
-              <Pressable onPress={complete} disabled={completing}
-                style={({ pressed }) => ({ paddingVertical: 11, paddingHorizontal: 18, borderRadius: 18, backgroundColor: C.moss700, opacity: pressed ? 0.85 : 1 })}>
-                <Text style={{ fontFamily: F.sansSemi, fontSize: 13.5, color: C.paper }}>{completing ? '…' : 'Mark done'}</Text>
-              </Pressable>
-            )}
-          </View>
+              {done ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 9, paddingHorizontal: 14, borderRadius: 18, borderWidth: 1.5, borderColor: C.moss700 }}>
+                  <CheckIcon size={14} color={C.moss700} />
+                  <Text style={{ fontFamily: F.sansSemi, fontSize: 13, color: C.moss700 }}>Done</Text>
+                </View>
+              ) : (
+                <Pressable onPress={complete} disabled={completing}
+                  style={({ pressed }) => ({ paddingVertical: 11, paddingHorizontal: 18, borderRadius: 18, backgroundColor: C.moss700, opacity: pressed ? 0.85 : 1 })}>
+                  <Text style={{ fontFamily: F.sansSemi, fontSize: 13.5, color: C.paper }}>{completing ? '…' : 'Mark done'}</Text>
+                </Pressable>
+              )}
+            </View>
+            {error && <Text style={{ fontFamily: F.sans, fontSize: 12.5, color: C.clay700, marginTop: 12 }}>{error}</Text>}
+          </>
         ) : (
           <Text style={{ fontFamily: F.sans, fontSize: 15, color: C.ink2, lineHeight: 22 }}>
             No quest today — a fresh one lands tomorrow.

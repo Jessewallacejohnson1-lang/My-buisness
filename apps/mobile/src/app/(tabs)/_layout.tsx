@@ -10,7 +10,9 @@ export default function TabsLayout() {
       <Tabs.Screen name="index" />
       <Tabs.Screen name="activities" />
       <Tabs.Screen name="calendar" />
-      <Tabs.Screen name="add" />
+      <Tabs.Screen name="map" />
+      {/* add is not in the tab bar — reached via the + button on the map screen */}
+      <Tabs.Screen name="add" options={{ href: null }} />
     </Tabs>
   )
 }

@@ -1,39 +1,43 @@
-import { Pressable, Text, View } from 'react-native'
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { Image } from 'expo-image'
 import { LinearGradient } from 'expo-linear-gradient'
 import * as Haptics from 'expo-haptics'
 import Animated, {
-  scrollTo, useAnimatedRef, useFrameCallback, useReducedMotion, useSharedValue,
+  useAnimatedStyle, useFrameCallback, useReducedMotion, useSharedValue,
 } from 'react-native-reanimated'
 import { useRouter } from 'expo-router'
-import { PLACES } from '../data/places'
+import { PLACES, type Place } from '../data/places'
 import { C, F } from '../theme'
 
-// Large floating square tiles that continuously carousel across the screen.
-// Motion runs on the UI thread (reanimated useFrameCallback + scrollTo) so it
-// stays smooth on iOS. It scrolls AFTER first paint and never touches the
-// initial layout (no contentOffset / onContentSizeChange) — that init pattern is
-// what blanked the tiles on iPhone before. Worst case the drift no-ops; tiles
-// still render. A constant size is used on purpose (module-scope Dimensions
-// returns 0 on iOS → invisible).
-const CARD = 184
-const GAP = 16
+// Calm marquee of real St. Joe places. The drift is a `translateX` TRANSFORM on
+// a plain row (not scrollTo on a ScrollView) — transforms don't fight the touch
+// system, so every tile stays tappable while it glides. Two copies back-to-back
+// make the wrap from COPY_W → 0 land on identical tiles for a seamless loop.
+const CARD = 188
+const GAP = 14
 const STEP = CARD + GAP
-const N = PLACES.length
-const COPY_W = N * STEP // width of one full pass; wrap here for a seamless loop
-const SPEED = 0.022 // px per ms ≈ 22px/s — a slow, calm drift
-
-// Two copies back-to-back so the wrap from COPY_W → 0 lands on identical tiles.
+const COPY_W = PLACES.length * STEP
+const SPEED = 0.018 // px/ms ≈ 18px/s — a slow, calm drift
 const LOOP = [...PLACES, ...PLACES]
 
-/** "Around town" — floating square photo tiles of real St. Joe places that
- *  slowly carousel across the screen. Tap a tile to open its showcase. */
+// Soft, warm, single-direction lift (Cal-AI-clean — not a hard green shadow).
+const TILE_SHADOW = {
+  shadowColor: '#1a1813',
+  shadowOpacity: 0.16,
+  shadowRadius: 16,
+  shadowOffset: { width: 0, height: 9 },
+  elevation: 7,
+} as const
+
+const TEXT_SHADOW = { textShadowColor: 'rgba(0,0,0,0.45)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8 }
+
+/** "Around town" — floating photo tiles that slowly glide across the screen.
+ *  Tap a tile to open its showcase; touching pauses the drift so you can aim. */
 export function AroundTown() {
   const router = useRouter()
-  const aref = useAnimatedRef<Animated.ScrollView>()
+  const reduce = useReducedMotion()
   const x = useSharedValue(0)
   const paused = useSharedValue(false)
-  const reduce = useReducedMotion()
 
   useFrameCallback((frame) => {
     if (reduce || paused.value) return
@@ -41,59 +45,60 @@ export function AroundTown() {
     let nx = x.value + dt * SPEED
     if (nx >= COPY_W) nx -= COPY_W
     x.value = nx
-    scrollTo(aref, nx, 0, false)
   })
 
+  const rowStyle = useAnimatedStyle(() => ({ transform: [{ translateX: -x.value }] }))
+
+  const open = (slug: string) => { Haptics.selectionAsync(); router.push(`/place/${slug}`) }
+
+  const tile = (p: Place, key: string) => (
+    // Outer = shadow host (not clipped) so the tile floats off the page.
+    <View key={key} style={{ width: CARD, height: CARD, marginRight: GAP, borderRadius: 28, ...TILE_SHADOW }}>
+      <Pressable
+        onPress={() => open(p.slug)}
+        onPressIn={() => { paused.value = true }}
+        onPressOut={() => { paused.value = false }}
+        style={({ pressed }) => ({
+          flex: 1, borderRadius: 28, overflow: 'hidden',
+          justifyContent: 'flex-end', padding: 16,
+          transform: [{ scale: pressed ? 0.96 : 1 }],
+        })}
+      >
+        <Image source={p.image} style={StyleSheet.absoluteFill} contentFit="cover" transition={280} />
+        <LinearGradient
+          colors={['rgba(16,14,10,0)', 'rgba(16,14,10,0.16)', 'rgba(16,14,10,0.78)']}
+          locations={[0, 0.48, 1]}
+          style={StyleSheet.absoluteFill}
+        />
+        <Text numberOfLines={1} style={{ fontFamily: F.display, fontSize: 21, color: '#fdfcf8', letterSpacing: -0.3, ...TEXT_SHADOW }}>
+          {p.name}
+        </Text>
+        <Text numberOfLines={1} style={{ fontFamily: F.sans, fontSize: 13, color: 'rgba(253,252,248,0.92)', marginTop: 4, ...TEXT_SHADOW }}>
+          {p.tagline}
+        </Text>
+      </Pressable>
+    </View>
+  )
+
   return (
-    <View style={{ paddingTop: 28 }}>
-      <View style={{ paddingHorizontal: 20, marginBottom: 18 }}>
-        <Text style={{ fontFamily: F.sansBold, fontSize: 24, color: C.ink, letterSpacing: -0.6 }}>Around town</Text>
-        <Text style={{ fontFamily: F.sans, fontSize: 14, color: C.ink3, marginTop: 3 }}>A few corners of St. Joe worth a wander.</Text>
+    <View style={{ paddingTop: 32 }}>
+      <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
+        <Text style={{ fontFamily: F.display, fontSize: 24, color: C.ink, letterSpacing: -0.3 }}>Around town</Text>
+        <Text style={{ fontFamily: F.sans, fontSize: 14, color: C.ink2, marginTop: 3 }}>A few corners of St. Joe worth a wander.</Text>
       </View>
 
-      <Animated.ScrollView
-        ref={aref}
-        horizontal
-        scrollEnabled={reduce}
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 20, gap: GAP }}
-      >
-        {LOOP.map((p, i) => (
-          // Outer = shadow host (not clipped) → the tile floats off the page.
-          <View
-            key={`${p.slug}-${i}`}
-            style={{
-              width: CARD, height: CARD, borderRadius: 26,
-              shadowColor: '#1c2a1e', shadowOpacity: 0.22, shadowRadius: 18,
-              shadowOffset: { width: 0, height: 12 }, elevation: 8,
-            }}
-          >
-            <Pressable
-              onPressIn={() => { paused.value = true }}
-              onPressOut={() => { paused.value = false }}
-              onPress={() => { Haptics.selectionAsync(); router.push(`/place/${p.slug}`) }}
-              style={({ pressed }) => ({
-                flex: 1, borderRadius: 26, overflow: 'hidden',
-                justifyContent: 'flex-end', padding: 16,
-                transform: [{ scale: pressed ? 0.97 : 1 }],
-              })}
-            >
-              <Image source={p.image} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} contentFit="cover" transition={280} />
-              <LinearGradient
-                colors={['rgba(16,14,10,0)', 'rgba(16,14,10,0.18)', 'rgba(16,14,10,0.82)']}
-                locations={[0, 0.5, 1]}
-                style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-              />
-              <Text numberOfLines={1} style={{ fontFamily: F.display, fontSize: 20, color: '#fdfcf8', letterSpacing: -0.3, textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 8 }}>
-                {p.name}
-              </Text>
-              <Text numberOfLines={1} style={{ fontFamily: F.sans, fontSize: 13, color: 'rgba(253,252,248,0.92)', marginTop: 4, textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6 }}>
-                {p.tagline}
-              </Text>
-            </Pressable>
-          </View>
-        ))}
-      </Animated.ScrollView>
+      {reduce ? (
+        // Reduced motion: a plain, swipeable, tappable row — no auto-drift.
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, paddingVertical: 6 }}>
+          {PLACES.map((p) => tile(p, p.slug))}
+        </ScrollView>
+      ) : (
+        <View style={{ overflow: 'visible' }}>
+          <Animated.View style={[{ flexDirection: 'row', paddingLeft: 20, paddingVertical: 6 }, rowStyle]}>
+            {LOOP.map((p, i) => tile(p, `${p.slug}-${i}`))}
+          </Animated.View>
+        </View>
+      )}
     </View>
   )
 }
