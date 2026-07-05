@@ -9,6 +9,7 @@ import Combine
 @MainActor
 final class HomeModel: ObservableObject {
     @Published var today: [TimelineEvent] = []
+    @Published var weekGoing = 0   // town-wide RSVPs, today → +7 days (the roll call)
     @Published var quest: DailyQuest?
     @Published var questCount = 0
     @Published var questDone = false
@@ -21,6 +22,11 @@ final class HomeModel: ObservableObject {
         name = firstNameFromEmail(await api.currentEmail())
         do {
             today = try await api.getTodayEvents()
+            // Roll call: today's RSVPs + the week ahead's, town-wide. getTodayEvents is
+            // event_date == today and getWeekEvents is > today, so there's no overlap.
+            let todayGoing = today.reduce(0) { $0 + $1.goingCount }
+            let weekAhead = (try? await api.getWeekEvents()) ?? []
+            weekGoing = todayGoing + weekAhead.reduce(0) { $0 + $1.goingCount }
             if let q = try await api.getTodayQuest() {
                 quest = q
                 questCount = (try? await api.getQuestCompletionCount(q.id)) ?? 0
@@ -42,10 +48,12 @@ final class HomeModel: ObservableObject {
         let wasGoing = today[i].rsvpd
         today[i].rsvpd.toggle()
         today[i].goingCount += wasGoing ? -1 : 1
+        weekGoing += wasGoing ? -1 : 1
         do {
             if wasGoing { try await api.unRsvpEvent(ev.id) } else { try await api.rsvpEvent(ev.id) }
         } catch {
             // Re-resolve by id: a concurrent load() may have replaced `today`.
+            weekGoing += wasGoing ? 1 : -1
             guard let j = today.firstIndex(where: { $0.id == ev.id }) else { return }
             today[j].rsvpd = wasGoing
             today[j].goingCount += wasGoing ? 1 : -1

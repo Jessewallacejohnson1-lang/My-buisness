@@ -30,6 +30,9 @@ struct HomeView: View {
 
                 AroundTownCarousel(expanded: $expandedPlace, ns: cardNS)
 
+                RollCallSection(count: model.weekGoing)
+                    .padding(.horizontal, 18)
+
                 QuestSection(quest: model.quest, count: model.questCount, done: model.questDone) {
                     Task { await model.completeQuest(api) }
                 }
