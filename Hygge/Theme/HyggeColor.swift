@@ -2,9 +2,9 @@
 //  HyggeColor.swift
 //  Hygge — design tokens (colors)
 //
-//  Ported verbatim from the Expo app's src/theme.ts + tailwind.config.js.
-//  Warm linen surfaces, charcoal ink, accents with one job each.
-//  Keep these in sync with the React Native source of truth.
+//  Unified coral + white system (July 2026): coral is the primary accent on white
+//  surfaces across every screen — the old warm-linen surfaces + green buttons are
+//  retired. Mirrors the map's white+coral look and the RN twin's coral accent.
 //
 
 import SwiftUI
@@ -21,23 +21,24 @@ extension Color {
 
 /// Hygge palette. One namespace so call sites read `Hue.paper`, `Hue.ink`, etc.
 enum Hue {
-    // Surfaces — warm linen first
-    static let paper    = Color(hex: 0xfbfaf5)  // default surface
-    static let paper100 = Color(hex: 0xf5f1e8)  // raised tint
-    static let paper200 = Color(hex: 0xeae4d4)  // muted surface
-    static let paper300 = Color(hex: 0xe1dbc9)  // de-emphasized
-    static let canvas   = Color(hex: 0xf1f0ec)  // app page background
+    // Surfaces — white + subtle gray (unified with the map system; Strava-clean)
+    static let paper    = Color(hex: 0xFFFFFF)  // default surface — pure white cards
+    static let paper100 = Color(hex: 0xF6F7F8)  // raised tint
+    static let paper200 = Color(hex: 0xEFF1F3)  // muted surface
+    static let paper300 = Color(hex: 0xE5E7EB)  // de-emphasized / dividers
+    static let canvas   = Color(hex: 0xF6F7F8)  // app page background — white cards lift off it
 
     // Text — charcoal ink ramp (WCAG-verified on paper)
     static let ink  = Color(hex: 0x2a2a28)  // primary (AAA)
     static let ink2 = Color(hex: 0x5e5d56)  // secondary (AA body)
     static let ink3 = Color(hex: 0x828077)  // tertiary / placeholder
 
-    // moss → positive / primary action / completed
-    static let moss400 = Color(hex: 0x4f7053)
-    static let moss500 = Color(hex: 0x3c5a40)
-    static let moss700 = Color(hex: 0x2d4530)  // primary button
-    static let moss800 = Color(hex: 0x1f3022)
+    // moss → coral now: primary action / completed / positive. Key names kept to avoid
+    // churning ~30 call sites — the whole app's primary accent is coral (see `accent`).
+    static let moss400 = Color(hex: 0xFF8A79)  // light coral
+    static let moss500 = Color(hex: 0xE5503C)  // pressed / deep
+    static let moss700 = Color(hex: 0xFF6B57)  // coral — primary button
+    static let moss800 = Color(hex: 0xC7452F)  // deepest pressed
 
     // sky → brand / focus rings
     static let sky400 = Color(hex: 0xa6b1b6)
@@ -57,9 +58,9 @@ enum Hue {
     // Hairline border — border-black/[0.07]
     static let hairline = Color.black.opacity(0.07)
 
-    // MARK: Map visual system (Life360-clean, warm coral)
-    // Discipline: coral appears ONLY on live indicators and primary/tappable elements.
-    // Everything else uses surface, gray, grayLight, or mapInk.
+    // MARK: Coral accent system (Strava-clean, warm coral on white)
+    // Coral is THE primary accent across the whole app — live indicators, primary
+    // buttons, active/selected states, tappable elements. Neutrals: surface/gray/mapInk.
     static let accent        = Color(hex: 0xFF6B57)  // warm coral — live + tappable
     static let accentPressed = Color(hex: 0xE5503C)  // button pressed state
     static let accentSoft    = Color(hex: 0xFFF0EC)  // soft tint
