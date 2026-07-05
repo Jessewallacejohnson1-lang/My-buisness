@@ -226,3 +226,144 @@ rebuilds when it flips. `DateHelpers.nowMinutes` now pins `Calendar` to
 **Verified on sim:** parade (10 AM, Downtown) glowed coral 10:00–12:00 and went
 quiet at noon; all other pins stayed quiet. DEBUG launch arg `-open-tab map`
 (RootView) opens the app on any tab for headless screenshot verification.
+
+---
+
+# LIVE EVENT PIPELINE + ANTI-SLOP (2026-07-05)
+
+Mission: the map updates **itself** in realtime, an admin can **post from the
+map**, and the whole tab is swept like a paranoid QA engineer. In-app pipeline
+only — no scraping/ingestion.
+
+## SQL — already applied to the live project `lxdgwhvqjqmqliobwjpi` (via MCP)
+
+These two statements were run against the shared Supabase project. They are
+**non-destructive** and benefit the Expo app too. Re-run them verbatim on any
+other environment (they are idempotent enough for a one-time setup):
+
+```sql
+-- 1. Stream club_events over Supabase Realtime (the publication was EMPTY).
+alter publication supabase_realtime add table public.club_events;
+
+-- 2. Reliable DELETE delivery under RLS. NOTE (verified empirically): even with
+--    FULL, Supabase Realtime's DELETE payload old_record carries ONLY the
+--    primary key id — never the other columns. FULL is kept as a safe default
+--    (it lets Realtime authorize the delete against the SELECT policy); the
+--    client matches deletes by id regardless. See RealtimeClient.Change.Row.
+alter table public.club_events replica identity full;
+```
+
+No RLS **policy** change was needed. The existing `submit events` INSERT policy
+is `with_check (submitted_by = auth.uid())` with no status constraint, so an
+admin inserting an approved event already passes. The admin "+" is a UI
+affordance, not a security boundary (self-approved events are an intentional,
+pre-existing product decision shared with the Expo app — confirmed during
+review).
+
+## Part A — the map updates itself
+
+No Supabase Swift SDK exists here (the whole backend is hand-rolled REST over
+`URLSession`), so realtime is a **hand-written Phoenix-channel client**:
+
+- **`Backend/RealtimeClient.swift`** — `@MainActor` client over
+  `URLSessionWebSocketTask` speaking Phoenix `vsn=1.0.0` object frames. Joins
+  `postgres_changes` on `club_events` with the user's JWT (RLS still filters
+  what arrives), heartbeats every 25 s, pushes a fresh token every ~4 min,
+  parses INSERT/UPDATE/DELETE, reconnects with capped exponential backoff.
+- **`Features/Map/MapModel.swift`** — `@MainActor` view-model that owns the
+  subscription + today's events. A change that touches **today** re-syncs
+  (300 ms-debounced `getTodayEvents()`), so a new happening lights its pin and an
+  ended/deleted one goes quiet with no refresh. Handles teardown on unmount,
+  socket-drop on background + resubscribe on foreground, and the **midnight
+  rollover** (timer to 00:00:01 + re-filter on foreground).
+- **`Backend/SupabaseConfig.swift`** — adds `realtimeURL` (`wss://…/realtime/v1/websocket?apikey=…&vsn=1.0.0`).
+
+**The DELETE gotcha (cost the most time):** a DELETE's `old_record` contains only
+the primary key `id`, so filtering deletes by `event_date` silently dropped them
+(pin never cleared). Fixed by matching deletes to `id` via
+`MapModel.currentlyShown()` (a refetch is idempotent anyway).
+
+**Verified live on the simulator (signed in as admin):**
+- SQL `INSERT` an approved Downtown event at ~now → Downtown pin turns coral +
+  pulses and the header flips to "N happening today" on the **first screenshot
+  after insert** (≈1–2 s, zero refresh).
+- SQL `DELETE` it → pin goes quiet, header back to "A quiet day" on its own.
+- Runtime log confirmed exactly one `Subscribed to PostgreSQL`.
+
+## Part B — quick-add (post from the map)
+
+- **Admin gate:** `Admin.isAdmin(auth.email)` (the email-allowlist already used
+  across the app) — the cleanest existing flag, chosen over a new `profiles`
+  column.
+- **"+" button** (`Features/Map/SJMapView.swift`): 44 px white circle, hairline,
+  ink `plus`, `mapFloatShadow`, rendered **only for admin**, stacked above the
+  recenter button (both lifted by `TAB_BAR_CLEARANCE` so neither hides behind the
+  custom tab bar).
+- **`Features/Map/QuickAddSheet.swift`** — bottom sheet on the map's coral/white
+  tokens: title, spot picker (from the curated `MapSpots` catalogue), date
+  (today), start time (now → live immediately), optional one-liner. Submit →
+  `CommunityAPI.addEvent(status: .approved, location: spot.name)` so the keyword
+  matcher lights the right pin; Part A then makes it live. Opens at the `.large`
+  detent so the Post button is never below the fold.
+
+**Verified full loop on the simulator (computer-use driving the real UI):** tapped
+the "+", typed "Farmers Market", tapped **Post to the map** → sheet dismissed and
+the Downtown pin pulsed within seconds. Relaunched with a debug `-force-nonadmin`
+flag → **no "+"** (recenter only).
+
+## Part C — anti-slop pass
+
+Built in from the start: loading **skeleton** (not a spinner; static under Reduce
+Motion), **quiet-day** empty state (a valid state, not an error), **error +
+retry** and **offline + retry**, eased ~800 ms `flyTo` recenter, light haptic +
+scale feedback on pin tap, tap-empty-map-to-close (`TapInteraction`), a11y labels
+on pins/buttons/rows, and safe-area/tab-bar clearance for controls **and** the
+card.
+
+**Verified live:** skeleton captured with a temporary slow-load; card list updates
+while a card is open (inserted an event → the open Downtown card gained the row +
+the pin pulsed); rapid tab-switching left subscriptions **bounded (no leak)**; a
+temporary `Self._printChanges()` probe showed **8 body evals total, none during
+the pulse** (isolated in `PulseRing`'s local state) → no re-render storm. Grep:
+zero stray hex/token violations in the map feature (the only hardcoded hexes are
+the three Mapbox base-map cartography colors). All debug scaffolding removed.
+
+**Adversarial review** (`hygge-map-antislop-review` workflow — 5 dimensions ×
+find→verify, 18 agents): 13 raised, **7 confirmed** after skeptic verification, all
+fixed:
+1. *(high)* Header counted events that map to no pin → now counts only
+   spot-resolved events; "quiet day" when none map.
+2. *(med)* Reconnect backoff reset on **any** frame → a flapping server never
+   escalated past ~2 s. Now resets only on the confirmed `system` ok.
+3. *(med)* Overlapping `load()`s could clobber fresh data with a stale response →
+   added a monotonic `loadGeneration` guard (last-launched wins).
+4. *(med)* The count rendered in DM Sans → now `font(.mono)` (matches the app's
+   "N going" convention).
+5. *(med)* Card "happening now" was color-only → per-row VoiceOver label now says
+   "happening now" (WCAG 1.4.1).
+6. *(low)* Offline had no retry (error did) → offline is now tap-to-retry.
+7. Corrected the inaccurate `REPLICA IDENTITY FULL` doc comment on `Change.Row`.
+
+Six other raised findings were **refuted** by the verify pass (e.g. "private:false
+breaks postgres_changes RLS" — false, RLS always applies; "self-approved event" —
+intentional product design). Re-verified after the fixes: INSERT still pulses,
+DELETE still clears, count renders in mono.
+
+## Build hazard logged
+
+The "impeccable" tool drops `.impeccable/hook.cache.json` caches. When one lands
+**inside** the `Hygge/` file-system-synchronized group, Xcode copies duplicate
+`hook.cache.json` files to the bundle and the build fails
+("Multiple commands produce …"). Removed the stray dirs and added `.impeccable/`
+to `.gitignore`. If a build suddenly fails this way, delete
+`find Hygge -type d -name .impeccable`.
+
+## Final gate (all ✅, screenshot-verified on iPhone 17 sim)
+
+- [x] Quick-add → pin pulsing within seconds, zero refresh
+- [x] Delete/expire → clears on its own (delete verified; live-glow already
+      auto-expires at start+2 h via `isLiveNow`)
+- [x] Every state (loading/empty/error/offline) intentionally designed, on-token
+- [x] No re-render storm, 0 build warnings, grep shows no stray hexes
+- [x] Non-admin sees no admin UI; RLS verified (no policy change needed)
+- [x] This log tells the full story, including the SQL above
