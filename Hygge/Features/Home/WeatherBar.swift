@@ -16,6 +16,8 @@ struct Weather {
     let lowF: Int
     let label: String
     let state: WeatherState
+    let sunrise: Date?   // today's sunrise, read in the town's timezone; nil if unavailable
+    let sunset: Date?    // today's sunset, ditto — powers the Daily Almanac nudge
 }
 
 // MARK: - Service (open-meteo, St. Joseph, MN)
@@ -27,10 +29,15 @@ enum WeatherService {
     private static var cached: (weather: Weather, at: Date)?
     private static let ttl: TimeInterval = 30 * 60  // 30 minutes
 
+    /// The town's timezone. Open-Meteo is pinned to it (see the URL), so the
+    /// sunrise/sunset strings come back as Chicago wall-clock with no offset —
+    /// parse and display in this zone so the Almanac always speaks in St. Joe time.
+    static let townTZ = TimeZone(identifier: "America/Chicago") ?? .current
+
     static func current() async -> Weather? {
         if let c = cached, Date().timeIntervalSince(c.at) < ttl { return c.weather }
 
-        let url = URL(string: "https://api.open-meteo.com/v1/forecast?latitude=45.565&longitude=-94.3186&current=temperature_2m,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&timezone=America%2FChicago&forecast_days=1")!
+        let url = URL(string: "https://api.open-meteo.com/v1/forecast?latitude=45.565&longitude=-94.3186&current=temperature_2m,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset&temperature_unit=fahrenheit&timezone=America%2FChicago&forecast_days=1")!
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
             let r = try JSONDecoder().decode(Response.self, from: data)
@@ -40,7 +47,9 @@ enum WeatherService {
                 highF: Int((r.daily.temperature_2m_max.first ?? r.current.temperature_2m).rounded()),
                 lowF: Int((r.daily.temperature_2m_min.first ?? r.current.temperature_2m).rounded()),
                 label: label(code: r.current.weather_code, isDay: isDay),
-                state: WeatherState.from(code: r.current.weather_code, isDay: isDay)
+                state: WeatherState.from(code: r.current.weather_code, isDay: isDay),
+                sunrise: parseLocalTime(r.daily.sunrise?.first),
+                sunset: parseLocalTime(r.daily.sunset?.first)
             )
             cached = (weather, Date())
             return weather
@@ -49,9 +58,31 @@ enum WeatherService {
         }
     }
 
+    /// Parse Open-Meteo's offset-less local ISO ("2026-07-05T20:58") into an
+    /// absolute Date, read in the town's timezone. nil is fine — the Almanac
+    /// degrades to a number-free nudge rather than inventing a time.
+    private static let localTimeParser: DateFormatter = {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = townTZ
+        f.dateFormat = "yyyy-MM-dd'T'HH:mm"
+        return f
+    }()
+
+    private static func parseLocalTime(_ s: String?) -> Date? {
+        guard let s else { return nil }
+        return localTimeParser.date(from: s)
+    }
+
     private struct Response: Decodable {
         struct Current: Decodable { let temperature_2m: Double; let weather_code: Int; let is_day: Int }
-        struct Daily: Decodable { let temperature_2m_max: [Double]; let temperature_2m_min: [Double] }
+        struct Daily: Decodable {
+            let temperature_2m_max: [Double]
+            let temperature_2m_min: [Double]
+            let sunrise: [String]?
+            let sunset: [String]?
+        }
         let current: Current
         let daily: Daily
     }

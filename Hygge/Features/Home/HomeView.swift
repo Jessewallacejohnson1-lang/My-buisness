@@ -25,6 +25,9 @@ struct HomeView: View {
                 WeatherBar()
                     .padding(.horizontal, 18)
 
+                AlmanacSection()
+                    .padding(.horizontal, 18)
+
                 todaySection
                     .padding(.horizontal, 18)
 
