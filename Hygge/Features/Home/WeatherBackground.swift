@@ -165,6 +165,7 @@ struct WeatherBackground: View {
     @State private var controller = WeatherVideoController()
     @State private var clipURL: URL?
     @State private var visible = false
+    @State private var resolveTask: Task<Void, Never>?
 
     /// Which gradient to show — default to a calm clear-day sky before the first
     /// fetch resolves, so the bar is never empty.
@@ -188,7 +189,7 @@ struct WeatherBackground: View {
         .animation(.easeInOut(duration: 0.4), value: clipURL)
         .allowsHitTesting(false)
         .onAppear { visible = true; resolveAndPlay() }
-        .onDisappear { visible = false; controller.pause() }
+        .onDisappear { visible = false; resolveTask?.cancel(); controller.pause() }
         .onChange(of: state) { _, _ in resolveAndPlay() }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active, visible { controller.play() } else { controller.pause() }
@@ -196,9 +197,12 @@ struct WeatherBackground: View {
     }
 
     private func resolveAndPlay() {
+        resolveTask?.cancel()
         guard motionAllowed, let state else { clipURL = nil; return }
-        Task {
-            guard let url = await WeatherClipCache.shared.localURL(for: state) else { return }
+        resolveTask = Task {
+            let url = await WeatherClipCache.shared.localURL(for: state)
+            if Task.isCancelled { return }
+            guard let url else { return }
             controller.load(url)
             clipURL = url
             if visible, scenePhase == .active { controller.play() }
