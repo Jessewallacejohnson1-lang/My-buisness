@@ -42,7 +42,15 @@ struct SJMapView: View {
     @State private var selectedSpot: Spot?
     @State private var quickAdding = false
 
-    private var isAdmin: Bool { Admin.isAdmin(auth.email) }
+    private var isAdmin: Bool {
+        // DEBUG-only: `-force-nonadmin` launch arg forces the non-admin branch so
+        // simulator verification can screenshot the gated map without a second
+        // account. No effect in release builds or without the flag.
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-force-nonadmin") { return false }
+        #endif
+        return Admin.isAdmin(auth.email)
+    }
 
     /// Real events at this spot today — searches title AND location so an event
     /// like "Independence Day Parade" at location "Downtown" still matches.

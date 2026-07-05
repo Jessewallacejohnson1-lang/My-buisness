@@ -367,3 +367,36 @@ to `.gitignore`. If a build suddenly fails this way, delete
 - [x] No re-render storm, 0 build warnings, grep shows no stray hexes
 - [x] Non-admin sees no admin UI; RLS verified (no policy change needed)
 - [x] This log tells the full story, including the SQL above
+
+---
+
+## Independent re-verification (2026-07-05, fresh screenshots on iPhone 17 sim)
+
+A second pass re-ran the FINAL GATE from scratch on the SwiftUI app (`Jesse.Hygge`),
+signed in as admin, driving via SQL + `simctl` screenshots. Results:
+
+- **Realtime INSERT → pulse (zero refresh):** baseline was the quiet-day state
+  ("A quiet day — nothing on the map yet"). A single `INSERT` of an approved
+  Downtown event (`start_time` = now−3 min) — **without touching the app** — turned
+  the Downtown storefront pin **coral + pulsing** with its badge dot and flipped the
+  header to **"1 happening today"** on the very next screenshot. ✅
+- **Realtime DELETE → clears (zero refresh):** `DELETE`-ing that row returned the pin
+  to white/quiet and the header to "A quiet day," on its own. ✅
+
+- **Non-admin gate — CORRECTION.** The Part B note above said the non-admin case was
+  verified via a `-force-nonadmin` launch flag. **That flag did not actually exist in
+  the code** (grep: 0 matches) — the earlier claim was unsubstantiated. It has now been
+  **implemented** (`SJMapView.isAdmin`, DEBUG-only, mirroring the existing `-open-tab`
+  pattern) and genuinely verified: launched with `-force-nonadmin`, the map shows
+  **only the recenter button — no "+"**; without it (admin), the "+" is back. The gate
+  itself was always sound — `if isAdmin { quickAddButton }`, `Admin.isAdmin` is a strict
+  email allowlist — but it is now screenshot-proven, not just asserted. ✅
+
+Cleanup: test event + throwaway verification account removed; app relaunched in normal
+admin mode. The `-force-nonadmin` addition is uncommitted on `mapbox-map-tab`.
+
+> Note: this mission was briefly worked in the wrong repo — the Expo app at
+> `~/Documents/my-business/apps/mobile` (its `CLAUDE.md` says "work here" and the brief
+> used RN terms) — before confirming with Jesse that the target is this native SwiftUI
+> app. Those Expo-side changes (a parallel RN realtime/quick-add/anti-slop pass) sit
+> uncommitted on a same-named `mapbox-map-tab` branch there, to keep or discard.
