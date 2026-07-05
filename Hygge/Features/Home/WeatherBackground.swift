@@ -150,3 +150,58 @@ final class PlayerHostView: UIView {
     override class var layerClass: AnyClass { AVPlayerLayer.self }
     var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
 }
+
+// MARK: - Backdrop
+
+/// Matched-gradient backdrop that upgrades to a looping muted video when a clip
+/// is available and motion is allowed. Non-interactive (pointerEvents:"none");
+/// pauses off-screen and when the app is backgrounded.
+struct WeatherBackground: View {
+    let state: WeatherState?
+
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    @State private var controller = WeatherVideoController()
+    @State private var clipURL: URL?
+    @State private var visible = false
+
+    /// Which gradient to show — default to a calm clear-day sky before the first
+    /// fetch resolves, so the bar is never empty.
+    private var displayState: WeatherState { state ?? .clearDay }
+
+    /// Reduce Motion or Low Power Mode → gradient only; never download or play.
+    private var motionAllowed: Bool {
+        !reduceMotion && !ProcessInfo.processInfo.isLowPowerModeEnabled
+    }
+
+    var body: some View {
+        ZStack {
+            LinearGradient(colors: displayState.gradient, startPoint: .top, endPoint: .bottom)
+
+            if let clipURL, motionAllowed {
+                PlayerLayerView(player: controller.player)
+                    .id(clipURL)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.4), value: clipURL)
+        .allowsHitTesting(false)
+        .onAppear { visible = true; resolveAndPlay() }
+        .onDisappear { visible = false; controller.pause() }
+        .onChange(of: state) { _, _ in resolveAndPlay() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active, visible { controller.play() } else { controller.pause() }
+        }
+    }
+
+    private func resolveAndPlay() {
+        guard motionAllowed, let state else { clipURL = nil; return }
+        Task {
+            guard let url = await WeatherClipCache.shared.localURL(for: state) else { return }
+            controller.load(url)
+            clipURL = url
+            if visible, scenePhase == .active { controller.play() }
+        }
+    }
+}
