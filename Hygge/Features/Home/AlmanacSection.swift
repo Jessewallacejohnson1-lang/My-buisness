@@ -16,7 +16,9 @@
 import SwiftUI
 
 struct AlmanacSection: View {
+    @EnvironmentObject private var auth: AuthStore
     @State private var weather: Weather?
+    @State private var aiLine: String?   // the shared AI day-summary; nil → template nudge
 
     var body: some View {
         let nudge = Almanac.nudge(for: weather)
@@ -31,17 +33,24 @@ struct AlmanacSection: View {
                     .foregroundStyle(Hue.ink3)
             }
 
-            Text(nudge.line)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Text(nudge.detail)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if let pointer = nudge.pointer {
-                Text(pointer)
-                    .font(.sans(13))
-                    .foregroundStyle(Hue.ink3)
+            if let aiLine {
+                // The shared, AI-written read of the day. Numbers still land in Geist
+                // Mono (tinted with the day's mood color) so it matches the template.
+                Text(Almanac.styled(aiLine, numberTint: nudge.iconTint))
                     .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text(nudge.line)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(nudge.detail)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let pointer = nudge.pointer {
+                    Text(pointer)
+                        .font(.sans(13))
+                        .foregroundStyle(Hue.ink3)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -49,7 +58,14 @@ struct AlmanacSection: View {
         .background(Hue.paper100)
         .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
-        .task { weather = await WeatherService.current() }
+        .task {
+            // Template shows instantly; both fetches ride their own caches and the
+            // AI line upgrades the copy in place when it lands.
+            async let w = WeatherService.current()
+            async let l = DailyAlmanac.line(auth: auth)
+            weather = await w
+            aiLine = await l
+        }
     }
 }
 
@@ -171,6 +187,30 @@ enum Almanac {
     private static func heroNum(_ s: String, _ tint: Color) -> AttributedString { run(s, .monoMedium(19), tint) }
     private static func body(_ s: String) -> AttributedString { run(s, .sans(15), Hue.ink2) }
     private static func bodyNum(_ s: String) -> AttributedString { run(s, .monoMedium(14), Hue.ink2) }
+
+    /// Render an AI-written line: numeric runs (times, temps, counts) in Geist Mono
+    /// tinted with the day's mood color, prose in DM Sans — so the AI line honors
+    /// "every number is mono" exactly like the template.
+    static func styled(_ line: String, numberTint: Color) -> AttributedString {
+        let ns = line as NSString
+        // A contiguous run of digits (with optional : . , inside) + optional trailing °:
+        // matches 8:58, 84°, 2.5, 20 — leaves words like "noon" in DM Sans.
+        let re = try! NSRegularExpression(pattern: "[0-9]+(?:[.,:][0-9]+)*°?")
+        var out = AttributedString("")
+        var idx = 0
+        for m in re.matches(in: line, range: NSRange(location: 0, length: ns.length)) {
+            let r = m.range
+            if r.location > idx {
+                out += run(ns.substring(with: NSRange(location: idx, length: r.location - idx)), .sans(16), Hue.ink)
+            }
+            out += run(ns.substring(with: r), .monoMedium(15), numberTint)
+            idx = r.location + r.length
+        }
+        if idx < ns.length {
+            out += run(ns.substring(from: idx), .sans(16), Hue.ink)
+        }
+        return out
+    }
 
     /// "h:mm" in the town's timezone → "8:58", "5:47".
     private static let clockFormatter: DateFormatter = {
