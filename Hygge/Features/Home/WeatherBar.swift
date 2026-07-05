@@ -1,9 +1,9 @@
 //
 //  WeatherBar.swift
-//  Hygge — real-photo weather backdrop with live current conditions.
+//  Hygge — weather bar: live current conditions over a WeatherBackground.
 //
 //  Honest data only: the temperature comes from open-meteo (no key, no auth).
-//  If the fetch fails we still show the place + a calm photo, never a fake number.
+//  If the fetch fails we keep the place + a matched gradient, never a fake number.
 //
 
 import SwiftUI
@@ -20,6 +20,9 @@ struct Weather {
 
 // MARK: - Service (open-meteo, St. Joseph, MN)
 
+// The module builds with SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor, so this enum
+// is already main-actor isolated: `cached` is only ever read/written from the
+// single main-actor `.task` caller, so no extra guarding is needed.
 enum WeatherService {
     private static var cached: (weather: Weather, at: Date)?
     private static let ttl: TimeInterval = 30 * 60  // 30 minutes

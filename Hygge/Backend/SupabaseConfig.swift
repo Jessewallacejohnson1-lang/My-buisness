@@ -9,7 +9,10 @@
 
 import Foundation
 
-enum SupabaseConfig {
+// nonisolated: these are immutable config constants (the module defaults to
+// MainActor isolation), so off-main callers — e.g. the `WeatherClipCache`
+// actor — can read the derived URLs without hopping to the main actor.
+nonisolated enum SupabaseConfig {
     static let url = URL(string: "https://lxdgwhvqjqmqliobwjpi.supabase.co")!
     static let anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx4ZGd3aHZxanFtcWxpb2J3anBpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMjU3MTEsImV4cCI6MjA5NjcwMTcxMX0.WrwYA1NN8pOy5iOqljBJHys15CqpVAbUEFeqiriwmb0"
 

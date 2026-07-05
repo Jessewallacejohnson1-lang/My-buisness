@@ -74,6 +74,9 @@ actor WeatherClipCache {
             .appendingPathComponent("storage/v1/object/public/weather-loops/\(state.rawValue).mp4")
     }
 
+    /// Cache is intentionally never invalidated: at most six files (one per
+    /// state), so a cached clip is reused forever. Replacing a clip in the
+    /// bucket requires clearing the app's Caches directory.
     func localURL(for state: WeatherState) async -> URL? {
         let dest = folder.appendingPathComponent("\(state.rawValue).mp4")
         if FileManager.default.fileExists(atPath: dest.path) { return dest }
