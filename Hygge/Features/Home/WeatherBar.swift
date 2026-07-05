@@ -15,27 +15,34 @@ struct Weather {
     let highF: Int
     let lowF: Int
     let label: String
-    let photo: String
+    let state: WeatherState
 }
 
 // MARK: - Service (open-meteo, St. Joseph, MN)
 
 enum WeatherService {
+    private static var cached: (weather: Weather, at: Date)?
+    private static let ttl: TimeInterval = 30 * 60  // 30 minutes
+
     static func current() async -> Weather? {
+        if let c = cached, Date().timeIntervalSince(c.at) < ttl { return c.weather }
+
         let url = URL(string: "https://api.open-meteo.com/v1/forecast?latitude=45.565&longitude=-94.3186&current=temperature_2m,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&timezone=America%2FChicago&forecast_days=1")!
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
             let r = try JSONDecoder().decode(Response.self, from: data)
-            let (label, photo) = describe(code: r.current.weather_code, isDay: r.current.is_day == 1)
-            return Weather(
+            let isDay = r.current.is_day == 1
+            let weather = Weather(
                 tempF: Int(r.current.temperature_2m.rounded()),
                 highF: Int((r.daily.temperature_2m_max.first ?? r.current.temperature_2m).rounded()),
                 lowF: Int((r.daily.temperature_2m_min.first ?? r.current.temperature_2m).rounded()),
-                label: label,
-                photo: photo
+                label: label(code: r.current.weather_code, isDay: isDay),
+                state: WeatherState.from(code: r.current.weather_code, isDay: isDay)
             )
+            cached = (weather, Date())
+            return weather
         } catch {
-            return nil
+            return cached?.weather   // last real reading, or nil — never a fake number
         }
     }
 
@@ -46,17 +53,17 @@ enum WeatherService {
         let daily: Daily
     }
 
-    /// WMO weather code → (label, bundled photo base name).
-    static func describe(code: Int, isDay: Bool) -> (String, String) {
+    /// WMO weather code → human label (day-aware).
+    static func label(code: Int, isDay: Bool) -> String {
         switch code {
-        case 0: return (isDay ? "Clear" : "Clear night", isDay ? "clear-day" : "clear-night")
-        case 1, 2: return ("Partly cloudy", "clouds")
-        case 3: return ("Overcast", "overcast")
-        case 45, 48: return ("Foggy", "fog")
-        case 51...67, 80...82: return ("Rain", "rain")
-        case 71...77, 85, 86: return ("Snow", "snow")
-        case 95, 96, 99: return ("Storms", "storm")
-        default: return (isDay ? "Clear" : "Clear night", isDay ? "clear-day" : "clear-night")
+        case 0:                return isDay ? "Clear" : "Clear night"
+        case 1, 2:             return "Partly cloudy"
+        case 3:                return "Overcast"
+        case 45, 48:           return "Foggy"
+        case 51...67, 80...82: return "Rain"
+        case 71...77, 85, 86:  return "Snow"
+        case 95, 96, 99:       return "Storms"
+        default:               return isDay ? "Clear" : "Clear night"
         }
     }
 }
@@ -64,17 +71,11 @@ enum WeatherService {
 // MARK: - View
 
 struct WeatherBar: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var weather: Weather?
-    @State private var drift = false
-
-    private var photoName: String { weather?.photo ?? "clear-day" }
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            PhotoView(name: photoName)
-                .scaledToFill()
-                .scaleEffect(drift ? 1.08 : 1.0)
+            WeatherBackground(state: weather?.state)
                 .frame(height: 132)
                 .frame(maxWidth: .infinity)
                 .clipped()
@@ -114,9 +115,5 @@ struct WeatherBar: View {
         .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
         .task { weather = await WeatherService.current() }
-        .onAppear {
-            guard !reduceMotion else { return }
-            withAnimation(.easeInOut(duration: 22).repeatForever(autoreverses: true)) { drift = true }
-        }
     }
 }
