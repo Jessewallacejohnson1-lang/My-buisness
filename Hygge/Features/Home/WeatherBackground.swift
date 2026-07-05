@@ -52,3 +52,51 @@ enum WeatherState: String, CaseIterable {
         }
     }
 }
+
+// MARK: - Clip cache
+
+/// Resolves a weather state to a local, playable clip URL: returns the cached
+/// file if present, otherwise downloads it once from the public bucket (dupes
+/// coalesced) and caches it. Returns nil on any failure — the caller then
+/// simply stays on the gradient.
+actor WeatherClipCache {
+    static let shared = WeatherClipCache()
+
+    private var inFlight: [WeatherState: Task<URL?, Never>] = [:]
+
+    private var folder: URL {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("weather-loops", isDirectory: true)
+    }
+
+    private func remoteURL(for state: WeatherState) -> URL {
+        SupabaseConfig.url
+            .appendingPathComponent("storage/v1/object/public/weather-loops/\(state.rawValue).mp4")
+    }
+
+    func localURL(for state: WeatherState) async -> URL? {
+        let dest = folder.appendingPathComponent("\(state.rawValue).mp4")
+        if FileManager.default.fileExists(atPath: dest.path) { return dest }
+        if let task = inFlight[state] { return await task.value }
+
+        let remote = remoteURL(for: state)
+        let dir = folder
+        let task = Task<URL?, Never> {
+            do {
+                let (tmp, resp) = try await URLSession.shared.download(from: remote)
+                guard let code = (resp as? HTTPURLResponse)?.statusCode,
+                      (200..<300).contains(code) else { return nil }
+                try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+                try? FileManager.default.removeItem(at: dest)
+                try FileManager.default.moveItem(at: tmp, to: dest)
+                return dest
+            } catch {
+                return nil
+            }
+        }
+        inFlight[state] = task
+        let result = await task.value
+        inFlight[state] = nil
+        return result
+    }
+}
