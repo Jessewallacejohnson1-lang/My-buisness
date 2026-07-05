@@ -100,3 +100,53 @@ actor WeatherClipCache {
         return result
     }
 }
+
+// MARK: - Player
+
+/// Owns a seamless, muted loop for one clip. `load` fully resets before
+/// re-looping so switching states never stacks players.
+@MainActor
+final class WeatherVideoController {
+    let player = AVQueuePlayer()
+    private var looper: AVPlayerLooper?
+
+    init() {
+        player.isMuted = true
+        player.actionAtItemEnd = .none
+        player.preventsDisplaySleepDuringVideoPlayback = false
+    }
+
+    func load(_ url: URL) {
+        looper = nil
+        player.removeAllItems()
+        let item = AVPlayerItem(url: url)
+        looper = AVPlayerLooper(player: player, templateItem: item)
+    }
+
+    func play() { player.play() }
+    func pause() { player.pause() }
+}
+
+/// Hosts an AVPlayerLayer that cover-fills and auto-resizes with the view — no
+/// manual frame syncing because the layer *is* the view's backing layer.
+struct PlayerLayerView: UIViewRepresentable {
+    let player: AVPlayer
+
+    func makeUIView(context: Context) -> PlayerHostView {
+        let view = PlayerHostView()
+        view.playerLayer.player = player
+        view.playerLayer.videoGravity = .resizeAspectFill
+        return view
+    }
+
+    func updateUIView(_ view: PlayerHostView, context: Context) {
+        if view.playerLayer.player !== player {
+            view.playerLayer.player = player
+        }
+    }
+}
+
+final class PlayerHostView: UIView {
+    override class var layerClass: AnyClass { AVPlayerLayer.self }
+    var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
+}
