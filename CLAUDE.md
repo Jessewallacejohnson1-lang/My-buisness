@@ -6,11 +6,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Hygge** — a hyper-local community app for the real town of **St. Joseph, MN**. One calm place for everything happening in town: a daily timeline of local events, a shared calendar anyone can add to, and a daily quest that nudges neighbors to get out and connect.
 
+> **⚠️ TWO APPS — pick the right repo before you start.** There is a **parallel
+> native iOS app** (SwiftUI + **Mapbox**) in a **separate repo at
+> `~/Documents/Hygge`** (Xcode project `Jesse.Hygge`; it has its own git, a
+> `mapbox-map-tab` branch, and its own `MAP_BUILD_LOG.md`). **Native-iOS / map
+> work lives THERE, not in this Expo repo.** If a task mentions the native app,
+> Xcode/SwiftUI, Mapbox, the `mapbox-map-tab` branch, `MAP_BUILD_LOG.md`, or a map
+> that already has realtime / admin quick-add → `cd ~/Documents/Hygge` and work in
+> that Xcode project (build/verify with XcodeBuildMCP + `simctl`). Both apps look
+> nearly identical on the sim — the Expo app's first tab is **"Home"**, the
+> SwiftUI app's is **"Today"**; a bundle-grep of what Metro serves is the ground
+> truth (see the `simulator-multiple-apps` memory).
+
 A **monorepo** (npm workspaces) — one Expo front-end over a shared core:
 - **`apps/mobile`** — the product: an Expo / React Native app (Expo Router,
   NativeWind) that ships to the App Store **and** renders as the website on web
   (`npm run site:build` → `apps/mobile/dist`, deployed per `vercel.json`).
-  **This is the codebase — work here.**
+  **Work here for Expo / React Native / web changes** — but re-read the two-apps
+  note above first: native-iOS map work belongs in `~/Documents/Hygge`.
 - **`packages/core`** (`@hygge/core`) — client-agnostic Supabase queries/types
   consumed by mobile via `createCommunityApi(supabase)`.
 
