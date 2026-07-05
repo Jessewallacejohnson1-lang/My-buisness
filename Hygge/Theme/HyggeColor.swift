@@ -46,6 +46,10 @@ enum Hue {
     static let sky700 = Color(hex: 0x55636b)
     static let sky800 = Color(hex: 0x3e4d54)
 
+    // coral → bold accent for browse / explore surfaces (Jesse's brand accent)
+    static let coral    = Color(hex: 0xff6b57)  // fills, glyphs, primary tappable
+    static let coral700 = Color(hex: 0xc0452f)  // coral text on light (AA-legible)
+
     // honey → warmth (use sparingly)
     static let honey600 = Color(hex: 0xb07d2b)
     static let honey700 = Color(hex: 0x8a5f1c)

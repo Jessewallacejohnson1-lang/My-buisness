@@ -23,11 +23,7 @@ struct ActivitiesView: View {
                 if trailsShowingMap {
                     TrailsMapView(trails: trails, onBack: { trailsShowingMap = false })
                 } else {
-                    TrailsListView(
-                        trails: trails,
-                        onBack: { filter = .all },
-                        onViewMap: { trailsShowingMap = true }
-                    )
+                    trailsExplore
                 }
             } else {
                 ScrollView(showsIndicators: false) {
@@ -196,6 +192,86 @@ struct ActivitiesView: View {
         )
         .padding(.top, 12)
     }
+
+    // MARK: - Trails "Explore" screen (AllTrails-style)
+
+    private var trailsExplore: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 0) {
+                trailsExploreHeader
+                    .padding(.horizontal, 18)
+                    .padding(.top, 8)
+                    .padding(.bottom, 18)
+
+                WobegonExploreCard(onOpenMap: { trailsShowingMap = true })
+                    .padding(.horizontal, 18)
+                    .padding(.bottom, 14)
+
+                ForEach(trails) { trail in
+                    TrailExploreCard(trail: trail, onOpenMap: { trailsShowingMap = true })
+                        .padding(.horizontal, 18)
+                        .padding(.bottom, 14)
+                }
+
+                if trails.isEmpty {
+                    Text("Community-posted trails will appear here once neighbors add them.")
+                        .font(.sans(14))
+                        .foregroundStyle(Hue.ink3)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 18)
+                        .padding(.top, 16)
+                }
+
+                Color.clear.frame(height: 100)
+            }
+        }
+        .background(Color.white)
+    }
+
+    private var trailsExploreHeader: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Button { filter = .all } label: {
+                    HStack(spacing: 3) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 12, weight: .semibold))
+                        Text("Activities")
+                            .font(.sansMedium(13))
+                    }
+                    .foregroundStyle(Hue.sky700)
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+
+                Button { trailsShowingMap = true } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "map.fill")
+                            .font(.system(size: 12, weight: .medium))
+                        Text("View map")
+                            .font(.sansSemibold(13))
+                    }
+                    .foregroundStyle(Hue.coral700)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(Hue.coral.opacity(0.10))
+                    .clipShape(Capsule())
+                    .overlay(Capsule().stroke(Hue.coral.opacity(0.35), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Explore")
+                    .font(.display(30))
+                    .foregroundStyle(Hue.ink)
+                Text("Trails near St. Joseph")
+                    .font(.sans(13))
+                    .foregroundStyle(Hue.ink2)
+            }
+        }
+    }
 }
 
 // MARK: - Cards
@@ -286,4 +362,151 @@ private struct TrailCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .hyggeCard(padding: 16)
     }
+}
+
+// MARK: - Explore cards (photo-forward, tap anywhere → in-app trails map)
+
+/// Featured trail. Uses the real bundled photo; tapping opens the map.
+private struct WobegonExploreCard: View {
+    var onOpenMap: () -> Void
+
+    var body: some View {
+        Button(action: onOpenMap) {
+            VStack(alignment: .leading, spacing: 0) {
+                ZStack(alignment: .topTrailing) {
+                    PhotoView(name: "wobegon-trail")
+                        .scaledToFill()
+                        .frame(height: 190)
+                        .frame(maxWidth: .infinity)
+                        .clipped()
+                    viewMapPill().padding(12)
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Lake Wobegon Trail")
+                        .font(.sansBold(17))
+                        .foregroundStyle(Hue.ink)
+                    Text("St. Joseph, Minnesota")
+                        .font(.sans(13))
+                        .foregroundStyle(Hue.ink2)
+                    HStack(spacing: 6) {
+                        Label("Easy", systemImage: "figure.hiking")
+                            .font(.mono(11))
+                            .foregroundStyle(Hue.coral700)
+                        exploreDot
+                        Text("Paved rail-trail").font(.mono(11)).foregroundStyle(Hue.sky600)
+                        exploreDot
+                        Text("Bike · Run · Walk").font(.mono(11)).foregroundStyle(Hue.sky600)
+                    }
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .background(Hue.paper)
+            .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous).stroke(Color.black.opacity(0.10), lineWidth: 1))
+            .modifier(CardShadow())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// Community trail. Shows a real photo only when one exists — otherwise a clean
+/// blank slot (no auto-fetched stock photo, no gradient). Tapping opens the map.
+private struct TrailExploreCard: View {
+    let trail: Trail
+    var onOpenMap: () -> Void
+
+    // Metadata row: the lead stat (difficulty) in coral, the rest muted —
+    // matching WobegonExploreCard's convention.
+    @ViewBuilder
+    private var metaRow: some View {
+        let diff = trail.difficulty.flatMap { $0.isEmpty ? nil : $0 }
+        let len = trail.length.flatMap { $0.isEmpty ? nil : $0 }
+        if diff != nil || len != nil {
+            HStack(spacing: 6) {
+                if let diff { Text(diff).font(.mono(11)).foregroundStyle(Hue.coral700) }
+                if diff != nil, len != nil { exploreDot }
+                if let len { Text(len).font(.mono(11)).foregroundStyle(Hue.sky600) }
+            }
+        }
+    }
+
+    var body: some View {
+        Button(action: onOpenMap) {
+            VStack(alignment: .leading, spacing: 0) {
+                ZStack(alignment: .topTrailing) {
+                    photoSlot
+                        .frame(height: 160)
+                        .frame(maxWidth: .infinity)
+                        .clipped()
+                    viewMapPill().padding(12)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(trail.title).font(.sansBold(16)).foregroundStyle(Hue.ink)
+                    if let loc = trail.location, !loc.isEmpty {
+                        Text(loc).font(.sans(13)).foregroundStyle(Hue.ink2)
+                    }
+                    metaRow
+                    if let desc = trail.description, !desc.isEmpty {
+                        Text(desc).font(.sans(13)).foregroundStyle(Hue.ink2).lineLimit(2)
+                    }
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .background(Hue.paper)
+            .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous).stroke(Color.black.opacity(0.10), lineWidth: 1))
+            .modifier(CardShadow())
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private var photoSlot: some View {
+        if let url = trail.imageUrl.flatMap(URL.init) {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let img): img.resizable().scaledToFill()
+                default: blankSlot
+                }
+            }
+        } else {
+            blankSlot
+        }
+    }
+
+    // Blank "add a photo here" slot — faint coral glyph on a light coral panel.
+    // No auto-fetched stock photo, no gradient.
+    private var blankSlot: some View {
+        ZStack {
+            Hue.coral.opacity(0.08)
+            Image(systemName: "photo")
+                .font(.system(size: 26, weight: .light))
+                .foregroundStyle(Hue.coral.opacity(0.4))
+        }
+    }
+}
+
+// MARK: - Explore card helpers
+
+/// Decorative pill over the card photo. The whole card is the tap target,
+/// so this is a label, not a button.
+private func viewMapPill() -> some View {
+    HStack(spacing: 5) {
+        Image(systemName: "map.fill").font(.system(size: 11, weight: .semibold))
+        Text("View map").font(.sansSemibold(13))
+    }
+    .foregroundStyle(.white)
+    .padding(.horizontal, 12)
+    .padding(.vertical, 7)
+    .background(Hue.coral700)
+    .clipShape(Capsule())
+    .shadow(color: Hue.coral700.opacity(0.35), radius: 5, x: 0, y: 2)
+}
+
+private var exploreDot: some View {
+    Text("·").font(.mono(11)).foregroundStyle(Hue.ink3)
 }
