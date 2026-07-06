@@ -110,7 +110,7 @@ struct WeatherBar: View {
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             WeatherBackground(state: weather?.state)
-                .frame(height: 132)
+                .frame(height: 75)
                 .frame(maxWidth: .infinity)
                 .clipped()
 
@@ -145,7 +145,7 @@ struct WeatherBar: View {
             .padding(14)
             .shadow(color: .black.opacity(0.3), radius: 8, y: 1)
         }
-        .frame(height: 132)
+        .frame(height: 75)
         .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
         .task { weather = await WeatherService.current() }

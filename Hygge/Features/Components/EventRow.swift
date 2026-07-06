@@ -42,17 +42,20 @@ struct EventRow: View {
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 6) {
                 if let onToggleRsvp {
-                    Button(action: onToggleRsvp) {
+                    Button {
+                        Haptics.light()
+                        onToggleRsvp()
+                    } label: {
                         Text(event.rsvpd ? "Going" : "RSVP")
                             .font(.sansSemibold(13))
-                            .foregroundStyle(event.rsvpd ? Hue.paper : Hue.moss700)
+                            .foregroundStyle(event.rsvpd ? .white : Hue.accent)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 7)
-                            .background(event.rsvpd ? Hue.moss700 : Hue.paper)
+                            .background(event.rsvpd ? Hue.accent : Hue.paper)
                             .clipShape(Capsule())
-                            .overlay(Capsule().stroke(event.rsvpd ? Color.clear : Hue.moss700.opacity(0.4), lineWidth: 1))
+                            .overlay(Capsule().stroke(event.rsvpd ? Color.clear : Hue.accent.opacity(0.4), lineWidth: 1))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(PressableStyle(scale: 0.94))
                 }
                 if event.goingCount > 0 {
                     Text("\(event.goingCount) going")
@@ -64,7 +67,8 @@ struct EventRow: View {
                     Button(action: toggleReminder) {
                         Image(systemName: reminderOn ? "bell.fill" : "bell")
                             .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(reminderOn ? Hue.moss500 : Hue.ink3)
+                            .foregroundStyle(reminderOn ? Hue.accent : Hue.ink3)
+                            .symbolEffect(.bounce, value: reminderOn)
                     }
                     .buttonStyle(.plain)
                 }

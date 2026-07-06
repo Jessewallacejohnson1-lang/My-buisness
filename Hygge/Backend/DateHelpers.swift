@@ -50,6 +50,19 @@ enum DateHelpers {
         return f.string(from: date)
     }
 
+    /// Whole-day difference between two YYYY-MM-DD strings (b − a), parsed local.
+    /// nil on parse failure. Used to detect an event's recurrence cadence.
+    static func daysBetween(_ a: String, _ b: String) -> Int? {
+        let pa = a.split(separator: "-").compactMap { Int($0) }
+        let pb = b.split(separator: "-").compactMap { Int($0) }
+        guard pa.count == 3, pb.count == 3 else { return nil }
+        var ca = DateComponents(); ca.year = pa[0]; ca.month = pa[1]; ca.day = pa[2]
+        var cb = DateComponents(); cb.year = pb[0]; cb.month = pb[1]; cb.day = pb[2]
+        let cal = Calendar.current
+        guard let da = cal.date(from: ca), let db = cal.date(from: cb) else { return nil }
+        return cal.dateComponents([.day], from: cal.startOfDay(for: da), to: cal.startOfDay(for: db)).day
+    }
+
     // MARK: Display-time parsing — ported from apps/mobile/src/lib/time.ts.
     // start_time is a free-text display string ("7am", "10 AM", "noon", nil);
     // parse to minutes-from-midnight only for sorting / liveness, never an axis.

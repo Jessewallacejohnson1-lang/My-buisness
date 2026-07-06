@@ -66,18 +66,19 @@ struct CalendarView: View {
         let isToday = day == todayDay
         let hasEvents = (model.counts[ymd] ?? 0) > 0
         return Button {
+            Haptics.selection()
             selectedDate = ymd
             Task { await model.loadDay(api, date: ymd) }
         } label: {
             VStack(spacing: 3) {
                 Text("\(day)")
                     .font(.mono(14)).monospacedDigit()
-                    .foregroundStyle(isToday ? Hue.paper : Hue.ink)
+                    .foregroundStyle(isToday ? .white : Hue.ink)
                     .frame(width: 34, height: 34)
-                    .background(isToday ? Hue.moss700 : Color.clear)
+                    .background(isToday ? Hue.accent : Color.clear)
                     .clipShape(Circle())
                 Circle()
-                    .fill(hasEvents ? Hue.sky600 : Color.clear)
+                    .fill(hasEvents ? Hue.accent : Color.clear)
                     .frame(width: 5, height: 5)
             }
             .frame(maxWidth: .infinity)
@@ -128,6 +129,15 @@ struct DaySheet: View {
                     .frame(maxWidth: .infinity).padding(.vertical, 36)
                 } else {
                     ForEach(events) { EventRow(event: $0, date: date) }
+
+                    InlineAction(
+                        icon: "calendar.badge.plus",
+                        label: "Add to your calendar",
+                        doneLabel: "Added to your calendar",
+                        actionText: "Add",
+                        perform: { try await CalendarExport.addDay(date: date, events: events) }
+                    )
+                    .padding(.top, 2)
                 }
             }
             .padding(.horizontal, 18)

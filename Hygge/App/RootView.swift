@@ -129,40 +129,55 @@ struct MainTabsView: View {
     }
 }
 
-/// Custom frosted tab bar — three content tabs + map.
+/// Floating frosted tab bar — a rounded glass pill with a gray selection
+/// highlight that matched-geometry-slides to whichever tab is active. Selected
+/// state reads charcoal-on-gray (no accent tint); each switch fires a haptic.
 struct HyggeTabBar: View {
     @Binding var selection: Tab
+    @Namespace private var pill
+
+    /// Corner radii: outer glass shell vs. the inner sliding highlight.
+    private let shellRadius: CGFloat = 26
+    private let pillRadius: CGFloat  = 18
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 4) {
             ForEach(Tab.allCases) { tab in
                 tabButton(tab)
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.top, 10)
+        .padding(5)
+        // Real Liquid Glass (iOS 26): genuinely translucent and refractive, with
+        // its own specular rim and floating shadow — no faked frost or white wash.
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: shellRadius, style: .continuous))
+        .padding(.horizontal, 20)
         .padding(.bottom, 4)
-        .background(.ultraThinMaterial)
-        .overlay(Rectangle().fill(Hue.hairline).frame(height: 1), alignment: .top)
-        .ignoresSafeArea(edges: .bottom)
     }
 
     @ViewBuilder
     private func tabButton(_ tab: Tab) -> some View {
         let selected = selection == tab
         Button {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { selection = tab }
+            Haptics.selection()
+            withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) { selection = tab }
         } label: {
-            VStack(spacing: 5) {
+            VStack(spacing: 4) {
                 Image(systemName: tab.symbol)
-                    .font(.system(size: 19, weight: selected ? .semibold : .regular))
-                    .foregroundStyle(selected ? Hue.ink : Hue.ink3)
-                    .frame(height: 24)
+                    .font(.system(size: 18, weight: selected ? .semibold : .medium))
+                    .frame(height: 22)
                 Text(tab.title)
                     .font(.sansMedium(11))
-                    .foregroundStyle(selected ? Hue.ink : Hue.ink3)
             }
+            .foregroundStyle(selected ? Hue.ink : Hue.ink3)
             .frame(maxWidth: .infinity)
+            .padding(.vertical, 9)
+            .background {
+                if selected {
+                    RoundedRectangle(cornerRadius: pillRadius, style: .continuous)
+                        .fill(Color.black.opacity(0.06))
+                        .matchedGeometryEffect(id: "pill", in: pill)
+                }
+            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
