@@ -15,9 +15,16 @@ export const C = {
   ink: '#000000',
   ink2: '#3C3C43',
   ink3: '#8E8E93',
-  moss700: '#1C1C1E',  // near-black — primary actions
-  moss500: '#3A3A3C',  // secondary actions
-  sky600: '#007AFF',   // system blue — links, focus
+  // Coral accent — brand + primary actions + live/tappable. Mirrors the iOS app's
+  // Hue.accent (#FF6B57) so both apps read the same. Sits on white surfaces across
+  // every screen. Coral-on-white is a warm, intentionally lower-contrast look; white
+  // button labels stay semibold to hold legibility. (Keys kept as `moss*` to avoid
+  // churning ~40 call sites — prefer the `accent*` aliases in new code.)
+  moss700: '#FF6B57',  // coral — primary actions / brand accent
+  moss500: '#E0553F',  // deeper coral — secondary accents, dots
+  accent: '#FF6B57',   // alias for coral (prefer in new code)
+  accentPressed: '#E0553F', // deeper coral — pressed / secondary
+  sky600: '#007AFF',   // system blue — location links, focus (kept: better text contrast than coral)
   clay700: '#FF3B30',  // system red — errors
   hairline: 'rgba(0,0,0,0.08)',
 } as const

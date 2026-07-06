@@ -32,13 +32,13 @@ module.exports = {
           700: '#0062CC',
           800: '#004999',
         },
-        // moss → near-black (primary actions)
+        // moss → coral accent (primary actions / brand). Mirrors C.moss700 in src/theme.ts.
         moss: {
-          400: '#636366',
-          500: '#48484A',
-          600: '#3A3A3C',
-          700: '#1C1C1E',
-          800: '#000000',
+          400: '#FFA294',
+          500: '#FF8574',
+          600: '#E0553F',
+          700: '#FF6B57',
+          800: '#C74533',
         },
         // clay → system red (errors only)
         clay: {
@@ -52,7 +52,7 @@ module.exports = {
         ring: '#007AFF',                // sky-600 — focus
         background: '#F2F2F7',          // canvas
         foreground: '#000000',          // ink
-        primary: { DEFAULT: '#1C1C1E', foreground: '#FFFFFF' },   // moss-700 / paper
+        primary: { DEFAULT: '#FF6B57', foreground: '#FFFFFF' },   // coral (moss-700) / paper
         secondary: { DEFAULT: '#E5E5EA', foreground: '#000000' }, // paper-200 / ink
         muted: { DEFAULT: '#F2F2F7', foreground: '#8E8E93' },     // paper-100 / ink-3
         accent: { DEFAULT: '#F2F2F7', foreground: '#000000' },    // paper-100 / ink

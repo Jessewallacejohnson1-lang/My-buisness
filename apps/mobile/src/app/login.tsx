@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useAuth } from '../lib/auth'
+import { BackIcon } from '../components/icons'
 import { C, F } from '../theme'
 
 export default function Login() {
@@ -17,6 +18,10 @@ export default function Login() {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [ok, setOk] = useState(false) // green (success) vs red (error) message
+
+  // Always lands somewhere: pop back to marketing, or replace to it when this
+  // screen was opened cold (deep link / web reload) and there's no history.
+  const leave = () => { if (router.canGoBack()) router.back(); else router.replace('/') }
 
   const submit = async () => {
     setMsg(null); setOk(false)
@@ -51,12 +56,24 @@ export default function Login() {
           keyboardDismissMode="interactive"
           showsVerticalScrollIndicator={false}
         >
+          {/* Back to the marketing page — the exit on web, where there's no OS back */}
+          <Pressable
+            onPress={leave}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 3, alignSelf: 'flex-start', marginBottom: 18, marginLeft: -4, opacity: pressed ? 0.6 : 1 })}
+          >
+            <BackIcon size={20} color={C.ink2} />
+            <Text style={{ fontFamily: F.sansMed, fontSize: 15, color: C.ink2 }}>Back</Text>
+          </Pressable>
+
           {/* Wordmark */}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
             <View style={{ height: 36, width: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: C.moss700 }}>
               <Text style={{ fontFamily: F.displaySemi, color: C.paper, fontSize: 20 }}>H</Text>
             </View>
-            <Text style={{ fontFamily: F.displaySemi, fontSize: 30, color: C.ink, letterSpacing: -0.3 }}>Joetown</Text>
+            <Text style={{ fontFamily: F.displaySemi, fontSize: 30, color: C.ink, letterSpacing: -0.3 }}>Hygge</Text>
           </View>
           <Text style={{ fontFamily: F.sans, fontSize: 15, color: C.ink2, marginBottom: 28, lineHeight: 21 }}>
             Your town, in one calm place.
