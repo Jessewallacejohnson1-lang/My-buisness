@@ -70,10 +70,10 @@ export function AroundTown() {
           locations={[0, 0.48, 1]}
           style={StyleSheet.absoluteFill}
         />
-        <Text numberOfLines={1} style={{ fontFamily: F.display, fontSize: 21, color: '#fdfcf8', letterSpacing: -0.3, ...TEXT_SHADOW }}>
+        <Text numberOfLines={1} style={{ fontWeight: F.display, fontSize: 21, color: '#fdfcf8', letterSpacing: -0.3, ...TEXT_SHADOW }}>
           {p.name}
         </Text>
-        <Text numberOfLines={1} style={{ fontFamily: F.sans, fontSize: 13, color: 'rgba(253,252,248,0.92)', marginTop: 4, ...TEXT_SHADOW }}>
+        <Text numberOfLines={1} style={{ fontWeight: F.sans, fontSize: 13, color: 'rgba(253,252,248,0.92)', marginTop: 4, ...TEXT_SHADOW }}>
           {p.tagline}
         </Text>
       </Pressable>
@@ -83,8 +83,8 @@ export function AroundTown() {
   return (
     <View style={{ paddingTop: 32 }}>
       <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
-        <Text style={{ fontFamily: F.display, fontSize: 24, color: C.ink, letterSpacing: -0.3 }}>Around town</Text>
-        <Text style={{ fontFamily: F.sans, fontSize: 14, color: C.ink2, marginTop: 3 }}>A few corners of St. Joe worth a wander.</Text>
+        <Text style={{ fontWeight: F.display, fontSize: 24, color: C.ink, letterSpacing: -0.3 }}>Around town</Text>
+        <Text style={{ fontWeight: F.sans, fontSize: 14, color: C.ink2, marginTop: 3 }}>A few corners of St. Joe worth a wander.</Text>
       </View>
 
       {reduce ? (

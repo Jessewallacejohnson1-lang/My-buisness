@@ -97,10 +97,10 @@ export function DayTimeline({
     <View style={{ marginHorizontal: 20, borderRadius: RADIUS.lg, backgroundColor: C.paper, borderWidth: 1, borderColor: HAIRLINE, paddingVertical: 6, ...CARD_SHADOW }}>
       {/* section header */}
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingTop: 14, paddingBottom: 6 }}>
-        <Text style={{ fontFamily: F.mono, fontSize: 10.5, color: C.ink3, letterSpacing: 1.6 }}>{title}</Text>
+        <Text style={{ fontWeight: F.mono, fontSize: 10.5, color: C.ink3, letterSpacing: 1.6 }}>{title}</Text>
         {rows.length > 0 && (
-          <Text style={{ fontFamily: F.mono, fontSize: 9, color: C.ink3, letterSpacing: 0.8 }}>
-            NO. <Text style={{ fontFamily: F.monoMed, fontSize: 13, color: C.ink, fontVariant: TAB }}>{rows.length}</Text>
+          <Text style={{ fontWeight: F.mono, fontSize: 9, color: C.ink3, letterSpacing: 0.8 }}>
+            NO. <Text style={{ fontWeight: F.monoMed, fontSize: 13, color: C.ink, fontVariant: TAB }}>{rows.length}</Text>
           </Text>
         )}
       </View>
@@ -199,9 +199,9 @@ function EventRailRow({
       {/* gutter — mono time, right-aligned */}
       <View style={{ width: GUTTER, paddingTop: NODE_TOP - 8, alignItems: 'flex-end', paddingRight: 4 }}>
         {row.start_time ? (
-          <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.ink2, fontVariant: TAB }}>{row.start_time}</Text>
+          <Text style={{ fontWeight: F.mono, fontSize: 12, color: C.ink2, fontVariant: TAB }}>{row.start_time}</Text>
         ) : (
-          <Text style={{ fontFamily: F.mono, fontSize: 11, color: C.ink3 }}>all day</Text>
+          <Text style={{ fontWeight: F.mono, fontSize: 11, color: C.ink3 }}>all day</Text>
         )}
       </View>
 
@@ -214,7 +214,7 @@ function EventRailRow({
       {/* body — entry + RSVP affordance */}
       <View style={{ flex: 1, flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 15, paddingLeft: 4, borderBottomWidth: divider ? 1 : 0, borderBottomColor: HAIRLINE }}>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={{ fontFamily: F.sansSemi, fontSize: 15, color: C.ink, lineHeight: 20 }}>{row.title}</Text>
+          <Text style={{ fontWeight: F.sansSemi, fontSize: 15, color: C.ink, lineHeight: 20 }}>{row.title}</Text>
           {!!row.location && (
             <Pressable
               onPress={() => openInMaps(row.location!)}
@@ -222,17 +222,17 @@ function EventRailRow({
               style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3, alignSelf: 'flex-start' }}
             >
               <PinIcon size={12} color={C.sky600} />
-              <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.sky600, textDecorationLine: 'underline' }}>{row.location}</Text>
+              <Text style={{ fontWeight: F.sans, fontSize: 13, color: C.sky600, textDecorationLine: 'underline' }}>{row.location}</Text>
             </Pressable>
           )}
           <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 7 }}>
             {!!row.club_name && (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 11, backgroundColor: row.from_joined_club ? 'rgba(0,0,0,0.06)' : C.paper100 }}>
                 {row.from_joined_club && <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: C.moss700 }} />}
-                <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: row.from_joined_club ? C.moss700 : C.ink2 }}>{row.club_name}</Text>
+                <Text style={{ fontWeight: F.sansMed, fontSize: 11, color: row.from_joined_club ? C.moss700 : C.ink2 }}>{row.club_name}</Text>
               </View>
             )}
-            <Text style={{ fontFamily: F.mono, fontSize: 11, color: C.ink2, fontVariant: TAB }}>{row.going_count} going</Text>
+            <Text style={{ fontWeight: F.mono, fontSize: 11, color: C.ink2, fontVariant: TAB }}>{row.going_count} going</Text>
           </View>
         </View>
 
@@ -246,11 +246,11 @@ function EventRailRow({
               flexDirection: 'row', alignItems: 'center', gap: 5, opacity: pressed ? 0.85 : 1,
             })}
           >
-            <Text style={{ fontFamily: F.sansMed, fontSize: 13, color: row.rsvpd ? C.paper : C.ink2 }}>{row.rsvpd ? 'Going' : 'Join'}</Text>
+            <Text style={{ fontWeight: F.sansMed, fontSize: 13, color: row.rsvpd ? C.paper : C.ink2 }}>{row.rsvpd ? 'Going' : 'Join'}</Text>
             {row.rsvpd && <CheckIcon size={13} color={C.paper} />}
           </Pressable>
         ) : (
-          <Text style={{ fontFamily: F.mono, fontSize: 11, color: C.ink3, marginTop: 4, marginLeft: 8 }}>upcoming</Text>
+          <Text style={{ fontWeight: F.mono, fontSize: 11, color: C.ink3, marginTop: 4, marginLeft: 8 }}>upcoming</Text>
         )}
       </View>
     </View>
@@ -265,7 +265,7 @@ function DaypartRow({ label, showTop, showBottom }: { label: string; showTop: bo
         {(showTop || showBottom) && <View style={{ position: 'absolute', left: (LANE - 1) / 2, top: 0, bottom: 0, width: 1, backgroundColor: HAIRLINE }} />}
       </View>
       <View style={{ flex: 1, justifyContent: 'flex-end', paddingLeft: 4, paddingTop: 12, paddingBottom: 4 }}>
-        <Text style={{ fontFamily: F.mono, fontSize: 9.5, color: C.ink3, letterSpacing: 1.6 }}>{label}</Text>
+        <Text style={{ fontWeight: F.mono, fontSize: 9.5, color: C.ink3, letterSpacing: 1.6 }}>{label}</Text>
       </View>
     </View>
   )
@@ -281,7 +281,7 @@ function NowRow({ label, reduce }: { label: string; reduce: boolean }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', height: 26 }}>
       <View style={{ width: GUTTER, alignItems: 'flex-end', paddingRight: 4 }}>
-        <Text style={{ fontFamily: F.mono, fontSize: 9.5, color: GRAPH.amber, letterSpacing: 0.4, fontVariant: TAB }}>{label}</Text>
+        <Text style={{ fontWeight: F.mono, fontSize: 9.5, color: GRAPH.amber, letterSpacing: 0.4, fontVariant: TAB }}>{label}</Text>
       </View>
       <View style={{ width: LANE, alignItems: 'center', justifyContent: 'center' }}>
         <View style={{ position: 'absolute', left: (LANE - 1) / 2, top: 0, bottom: 0, width: 1, backgroundColor: HAIRLINE }} />
@@ -324,10 +324,10 @@ function ClearDay({
     <View style={{ paddingHorizontal: 20, paddingTop: 6, paddingBottom: 20 }}>
       <View style={{ alignItems: 'center', paddingVertical: 10, gap: 10 }}>
         <SunArcIcon size={34} color={C.ink3} />
-        <Text style={{ fontFamily: F.display, fontSize: 20, color: C.ink, letterSpacing: -0.3 }}>
+        <Text style={{ fontWeight: F.display, fontSize: 20, color: C.ink, letterSpacing: -0.3 }}>
           {interactive ? 'A clear day in St. Joe' : 'Nothing on this day'}
         </Text>
-        <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.ink2, lineHeight: 20, textAlign: 'center' }}>
+        <Text style={{ fontWeight: F.sans, fontSize: 13, color: C.ink2, lineHeight: 20, textAlign: 'center' }}>
           {interactive
             ? 'Nothing on the schedule yet. Start something — a walk, a coffee, a hello.'
             : 'No gatherings here yet.'}
@@ -337,7 +337,7 @@ function ClearDay({
             onPress={onAdd}
             style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 11, paddingHorizontal: 18, borderRadius: 20, backgroundColor: C.moss700, opacity: pressed ? 0.85 : 1, marginTop: 2 })}
           >
-            <Text style={{ fontFamily: F.sansSemi, fontSize: 13.5, color: C.paper }}>Add an event</Text>
+            <Text style={{ fontWeight: F.sansSemi, fontSize: 13.5, color: C.paper }}>Add an event</Text>
             <PlusIcon size={14} color={C.paper} />
           </Pressable>
         )}
@@ -346,16 +346,16 @@ function ClearDay({
       {upcoming.length > 0 && (
         <>
           <View style={{ height: 1, backgroundColor: HAIRLINE, marginTop: 14 }} />
-          <Text style={{ fontFamily: F.mono, fontSize: 10.5, color: C.ink3, letterSpacing: 1.6, marginTop: 14, marginBottom: 4 }}>COMING UP</Text>
+          <Text style={{ fontWeight: F.mono, fontSize: 10.5, color: C.ink3, letterSpacing: 1.6, marginTop: 14, marginBottom: 4 }}>COMING UP</Text>
           {upcoming.map((r) => (
             <Pressable
               key={r.id}
               onPress={() => r.event_date && onSelectDate(r.event_date)}
               style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, opacity: pressed ? 0.6 : 1 })}
             >
-              <Text style={{ width: 58, fontFamily: F.mono, fontSize: 11, color: C.ink3, fontVariant: TAB }}>{comingUpLabel(r)}</Text>
-              <Text numberOfLines={1} style={{ flex: 1, fontFamily: F.sansSemi, fontSize: 14, color: C.ink }}>{r.title}</Text>
-              <Text style={{ fontFamily: F.mono, fontSize: 11, color: C.ink2, fontVariant: TAB }}>{r.going_count} going</Text>
+              <Text style={{ width: 58, fontWeight: F.mono, fontSize: 11, color: C.ink3, fontVariant: TAB }}>{comingUpLabel(r)}</Text>
+              <Text numberOfLines={1} style={{ flex: 1, fontWeight: F.sansSemi, fontSize: 14, color: C.ink }}>{r.title}</Text>
+              <Text style={{ fontWeight: F.mono, fontSize: 11, color: C.ink2, fontVariant: TAB }}>{r.going_count} going</Text>
             </Pressable>
           ))}
         </>

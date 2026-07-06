@@ -52,13 +52,9 @@ export function TodayBar({
   return (
     <View style={{ paddingHorizontal: 20, paddingTop: 12 }}>
       {/* (1) micro-masthead: wordmark lockup + glass circles */}
-      <View style={{ height: 32, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <View style={{ height: 26, width: 26, borderRadius: 8, backgroundColor: C.moss700, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontFamily: F.displaySemi, fontSize: 16, color: C.paper }}>H</Text>
-          </View>
-          <Text style={{ fontFamily: F.mono, fontSize: 10.5, color: C.ink3, letterSpacing: 1.6 }}>THE ST. JOE ALMANAC</Text>
-        </View>
+      {/* paddingRight clears the coral brand badge pinned to the top-right corner */}
+      <View style={{ height: 32, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: 74 }}>
+        <Text style={{ fontWeight: F.mono, fontSize: 10.5, color: C.ink3, letterSpacing: 1.6 }}>THE ST. JOE ALMANAC</Text>
         <View style={{ flexDirection: 'row', gap: 10 }}>
           <Pressable
             onPress={onToggleSearch}
@@ -77,7 +73,7 @@ export function TodayBar({
 
       {/* (2) placeline */}
       <Animated.View entering={enter(0)}>
-        <Text style={{ fontFamily: F.mono, fontSize: 11, color: C.ink2, letterSpacing: 2.2, marginTop: 16 }}>
+        <Text style={{ fontWeight: F.mono, fontSize: 11, color: C.ink2, letterSpacing: 2.2, marginTop: 16 }}>
           ST. JOSEPH, MINNESOTA
         </Text>
       </Animated.View>
@@ -88,18 +84,18 @@ export function TodayBar({
           numberOfLines={1}
           adjustsFontSizeToFit
           minimumFontScale={0.7}
-          style={{ flex: 1, fontFamily: F.display, fontSize: 44, lineHeight: 46, color: C.ink, letterSpacing: -1 }}
+          style={{ flex: 1, fontWeight: F.display, fontSize: 44, lineHeight: 46, color: C.ink, letterSpacing: -1 }}
         >
           {weekday}
         </Text>
-        <Text style={{ fontFamily: F.monoMed, fontSize: 16, color: C.ink3, letterSpacing: 0.3, marginBottom: 6, marginLeft: 10, fontVariant: TAB }}>
+        <Text style={{ fontWeight: F.monoMed, fontSize: 16, color: C.ink3, letterSpacing: 0.3, marginBottom: 6, marginLeft: 10, fontVariant: TAB }}>
           {dateStamp}
         </Text>
       </Animated.View>
 
       {/* (4) greeting whisper */}
       <Animated.View entering={enter(1)}>
-        <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.ink3, marginTop: 6 }}>{greeting(name)}</Text>
+        <Text style={{ fontWeight: F.sans, fontSize: 13, color: C.ink3, marginTop: 6 }}>{greeting(name)}</Text>
       </Animated.View>
 
       {/* (5) masthead double-rule + (6) almanac readout + sky plate */}
@@ -111,11 +107,11 @@ export function TodayBar({
           {/* SKY flexes so the row can never grow wider than the page */}
           <ReadoutCell label="SKY" style={{ flex: 1, minWidth: 0 }}>
             {w ? (
-              <Text numberOfLines={1} style={{ fontFamily: F.monoMed, fontSize: 13.5, color: C.ink, fontVariant: TAB }}>
+              <Text numberOfLines={1} style={{ fontWeight: F.monoMed, fontSize: 13.5, color: C.ink, fontVariant: TAB }}>
                 {Math.round(w.temp)}° {wmoText(w.code)}
               </Text>
             ) : failed ? (
-              <Text style={{ fontFamily: F.sans, fontSize: 12, color: C.ink3 }}>Weather&rsquo;s out</Text>
+              <Text style={{ fontWeight: F.sans, fontSize: 12, color: C.ink3 }}>Weather&rsquo;s out</Text>
             ) : (
               <SkeletonBar width={92} />
             )}
@@ -126,7 +122,7 @@ export function TodayBar({
               <Divider />
               <ReadoutCell label="HI · LO">
                 {w ? (
-                  <Text style={{ fontFamily: F.monoMed, fontSize: 13.5, color: C.ink2, fontVariant: TAB }}>
+                  <Text style={{ fontWeight: F.monoMed, fontSize: 13.5, color: C.ink2, fontVariant: TAB }}>
                     {Math.round(w.hi)}° / {Math.round(w.lo)}°
                   </Text>
                 ) : (
@@ -139,9 +135,9 @@ export function TodayBar({
                 {w ? (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
                     <ArrowUpIcon size={11} color={GRAPH.amber} />
-                    <Text style={{ fontFamily: F.monoMed, fontSize: 13, color: C.ink2, fontVariant: TAB }}>{w.sunrise ?? '—'}</Text>
+                    <Text style={{ fontWeight: F.monoMed, fontSize: 13, color: C.ink2, fontVariant: TAB }}>{w.sunrise ?? '—'}</Text>
                     <ArrowDownIcon size={11} color={C.ink3} />
-                    <Text style={{ fontFamily: F.monoMed, fontSize: 13, color: C.ink2, fontVariant: TAB }}>{w.sunset ?? '—'}</Text>
+                    <Text style={{ fontWeight: F.monoMed, fontSize: 13, color: C.ink2, fontVariant: TAB }}>{w.sunset ?? '—'}</Text>
                   </View>
                 ) : (
                   <SkeletonBar width={74} />
@@ -176,7 +172,7 @@ export function TodayBar({
 function ReadoutCell({ label, children, style }: { label: string; children: React.ReactNode; style?: ViewProps['style'] }) {
   return (
     <View style={[{ gap: 3 }, style]}>
-      <Text style={{ fontFamily: F.mono, fontSize: 9, color: C.ink3, letterSpacing: 1.2 }}>{label}</Text>
+      <Text style={{ fontWeight: F.mono, fontSize: 9, color: C.ink3, letterSpacing: 1.2 }}>{label}</Text>
       {children}
     </View>
   )

@@ -20,11 +20,13 @@ cd apps/mobile && npx @react-native-reusables/cli@latest add <name>
   always `border-border` (= `border-black/[0.07]`). Accents have one job each —
   `moss`/`primary` = positive·primary·done, `sky`/`ring` = brand·focus,
   `honey` = warmth (sparingly), `clay`/`destructive` = warning. Never decorative.
-- **Font *family*, never numeric weight.** RN can't synthesize weight, so use
-  `font-sans` / `font-sans-medium` / `font-sans-semibold` / `font-sans-bold` /
-  `font-display` / `font-display-semi` / `font-mono`. `font-semibold`/`font-bold`
-  silently fall back to regular on native.
-- **Every number is `font-mono tabular-nums`** — dates, counts, prices, times.
+- **System font + numeric weight.** The app ships no bundled UI font — text is the
+  platform system font (SF Pro / Roboto), which carries every weight, so weight now
+  comes from the numeric utilities `font-medium` / `font-semibold` / `font-bold`
+  (RN renders them natively). The one custom face is the logo, Atkinson Hyperlegible,
+  used **only** inside `HyggeLogoBadge` — never through a utility class.
+- **Numbers** ride the same system font; add `tabular-nums` where digit columns must
+  line up (calendars, timelines).
 - **One elevation.** `CARD_SHADOW` (theme.ts) is the *only* shadow in the system —
   the card lift. Buttons, inputs, chips, switches are **flat**: fill + the hairline
   border. Don't add `shadow-*` to a control.
@@ -38,7 +40,7 @@ cd apps/mobile && npx @react-native-reusables/cli@latest add <name>
 
 ### Button — `./button.tsx`
 
-Flat, `rounded-md12`, text is `font-sans-semibold`. Pressed dims the fill
+Flat, `rounded-md12`, text is `font-semibold`. Pressed dims the fill
 (`active:bg-*/90`); `disabled` → `opacity-50`; web gets a `ring` focus ring. The
 three shapes you'll actually reach for:
 
@@ -63,7 +65,7 @@ The canonical surface: `bg-card`, `border-border`, `rounded-lg16`, lifted by
 `CARD_SHADOW` (applied via `style`, so it matches every hand-built card). Keep the
 outer `<Card>` **un-clipped** — to round an image to the corner, nest a clipped
 child; don't put `overflow-hidden` on the Card or it eats the shadow. Parts:
-`CardHeader` / `CardTitle` (`font-display-semi`) / `CardDescription` (ink-3) /
+`CardHeader` / `CardTitle` (`font-semibold`) / `CardDescription` (ink-3) /
 `CardContent` / `CardFooter`, all padded `px-5`.
 
 ```tsx
@@ -84,16 +86,16 @@ this spec.
 
 ### Heading & label type
 
-- **Headings** use `<Text variant="h1…h4">` → Spectral (`font-display` /
-  `font-display-semi`). H1 is the wordmark/hero scale.
-- **Body / UI** is the default `<Text>` → Schibsted (`font-sans`).
-- **Field label** — `<Label>` (`./label.tsx`): `text-sm font-sans-semibold`, ink.
+- **Headings** use `<Text variant="h1…h4">` → system font, `font-bold` (h1/h2) /
+  `font-semibold` (h3/h4). H1 is the hero scale.
+- **Body / UI** is the default `<Text>` → system font, regular.
+- **Field label** — `<Label>` (`./label.tsx`): `text-sm font-semibold`, ink.
   Pair with `<Input>` / `<Textarea>` (`rounded-md12`, flat, ink-3 placeholder).
-- **Numbers** — `<Text className="font-mono tabular-nums">`. Always.
+- **Numbers** — the same system font; add `tabular-nums` for aligned digit columns.
 
 ### Badge / Separator / Skeleton
 
-- **Badge** (`rounded-full`, `font-sans-semibold`): use `secondary` / `outline` for
+- **Badge** (`rounded-full`, `font-semibold`): use `secondary` / `outline` for
   neutral labels; reserve `default` (moss) for positive/"going"/done status, since
   moss is semantic.
 - **Separator** — `bg-border` hairline; `orientation="vertical"` for inline rules.
@@ -113,8 +115,8 @@ step (see CLAUDE.md "How to work a task").
    shadow… }}` — the primitive carries it. Keep surrounding layout untouched.
 3. **Translate inline style → class.** `backgroundColor: C.moss700` → the Primary
    button. `borderRadius: 12` → `rounded-md12` (16 → `rounded-lg16`, etc.).
-   `color: C.ink2` → `text-ink-2`. A number's `fontFamily: F.mono` →
-   `font-mono tabular-nums`. Inline `CARD_SHADOW` → just use `Card`.
+   `color: C.ink2` → `text-ink-2`. A number's aligned digits → add `tabular-nums`
+   (same system font). Inline `CARD_SHADOW` → just use `Card`.
 4. **Verify in the running app**, not from memory — screenshot the touched flow,
    diff against the design tokens, clear the on-brand bar. Then commit that step.
 

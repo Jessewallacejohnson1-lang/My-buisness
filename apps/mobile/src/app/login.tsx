@@ -65,17 +65,17 @@ export default function Login() {
             style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 3, alignSelf: 'flex-start', marginBottom: 18, marginLeft: -4, opacity: pressed ? 0.6 : 1 })}
           >
             <BackIcon size={20} color={C.ink2} />
-            <Text style={{ fontFamily: F.sansMed, fontSize: 15, color: C.ink2 }}>Back</Text>
+            <Text style={{ fontWeight: F.sansMed, fontSize: 15, color: C.ink2 }}>Back</Text>
           </Pressable>
 
           {/* Wordmark */}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
             <View style={{ height: 36, width: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: C.moss700 }}>
-              <Text style={{ fontFamily: F.displaySemi, color: C.paper, fontSize: 20 }}>H</Text>
+              <Text style={{ fontWeight: F.displaySemi, color: C.paper, fontSize: 20 }}>H</Text>
             </View>
-            <Text style={{ fontFamily: F.displaySemi, fontSize: 30, color: C.ink, letterSpacing: -0.3 }}>Hygge</Text>
+            <Text style={{ fontWeight: F.displaySemi, fontSize: 30, color: C.ink, letterSpacing: -0.3 }}>Hygge</Text>
           </View>
-          <Text style={{ fontFamily: F.sans, fontSize: 15, color: C.ink2, marginBottom: 28, lineHeight: 21 }}>
+          <Text style={{ fontWeight: F.sans, fontSize: 15, color: C.ink2, marginBottom: 28, lineHeight: 21 }}>
             Your town, in one calm place.
           </Text>
 
@@ -86,7 +86,7 @@ export default function Login() {
               return (
                 <Pressable key={m} onPress={() => { setMode(m); setMsg(null) }}
                   style={{ flex: 1, paddingVertical: 10, borderRadius: 9, backgroundColor: active ? C.paper : 'transparent', alignItems: 'center' }}>
-                  <Text style={{ fontFamily: active ? F.sansSemi : F.sansMed, fontSize: 14, color: active ? C.ink : C.ink2 }}>
+                  <Text style={{ fontWeight: active ? F.sansSemi : F.sansMed, fontSize: 14, color: active ? C.ink : C.ink2 }}>
                     {m === 'in' ? 'Log in' : 'Sign up'}
                   </Text>
                 </Pressable>
@@ -101,7 +101,7 @@ export default function Login() {
             secureTextEntry textContentType="password" placeholder="••••••••" />
 
           {msg && (
-            <Text style={{ fontFamily: F.sans, fontSize: 13, color: ok ? C.moss700 : C.clay700, marginTop: 14, lineHeight: 18 }}>{msg}</Text>
+            <Text style={{ fontWeight: F.sans, fontSize: 13, color: ok ? C.moss700 : C.clay700, marginTop: 14, lineHeight: 18 }}>{msg}</Text>
           )}
 
           {/* Primary action — label matches the mode */}
@@ -114,7 +114,7 @@ export default function Login() {
             })}
           >
             {busy ? <ActivityIndicator color={C.paper} />
-              : <Text style={{ fontFamily: F.sansSemi, fontSize: 16, color: C.paper }}>
+              : <Text style={{ fontWeight: F.sansSemi, fontSize: 16, color: C.paper }}>
                   {mode === 'in' ? 'Log in' : 'Create account'}
                 </Text>}
           </Pressable>
@@ -127,13 +127,13 @@ export default function Login() {
 function Field({ label, ...props }: { label: string } & React.ComponentProps<typeof TextInput>) {
   return (
     <View>
-      <Text style={{ fontFamily: F.sansMed, fontSize: 12, color: C.ink2, marginBottom: 6 }}>{label}</Text>
+      <Text style={{ fontWeight: F.sansMed, fontSize: 12, color: C.ink2, marginBottom: 6 }}>{label}</Text>
       <TextInput
         placeholderTextColor={C.ink3}
         style={{
           height: 50, borderRadius: 12, paddingHorizontal: 14,
           backgroundColor: C.paper100, borderWidth: 1, borderColor: C.hairline,
-          fontFamily: F.sans, fontSize: 16, color: C.ink,
+          fontWeight: F.sans, fontSize: 16, color: C.ink,
         }}
         {...props}
       />

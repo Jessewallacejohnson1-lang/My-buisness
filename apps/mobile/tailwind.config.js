@@ -60,20 +60,13 @@ module.exports = {
         card: { DEFAULT: '#FFFFFF', foreground: '#000000' },      // paper / ink
         popover: { DEFAULT: '#FFFFFF', foreground: '#000000' },   // paper / ink
       },
-      fontFamily: {
-        // Names MUST match the expo-font useFonts() keys in src/app/_layout.tsx.
-        // RN registers each weight as its own family (no synthetic bolding), so we
-        // expose a class per weight — `font-sans-semibold` etc. — instead of
-        // relying on `font-semibold` (which RN can't synthesize on a 400-only face).
-        display: ['InterBold'],            // Inter 700 — wordmark, H1/hero
-        'display-semi': ['InterSemi'],    // Inter 600 — softer headings
-        sans: ['Inter'],                  // Inter 400 — UI body (default)
-        'sans-medium': ['InterMed'],      // 500
-        'sans-semibold': ['InterSemi'],   // 600 — labels, buttons
-        'sans-bold': ['InterBold'],       // 700
-        mono: ['GeistMono'],              // Geist Mono 400 — every number
-        'mono-medium': ['GeistMonoMed'],  // 500
-      },
+      // Typography is the platform system font (SF Pro / Roboto) — no bundled UI
+      // font. The one custom face in the app is the logo (HyggeLogoBadge, Atkinson
+      // Hyperlegible), applied inline there, never through a utility class. Weight
+      // comes from the numeric `font-medium`/`font-semibold`/`font-bold` utilities:
+      // the system font carries every weight, so RN renders it natively.
+      // `font-sans`/`font-mono` fall back to Tailwind's system stacks.
+      //
       // Radius scale — named by px value so the class and the JS token never
       // drift (mirrors RADIUS in src/theme.ts). Extends, doesn't replace, the
       // Tailwind defaults, so existing `rounded-md/lg/xl/full` keep their values.

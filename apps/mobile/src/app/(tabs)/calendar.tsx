@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { Modal, Pressable, ScrollView, Text, View } from 'react-native'
+import { Pressable, ScrollView, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import Animated, {
   Easing, interpolate, runOnJS, useAnimatedStyle, useReducedMotion, useSharedValue,
-  withRepeat, withSpring, withTiming, SlideInDown, type SharedValue,
+  withRepeat, withSpring, withTiming, type SharedValue,
 } from 'react-native-reanimated'
 import * as Haptics from 'expo-haptics'
 import { useRouter } from 'expo-router'
@@ -15,7 +15,9 @@ import { useRsvp } from '../../lib/useRsvp'
 import { EventRow } from '../../components/EventRow'
 import { EventActions } from '../../components/EventActions'
 import { ExpandedWeek, type WeekDay } from '../../components/ExpandedWeek'
-import { CloseIcon, PlusIcon } from '../../components/icons'
+import { PlusIcon } from '../../components/icons'
+import { BottomSheet } from '../../components/ui/bottom-sheet'
+import { ScreenBadge } from '../../components/ScreenBadge'
 import { C, F, HAIRLINE } from '../../theme'
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -52,14 +54,14 @@ function DayCell({ day, year, month, counts, selectedDate, todayYmd, onSelect }:
     <Pressable onPress={() => onSelect(date)} style={{ flex: 1, height: 54, alignItems: 'center', justifyContent: 'center' }}>
       {/* circle + reserved dot space below, stacked and centered (no overlap) */}
       <View style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: isSelected ? C.moss700 : 'transparent', borderWidth: 1.5, borderColor: isToday && !isSelected ? C.moss700 : 'transparent' }}>
-        <Text style={{ fontFamily: F.sansSemi, fontSize: 17, lineHeight: 20, color: isSelected ? C.paper : isPast ? C.ink3 : C.ink }}>{day}</Text>
+        <Text style={{ fontWeight: F.sansSemi, fontSize: 17, lineHeight: 20, color: isSelected ? C.paper : isPast ? C.ink3 : C.ink }}>{day}</Text>
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2, height: 5, marginTop: 4 }}>
         {!isSelected && Array.from({ length: Math.min(count, 3) }).map((_, i) => (
           <View key={i} style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: C.moss500 }} />
         ))}
         {!isSelected && count > 3 && (
-          <Text style={{ fontFamily: F.mono, fontSize: 9, lineHeight: 9, color: C.moss500 }}>+</Text>
+          <Text style={{ fontWeight: F.mono, fontSize: 9, lineHeight: 9, color: C.moss500 }}>+</Text>
         )}
       </View>
     </Pressable>
@@ -73,6 +75,7 @@ function WeekRow({ week, year, month, counts, selectedDate, todayYmd, onSelect, 
   onExpandStart: (days: WeekDay[]) => void; onAbort: () => void; onCommit: () => void
 }) {
   const days = weekDatesFrom(year, month, week)
+  const reduce = useReducedMotion()
 
   // Pinch out → drive progress; release past the threshold commits the zoom.
   const pinch = Gesture.Pinch()
@@ -80,13 +83,13 @@ function WeekRow({ week, year, month, counts, selectedDate, todayYmd, onSelect, 
     .onUpdate((e) => { 'worklet'; progress.value = Math.max(0, Math.min(1, (e.scale - 1) / 0.6)) })
     .onEnd(() => {
       'worklet'
-      if (progress.value > 0.4) { progress.value = withSpring(1, SPRING); runOnJS(onCommit)() }
-      else { progress.value = withTiming(0, { duration: 160 }, (f) => { if (f) runOnJS(onAbort)() }) }
+      if (progress.value > 0.4) { progress.value = reduce ? 1 : withSpring(1, SPRING); runOnJS(onCommit)() }
+      else { progress.value = withTiming(0, { duration: reduce ? 0 : 160 }, (f) => { if (f) runOnJS(onAbort)() }) }
     })
 
   // Press-and-hold fallback (works on web/desktop, where pinch isn't available).
   const longPress = Gesture.LongPress().minDuration(360)
-    .onStart(() => { 'worklet'; runOnJS(onExpandStart)(days); progress.value = withSpring(1, SPRING); runOnJS(onCommit)() })
+    .onStart(() => { 'worklet'; runOnJS(onExpandStart)(days); progress.value = reduce ? 1 : withSpring(1, SPRING); runOnJS(onCommit)() })
 
   return (
     <GestureDetector gesture={Gesture.Race(pinch, longPress)}>
@@ -115,7 +118,7 @@ function MonthBlock({ year, month, counts, selectedDate, todayYmd, onSelect, pro
 
   return (
     <View style={{ marginBottom: 4 }}>
-      <Text style={{ fontFamily: F.sansBold, fontSize: 26, color: C.ink, letterSpacing: -0.4, marginTop: 22, marginBottom: 6 }}>{label}</Text>
+      <Text style={{ fontWeight: F.sansBold, fontSize: 26, color: C.ink, letterSpacing: -0.4, marginTop: 22, marginBottom: 6 }}>{label}</Text>
       {weeks.map((week, wi) => (
         <WeekRow
           key={wi} week={week} year={year} month={month} counts={counts} selectedDate={selectedDate} todayYmd={todayYmd}
@@ -211,7 +214,7 @@ export default function Calendar() {
   const clearExpanded = () => setExpanded(null)
   const closeExpand = () => {
     tick()
-    progress.value = withTiming(0, { duration: 200 }, (f) => { if (f) runOnJS(clearExpanded)() })
+    progress.value = withTiming(0, { duration: reduce ? 0 : 200 }, (f) => { if (f) runOnJS(clearExpanded)() })
   }
 
   const sheetTitle = selectedDate
@@ -225,22 +228,23 @@ export default function Calendar() {
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: C.paper }}>
+      <ScreenBadge />
       <Animated.View style={[{ flex: 1 }, gridStyle]}>
-        <Text style={{ fontFamily: F.display, fontSize: 28, color: C.ink, letterSpacing: -0.5, marginTop: 16, marginBottom: 10, paddingHorizontal: 20 }}>What&rsquo;s coming up?</Text>
+        <Text style={{ fontWeight: F.display, fontSize: 28, color: C.ink, letterSpacing: -0.5, marginTop: 16, marginBottom: 10, paddingHorizontal: 20 }}>What&rsquo;s coming up?</Text>
         <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 20, marginBottom: 12 }}>
           <Pressable onPress={goThisWeekend} style={({ pressed }) => ({ paddingVertical: 7, paddingHorizontal: 14, borderRadius: 18, backgroundColor: C.moss700, opacity: pressed ? 0.85 : 1 })}>
-            <Text style={{ fontFamily: F.sansMed, fontSize: 13, color: C.paper }}>This weekend</Text>
+            <Text style={{ fontWeight: F.sansMed, fontSize: 13, color: C.paper }}>This weekend</Text>
           </Pressable>
           {showToday && (
             <Pressable onPress={jumpToToday} style={({ pressed }) => ({ paddingVertical: 7, paddingHorizontal: 14, borderRadius: 18, borderWidth: 1, borderColor: HAIRLINE, opacity: pressed ? 0.6 : 1 })}>
-              <Text style={{ fontFamily: F.sansMed, fontSize: 13, color: C.ink2 }}>Today</Text>
+              <Text style={{ fontWeight: F.sansMed, fontSize: 13, color: C.ink2 }}>Today</Text>
             </Pressable>
           )}
         </View>
         {/* Weekday header — a fixed row of 7 even columns, pinned above the scroll */}
         <View style={{ flexDirection: 'row', width: '100%', paddingHorizontal: 20, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: HAIRLINE }}>
           {WEEKDAYS.map((d) => (
-            <Text key={d} style={{ flexGrow: 1, flexBasis: 0, textAlign: 'center', fontFamily: F.sansSemi, fontSize: 13, color: C.ink2 }}>{d}</Text>
+            <Text key={d} style={{ flexGrow: 1, flexBasis: 0, textAlign: 'center', fontWeight: F.sansSemi, fontSize: 13, color: C.ink2 }}>{d}</Text>
           ))}
         </View>
         <ScrollView
@@ -278,38 +282,28 @@ export default function Calendar() {
         <ExpandedWeek week={expanded} progress={progress} todayYmd={todayYmd} onClose={closeExpand} onSelectDay={selectDate} />
       )}
 
-      <Modal visible={sheetOpen} transparent animationType="fade" onRequestClose={() => setSheetOpen(false)}>
-        <Pressable style={{ flex: 1, backgroundColor: 'rgba(20,20,18,0.28)' }} onPress={() => setSheetOpen(false)} />
-        <Animated.View entering={SlideInDown.duration(320)} style={{ position: 'absolute', bottom: 0, left: 0, right: 0, maxHeight: '62%', backgroundColor: C.paper, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderColor: HAIRLINE, paddingHorizontal: 18, paddingTop: 10, paddingBottom: 28 }}>
-          <View style={{ alignItems: 'center', paddingBottom: 8 }}>
-            <View style={{ width: 38, height: 4, borderRadius: 2, backgroundColor: 'rgba(0,0,0,0.12)' }} />
-          </View>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-            <Text style={{ fontFamily: F.display, fontSize: 18, color: C.ink }}>{sheetTitle}</Text>
-            <Pressable onPress={() => setSheetOpen(false)} hitSlop={8}><CloseIcon /></Pressable>
-          </View>
-          <ScrollView>
-            {loadingEvents ? (
-              <SheetSkeleton reduce={reduce} />
-            ) : dayEvents.length === 0 ? (
-              <Pressable
-                onPress={() => { setSheetOpen(false); router.push({ pathname: '/(tabs)/add', params: { date: selectedDate! } }) }}
-                style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 16, opacity: pressed ? 0.6 : 1 })}
-              >
-                <PlusIcon size={16} color={C.moss700} />
-                <Text style={{ fontFamily: F.sansMed, fontSize: 14, color: C.moss700 }}>Add something on this day</Text>
-              </Pressable>
-            ) : (
-              dayEvents.map((e, i) => (
-                <View key={e.id}>
-                  <EventRow event={e} onRsvp={handleRsvp} last />
-                  <EventActions event={e} date={selectedDate!} />
-                </View>
-              ))
-            )}
-          </ScrollView>
-        </Animated.View>
-      </Modal>
+      <BottomSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title={sheetTitle} maxHeight="62%">
+        <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 6, paddingBottom: 28 }} showsVerticalScrollIndicator={false}>
+          {loadingEvents ? (
+            <SheetSkeleton reduce={reduce} />
+          ) : dayEvents.length === 0 ? (
+            <Pressable
+              onPress={() => { setSheetOpen(false); router.push({ pathname: '/(tabs)/add', params: { date: selectedDate! } }) }}
+              style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 16, opacity: pressed ? 0.6 : 1 })}
+            >
+              <PlusIcon size={16} color={C.moss700} />
+              <Text style={{ fontWeight: F.sansMed, fontSize: 14, color: C.moss700 }}>Add something on this day</Text>
+            </Pressable>
+          ) : (
+            dayEvents.map((e) => (
+              <View key={e.id}>
+                <EventRow event={e} onRsvp={handleRsvp} last />
+                <EventActions event={e} date={selectedDate!} />
+              </View>
+            ))
+          )}
+        </ScrollView>
+      </BottomSheet>
     </SafeAreaView>
   )
 }

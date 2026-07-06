@@ -11,7 +11,7 @@ function ActionBtn({ label, icon, active, onPress }: {
   return (
     <Pressable onPress={onPress} hitSlop={6} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 5, opacity: pressed ? 0.6 : 1 })}>
       {icon}
-      <Text style={{ fontFamily: F.sansMed, fontSize: 12.5, color: active ? C.moss700 : C.ink2 }}>{label}</Text>
+      <Text style={{ fontWeight: F.sansMed, fontSize: 12.5, color: active ? C.moss700 : C.ink2 }}>{label}</Text>
     </Pressable>
   )
 }

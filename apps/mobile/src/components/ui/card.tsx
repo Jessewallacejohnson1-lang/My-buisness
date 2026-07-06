@@ -39,7 +39,7 @@ function CardTitle({
       ref={ref}
       role="heading"
       aria-level={3}
-      className={cn('font-display-semi leading-none', className)}
+      className={cn('font-semibold leading-none', className)}
       {...props}
     />
   );

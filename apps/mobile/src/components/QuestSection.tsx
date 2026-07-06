@@ -94,7 +94,7 @@ export function QuestSection() {
 
   return (
     <View style={{ marginHorizontal: 20, marginTop: 28 }}>
-      <Text style={{ fontFamily: F.display, fontSize: 24, color: C.ink, letterSpacing: -0.3, marginBottom: 14 }}>Today's quest</Text>
+      <Text style={{ fontWeight: F.display, fontSize: 24, color: C.ink, letterSpacing: -0.3, marginBottom: 14 }}>Today's quest</Text>
 
       <View style={{ padding: 16, borderRadius: 20, backgroundColor: C.paper, borderWidth: 1, borderColor: HAIRLINE, ...CARD_SHADOW }}>
         {loading ? (
@@ -103,27 +103,27 @@ export function QuestSection() {
           <>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontFamily: F.display, fontSize: 18, color: C.ink, lineHeight: 24 }}>{quest.title}</Text>
-                <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.ink2, marginTop: 8 }}>
-                  {shownCount}<Text style={{ fontFamily: F.sans }}> {count === 1 ? 'neighbor' : 'neighbors'} did this</Text>
+                <Text style={{ fontWeight: F.display, fontSize: 18, color: C.ink, lineHeight: 24 }}>{quest.title}</Text>
+                <Text style={{ fontWeight: F.mono, fontSize: 12, color: C.ink2, marginTop: 8 }}>
+                  {shownCount}<Text style={{ fontWeight: F.sans }}> {count === 1 ? 'neighbor' : 'neighbors'} did this</Text>
                 </Text>
               </View>
               {done ? (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 9, paddingHorizontal: 14, borderRadius: 18, borderWidth: 1.5, borderColor: C.moss700 }}>
                   <CheckIcon size={14} color={C.moss700} />
-                  <Text style={{ fontFamily: F.sansSemi, fontSize: 13, color: C.moss700 }}>Done</Text>
+                  <Text style={{ fontWeight: F.sansSemi, fontSize: 13, color: C.moss700 }}>Done</Text>
                 </View>
               ) : (
                 <Pressable onPress={complete} disabled={completing}
                   style={({ pressed }) => ({ paddingVertical: 11, paddingHorizontal: 18, borderRadius: 18, backgroundColor: C.moss700, opacity: pressed ? 0.85 : 1 })}>
-                  <Text style={{ fontFamily: F.sansSemi, fontSize: 13.5, color: C.paper }}>{completing ? '…' : 'Mark done'}</Text>
+                  <Text style={{ fontWeight: F.sansSemi, fontSize: 13.5, color: C.paper }}>{completing ? '…' : 'Mark done'}</Text>
                 </Pressable>
               )}
             </View>
-            {error && <Text style={{ fontFamily: F.sans, fontSize: 12.5, color: C.clay700, marginTop: 12 }}>{error}</Text>}
+            {error && <Text style={{ fontWeight: F.sans, fontSize: 12.5, color: C.clay700, marginTop: 12 }}>{error}</Text>}
           </>
         ) : (
-          <Text style={{ fontFamily: F.sans, fontSize: 15, color: C.ink2, lineHeight: 22 }}>
+          <Text style={{ fontWeight: F.sans, fontSize: 15, color: C.ink2, lineHeight: 22 }}>
             No quest today — a fresh one lands tomorrow.
           </Text>
         )}
@@ -133,23 +133,23 @@ export function QuestSection() {
         showForm ? (
           <View style={{ marginTop: 12, padding: 16, borderRadius: 20, backgroundColor: C.paper, borderWidth: 1, borderColor: HAIRLINE }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.2, textTransform: 'uppercase' }}>Set a quest · admin</Text>
-              <Pressable onPress={() => setShowForm(false)} hitSlop={10}><Text style={{ fontFamily: F.sansMed, fontSize: 13, color: C.ink3 }}>Close</Text></Pressable>
+              <Text style={{ fontWeight: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.2, textTransform: 'uppercase' }}>Set a quest · admin</Text>
+              <Pressable onPress={() => setShowForm(false)} hitSlop={10}><Text style={{ fontWeight: F.sansMed, fontSize: 13, color: C.ink3 }}>Close</Text></Pressable>
             </View>
             <AdminField label="Date" value={aDate} onChangeText={setADate} placeholder="2026-06-25" autoCapitalize="none" />
             <View style={{ height: 12 }} />
             <AdminField label="Quest" value={aTitle} onChangeText={setATitle} placeholder="Say hi to one new neighbor." />
             <View style={{ height: 12 }} />
             <AdminField label="Note (optional)" value={aDesc} onChangeText={setADesc} placeholder="A wave on the trail counts." multiline />
-            {aMsg && <Text style={{ fontFamily: F.sans, fontSize: 13, color: aMsg.startsWith('Quest saved') ? C.moss700 : C.clay700, marginTop: 12 }}>{aMsg}</Text>}
+            {aMsg && <Text style={{ fontWeight: F.sans, fontSize: 13, color: aMsg.startsWith('Quest saved') ? C.moss700 : C.clay700, marginTop: 12 }}>{aMsg}</Text>}
             <Pressable onPress={saveQuest} disabled={aSaving}
               style={({ pressed }) => ({ marginTop: 14, paddingVertical: 12, borderRadius: 12, backgroundColor: aSaving ? C.paper200 : C.ink, alignItems: 'center', opacity: pressed ? 0.85 : 1 })}>
-              <Text style={{ fontFamily: F.sansSemi, fontSize: 14, color: aSaving ? C.ink3 : C.paper }}>{aSaving ? 'Saving…' : 'Save quest'}</Text>
+              <Text style={{ fontWeight: F.sansSemi, fontSize: 14, color: aSaving ? C.ink3 : C.paper }}>{aSaving ? 'Saving…' : 'Save quest'}</Text>
             </Pressable>
           </View>
         ) : (
           <Pressable onPress={() => setShowForm(true)} style={({ pressed }) => ({ alignSelf: 'flex-start', marginTop: 12, opacity: pressed ? 0.6 : 1 })}>
-            <Text style={{ fontFamily: F.sansMed, fontSize: 13, color: C.ink3 }}>Set today's quest · admin</Text>
+            <Text style={{ fontWeight: F.sansMed, fontSize: 13, color: C.ink3 }}>Set today's quest · admin</Text>
           </Pressable>
         )
       )}
@@ -160,11 +160,11 @@ export function QuestSection() {
 function AdminField({ label, multiline, ...props }: { label: string; multiline?: boolean } & React.ComponentProps<typeof TextInput>) {
   return (
     <View>
-      <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 6 }}>{label}</Text>
+      <Text style={{ fontWeight: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 6 }}>{label}</Text>
       <TextInput
         placeholderTextColor={C.ink3}
         multiline={multiline}
-        style={{ minHeight: multiline ? 72 : 46, borderRadius: 8, paddingHorizontal: 13, paddingTop: multiline ? 11 : 0, backgroundColor: C.paper, borderWidth: 1, borderColor: HAIRLINE, fontFamily: F.sans, fontSize: 15, color: C.ink, textAlignVertical: multiline ? 'top' : 'center' }}
+        style={{ minHeight: multiline ? 72 : 46, borderRadius: 8, paddingHorizontal: 13, paddingTop: multiline ? 11 : 0, backgroundColor: C.paper, borderWidth: 1, borderColor: HAIRLINE, fontWeight: F.sans, fontSize: 15, color: C.ink, textAlignVertical: multiline ? 'top' : 'center' }}
         {...props}
       />
     </View>

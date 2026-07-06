@@ -8,11 +8,13 @@ import Animated, {
   useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming,
 } from 'react-native-reanimated'
 import { useRouter } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { TimelineEvent, Trail } from '@hygge/core'
 import { api } from '../lib/api'
 import { venueCoords } from '../lib/geo'
 import { isLiveNow } from '../lib/time'
 import { C, F, GRAPH, HAIRLINE, CARD_SHADOW } from '../theme'
+import { ScreenBadge } from './ScreenBadge'
 import { PlusIcon, PinIcon, TrailIcon, EventIcon, CloseIcon } from './icons'
 
 // St. Joseph, MN
@@ -49,6 +51,8 @@ async function geocode(locationStr: string | null): Promise<{ lat: number; lng: 
 
 export function TownMap() {
   const router = useRouter()
+  const reduce = useReducedMotion()
+  const insets = useSafeAreaInsets()
   const mapRef = useRef<MapView>(null)
   const [events, setEvents] = useState<PinnedEvent[]>([])
   const [trails, setTrails] = useState<PinnedTrail[]>([])
@@ -140,11 +144,14 @@ export function TownMap() {
         ))}
       </MapView>
 
-      {/* Top badge — today's count */}
+      {/* Brand mark — pinned top-right, identical across every screen */}
+      <ScreenBadge />
+
+      {/* Top pill — today's count (top-left, aligned to the badge's safe inset) */}
       <Animated.View
-        entering={FadeInUp.delay(200).duration(300)}
+        entering={reduce ? undefined : FadeInUp.delay(200).duration(300)}
         style={{
-          position: 'absolute', top: 60, left: 16,
+          position: 'absolute', top: insets.top + 8, left: 16,
           backgroundColor: 'rgba(255,255,255,0.92)',
           borderRadius: 20, paddingVertical: 8, paddingHorizontal: 14,
           borderWidth: 1, borderColor: HAIRLINE,
@@ -159,7 +166,7 @@ export function TownMap() {
               <>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
                   <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: GRAPH.amber }} />
-                  <Text style={{ fontFamily: F.sansSemi, fontSize: 13, color: C.ink }}>
+                  <Text style={{ fontWeight: F.sansSemi, fontSize: 13, color: C.ink }}>
                     {liveCount} now
                   </Text>
                 </View>
@@ -168,7 +175,7 @@ export function TownMap() {
             )}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
               <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: C.ink3 }} />
-              <Text style={{ fontFamily: F.sansSemi, fontSize: 13, color: C.ink }}>
+              <Text style={{ fontWeight: F.sansSemi, fontSize: 13, color: C.ink }}>
                 {events.length} today
               </Text>
             </View>
@@ -177,7 +184,7 @@ export function TownMap() {
                 <View style={{ width: 1, height: 12, backgroundColor: HAIRLINE }} />
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
                   <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: C.ink3 }} />
-                  <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.ink2 }}>
+                  <Text style={{ fontWeight: F.sans, fontSize: 13, color: C.ink2 }}>
                     {trails.length} trails
                   </Text>
                 </View>
@@ -187,10 +194,10 @@ export function TownMap() {
         )}
       </Animated.View>
 
-      {/* Floating + button — opens add flow */}
+      {/* Floating + button — opens add flow. Sits just under the brand mark. */}
       <Animated.View
-        entering={FadeInUp.delay(300).duration(300)}
-        style={{ position: 'absolute', top: 56, right: 16 }}
+        entering={reduce ? undefined : FadeInUp.delay(300).duration(300)}
+        style={{ position: 'absolute', top: insets.top + 46, right: 16 }}
       >
         <Pressable
           onPress={() => { Haptics.selectionAsync(); router.push('/(tabs)/add') }}
@@ -208,8 +215,8 @@ export function TownMap() {
       {/* Bottom detail card */}
       {selected && (
         <Animated.View
-          entering={SlideInDown.duration(320).springify().damping(18)}
-          exiting={SlideOutDown.duration(200)}
+          entering={reduce ? undefined : SlideInDown.duration(320).springify().damping(18)}
+          exiting={reduce ? undefined : SlideOutDown.duration(200)}
           style={{
             position: 'absolute', left: 16, right: 16, bottom: 110,
             backgroundColor: C.paper, borderRadius: 20,
@@ -219,9 +226,12 @@ export function TownMap() {
         >
           <Pressable
             onPress={() => setSelected(null)}
-            style={{ position: 'absolute', top: 14, right: 14, padding: 4 }}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+            style={({ pressed }) => ({ position: 'absolute', top: 12, right: 12, width: 30, height: 30, borderRadius: 15, backgroundColor: C.paper100, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}
           >
-            <CloseIcon size={16} color={C.ink3} />
+            <CloseIcon size={16} color={C.ink2} />
           </Pressable>
 
           {selected.kind === 'event' && (
@@ -282,23 +292,23 @@ function EventCard({ event }: { event: PinnedEvent }) {
     <View style={{ gap: 6, paddingRight: 24 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
         <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: live ? GRAPH.amber : C.ink3 }} />
-        <Text style={{ fontFamily: F.mono, fontSize: 10, color: live ? C.ink : C.ink3, letterSpacing: 1.2, textTransform: 'uppercase' }}>
+        <Text style={{ fontWeight: F.mono, fontSize: 10, color: live ? C.ink : C.ink3, letterSpacing: 1.2, textTransform: 'uppercase' }}>
           {live ? 'Happening now' : 'Today'}{event.start_time ? ` · ${event.start_time}` : ''}
         </Text>
       </View>
-      <Text style={{ fontFamily: F.sansBold, fontSize: 18, color: C.ink, letterSpacing: -0.3 }}>{event.title}</Text>
+      <Text style={{ fontWeight: F.sansBold, fontSize: 18, color: C.ink, letterSpacing: -0.3 }}>{event.title}</Text>
       {event.location && (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }}>
           <PinIcon size={12} color={C.sky600} />
-          <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.sky600 }}>{event.location}</Text>
+          <Text style={{ fontWeight: F.sans, fontSize: 13, color: C.sky600 }}>{event.location}</Text>
         </View>
       )}
       {event.club_name && (
-        <Text style={{ fontFamily: F.sansMed, fontSize: 12, color: C.ink3, marginTop: 2 }}>
+        <Text style={{ fontWeight: F.sansMed, fontSize: 12, color: C.ink3, marginTop: 2 }}>
           {event.club_name}
         </Text>
       )}
-      <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.ink2, marginTop: 4 }}>
+      <Text style={{ fontWeight: F.mono, fontSize: 12, color: C.ink2, marginTop: 4 }}>
         {event.going_count} going
       </Text>
     </View>
@@ -311,22 +321,22 @@ function TrailCard({ trail }: { trail: PinnedTrail }) {
     <View style={{ gap: 6, paddingRight: 24 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
         <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: C.ink3 }} />
-        <Text style={{ fontFamily: F.mono, fontSize: 10, color: C.ink3, letterSpacing: 1.2, textTransform: 'uppercase' }}>
+        <Text style={{ fontWeight: F.mono, fontSize: 10, color: C.ink3, letterSpacing: 1.2, textTransform: 'uppercase' }}>
           Trail
         </Text>
       </View>
-      <Text style={{ fontFamily: F.sansBold, fontSize: 18, color: C.ink, letterSpacing: -0.3 }}>{trail.title}</Text>
+      <Text style={{ fontWeight: F.sansBold, fontSize: 18, color: C.ink, letterSpacing: -0.3 }}>{trail.title}</Text>
       {trail.location && (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }}>
           <PinIcon size={12} color={C.sky600} />
-          <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.sky600 }}>{trail.location}</Text>
+          <Text style={{ fontWeight: F.sans, fontSize: 13, color: C.sky600 }}>{trail.location}</Text>
         </View>
       )}
       {meta ? (
-        <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.ink2, marginTop: 2 }}>{meta}</Text>
+        <Text style={{ fontWeight: F.mono, fontSize: 12, color: C.ink2, marginTop: 2 }}>{meta}</Text>
       ) : null}
       {trail.description && (
-        <Text numberOfLines={2} style={{ fontFamily: F.sans, fontSize: 13, color: C.ink2, lineHeight: 18, marginTop: 4 }}>
+        <Text numberOfLines={2} style={{ fontWeight: F.sans, fontSize: 13, color: C.ink2, lineHeight: 18, marginTop: 4 }}>
           {trail.description}
         </Text>
       )}

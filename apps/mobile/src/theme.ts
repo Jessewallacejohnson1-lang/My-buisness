@@ -63,16 +63,23 @@ export const CARD_SHADOW = {
   elevation: 4,
 } as const
 
-// Font family names — must match the keys registered in _layout.tsx useFonts().
+// Type weights for the platform system font (SF Pro on iOS, Roboto on Android).
+// The app ships no bundled UI font — the only custom face is the logo (see
+// HyggeLogoBadge). The system font carries every weight natively, so hierarchy is
+// expressed through `fontWeight`; RN renders the real weight (no synthetic
+// bolding). Consumed as `fontWeight: F.sansSemi`, so existing ternaries like
+// `fontWeight: on ? F.sansSemi : F.sansMed` keep working unchanged. The
+// display/mono keys are kept as readable aliases even though one system family
+// now sits underneath them all.
 export const F = {
-  display: 'InterBold',
-  displaySemi: 'InterSemi',
-  sans: 'Inter',
-  sansMed: 'InterMed',
-  sansSemi: 'InterSemi',
-  sansBold: 'InterBold',
-  mono: 'GeistMono',
-  monoMed: 'GeistMonoMed',
+  display: '700',
+  displaySemi: '600',
+  sans: '400',
+  sansMed: '500',
+  sansSemi: '600',
+  sansBold: '700',
+  mono: '400',
+  monoMed: '500',
 } as const
 
 // Real-photo weather backdrops, bundled as assets.

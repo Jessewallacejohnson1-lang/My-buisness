@@ -7,11 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
 import * as SplashScreen from 'expo-splash-screen'
 import { useFonts } from 'expo-font'
-import {
-  Inter_400Regular, Inter_500Medium,
-  Inter_600SemiBold, Inter_700Bold,
-} from '@expo-google-fonts/inter'
-import { GeistMono_400Regular, GeistMono_500Medium } from '@expo-google-fonts/geist-mono'
+import { AtkinsonHyperlegible_700Bold } from '@expo-google-fonts/atkinson-hyperlegible'
 
 import { AuthProvider, useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
@@ -62,14 +58,10 @@ function RootNav() {
 }
 
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({
-    Inter: Inter_400Regular,
-    InterMed: Inter_500Medium,
-    InterSemi: Inter_600SemiBold,
-    InterBold: Inter_700Bold,
-    GeistMono: GeistMono_400Regular,
-    GeistMonoMed: GeistMono_500Medium,
-  })
+  // The app's only bundled font is the logo face (see HyggeLogoBadge). Every
+  // other surface uses the platform system font (SF Pro / Roboto), so nothing
+  // else needs loading here.
+  const [fontsLoaded] = useFonts({ AtkinsonHyperlegible_700Bold })
 
   useEffect(() => {
     if (fontsLoaded) SplashScreen.hideAsync()

@@ -33,7 +33,7 @@ export function WeekStrip({
               transform: [{ scale: pressed ? 0.94 : 1 }],
             })}
           >
-            <Text style={{ fontFamily: F.sansMed, fontSize: 12, color: isSel ? C.ink : C.ink3, letterSpacing: 0.4 }}>
+            <Text style={{ fontWeight: F.sansMed, fontSize: 12, color: isSel ? C.ink : C.ink3, letterSpacing: 0.4 }}>
               {d.letter}
             </Text>
             <View style={{
@@ -43,7 +43,7 @@ export function WeekStrip({
               borderColor: filled ? 'transparent' : ringColor === 'transparent' ? 'rgba(0,0,0,0.05)' : ringColor,
               ...(filled ? {} : CARD_SHADOW),
             }}>
-              <Text style={{ fontFamily: F.monoMed, fontSize: 15, color: filled ? C.paper : C.ink, letterSpacing: -0.2 }}>
+              <Text style={{ fontWeight: F.monoMed, fontSize: 15, color: filled ? C.paper : C.ink, letterSpacing: -0.2 }}>
                 {d.day}
               </Text>
             </View>

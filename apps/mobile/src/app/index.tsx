@@ -68,11 +68,11 @@ export default function Landing() {
         <View style={{ height: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
             <MapPin size={15} />
-            <Text style={{ fontFamily: F.displaySemi, fontSize: 17, color: C.ink, letterSpacing: 0.5 }}>Hygge</Text>
-            <Text style={{ fontFamily: F.sans, fontSize: 12, color: C.ink3, marginLeft: 2 }}>· St. Joseph, MN</Text>
+            <Text style={{ fontWeight: F.displaySemi, fontSize: 17, color: C.ink, letterSpacing: 0.5 }}>Hygge</Text>
+            <Text style={{ fontWeight: F.sans, fontSize: 12, color: C.ink3, marginLeft: 2 }}>· St. Joseph, MN</Text>
           </View>
           <Pressable onPress={go} style={({ pressed }) => ({ backgroundColor: C.moss700, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, opacity: pressed ? 0.85 : 1 })}>
-            <Text style={{ fontFamily: F.sansSemi, fontSize: 13, color: C.paper }}>{ctaLabel}</Text>
+            <Text style={{ fontWeight: F.sansSemi, fontSize: 13, color: C.paper }}>{ctaLabel}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -84,42 +84,42 @@ export default function Landing() {
           <View style={{ paddingTop: 44, paddingBottom: 12 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 18 }}>
               <MapPin size={12} color={C.ink2} />
-              <Text style={{ fontFamily: F.sansMed, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: C.ink2 }}>Saint Joseph, Minnesota</Text>
+              <Text style={{ fontWeight: F.sansMed, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: C.ink2 }}>Saint Joseph, Minnesota</Text>
             </View>
-            <Text style={{ fontFamily: F.display, fontSize: 52, lineHeight: 54, color: C.ink, letterSpacing: -1 }}>Your town,{'\n'}every day.</Text>
-            <Text style={{ fontFamily: F.sans, fontSize: 17, lineHeight: 26, color: C.ink2, marginTop: 20 }}>
+            <Text style={{ fontWeight: F.display, fontSize: 52, lineHeight: 54, color: C.ink, letterSpacing: -1 }}>Your town,{'\n'}every day.</Text>
+            <Text style={{ fontWeight: F.sans, fontSize: 17, lineHeight: 26, color: C.ink2, marginTop: 20 }}>
               Hygge is a quiet place to see what's happening in St. Joe, join a neighbor for a walk, and make the place you live feel a little smaller.
             </Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 18, marginTop: 26 }}>
               <Pressable onPress={go} style={({ pressed }) => ({ backgroundColor: C.moss700, paddingHorizontal: 26, paddingVertical: 14, borderRadius: 9, opacity: pressed ? 0.85 : 1 })}>
-                <Text style={{ fontFamily: F.sansSemi, fontSize: 14, color: C.paper }}>{ctaLabel}</Text>
+                <Text style={{ fontWeight: F.sansSemi, fontSize: 14, color: C.paper }}>{ctaLabel}</Text>
               </Pressable>
               {!session && (
                 <Pressable onPress={() => router.push('/login')}>
-                  <Text style={{ fontFamily: F.sans, fontSize: 14, color: C.ink2 }}>Sign in</Text>
+                  <Text style={{ fontWeight: F.sans, fontSize: 14, color: C.ink2 }}>Sign in</Text>
                 </Pressable>
               )}
             </View>
-            <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.ink3, marginTop: 18 }}>
-              <Text style={{ fontFamily: F.mono }}>$2</Text> / month — less than a cup of coffee at Covenant Cup.
+            <Text style={{ fontWeight: F.sans, fontSize: 13, color: C.ink3, marginTop: 18 }}>
+              <Text style={{ fontWeight: F.mono }}>$2</Text> / month — less than a cup of coffee at Covenant Cup.
             </Text>
           </View>
 
           {/* event card stack */}
           <View style={{ paddingTop: 28 }}>
-            <Text style={{ fontFamily: F.sansMed, fontSize: 11, letterSpacing: 1.8, textTransform: 'uppercase', color: C.ink3, marginBottom: 12 }}>Coming up in St. Joe</Text>
+            <Text style={{ fontWeight: F.sansMed, fontSize: 11, letterSpacing: 1.8, textTransform: 'uppercase', color: C.ink3, marginBottom: 12 }}>Coming up in St. Joe</Text>
             <View style={{ gap: 10 }}>
               {EVENTS.map((e) => (
                 <View key={e.title} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 14, backgroundColor: C.paper, borderWidth: 1, borderColor: HAIRLINE, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 13 }}>
                   <View style={{ width: 40, alignItems: 'center', paddingTop: 2 }}>
-                    <Text style={{ fontFamily: F.sans, fontSize: 10, letterSpacing: 0.6, textTransform: 'uppercase', color: C.ink3 }}>{e.weekday}</Text>
-                    <Text style={{ fontFamily: F.mono, fontSize: 20, color: C.ink, lineHeight: 24 }}>{e.date}</Text>
-                    <Text style={{ fontFamily: F.sans, fontSize: 10, color: C.ink3 }}>{e.month}</Text>
+                    <Text style={{ fontWeight: F.sans, fontSize: 10, letterSpacing: 0.6, textTransform: 'uppercase', color: C.ink3 }}>{e.weekday}</Text>
+                    <Text style={{ fontWeight: F.mono, fontSize: 20, color: C.ink, lineHeight: 24 }}>{e.date}</Text>
+                    <Text style={{ fontWeight: F.sans, fontSize: 10, color: C.ink3 }}>{e.month}</Text>
                   </View>
                   <View style={{ width: 1, alignSelf: 'stretch', backgroundColor: HAIRLINE, marginTop: 2 }} />
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontFamily: F.sans, fontSize: 14, color: C.ink, lineHeight: 19 }}>{e.title}</Text>
-                    <Text style={{ fontFamily: F.sans, fontSize: 12, color: C.ink2, marginTop: 2 }}>{e.where}</Text>
+                    <Text style={{ fontWeight: F.sans, fontSize: 14, color: C.ink, lineHeight: 19 }}>{e.title}</Text>
+                    <Text style={{ fontWeight: F.sans, fontSize: 12, color: C.ink2, marginTop: 2 }}>{e.where}</Text>
                   </View>
                 </View>
               ))}
@@ -128,34 +128,34 @@ export default function Landing() {
 
           {/* three pillars */}
           <View style={{ paddingTop: 48 }}>
-            <Text style={{ fontFamily: F.sansMed, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: C.ink3, marginBottom: 8 }}>What Hygge does</Text>
+            <Text style={{ fontWeight: F.sansMed, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: C.ink3, marginBottom: 8 }}>What Hygge does</Text>
             {PILLARS.map(({ Icon, label, body }) => (
               <View key={label} style={{ paddingVertical: 26, borderTopWidth: 1, borderTopColor: HAIRLINE }}>
                 <View style={{ marginBottom: 14 }}><Icon size={22} /></View>
-                <Text style={{ fontFamily: F.displaySemi, fontSize: 24, color: C.ink, letterSpacing: -0.3, marginBottom: 10 }}>{label}</Text>
-                <Text style={{ fontFamily: F.sans, fontSize: 14, lineHeight: 22, color: C.ink2 }}>{body}</Text>
+                <Text style={{ fontWeight: F.displaySemi, fontSize: 24, color: C.ink, letterSpacing: -0.3, marginBottom: 10 }}>{label}</Text>
+                <Text style={{ fontWeight: F.sans, fontSize: 14, lineHeight: 22, color: C.ink2 }}>{body}</Text>
               </View>
             ))}
           </View>
 
           {/* daily quest */}
           <View style={{ paddingTop: 38 }}>
-            <Text style={{ fontFamily: F.sansMed, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: C.ink3, marginBottom: 16 }}>The daily quest</Text>
-            <Text style={{ fontFamily: F.display, fontSize: 30, lineHeight: 38, color: C.ink, letterSpacing: -0.5, marginBottom: 16 }}>A small reason{'\n'}to step outside.</Text>
-            <Text style={{ fontFamily: F.sans, fontSize: 14, lineHeight: 22, color: C.ink2, marginBottom: 24 }}>
+            <Text style={{ fontWeight: F.sansMed, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: C.ink3, marginBottom: 16 }}>The daily quest</Text>
+            <Text style={{ fontWeight: F.display, fontSize: 30, lineHeight: 38, color: C.ink, letterSpacing: -0.5, marginBottom: 16 }}>A small reason{'\n'}to step outside.</Text>
+            <Text style={{ fontWeight: F.sans, fontSize: 14, lineHeight: 22, color: C.ink2, marginBottom: 24 }}>
               Each morning, Hygge offers a single, quiet prompt — a short walk, a wave to someone at the trail, a stop at the market. You mark it done when you're back. That's the whole thing.
             </Text>
             <View style={{ backgroundColor: C.paper, borderWidth: 1, borderColor: HAIRLINE, borderRadius: 18, padding: 24 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 22 }}>
-                <Text style={{ fontFamily: F.sansMed, fontSize: 11, letterSpacing: 1.6, textTransform: 'uppercase', color: C.ink3 }}>Today's quest</Text>
-                <Text style={{ fontFamily: F.sans, fontSize: 11, color: C.ink3 }}>For example</Text>
+                <Text style={{ fontWeight: F.sansMed, fontSize: 11, letterSpacing: 1.6, textTransform: 'uppercase', color: C.ink3 }}>Today's quest</Text>
+                <Text style={{ fontWeight: F.sans, fontSize: 11, color: C.ink3 }}>For example</Text>
               </View>
-              <Text style={{ fontFamily: F.display, fontSize: 23, lineHeight: 30, fontStyle: 'italic', color: C.ink, letterSpacing: -0.3, marginBottom: 26 }}>
+              <Text style={{ fontWeight: F.display, fontSize: 23, lineHeight: 30, fontStyle: 'italic', color: C.ink, letterSpacing: -0.3, marginBottom: 26 }}>
                 Walk to the trailhead before 9 in the morning.
               </Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.paper100, paddingVertical: 12, borderRadius: 9 }}>
                 <View style={{ width: 16, height: 16, borderRadius: 8, borderWidth: 1.5, borderColor: C.ink3 }} />
-                <Text style={{ fontFamily: F.sansSemi, fontSize: 14, color: C.ink3 }}>Mark as done</Text>
+                <Text style={{ fontWeight: F.sansSemi, fontSize: 14, color: C.ink3 }}>Mark as done</Text>
               </View>
             </View>
           </View>
@@ -166,27 +166,27 @@ export default function Landing() {
           <View style={{ width: '100%', maxWidth: MAXW, alignSelf: 'center', paddingHorizontal: 22 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 26, opacity: 0.6 }}>
               <MapPin size={14} color={C.paper} />
-              <Text style={{ fontFamily: F.displaySemi, fontSize: 14, color: C.paper, letterSpacing: 0.5 }}>Hygge</Text>
+              <Text style={{ fontWeight: F.displaySemi, fontSize: 14, color: C.paper, letterSpacing: 0.5 }}>Hygge</Text>
             </View>
-            <Text style={{ fontFamily: F.display, fontSize: 25, lineHeight: 34, fontStyle: 'italic', color: C.paper, letterSpacing: -0.3, marginBottom: 22 }}>
+            <Text style={{ fontWeight: F.display, fontSize: 25, lineHeight: 34, fontStyle: 'italic', color: C.paper, letterSpacing: -0.3, marginBottom: 22 }}>
               "I built Hygge because none of the apps I tried felt like they were made for anyone on my actual street."
             </Text>
-            <Text style={{ fontFamily: F.sans, fontSize: 14, color: 'rgba(251,250,245,0.5)' }}>— Jesse, Saint Joseph, Minnesota</Text>
+            <Text style={{ fontWeight: F.sans, fontSize: 14, color: 'rgba(251,250,245,0.5)' }}>— Jesse, Saint Joseph, Minnesota</Text>
           </View>
         </View>
 
         {/* final cta */}
         <View style={{ width: '100%', maxWidth: MAXW, alignSelf: 'center', paddingHorizontal: 22, paddingTop: 52, alignItems: 'center' }}>
-          <Text style={{ fontFamily: F.sansMed, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: C.ink3, marginBottom: 16 }}>Join St. Joe</Text>
-          <Text style={{ fontFamily: F.display, fontSize: 30, lineHeight: 36, color: C.ink, letterSpacing: -0.5, textAlign: 'center', marginBottom: 14 }}>See what's happening{'\n'}in your town.</Text>
-          <Text style={{ fontFamily: F.sans, fontSize: 14, lineHeight: 22, color: C.ink2, textAlign: 'center', marginBottom: 26 }}>
+          <Text style={{ fontWeight: F.sansMed, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: C.ink3, marginBottom: 16 }}>Join St. Joe</Text>
+          <Text style={{ fontWeight: F.display, fontSize: 30, lineHeight: 36, color: C.ink, letterSpacing: -0.5, textAlign: 'center', marginBottom: 14 }}>See what's happening{'\n'}in your town.</Text>
+          <Text style={{ fontWeight: F.sans, fontSize: 14, lineHeight: 22, color: C.ink2, textAlign: 'center', marginBottom: 26 }}>
             Hygge is built for the people on your street — no global leaderboard, no feed to scroll. Just your town.
           </Text>
           <Pressable onPress={go} style={({ pressed }) => ({ backgroundColor: C.moss700, paddingHorizontal: 36, paddingVertical: 16, borderRadius: 9, opacity: pressed ? 0.85 : 1 })}>
-            <Text style={{ fontFamily: F.sansSemi, fontSize: 15, color: C.paper }}>{ctaLabel}</Text>
+            <Text style={{ fontWeight: F.sansSemi, fontSize: 15, color: C.paper }}>{ctaLabel}</Text>
           </Pressable>
-          <Text style={{ fontFamily: F.sans, fontSize: 12, color: C.ink3, marginTop: 14 }}>
-            <Text style={{ fontFamily: F.mono }}>$2</Text> / month. Cancel any time.
+          <Text style={{ fontWeight: F.sans, fontSize: 12, color: C.ink3, marginTop: 14 }}>
+            <Text style={{ fontWeight: F.mono }}>$2</Text> / month. Cancel any time.
           </Text>
         </View>
 
@@ -194,9 +194,9 @@ export default function Landing() {
         <View style={{ width: '100%', maxWidth: MAXW, alignSelf: 'center', paddingHorizontal: 22, paddingTop: 40, marginTop: 36, borderTopWidth: 1, borderTopColor: HAIRLINE, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
             <MapPin size={14} />
-            <Text style={{ fontFamily: F.displaySemi, fontSize: 14, color: C.ink, letterSpacing: 0.5 }}>Hygge</Text>
+            <Text style={{ fontWeight: F.displaySemi, fontSize: 14, color: C.ink, letterSpacing: 0.5 }}>Hygge</Text>
           </View>
-          <Text style={{ fontFamily: F.mono, fontSize: 11, color: C.ink3 }}>© 2026 Hygge · St. Joseph, MN</Text>
+          <Text style={{ fontWeight: F.mono, fontSize: 11, color: C.ink3 }}>© 2026 Hygge · St. Joseph, MN</Text>
         </View>
       </ScrollView>
     </View>

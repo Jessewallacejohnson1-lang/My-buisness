@@ -13,6 +13,7 @@ import { TodayBar } from '../../components/TodayBar'
 import { DayTimeline, type TimelineRow } from '../../components/DayTimeline'
 import { AroundTown } from '../../components/AroundTown'
 import { QuestSection } from '../../components/QuestSection'
+import { ScreenBadge } from '../../components/ScreenBadge'
 import { C, F, HAIRLINE, CARD_SHADOW } from '../../theme'
 
 // The page-load entrance plays once a session — returning to Home shouldn't
@@ -102,6 +103,7 @@ export default function Home() {
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: C.canvas }}>
+      <ScreenBadge />
       <ScrollView
         contentContainerStyle={{ paddingBottom: 120 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.ink3} />}
@@ -110,7 +112,7 @@ export default function Home() {
           name={name}
           onSignOut={signOut}
           searchOpen={searchOpen}
-          onToggleSearch={() => { Haptics.selectionAsync(); setSearchOpen((o) => !o) }}
+          onToggleSearch={() => { Haptics.selectionAsync(); setQuery(''); setSearchOpen((o) => !o) }}
           enter={enter}
         />
 
@@ -122,7 +124,7 @@ export default function Home() {
               onChangeText={setQuery}
               placeholder="Search events…"
               placeholderTextColor={C.ink2}
-              style={{ height: 46, borderRadius: 12, paddingHorizontal: 13, backgroundColor: C.paper, fontFamily: F.sans, fontSize: 15, color: C.ink, borderWidth: 1, borderColor: HAIRLINE, ...CARD_SHADOW }}
+              style={{ height: 46, borderRadius: 12, paddingHorizontal: 13, backgroundColor: C.paper, fontWeight: F.sans, fontSize: 15, color: C.ink, borderWidth: 1, borderColor: HAIRLINE, ...CARD_SHADOW }}
             />
           </View>
         )}

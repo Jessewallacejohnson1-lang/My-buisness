@@ -41,7 +41,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
             >
               <View style={{ alignItems: 'center', gap: 3, paddingVertical: 6, paddingHorizontal: 6, borderRadius: 14, backgroundColor: focused ? 'rgba(0,0,0,0.06)' : 'transparent' }}>
                 <TabIcon id={icon} active={focused} />
-                <Text style={{ fontFamily: focused ? F.sansSemi : F.sans, fontSize: 10, letterSpacing: 0.4, color: focused ? C.moss700 : C.ink3 }}>
+                <Text style={{ fontWeight: focused ? F.sansSemi : F.sans, fontSize: 10, letterSpacing: 0.4, color: focused ? C.moss700 : C.ink3 }}>
                   {label}
                 </Text>
               </View>

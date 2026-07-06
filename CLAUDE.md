@@ -40,7 +40,7 @@ The whole app is the **St. Joe community experience** (`/community`). Its core j
 
 **On-brand bar — reject a change if it:** feels like a corporate app (notification-spam, growth-hacky, badges/streaks/feeds/follower-counts, performative posting) **or** is too busy / not calm. Keep it warm, quiet, neighborly, hyper-local. Honesty over fake social proof — real counts only, never seeded/inflated numbers. Voice is a neighbor ("— Jesse"), not a brand.
 
-**Design default:** for any new or reshaped UI, invoke a design skill (`frontend-design` / `ui-ux-pro-max`, both installed at project level) rather than hand-rolling defaults, so output stays consistent with the warm-minimal system below. **Build on the Hygge-tuned [react-native-reusables](https://github.com/founded-labs/react-native-reusables) primitives in `apps/mobile/src/components/ui/`** (Button, Card, Input, Textarea, Label, Badge, Switch, Avatar, Separator, Skeleton, Text) as the base component layer — they map shadcn's variant API onto Hygge tokens. Pull more on demand: `cd apps/mobile && npx @react-native-reusables/cli@latest add <name>` (the RN registry is aliased `@rnr` in `components.json`); the **shadcn MCP** (`.mcp.json`, active after a Claude restart) browses component patterns for reference. **Type rule for these components:** RN has no synthetic bolding, so weight comes from the *family* class — use `font-sans` / `font-sans-medium` / `font-sans-semibold` / `font-sans-bold` / `font-display` / `font-display-semi` / `font-mono`, never the numeric `font-medium`/`font-semibold`/`font-bold` utilities (they silently fall back to the regular weight on native).
+**Design default:** for any new or reshaped UI, invoke a design skill (`frontend-design` / `ui-ux-pro-max`, both installed at project level) rather than hand-rolling defaults, so output stays consistent with the warm-minimal system below. **Build on the Hygge-tuned [react-native-reusables](https://github.com/founded-labs/react-native-reusables) primitives in `apps/mobile/src/components/ui/`** (Button, Card, Input, Textarea, Label, Badge, Switch, Avatar, Separator, Skeleton, Text) as the base component layer — they map shadcn's variant API onto Hygge tokens. Pull more on demand: `cd apps/mobile && npx @react-native-reusables/cli@latest add <name>` (the RN registry is aliased `@rnr` in `components.json`); the **shadcn MCP** (`.mcp.json`, active after a Claude restart) browses component patterns for reference. **Type rule for these components:** text is the **platform system font** (no bundled UI font), which carries every weight, so express weight with the **numeric** utilities `font-medium` / `font-semibold` / `font-bold` (RN renders them natively). The **only** custom face is the logo — Atkinson Hyperlegible, used solely inside `HyggeLogoBadge` (`src/components/HyggeLogoBadge.tsx`), placed top-right on every screen via `<ScreenBadge />`. Never add a `fontFamily`/bundled font elsewhere. (History: the repo once bundled single-weight Inter/Geist, which *forced* family-per-weight classes like `font-sans-semibold`; the `community-rebuild` system-font pass deleted them — don't reintroduce them.)
 
 **Done means verified:** work isn't done until it's confirmed in the running app via the preview tools, matches the design tokens, and clears the on-brand bar — not just written. See `.claude/TOOLKIT.md` for which tool to reach for, and the project memory (`product-vision`, `target-user`, `on-brand-bar`, `definition-of-done`) for the full intent.
 
@@ -222,8 +222,21 @@ the CLI; primitives live in **`src/components/ui/`** (`button`, `card`, `input`,
 
 - **Build new UI on these primitives**, not hand-rolled `View`/`Text`. Add more via the
   react-native-reusables registry (the `@rnr` source in `components.json`).
+- **Any bottom sheet/day-sheet/detail sheet uses `components/ui/bottom-sheet.tsx`
+  (`<BottomSheet open onClose title? maxHeight>`), never a hand-rolled `Modal`.** It
+  guarantees three independent exits so no input method (touch, mouse/web, reduced-motion)
+  is ever stranded: a **visible close chip** (`CloseIcon` `color={C.ink2}` in a `paper100`
+  circle — never the bare `C.ink3` default, which is near-invisible), **backdrop tap**, and
+  real **swipe-down on the handle** (`Gesture.Pan`). The primitive owns its motion
+  (spring in / ease-out) and honors `useReducedMotion`. **A grab handle must be wired to a
+  gesture** — a decorative handle that implies swipe-to-dismiss but does nothing is a
+  "lying affordance" and the #1 cause of "I'm stuck." Gestures inside a RN `Modal` need a
+  nested `GestureHandlerRootView` (the primitive includes one). Non-sheet overlays
+  (`ExpandedWeek` pinch-zoom, `TownMap` card, `AccountMenu` popover) can't adopt it but
+  follow the same rule: a visible `ink2` close + a tap/drag exit that works with a mouse,
+  never gesture-only (pinch/swipe don't exist on the web build).
 - **Path aliases:** `@/*` → `src/*`, `@/assets/*` → `assets/*` (so `@/components/ui`, `@/lib/utils`).
-- **Use font-family classes** (`font-display`/`font-sans`/`font-mono`), **not numeric weights**.
+- **Use numeric weight utilities** (`font-medium`/`font-semibold`/`font-bold`) on the **system font** — no bundled UI font. The one custom face is the logo (Atkinson) in `HyggeLogoBadge`, placed via `<ScreenBadge />`.
 - **`src/data/places.ts`** — curated, real St. Joseph places (the single source of truth for
   `AroundTown` + `/place/[slug]`). Static **content** (names, taglines, photos) is intentional
   and allowed; **counts are never invented here** — any number shown comes from real event data.
@@ -272,13 +285,21 @@ Named for *hygge* (Danish, pron. "hoo-guh"): coziness, warmth, togetherness. War
 | `honey-*` | Warmth / energy (use sparingly) |
 | `clay-*` (`clay-700`) | Warning / error only |
 
-### Typography — strict roles, never swapped
+### Typography — one system font, weight is the only lever
 
-| Role | Font | Token | Use |
+The app ships **no bundled UI font**. Every surface is the **platform system font**
+(SF Pro on iOS, Roboto on Android), which carries all weights, so hierarchy comes
+from `fontWeight` — the numeric utilities `font-medium`/`font-semibold`/`font-bold`
+(NativeWind), or `fontWeight: F.sansSemi` etc. inline (the `F` tokens in `theme.ts`
+are now **weight strings**, applied as `fontWeight`, not `fontFamily`). The **one**
+custom face is the logo, and it lives in exactly one place.
+
+| Role | Font | How | Use |
 |---|---|---|---|
-| Display | Spectral | `font-display` | Wordmark, H1s, marketing hero |
-| UI | Schibsted Grotesk | `font-sans` | All labels, body, buttons |
-| Data | Geist Mono | `font-mono` | Every number — dates, counts, prices — always with `tabular-nums` |
+| Display / headings | System | `font-bold` / `font-semibold` (or `fontWeight: F.display`) | Hero, H1–H4 |
+| Body / UI | System | default, `font-medium` | Labels, body, buttons |
+| Numbers | System | add `tabular-nums` where digit columns must align | Dates, counts, prices, times |
+| **Logo only** | **Atkinson Hyperlegible Bold** | inline in `HyggeLogoBadge` (`fontFamily`) | The coral "Hygge" wordmark badge — **nowhere else** |
 
 ### Motion (mobile)
 
@@ -293,7 +314,7 @@ decorates, and should honor the OS reduce-motion setting.
 
 - Don't use accent colors decoratively — moss means positive/primary action, not "a nice green."
 - Don't use `toISOString()` for dates — always `localDate()` from `lib/db.ts`.
-- Don't render numbers in `font-sans` — counts, dates, prices always get `font-mono tabular-nums`.
+- Numbers use the system font like everything else — add `tabular-nums` where digit columns must align (calendars, timelines). No bundled number font.
 - Don't show fake/seeded counts — real numbers only.
 - Don't add animation without a stated job; remove it if the job isn't clear.
 - Don't add emoji — inline SVG only.
@@ -377,8 +398,9 @@ chase everything else to the end.
    - **Structure** — every element present, right place, right order?
    - **Spacing & size** — gaps, padding, dimensions, proportion.
    - **Color** — surfaces, text, borders, accents (against the right tokens).
-   - **Typography** — Spectral for display/headings, Schibsted for UI, Geist Mono
-     for numbers; size, weight, tracking, line-height, alignment.
+   - **Typography** — the platform system font everywhere (weight carries hierarchy);
+     the coral logo badge is the only Atkinson Hyperlegible; size, weight, tracking,
+     line-height, alignment.
    - **Assets** — images/icons (inline `<svg>` only, never emoji): content, crop, size.
    - **State** — selected, today, past/dimmed, hover, empty, loading, error if shown.
    - **Motion** — see below.
@@ -435,8 +457,8 @@ shipping it.
 - Polishing a 1px radius while a section is structurally wrong — always worst-first.
 - Inventing hexes/spacing/components the tokens already cover — the match should
   look native to the codebase.
-- Rendering numbers in `font-sans`, or using `toISOString()` for dates instead of
-  `localDate()` from `lib/db.ts`.
+- Reintroducing a bundled font / `fontFamily` (the app is system-font only, logo
+  aside), or using `toISOString()` for dates instead of `localDate()` from `lib/db.ts`.
 - Declaring victory from memory instead of a fresh screenshot — the loop ends on
   observed evidence, not belief the last edit worked.
 - Treating a static screenshot as proof for an animated element.

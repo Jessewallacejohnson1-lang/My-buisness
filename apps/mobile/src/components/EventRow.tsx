@@ -29,12 +29,12 @@ export function EventRow({
     >
       <View style={{ width: 50, paddingTop: 2 }}>
         {!!event.start_time && (
-          <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.ink2, letterSpacing: 0.1, fontVariant: TAB }}>{event.start_time}</Text>
+          <Text style={{ fontWeight: F.mono, fontSize: 12, color: C.ink2, letterSpacing: 0.1, fontVariant: TAB }}>{event.start_time}</Text>
         )}
       </View>
 
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={{ fontFamily: F.sansSemi, fontSize: 15, color: C.ink, lineHeight: 20 }}>{event.title}</Text>
+        <Text style={{ fontWeight: F.sansSemi, fontSize: 15, color: C.ink, lineHeight: 20 }}>{event.title}</Text>
         {!!event.location && (
           <Pressable
             onPress={() => openInMaps(event.location!)}
@@ -42,17 +42,17 @@ export function EventRow({
             style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3, alignSelf: 'flex-start' }}
           >
             <PinIcon size={12} color={C.sky600} />
-            <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.sky600, textDecorationLine: 'underline' }}>{event.location}</Text>
+            <Text style={{ fontWeight: F.sans, fontSize: 13, color: C.sky600, textDecorationLine: 'underline' }}>{event.location}</Text>
           </Pressable>
         )}
         <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 7 }}>
           {!!event.club_name && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 11, backgroundColor: event.from_joined_club ? 'rgba(0,0,0,0.06)' : C.paper100 }}>
               {event.from_joined_club && <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: C.moss700 }} />}
-              <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: event.from_joined_club ? C.moss700 : C.ink2 }}>{event.club_name}</Text>
+              <Text style={{ fontWeight: F.sansMed, fontSize: 11, color: event.from_joined_club ? C.moss700 : C.ink2 }}>{event.club_name}</Text>
             </View>
           )}
-          <Text style={{ fontFamily: F.mono, fontSize: 11, color: C.ink2, fontVariant: TAB }}>{event.going_count} going</Text>
+          <Text style={{ fontWeight: F.mono, fontSize: 11, color: C.ink2, fontVariant: TAB }}>{event.going_count} going</Text>
         </View>
       </View>
 
@@ -72,7 +72,7 @@ export function EventRow({
           opacity: pressed ? 0.85 : 1,
         })}
       >
-        <Text style={{ fontFamily: F.sansMed, fontSize: 13, color: event.rsvpd ? C.paper : C.ink2 }}>
+        <Text style={{ fontWeight: F.sansMed, fontSize: 13, color: event.rsvpd ? C.paper : C.ink2 }}>
           {event.rsvpd ? 'Going' : 'Join'}
         </Text>
         {event.rsvpd && <CheckIcon size={13} color={C.paper} />}

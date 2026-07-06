@@ -7,8 +7,10 @@ import { isAdminEmail, localDate, type ClubView, type ClubRow, type NewEventInpu
 import { api } from '../../lib/api'
 import { supabase } from '../../lib/supabase'
 import { getInterests, matchesInterests } from '../../lib/interests'
-import { SearchIcon, PlusIcon, CloseIcon, PinIcon } from '../../components/icons'
+import { SearchIcon, PlusIcon, PinIcon } from '../../components/icons'
+import { BottomSheet } from '../../components/ui/bottom-sheet'
 import { openInMaps, copyAddress } from '../../lib/maps'
+import { ScreenBadge } from '../../components/ScreenBadge'
 import { C, F, HAIRLINE } from '../../theme'
 
 // Native date/time picker — required only off-web so the web bundle never
@@ -175,17 +177,18 @@ export default function Activities() {
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: C.paper }}>
+      <ScreenBadge />
       <ScrollView contentContainerStyle={{ paddingBottom: 130 }} keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.ink3} />}>
         <View style={{ paddingHorizontal: 20, paddingTop: 14, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: HAIRLINE }}>
-          <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.8, textTransform: 'uppercase', marginBottom: 3 }}>Find your people</Text>
-          <Text style={{ fontFamily: F.display, fontSize: 26, color: C.ink, marginBottom: 16 }}>Activities</Text>
+          <Text style={{ fontWeight: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.8, textTransform: 'uppercase', marginBottom: 3 }}>Find your people</Text>
+          <Text style={{ fontWeight: F.display, fontSize: 26, color: C.ink, marginBottom: 16 }}>Activities</Text>
 
           {/* Search */}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, height: 48, borderRadius: 12, paddingHorizontal: 14, backgroundColor: C.paper100, borderWidth: 1, borderColor: HAIRLINE }}>
             <SearchIcon color={C.ink3} />
             <TextInput value={query} onChangeText={setQuery} placeholder="Search clubs & activities…" placeholderTextColor={C.ink2}
-              style={{ flex: 1, fontFamily: F.sans, fontSize: 15, color: C.ink }} autoCapitalize="none" />
+              style={{ flex: 1, fontWeight: F.sans, fontSize: 15, color: C.ink }} autoCapitalize="none" />
           </View>
 
           {/* Filter pills */}
@@ -195,7 +198,7 @@ export default function Activities() {
               return (
                 <Pressable key={f.id} onPress={() => pickFilter(f.id)} hitSlop={6}
                   style={{ minHeight: 44, paddingHorizontal: 16, justifyContent: 'center', borderRadius: 22, borderWidth: active ? 0 : 1, borderColor: HAIRLINE, backgroundColor: active ? C.ink : 'transparent' }}>
-                  <Text style={{ fontFamily: active ? F.sansSemi : F.sansMed, fontSize: 13.5, color: active ? C.paper : C.ink2 }}>{f.label}</Text>
+                  <Text style={{ fontWeight: active ? F.sansSemi : F.sansMed, fontSize: 13.5, color: active ? C.paper : C.ink2 }}>{f.label}</Text>
                 </Pressable>
               )
             })}
@@ -203,13 +206,13 @@ export default function Activities() {
 
           {/* Sort — chips, lighter than the dark filter pills so the hierarchy reads */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingTop: 10, alignItems: 'center' }}>
-            <Text style={{ fontFamily: F.mono, fontSize: 10, color: C.ink3, letterSpacing: 1, textTransform: 'uppercase', marginRight: 2 }}>Sort</Text>
+            <Text style={{ fontWeight: F.mono, fontSize: 10, color: C.ink3, letterSpacing: 1, textTransform: 'uppercase', marginRight: 2 }}>Sort</Text>
             {SORTS[filter].map((s) => {
               const on = s.key === sort
               return (
                 <Pressable key={s.key} onPress={() => { Haptics.selectionAsync(); setSort(s.key) }} hitSlop={6}
                   style={{ minHeight: 44, paddingHorizontal: 14, justifyContent: 'center', borderRadius: 22, borderWidth: on ? 0 : 1, borderColor: HAIRLINE, backgroundColor: on ? C.paper200 : 'transparent' }}>
-                  <Text style={{ fontFamily: on ? F.sansSemi : F.sansMed, fontSize: 13, color: on ? C.ink : C.ink2 }}>{s.label}</Text>
+                  <Text style={{ fontWeight: on ? F.sansSemi : F.sansMed, fontSize: 13, color: on ? C.ink : C.ink2 }}>{s.label}</Text>
                 </Pressable>
               )
             })}
@@ -219,22 +222,22 @@ export default function Activities() {
         {/* Admin: Waiting for review */}
         {hasPending && (
           <View style={{ marginHorizontal: 20, marginTop: 22, padding: 14, borderRadius: 14, backgroundColor: C.paper100, borderWidth: 1, borderColor: HAIRLINE }}>
-            <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 12 }}>Waiting for review · admin</Text>
+            <Text style={{ fontWeight: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 12 }}>Waiting for review · admin</Text>
 
             {pendingPosts.map((p) => (
               <View key={p.id} style={{ paddingVertical: 12, borderTopWidth: 1, borderTopColor: HAIRLINE }}>
-                <Text style={{ fontFamily: F.sansBold, fontSize: 14, color: C.ink }}>{p.title}</Text>
-                <Text style={{ fontFamily: F.mono, fontSize: 11, color: C.ink3, marginTop: 3 }}>
+                <Text style={{ fontWeight: F.sansBold, fontSize: 14, color: C.ink }}>{p.title}</Text>
+                <Text style={{ fontWeight: F.mono, fontSize: 11, color: C.ink3, marginTop: 3 }}>
                   {p.kind} {p.location ? `· ${p.location}` : ''}
                 </Text>
                 <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
                   <Pressable onPress={() => approvePost(p.id)}
                     style={({ pressed }) => ({ flex: 1, paddingVertical: 9, borderRadius: 8, backgroundColor: C.moss700, alignItems: 'center', opacity: pressed ? 0.85 : 1 })}>
-                    <Text style={{ fontFamily: F.sansSemi, fontSize: 13, color: C.paper }}>Approve</Text>
+                    <Text style={{ fontWeight: F.sansSemi, fontSize: 13, color: C.paper }}>Approve</Text>
                   </Pressable>
                   <Pressable onPress={() => rejectPost(p.id)}
                     style={({ pressed }) => ({ flex: 1, paddingVertical: 9, borderRadius: 8, borderWidth: 1.5, borderColor: C.clay700, alignItems: 'center', opacity: pressed ? 0.85 : 1 })}>
-                    <Text style={{ fontFamily: F.sansSemi, fontSize: 13, color: C.clay700 }}>Decline</Text>
+                    <Text style={{ fontWeight: F.sansSemi, fontSize: 13, color: C.clay700 }}>Decline</Text>
                   </Pressable>
                 </View>
               </View>
@@ -242,17 +245,17 @@ export default function Activities() {
 
             {pendingClubs.map((c) => (
               <View key={c.id} style={{ paddingVertical: 12, borderTopWidth: 1, borderTopColor: HAIRLINE }}>
-                <Text style={{ fontFamily: F.sansBold, fontSize: 14, color: C.ink }}>{c.name}</Text>
-                {!!c.host && <Text style={{ fontFamily: F.sans, fontSize: 12, color: C.ink2, marginTop: 2 }}>with {c.host}</Text>}
-                <Text style={{ fontFamily: F.mono, fontSize: 11, color: C.ink3, marginTop: 3 }}>club</Text>
+                <Text style={{ fontWeight: F.sansBold, fontSize: 14, color: C.ink }}>{c.name}</Text>
+                {!!c.host && <Text style={{ fontWeight: F.sans, fontSize: 12, color: C.ink2, marginTop: 2 }}>with {c.host}</Text>}
+                <Text style={{ fontWeight: F.mono, fontSize: 11, color: C.ink3, marginTop: 3 }}>club</Text>
                 <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
                   <Pressable onPress={() => approveClub(c.id)}
                     style={({ pressed }) => ({ flex: 1, paddingVertical: 9, borderRadius: 8, backgroundColor: C.moss700, alignItems: 'center', opacity: pressed ? 0.85 : 1 })}>
-                    <Text style={{ fontFamily: F.sansSemi, fontSize: 13, color: C.paper }}>Approve</Text>
+                    <Text style={{ fontWeight: F.sansSemi, fontSize: 13, color: C.paper }}>Approve</Text>
                   </Pressable>
                   <Pressable onPress={() => rejectClub(c.id)}
                     style={({ pressed }) => ({ flex: 1, paddingVertical: 9, borderRadius: 8, borderWidth: 1.5, borderColor: C.clay700, alignItems: 'center', opacity: pressed ? 0.85 : 1 })}>
-                    <Text style={{ fontFamily: F.sansSemi, fontSize: 13, color: C.clay700 }}>Decline</Text>
+                    <Text style={{ fontWeight: F.sansSemi, fontSize: 13, color: C.clay700 }}>Decline</Text>
                   </Pressable>
                 </View>
               </View>
@@ -263,13 +266,13 @@ export default function Activities() {
         {/* Suggested for you — from onboarding interests (All view) */}
         {hasSuggested && (
           <View style={{ paddingHorizontal: 20, paddingTop: 22, gap: 12 }}>
-            <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: C.moss700, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 2 }}>Suggested for you</Text>
+            <Text style={{ fontWeight: F.sansMed, fontSize: 11, color: C.moss700, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 2 }}>Suggested for you</Text>
             {suggestedClubs.map((c) => (
               <Pressable key={`s-${c.id}`} onPress={() => { Haptics.selectionAsync(); setSelected(c) }}
                 style={({ pressed }) => ({ borderRadius: 16, backgroundColor: C.paper100, borderWidth: 1, borderColor: HAIRLINE, padding: 16, opacity: pressed ? 0.92 : 1 })}>
-                <Text style={{ fontFamily: F.mono, fontSize: 10, color: C.ink3, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>Club</Text>
-                <Text style={{ fontFamily: F.sansBold, fontSize: 17, color: C.ink, letterSpacing: -0.2 }}>{c.name}</Text>
-                {!!c.vibe && <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.ink2, marginTop: 4, lineHeight: 18 }}>{c.vibe}</Text>}
+                <Text style={{ fontWeight: F.mono, fontSize: 10, color: C.ink3, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>Club</Text>
+                <Text style={{ fontWeight: F.sansBold, fontSize: 17, color: C.ink, letterSpacing: -0.2 }}>{c.name}</Text>
+                {!!c.vibe && <Text style={{ fontWeight: F.sans, fontSize: 13, color: C.ink2, marginTop: 4, lineHeight: 18 }}>{c.vibe}</Text>}
               </Pressable>
             ))}
             {suggestedTrails.map((t) => {
@@ -277,9 +280,9 @@ export default function Activities() {
               return (
                 <Pressable key={`s-${t.id}`} onPress={() => { Haptics.selectionAsync(); setSelectedTrail(t) }}
                   style={({ pressed }) => ({ borderRadius: 16, backgroundColor: C.paper100, borderWidth: 1, borderColor: HAIRLINE, padding: 16, opacity: pressed ? 0.92 : 1 })}>
-                  <Text style={{ fontFamily: F.mono, fontSize: 10, color: C.ink3, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>Trail</Text>
-                  <Text style={{ fontFamily: F.sansBold, fontSize: 17, color: C.ink, letterSpacing: -0.2 }}>{t.title}</Text>
-                  {!!meta && <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.ink3, marginTop: 6 }}>{meta}</Text>}
+                  <Text style={{ fontWeight: F.mono, fontSize: 10, color: C.ink3, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>Trail</Text>
+                  <Text style={{ fontWeight: F.sansBold, fontSize: 17, color: C.ink, letterSpacing: -0.2 }}>{t.title}</Text>
+                  {!!meta && <Text style={{ fontWeight: F.mono, fontSize: 12, color: C.ink3, marginTop: 6 }}>{meta}</Text>}
                 </Pressable>
               )
             })}
@@ -302,19 +305,19 @@ export default function Activities() {
         {/* Events */}
         {!loading && (filter === 'all' || filter === 'events') && shownEvents.length > 0 && (
           <View style={{ paddingHorizontal: 20, paddingTop: 22, gap: 12 }}>
-            {filter === 'all' && <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 2 }}>Events</Text>}
+            {filter === 'all' && <Text style={{ fontWeight: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 2 }}>Events</Text>}
             {shownEvents.map((e) => (
               <View key={e.id} style={{ borderRadius: 16, backgroundColor: C.paper100, borderWidth: 1, borderColor: HAIRLINE, padding: 16 }}>
-                <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.moss700, marginBottom: 4 }}>{formatEventDate(e.event_date)}{e.start_time ? ` · ${e.start_time}` : ''}</Text>
-                <Text style={{ fontFamily: F.sansBold, fontSize: 17, color: C.ink, letterSpacing: -0.2 }}>{e.title}</Text>
+                <Text style={{ fontWeight: F.mono, fontSize: 12, color: C.moss700, marginBottom: 4 }}>{formatEventDate(e.event_date)}{e.start_time ? ` · ${e.start_time}` : ''}</Text>
+                <Text style={{ fontWeight: F.sansBold, fontSize: 17, color: C.ink, letterSpacing: -0.2 }}>{e.title}</Text>
                 {!!e.location && (
                   <Pressable onPress={() => openInMaps(e.location!)} onLongPress={() => copyAddress(e.location!)}
                     style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 }}>
                     <PinIcon size={13} color={C.ink3} />
-                    <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.ink2 }}>{e.location}</Text>
+                    <Text style={{ fontWeight: F.sans, fontSize: 13, color: C.ink2 }}>{e.location}</Text>
                   </Pressable>
                 )}
-                <Text style={{ fontFamily: F.mono, fontSize: 11, color: C.ink3, marginTop: 8 }}>{e.going_count} going</Text>
+                <Text style={{ fontWeight: F.mono, fontSize: 11, color: C.ink3, marginTop: 8 }}>{e.going_count} going</Text>
               </View>
             ))}
           </View>
@@ -323,7 +326,7 @@ export default function Activities() {
         {/* Clubs */}
         {!loading && (filter === 'all' || filter === 'clubs') && shownClubs.length > 0 && (
           <View style={{ paddingHorizontal: 20, paddingTop: 22, gap: 12 }}>
-            {filter === 'all' && <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 2 }}>Clubs</Text>}
+            {filter === 'all' && <Text style={{ fontWeight: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 2 }}>Clubs</Text>}
             {shownClubs.map((c) => (
               // Card is a plain View so the Join button is a SIBLING of the
               // open-details tap target, not nested inside it — edge taps on
@@ -332,15 +335,15 @@ export default function Activities() {
                 <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
                   <Pressable onPress={() => { Haptics.selectionAsync(); setSelected(c) }}
                     style={({ pressed }) => ({ flex: 1, opacity: pressed ? 0.6 : 1 })}>
-                    <Text style={{ fontFamily: F.sansBold, fontSize: 17, color: C.ink, letterSpacing: -0.2 }}>{c.name}</Text>
-                    {!!c.host && <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.ink2, marginTop: 2 }}>with {c.host}</Text>}
-                    {!!c.schedule && <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.ink3, marginTop: 6 }}>{c.schedule}</Text>}
-                    {!!c.vibe && <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.ink2, marginTop: 6, lineHeight: 18 }}>{c.vibe}</Text>}
-                    <Text style={{ fontFamily: F.mono, fontSize: 11, color: C.ink3, marginTop: 8 }}>{c.member_count} {c.member_count === 1 ? 'member' : 'members'} · tap for details</Text>
+                    <Text style={{ fontWeight: F.sansBold, fontSize: 17, color: C.ink, letterSpacing: -0.2 }}>{c.name}</Text>
+                    {!!c.host && <Text style={{ fontWeight: F.sans, fontSize: 13, color: C.ink2, marginTop: 2 }}>with {c.host}</Text>}
+                    {!!c.schedule && <Text style={{ fontWeight: F.mono, fontSize: 12, color: C.ink3, marginTop: 6 }}>{c.schedule}</Text>}
+                    {!!c.vibe && <Text style={{ fontWeight: F.sans, fontSize: 13, color: C.ink2, marginTop: 6, lineHeight: 18 }}>{c.vibe}</Text>}
+                    <Text style={{ fontWeight: F.mono, fontSize: 11, color: C.ink3, marginTop: 8 }}>{c.member_count} {c.member_count === 1 ? 'member' : 'members'} · tap for details</Text>
                   </Pressable>
                   <Pressable onPress={() => toggleJoin(c)} hitSlop={8}
                     style={({ pressed }) => ({ minHeight: 44, paddingHorizontal: 18, justifyContent: 'center', borderRadius: 22, borderWidth: 1.5, borderColor: c.joined ? 'transparent' : 'rgba(0,0,0,0.14)', backgroundColor: c.joined ? C.moss700 : 'transparent', opacity: pressed ? 0.85 : 1 })}>
-                    <Text style={{ fontFamily: F.sansMed, fontSize: 13, color: c.joined ? C.paper : C.ink2 }}>{c.joined ? 'Joined' : 'Join'}</Text>
+                    <Text style={{ fontWeight: F.sansMed, fontSize: 13, color: c.joined ? C.paper : C.ink2 }}>{c.joined ? 'Joined' : 'Join'}</Text>
                   </Pressable>
                 </View>
               </View>
@@ -351,7 +354,7 @@ export default function Activities() {
         {/* Trails */}
         {!loading && (filter === 'all' || filter === 'trails') && shownTrails.length > 0 && (
           <View style={{ paddingHorizontal: 20, paddingTop: 22, gap: 12 }}>
-            {filter === 'all' && <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 2 }}>Trails</Text>}
+            {filter === 'all' && <Text style={{ fontWeight: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 2 }}>Trails</Text>}
             {shownTrails.map((t) => {
               const meta = [t.location, t.length, t.difficulty].filter(Boolean).join(' · ')
               return (
@@ -361,10 +364,10 @@ export default function Activities() {
                     <Image source={{ uri: t.image_url }} style={{ width: '100%', height: 160 }} contentFit="cover" />
                   )}
                   <View style={{ padding: 16 }}>
-                    <Text style={{ fontFamily: F.sansBold, fontSize: 17, color: C.ink, letterSpacing: -0.2 }}>{t.title}</Text>
-                    {!!meta && <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.ink3, marginTop: 6 }}>{meta}</Text>}
-                    {!!t.description && <Text numberOfLines={2} style={{ fontFamily: F.sans, fontSize: 13, color: C.ink2, marginTop: 8, lineHeight: 19 }}>{t.description}</Text>}
-                    <Text style={{ fontFamily: F.mono, fontSize: 11, color: C.ink3, marginTop: 8 }}>tap for details</Text>
+                    <Text style={{ fontWeight: F.sansBold, fontSize: 17, color: C.ink, letterSpacing: -0.2 }}>{t.title}</Text>
+                    {!!meta && <Text style={{ fontWeight: F.mono, fontSize: 12, color: C.ink3, marginTop: 6 }}>{meta}</Text>}
+                    {!!t.description && <Text numberOfLines={2} style={{ fontWeight: F.sans, fontSize: 13, color: C.ink2, marginTop: 8, lineHeight: 19 }}>{t.description}</Text>}
+                    <Text style={{ fontWeight: F.mono, fontSize: 11, color: C.ink3, marginTop: 8 }}>tap for details</Text>
                   </View>
                 </Pressable>
               )
@@ -375,7 +378,7 @@ export default function Activities() {
         {/* Empty */}
         {!loading && visibleCount === 0 && (
           <View style={{ marginHorizontal: 20, marginTop: 22, borderRadius: 16, borderWidth: 1.5, borderStyle: 'dashed', borderColor: 'rgba(0,0,0,0.13)', padding: 18 }}>
-            <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.ink2 }}>
+            <Text style={{ fontWeight: F.sans, fontSize: 13, color: C.ink2 }}>
               {q ? `Nothing matches "${query.trim()}".`
                 : filter === 'events' ? 'No upcoming events yet — post one from the + tab.'
                 : filter === 'clubs' ? 'No clubs yet — start one from the + tab.'
@@ -396,110 +399,89 @@ export default function Activities() {
 function TrailDetail({ trail, onClose }: { trail: Trail | null; onClose: () => void }) {
   const meta = trail ? [trail.length, trail.difficulty].filter(Boolean).join(' · ') : ''
   return (
-    <Modal visible={!!trail} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable onPress={onClose} style={{ flex: 1, backgroundColor: 'rgba(20,18,14,0.38)', justifyContent: 'flex-end' }}>
-        <Pressable onPress={(e) => e.stopPropagation()} style={{ backgroundColor: C.paper, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingTop: 8, paddingBottom: 36, maxHeight: '88%' }}>
-          <View style={{ alignSelf: 'center', width: 38, height: 4, borderRadius: 2, backgroundColor: 'rgba(0,0,0,0.14)', marginBottom: 6 }} />
-          {trail && (
-            <ScrollView contentContainerStyle={{ paddingHorizontal: 22, paddingTop: 8 }} showsVerticalScrollIndicator={false}>
-              {!!trail.image_url && (
-                <Image source={{ uri: trail.image_url }} style={{ width: '100%', height: 180, borderRadius: 14, marginBottom: 14 }} contentFit="cover" />
-              )}
-              <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-                <Text style={{ flex: 1, fontFamily: F.display, fontSize: 26, color: C.ink, letterSpacing: -0.4 }}>{trail.title}</Text>
-                <Pressable onPress={onClose} hitSlop={8} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: C.paper100, alignItems: 'center', justifyContent: 'center' }}>
-                  <CloseIcon size={16} color={C.ink2} />
-                </Pressable>
-              </View>
-
-              {!!meta && <Text style={{ fontFamily: F.mono, fontSize: 13, color: C.ink3, marginTop: 8 }}>{meta}</Text>}
-              {!!trail.description && (
-                <Text style={{ fontFamily: F.sans, fontSize: 15, color: C.ink2, lineHeight: 22, marginTop: 14 }}>{trail.description}</Text>
-              )}
-
-              {!!trail.location && (
-                <View style={{ marginTop: 18, flexDirection: 'row', alignItems: 'baseline', gap: 12 }}>
-                  <Text style={{ width: 78, fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1, textTransform: 'uppercase' }}>Where</Text>
-                  <Pressable onPress={() => openInMaps(trail.location!)} onLongPress={() => copyAddress(trail.location!)}
-                    style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                    <PinIcon size={14} color={C.moss700} />
-                    <Text style={{ flex: 1, fontFamily: F.sans, fontSize: 14, color: C.moss700 }}>{trail.location}</Text>
-                  </Pressable>
-                </View>
-              )}
-
-              {!!trail.location && (
-                <Pressable onPress={() => openInMaps(trail.location!)}
-                  style={({ pressed }) => ({ marginTop: 22, paddingVertical: 14, borderRadius: 12, backgroundColor: C.moss700, alignItems: 'center', opacity: pressed ? 0.9 : 1 })}>
-                  <Text style={{ fontFamily: F.sansSemi, fontSize: 15, color: C.paper }}>Open in Maps</Text>
-                </Pressable>
-              )}
-            </ScrollView>
+    <BottomSheet open={!!trail} onClose={onClose} maxHeight="88%">
+      {trail && (
+        <ScrollView contentContainerStyle={{ paddingHorizontal: 22, paddingTop: 8, paddingBottom: 36 }} showsVerticalScrollIndicator={false}>
+          {!!trail.image_url && (
+            <Image source={{ uri: trail.image_url }} style={{ width: '100%', height: 180, borderRadius: 14, marginBottom: 14 }} contentFit="cover" />
           )}
-        </Pressable>
-      </Pressable>
-    </Modal>
+          <Text style={{ fontWeight: F.display, fontSize: 26, color: C.ink, letterSpacing: -0.4, paddingRight: 40 }}>{trail.title}</Text>
+
+          {!!meta && <Text style={{ fontWeight: F.mono, fontSize: 13, color: C.ink3, marginTop: 8 }}>{meta}</Text>}
+          {!!trail.description && (
+            <Text style={{ fontWeight: F.sans, fontSize: 15, color: C.ink2, lineHeight: 22, marginTop: 14 }}>{trail.description}</Text>
+          )}
+
+          {!!trail.location && (
+            <View style={{ marginTop: 18, flexDirection: 'row', alignItems: 'baseline', gap: 12 }}>
+              <Text style={{ width: 78, fontWeight: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1, textTransform: 'uppercase' }}>Where</Text>
+              <Pressable onPress={() => openInMaps(trail.location!)} onLongPress={() => copyAddress(trail.location!)}
+                style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                <PinIcon size={14} color={C.moss700} />
+                <Text style={{ flex: 1, fontWeight: F.sans, fontSize: 14, color: C.moss700 }}>{trail.location}</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {!!trail.location && (
+            <Pressable onPress={() => openInMaps(trail.location!)}
+              style={({ pressed }) => ({ marginTop: 22, paddingVertical: 14, borderRadius: 12, backgroundColor: C.moss700, alignItems: 'center', opacity: pressed ? 0.9 : 1 })}>
+              <Text style={{ fontWeight: F.sansSemi, fontSize: 15, color: C.paper }}>Open in Maps</Text>
+            </Pressable>
+          )}
+        </ScrollView>
+      )}
+    </BottomSheet>
   )
 }
 
 /** Slide-up detail sheet for a single club. */
 function ClubDetail({ club, onClose, onToggleJoin }: { club: ClubView | null; onClose: () => void; onToggleJoin: (c: ClubView) => void }) {
   return (
-    <Modal visible={!!club} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable onPress={onClose} style={{ flex: 1, backgroundColor: 'rgba(20,18,14,0.38)', justifyContent: 'flex-end' }}>
-        <Pressable onPress={(e) => e.stopPropagation()} style={{ backgroundColor: C.paper, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingTop: 8, paddingBottom: 36, maxHeight: '88%' }}>
-          {/* grab handle */}
-          <View style={{ alignSelf: 'center', width: 38, height: 4, borderRadius: 2, backgroundColor: 'rgba(0,0,0,0.14)', marginBottom: 6 }} />
-          {club && (
-            <ScrollView contentContainerStyle={{ paddingHorizontal: 22, paddingTop: 8 }} showsVerticalScrollIndicator={false}>
-              <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontFamily: F.display, fontSize: 26, color: C.ink, letterSpacing: -0.4 }}>{club.name}</Text>
-                  {!!club.host && <Text style={{ fontFamily: F.sans, fontSize: 14, color: C.ink2, marginTop: 4 }}>with {club.host}</Text>}
-                </View>
-                <Pressable onPress={onClose} hitSlop={8} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: C.paper100, alignItems: 'center', justifyContent: 'center' }}>
-                  <CloseIcon size={16} color={C.ink2} />
+    <BottomSheet open={!!club} onClose={onClose} maxHeight="88%">
+      {club && (
+        <ScrollView contentContainerStyle={{ paddingHorizontal: 22, paddingTop: 8, paddingBottom: 36 }} showsVerticalScrollIndicator={false}>
+          <View style={{ paddingRight: 40 }}>
+            <Text style={{ fontWeight: F.display, fontSize: 26, color: C.ink, letterSpacing: -0.4 }}>{club.name}</Text>
+            {!!club.host && <Text style={{ fontWeight: F.sans, fontSize: 14, color: C.ink2, marginTop: 4 }}>with {club.host}</Text>}
+          </View>
+
+          {!!club.vibe && (
+            <Text style={{ fontWeight: F.sans, fontSize: 15, color: C.ink2, lineHeight: 22, marginTop: 14 }}>{club.vibe}</Text>
+          )}
+
+          {/* meta rows */}
+          <View style={{ marginTop: 18, gap: 12 }}>
+            {!!club.schedule && <MetaRow label="When" value={club.schedule} mono />}
+            {!!club.location && (
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 12 }}>
+                <Text style={{ width: 78, fontWeight: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1, textTransform: 'uppercase' }}>Where</Text>
+                <Pressable onPress={() => openInMaps(club.location!)} onLongPress={() => copyAddress(club.location!)}
+                  style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                  <PinIcon size={13} color={C.sky600} />
+                  <Text style={{ flex: 1, fontWeight: F.sans, fontSize: 14, color: C.sky600, textDecorationLine: 'underline' }}>{club.location}</Text>
                 </Pressable>
               </View>
+            )}
+            <MetaRow label="Members" value={`${club.member_count} ${club.member_count === 1 ? 'neighbor' : 'neighbors'}`} mono />
+          </View>
 
-              {!!club.vibe && (
-                <Text style={{ fontFamily: F.sans, fontSize: 15, color: C.ink2, lineHeight: 22, marginTop: 14 }}>{club.vibe}</Text>
-              )}
-
-              {/* meta rows */}
-              <View style={{ marginTop: 18, gap: 12 }}>
-                {!!club.schedule && <MetaRow label="When" value={club.schedule} mono />}
-                {!!club.location && (
-                  <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 12 }}>
-                    <Text style={{ width: 78, fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1, textTransform: 'uppercase' }}>Where</Text>
-                    <Pressable onPress={() => openInMaps(club.location!)} onLongPress={() => copyAddress(club.location!)}
-                      style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                      <PinIcon size={13} color={C.sky600} />
-                      <Text style={{ flex: 1, fontFamily: F.sans, fontSize: 14, color: C.sky600, textDecorationLine: 'underline' }}>{club.location}</Text>
-                    </Pressable>
-                  </View>
-                )}
-                <MetaRow label="Members" value={`${club.member_count} ${club.member_count === 1 ? 'neighbor' : 'neighbors'}`} mono />
-              </View>
-
-              {!!club.description && (
-                <Section title="About">{club.description}</Section>
-              )}
-              {!!club.expectations && (
-                <Section title="What to expect">{club.expectations}</Section>
-              )}
-
-              <Pressable onPress={() => onToggleJoin(club)}
-                style={({ pressed }) => ({ marginTop: 26, paddingVertical: 15, borderRadius: 12, alignItems: 'center', borderWidth: 1.5, borderColor: club.joined ? 'transparent' : 'rgba(0,0,0,0.14)', backgroundColor: club.joined ? C.moss700 : 'transparent', opacity: pressed ? 0.85 : 1 })}>
-                <Text style={{ fontFamily: F.sansSemi, fontSize: 15, color: club.joined ? C.paper : C.ink }}>{club.joined ? 'Joined — tap to leave' : 'Join this club'}</Text>
-              </Pressable>
-
-              <ClubEventComposer clubId={club.id} />
-            </ScrollView>
+          {!!club.description && (
+            <Section title="About">{club.description}</Section>
           )}
-        </Pressable>
-      </Pressable>
-    </Modal>
+          {!!club.expectations && (
+            <Section title="What to expect">{club.expectations}</Section>
+          )}
+
+          <Pressable onPress={() => onToggleJoin(club)}
+            style={({ pressed }) => ({ marginTop: 26, paddingVertical: 15, borderRadius: 12, alignItems: 'center', borderWidth: 1.5, borderColor: club.joined ? 'transparent' : 'rgba(0,0,0,0.14)', backgroundColor: club.joined ? C.moss700 : 'transparent', opacity: pressed ? 0.85 : 1 })}>
+            <Text style={{ fontWeight: F.sansSemi, fontSize: 15, color: club.joined ? C.paper : C.ink }}>{club.joined ? 'Joined — tap to leave' : 'Join this club'}</Text>
+          </Pressable>
+
+          <ClubEventComposer clubId={club.id} />
+        </ScrollView>
+      )}
+    </BottomSheet>
   )
 }
 
@@ -549,7 +531,7 @@ function ClubEventComposer({ clubId }: { clubId: string }) {
         <View style={{ width: 24, height: 24, borderRadius: 7, backgroundColor: C.paper100, alignItems: 'center', justifyContent: 'center' }}>
           <PlusIcon />
         </View>
-        <Text style={{ fontFamily: F.sansMed, fontSize: 14, color: C.ink2 }}>{open ? 'Close' : 'Add an event for this club'}</Text>
+        <Text style={{ fontWeight: F.sansMed, fontSize: 14, color: C.ink2 }}>{open ? 'Close' : 'Add an event for this club'}</Text>
       </Pressable>
 
       {open && (
@@ -560,14 +542,14 @@ function ClubEventComposer({ clubId }: { clubId: string }) {
             <View style={{ flex: 1 }}><DateTimeField label="Time" mode="time" value={form.start_time ?? ''} onChange={set('start_time')} /></View>
           </View>
           <CField label="Where · opens in Maps" value={form.location ?? ''} onChangeText={set('location')} placeholder="Place or full address, St. Joseph, MN" />
-          {msg && <Text style={{ fontFamily: F.sans, fontSize: 13, color: msg.includes('Could not') ? C.clay700 : C.moss700 }}>{msg}</Text>}
+          {msg && <Text style={{ fontWeight: F.sans, fontSize: 13, color: msg.includes('Could not') ? C.clay700 : C.moss700 }}>{msg}</Text>}
           <Pressable onPress={post} disabled={saving}
             style={({ pressed }) => ({ paddingVertical: 12, borderRadius: 10, backgroundColor: C.moss700, alignItems: 'center', opacity: pressed ? 0.85 : 1 })}>
-            <Text style={{ fontFamily: F.sansSemi, fontSize: 14, color: C.paper }}>{saving ? 'Posting…' : 'Post event'}</Text>
+            <Text style={{ fontWeight: F.sansSemi, fontSize: 14, color: C.paper }}>{saving ? 'Posting…' : 'Post event'}</Text>
           </Pressable>
         </View>
       )}
-      {!open && msg && <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.moss700, marginTop: 10 }}>{msg}</Text>}
+      {!open && msg && <Text style={{ fontWeight: F.sans, fontSize: 13, color: C.moss700, marginTop: 10 }}>{msg}</Text>}
     </View>
   )
 }
@@ -575,8 +557,8 @@ function ClubEventComposer({ clubId }: { clubId: string }) {
 function MetaRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 12 }}>
-      <Text style={{ width: 78, fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1, textTransform: 'uppercase' }}>{label}</Text>
-      <Text style={{ flex: 1, fontFamily: mono ? F.mono : F.sans, fontSize: 14, color: C.ink }}>{value}</Text>
+      <Text style={{ width: 78, fontWeight: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1, textTransform: 'uppercase' }}>{label}</Text>
+      <Text style={{ flex: 1, fontWeight: mono ? F.mono : F.sans, fontSize: 14, color: C.ink }}>{value}</Text>
     </View>
   )
 }
@@ -584,8 +566,8 @@ function MetaRow({ label, value, mono }: { label: string; value: string; mono?: 
 function Section({ title, children }: { title: string; children: string }) {
   return (
     <View style={{ marginTop: 22 }}>
-      <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 7 }}>{title}</Text>
-      <Text style={{ fontFamily: F.sans, fontSize: 15, color: C.ink2, lineHeight: 23 }}>{children}</Text>
+      <Text style={{ fontWeight: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 7 }}>{title}</Text>
+      <Text style={{ fontWeight: F.sans, fontSize: 15, color: C.ink2, lineHeight: 23 }}>{children}</Text>
     </View>
   )
 }
@@ -595,7 +577,7 @@ function CField({ label, multiline, ...props }: { label: string; multiline?: boo
     <View>
       <FieldLabel>{label}</FieldLabel>
       <TextInput placeholderTextColor={C.ink2} multiline={multiline}
-        style={{ minHeight: multiline ? 66 : 44, borderRadius: 8, paddingHorizontal: 12, paddingTop: multiline ? 11 : 0, backgroundColor: C.paper, borderWidth: 1, borderColor: HAIRLINE, fontFamily: F.sans, fontSize: 15, color: C.ink, textAlignVertical: multiline ? 'top' : 'center' }}
+        style={{ minHeight: multiline ? 66 : 44, borderRadius: 8, paddingHorizontal: 12, paddingTop: multiline ? 11 : 0, backgroundColor: C.paper, borderWidth: 1, borderColor: HAIRLINE, fontWeight: F.sans, fontSize: 15, color: C.ink, textAlignVertical: multiline ? 'top' : 'center' }}
         {...props} />
     </View>
   )
@@ -603,7 +585,7 @@ function CField({ label, multiline, ...props }: { label: string; multiline?: boo
 
 /** Sentence-case form label (not an uppercase eyebrow). */
 function FieldLabel({ children }: { children: string }) {
-  return <Text style={{ fontFamily: F.sansMed, fontSize: 13, color: C.ink2, marginBottom: 5 }}>{children}</Text>
+  return <Text style={{ fontWeight: F.sansMed, fontSize: 13, color: C.ink2, marginBottom: 5 }}>{children}</Text>
 }
 
 // ── Date / time picker ─────────────────────────────────────────────
@@ -671,7 +653,7 @@ function DateTimeField({ label, mode, value, onChange, minDate }: {
             height: 44, width: '100%', boxSizing: 'border-box',
             borderRadius: 8, padding: '0 12px',
             background: C.paper, border: `1px solid ${HAIRLINE}`,
-            fontFamily: F.mono, fontSize: 15, color: value ? C.ink : C.ink2,
+            fontWeight: F.mono, fontSize: 15, color: value ? C.ink : C.ink2,
             outline: 'none',
           },
         })}
@@ -685,7 +667,7 @@ function DateTimeField({ label, mode, value, onChange, minDate }: {
       <Pressable
         onPress={() => { Haptics.selectionAsync(); setTemp(current); setShow(true) }}
         style={({ pressed }) => ({ minHeight: 44, borderRadius: 8, paddingHorizontal: 12, justifyContent: 'center', backgroundColor: C.paper, borderWidth: 1, borderColor: HAIRLINE, opacity: pressed ? 0.85 : 1 })}>
-        <Text style={{ fontFamily: displayText ? F.mono : F.sans, fontSize: 15, color: displayText ? C.ink : C.ink2 }}>
+        <Text style={{ fontWeight: displayText ? F.mono : F.sans, fontSize: 15, color: displayText ? C.ink : C.ink2 }}>
           {displayText || (mode === 'date' ? 'Pick a date' : 'Pick a time')}
         </Text>
       </Pressable>
@@ -705,9 +687,9 @@ function DateTimeField({ label, mode, value, onChange, minDate }: {
           <Pressable onPress={() => setShow(false)} style={{ flex: 1, backgroundColor: 'rgba(20,18,14,0.38)', justifyContent: 'flex-end' }}>
             <Pressable onPress={(e) => e.stopPropagation()} style={{ backgroundColor: C.paper, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingBottom: 28 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingTop: 14, paddingBottom: 4 }}>
-                <Pressable onPress={() => setShow(false)} hitSlop={10}><Text style={{ fontFamily: F.sansMed, fontSize: 15, color: C.ink3 }}>Cancel</Text></Pressable>
-                <Text style={{ fontFamily: F.sansSemi, fontSize: 14, color: C.ink }}>{label}</Text>
-                <Pressable onPress={() => { if (temp) commit(temp); setShow(false) }} hitSlop={10}><Text style={{ fontFamily: F.sansSemi, fontSize: 15, color: C.moss700 }}>Done</Text></Pressable>
+                <Pressable onPress={() => setShow(false)} hitSlop={10}><Text style={{ fontWeight: F.sansMed, fontSize: 15, color: C.ink2 }}>Cancel</Text></Pressable>
+                <Text style={{ fontWeight: F.sansSemi, fontSize: 14, color: C.ink }}>{label}</Text>
+                <Pressable onPress={() => { if (temp) commit(temp); setShow(false) }} hitSlop={10}><Text style={{ fontWeight: F.sansSemi, fontSize: 15, color: C.moss700 }}>Done</Text></Pressable>
               </View>
               <RNDateTimePicker
                 value={temp ?? current} mode={mode} display="spinner" themeVariant="light"

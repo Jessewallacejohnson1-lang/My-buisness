@@ -36,9 +36,9 @@ function NotFound() {
   const router = useRouter()
   return (
     <View style={{ flex: 1, backgroundColor: C.paper, alignItems: 'center', justifyContent: 'center', gap: 14 }}>
-      <Text style={{ fontFamily: F.sans, fontSize: 15, color: C.ink2 }}>That place isn’t here.</Text>
+      <Text style={{ fontWeight: F.sans, fontSize: 15, color: C.ink2 }}>That place isn’t here.</Text>
       <Pressable onPress={() => leaveTo(router)} style={{ paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12, backgroundColor: C.ink }}>
-        <Text style={{ fontFamily: F.sansSemi, fontSize: 14, color: C.paper }}>Go back</Text>
+        <Text style={{ fontWeight: F.sansSemi, fontSize: 14, color: C.paper }}>Go back</Text>
       </Pressable>
     </View>
   )
@@ -115,10 +115,10 @@ function Showcase({ place }: { place: Place }) {
           style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
         />
         <View style={{ position: 'absolute', left: 22, right: 22, bottom: PEEK + 16 }}>
-          <Text style={{ fontFamily: F.display, fontSize: 36, lineHeight: 40, color: '#FFFFFF', letterSpacing: -0.6, textShadowColor: 'rgba(0,0,0,0.4)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 10 }}>
+          <Text style={{ fontWeight: F.display, fontSize: 36, lineHeight: 40, color: '#FFFFFF', letterSpacing: -0.6, textShadowColor: 'rgba(0,0,0,0.4)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 10 }}>
             {place.name}
           </Text>
-          <Text style={{ fontFamily: F.sansMed, fontSize: 15, color: 'rgba(255,255,255,0.92)', marginTop: 6, textShadowColor: 'rgba(0,0,0,0.4)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6 }}>
+          <Text style={{ fontWeight: F.sansMed, fontSize: 15, color: 'rgba(255,255,255,0.92)', marginTop: 6, textShadowColor: 'rgba(0,0,0,0.4)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6 }}>
             {place.tagline}
           </Text>
         </View>
@@ -132,8 +132,10 @@ function Showcase({ place }: { place: Place }) {
         contentContainerStyle={{ paddingTop: PAPER_TOP }}
       >
         <View style={{ minHeight: SCREEN_H, backgroundColor: C.paper, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 22, paddingTop: 24, paddingBottom: insets.bottom + 56 }}>
-          {/* grab handle — signals pull-down-to-close */}
-          <View style={{ alignSelf: 'center', width: 38, height: 4, borderRadius: 2, backgroundColor: 'rgba(0,0,0,0.12)', marginBottom: 18 }} />
+          {/* grab handle — pull down (touch) or tap to close, so it's honest on web too */}
+          <Pressable onPress={close} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close" style={({ pressed }) => ({ alignSelf: 'center', paddingVertical: 6, marginBottom: 12, opacity: pressed ? 0.5 : 1 })}>
+            <View style={{ width: 40, height: 5, borderRadius: 2.5, backgroundColor: 'rgba(0,0,0,0.16)' }} />
+          </Pressable>
 
           <Body place={place} reduce={reduce} onMaps={() => place.where && openInMaps(place.where)} />
         </View>
@@ -172,7 +174,7 @@ function Body({ place, reduce, onMaps }: { place: Place; reduce: boolean; onMaps
       <Animated.View entering={enter(0)}>
         <SectionLabel>About</SectionLabel>
         {place.description.map((p, i) => (
-          <Text key={i} style={{ fontFamily: F.sans, fontSize: 15.5, color: C.ink2, lineHeight: 24, marginBottom: i < place.description.length - 1 ? 12 : 0 }}>{p}</Text>
+          <Text key={i} style={{ fontWeight: F.sans, fontSize: 15.5, color: C.ink2, lineHeight: 24, marginBottom: i < place.description.length - 1 ? 12 : 0 }}>{p}</Text>
         ))}
       </Animated.View>
 
@@ -182,8 +184,8 @@ function Body({ place, reduce, onMaps }: { place: Place; reduce: boolean; onMaps
         <View style={{ gap: 11 }}>
           {place.facts.map((f) => (
             <View key={f.label} style={{ flexDirection: 'row', alignItems: 'baseline', gap: 12 }}>
-              <Text style={{ width: 92, fontFamily: F.sansMed, fontSize: 11, color: C.ink2, letterSpacing: 0.2 }}>{f.label}</Text>
-              <Text style={{ flex: 1, fontFamily: isNumeric(f.value) ? F.mono : F.sans, fontSize: 14.5, color: C.ink }}>{f.value}</Text>
+              <Text style={{ width: 92, fontWeight: F.sansMed, fontSize: 11, color: C.ink2, letterSpacing: 0.2 }}>{f.label}</Text>
+              <Text style={{ flex: 1, fontWeight: isNumeric(f.value) ? F.mono : F.sans, fontSize: 14.5, color: C.ink }}>{f.value}</Text>
             </View>
           ))}
         </View>
@@ -196,7 +198,7 @@ function Body({ place, reduce, onMaps }: { place: Place; reduce: boolean; onMaps
           <HappeningSkeleton reduce={reduce} />
         ) : events.length === 0 ? (
           <View style={{ paddingHorizontal: 16, paddingVertical: 16, borderRadius: 14, borderWidth: 1.5, borderStyle: 'dashed', borderColor: 'rgba(0,0,0,0.12)' }}>
-            <Text style={{ fontFamily: F.sans, fontSize: 13.5, color: C.ink2 }}>Nothing scheduled here yet.</Text>
+            <Text style={{ fontWeight: F.sans, fontSize: 13.5, color: C.ink2 }}>Nothing scheduled here yet.</Text>
           </View>
         ) : (
           <View style={{ gap: 2 }}>
@@ -210,7 +212,7 @@ function Body({ place, reduce, onMaps }: { place: Place; reduce: boolean; onMaps
         <Animated.View entering={enter(3)} style={{ marginTop: 28 }}>
           <Pressable onPress={onMaps} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingVertical: 14, borderRadius: 12, backgroundColor: C.moss700, opacity: pressed ? 0.9 : 1 })}>
             <PinIcon size={14} color={C.paper} />
-            <Text style={{ fontFamily: F.sansSemi, fontSize: 15, color: C.paper }}>Open in Maps</Text>
+            <Text style={{ fontWeight: F.sansSemi, fontSize: 15, color: C.paper }}>Open in Maps</Text>
           </Pressable>
         </Animated.View>
       )}
@@ -222,18 +224,18 @@ function EventRow({ e }: { e: UpcomingEvent }) {
   const when = `${weekdayLabel(e.event_date)}${e.start_time ? ' · ' + e.start_time : ''}`
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.06)' }}>
-      <Text style={{ width: 92, fontFamily: F.monoMed, fontSize: 12, color: C.moss700, letterSpacing: 0.2 }}>{when}</Text>
+      <Text style={{ width: 92, fontWeight: F.monoMed, fontSize: 12, color: C.moss700, letterSpacing: 0.2 }}>{when}</Text>
       <View style={{ flex: 1 }}>
-        <Text numberOfLines={1} style={{ fontFamily: F.sansSemi, fontSize: 14.5, color: C.ink }}>{e.title}</Text>
-        {!!e.location && <Text numberOfLines={1} style={{ fontFamily: F.sans, fontSize: 12.5, color: C.ink2, marginTop: 2 }}>{e.location}</Text>}
+        <Text numberOfLines={1} style={{ fontWeight: F.sansSemi, fontSize: 14.5, color: C.ink }}>{e.title}</Text>
+        {!!e.location && <Text numberOfLines={1} style={{ fontWeight: F.sans, fontSize: 12.5, color: C.ink2, marginTop: 2 }}>{e.location}</Text>}
       </View>
-      {e.going_count > 0 && <Text style={{ fontFamily: F.mono, fontSize: 11, color: C.ink2 }}>{e.going_count} going</Text>}
+      {e.going_count > 0 && <Text style={{ fontWeight: F.mono, fontSize: 11, color: C.ink2 }}>{e.going_count} going</Text>}
     </View>
   )
 }
 
 function SectionLabel({ children }: { children: string }) {
-  return <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: C.ink2, letterSpacing: 0.2, marginBottom: 10 }}>{children}</Text>
+  return <Text style={{ fontWeight: F.sansMed, fontSize: 11, color: C.ink2, letterSpacing: 0.2, marginBottom: 10 }}>{children}</Text>
 }
 
 /** Event-row-shaped placeholder while "Happening here" loads. Pulse confirms the

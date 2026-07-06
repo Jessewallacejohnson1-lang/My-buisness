@@ -11,6 +11,7 @@ import { api } from '../../lib/api'
 import { supabase } from '../../lib/supabase'
 import { uploadEventImage } from '../../lib/uploadImage'
 import { PlusIcon, CloseIcon, EventIcon, ClubIcon, TrailIcon, ChevronRightIcon, BackIcon } from '../../components/icons'
+import { ScreenBadge } from '../../components/ScreenBadge'
 import { C, F, HAIRLINE } from '../../theme'
 
 // Native date/time picker — required only off-web so the web bundle never
@@ -174,17 +175,29 @@ export default function Add() {
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: C.paper }}>
+      <ScreenBadge />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         {phase === 'choose' ? (
           /* ── Phase 1 · Chooser ───────────────────────────────── */
-          <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 22, paddingBottom: 140 }} keyboardShouldPersistTaps="handled">
-            <Text style={{ fontFamily: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.8, textTransform: 'uppercase', marginBottom: 4 }}>New</Text>
-            <Text style={{ fontFamily: F.display, fontSize: 27, color: C.ink, lineHeight: 33 }}>What would you like to add?</Text>
-            <Text style={{ fontFamily: F.sans, fontSize: 14, color: C.ink2, marginTop: 6, marginBottom: 24, lineHeight: 20 }}>Share something happening around St. Joe.</Text>
+          <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 12, paddingBottom: 140 }} keyboardShouldPersistTaps="handled">
+            {/* Exit the add flow — this screen isn't a tab, so it needs its own way out */}
+            <Pressable
+              onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)') }}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+              style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 3, alignSelf: 'flex-start', paddingVertical: 6, marginLeft: -4, marginBottom: 10, opacity: pressed ? 0.6 : 1 })}
+            >
+              <BackIcon size={20} color={C.ink2} />
+              <Text style={{ fontWeight: F.sansMed, fontSize: 13, color: C.ink2 }}>Back</Text>
+            </Pressable>
+            <Text style={{ fontWeight: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.8, textTransform: 'uppercase', marginBottom: 4 }}>New</Text>
+            <Text style={{ fontWeight: F.display, fontSize: 27, color: C.ink, lineHeight: 33 }}>What would you like to add?</Text>
+            <Text style={{ fontWeight: F.sans, fontSize: 14, color: C.ink2, marginTop: 6, marginBottom: 24, lineHeight: 20 }}>Share something happening around St. Joe.</Text>
 
             {notice && (
               <Animated.View entering={reduce ? undefined : FadeIn.duration(260)} style={{ backgroundColor: C.paper100, borderRadius: 12, borderWidth: 1, borderColor: HAIRLINE, padding: 14, marginBottom: 18 }}>
-                <Text style={{ fontFamily: F.sans, fontSize: 13.5, color: C.ink2, lineHeight: 20 }}>{notice}</Text>
+                <Text style={{ fontWeight: F.sans, fontSize: 13.5, color: C.ink2, lineHeight: 20 }}>{notice}</Text>
               </Animated.View>
             )}
 
@@ -203,8 +216,8 @@ export default function Add() {
                     <k.Icon size={26} color={C.moss700} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontFamily: F.sansSemi, fontSize: 17, color: C.ink, marginBottom: 2 }}>{k.title}</Text>
-                    <Text style={{ fontFamily: F.sans, fontSize: 13.5, color: C.ink2 }}>{k.sub}</Text>
+                    <Text style={{ fontWeight: F.sansSemi, fontSize: 17, color: C.ink, marginBottom: 2 }}>{k.title}</Text>
+                    <Text style={{ fontWeight: F.sans, fontSize: 13.5, color: C.ink2 }}>{k.sub}</Text>
                   </View>
                   <ChevronRightIcon size={18} color={C.ink3} />
                 </Pressable>
@@ -217,9 +230,9 @@ export default function Add() {
             <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 12, paddingBottom: 140 }} keyboardShouldPersistTaps="handled">
               <Pressable onPress={backToChoose} hitSlop={10} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start', paddingVertical: 6, opacity: pressed ? 0.6 : 1 })}>
                 <BackIcon size={20} color={C.ink2} />
-                <Text style={{ fontFamily: F.sansMed, fontSize: 13, color: C.ink2 }}>{active.title}</Text>
+                <Text style={{ fontWeight: F.sansMed, fontSize: 13, color: C.ink2 }}>{active.title}</Text>
               </Pressable>
-              <Text style={{ fontFamily: F.display, fontSize: 25, color: C.ink, marginTop: 4, marginBottom: 18 }}>{active.heading}</Text>
+              <Text style={{ fontWeight: F.display, fontSize: 25, color: C.ink, marginTop: 4, marginBottom: 18 }}>{active.heading}</Text>
 
               {/* Photo — leads the form, Marketplace-style. Optional. */}
               <PhotoZone photo={photo} onPick={pickPhoto} onClear={() => setPhoto(null)} />
@@ -277,11 +290,11 @@ export default function Add() {
                 </>
               )}
 
-              {error && <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.clay700, marginTop: 14 }}>{error}</Text>}
+              {error && <Text style={{ fontWeight: F.sans, fontSize: 13, color: C.clay700, marginTop: 14 }}>{error}</Text>}
 
               <Pressable onPress={submit} disabled={submitting}
                 style={({ pressed }) => ({ marginTop: 24, paddingVertical: 15, borderRadius: 12, backgroundColor: submitting ? C.paper200 : C.moss700, alignItems: 'center', opacity: pressed ? 0.85 : 1 })}>
-                <Text style={{ fontFamily: F.sansSemi, fontSize: 15, color: submitting ? C.ink3 : C.paper }}>{submitting ? 'Posting…' : 'Post'}</Text>
+                <Text style={{ fontWeight: F.sansSemi, fontSize: 15, color: submitting ? C.ink3 : C.paper }}>{submitting ? 'Posting…' : 'Post'}</Text>
               </Pressable>
             </ScrollView>
           </Animated.View>
@@ -301,7 +314,7 @@ function PhotoZone({ photo, onPick, onClear }: { photo: string | null; onPick: (
           <CloseIcon size={15} color="#fff" />
         </Pressable>
         <Pressable onPress={onPick} style={{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingVertical: 9, backgroundColor: 'rgba(0,0,0,0.42)', alignItems: 'center' }}>
-          <Text style={{ fontFamily: F.sansMed, fontSize: 12.5, color: '#fff' }}>Change photo</Text>
+          <Text style={{ fontWeight: F.sansMed, fontSize: 12.5, color: '#fff' }}>Change photo</Text>
         </Pressable>
       </View>
     )
@@ -312,8 +325,8 @@ function PhotoZone({ photo, onPick, onClear }: { photo: string | null; onPick: (
       <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: C.paper, alignItems: 'center', justifyContent: 'center' }}>
         <PlusIcon size={17} />
       </View>
-      <Text style={{ fontFamily: F.sansMed, fontSize: 14, color: C.ink2 }}>Add a photo</Text>
-      <Text style={{ fontFamily: F.sans, fontSize: 12, color: C.ink3 }}>Optional</Text>
+      <Text style={{ fontWeight: F.sansMed, fontSize: 14, color: C.ink2 }}>Add a photo</Text>
+      <Text style={{ fontWeight: F.sans, fontSize: 12, color: C.ink3 }}>Optional</Text>
     </Pressable>
   )
 }
@@ -325,7 +338,7 @@ function Field({ label, multiline, ...props }: { label: string; multiline?: bool
       <TextInput
         placeholderTextColor={C.ink2}
         multiline={multiline}
-        style={{ minHeight: multiline ? 84 : 46, borderRadius: 8, paddingHorizontal: 13, paddingTop: multiline ? 11 : 0, backgroundColor: C.paper, borderWidth: 1, borderColor: HAIRLINE, fontFamily: F.sans, fontSize: 15, color: C.ink, textAlignVertical: multiline ? 'top' : 'center' }}
+        style={{ minHeight: multiline ? 84 : 46, borderRadius: 8, paddingHorizontal: 13, paddingTop: multiline ? 11 : 0, backgroundColor: C.paper, borderWidth: 1, borderColor: HAIRLINE, fontWeight: F.sans, fontSize: 15, color: C.ink, textAlignVertical: multiline ? 'top' : 'center' }}
         {...props}
       />
     </View>
@@ -334,7 +347,7 @@ function Field({ label, multiline, ...props }: { label: string; multiline?: bool
 
 /** Sentence-case form label (not an uppercase eyebrow). */
 function FieldLabel({ children }: { children: string }) {
-  return <Text style={{ fontFamily: F.sansMed, fontSize: 13, color: C.ink2, marginBottom: 6 }}>{children}</Text>
+  return <Text style={{ fontWeight: F.sansMed, fontSize: 13, color: C.ink2, marginBottom: 6 }}>{children}</Text>
 }
 
 // ── Date / time picker ─────────────────────────────────────────────
@@ -404,7 +417,7 @@ function DateTimeField({ label, mode, value, onChange, minDate }: {
             height: 46, width: '100%', boxSizing: 'border-box',
             borderRadius: 8, padding: '0 13px',
             background: C.paper, border: `1px solid ${HAIRLINE}`,
-            fontFamily: F.mono, fontSize: 15, color: value ? C.ink : C.ink2,
+            fontWeight: F.mono, fontSize: 15, color: value ? C.ink : C.ink2,
             outline: 'none',
           },
         })}
@@ -418,7 +431,7 @@ function DateTimeField({ label, mode, value, onChange, minDate }: {
       <Pressable
         onPress={() => { Haptics.selectionAsync(); setTemp(current); setShow(true) }}
         style={({ pressed }) => ({ minHeight: 46, borderRadius: 8, paddingHorizontal: 13, justifyContent: 'center', backgroundColor: C.paper, borderWidth: 1, borderColor: HAIRLINE, opacity: pressed ? 0.85 : 1 })}>
-        <Text style={{ fontFamily: displayText ? F.mono : F.sans, fontSize: 15, color: displayText ? C.ink : C.ink2 }}>
+        <Text style={{ fontWeight: displayText ? F.mono : F.sans, fontSize: 15, color: displayText ? C.ink : C.ink2 }}>
           {displayText || (mode === 'date' ? 'Pick a date' : 'Pick a time')}
         </Text>
       </Pressable>
@@ -438,9 +451,9 @@ function DateTimeField({ label, mode, value, onChange, minDate }: {
           <Pressable onPress={() => setShow(false)} style={{ flex: 1, backgroundColor: 'rgba(20,18,14,0.38)', justifyContent: 'flex-end' }}>
             <Pressable onPress={(e) => e.stopPropagation()} style={{ backgroundColor: C.paper, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingBottom: 28 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingTop: 14, paddingBottom: 4 }}>
-                <Pressable onPress={() => setShow(false)} hitSlop={10}><Text style={{ fontFamily: F.sansMed, fontSize: 15, color: C.ink3 }}>Cancel</Text></Pressable>
-                <Text style={{ fontFamily: F.sansSemi, fontSize: 14, color: C.ink }}>{label}</Text>
-                <Pressable onPress={() => { if (temp) commit(temp); setShow(false) }} hitSlop={10}><Text style={{ fontFamily: F.sansSemi, fontSize: 15, color: C.moss700 }}>Done</Text></Pressable>
+                <Pressable onPress={() => setShow(false)} hitSlop={10}><Text style={{ fontWeight: F.sansMed, fontSize: 15, color: C.ink2 }}>Cancel</Text></Pressable>
+                <Text style={{ fontWeight: F.sansSemi, fontSize: 14, color: C.ink }}>{label}</Text>
+                <Pressable onPress={() => { if (temp) commit(temp); setShow(false) }} hitSlop={10}><Text style={{ fontWeight: F.sansSemi, fontSize: 15, color: C.moss700 }}>Done</Text></Pressable>
               </View>
               <RNDateTimePicker
                 value={temp ?? current} mode={mode} display="spinner" themeVariant="light"
