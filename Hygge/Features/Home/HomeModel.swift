@@ -19,7 +19,10 @@ final class HomeModel: ObservableObject {
 
     func load(_ api: CommunityAPI) async {
         if !loaded { loading = true }
-        name = firstNameFromEmail(await api.currentEmail())
+        // Prefer the canonical community name (what the profile shows/edits);
+        // fall back to the email-derived first name only when none is set.
+        let emailName = firstNameFromEmail(await api.currentEmail())
+        name = Interests.displayName ?? emailName
         do {
             today = try await api.getTodayEvents()
             // Roll call: today's RSVPs + the week ahead's, town-wide. getTodayEvents is

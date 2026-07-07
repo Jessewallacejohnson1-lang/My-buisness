@@ -12,9 +12,17 @@ struct InterestPickerView: View {
     let name: String
     let onBack: () -> Void
     let onContinue: () -> Void
+    /// Onboarding shows the 3-step progress bar + "Continue"; the profile editor
+    /// reuses this grid with a plain back row + a "Done" CTA (`showsProgress: false`).
+    var showsProgress: Bool = true
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var appeared = false
+
+    private var ctaTitle: String {
+        if selected.isEmpty { return showsProgress ? "Pick a few to continue" : "Choose a few" }
+        return showsProgress ? "Continue · \(selected.count)" : "Done · \(selected.count)"
+    }
 
     private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
 
@@ -26,7 +34,11 @@ struct InterestPickerView: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 14) {
-                OnboardingTopBar(index: 1, total: 3, onBack: onBack).padding(.top, 8)
+                if showsProgress {
+                    OnboardingTopBar(index: 1, total: 3, onBack: onBack).padding(.top, 8)
+                } else {
+                    HStack { OnboardingBackButton(action: onBack); Spacer() }.padding(.top, 8)
+                }
                 VStack(alignment: .leading, spacing: 6) {
                     Text(heading)
                         .font(.display(28))
@@ -79,8 +91,7 @@ struct InterestPickerView: View {
     private var footer: some View {
         VStack(spacing: 0) {
             Rectangle().fill(Hue.hairline).frame(height: 1)
-            ContinueButton(title: selected.isEmpty ? "Pick a few to continue" : "Continue · \(selected.count)",
-                           enabled: !selected.isEmpty) {
+            ContinueButton(title: ctaTitle, enabled: !selected.isEmpty) {
                 Haptics.selection(); onContinue()
             }
             .padding(.horizontal, 24)

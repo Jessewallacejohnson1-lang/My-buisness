@@ -8,6 +8,7 @@ import SwiftUI
 struct Masthead: View {
     var name: String?
     var onAdd: (() -> Void)?       // "+" button — like Instagram top-right
+    var onProfile: (() -> Void)?   // person button → the community profile sheet
 
     private var dateLine: String {
         let f = DateFormatter()
@@ -49,18 +50,26 @@ struct Masthead: View {
                     .buttonStyle(.plain)
                 }
                 glassCircle("magnifyingglass")
-                glassCircle("person")
+                glassCircle("person", action: onProfile)
             }
             .padding(.top, 4)
         }
     }
 
-    private func glassCircle(_ symbol: String) -> some View {
-        Image(systemName: symbol)
+    @ViewBuilder
+    private func glassCircle(_ symbol: String, action: (() -> Void)? = nil) -> some View {
+        let face = Image(systemName: symbol)
             .font(.system(size: 16, weight: .medium))
             .foregroundStyle(Hue.ink)
             .frame(width: 38, height: 38)
             .background(.ultraThinMaterial, in: Circle())
             .overlay(Circle().stroke(Hue.hairline, lineWidth: 1))
+        if let action {
+            Button { Haptics.light(); action() } label: { face }
+                .buttonStyle(PressableStyle())
+                .accessibilityLabel("Your profile")
+        } else {
+            face
+        }
     }
 }

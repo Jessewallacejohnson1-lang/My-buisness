@@ -80,6 +80,11 @@ enum Interests {
     static func get() -> [String] { UserDefaults.standard.stringArray(forKey: interestsKey) ?? [] }
     static func set(_ ids: [String]) { UserDefaults.standard.set(ids, forKey: interestsKey) }
 
+    /// Human labels for interest ids (array or set), dropping any unknown id.
+    static func labels(for ids: some Sequence<String>) -> [String] {
+        ids.compactMap { id in all.first { $0.id == id }?.label }
+    }
+
     static var displayName: String? {
         get { UserDefaults.standard.string(forKey: nameKey) }
         set { UserDefaults.standard.set(newValue, forKey: nameKey) }

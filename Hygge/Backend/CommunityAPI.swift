@@ -304,6 +304,48 @@ struct CommunityAPI {
                                         prefer: "resolution=merge-duplicates,return=minimal")
     }
 
+    // MARK: - My activity (profile screen — per-user, real counts only)
+
+    /// Upcoming events the signed-in user has RSVP'd to (today onward), soonest
+    /// first. Two hops: their `event_rsvps` → those approved `club_events`. Empty
+    /// when they've RSVP'd to nothing upcoming — never a fabricated number.
+    func getMyUpcomingRsvps() async throws -> [UpcomingEvent] {
+        let t = try await token()
+        let uid = try await uidOrThrow()
+        let (rd, _) = try await SupabaseHTTP.rest("event_rsvps",
+            query: "select=event_id&user_id=eq.\(uid)", accessToken: t)
+        let mine: [RsvpRow] = try decode(rd)
+        let ids = Array(Set(mine.map(\.eventId)))
+        guard !ids.isEmpty else { return [] }
+        let today = DateHelpers.localDate()
+        let (data, _) = try await SupabaseHTTP.rest("club_events",
+            query: "select=*&id=in.(\(ids.joined(separator: ",")))&status=eq.approved&kind=eq.event&event_date=gte.\(today)&order=event_date.asc",
+            accessToken: t)
+        let events: [RawEvent] = try decode(data)
+        let counts = try await rsvpCounts(eventIds: events.map(\.id), token: t)
+        return events.map {
+            UpcomingEvent(id: $0.id, title: $0.title, eventDate: $0.eventDate ?? "",
+                          startTime: $0.startTime, location: $0.location,
+                          goingCount: counts[$0.id] ?? 0, createdAt: $0.createdAt ?? "")
+        }
+    }
+
+    /// Clubs the signed-in user has joined. Derives from the approved-clubs fetch,
+    /// which already resolves `joined` per row — no separate endpoint needed.
+    func getMyClubs() async throws -> [ClubView] {
+        try await getApprovedClubs().filter { $0.joined }
+    }
+
+    /// How many daily quests the user has ever completed (all-time). Real count.
+    func getMyQuestCount() async throws -> Int {
+        let t = try await token()
+        let uid = try await uidOrThrow()
+        let (data, _) = try await SupabaseHTTP.rest("quest_completions",
+            query: "select=id&user_id=eq.\(uid)", accessToken: t)
+        let rows: [IdRow] = try decode(data)
+        return rows.count
+    }
+
     // MARK: - Trails
 
     func getTrails() async throws -> [Trail] {
