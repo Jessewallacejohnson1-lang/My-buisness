@@ -31,25 +31,69 @@ enum Tab: Int, CaseIterable, Identifiable {
 struct RootView: View {
     @EnvironmentObject private var auth: AuthStore
     @State private var needsOnboarding = !Interests.isOnboarded()
+    @State private var hydrated = false
+    #if DEBUG
+    @State private var debugIntroDismissed = false
+    #endif
 
     var body: some View {
         Group {
-            if auth.booting {
-                ZStack {
-                    Hue.canvas.ignoresSafeArea()
-                    Text("Hygge")
-                        .font(.display(34))
-                        .foregroundStyle(Hue.ink)
-                }
-            } else if auth.isSignedIn {
-                if needsOnboarding {
-                    OnboardingView { needsOnboarding = false }
-                } else {
-                    MainTabsView()
-                }
+            #if DEBUG
+            // `-show-splash` / `-show-map-intro` force a first-run screen on stage
+            // so it can be verified headlessly in the simulator. No effect in
+            // release or without the flag. The intro's button falls through to the
+            // gate, so "Explore the map" is live here too (not a dead preview).
+            if ProcessInfo.processInfo.arguments.contains("-show-splash") {
+                SplashView()
+            } else if ProcessInfo.processInfo.arguments.contains("-show-map-intro"),
+                      !debugIntroDismissed {
+                MapIntroView { debugIntroDismissed = true }
+            } else if ProcessInfo.processInfo.arguments.contains("-show-onboarding") {
+                // Render the onboarding wizard directly (bypassing the auth gate)
+                // so any step can be screenshotted headlessly via -onboarding-step.
+                OnboardingView { debugIntroDismissed = true }
             } else {
-                LoginView()
+                gate
             }
+            #else
+            gate
+            #endif
+        }
+    }
+
+    @ViewBuilder
+    private var gate: some View {
+        if auth.booting {
+            SplashView()
+        } else if auth.isSignedIn {
+            authedRoot
+                .task(id: auth.userId) { await hydrateIfNeeded() }
+        } else {
+            LoginView()
+        }
+    }
+
+    @ViewBuilder private var authedRoot: some View {
+        if needsOnboarding {
+            OnboardingView { needsOnboarding = false }
+        } else {
+            MainTabsView()
+        }
+    }
+
+    /// Pull the community profile once per session: mirror interests/name locally
+    /// (so matching + greetings work offline) and honor a remote onboarded stamp
+    /// (a reinstall/new device shouldn't re-run onboarding). Silent on failure.
+    private func hydrateIfNeeded() async {
+        guard !hydrated, auth.isSignedIn else { return }
+        hydrated = true
+        let fetched = try? await ProfileAPI(auth: .shared).getMyProfile()
+        guard let profile = fetched ?? nil else { return }
+        if !profile.interests.isEmpty { Interests.set(profile.interests) }
+        if let n = profile.displayName, !n.isEmpty { Interests.displayName = n }
+        if profile.onboardedAt != nil, needsOnboarding {
+            Interests.setOnboarded()
+            needsOnboarding = false
         }
     }
 }
@@ -86,14 +130,18 @@ struct MainTabsView: View {
             Group {
                 switch tab {
                 case .home:
+                    // Home carries the brand in its own "Hygge" masthead — a second
+                    // coral badge would be redundant, so Home is the one tab without it.
                     HomeView(
                         onCompose: { composing = true },
                         expandedPlace: $expandedPlace,
                         cardNS: cardNS
                     )
+                // No brand badge on these tabs — the top-right corner carries
+                // screen chrome now (the map's compose "+" etc.).
                 case .activities: ActivitiesView()
                 case .calendar:   CalendarView()
-                case .map:        SJMapView()
+                case .map:        SJMapView(onCompose: { composing = true })
                 }
             }
 
@@ -129,9 +177,10 @@ struct MainTabsView: View {
     }
 }
 
-/// Floating frosted tab bar — a rounded glass pill with a gray selection
+/// Floating frosted tab bar — a rounded glass pill with a coral-tinted selection
 /// highlight that matched-geometry-slides to whichever tab is active. Selected
-/// state reads charcoal-on-gray (no accent tint); each switch fires a haptic.
+/// state reads coral-on-soft-coral (matches the map's Life360 look); each switch
+/// fires a haptic.
 struct HyggeTabBar: View {
     @Binding var selection: Tab
     @Namespace private var pill
@@ -168,13 +217,13 @@ struct HyggeTabBar: View {
                 Text(tab.title)
                     .font(.sansMedium(11))
             }
-            .foregroundStyle(selected ? Hue.ink : Hue.ink3)
+            .foregroundStyle(selected ? Hue.accent : Hue.ink3)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 9)
             .background {
                 if selected {
                     RoundedRectangle(cornerRadius: pillRadius, style: .continuous)
-                        .fill(Color.black.opacity(0.06))
+                        .fill(Hue.accentSoft)
                         .matchedGeometryEffect(id: "pill", in: pill)
                 }
             }

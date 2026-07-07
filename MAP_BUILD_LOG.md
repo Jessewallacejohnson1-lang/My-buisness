@@ -400,3 +400,165 @@ admin mode. The `-force-nonadmin` addition is uncommitted on `mapbox-map-tab`.
 > used RN terms) — before confirming with Jesse that the target is this native SwiftUI
 > app. Those Expo-side changes (a parallel RN realtime/quick-add/anti-slop pass) sit
 > uncommitted on a same-named `mapbox-map-tab` branch there, to keep or discard.
+
+---
+
+## Map intro onboarding screen (2026-07-06)
+
+A first-run introduction to the Map, added as the **third onboarding step**
+(Welcome → Interests → **Map intro**). Adapts the Life360 "create your Circle"
+composition into the coral+white system: a full-bleed coral field (a subtle
+`accent → accentPressed` gradient — deepens toward the bottom so the white support
+line/button clear a legible contrast) and a **real Mapbox porthole** of downtown
+Saint Joseph — centered on Minnesota St & College Ave, same cartography as
+`SJMapView` (blue water, green parks, grey buildings). Over it hang **Life360-style
+teardrop pins on the real venues by name** — **Local Blend** (live: coral head,
+white glyph, the same `PulseRing`), **Bad Habit**, **Krewe**, **St. Joe Church**.
+
+- **New:** `Features/Onboarding/MapIntroView.swift` — embeds a non-interactive
+  `Map` (`.allowsHitTesting(false)`); pins are art-directed SwiftUI overlays (spread
+  for legibility, not GPS-exact) reusing the live map's pin recipe. **Edited:**
+  `OnboardingView` (`.map` step + crossfade between steps), `RootView` (DEBUG
+  `-show-map-intro`, mirrors `-show-splash`).
+- **Porthole detail:** the map renders in a frame ~96pt taller than the clip circle
+  so Mapbox's bottom-edge logo/attribution fall *outside* the disc (attribution
+  lives on the real Map tab) — the porthole stays clean. A white rim + hairline +
+  soft inner vignette finish it.
+- **Choreography:** a staggered assemble-in — title rises, the map fades in, the
+  teardrop pins drop onto their venues one-by-one, then Local Blend's pulse starts;
+  a slow breathing halo behind the disc. Fully gated by `accessibilityReduceMotion`
+  (final state, no pulse/drift), matching the `PulseRing`/`SkeletonBar` discipline.
+- **Verified:** builds clean (0 warnings) on iPhone 17 sim. Settled frame
+  (`-show-map-intro`) screenshot-confirmed with real tiles + all four named pins; an
+  early ~0.9s frame confirms the cascade genuinely plays (title mid-fade, porthole
+  mid-fade-in) before landing. The isolated debug screen is the verification
+  surface, same as `SplashView` uses `-show-splash`. Uncommitted on `mapbox-map-tab`.
+- Design spec: `docs/superpowers/specs/2026-07-06-map-intro-onboarding-design.md`.
+
+### "?" help button + review pass (2026-07-06)
+- **Added:** an always-available "?" chrome button in `SJMapView`'s bottom-right
+  stack that reopens the intro via `.fullScreenCover` (`ctaTitle: "Got it",
+  instant: true`). `MapIntroView` gained `ctaTitle` + `instant` params; `RootView`'s
+  `-show-map-intro` debug branch now dismisses to the gate so the CTA isn't dead.
+- **Adversarial review (10-agent workflow) → 4 confirmed fixes:**
+  1. `OnboardingView` — commit point (`Interests.set` + `setOnboarded`) restored to
+     the Interests "Continue" tap; backgrounding mid-intro no longer re-onboards.
+  2. `MapIntroView` — the CTA gained `.allowsHitTesting(ctaHittable)`; an opacity-0
+     button was tappable during the ~1s reveal.
+  3. Help sheet uses `instant` — content shows at once instead of replaying the
+     first-run bloom (with gentle halo + pulse retained).
+  4. Halo `.opacity` gated on `revealed` — no more floating glow before the disc.
+- **Accepted / by-design:** two live Mapbox contexts while the help cover is open
+  (transient); uncancelled `pulseOn` timer (no-op on struct `@State`); Local Blend
+  hardcoded `live` (documented teaching mock, not the live-data map); DEBUG flag
+  rendering before the auth gate (`#if DEBUG`). Builds clean; settled frame verified.
+
+### Life360-style redesign of the map tab (2026-07-06)
+Goal: make the map read like the Life360 reference (layout + basemap coloring),
+keeping Hygge **coral** (Life360's chrome is purple; its own pin is already coral).
+- **Basemap coloring** — `SJMapView.recolorBasemap` warms the flat `light-v11`
+  toward the reference via a named `MapPalette`: land `#F0EBE3` (beige), parks/grass
+  `#C9E0B4` (sage), water `#A6CBE6` (soft blue), buildings `#E8E4DC`. Each set is
+  best-effort (`try?`) across candidate layer ids; road casings + labels kept.
+- **Top chrome** replaces the "Saint Joseph" title header: floating filter chip
+  (`SpotFilter` — Everything / Downtown / Parks & trails / Campus, narrows pins +
+  Places) · "Saint Joseph" pill · compose "+". The "+" is admin→`QuickAddSheet`,
+  else the global composer (new `onCompose` injected by `MainTabsView`, like Home).
+- **Floating controls** are now help (bottom-left) + recenter (bottom-right).
+- **`MapSheet` (new)** — persistent draggable sheet (peek 244 ⇄ ~62%): **Today**
+  (real `todayEvents`, coral dot = live), **Places** (curated spots + live-now
+  count), **spot detail** (blurb, happenings, Directions; back chevron). Subsumes
+  the old pop-up `MapBottomCard` (removed, with its `AccentPillStyle` /
+  `MapStatusLine` / `SkeletonBar`). Selecting a pin/row auto-expands the sheet.
+- **Tab bar** — active state re-tinted **coral on `accentSoft`** (was charcoal), app-wide.
+- **Logo** — `.brandBadge()` dropped from Activities / Calendar / Map (Home never
+  had it). `HyggeLogoBadge` kept but unused.
+- **DEBUG args added:** `-map-sheet places`, `-map-open <spotid>`.
+- **Verified (screenshot loop, iPhone 17):** builds clean (0 warnings); default map,
+  Places list, spot detail, and logo-free Activities/Calendar all confirmed.
+
+### Dynamic town pill — reverse-geocoded map center (2026-07-06)
+The top-center pill was a static "Saint Joseph"; now it names whatever town the map
+is panned over.
+- **`GeocoderService.town(lat:lon:)`** — Nominatim `/reverse` (zoom 12), decodes
+  `address` → best populated-place name (`city → town → village → … → county`),
+  cached by coordinate rounded to ~0.01°. Same no-key + User-Agent pattern as the
+  existing forward geocoder.
+- **`MapModel.townLabel`** (`@Published`) + `updateTown(center:)` — Mapbox warns
+  against storing high-frequency camera values in view `@State`, so `SJMapView`'s
+  `.onCameraChanged` funnels the center into the model, which debounces 500 ms and
+  publishes only the settled name. `townTask` cancelled in `stop()`.
+- **DEBUG arg:** `-map-center <lat>,<lon>` starts the camera elsewhere for headless
+  verification.
+- **Verified:** pill reads "Saint Joseph" at the default center and "Saint Cloud"
+  under `-map-center 45.5608,-94.1622`. Builds clean.
+
+### Filter-chip chrome fix + board de-dup + real-content 5× (2026-07-06, overnight)
+Three asks: the map filter chip drew a square, the Today card showed a duplicate
+board row, and the app needed much more real content.
+- **Filter chip square (`SJMapView.filterMenu`)** — the top-left `slider.horizontal.3`
+  chrome was a `Menu` whose label kept the default menu/glass control background (a
+  rounded square) behind the 44 px circle; its sibling chrome buttons all use
+  `.buttonStyle(.plain)`. Added `.buttonStyle(.plain)` to the `Menu` so only the
+  chrome circle shows. Verified in-sim: clean circle matching the "+"/recenter chrome.
+- **Board duplicate (`CommunityAPI.getBoardSections`)** — `board_items` held two
+  identical "Trivia Night at Bad Habit Brewing" rows, and the card/Board did no
+  de-dup, so the Today card's first-3 showed it twice. Fixes: (1) deleted the dup
+  row; (2) added `dedupeBoard(_:)` — drops exact `(lower(title)+start+source)`
+  repeats per section, preserving server order; (3) DB migration
+  `board_items_dedup_unique_index` — a unique index on
+  `(lower(title), source_name, coalesce(starts_at,'-infinity'))` so a double-publish
+  can't recur (recurring dated rows differ by `starts_at`, still allowed). Verified
+  in-sim: the Today card shows two distinct rows.
+- **Content 5× (Supabase, data-only — no Swift)** — a citation-backed research pass
+  (real St. Joseph sources) fed SQL inserts, every event location routed to an
+  existing MapSpot keyword so pins light with no `MapSpots`/`KnownVenues` change:
+  events **8 → 46** (Local Blend Tuesday open mic, Bad Habit Wednesday trivia,
+  Farmers Market Fridays through its real Oct 16 season end, RocktoberFest/
+  Kidtoberfest); trails **1 → 5** (fixed the junk `millstream` test row → Millstream
+  Park; added Chapel Trail, Boardwalk Loop, Abbey Arboretum, Klinefelter); board
+  items **12 → 35** (real civic-meeting calendar Aug–Oct skipping holiday Mondays,
+  plus 10 tappable resource links — city, library, schools, CSB/SJU, meat market,
+  Kay's, Newsleaders, food shelf); `evergreen_pool` **0 → 15** true town facts
+  (fixes the previously-empty calm fallback). Recurring rows collapse to clean
+  "Every Tuesday/Wednesday/Friday" cards via `groupRecurring`. Verified in-sim:
+  Explore events/trails and the Today board all render the new content.
+- **Note (two-repo rule):** all content is Supabase data and no venue coordinates
+  were added, so `apps/mobile/src/lib/geo.ts` needs no sync this pass.
+
+## Onboarding — community profile (name · interests · avatar → Supabase) — 2026-07-07
+
+Extended first-run from `hello → interests → map` into a bounded wizard that also
+captures customer data: **Welcome → Name → Interests → Avatar → Map finale**, with a
+3-segment progress bar + back chevron on the data steps. Design spec + plan under
+`docs/superpowers/{specs,plans}/2026-07-07-onboarding-community-profile*`.
+
+- **Supabase (applied to the live project):** new table `public.town_profiles`
+  (`user_id` pk, `display_name`, `avatar_url`, `interests text[]`, `onboarded_at`,
+  timestamps) with own-row RLS (select/insert/update). New **public `avatars`
+  bucket** with folder-scoped insert/update RLS (`{uid}/avatar-*.jpg`) + public read.
+  Separate from the wellness app's `profiles` table (shared project, different owner).
+- **Backend:** `ProfileAPI` (get/upsert, mirrors CommunityAPI's PostgREST upsert),
+  `Storage.uploadAvatar`, `TownProfile` model. Interests still live in `UserDefaults`
+  (synchronous matching) **and** mirror to Supabase; `RootView` hydrates the profile
+  on launch and honors a remote `onboarded_at` so a reinstall doesn't re-onboard.
+  Persistence is best-effort/non-blocking via a main-actor `Task` (module default
+  isolation → no Sendable crossing).
+- **Taxonomy:** 18 St. Joe categories in 5 sections (Interests.swift), each with
+  keyword matching + a photo card. `beaches→Lakes & Swimming` (landlocked MN).
+- **Imagery (hybrid):** 18 art-directed editorial photos generated (nano_banana_pro,
+  4:3), in `Assets.xcassets/Interests/interest-<id>`. `InterestImage.image(for:)`
+  prefers a real-photo override (`LocalPhotos/interest-<id>`) so Jesse's real St. Joe
+  photos drop in by name with zero code changes. Cards fall back to a calm tinted
+  placeholder if an asset is ever missing (never crashes).
+- **Motion:** photo-card press-scale + coral selection ring/check + image zoom,
+  staggered grid fade-in, spring CTA enable, animated progress bar; full Reduce-Motion
+  path (renders final state, verified no-crash in-sim with RM enabled).
+- **DEBUG launch args:** `-show-onboarding`, `-onboarding-step name|interests|avatar`,
+  `-onboarding-filled` (headless per-screen screenshots, like `-open-tab`).
+- **Verified in-sim (iPhone 17):** builds clean (0 code warnings); Welcome, Name
+  (empty/filled), Interests (empty/selected with real photos + live count), Avatar
+  (empty well) all screenshot correct; 18 photos QA'd for slop (no uncanny faces /
+  garbled text). **Not yet driven end-to-end through a signed-in tap-through** (the
+  Supabase upsert path mirrors the proven CommunityAPI RSVP/join upsert; schema+RLS
+  verified) — recommend one live signed-in run to confirm the row + avatar upload.

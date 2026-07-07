@@ -171,3 +171,13 @@ struct AgendaRow: Decodable {
 
 /// The authed user, from GET /auth/v1/user.
 struct CurrentUser: Decodable { let id: String; let email: String? }
+
+// MARK: - Town profile (this community app's per-user identity; separate from the
+// wellness app's `profiles` table). Decoded with convertFromSnakeCase.
+struct TownProfile: Decodable {
+    let userId: String
+    let displayName: String?
+    let avatarUrl: String?
+    let interests: [String]
+    let onboardedAt: String?
+}
