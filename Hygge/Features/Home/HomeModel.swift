@@ -9,6 +9,7 @@ import Combine
 @MainActor
 final class HomeModel: ObservableObject {
     @Published var today: [TimelineEvent] = []
+    @Published var board: TodayInStJoeContent = .loading  // curated town board (board_items)
     @Published var weekGoing = 0   // town-wide RSVPs, today → +7 days (the roll call)
     @Published var quest: DailyQuest?
     @Published var questCount = 0
@@ -42,6 +43,24 @@ final class HomeModel: ObservableObject {
         } catch {
             // Leave whatever we have; the UI shows calm empty states.
         }
+
+        // The curated town board — its own fetch so a board hiccup never disturbs
+        // the timeline above, and vice versa.
+        do {
+            let items = try await api.getTodayInStJoe()
+            if items.isEmpty {
+                if let line = try await api.getEvergreenLine() {
+                    board = .evergreen(line)
+                } else {
+                    board = .empty
+                }
+            } else {
+                board = .items(items)
+            }
+        } catch {
+            if case .loading = board { board = .empty }  // never stick on the spinner
+        }
+
         loading = false
         loaded = true
     }

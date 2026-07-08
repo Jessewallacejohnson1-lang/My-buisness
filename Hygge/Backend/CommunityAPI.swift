@@ -375,6 +375,93 @@ struct CommunityAPI {
               description: e.description, imageUrl: e.imageUrl, status: e.status ?? .approved, createdAt: e.createdAt ?? "")
     }
 
+    // MARK: - Board (Today in St. Joe)
+
+    /// The shared fetch behind both the Today card and the full Board — one place
+    /// that owns the board_items query semantics (the "shared hook").
+    /// - today:  published events with starts_at within the local day.
+    /// - week:   published events over the next 7 days (tomorrow → +7).
+    /// - around: published announcements (null starts_at) from the last 7 days.
+    func getBoardSections() async throws -> BoardSections {
+        let t = try await token()
+
+        var cal = Calendar.current
+        cal.timeZone = .current
+        let startToday    = cal.startOfDay(for: Date())
+        let startTomorrow = cal.date(byAdding: .day, value: 1, to: startToday) ?? startToday
+        let startPlus8    = cal.date(byAdding: .day, value: 8, to: startToday) ?? startToday
+
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime]
+        let dayStart  = BoardRow.enc(iso.string(from: startToday))
+        let dayEnd    = BoardRow.enc(iso.string(from: startTomorrow))
+        let weekEnd   = BoardRow.enc(iso.string(from: startPlus8))
+        let weekAgo   = BoardRow.enc(iso.string(from: Date().addingTimeInterval(-7 * 24 * 3600)))
+
+        let cols = "select=id,title,blurb,source_name,source_url,starts_at"
+
+        async let todayCall = SupabaseHTTP.rest("board_items",
+            query: "\(cols)&status=eq.published&starts_at=gte.\(dayStart)&starts_at=lt.\(dayEnd)&order=starts_at.asc",
+            accessToken: t)
+        async let weekCall = SupabaseHTTP.rest("board_items",
+            query: "\(cols)&status=eq.published&starts_at=gte.\(dayEnd)&starts_at=lt.\(weekEnd)&order=starts_at.asc",
+            accessToken: t)
+        async let aroundCall = SupabaseHTTP.rest("board_items",
+            query: "\(cols)&status=eq.published&starts_at=is.null&published_at=gte.\(weekAgo)&order=published_at.desc",
+            accessToken: t)
+
+        let today:  [BoardFullRow] = dedupeBoard(try decode(try await todayCall.0))
+        let week:   [BoardFullRow] = dedupeBoard(try decode(try await weekCall.0))
+        let around: [BoardFullRow] = dedupeBoard(try decode(try await aroundCall.0))
+
+        return BoardSections(today: today.map(BoardRow.init),
+                             week: week.map(BoardRow.init),
+                             around: around.map(BoardRow.init))
+    }
+
+    /// Drop exact-duplicate board rows (same title + start + source), preserving
+    /// server order. Belt-and-suspenders against a double-published row (e.g. an
+    /// announcement seeded twice) rendering twice on the Today card / Board — the
+    /// DB also carries a unique index on that identity.
+    private func dedupeBoard(_ rows: [BoardFullRow]) -> [BoardFullRow] {
+        var seen = Set<[String]>()
+        return rows.filter { r in
+            // Array key (not a delimited string) so a title/source containing the
+            // separator can never collide two distinct rows into one.
+            let key = [r.title.lowercased(), r.startsAt ?? "", r.sourceName.lowercased()]
+            return seen.insert(key).inserted
+        }
+    }
+
+    /// The Today card's content — the first 3 of (today's events + around town),
+    /// built from the same fetch the Board uses.
+    func getTodayInStJoe() async throws -> [BoardItem] {
+        let s = try await getBoardSections()
+        return (s.today + s.around).prefix(3).map {
+            BoardItem(id: $0.id, title: $0.title, timeLabel: $0.timeLabel, url: $0.url)
+        }
+    }
+
+    /// One random active evergreen line — the calm fallback when the board is empty.
+    func getEvergreenLine() async throws -> String? {
+        struct Line: Decodable { let line: String }
+        let t = try await token()
+        let (data, _) = try await SupabaseHTTP.rest("evergreen_pool",
+            query: "select=line&active=is.true", accessToken: t)
+        let rows: [Line] = try decode(data)
+        return rows.randomElement()?.line
+    }
+
+    /// Row shape the board queries decode into (before mapping to `BoardRow`).
+    fileprivate struct BoardFullRow: Decodable {
+        let id: String
+        let title: String
+        let blurb: String?
+        let sourceName: String
+        let sourceUrl: String?
+        let startsAt: String?
+    }
+
     // MARK: - Moderation (admin)
 
     func getPendingPosts() async throws -> [PendingPost] {
@@ -401,5 +488,52 @@ struct CommunityAPI {
         let t = try await token()
         _ = try await SupabaseHTTP.rest(table, method: "PATCH", query: "id=eq.\(id)", accessToken: t,
                                         body: try body(["status": status.rawValue]), prefer: "return=minimal")
+    }
+}
+
+// MARK: - Board models (shared by the Today card + the Board screen)
+
+/// One row on the board: title, blurb, source attribution, optional time + link.
+struct BoardRow: Identifiable, Hashable {
+    let id: String
+    let title: String
+    let blurb: String?
+    let sourceName: String
+    let timeLabel: String?   // present for dated events
+    let url: URL?            // source_url
+}
+
+/// The three board sections. Sections render only when non-empty (they collapse).
+struct BoardSections {
+    let today: [BoardRow]
+    let week: [BoardRow]
+    let around: [BoardRow]
+}
+
+extension BoardRow {
+    /// Map a decoded board_items row into the shared display model.
+    fileprivate init(_ r: CommunityAPI.BoardFullRow) {
+        self.init(id: r.id, title: r.title, blurb: r.blurb, sourceName: r.sourceName,
+                  timeLabel: r.startsAt.flatMap(BoardRow.timeLabel),
+                  url: r.sourceUrl.flatMap { URL(string: $0) })
+    }
+
+    /// Percent-encode a timestamp for a PostgREST filter value (`.alphanumerics`
+    /// over-encodes on purpose: ':' '+' '-' 'Z' all become safe %-escapes).
+    static func enc(_ s: String) -> String {
+        s.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? s
+    }
+
+    /// "h:mm a" in the device-local zone from an ISO-8601 timestamp
+    /// ("2026-07-06T23:00:00+00:00", with or without fractional seconds).
+    nonisolated static func timeLabel(_ iso: String) -> String? {
+        let plain = ISO8601DateFormatter(); plain.formatOptions = [.withInternetDateTime]
+        let frac  = ISO8601DateFormatter(); frac.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        guard let date = plain.date(from: iso) ?? frac.date(from: iso) else { return nil }
+        let out = DateFormatter()
+        out.locale = Locale(identifier: "en_US")
+        out.timeZone = .current
+        out.dateFormat = "h:mm a"
+        return out.string(from: date)
     }
 }

@@ -76,8 +76,8 @@ struct AlmanacSection: View {
 /// label/temp, and the season. Coral (accent) tints the "get out" days; a calm
 /// sky tint carries the rest/indoor days — the color itself is an honest signal.
 ///
-/// Lines are AttributedString so numbers can carry Geist Mono inline (house rule:
-/// every number is mono) while the prose stays Spectral/DM Sans.
+/// Lines are AttributedString so numbers can carry a monospaced-digit run inline
+/// (house rule: numbers stay tabular) while the prose is the system font.
 enum Almanac {
     struct Nudge {
         let icon: String
@@ -175,7 +175,7 @@ enum Almanac {
         )
     }
 
-    // MARK: Attributed runs — hero (Spectral) + body (DM Sans), numbers in Geist Mono.
+    // MARK: Attributed runs — hero + body in the system font, numbers monospaced-digit.
 
     private static func run(_ s: String, _ font: Font, _ color: Color) -> AttributedString {
         var a = AttributedString(s)

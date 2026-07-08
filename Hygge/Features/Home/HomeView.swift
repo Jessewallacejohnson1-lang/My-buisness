@@ -13,40 +13,81 @@ struct HomeView: View {
     @EnvironmentObject private var auth: AuthStore
     @StateObject private var model = HomeModel()
 
+    /// Drives the staggered spring entrance. Starts hidden, springs in on appear
+    /// (app open / switching back to Today) and again after a pull-to-refresh.
+    @State private var revealed = false
+    /// False only during a refresh collapse, so the reset is instant (see refresh).
+    @State private var revealAnimated = true
+    /// The community profile sheet (opened from the Masthead's person button).
+    @State private var showProfile = HomeView.debugOpenProfile()
+
     private var api: CommunityAPI { CommunityAPI(auth: auth) }
+
+    /// DEBUG-only: `-open-profile` presents the profile sheet on launch so it can
+    /// be screenshotted headlessly. No effect in release or without the flag.
+    private static func debugOpenProfile() -> Bool {
+        #if DEBUG
+        return ProcessInfo.processInfo.arguments.contains("-open-profile")
+        #else
+        return false
+        #endif
+    }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 18) {
-                Masthead(name: model.name, onAdd: onCompose)
+                Masthead(name: model.name, onAdd: onCompose, onProfile: { showProfile = true })
                     .padding(.horizontal, 18)
                     .padding(.top, 8)
+                    .springReveal(0, revealed: revealed, animated: revealAnimated)
 
-                WeatherBar()
+                TodayInStJoeCard(content: model.board)
                     .padding(.horizontal, 18)
+                    .springReveal(1, revealed: revealed, animated: revealAnimated)
 
                 AlmanacSection()
                     .padding(.horizontal, 18)
+                    .springReveal(2, revealed: revealed, animated: revealAnimated)
 
                 todaySection
                     .padding(.horizontal, 18)
+                    .springReveal(3, revealed: revealed, animated: revealAnimated)
 
                 AroundTownCarousel(expanded: $expandedPlace, ns: cardNS)
+                    .springReveal(4, revealed: revealed, animated: revealAnimated)
 
                 RollCallSection(count: model.weekGoing)
                     .padding(.horizontal, 18)
+                    .springReveal(5, revealed: revealed, animated: revealAnimated)
 
                 QuestSection(quest: model.quest, count: model.questCount, done: model.questDone) {
                     Task { await model.completeQuest(api) }
                 }
                 .padding(.horizontal, 18)
+                .springReveal(6, revealed: revealed, animated: revealAnimated)
 
                 Color.clear.frame(height: 96)
             }
         }
         .background(Hue.canvas)
-        .refreshable { await model.load(api) }
+        .refreshable {
+            // Collapse instantly (animated: false → no reverse cascade), load,
+            // then spring it all back in — the reference's "reload → springs out" beat.
+            revealAnimated = false
+            revealed = false
+            await model.load(api)
+            revealAnimated = true
+            revealed = true
+        }
         .task { await model.load(api) }
+        // Springs in when Today first appears and each time it's returned to.
+        .onAppear { revealed = true }
+        .sheet(isPresented: $showProfile) { ProfileView() }
+        // A name edit in the profile writes Interests.displayName synchronously;
+        // pick it up when the sheet closes so the greeting stays in sync.
+        .onChange(of: showProfile) { _, shown in
+            if !shown { model.name = Interests.displayName ?? firstNameFromEmail(auth.email) }
+        }
     }
 
     @ViewBuilder
