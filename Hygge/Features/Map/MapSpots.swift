@@ -72,4 +72,14 @@ enum MapSpots {
              keywords: ["saint john", "st. john", "st john", "sju", "abbey", "collegeville"],
              blurb: "The Abbey in Collegeville"),
     ]
+
+    /// The curated keyword labels that actually light one of these pins (same match
+    /// rule as SJMapView.spot(for:)). QuickAdd seeds from this so every happening
+    /// posted from the map lands on a pin.
+    static var pinnableSuggestions: [String] {
+        KnownVenues.suggestions.filter { label in
+            let l = label.lowercased()
+            return all.contains { $0.keywords.contains { l.contains($0) } }
+        }
+    }
 }

@@ -72,6 +72,14 @@ final class GeocoderService {
         if let known = KnownVenues.coordinate(for: query) { return known }
         if let hit = cache[query] { return hit }
 
+        // Google Places (New) text search — real venues resolve better here than on
+        // Nominatim. Cached, so an unknown venue costs at most one lookup.
+        if let g = await GooglePlacesService.shared.search(query).first {
+            cache[query] = g.coordinate
+            return g.coordinate
+        }
+
+        // Nominatim fallback (free, no key) for anything Google didn't return.
         var comps = URLComponents(string: "https://nominatim.openstreetmap.org/search")!
         comps.queryItems = [
             URLQueryItem(name: "q",      value: query),

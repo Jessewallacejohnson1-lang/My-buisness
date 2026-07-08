@@ -77,7 +77,8 @@ struct AddFormView: View {
             .padding(.horizontal, 14).padding(.vertical, 10)
             .background(Hue.paper).clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous)).hyggeHairline()
 
-            labeledField("Where", $model.location, placeholder: "Church of St. Joseph, Minnesota St")
+            VenueAutocompleteField(label: "Where", placeholder: "Church of St. Joseph, Minnesota St",
+                                   text: $model.location, curated: KnownVenues.suggestions)
             labeledField("Details", $model.details, placeholder: "Anything neighbors should know (optional)", multiline: true)
 
             Stepper(value: $model.repeatWeeklyCount, in: 1...8) {

@@ -21,7 +21,7 @@ struct QuickAddSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var title = ""
-    @State private var spotId: String
+    @State private var location: String
     @State private var date = Date()
     @State private var time = Date()
     @State private var note = ""
@@ -32,10 +32,8 @@ struct QuickAddSheet: View {
 
     init(spots: [Spot]) {
         self.spots = spots
-        _spotId = State(initialValue: spots.first?.id ?? "")
+        _location = State(initialValue: spots.first?.name ?? "")
     }
-
-    private var selectedSpot: Spot? { spots.first { $0.id == spotId } }
 
     var body: some View {
         NavigationStack {
@@ -43,7 +41,8 @@ struct QuickAddSheet: View {
                 VStack(alignment: .leading, spacing: 16) {
                     labeledField("What's happening?", $title, placeholder: "Independence Day Parade")
 
-                    spotPicker
+                    VenueAutocompleteField(label: "Where", placeholder: "Pick or search a spot",
+                                           text: $location, curated: MapSpots.pinnableSuggestions, palette: .map)
                     whenRow
 
                     labeledField("A line about it", $note,
@@ -76,37 +75,6 @@ struct QuickAddSheet: View {
     }
 
     // MARK: Fields
-
-    private var spotPicker: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Where").font(.sansMedium(12)).foregroundStyle(Hue.gray)
-            Menu {
-                Picker("Where", selection: $spotId) {
-                    ForEach(spots) { spot in
-                        Text(spot.name).tag(spot.id)
-                    }
-                }
-            } label: {
-                HStack {
-                    Image(systemName: selectedSpot?.category.symbol ?? "mappin")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(Hue.mapInk)
-                    Text(selectedSpot?.name ?? "Pick a spot")
-                        .font(.sans(15)).foregroundStyle(Hue.mapInk)
-                    Spacer()
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Hue.grayLight)
-                }
-                .padding(.horizontal, 14).padding(.vertical, 12)
-                .background(Hue.bgSubtle)
-                .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Radius.md, style: .continuous)
-                    .stroke(Hue.mapHairline, lineWidth: 1))
-            }
-            .accessibilityLabel("Where: \(selectedSpot?.name ?? "pick a spot")")
-        }
-    }
 
     private var whenRow: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -170,8 +138,9 @@ struct QuickAddSheet: View {
     private func submit() async {
         error = nil
         let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let loc = location.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty else { error = "Give it a title."; return }
-        guard let spot = selectedSpot else { error = "Pick a spot."; return }
+        guard !loc.isEmpty else { error = "Where is it happening?"; return }
 
         submitting = true
         defer { submitting = false }
@@ -181,7 +150,7 @@ struct QuickAddSheet: View {
             title: t,
             eventDate: DateHelpers.localDate(date),
             startTime: startTimeString,
-            location: spot.name,                 // the spot name carries the keyword → lights that pin
+            location: loc,                       // the spot name carries the keyword → lights that pin
             description: desc.isEmpty ? nil : desc,
             imageUrl: nil
         )

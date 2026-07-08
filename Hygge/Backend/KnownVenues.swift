@@ -49,6 +49,16 @@ enum KnownVenues {
               coord: .init(latitude: 45.5648, longitude: -94.3183)),
     ]
 
+    /// Presentable quick-pick labels — one per curated venue, each of which
+    /// lowercase-contains its matching keyword above, so picking one still lights
+    /// the right pin. Keep aligned with `venues` when adding a venue.
+    static let suggestions: [String] = [
+        "Local Blend", "Bad Habit", "Krewe", "Church of St. Joseph",
+        "Millstream Park", "Klinefelter Park", "Memorial Park",
+        "Centennial Park", "Northland Park", "Wobegon Trail",
+        "Sacred Heart Chapel", "Saint John's", "Saint Ben's", "Downtown",
+    ]
+
     /// Exact coordinates for a known St. Joe venue, or nil if we don't know it.
     static func coordinate(for location: String?) -> CLLocationCoordinate2D? {
         guard let t = location?.lowercased(), !t.isEmpty else { return nil }

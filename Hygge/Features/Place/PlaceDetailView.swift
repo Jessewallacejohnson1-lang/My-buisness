@@ -86,6 +86,10 @@ struct PlaceDetailView: View {
                 .overlay(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
             }
 
+            // Hours & contact (Google Places, New) — renders only when data exists
+            VenueInfoView(query: "\(place.name) \(place.where_ ?? "St Joseph MN")",
+                          header: "Hours & contact", palette: .warm)
+
             // Open in Maps
             if let addr = place.where_ {
                 Button { openInMaps(addr) } label: {

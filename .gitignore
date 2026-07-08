@@ -23,3 +23,6 @@ xcuserdata/
 
 # Mapbox token — never commit
 Hygge/Config/MapboxConfig.swift
+
+# Google Places API key — never commit
+Hygge/Config/GooglePlacesConfig.swift
