@@ -95,7 +95,9 @@ struct ActivitiesView: View {
     private var explore: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 16) {
-                searchBar.padding(.top, 8)
+                // Extra top room so the search pill clears the brand badge pinned
+                // to the top-right safe-area corner (see RootView / brandBadge()).
+                searchBar.padding(.top, 44)
                 categoryChips
 
                 if filter == .trails {

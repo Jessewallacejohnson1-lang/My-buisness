@@ -34,6 +34,12 @@ xcrun simctl io <udid> screenshot /tmp/map.png
 - `-force-nonadmin` — force the non-admin branch so admin-gated UI (the map "+") can be verified without a second account (`SJMapView.isAdmin`).
 - `-explore-filter events|clubs|trails` — start the Activities ("Explore") tab on a given category chip so each card state can be screenshotted headlessly (`ActivitiesView.initialFilter()`).
 - `-explore-timeframe today|week|month|upcoming` — start the Explore tab with a given event time-frame filter applied (`ActivitiesView.initialTimeFrame()`).
+- `-map-sheet places` — open the map's bottom sheet on the Places list (`MapSheet.initialMode()`).
+- `-map-open <spotid>` — preselect a map spot so its detail card renders for a screenshot (`SJMapView.debugSelectedSpot()`; ids are `downtown|saintbens|chapel|wobegon|millstream|saintjohns`).
+- `-map-center <lat>,<lon>` — start the map camera elsewhere so the town pill's reverse-geocoding can be screenshotted over another city (`SJMapView.debugInitialCenter()`).
+- `-calendar-face upcoming|grid` — start the Calendar tab on a given face of the Upcoming ⇄ Calendar toggle (`CalendarView.initialFace()`).
+- `-calendar-open <YYYY-MM-DD>` — preselect a calendar day so the selection outline + day sheet render for a screenshot (`CalendarView.applyDebugLaunchState()`).
+- `-calendar-legend` — open the calendar's "Reading the calendar" info sheet (`CalendarView.applyDebugLaunchState()`).
 
 ### First-checkout setup — required or the build fails
 - **`Hygge/Config/MapboxConfig.swift` is gitignored** (it holds the Mapbox token) — a fresh clone must recreate it: `let MAPBOX_ACCESS_TOKEN = "pk...."`. Without it the map is blank / the build won't link the token.
@@ -57,17 +63,18 @@ The entire backend is written by hand over `URLSession` to match `@hygge/core` 1
 The house pattern is a `SomethingView` paired with a `SomethingModel` (`@MainActor final class … ObservableObject`) that owns state + API calls. Folders: `Home`, `Activities`, `Calendar`, `Add`, `Map`, `Auth`, `Onboarding`, `Place`, `Components`.
 
 **The Map (`Features/Map/`)** — the most involved feature, and where the realtime pipeline lives:
-- **`SJMapView`** — the Mapbox map, spot markers, live pulse, bottom detail card, and the chrome (recenter + admin "+"). `isAdmin` gates the "+".
+- **`SJMapView`** — the Mapbox map, spot markers, live pulse, and the Life360-style chrome: a floating top row (filter chip · town pill · compose "+"), floating help + recenter, and the persistent bottom sheet (`MapSheet`). The town pill reverse-geocodes the map center (`MapModel.updateTown` → `GeocoderService.town`, debounced), so it names whatever town you pan over — "Saint Joseph" at home, the neighboring city when you move. The "+" opens `QuickAddSheet` for admins (`isAdmin`) and the global composer (`onCompose`) for everyone else. A `SpotFilter` chip narrows which pins + Places show.
+- **`MapSheet`** — the always-visible, draggable bottom sheet (peek ⇄ expanded), ported to Life360's People/Places pattern. Three states, all real data: **Today** (today's happenings, coral dot = live now), **Places** (the curated catalogue + each spot's live-now count), and **spot detail** (blurb, happenings, Directions) shown when a pin/row is selected. The old pop-up detail card is subsumed here.
 - **`MapModel`** (`@MainActor`) — owns the `RealtimeClient` subscription + today's events. A `club_events` change touching **today** triggers a 300 ms-debounced re-sync (`getTodayEvents()`), so a new happening lights its pin and a deleted/ended one goes quiet **with no refresh**. Handles teardown, background socket-drop + foreground resubscribe, and the **midnight rollover**.
 - **`MapSpots` / `KnownVenues`** — the **curated venue coordinates** (mirrors the Expo `lib/geo.ts`). Never trust a runtime geocoder for a known St. Joe venue — resolve here first; geocoding is only the fallback for unknowns.
 - **`QuickAddSheet`** — admin-only bottom sheet to post an event straight onto the map (title, spot picker, date, time) → inserts an approved `club_events` row → the realtime pipeline lights the pin.
 
 ### Design system (`Hygge/Theme/`) — ported from the Expo app
 - **`HyggeColor`** (`Hue.*`) — warm linen palette: `paper*` surfaces, `ink`/`ink2`/`ink3` text, and **accents with one job each** — `moss` (positive/primary), `sky` (brand/focus), `honey` (warmth), `clay` (warning). Plus a **Map visual system**: `Hue.accent` **coral (#FF6B57)** appears **only** on live indicators + primary/tappable elements; everything else is `surface`/`gray`/`mapInk`.
-- **`HyggeFont`** — `registerHyggeFonts()` + `Font.display/…` helpers. Strict roles (display / body / mono), mirroring the RN font rules; **every number is mono**.
+- **`HyggeFont`** — the app is the **platform system font** everywhere (SF Pro): the `Font.display/sans/mono/…` helpers all map to `.system(size:weight:)`, so **weight carries the hierarchy** and numbers stay tabular via `.monospacedDigit()`. The **one** custom face is the logo — **Atkinson Hyperlegible Bold** (`Font.logo`), used by `HyggeLogoBadge`. The badge's `.brandBadge()` corner stamp was **removed from every tab** in the Life360 map pass (the map's top-right corner now holds screen chrome); `HyggeLogoBadge` itself is kept but currently unused. `registerHyggeFonts()` registers the bundled Atkinson ttf (the old Spectral / DM Sans / Geist Mono ttf were removed in the coral rebrand — don't reintroduce a bundled UI font). The **coral app icon** (`Assets.xcassets/AppIcon.appiconset`) is the same wordmark, white on `Hue.accent`.
 - **`HyggeMetrics`** — the shadow + metric tokens (e.g. `mapFloatShadow`, `mapSheetShadow`).
 
-Do **not** hardcode hex/spacing that a `Hue`/metric token already covers. The only allowed raw hexes in the map are the three Mapbox base-map cartography colors.
+Do **not** hardcode hex/spacing that a `Hue`/metric token already covers. The only allowed raw hexes in the map are the **base-map cartography colors** — the warm Google-/Life360-style palette in `SJMapView`'s `MapPalette` (land beige, sage parks, soft-blue water, light-gray buildings), applied to Mapbox layers in `recolorBasemap`.
 
 ## Conventions & gotchas
 
