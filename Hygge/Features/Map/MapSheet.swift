@@ -290,7 +290,7 @@ struct MapSheet: View {
 
                 VenueInfoView(query: "\(spot.name) St Joseph MN",
                               palette: .map,
-                              identity: (name: spot.name, coordinate: spot.coordinate))
+                              identity: VenueIdentity(name: spot.name, coordinate: spot.coordinate))
                     .padding(.top, 16)
 
                 if !items.isEmpty {

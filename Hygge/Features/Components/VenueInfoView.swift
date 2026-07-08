@@ -17,6 +17,19 @@
 import SwiftUI
 import CoreLocation
 
+/// A curated venue's name + coordinate. Equatable so VenueInfoView's stored
+/// property diffs cheaply — CLLocationCoordinate2D itself has no Equatable
+/// conformance, which otherwise leaves SwiftUI unable to confirm view identity
+/// across re-renders.
+struct VenueIdentity: Equatable {
+    let name: String
+    let coordinate: CLLocationCoordinate2D
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.name == rhs.name && lhs.coordinate.latitude == rhs.coordinate.latitude
+            && lhs.coordinate.longitude == rhs.coordinate.longitude
+    }
+}
+
 struct VenueInfoView: View {
     struct Palette {
         let card: Color
@@ -32,8 +45,8 @@ struct VenueInfoView: View {
     let query: String
     var header: String? = nil
     var palette: Palette = .map
-    /// Supply a curated (name, coordinate) to enable a confident-match photo. nil → no photo.
-    var identity: (name: String, coordinate: CLLocationCoordinate2D)? = nil
+    /// Supply a curated identity to enable a confident-match photo. nil → no photo.
+    var identity: VenueIdentity? = nil
 
     @State private var details: PlaceDetails?
     @State private var photo: (url: URL, attributions: [String])?
@@ -41,7 +54,13 @@ struct VenueInfoView: View {
     @Environment(\.openURL) private var openURL
 
     var body: some View {
-        Group {
+        // `.task`/`.onAppear` on a container that can render fully empty (Group{if
+        // let details {...}} → EmptyView while loading) don't reliably fire inside
+        // this view's nested ScrollView/GeometryReader ancestry — SwiftUI never
+        // commits an appear for a node with no concrete content. Color.clear here
+        // keeps the VStack non-empty at all times so the lifecycle attaches.
+        VStack(alignment: .leading, spacing: 0) {
+            Color.clear.frame(width: 0, height: 0)
             if let d = details {
                 let hasRows = hasContent(d)
                 if hasRows || photo != nil {
