@@ -172,34 +172,11 @@ struct VenueInfoView: View {
         // .task(id:) cancels this when the spot changes — don't write stale data over the new one.
         guard !Task.isCancelled else { return }
         details = d
-        if let identity, let ph = d.photo, confident(d, identity) {
-            photo = (GooglePlacesService.shared.photoURL(name: ph.name, maxWidth: 800), ph.attributions)
+        if let identity, let cp = await GooglePlacesService.shared.confidentPhoto(name: identity.name, coordinate: identity.coordinate) {
+            photo = (GooglePlacesService.shared.photoURL(name: cp.photoName, maxWidth: 800), cp.attributions)
         } else {
             photo = nil
         }
-    }
-
-    /// Rule A "exact match": the resolved place sits within 75 m of the curated
-    /// coordinate and its name aligns — otherwise we don't trust the id enough to
-    /// show its photo.
-    private func confident(_ d: PlaceDetails, _ id: (name: String, coordinate: CLLocationCoordinate2D)) -> Bool {
-        let a = CLLocation(latitude: d.coordinate.latitude, longitude: d.coordinate.longitude)
-        let b = CLLocation(latitude: id.coordinate.latitude, longitude: id.coordinate.longitude)
-        guard a.distance(from: b) <= 75 else { return false }
-        return namesAlign(d.name, id.name)
-    }
-
-    private func namesAlign(_ a: String, _ b: String) -> Bool {
-        let na = normalize(a), nb = normalize(b)
-        guard !na.isEmpty, !nb.isEmpty else { return false }   // empty name must not "contain"-match everything
-        if na.contains(nb) || nb.contains(na) { return true }
-        let ta = Set(na.split(separator: " ").filter { $0.count >= 5 })
-        let tb = Set(nb.split(separator: " ").filter { $0.count >= 5 })
-        return !ta.isDisjoint(with: tb)
-    }
-
-    private func normalize(_ s: String) -> String {
-        String(s.lowercased().map { ($0.isLetter || $0.isNumber || $0 == " ") ? $0 : " " })
     }
 
     // MARK: Rows / helpers

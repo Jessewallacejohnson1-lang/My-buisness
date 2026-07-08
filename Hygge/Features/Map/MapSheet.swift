@@ -364,19 +364,17 @@ private struct TodayEventRow: View {
     }
 }
 
-/// A curated place: category icon, name, blurb, live-today count, chevron.
+/// A curated place: a confidently-identified photo thumbnail (else the category
+/// icon), name, blurb, live-today count, chevron.
 private struct PlaceRow: View {
     let spot: Spot
     let liveCount: Int
 
+    @State private var photoURL: URL?
+
     var body: some View {
         HStack(spacing: 12) {
-            ZStack {
-                Circle().fill(liveCount > 0 ? Hue.accentSoft : Hue.bgSubtle).frame(width: 38, height: 38)
-                Image(systemName: spot.category.symbol)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(liveCount > 0 ? Hue.accent : Hue.gray)
-            }
+            thumbnail
             VStack(alignment: .leading, spacing: 2) {
                 Text(spot.name).font(.sansMedium(15)).foregroundStyle(Hue.mapInk).lineLimit(1)
                 if let blurb = spot.blurb {
@@ -394,6 +392,38 @@ private struct PlaceRow: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
+        .task(id: spot.id) {
+            photoURL = nil
+            if let cp = await GooglePlacesService.shared.confidentPhoto(name: spot.name, coordinate: spot.coordinate) {
+                photoURL = GooglePlacesService.shared.photoURL(name: cp.photoName, maxWidth: 160)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var thumbnail: some View {
+        if let photoURL {
+            AsyncImage(url: photoURL) { phase in
+                if case .success(let img) = phase {
+                    img.resizable().scaledToFill()
+                } else {
+                    iconCircle
+                }
+            }
+            .frame(width: 38, height: 38)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        } else {
+            iconCircle
+        }
+    }
+
+    private var iconCircle: some View {
+        ZStack {
+            Circle().fill(liveCount > 0 ? Hue.accentSoft : Hue.bgSubtle).frame(width: 38, height: 38)
+            Image(systemName: spot.category.symbol)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(liveCount > 0 ? Hue.accent : Hue.gray)
+        }
     }
 }
 

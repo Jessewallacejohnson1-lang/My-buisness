@@ -54,6 +54,12 @@ struct PlaceDetails {
     let photo: PlacePhoto?          // first photo only
 }
 
+/// A photo cleared by Locked Rule A's confidence check — safe to display.
+struct ConfidentPhoto {
+    let photoName: String           // pass to photoURL(name:maxWidth:)
+    let attributions: [String]
+}
+
 // MARK: - Service
 
 @MainActor
@@ -64,6 +70,7 @@ final class GooglePlacesService {
     private var autocompleteCache: [String: [PlaceSuggestion]] = [:]
     private var searchCache: [String: [PlaceResult]] = [:]
     private var detailsCache: [String: PlaceDetails] = [:]
+    private var confidentPhotoCache: [String: ConfidentPhoto?] = [:]   // curated name → resolved (or checked-nil)
 
     private static let base = "https://places.googleapis.com/v1"
     private static let biasRadius = 15_000.0   // ~15 km around town
@@ -202,6 +209,49 @@ final class GooglePlacesService {
             URLQueryItem(name: "key", value: GOOGLE_PLACES_API_KEY),
         ]
         return comps.url!
+    }
+
+    // MARK: Confident-match photo (Locked Rule A)
+
+    /// A photo for a KNOWN/curated place — but only if Google's text-search match
+    /// lands within 75 m of the curated coordinate with an aligned name. `search()`
+    /// is a fuzzy fallback; this is the ONE place that decides a match is trustworthy
+    /// enough to show its photo. Cached per curated name (a small, fixed set), so
+    /// repeat callers (a list row and its detail view) don't re-run the confidence
+    /// check. nil if not confidently identified or the place has no photo.
+    func confidentPhoto(name: String, coordinate: CLLocationCoordinate2D) async -> ConfidentPhoto? {
+        if let hit = confidentPhotoCache[name] { return hit }
+        guard let id = await search("\(name) St Joseph MN").first?.placeId,
+              let d = await details(placeId: id),
+              let photo = d.photo,
+              isConfidentMatch(resolved: d, curatedName: name, curatedCoordinate: coordinate)
+        else {
+            confidentPhotoCache[name] = .some(nil)
+            return nil
+        }
+        let result = ConfidentPhoto(photoName: photo.name, attributions: photo.attributions)
+        confidentPhotoCache[name] = .some(result)
+        return result
+    }
+
+    private func isConfidentMatch(resolved: PlaceDetails, curatedName: String, curatedCoordinate: CLLocationCoordinate2D) -> Bool {
+        let a = CLLocation(latitude: resolved.coordinate.latitude, longitude: resolved.coordinate.longitude)
+        let b = CLLocation(latitude: curatedCoordinate.latitude, longitude: curatedCoordinate.longitude)
+        guard a.distance(from: b) <= 75 else { return false }
+        return namesAlign(resolved.name, curatedName)
+    }
+
+    private func namesAlign(_ a: String, _ b: String) -> Bool {
+        let na = normalize(a), nb = normalize(b)
+        guard !na.isEmpty, !nb.isEmpty else { return false }   // empty name must not "contain"-match everything
+        if na.contains(nb) || nb.contains(na) { return true }
+        let ta = Set(na.split(separator: " ").filter { $0.count >= 5 })
+        let tb = Set(nb.split(separator: " ").filter { $0.count >= 5 })
+        return !ta.isDisjoint(with: tb)
+    }
+
+    private func normalize(_ s: String) -> String {
+        String(s.lowercased().map { ($0.isLetter || $0.isNumber || $0 == " ") ? $0 : " " })
     }
 
     // MARK: Shared
