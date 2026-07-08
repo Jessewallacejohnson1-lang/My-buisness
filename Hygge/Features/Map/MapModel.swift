@@ -11,6 +11,7 @@
 
 import Foundation
 import Combine
+import CoreLocation
 
 @MainActor
 final class MapModel: ObservableObject {
@@ -21,6 +22,9 @@ final class MapModel: ObservableObject {
 
     @Published private(set) var todayEvents: [TimelineEvent] = []
     @Published private(set) var state: LoadState = .loading
+    /// The town the map is currently panned over — names the top pill. Starts on
+    /// St. Joe (the initial camera) and follows the map as it moves.
+    @Published private(set) var townLabel = "Saint Joseph"
 
     private var auth: AuthStore?
     private var api: CommunityAPI? { auth.map(CommunityAPI.init(auth:)) }
@@ -30,6 +34,7 @@ final class MapModel: ObservableObject {
 
     private var resyncTask: Task<Void, Never>?
     private var midnightTask: Task<Void, Never>?
+    private var townTask: Task<Void, Never>?
     private var started = false
     /// Monotonic token so an older in-flight load can't clobber a newer one's
     /// result — load() is fired from start/foreground/retry/resync/midnight and
@@ -54,6 +59,23 @@ final class MapModel: ObservableObject {
         realtime = nil
         resyncTask?.cancel(); resyncTask = nil
         midnightTask?.cancel(); midnightTask = nil
+        townTask?.cancel(); townTask = nil
+    }
+
+    // MARK: Town label (reverse-geocoded map center)
+
+    /// The map center changed. High-frequency camera events land here — never the
+    /// view's @State (Mapbox guidance) — debounced so only the settled town name
+    /// publishes. A quiet failure (offline / unnamed area) keeps the last name.
+    func updateTown(center: CLLocationCoordinate2D) {
+        townTask?.cancel()
+        townTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 500_000_000)   // wait for the pan to settle
+            guard !Task.isCancelled else { return }
+            let name = await GeocoderService.shared.town(lat: center.latitude, lon: center.longitude)
+            guard !Task.isCancelled, let name else { return }
+            self?.townLabel = name
+        }
     }
 
     /// App returned to foreground: the socket was dropped on background and the

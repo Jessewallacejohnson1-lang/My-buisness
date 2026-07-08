@@ -2,9 +2,9 @@
 //  SJMapView.swift
 //  Hygge — Mapbox map of Saint Joseph, Minnesota.
 //
-//  Life360-clean visual system. DISCIPLINE: Hue.accent (coral) appears ONLY
-//  on live indicators and primary tappable elements. Everything else is
-//  surface (white), gray, grayLight, or mapInk.
+//  Life360-style layout: floating top chrome (filter · town pill · compose), a
+//  warm Google-style basemap, a persistent draggable bottom sheet (MapSheet), and
+//  coral reserved for live indicators + primary/tappable elements.
 //
 //  Live pipeline: MapModel owns a Realtime subscription on club_events. A new /
 //  ended / deleted happening re-syncs the map with no manual refresh — the pin
@@ -21,26 +21,90 @@ import MapboxMaps
 private let MAP_STYLE_URL = "mapbox://styles/mapbox/light-v11"
 private let LIVE_COLOR    = Hue.accent   // warm coral — change here to rebrand
 
-/// The custom tab bar (drawn on top by MainTabsView) sits over the map's bottom
-/// edge. Both the floating controls and the bottom card add this much clearance
-/// so their primary actions never hide behind it.
-private let TAB_BAR_CLEARANCE: CGFloat = 56
+/// Warm Google-/Life360-style basemap cartography — the base-map fill colors (the
+/// only raw hexes allowed on the map), kept named so call sites read intent.
+private enum MapPalette {
+    static let land     = "#F0EBE3"   // warm beige ground
+    static let green    = "#C9E0B4"   // soft sage parks / grass
+    static let water    = "#A6CBE6"   // soft blue water
+    static let building = "#E8E4DC"   // warm light-gray buildings
+}
+
+// MARK: - Spot filter (top-left chip)
+
+/// The map's category chip. Groups the curated categories into the few buckets a
+/// neighbor actually thinks in; `.all` shows every pin.
+enum SpotFilter: CaseIterable, Hashable {
+    case all, downtown, outdoors, campus
+
+    var title: String {
+        switch self {
+        case .all:      return "Everything"
+        case .downtown: return "Downtown"
+        case .outdoors: return "Parks & trails"
+        case .campus:   return "Campus"
+        }
+    }
+
+    func matches(_ c: SpotCategory) -> Bool {
+        switch self {
+        case .all:      return true
+        case .downtown: return c == .downtown || c == .coffee
+        case .outdoors: return c == .park || c == .trail
+        case .campus:   return c == .college || c == .chapel
+        }
+    }
+}
 
 // MARK: - Main view
 
 struct SJMapView: View {
+    /// Non-admins tap the top-right "+" into the global composer (admins get the
+    /// map's own QuickAddSheet). Injected by MainTabsView, like HomeView.
+    var onCompose: (() -> Void)? = nil
+
     @EnvironmentObject private var auth: AuthStore
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var model = MapModel()
 
     @State private var viewport: Viewport = .camera(
-        center: MapSpots.center,
+        center: SJMapView.debugInitialCenter() ?? MapSpots.center,
         zoom: 13.5,
         bearing: 0,
         pitch: 0
     )
-    @State private var selectedSpot: Spot?
+
+    /// DEBUG-only: `-map-center <lat>,<lon>` starts the camera elsewhere so the
+    /// town pill's reverse-geocoding can be screenshotted over another city. No
+    /// effect in release / without the flag.
+    private static func debugInitialCenter() -> CLLocationCoordinate2D? {
+        #if DEBUG
+        let a = ProcessInfo.processInfo.arguments
+        if let i = a.firstIndex(of: "-map-center"), i + 1 < a.count {
+            let parts = a[i + 1].split(separator: ",")
+            if parts.count == 2, let lat = Double(parts[0]), let lon = Double(parts[1]) {
+                return CLLocationCoordinate2D(latitude: lat, longitude: lon)
+            }
+        }
+        #endif
+        return nil
+    }
+    @State private var selectedSpot: Spot? = SJMapView.debugSelectedSpot()
+    @State private var filter: SpotFilter = .all
+
+    /// DEBUG-only: `-map-open <spotid>` preselects a spot so its detail card can be
+    /// screenshotted headlessly. No effect in release / without the flag.
+    private static func debugSelectedSpot() -> Spot? {
+        #if DEBUG
+        let a = ProcessInfo.processInfo.arguments
+        if let i = a.firstIndex(of: "-map-open"), i + 1 < a.count {
+            return MapSpots.all.first { $0.id == a[i + 1] }
+        }
+        #endif
+        return nil
+    }
     @State private var quickAdding = false
+    @State private var showingHelp = false
 
     private var isAdmin: Bool {
         // DEBUG-only: `-force-nonadmin` launch arg forces the non-admin branch so
@@ -52,6 +116,8 @@ struct SJMapView: View {
         return Admin.isAdmin(auth.email)
     }
 
+    private var filteredSpots: [Spot] { MapSpots.all.filter { filter.matches($0.category) } }
+
     /// Real events at this spot today — searches title AND location so an event
     /// like "Independence Day Parade" at location "Downtown" still matches.
     private func events(at spot: Spot) -> [TimelineEvent] {
@@ -61,15 +127,11 @@ struct SJMapView: View {
         }
     }
 
-    /// Events that actually resolve to a pin (light a marker / open in a card).
-    /// The header counts only these — an approved event at a venue not in the
-    /// curated catalogue is real but shows nowhere on the map, so counting it in
-    /// "N happening today" would overstate what the user can see or tap.
-    private var mappedEventCount: Int {
-        model.todayEvents.filter { ev in
-            let haystack = [ev.title, ev.location].compactMap { $0 }.joined(separator: " ").lowercased()
-            return MapSpots.all.contains { $0.keywords.contains { haystack.contains($0) } }
-        }.count
+    /// The pin an event resolves to (first curated spot whose keyword it matches),
+    /// so a Today row can fly you there. nil for an unlisted venue.
+    private func spot(for ev: TimelineEvent) -> Spot? {
+        let haystack = [ev.title, ev.location].compactMap { $0 }.joined(separator: " ").lowercased()
+        return MapSpots.all.first { $0.keywords.contains { haystack.contains($0) } }
     }
 
     /// A spot glows only while one of its events is actually happening.
@@ -80,9 +142,18 @@ struct SJMapView: View {
     var body: some View {
         ZStack(alignment: .top) {
             mapLayer
-            topHeader
+            topChrome
             floatingControls
-            bottomCardLayer
+            MapSheet(
+                events: model.todayEvents,
+                state: model.state,
+                spots: filteredSpots,
+                selected: $selectedSpot,
+                happenings: { events(at: $0) },
+                spotFor: { spot(for: $0) },
+                onSelectSpot: { focus($0) },
+                onRetry: { model.retry() }
+            )
         }
         .onAppear { model.start(auth: auth) }
         .onDisappear { model.stop() }
@@ -96,6 +167,12 @@ struct SJMapView: View {
         .sheet(isPresented: $quickAdding) {
             QuickAddSheet(spots: MapSpots.all)
         }
+        // The "?" chrome button reopens the map intro any time — full-bleed, so it
+        // gets its own cover. `instant` skips the first-run bloom so the reference
+        // is readable immediately on every open.
+        .fullScreenCover(isPresented: $showingHelp) {
+            MapIntroView(ctaTitle: "Got it", instant: true) { showingHelp = false }
+        }
     }
 
     // MARK: Map
@@ -106,27 +183,37 @@ struct SJMapView: View {
                 annotations
             }
             .mapStyle(MapStyle(uri: StyleURI(rawValue: MAP_STYLE_URL)!))
-            .onStyleLoaded { _ in
-                guard let map = proxy.map else { return }
-                // Water — blue
-                try? map.setLayerProperty(for: "water",          property: "fill-color", value: "#4A90D9")
-                try? map.setLayerProperty(for: "waterway",       property: "line-color", value: "#4A90D9")
-                // Grass / parks — green
-                for id in ["landuse", "national-park", "landcover", "park"] {
-                    try? map.setLayerProperty(for: id, property: "fill-color", value: "#7AB870")
-                }
-                // Buildings — grey
-                try? map.setLayerProperty(for: "building",       property: "fill-color",         value: "#B8B8B8")
-                try? map.setLayerProperty(for: "building",       property: "fill-outline-color",  value: "#B8B8B8")
-            }
+            .onStyleLoaded { _ in recolorBasemap(proxy.map) }
+            // Name whatever town the map is panned over (debounced in the model).
+            .onCameraChanged { model.updateTown(center: $0.cameraState.center) }
             .ignoresSafeArea(edges: .bottom)
         }
     }
 
+    /// Warm the flat light-v11 basemap toward the Life360 reference: beige ground,
+    /// sage parks, soft-blue water, light-gray buildings. Each set is best-effort
+    /// (try?) since a given layer id may not exist in every style version.
+    private func recolorBasemap(_ map: MapboxMap?) {
+        guard let map else { return }
+        // Ground / land (background-type layers)
+        for id in ["land", "background"] {
+            try? map.setLayerProperty(for: id, property: "background-color", value: MapPalette.land)
+        }
+        // Parks / grass / woods (fill layers)
+        for id in ["landuse", "landcover", "national-park", "park", "pitch", "grass"] {
+            try? map.setLayerProperty(for: id, property: "fill-color", value: MapPalette.green)
+        }
+        // Water
+        try? map.setLayerProperty(for: "water",    property: "fill-color", value: MapPalette.water)
+        try? map.setLayerProperty(for: "waterway", property: "line-color", value: MapPalette.water)
+        // Buildings — grey
+        try? map.setLayerProperty(for: "building", property: "fill-color",         value: MapPalette.building)
+        try? map.setLayerProperty(for: "building", property: "fill-outline-color", value: MapPalette.building)
+    }
+
     /// Spot + liveness snapshot. The id changes when liveness flips so ForEvery
-    /// rebuilds the annotation view — Mapbox doesn't re-render an annotation
-    /// whose element identity is unchanged, which left stale badges after
-    /// today's events loaded (or a Realtime change flipped a spot live).
+    /// rebuilds the annotation view — Mapbox doesn't re-render an annotation whose
+    /// element identity is unchanged, which left stale badges after events loaded.
     private struct PinState: Identifiable {
         let spot: Spot
         let live: Bool
@@ -135,73 +222,108 @@ struct SJMapView: View {
 
     @MapContentBuilder
     private var annotations: some MapContent {
-        // A tap on the open map (not a pin, not a pan) dismisses the card.
-        // Fires only when no annotation/layer handled the tap.
+        // A tap on the open map (not a pin, not a pan) dismisses the detail.
         TapInteraction { _ in
             closeCard()
             return true
         }
 
-        ForEvery(MapSpots.all.map { PinState(spot: $0, live: isLive($0)) }) { state in
+        ForEvery(filteredSpots.map { PinState(spot: $0, live: isLive($0)) }) { state in
             MapViewAnnotation(coordinate: state.spot.coordinate) {
                 MapPinBadge(spot: state.spot, live: state.live,
                             selected: selectedSpot?.id == state.spot.id,
                             a11yLabel: accessibilityLabel(for: state.spot, live: state.live))
                     .onTapGesture { selectSpot(state.spot) }
             }
-            // Six curated pins — never cull; culling hid downtown (and its live
-            // glow) behind the nearby chapel pin.
+            // Never cull; culling hid downtown (and its live glow) behind the
+            // nearby chapel pin.
             .allowOverlap(true)
         }
     }
 
-    // MARK: Header — title + honest today status
+    // MARK: Top chrome — filter · town pill · compose (replaces the title header)
 
-    private var topHeader: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text("Saint Joseph")
-                .font(.displaySemi(20))
-                .foregroundStyle(Hue.mapInk)
-            MapStatusLine(state: model.state,
-                          count: mappedEventCount,
-                          onRetry: { model.retry() })
+    private var topChrome: some View {
+        HStack(spacing: 10) {
+            filterMenu
+            Spacer(minLength: 8)
+            townPill
+            Spacer(minLength: 8)
+            composeButton
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 18)
-        .padding(.top, 12)
-        .padding(.bottom, 12)
-        .background(.ultraThinMaterial)
-        .overlay(Rectangle().fill(Hue.mapHairline).frame(height: 1), alignment: .bottom)
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
     }
 
-    // MARK: Floating controls — admin "+" stacked above recenter, bottom-right
-
-    private var floatingControls: some View {
-        VStack {
-            Spacer()
-            HStack {
-                Spacer()
-                VStack(spacing: 12) {
-                    if isAdmin { quickAddButton }
-                    recenterButton
-                }
-                .padding(.trailing, 16)
+    private var filterMenu: some View {
+        Menu {
+            Picker("Filter", selection: $filter) {
+                ForEach(SpotFilter.allCases, id: \.self) { f in Text(f.title).tag(f) }
             }
-            // Clear the custom tab bar plus a gap, so both stacked controls sit
-            // fully above it.
-            .padding(.bottom, TAB_BAR_CLEARANCE + 20)
+        } label: {
+            chromeCircle(icon: "slider.horizontal.3", active: filter != .all)
         }
+        // Strip the default menu/glass control background so only the chrome
+        // circle shows — matches the sibling Button chrome (which use .plain).
+        .buttonStyle(.plain)
+        .accessibilityLabel("Filter places")
     }
 
-    private var quickAddButton: some View {
+    private var townPill: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "mappin.circle.fill")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Hue.accent)
+            Text(model.townLabel)
+                .font(.sansSemibold(15))
+                .foregroundStyle(Hue.mapInk)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(Hue.surface, in: Capsule())
+        .overlay(Capsule().stroke(Hue.mapHairline, lineWidth: 1))
+        .mapFloatShadow()
+        .animation(.easeInOut(duration: 0.2), value: model.townLabel)
+        .accessibilityLabel(model.townLabel)
+    }
+
+    private var composeButton: some View {
         Button {
             Haptics.light()
-            quickAdding = true
+            if isAdmin { quickAdding = true } else { onCompose?() }
         } label: {
             chromeCircle(icon: "plus")
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Add an event")
+    }
+
+    // MARK: Floating controls — help (bottom-left) + recenter (bottom-right)
+
+    private var floatingControls: some View {
+        VStack {
+            Spacer()
+            HStack(alignment: .bottom) {
+                helpButton
+                Spacer()
+                recenterButton
+            }
+            .padding(.horizontal, 16)
+            // Sit just above the sheet peek, which itself sits above the tab bar.
+            .padding(.bottom, MapSheet.tabBarClearance + MapSheet.peekHeight + 12)
+        }
+    }
+
+    private var helpButton: some View {
+        Button {
+            Haptics.light()
+            showingHelp = true
+        } label: {
+            chromeCircle(icon: "questionmark")
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("How the map works")
     }
 
     private var recenterButton: some View {
@@ -217,36 +339,33 @@ struct SJMapView: View {
         .accessibilityLabel("Recenter map")
     }
 
-    /// The shared chrome bubble — 44px white circle, hairline, ink line icon.
-    private func chromeCircle(icon: String) -> some View {
+    /// The shared chrome bubble — 44px white circle, hairline (coral when active),
+    /// ink line icon.
+    private func chromeCircle(icon: String, active: Bool = false) -> some View {
         Circle()
             .fill(Hue.surface)
             .frame(width: 44, height: 44)
-            .overlay(Circle().stroke(Hue.mapHairline, lineWidth: 1))
+            .overlay(Circle().stroke(active ? Hue.accent : Hue.mapHairline, lineWidth: active ? 1.5 : 1))
             .mapFloatShadow()
             .overlay(
                 Image(systemName: icon)
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(Hue.mapInk)
+                    .foregroundStyle(active ? Hue.accent : Hue.mapInk)
             )
     }
 
-    // MARK: Bottom card
-
-    private var bottomCardLayer: some View {
-        VStack {
-            Spacer()
-            if let spot = selectedSpot {
-                MapBottomCard(spot: spot, happenings: events(at: spot)) {
-                    closeCard()
-                }
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-        }
-        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: selectedSpot?.id)
-    }
-
     // MARK: Actions
+
+    /// A Today/Places row tap: fly to the spot and open its detail in the sheet.
+    private func focus(_ spot: Spot) {
+        Haptics.light()
+        withViewportAnimation(.fly(duration: 0.7)) {
+            viewport = .camera(center: spot.coordinate, zoom: 15)
+        }
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+            selectedSpot = spot
+        }
+    }
 
     private func selectSpot(_ spot: Spot) {
         Haptics.light()
@@ -270,101 +389,12 @@ struct SJMapView: View {
     }
 }
 
-// MARK: - Today status line (loading / count / quiet / error / offline)
-
-private struct MapStatusLine: View {
-    let state: MapModel.LoadState
-    let count: Int
-    let onRetry: () -> Void
-
-    var body: some View {
-        switch state {
-        case .loading:
-            SkeletonBar()
-        case .loaded, .empty:
-            // Count only events that resolve to a spot; when none map, it's a
-            // quiet day even if unlisted-venue events exist. Numbers are mono.
-            if count > 0 {
-                Text("\(count) happening today")
-                    .font(.mono(13))
-                    .foregroundStyle(Hue.gray)
-                    .monospacedDigit()
-            } else {
-                Text("A quiet day — nothing on the map yet")
-                    .font(.sans(13))
-                    .foregroundStyle(Hue.grayLight)
-            }
-        case .offline:
-            // Recoverable without backgrounding the app — offer the same retry
-            // affordance as the error state.
-            Button(action: onRetry) {
-                HStack(spacing: 5) {
-                    Image(systemName: "wifi.slash")
-                        .font(.system(size: 11, weight: .medium))
-                    Text("Offline — tap to retry")
-                }
-                .font(.sans(13))
-                .foregroundStyle(Hue.grayLight)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Offline. Tap to retry")
-        case .error:
-            Button(action: onRetry) {
-                HStack(spacing: 5) {
-                    Text("Couldn't load today")
-                    Text("Retry").foregroundStyle(Hue.accent)
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Hue.accent)
-                }
-                .font(.sans(13))
-                .foregroundStyle(Hue.gray)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Couldn't load today. Retry")
-        }
-    }
-}
-
-/// A calm loading skeleton — a soft bar with a slow highlight sweep, never a
-/// spinner on white. Static under Reduce Motion.
-private struct SkeletonBar: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var phase: CGFloat = -1
-
-    var body: some View {
-        Capsule()
-            .fill(Hue.mapHairline)
-            .frame(width: 128, height: 11)
-            .overlay(
-                GeometryReader { geo in
-                    if !reduceMotion {
-                        Capsule()
-                            .fill(LinearGradient(
-                                colors: [.clear, Hue.surface.opacity(0.85), .clear],
-                                startPoint: .leading, endPoint: .trailing))
-                            .frame(width: geo.size.width * 0.55)
-                            .offset(x: phase * geo.size.width)
-                    }
-                }
-            )
-            .clipShape(Capsule())
-            .onAppear {
-                guard !reduceMotion else { return }
-                withAnimation(.linear(duration: 1.15).repeatForever(autoreverses: false)) {
-                    phase = 1.25
-                }
-            }
-            .accessibilityLabel("Loading today's happenings")
-    }
-}
-
 // MARK: - Live pulse ring
 //
-// Self-contained — @State is local so the animation loop never propagates
-// updates to sibling pins or the parent map. Core Animation renders each frame
-// off the main thread. Coral, opacity 0.35 → 0, scale 1 → 2.2, 1.5 s loop.
-// Static under Reduce Motion (no pulse; the badge dot still marks "live").
+// Self-contained — @State is local so the animation loop never propagates updates
+// to sibling pins or the parent map. Core Animation renders each frame off the
+// main thread. Coral, opacity 0.35 → 0, scale 1 → 2.2, 1.5 s loop. Static under
+// Reduce Motion (no pulse; the badge dot still marks "live").
 
 private struct PulseRing: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -388,8 +418,8 @@ private struct PulseRing: View {
 //
 // Base:     44px white circle, 1px mapHairline border, standard float shadow,
 //           centered 20px line icon in mapInk, weight .medium.
-// Live:     2px accent border, accent icon, 10px accent dot badge top-right
-//           with 2px white ring. Pulse ring: coral 0.35→0, scale 1→2.2, 1.5s.
+// Live:     2px accent border, accent icon, 10px accent dot badge top-right with
+//           2px white ring. Pulse ring: coral 0.35→0, scale 1→2.2, 1.5s.
 // Selected: scale 1.15, deeper shadow.
 
 private struct MapPinBadge: View {
@@ -432,125 +462,5 @@ private struct MapPinBadge: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(a11yLabel)
         .accessibilityAddTraits(.isButton)
-    }
-}
-
-// MARK: - Accent pill button style
-
-private struct AccentPillStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .background(
-                configuration.isPressed ? Hue.accentPressed : Hue.accent,
-                in: Capsule()
-            )
-            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
-    }
-}
-
-// MARK: - Bottom card
-//
-// White sheet, top-only 20pt radius, sheet shadow (upward), grabber pill.
-// Spot name (title 20 semibold mapInk) + one-line blurb (caption grayLight).
-// Happenings: accent dot • name (15 medium) left, time (13 gray) right, 13pt gap.
-// Directions pill: full-width 50pt height, accent fill, accentPressed on tap.
-
-private struct MapBottomCard: View {
-    let spot: Spot
-    let happenings: [TimelineEvent]
-    let onClose: () -> Void
-
-    @Environment(\.openURL) private var openURL
-
-    /// VoiceOver text for a happening row — includes "happening now" when live.
-    private static func happeningLabel(_ h: TimelineEvent) -> String {
-        let base = "\(h.title), \(h.startTime ?? "all day")"
-        return DateHelpers.isLiveNow(h.startTime) ? base + ", happening now" : base
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Capsule()
-                    .fill(Hue.mapHairline)
-                    .frame(width: 36, height: 4)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.top, 8)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(spot.name)
-                    .font(.displaySemi(20))
-                    .foregroundStyle(Hue.mapInk)
-                    .lineLimit(1)
-
-                if let blurb = spot.blurb {
-                    Text(blurb)
-                        .font(.sans(13))
-                        .foregroundStyle(Hue.grayLight)
-                        .lineLimit(1)
-                }
-            }
-            .padding(.top, 16)
-
-            // Today's happenings — real events only; accent dot only while live.
-            if !happenings.isEmpty {
-                VStack(spacing: 13) {
-                    ForEach(happenings) { h in
-                        HStack(spacing: 8) {
-                            Circle()
-                                .fill(DateHelpers.isLiveNow(h.startTime) ? Hue.accent : Hue.grayLight)
-                                .frame(width: 6, height: 6)
-                            Text(h.title)
-                                .font(.sansMedium(15))
-                                .foregroundStyle(Hue.mapInk)
-                                .lineLimit(1)
-                            Spacer()
-                            Text(h.startTime ?? "all day")
-                                .font(.sans(13))
-                                .foregroundStyle(Hue.gray)
-                        }
-                        // Live state is a coral dot for sighted users; spell it
-                        // out for VoiceOver so it isn't color-only (WCAG 1.4.1).
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel(Self.happeningLabel(h))
-                    }
-                }
-                .padding(.top, 16)
-            }
-
-            Button {
-                let lat = spot.coordinate.latitude
-                let lon = spot.coordinate.longitude
-                if let url = URL(string: "maps://?daddr=\(lat),\(lon)&dirflg=d") {
-                    openURL(url)
-                }
-            } label: {
-                Text("Directions")
-                    .font(.sansSemibold(16))
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 50)
-            }
-            .buttonStyle(AccentPillStyle())
-            .padding(.top, 20)
-            // Lift the primary action above the tab bar; the card background still
-            // bleeds to the bottom edge behind it.
-            .padding(.bottom, TAB_BAR_CLEARANCE + 20)
-            .accessibilityLabel("Directions to \(spot.name)")
-        }
-        .padding(.horizontal, 20)
-        .background {
-            UnevenRoundedRectangle(
-                topLeadingRadius: Radius.xl,
-                bottomLeadingRadius: 0,
-                bottomTrailingRadius: 0,
-                topTrailingRadius: Radius.xl,
-                style: .continuous
-            )
-            .fill(Hue.surface)
-            .ignoresSafeArea(edges: .bottom)
-            .mapSheetShadow()
-        }
     }
 }
