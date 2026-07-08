@@ -149,7 +149,6 @@ private struct CommunityTrailCard: View {
     let trail: Trail
     var openURL: (URL) -> Void
 
-    @State private var confidentPhoto: ConfidentPhoto?
     @State private var geocodedCoord: CLLocationCoordinate2D?
 
     var body: some View {
@@ -198,9 +197,6 @@ private struct CommunityTrailCard: View {
         .overlay(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
         .modifier(CardShadow())
         .task {
-            // Fetch a confidently-matched Google Places photo
-            confidentPhoto = await GooglePlacesService.shared.confidentPhoto(forFreeText: trail.title, hint: trail.location)
-
             // Geocode location for accurate Maps pin
             let geocodeQuery = "\(trail.title) \(trail.location ?? "St. Joseph MN")"
             geocodedCoord = await GeocoderService.shared.coordinate(for: geocodeQuery)
@@ -216,25 +212,8 @@ private struct CommunityTrailCard: View {
                 default: placeholder
                 }
             }
-        } else if let cp = confidentPhoto {
-            ZStack(alignment: .bottomTrailing) {
-                AsyncImage(url: GooglePlacesService.shared.photoURL(name: cp.photoName, maxWidth: 500)) { phase in
-                    switch phase {
-                    case .success(let img): img.resizable().scaledToFill()
-                    default: placeholder
-                    }
-                }
-
-                if !cp.attributions.isEmpty {
-                    Text(cp.attributions.joined(separator: ", "))
-                        .font(.sans(9)).foregroundStyle(.white.opacity(0.95)).lineLimit(1)
-                        .padding(.horizontal, 6).padding(.vertical, 3)
-                        .background(.black.opacity(0.4), in: Capsule())
-                        .padding(8)
-                }
-            }
         } else {
-            placeholder
+            VenuePhoto(venueName: trail.title, hint: trail.location) { placeholder }
         }
     }
 

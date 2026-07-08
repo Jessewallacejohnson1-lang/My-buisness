@@ -463,7 +463,8 @@ private struct EventExploreCard: View {
 
     var body: some View {
         ExploreCard(id: event.id, title: event.title, subtitle: event.location, meta: meta) {
-            ExploreBlankPhoto()
+            VenuePhoto(venueName: event.location ?? event.title,
+                       hint: event.location != nil ? event.title : nil) { ExploreBlankPhoto() }
         } trailing: {
             EventInviteCircle(event: event)
         }
@@ -489,7 +490,8 @@ private struct ClubExploreCard: View {
         ExploreCard(id: club.id, title: club.name,
                     subtitle: club.location ?? club.host.map { "with \($0)" },
                     meta: meta) {
-            ExploreBlankPhoto()
+            VenuePhoto(venueName: club.location ?? club.name,
+                       hint: club.location != nil ? club.name : nil) { ExploreBlankPhoto() }
         } trailing: {
             Button {
                 Haptics.light()
@@ -516,7 +518,6 @@ private struct TrailExploreCard: View {
     let trail: Trail
     var openURL: (URL) -> Void
 
-    @State private var confidentPhoto: ConfidentPhoto?
     @State private var coord: CLLocationCoordinate2D?
 
     var body: some View {
@@ -534,7 +535,6 @@ private struct TrailExploreCard: View {
             .accessibilityLabel("Directions")
         }
         .task {
-            confidentPhoto = await GooglePlacesService.shared.confidentPhoto(forFreeText: trail.title, hint: trail.location)
             coord = await GeocoderService.shared.coordinate(for: "\(trail.title) \(trail.location ?? "St. Joseph MN")")
         }
     }
@@ -548,25 +548,8 @@ private struct TrailExploreCard: View {
                 default: ExploreBlankPhoto()
                 }
             }
-        } else if let cp = confidentPhoto {
-            ZStack(alignment: .bottomTrailing) {
-                AsyncImage(url: GooglePlacesService.shared.photoURL(name: cp.photoName, maxWidth: 500)) { phase in
-                    switch phase {
-                    case .success(let img): img.resizable().scaledToFill()
-                    default: ExploreBlankPhoto()
-                    }
-                }
-
-                if !cp.attributions.isEmpty {
-                    Text(cp.attributions.joined(separator: ", "))
-                        .font(.sans(9)).foregroundStyle(.white.opacity(0.95)).lineLimit(1)
-                        .padding(.horizontal, 6).padding(.vertical, 3)
-                        .background(.black.opacity(0.4), in: Capsule())
-                        .padding(8)
-                }
-            }
         } else {
-            ExploreBlankPhoto()
+            VenuePhoto(venueName: trail.title, hint: trail.location) { ExploreBlankPhoto() }
         }
     }
 
