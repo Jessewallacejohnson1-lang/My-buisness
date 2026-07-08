@@ -2,7 +2,7 @@
 //  GooglePlacesService.swift
 //  Hygge — Google Places API (New) client. places.googleapis.com/v1 only.
 //
-//  Same shape as GeocoderService / PexelsService (TrailServices.swift): a
+//  Same shape as GeocoderService (TrailServices.swift): a
 //  @MainActor singleton whose caches stay on the main actor, hand-rolled over
 //  URLSession, failing soft (nil / []) so the UI never sees an error.
 //
@@ -209,6 +209,20 @@ final class GooglePlacesService {
             URLQueryItem(name: "key", value: GOOGLE_PLACES_API_KEY),
         ]
         return comps.url!
+    }
+
+    // MARK: Confident-match photo for free text (events, trails, clubs)
+
+    /// Like `confidentPhoto(name:coordinate:)`, but for a free-text venue name that
+    /// has no curated coordinate of its own (a community-submitted trail, event, or
+    /// club). Only attempts a match when `title`/`hint` resolves against KnownVenues
+    /// — Rule A needs an independent, human-verified coordinate to check Google's
+    /// text-search result against, and KnownVenues is the only source of one outside
+    /// the fixed MapSpots set. No KnownVenues match → nil, never a guess.
+    func confidentPhoto(forFreeText title: String, hint: String?) async -> ConfidentPhoto? {
+        let query = [title, hint].compactMap { $0 }.joined(separator: " ")
+        guard let coord = KnownVenues.coordinate(for: query) else { return nil }
+        return await confidentPhoto(name: title, coordinate: coord)
     }
 
     // MARK: Confident-match photo (Locked Rule A)

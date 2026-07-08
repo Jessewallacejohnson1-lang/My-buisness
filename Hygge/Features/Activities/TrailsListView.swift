@@ -2,9 +2,10 @@
 //  TrailsListView.swift
 //  Hygge — AllTrails-style list of trails.
 //
-//  Wobegon card uses a bundled photo. Community trail cards fetch a Pexels
-//  landscape photo on first render (cached in PexelsService.shared). Google
-//  Maps URLs use Nominatim-geocoded coordinates for accurate pins.
+//  Wobegon card uses a bundled photo. Community trail cards prefer the trail's own
+//  uploaded photo, else a confidently-identified real Google Places photo (never a
+//  generic stock photo — see GooglePlacesService.confidentPhoto(forFreeText:hint:)).
+//  Google Maps URLs use Nominatim-geocoded coordinates for accurate pins.
 //
 
 import SwiftUI
@@ -148,7 +149,7 @@ private struct CommunityTrailCard: View {
     let trail: Trail
     var openURL: (URL) -> Void
 
-    @State private var pexelsURL: URL?
+    @State private var confidentPhoto: ConfidentPhoto?
     @State private var geocodedCoord: CLLocationCoordinate2D?
 
     var body: some View {
@@ -197,9 +198,8 @@ private struct CommunityTrailCard: View {
         .overlay(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
         .modifier(CardShadow())
         .task {
-            // Fetch Pexels photo
-            let query = "\(trail.title) trail outdoor"
-            pexelsURL = await PexelsService.shared.photoURL(for: query)
+            // Fetch a confidently-matched Google Places photo
+            confidentPhoto = await GooglePlacesService.shared.confidentPhoto(forFreeText: trail.title, hint: trail.location)
 
             // Geocode location for accurate Maps pin
             let geocodeQuery = "\(trail.title) \(trail.location ?? "St. Joseph MN")"
@@ -209,18 +209,28 @@ private struct CommunityTrailCard: View {
 
     @ViewBuilder
     private var photoArea: some View {
-        if let url = pexelsURL {
+        if let url = trail.imageUrl.flatMap(URL.init) {
             AsyncImage(url: url) { phase in
                 switch phase {
                 case .success(let img): img.resizable().scaledToFill()
                 default: placeholder
                 }
             }
-        } else if let url = trail.imageUrl.flatMap(URL.init) {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let img): img.resizable().scaledToFill()
-                default: placeholder
+        } else if let cp = confidentPhoto {
+            ZStack(alignment: .bottomTrailing) {
+                AsyncImage(url: GooglePlacesService.shared.photoURL(name: cp.photoName, maxWidth: 500)) { phase in
+                    switch phase {
+                    case .success(let img): img.resizable().scaledToFill()
+                    default: placeholder
+                    }
+                }
+
+                if !cp.attributions.isEmpty {
+                    Text(cp.attributions.joined(separator: ", "))
+                        .font(.sans(9)).foregroundStyle(.white.opacity(0.95)).lineLimit(1)
+                        .padding(.horizontal, 6).padding(.vertical, 3)
+                        .background(.black.opacity(0.4), in: Capsule())
+                        .padding(8)
                 }
             }
         } else {

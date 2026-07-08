@@ -516,7 +516,7 @@ private struct TrailExploreCard: View {
     let trail: Trail
     var openURL: (URL) -> Void
 
-    @State private var pexelsURL: URL?
+    @State private var confidentPhoto: ConfidentPhoto?
     @State private var coord: CLLocationCoordinate2D?
 
     var body: some View {
@@ -534,18 +534,35 @@ private struct TrailExploreCard: View {
             .accessibilityLabel("Directions")
         }
         .task {
-            pexelsURL = await PexelsService.shared.photoURL(for: "\(trail.title) trail outdoor")
+            confidentPhoto = await GooglePlacesService.shared.confidentPhoto(forFreeText: trail.title, hint: trail.location)
             coord = await GeocoderService.shared.coordinate(for: "\(trail.title) \(trail.location ?? "St. Joseph MN")")
         }
     }
 
     @ViewBuilder
     private var photo: some View {
-        if let url = pexelsURL ?? trail.imageUrl.flatMap(URL.init) {
+        if let url = trail.imageUrl.flatMap(URL.init) {
             AsyncImage(url: url) { phase in
                 switch phase {
                 case .success(let img): img.resizable().scaledToFill()
                 default: ExploreBlankPhoto()
+                }
+            }
+        } else if let cp = confidentPhoto {
+            ZStack(alignment: .bottomTrailing) {
+                AsyncImage(url: GooglePlacesService.shared.photoURL(name: cp.photoName, maxWidth: 500)) { phase in
+                    switch phase {
+                    case .success(let img): img.resizable().scaledToFill()
+                    default: ExploreBlankPhoto()
+                    }
+                }
+
+                if !cp.attributions.isEmpty {
+                    Text(cp.attributions.joined(separator: ", "))
+                        .font(.sans(9)).foregroundStyle(.white.opacity(0.95)).lineLimit(1)
+                        .padding(.horizontal, 6).padding(.vertical, 3)
+                        .background(.black.opacity(0.4), in: Capsule())
+                        .padding(8)
                 }
             }
         } else {
