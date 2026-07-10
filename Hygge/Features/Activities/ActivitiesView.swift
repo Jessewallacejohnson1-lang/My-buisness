@@ -93,30 +93,34 @@ struct ActivitiesView: View {
     // MARK: - Explore scroll
 
     private var explore: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 16) {
-                // Extra top room so the search pill clears the brand badge pinned
-                // to the top-right safe-area corner (see RootView / brandBadge()).
-                searchBar.padding(.top, 44)
-                categoryChips
+        VStack(alignment: .leading, spacing: 16) {
+            // Pinned header: the search pill + category chips stay put so the
+            // filter is always reachable — only the feed below scrolls.
+            // Extra top room so the search pill clears the brand badge pinned
+            // to the top-right safe-area corner (see RootView / brandBadge()).
+            searchBar.padding(.top, 44)
+            categoryChips
 
-                if filter == .trails {
-                    trailsMapLink.padding(.horizontal, 18)
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 16) {
+                    if filter == .trails {
+                        trailsMapLink.padding(.horizontal, 18)
+                    }
+
+                    if model.loading && !model.loaded {
+                        ProgressView().tint(Hue.gray)
+                            .frame(maxWidth: .infinity).padding(.top, 64)
+                    } else {
+                        feed.padding(.horizontal, 18)
+                    }
+
+                    Color.clear.frame(height: 96)
                 }
-
-                if model.loading && !model.loaded {
-                    ProgressView().tint(Hue.gray)
-                        .frame(maxWidth: .infinity).padding(.top, 64)
-                } else {
-                    feed.padding(.horizontal, 18)
-                }
-
-                Color.clear.frame(height: 96)
             }
+            .refreshable { await model.load(api) }
+            .scrollDismissesKeyboard(.interactively)
         }
         .background(Hue.surface)
-        .refreshable { await model.load(api) }
-        .scrollDismissesKeyboard(.interactively)
     }
 
     // MARK: - Search + chips
@@ -463,10 +467,19 @@ private struct EventExploreCard: View {
 
     var body: some View {
         ExploreCard(id: event.id, title: event.title, subtitle: event.location, meta: meta) {
-            VenuePhoto(venueName: event.location ?? event.title,
-                       hint: event.location != nil ? event.title : nil) { ExploreBlankPhoto() }
+            photo
         } trailing: {
             EventInviteCircle(event: event)
+        }
+    }
+
+    @ViewBuilder
+    private var photo: some View {
+        if let localName = KnownLocalPhoto.name(forTitle: event.title) {
+            PhotoView(name: localName).scaledToFill()
+        } else {
+            VenuePhoto(venueName: event.location ?? event.title,
+                       hint: event.location != nil ? event.title : nil) { ExploreBlankPhoto() }
         }
     }
     private var meta: [MetaItem] {
@@ -548,6 +561,8 @@ private struct TrailExploreCard: View {
                 default: ExploreBlankPhoto()
                 }
             }
+        } else if let localName = KnownLocalPhoto.name(forTitle: trail.title) {
+            PhotoView(name: localName).scaledToFill()
         } else {
             VenuePhoto(venueName: trail.title, hint: trail.location) { ExploreBlankPhoto() }
         }
@@ -563,15 +578,16 @@ private struct TrailExploreCard: View {
 
 private struct WobegonExploreCard: View {
     var openURL: (URL) -> Void
-    // College Ave (MN-75) trailhead verified via OSM/Nominatim
-    private let coord = CLLocationCoordinate2D(latitude: 45.5607, longitude: -94.3194)
+    // Trailhead park, 605 1st Ave NE — resolved from the single source of truth (KnownVenues)
+    private let coord = KnownVenues.coordinate(for: "Wobegon Trailhead")
+        ?? CLLocationCoordinate2D(latitude: 45.5665, longitude: -94.3161)
 
     var body: some View {
         ExploreCard(id: "wobegon-trail",
                     title: "Lake Wobegon Trail",
                     subtitle: "St. Joseph, Minnesota",
                     meta: [MetaItem(icon: "figure.hiking", text: "Easy", coral: true),
-                           MetaItem(icon: "ruler", text: "Paved rail-trail")]) {
+                           MetaItem(icon: "ruler", text: "65 mi paved")]) {
             PhotoView(name: "wobegon-trail").scaledToFill()
         } trailing: {
             Button {

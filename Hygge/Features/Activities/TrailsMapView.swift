@@ -261,7 +261,7 @@ private struct WobegonAnchorCard: View {
                         .font(.mono(11))
                         .foregroundStyle(Hue.moss500)
                     dot
-                    Text("Paved rail-trail")
+                    Text("65 mi paved")
                         .font(.mono(11))
                         .foregroundStyle(Hue.sky600)
                     dot

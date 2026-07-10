@@ -94,13 +94,14 @@ struct TrailsListView: View {
     }
 }
 
-// MARK: - Wobegon card (bundled photo, hardcoded correct coords)
+// MARK: - Wobegon card (bundled photo, coords resolved via KnownVenues)
 
 private struct WobegonListCard: View {
     var openURL: (URL) -> Void
 
-    // College Ave (MN-75) trailhead verified via OSM/Nominatim
-    private let coord = CLLocationCoordinate2D(latitude: 45.5607, longitude: -94.3194)
+    // Trailhead park, 605 1st Ave NE — resolved from the single source of truth (KnownVenues)
+    private let coord = KnownVenues.coordinate(for: "Wobegon Trailhead")
+        ?? CLLocationCoordinate2D(latitude: 45.5665, longitude: -94.3161)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -129,7 +130,7 @@ private struct WobegonListCard: View {
                 HStack(spacing: 6) {
                     statBadge(icon: "figure.hiking", label: "Easy")
                     dot
-                    Text("Paved rail-trail").font(.mono(11)).foregroundStyle(Hue.sky600)
+                    Text("65 mi paved").font(.mono(11)).foregroundStyle(Hue.sky600)
                     dot
                     Text("Bike · Run · Walk").font(.mono(11)).foregroundStyle(Hue.sky600)
                 }
@@ -212,6 +213,8 @@ private struct CommunityTrailCard: View {
                 default: placeholder
                 }
             }
+        } else if let localName = KnownLocalPhoto.name(forTitle: trail.title) {
+            PhotoView(name: localName).scaledToFill()
         } else {
             VenuePhoto(venueName: trail.title, hint: trail.location) { placeholder }
         }
