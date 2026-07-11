@@ -18,7 +18,7 @@ struct PendingPost: Identifiable, Hashable {
 }
 
 struct CommunityAPI {
-    let auth: AuthStore
+    let auth: any TokenProviding
 
     private struct IdRow: Decodable { let id: String }
 

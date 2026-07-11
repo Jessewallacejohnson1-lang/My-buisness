@@ -1,4 +1,4 @@
--- ⚠️ PROPOSAL — NOT APPLIED. Awaiting Jesse's sign-off before running on prod.
+-- ⚠️ PROPOSAL — NOT APPLIED. Needs a PRODUCT DECISION first, then sign-off.
 -- Addresses REVIEW.md correctness/foundation finding: whether a submitted event/club
 -- is auto-published (status='approved') or queued is decided entirely CLIENT-SIDE
 -- (CommunityAPI.submitClub / AddModel), not enforced by RLS. Any authenticated user
@@ -7,6 +7,18 @@
 -- Fix: force status='pending' on INSERT unless the submitter is in a server-side
 -- admin allowlist. This mirrors Admin.isAdmin (DateHelpers.swift) but makes it a real
 -- server guarantee instead of a UI convention. RLS remains the true boundary.
+--
+-- ⚠️ MATERIAL SIDE-EFFECT (found while inspecting the flow): today a NON-admin post
+-- that Claude clears goes live IMMEDIATELY (AddModel sets status=approved on a clear
+-- pass; the pending queue only fills when the moderation service is unavailable).
+-- The server CANNOT verify that client-side Claude moderation ran, so this trigger
+-- forces EVERY non-admin post to 'pending' — i.e. it REPLACES "Claude auto-approves"
+-- with "the admin must approve every post in the Review queue." That's a moderation-
+-- MODEL change, not just a security patch: safer/spam-proof, but adds friction and
+-- depends on the admin working the queue (the cold-start bottleneck REVIEW.md flags).
+-- Decide the model before applying:
+--   A) Keep Claude auto-approve (don't apply this) — right for a trusted small town now.
+--   B) Human-review-all (apply this) — right once spam/scale makes A risky.
 --
 -- Before applying:
 --   1. Confirm the exact column/table names against prod (club_events.status, clubs.status).

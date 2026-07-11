@@ -46,17 +46,14 @@ struct HomeView: View {
                     .springReveal(1, revealed: revealed, animated: revealAnimated)
 
                 // Real, actionable "today" sits directly under the hero — the one
-                // section a neighbor opens for — before the calmer almanac nudge.
+                // section a neighbor opens for. (The almanac's day-nudge now lives
+                // inside the hero above, so the day is read once, not twice.)
                 todaySection
                     .padding(.horizontal, 18)
                     .springReveal(2, revealed: revealed, animated: revealAnimated)
 
-                AlmanacSection()
-                    .padding(.horizontal, 18)
-                    .springReveal(3, revealed: revealed, animated: revealAnimated)
-
                 AroundTownCarousel(expanded: $expandedPlace, ns: cardNS)
-                    .springReveal(4, revealed: revealed, animated: revealAnimated)
+                    .springReveal(3, revealed: revealed, animated: revealAnimated)
 
                 // Gated on `loaded`: a fresh HomeModel (every return to the Today tab
                 // recreates it) starts weekGoing=0 / quest=nil, so rendering these
@@ -65,13 +62,13 @@ struct HomeView: View {
                 if model.loaded {
                     RollCallSection(count: model.weekGoing)
                         .padding(.horizontal, 18)
-                        .springReveal(5, revealed: revealed, animated: revealAnimated)
+                        .springReveal(4, revealed: revealed, animated: revealAnimated)
 
                     QuestSection(quest: model.quest, count: model.questCount, done: model.questDone) {
                         Task { await model.completeQuest(api) }
                     }
                     .padding(.horizontal, 18)
-                    .springReveal(6, revealed: revealed, animated: revealAnimated)
+                    .springReveal(5, revealed: revealed, animated: revealAnimated)
                 }
 
                 Color.clear.frame(height: 96)

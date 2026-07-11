@@ -111,7 +111,35 @@ struct TodayInStJoeCard: View {
                 .foregroundStyle(.white.opacity(0.9))
 
             board
+
+            // The almanac's one honest nudge, folded in — so the day is read once
+            // here (weather + board + a get-outside line) instead of a second,
+            // near-duplicate almanac card below. White-tinted to sit over the scrim.
+            dayNudge
         }
+    }
+
+    private var dayNudge: some View {
+        let nudge = Almanac.nudge(for: weather)
+        return VStack(alignment: .leading, spacing: 8) {
+            Rectangle().fill(.white.opacity(0.18)).frame(height: 1)
+            HStack(alignment: .firstTextBaseline, spacing: 7) {
+                Image(systemName: nudge.icon)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.9))
+                Text(onDark(nudge.line))
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+        }
+    }
+
+    /// Re-tint an Almanac attributed line (styled dark for the paper card) to white
+    /// so it reads over the hero's scrim, keeping each run's font/weight.
+    private func onDark(_ a: AttributedString) -> AttributedString {
+        var out = a
+        for run in a.runs { out[run.range].foregroundColor = .white }
+        return out
     }
 
     @ViewBuilder

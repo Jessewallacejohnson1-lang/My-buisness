@@ -10,7 +10,7 @@ import Foundation
 import Combine
 
 @MainActor
-final class AuthStore: ObservableObject {
+final class AuthStore: ObservableObject, TokenProviding {
     @Published private(set) var session: Session?
     @Published private(set) var booting = true
 
