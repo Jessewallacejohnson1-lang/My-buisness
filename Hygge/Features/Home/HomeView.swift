@@ -38,68 +38,82 @@ struct HomeView: View {
     }
 
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(spacing: 18) {
-                Masthead(name: model.name, onAdd: onCompose, onProfile: { showProfile = true })
-                    .padding(.horizontal, 18)
-                    .padding(.top, 8)
-                    .springReveal(0, revealed: revealed, animated: revealAnimated)
+        ScrollViewReader { proxy in
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 18) {
+                    Masthead(name: model.name, onAdd: onCompose, onProfile: { showProfile = true })
+                        .padding(.horizontal, 18)
+                        .padding(.top, 8)
+                        .springReveal(0, revealed: revealed, animated: revealAnimated)
 
-                // Zone 1 — the living almanac (weather + sun + moon + on-this-day +
-                // the daily-quest momentum ring). Reads `auth` from the environment.
-                AlmanacHeader(quest: model.quest,
-                              questCount: model.questCount,
-                              questDone: model.questDone,
-                              onCompleteQuest: { Task { await model.completeQuest(api) } })
-                    .padding(.horizontal, 18)
-                    .springReveal(1, revealed: revealed, animated: revealAnimated)
+                    // Zone 1 — the living almanac (weather + sun + moon + on-this-day +
+                    // the daily-quest momentum ring). Reads `auth` from the environment.
+                    AlmanacHeader(quest: model.quest,
+                                  questCount: model.questCount,
+                                  questDone: model.questDone,
+                                  onCompleteQuest: { Task { await model.completeQuest(api) } })
+                        .padding(.horizontal, 18)
+                        .springReveal(1, revealed: revealed, animated: revealAnimated)
 
-                // Zone 2 — today's agenda (the one section a neighbor opens for).
-                agendaSection
-                    .padding(.horizontal, 18)
-                    .springReveal(2, revealed: revealed, animated: revealAnimated)
+                    // Zone 2 — today's agenda (the one section a neighbor opens for).
+                    agendaSection
+                        .padding(.horizontal, 18)
+                        .springReveal(2, revealed: revealed, animated: revealAnimated)
 
-                // Zone 3 — the komoot-style interest feed, gated on `loaded` so a
-                // fresh HomeModel (recreated on every return to the tab) doesn't
-                // flash an empty "New in town" before the first fetch resolves.
-                if model.loaded {
-                    FeedSection(
-                        postings: model.feed,
-                        onLike:    { id in withPosting(id) { p in Task { await model.toggleLike(social, p) } } },
-                        onFollow:  { id in withPosting(id) { p in Task { await model.toggleFollow(social, p) } } },
-                        onSave:    { _ in },                       // card owns the local saved mark
-                        onShare:   { _ in },                       // TODO: share sheet (polish pass)
-                        onComment: { id in withPosting(id) { p in commentPosting = p } },
-                        onOpen:    { id in withPosting(id) { p in commentPosting = p } }
-                    )
-                    .padding(.horizontal, 18)
-                    .springReveal(3, revealed: revealed, animated: revealAnimated)
+                    // Zone 3 — the komoot-style interest feed, gated on `loaded` so a
+                    // fresh HomeModel (recreated on every return to the tab) doesn't
+                    // flash an empty "New in town" before the first fetch resolves.
+                    if model.loaded {
+                        FeedSection(
+                            postings: model.feed,
+                            onLike:    { id in withPosting(id) { p in Task { await model.toggleLike(social, p) } } },
+                            onFollow:  { id in withPosting(id) { p in Task { await model.toggleFollow(social, p) } } },
+                            onSave:    { _ in },                       // card owns the local saved mark
+                            onShare:   { _ in },                       // TODO: share sheet (polish pass)
+                            onComment: { id in withPosting(id) { p in commentPosting = p } },
+                            onOpen:    { id in withPosting(id) { p in commentPosting = p } }
+                        )
+                        .id("feedTop")
+                        .padding(.horizontal, 18)
+                        .springReveal(3, revealed: revealed, animated: revealAnimated)
+                    }
+
+                    Color.clear.frame(height: 96)
                 }
-
-                Color.clear.frame(height: 96)
             }
-        }
-        .background(Hue.canvas)
-        .refreshable {
-            // Collapse instantly (animated: false → no reverse cascade), load,
-            // then spring it all back in — the reference's "reload → springs out" beat.
-            revealAnimated = false
-            revealed = false
-            await model.load(api, social)
-            revealAnimated = true
-            revealed = true
-        }
-        .task { await model.load(api, social) }
-        // Springs in when Today first appears and each time it's returned to.
-        .onAppear { revealed = true }
-        .sheet(isPresented: $showProfile) { ProfileView() }
-        .sheet(item: $commentPosting) { posting in
-            CommentSheet(eventId: posting.id, eventTitle: posting.title)
-        }
-        // A name edit in the profile writes Interests.displayName synchronously;
-        // pick it up when the sheet closes so the greeting stays in sync.
-        .onChange(of: showProfile) { _, shown in
-            if !shown { model.name = Interests.displayName ?? firstNameFromEmail(auth.email) }
+            .background(Hue.canvas)
+            .refreshable {
+                // Collapse instantly (animated: false → no reverse cascade), load,
+                // then spring it all back in — the reference's "reload → springs out" beat.
+                revealAnimated = false
+                revealed = false
+                await model.load(api, social)
+                revealAnimated = true
+                revealed = true
+            }
+            .task { await model.load(api, social) }
+            // Springs in when Today first appears and each time it's returned to.
+            .onAppear { revealed = true }
+            .sheet(isPresented: $showProfile) { ProfileView() }
+            .sheet(item: $commentPosting) { posting in
+                CommentSheet(eventId: posting.id, eventTitle: posting.title)
+            }
+            // A name edit in the profile writes Interests.displayName synchronously;
+            // pick it up when the sheet closes so the greeting stays in sync.
+            .onChange(of: showProfile) { _, shown in
+                if !shown { model.name = Interests.displayName ?? firstNameFromEmail(auth.email) }
+            }
+            #if DEBUG
+            // `-scroll-feed`: once loaded, scroll to the feed so the komoot card can be
+            // screenshotted headlessly. No effect in release or without the flag.
+            .onChange(of: model.loaded) { _, isLoaded in
+                guard isLoaded, ProcessInfo.processInfo.arguments.contains("-scroll-feed") else { return }
+                Task {
+                    try? await Task.sleep(nanoseconds: 700_000_000)
+                    withAnimation { proxy.scrollTo("feedTop", anchor: .top) }
+                }
+            }
+            #endif
         }
     }
 
