@@ -1,6 +1,7 @@
 //
 //  HomeView.swift
-//  Hygge — Home / Timeline. Masthead, weather, today's events, around town, quest.
+//  Hygge — Today. Three zones: the living almanac, today's agenda, and the
+//  komoot-style interest feed. Staggered spring entrance; pull-to-refresh.
 //
 
 import SwiftUI
@@ -20,8 +21,11 @@ struct HomeView: View {
     @State private var revealAnimated = true
     /// The community profile sheet (opened from the Masthead's person button).
     @State private var showProfile = HomeView.debugOpenProfile()
+    /// The feed posting whose notes (comments) sheet is open, if any.
+    @State private var commentPosting: FeedPosting?
 
     private var api: CommunityAPI { CommunityAPI(auth: auth) }
+    private var social: SocialAPI { SocialAPI(auth: auth) }
 
     /// DEBUG-only: `-open-profile` presents the profile sheet on launch so it can
     /// be screenshotted headlessly. No effect in release or without the flag.
@@ -41,34 +45,35 @@ struct HomeView: View {
                     .padding(.top, 8)
                     .springReveal(0, revealed: revealed, animated: revealAnimated)
 
-                TodayInStJoeCard(content: model.board)
+                // Zone 1 — the living almanac (weather + sun + moon + on-this-day +
+                // the daily-quest momentum ring). Reads `auth` from the environment.
+                AlmanacHeader(quest: model.quest,
+                              questCount: model.questCount,
+                              questDone: model.questDone,
+                              onCompleteQuest: { Task { await model.completeQuest(api) } })
                     .padding(.horizontal, 18)
                     .springReveal(1, revealed: revealed, animated: revealAnimated)
 
-                // Real, actionable "today" sits directly under the hero — the one
-                // section a neighbor opens for. (The almanac's day-nudge now lives
-                // inside the hero above, so the day is read once, not twice.)
-                todaySection
+                // Zone 2 — today's agenda (the one section a neighbor opens for).
+                agendaSection
                     .padding(.horizontal, 18)
                     .springReveal(2, revealed: revealed, animated: revealAnimated)
 
-                AroundTownCarousel(expanded: $expandedPlace, ns: cardNS)
-                    .springReveal(3, revealed: revealed, animated: revealAnimated)
-
-                // Gated on `loaded`: a fresh HomeModel (every return to the Today tab
-                // recreates it) starts weekGoing=0 / quest=nil, so rendering these
-                // before the first fetch resolves would flash a false "Quiet week" /
-                // "no quest" every visit. Hold until real data has arrived.
+                // Zone 3 — the komoot-style interest feed, gated on `loaded` so a
+                // fresh HomeModel (recreated on every return to the tab) doesn't
+                // flash an empty "New in town" before the first fetch resolves.
                 if model.loaded {
-                    RollCallSection(count: model.weekGoing)
-                        .padding(.horizontal, 18)
-                        .springReveal(4, revealed: revealed, animated: revealAnimated)
-
-                    QuestSection(quest: model.quest, count: model.questCount, done: model.questDone) {
-                        Task { await model.completeQuest(api) }
-                    }
+                    FeedSection(
+                        postings: model.feed,
+                        onLike:    { id in withPosting(id) { p in Task { await model.toggleLike(social, p) } } },
+                        onFollow:  { id in withPosting(id) { p in Task { await model.toggleFollow(social, p) } } },
+                        onSave:    { _ in },                       // card owns the local saved mark
+                        onShare:   { _ in },                       // TODO: share sheet (polish pass)
+                        onComment: { id in withPosting(id) { p in commentPosting = p } },
+                        onOpen:    { id in withPosting(id) { p in commentPosting = p } }
+                    )
                     .padding(.horizontal, 18)
-                    .springReveal(5, revealed: revealed, animated: revealAnimated)
+                    .springReveal(3, revealed: revealed, animated: revealAnimated)
                 }
 
                 Color.clear.frame(height: 96)
@@ -80,14 +85,17 @@ struct HomeView: View {
             // then spring it all back in — the reference's "reload → springs out" beat.
             revealAnimated = false
             revealed = false
-            await model.load(api)
+            await model.load(api, social)
             revealAnimated = true
             revealed = true
         }
-        .task { await model.load(api) }
+        .task { await model.load(api, social) }
         // Springs in when Today first appears and each time it's returned to.
         .onAppear { revealed = true }
         .sheet(isPresented: $showProfile) { ProfileView() }
+        .sheet(item: $commentPosting) { posting in
+            CommentSheet(eventId: posting.id, eventTitle: posting.title)
+        }
         // A name edit in the profile writes Interests.displayName synchronously;
         // pick it up when the sheet closes so the greeting stays in sync.
         .onChange(of: showProfile) { _, shown in
@@ -95,16 +103,23 @@ struct HomeView: View {
         }
     }
 
+    /// Resolve a feed callback's posting id back to the live posting before acting.
+    private func withPosting(_ id: String, _ body: (FeedPosting) -> Void) {
+        if let posting = model.feed.first(where: { $0.id == id }) { body(posting) }
+    }
+
+    // MARK: - Zone 2 — today's agenda
+
     @ViewBuilder
-    private var todaySection: some View {
+    private var agendaSection: some View {
         if model.loading && !model.loaded {
             TodayLoadingCard()
         } else if model.today.isEmpty {
             TodayCard(onAdd: onCompose)
         } else {
             VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text("Today")
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Today's agenda")
                         .font(.displaySemi(22))
                         .foregroundStyle(Hue.ink)
                     Spacer()

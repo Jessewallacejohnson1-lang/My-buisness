@@ -38,7 +38,7 @@ enum DateHelpers {
     }
 
     /// Short weekday ("Sat") for a YYYY-MM-DD string, parsed as a local date.
-    static func weekdayLabel(_ ymd: String) -> String {
+    nonisolated static func weekdayLabel(_ ymd: String) -> String {
         let parts = ymd.split(separator: "-").compactMap { Int($0) }
         guard parts.count == 3 else { return "" }
         var c = DateComponents()
