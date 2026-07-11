@@ -10,6 +10,9 @@ import SwiftUI
 import MapKit
 
 struct ActivitiesView: View {
+    /// The global composer, injected by MainTabsView (same sheet Home/Map open).
+    var onCompose: (() -> Void)? = nil
+
     @EnvironmentObject private var auth: AuthStore
     @StateObject private var model = ActivitiesModel()
 
@@ -102,7 +105,7 @@ struct ActivitiesView: View {
             categoryChips
 
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 16) {
+                LazyVStack(alignment: .leading, spacing: 16) {
                     if filter == .trails {
                         trailsMapLink.padding(.horizontal, 18)
                     }
@@ -110,6 +113,8 @@ struct ActivitiesView: View {
                     if model.loading && !model.loaded {
                         ProgressView().tint(Hue.gray)
                             .frame(maxWidth: .infinity).padding(.top, 64)
+                    } else if model.failed {
+                        failedState
                     } else {
                         feed.padding(.horizontal, 18)
                     }
@@ -121,6 +126,24 @@ struct ActivitiesView: View {
             .scrollDismissesKeyboard(.interactively)
         }
         .background(Hue.surface)
+        .overlay(alignment: .bottomTrailing) { ComposeFAB(action: onCompose) }
+    }
+
+    /// A real outage (not an empty town) — distinct from `emptyState` so an offline
+    /// glance isn't misread as "St. Joe has nothing going on."
+    private var failedState: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "wifi.slash")
+                .font(.system(size: 28, weight: .light))
+                .foregroundStyle(Hue.gray)
+            Text("Couldn't reach St. Joe")
+                .font(.sansBold(16)).foregroundStyle(Hue.mapInk)
+            Text("Check your connection, then pull to refresh.")
+                .font(.sans(14)).foregroundStyle(Hue.gray)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 52).padding(.horizontal, 24)
     }
 
     // MARK: - Search + chips
@@ -245,7 +268,9 @@ struct ActivitiesView: View {
         if empty {
             emptyState
         } else {
-            VStack(alignment: .leading, spacing: 24) {
+            // Lazy so off-screen cards — and each TrailExploreCard's .task-driven
+            // geocode network call — only materialize when scrolled into view.
+            LazyVStack(alignment: .leading, spacing: 24) {
                 if showSuggested { suggestedSection }
 
                 if showWobegon {
@@ -578,21 +603,21 @@ private struct TrailExploreCard: View {
 
 private struct WobegonExploreCard: View {
     var openURL: (URL) -> Void
-    // Trailhead park, 605 1st Ave NE — resolved from the single source of truth (KnownVenues)
+    // Lake Wobegon trailhead under the water tower, 610 County Rd 2 — resolved from the single source of truth (KnownVenues)
     private let coord = KnownVenues.coordinate(for: "Wobegon Trailhead")
-        ?? CLLocationCoordinate2D(latitude: 45.5665, longitude: -94.3161)
+        ?? CLLocationCoordinate2D(latitude: 45.5697, longitude: -94.3180)
 
     var body: some View {
         ExploreCard(id: "wobegon-trail",
                     title: "Lake Wobegon Trail",
-                    subtitle: "St. Joseph, Minnesota",
+                    subtitle: "Trailhead by the water tower · County Rd 2",
                     meta: [MetaItem(icon: "figure.hiking", text: "Easy", coral: true),
                            MetaItem(icon: "ruler", text: "65 mi paved")]) {
             PhotoView(name: "wobegon-trail").scaledToFill()
         } trailing: {
             Button {
                 Haptics.light()
-                if let url = mapsURL(label: "Lake Wobegon Trail, St. Joseph MN", coord: coord) { openURL(url) }
+                if let url = mapsURL(label: "Lake Wobegon Trailhead, 610 County Rd 2, St. Joseph MN", coord: coord) { openURL(url) }
             } label: {
                 exploreCircleIcon("map.fill")
             }

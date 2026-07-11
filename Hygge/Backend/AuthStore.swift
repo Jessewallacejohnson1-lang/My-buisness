@@ -21,6 +21,11 @@ final class AuthStore: ObservableObject {
     var userId: String? { session?.user.id }
 
     private var refreshTask: Task<Void, Error>?
+    /// Bumped whenever the signed-in identity intentionally changes (sign-out). An
+    /// in-flight refresh captures this at start and refuses to write a session whose
+    /// generation is stale — so a refresh resolving after sign-out can't resurrect
+    /// the ended session.
+    private var sessionGeneration = 0
 
     /// Restore a persisted session on launch, refreshing if it's stale. A hard
     /// refresh failure (revoked/expired/rotated token) clears the session so the
@@ -29,8 +34,10 @@ final class AuthStore: ObservableObject {
         if let saved = Keychain.load() {
             session = saved
             if saved.isExpired {
-                do { try await refresh() }
-                catch { session = nil; Keychain.clear() }
+                // refresh() clears the session only on a definitive token rejection;
+                // a transient/offline failure leaves the stale session in place so a
+                // later call can retry — don't sign the user out just for being offline.
+                try? await refresh()
             }
         }
         booting = false
@@ -65,12 +72,43 @@ final class AuthStore: ObservableObject {
         }
     }
 
-    func signOut() async {
-        if let token = session?.accessToken {
-            _ = try? await SupabaseHTTP.auth("logout", bearer: token)
+    /// Send a password-reset email via GoTrue's recover endpoint. Returns a
+    /// user-facing error string, nil on success. Mirrors @hygge/core's reset flow.
+    func resetPassword(email: String) async -> String? {
+        do {
+            _ = try await SupabaseHTTP.auth("recover", body: ["email": email])
+            return nil
+        } catch {
+            return (error as? SupabaseError)?.message ?? error.localizedDescription
         }
+    }
+
+    func signOut() async {
+        // Invalidate any in-flight refresh and clear local state *before* the network
+        // round trip, so a concurrent refresh can neither outlive nor resurrect the
+        // signed-out session (see sessionGeneration).
+        sessionGeneration += 1
+        refreshTask?.cancel()
+        refreshTask = nil
+        let token = session?.accessToken
         session = nil
         Keychain.clear()
+        Interests.clearMirror()   // don't let the next account inherit this user's name/interests/onboarded
+        if let token {
+            _ = try? await SupabaseHTTP.auth("logout", bearer: token)
+        }
+    }
+
+    /// A REST call came back 401 — the access token was rejected server-side even
+    /// though the local clock still thinks it's valid (e.g. the session was revoked
+    /// from another device, or the JWT secret rotated). Force a refresh: if the
+    /// refresh token is also dead, refresh() clears the session and the auth gate
+    /// routes back to Login; if the token had merely expired in a network-latency
+    /// window, this silently re-arms a valid one instead of signing the user out.
+    /// Wired via SupabaseHTTP.onUnauthorized (set once at launch).
+    func handleUnauthorized() async {
+        guard session != nil else { return }
+        try? await refresh()
     }
 
     // MARK: - Tokens
@@ -99,20 +137,39 @@ final class AuthStore: ObservableObject {
         guard let refreshToken = session?.refreshToken else {
             throw SupabaseError(message: "Not signed in", status: 401)
         }
+        let generation = sessionGeneration
         let task = Task { () throws -> Void in
             do {
                 let data = try await SupabaseHTTP.auth("token?grant_type=refresh_token",
                                                        body: ["refresh_token": refreshToken])
+                // A sign-out during the round trip bumps the generation — don't write
+                // a session the user has already ended.
+                guard generation == sessionGeneration else { return }
                 try setSession(from: data)
             } catch {
-                session = nil
-                Keychain.clear()
+                // Only a definitive token rejection (GoTrue 4xx) means the token family
+                // is dead; a transient/offline error must NOT destroy a still-valid
+                // session. Skip the clear if we've since signed out, too.
+                if generation == sessionGeneration, isTokenRejected(error) {
+                    session = nil
+                    Keychain.clear()
+                }
                 throw error
             }
         }
         refreshTask = task
         defer { refreshTask = nil }
         try await task.value
+    }
+
+    /// True only for a definitive token rejection (GoTrue 400/401/403, e.g.
+    /// invalid_grant / expired), not a transient transport error (offline, timeout,
+    /// 5xx, rate-limit). Only a definitive failure clears the session.
+    private func isTokenRejected(_ error: Error) -> Bool {
+        switch (error as? SupabaseError)?.status {
+        case 400, 401, 403: return true
+        default: return false
+        }
     }
 
     private func setSession(from data: Data) throws {

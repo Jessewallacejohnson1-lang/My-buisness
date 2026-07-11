@@ -22,6 +22,11 @@ final class MapModel: ObservableObject {
 
     @Published private(set) var todayEvents: [TimelineEvent] = []
     @Published private(set) var state: LoadState = .loading
+    /// A 1-minute wall-clock heartbeat. Bumped on a timer so any view observing this
+    /// model re-evaluates DateHelpers.isLiveNow off the current time even when no
+    /// data changes — a pin/"Now" badge must light at an event's start minute and go
+    /// quiet at start+2h without needing a pan/tap to force a re-render.
+    @Published private(set) var clockTick = 0
     /// The town the map is currently panned over — names the top pill. Starts on
     /// St. Joe (the initial camera) and follows the map as it moves.
     @Published private(set) var townLabel = "Saint Joseph"
@@ -35,6 +40,7 @@ final class MapModel: ObservableObject {
     private var resyncTask: Task<Void, Never>?
     private var midnightTask: Task<Void, Never>?
     private var townTask: Task<Void, Never>?
+    private var clockTask: Task<Void, Never>?
     private var started = false
     /// Monotonic token so an older in-flight load can't clobber a newer one's
     /// result — load() is fired from start/foreground/retry/resync/midnight and
@@ -51,6 +57,7 @@ final class MapModel: ObservableObject {
         Task { await load(initial: true) }
         subscribe()
         scheduleMidnightRollover()
+        startClock()
     }
 
     func stop() {
@@ -60,6 +67,20 @@ final class MapModel: ObservableObject {
         resyncTask?.cancel(); resyncTask = nil
         midnightTask?.cancel(); midnightTask = nil
         townTask?.cancel(); townTask = nil
+        clockTask?.cancel(); clockTask = nil
+    }
+
+    /// Re-render observers once a minute so wall-clock-derived state (isLiveNow)
+    /// stays truthful with no data change. Runs only while the map is active.
+    private func startClock() {
+        guard clockTask == nil else { return }
+        clockTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 60_000_000_000)
+                guard let self, self.started else { break }
+                self.clockTick &+= 1
+            }
+        }
     }
 
     // MARK: Town label (reverse-geocoded map center)
@@ -86,12 +107,14 @@ final class MapModel: ObservableObject {
         Task { await load(initial: false) }
         subscribe()                     // start() on the existing client is a no-op if alive
         scheduleMidnightRollover()
+        startClock()
     }
 
     /// App backgrounded: drop the socket to spare the battery; foreground rebuilds it.
     func onBackground() {
         realtime?.stop()
         midnightTask?.cancel(); midnightTask = nil
+        clockTask?.cancel(); clockTask = nil
     }
 
     // MARK: Data

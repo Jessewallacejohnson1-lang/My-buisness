@@ -38,6 +38,16 @@ struct LoginView: View {
                         field("Password", text: $password, secure: true, keyboard: .default)
                     }
 
+                    if mode == .signIn {
+                        Button(action: resetPassword) {
+                            Text("Forgot password?")
+                                .font(.sans(13))
+                                .foregroundStyle(Hue.ink3)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(busy)
+                    }
+
                     if let message {
                         Text(message)
                             .font(.sans(13))
@@ -113,6 +123,26 @@ struct LoginView: View {
 
     private var canSubmit: Bool {
         !email.trimmingCharacters(in: .whitespaces).isEmpty && password.count >= 6
+    }
+
+    private func resetPassword() {
+        let mail = email.trimmingCharacters(in: .whitespaces)
+        guard !mail.isEmpty else {
+            message = "Enter your email above first, then tap this."
+            messageIsError = true
+            return
+        }
+        busy = true
+        message = nil
+        Task {
+            let err = await auth.resetPassword(email: mail)
+            busy = false
+            if let err {
+                message = err; messageIsError = true
+            } else {
+                message = "Check your email for a reset link."; messageIsError = false
+            }
+        }
     }
 
     private func submit() {

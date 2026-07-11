@@ -60,7 +60,7 @@ enum MapSpots {
              keywords: ["chapel", "sacred heart", "monastery"],
              blurb: "The monastery & its dome"),
         Spot(id: "wobegon", name: "Wobegon Trail", category: .trail,
-             coordinate: .init(latitude: 45.5665, longitude: -94.3161), // trailhead park, 605 1st Ave NE
+             coordinate: .init(latitude: 45.5697, longitude: -94.3180), // trailhead parking under the water tower, 610 County Rd 2
              keywords: ["wobegon", "trailhead"],
              blurb: "Bike, walk & run the trail"),
         Spot(id: "millstream", name: "Millstream Park", category: .park,

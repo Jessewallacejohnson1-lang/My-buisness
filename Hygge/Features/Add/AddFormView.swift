@@ -8,6 +8,9 @@ import PhotosUI
 
 struct AddFormView: View {
     let kind: AddKind
+    /// Prefill the event date (e.g. tapping an empty day on the Calendar opens the
+    /// composer already scoped to that day). Applied once on appear.
+    var initialDate: Date? = nil
     @EnvironmentObject private var auth: AuthStore
     @StateObject private var model = AddModel()
     @Environment(\.dismiss) private var dismiss
@@ -48,6 +51,7 @@ struct AddFormView: View {
                     Button("Cancel") { dismiss() }.foregroundStyle(Hue.ink2)
                 }
             }
+            .onAppear { if let initialDate { model.eventDate = initialDate } }
             .onChange(of: pickerItem) { _, item in
                 Task { @MainActor in
                     if let data = try? await item?.loadTransferable(type: Data.self) { model.photo = data }

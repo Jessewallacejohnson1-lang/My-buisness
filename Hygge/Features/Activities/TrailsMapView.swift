@@ -3,8 +3,9 @@
 //  Hygge — interactive trails map with draggable bottom sheet.
 //
 //  Map pinned on the real Lake Wobegon Trail trailhead in St. Joseph
-//  (45.5665, -94.3161 — the trailhead park at 605 1st Ave NE, under the water
-//  tower). "Map" buttons deep-link to Google Maps (falls back to Apple Maps).
+//  (45.5697, -94.3180 — the trailhead parking under the water tower on County
+//  Rd 2 / 610 County Rd 2, where the farmers market sets up). "Map" buttons
+//  deep-link to Google Maps (falls back to Apple Maps).
 //
 
 import SwiftUI
@@ -12,8 +13,8 @@ import MapKit
 
 // MARK: - Coordinates
 
-// Trailhead park, 605 1st Ave NE — verified 2026-07-04 (see KnownVenues.swift)
-private let wobegonCoord = CLLocationCoordinate2D(latitude: 45.5665, longitude: -94.3161)
+// Lake Wobegon trailhead parking, under the water tower off County Rd 2 (610 County Rd 2) — verified 2026-07-10 (see KnownVenues.swift)
+private let wobegonCoord = CLLocationCoordinate2D(latitude: 45.5697, longitude: -94.3180)
 private let stJoeCenter  = CLLocationCoordinate2D(latitude: 45.5650, longitude: -94.3180)
 
 // MARK: - Maps helper
@@ -224,7 +225,7 @@ private struct WobegonAnchorCard: View {
                     .clipped()
 
                 Button {
-                    if let url = openInGoogleMaps(query: "Lake Wobegon Trail, St. Joseph, MN",
+                    if let url = openInGoogleMaps(query: "Lake Wobegon Trailhead, 610 County Rd 2, St. Joseph, MN",
                                                    coord: wobegonCoord) {
                         onMap(url)
                     }
@@ -252,7 +253,7 @@ private struct WobegonAnchorCard: View {
                     .font(.sansBold(16))
                     .foregroundStyle(Hue.ink)
 
-                Text("St. Joseph, Minnesota")
+                Text("Trailhead by the water tower · County Rd 2")
                     .font(.sans(13))
                     .foregroundStyle(Hue.ink2)
 

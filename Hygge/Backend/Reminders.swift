@@ -45,34 +45,20 @@ enum Reminders {
 
     private static func id(_ eventId: String) -> String { "event-\(eventId)" }
 
-    /// "YYYY-MM-DD" + a display time ("5 PM", "5:30 PM", "10 AM") → local Date 45m before start.
+    /// "YYYY-MM-DD" + a free-text display time ("5 PM", "noon", "midnight", nil) →
+    /// local Date 45m before start. Shares the app's one time parser
+    /// (DateHelpers.minutesOf) so "midnight"/"noon" agree with the rest of the app;
+    /// an all-day / unparseable time has no meaningful "starts soon" → no reminder.
     private static func fireDate(date ymd: String, startTime: String?) -> Date? {
         let d = ymd.split(separator: "-").compactMap { Int($0) }
         guard d.count == 3 else { return nil }
+        let minutes = DateHelpers.minutesOf(startTime)   // 24*60 ⇒ all-day / unparseable
+        guard minutes < 24 * 60 else { return nil }
         var comps = DateComponents()
         comps.year = d[0]; comps.month = d[1]; comps.day = d[2]
-        comps.hour = 12; comps.minute = 0   // default noon when time is unparseable
-        if let t = startTime, let (h, m) = parseTime(t) { comps.hour = h; comps.minute = m }
+        comps.hour = minutes / 60
+        comps.minute = minutes % 60
         guard let start = Calendar.current.date(from: comps) else { return nil }
         return start.addingTimeInterval(-45 * 60)
-    }
-
-    /// Parse a display time like "5 PM" / "5:30 pm" / "10 AM" into (hour24, minute).
-    private static func parseTime(_ s: String) -> (Int, Int)? {
-        let lower = s.lowercased()
-        let isPM = lower.contains("pm")
-        let isAM = lower.contains("am")
-        let digits = lower
-            .replacingOccurrences(of: "am", with: "")
-            .replacingOccurrences(of: "pm", with: "")
-            .trimmingCharacters(in: .whitespaces)
-        let hm = digits.split(separator: ":")
-        guard let hRaw = hm.first.flatMap({ Int($0.trimmingCharacters(in: .whitespaces)) }) else { return nil }
-        let m = hm.count > 1 ? (Int(hm[1].trimmingCharacters(in: .whitespaces)) ?? 0) : 0
-        var h = hRaw
-        if isPM && h < 12 { h += 12 }
-        if isAM && h == 12 { h = 0 }
-        guard (0...23).contains(h), (0...59).contains(m) else { return nil }
-        return (h, m)
     }
 }

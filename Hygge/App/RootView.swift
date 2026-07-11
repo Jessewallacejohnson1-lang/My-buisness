@@ -30,8 +30,17 @@ enum Tab: Int, CaseIterable, Identifiable {
 
 struct RootView: View {
     @EnvironmentObject private var auth: AuthStore
-    @State private var needsOnboarding = !Interests.isOnboarded()
-    @State private var hydrated = false
+    /// Set by the wizard's onDone (or a remote onboarded stamp) for the *current*
+    /// session only. Onboarding-need is otherwise derived per-user from Interests,
+    /// so signing out and into a different account re-evaluates from scratch.
+    @State private var onboardingDone = false
+    /// The user id we've already hydrated for. Reset-on-identity-change guard so a
+    /// second account on the same device gets its own profile pulled (not the first
+    /// account's leftover mirror).
+    @State private var hydratedUserId: String?
+    /// Set only when the user just finished the wizard, so they land on the Map tab
+    /// the finale promised (a returning user still opens to Today).
+    @State private var landOnMap = false
     #if DEBUG
     @State private var debugIntroDismissed = false
     #endif
@@ -75,32 +84,57 @@ struct RootView: View {
 
     @ViewBuilder private var authedRoot: some View {
         if needsOnboarding {
-            OnboardingView { needsOnboarding = false }
+            OnboardingView { markOnboarded() }
         } else {
-            MainTabsView()
+            MainTabsView(startTab: landOnMap ? .map : nil)
         }
     }
 
-    /// Pull the community profile once per session: mirror interests/name locally
-    /// (so matching + greetings work offline) and honor a remote onboarded stamp
-    /// (a reinstall/new device shouldn't re-run onboarding). Silent on failure.
+    /// Per-user onboarding gate: the current user's own local flag (or a completed
+    /// session), never a previous account's.
+    private var needsOnboarding: Bool {
+        guard let uid = auth.userId else { return false }
+        if onboardingDone { return false }
+        return !Interests.isOnboarded(uid: uid)
+    }
+
+    private func markOnboarded() {
+        if let uid = auth.userId { Interests.setOnboarded(uid: uid) }
+        landOnMap = true          // the map-intro finale promised the map — keep that promise
+        onboardingDone = true
+    }
+
+    /// Pull the community profile once per *user*: mirror interests/name locally (so
+    /// matching + greetings work offline) and honor a remote onboarded stamp (a
+    /// reinstall/new device shouldn't re-run onboarding). Re-runs when the signed-in
+    /// identity changes. Silent on failure.
     private func hydrateIfNeeded() async {
-        guard !hydrated, auth.isSignedIn else { return }
-        hydrated = true
+        guard let uid = auth.userId else { hydratedUserId = nil; return }   // signed out → allow re-hydrate on next sign-in
+        guard hydratedUserId != uid else { return }
+        hydratedUserId = uid
+        onboardingDone = false   // new identity → re-derive from this user's own state
         let fetched = try? await ProfileAPI(auth: .shared).getMyProfile()
         guard let profile = fetched ?? nil else { return }
         if !profile.interests.isEmpty { Interests.set(profile.interests) }
         if let n = profile.displayName, !n.isEmpty { Interests.displayName = n }
-        if profile.onboardedAt != nil, needsOnboarding {
-            Interests.setOnboarded()
-            needsOnboarding = false
+        if profile.onboardedAt != nil {
+            Interests.setOnboarded(uid: uid)
+            onboardingDone = true   // @State change → re-render into MainTabs
         }
     }
 }
 
 /// The authed shell: four tabs + global "+" composer sheet.
 struct MainTabsView: View {
-    @State private var tab: Tab = MainTabsView.initialTab()
+    /// A one-shot starting tab (e.g. land on Map straight after onboarding). nil →
+    /// the usual default (Today, or a DEBUG `-open-tab` override).
+    let startTab: Tab?
+    @State private var tab: Tab
+
+    init(startTab: Tab? = nil) {
+        self.startTab = startTab
+        _tab = State(initialValue: startTab ?? MainTabsView.initialTab())
+    }
 
     /// DEBUG-only: `-open-tab map|activities|calendar` launch argument selects
     /// the starting tab, so simulator verification can screenshot any tab
@@ -139,8 +173,8 @@ struct MainTabsView: View {
                     )
                 // No brand badge on these tabs — the top-right corner carries
                 // screen chrome now (the map's compose "+" etc.).
-                case .activities: ActivitiesView()
-                case .calendar:   CalendarView()
+                case .activities: ActivitiesView(onCompose: { composing = true })
+                case .calendar:   CalendarView(onCompose: { composing = true })
                 case .map:        SJMapView(onCompose: { composing = true })
                 }
             }

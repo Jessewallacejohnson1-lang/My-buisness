@@ -64,6 +64,12 @@ final class RealtimeClient {
     private var ref = 0
     private var stopped = true
     private var reconnectAttempts = 0
+    /// Bumped on every teardown/new socket. A join()/receiveLoop() spawned for an
+    /// older socket captures its epoch and bails if it no longer matches — so a
+    /// background→foreground flap that opens a fresh socket while a prior join() is
+    /// still suspended on the token fetch can't join/receive on the new socket or
+    /// double-count the reconnect backoff. (Same pattern as MapModel.loadGeneration.)
+    private var epoch = 0
 
     init(schema: String = "public", table: String, tokenProvider: @escaping () async -> String?) {
         self.schema = schema
@@ -90,6 +96,7 @@ final class RealtimeClient {
     }
 
     private func teardown() {
+        epoch &+= 1                             // invalidate any in-flight join/receive from the prior socket
         heartbeatTask?.cancel(); heartbeatTask = nil
         reconnectTask?.cancel(); reconnectTask = nil
         receiveTask?.cancel(); receiveTask = nil
@@ -100,23 +107,27 @@ final class RealtimeClient {
     // MARK: Connect
 
     private func openSocket() {
-        teardown()                              // single-socket invariant
+        teardown()                              // single-socket invariant (also bumps epoch)
         stopped = false
+        let myEpoch = epoch
         onStatus?(.connecting)
         let task = session.webSocketTask(with: SupabaseConfig.realtimeURL)
         socket = task
         task.resume()
         receiveTask = Task { @MainActor [weak self] in
-            await self?.join()
-            await self?.receiveLoop()
+            await self?.join(epoch: myEpoch)
+            await self?.receiveLoop(epoch: myEpoch)
         }
         startHeartbeat()
     }
 
     private func nextRef() -> String { ref += 1; return String(ref) }
 
-    private func join() async {
+    private func join(epoch: Int) async {
         let token = await tokenProvider()
+        // A newer socket may have opened while the token fetch was suspended; if so
+        // this attempt is stale — don't phx_join on someone else's socket.
+        guard epoch == self.epoch, !stopped else { return }
         var payload: [String: Any] = [
             "config": [
                 "postgres_changes": [
@@ -164,9 +175,9 @@ final class RealtimeClient {
 
     // MARK: Receive
 
-    private func receiveLoop() async {
+    private func receiveLoop(epoch: Int) async {
         while true {
-            guard !stopped, let socket else { return }
+            guard !stopped, epoch == self.epoch, let socket else { return }
             do {
                 let message = try await socket.receive()
                 switch message {

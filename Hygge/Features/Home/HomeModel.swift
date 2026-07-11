@@ -42,6 +42,7 @@ final class HomeModel: ObservableObject {
             }
         } catch {
             // Leave whatever we have; the UI shows calm empty states.
+            Log.network("HomeModel.load today/quest: \(error)")
         }
 
         // The curated town board — its own fetch so a board hiccup never disturbs
@@ -59,6 +60,7 @@ final class HomeModel: ObservableObject {
             }
         } catch {
             if case .loading = board { board = .empty }  // never stick on the spinner
+            Log.network("HomeModel.load board: \(error)")
         }
 
         loading = false
@@ -73,6 +75,13 @@ final class HomeModel: ObservableObject {
         weekGoing += wasGoing ? -1 : 1
         do {
             if wasGoing { try await api.unRsvpEvent(ev.id) } else { try await api.rsvpEvent(ev.id) }
+            // A concurrent load() may have replaced `today` with a pre-write snapshot
+            // while the request was in flight; re-assert the intended state by id so a
+            // successful RSVP isn't silently reverted to the server's stale value.
+            if let j = today.firstIndex(where: { $0.id == ev.id }), today[j].rsvpd == wasGoing {
+                today[j].rsvpd = !wasGoing
+                today[j].goingCount += wasGoing ? -1 : 1
+            }
         } catch {
             // Re-resolve by id: a concurrent load() may have replaced `today`.
             weekGoing += wasGoing ? 1 : -1

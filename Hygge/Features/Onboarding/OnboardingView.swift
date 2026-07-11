@@ -101,7 +101,7 @@ struct OnboardingView: View {
     }
 
     private func finish() {
-        Interests.setOnboarded()
+        if let uid = AuthStore.shared.userId { Interests.setOnboarded(uid: uid) }
         onDone()
     }
 }

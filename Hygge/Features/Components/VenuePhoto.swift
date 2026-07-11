@@ -46,6 +46,10 @@ struct VenuePhoto<Blank: View>: View {
             }
         }
         .task(id: "\(venueName)|\(hint ?? "")") {
+            // Clear first so a reused view identity (same card id, changed venue)
+            // shows the blank() fallback immediately instead of the previous
+            // venue's photo + attribution while the new lookup is in flight.
+            photo = nil
             photo = await GooglePlacesService.shared.confidentPhoto(forFreeText: venueName, hint: hint)
         }
     }

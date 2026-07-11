@@ -99,9 +99,9 @@ struct TrailsListView: View {
 private struct WobegonListCard: View {
     var openURL: (URL) -> Void
 
-    // Trailhead park, 605 1st Ave NE — resolved from the single source of truth (KnownVenues)
+    // Lake Wobegon trailhead under the water tower, 610 County Rd 2 — resolved from the single source of truth (KnownVenues)
     private let coord = KnownVenues.coordinate(for: "Wobegon Trailhead")
-        ?? CLLocationCoordinate2D(latitude: 45.5665, longitude: -94.3161)
+        ?? CLLocationCoordinate2D(latitude: 45.5697, longitude: -94.3180)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -112,7 +112,7 @@ private struct WobegonListCard: View {
                     .clipped()
 
                 Button {
-                    if let url = googleMapsURL(label: "Lake Wobegon Trail, St. Joseph MN", coord: coord) {
+                    if let url = googleMapsURL(label: "Lake Wobegon Trailhead, 610 County Rd 2, St. Joseph MN", coord: coord) {
                         openURL(url)
                     }
                 } label: { mapPill() }
@@ -124,7 +124,7 @@ private struct WobegonListCard: View {
                 Text("Lake Wobegon Trail")
                     .font(.sansBold(17))
                     .foregroundStyle(Hue.ink)
-                Text("St. Joseph, Minnesota")
+                Text("Trailhead by the water tower · County Rd 2")
                     .font(.sans(13))
                     .foregroundStyle(Hue.ink2)
                 HStack(spacing: 6) {

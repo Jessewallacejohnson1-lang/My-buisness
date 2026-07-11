@@ -62,6 +62,32 @@ final class CalendarModel: ObservableObject {
         }
     }
 
+    private var rsvpInFlight: Set<String> = []
+
+    /// RSVP straight from the day sheet — the calendar's natural payoff action.
+    /// Optimistic, in-flight-guarded, and re-resolved by id (a concurrent loadDay
+    /// may replace `dayEvents`), mirroring HomeModel.toggleRsvp.
+    func toggleRsvp(_ api: CommunityAPI, _ ev: TimelineEvent) async {
+        guard !rsvpInFlight.contains(ev.id) else { return }
+        guard let i = dayEvents.firstIndex(where: { $0.id == ev.id }) else { return }
+        let wasGoing = dayEvents[i].rsvpd
+        dayEvents[i].rsvpd.toggle()
+        dayEvents[i].goingCount += wasGoing ? -1 : 1
+        rsvpInFlight.insert(ev.id)
+        defer { rsvpInFlight.remove(ev.id) }
+        do {
+            if wasGoing { try await api.unRsvpEvent(ev.id) } else { try await api.rsvpEvent(ev.id) }
+            if let j = dayEvents.firstIndex(where: { $0.id == ev.id }), dayEvents[j].rsvpd == wasGoing {
+                dayEvents[j].rsvpd = !wasGoing
+                dayEvents[j].goingCount += wasGoing ? -1 : 1
+            }
+        } catch {
+            guard let j = dayEvents.firstIndex(where: { $0.id == ev.id }) else { return }
+            dayEvents[j].rsvpd = wasGoing
+            dayEvents[j].goingCount += wasGoing ? 1 : -1
+        }
+    }
+
     func loadDay(_ api: CommunityAPI, date: String) async {
         loadingDay = true
         dayFailed = false

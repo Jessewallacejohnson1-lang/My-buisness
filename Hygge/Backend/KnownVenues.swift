@@ -35,7 +35,7 @@ enum KnownVenues {
         Venue(kw: ["memorial park"], coord: .init(latitude: 45.56532, longitude: -94.32355)),
         Venue(kw: ["centennial park"], coord: .init(latitude: 45.56699, longitude: -94.32363)),
         Venue(kw: ["northland park"], coord: .init(latitude: 45.57285, longitude: -94.31153)),
-        Venue(kw: ["wobegon", "trailhead"], coord: .init(latitude: 45.5665, longitude: -94.3161)), // trailhead park, 605 1st Ave NE
+        Venue(kw: ["wobegon", "trailhead"], coord: .init(latitude: 45.5697, longitude: -94.3180)), // Lake Wobegon trailhead parking, under the water tower off County Rd 2 (610 County Rd 2) — where the farmers market sets up
 
         // — the campuses & monastery —
         Venue(kw: ["sacred heart", "chapel", "monastery"], coord: .init(latitude: 45.5631, longitude: -94.3189)),

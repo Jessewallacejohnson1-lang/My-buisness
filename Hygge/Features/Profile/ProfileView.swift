@@ -19,6 +19,7 @@ struct ProfileView: View {
     @State private var revealed = false
     @State private var editing = ProfileView.debugEdit()
     @State private var showAbout = false
+    @State private var showModeration = ProfileView.debugModeration()
     @State private var confirmSignOut = false
     @State private var expanded: Expandable? = ProfileView.debugExpand()
 
@@ -29,6 +30,14 @@ struct ProfileView: View {
     private static func debugEdit() -> Bool {
         #if DEBUG
         return ProcessInfo.processInfo.arguments.contains("-profile-edit")
+        #else
+        return false
+        #endif
+    }
+    /// DEBUG-only: `-profile-moderation` opens the admin review queue on launch.
+    private static func debugModeration() -> Bool {
+        #if DEBUG
+        return ProcessInfo.processInfo.arguments.contains("-profile-moderation")
         #else
         return false
         #endif
@@ -75,6 +84,7 @@ struct ProfileView: View {
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
         }
+        .sheet(isPresented: $showModeration) { ModerationView() }
         .confirmationDialog("Sign out of Hygge?", isPresented: $confirmSignOut, titleVisibility: .visible) {
             Button("Sign out", role: .destructive) { Task { await model.signOut(); dismiss() } }
             Button("Cancel", role: .cancel) {}
@@ -321,6 +331,12 @@ struct ProfileView: View {
         VStack(alignment: .leading, spacing: 10) {
             groupLabel("SETTINGS")
             GlassGroup {
+                if model.isAdmin {
+                    ProfileRow(icon: "checkmark.shield", title: "Review queue",
+                               subtitle: "Approve what neighbors submit",
+                               action: { Haptics.selection(); showModeration = true })
+                    ProfileRowDivider()
+                }
                 ProfileRow(icon: "person.crop.circle", title: "Edit profile",
                            action: { Haptics.selection(); editing = true })
                 ProfileRowDivider()

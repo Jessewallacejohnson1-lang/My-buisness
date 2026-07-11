@@ -41,6 +41,14 @@ struct CommunityAPI {
         return uid
     }
 
+    /// "Real submissions only" guard, appended to every event *display* query.
+    /// Every legitimate insert stamps `submitted_by` (addEvent / addTrail / QuickAdd),
+    /// so a row with a NULL submitter was never created by a person in-app — it's
+    /// seed / demo / fabricated content. Filtering it out here means such a row can
+    /// never surface again, even if one lands in the shared DB. Trails intentionally
+    /// omit this (curated reference data). Mirror in @hygge/core to protect the twin.
+    private static let realOnly = "&submitted_by=not.is.null"
+
     // MARK: - User / admin
 
     func currentUserId() async -> String? { auth.userId }
@@ -115,7 +123,7 @@ struct CommunityAPI {
         let t = try await token()
         let uid = auth.userId
         let (data, _) = try await SupabaseHTTP.rest("club_events",
-            query: "select=*,clubs(name)&status=eq.approved&kind=eq.event&event_date=eq.\(date)&order=start_time.asc",
+            query: "select=*,clubs(name)&status=eq.approved&kind=eq.event&event_date=eq.\(date)\(Self.realOnly)&order=start_time.asc",
             accessToken: t)
         let events: [RawEvent] = try decode(data)
         let ids = events.map(\.id)
@@ -149,7 +157,7 @@ struct CommunityAPI {
         let t = try await token()
         let today = DateHelpers.localDate()
         let (data, _) = try await SupabaseHTTP.rest("club_events",
-            query: "select=*&status=eq.approved&kind=eq.event&event_date=gte.\(today)&order=event_date.asc",
+            query: "select=*&status=eq.approved&kind=eq.event&event_date=gte.\(today)\(Self.realOnly)&order=event_date.asc",
             accessToken: t)
         let events: [RawEvent] = try decode(data)
         let counts = try await rsvpCounts(eventIds: events.map(\.id), token: t)
@@ -165,7 +173,7 @@ struct CommunityAPI {
         let today = DateHelpers.localDate()
         let until = DateHelpers.localDate(DateHelpers.addDays(7))
         let (data, _) = try await SupabaseHTTP.rest("club_events",
-            query: "select=*&status=eq.approved&kind=eq.event&event_date=gt.\(today)&event_date=lte.\(until)&order=event_date.asc",
+            query: "select=*&status=eq.approved&kind=eq.event&event_date=gt.\(today)&event_date=lte.\(until)\(Self.realOnly)&order=event_date.asc",
             accessToken: t)
         let events: [RawEvent] = try decode(data)
         let counts = try await rsvpCounts(eventIds: events.map(\.id), token: t)
@@ -248,7 +256,7 @@ struct CommunityAPI {
         let lastDay = cal.date(from: comps).flatMap { cal.range(of: .day, in: .month, for: $0)?.count } ?? 28
         let to = String(format: "%04d-%02d-%02d", year, month, lastDay)
         let (data, _) = try await SupabaseHTTP.rest("club_events",
-            query: "select=event_date&status=eq.approved&kind=eq.event&event_date=gte.\(from)&event_date=lte.\(to)",
+            query: "select=event_date&status=eq.approved&kind=eq.event&event_date=gte.\(from)&event_date=lte.\(to)\(Self.realOnly)",
             accessToken: t)
         return try decode(data)
     }
@@ -256,7 +264,7 @@ struct CommunityAPI {
     func getEventsForRange(from: String, to: String) async throws -> [AgendaEvent] {
         let t = try await token()
         let (data, _) = try await SupabaseHTTP.rest("club_events",
-            query: "select=id,title,event_date,start_time,location&status=eq.approved&kind=eq.event&event_date=gte.\(from)&event_date=lte.\(to)&order=event_date.asc,start_time.asc",
+            query: "select=id,title,event_date,start_time,location&status=eq.approved&kind=eq.event&event_date=gte.\(from)&event_date=lte.\(to)\(Self.realOnly)&order=event_date.asc,start_time.asc",
             accessToken: t)
         let rows: [AgendaRow] = try decode(data)
         return rows.map { AgendaEvent(id: $0.id, title: $0.title, eventDate: $0.eventDate, startTime: $0.startTime, location: $0.location) }
@@ -319,7 +327,7 @@ struct CommunityAPI {
         guard !ids.isEmpty else { return [] }
         let today = DateHelpers.localDate()
         let (data, _) = try await SupabaseHTTP.rest("club_events",
-            query: "select=*&id=in.(\(ids.joined(separator: ",")))&status=eq.approved&kind=eq.event&event_date=gte.\(today)&order=event_date.asc",
+            query: "select=*&id=in.(\(ids.joined(separator: ",")))&status=eq.approved&kind=eq.event&event_date=gte.\(today)\(Self.realOnly)&order=event_date.asc",
             accessToken: t)
         let events: [RawEvent] = try decode(data)
         let counts = try await rsvpCounts(eventIds: events.map(\.id), token: t)

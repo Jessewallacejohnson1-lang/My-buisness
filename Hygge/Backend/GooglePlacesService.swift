@@ -70,7 +70,8 @@ final class GooglePlacesService {
     private var autocompleteCache: [String: [PlaceSuggestion]] = [:]
     private var searchCache: [String: [PlaceResult]] = [:]
     private var detailsCache: [String: PlaceDetails] = [:]
-    private var confidentPhotoCache: [String: ConfidentPhoto?] = [:]   // curated name → resolved (or checked-nil)
+    private var confidentPhotoCache: [String: ConfidentPhoto?] = [:]   // "name|lat,lon" → resolved (or checked-nil)
+    private var confidentPhotoInFlight: [String: Task<ConfidentPhoto?, Never>] = [:]  // coalesce concurrent callers per key
 
     private static let base = "https://places.googleapis.com/v1"
     private static let biasRadius = 15_000.0   // ~15 km around town
@@ -234,17 +235,27 @@ final class GooglePlacesService {
     /// repeat callers (a list row and its detail view) don't re-run the confidence
     /// check. nil if not confidently identified or the place has no photo.
     func confidentPhoto(name: String, coordinate: CLLocationCoordinate2D) async -> ConfidentPhoto? {
-        if let hit = confidentPhotoCache[name] { return hit }
-        guard let id = await search("\(name) St Joseph MN").first?.placeId,
-              let d = await details(placeId: id),
-              let photo = d.photo,
-              isConfidentMatch(resolved: d, curatedName: name, curatedCoordinate: coordinate)
-        else {
-            confidentPhotoCache[name] = .some(nil)
-            return nil
+        // Key on name + coordinate: a generic reused label ("Community Room") can
+        // resolve to different curated coordinates per caller, and each must run its
+        // own 75 m confidence check rather than inherit the first caller's result.
+        let key = "\(name)|\(coordinate.latitude),\(coordinate.longitude)"
+        if let hit = confidentPhotoCache[key] { return hit }
+        // Coalesce concurrent callers for the same venue (e.g. several list cards
+        // sharing one location) onto a single billed Places round-trip.
+        if let inFlight = confidentPhotoInFlight[key] { return await inFlight.value }
+
+        let task = Task { () -> ConfidentPhoto? in
+            guard let id = await self.search("\(name) St Joseph MN").first?.placeId,
+                  let d = await self.details(placeId: id),
+                  let photo = d.photo,
+                  self.isConfidentMatch(resolved: d, curatedName: name, curatedCoordinate: coordinate)
+            else { return nil }
+            return ConfidentPhoto(photoName: photo.name, attributions: photo.attributions)
         }
-        let result = ConfidentPhoto(photoName: photo.name, attributions: photo.attributions)
-        confidentPhotoCache[name] = .some(result)
+        confidentPhotoInFlight[key] = task
+        let result = await task.value
+        confidentPhotoInFlight[key] = nil
+        confidentPhotoCache[key] = .some(result)
         return result
     }
 

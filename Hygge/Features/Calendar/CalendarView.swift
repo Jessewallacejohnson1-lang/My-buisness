@@ -15,6 +15,10 @@ private enum CalendarFace: String, CaseIterable {
 }
 
 struct CalendarView: View {
+    /// The global composer, injected by MainTabsView. CalendarView's own empty
+    /// state invites "anyone can add something" — this makes that reachable here.
+    var onCompose: (() -> Void)? = nil
+
     @EnvironmentObject private var auth: AuthStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var model = CalendarModel()
@@ -79,11 +83,13 @@ struct CalendarView: View {
             }
         }
         .background(Hue.canvas)
+        .overlay(alignment: .bottomTrailing) { ComposeFAB(action: onCompose) }
         .task { await model.load(api) }
         .onAppear { applyDebugLaunchState() }
         .sheet(item: $sheetDate) { key in
             DaySheet(date: key.date, events: model.dayEvents,
-                     loading: model.loadingDay, failed: model.dayFailed)
+                     loading: model.loadingDay, failed: model.dayFailed,
+                     onToggleRsvp: { ev in Task { await model.toggleRsvp(api, ev) } })
                 .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $showLegend) {
@@ -580,7 +586,16 @@ struct DaySheet: View {
     let events: [TimelineEvent]
     let loading: Bool
     var failed = false
+    var onToggleRsvp: ((TimelineEvent) -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
+    @State private var composing = false
+
+    /// The tapped day as a Date, for prefilling the composer.
+    private var dayDate: Date {
+        let p = date.split(separator: "-").compactMap { Int($0) }
+        var c = DateComponents(); if p.count == 3 { c.year = p[0]; c.month = p[1]; c.day = p[2] }
+        return Calendar.current.date(from: c) ?? Date()
+    }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -603,15 +618,32 @@ struct DaySheet: View {
                     }
                     .frame(maxWidth: .infinity).padding(.vertical, 36)
                 } else if events.isEmpty {
-                    VStack(spacing: 6) {
-                        Text("A clear day")
-                            .font(.sansSemibold(15)).foregroundStyle(Hue.ink)
-                        Text("Nothing on the calendar for this day yet.")
-                            .font(.sans(13)).foregroundStyle(Hue.ink2)
+                    VStack(spacing: 12) {
+                        VStack(spacing: 6) {
+                            Text("A clear day")
+                                .font(.sansSemibold(15)).foregroundStyle(Hue.ink)
+                            Text("Nothing on the calendar for this day yet.")
+                                .font(.sans(13)).foregroundStyle(Hue.ink2)
+                        }
+                        // Capture the intent right here — the composer opens already
+                        // scoped to this day (Apple Calendar / Partiful pattern).
+                        Button {
+                            Haptics.light()
+                            composing = true
+                        } label: {
+                            Text("Add the first thing")
+                                .font(.sansSemibold(14)).foregroundStyle(.white)
+                                .padding(.horizontal, 18).padding(.vertical, 10)
+                                .background(Hue.accent, in: Capsule())
+                        }
+                        .buttonStyle(PressableStyle(scale: 0.96))
                     }
                     .frame(maxWidth: .infinity).padding(.vertical, 36)
                 } else {
-                    ForEach(events) { EventRow(event: $0, date: date) }
+                    ForEach(events) { ev in
+                        EventRow(event: ev, date: date,
+                                 onToggleRsvp: onToggleRsvp.map { cb in { cb(ev) } })
+                    }
 
                     InlineAction(
                         icon: "calendar.badge.plus",
@@ -627,5 +659,8 @@ struct DaySheet: View {
         }
         .background(Hue.canvas)
         .presentationDragIndicator(.visible)
+        .sheet(isPresented: $composing) {
+            AddFormView(kind: .event, initialDate: dayDate)
+        }
     }
 }

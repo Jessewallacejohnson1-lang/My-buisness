@@ -29,6 +29,17 @@ xcrun simctl launch <udid> Jesse.Hygge -open-tab map
 xcrun simctl io <udid> screenshot /tmp/map.png
 ```
 
+**Installing the build you just made (raw tooling) — the DerivedData trap.** This repo has accumulated **several `Hygge-<hash>` DerivedData folders** (multiple worktree checkouts), so `find … -name Hygge.app | head` grabs a **stale** one and you screenshot a days-old binary (symptom: your change is missing, e.g. old theme colors). Resolve the *real* output dir and confirm its timestamp:
+
+```bash
+DIR=$(xcodebuild -project Hygge.xcodeproj -scheme Hygge -configuration Debug \
+  -destination 'platform=iOS Simulator,name=iPhone 17' -showBuildSettings \
+  | awk -F' = ' '/ BUILT_PRODUCTS_DIR =/{print $2; exit}')
+xcrun simctl install <udid> "$DIR/Hygge.app"   # install OVER the app — do NOT `uninstall`
+```
+
+`simctl uninstall` wipes the app container: the `hygge.onboarded` UserDefaults flag + local mirrors go with it, bouncing a signed-in user back to the onboarding wizard. If that happens, restore with `xcrun simctl spawn <udid> defaults write Jesse.Hygge hygge.onboarded -string 1` and relaunch.
+
 **DEBUG-only launch arguments** (for headless screenshot verification, no UI driving needed):
 - `-open-tab map|activities|calendar` — start on a given tab (`MainTabsView.initialTab()` in `App/RootView.swift`).
 - `-force-nonadmin` — force the non-admin branch so admin-gated UI (the map "+") can be verified without a second account (`SJMapView.isAdmin`).
@@ -40,6 +51,7 @@ xcrun simctl io <udid> screenshot /tmp/map.png
 - `-calendar-face upcoming|grid` — start the Calendar tab on a given face of the Upcoming ⇄ Calendar toggle (`CalendarView.initialFace()`).
 - `-calendar-open <YYYY-MM-DD>` — preselect a calendar day so the selection outline + day sheet render for a screenshot (`CalendarView.applyDebugLaunchState()`).
 - `-calendar-legend` — open the calendar's "Reading the calendar" info sheet (`CalendarView.applyDebugLaunchState()`).
+- `-open-profile` — present the community Profile sheet on launch (Home's person button; `HomeView.debugOpenProfile()`). Compose with `-profile-expand` (activity list expanded), `-profile-bottom` (scrolled to the sign-out row), `-profile-edit` (the editor open), or `-profile-edit-interests` (the editor's interest picker open) to screenshot those states (`ProfileView` / `EditProfileView`).
 
 ### First-checkout setup — required or the build fails
 - **`Hygge/Config/MapboxConfig.swift` is gitignored** (it holds the Mapbox token) — a fresh clone must recreate it: `let MAPBOX_ACCESS_TOKEN = "pk...."`. Without it the map is blank / the build won't link the token.
@@ -54,13 +66,14 @@ The entire backend is written by hand over `URLSession` to match `@hygge/core` 1
 
 - **`SupabaseHTTP`** — the low-level client: `auth(...)` hits GoTrue (`/auth/v1`), `rest(...)` hits PostgREST (`/rest/v1`). Both send the public `apikey` + a `Bearer` token; PostgREST calls take a fresh access token and an optional `Prefer` header.
 - **`AuthStore`** (`@MainActor`, singleton `.shared`) — the single auth source: email + password (confirmation ON), **Keychain-persisted `Session`**, and **coalesced token refresh** (GoTrue rotates the refresh token, so concurrent refreshes funnel through one in-flight task; a hard failure clears the session and routes back to Login). Always get tokens via `validAccessToken()`.
-- **`CommunityAPI`** — the domain API (events, RSVPs, clubs, quests, trails), mirroring the Expo `createCommunityApi`. `Admin.isAdmin(email)` gates admin writes (self-approved events).
+- **`CommunityAPI`** — the domain API (events, RSVPs, clubs, quests, trails), mirroring the Expo `createCommunityApi`. `Admin.isAdmin(email)` gates admin writes (self-approved events). Also owns the per-user "My activity" reads behind the profile (`getMyUpcomingRsvps` · `getMyClubs` · `getMyQuestCount`).
+- **`ProfileAPI`** — the community-profile layer (name · avatar · interests) over **`town_profiles`** (own-row RLS): `getMyProfile()` / `upsert(...)`. **Community identity lives in `town_profiles`, NOT the wellness app's `profiles` table** — the shared Supabase project backs two apps, and `profiles` belongs to the other one. `RootView.hydrateIfNeeded()` mirrors the row into `Interests` (UserDefaults) once per session for offline matching/greetings.
 - **`RealtimeClient`** (`@MainActor`) — a **hand-written Phoenix-channel client** over `URLSessionWebSocketTask` (Supabase Realtime speaks Phoenix `vsn=1.0.0`). Joins `postgres_changes` on `club_events` with the user's JWT (RLS still filters what arrives), heartbeats, pushes a fresh token periodically, and reconnects with capped exponential backoff. See `SupabaseConfig.realtimeURL`.
 - **`SupabaseConfig`** — project URL + **public anon key** (safe to ship; RLS is the real boundary) and the derived `rest/auth/storage/realtime` URLs.
 - Supporting: `Session`, `Storage` (image upload), `Moderation` (Claude edge function), `Reminders`, `Interests`, `TrailServices`, `KnownVenues`, `DateHelpers`, `Models`.
 
 ### Features — one folder per screen, `View` + `Model` (`Hygge/Features/`)
-The house pattern is a `SomethingView` paired with a `SomethingModel` (`@MainActor final class … ObservableObject`) that owns state + API calls. Folders: `Home`, `Activities`, `Calendar`, `Add`, `Map`, `Auth`, `Onboarding`, `Place`, `Components`.
+The house pattern is a `SomethingView` paired with a `SomethingModel` (`@MainActor final class … ObservableObject`) that owns state + API calls. Folders: `Home`, `Activities`, `Calendar`, `Add`, `Map`, `Auth`, `Onboarding`, `Place`, `Profile`, `Components`.
 
 **The Map (`Features/Map/`)** — the most involved feature, and where the realtime pipeline lives:
 - **`SJMapView`** — the Mapbox map, spot markers, live pulse, and the Life360-style chrome: a floating top row (filter chip · town pill · compose "+"), floating help + recenter, and the persistent bottom sheet (`MapSheet`). The town pill reverse-geocodes the map center (`MapModel.updateTown` → `GeocoderService.town`, debounced), so it names whatever town you pan over — "Saint Joseph" at home, the neighboring city when you move. The "+" opens `QuickAddSheet` for admins (`isAdmin`) and the global composer (`onCompose`) for everyone else. A `SpotFilter` chip narrows which pins + Places show.
@@ -68,6 +81,8 @@ The house pattern is a `SomethingView` paired with a `SomethingModel` (`@MainAct
 - **`MapModel`** (`@MainActor`) — owns the `RealtimeClient` subscription + today's events. A `club_events` change touching **today** triggers a 300 ms-debounced re-sync (`getTodayEvents()`), so a new happening lights its pin and a deleted/ended one goes quiet **with no refresh**. Handles teardown, background socket-drop + foreground resubscribe, and the **midnight rollover**.
 - **`MapSpots` / `KnownVenues`** — the **curated venue coordinates** (mirrors the Expo `lib/geo.ts`). Never trust a runtime geocoder for a known St. Joe venue — resolve here first; geocoding is only the fallback for unknowns.
 - **`QuickAddSheet`** — admin-only bottom sheet to post an event straight onto the map (title, spot picker, date, time) → inserts an approved `club_events` row → the realtime pipeline lights the pin.
+
+**Profile (`Features/Profile/`)** — a warm frosted-glass sheet opened from Home's top-right person button (`Masthead.onProfile` → `HomeView` `.sheet`; the sheet's see-through look is `.presentationBackground(.ultraThinMaterial)`, un-precedented elsewhere — the app's other "glass" is the Liquid-Glass `HyggeTabBar` and `.ultraThinMaterial` circles; `MapSheet` is opaque). `ProfileView` shows identity (`ProfileAPI` → `town_profiles`) plus **real** activity via the `CommunityAPI` My-activity reads — no fabricated counts, so an empty state reads "0". `EditProfileView` writes **server-first** (upload avatar → `ProfileAPI.upsert`) and surfaces a real save failure instead of a false success; it reuses onboarding's `InterestPickerView` with `showsProgress: false` to drop the wizard step-bar. Entrance uses the shared `SpringReveal` cascade.
 
 ### Design system (`Hygge/Theme/`) — ported from the Expo app
 - **`HyggeColor`** (`Hue.*`) — warm linen palette: `paper*` surfaces, `ink`/`ink2`/`ink3` text, and **accents with one job each** — `moss` (positive/primary), `sky` (brand/focus), `honey` (warmth), `clay` (warning). Plus a **Map visual system**: `Hue.accent` **coral (#FF6B57)** appears **only** on live indicators + primary/tappable elements; everything else is `surface`/`gray`/`mapInk`.
@@ -84,3 +99,13 @@ Do **not** hardcode hex/spacing that a `Hue`/metric token already covers. The on
 - **Realtime DELETE carries only the primary key.** A DELETE's `old_record` contains just `id` — match deletes by `id` (a full refetch is idempotent). The table is set to `REPLICA IDENTITY FULL` and `club_events` is in the `supabase_realtime` publication (both already applied to the live project; see `MAP_BUILD_LOG.md`).
 - **Admin is an email allowlist**, not a security boundary — `Admin.isAdmin` in `DateHelpers.swift` (self-approved events are an intentional product decision shared with the Expo app). RLS is the real boundary.
 - **`MAP_BUILD_LOG.md`** is the running, chronological record of map work (fixes, the realtime pipeline, the anti-slop pass, applied SQL). Continue it when doing map work; it's the source of truth for what's been verified.
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).

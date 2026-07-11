@@ -89,6 +89,9 @@ struct MapSheet: View {
         .animation(.spring(response: 0.42, dampingFraction: 0.86), value: selected?.id)
         // A tapped pin expands the sheet to show its detail.
         .onChange(of: selected?.id) { _, id in if id != nil { detent = .expanded } }
+        // onChange only fires on a transition; a spot preselected at mount (e.g. the
+        // `-map-open` debug flag, or deep-linking into a spot) needs the same expand.
+        .onAppear { if selected != nil { detent = .expanded } }
     }
 
     // MARK: Grabber (the drag target)

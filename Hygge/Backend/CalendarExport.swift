@@ -39,7 +39,11 @@ enum CalendarExport {
         guard granted else { throw ExportError.accessDenied }
         guard let calendar = store.defaultCalendarForNewEvents else { throw ExportError.noCalendar }
 
-        var written = 0
+        // Atomic: stage every event, commit only if all staged cleanly. Any failure
+        // throws before commit, and this local store's uncommitted stages are then
+        // discarded — so the user never sees "Added ✓" for a partial write, and a
+        // retry can't duplicate the ones that had succeeded (write-only EventKit
+        // can't de-dupe, so all-or-nothing is the safe contract).
         for e in events {
             let ek = EKEvent(eventStore: store)
             ek.calendar = calendar
@@ -52,12 +56,12 @@ enum CalendarExport {
             ek.endDate = span.end
             ek.isAllDay = span.allDay
 
-            if (try? store.save(ek, span: .thisEvent, commit: false)) != nil { written += 1 }
+            do { try store.save(ek, span: .thisEvent, commit: false) }
+            catch { throw ExportError.saveFailed }   // one bad event → commit none
         }
 
-        guard written > 0 else { throw ExportError.saveFailed }
         do { try store.commit() } catch { throw ExportError.saveFailed }
-        return written
+        return events.count
     }
 
     /// Resolve a YYYY-MM-DD + free-text display time ("7 PM", "noon", nil) into a

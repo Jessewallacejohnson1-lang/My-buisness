@@ -45,6 +45,13 @@ final class AddModel: ObservableObject {
     @Published var posted = false
     @Published var pendingNotice = false
 
+    // Weekly-repeat resume guard: the inserts aren't idempotent server-side, so we
+    // remember which occurrences already landed for the current (title|date|time|
+    // location). A retry after a mid-loop failure resumes from where it stopped
+    // instead of re-posting weeks 1..n as duplicates. Reset when the form changes.
+    private var postedWeeks: Set<Int> = []
+    private var postedSignature = ""
+
     private static func defaultEveningTime() -> Date {
         Calendar.current.date(bySettingHour: 18, minute: 0, second: 0, of: Date()) ?? Date()
     }
@@ -93,13 +100,16 @@ final class AddModel: ObservableObject {
             var becamePending = (status == .pending)
             switch kind {
             case .event:
+                let signature = "\(t)|\(DateHelpers.localDate(eventDate))|\(startTimeString)|\(loc)"
+                if signature != postedSignature { postedSignature = signature; postedWeeks = [] }
                 let count = max(1, min(repeatWeeklyCount, 8))
-                for i in 0..<count {
+                for i in 0..<count where !postedWeeks.contains(i) {
                     let date = Calendar.current.date(byAdding: .day, value: 7 * i, to: eventDate) ?? eventDate
                     let input = NewEventInput(title: t, eventDate: DateHelpers.localDate(date),
                                               startTime: startTimeString, location: loc,
                                               description: desc.isEmpty ? nil : desc, imageUrl: imageUrl)
                     try await api.addEvent(input, clubId: nil, status: status)
+                    postedWeeks.insert(i)   // mark landed so a retry doesn't re-post this week
                 }
             case .trail:
                 let input = NewTrailInput(title: t, location: loc,
