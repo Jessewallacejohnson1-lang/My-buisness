@@ -99,6 +99,53 @@ struct DailyQuest: Codable, Identifiable, Hashable {
     let date: String
 }
 
+// MARK: - Social layer (follow / like / comment / feed) — Today tab remake.
+// New tables (town_follows, event_likes, event_comments) live on the shared
+// Supabase project; see docs/superpowers/specs/2026-07-11-today-tab-remake-design.md §5.
+
+/// What a follow points at: a club, or a community member's town_profile.
+enum FollowTargetType: String, Codable { case club, profile }
+
+struct FollowTarget: Hashable, Codable {
+    let type: FollowTargetType
+    let id: String
+}
+
+/// A flat comment ("note") on a posting (club_events row). No threading — see
+/// spec §3 ("No threaded/nested comments").
+struct EventComment: Identifiable {
+    let id: String
+    let body: String
+    let createdAt: Date
+    let authorId: String
+    let authorName: String
+    let authorAvatar: String?
+}
+
+/// One komoot-style feed card's worth of data — a posting (club_events row)
+/// with its poster identity + real social counts + the viewer's own state.
+/// `liked`/`following`/`rsvpd` start false from the RPC and are filled in by
+/// `SocialAPI.hydrateUserState(_:)` for the signed-in user.
+struct FeedPosting: Identifiable {
+    let id: String
+    let title: String
+    let eventDate: String?
+    let startTime: String?
+    let location: String?
+    let imageUrl: String?
+    let createdAt: Date
+    let posterName: String
+    let posterAvatar: String?
+    let posterTarget: FollowTarget
+    var followerCount: Int
+    var likeCount: Int
+    var commentCount: Int
+    var goingCount: Int
+    var liked: Bool
+    var following: Bool
+    var rsvpd: Bool
+}
+
 // MARK: - Insert inputs
 
 struct NewEventInput {
