@@ -48,19 +48,22 @@ struct HomeView: View {
                         .padding(.top, 8)
                         .springReveal(0, revealed: revealed, animated: revealAnimated)
 
-                    // Zone 1 — the living almanac (weather + sun + moon + on-this-day +
-                    // the daily-quest momentum ring). Reads `auth` from the environment.
-                    AlmanacHeader(quest: model.quest,
-                                  questCount: model.questCount,
-                                  questDone: model.questDone,
-                                  onCompleteQuest: { Task { await model.completeQuest(api) } })
+                    // Zone 1a — the weather widget up top: the numbers of the day
+                    // (temp + H/L, the live daylight countdown, sun times, moon).
+                    WeatherWidget()
                         .padding(.horizontal, 18)
                         .springReveal(1, revealed: revealed, animated: revealAnimated)
 
-                    // Zone 2 — today's agenda (the one section a neighbor opens for).
-                    agendaSection
+                    // Zone 1b — the Daily Almanac: just the symbol + the words
+                    // describing the day (the AI read-of-the-day).
+                    AlmanacSection()
                         .padding(.horizontal, 18)
                         .springReveal(2, revealed: revealed, animated: revealAnimated)
+
+                    // Zone 2 — today's agenda (only when there's something on today).
+                    agendaSection
+                        .padding(.horizontal, 18)
+                        .springReveal(3, revealed: revealed, animated: revealAnimated)
 
                     // Zone 3 — the komoot-style interest feed, gated on `loaded` so a
                     // fresh HomeModel (recreated on every return to the tab) doesn't
@@ -77,7 +80,7 @@ struct HomeView: View {
                         )
                         .id("feedTop")
                         .padding(.horizontal, 18)
-                        .springReveal(3, revealed: revealed, animated: revealAnimated)
+                        .springReveal(4, revealed: revealed, animated: revealAnimated)
                     }
 
                     Color.clear.frame(height: 96)
@@ -140,9 +143,7 @@ struct HomeView: View {
     private var agendaSection: some View {
         if model.loading && !model.loaded {
             TodayLoadingCard()
-        } else if model.today.isEmpty {
-            TodayCard(onAdd: onCompose)
-        } else {
+        } else if !model.today.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .firstTextBaseline) {
                     Text("Today's agenda")
