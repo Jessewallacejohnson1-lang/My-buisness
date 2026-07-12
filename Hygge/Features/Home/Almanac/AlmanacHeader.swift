@@ -1,30 +1,24 @@
 //
 //  AlmanacHeader.swift
-//  Hygge — Zone 1 of the remade Today tab: one living, weather-reactive hero
-//  card. Replaces TodayInStJoeCard as the top element (see
-//  docs/superpowers/specs/2026-07-11-today-tab-remake-design.md §4 Zone 1).
+//  Hygge — Zone 1 of the remade Today tab: the living almanac, in the app's clean
+//  white-card-with-coral-accent style (not a full-bleed weather hero). A white
+//  card with a coral accent border, the little weather (sun) icon, and plain ink
+//  text — the "old" almanac look, carrying the living content.
 //
-//  Composes, over the shared WeatherBackground: current temp + condition + H/L,
-//  a sun row ("↑sunrise ↓sunset"), a moon-phase chip (MoonPhase.swift — local
-//  synodic-month math, no network), "daylight left" (sunset − now) when
-//  available, the AI "read of the day" line (DailyAlmanac.line), an optional
-//  "on this day in St. Joe" fact (OnThisDay.swift — hidden, never fabricated,
-//  when nil), and the daily-quest momentum ring.
+//  Composes: current temp + condition + H/L, a sun row ("↑sunrise ↓sunset") + a
+//  moon-phase chip (MoonPhase.swift — local synodic math, no network), the AI
+//  "read of the day" line (DailyAlmanac.line, numbers in mono via Almanac.styled),
+//  an optional "on this day in St. Joe" fact (OnThisDay.swift — hidden, never
+//  fabricated, when nil), and the daily-quest momentum ring.
 //
-//  Quest progress: DailyQuest (Backend/Models.swift) carries no numeric target —
-//  it's one town-wide daily prompt, not a checklist — so the ring is honestly
-//  binary: empty until `questDone`, then draws to full with a spring-pop +
-//  success haptic. `questCount` (the real per-day neighbor tally HomeModel
-//  already tracks) still shows as a caption. No streak counter (house rule).
+//  Quest progress: DailyQuest carries no numeric target — one town-wide daily
+//  prompt, not a checklist — so the ring is honestly binary: empty until
+//  `questDone`, then draws full with a spring-pop + success haptic. `questCount`
+//  (the real per-day neighbor tally) shows as a caption. No streak counter.
 //
-//  Weather + the AI line + the moon + the on-this-day fact are all loaded
-//  internally via `.task`, mirroring how TodayInStJoeCard loads its own
-//  `weather` — HomeModel stays focused on agenda/quest/feed state and simply
-//  hands this view the quest slice it already owns.
-//
-//  Reuse: WeatherBackground (backdrop), WeatherService (temp/H-L/sun times),
-//  DailyAlmanac.line(auth:) (AI sentence), moonInfo(for:) (MoonPhase.swift),
-//  onThisDay(auth:) (OnThisDay.swift).
+//  Weather + AI line + moon + on-this-day load internally via `.task`, mirroring
+//  AlmanacSection; HomeModel stays focused on agenda/quest/feed and hands this the
+//  quest slice it already owns.
 //
 
 import SwiftUI
@@ -46,20 +40,32 @@ struct AlmanacHeader: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            WeatherBackground(state: weather?.state)
+        VStack(alignment: .leading, spacing: 12) {
+            weatherRow
+            divider
+            skyRow
 
-            // Scrim so white text stays legible over any sky, same recipe as
-            // TodayInStJoeCard.
-            LinearGradient(colors: [.black.opacity(0.12), .black.opacity(0.60)],
-                           startPoint: .top, endPoint: .bottom)
+            if let dayLine {
+                Text(Almanac.styled(dayLine, numberTint: Hue.accent))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
-            content
-                .padding(18)
+            if let fact {
+                onThisDayRow(fact)
+            }
+
+            divider
+            questRow
+            CompanionSlot()
         }
+        .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Hue.paper)
         .clipShape(RoundedRectangle(cornerRadius: Radius.xl, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.xl, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.xl, style: .continuous)
+                .stroke(Hue.accent, lineWidth: 1.5)
+        )
         .modifier(CardShadow())
         .task {
             moon = moonInfo(for: Date())
@@ -74,83 +80,58 @@ struct AlmanacHeader: View {
 
     // MARK: - Layout
 
-    private var content: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            weatherRow
-            divider
-            skyRow
-
-            if let dayLine {
-                Text(dayLine)
-                    .font(.sans(15))
-                    .foregroundStyle(.white)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .shadow(color: .black.opacity(0.3), radius: 4, y: 1)
-            }
-
-            if let fact {
-                onThisDayRow(fact)
-            }
-
-            divider
-            questRow
-            CompanionSlot()
-        }
-    }
-
     private var divider: some View {
-        Rectangle().fill(.white.opacity(0.18)).frame(height: 1)
+        Rectangle().fill(Hue.hairline).frame(height: 1)
     }
 
-    /// Place · condition · big temp + H/L.
+    /// The little sun icon · place · condition — with the big temp + H/L trailing.
     private var weatherRow: some View {
-        HStack(alignment: .top) {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: weatherIcon)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(Hue.accent)
+                .frame(width: 22)
+
             VStack(alignment: .leading, spacing: 2) {
                 Text("St. Joseph, Minnesota")
                     .font(.sansSemibold(14))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Hue.ink)
                 Text(weather?.label ?? "Checking the sky…")
                     .font(.sans(12))
-                    .foregroundStyle(.white.opacity(0.85))
+                    .foregroundStyle(Hue.ink3)
             }
+
             Spacer(minLength: 8)
+
             if let w = weather {
                 VStack(alignment: .trailing, spacing: 2) {
                     Text("\(w.tempF)°")
-                        .font(.monoMedium(36))
+                        .font(.monoMedium(34))
                         .monospacedDigit()
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Hue.ink)
                     Text("H \(w.highF)°  L \(w.lowF)°")
                         .font(.mono(12))
                         .monospacedDigit()
-                        .foregroundStyle(.white.opacity(0.85))
+                        .foregroundStyle(Hue.ink3)
                 }
             }
         }
-        .shadow(color: .black.opacity(0.3), radius: 5, y: 1)
     }
 
-    /// Sun times · moon phase chip · daylight left.
+    /// Sun times · moon-phase chip. (Daylight-left is dropped — the sunset time and
+    /// the day-line already carry it, and it was crowding this row.)
     private var skyRow: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             if let sunrise = weather?.sunrise, let sunset = weather?.sunset {
-                Text("↑\(clock(sunrise))  ↓\(clock(sunset))")
+                Text("↑\(clock(sunrise))   ↓\(clock(sunset))")
                     .font(.mono(13))
                     .monospacedDigit()
-                    .foregroundStyle(.white.opacity(0.92))
+                    .foregroundStyle(Hue.ink2)
             }
+
+            Spacer(minLength: 6)
 
             moonChip
-
-            Spacer(minLength: 8)
-
-            if let daylight = daylightLeftLabel {
-                Text(daylight)
-                    .font(.monoMedium(12))
-                    .monospacedDigit()
-                    .foregroundStyle(.white.opacity(0.9))
-                    .lineLimit(1)
-            }
         }
     }
 
@@ -158,25 +139,29 @@ struct AlmanacHeader: View {
         HStack(spacing: 5) {
             Image(systemName: moon.symbol)
                 .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(Hue.ink2)
             Text(moon.phaseName)
                 .font(.sans(12))
+                .foregroundStyle(Hue.ink2)
+                .lineLimit(1)
         }
-        .foregroundStyle(.white.opacity(0.92))
         .padding(.horizontal, 9)
         .padding(.vertical, 4)
-        .background(.white.opacity(0.16))
+        .background(Hue.paper100)
         .clipShape(Capsule())
+        .overlay(Capsule().stroke(Hue.hairline, lineWidth: 1))
     }
 
     @ViewBuilder
     private func onThisDayRow(_ f: AlmanacFact) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text("On this day —")
-                .font(.sansSemibold(12))
-                .foregroundStyle(.white.opacity(0.75))
+        HStack(alignment: .firstTextBaseline, spacing: 7) {
+            Text("ON THIS DAY")
+                .font(.mono(10))
+                .tracking(0.8)
+                .foregroundStyle(Hue.accent)
             Text(f.fact)
                 .font(.sans(13))
-                .foregroundStyle(.white.opacity(0.92))
+                .foregroundStyle(Hue.ink2)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -189,7 +174,7 @@ struct AlmanacHeader: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text(quest?.title ?? "No quest set today")
                     .font(.sansSemibold(14))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Hue.ink)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -200,7 +185,7 @@ struct AlmanacHeader: View {
                             Text("\(questCount) neighbor\(questCount == 1 ? "" : "s") today")
                                 .font(.mono(11))
                                 .monospacedDigit()
-                                .foregroundStyle(.white.opacity(0.75))
+                                .foregroundStyle(Hue.ink3)
                         }
                     }
                 }
@@ -210,13 +195,13 @@ struct AlmanacHeader: View {
         }
     }
 
-    /// A binary momentum ring — DailyQuest has no numeric target, so drawing a
-    /// synthesized fraction would be a fabricated number. Empty until complete,
-    /// then a full coral ring with a spring-pop + success haptic.
+    /// A binary momentum ring — DailyQuest has no numeric target, so a synthesized
+    /// fraction would be a fabricated number. Empty until complete, then a full
+    /// coral ring with a spring-pop + success haptic.
     private var questRing: some View {
         ZStack {
             Circle()
-                .stroke(Color.white.opacity(0.25), lineWidth: 4)
+                .stroke(Hue.paper300, lineWidth: 4)
             Circle()
                 .trim(from: 0, to: questDone ? 1 : 0)
                 .stroke(Hue.accent, style: StrokeStyle(lineWidth: 4, lineCap: .round))
@@ -224,7 +209,7 @@ struct AlmanacHeader: View {
                 .animation(reduceMotion ? nil : .easeOut(duration: 0.35), value: questDone)
             Image(systemName: questDone ? "checkmark" : "leaf.fill")
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(questDone ? Hue.accent : .white.opacity(0.85))
+                .foregroundStyle(questDone ? Hue.accent : Hue.ink3)
         }
         .frame(width: 44, height: 44)
         .scaleEffect(ringScale)
@@ -249,11 +234,12 @@ struct AlmanacHeader: View {
                 Text(questDone ? "Done today" : "Mark done")
                     .font(.sansSemibold(13))
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(questDone ? Hue.ink2 : .white)
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
-            .background(questDone ? Color.white.opacity(0.18) : Hue.accent)
+            .background(questDone ? Hue.paper100 : Hue.accent)
             .clipShape(Capsule())
+            .overlay(Capsule().stroke(questDone ? Hue.hairline : Color.clear, lineWidth: 1))
         }
         .buttonStyle(.plain)
         .disabled(questDone)
@@ -261,8 +247,19 @@ struct AlmanacHeader: View {
 
     // MARK: - Formatting
 
-    /// "h:mm" in the town's timezone — same convention as AlmanacSection's
-    /// clock formatter, so sunrise/sunset read identically across the app.
+    /// Weather-condition glyph — a little sun by default (and on clear days), the
+    /// matching icon for wet/snowy/stormy skies (the states AlmanacSection keys on).
+    private var weatherIcon: String {
+        switch weather?.state {
+        case .snow:  return "snowflake"
+        case .rain:  return "cloud.rain.fill"
+        case .storm: return "cloud.bolt.fill"
+        default:     return "sun.max.fill"
+        }
+    }
+
+    /// "h:mm" in the town's timezone — same convention as AlmanacSection's clock,
+    /// so sunrise/sunset read identically across the app.
     private static let clockFormatter: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US")
@@ -271,16 +268,4 @@ struct AlmanacHeader: View {
         return f
     }()
     private func clock(_ d: Date) -> String { Self.clockFormatter.string(from: d) }
-
-    /// Sunset − now, formatted "3h 42m of daylight left" / "12m of daylight
-    /// left"; nil once the sun's already down (never a negative duration).
-    private var daylightLeftLabel: String? {
-        guard let sunset = weather?.sunset else { return nil }
-        let secs = sunset.timeIntervalSinceNow
-        guard secs > 0 else { return nil }
-        let mins = Int(secs / 60)
-        let h = mins / 60, m = mins % 60
-        let value = h > 0 ? "\(h)h \(m)m" : "\(m)m"
-        return "\(value) of daylight left"
-    }
 }
