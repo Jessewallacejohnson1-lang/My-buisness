@@ -53,7 +53,13 @@ final class ShareCenter: ObservableObject {
         guard self.payload == nil else { return }   // one at a time
         self.payload = payload
         self.revealed = false
-        showWindow()
+        guard showWindow() else {
+            // No foreground window scene to present into — don't wedge the
+            // singleton for future shares.
+            self.payload = nil
+            self.revealed = false
+            return
+        }
         Haptics.light()
         // Let the reveal render in its off-state, then spring it in next runloop.
         DispatchQueue.main.async {
@@ -76,12 +82,12 @@ final class ShareCenter: ObservableObject {
         }
     }
 
-    private func showWindow() {
+    private func showWindow() -> Bool {
         guard let scene = UIApplication.shared.connectedScenes
             .compactMap({ $0 as? UIWindowScene })
             .first(where: { $0.activationState == .foregroundActive })
             ?? UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first
-        else { return }
+        else { return false }
 
         let window = UIWindow(windowScene: scene)
         window.windowLevel = .alert + 1          // above the tab bar and any .sheet
@@ -91,6 +97,7 @@ final class ShareCenter: ObservableObject {
         window.rootViewController = host
         window.isHidden = false
         self.window = window
+        return true
     }
 
     /// The topmost VC in the overlay window — the presenter for Messages / the
