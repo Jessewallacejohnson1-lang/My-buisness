@@ -45,33 +45,37 @@ struct ShareRevealView: View {
 
     @ViewBuilder
     private func bottomSheet(_ payload: SharePayload) -> some View {
-        VStack(spacing: 18) {
+        VStack(spacing: 16) {
             HStack {
                 Button { center.dismiss() } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(Hue.ink3)
                 }
                 .buttonStyle(PressableStyle(scale: 0.9))
                 Spacer()
                 Text(payload.title)
-                    .font(.mono(12)).tracking(2)
+                    .font(.mono(11)).tracking(1.6)
                     .foregroundStyle(Hue.ink3)
                 Spacer()
-                Color.clear.frame(width: 16, height: 16)   // balances the X
+                Color.clear.frame(width: 15, height: 15)   // balances the X
             }
 
             ShareTargetRow(includesImage: payload.includesImage)
-                .frame(minHeight: 76)
         }
-        .padding(.horizontal, 22)
+        .padding(.horizontal, 20)
         .padding(.top, 18)
-        .padding(.bottom, 34)
+        .padding(.bottom, 12)
         .frame(maxWidth: .infinity)
-        .background(Hue.paper)
-        .clipShape(UnevenRoundedRectangle(topLeadingRadius: Radius.xl,
-                                          topTrailingRadius: Radius.xl,
-                                          style: .continuous))
-        .ignoresSafeArea(edges: .bottom)
+        // The paper is the BACKGROUND shape (not a clip on the whole view) with
+        // ignoresSafeArea, so it bleeds flush to the physical bottom edge —
+        // clip-then-ignore left a dim strip over the home indicator.
+        .background(
+            UnevenRoundedRectangle(topLeadingRadius: Radius.xl,
+                                   topTrailingRadius: Radius.xl,
+                                   style: .continuous)
+                .fill(Hue.paper)
+                .ignoresSafeArea(edges: .bottom)
+        )
     }
 }

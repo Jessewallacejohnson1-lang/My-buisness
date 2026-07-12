@@ -26,7 +26,5 @@ struct AppInviteCard: View {
         .background(Hue.paper)
         .clipShape(RoundedRectangle(cornerRadius: Radius.xl, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Radius.xl, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
-        .padding(16)
-        .background(Hue.canvas)
     }
 }
