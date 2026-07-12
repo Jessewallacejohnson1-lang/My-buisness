@@ -103,4 +103,50 @@ final class ShareCenter: ObservableObject {
     /// The topmost VC in the overlay window — the presenter for Messages / the
     /// iOS share sheet (used by ShareTargets in a later task).
     var overlayPresenter: UIViewController? { window?.rootViewController }
+
+    /// Render the current payload's preview card to a shareable image (scale 3).
+    func renderedImage() -> UIImage? {
+        guard let payload else { return nil }
+        let r = ImageRenderer(content: payload.preview)
+        r.scale = 3
+        return r.uiImage
+    }
+
+    private func activityItems() -> [Any] {
+        guard let payload else { return [] }
+        var items: [Any] = [payload.shareText]
+        if payload.includesImage, let img = renderedImage() { items.insert(img, at: 0) }
+        return items
+    }
+
+    /// "More" → the OS share sheet, presented above the reveal.
+    func shareMore() {
+        guard let presenter = overlayPresenter else { return }
+        Haptics.light()
+        let vc = UIActivityViewController(activityItems: activityItems(), applicationActivities: nil)
+        vc.popoverPresentationController?.sourceView = presenter.view
+        vc.popoverPresentationController?.sourceRect = CGRect(x: presenter.view.bounds.midX,
+                                                              y: presenter.view.bounds.maxY - 60,
+                                                              width: 1, height: 1)
+        presenter.present(vc, animated: true)
+    }
+
+    /// "Messages" → the SMS/iMessage composer seeded with image + text.
+    func sendMessages() {
+        guard let presenter = overlayPresenter else { return }
+        Haptics.light()
+        MessagesComposer.present(from: presenter,
+                                 text: payload?.shareText ?? "",
+                                 image: (payload?.includesImage ?? false) ? renderedImage() : nil)
+    }
+
+    /// "Save image" → write the rendered card to Photos (add-only auth).
+    func saveImage() {
+        guard let img = renderedImage() else { return }
+        Haptics.light()
+        PhotoSaver.save(img)
+    }
+
+    /// Messages target only makes sense on a device that can send texts.
+    var canSendMessages: Bool { MessagesComposer.canSend }
 }

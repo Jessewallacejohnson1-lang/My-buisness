@@ -61,10 +61,8 @@ struct ShareRevealView: View {
                 Color.clear.frame(width: 16, height: 16)   // balances the X
             }
 
-            HStack(spacing: 28) {
-                // Task 4 replaces this placeholder with real targets.
-                Color.clear.frame(height: 76)
-            }
+            ShareTargetRow(includesImage: payload.includesImage)
+                .frame(minHeight: 76)
         }
         .padding(.horizontal, 22)
         .padding(.top, 18)
