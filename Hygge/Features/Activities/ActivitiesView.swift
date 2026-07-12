@@ -627,40 +627,23 @@ private struct WobegonExploreCard: View {
     }
 }
 
-/// A circular share button that renders the invite card + presents the OS sheet.
+/// A circular share button that presents the app-wide share reveal (`ShareCenter`).
 private struct EventInviteCircle: View {
     let event: UpcomingEvent
-    @State private var shareItems: [Any]?
 
     private var dateLabel: String { DateHelpers.prettyDate(event.eventDate) }
-    private var inviteText: String {
-        var s = "Come to \(event.title) with me — \(dateLabel)"
-        if let t = event.startTime, !t.isEmpty { s += " at \(t)" }
-        if let l = event.location, !l.isEmpty { s += ", \(l)" }
-        return s + ". (via Hygge)"
-    }
 
     var body: some View {
         Button {
-            Haptics.light()
-            var items: [Any] = [inviteText]
-            if let img = renderCard() { items.insert(img, at: 0) }
-            shareItems = items
+            ShareCenter.shared.present(.event(title: event.title,
+                                              dateLabel: dateLabel,
+                                              time: event.startTime,
+                                              location: event.location))
         } label: {
             exploreCircleIcon("square.and.arrow.up")
         }
         .buttonStyle(PressableStyle(scale: 0.9))
         .accessibilityLabel("Invite a neighbor")
-        .sheet(isPresented: Binding(get: { shareItems != nil }, set: { if !$0 { shareItems = nil } })) {
-            if let shareItems { ActivityView(items: shareItems) }
-        }
-    }
-
-    @MainActor private func renderCard() -> UIImage? {
-        let r = ImageRenderer(content: InviteCard(title: event.title, dateLabel: dateLabel,
-                                                  time: event.startTime, location: event.location))
-        r.scale = 3
-        return r.uiImage
     }
 }
 

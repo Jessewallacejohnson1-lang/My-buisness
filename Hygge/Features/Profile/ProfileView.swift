@@ -50,8 +50,6 @@ struct ProfileView: View {
         #endif
     }
 
-    private let inviteMessage = "Come see what's happening in St. Joseph — Hygge has the town's calendar, today's happenings, and a live map of what's on. 🌿"
-
     var body: some View {
         ScrollViewReader { proxy in
             content.onAppear {
@@ -207,7 +205,9 @@ struct ProfileView: View {
     private var featureCards: some View {
         HStack(spacing: 12) {
             plansCard
-            ShareLink(item: inviteMessage) {
+            Button {
+                ShareCenter.shared.present(.appInvite())
+            } label: {
                 FeatureFace(icon: "person.badge.plus",
                             value: "Invite",
                             label: "a neighbor",
