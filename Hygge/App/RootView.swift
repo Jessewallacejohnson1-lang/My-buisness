@@ -208,6 +208,23 @@ struct MainTabsView: View {
         .sheet(isPresented: $composing) {
             AddView()
         }
+        #if DEBUG
+        .onAppear {
+            if ProcessInfo.processInfo.arguments.contains("-share-demo") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                    ShareCenter.shared.present(
+                        SharePayload(title: "SHARE THIS EVENT",
+                                     shareText: "Come to Farmers Market with me — Sat 9am. (via Hygge)",
+                                     includesImage: true) {
+                            InviteCard(title: "Farmers Market",
+                                       dateLabel: "Saturday, Jul 12",
+                                       time: "9:00 AM",
+                                       location: "College Ave")
+                        })
+                }
+            }
+        }
+        #endif
     }
 }
 
