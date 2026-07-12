@@ -88,7 +88,8 @@ enum PhotoSaver {
         PHPhotoLibrary.shared().performChanges {
             PHAssetChangeRequest.creationRequestForAsset(from: image)
         } completionHandler: { success, _ in
-            DispatchQueue.main.async { Haptics.success() }   // gentle confirm; failures stay silent
+            // Only confirm on a real save; a denied/failed write gets an error tick, not a false success.
+            DispatchQueue.main.async { success ? Haptics.success() : Haptics.error() }
         }
     }
 }
