@@ -150,3 +150,23 @@ final class ShareCenter: ObservableObject {
     /// Messages target only makes sense on a device that can send texts.
     var canSendMessages: Bool { MessagesComposer.canSend }
 }
+
+extension SharePayload {
+    static func event(title: String, dateLabel: String, time: String?, location: String?) -> SharePayload {
+        var text = "Come to \(title) with me — \(dateLabel)"
+        if let time, !time.isEmpty { text += " at \(time)" }
+        if let location, !location.isEmpty { text += ", \(location)" }
+        text += ". (via Hygge)"
+        return SharePayload(title: "SHARE THIS EVENT", shareText: text, includesImage: true) {
+            InviteCard(title: title, dateLabel: dateLabel, time: time, location: location)
+        }
+    }
+
+    static func appInvite() -> SharePayload {
+        SharePayload(
+            title: "SHARE HYGGE",
+            shareText: "Come see what's happening in St. Joseph — Hygge has the town's calendar, today's happenings, and a live map of what's on. 🌿",
+            includesImage: true
+        ) { AppInviteCard() }
+    }
+}
