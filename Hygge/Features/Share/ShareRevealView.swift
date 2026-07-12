@@ -10,7 +10,7 @@ struct ShareRevealView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var cardScale: CGFloat {
-        if reduceMotion { return center.revealed ? 1 : 1 }   // no scale under Reduce Motion
+        if reduceMotion { return 1 }   // no scale under Reduce Motion
         return center.revealed ? 1.0 : 0.32
     }
 
@@ -20,7 +20,7 @@ struct ShareRevealView: View {
                 .opacity(center.revealed ? 0.55 : 0)
                 .ignoresSafeArea()
                 .onTapGesture { center.dismiss() }
-                .animation(.easeOut(duration: 0.28), value: center.revealed)
+                .animation(.easeOut(duration: 0.40), value: center.revealed)
 
             if let payload = center.payload {
                 VStack {

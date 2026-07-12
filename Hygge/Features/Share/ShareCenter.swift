@@ -63,7 +63,7 @@ final class ShareCenter: ObservableObject {
         Haptics.light()
         // Let the reveal render in its off-state, then spring it in next runloop.
         DispatchQueue.main.async {
-            withAnimation(.spring(response: 0.42, dampingFraction: 0.74)) {
+            withAnimation(.spring(response: 0.58, dampingFraction: 0.76)) {
                 self.revealed = true
             }
         }
