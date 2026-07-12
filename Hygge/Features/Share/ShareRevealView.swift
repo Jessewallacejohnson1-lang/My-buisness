@@ -15,7 +15,7 @@ struct ShareRevealView: View {
     }
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .bottom) {
             Color.black
                 .opacity(center.revealed ? 0.55 : 0)
                 .ignoresSafeArea()
@@ -34,6 +34,46 @@ struct ShareRevealView: View {
                 }
                 .allowsHitTesting(false)   // taps fall through to the scrim (dismiss)
             }
+
+            if let payload = center.payload {
+                bottomSheet(payload)
+                    .offset(y: center.revealed ? 0 : 360)
+                    .opacity(center.revealed ? 1 : 0)
+            }
         }
+    }
+
+    @ViewBuilder
+    private func bottomSheet(_ payload: SharePayload) -> some View {
+        VStack(spacing: 18) {
+            HStack {
+                Button { center.dismiss() } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Hue.ink3)
+                }
+                .buttonStyle(PressableStyle(scale: 0.9))
+                Spacer()
+                Text(payload.title)
+                    .font(.mono(12)).tracking(2)
+                    .foregroundStyle(Hue.ink3)
+                Spacer()
+                Color.clear.frame(width: 16, height: 16)   // balances the X
+            }
+
+            HStack(spacing: 28) {
+                // Task 4 replaces this placeholder with real targets.
+                Color.clear.frame(height: 76)
+            }
+        }
+        .padding(.horizontal, 22)
+        .padding(.top, 18)
+        .padding(.bottom, 34)
+        .frame(maxWidth: .infinity)
+        .background(Hue.paper)
+        .clipShape(UnevenRoundedRectangle(topLeadingRadius: Radius.xl,
+                                          topTrailingRadius: Radius.xl,
+                                          style: .continuous))
+        .ignoresSafeArea(edges: .bottom)
     }
 }
