@@ -23,6 +23,8 @@ struct HomeView: View {
     @State private var showProfile = HomeView.debugOpenProfile()
     /// The feed posting whose notes (comments) sheet is open, if any.
     @State private var commentPosting: FeedPosting?
+    /// Items for the system share sheet (a posting's share text), if presenting.
+    @State private var shareItems: [Any]?
 
     private var api: CommunityAPI { CommunityAPI(auth: auth) }
     private var social: SocialAPI { SocialAPI(auth: auth) }
@@ -69,7 +71,7 @@ struct HomeView: View {
                             onLike:    { id in withPosting(id) { p in Task { await model.toggleLike(social, p) } } },
                             onFollow:  { id in withPosting(id) { p in Task { await model.toggleFollow(social, p) } } },
                             onSave:    { _ in },                       // card owns the local saved mark
-                            onShare:   { _ in },                       // TODO: share sheet (polish pass)
+                            onShare:   { id in withPosting(id) { p in shareItems = [feedShareText(p)] } },
                             onComment: { id in withPosting(id) { p in commentPosting = p } },
                             onOpen:    { id in withPosting(id) { p in commentPosting = p } }
                         )
@@ -98,6 +100,9 @@ struct HomeView: View {
             .sheet(item: $commentPosting) { posting in
                 CommentSheet(eventId: posting.id, eventTitle: posting.title)
             }
+            .sheet(isPresented: Binding(get: { shareItems != nil }, set: { if !$0 { shareItems = nil } })) {
+                if let shareItems { ActivityView(items: shareItems) }
+            }
             // A name edit in the profile writes Interests.displayName synchronously;
             // pick it up when the sheet closes so the greeting stays in sync.
             .onChange(of: showProfile) { _, shown in
@@ -120,6 +125,13 @@ struct HomeView: View {
     /// Resolve a feed callback's posting id back to the live posting before acting.
     private func withPosting(_ id: String, _ body: (FeedPosting) -> Void) {
         if let posting = model.feed.first(where: { $0.id == id }) { body(posting) }
+    }
+
+    /// Neighborly share text for a feed posting.
+    private func feedShareText(_ p: FeedPosting) -> String {
+        var parts = [p.title]
+        if let loc = p.location, !loc.isEmpty { parts.append(loc) }
+        return parts.joined(separator: " · ") + " — happening in St. Joseph, on Hygge"
     }
 
     // MARK: - Zone 2 — today's agenda
