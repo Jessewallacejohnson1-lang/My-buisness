@@ -92,7 +92,21 @@ struct WeatherWidget: View {
     private func countdownRow(now: Date) -> some View {
         HStack(spacing: 8) {
             if let sunrise = weather?.sunrise, let sunset = weather?.sunset {
-                if now >= sunrise, now < sunset {
+                if now < sunrise {
+                    // Pre-dawn → live countdown to sunrise (ticks each second).
+                    Image(systemName: "sunrise.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(accent)
+                    HStack(spacing: 0) {
+                        Text("Sunrise in ")
+                            .font(.sans(14))
+                            .foregroundStyle(Hue.ink2)
+                        Text(durationHMS(sunrise.timeIntervalSince(now)))
+                            .font(.monoMedium(15)).monospacedDigit()
+                            .foregroundStyle(accent)
+                    }
+                } else if now < sunset {
+                    // Daytime → live countdown to sunset.
                     Image(systemName: "sun.max.fill")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(accent)
@@ -105,6 +119,7 @@ struct WeatherWidget: View {
                             .foregroundStyle(Hue.ink2)
                     }
                 } else {
+                    // After sunset → warm good-night.
                     Image(systemName: "moon.zzz.fill")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(accent)

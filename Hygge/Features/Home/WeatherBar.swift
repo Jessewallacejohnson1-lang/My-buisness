@@ -38,24 +38,29 @@ enum WeatherService {
         if let c = cached, Date().timeIntervalSince(c.at) < ttl { return c.weather }
 
         let url = URL(string: "https://api.open-meteo.com/v1/forecast?latitude=45.565&longitude=-94.3186&current=temperature_2m,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset&temperature_unit=fahrenheit&timezone=America%2FChicago&forecast_days=1")!
-        do {
-            let (data, _) = try await URLSession.shared.data(from: url)
-            let r = try JSONDecoder().decode(Response.self, from: data)
-            let isDay = r.current.is_day == 1
-            let weather = Weather(
-                tempF: Int(r.current.temperature_2m.rounded()),
-                highF: Int((r.daily.temperature_2m_max.first ?? r.current.temperature_2m).rounded()),
-                lowF: Int((r.daily.temperature_2m_min.first ?? r.current.temperature_2m).rounded()),
-                label: label(code: r.current.weather_code, isDay: isDay),
-                state: WeatherState.from(code: r.current.weather_code, isDay: isDay),
-                sunrise: parseLocalTime(r.daily.sunrise?.first),
-                sunset: parseLocalTime(r.daily.sunset?.first)
-            )
-            cached = (weather, Date())
-            return weather
-        } catch {
-            return cached?.weather   // last real reading, or nil — never a fake number
+        // Retry a few times so a transient first-launch network blip self-heals in
+        // place — the widget resolves on its own and never needs a pull-to-refresh.
+        for attempt in 0..<4 {
+            do {
+                let (data, _) = try await URLSession.shared.data(from: url)
+                let r = try JSONDecoder().decode(Response.self, from: data)
+                let isDay = r.current.is_day == 1
+                let weather = Weather(
+                    tempF: Int(r.current.temperature_2m.rounded()),
+                    highF: Int((r.daily.temperature_2m_max.first ?? r.current.temperature_2m).rounded()),
+                    lowF: Int((r.daily.temperature_2m_min.first ?? r.current.temperature_2m).rounded()),
+                    label: label(code: r.current.weather_code, isDay: isDay),
+                    state: WeatherState.from(code: r.current.weather_code, isDay: isDay),
+                    sunrise: parseLocalTime(r.daily.sunrise?.first),
+                    sunset: parseLocalTime(r.daily.sunset?.first)
+                )
+                cached = (weather, Date())
+                return weather
+            } catch {
+                if attempt < 3 { try? await Task.sleep(nanoseconds: 1_200_000_000) }
+            }
         }
+        return cached?.weather   // last real reading, or nil — never a fake number
     }
 
     /// Parse Open-Meteo's offset-less local ISO ("2026-07-05T20:58") into an
