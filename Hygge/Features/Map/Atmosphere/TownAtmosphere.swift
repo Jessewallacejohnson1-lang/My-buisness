@@ -89,14 +89,29 @@ struct TownAtmosphere: Equatable {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US")
         f.dateFormat = "h:mm a"
-        return "Currently \(t) degrees, \(conditionText), \(f.string(from: Date())) in Saint Joseph."
+        // No town name here — the pill already announces it (and it follows the
+        // camera as you pan, so hardcoding "Saint Joseph" would contradict it).
+        return "Currently \(t) degrees, \(conditionText), \(f.string(from: Date()))."
     }
 
     /// DEBUG override: overlay parsed key/values onto this atmosphere.
     func applying(_ o: [String: String]) -> TownAtmosphere {
         var a = self
         if let v = o["season"], let s = Season(rawValue: v) { a.season = s }
-        if let v = o["phase"], let p = TimePhase(rawValue: v) { a.phase = p }
+        if let v = o["phase"], let p = TimePhase(rawValue: v) {
+            a.phase = p
+            // Palette brightness comes from dayFactor, not phase — so if a caller
+            // forces a phase without `daylight`, derive a representative dayFactor so
+            // `-atmosphere phase:night` actually renders dark (not the real hour's).
+            if o["daylight"] == nil {
+                switch p {
+                case .night:        a.dayFactor = 0.0
+                case .dusk, .dawn:  a.dayFactor = 0.14
+                case .golden:       a.dayFactor = 0.4
+                case .day:          a.dayFactor = 1.0
+                }
+            }
+        }
         if let v = o["sky"], let s = SkyCondition(rawValue: v) { a.sky = s; a.resolvedAt = Date() }
         if let v = o["intensity"], let i = WeatherIntensity(rawValue: v) { a.intensity = i }
         if let v = o["temp"], let t = Int(v) { a.tempF = t; a.resolvedAt = Date() }

@@ -491,6 +491,9 @@ struct SJMapView: View {
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
+        // When weather resolves, the pill grows a second line; animate the row so the
+        // flanking chrome circles settle smoothly instead of snapping (cold-open only).
+        .animation(.easeInOut(duration: 0.35), value: atmosphere.current.resolvedAt != nil)
     }
 
     private var filterMenu: some View {

@@ -64,17 +64,31 @@ struct BasemapPalette: Equatable {
         water    = timeMod(water,    nightTint: HSB("#33465F"), tintK: 0.45)
         building = timeMod(building, nightTint: HSB("#333B4E"), tintK: 0.30)
 
-        // SKY: overcast/fog flatten; fresh snow lifts ground toward white; rain cools.
+        // SKY: each condition leaves its own signature on the ground.
         switch a.sky {
-        case .overcast, .fog:
+        case .overcast:
             land = land.scaledSaturation(0.85); green = green.scaledSaturation(0.85)
             building = building.scaledSaturation(0.9)
+        case .fog:
+            // Low-visibility haze — wash the ground toward a pale grey so detail
+            // softens (what the "handled as haze" note promised; fog now reads ≠ overcast).
+            land     = land.scaledSaturation(0.7).lerp(to: HSB("#E7EAEC"), 0.30)
+            green    = green.scaledSaturation(0.7).lerp(to: HSB("#E4E9E6"), 0.30)
+            water    = water.scaledSaturation(0.7).lerp(to: HSB("#DBE2E4"), 0.26)
+            building = building.lerp(to: HSB("#E7EAEC"), 0.22)
         case .snow:
             let lift = a.intensity == .heavy ? 0.22 : 0.14
             land = land.lerp(to: HSB("#FFFFFF"), lift); green = green.lerp(to: HSB("#F2F5F3"), lift)
-        case .rain, .storm:
+        case .rain:
             land = land.scaledBrightness(0.95); green = green.scaledBrightness(0.95); water = water.scaledBrightness(0.95)
-        default:
+        case .storm:
+            // The most severe sky — dim + cool the whole ground, even at midday, so a
+            // daytime thunderstorm reads ≠ heavy rain.
+            land     = land.scaledBrightness(0.82).lerpHSB(to: HSB("#4A5568"), 0.14)
+            green    = green.scaledBrightness(0.82).lerpHSB(to: HSB("#42504A"), 0.12)
+            water    = water.scaledBrightness(0.85)
+            building = building.scaledBrightness(0.85)
+        case .clear, .cloudy:
             break
         }
 
@@ -130,9 +144,18 @@ private struct HSB: Equatable {
     }
     func scaledBrightness(_ f: Double) -> HSB { HSB(h: h, s: s, b: (b * f).clamped(0, 1)) }
     func scaledSaturation(_ f: Double) -> HSB { HSB(h: h, s: (s * f).clamped(0, 1), b: b) }
-    func hueShifted(byDegrees d: Double) -> HSB { HSB(h: (h + d).truncatingRemainder(dividingBy: 360), s: s, b: b) }
-    func lerpHSB(to o: HSB, _ t: Double) -> HSB { HSB(h: h + (o.h - h) * t, s: s + (o.s - s) * t, b: b + (o.b - b) * t) }
+    func hueShifted(byDegrees d: Double) -> HSB { HSB(h: HSB.wrap(h + d), s: s, b: b) }
+    /// Interpolate along the SHORTEST hue arc — a linear lerp would rotate a warm
+    /// ground (hue ~37) toward the blue night-tint (hue ~220) the long way through
+    /// green; the short arc keeps summer/autumn dusk·night blue, like winter.
+    func lerpHSB(to o: HSB, _ t: Double) -> HSB {
+        var dh = o.h - h
+        if dh > 180 { dh -= 360 } else if dh < -180 { dh += 360 }
+        return HSB(h: HSB.wrap(h + dh * t), s: s + (o.s - s) * t, b: b + (o.b - b) * t)
+    }
     func lerp(to o: HSB, _ t: Double) -> HSB { lerpHSB(to: o, t) }
+    /// Normalize a hue into 0…360 so the `hex` angle switch never sees a negative.
+    static func wrap(_ h: Double) -> Double { let m = h.truncatingRemainder(dividingBy: 360); return m < 0 ? m + 360 : m }
 }
 
 private extension Double {

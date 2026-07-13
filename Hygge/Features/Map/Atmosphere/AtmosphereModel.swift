@@ -23,8 +23,11 @@ final class AtmosphereModel: ObservableObject {
     private var refreshTask: Task<Void, Never>?
     private var started = false
 
-    init(provider: WeatherProvider = OpenMeteoWeatherProvider()) {
-        self.weather = CachedWeatherProvider(base: provider)
+    // No injected default (a @MainActor init's default-arg thunk warns when
+    // @StateObject builds it from a nonisolated context). The WeatherKit swap is
+    // still a one-liner: change OpenMeteoWeatherProvider() below.
+    init() {
+        self.weather = CachedWeatherProvider(base: OpenMeteoWeatherProvider())
         #if DEBUG
         self.forced = AtmosphereOverride.parse(ProcessInfo.processInfo.arguments)
         #else
@@ -50,6 +53,8 @@ final class AtmosphereModel: ObservableObject {
     }
 
     func stop() {
+        started = false            // so start() can resume (its guard is `!started`);
+                                   // otherwise the `?` help cover would freeze the map.
         tickTask?.cancel(); tickTask = nil
         refreshTask?.cancel(); refreshTask = nil
     }
