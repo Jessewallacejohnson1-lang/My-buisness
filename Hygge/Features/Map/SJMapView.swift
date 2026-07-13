@@ -430,6 +430,8 @@ struct SJMapView: View {
     /// (try?) since a given layer id may not exist in every style version.
     private func recolorBasemap(_ map: MapboxMap?) {
         guard let map else { return }
+        // (Mapbox's default ~300ms paint transition eases the recolor; the wash
+        // cross-fades over ~0.8s — close enough that a phase change reads as one move.)
         let p = BasemapPalette.make(for: atmosphere.current)
         // Ground / land (background-type layers)
         for id in ["land", "background"] {

@@ -17,7 +17,7 @@ struct BasemapPalette: Equatable {
     private struct Roles { let land, green, water, building: HSB }
     private static let anchors: [Season: Roles] = [
         .summer: Roles(land: HSB("#F0EBE3"), green: HSB("#C9E0B4"), water: HSB("#A6CBE6"), building: HSB("#E8E4DC")),
-        .autumn: Roles(land: HSB("#F1E9DC"), green: HSB("#D8CB8C"), water: HSB("#A8C6D9"), building: HSB("#E9E2D6")),
+        .autumn: Roles(land: HSB("#F1E9DC"), green: HSB("#D4D291"), water: HSB("#A8C6D9"), building: HSB("#E9E2D6")),
         .winter: Roles(land: HSB("#EDEEF0"), green: HSB("#DCE4DE"), water: HSB("#BCD2E0"), building: HSB("#E6E7EA")),
         .spring: Roles(land: HSB("#EFEFE6"), green: HSB("#C6E2A8"), water: HSB("#A9CFE8"), building: HSB("#E7E7DE")),
     ]
@@ -83,9 +83,10 @@ struct BasemapPalette: Equatable {
             land = land.scaledBrightness(0.95); green = green.scaledBrightness(0.95); water = water.scaledBrightness(0.95)
         case .storm:
             // The most severe sky — dim + cool the whole ground, even at midday, so a
-            // daytime thunderstorm reads ≠ heavy rain.
+            // daytime thunderstorm reads ≠ heavy rain. Parks desaturate too, else they
+            // stay the brightest thing on a "dimmed" map.
             land     = land.scaledBrightness(0.82).lerpHSB(to: HSB("#4A5568"), 0.14)
-            green    = green.scaledBrightness(0.82).lerpHSB(to: HSB("#42504A"), 0.12)
+            green    = green.scaledBrightness(0.82).scaledSaturation(0.62).lerpHSB(to: HSB("#42504A"), 0.14)
             water    = water.scaledBrightness(0.85)
             building = building.scaledBrightness(0.85)
         case .clear, .cloudy:

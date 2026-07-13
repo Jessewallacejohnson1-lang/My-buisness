@@ -26,6 +26,6 @@ struct TimeWashOverlay: View {
             )
             .allowsHitTesting(false)
             .ignoresSafeArea()
-            .animation(reduceMotion ? nil : .easeInOut(duration: 1.2), value: atmosphere.phase)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.8), value: atmosphere.phase)
     }
 }

@@ -24,7 +24,7 @@ struct WeatherParticles: View {
 
     private var count: Int {
         guard let kind else { return 0 }
-        let base = kind == .snow ? 44 : 60
+        let base = kind == .snow ? 44 : 72
         switch atmosphere.intensity {
         case .light: return Int(Double(base) * 0.6)
         case .heavy: return base + 20
@@ -47,30 +47,35 @@ struct WeatherParticles: View {
     }
 
     var body: some View {
-        if kind != nil {
-            if reduceMotion {
-                Canvas { ctx, size in draw(ctx: ctx, size: size, t: 0.2) }
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
-                    .ignoresSafeArea()
-            } else {
-                TimelineView(.animation) { tl in
-                    Canvas { ctx, size in
-                        draw(ctx: ctx, size: size, t: tl.date.timeIntervalSinceReferenceDate)
+        Group {
+            if kind != nil {
+                Group {
+                    if reduceMotion {
+                        Canvas { ctx, size in draw(ctx: ctx, size: size, t: 0.2) }
+                    } else {
+                        TimelineView(.animation) { tl in
+                            Canvas { ctx, size in
+                                draw(ctx: ctx, size: size, t: tl.date.timeIntervalSinceReferenceDate)
+                            }
+                        }
                     }
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
-                    .ignoresSafeArea()
                 }
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+                .ignoresSafeArea()
+                // Weather arrives, it doesn't blink on: fade the field in when the sky
+                // flips to precip (Reduce Motion → instant).
+                .transition(.opacity)
             }
         }
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.6), value: kind != nil)
     }
 
     private func draw(ctx: GraphicsContext, size: CGSize, t: TimeInterval) {
         guard let kind else { return }
         let color: Color = kind == .snow
             ? Color.white.opacity(0.85)
-            : Color(.sRGB, red: 0.7, green: 0.78, blue: 0.86, opacity: 0.55)
+            : Color(.sRGB, red: 0.62, green: 0.71, blue: 0.82, opacity: 0.72)  // rain: darker + more opaque so it reads over light ground
         for p in particles {
             let fall = kind == .snow ? 0.05 : 0.22
             let cycle = (CGFloat(t) * p.speed * CGFloat(fall) + p.phase).truncatingRemainder(dividingBy: 1)
@@ -83,8 +88,8 @@ struct WeatherParticles: View {
             } else {
                 var line = Path()
                 line.move(to: CGPoint(x: x, y: y))
-                line.addLine(to: CGPoint(x: x - 1.5, y: y + 12 * p.scale))
-                ctx.stroke(line, with: .color(color), lineWidth: 1.1)
+                line.addLine(to: CGPoint(x: x - 2.5, y: y + 18 * p.scale))   // longer, slightly steeper streak
+                ctx.stroke(line, with: .color(color), lineWidth: 1.4)
             }
         }
     }
