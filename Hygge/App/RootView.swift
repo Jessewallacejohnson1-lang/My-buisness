@@ -133,7 +133,10 @@ struct MainTabsView: View {
 
     init(startTab: Tab? = nil) {
         self.startTab = startTab
-        _tab = State(initialValue: startTab ?? MainTabsView.initialTab())
+        let resolved = startTab ?? MainTabsView.initialTab()
+        _tab = State(initialValue: resolved)
+        _showMenu = State(initialValue: resolved == .home && MainTabsView.debugOpenMenu())
+        _showProfileSheet = State(initialValue: MainTabsView.debugOpenProfile())
     }
 
     /// DEBUG-only: `-open-tab map|activities|calendar` launch argument selects
@@ -153,9 +156,44 @@ struct MainTabsView: View {
         #endif
         return .home
     }
+
+    /// DEBUG-only: `-open-menu` unfolds the town menu on launch; `-open-profile`
+    /// presents the profile sheet. Both for headless screenshots. No effect in
+    /// release or without the flag.
+    private static func debugOpenMenu() -> Bool {
+        #if DEBUG
+        return ProcessInfo.processInfo.arguments.contains("-open-menu")
+        #else
+        return false
+        #endif
+    }
+    private static func debugOpenProfile() -> Bool {
+        #if DEBUG
+        return ProcessInfo.processInfo.arguments.contains("-open-profile")
+        #else
+        return false
+        #endif
+    }
+
     @State private var expandedPlace: Place?
     @State private var composing = false
+    /// The compose "+" speed-dial (Explore / Calendar). Owned here so the wash can
+    /// recede the tab content and float above the tab bar.
+    @State private var speedDialOpen = false
+    /// A bubble tap that routes straight into a kind-scoped composer (skips the
+    /// AddView chooser).
+    @State private var composeKind: AddKind?
+    /// The town menu — a corner "genie" drawer out of Home's top-right button.
+    /// Owned here (not in HomeView) so it renders above the tab bar.
+    @State private var showMenu = false
+    /// The profile, now a menu destination (presented as a standard sheet).
+    @State private var showProfileSheet = false
     @Namespace private var cardNS
+    /// Direction of the last tab change — whether the incoming screen slides in
+    /// from the trailing edge (moving *forward* through the tab order) or the
+    /// leading edge (moving back). Set in `select(_:)` right before the animation.
+    @State private var slideForward = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -168,6 +206,9 @@ struct MainTabsView: View {
                     // coral badge would be redundant, so Home is the one tab without it.
                     HomeView(
                         onCompose: { composing = true },
+                        onMenu: { showMenu = true },
+                        menuOpen: showMenu,
+                        profileShown: showProfileSheet,
                         expandedPlace: $expandedPlace,
                         cardNS: cardNS
                     )
@@ -175,11 +216,23 @@ struct MainTabsView: View {
                 // screen chrome now (the map's compose "+" etc.).
                 case .activities: ActivitiesView(onCompose: { composing = true })
                 case .calendar:   CalendarView(onCompose: { composing = true })
-                case .map:        SJMapView(onCompose: { composing = true })
+                // The map's non-admin "+" opens the speed-dial (admins still get
+                // QuickAddSheet, wired inside SJMapView).
+                case .map:        SJMapView(onCompose: { speedDialOpen = true })
                 }
             }
+            // Identity keyed on the tab so a switch is an insertion+removal that
+            // the page transition can animate: the outgoing screen slides off one
+            // edge while the incoming slides in from the other, in lockstep — a
+            // swipe to the new tab rather than a flat swap.
+            .id(tab)
+            .transition(pageTransition)
+            // The speed-dial recedes the content behind its wash (the reference's
+            // "home recedes"); tab bar stays put and is dimmed by the wash.
+            .scaleEffect(reduceMotion ? 1 : (speedDialOpen ? 0.97 : 1))
+            .animation(.spring(response: 0.34, dampingFraction: 0.72), value: speedDialOpen)
 
-            HyggeTabBar(selection: $tab)
+            HyggeTabBar(selection: $tab, onSelect: select)
         }
         .overlay {
             // Place-expansion overlay
@@ -204,10 +257,38 @@ struct MainTabsView: View {
             }
         }
         .animation(.spring(response: 0.42, dampingFraction: 0.82), value: expandedPlace?.id)
-        // Global compose sheet — triggered by "+" anywhere in the app
+        // The town menu unfolds out of Home's top-right button and collapses back
+        // into it (its own overlay lane, above the tab bar).
+        .overlay {
+            CornerDrawerOverlay(isPresented: $showMenu) { close in
+                TownMenuView(onClose: close) { action in
+                    close()
+                    handleMenu(action)
+                }
+            }
+        }
+        // The compose "+" speed-dial — the bottom-right FAB on Explore / Calendar (and
+        // the top-right chrome "+" on the Map) expands into context-tailored create
+        // bubbles. Explore/Calendar's disc lives in the overlay (replacing the old
+        // ComposeFAB); the Map keeps its native "+" and the overlay draws the ✕.
+        .overlay {
+            if !speedDialItems.isEmpty {
+                ComposeSpeedDial(items: speedDialItems,
+                                 isOpen: $speedDialOpen,
+                                 anchor: tab == .map ? .topTrailing : .bottomTrailing,
+                                 chromeDisc: tab == .map,
+                                 showsRestingDisc: tab != .map,
+                                 onSelect: routeSpeedDial)
+            }
+        }
+        // Profile is now a menu destination — a standard sheet.
+        .sheet(isPresented: $showProfileSheet) { ProfileView() }
+        // Global compose sheet — triggered by "Add an event" anywhere in the app
         .sheet(isPresented: $composing) {
             AddView()
         }
+        // A bubble tap jumps straight into that kind's form, skipping the chooser.
+        .sheet(item: $composeKind) { kind in AddFormView(kind: kind) }
         #if DEBUG
         .onAppear {
             if ProcessInfo.processInfo.arguments.contains("-share-demo") {
@@ -218,8 +299,91 @@ struct MainTabsView: View {
                                                       location: "College Ave"))
                 }
             }
+            // `-open-speeddial` unfolds the compose speed-dial on launch (pair with
+            // `-open-tab activities|calendar`) so the reveal can be recorded headlessly.
+            // `-speeddial-loop` repeats open↔close a few times so a single long
+            // recording is sure to capture a clean transition regardless of boot time.
+            if ProcessInfo.processInfo.arguments.contains("-open-speeddial") {
+                let loop = ProcessInfo.processInfo.arguments.contains("-speeddial-loop")
+                func openIt() { withAnimation(.spring(response: 0.34, dampingFraction: 0.72)) { speedDialOpen = true } }
+                func closeIt() { withAnimation(.spring(response: 0.26, dampingFraction: 0.92)) { speedDialOpen = false } }
+                func cycle(_ n: Int) {
+                    guard n > 0 else { return }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { openIt() }
+                    guard loop else { return }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { closeIt() }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.7) { cycle(n - 1) }
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { cycle(loop ? 4 : 1) }
+            }
         }
         #endif
+    }
+
+    /// Route a town-menu tap. The drawer is already collapsing; tab switches swap
+    /// instantly behind it (no competing page slide), while sheets/overlays wait
+    /// for the collapse to finish so two presentations don't fight.
+    private func handleMenu(_ action: TownMenuAction) {
+        switch action {
+        case .calendar:   tab = .calendar
+        case .activities: tab = .activities
+        case .map:        tab = .map
+        case .compose:    afterMenuClose { composing = true }
+        case .invite:     afterMenuClose { ShareCenter.shared.present(.appInvite()) }
+        case .profile:    afterMenuClose { showProfileSheet = true }
+        }
+    }
+
+    private func afterMenuClose(_ action: @escaping () -> Void) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: action)
+    }
+
+    /// Context-tailored bubbles for the current tab's compose "+".
+    private var speedDialItems: [SpeedDialItem] {
+        switch tab {
+        case .calendar:   return SpeedDialItem.calendar()
+        case .activities: return SpeedDialItem.explore()
+        case .map:        return SpeedDialItem.map()
+        default:          return []
+        }
+    }
+
+    /// Route a bubble tap: create-kinds open a kind-scoped composer, Invite fires the
+    /// app-invite reveal.
+    private func routeSpeedDial(_ item: SpeedDialItem) {
+        switch item.action {
+        case .compose(let kind): composeKind = kind
+        case .invite:            ShareCenter.shared.present(.appInvite())
+        }
+    }
+
+    /// Switch tabs with a horizontal page slide. Direction is derived from the tab
+    /// order (`Tab: Int`), so moving right through the bar slides content the way
+    /// your thumb expects. A single spring drives both the content slide and the
+    /// tab-bar pill so they travel together; Reduce Motion swaps it for a short
+    /// crossfade. The haptic lives here (not the button) so it fires once per real
+    /// change — re-tapping the current tab is a no-op.
+    private func select(_ newTab: Tab) {
+        guard newTab != tab else { return }
+        slideForward = newTab.rawValue > tab.rawValue
+        Haptics.selection()
+        withAnimation(reduceMotion
+            ? .easeInOut(duration: 0.2)
+            : .spring(response: 0.44, dampingFraction: 0.86)) {
+            tab = newTab
+        }
+    }
+
+    /// The coupled slide: incoming enters from the edge you're travelling toward,
+    /// outgoing exits the opposite edge (pure `.move`, no fade, so the two full-
+    /// bleed screens tile seamlessly). Reduce Motion → crossfade, no positional
+    /// motion.
+    private var pageTransition: AnyTransition {
+        if reduceMotion { return .opacity }
+        return .asymmetric(
+            insertion: .move(edge: slideForward ? .trailing : .leading),
+            removal:   .move(edge: slideForward ? .leading  : .trailing)
+        )
     }
 }
 
@@ -229,6 +393,9 @@ struct MainTabsView: View {
 /// fires a haptic.
 struct HyggeTabBar: View {
     @Binding var selection: Tab
+    /// Tap handler — the parent owns the animated page slide + haptic, so the pill
+    /// (driven by `selection`) and the screen slide ride the same spring.
+    var onSelect: (Tab) -> Void
     @Namespace private var pill
 
     /// Corner radii: outer glass shell vs. the inner sliding highlight.
@@ -253,8 +420,7 @@ struct HyggeTabBar: View {
     private func tabButton(_ tab: Tab) -> some View {
         let selected = selection == tab
         Button {
-            Haptics.selection()
-            withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) { selection = tab }
+            onSelect(tab)
         } label: {
             VStack(spacing: 4) {
                 Image(systemName: tab.symbol)

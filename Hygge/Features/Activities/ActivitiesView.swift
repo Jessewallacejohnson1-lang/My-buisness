@@ -1,9 +1,14 @@
 //
 //  ActivitiesView.swift
-//  Hygge — "Explore": an AllTrails-style browse surface on a clean white page.
-//  Rounded search + coral category chips + big photo cards for events, clubs,
-//  and trails. Coral (Hue.accent) is the one accent; cards carry a saved
-//  bookmark, a real-data metadata row, and a coral primary action.
+//  Hygge — "Explore": a Wolt-Discovery-style browse surface, re-skinned to
+//  Hygge's coral-on-white brand. A town header (with expandable search) + a row
+//  of category tiles pin the top; below, when nothing is filtered, a discovery
+//  layout unfolds — a featured "this week" carousel, a happening-this-week shelf,
+//  a neighborly compose banner, and the "Around St. Joe" directory. Tap a tile
+//  (or search) to drop into a focused, filtered list of that category.
+//
+//  Coral (Hue.accent) is the one accent; every surface is built from the shared
+//  tokens + ExploreKit primitives. Discovery chrome lives in ExploreDiscovery.swift.
 //
 
 import SwiftUI
@@ -15,15 +20,19 @@ struct ActivitiesView: View {
 
     @EnvironmentObject private var auth: AuthStore
     @StateObject private var model = ActivitiesModel()
+    /// The viewer's personal saved list — powers the "Saved" tile.
+    @ObservedObject private var saved = SavedStore.shared
 
     @State private var filter: Filter = ActivitiesView.initialFilter()
     @State private var timeFrame: TimeFrame = ActivitiesView.initialTimeFrame()
     @State private var query = ""
+    @State private var searching = false
+    @FocusState private var searchFocused: Bool
     @State private var trailsShowingMap = false
 
-    /// DEBUG-only: `-explore-filter events|clubs|trails` starts on a given chip so
-    /// simulator verification can screenshot each card state headlessly. Mirrors
-    /// the `-open-tab` / `-force-nonadmin` flags. No effect in release builds.
+    /// DEBUG-only: `-explore-filter events|clubs|trails|parks|saved` starts on a given
+    /// chip so simulator verification can screenshot each card state headlessly.
+    /// Mirrors the `-open-tab` / `-force-nonadmin` flags. No effect in release builds.
     private static func initialFilter() -> Filter {
         #if DEBUG
         let args = ProcessInfo.processInfo.arguments
@@ -58,18 +67,25 @@ struct ActivitiesView: View {
     private var api: CommunityAPI { CommunityAPI(auth: auth) }
 
     enum Filter: String, CaseIterable {
-        case all = "All", events = "Events", clubs = "Clubs", trails = "Trails"
+        case all = "All", events = "Events", clubs = "Clubs", trails = "Trails", parks = "Parks", saved = "Saved"
+
+        /// The category tiles shown under the town header (Wolt's icon squares).
+        /// `.all` is the unselected discovery state, so it isn't a tile.
+        static let tiles: [Filter] = [.events, .clubs, .trails, .parks, .saved]
+
         var icon: String {
             switch self {
             case .all:    return "square.grid.2x2.fill"
             case .events: return "calendar"
             case .clubs:  return "person.2.fill"
             case .trails: return "figure.hiking"
+            case .parks:  return "tree.fill"
+            case .saved:  return "bookmark.fill"
             }
         }
     }
 
-    /// A date window applied to events only (clubs/trails have no date).
+    /// A date window applied to events only (clubs/trails/parks have no date).
     enum TimeFrame: String, CaseIterable {
         case upcoming = "Upcoming", today = "Today", week = "This week", month = "This month"
         var icon: String {
@@ -96,37 +112,36 @@ struct ActivitiesView: View {
     // MARK: - Explore scroll
 
     private var explore: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // Pinned header: the search pill + category chips stay put so the
-            // filter is always reachable — only the feed below scrolls.
-            // Extra top room so the search pill clears the brand badge pinned
-            // to the top-right safe-area corner (see RootView / brandBadge()).
-            searchBar.padding(.top, 44)
-            categoryChips
-
-            ScrollView(showsIndicators: false) {
-                LazyVStack(alignment: .leading, spacing: 16) {
-                    if filter == .trails {
-                        trailsMapLink.padding(.horizontal, 18)
-                    }
-
-                    if model.loading && !model.loaded {
-                        ProgressView().tint(Hue.gray)
-                            .frame(maxWidth: .infinity).padding(.top, 64)
-                    } else if model.failed {
-                        failedState
-                    } else {
-                        feed.padding(.horizontal, 18)
-                    }
-
-                    Color.clear.frame(height: 96)
-                }
+        ScrollView(showsIndicators: false) {
+            LazyVStack(alignment: .leading, spacing: 22) {
+                ExploreTownHeader(searching: $searching, query: $query, searchField: $searchFocused)
+                    .padding(.top, 6)
+                    .appearStagger(0)
+                categoryTiles
+                    .appearStagger(1)
+                content
+                Color.clear.frame(height: 96)
             }
-            .refreshable { await model.load(api) }
-            .scrollDismissesKeyboard(.interactively)
+            .padding(.top, 6)
         }
         .background(Hue.surface)
-        .overlay(alignment: .bottomTrailing) { ComposeFAB(action: onCompose) }
+        .refreshable { await model.load(api) }
+        .scrollDismissesKeyboard(.interactively)
+        // The compose "+" is now the ComposeSpeedDial, hosted by MainTabsView.
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if model.loading && !model.loaded {
+            ProgressView().tint(Hue.gray)
+                .frame(maxWidth: .infinity).padding(.top, 90)
+        } else if model.failed {
+            failedState.padding(.horizontal, 18)
+        } else if isDiscovery {
+            discovery
+        } else {
+            focused
+        }
     }
 
     /// A real outage (not an empty town) — distinct from `emptyState` so an offline
@@ -146,45 +161,196 @@ struct ActivitiesView: View {
         .padding(.vertical, 52).padding(.horizontal, 24)
     }
 
-    // MARK: - Search + chips
+    // MARK: - Category tiles
 
-    private var searchBar: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(Hue.gray)
-            TextField("Search St. Joe", text: $query)
-                .font(.sans(15))
-                .foregroundStyle(Hue.mapInk)
-                .autocorrectionDisabled()
-            if !query.isEmpty {
-                Button { withAnimation(.easeOut(duration: 0.15)) { query = "" } } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 15)).foregroundStyle(Hue.grayLight)
+    private var categoryTiles: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 14) {
+                ForEach(Filter.tiles, id: \.self) { f in
+                    ExploreCategoryTile(title: f.rawValue, icon: f.icon, selected: filter == f) {
+                        toggleFilter(f)
+                    }
                 }
-                .buttonStyle(.plain)
-            } else {
-                if timeFrame != .upcoming {
-                    Text(timeFrame.rawValue)
-                        .font(.mono(12)).monospacedDigit()
-                        .foregroundStyle(Hue.accent)
-                        .transition(.opacity.combined(with: .move(edge: .trailing)))
-                }
-                timeFrameMenu
             }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 2)
         }
-        .animation(.spring(response: 0.3, dampingFraction: 0.82), value: timeFrame)
-        .padding(.leading, 16)
-        .padding(.trailing, 6)
-        .padding(.vertical, 8)
-        .background(Hue.bgSubtle)
-        .clipShape(Capsule())
-        .padding(.horizontal, 18)
     }
 
-    /// The time-frame picker on the search pill's trailing circle. Resting
+    private func toggleFilter(_ f: Filter) {
+        Haptics.selection()
+        // Tapping the active tile drops back to the discovery ("All") view.
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
+            filter = (filter == f) ? .all : f
+        }
+    }
+    private func selectFilter(_ f: Filter) {
+        Haptics.selection()
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) { filter = f }
+    }
+
+    private func presentInvite(_ event: UpcomingEvent) {
+        ShareCenter.shared.present(.event(title: event.title,
+                                          dateLabel: DateHelpers.prettyDate(event.eventDate),
+                                          time: event.startTime,
+                                          location: event.location))
+    }
+
+    // MARK: - Discovery (unfiltered)
+
+    @ViewBuilder
+    private var discovery: some View {
+        if !featuredEvents.isEmpty {
+            FeaturedCarousel(events: featuredEvents, onInvite: presentInvite)
+                .appearStagger(2)
+        }
+
+        if !weekEvents.isEmpty {
+            VStack(alignment: .leading, spacing: 14) {
+                ExploreSectionHeader(title: "Happening this week") {
+                    SeeAllPill { selectFilter(.events) }
+                }
+                .padding(.horizontal, 18)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 14) {
+                        ForEach(weekEvents) { EventShelfCard(event: $0) }
+                    }
+                    .padding(.horizontal, 18)
+                    .padding(.bottom, 2)
+                }
+            }
+            .appearStagger(3)
+        }
+
+        // The always-present horizontal photo shelf (Wolt's collection row) —
+        // St. Joe's parks, which are a fixed civic dataset, so discovery is never
+        // a lonely single card even in a quiet week.
+        if !model.parks.isEmpty {
+            VStack(alignment: .leading, spacing: 14) {
+                ExploreSectionHeader(title: "Parks & green space") {
+                    SeeAllPill { selectFilter(.parks) }
+                }
+                .padding(.horizontal, 18)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 14) {
+                        ForEach(model.parks) { ExplorePlaceCard(park: $0) }
+                    }
+                    .padding(.horizontal, 18)
+                    .padding(.bottom, 2)
+                }
+            }
+            .appearStagger(4)
+        }
+
+        ExploreComposeBanner(action: onCompose)
+            .padding(.horizontal, 18)
+            .appearStagger(5)
+
+        VStack(alignment: .leading, spacing: 22) {
+            ExploreSectionHeader(title: "Around St. Joe") { EmptyView() }
+            directory
+        }
+        .padding(.horizontal, 18)
+        .appearStagger(6)
+    }
+
+    /// The vertical directory shown in discovery — clubs and trails. Events get
+    /// the hero carousel and parks get the horizontal shelf, so neither repeats.
+    @ViewBuilder
+    private var directory: some View {
+        LazyVStack(alignment: .leading, spacing: 24) {
+            if showSuggested { suggestedSection }
+            if showWobegon {
+                WobegonExploreCard(openURL: { openURL($0) })
+            }
+            ForEach(mainClubs) { c in
+                ClubExploreCard(club: c) { Task { await model.toggleJoin(api, c) } }
+            }
+            ForEach(mainTrails) { t in
+                TrailExploreCard(trail: t, openURL: { openURL($0) })
+            }
+        }
+    }
+
+    // MARK: - Focused (a category tile, Saved, or a search query)
+
+    @ViewBuilder
+    private var focused: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            if filter == .events {
+                ExploreSectionHeader(title: timeFrame == .upcoming ? "Upcoming events" : timeFrame.rawValue) {
+                    timeFrameMenu
+                }
+                .padding(.horizontal, 18)
+            }
+            if filter == .trails {
+                trailsMapLink.padding(.horizontal, 18)
+            }
+
+            if focusedEmpty {
+                emptyState
+            } else {
+                feedList.padding(.horizontal, 18)
+            }
+        }
+    }
+
+    /// The vertical, filtered card list (events included). Lazy so off-screen
+    /// cards — and each TrailExploreCard's `.task`-driven geocode — only
+    /// materialize when scrolled into view.
+    @ViewBuilder
+    private var feedList: some View {
+        LazyVStack(alignment: .leading, spacing: 24) {
+            if showSuggested { suggestedSection }
+            if showWobegon {
+                WobegonExploreCard(openURL: { openURL($0) }).appearStagger(0)
+            }
+            ForEach(Array(groupRecurring(events).enumerated()), id: \.element.id) { i, g in
+                EventExploreCard(event: g.lead, recurrenceOverride: g.recurrenceLabel).appearStagger(i)
+            }
+            ForEach(Array(mainClubs.enumerated()), id: \.element.id) { i, c in
+                ClubExploreCard(club: c) { Task { await model.toggleJoin(api, c) } }
+                    .appearStagger(i)
+            }
+            ForEach(Array(mainTrails.enumerated()), id: \.element.id) { i, t in
+                TrailExploreCard(trail: t, openURL: { openURL($0) }).appearStagger(i)
+            }
+            ForEach(Array(parks.enumerated()), id: \.element.id) { i, p in
+                ParkExploreCard(park: p, openURL: { openURL($0) }).appearStagger(i)
+            }
+        }
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 10) {
+            Image(systemName: savedMode ? "bookmark" : "square.grid.2x2")
+                .font(.system(size: 28, weight: .light))
+                .foregroundStyle(Hue.accent.opacity(0.7))
+            Text(emptyTitle)
+                .font(.sansBold(16)).foregroundStyle(Hue.mapInk)
+            Text(emptyBody)
+                .font(.sans(14)).foregroundStyle(Hue.gray)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 52).padding(.horizontal, 24)
+    }
+    private var emptyTitle: String {
+        if !queryEmpty { return "No matches" }
+        if savedMode { return "Nothing saved yet" }
+        return "Nothing here yet"
+    }
+    private var emptyBody: String {
+        if !queryEmpty { return "Try a different search." }
+        if savedMode { return "Tap the bookmark on any card to save it here for later." }
+        return "Real clubs, events, and trails show up here once neighbors post them."
+    }
+
+    // MARK: - Time-frame menu (events focus)
+
+    /// The time-frame picker, surfaced in the Events section header. Resting
     /// (Upcoming) is a coral glyph on white; any active window flips it to a
-    /// filled coral disc, matching the active-chip idiom.
+    /// filled coral disc, matching the active-tile idiom.
     private var timeFrameMenu: some View {
         let active = timeFrame != .upcoming
         return Menu {
@@ -194,47 +360,24 @@ struct ActivitiesView: View {
                 }
             }
         } label: {
-            Image(systemName: "slider.horizontal.3")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(active ? .white : Hue.accent)
-                .frame(width: 30, height: 30)
-                .background(active ? Hue.accent : Hue.surface)
-                .clipShape(Circle())
-                .shadow(color: active ? Hue.accent.opacity(0.35) : .black.opacity(0.05),
-                        radius: active ? 5 : 2, x: 0, y: 1)
+            HStack(spacing: 6) {
+                if active {
+                    Text(timeFrame.rawValue).font(.sansSemibold(13))
+                }
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: 13, weight: .semibold))
+            }
+            .foregroundStyle(active ? .white : Hue.accent)
+            .padding(.horizontal, active ? 12 : 0)
+            .frame(height: 30)
+            .frame(minWidth: 30)
+            .background(active ? Hue.accent : Hue.bgSubtle)
+            .clipShape(Capsule())
+            .shadow(color: active ? Hue.accent.opacity(0.32) : .black.opacity(0.04),
+                    radius: active ? 5 : 2, x: 0, y: 1)
         }
         .buttonStyle(.plain)
         .onChange(of: timeFrame) { _, _ in Haptics.selection() }
-    }
-
-    private var categoryChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                ForEach(Filter.allCases, id: \.self) { f in
-                    let on = f == filter
-                    Button {
-                        Haptics.selection()
-                        withAnimation(.spring(response: 0.32, dampingFraction: 0.8)) { filter = f }
-                    } label: {
-                        HStack(spacing: 7) {
-                            Image(systemName: f.icon).font(.system(size: 14, weight: .semibold))
-                            Text(f.rawValue).font(.sansSemibold(14))
-                        }
-                        .foregroundStyle(on ? .white : Hue.mapInk)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 11)
-                        .background(on ? Hue.accent : Hue.surface)
-                        .clipShape(Capsule())
-                        .overlay(Capsule().stroke(on ? Color.clear : Hue.mapHairline, lineWidth: 1.5))
-                        .shadow(color: on ? Hue.accent.opacity(0.28) : .black.opacity(0.04),
-                                radius: on ? 8 : 3, x: 0, y: on ? 4 : 1)
-                    }
-                    .buttonStyle(PressableStyle())
-                }
-            }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 4)
-        }
     }
 
     private var trailsMapLink: some View {
@@ -259,54 +402,6 @@ struct ActivitiesView: View {
         }
     }
 
-    // MARK: - Feed
-
-    @ViewBuilder
-    private var feed: some View {
-        let empty = events.isEmpty && mainClubs.isEmpty && mainTrails.isEmpty
-            && !showWobegon && !showSuggested
-        if empty {
-            emptyState
-        } else {
-            // Lazy so off-screen cards — and each TrailExploreCard's .task-driven
-            // geocode network call — only materialize when scrolled into view.
-            LazyVStack(alignment: .leading, spacing: 24) {
-                if showSuggested { suggestedSection }
-
-                if showWobegon {
-                    WobegonExploreCard(openURL: { openURL($0) }).appearStagger(0)
-                }
-                ForEach(Array(groupRecurring(events).enumerated()), id: \.element.id) { i, g in
-                    EventExploreCard(event: g.lead, recurrenceOverride: g.recurrenceLabel).appearStagger(i)
-                }
-                ForEach(Array(mainClubs.enumerated()), id: \.element.id) { i, c in
-                    ClubExploreCard(club: c) { Task { await model.toggleJoin(api, c) } }
-                        .appearStagger(i)
-                }
-                ForEach(Array(mainTrails.enumerated()), id: \.element.id) { i, t in
-                    TrailExploreCard(trail: t, openURL: { openURL($0) }).appearStagger(i)
-                }
-            }
-        }
-    }
-
-    private var emptyState: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "square.grid.2x2")
-                .font(.system(size: 28, weight: .light))
-                .foregroundStyle(Hue.accent.opacity(0.7))
-            Text(query.isEmpty ? "Nothing here yet" : "No matches")
-                .font(.sansBold(16)).foregroundStyle(Hue.mapInk)
-            Text(query.isEmpty
-                 ? "Real clubs, events, and trails show up here once neighbors post them."
-                 : "Try a different search.")
-                .font(.sans(14)).foregroundStyle(Hue.gray)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 52).padding(.horizontal, 24)
-    }
-
     // MARK: - Suggested (interest-matched), de-duplicated from the main feed
 
     @ViewBuilder
@@ -321,21 +416,51 @@ struct ActivitiesView: View {
         }
     }
 
+    // MARK: - Discovery data (featured + this-week events)
+
+    /// The soonest upcoming events, one card per recurring series — the carousel.
+    private var featuredEvents: [UpcomingEvent] {
+        Array(groupRecurring(model.events).map(\.lead).prefix(5))
+    }
+    /// Events inside the next 7 days (inclusive of today) that AREN'T already in
+    /// the featured carousel — the weekly shelf. Deduping keeps a quiet town from
+    /// showing the same happening twice; it only appears with real extra content.
+    private var weekEvents: [UpcomingEvent] {
+        let featuredIds = Set(featuredEvents.map(\.id))
+        let lo = DateHelpers.localDate()
+        let hi = DateHelpers.localDate(DateHelpers.addDays(6))
+        let within = model.events.filter { !$0.eventDate.isEmpty && $0.eventDate >= lo && $0.eventDate <= hi }
+        return Array(groupRecurring(within).map(\.lead).filter { !featuredIds.contains($0.id) }.prefix(8))
+    }
+
+    // MARK: - Mode
+
+    private var queryEmpty: Bool { query.trimmingCharacters(in: .whitespaces).isEmpty }
+    private var savedMode: Bool { filter == .saved }
+    /// Discovery = nothing filtered and no active search.
+    private var isDiscovery: Bool { filter == .all && queryEmpty }
+    private var focusedEmpty: Bool {
+        events.isEmpty && mainClubs.isEmpty && mainTrails.isEmpty && parks.isEmpty
+            && !showWobegon && !showSuggested
+    }
+
     // MARK: - Filtered data
 
-    private var showEvents: Bool { filter == .all || filter == .events }
-    private var showClubs: Bool { filter == .all || filter == .clubs }
-    private var showTrails: Bool { filter == .all || filter == .trails }
-    private var queryEmpty: Bool { query.trimmingCharacters(in: .whitespaces).isEmpty }
+    private var showEvents: Bool { filter == .all || filter == .events || savedMode }
+    private var showClubs: Bool { filter == .all || filter == .clubs || savedMode }
+    private var showTrails: Bool { filter == .all || filter == .trails || savedMode }
+    private var showParks: Bool { filter == .all || filter == .parks || savedMode }
 
     private func matches(_ haystack: String...) -> Bool {
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
         if q.isEmpty { return true }
         return haystack.contains { $0.lowercased().contains(q) }
     }
+    /// In Saved mode every list is narrowed to the viewer's bookmarked ids.
+    private func savedPass(_ id: String) -> Bool { !savedMode || saved.isSaved(id) }
 
     private var events: [UpcomingEvent] {
-        showEvents ? model.events.filter { withinFrame($0.eventDate) && matches($0.title, $0.location ?? "") } : []
+        showEvents ? model.events.filter { withinFrame($0.eventDate) && matches($0.title, $0.location ?? "") && savedPass($0.id) } : []
     }
 
     /// Is a YYYY-MM-DD event date inside the selected time window? Applies to
@@ -355,14 +480,18 @@ struct ActivitiesView: View {
         }
     }
     private var clubs: [ClubView] {
-        showClubs ? model.clubs.filter { matches($0.name, $0.host ?? "", $0.vibe ?? "", $0.schedule ?? "", $0.location ?? "") } : []
+        showClubs ? model.clubs.filter { matches($0.name, $0.host ?? "", $0.vibe ?? "", $0.schedule ?? "", $0.location ?? "") && savedPass($0.id) } : []
     }
     private var trails: [Trail] {
-        showTrails ? model.trails.filter { matches($0.title, $0.location ?? "", $0.description ?? "") } : []
+        showTrails ? model.trails.filter { matches($0.title, $0.location ?? "", $0.description ?? "") && savedPass($0.id) } : []
+    }
+    private var parks: [Park] {
+        showParks ? model.parks.filter { matches($0.title, $0.address, $0.description) && savedPass($0.id) } : []
     }
 
-    /// Lake Wobegon (the bundled signature trail) heads the trails, unfiltered searches only.
-    private var showWobegon: Bool { showTrails && queryEmpty }
+    /// Lake Wobegon (the bundled signature trail) heads the trails, unfiltered
+    /// searches only — and only when saved, in Saved mode.
+    private var showWobegon: Bool { showTrails && queryEmpty && savedPass("wobegon-trail") }
 
     // MARK: - Suggested for you (interest-matched)
 
@@ -500,11 +629,20 @@ private struct EventExploreCard: View {
 
     @ViewBuilder
     private var photo: some View {
-        if let localName = KnownLocalPhoto.name(forTitle: event.title) {
+        if let url = event.imageUrl.flatMap(URL.init) {
+            // The organizer's own uploaded photo wins — it's the truest picture of
+            // this specific happening.
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let img): img.resizable().scaledToFill()
+                default: ExploreBlankPhoto()
+                }
+            }
+        } else if let localName = KnownLocalPhoto.name(forTitle: event.title) {
             PhotoView(name: localName).scaledToFill()
         } else {
             VenuePhoto(venueName: event.location ?? event.title,
-                       hint: event.location != nil ? event.title : nil) { ExploreBlankPhoto() }
+                       hint: event.location != nil ? event.title : nil, maxWidth: 1200) { ExploreBlankPhoto() }
         }
     }
     private var meta: [MetaItem] {
@@ -529,7 +667,7 @@ private struct ClubExploreCard: View {
                     subtitle: club.location ?? club.host.map { "with \($0)" },
                     meta: meta) {
             VenuePhoto(venueName: club.location ?? club.name,
-                       hint: club.location != nil ? club.name : nil) { ExploreBlankPhoto() }
+                       hint: club.location != nil ? club.name : nil, maxWidth: 1200) { ExploreBlankPhoto() }
         } trailing: {
             Button {
                 Haptics.light()
@@ -589,7 +727,7 @@ private struct TrailExploreCard: View {
         } else if let localName = KnownLocalPhoto.name(forTitle: trail.title) {
             PhotoView(name: localName).scaledToFill()
         } else {
-            VenuePhoto(venueName: trail.title, hint: trail.location) { ExploreBlankPhoto() }
+            VenuePhoto(venueName: trail.title, hint: trail.location, maxWidth: 1200) { ExploreBlankPhoto() }
         }
     }
 
@@ -597,6 +735,55 @@ private struct TrailExploreCard: View {
         var m: [MetaItem] = []
         if let d = trail.difficulty, !d.isEmpty { m.append(MetaItem(icon: "figure.hiking", text: d, coral: true)) }
         if let l = trail.length, !l.isEmpty { m.append(MetaItem(icon: "ruler", text: l)) }
+        return m
+    }
+}
+
+private struct ParkExploreCard: View {
+    let park: Park
+    var openURL: (URL) -> Void
+
+    @State private var coord: CLLocationCoordinate2D?
+    @State private var showDetail = false
+
+    var body: some View {
+        Button {
+            Haptics.light()
+            showDetail = true
+        } label: {
+            ExploreCard(id: park.id, title: park.title, subtitle: park.address, meta: meta) {
+                photo
+            } trailing: {
+                Button {
+                    Haptics.light()
+                    let label = "\(park.title), \(park.address)"
+                    if let url = mapsURL(label: label, coord: coord) { openURL(url) }
+                } label: {
+                    exploreCircleIcon("map.fill")
+                }
+                .buttonStyle(PressableStyle(scale: 0.9))
+                .accessibilityLabel("Directions")
+            }
+        }
+        .buttonStyle(PressableStyle(scale: 0.98))
+        .task { coord = park.coordinate }   // curated pin — no geocode round-trip
+        .sheet(isPresented: $showDetail) { ParkDetailView(park: park) }
+    }
+
+    @ViewBuilder
+    private var photo: some View {
+        if let localName = KnownLocalPhoto.name(forTitle: park.title) {
+            PhotoView(name: localName).scaledToFill()
+        } else {
+            VenuePhoto(venueName: park.title, hint: park.address,
+                       coordinate: park.coordinate, maxWidth: 1200) { ExploreBlankPhoto() }
+        }
+    }
+
+    private var meta: [MetaItem] {
+        var m: [MetaItem] = []
+        if let acres = park.acres { m.append(MetaItem(icon: "leaf.fill", text: "\(acres) ac", coral: true)) }
+        if let first = park.features.first { m.append(MetaItem(icon: nil, text: first)) }
         return m
     }
 }

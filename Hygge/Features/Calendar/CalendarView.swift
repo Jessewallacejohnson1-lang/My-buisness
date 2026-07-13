@@ -83,7 +83,7 @@ struct CalendarView: View {
             }
         }
         .background(Hue.canvas)
-        .overlay(alignment: .bottomTrailing) { ComposeFAB(action: onCompose) }
+        // The compose "+" is now the ComposeSpeedDial, hosted by MainTabsView.
         .task { await model.load(api) }
         .onAppear { applyDebugLaunchState() }
         .sheet(item: $sheetDate) { key in
