@@ -562,3 +562,93 @@ captures customer data: **Welcome → Name → Interests → Avatar → Map fina
   garbled text). **Not yet driven end-to-end through a signed-in tap-through** (the
   Supabase upsert path mirrors the proven CommunityAPI RSVP/join upsert; schema+RLS
   verified) — recommend one live signed-in run to confirm the row + avatar upload.
+
+---
+
+## Sheet detents — three stops + a live peek ("the sheet is the app") — 2026-07-13
+
+Reworked `MapSheet` from a two-stop (peek/expanded) drawer into a **three-detent** sheet the
+grabber snaps between, and turned the collapsed state into a single glanceable status line
+instead of a clipped mini-list.
+
+- **Detents (`metrics(H)`):** `peek` = **120pt** (was 244) · `medium` = `max(peek+120, H*0.5)` ·
+  `full` = `max(medium+80, min(H*0.9, H-132))`. The `H-132` clamp stops `full` just below the map's
+  floating chrome (filter · town pill · compose) so it never half-clips them and a band of live
+  map is always visible — verified: at 0.9·H the chrome flat-topped against the sheet; the clamp
+  fixed it.
+- **Peek = one line (`peekLine`), not a list.** `StatusDot(live:)` — coral dot + slow breathing
+  ring (easeOut 1.8s, Reduce-Motion-gated) when `!liveEvents.isEmpty`, else a calm gray dot.
+  Copy comes off real data (`liveEvents`/`state`): a single live event shows its title + "Live
+  now · <where>"; multiple → "N happening now"; quiet → "A quiet day in St. Joe" / "Nothing live
+  right now"; loading/offline/error handled. Coral appears only when live/tappable (retry). A
+  soft `chevron.up` hints "pull up"; tapping the line lifts to `.medium` (or retries when offline).
+- **Line ⇄ list cross-fade.** A `ZStack` fades `peekLine` out and `listStack` in over a 0→1 `p`
+  computed across peek→medium; `allowsHitTesting`/`accessibilityHidden` flip at `p=0.5` so exactly
+  one layer is interactive. Between medium and full it's list-only.
+- **Momentum snap (`snap`).** Projects `translation + predictedEndTranslation*0.35` to a target
+  height and snaps to the nearest of the three rest heights (`containerH` captured off the layout
+  pass via `.onChange(of: H, initial: true)`). Selecting a spot lifts to `.full`; the detail back
+  button resets to `.peek`.
+- **A11y.** The grabber is an `accessibilityAdjustableAction` (VoiceOver swipe up/down steps a
+  detent via `step()`); `peekLine` is one combined element with label+hint.
+- **Ripple:** `SJMapView` floats help/recenter off `MapSheet.peekHeight` (now 120), so they drop to
+  hug the shorter peek automatically — confirmed in-sim (whole map + all pins revealed at peek).
+- **DEBUG:** added `-map-detent peek|medium|full` (`MapSheet.initialDetent()`) for headless
+  per-detent screenshots.
+- **Verified in-sim (iPhone 17):** builds clean (0 warnings); peek (quiet one-liner + full map),
+  medium (Today list ~50%), full (immersive list, chrome clear), and spot-detail (lifts to full,
+  save-bookmark + Directions) all screenshot correct. Live-peek state not screenshot-verified —
+  today's real data is quiet (no live events); the live path is code-reviewed only.
+
+**Adversarial review pass (same day).** Ran a 4-dimension multi-agent review (SwiftUI
+correctness · detent geometry · Emil motion-taste · regression/a11y/brand), each finding then
+adversarially verified. No correctness bugs. 5 polish findings confirmed and fixed:
+1. **Crossfade double-exposure** — peek line & list shared one linear `p`, crossing at 50/50 on a
+   slow scrub. Biased the two opacity curves (peek gone by p≈0.59, list in from p≈0.3) + a subtle
+   blur on the outgoing line, so one layer is always dominant.
+2. **Grabber a11y** — the adjustable grabber had no `accessibilityValue`, so VoiceOver announced
+   detent changes silently. Added a Peek/Half open/Full value.
+3. **`full` comment** — said "~90%" but on phones the `H*0.9` cap never binds (needs H>1320); it's
+   ~85% (a fixed 132pt below the top). Comment corrected; formula kept (defensive for iPad-class H).
+4. **Peek press** — full-row press dimmed content to 0.85 (read as greying); eased to 0.96.
+5. **`-map-sheet <mode>` debug flag** — at the new peek detent the list is hidden, so the flag showed
+   only the live-now line. `initialDetent()` now opens at `.medium` when `-map-sheet` is present.
+Rebuilt clean (MapSheet 0 warnings); `-map-sheet places` re-verified surfacing the Places list.
+
+---
+
+## Living Basemap — time-of-day + weather + season (2026-07-13)
+
+The map is now **alive before anyone touches it**. A single `TownAtmosphere = f(time, season,
+sky)` (new `Features/Map/Atmosphere/` group) modulates the basemap. Pure client-side — **no schema,
+no backend, no location permission** (anchored to `MapSpots.center`). Spec:
+`docs/superpowers/specs/2026-07-13-living-basemap-design.md`; plan: `docs/superpowers/plans/2026-07-13-living-basemap.md`.
+
+- **Time-of-day** — `SolarClock` computes St. Joe's real sunrise/sunset offline (NOAA sunrise
+  equation) → a continuous `dayFactor` + a named `phase`. Golden hour lands at the *real* hour
+  (St. Joe sunset swings ~9:09pm late-June → ~4:36pm late-Dec). Harness-checked against almanac:
+  Jun 21 5:28/21:09, Dec 21 7:54/16:36 (all within ±8 min).
+- **Season** — `SeasonClock`, meteorological, with a 15-day boundary blend.
+- **Weather** — `OpenMeteoWeatherProvider` (keyless URLSession GET) behind a `WeatherProvider`
+  protocol so **WeatherKit drops in later** (one file + one line). `CachedWeatherProvider` persists
+  the last snapshot in UserDefaults (20-min TTL) → instant on open + survives offline.
+- **What changes** — `BasemapPalette` recolors land/green/water/building (summer·noon·clear is a
+  byte-exact regression anchor of the old `MapPalette`); `TimeWashOverlay` glazes a low-opacity
+  time wash; `WeatherParticles` drifts snow / streaks rain (Canvas+TimelineView, Reduce-Motion
+  static); the town pill gains a weather **whisper** (`AtmosphereWhisper`, muted ink — never coral).
+  `recolorBasemap` now re-applies on every atmosphere change, not just style load.
+
+**Bugs caught + fixed during the build** (all via the swiftc harnesses before the sim): a
+`date(fromJulian:)` name-shadow, a longitude sign error (transit was ~13h off), and a UTC-day
+rollover in `phase()` (evening local = next UTC day grabbed tomorrow's sun times). All 6 pure-unit
+harnesses green.
+
+**Design-tuning pass (screenshot-driven).** First sim pass: low-light moods (night, dawn) read as
+flat grey because desaturation dominated. Fixed by differentiating *warm* low light (dawn/golden →
+amber/rose) from *cool* low light (dusk/night → blue-hour slate tint), raising the sat/bright
+floors, and strengthening the low-light washes. Re-verified: night = blue snowy evening, dawn =
+warm rain, dusk = violet, golden = amber, day = the preserved anchor.
+
+**Verified:** all 6 harnesses PASS; **build 0 warnings**; `-atmosphere` screenshot matrix
+(summer·day·clear = anchor, autumn·golden, winter·night·snow, spring·dawn·rain, overcast, dusk) all
+correct in the sim. `-atmosphere <k:v,…>` DEBUG flag forces any mood headlessly.
