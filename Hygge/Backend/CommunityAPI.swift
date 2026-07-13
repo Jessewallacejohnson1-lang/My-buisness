@@ -164,7 +164,8 @@ struct CommunityAPI {
         return events.map {
             UpcomingEvent(id: $0.id, title: $0.title, eventDate: $0.eventDate ?? "",
                           startTime: $0.startTime, location: $0.location,
-                          goingCount: counts[$0.id] ?? 0, createdAt: $0.createdAt ?? "")
+                          goingCount: counts[$0.id] ?? 0, createdAt: $0.createdAt ?? "",
+                          imageUrl: $0.imageUrl)
         }
     }
 
@@ -334,7 +335,8 @@ struct CommunityAPI {
         return events.map {
             UpcomingEvent(id: $0.id, title: $0.title, eventDate: $0.eventDate ?? "",
                           startTime: $0.startTime, location: $0.location,
-                          goingCount: counts[$0.id] ?? 0, createdAt: $0.createdAt ?? "")
+                          goingCount: counts[$0.id] ?? 0, createdAt: $0.createdAt ?? "",
+                          imageUrl: $0.imageUrl)
         }
     }
 

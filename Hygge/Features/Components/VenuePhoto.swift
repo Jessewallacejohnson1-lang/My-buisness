@@ -10,6 +10,7 @@
 //
 
 import SwiftUI
+import CoreLocation
 
 struct VenuePhoto<Blank: View>: View {
     /// The best-known actual venue name — e.g. a trail's title, or an event/club's
@@ -19,6 +20,16 @@ struct VenuePhoto<Blank: View>: View {
     /// Extra free text (an event/club's own title, a trail's location) that only
     /// helps the KnownVenues lookup — never used in the confidence name-check.
     var hint: String? = nil
+    /// A curated, human-verified coordinate for `venueName` (e.g. a city park's own
+    /// pin). When supplied we anchor Rule A's confidence check directly against it,
+    /// instead of routing `venueName` through the free-text KnownVenues lookup —
+    /// which lets fixed civic places (parks) resolve a photo without a KnownVenues
+    /// entry. nil → the free-text path.
+    var coordinate: CLLocationCoordinate2D? = nil
+    /// Requested pixel width, sized to the caller's render box (a 320pt hero wants
+    /// ~1600; a small shelf card ~700). Google Photo media is billed per request,
+    /// not per pixel, so a larger ask costs nothing extra.
+    var maxWidth: Int = 800
     @ViewBuilder var blank: () -> Blank
 
     @State private var photo: ConfidentPhoto?
@@ -27,7 +38,7 @@ struct VenuePhoto<Blank: View>: View {
         Group {
             if let cp = photo {
                 ZStack(alignment: .bottomTrailing) {
-                    AsyncImage(url: GooglePlacesService.shared.photoURL(name: cp.photoName, maxWidth: 500)) { phase in
+                    AsyncImage(url: GooglePlacesService.shared.photoURL(name: cp.photoName, maxWidth: maxWidth)) { phase in
                         switch phase {
                         case .success(let img): img.resizable().scaledToFill()
                         default: blank()
@@ -45,12 +56,23 @@ struct VenuePhoto<Blank: View>: View {
                 blank()
             }
         }
-        .task(id: "\(venueName)|\(hint ?? "")") {
+        .task(id: resolveKey) {
             // Clear first so a reused view identity (same card id, changed venue)
             // shows the blank() fallback immediately instead of the previous
             // venue's photo + attribution while the new lookup is in flight.
             photo = nil
-            photo = await GooglePlacesService.shared.confidentPhoto(forFreeText: venueName, hint: hint)
+            if let coordinate {
+                photo = await GooglePlacesService.shared.confidentPhoto(name: venueName, coordinate: coordinate)
+            } else {
+                photo = await GooglePlacesService.shared.confidentPhoto(forFreeText: venueName, hint: hint)
+            }
         }
+    }
+
+    /// Re-run the lookup only when what determines the *match* changes (name +
+    /// anchor). `maxWidth` only affects the media URL, not which photo resolves.
+    private var resolveKey: String {
+        if let c = coordinate { return "\(venueName)|\(c.latitude),\(c.longitude)" }
+        return "\(venueName)|\(hint ?? "")"
     }
 }

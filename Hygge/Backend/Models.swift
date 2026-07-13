@@ -63,6 +63,9 @@ struct UpcomingEvent: Identifiable, Hashable {
     let location: String?
     var goingCount: Int
     let createdAt: String
+    /// The organizer's own uploaded photo (club_events.image_url) — the truest
+    /// "photo of this event". Threaded through from RawEvent; nil when none.
+    var imageUrl: String? = nil
 }
 
 struct WeekEvent: Identifiable, Hashable {

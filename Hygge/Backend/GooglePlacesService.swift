@@ -136,7 +136,7 @@ final class GooglePlacesService {
 
         var req = URLRequest(url: url)
         req.setValue(GOOGLE_PLACES_API_KEY, forHTTPHeaderField: "X-Goog-Api-Key")
-        req.setValue("location,displayName,formattedAddress,currentOpeningHours,websiteUri,nationalPhoneNumber,photos.name,photos.authorAttributions",
+        req.setValue("location,displayName,formattedAddress,currentOpeningHours,websiteUri,nationalPhoneNumber,photos.name,photos.widthPx,photos.heightPx,photos.authorAttributions",
                      forHTTPHeaderField: "X-Goog-FieldMask")
 
         do {
@@ -144,10 +144,7 @@ final class GooglePlacesService {
             guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
             let resp = try JSONDecoder().decode(DetailsResponse.self, from: data)
             guard let loc = resp.location else { return nil }
-            let photo = resp.photos?.first.map {
-                PlacePhoto(name: $0.name,
-                           attributions: ($0.authorAttributions ?? []).compactMap { $0.displayName })
-            }
+            let photo = Self.bestScenicPhoto(resp.photos)
             let details = PlaceDetails(
                 coordinate: CLLocationCoordinate2D(latitude: loc.latitude, longitude: loc.longitude),
                 name: resp.displayName?.text ?? "",
@@ -160,6 +157,40 @@ final class GooglePlacesService {
             detailsCache[placeId] = details
             return details
         } catch { return nil }
+    }
+
+    // MARK: Scenic photo pick
+
+    /// Choose the most SCENIC of a place's up-to-10 photos using only the metadata
+    /// Google gives us (pixel dimensions + array order — never the pixels). Google
+    /// returns `photos[0]` as a conventional "cover" but the array isn't relevance-
+    /// ranked, and `.first` is often a logo, a menu, or an interior close-up. We
+    /// prefer a large, landscape-ish exterior shot (the kind that reads as "scenery
+    /// of the place"): drop near-square / portrait / tiny frames, then score what's
+    /// left on resolution, closeness to a ~1.6 hero aspect, and a mild early-index
+    /// bonus. If nothing clears the filter, fall back to Google's cover photo so we
+    /// never show nothing when a photo does exist.
+    private static func bestScenicPhoto(_ photos: [DetailsResponse.Photo]?) -> PlacePhoto? {
+        guard let photos, !photos.isEmpty else { return nil }
+        func make(_ p: DetailsResponse.Photo) -> PlacePhoto {
+            PlacePhoto(name: p.name, attributions: (p.authorAttributions ?? []).compactMap { $0.displayName })
+        }
+        var best: (score: Double, photo: DetailsResponse.Photo)?
+        for (i, p) in photos.enumerated() {
+            guard let w = p.widthPx, let h = p.heightPx, w > 0, h > 0 else { continue }
+            let aspect = Double(w) / Double(h)
+            let minDim = Double(min(w, h))
+            // Reject square/portrait (logos, menus, food/interior close-ups),
+            // ultra-panoramas (banners, floorplans), and anything too small to
+            // stay crisp when blown up to a hero.
+            guard aspect >= 1.15, aspect <= 2.4, minDim >= 480 else { continue }
+            let resolutionScore = min(Double(w), 2400) / 2400 * 40
+            let aspectScore = 30 - abs(aspect - 1.6) * 20
+            let positionScore = max(0, 10 - Double(i) * 1.5)
+            let score = resolutionScore + aspectScore + positionScore
+            if best == nil || score > best!.score { best = (score, p) }
+        }
+        return make(best?.photo ?? photos[0])
     }
 
     // MARK: Text search (geocode fallback only)
@@ -245,12 +276,20 @@ final class GooglePlacesService {
         if let inFlight = confidentPhotoInFlight[key] { return await inFlight.value }
 
         let task = Task { () -> ConfidentPhoto? in
-            guard let id = await self.search("\(name) St Joseph MN").first?.placeId,
-                  let d = await self.details(placeId: id),
-                  let photo = d.photo,
-                  self.isConfidentMatch(resolved: d, curatedName: name, curatedCoordinate: coordinate)
-            else { return nil }
-            return ConfidentPhoto(photoName: photo.name, attributions: photo.attributions)
+            // Google's first hit isn't always the right place — a "Monument Park"
+            // query can rank the (wrong) "Memorial Park" first and the real one
+            // third. Scan the top few, gate each on the 75 m + name match using the
+            // cheap search result, and only spend a details() call on a candidate
+            // that has already cleared the gate.
+            for candidate in await self.search("\(name) St Joseph MN").prefix(5) {
+                guard self.isConfidentMatch(resolvedName: candidate.name,
+                                            resolvedCoordinate: candidate.coordinate,
+                                            curatedName: name, curatedCoordinate: coordinate)
+                else { continue }
+                guard let d = await self.details(placeId: candidate.placeId), let photo = d.photo else { continue }
+                return ConfidentPhoto(photoName: photo.name, attributions: photo.attributions)
+            }
+            return nil
         }
         confidentPhotoInFlight[key] = task
         let result = await task.value
@@ -259,11 +298,12 @@ final class GooglePlacesService {
         return result
     }
 
-    private func isConfidentMatch(resolved: PlaceDetails, curatedName: String, curatedCoordinate: CLLocationCoordinate2D) -> Bool {
-        let a = CLLocation(latitude: resolved.coordinate.latitude, longitude: resolved.coordinate.longitude)
+    private func isConfidentMatch(resolvedName: String, resolvedCoordinate: CLLocationCoordinate2D,
+                                  curatedName: String, curatedCoordinate: CLLocationCoordinate2D) -> Bool {
+        let a = CLLocation(latitude: resolvedCoordinate.latitude, longitude: resolvedCoordinate.longitude)
         let b = CLLocation(latitude: curatedCoordinate.latitude, longitude: curatedCoordinate.longitude)
         guard a.distance(from: b) <= 75 else { return false }
-        return namesAlign(resolved.name, curatedName)
+        return namesAlign(resolvedName, curatedName)
     }
 
     private func namesAlign(_ a: String, _ b: String) -> Bool {
@@ -320,6 +360,8 @@ private struct DetailsResponse: Decodable {
     }
     struct Photo: Decodable {
         let name: String
+        let widthPx: Int?
+        let heightPx: Int?
         let authorAttributions: [Attribution]?
     }
     struct Attribution: Decodable { let displayName: String? }
