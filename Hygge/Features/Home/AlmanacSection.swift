@@ -1,13 +1,23 @@
 //
 //  AlmanacSection.swift
-//  Hygge — the Daily Almanac: reads out St. Joe's real day (sun + weather) and
-//  turns it into one low-bar nudge to step outside. The app's "health" pillar,
-//  rendered as PLACE — calm, neighborly, real data only (never a fake number).
+//  Hygge — the Daily Almanac: a warm time-of-day greeting (the "Coffee and Claude"
+//  hello) over St. Joe's real day (sun + weather), turned into one low-bar nudge to
+//  step outside. The app's "health" pillar, rendered as PLACE — calm, neighborly,
+//  real data only (never a fake number).
+//
+//  On the FIRST open of the day the card writes itself in front of the neighbor:
+//  the greeting types out char-by-char (soft coral caret), then the read writes in
+//  word-by-word underneath (see TypewriterText). Every later open the same day —
+//  and under Reduce Motion — it just renders, fully written, instantly. The once-a-
+//  day gate is AlmanacReveal (a UserDefaults day-stamp). DEBUG `-almanac-write`
+//  forces the write regardless of the stamp so it can be captured headlessly.
 //
 //  Sun + weather come from the shared WeatherService.current() (open-meteo, no
 //  key) that the WeatherBar above already primed, so this reads the 30-min cache
 //  — no second network trip. If the fetch never lands we show a calm, number-free
 //  line; if it lands without sun times we drop the clock words. We never invent.
+//  The write snapshots whichever read has resolved when the greeting finishes; a
+//  later AI-line upgrade lands on the next (static) open.
 //
 //  TODO: point the nudge at a live trail/event from CommunityAPI (getTrails /
 //  getTodayEvents) instead of the fixed Lake Wobegon Trail landmark below.
@@ -15,57 +25,213 @@
 
 import SwiftUI
 
+/// The once-a-day gate for the Almanac write, keyed on the device-local day.
+enum AlmanacReveal {
+    private static let key = "hygge.almanac.lastWrittenDay"
+
+    /// True on the first open of a new local day (no write recorded for today yet).
+    static func shouldWriteToday() -> Bool {
+        UserDefaults.standard.string(forKey: key) != DateHelpers.localDate()
+    }
+
+    static func markWrittenToday() {
+        UserDefaults.standard.set(DateHelpers.localDate(), forKey: key)
+    }
+}
+
 struct AlmanacSection: View {
+    /// The neighbor's first name, threaded from HomeModel so a profile edit keeps
+    /// the greeting in sync; falls back to the mirror / email locally.
+    var name: String?
+
     @EnvironmentObject private var auth: AuthStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     @State private var weather: Weather?
     @State private var aiLine: String?   // the shared AI day-summary; nil → template nudge
 
+    /// The write is a two-stage chain: stage 0 = greeting types, stage 1 = read
+    /// writes. `Int.max` means "no write" (a later open, or Reduce Motion) — every
+    /// line renders `.shown`. Seeded in `init` from the day-stamp so the very first
+    /// frame is already correct (no flash of the finished card before it animates).
+    @State private var activeStage: Int
+    /// The read snapshotted the instant the greeting finishes, so an AI-line upgrade
+    /// arriving mid-write can't re-wrap the text under the cursor.
+    @State private var frozenRead: AttributedString?
+    /// The greeting snapshotted at write start, so an async name load (HomeModel) that
+    /// resolves to a different name can't swap the greeting out from under the cursor.
+    @State private var frozenGreeting: AttributedString?
+
+    init(name: String? = nil) {
+        self.name = name
+        var write = AlmanacReveal.shouldWriteToday()
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-almanac-write") { write = true }
+        #endif
+        _activeStage = State(initialValue: write ? 0 : Int.max)
+    }
+
     var body: some View {
-        let nudge = Almanac.nudge(for: weather)
-        return VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 7) {
-                Image(systemName: nudge.icon)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(nudge.iconTint)
-                Text("ALMANAC")
+                Image(systemName: "cup.and.saucer.fill")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Hue.accent)
+                Text(DailyGreeting.part().rawValue)
                     .font(.mono(11))
                     .tracking(1.5)
                     .foregroundStyle(Hue.ink3)
             }
 
-            if let aiLine {
-                // The shared, AI-written read of the day. Numbers still land in Geist
-                // Mono (tinted with the day's mood color) so it matches the template.
-                Text(Almanac.styled(aiLine, numberTint: nudge.iconTint))
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                Text(nudge.line)
-                    .fixedSize(horizontal: false, vertical: true)
+            // The greeting — types char-by-char with a soft coral caret on day one.
+            TypewriterText(
+                content: greetingContent,
+                mode: .character,
+                state: greetingState,
+                perUnit: 0.032,
+                startDelay: 0.5,           // let the card's spring settle first
+                showsCaret: true,
+                caretFont: .system(size: 20, weight: .semibold),
+                onFinished: greetingDone
+            )
+            .fixedSize(horizontal: false, vertical: true)
 
-                Text(nudge.detail)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if let pointer = nudge.pointer {
-                    Text(pointer)
-                        .font(.sans(13))
-                        .foregroundStyle(Hue.ink3)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
+            // The read-of-the-day — writes in word-by-word underneath the greeting.
+            TypewriterText(
+                content: readContent,
+                mode: .word,
+                state: readState,
+                perUnit: 0.045,
+                startDelay: 0.1,
+                onFinished: readDone
+            )
+            .lineSpacing(5)
+            .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18)
-        .background(Hue.paper100)
+        .background(Hue.paper)
         .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous).stroke(Hue.accent, lineWidth: 1.5))
+        .modifier(CardShadow())
         .task {
             // Template shows instantly; both fetches ride their own caches and the
-            // AI line upgrades the copy in place when it lands.
+            // AI line upgrades the copy in place when it lands (on a later open).
             async let w = WeatherService.current()
             async let l = DailyAlmanac.line(auth: auth)
             weather = await w
             aiLine = await l
         }
+        // When the day's data lands, write the real read (fires in the update cycle
+        // with fresh state — unlike a detached Task, which would read @State stale).
+        .onChange(of: readDataArrived) { _, arrived in
+            if arrived { startRead() }
+        }
+        // Fallback: if the fetch never lands, write the calm template after a grace.
+        // Keyed on activeStage, so it auto-cancels the moment the read actually starts.
+        .task(id: activeStage) {
+            guard activeStage == 1 else { return }
+            try? await Task.sleep(for: .seconds(3.0))
+            if !Task.isCancelled { startRead(force: true) }
+        }
+        .onAppear {
+            // A writing day was seeded in init. Reduce Motion collapses it to a plain
+            // (instant) render; otherwise freeze the greeting (so a late name load can't
+            // change it mid-type) and stamp today so it writes only once.
+            guard activeStage == 0 else { return }
+            if reduceMotion && !forceWrite {
+                activeStage = Int.max
+                return
+            }
+            frozenGreeting = liveGreeting
+            if !forceWrite { AlmanacReveal.markWrittenToday() }
+        }
+    }
+
+    // MARK: - Content
+
+    private var resolvedName: String? {
+        name ?? Interests.displayName ?? firstNameFromEmail(auth.email)
+    }
+
+    /// Frozen for the write (so a late name load can't change it mid-type); live for a
+    /// static open so it always reflects the current name.
+    private var greetingContent: AttributedString {
+        if activeStage == Int.max { return liveGreeting }
+        return frozenGreeting ?? liveGreeting
+    }
+
+    private var liveGreeting: AttributedString {
+        var a = AttributedString(DailyGreeting.line(name: resolvedName))
+        a.font = .displaySemi(20)
+        a.foregroundColor = Hue.ink
+        return a
+    }
+
+    /// Live during a normal open (so the AI line upgrades in place) and while the
+    /// read reserves its height; frozen the moment the write reaches it.
+    private var readContent: AttributedString {
+        if activeStage == Int.max { return liveRead() }   // static open
+        return frozenRead ?? liveRead()
+    }
+
+    private func liveRead() -> AttributedString {
+        let nudge = Almanac.nudge(for: weather)
+        if let aiLine {
+            return Almanac.styled(aiLine, numberTint: nudge.iconTint)
+        }
+        return Almanac.readBlock(nudge)
+    }
+
+    // MARK: - Write chain
+    //
+    // Stages: 0 = greeting types · 1 = greeting done, read pending (held until the
+    // day's data lands) · 2 = read writes · 3 = done · Int.max = static (no write).
+    // The greeting types faster (~1.3s) than a cold weather fetch, so the read waits
+    // in stage 1 and only writes the REAL read — never the pre-fetch fallback.
+
+    private var readDataArrived: Bool { weather != nil || aiLine != nil }
+
+    private var greetingState: TypewriterState {
+        if activeStage == Int.max { return .shown }
+        return activeStage == 0 ? .writing : .shown
+    }
+
+    private var readState: TypewriterState {
+        if activeStage == Int.max { return .shown }
+        if activeStage < 2 { return .hidden }      // greeting writing, or read pending
+        return activeStage == 2 ? .writing : .shown
+    }
+
+    /// Greeting finished → move to "read pending", then start immediately only if the
+    /// data is already here (otherwise onChange / the timeout will start it).
+    private func greetingDone() {
+        guard activeStage == 0 else { return }
+        activeStage = 1
+        startRead()
+    }
+
+    /// Snapshot the read (freezing out any later AI-line churn) and write it. Gated on
+    /// the data having arrived so we never write the pre-fetch fallback while the real
+    /// read is still in flight — `force` (the timeout) writes the calm fallback anyway
+    /// if the fetch never lands. Guarded on stage 1 so every caller is safe.
+    private func startRead(force: Bool = false) {
+        guard activeStage == 1, force || readDataArrived else { return }
+        frozenRead = liveRead()
+        activeStage = 2
+    }
+
+    private func readDone() {
+        guard activeStage == 2 else { return }
+        activeStage = 3
+    }
+
+    private var forceWrite: Bool {
+        #if DEBUG
+        return ProcessInfo.processInfo.arguments.contains("-almanac-write")
+        #else
+        return false
+        #endif
     }
 }
 
@@ -187,6 +353,20 @@ enum Almanac {
     private static func heroNum(_ s: String, _ tint: Color) -> AttributedString { run(s, .monoMedium(19), tint) }
     private static func body(_ s: String) -> AttributedString { run(s, .sans(15), Hue.ink2) }
     private static func bodyNum(_ s: String) -> AttributedString { run(s, .monoMedium(14), Hue.ink2) }
+
+    /// The template read as ONE attributed block (hero + detail + optional pointer),
+    /// so the daily "write" can reveal it word-by-word as a single flowing set of
+    /// lines. Each run keeps its own font, so the hierarchy survives concatenation.
+    static func readBlock(_ nudge: Nudge) -> AttributedString {
+        var out = nudge.line
+        out += run("\n", .sans(15), Hue.ink2)
+        out += nudge.detail
+        if let pointer = nudge.pointer {
+            out += run("\n", .sans(13), Hue.ink3)
+            out += run(pointer, .sans(13), Hue.ink3)
+        }
+        return out
+    }
 
     /// Render an AI-written line: numeric runs (times, temps, counts) in Geist Mono
     /// tinted with the day's mood color, prose in DM Sans — so the AI line honors

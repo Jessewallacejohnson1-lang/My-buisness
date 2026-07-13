@@ -1,12 +1,20 @@
 //
 //  HomeView.swift
-//  Hygge — Home / Timeline. Masthead, weather, today's events, around town, quest.
+//  Hygge — Home / Timeline. Masthead, almanac, today's events, around town.
 //
 
 import SwiftUI
 
 struct HomeView: View {
     var onCompose: (() -> Void)?
+    /// The single top-right button → the town menu drawer (a corner "genie"
+    /// reveal owned by MainTabsView so it can sit above the tab bar).
+    var onMenu: (() -> Void)?
+    /// Mirrors the drawer's presented state so the masthead's dots restore on close.
+    var menuOpen: Bool = false
+    /// Mirrors the profile sheet's presented state so the greeting refreshes when
+    /// it closes (a name edit writes Interests.displayName synchronously).
+    var profileShown: Bool = false
     @Binding var expandedPlace: Place?
     var cardNS: Namespace.ID
 
@@ -18,58 +26,37 @@ struct HomeView: View {
     @State private var revealed = false
     /// False only during a refresh collapse, so the reset is instant (see refresh).
     @State private var revealAnimated = true
-    /// The community profile sheet (opened from the Masthead's person button).
-    @State private var showProfile = HomeView.debugOpenProfile()
 
     private var api: CommunityAPI { CommunityAPI(auth: auth) }
-
-    /// DEBUG-only: `-open-profile` presents the profile sheet on launch so it can
-    /// be screenshotted headlessly. No effect in release or without the flag.
-    private static func debugOpenProfile() -> Bool {
-        #if DEBUG
-        return ProcessInfo.processInfo.arguments.contains("-open-profile")
-        #else
-        return false
-        #endif
-    }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 18) {
-                Masthead(name: model.name, onAdd: onCompose, onProfile: { showProfile = true })
+                Masthead(onMenu: onMenu, menuOpen: menuOpen)
                     .padding(.horizontal, 18)
                     .padding(.top, 8)
                     .springReveal(0, revealed: revealed, animated: revealAnimated)
 
-                TodayInStJoeCard(content: model.board)
+                // Weather in its own little bar, with the weather-reactive
+                // background brought back — sits right above the almanac.
+                WeatherBar()
                     .padding(.horizontal, 18)
                     .springReveal(1, revealed: revealed, animated: revealAnimated)
 
-                // Real, actionable "today" sits directly under the hero — the one
-                // section a neighbor opens for. (The almanac's day-nudge now lives
-                // inside the hero above, so the day is read once, not twice.)
-                todaySection
+                // The daily almanac — a warm time-of-day greeting over the read-of-
+                // the-day, in a white card with the coral accent border. On the first
+                // open of the day it writes itself in (greeting types, read follows).
+                AlmanacSection(name: model.name)
                     .padding(.horizontal, 18)
                     .springReveal(2, revealed: revealed, animated: revealAnimated)
 
-                AroundTownCarousel(expanded: $expandedPlace, ns: cardNS)
+                // Real, actionable "today" — the one section a neighbor opens for.
+                todaySection
+                    .padding(.horizontal, 18)
                     .springReveal(3, revealed: revealed, animated: revealAnimated)
 
-                // Gated on `loaded`: a fresh HomeModel (every return to the Today tab
-                // recreates it) starts weekGoing=0 / quest=nil, so rendering these
-                // before the first fetch resolves would flash a false "Quiet week" /
-                // "no quest" every visit. Hold until real data has arrived.
-                if model.loaded {
-                    RollCallSection(count: model.weekGoing)
-                        .padding(.horizontal, 18)
-                        .springReveal(4, revealed: revealed, animated: revealAnimated)
-
-                    QuestSection(quest: model.quest, count: model.questCount, done: model.questDone) {
-                        Task { await model.completeQuest(api) }
-                    }
-                    .padding(.horizontal, 18)
-                    .springReveal(5, revealed: revealed, animated: revealAnimated)
-                }
+                AroundTownCarousel(expanded: $expandedPlace, ns: cardNS)
+                    .springReveal(4, revealed: revealed, animated: revealAnimated)
 
                 Color.clear.frame(height: 96)
             }
@@ -87,10 +74,9 @@ struct HomeView: View {
         .task { await model.load(api) }
         // Springs in when Today first appears and each time it's returned to.
         .onAppear { revealed = true }
-        .sheet(isPresented: $showProfile) { ProfileView() }
         // A name edit in the profile writes Interests.displayName synchronously;
-        // pick it up when the sheet closes so the greeting stays in sync.
-        .onChange(of: showProfile) { _, shown in
+        // pick it up when the genie closes so the greeting stays in sync.
+        .onChange(of: profileShown) { _, shown in
             if !shown { model.name = Interests.displayName ?? firstNameFromEmail(auth.email) }
         }
     }
