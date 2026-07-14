@@ -69,6 +69,30 @@ export type UpcomingEvent = {
   created_at: string
 }
 
+/**
+ * Event category taxonomy — the shared vocabulary for `club_events.category`
+ * (needs migration-event-category.sql). Mirrors the INTERESTS ids in
+ * apps/mobile/src/lib/interests.ts so category and interest matching share one
+ * list, and keeps the native iOS twin (EventCategory enum) in sync. Stored as
+ * free text; a null / legacy / unknown value is treated as 'other'.
+ */
+export type EventCategory =
+  | 'outdoors'
+  | 'music_arts'
+  | 'food'
+  | 'families'
+  | 'faith'
+  | 'sports'
+  | 'books'
+  | 'service'
+  | 'games'
+  | 'other'
+
+export const EVENT_CATEGORIES: readonly EventCategory[] = [
+  'outdoors', 'music_arts', 'food', 'families', 'faith',
+  'sports', 'books', 'service', 'games', 'other',
+]
+
 export type NewEventInput = {
   title: string
   event_date: string // YYYY-MM-DD
@@ -76,6 +100,7 @@ export type NewEventInput = {
   location: string
   description?: string
   image_url?: string // optional event image (needs migration-event-images.sql)
+  category?: EventCategory // optional event category (needs migration-event-category.sql)
 }
 
 export type PostKind = 'event' | 'trail'
