@@ -652,3 +652,46 @@ warm rain, dusk = violet, golden = amber, day = the preserved anchor.
 **Verified:** all 6 harnesses PASS; **build 0 warnings**; `-atmosphere` screenshot matrix
 (summer·day·clear = anchor, autumn·golden, winter·night·snow, spring·dawn·rain, overcast, dusk) all
 correct in the sim. `-atmosphere <k:v,…>` DEBUG flag forces any mood headlessly.
+
+---
+
+## Map pin hierarchy — recede the many, surface the few (2026-07-13)
+
+The map read flat: every spot pin rendered at full weight, so nothing earned attention. Rebuilt the
+pins as a **layer-based hierarchy** (Snapchat-/Life360-style) driven by **one state enum**.
+
+**One enum, one place.** `PinDisplay` (`Features/Map/PinDisplay.swift`) with
+`resolve(isSelected:isLive:isSaved:)` and precedence **selected > live > saved > rest** — the sole
+place pin state is computed. `isLive` keeps the existing live-glow rule (`DateHelpers.isLiveNow`);
+`isSaved` reads `SavedStore` (shared with Explore). No new model fields, no schema, no invented columns.
+
+**Layer-based, not per-pin views** (so it scales as spots grow):
+- One GeoJSON source (`hygge-pins`); each feature carries `state` + `sortKey` + a stable `id`.
+- **Rest** → a `CircleLayer` 6pt dot (`circle-radius 3`), muted `mapInk`, 0.5pt contrasting stroke —
+  recessive, visible at all zooms, no label.
+- **Awake** (saved/live/selected) → a full badge (`MapViewAnnotation`, spring awake + live pulse,
+  Reduce-Motion aware) + a `SymbolLayer` name label.
+- **Selection flips ONE feature-state** (`selected`) via `setFeatureState` — never re-renders the
+  annotation array. Data updates re-assert it (`applySelectionState`).
+
+**Labels (non-negotiable: never overlap).** `SymbolLayer` with `text-allow-overlap: false` +
+`symbol-sort-key` matching precedence, so higher-priority pins win the collision and lower-priority
+labels drop. Labels cross-fade across the zoom threshold **T = 14.5** (`interpolate` 14.3→0, 14.5→1);
+rest dots stay at all zooms; a selected pin's label is always-on (drawn by the overlay).
+
+**Bugs caught + fixed during screenshot verification:**
+- **Labels rendered nothing.** The `text-opacity` expression nested `["zoom"]` inside `["case"]`,
+  which Mapbox forbids (zoom must be top-level) → `addLayer(labels)` threw into a silent `catch`.
+  Restructured so `zoom` is the outer `interpolate` and the selected-hide rides each stop's output
+  (`hideIfSelected`). Labels appeared.
+- **Two warnings**: `updateGeoJSONSource` doesn't throw in Mapbox v11 → dropped the `try`/`try?`.
+- Label sat under the 44pt badge → bumped `text-offset` to clear it.
+
+**New DEBUG flags** (headless screenshotting): `-map-zoom <z>`, `-map-save <spotid>` (repeatable),
+`-map-force-live <spotid>` (repeatable). See CLAUDE.md.
+
+**Verified:** **build 0 warnings**; 7 states screenshot-confirmed in the sim — z12 all-rest dots ·
+z14.5 threshold (label fading in) · z16 label on · Millstream **saved** (ink bookmark) · downtown
+**live** (coral + pulse + label) · **selected** (detail sheet + save toggle) · dense cluster (two
+labels, **no collision**). Coral stays reserved for live; saved uses ink. The selected on-map badge
+is verified by mechanism (the sheet lifts over it in normal use).
