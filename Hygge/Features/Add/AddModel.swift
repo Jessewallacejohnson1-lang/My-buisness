@@ -28,6 +28,7 @@ final class AddModel: ObservableObject {
     @Published var eventDate = Date()
     @Published var time = AddModel.defaultEveningTime()
     @Published var repeatWeeklyCount = 1
+    @Published var category: EventCategory = .other
 
     // Club
     @Published var host = ""
@@ -107,7 +108,8 @@ final class AddModel: ObservableObject {
                     let date = Calendar.current.date(byAdding: .day, value: 7 * i, to: eventDate) ?? eventDate
                     let input = NewEventInput(title: t, eventDate: DateHelpers.localDate(date),
                                               startTime: startTimeString, location: loc,
-                                              description: desc.isEmpty ? nil : desc, imageUrl: imageUrl)
+                                              description: desc.isEmpty ? nil : desc, imageUrl: imageUrl,
+                                              category: self.category.rawValue)
                     try await api.addEvent(input, clubId: nil, status: status)
                     postedWeeks.insert(i)   // mark landed so a retry doesn't re-post this week
                 }

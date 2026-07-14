@@ -83,6 +83,7 @@ struct AddFormView: View {
 
             VenueAutocompleteField(label: "Where", placeholder: "Church of St. Joseph, Minnesota St",
                                    text: $model.location, curated: KnownVenues.suggestions)
+            categoryField
             labeledField("Details", $model.details, placeholder: "Anything neighbors should know (optional)", multiline: true)
 
             Stepper(value: $model.repeatWeeklyCount, in: 1...8) {
@@ -115,6 +116,47 @@ struct AddFormView: View {
             }
             labeledField("Details", $model.details, placeholder: "Describe the route (optional)", multiline: true)
         }
+    }
+
+    // MARK: - Category picker (horizontal chip row)
+
+    /// A scannable chip row — each chip previews its category's real tint + glyph
+    /// (the same icon the calendar day view renders), so the composer and the
+    /// calendar speak the same visual language. Default `.other`.
+    private var categoryField: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Category").font(.sansMedium(12)).foregroundStyle(Hue.ink3)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(EventCategory.allCases) { categoryChip($0) }
+                }
+                .padding(.horizontal, 2).padding(.vertical, 2)
+            }
+        }
+    }
+
+    private func categoryChip(_ cat: EventCategory) -> some View {
+        let selected = model.category == cat
+        return Button {
+            Haptics.selection()
+            model.category = cat
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: cat.glyph)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(selected ? .white : cat.tint)
+                Text(cat.label)
+                    .font(.sansMedium(13))
+                    .foregroundStyle(selected ? .white : Hue.ink2)
+            }
+            .padding(.horizontal, 12).padding(.vertical, 8)
+            .background(Capsule().fill(selected ? cat.tint : Hue.paper))
+            .overlay(Capsule().stroke(selected ? Color.clear : Hue.hairline, lineWidth: 1))
+            .animation(.easeOut(duration: 0.16), value: selected)
+        }
+        .buttonStyle(PressableStyle(scale: 0.94))
+        .accessibilityLabel("\(cat.label) category")
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 
     // MARK: - Pieces

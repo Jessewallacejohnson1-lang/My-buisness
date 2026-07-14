@@ -53,6 +53,12 @@ struct TimelineEvent: Identifiable, Hashable {
     var rsvpd: Bool
     let clubName: String?
     let fromJoinedClub: Bool
+    /// The organizer's blurb (club_events.description) — surfaced when a calendar
+    /// day row is tapped. Defaulted so the two existing constructors need not change.
+    var details: String? = nil
+    /// The event's category → its calendar icon (tint + glyph). Defaults to `.other`
+    /// so existing constructors compile unchanged and null/legacy rows read cleanly.
+    var category: EventCategory = .other
 }
 
 struct UpcomingEvent: Identifiable, Hashable {
@@ -158,6 +164,7 @@ struct NewEventInput {
     var location: String
     var description: String?
     var imageUrl: String?
+    var category: String = EventCategory.other.rawValue   // club_events.category text
 }
 
 struct NewTrailInput {
@@ -196,6 +203,8 @@ struct RawEvent: Decodable {
     let status: ClubStatus?
     let clubId: String?
     let createdAt: String?
+    /// club_events.category (nullable). Absent/legacy rows decode to nil → `.other`.
+    let category: String?
     let clubs: ClubRef?
 
     struct ClubRef: Decodable { let name: String? }

@@ -149,7 +149,9 @@ struct CommunityAPI {
             TimelineEvent(id: e.id, title: e.title, startTime: e.startTime, location: e.location,
                           goingCount: counts[e.id] ?? 0, rsvpd: mine.contains(e.id),
                           clubName: e.clubs?.name,
-                          fromJoinedClub: e.clubId != nil ? joined.contains(e.clubId!) : false)
+                          fromJoinedClub: e.clubId != nil ? joined.contains(e.clubId!) : false,
+                          details: e.description,
+                          category: EventCategory.from(e.category))
         }
     }
 
@@ -217,7 +219,7 @@ struct CommunityAPI {
             var b: [String: Any] = [
                 "title": input.title, "event_date": input.eventDate, "start_time": input.startTime,
                 "location": input.location, "submitted_by": uid, "status": status.rawValue,
-                "club_id": clubId ?? NSNull(),
+                "club_id": clubId ?? NSNull(), "category": input.category,
             ]
             if let v = input.description { b["description"] = v }
             if includeImage, let v = input.imageUrl { b["image_url"] = v }
