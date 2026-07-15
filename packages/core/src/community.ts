@@ -147,7 +147,8 @@ export function createCommunityApi(supabase: SupabaseClient, adminEmail = DEFAUL
     }
     return (events ?? []).map((e) => ({
       id: e.id, title: e.title, event_date: e.event_date, start_time: e.start_time ?? null,
-      location: e.location ?? null, going_count: counts.get(e.id) ?? 0, created_at: e.created_at,
+      location: e.location ?? null, going_count: counts.get(e.id) ?? 0,
+      image_url: e.image_url ?? null, created_at: e.created_at,
     }))
   }
 

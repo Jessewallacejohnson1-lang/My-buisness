@@ -66,6 +66,7 @@ export type UpcomingEvent = {
   start_time: string | null
   location: string | null
   going_count: number
+  image_url: string | null // optional event photo (migration-event-images.sql); usually null
   created_at: string
 }
 

@@ -7,7 +7,8 @@ import { isAdminEmail, localDate, type ClubView, type ClubRow, type NewEventInpu
 import { api } from '../../lib/api'
 import { supabase } from '../../lib/supabase'
 import { getInterests, matchesInterests } from '../../lib/interests'
-import { SearchIcon, PlusIcon, PinIcon } from '../../components/icons'
+import { SearchIcon, PlusIcon, PinIcon, EventIcon, ClubIcon, TrailIcon, SunArcIcon } from '../../components/icons'
+import { ActivityTile, ActivityTileSkeleton } from '../../components/ActivityTile'
 import { BottomSheet } from '../../components/ui/bottom-sheet'
 import { openInMaps, copyAddress } from '../../lib/maps'
 import { ScreenBadge } from '../../components/ScreenBadge'
@@ -24,25 +25,11 @@ const FILTERS: { id: FilterId; label: string }[] = [
   { id: 'clubs', label: 'Clubs' },
   { id: 'trails', label: 'Trails' },
 ]
-// Sort options adapt to the active filter; the first is the default.
-const SORTS: Record<FilterId, { key: string; label: string }[]> = {
-  all: [{ key: 'newest', label: 'Newest' }, { key: 'az', label: 'A–Z' }],
-  events: [{ key: 'date', label: 'Date' }, { key: 'az', label: 'A–Z' }],
-  clubs: [{ key: 'members', label: 'Members' }, { key: 'az', label: 'A–Z' }, { key: 'newest', label: 'Newest' }],
-  trails: [{ key: 'distance', label: 'Distance' }, { key: 'difficulty', label: 'Difficulty' }, { key: 'az', label: 'A–Z' }],
-}
-
 /** First number found in the free-text length, e.g. "2.3–5.9 mi" → 2.3. Unparseable sorts last. */
 function parseMiles(s: string | null): number {
   if (!s) return Infinity
   const m = s.match(/(\d+(?:\.\d+)?)/)
   return m ? parseFloat(m[1]) : Infinity
-}
-const DIFF_RANK: Record<string, number> = { easy: 1, moderate: 3, intermediate: 3, hard: 4, difficult: 4 }
-function difficultyRank(s: string | null): number {
-  if (!s) return 99
-  const first = s.toLowerCase().split(/[\s–-]+/)[0]
-  return DIFF_RANK[first] ?? 50
 }
 function formatEventDate(ymd: string): string {
   const [y, m, d] = ymd.split('-').map(Number)
@@ -59,13 +46,13 @@ export default function Activities() {
   const [refreshing, setRefreshing] = useState(false)
   const [selected, setSelected] = useState<ClubView | null>(null)
   const [selectedTrail, setSelectedTrail] = useState<Trail | null>(null)
+  const [selectedEvent, setSelectedEvent] = useState<UpcomingEvent | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [interests, setInterestsState] = useState<string[]>([])
   const [events, setEvents] = useState<UpcomingEvent[]>([])
   const [filter, setFilter] = useState<FilterId>('all')
-  const [sort, setSort] = useState<string>('newest')
 
-  const pickFilter = (f: FilterId) => { Haptics.selectionAsync(); setFilter(f); setSort(SORTS[f][0].key) }
+  const pickFilter = (f: FilterId) => { Haptics.selectionAsync(); setFilter(f) }
 
   const load = useCallback(async (admin: boolean) => {
     const [list, trailList, eventList] = await Promise.all([api.getApprovedClubs(), api.getTrails(), api.getUpcomingEvents()])
@@ -144,23 +131,16 @@ export default function Activities() {
   const trailsF = trails.filter((t) => matchQ(`${t.title} ${t.location ?? ''} ${t.length ?? ''} ${t.difficulty ?? ''} ${t.description ?? ''}`))
   const eventsF = events.filter((e) => matchQ(`${e.title} ${e.location ?? ''}`))
 
-  const sortClubs = (l: ClubView[]) => [...l].sort((a, b) =>
-    sort === 'members' ? b.member_count - a.member_count
-    : sort === 'az' ? a.name.localeCompare(b.name)
-    : b.created_at.localeCompare(a.created_at))
-  const sortTrails = (l: Trail[]) => [...l].sort((a, b) =>
-    sort === 'distance' ? parseMiles(a.length) - parseMiles(b.length)
-    : sort === 'difficulty' ? difficultyRank(a.difficulty) - difficultyRank(b.difficulty)
-    : a.title.localeCompare(b.title))
-  const sortEvents = (l: UpcomingEvent[]) => [...l].sort((a, b) =>
-    sort === 'az' ? a.title.localeCompare(b.title) : a.event_date.localeCompare(b.event_date))
-  // In the "All" view the sort keys are newest|az, applied to each section.
-  const allSort = <T extends { created_at?: string }>(l: T[], nameOf: (x: T) => string) => [...l].sort((a, b) =>
-    sort === 'az' ? nameOf(a).localeCompare(nameOf(b)) : (b.created_at ?? '').localeCompare(a.created_at ?? ''))
-
-  const shownClubs = filter === 'all' ? allSort(clubsF, (c) => c.name) : sortClubs(clubsF)
-  const shownTrails = filter === 'all' ? allSort(trailsF, (t) => t.title) : sortTrails(trailsF)
-  const shownEvents = filter === 'all' ? allSort(eventsF, (e) => e.title) : sortEvents(eventsF)
+  const matchClub = (c: ClubView) => matchesInterests(`${c.name} ${c.host ?? ''} ${c.vibe ?? ''} ${c.schedule ?? ''} ${c.description ?? ''}`, interests)
+  const matchTrail = (t: Trail) => matchesInterests(`${t.title} ${t.location ?? ''} ${t.description ?? ''}`, interests, true)
+  // Smart per-filter defaults (no visible sort control): events by date, clubs
+  // A–Z, trails by distance. In the All view, quietly float the viewer's
+  // interest-matches to the top of the clubs & trails groups — personalization
+  // without an algorithmic-feed label.
+  const flt = filter === 'all'
+  const shownEvents = [...eventsF].sort((a, b) => a.event_date.localeCompare(b.event_date))
+  const shownClubs = [...clubsF].sort((a, b) => (flt ? (matchClub(b) ? 1 : 0) - (matchClub(a) ? 1 : 0) : 0) || a.name.localeCompare(b.name))
+  const shownTrails = [...trailsF].sort((a, b) => (flt ? (matchTrail(b) ? 1 : 0) - (matchTrail(a) ? 1 : 0) : 0) || parseMiles(a.length) - parseMiles(b.length))
   const visibleCount = filter === 'events' ? shownEvents.length
     : filter === 'clubs' ? shownClubs.length
     : filter === 'trails' ? shownTrails.length
@@ -168,26 +148,19 @@ export default function Activities() {
 
   const hasPending = isAdmin && (pendingPosts.length > 0 || pendingClubs.length > 0)
 
-  // "Suggested for you" — keyword-match the viewer's onboarding interests (real matches only). All view, no search.
-  const suggestedClubs = clubs.filter((c) =>
-    matchesInterests(`${c.name} ${c.host ?? ''} ${c.vibe ?? ''} ${c.schedule ?? ''} ${c.description ?? ''}`, interests))
-  const suggestedTrails = trails.filter((t) =>
-    matchesInterests(`${t.title} ${t.location ?? ''} ${t.description ?? ''}`, interests, true))
-  const hasSuggested = !loading && filter === 'all' && !q && (suggestedClubs.length > 0 || suggestedTrails.length > 0)
-
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: C.paper }}>
       <ScreenBadge />
       <ScrollView contentContainerStyle={{ paddingBottom: 130 }} keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.ink3} />}>
         <View style={{ paddingHorizontal: 20, paddingTop: 14, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: HAIRLINE }}>
-          <Text style={{ fontWeight: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.8, textTransform: 'uppercase', marginBottom: 3 }}>Find your people</Text>
-          <Text style={{ fontWeight: F.display, fontSize: 26, color: C.ink, marginBottom: 16 }}>Activities</Text>
+          <Text style={{ fontWeight: F.display, fontSize: 26, color: C.ink }}>Activities</Text>
+          <Text style={{ fontWeight: F.sans, fontSize: 14, color: C.ink2, marginTop: 3, marginBottom: 16 }}>Clubs, events, and trails around St. Joe.</Text>
 
           {/* Search */}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, height: 48, borderRadius: 12, paddingHorizontal: 14, backgroundColor: C.paper100, borderWidth: 1, borderColor: HAIRLINE }}>
             <SearchIcon color={C.ink3} />
-            <TextInput value={query} onChangeText={setQuery} placeholder="Search clubs & activities…" placeholderTextColor={C.ink2}
+            <TextInput value={query} onChangeText={setQuery} placeholder="Search St. Joe…" placeholderTextColor={C.ink3}
               style={{ flex: 1, fontWeight: F.sans, fontSize: 15, color: C.ink }} autoCapitalize="none" />
           </View>
 
@@ -197,22 +170,9 @@ export default function Activities() {
               const active = f.id === filter
               return (
                 <Pressable key={f.id} onPress={() => pickFilter(f.id)} hitSlop={6}
+                  accessibilityRole="button" accessibilityState={{ selected: active }}
                   style={{ minHeight: 44, paddingHorizontal: 16, justifyContent: 'center', borderRadius: 22, borderWidth: active ? 0 : 1, borderColor: HAIRLINE, backgroundColor: active ? C.ink : 'transparent' }}>
                   <Text style={{ fontWeight: active ? F.sansSemi : F.sansMed, fontSize: 13.5, color: active ? C.paper : C.ink2 }}>{f.label}</Text>
-                </Pressable>
-              )
-            })}
-          </ScrollView>
-
-          {/* Sort — chips, lighter than the dark filter pills so the hierarchy reads */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingTop: 10, alignItems: 'center' }}>
-            <Text style={{ fontWeight: F.mono, fontSize: 10, color: C.ink3, letterSpacing: 1, textTransform: 'uppercase', marginRight: 2 }}>Sort</Text>
-            {SORTS[filter].map((s) => {
-              const on = s.key === sort
-              return (
-                <Pressable key={s.key} onPress={() => { Haptics.selectionAsync(); setSort(s.key) }} hitSlop={6}
-                  style={{ minHeight: 44, paddingHorizontal: 14, justifyContent: 'center', borderRadius: 22, borderWidth: on ? 0 : 1, borderColor: HAIRLINE, backgroundColor: on ? C.paper200 : 'transparent' }}>
-                  <Text style={{ fontWeight: on ? F.sansSemi : F.sansMed, fontSize: 13, color: on ? C.ink : C.ink2 }}>{s.label}</Text>
                 </Pressable>
               )
             })}
@@ -263,122 +223,57 @@ export default function Activities() {
           </View>
         )}
 
-        {/* Suggested for you — from onboarding interests (All view) */}
-        {hasSuggested && (
-          <View style={{ paddingHorizontal: 20, paddingTop: 22, gap: 12 }}>
-            <Text style={{ fontWeight: F.sansMed, fontSize: 11, color: C.moss700, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 2 }}>Suggested for you</Text>
-            {suggestedClubs.map((c) => (
-              <Pressable key={`s-${c.id}`} onPress={() => { Haptics.selectionAsync(); setSelected(c) }}
-                style={({ pressed }) => ({ borderRadius: 16, backgroundColor: C.paper100, borderWidth: 1, borderColor: HAIRLINE, padding: 16, opacity: pressed ? 0.92 : 1 })}>
-                <Text style={{ fontWeight: F.mono, fontSize: 10, color: C.ink3, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>Club</Text>
-                <Text style={{ fontWeight: F.sansBold, fontSize: 17, color: C.ink, letterSpacing: -0.2 }}>{c.name}</Text>
-                {!!c.vibe && <Text style={{ fontWeight: F.sans, fontSize: 13, color: C.ink2, marginTop: 4, lineHeight: 18 }}>{c.vibe}</Text>}
-              </Pressable>
-            ))}
-            {suggestedTrails.map((t) => {
-              const meta = [t.location, t.length, t.difficulty].filter(Boolean).join(' · ')
-              return (
-                <Pressable key={`s-${t.id}`} onPress={() => { Haptics.selectionAsync(); setSelectedTrail(t) }}
-                  style={({ pressed }) => ({ borderRadius: 16, backgroundColor: C.paper100, borderWidth: 1, borderColor: HAIRLINE, padding: 16, opacity: pressed ? 0.92 : 1 })}>
-                  <Text style={{ fontWeight: F.mono, fontSize: 10, color: C.ink3, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>Trail</Text>
-                  <Text style={{ fontWeight: F.sansBold, fontSize: 17, color: C.ink, letterSpacing: -0.2 }}>{t.title}</Text>
-                  {!!meta && <Text style={{ fontWeight: F.mono, fontSize: 12, color: C.ink3, marginTop: 6 }}>{meta}</Text>}
-                </Pressable>
-              )
-            })}
-          </View>
-        )}
-
-        {/* Loading: calm skeleton rows that echo the card shape (no spinner). */}
+        {/* Loading: calm skeleton tiles at the true tile silhouette (no spinner, no shimmer). */}
         {loading && (
-          <View style={{ paddingHorizontal: 20, paddingTop: 22, gap: 12 }}>
-            {[0, 1, 2, 3].map((i) => (
-              <View key={i} style={{ borderRadius: 16, backgroundColor: C.paper100, borderWidth: 1, borderColor: HAIRLINE, padding: 16 }}>
-                <View style={{ width: 64, height: 10, borderRadius: 5, backgroundColor: C.paper300 }} />
-                <View style={{ width: '68%', height: 16, borderRadius: 6, backgroundColor: C.paper300, marginTop: 10 }} />
-                <View style={{ width: '44%', height: 11, borderRadius: 5, backgroundColor: C.paper200, marginTop: 12 }} />
-              </View>
+          <View style={{ paddingHorizontal: 20, paddingTop: 22, gap: 14 }}>
+            {[0, 1, 2].map((i) => (
+              <ActivityTileSkeleton key={i} />
             ))}
           </View>
         )}
 
         {/* Events */}
         {!loading && (filter === 'all' || filter === 'events') && shownEvents.length > 0 && (
-          <View style={{ paddingHorizontal: 20, paddingTop: 22, gap: 12 }}>
-            {filter === 'all' && <Text style={{ fontWeight: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 2 }}>Events</Text>}
-            {shownEvents.map((e) => (
-              <View key={e.id} style={{ borderRadius: 16, backgroundColor: C.paper100, borderWidth: 1, borderColor: HAIRLINE, padding: 16 }}>
-                <Text style={{ fontWeight: F.mono, fontSize: 12, color: C.moss700, marginBottom: 4 }}>{formatEventDate(e.event_date)}{e.start_time ? ` · ${e.start_time}` : ''}</Text>
-                <Text style={{ fontWeight: F.sansBold, fontSize: 17, color: C.ink, letterSpacing: -0.2 }}>{e.title}</Text>
-                {!!e.location && (
-                  <Pressable onPress={() => openInMaps(e.location!)} onLongPress={() => copyAddress(e.location!)}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 }}>
-                    <PinIcon size={13} color={C.ink3} />
-                    <Text style={{ fontWeight: F.sans, fontSize: 13, color: C.ink2 }}>{e.location}</Text>
-                  </Pressable>
-                )}
-                <Text style={{ fontWeight: F.mono, fontSize: 11, color: C.ink3, marginTop: 8 }}>{e.going_count} going</Text>
-              </View>
+          <View style={{ paddingHorizontal: 20, paddingTop: 22, gap: 14 }}>
+            {shownEvents.map((e, i) => (
+              <ActivityTile key={e.id} kind="event" title={e.title} imageUrl={e.image_url} index={i}
+                onPress={() => { Haptics.selectionAsync(); setSelectedEvent(e) }} />
             ))}
           </View>
         )}
 
-        {/* Clubs */}
+        {/* Clubs — Join floats on the tile as a SIBLING of the open-details face
+            (never nested), so edge taps on Join don't fall through to the sheet. */}
         {!loading && (filter === 'all' || filter === 'clubs') && shownClubs.length > 0 && (
-          <View style={{ paddingHorizontal: 20, paddingTop: 22, gap: 12 }}>
-            {filter === 'all' && <Text style={{ fontWeight: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 2 }}>Clubs</Text>}
-            {shownClubs.map((c) => (
-              // Card is a plain View so the Join button is a SIBLING of the
-              // open-details tap target, not nested inside it — edge taps on
-              // Join no longer fall through and open the sheet.
-              <View key={c.id} style={{ borderRadius: 16, backgroundColor: C.paper100, borderWidth: 1, borderColor: HAIRLINE, padding: 16 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-                  <Pressable onPress={() => { Haptics.selectionAsync(); setSelected(c) }}
-                    style={({ pressed }) => ({ flex: 1, opacity: pressed ? 0.6 : 1 })}>
-                    <Text style={{ fontWeight: F.sansBold, fontSize: 17, color: C.ink, letterSpacing: -0.2 }}>{c.name}</Text>
-                    {!!c.host && <Text style={{ fontWeight: F.sans, fontSize: 13, color: C.ink2, marginTop: 2 }}>with {c.host}</Text>}
-                    {!!c.schedule && <Text style={{ fontWeight: F.mono, fontSize: 12, color: C.ink3, marginTop: 6 }}>{c.schedule}</Text>}
-                    {!!c.vibe && <Text style={{ fontWeight: F.sans, fontSize: 13, color: C.ink2, marginTop: 6, lineHeight: 18 }}>{c.vibe}</Text>}
-                    <Text style={{ fontWeight: F.mono, fontSize: 11, color: C.ink3, marginTop: 8 }}>{c.member_count} {c.member_count === 1 ? 'member' : 'members'} · tap for details</Text>
-                  </Pressable>
-                  <Pressable onPress={() => toggleJoin(c)} hitSlop={8}
-                    style={({ pressed }) => ({ minHeight: 44, paddingHorizontal: 18, justifyContent: 'center', borderRadius: 22, borderWidth: 1.5, borderColor: c.joined ? 'transparent' : 'rgba(0,0,0,0.14)', backgroundColor: c.joined ? C.moss700 : 'transparent', opacity: pressed ? 0.85 : 1 })}>
-                    <Text style={{ fontWeight: F.sansMed, fontSize: 13, color: c.joined ? C.paper : C.ink2 }}>{c.joined ? 'Joined' : 'Join'}</Text>
-                  </Pressable>
-                </View>
-              </View>
+          <View style={{ paddingHorizontal: 20, paddingTop: 22, gap: 14 }}>
+            {shownClubs.map((c, i) => (
+              <ActivityTile key={c.id} kind="club" title={c.name} index={i}
+                onPress={() => { Haptics.selectionAsync(); setSelected(c) }}
+                join={{ joined: c.joined, onToggle: () => toggleJoin(c) }} />
             ))}
           </View>
         )}
 
         {/* Trails */}
         {!loading && (filter === 'all' || filter === 'trails') && shownTrails.length > 0 && (
-          <View style={{ paddingHorizontal: 20, paddingTop: 22, gap: 12 }}>
-            {filter === 'all' && <Text style={{ fontWeight: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 2 }}>Trails</Text>}
-            {shownTrails.map((t) => {
-              const meta = [t.location, t.length, t.difficulty].filter(Boolean).join(' · ')
-              return (
-                <Pressable key={t.id} onPress={() => { Haptics.selectionAsync(); setSelectedTrail(t) }}
-                  style={({ pressed }) => ({ borderRadius: 16, backgroundColor: C.paper100, borderWidth: 1, borderColor: HAIRLINE, overflow: 'hidden', opacity: pressed ? 0.92 : 1 })}>
-                  {!!t.image_url && (
-                    <Image source={{ uri: t.image_url }} style={{ width: '100%', height: 160 }} contentFit="cover" />
-                  )}
-                  <View style={{ padding: 16 }}>
-                    <Text style={{ fontWeight: F.sansBold, fontSize: 17, color: C.ink, letterSpacing: -0.2 }}>{t.title}</Text>
-                    {!!meta && <Text style={{ fontWeight: F.mono, fontSize: 12, color: C.ink3, marginTop: 6 }}>{meta}</Text>}
-                    {!!t.description && <Text numberOfLines={2} style={{ fontWeight: F.sans, fontSize: 13, color: C.ink2, marginTop: 8, lineHeight: 19 }}>{t.description}</Text>}
-                    <Text style={{ fontWeight: F.mono, fontSize: 11, color: C.ink3, marginTop: 8 }}>tap for details</Text>
-                  </View>
-                </Pressable>
-              )
-            })}
+          <View style={{ paddingHorizontal: 20, paddingTop: 22, gap: 14 }}>
+            {shownTrails.map((t, i) => (
+              <ActivityTile key={t.id} kind="trail" title={t.title} imageUrl={t.image_url} index={i}
+                onPress={() => { Haptics.selectionAsync(); setSelectedTrail(t) }} />
+            ))}
           </View>
         )}
 
-        {/* Empty */}
+        {/* Empty — a calm centered state, not a form-placeholder box. */}
         {!loading && visibleCount === 0 && (
-          <View style={{ marginHorizontal: 20, marginTop: 22, borderRadius: 16, borderWidth: 1.5, borderStyle: 'dashed', borderColor: 'rgba(0,0,0,0.13)', padding: 18 }}>
-            <Text style={{ fontWeight: F.sans, fontSize: 13, color: C.ink2 }}>
+          <View style={{ alignItems: 'center', paddingHorizontal: 32, paddingVertical: 48, gap: 12 }}>
+            <View style={{ opacity: 0.4 }}>
+              {q || filter === 'all' ? <SunArcIcon size={30} color={C.ink3} />
+                : filter === 'events' ? <EventIcon size={30} color={C.ink3} />
+                : filter === 'clubs' ? <ClubIcon size={30} color={C.ink3} />
+                : <TrailIcon size={30} color={C.ink3} />}
+            </View>
+            <Text style={{ fontWeight: F.sans, fontSize: 15, lineHeight: 21, color: C.ink2, textAlign: 'center' }}>
               {q ? `Nothing matches "${query.trim()}".`
                 : filter === 'events' ? 'No upcoming events yet — post one from the + tab.'
                 : filter === 'clubs' ? 'No clubs yet — start one from the + tab.'
@@ -391,6 +286,7 @@ export default function Activities() {
 
       <ClubDetail club={selected} onClose={() => setSelected(null)} onToggleJoin={toggleJoin} />
       <TrailDetail trail={selectedTrail} onClose={() => setSelectedTrail(null)} />
+      <EventDetail event={selectedEvent} onClose={() => setSelectedEvent(null)} />
     </SafeAreaView>
   )
 }
@@ -417,8 +313,8 @@ function TrailDetail({ trail, onClose }: { trail: Trail | null; onClose: () => v
               <Text style={{ width: 78, fontWeight: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1, textTransform: 'uppercase' }}>Where</Text>
               <Pressable onPress={() => openInMaps(trail.location!)} onLongPress={() => copyAddress(trail.location!)}
                 style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                <PinIcon size={14} color={C.moss700} />
-                <Text style={{ flex: 1, fontWeight: F.sans, fontSize: 14, color: C.moss700 }}>{trail.location}</Text>
+                <PinIcon size={14} color={C.sky600} />
+                <Text style={{ flex: 1, fontWeight: F.sans, fontSize: 14, color: C.sky600, textDecorationLine: 'underline' }}>{trail.location}</Text>
               </Pressable>
             </View>
           )}
@@ -435,19 +331,58 @@ function TrailDetail({ trail, onClose }: { trail: Trail | null; onClose: () => v
   )
 }
 
+/** Slide-up detail sheet for a single event — where the card's dropped detail
+ *  (date/time, location, going count) now lives. Events had no sheet before. */
+function EventDetail({ event, onClose }: { event: UpcomingEvent | null; onClose: () => void }) {
+  return (
+    <BottomSheet open={!!event} onClose={onClose} maxHeight="88%">
+      {event && (
+        <ScrollView contentContainerStyle={{ paddingHorizontal: 22, paddingTop: 8, paddingBottom: 36 }} showsVerticalScrollIndicator={false}>
+          {/* Photo-or-coral hero carries the title, so no repeated black heading. */}
+          <View style={{ marginBottom: 14 }}>
+            <ActivityTile kind="event" title={event.title} imageUrl={event.image_url} height={140} />
+          </View>
+          <Text style={{ fontWeight: F.mono, fontSize: 13, color: C.moss700 }}>{formatEventDate(event.event_date)}{event.start_time ? ` · ${event.start_time}` : ''}</Text>
+
+          {!!event.location && (
+            <View style={{ marginTop: 18, flexDirection: 'row', alignItems: 'baseline', gap: 12 }}>
+              <Text style={{ width: 78, fontWeight: F.sansMed, fontSize: 11, color: C.ink3, letterSpacing: 1, textTransform: 'uppercase' }}>Where</Text>
+              <Pressable onPress={() => openInMaps(event.location!)} onLongPress={() => copyAddress(event.location!)}
+                style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                <PinIcon size={14} color={C.sky600} />
+                <Text style={{ flex: 1, fontWeight: F.sans, fontSize: 14, color: C.sky600, textDecorationLine: 'underline' }}>{event.location}</Text>
+              </Pressable>
+            </View>
+          )}
+
+          <Text style={{ fontWeight: F.mono, fontSize: 13, color: C.ink3, marginTop: 18 }}>{event.going_count} going</Text>
+
+          {!!event.location && (
+            <Pressable onPress={() => openInMaps(event.location!)}
+              style={({ pressed }) => ({ marginTop: 22, paddingVertical: 14, borderRadius: 12, backgroundColor: C.moss700, alignItems: 'center', opacity: pressed ? 0.9 : 1 })}>
+              <Text style={{ fontWeight: F.sansSemi, fontSize: 15, color: C.paper }}>Open in Maps</Text>
+            </Pressable>
+          )}
+        </ScrollView>
+      )}
+    </BottomSheet>
+  )
+}
+
 /** Slide-up detail sheet for a single club. */
 function ClubDetail({ club, onClose, onToggleJoin }: { club: ClubView | null; onClose: () => void; onToggleJoin: (c: ClubView) => void }) {
   return (
     <BottomSheet open={!!club} onClose={onClose} maxHeight="88%">
       {club && (
         <ScrollView contentContainerStyle={{ paddingHorizontal: 22, paddingTop: 8, paddingBottom: 36 }} showsVerticalScrollIndicator={false}>
-          <View style={{ paddingRight: 40 }}>
-            <Text style={{ fontWeight: F.display, fontSize: 26, color: C.ink, letterSpacing: -0.4 }}>{club.name}</Text>
-            {!!club.host && <Text style={{ fontWeight: F.sans, fontSize: 14, color: C.ink2, marginTop: 4 }}>with {club.host}</Text>}
+          {/* Coral hero echoes the tapped tile (clubs have no photo). */}
+          <View style={{ marginBottom: 14 }}>
+            <ActivityTile kind="club" title={club.name} height={140} />
           </View>
+          {!!club.host && <Text style={{ fontWeight: F.sans, fontSize: 14, color: C.ink2 }}>with {club.host}</Text>}
 
           {!!club.vibe && (
-            <Text style={{ fontWeight: F.sans, fontSize: 15, color: C.ink2, lineHeight: 22, marginTop: 14 }}>{club.vibe}</Text>
+            <Text style={{ fontWeight: F.sans, fontSize: 15, color: C.ink2, lineHeight: 22, marginTop: club.host ? 10 : 0 }}>{club.vibe}</Text>
           )}
 
           {/* meta rows */}
