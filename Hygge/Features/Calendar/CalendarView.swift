@@ -24,7 +24,7 @@ struct CalendarView: View {
     @StateObject private var model = CalendarModel()
     @State private var face: CalendarFace = CalendarView.initialFace()
     @State private var selectedDate: String?   // outlined cell — survives sheet dismissal
-    @State private var sheetDate: DayKey?      // drives the day sheet
+    @State private var dayDetailDate: String?  // the day shown full-screen (nil = closed)
     @State private var showLegend = false
     @Namespace private var selectionNS
     @Namespace private var segmentNS
@@ -77,6 +77,8 @@ struct CalendarView: View {
         VStack(spacing: 0) {
             header
                 .padding(.horizontal, 18)
+                // Keep the info button LEFT of the pinned compose "+" (top-right).
+                .padding(.trailing, ComposeSpeedDial.topDiscHeaderClearance)
                 .padding(.top, 8)
                 .padding(.bottom, 12)
 
@@ -96,11 +98,19 @@ struct CalendarView: View {
         // The compose "+" is now the ComposeSpeedDial, hosted by MainTabsView.
         .task { await model.load(api) }
         .onAppear { applyDebugLaunchState() }
-        .sheet(item: $sheetDate) { key in
-            DaySheet(date: key.date, events: model.dayEvents,
-                     loading: model.loadingDay, failed: model.dayFailed,
-                     onToggleRsvp: { ev in Task { await model.toggleRsvp(api, ev) } })
-                .presentationDetents([.medium, .large])
+        // isPresented (not item:) so chevron day-nav mutates `dayDetailDate` in
+        // place — the cover stays up and DayDetailView replays its cascade via
+        // .onChange(of: date), instead of an item-identity change tearing the
+        // cover down and re-presenting it.
+        .fullScreenCover(isPresented: Binding(
+            get: { dayDetailDate != nil },
+            set: { if !$0 { dayDetailDate = nil } }
+        )) {
+            DayDetailView(date: dayDetailDate ?? todayKey, events: model.dayEvents,
+                           loading: model.loadingDay, failed: model.dayFailed,
+                           onToggleRsvp: { ev in Task { await model.toggleRsvp(api, ev) } },
+                           onChangeDay: { delta in changeDay(delta) },
+                           onClose: { dayDetailDate = nil })
         }
         .sheet(isPresented: $showLegend) {
             CalendarLegendSheet()
@@ -279,8 +289,30 @@ struct CalendarView: View {
         } else {
             withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { selectedDate = ymd }
         }
-        sheetDate = DayKey(date: ymd)
+        dayDetailDate = ymd
         Task { await model.loadDay(api, date: ymd) }
+    }
+
+    /// Chevron navigation from DayDetailView — steps `dayDetailDate` by `delta`
+    /// days without dismissing the full-screen cover, and keeps the grid's
+    /// outlined cell (`selectedDate`) in sync so returning to the grid shows it.
+    private func changeDay(_ delta: Int) {
+        guard let current = dayDetailDate else { return }
+        let cal = CalendarModel.gregorian
+        let parts = current.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3 else { return }
+        var c = DateComponents()
+        c.year = parts[0]; c.month = parts[1]; c.day = parts[2]
+        guard let currentDate = cal.date(from: c),
+              let nextDate = cal.date(byAdding: .day, value: delta, to: currentDate) else { return }
+        let nc = cal.dateComponents([.year, .month, .day], from: nextDate)
+        guard let y = nc.year, let m = nc.month, let d = nc.day else { return }
+        let newYmd = String(format: "%04d-%02d-%02d", y, m, d)
+
+        Haptics.selection()
+        selectedDate = newYmd
+        dayDetailDate = newYmd
+        Task { await model.loadDay(api, date: newYmd) }
     }
 
     // MARK: - Month math
@@ -579,98 +611,6 @@ private struct CalendarLegendSheet: View {
                 Text(detail).font(.sans(13)).foregroundStyle(Hue.ink2)
                     .fixedSize(horizontal: false, vertical: true)
             }
-        }
-    }
-}
-
-/// Identifiable wrapper so a YYYY-MM-DD string drives a .sheet(item:).
-private struct DayKey: Identifiable {
-    let date: String
-    var id: String { date }
-}
-
-// MARK: - Day sheet (unchanged behavior: events for one day + calendar export)
-
-struct DaySheet: View {
-    let date: String
-    let events: [TimelineEvent]
-    let loading: Bool
-    var failed = false
-    var onToggleRsvp: ((TimelineEvent) -> Void)? = nil
-    @Environment(\.dismiss) private var dismiss
-    @State private var composing = false
-
-    /// The tapped day as a Date, for prefilling the composer.
-    private var dayDate: Date {
-        let p = date.split(separator: "-").compactMap { Int($0) }
-        var c = DateComponents(); if p.count == 3 { c.year = p[0]; c.month = p[1]; c.day = p[2] }
-        return Calendar.current.date(from: c) ?? Date()
-    }
-
-    var body: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 14) {
-                Text(DateHelpers.prettyDate(date))
-                    .font(.displaySemi(22))
-                    .foregroundStyle(Hue.ink)
-                    .padding(.top, 8)
-
-                if loading {
-                    ProgressView().tint(Hue.ink3).frame(maxWidth: .infinity).padding(.top, 30)
-                } else if failed {
-                    // Never claim "a clear day" when the fetch failed — the grid
-                    // may be showing a coral count for this very day.
-                    VStack(spacing: 6) {
-                        Text("Couldn't load this day")
-                            .font(.sansSemibold(15)).foregroundStyle(Hue.ink)
-                        Text("Check your connection and try again.")
-                            .font(.sans(13)).foregroundStyle(Hue.ink2)
-                    }
-                    .frame(maxWidth: .infinity).padding(.vertical, 36)
-                } else if events.isEmpty {
-                    VStack(spacing: 12) {
-                        VStack(spacing: 6) {
-                            Text("A clear day")
-                                .font(.sansSemibold(15)).foregroundStyle(Hue.ink)
-                            Text("Nothing on the calendar for this day yet.")
-                                .font(.sans(13)).foregroundStyle(Hue.ink2)
-                        }
-                        // Capture the intent right here — the composer opens already
-                        // scoped to this day (Apple Calendar / Partiful pattern).
-                        Button {
-                            Haptics.light()
-                            composing = true
-                        } label: {
-                            Text("Add the first thing")
-                                .font(.sansSemibold(14)).foregroundStyle(.white)
-                                .padding(.horizontal, 18).padding(.vertical, 10)
-                                .background(Hue.accent, in: Capsule())
-                        }
-                        .buttonStyle(PressableStyle(scale: 0.96))
-                    }
-                    .frame(maxWidth: .infinity).padding(.vertical, 36)
-                } else {
-                    ForEach(events) { ev in
-                        EventRow(event: ev, date: date,
-                                 onToggleRsvp: onToggleRsvp.map { cb in { cb(ev) } })
-                    }
-
-                    InlineAction(
-                        icon: "calendar.badge.plus",
-                        label: "Add to your calendar",
-                        doneLabel: "Added to your calendar",
-                        actionText: "Add",
-                        perform: { try await CalendarExport.addDay(date: date, events: events) }
-                    )
-                    .padding(.top, 2)
-                }
-            }
-            .padding(.horizontal, 18)
-        }
-        .background(Hue.canvas)
-        .presentationDragIndicator(.visible)
-        .sheet(isPresented: $composing) {
-            AddFormView(kind: .event, initialDate: dayDate)
         }
     }
 }
