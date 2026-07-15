@@ -33,6 +33,16 @@ struct CalendarView: View {
     private var api: CommunityAPI { CommunityAPI(auth: auth) }
     private var todayKey: String { DateHelpers.localDate() }
 
+    /// Real town-calendar data for the Upcoming Insights face, derived from the
+    /// same CalendarModel load the grid uses. DEBUG `-insights-sample` injects
+    /// sample data so populated rendering can be screenshotted on a signed-out sim.
+    private var insightsData: InsightsData {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-insights-sample") { return .sample }
+        #endif
+        return InsightsData.from(counts: model.counts, upcoming: model.upcoming, today: todayKey)
+    }
+
     /// DEBUG-only: `-calendar-face upcoming|grid` starts the tab on a given face
     /// so both states can be screenshotted headlessly. No effect in release.
     private static func initialFace() -> CalendarFace {
@@ -76,7 +86,7 @@ struct CalendarView: View {
                         .transition(reduceMotion ? .opacity
                             : .offset(x: 28).combined(with: .opacity))
                 } else {
-                    agenda
+                    UpcomingInsightsView(data: insightsData)
                         .transition(reduceMotion ? .opacity
                             : .offset(x: -28).combined(with: .opacity))
                 }
