@@ -76,7 +76,7 @@ struct CalendarView: View {
                         .transition(reduceMotion ? .opacity
                             : .offset(x: 28).combined(with: .opacity))
                 } else {
-                    agenda
+                    UpcomingInsightsView()
                         .transition(reduceMotion ? .opacity
                             : .offset(x: -28).combined(with: .opacity))
                 }
