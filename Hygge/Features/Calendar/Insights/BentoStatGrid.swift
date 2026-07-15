@@ -47,9 +47,35 @@ struct BentoStatGrid: View {
     private var expandedH: CGFloat { compactH * 2 + gap }   // big tile == 2 stacked compacts
     private var spring: Animation { .spring(response: 0.44, dampingFraction: 0.82) }
 
-    init() { _expanded = State(initialValue: Self.debugExpanded()) }
+    var stats: [InsightsData.Stat]? = nil
 
-    private let specs: [BentoSpec] = [
+    init(stats: [InsightsData.Stat]? = nil) {
+        self.stats = stats
+        _expanded = State(initialValue: Self.debugExpanded())
+    }
+
+    /// Real town stats when injected (This Week / This Month / Upcoming), else the
+    /// reference placeholder set (Journaled / Visited / Written). Colors + expand
+    /// sides are stable per slot so the motion is identical in both modes.
+    private var specs: [BentoSpec] {
+        guard let s = stats, s.count == 3 else { return Self.placeholderSpecs }
+        return [
+            realSpec(.journaled, s[0], top: InsightsPalette.journaledTop, bottom: InsightsPalette.journaledBottom, side: .leading),
+            realSpec(.visited, s[1], top: InsightsPalette.visitedTop, bottom: InsightsPalette.visitedBottom, side: .trailing),
+            realSpec(.written, s[2], top: InsightsPalette.writtenTop, bottom: InsightsPalette.writtenBottom, side: .trailing),
+        ]
+    }
+
+    private func realSpec(_ card: BentoCard, _ stat: InsightsData.Stat,
+                          top: Color, bottom: Color, side: HorizontalEdge) -> BentoSpec {
+        BentoSpec(card: card, title: stat.title, expandedTitle: stat.title,
+                  value: "\(stat.value)", icon: nil, unit: "",
+                  subStats: [SubStat(value: "\(stat.subA.value)", label: stat.subA.label),
+                             SubStat(value: "\(stat.subB.value)", label: stat.subB.label)],
+                  storePill: nil, top: top, bottom: bottom, side: side)
+    }
+
+    private static let placeholderSpecs: [BentoSpec] = [
         BentoSpec(card: .journaled, title: "Journaled", expandedTitle: "Journaled",
                   value: "2", icon: nil, unit: "Days",
                   subStats: [SubStat(value: "2", label: "This Month"),
@@ -145,7 +171,9 @@ struct BentoStatGrid: View {
                 Text(value).font(.system(size: 30, weight: .bold)).foregroundStyle(InsightsPalette.onDark)
             }
             Spacer(minLength: 2)
-            Text(spec.unit).font(.sansMedium(12)).foregroundStyle(InsightsPalette.onDark.opacity(0.9))
+            if !spec.unit.isEmpty {
+                Text(spec.unit).font(.sansMedium(12)).foregroundStyle(InsightsPalette.onDark.opacity(0.9))
+            }
         }
         .padding(.vertical, 12)
     }
@@ -177,7 +205,9 @@ struct BentoStatGrid: View {
                 if let value = spec.value {
                     Text(value).font(.system(size: 68, weight: .bold)).foregroundStyle(InsightsPalette.onDark)
                 }
-                Text(spec.unit).font(.sansBold(17)).foregroundStyle(InsightsPalette.onDark)
+                if !spec.unit.isEmpty {
+                    Text(spec.unit).font(.sansBold(17)).foregroundStyle(InsightsPalette.onDark)
+                }
                 Spacer(minLength: 6)
                 HStack(alignment: .top, spacing: 0) {
                     ForEach(spec.subStats) { s in

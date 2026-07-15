@@ -14,14 +14,19 @@ import SwiftUI
 
 struct EntriesStatCard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var expanded: Bool
+    @State private var expanded: Bool = Self.debugExpanded()
 
-    // Fixed placeholder content, sampled from the reference frame.
-    private let count = 7
-    private let months = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
-    private let bars: [CGFloat] = [0.30, 0.55, 0.90, 0.45, 0.35, 0.50,
-                                   0.40, 0.60, 0.35, 0.50, 0.30, 0.45]
-    private let markerIndex = 2   // March — the slightly brighter vertical line
+    // Injectable content, defaulting to the reference-frame look.
+    var line1: String = "Entries"
+    var line2: String = "This Year"
+    var count: Int = 7
+    var monthData: [(letter: String, count: Int)] = [
+        ("J", 3), ("F", 5), ("M", 9), ("A", 4), ("M", 3), ("J", 5),
+        ("J", 4), ("A", 6), ("S", 3), ("O", 5), ("N", 3), ("D", 4),
+    ]
+    var markerIndex: Int = 2   // the bright vertical marker column
+    var expandable: Bool = true
+
     private let axisTicks = ["10", "5", "0"]
     private let subStats: [(String, String)] = [
         ("3", "Places"), ("2", "Audio"), ("2", "Reflections"),
@@ -32,17 +37,16 @@ struct EntriesStatCard: View {
     private let expandedH: CGFloat = 172
     private var spring: Animation { .spring(response: 0.44, dampingFraction: 0.82) }
 
-    init() { _expanded = State(initialValue: Self.debugExpanded()) }
-
     var body: some View {
+        let isExpanded = expandable && expanded
         ZStack(alignment: .top) {
-            chart
+            chart(isExpanded: isExpanded)
             content
             subStatRow
-                .opacity(expanded ? 1 : 0)
+                .opacity(isExpanded ? 1 : 0)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: expanded ? expandedH : compactH)
+        .frame(height: isExpanded ? expandedH : compactH)
         .background(
             LinearGradient(
                 colors: [InsightsPalette.entriesTop, InsightsPalette.entriesBottom],
@@ -52,10 +56,8 @@ struct EntriesStatCard: View {
         .clipShape(RoundedRectangle(cornerRadius: InsightsPalette.cardRadius, style: .continuous))
         .insightsCardShadow()
         .contentShape(Rectangle())
-        .onTapGesture {
-            if reduceMotion { expanded.toggle() }
-            else { withAnimation(spring) { expanded.toggle() } }
-        }
+        .modifier(TapToExpand(enabled: expandable, reduceMotion: reduceMotion,
+                              spring: spring, expanded: $expanded))
     }
 
     // MARK: - Foreground number + label (top-left)
@@ -66,10 +68,10 @@ struct EntriesStatCard: View {
                 Text("\(count)")
                     .font(.system(size: 44, weight: .bold))
                     .foregroundStyle(InsightsPalette.onDark)
-                Text("Entries")
+                Text(line1)
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(InsightsPalette.onDark)
-                Text("This Year")
+                Text(line2)
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(InsightsPalette.onDark)
             }
@@ -102,12 +104,14 @@ struct EntriesStatCard: View {
 
     // MARK: - Background chart (decorative, low-contrast)
 
-    private var chart: some View {
-        GeometryReader { geo in
+    private func chart(isExpanded: Bool) -> some View {
+        let months = monthData.map(\.letter)
+        let maxC = max(1, monthData.map(\.count).max() ?? 1)
+        return GeometryReader { geo in
             let plotWidth = geo.size.width
             // In the compact state the chart owns the whole card; when expanded the
             // sub-stat row takes the lower band, so the chart hugs the top.
-            let bottomInset: CGFloat = expanded ? geo.size.height - compactH + 22 : 22
+            let bottomInset: CGFloat = isExpanded ? geo.size.height - compactH + 22 : 22
             let topInset: CGFloat = 16
             let sideInset: CGFloat = 16
             let plotBottom = geo.size.height - bottomInset
@@ -118,9 +122,10 @@ struct EntriesStatCard: View {
             let barWidth = step * 0.30
 
             ZStack(alignment: .topLeading) {
-                ForEach(months.indices, id: \.self) { i in
+                ForEach(monthData.indices, id: \.self) { i in
                     let x = sideInset + step * (CGFloat(i) + 0.5)
-                    let h = plotHeight * bars[i]
+                    let fraction = CGFloat(monthData[i].count) / CGFloat(maxC)
+                    let h = plotHeight * fraction
                     Capsule()
                         .fill(Color.white.opacity(0.08))
                         .frame(width: barWidth, height: max(h, 3))
@@ -135,7 +140,7 @@ struct EntriesStatCard: View {
 
                 // Month labels sit along the plot's baseline; hidden when the
                 // sub-stat row occupies the bottom.
-                if !expanded {
+                if !isExpanded {
                     ForEach(months.indices, id: \.self) { i in
                         let x = sideInset + step * (CGFloat(i) + 0.5)
                         Text(months[i])
@@ -164,6 +169,26 @@ struct EntriesStatCard: View {
         #else
         return false
         #endif
+    }
+}
+
+/// Attaches the tap-to-expand gesture only when the card is expandable, so a
+/// non-expandable card stays inert.
+private struct TapToExpand: ViewModifier {
+    let enabled: Bool
+    let reduceMotion: Bool
+    let spring: Animation
+    @Binding var expanded: Bool
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content.onTapGesture {
+                if reduceMotion { expanded.toggle() }
+                else { withAnimation(spring) { expanded.toggle() } }
+            }
+        } else {
+            content
+        }
     }
 }
 

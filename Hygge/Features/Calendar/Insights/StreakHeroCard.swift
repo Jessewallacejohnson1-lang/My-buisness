@@ -11,6 +11,11 @@
 import SwiftUI
 
 struct StreakHeroCard: View {
+    var title: String = "Current Streak"
+    var value: String = "4"
+    var unit: String = "Days"
+    var subtitle: String = "Your journaling streak started on Sunday."
+
     private let cardHeight: CGFloat = 218
 
     var body: some View {
@@ -32,18 +37,22 @@ struct StreakHeroCard: View {
 
             Spacer(minLength: 0)
 
-            Text("4")
+            Text(value)
                 .font(.system(size: 112, weight: .bold))
+                .minimumScaleFactor(0.35)
+                .lineLimit(1)
                 .foregroundStyle(InsightsPalette.onDark)
 
-            Text("Days")
-                .font(.system(size: 27, weight: .bold))
-                .foregroundStyle(InsightsPalette.onDark)
-                .padding(.top, -8)
+            if !unit.isEmpty {
+                Text(unit)
+                    .font(.system(size: 27, weight: .bold))
+                    .foregroundStyle(InsightsPalette.onDark)
+                    .padding(.top, -8)
+            }
 
             Spacer(minLength: 0)
 
-            Text("Your journaling streak started on Sunday.")
+            Text(subtitle)
                 .font(.system(size: 13, weight: .regular))
                 .foregroundStyle(InsightsPalette.onDarkMuted)
                 .lineLimit(1)
@@ -54,7 +63,7 @@ struct StreakHeroCard: View {
 
     private var header: some View {
         ZStack {
-            Text("Current Streak")
+            Text(title)
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(InsightsPalette.onDark)
 

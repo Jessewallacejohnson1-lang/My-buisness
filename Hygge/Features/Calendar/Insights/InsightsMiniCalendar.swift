@@ -12,15 +12,19 @@
 import SwiftUI
 
 struct InsightsMiniCalendar: View {
-    // Fixed placeholder content, sampled from the reference frame.
-    private let title = "March 2026"
+    // Data-driven month content (defaults reproduce the March 2026 first pass).
+    var title: String = "March 2026"
+    var leadingBlanks: Int = 0
+    var dayCount: Int = 31
+    var dayCounts: [Int] = Array(repeating: 0, count: 31)   // per day 1…dayCount; >0 means that day has happenings
+    var todayDay: Int? = nil                                 // day-of-month that is "today", if in this month
+
     private let weekdays = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]
-    private let dayCount = 31          // March
-    private let leadingBlanks = 0      // March 1, 2026 is a Sunday
 
     private let cardPadding: CGFloat = 18
     private let cellHeight: CGFloat = 40
     private let navDiameter: CGFloat = 34
+    private let todayCircleDiameter: CGFloat = 30
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
 
     private let dayColor = Color(hex: 0x3A3A42)
@@ -85,19 +89,43 @@ struct InsightsMiniCalendar: View {
         }
     }
 
-    // MARK: - Day grid (1…31)
+    // MARK: - Day grid (data-driven month)
 
     private var dayGrid: some View {
+        // Single ForEach over slots (leading blanks + days) avoids LazyVGrid
+        // integer-id collisions between the blank range and the day range.
         LazyVGrid(columns: columns, spacing: 0) {
-            ForEach(0..<leadingBlanks, id: \.self) { _ in
-                Color.clear.frame(height: cellHeight)
+            ForEach(0..<(leadingBlanks + dayCount), id: \.self) { slot in
+                if slot < leadingBlanks {
+                    Color.clear.frame(height: cellHeight)
+                } else {
+                    dayCell(slot - leadingBlanks + 1)
+                }
             }
-            ForEach(1...dayCount, id: \.self) { day in
-                Text("\(day)")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(dayColor)
-                    .frame(maxWidth: .infinity, minHeight: cellHeight)
-            }
+        }
+    }
+
+    @ViewBuilder
+    private func dayCell(_ day: Int) -> some View {
+        let hasEvents = day - 1 < dayCounts.count && dayCounts[day - 1] > 0
+
+        if day == todayDay {
+            Text("\(day)")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: todayCircleDiameter, height: todayCircleDiameter)
+                .background(Circle().fill(InsightsPalette.todayFill))
+                .frame(maxWidth: .infinity, minHeight: cellHeight)
+        } else if hasEvents {
+            Text("\(day)")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(InsightsPalette.eventDay)
+                .frame(maxWidth: .infinity, minHeight: cellHeight)
+        } else {
+            Text("\(day)")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(dayColor)
+                .frame(maxWidth: .infinity, minHeight: cellHeight)
         }
     }
 }
