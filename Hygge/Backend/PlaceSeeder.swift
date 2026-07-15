@@ -24,7 +24,8 @@ enum PlaceSeeder {
     /// re-classify — these are only the discovery buckets.
     private static let groups: [[String]] = [
         ["restaurant", "cafe", "coffee_shop", "bakery", "bar", "meal_takeaway",
-         "sandwich_shop", "ice_cream_shop", "fast_food_restaurant"],
+         "sandwich_shop", "ice_cream_shop", "fast_food_restaurant",
+         "brewery", "pub", "wine_bar"],
         ["store", "grocery_store", "supermarket", "clothing_store", "hardware_store",
          "convenience_store", "liquor_store", "book_store", "florist", "furniture_store"],
         ["bank", "atm", "pharmacy", "gas_station", "hair_care", "beauty_salon", "gym",
@@ -71,6 +72,7 @@ enum PlaceSeeder {
         var rows: [[String: Any]] = []
         for place in byId.values {
             guard place.isOperational else { summary.skipped += 1; continue }
+            guard !Self.isExcluded(place.name) else { summary.skipped += 1; continue }
             guard let family = PlaceCategoryMap.family(primaryType: place.primaryType, types: place.types) else {
                 summary.skipped += 1; continue
             }
@@ -107,6 +109,21 @@ enum PlaceSeeder {
             print("[PlaceSeeder] upsert failed: \(error.localizedDescription)")
         }
         return summary
+    }
+
+    /// Curated exclusions — specific venues the Google sweep surfaces that don't
+    /// belong on a neighborly town map: a campus athletic facility that duplicates
+    /// the Saint Ben's civic pin, and heavy-industrial businesses 1.5–2 km out
+    /// (towing, materials / parts distributors). Matched by lowercased name
+    /// fragment. Keep in sync with supabase/migrations/20260715120000_places_seed.sql.
+    private static let excludedNameFragments: [String] = [
+        "claire lynch", "mn heavy", "tamarack materials", "north central distributing",
+        "bee line", "joe's auto parts", "precision motorsports",
+    ]
+
+    private static func isExcluded(_ name: String) -> Bool {
+        let n = name.lowercased()
+        return excludedNameFragments.contains { n.contains($0) }
     }
 
     private static let iso = ISO8601DateFormatter()
