@@ -55,6 +55,16 @@ struct CommunityAPI {
     func currentEmail() async -> String? { auth.email }
     func isAdmin() async -> Bool { Admin.isAdmin(auth.email) }
 
+    // MARK: - Places (permanent food/business POI markers)
+
+    /// The town's permanent venues, seeded once into Supabase (see PlaceSeeder). Read
+    /// once by the map — no live Google Places call per map load. RLS opens reads.
+    func getPlaces() async throws -> [POI] {
+        let t = try await token()
+        let (data, _) = try await SupabaseHTTP.rest("places", query: "select=*", accessToken: t)
+        return try decode(data)
+    }
+
     // MARK: - Clubs
 
     func getApprovedClubs() async throws -> [ClubView] {

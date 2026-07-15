@@ -35,6 +35,8 @@ struct PlaceResult: Identifiable {
     let placeId: String
     let name: String
     let coordinate: CLLocationCoordinate2D
+    let primaryType: String?        // Google category (e.g. "cafe") — nil if absent
+    let types: [String]             // raw Google types[]
     var id: String { placeId }
 }
 
@@ -51,7 +53,23 @@ struct PlaceDetails {
     let hours: [String]             // human-readable weekday lines
     let website: URL?
     let phone: String?
+    let primaryType: String?        // Google category (e.g. "cafe") — nil if absent
+    let types: [String]             // raw Google types[]
     let photo: PlacePhoto?          // first photo only
+}
+
+/// A place discovered by a Nearby Search sweep — carries the category type data the
+/// POI seeder maps onto a family. Nearby Search (New) caps at 20 results per call and
+/// has no pagination, so the seeder sweeps several `includedTypes` groups.
+struct NearbyPlace: Identifiable {
+    let placeId: String
+    let name: String
+    let coordinate: CLLocationCoordinate2D
+    let primaryType: String?
+    let types: [String]
+    let address: String?
+    let isOperational: Bool
+    var id: String { placeId }
 }
 
 /// A photo cleared by Locked Rule A's confidence check — safe to display.
@@ -136,7 +154,7 @@ final class GooglePlacesService {
 
         var req = URLRequest(url: url)
         req.setValue(GOOGLE_PLACES_API_KEY, forHTTPHeaderField: "X-Goog-Api-Key")
-        req.setValue("location,displayName,formattedAddress,currentOpeningHours,websiteUri,nationalPhoneNumber,photos.name,photos.widthPx,photos.heightPx,photos.authorAttributions",
+        req.setValue("location,displayName,formattedAddress,currentOpeningHours,websiteUri,nationalPhoneNumber,photos.name,photos.widthPx,photos.heightPx,photos.authorAttributions,primaryType,types",
                      forHTTPHeaderField: "X-Goog-FieldMask")
 
         do {
@@ -153,6 +171,8 @@ final class GooglePlacesService {
                 hours: resp.currentOpeningHours?.weekdayDescriptions ?? [],
                 website: resp.websiteUri.flatMap { URL(string: $0) },
                 phone: resp.nationalPhoneNumber,
+                primaryType: resp.primaryType,
+                types: resp.types ?? [],
                 photo: photo)
             detailsCache[placeId] = details
             return details
@@ -212,7 +232,7 @@ final class GooglePlacesService {
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue(GOOGLE_PLACES_API_KEY, forHTTPHeaderField: "X-Goog-Api-Key")
-        req.setValue("places.id,places.location,places.displayName", forHTTPHeaderField: "X-Goog-FieldMask")
+        req.setValue("places.id,places.location,places.displayName,places.primaryType,places.types", forHTTPHeaderField: "X-Goog-FieldMask")
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
         do {
@@ -223,10 +243,59 @@ final class GooglePlacesService {
                 guard let loc = p.location, let name = p.displayName?.text, !name.isEmpty else { return nil }
                 return PlaceResult(placeId: p.id,
                                    name: name,
-                                   coordinate: CLLocationCoordinate2D(latitude: loc.latitude, longitude: loc.longitude))
+                                   coordinate: CLLocationCoordinate2D(latitude: loc.latitude, longitude: loc.longitude),
+                                   primaryType: p.primaryType,
+                                   types: p.types ?? [])
             }
             searchCache[q] = results
             return results
+        } catch { return [] }
+    }
+
+    // MARK: Nearby search (POI seeding — one-time, never on a map load)
+
+    /// Nearby Search (New) around `center`, restricted to `includedTypes`. Returns up
+    /// to `maxResults` places (Google caps this at 20 and offers NO pagination, so the
+    /// seeder sweeps several `includedTypes` groups) with their category type data.
+    /// [] on any failure. Used ONLY by PlaceSeeder to populate Supabase.
+    func nearby(includedTypes: [String],
+                center: CLLocationCoordinate2D? = nil,
+                radius: Double = 2500,
+                maxResults: Int = 20) async -> [NearbyPlace] {
+        guard !includedTypes.isEmpty else { return [] }
+        let center = center ?? MapSpots.center
+        let body: [String: Any] = [
+            "includedTypes": includedTypes,
+            "maxResultCount": max(1, min(maxResults, 20)),
+            "rankPreference": "POPULARITY",
+            "locationRestriction": ["circle": [
+                "center": ["latitude": center.latitude, "longitude": center.longitude],
+                "radius": radius,
+            ]],
+        ]
+
+        var req = URLRequest(url: URL(string: "\(Self.base)/places:searchNearby")!)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue(GOOGLE_PLACES_API_KEY, forHTTPHeaderField: "X-Goog-Api-Key")
+        req.setValue("places.id,places.displayName,places.location,places.primaryType,places.types,places.formattedAddress,places.businessStatus",
+                     forHTTPHeaderField: "X-Goog-FieldMask")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: req)
+            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return [] }
+            let resp = try JSONDecoder().decode(NearbyResponse.self, from: data)
+            return (resp.places ?? []).compactMap { p in
+                guard let loc = p.location, let name = p.displayName?.text, !name.isEmpty else { return nil }
+                return NearbyPlace(placeId: p.id,
+                                   name: name,
+                                   coordinate: CLLocationCoordinate2D(latitude: loc.latitude, longitude: loc.longitude),
+                                   primaryType: p.primaryType,
+                                   types: p.types ?? [],
+                                   address: p.formattedAddress,
+                                   isOperational: (p.businessStatus ?? "OPERATIONAL") == "OPERATIONAL")
+            }
         } catch { return [] }
     }
 
@@ -352,6 +421,8 @@ private struct DetailsResponse: Decodable {
     let currentOpeningHours: OpeningHours?
     let websiteUri: String?
     let nationalPhoneNumber: String?
+    let primaryType: String?
+    let types: [String]?
     let photos: [Photo]?
 
     struct OpeningHours: Decodable {
@@ -373,6 +444,21 @@ private struct SearchResponse: Decodable {
         let id: String
         let displayName: LocalizedText?
         let location: LatLng?
+        let primaryType: String?
+        let types: [String]?
+    }
+}
+
+private struct NearbyResponse: Decodable {
+    let places: [Place]?
+    struct Place: Decodable {
+        let id: String
+        let displayName: LocalizedText?
+        let location: LatLng?
+        let primaryType: String?
+        let types: [String]?
+        let formattedAddress: String?
+        let businessStatus: String?
     }
 }
 

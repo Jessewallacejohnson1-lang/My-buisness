@@ -835,3 +835,46 @@ Chapel all expand to icon+label, correctly positioned. Confirmed `-map-open` sel
 correctly. (Two false alarms during verification, both resolved by a clean stop+relaunch rather than
 a stacked `launch_app_sim` on top of an already-running process: a washed-out basemap and a stale
 selected-spot — simulator/tooling artifacts from rapid successive launches, not app bugs.)
+
+## Food & business POI markers — clustered Mapbox layer + Supabase seed (2026-07-15)
+
+The map gained a permanent-venues layer: every food & business place in St. Joe, rendered
+Apple-Maps style (a family-colored marker + white glyph). Unlike the six curated civic pins
+(SwiftUI `MapViewAnnotation`s, which stay on top), the POIs are a **data-driven Mapbox style
+layer** so they cluster and de-conflict at scale.
+
+- **Data model + category map.** `PlaceCategoryMap` maps a Google `primaryType` → a family
+  (`food` | `business`) + an SF-Symbol glyph, via inline group `Set`s + suffix rules
+  (`*_restaurant` → food, `*_store` → business) with a `types[]` fallback. Built against a **live
+  Nearby Search of the real town** — the `health_food_store` trap (contains "food", but is retail)
+  is defused by classifying on `primaryType` first, not a substring scan. Families differ by
+  **glyph, not color**: all food shares amber `#F08A3C`, all business shares indigo `#5B6EE0`
+  (shipped `EventCategory` tokens — no new hexes, both distinct from the live-coral and the pale
+  basemap water). Pure classifier ⇒ marked `nonisolated` (the module defaults to MainActor).
+- **Supabase `places` table** (migration `20260715000000_places.sql`): `place_id`, name, lat/lon,
+  `family` (CHECK food|business), raw `primary_type` + `types[]`, address. RLS: open read, admin
+  writes (`is_admin()`, guard-created so the migration stands up on a fresh DB). Google ToS:
+  `place_id` + type data persisted; **photos never persisted** (re-fetched live). Seeded once by
+  `PlaceSeeder` (a gated `-seed-places` Nearby sweep) — **46 real venues** (19 food / 27 business).
+  The map reads them from Supabase via `CommunityAPI.getPlaces()` — **no live Places call per load**.
+- **The layer (`POILayer`).** A clustered `GeoJSONSource` (`cluster: true` — Mapbox clusters, no
+  custom manager) feeds: `poi-dot` `CircleLayer` (family color; radius interpolates a ~6pt rest dot
+  → ~20pt awake disc across the **14.5** threshold, reusing `MapModel.pinExpandZoom`); `poi-glyph`
+  `SymbolLayer` (white **SDF** glyph + name label, revealed by a zoom `step` at 14.5; labels
+  de-conflict via `text-allow-overlap: false`, icons stay); plus `poi-cluster` + count layers.
+  Idempotent install on `.onStyleLoaded`, data pushed on `.onChange(of: model.pois)`. Gotcha:
+  `updateGeoJSONSource` is **non-throwing** in Mapbox v11 — no `try?` (it would warn); `addSource`/
+  `addLayer`/`addImage` do throw (logged `do/catch`, not silent `try?`).
+- **Tap → detail.** A layer-scoped `TapInteraction(.layer("hygge-poi-dot"))` resolves the tapped
+  feature's `id` back to its `POI` and opens `POIDetailSheet` (name + family, address, Open in Maps,
+  and the live `VenueInfoView` enrichment — open-now/hours, website, phone, and a confident-match
+  Google photo with attribution). A cluster tap zooms in to ~15 to split it. `-map-open-poi <name>`
+  opens a POI's sheet headlessly.
+
+**Verified:** build 0 warnings. Two adversarial multi-agent review passes (data model + layer);
+all findings triaged & fixed (MainActor `nonisolated`, non-throwing `updateGeoJSONSource`,
+`loadPlaces` re-entrancy guard, DEBUG-logged style mutations, glyph fallback, `supermarket`/
+`gift_shop` classification, `ice_cream_shop` glyph, self-contained `is_admin()`). Screenshotted on
+iPhone 17 at **z12** (clusters 26/12/4/2), **z14** (small amber/indigo rest dots, no glyphs/labels),
+**z15.5** (glyph markers + de-conflicting labels), and the **Krewe Restaurant** detail sheet (amber
+fork.knife header, address, Open-in-Maps, live Google interior photo + hours/website/phone).

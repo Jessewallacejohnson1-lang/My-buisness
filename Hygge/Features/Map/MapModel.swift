@@ -21,6 +21,9 @@ final class MapModel: ObservableObject {
     enum LoadState: Equatable { case loading, loaded, empty, error, offline }
 
     @Published private(set) var todayEvents: [TimelineEvent] = []
+    /// The town's permanent food/business venues (Supabase `places`). Loaded once —
+    /// they don't change with today's events or the Realtime pipeline.
+    @Published private(set) var pois: [POI] = []
     @Published private(set) var state: LoadState = .loading
     /// A 1-minute wall-clock heartbeat. Bumped on a timer so any view observing this
     /// model re-evaluates DateHelpers.isLiveNow off the current time even when no
@@ -52,6 +55,8 @@ final class MapModel: ObservableObject {
     private var zoomTask: Task<Void, Never>?
     private var clockTask: Task<Void, Never>?
     private var started = false
+    private var placesLoaded = false
+    private var placesLoading = false
     /// Monotonic token so an older in-flight load can't clobber a newer one's
     /// result — load() is fired from start/foreground/retry/resync/midnight and
     /// its fetch suspends, so responses can arrive out of launch order.
@@ -65,6 +70,7 @@ final class MapModel: ObservableObject {
         started = true
         currentDate = DateHelpers.localDate()
         Task { await load(initial: true) }
+        Task { await loadPlaces() }
         subscribe()
         scheduleMidnightRollover()
         startClock()
@@ -135,6 +141,7 @@ final class MapModel: ObservableObject {
         guard started else { return }
         rolloverIfNeeded()
         Task { await load(initial: false) }
+        Task { await loadPlaces() }     // retry if the initial places load failed (no-op once loaded)
         subscribe()                     // start() on the existing client is a no-op if alive
         scheduleMidnightRollover()
         startClock()
@@ -171,8 +178,25 @@ final class MapModel: ObservableObject {
         }
     }
 
+    /// The town's permanent venues (Supabase `places`). Loaded once; a failure keeps
+    /// the (empty) set and is retried on foreground / retry — never blocks the map.
+    private func loadPlaces() async {
+        // `placesLoading` guards the check-then-set across the await, so a start() +
+        // foreground/retry overlap can't fire two duplicate fetches (mirrors load()'s
+        // loadGeneration guard). `placesLoaded` makes it a true no-op once it succeeds.
+        guard let api, !placesLoaded, !placesLoading else { return }
+        placesLoading = true
+        defer { placesLoading = false }
+        do {
+            pois = try await api.getPlaces()
+            placesLoaded = true
+        } catch {
+            // Leave pois empty; foreground / retry will try again. The map still works.
+        }
+    }
+
     /// Public retry hook for the error / offline states.
-    func retry() { Task { await load(initial: true) } }
+    func retry() { Task { await load(initial: true); await loadPlaces() } }
 
     // MARK: Realtime
 

@@ -110,6 +110,8 @@ struct SJMapView: View {
     }
 
     @State private var selectedSpot: Spot? = SJMapView.debugSelectedSpot()
+    /// A tapped food/business POI marker (mutually exclusive with `selectedSpot`).
+    @State private var selectedPOI: POI?
     @State private var filter: SpotFilter = .all
 
     /// DEBUG-only: `-map-open <spotid>` preselects a spot so its detail card can be
@@ -119,6 +121,20 @@ struct SJMapView: View {
         let a = ProcessInfo.processInfo.arguments
         if let i = a.firstIndex(of: "-map-open"), i + 1 < a.count {
             return MapSpots.all.first { $0.id == a[i + 1] }
+        }
+        #endif
+        return nil
+    }
+
+    /// DEBUG-only: `-map-open-poi <name-substring | id>` opens a POI's detail sheet
+    /// once `places` loads, so the sheet can be screenshotted headlessly. No effect
+    /// in release / without the flag.
+    private static func debugOpenPOI(in pois: [POI]) -> POI? {
+        #if DEBUG
+        let a = ProcessInfo.processInfo.arguments
+        if let i = a.firstIndex(of: "-map-open-poi"), i + 1 < a.count {
+            let key = a[i + 1].lowercased()
+            return pois.first { $0.id == a[i + 1] || $0.name.lowercased().contains(key) }
         }
         #endif
         return nil
@@ -220,6 +236,11 @@ struct SJMapView: View {
         .sheet(isPresented: $quickAdding) {
             QuickAddSheet(spots: MapSpots.all)
         }
+        // A tapped POI marker opens its detail (name, category, address, Open in Maps,
+        // and live Google hours/website/phone/photo). POI is Identifiable by its row id.
+        .sheet(item: $selectedPOI) { poi in
+            POIDetailSheet(poi: poi)
+        }
         // The "?" chrome button reopens the map intro any time — full-bleed, so it
         // gets its own cover. `instant` skips the first-run bloom so the reference
         // is readable immediately on every open.
@@ -233,8 +254,19 @@ struct SJMapView: View {
     private var mapLayer: some View {
         MapReader { proxy in
             Map(viewport: $viewport) {
-                // A tap on the open map (not a badge) just dismisses the detail —
-                // every curated spot now owns a real tappable badge, so there's no
+                // A tap on a POI marker opens its detail; a tap on a cluster zooms in
+                // to split it. Layer-scoped interactions are evaluated BEFORE the
+                // map-wide tap, so these win over closeCard() when a marker/cluster is hit.
+                TapInteraction(.layer(POILayer.dotLayerID)) { feature, _ in
+                    if let id = feature.properties["id"]??.string { selectPOI(id: id) }
+                    return true
+                }
+                TapInteraction(.layer(POILayer.clusterLayerID)) { _, context in
+                    zoomToCluster(context.coordinate)
+                    return true
+                }
+                // A tap on the open map (not a badge/marker) just dismisses the detail —
+                // every curated spot owns a real tappable badge, so there's no
                 // nearest-neighbor hit-testing to do here.
                 TapInteraction { _ in
                     closeCard()
@@ -265,7 +297,10 @@ struct SJMapView: View {
                 }
             }
             .mapStyle(MapStyle(uri: StyleURI(rawValue: MAP_STYLE_URL)!))
-            .onStyleLoaded { _ in recolorBasemap(proxy.map) }
+            .onStyleLoaded { _ in
+                recolorBasemap(proxy.map)
+                if let map = proxy.map { POILayer.install(on: map, pois: model.pois) }
+            }
             // Name whatever town the map is panned over, and shrink/expand pins to fit
             // the zoom (both debounced in the model — never the view's @State here).
             .onCameraChanged {
@@ -276,6 +311,13 @@ struct SJMapView: View {
             // detail sheet doesn't linger over a pin that's no longer on the map.
             .onChange(of: filter) { _, _ in
                 if let s = selectedSpot, !filteredSpots.contains(where: { $0.id == s.id }) { closeCard() }
+            }
+            // POIs load async (once) after the style — push them into the source when they land.
+            .onChange(of: model.pois) { _, pois in
+                if let map = proxy.map { POILayer.update(on: map, pois: pois) }
+                #if DEBUG
+                if selectedPOI == nil, let poi = SJMapView.debugOpenPOI(in: pois) { selectedPOI = poi }
+                #endif
             }
             .ignoresSafeArea(edges: .bottom)
         }
@@ -431,6 +473,7 @@ struct SJMapView: View {
     /// A Today/Places row tap: fly to the spot and open its detail in the sheet.
     private func focus(_ spot: Spot) {
         Haptics.light()
+        selectedPOI = nil
         withViewportAnimation(.fly(duration: 0.7)) {
             viewport = .camera(center: spot.coordinate, zoom: 15)
         }
@@ -441,8 +484,27 @@ struct SJMapView: View {
 
     private func selectSpot(_ spot: Spot) {
         Haptics.light()
+        selectedPOI = nil                       // civic + POI detail are mutually exclusive
         withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
             selectedSpot = (selectedSpot?.id == spot.id) ? nil : spot
+        }
+    }
+
+    /// Open a tapped food/business POI's detail (resolved from the tapped feature's
+    /// `id` property). Closes any civic card first — the two details never coexist.
+    private func selectPOI(id: String) {
+        guard let poi = model.pois.first(where: { $0.id == id }) else { return }
+        Haptics.light()
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { selectedSpot = nil }
+        selectedPOI = poi
+    }
+
+    /// A tapped cluster zooms in to ~15 (above the 14.5 awake threshold), splitting it
+    /// into individual glyph markers centered on the tapped area.
+    private func zoomToCluster(_ coord: CLLocationCoordinate2D) {
+        Haptics.light()
+        withViewportAnimation(.fly(duration: 0.6)) {
+            viewport = .camera(center: coord, zoom: 15)
         }
     }
 
