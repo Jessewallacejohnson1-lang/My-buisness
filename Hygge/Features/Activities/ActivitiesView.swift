@@ -781,7 +781,7 @@ private struct EventExploreCard: View {
     var recurrenceOverride: String? = nil
 
     var body: some View {
-        ExploreCard(id: event.id, title: event.title, subtitle: event.location, meta: meta) {
+        ActivityTile(id: event.id, tag: "Event", title: event.title, metaLine: metaLine) {
             photo
         } trailing: {
             EventInviteCircle(event: event)
@@ -796,27 +796,21 @@ private struct EventExploreCard: View {
             AsyncImage(url: url) { phase in
                 switch phase {
                 case .success(let img): img.resizable().scaledToFill()
-                default: ExploreBlankPhoto()
+                default: ActivityCoralPanel(glyph: "calendar")
                 }
             }
         } else if let localName = KnownLocalPhoto.name(forTitle: event.title) {
             PhotoView(name: localName).scaledToFill()
         } else {
             VenuePhoto(venueName: event.location ?? event.title,
-                       hint: event.location != nil ? event.title : nil, maxWidth: 1200) { ExploreBlankPhoto() }
+                       hint: event.location != nil ? event.title : nil, maxWidth: 1200) { ActivityCoralPanel(glyph: "calendar") }
         }
     }
-    private var meta: [MetaItem] {
-        let leadText = recurrenceOverride
+    /// One line on the tile foot: the recurrence summary ("Every Friday · 3 PM"),
+    /// or this occurrence's date · time.
+    private var metaLine: String {
+        recurrenceOverride
             ?? (DateHelpers.prettyDate(event.eventDate) + (event.startTime.map { " · \($0)" } ?? ""))
-        var m: [MetaItem] = [MetaItem(
-            icon: recurrenceOverride != nil ? "arrow.triangle.2.circlepath" : "calendar",
-            text: leadText,
-            coral: true)]
-        if event.goingCount > 0 {
-            m.append(MetaItem(icon: "person.2.fill", text: "\(event.goingCount) going"))
-        }
-        return m
     }
 }
 
@@ -824,11 +818,9 @@ private struct ClubExploreCard: View {
     let club: ClubView
     var onJoin: () -> Void
     var body: some View {
-        ExploreCard(id: club.id, title: club.name,
-                    subtitle: club.location ?? club.host.map { "with \($0)" },
-                    meta: meta) {
+        ActivityTile(id: club.id, tag: "Club", title: club.name, metaLine: metaLine) {
             VenuePhoto(venueName: club.location ?? club.name,
-                       hint: club.location != nil ? club.name : nil, maxWidth: 1200) { ExploreBlankPhoto() }
+                       hint: club.location != nil ? club.name : nil, maxWidth: 1200) { ActivityCoralPanel(glyph: "person.2.fill") }
         } trailing: {
             Button {
                 Haptics.light()
@@ -840,14 +832,13 @@ private struct ClubExploreCard: View {
             .accessibilityLabel(club.joined ? "Joined" : "Join")
         }
     }
-    private var meta: [MetaItem] {
-        var m: [MetaItem] = []
-        if let s = club.schedule, !s.isEmpty { m.append(MetaItem(icon: "clock", text: s, coral: true)) }
-        if club.memberCount > 0 {
-            m.append(MetaItem(icon: "person.2.fill", text: "\(club.memberCount) member\(club.memberCount == 1 ? "" : "s")"))
-        }
-        if m.isEmpty, let v = club.vibe, !v.isEmpty { m.append(MetaItem(icon: nil, text: v)) }
-        return m
+    /// One line on the foot: the meeting schedule, else the real member count,
+    /// else the club's vibe.
+    private var metaLine: String? {
+        if let s = club.schedule, !s.isEmpty { return s }
+        if club.memberCount > 0 { return "\(club.memberCount) member\(club.memberCount == 1 ? "" : "s")" }
+        if let v = club.vibe, !v.isEmpty { return v }
+        return nil
     }
 }
 
@@ -858,7 +849,7 @@ private struct TrailExploreCard: View {
     @State private var coord: CLLocationCoordinate2D?
 
     var body: some View {
-        ExploreCard(id: trail.id, title: trail.title, subtitle: trail.location, meta: meta) {
+        ActivityTile(id: trail.id, tag: "Trail", title: trail.title, metaLine: metaLine) {
             photo
         } trailing: {
             Button {
@@ -882,21 +873,20 @@ private struct TrailExploreCard: View {
             AsyncImage(url: url) { phase in
                 switch phase {
                 case .success(let img): img.resizable().scaledToFill()
-                default: ExploreBlankPhoto()
+                default: ActivityCoralPanel(glyph: "figure.hiking")
                 }
             }
         } else if let localName = KnownLocalPhoto.name(forTitle: trail.title) {
             PhotoView(name: localName).scaledToFill()
         } else {
-            VenuePhoto(venueName: trail.title, hint: trail.location, maxWidth: 1200) { ExploreBlankPhoto() }
+            VenuePhoto(venueName: trail.title, hint: trail.location, maxWidth: 1200) { ActivityCoralPanel(glyph: "figure.hiking") }
         }
     }
 
-    private var meta: [MetaItem] {
-        var m: [MetaItem] = []
-        if let d = trail.difficulty, !d.isEmpty { m.append(MetaItem(icon: "figure.hiking", text: d, coral: true)) }
-        if let l = trail.length, !l.isEmpty { m.append(MetaItem(icon: "ruler", text: l)) }
-        return m
+    /// One line on the foot: difficulty · length (whichever the trail carries).
+    private var metaLine: String? {
+        let parts = [trail.difficulty, trail.length].compactMap { $0 }.filter { !$0.isEmpty }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 }
 
@@ -912,7 +902,7 @@ private struct ParkExploreCard: View {
             Haptics.light()
             showDetail = true
         } label: {
-            ExploreCard(id: park.id, title: park.title, subtitle: park.address, meta: meta) {
+            ActivityTile(id: park.id, tag: "Park", title: park.title, metaLine: metaLine) {
                 photo
             } trailing: {
                 Button {
@@ -937,15 +927,16 @@ private struct ParkExploreCard: View {
             PhotoView(name: localName).scaledToFill()
         } else {
             VenuePhoto(venueName: park.title, hint: park.address,
-                       coordinate: park.coordinate, maxWidth: 1200) { ExploreBlankPhoto() }
+                       coordinate: park.coordinate, maxWidth: 1200) { ActivityCoralPanel(glyph: "tree.fill") }
         }
     }
 
-    private var meta: [MetaItem] {
-        var m: [MetaItem] = []
-        if let acres = park.acres { m.append(MetaItem(icon: "leaf.fill", text: "\(acres) ac", coral: true)) }
-        if let first = park.features.first { m.append(MetaItem(icon: nil, text: first)) }
-        return m
+    /// One line on the foot: acreage · first feature (whichever the park carries).
+    private var metaLine: String? {
+        var parts: [String] = []
+        if let acres = park.acres { parts.append("\(acres) ac") }
+        if let first = park.features.first { parts.append(first) }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 }
 
@@ -956,11 +947,9 @@ private struct WobegonExploreCard: View {
         ?? CLLocationCoordinate2D(latitude: 45.5697, longitude: -94.3180)
 
     var body: some View {
-        ExploreCard(id: "wobegon-trail",
-                    title: "Lake Wobegon Trail",
-                    subtitle: "Trailhead by the water tower · County Rd 2",
-                    meta: [MetaItem(icon: "figure.hiking", text: "Easy", coral: true),
-                           MetaItem(icon: "ruler", text: "65 mi paved")]) {
+        ActivityTile(id: "wobegon-trail", tag: "Trail",
+                     title: "Lake Wobegon Trail",
+                     metaLine: "Easy · 65 mi paved") {
             PhotoView(name: "wobegon-trail").scaledToFill()
         } trailing: {
             Button {
