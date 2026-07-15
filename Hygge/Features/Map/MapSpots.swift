@@ -10,6 +10,7 @@
 //
 
 import CoreLocation
+import SwiftUI
 
 enum SpotCategory {
     case trail, park, downtown, coffee, fitness, college, chapel, `default`
@@ -27,6 +28,38 @@ enum SpotCategory {
         case .default:  return "mappin"
         }
     }
+
+    /// The filled variant, used inside the small solid pin badge (a filled glyph
+    /// reads cleaner than a line icon at 13pt on a colored circle).
+    var filledSymbol: String {
+        switch self {
+        case .trail:    return "figure.hiking"
+        case .park:     return "tree.fill"
+        case .downtown: return "storefront.fill"
+        case .coffee:   return "cup.and.saucer.fill"
+        case .fitness:  return "dumbbell.fill"
+        case .college:  return "graduationcap.fill"
+        case .chapel:   return "building.columns.fill"
+        case .default:  return "mappin"
+        }
+    }
+
+    /// Pin badge tint — one job per category, reusing app tokens where they fit.
+    /// The one exception is `mapGreen`: parks/trails read as green on every map
+    /// (Apple, Google, Life360 included), and the map already owns its own raw
+    /// cartography hexes (see BasemapPalette) — this extends that same carve-out
+    /// to park iconography rather than force park pins into the coral/ink system.
+    var tint: Color {
+        switch self {
+        case .park, .trail:        return SpotCategory.mapGreen
+        case .downtown, .coffee, .fitness: return Hue.honey600
+        case .college, .chapel:    return Hue.sky600
+        case .default:             return Hue.mapInk
+        }
+    }
+
+    /// Map-only green, pixel-sampled off the Life360 reference's park badges.
+    private static let mapGreen = Color(hex: 0x6BBE52)
 }
 
 struct Spot: Identifiable, Hashable {

@@ -28,6 +28,7 @@ struct HyggeApp: App {
             RootView()
                 .environmentObject(auth)
                 .task { await auth.restore() }
+                .task { await PlaceSeeder.seedIfRequested() }   // DEBUG: -seed-places one-time POI seed
         }
     }
 }

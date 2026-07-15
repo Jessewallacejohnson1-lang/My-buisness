@@ -21,6 +21,9 @@ final class MapModel: ObservableObject {
     enum LoadState: Equatable { case loading, loaded, empty, error, offline }
 
     @Published private(set) var todayEvents: [TimelineEvent] = []
+    /// The town's permanent food/business venues (Supabase `places`). Loaded once —
+    /// they don't change with today's events or the Realtime pipeline.
+    @Published private(set) var pois: [POI] = []
     @Published private(set) var state: LoadState = .loading
     /// A 1-minute wall-clock heartbeat. Bumped on a timer so any view observing this
     /// model re-evaluates DateHelpers.isLiveNow off the current time even when no
@@ -30,6 +33,15 @@ final class MapModel: ObservableObject {
     /// The town the map is currently panned over — names the top pill. Starts on
     /// St. Joe (the initial camera) and follows the map as it moves.
     @Published private(set) var townLabel = "Saint Joseph"
+    /// Whether pins should show their icon+label (true) or shrink to a small dot
+    /// (false) — driven by zoom, so labels only take up map space once there's
+    /// room for them. Starts `false` to match SJMapView's default camera zoom
+    /// (13.5, below `Self.pinExpandZoom`); the first `updateZoom` call corrects it
+    /// immediately if the camera actually starts elsewhere (e.g. `-map-zoom`).
+    @Published private(set) var pinsExpanded = false
+    /// Zoom at/above which pins expand — matches the old pin-hierarchy's label
+    /// threshold (T=14.5), a value already tuned by screenshot for this town.
+    static let pinExpandZoom: Double = 14.5
 
     private var auth: AuthStore?
     private var api: CommunityAPI? { auth.map(CommunityAPI.init(auth:)) }
@@ -40,8 +52,11 @@ final class MapModel: ObservableObject {
     private var resyncTask: Task<Void, Never>?
     private var midnightTask: Task<Void, Never>?
     private var townTask: Task<Void, Never>?
+    private var zoomTask: Task<Void, Never>?
     private var clockTask: Task<Void, Never>?
     private var started = false
+    private var placesLoaded = false
+    private var placesLoading = false
     /// Monotonic token so an older in-flight load can't clobber a newer one's
     /// result — load() is fired from start/foreground/retry/resync/midnight and
     /// its fetch suspends, so responses can arrive out of launch order.
@@ -55,6 +70,7 @@ final class MapModel: ObservableObject {
         started = true
         currentDate = DateHelpers.localDate()
         Task { await load(initial: true) }
+        Task { await loadPlaces() }
         subscribe()
         scheduleMidnightRollover()
         startClock()
@@ -99,12 +115,33 @@ final class MapModel: ObservableObject {
         }
     }
 
+    // MARK: Pin expand/shrink (zoom-driven)
+
+    /// The map's zoom changed. Same "never the view's @State" rule as `updateTown`
+    /// — `onCameraChanged` fires every rendering frame, so the actual `@Published`
+    /// write is deferred to a task, not made synchronously in the callback. Unlike
+    /// the town name this doesn't wait for the pan to fully settle (a shrink/expand
+    /// that lagged the whole gesture would feel unresponsive) — just a short debounce
+    /// so hovering exactly on the threshold during a bouncy fling doesn't flicker,
+    /// and a same-value write is skipped so panning within one zoom band is a no-op.
+    func updateZoom(_ zoom: Double) {
+        let expanded = zoom >= Self.pinExpandZoom
+        guard expanded != pinsExpanded else { return }
+        zoomTask?.cancel()
+        zoomTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            guard !Task.isCancelled else { return }
+            self?.pinsExpanded = expanded
+        }
+    }
+
     /// App returned to foreground: the socket was dropped on background and the
     /// date may have rolled over while away. Re-filter, re-sync, re-subscribe.
     func onForeground() {
         guard started else { return }
         rolloverIfNeeded()
         Task { await load(initial: false) }
+        Task { await loadPlaces() }     // retry if the initial places load failed (no-op once loaded)
         subscribe()                     // start() on the existing client is a no-op if alive
         scheduleMidnightRollover()
         startClock()
@@ -141,8 +178,25 @@ final class MapModel: ObservableObject {
         }
     }
 
+    /// The town's permanent venues (Supabase `places`). Loaded once; a failure keeps
+    /// the (empty) set and is retried on foreground / retry — never blocks the map.
+    private func loadPlaces() async {
+        // `placesLoading` guards the check-then-set across the await, so a start() +
+        // foreground/retry overlap can't fire two duplicate fetches (mirrors load()'s
+        // loadGeneration guard). `placesLoaded` makes it a true no-op once it succeeds.
+        guard let api, !placesLoaded, !placesLoading else { return }
+        placesLoading = true
+        defer { placesLoading = false }
+        do {
+            pois = try await api.getPlaces()
+            placesLoaded = true
+        } catch {
+            // Leave pois empty; foreground / retry will try again. The map still works.
+        }
+    }
+
     /// Public retry hook for the error / offline states.
-    func retry() { Task { await load(initial: true) } }
+    func retry() { Task { await load(initial: true); await loadPlaces() } }
 
     // MARK: Realtime
 
