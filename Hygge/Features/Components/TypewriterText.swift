@@ -58,6 +58,14 @@ struct TypewriterText: View {
         }
         // Runs on appear and whenever `state` flips; cancels the prior run cleanly.
         .task(id: state) { await drive() }
+        // Reset the reveal SYNCHRONOUSLY when a fresh write begins — `.task` resets
+        // `revealed` on a later main-actor job, so on the refresh-replay path (where
+        // `revealed` is still bounds.count from the prior completed write) the finished
+        // text would flash for one frame before drive() blanks it. onChange lands in the
+        // same update transaction, so that stale frame is never presented.
+        .onChange(of: state) { _, newState in
+            if newState == .writing { revealed = 0 }
+        }
     }
 
     // MARK: - The revealed prefix (+ trailing caret while typing)
@@ -95,9 +103,39 @@ struct TypewriterText: View {
         for k in 1...bounds.count {
             if Task.isCancelled { return }
             revealed = k
-            if k < bounds.count { try? await Task.sleep(for: .seconds(perUnit)) }
+            if k < bounds.count {
+                try? await Task.sleep(for: .seconds(perUnit + pause(afterUnit: k, bounds: bounds)))
+            }
         }
         onFinished?()
+    }
+
+    // MARK: - Human cadence
+    //
+    // A real hand — and Claude, writing in front of you — rests a beat at punctuation.
+    // A small extra pause after the last glyph of a just-revealed unit turns a
+    // metronomic reveal into readable prose: a fuller rest at a sentence end, a small
+    // beat at a clause break. Subtle enough that the write still lands quickly.
+    //
+    // The pause attaches to the unit whose last real glyph is the punctuation — once.
+    // In WORD mode the trailing space is folded into that unit, so we step back over it
+    // to reach the glyph. In CHARACTER mode the space is its OWN unit and must rest like
+    // any plain glyph (0): stepping back onto the preceding punctuation there would
+    // charge the pause a second time (once for "." then again for the space after it).
+    private func pause(afterUnit k: Int, bounds: [AttributedString.Index]) -> Double {
+        guard k >= 1, k <= bounds.count else { return 0 }
+        let chars = content.characters
+        guard bounds[k - 1] > chars.startIndex else { return 0 }
+        var i = chars.index(before: bounds[k - 1])   // this unit's last glyph
+        if mode == .word {
+            while i > chars.startIndex && chars[i].isWhitespace { i = chars.index(before: i) }
+        }
+        guard !chars[i].isWhitespace else { return 0 }
+        switch chars[i] {
+        case ".", "?", "!":            return 0.20   // sentence end — a fuller rest
+        case ",", ";", ":", "—", "–":  return 0.10   // clause break — a small beat
+        default:                       return 0
+        }
     }
 
     // MARK: - Unit boundaries
