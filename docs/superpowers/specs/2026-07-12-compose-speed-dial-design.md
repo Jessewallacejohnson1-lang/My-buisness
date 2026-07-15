@@ -55,6 +55,22 @@ Reuse the only create-kinds (`AddKind`: event/club/trail) + Invite; the framing/
 - `Invite a neighbor` → `ShareCenter.shared.present(.appInvite())` (the existing app-invite reveal).
 - Map's `Pin an event` opens the event form (admins may still prefer `QuickAddSheet`; keep admin path as-is for now).
 
+## Final implementation (as built)
+
+`ComposeSpeedDial` (`Features/Components/ComposeSpeedDial.swift`), hosted in `MainTabsView`:
+- **Backdrop:** `Hue.canvas` veil `→0.92`; the tab content scales `→0.97` (host, `speedDialOpen`). Tab bar stays put, dimmed by the veil.
+- **Disc morph:** the "+" glyph `rotationEffect 0°→135°`. Explore/Calendar = coral 54pt disc (owned by the overlay, replacing `ComposeFAB`). Map = the native 44pt white chrome "+" stays as the tap target; the overlay draws the chrome ✕ (fades + rotates in) only while open. The disc is always in the tree (rotation persists) with `opacity`/`allowsHitTesting` gated so the Map's native "+" takes the closed-state tap.
+- **Bubble cascade (added):** each item `opacity 0→1`, `scale 0.25→1` (anchor = the FAB corner), small rise, `spring(response 0.34, damping 0.52)`, **~85ms apart, nearest-the-disc first** — tuned up from 45ms so each bubble is a distinct beat (user: "make the cascade more obvious"). Bottom-anchored → last item nearest; top-anchored → first item nearest.
+- **Press-in (added):** every bubble uses `PressableStyle(scale: 0.90, haptic: true)`.
+- **Close:** `spring(response 0.26, damping 0.92)` snap, no per-item delay; ✕→+.
+- **Reduce Motion:** cross-fade, no scale/stagger.
+
+Per-surface (all reuse `AddKind` event/club/trail + Invite):
+- **Calendar / Explore** → `Invite · Trail · Club · Event` (Event primary, nearest the bottom FAB). Tap → `AddFormView(kind:)` direct, or `ShareCenter.present(.appInvite())`.
+- **Map** → `Event · Trail · Club · Invite` (Event primary, nearest the top "+"). Non-admin "+" opens the dial (`SJMapView.onCompose`); **admins keep `QuickAddSheet`** unchanged.
+
+DEBUG: `-open-speeddial` (+ `-speeddial-loop`) unfolds/loops the dial headlessly; pair with `-open-tab activities|calendar|map` (and `-force-nonadmin` on the map).
+
 ## Verification plan
 
 Same discipline as `MAP_BUILD_LOG.md` / the share-reveal + town-menu specs:
@@ -69,3 +85,24 @@ Same discipline as `MAP_BUILD_LOG.md` / the share-reveal + town-menu specs:
 - No new backend/create kinds (no "place" object) — Map items reuse the event/trail/club forms.
 - Home keeps its town-menu genie (already a corner reveal); not converted to a speed-dial.
 - Close stays a fast snap; no elaborate reverse-stagger (matches the reference).
+
+## Addendum (2026-07-13) — all three surfaces anchor TOP-RIGHT
+
+Follow-up from the user: the Map's top-right "+" (drops DOWN) "is in a good spot," but
+Explore/Calendar's bottom-right "+" should move to the top too — "same animation
+practically just from a different spot." So the bottom-anchored coral FAB is retired;
+**every surface now anchors the "+" top-right and drops the dial DOWN**, nearest-item
+first (Event · Club · Trail · Invite), identical motion across tabs.
+
+- `ComposeSpeedDial` no longer branches order by surface — one `droppingFromTop()` set
+  feeds `calendar()` / `explore()` / `map()` (Event primary, directly under the "+").
+- Coral disc is **48pt** at the top-right corner (was a standalone 54 at the bottom);
+  Map keeps its 44pt white chrome "+". `discEdge`/`discTrailing`/`discSize` now key off
+  `isTop`, not `chromeDisc`.
+- The overlay `ZStack` gets an explicit full-screen `.frame(…, alignment: zAlignment)`
+  so the resting disc pins to the corner even when the (open-only) wash is absent —
+  previously it center-floated at rest.
+- Each screen's existing top-right control **tucks LEFT** of the pinned "+" via
+  `ComposeSpeedDial.topDiscHeaderClearance` (Explore's search, Calendar's info),
+  forming a tidy cluster that mirrors the map's `filter · pill · +`.
+- Verified in-sim: rest + open on Explore/Calendar/Map (no Map regression).

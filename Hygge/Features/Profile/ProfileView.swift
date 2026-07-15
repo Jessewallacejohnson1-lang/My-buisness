@@ -13,6 +13,10 @@
 import SwiftUI
 
 struct ProfileView: View {
+    /// Injected by the genie overlay so the top-bar ✕ and sign-out play the
+    /// corner-collapse. Falls back to `dismiss()` if presented some other way.
+    var onClose: (() -> Void)? = nil
+
     @Environment(\.dismiss) private var dismiss
     @StateObject private var model = ProfileModel()
 
@@ -55,8 +59,19 @@ struct ProfileView: View {
             content.onAppear {
                 revealed = true
                 debugScrollBottom(proxy)
+                debugAutoClose()
             }
         }
+    }
+
+    /// DEBUG-only: `-profile-autoclose` fires the genie collapse ~1.6s after open
+    /// so the close motion can be recorded headlessly (no tap driving). Routes
+    /// through the real `close()`, so it exercises the exact dismissal path.
+    private func debugAutoClose() {
+        #if DEBUG
+        guard ProcessInfo.processInfo.arguments.contains("-profile-autoclose") else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { close() }
+        #endif
     }
 
     private var content: some View {
@@ -73,8 +88,6 @@ struct ProfileView: View {
             .padding(.horizontal, 18)
         }
         .overlay(alignment: .top) { topBar }
-        .presentationBackground(.ultraThinMaterial)
-        .presentationDetents([.large])
         .task { await model.load() }
         .sheet(isPresented: $editing) { EditProfileView(model: model) }
         .sheet(isPresented: $showAbout) {
@@ -84,9 +97,15 @@ struct ProfileView: View {
         }
         .sheet(isPresented: $showModeration) { ModerationView() }
         .confirmationDialog("Sign out of Hygge?", isPresented: $confirmSignOut, titleVisibility: .visible) {
-            Button("Sign out", role: .destructive) { Task { await model.signOut(); dismiss() } }
+            Button("Sign out", role: .destructive) { Task { await model.signOut(); close() } }
             Button("Cancel", role: .cancel) {}
         }
+    }
+
+    /// Dismiss through the genie collapse when presented that way; otherwise the
+    /// environment dismiss.
+    private func close() {
+        if let onClose { onClose() } else { dismiss() }
     }
 
     /// DEBUG-only: `-profile-bottom` scrolls to the sign-out row on appear so the
@@ -104,7 +123,7 @@ struct ProfileView: View {
 
     private var topBar: some View {
         HStack {
-            circleButton("xmark") { dismiss() }
+            circleButton("xmark") { close() }
             Spacer()
             Button { Haptics.selection(); editing = true } label: {
                 HStack(spacing: 6) {

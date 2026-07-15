@@ -13,12 +13,14 @@
 //     with a small overshoot, ~85ms apart, super fast.
 //   • each item does a little PUSH-IN on tap (PressableStyle) before it routes.
 //
-//  Hosted at MainTabsView (like the town-menu CornerDrawerOverlay) so the wash + the
-//  column float above the tab bar. Two flavors:
-//   • Explore / Calendar — a coral disc bottom-right (it IS the resting compose FAB,
-//     replacing the old ComposeFAB), items rise UP out of it, bottom-first.
-//   • Map — the native top-right chrome "+" triggers it; the dial drops DOWN from
-//     there, chrome-styled to match the map's other floating controls, top-first.
+//  Hosted at MainTabsView (like the town-menu GlassShowcaseOverlay) so the wash + the
+//  column float above the tab bar. All three surfaces anchor the "+" TOP-RIGHT and
+//  drop the dial DOWN, nearest-item first. Two flavors:
+//   • Explore / Calendar — a coral disc in the top-right corner (it IS the resting
+//     compose FAB, replacing the old bottom ComposeFAB); its screen's own control
+//     (search / info) tucks to its LEFT into a small cluster.
+//   • Map — the native top-right chrome "+" triggers it; the dial is chrome-styled
+//     to match the map's other floating controls.
 //
 
 import SwiftUI
@@ -43,26 +45,18 @@ struct SpeedDialItem: Identifiable {
     let action: SpeedDialAction
 
     /// Context-tailored sets. Same create-kinds everywhere (Event/Club/Trail are our
-    /// only postable things) + Invite. Ordered so the FARTHEST item is first and the
-    /// primary sits NEAREST the disc: bottom-anchored dials read that top→bottom,
-    /// top-anchored dials get the reversed order (primary on top, nearest the "+").
-    static func calendar() -> [SpeedDialItem] { risingFromBottom() }
-    static func explore()  -> [SpeedDialItem] { risingFromBottom() }
+    /// only postable things) + Invite. Every surface now drops the dial DOWN from a
+    /// top-right "+", so all three are ordered primary-first — "Event" sits directly
+    /// under the disc and leads the nearest-item-first cascade.
+    static func calendar() -> [SpeedDialItem] { droppingFromTop() }
+    static func explore()  -> [SpeedDialItem] { droppingFromTop() }
+    static func map()      -> [SpeedDialItem] { droppingFromTop() }
 
-    /// Map: the same four, ordered primary-first because the dial drops DOWN from a
-    /// top-right "+", so "Event" sits directly under it.
-    static func map() -> [SpeedDialItem] {
+    private static func droppingFromTop() -> [SpeedDialItem] {
         [ SpeedDialItem(title: "Event",             symbol: "calendar",          primary: true,  action: .compose(.event)),
-          SpeedDialItem(title: "Trail",             symbol: "figure.walk",       primary: false, action: .compose(.trail)),
           SpeedDialItem(title: "Club",              symbol: "person.2",          primary: false, action: .compose(.club)),
+          SpeedDialItem(title: "Trail",             symbol: "figure.walk",       primary: false, action: .compose(.trail)),
           SpeedDialItem(title: "Invite a neighbor", symbol: "person.badge.plus", primary: false, action: .invite) ]
-    }
-
-    private static func risingFromBottom() -> [SpeedDialItem] {
-        [ SpeedDialItem(title: "Invite a neighbor", symbol: "person.badge.plus", primary: false, action: .invite),
-          SpeedDialItem(title: "Trail",             symbol: "figure.walk",       primary: false, action: .compose(.trail)),
-          SpeedDialItem(title: "Club",              symbol: "person.2",          primary: false, action: .compose(.club)),
-          SpeedDialItem(title: "Event",             symbol: "calendar",          primary: true,  action: .compose(.event)) ]
     }
 }
 
@@ -83,11 +77,21 @@ struct ComposeSpeedDial: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// Trailing space a top-anchored screen header reserves so its own control
+    /// (Explore's search, Calendar's info) tucks to the LEFT of the pinned coral
+    /// compose "+", forming a top-right cluster (mirrors the map's filter·pill·+).
+    /// Added on top of a header's standard 18pt inset.
+    static let topDiscHeaderClearance: CGFloat = 56
+
     private var isTop: Bool { anchor == .topTrailing }
-    private var discSize: CGFloat { chromeDisc ? 44 : 54 }
+    // Map "+" is 44pt white chrome; the coral compose disc is 48pt in the top-right
+    // cluster (was a bulkier 54 when it stood alone at the bottom).
+    private var discSize: CGFloat { chromeDisc ? 44 : (isTop ? 48 : 54) }
     private let iconSize: CGFloat = 44
-    private var discTrailing: CGFloat { chromeDisc ? 16 : 20 }
-    private var discEdge: CGFloat { chromeDisc ? 8 : 96 }          // from top (chrome) / bottom (coral)
+    private var discTrailing: CGFloat { chromeDisc ? 16 : (isTop ? 16 : 20) }
+    // Top-anchored discs sit in the top-right corner; the legacy bottom coral disc
+    // cleared the floating tab bar.
+    private var discEdge: CGFloat { isTop ? 8 : 96 }
     private var colTrailing: CGFloat { discTrailing + (discSize - iconSize) / 2 }
     private var colEdge: CGFloat { discEdge + discSize + 18 }      // clear the disc + a gap
 
@@ -127,6 +131,11 @@ struct ComposeSpeedDial: View {
                 .padding(.trailing, discTrailing)
                 .padding(isTop ? .top : .bottom, discEdge)
         }
+        // Pin to the anchor corner of the full screen. Without this the ZStack hugs
+        // its content and only lands correctly while the full-bleed wash is present
+        // (open); at rest (no wash) it would center-float. The frame has no background,
+        // so its empty area stays tap-through to the screen beneath.
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: zAlignment)
     }
 
     private var discVisible: Bool { showsRestingDisc || isOpen }

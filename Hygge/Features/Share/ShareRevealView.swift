@@ -52,7 +52,7 @@ struct ShareRevealView: View {
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(Hue.ink3)
                 }
-                .buttonStyle(PressableStyle(scale: 0.9))
+                .buttonStyle(PressableStyle(scale: 0.9, haptic: true))
                 Spacer()
                 Text(payload.title)
                     .font(.mono(11)).tracking(1.6)

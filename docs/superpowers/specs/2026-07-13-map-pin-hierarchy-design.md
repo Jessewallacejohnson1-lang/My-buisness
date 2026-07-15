@@ -1,5 +1,12 @@
 # Map pin hierarchy — rest dots, awake markers, collision labels
 
+> **RETIRED (2026-07-13), same day.** A Life360/Mobbin reference screenshot showed every curated
+> place's small icon+label visible unprompted — a different default-visibility model than this
+> spec's "recede to an invisible dot until saved/live/tapped." Every curated spot now always
+> renders a small badge (`MapPinBadge` in `SJMapView.swift`); the Mapbox `CircleLayer`/`SymbolLayer`
+> collision system this spec describes was removed. See the "Living Basemap retired + pin badges
+> redrawn" entry in `MAP_BUILD_LOG.md`. Kept here as a historical record.
+
 **Date:** 2026-07-13 · **Surface:** `Features/Map/` · **Reference feel:** Snapchat Map, Life360.
 
 ## Problem

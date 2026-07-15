@@ -11,13 +11,56 @@ import Combine
 
 // MARK: - Motion primitives
 
-/// Card / control press feedback: a subtle spring scale-down while held.
+/// Card / control press feedback: a tap "pop". On the press-DOWN edge a one-shot
+/// keyframe plays start-to-finish — scale in to `scale`, then spring back with a
+/// tiny overshoot — so it reads even on a fast tap (a plain scale-while-held barely
+/// shows when the finger is down for a fraction of a second). `haptic: true` adds a
+/// light tick on press-down for button-like controls; content rows/cards leave it
+/// off. Honors Reduce Motion (no scale; the haptic still fires).
 struct PressableStyle: ButtonStyle {
     var scale: CGFloat = 0.97
+    var haptic: Bool = false
+
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? scale : 1)
-            .animation(.spring(response: 0.28, dampingFraction: 0.7), value: configuration.isPressed)
+        Pop(label: configuration.label,
+            isPressed: configuration.isPressed,
+            restingScale: scale,
+            haptic: haptic)
+    }
+
+    /// The trigger-driven pop. A per-press counter (bumped on the down edge) drives a
+    /// keyframe timeline that always runs to completion, independent of hold duration.
+    private struct Pop<Label: View>: View {
+        let label: Label
+        let isPressed: Bool
+        let restingScale: CGFloat
+        let haptic: Bool
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
+        @State private var taps = 0
+
+        var body: some View {
+            // Press in to `target`, then overshoot ABOVE 100% before settling. The
+            // explicit overshoot is what makes the pop read even when the press-in is
+            // shallow (a 0.97 scale alone is ~1px and invisible); the bounce past 1.0
+            // is the satisfying "click". Reduce Motion flattens the whole track.
+            let target: CGFloat = reduceMotion ? 1 : restingScale
+            let peak: CGFloat = reduceMotion ? 1 : 1.05
+            label
+                .keyframeAnimator(initialValue: CGFloat(1), trigger: taps) { view, s in
+                    view.scaleEffect(s)
+                } keyframes: { _ in
+                    KeyframeTrack {
+                        CubicKeyframe(target, duration: 0.10)   // press in
+                        CubicKeyframe(peak, duration: 0.13)     // overshoot past 100%
+                        SpringKeyframe(CGFloat(1), duration: 0.30, spring: Spring(duration: 0.30, bounce: 0.26))
+                    }
+                }
+                .onChange(of: isPressed) { _, pressed in
+                    guard pressed else { return }
+                    if haptic { Haptics.light() }
+                    taps &+= 1
+                }
+        }
     }
 }
 
@@ -44,6 +87,62 @@ private struct AppearStagger: ViewModifier {
 extension View {
     /// Fade+rise in, delayed by list position. Cap the visible stagger at ~8 items.
     func appearStagger(_ index: Int) -> some View { modifier(AppearStagger(index: index)) }
+}
+
+/// A staggered "pop": each item scales up from just-below-full with a fade, one
+/// after another — the Wolt Discovery entrance where the category row lands one
+/// tile at a time, left → right. Distinct from
+/// `appearStagger` (a whole-section fade+rise): this is per-item and *scales*, so
+/// each element reads as its own little pop instead of the row sliding up as one.
+///
+/// Craft notes (Emil Kowalski's framework, same as SpringReveal):
+///   • Never from scale(0) — starts at 0.80 + a small rise + opacity so nothing
+///     pops from nothing but the grow-in still reads clearly.
+///   • Deliberately MORE pronounced than the Wolt reference (which is a quiet
+///     scale+fade): a bigger scale delta, a short rise, and a real spring bounce
+///     (overshoot past 1.0) make each tile visibly *pop*, and a slightly wider
+///     ~85ms stagger lets the eye catch them landing one at a time.
+///   • `base` holds the cascade a beat after the screen lands, so it plays on a
+///     settled screen instead of being swallowed by the tab-slide / splash-dismiss.
+///   • Only transform + opacity animate — GPU-friendly, no layout thrash.
+///   • Reduce Motion drops the movement to a gentle crossfade (comprehension, no pop).
+private struct PopIn: ViewModifier {
+    let index: Int
+    /// Shifts the whole cascade later, e.g. to begin just after the screen settles.
+    var base: Double = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var shown = false
+
+    // Left-to-right cascade — wider ~85ms spacing so each tile's pop is distinct;
+    // cap so a long row never drags.
+    private var delay: Double { base + Double(min(index, 8)) * 0.085 }
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(shown ? 1 : 0)
+            .scaleEffect(shown || reduceMotion ? 1 : 0.80, anchor: .center)
+            .offset(y: shown || reduceMotion ? 0 : 9)
+            .onAppear {
+                guard !shown else { return }
+                if reduceMotion {
+                    withAnimation(.easeOut(duration: 0.22)) { shown = true }
+                    return
+                }
+                // A real bounce (overshoot past 1.0) is what makes the pop pop —
+                // bounce 0.38 stays playful without looking toylike.
+                withAnimation(.spring(duration: 0.42, bounce: 0.38).delay(delay)) {
+                    shown = true
+                }
+            }
+    }
+}
+
+extension View {
+    /// Pop each item in one at a time — scale-up (0.85→1 with a hair of overshoot)
+    /// + fade, delayed by list position. `base` shifts the cascade start later.
+    func popIn(_ index: Int, base: Double = 0) -> some View {
+        modifier(PopIn(index: index, base: base))
+    }
 }
 
 // MARK: - Saved (bookmark) state

@@ -1,5 +1,11 @@
 # Living Basemap Implementation Plan
 
+> **RETIRED (2026-07-13), same day.** Everything this plan built (`AtmosphereModel`,
+> `AtmosphereOverride`, `BasemapPalette.make(for:)`, the `-atmosphere` DEBUG flag) was deleted the
+> same day in favor of one static basemap. See the "Living Basemap retired" entry in
+> `MAP_BUILD_LOG.md`. Kept here as a historical record — do not follow these steps or treat the
+> APIs below as current.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make the St. Joseph town map alive before anyone touches it — the basemap, a light wash, drifting precip, and a quiet weather line all reflect the real time of day, season, and weather.
