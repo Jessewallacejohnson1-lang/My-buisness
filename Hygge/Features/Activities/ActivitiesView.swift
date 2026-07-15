@@ -25,10 +25,25 @@ struct ActivitiesView: View {
 
     @State private var filter: Filter = ActivitiesView.initialFilter()
     @State private var timeFrame: TimeFrame = ActivitiesView.initialTimeFrame()
-    @State private var query = ""
-    @State private var searching = false
-    @FocusState private var searchFocused: Bool
+    @State private var query = ActivitiesView.launchSearch?.query ?? ""
+    /// A search session is active — the header shows the slim committed bar and the
+    /// results list is filtered (vs. the resting town pill + discovery).
+    @State private var searching = ActivitiesView.launchSearch != nil
+    /// The frosted-glass typing overlay is up (`fullScreenCover`). Focus lives
+    /// inside `ExploreSearchOverlay`; this only gates presentation.
+    @State private var searchPresented = false
+    /// DEBUG-only guard so the auto-open for `-explore-search…` fires just once.
+    @State private var didAutoSearch = false
     @State private var trailsShowingMap = false
+    /// A curated place / park picked from the search dropdown, presented as its
+    /// detail sheet (both are `Identifiable`, so `.sheet(item:)` drives them).
+    @State private var presentedPlace: Place?
+    @State private var presentedPark: Park?
+    /// A place/park chosen from a guess, held until the search cover has fully
+    /// dismissed — then presented in the cover's `onDismiss` (no present-while-
+    /// dismissing race, no fixed delay).
+    @State private var pendingPlace: Place?
+    @State private var pendingPark: Park?
 
     /// DEBUG-only: `-explore-filter events|clubs|trails|parks|saved` starts on a given
     /// chip so simulator verification can screenshot each card state headlessly.
@@ -43,6 +58,31 @@ struct ActivitiesView: View {
         #endif
         return .all
     }
+
+    /// DEBUG-only: start a search session on launch so its states can be
+    /// screenshotted headlessly (no UI driving needed):
+    ///   `-explore-search-open`            → the focused-but-empty glass overlay ("Popular")
+    ///   `-explore-search <query>`         → the glass overlay with recommendations for <query>
+    ///   `-explore-search-committed <query>`→ the committed state (slim bar + filtered results, no glass)
+    /// `present` controls whether the glass overlay auto-opens (see `explore`'s `.onAppear`).
+    private static func initialSearch() -> (query: String, present: Bool)? {
+        #if DEBUG
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-explore-search"), i + 1 < args.count {
+            return (args[i + 1], true)
+        }
+        if args.contains("-explore-search-open") {
+            return ("", true)
+        }
+        if let i = args.firstIndex(of: "-explore-search-committed"), i + 1 < args.count {
+            return (args[i + 1], false)
+        }
+        #endif
+        return nil
+    }
+    /// Parsed once (launch args don't change), reused by the two `@State` seeds and
+    /// the DEBUG auto-open in `explore`'s `.onAppear`.
+    private static let launchSearch: (query: String, present: Bool)? = initialSearch()
 
     /// DEBUG-only: `-explore-timeframe today|week|month|upcoming` starts on a given
     /// time frame so each filtered state can be screenshotted headlessly.
@@ -107,6 +147,20 @@ struct ActivitiesView: View {
             }
         }
         .task { await model.load(api) }
+        .sheet(item: $presentedPlace) { PlaceDetailView(place: $0) }
+        .sheet(item: $presentedPark) { ParkDetailView(park: $0) }
+        // The focused search overlay covers the whole screen (tab bar included).
+        // `.clear` presentation background lets our own frosted glass be the only
+        // backdrop; the cover is toggled without animation so the overlay's own
+        // cross-fade is the transition.
+        .fullScreenCover(isPresented: $searchPresented, onDismiss: presentPendingDetail) {
+            ExploreSearchOverlay(query: $query,
+                                 suggestions: searchSuggestions,
+                                 onPick: onSuggestion,
+                                 onCancel: cancelSearch,
+                                 onSubmit: submitSearch)
+                .presentationBackground(.clear)
+        }
     }
 
     // MARK: - Explore scroll
@@ -114,11 +168,13 @@ struct ActivitiesView: View {
     private var explore: some View {
         ScrollView(showsIndicators: false) {
             LazyVStack(alignment: .leading, spacing: 22) {
-                ExploreTownHeader(searching: $searching, query: $query, searchField: $searchFocused)
+                ExploreTownHeader(searching: searching, query: query,
+                                  onOpen: openSearch, onCancel: cancelSearch)
+                    // Keep the search button LEFT of the pinned compose "+" (top-right).
+                    .padding(.trailing, ComposeSpeedDial.topDiscHeaderClearance)
                     .padding(.top, 6)
                     .appearStagger(0)
                 categoryTiles
-                    .appearStagger(1)
                 content
                 Color.clear.frame(height: 96)
             }
@@ -128,6 +184,18 @@ struct ActivitiesView: View {
         .refreshable { await model.load(api) }
         .scrollDismissesKeyboard(.interactively)
         // The compose "+" is now the ComposeSpeedDial, hosted by MainTabsView.
+        #if DEBUG
+        .onAppear {
+            // DEBUG `-explore-search…` marked a session active; present the glass
+            // overlay a beat after the screen settles so it renders for a headless
+            // screenshot (mirrors a real tap on the search circle).
+            guard searching, !didAutoSearch else { return }
+            didAutoSearch = true
+            if ActivitiesView.launchSearch?.present == true {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { setSearchPresented(true) }
+            }
+        }
+        #endif
     }
 
     @ViewBuilder
@@ -166,14 +234,21 @@ struct ActivitiesView: View {
     private var categoryTiles: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 14) {
-                ForEach(Filter.tiles, id: \.self) { f in
+                // Each tile pops in one at a time (scale+fade), left → right — the
+                // Wolt Discovery entrance, tuned frame-by-frame to the reference.
+                // `base` holds a beat so the cascade clears the tab-slide / splash
+                // and plays on a settled screen (as it does in the reference).
+                ForEach(Array(Filter.tiles.enumerated()), id: \.element) { i, f in
                     ExploreCategoryTile(title: f.rawValue, icon: f.icon, selected: filter == f) {
                         toggleFilter(f)
                     }
+                    .popIn(i, base: 0.22)
                 }
             }
             .padding(.horizontal, 18)
-            .padding(.vertical, 2)
+            // Headroom so the pop's rise + bounce-overshoot are never clipped by the
+            // horizontal scroll view's bounds.
+            .padding(.vertical, 12)
         }
     }
 
@@ -194,6 +269,91 @@ struct ActivitiesView: View {
                                           dateLabel: DateHelpers.prettyDate(event.eventDate),
                                           time: event.startTime,
                                           location: event.location))
+    }
+
+    // MARK: - Search suggestions (the Google-style dropdown)
+
+    /// Ranked recommendations for the current query, or Popular starters when the
+    /// field is focused but empty. Recomputed per render — the data is tiny and
+    /// local, so there's no debounce and no per-keystroke animation to manage.
+    private var searchSuggestions: [Suggestion] {
+        let q = query.trimmingCharacters(in: .whitespaces)
+        if q.isEmpty { return TownSearch.popular() }
+        return TownSearch.suggestions(query: q, events: model.events,
+                                      clubs: model.clubs, trails: model.trails, parks: model.parks)
+    }
+
+    /// Toggle the `fullScreenCover` WITHOUT its default slide — the overlay owns
+    /// its own cross-fade on both edges, so the cover must appear/vanish instantly.
+    private func setSearchPresented(_ v: Bool) {
+        var t = Transaction()
+        t.disablesAnimations = true
+        withTransaction(t) { searchPresented = v }
+    }
+
+    /// Open the frosted search overlay (from the resting circle or the committed
+    /// bar). `searching` also flips the header to its slim-bar form underneath.
+    private func openSearch() {
+        Haptics.selection()
+        searching = true
+        setSearchPresented(true)
+    }
+
+    /// Leave search entirely — back to the resting town header + discovery.
+    private func cancelSearch() {
+        query = ""
+        searching = false
+        setSearchPresented(false)
+    }
+
+    /// A guess was tapped (the overlay has already faded itself out). A Place/Park
+    /// opens its detail (held until the cover's `onDismiss` so there's no present-
+    /// while-dismissing race); a text guess commits — the query + category apply and
+    /// the slim committed bar + filtered results take over behind the vanished glass.
+    private func onSuggestion(_ s: Suggestion) {
+        Haptics.selection()
+        switch s.action {
+        case .openPlace(let p):
+            pendingPlace = p
+            cancelSearch()            // dismisses the cover → presentPendingDetail() fires
+        case .openPark(let p):
+            pendingPark = p
+            cancelSearch()
+        case .runSearch(let term, let f):
+            query = term
+            filter = mapFilter(f)
+            timeFrame = .upcoming     // a stale Today/Week frame must not hide the very item tapped
+            searching = true          // keep the committed bar; results show behind
+            setSearchPresented(false)
+        }
+    }
+
+    /// Commit the typed text as a plain reference-aware search (keyboard "Search").
+    /// Empty text just closes the overlay.
+    private func submitSearch() {
+        let q = query.trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty else { cancelSearch(); return }
+        filter = .all
+        timeFrame = .upcoming
+        searching = true
+        setSearchPresented(false)
+    }
+
+    /// Present a place/park detail chosen from a guess, once the search cover has
+    /// fully dismissed (called from the cover's `onDismiss`).
+    private func presentPendingDetail() {
+        if let p = pendingPlace { pendingPlace = nil; presentedPlace = p }
+        else if let p = pendingPark { pendingPark = nil; presentedPark = p }
+    }
+
+    private func mapFilter(_ f: TownSearch.SearchFilter?) -> Filter {
+        switch f {
+        case .events: return .events
+        case .clubs:  return .clubs
+        case .trails: return .trails
+        case .parks:  return .parks
+        case nil:     return .all
+        }
     }
 
     // MARK: - Discovery (unfiltered)
@@ -451,10 +611,11 @@ struct ActivitiesView: View {
     private var showTrails: Bool { filter == .all || filter == .trails || savedMode }
     private var showParks: Bool { filter == .all || filter == .parks || savedMode }
 
+    /// Reference-aware field match for the filtered results list — the same engine
+    /// the suggestions dropdown uses, so a related word ("pint", "csb", a small
+    /// typo) filters the list, not just the literal name. Empty query passes all.
     private func matches(_ haystack: String...) -> Bool {
-        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
-        if q.isEmpty { return true }
-        return haystack.contains { $0.lowercased().contains(q) }
+        TownSearch.matches(query, haystack)
     }
     /// In Saved mode every list is narrowed to the viewer's bookmarked ids.
     private func savedPass(_ id: String) -> Bool { !savedMode || saved.isSaved(id) }

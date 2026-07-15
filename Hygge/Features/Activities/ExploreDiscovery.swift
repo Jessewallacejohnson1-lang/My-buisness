@@ -22,89 +22,90 @@ func exploreEventDateline(_ event: UpcomingEvent) -> String {
     DateHelpers.prettyDate(event.eventDate) + (event.startTime.map { " · \($0)" } ?? "")
 }
 
-// MARK: - Town header (Wolt's "Berlin ▾", re-skinned + an expandable search)
+// MARK: - Town header (Wolt's "Berlin ▾", re-skinned + a search entry point)
 
-/// The top row: a coral place-pin, "Saint Joseph", and a chevron — with a
-/// trailing search circle that expands the row into a search field in place.
-/// Faithful to Wolt (no persistent search bar) while keeping search reachable.
+/// The top row. At rest: a coral place-pin, "Saint Joseph", a chevron, and a
+/// trailing search circle that opens the frosted search overlay (`onOpen`). Once
+/// a search has been committed (`searching`) the row becomes a slim crisp search
+/// bar holding the query — tap it to reopen the overlay, or Cancel to exit. The
+/// actual typing UI (glass + suggestions) lives in `ExploreSearchOverlay`.
 struct ExploreTownHeader: View {
     var town: String = "Saint Joseph"
-    @Binding var searching: Bool
-    @Binding var query: String
-    var searchField: FocusState<Bool>.Binding
+    var searching: Bool
+    var query: String
+    var onOpen: () -> Void
+    var onCancel: () -> Void
 
     var body: some View {
-        HStack(spacing: 11) {
-            if searching {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Hue.gray)
-                TextField("Search St. Joe", text: $query)
-                    .font(.sans(16))
-                    .foregroundStyle(Hue.mapInk)
-                    .autocorrectionDisabled()
-                    .textInputAutocapitalization(.never)
-                    .focused(searchField)
-                    .submitLabel(.search)
-                if !query.isEmpty {
-                    Button {
-                        withAnimation(.easeOut(duration: 0.15)) { query = "" }
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 16))
-                            .foregroundStyle(Hue.grayLight)
-                    }
-                    .buttonStyle(PressableStyle(scale: 0.9))
-                }
-                Button("Cancel") { close() }
-                    .font(.sansSemibold(15))
-                    .foregroundStyle(Hue.accent)
-                    .buttonStyle(.plain)
-            } else {
-                ZStack {
-                    Circle().fill(Hue.accentSoft)
-                    Image(systemName: "mappin.and.ellipse")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(Hue.accent)
-                }
-                .frame(width: 40, height: 40)
-
-                HStack(spacing: 5) {
-                    Text(town)
-                        .font(.sansBold(22))
-                        .foregroundStyle(Hue.ink)
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(Hue.ink3)
-                }
-
-                Spacer(minLength: 8)
-
-                Button { open() } label: {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(Hue.mapInk)
-                        .frame(width: 42, height: 42)
-                        .background(Hue.bgSubtle)
-                        .clipShape(Circle())
-                }
-                .buttonStyle(PressableStyle(scale: 0.92))
-                .accessibilityLabel("Search")
-            }
+        Group {
+            if searching { committedBar } else { restingRow }
         }
         .frame(height: 44)
         .padding(.horizontal, 18)
     }
 
-    private func open() {
-        withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) { searching = true }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { searchField.wrappedValue = true }
+    private var restingRow: some View {
+        HStack(spacing: 11) {
+            ZStack {
+                Circle().fill(Hue.accentSoft)
+                Image(systemName: "mappin.and.ellipse")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Hue.accent)
+            }
+            .frame(width: 40, height: 40)
+
+            HStack(spacing: 5) {
+                Text(town)
+                    .font(.sansBold(22))
+                    .foregroundStyle(Hue.ink)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(Hue.ink3)
+            }
+
+            Spacer(minLength: 8)
+
+            Button { onOpen() } label: {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Hue.mapInk)
+                    .frame(width: 42, height: 42)
+                    .background(Hue.bgSubtle)
+                    .clipShape(Circle())
+            }
+            .buttonStyle(PressableStyle(scale: 0.92))
+            .accessibilityLabel("Search")
+        }
     }
-    private func close() {
-        searchField.wrappedValue = false
-        withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
-            searching = false
-            query = ""
+
+    /// The persistent slim bar shown after a search is committed — crisp white
+    /// pill + shadow, matching the overlay's bar so reopening feels continuous.
+    private var committedBar: some View {
+        HStack(spacing: 12) {
+            Button { onOpen() } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(Hue.ink3)
+                    Text(query.isEmpty ? "Search St. Joe" : query)
+                        .font(.sans(16))
+                        .foregroundStyle(query.isEmpty ? Hue.ink3 : Hue.ink)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 14).padding(.vertical, 10)
+                .background(Hue.paper)
+                .clipShape(Capsule())
+                .shadow(color: .black.opacity(0.10), radius: 12, x: 0, y: 4)
+                .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Edit search")
+
+            Button("Cancel") { onCancel() }
+                .font(.sansSemibold(15))
+                .foregroundStyle(Hue.accent)
+                .buttonStyle(.plain)
         }
     }
 }
