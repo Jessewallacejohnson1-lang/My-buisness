@@ -695,3 +695,143 @@ z14.5 threshold (label fading in) · z16 label on · Millstream **saved** (ink b
 **live** (coral + pulse + label) · **selected** (detail sheet + save toggle) · dense cluster (two
 labels, **no collision**). Coral stays reserved for live; saved uses ink. The selected on-map badge
 is verified by mechanism (the sheet lifts over it in normal use).
+
+---
+
+## Living Basemap retired + pin badges redrawn to the Life360 reference (2026-07-13)
+
+Both of today's earlier map features got a same-day reversal, driven by a Life360/Mobbin reference
+screenshot: **one static base layer**, and **small icon+text pins, not big bulky badges** —
+especially for parks.
+
+**Living Basemap fully removed** (`Features/Map/Atmosphere/`, 809 lines — `AtmosphereModel`,
+`TownAtmosphere`, `SolarClock`, `SeasonClock`, `WeatherProvider`, `TimeWashOverlay`,
+`WeatherParticles`, `AtmosphereWhisper`, `AtmosphereOverride`, the old dynamic `BasemapPalette`).
+Confirmed self-contained first (`grep` for every type outside `Atmosphere/` — zero hits; the
+Almanac's weather bar is a separate, unrelated implementation) — safe to delete outright, no shim.
+The `-atmosphere <k:v,…>` DEBUG flag is gone with it. `SJMapView` no longer holds an `AtmosphereModel`
+`@StateObject` or a `mapRef` (it existed only so `recolorBasemap` could re-apply on every atmosphere
+change); `recolorBasemap` now runs once, on style load.
+
+**One static `BasemapPalette`** (`Features/Map/BasemapPalette.swift`) — pixel-sampled directly off
+the reference (a Life360 screenshot of Bukit Batok, Singapore, via Mobbin): background `#F4F3EC`,
+park `#D6E8C4`, water `#9EDAF3`, road `#D8D8D8`, label ink `#555553` (≈ existing `Hue.ink2`
+`#5E5D56` — reused instead of a new hex). Sampling method: crop the reference to isolated regions,
+then rank pixels by hue-dominance (greenest / most-amber / darkest) rather than naive most-common-
+color, since anti-aliased edges otherwise drown out the small saturated badge colors in a sea of
+near-background tones. `recolorBasemap` now also recolors road/road-case/motorway layers (previously
+untouched — roads inherited light-v11's default blue-grey) and sets `text-color` on
+`road-label`/`settlement-*-label` to the sampled ink, since the style default reads lighter than the
+reference's bold charcoal.
+
+**Pin badges redrawn.** The just-built pin hierarchy (previous entry) recedes every non-awake spot to
+an invisible dot with no label — a different default-visibility model than the reference, which shows
+every curated place's small icon+label unprompted. Confirmed with the user before touching it: every
+curated spot now **always** renders its badge (`ForEvery(filteredSpots)`, not just `awakePins`) — a
+28pt solid category-color circle with a white glyph, plus a bold halo'd name label beside it (not
+below), matching the reference's small-icon-next-to-text pattern instead of the old 44px white-circle-
+with-line-icon badge. `PinDisplay`'s precedence (selected > live > saved > rest) is unchanged; live
+still gets coral + pulse, saved still gets an ink bookmark corner — both now layer onto the same small
+badge instead of swapping to a different visual language. `SpotCategory.tint` is new: green
+parks/trails (one new map-only hex, `#6BBE52`, sampled off the reference's park badges — parks read
+green on every map regardless of app brand), honey downtown/coffee/fitness (reused `Hue.honey600`),
+sky college/chapel (reused `Hue.sky600`).
+
+**Simplification that fell out of this.** Six curated spots never needed Mapbox-level label collision
+— the whole `hygge-pins` GeoJSON source, `CircleLayer` dot layer, `SymbolLayer` label layer,
+`symbol-sort-key`, the zoom-threshold `text-opacity` expression, and the `setFeatureState` selection
+plumbing are gone. Selection is now a plain `@State` driving the SwiftUI overlay directly — a real
+reduction in moving parts, not just a visual restyle. `handleMapTap`'s manual nearest-spot hit-testing
+is gone too: every spot has a real tappable badge now, so the map's own tap handler only has to
+dismiss the open detail card.
+
+**Verified:** build 0 warnings both passes. Screenshot-compared against the reference at default zoom
+(all 6 spots + filter/pill chrome) and centered on Millstream Park at z16 (saved badge, unclipped).
+Sampled the sim's own rendered pixels back out: background `#F4F4EC` vs target `#F4F3EC`, park
+`#D7E8C4` vs target `#D6E8C4` — effectively exact. Confirmed live (coral + pulse, Downtown) and saved
+(ink bookmark corner, Millstream) render correctly on the new small badge.
+
+**Code-review pass (7 finders + sweep, verified against the actual light-v11 style + a screenshot
+re-check) caught real bugs the first screenshot pass missed:**
+
+- **Labels were mispositioned, not just "close."** `HaloText` was centered by its ZStack parent
+  *before* `.offset(x:)` was applied, so the offset was nowhere near enough to clear the label past
+  the badge — every name rendered overlapping/centered on its own circle instead of beside it.
+  Confirmed by re-deriving the layout math, then by re-screenshotting. Fixed by attaching the label
+  via `.overlay(alignment: .leading)` + leading padding instead of frame-then-offset — an alignment
+  guide reads its position off the badge's own edge, not its center, so it doesn't need to know the
+  label's width up front.
+- **Roads/road-labels were silently not recoloring.** `recolorBasemap` guessed Mapbox Streets'
+  layer names (`road-primary`, `road-motorway-trunk`, `road-label`, …) — light-v11 doesn't have
+  them. Fetched the style's actual JSON (`GET styles/v1/mapbox/light-v11`) instead of guessing
+  again: light-v11 consolidates every road class into ONE `road-simple` line layer (width-only
+  differentiation, no per-class color) and the label layer is `road-label-simple`. `BasemapPalette`'s
+  `roadFill`/`roadCasing`/`roadMinorFill`/`motorwayFill`/`motorwayCasing` five-property hierarchy was
+  dead weight against this simpler style — collapsed to one `road` color.
+  Every `setLayerProperty` call was already `try?`-wrapped, so all of this failed completely
+  silently — worth remembering next time a "should be working" Mapbox recolor doesn't show up in a
+  screenshot: check the style's real layer ids before assuming the paint call is the problem.
+- **`if live && !selected { PulseRing() }` had silently lost its `!selected`** during the badge
+  rewrite — a live pin kept pulsing even once selected/scaled-up, compounding with the always-on
+  label. Restored.
+- **Pin tap targets shrank from a guaranteed ≥44×44pt to a bare 28×28pt** with the smaller badge —
+  below Apple's HIG minimum. Restored via an outer 44×44 `.frame` + `.contentShape`, centered on the
+  same coordinate anchor so the visual badge stays 28pt.
+- **`let labelInk = "#5E5D56"`** duplicated `Hue.ink2` as a raw hex — direct contradiction of
+  `BasemapPalette.swift`'s own comment ("use Hue.ink2 at call sites"). Added `Color.hexString` (the
+  reverse of the existing `Color(hex:)`) to `HyggeColor.swift` so map label color can reuse the
+  token instead of a second untracked copy.
+- **`PinDisplay.selected` was dead** — the only caller always passed `isSelected: false` (selection
+  is tracked as a separate `Bool` at the SwiftUI layer, not through this resolver). Removed the case
+  and the parameter rather than leave an unreachable precedence branch a future edit could "fix"
+  with zero effect.
+- Minor: `isLive(spot)` was computed twice per pin per render (badge tint + a11y label) — computed
+  once and reused. Added a `value: base` animation so a spot's tint crossfades on a live/save state
+  change instead of snapping (the annotation view persists across these transitions since `ForEvery`
+  keys on the spot's stable id, so nothing was animating the color).
+- Docs: fixed CLAUDE.md's `-map-save` line (still said "white badge"), added retirement banners to
+  the orphaned `docs/superpowers/specs/2026-07-13-map-pin-hierarchy-design.md` and
+  `docs/superpowers/plans/2026-07-13-living-basemap.md`.
+- **Known, not fixed:** Downtown and Sacred Heart Chapel are only ~195m apart — at the default zoom
+  (13.5) their labels sit close enough to visually crowd each other, and there's no collision system
+  anymore (deliberately — six curated spots didn't seem to warrant reintroducing Mapbox-layer
+  collision). Also found, not fixed (pre-existing, different file): `MapSheet`'s detent doesn't drop
+  back to `.peek` when a filter change clears the selected spot out from under it — only its own
+  in-sheet back button resets the detent.
+
+**Re-verified after fixes:** build 0 warnings; labels now sit cleanly beside their badges at default
+zoom (Millstream Park, Wobegon Trail, Downtown, Sacred Heart Chapel, Saint Ben's all screenshot-
+confirmed); live pin (Downtown, force-live) shows the coral pulse correctly with the corrected label
+position.
+
+---
+
+## Pins shrink/expand with zoom — space-efficient labels (2026-07-14)
+
+Always-on icon+label pins looked right at neighborhood zoom but crowded each other zoomed out (the
+Downtown/Chapel collision noted above). Rather than reintroduce Mapbox-layer collision, pins now
+size themselves to how much room the zoom actually gives them — the same trick Apple/Google Maps use.
+
+- **`MapModel.pinsExpanded`** (new `@Published`) + `updateZoom(_:)`, mirroring `updateTown`'s existing
+  pattern exactly: `onCameraChanged` fires every rendering frame and the SDK's own doc comment warns
+  never to write `@State` there directly, so the actual flip is deferred through a short-debounced
+  `Task` (120ms — just enough to not flicker on a bouncy fling; much shorter than `updateTown`'s
+  500ms, since a laggy shrink/expand would feel unresponsive where a laggy town name doesn't). A
+  same-value guard makes panning within one zoom band a no-op.
+- **Threshold reused from the old (deleted) pin-hierarchy's tuning**: zoom **14.5** — already
+  screenshot-verified for this town in the prior pin-hierarchy pass.
+- **`MapPinBadge` gained an `expanded: Bool`** (zoom-driven, OR forced true by `selected` — a spot
+  you tapped always shows its name regardless of zoom). Compact = 14pt plain tint dot, no icon, no
+  label. Expanded = the 28pt circle + white glyph + halo'd label from the prior pass. Live's pulse
+  ring stays visible even compact — the one thing worth keeping glanceable zoomed all the way out;
+  the saved bookmark corner and category icon hide compact (no room on a 14pt dot). A spring
+  (`response 0.35, damping 0.8`) on the diameter change, `scale 0.9→1` + opacity on the label
+  (never animate in from a point-source — emil-design-eng) so six pins resizing on a pinch reads as
+  one physical move, not a snap; Reduce Motion drops the spring to a plain crossfade.
+
+**Verified:** build 0 warnings. Screenshotted at the default zoom (13.5, below threshold) — all six
+spots render as plain colored dots, no crowding. At zoom 15 — Wobegon Trail/Downtown/Sacred Heart
+Chapel all expand to icon+label, correctly positioned. Confirmed `-map-open` selection still resolves
+correctly. (Two false alarms during verification, both resolved by a clean stop+relaunch rather than
+a stacked `launch_app_sim` on top of an already-running process: a washed-out basemap and a stale
+selected-spot — simulator/tooling artifacts from rapid successive launches, not app bugs.)

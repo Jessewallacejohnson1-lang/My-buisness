@@ -2,10 +2,10 @@
 //  Masthead.swift
 //  Hygge — Home header: wordmark, today's date, and the one menu button.
 //
-//  The menu button carries a small vertical three-dot affordance (⋮), ported
-//  from the reference: on tap the button gives a little bounce, the dots fade
-//  away, and — a beat later — the town menu drawer unfolds out of the corner.
-//  The dots fade back once the drawer closes.
+//  The menu button carries a small vertical three-dot affordance (⋮): on tap the
+//  button gives a little bounce, the dots fade away, and — a beat later — the app
+//  frosts into glass and the town-menu showcase fades in over it. The dots fade
+//  back once the showcase closes.
 //
 
 import SwiftUI

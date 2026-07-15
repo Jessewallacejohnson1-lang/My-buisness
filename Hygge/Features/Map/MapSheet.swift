@@ -2,8 +2,14 @@
 //  MapSheet.swift
 //  Hygge — the always-visible bottom sheet on the map (Life360-style).
 //
-//  A draggable white sheet that sits above the tab bar and floats over the map.
-//  Three content states, all backed by REAL data (no invented counts):
+//  The sheet IS the surface here: a draggable white sheet that sits above the tab
+//  bar and floats over the map. Three detents the grabber snaps between:
+//    • peek   (~120pt) — ONE ambient line: what's live right now (not a list)
+//    • medium (~50%)   — the working list (Today ⇄ Places)
+//    • full   (~85%)   — the same list, immersive; stops just below the chrome
+//
+//  Peek shows a single glanceable status line; as you pull up it cross-fades into
+//  the list. All content is REAL (no invented counts):
 //    • today  — today's happenings from MapModel.todayEvents (coral dot = live now)
 //    • places — the curated MapSpots catalogue, with each spot's live count today
 //    • detail — one spot: blurb, its happenings, Directions (set by tapping a pin)
@@ -16,8 +22,8 @@
 import SwiftUI
 import CoreLocation
 
-/// How far the sheet is pulled up. Two detents; the grabber drags between them.
-private enum SheetDetent { case peek, expanded }
+/// How far the sheet is pulled up. Three detents; the grabber snaps between them.
+private enum SheetDetent: CaseIterable { case peek, medium, full }
 
 /// The two list faces of the sheet (a spot detail temporarily overrides both).
 private enum SheetMode { case today, places }
@@ -37,12 +43,12 @@ struct MapSheet: View {
 
     /// Cleared from behind the tab bar so the last row / Directions never hide.
     static let tabBarClearance: CGFloat = 56
-    /// Collapsed height — grabber + header + ~2 rows. The map's floating controls
-    /// sit just above this.
-    static let peekHeight: CGFloat = 244
+    /// Collapsed height — grabber + the single live-now line. The map's floating
+    /// controls sit just above this.
+    static let peekHeight: CGFloat = 120
 
     @State private var mode: SheetMode = MapSheet.initialMode()
-    @State private var detent: SheetDetent = .peek
+    @State private var detent: SheetDetent = MapSheet.initialDetent()
 
     /// DEBUG-only: `-map-sheet places` opens the sheet on the Places list so it can
     /// be screenshotted headlessly. No effect in release / without the flag.
@@ -53,25 +59,68 @@ struct MapSheet: View {
         #endif
         return .today
     }
+
+    /// DEBUG-only: `-map-detent peek|medium|full` opens the sheet at a given detent
+    /// so each rest state (and the peek line ⇄ list cross-fade) can be screenshotted
+    /// headlessly. No effect in release / without the flag.
+    private static func initialDetent() -> SheetDetent {
+        #if DEBUG
+        let a = ProcessInfo.processInfo.arguments
+        if let i = a.firstIndex(of: "-map-detent"), i + 1 < a.count {
+            switch a[i + 1] {
+            case "medium": return .medium
+            case "full":   return .full
+            default:       return .peek
+            }
+        }
+        // `-map-sheet <mode>` targets the LIST, which only shows from medium up — open
+        // there so that flag surfaces its list without also needing `-map-detent`.
+        if a.contains("-map-sheet") { return .medium }
+        #endif
+        return .peek
+    }
+
     @GestureState private var drag: CGFloat = 0
+    /// Latest laid-out container height, so the drag-end snap can reason about the
+    /// actual detent heights (they're derived from it). Updated off the layout pass.
+    @State private var containerH: CGFloat = 0
     @Environment(\.openURL) private var openURL
+    /// The device-local saved set (shared with Explore). Observed so the detail
+    /// header's bookmark reflects saves live; also the source of the map's Saved pin.
+    @ObservedObject private var saved = SavedStore.shared
 
     var body: some View {
         GeometryReader { geo in
             let H = geo.size.height
-            let peek = Self.peekHeight
-            let expanded = max(peek, H * 0.62)
-            let resting = detent == .peek ? peek : expanded
+            let m = metrics(H)
+            let resting = restHeight(detent, m)
             // Drag up → negative translation → taller sheet.
-            let height = min(max(resting - drag, peek), expanded)
+            let height = min(max(resting - drag, m.peek), m.full)
+            // 0 at peek → 1 by the time we reach medium: drives the line⇄list fade.
+            let p = min(max((height - m.peek) / max(1, m.medium - m.peek), 0), 1)
 
             VStack(spacing: 0) {
                 grabber
                 if let spot = selected {
                     detailContent(spot)
                 } else {
-                    listHeader
-                    listBody
+                    ZStack(alignment: .top) {
+                        // Bias the two curves off the shared `p` so one layer is always
+                        // dominant — no muddy 50/50 crossing when you scrub slowly. The
+                        // outgoing line also blurs a touch to soften the handoff seam.
+                        let peekOut = 1 - min(1, p * 1.7)            // gone by p≈0.59
+                        let listIn = max(0, (p - 0.3) / 0.7)         // in from p≈0.3
+                        listStack
+                            .opacity(listIn)
+                            .allowsHitTesting(p > 0.5)
+                            .accessibilityHidden(p <= 0.5)
+                        peekLine
+                            .opacity(peekOut)
+                            .blur(radius: (1 - peekOut) * 2)
+                            .allowsHitTesting(p <= 0.5)
+                            .accessibilityHidden(p > 0.5)
+                    }
+                    .frame(maxHeight: .infinity, alignment: .top)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .top)
@@ -84,14 +133,36 @@ struct MapSheet: View {
             )
             .frame(maxHeight: .infinity, alignment: .bottom)
             .padding(.bottom, Self.tabBarClearance)
+            .onChange(of: H, initial: true) { _, h in containerH = h }
         }
         .animation(.spring(response: 0.42, dampingFraction: 0.86), value: detent)
         .animation(.spring(response: 0.42, dampingFraction: 0.86), value: selected?.id)
-        // A tapped pin expands the sheet to show its detail.
-        .onChange(of: selected?.id) { _, id in if id != nil { detent = .expanded } }
+        // A tapped pin lifts the sheet to full to show its detail.
+        .onChange(of: selected?.id) { _, id in if id != nil { detent = .full } }
         // onChange only fires on a transition; a spot preselected at mount (e.g. the
-        // `-map-open` debug flag, or deep-linking into a spot) needs the same expand.
-        .onAppear { if selected != nil { detent = .expanded } }
+        // `-map-open` debug flag, or deep-linking into a spot) needs the same lift.
+        .onAppear { if selected != nil { detent = .full } }
+    }
+
+    /// The three rest heights, derived from the container height. peek is fixed
+    /// (one line); medium is half-ish; full stops just below the map's floating
+    /// chrome so the town pill / filter / compose stay clear (never half-clipped)
+    /// and a band of the live map is always visible — the sheet doesn't swallow it.
+    private func metrics(_ H: CGFloat) -> (peek: CGFloat, medium: CGFloat, full: CGFloat) {
+        let peek = Self.peekHeight
+        let medium = max(peek + 120, H * 0.5)
+        // full sits a constant 132pt below the top so it clears the chrome (~85% of a
+        // phone screen); the H*0.9 arm only binds on iPad-class heights (H > 1320).
+        let full = max(medium + 80, min(H * 0.9, H - 132))
+        return (peek, medium, full)
+    }
+
+    private func restHeight(_ d: SheetDetent, _ m: (peek: CGFloat, medium: CGFloat, full: CGFloat)) -> CGFloat {
+        switch d {
+        case .peek:   return m.peek
+        case .medium: return m.medium
+        case .full:   return m.full
+        }
     }
 
     // MARK: Grabber (the drag target)
@@ -107,16 +178,49 @@ struct MapSheet: View {
             .gesture(
                 DragGesture()
                     .updating($drag) { value, state, _ in state = value.translation.height }
-                    .onEnded { value in
-                        let projected = value.translation.height + value.predictedEndTranslation.height * 0.25
-                        let next: SheetDetent = projected < -60 ? .expanded
-                                              : projected > 60 ? .peek
-                                              : detent
-                        if next != detent { Haptics.light() }
-                        detent = next
-                    }
+                    .onEnded { value in snap(value) }
             )
-            .accessibilityLabel(detent == .peek ? "Expand sheet" : "Collapse sheet")
+            .accessibilityLabel("Adjust sheet height")
+            .accessibilityValue(detentA11yValue)
+            .accessibilityAdjustableAction { direction in
+                switch direction {
+                case .increment: step(up: true)
+                case .decrement: step(up: false)
+                @unknown default: break
+                }
+            }
+    }
+
+    /// Snap to the nearest of the three detents, carried by drag momentum
+    /// (predicted end translation), so a quick flick can skip a stop.
+    private func snap(_ value: DragGesture.Value) {
+        let m = metrics(containerH)
+        let resting = restHeight(detent, m)
+        // Where the drag is heading (velocity folded in), as a target height.
+        let projected = value.translation.height + value.predictedEndTranslation.height * 0.35
+        let targetHeight = min(max(resting - projected, m.peek), m.full)
+        // Pick the detent whose rest height is closest to where we're heading.
+        let stops: [(SheetDetent, CGFloat)] = [(.peek, m.peek), (.medium, m.medium), (.full, m.full)]
+        let next = stops.min { abs($0.1 - targetHeight) < abs($1.1 - targetHeight) }?.0 ?? detent
+        if next != detent { Haptics.light() }
+        detent = next
+    }
+
+    /// Spoken by VoiceOver after each adjustable step, so the landed detent is announced.
+    private var detentA11yValue: String {
+        switch detent {
+        case .peek:   return "Peek"
+        case .medium: return "Half open"
+        case .full:   return "Full"
+        }
+    }
+
+    /// VoiceOver adjustable: step one detent up/down.
+    private func step(up: Bool) {
+        let order: [SheetDetent] = [.peek, .medium, .full]
+        guard let i = order.firstIndex(of: detent) else { return }
+        let j = min(max(i + (up ? 1 : -1), 0), order.count - 1)
+        if j != i { Haptics.light(); detent = order[j] }
     }
 
     private var sheetBackground: some View {
@@ -125,6 +229,120 @@ struct MapSheet: View {
                                style: .continuous)
             .fill(Hue.surface)
             .mapSheetShadow()
+    }
+
+    // MARK: Peek — one line: what's live right now
+
+    /// The single glanceable line shown at the peek detent. Tapping it lifts the
+    /// sheet to the working list (or retries when offline/errored).
+    private var peekLine: some View {
+        Button {
+            switch state {
+            case .offline, .error: onRetry()
+            default:               Haptics.light(); detent = .medium
+            }
+        } label: {
+            HStack(spacing: 12) {
+                StatusDot(live: !liveEvents.isEmpty)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(peekPrimary)
+                        .font(.sansSemibold(16))
+                        .foregroundStyle(Hue.mapInk)
+                        .lineLimit(1)
+                    if let secondary = peekSecondary {
+                        Text(secondary)
+                            .font(.sans(13))
+                            .foregroundStyle(peekSecondaryColor)
+                            .lineLimit(1)
+                    }
+                }
+                Spacer(minLength: 8)
+                peekAccessory
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PeekLineStyle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(peekA11yLabel)
+        .accessibilityHint(peekIsRetry ? "Retries loading" : "Opens the list")
+    }
+
+    /// Today's events that are happening right now.
+    private var liveEvents: [TimelineEvent] {
+        events.filter { DateHelpers.isLiveNow($0.startTime) }
+    }
+
+    private var peekIsRetry: Bool {
+        switch state { case .offline, .error: return true; default: return false }
+    }
+
+    private var peekPrimary: String {
+        switch state {
+        case .loading: return "Checking what's on…"
+        case .offline: return "You're offline"
+        case .error:   return "Couldn't load today"
+        case .loaded, .empty:
+            let live = liveEvents
+            if live.count == 1 { return live[0].title }
+            if live.count > 1  { return "\(live.count) happening now" }
+            if events.isEmpty  { return "A quiet day in St. Joe" }
+            return "Nothing live right now"
+        }
+    }
+
+    private var peekSecondary: String? {
+        switch state {
+        case .loading: return nil
+        case .offline, .error: return "Tap to retry"
+        case .loaded, .empty:
+            let live = liveEvents
+            if live.count == 1 {
+                if let where0 = live[0].location ?? live[0].clubName { return "Live now · \(where0)" }
+                return "Live now"
+            }
+            if live.count > 1 { return "Live across town right now" }
+            if events.isEmpty { return "Nothing on the map yet today" }
+            return "\(events.count) today — pull up to see"
+        }
+    }
+
+    private var peekSecondaryColor: Color {
+        if peekIsRetry { return Hue.accent }
+        return liveEvents.isEmpty ? Hue.grayLight : Hue.accent
+    }
+
+    @ViewBuilder
+    private var peekAccessory: some View {
+        if peekIsRetry {
+            Image(systemName: "arrow.clockwise")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Hue.accent)
+                .frame(width: 30, height: 30)
+                .background(Hue.accentSoft, in: Circle())
+        } else {
+            // A quiet "pull up" affordance — a soft chevron that hints there's more.
+            Image(systemName: "chevron.up")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Hue.grayLight)
+                .frame(width: 30, height: 30)
+                .background(Hue.bgSubtle, in: Circle())
+        }
+    }
+
+    private var peekA11yLabel: String {
+        [peekPrimary, peekSecondary].compactMap { $0 }.joined(separator: ", ")
+    }
+
+    // MARK: List (medium / full) — header + scrollable body
+
+    private var listStack: some View {
+        VStack(spacing: 0) {
+            listHeader
+            listBody
+        }
     }
 
     // MARK: List header — title + coral toggle pill (Today ⇄ Places)
@@ -263,6 +481,27 @@ struct MapSheet: View {
 
     // MARK: Detail — one spot (replaces the old MapBottomCard)
 
+    /// Save/unsave this place. Reuses the app's bookmark language (coral when saved,
+    /// like Explore's SaveBookmarkButton) — this is a tappable control in the sheet,
+    /// so coral is fine here; the map *pin's* saved mark stays ink so coral keeps
+    /// meaning "live" on the canvas. Powers the map's Saved pin via SavedStore.
+    private func saveButton(_ spot: Spot) -> some View {
+        let isSaved = saved.isSaved(spot.id)
+        return Button {
+            Haptics.light()
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.62)) { saved.toggle(spot.id) }
+        } label: {
+            Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(isSaved ? Hue.accent : Hue.mapInk)
+                .symbolEffect(.bounce, value: isSaved)
+                .frame(width: 36, height: 36)
+                .background(Hue.bgSubtle, in: Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isSaved ? "Saved" : "Save this place")
+    }
+
     private func detailContent(_ spot: Spot) -> some View {
         let items = happenings(spot)
         return ScrollView {
@@ -289,6 +528,7 @@ struct MapSheet: View {
                         }
                     }
                     Spacer(minLength: 0)
+                    saveButton(spot)
                 }
 
                 VenueInfoView(query: "\(spot.name) St Joseph MN",
@@ -328,6 +568,52 @@ struct MapSheet: View {
             .padding(.bottom, Self.tabBarClearance + 12)
         }
         .scrollIndicators(.hidden)
+    }
+}
+
+// MARK: - Status dot (peek line)
+
+/// A small dot that reads as "live" (coral, with a slow breathing ring) or "quiet"
+/// (soft gray). The ring is gated by Reduce Motion — calm by default, alive on live.
+private struct StatusDot: View {
+    let live: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pulsing = false
+
+    var body: some View {
+        ZStack {
+            if live && !reduceMotion {
+                Circle()
+                    .stroke(Hue.accent, lineWidth: 1.5)
+                    .frame(width: 12, height: 12)
+                    .scaleEffect(pulsing ? 2.2 : 1)
+                    .opacity(pulsing ? 0 : 0.5)
+            }
+            Circle()
+                .fill(live ? Hue.accent : Hue.grayLight)
+                .frame(width: 9, height: 9)
+        }
+        .frame(width: 26, height: 26)          // stable slot so text never shifts
+        .onChange(of: live, initial: true) { _, isLive in
+            if isLive && !reduceMotion {
+                withAnimation(.easeOut(duration: 1.8).repeatForever(autoreverses: false)) {
+                    pulsing = true
+                }
+            } else {
+                pulsing = false
+            }
+        }
+    }
+}
+
+/// Press feedback for the whole peek line — the subtle scale that tells the user
+/// the sheet heard the tap before it springs up.
+private struct PeekLineStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .opacity(configuration.isPressed ? 0.96 : 1)
+            .animation(.easeOut(duration: 0.16), value: configuration.isPressed)
     }
 }
 

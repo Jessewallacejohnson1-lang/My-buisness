@@ -1,5 +1,10 @@
 # Living Basemap — design
 
+> **RETIRED (2026-07-13).** The time/season/weather basemap recoloring this spec describes was
+> built, then reversed the same day — the map now uses one static `BasemapPalette` matched to a
+> Life360/Mobbin reference, no modulation. See the "Living Basemap retired" entry in
+> `MAP_BUILD_LOG.md` for why and what replaced it. Kept here as a historical record.
+
 **Date:** 2026-07-13
 **Status:** Approved (brainstorm) → planning
 **Scope:** This week's item only. Save-to-map, Notes-with-expiry, and Warmth/honest-counts are separate future specs; this document is laser-focused on the Living Basemap.

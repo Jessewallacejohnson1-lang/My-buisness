@@ -257,25 +257,25 @@ struct MainTabsView: View {
             }
         }
         .animation(.spring(response: 0.42, dampingFraction: 0.82), value: expandedPlace?.id)
-        // The town menu unfolds out of Home's top-right button and collapses back
-        // into it (its own overlay lane, above the tab bar).
+        // The town menu — Home's top-right ⋮ frosts the whole app into glass and
+        // floats a centered showcase pane (its own overlay lane, above the tab bar).
         .overlay {
-            CornerDrawerOverlay(isPresented: $showMenu) { close in
+            GlassShowcaseOverlay(isPresented: $showMenu) { close in
                 TownMenuView(onClose: close) { action in
                     close()
                     handleMenu(action)
                 }
             }
         }
-        // The compose "+" speed-dial — the bottom-right FAB on Explore / Calendar (and
-        // the top-right chrome "+" on the Map) expands into context-tailored create
-        // bubbles. Explore/Calendar's disc lives in the overlay (replacing the old
-        // ComposeFAB); the Map keeps its native "+" and the overlay draws the ✕.
+        // The compose "+" speed-dial — a top-right "+" on Explore / Calendar (coral
+        // disc) and the Map (native chrome "+") expands DOWN into context-tailored
+        // create bubbles. Explore/Calendar's disc lives in the overlay (replacing the
+        // old bottom ComposeFAB); the Map keeps its native "+" and the overlay draws ✕.
         .overlay {
             if !speedDialItems.isEmpty {
                 ComposeSpeedDial(items: speedDialItems,
                                  isOpen: $speedDialOpen,
-                                 anchor: tab == .map ? .topTrailing : .bottomTrailing,
+                                 anchor: .topTrailing,
                                  chromeDisc: tab == .map,
                                  showsRestingDisc: tab != .map,
                                  onSelect: routeSpeedDial)

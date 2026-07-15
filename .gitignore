@@ -26,3 +26,6 @@ Hygge/Config/MapboxConfig.swift
 
 # Google Places API key — never commit
 Hygge/Config/GooglePlacesConfig.swift
+
+# graphify knowledge-graph output — generated artifact, never commit
+graphify-out/

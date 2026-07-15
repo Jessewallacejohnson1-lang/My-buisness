@@ -37,15 +37,23 @@ struct SpringReveal: ViewModifier {
     /// When false, `isRevealed` changes apply instantly (no animation). Used to
     /// collapse the screen on refresh without a reverse-spring before it plays in.
     let animated: Bool
+    /// Per-step delay between successive sections. Defaults to the app-wide
+    /// `RevealTiming.stagger`; a caller with fewer, larger rows (the calendar day
+    /// detail) dials it up to match a slower reference cascade.
+    var stagger: Double = RevealTiming.stagger
+    /// Spring settle time / overshoot. Defaulted to the app-wide feel; the day
+    /// detail slows the settle and softens the bounce to match its reference.
+    var duration: Double = RevealTiming.duration
+    var bounce: Double = RevealTiming.bounce
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var delay: Double { Double(index) * RevealTiming.stagger }
+    private var delay: Double { Double(index) * stagger }
 
     private var animation: Animation {
         reduceMotion
             ? .easeOut(duration: RevealTiming.reducedFade).delay(delay)
-            : .spring(duration: RevealTiming.duration, bounce: RevealTiming.bounce).delay(delay)
+            : .spring(duration: duration, bounce: bounce).delay(delay)
     }
 
     func body(content: Content) -> some View {
@@ -64,7 +72,11 @@ extension View {
     /// Give a section its place in the staggered spring entrance.
     /// `revealed` starts false and flips true on appear / refresh. Pass
     /// `animated: false` to collapse instantly (the pull-to-refresh reset).
-    func springReveal(_ index: Int, revealed: Bool, animated: Bool = true) -> some View {
-        modifier(SpringReveal(index: index, isRevealed: revealed, animated: animated))
+    func springReveal(_ index: Int, revealed: Bool, animated: Bool = true,
+                      stagger: Double = RevealTiming.stagger,
+                      duration: Double = RevealTiming.duration,
+                      bounce: Double = RevealTiming.bounce) -> some View {
+        modifier(SpringReveal(index: index, isRevealed: revealed, animated: animated,
+                              stagger: stagger, duration: duration, bounce: bounce))
     }
 }
