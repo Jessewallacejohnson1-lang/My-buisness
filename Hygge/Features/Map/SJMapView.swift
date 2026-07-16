@@ -70,7 +70,22 @@ struct SJMapView: View {
 
     @EnvironmentObject private var auth: AuthStore
     @Environment(\.scenePhase) private var scenePhase
+    /// Container-level Reduce Motion (the self-contained pin animations read their own;
+    /// this one gates the camera flys + the card/selection springs — spec §11 / §12.6).
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var model = MapModel()
+
+    /// Latest laid-out map height, so a pin-select can reserve the bottom band (where the
+    /// sheet rises to ~medium) as camera padding and land the pin ABOVE the card — the
+    /// math-free "pin above the card" (spec §2/§4). Updated off the layout pass.
+    @State private var containerH: CGFloat = 0
+    /// The coordinate the camera is currently lifted onto (non-nil while a selection holds
+    /// the bottom padding). Used to settle the camera back to no-padding on dismiss so the
+    /// map isn't left mis-framed with a half-screen inset once the sheet collapses.
+    @State private var liftedCoord: CLLocationCoordinate2D?
+    /// The zoom a tapped/focused spot settles at — above the 14.5 awake threshold so its
+    /// label shows. Shared by direct pin taps and Today/Places row taps.
+    private static let selectZoom: CGFloat = 15
     /// Device-local saved set (shared with Explore). Observed so saving a place from
     /// the sheet updates its pin to the Saved state live.
     @ObservedObject private var saved = SavedStore.shared
@@ -224,7 +239,21 @@ struct SJMapView: View {
                 onRetry: { model.retry() }
             )
         }
-        .onAppear { model.start(auth: auth) }
+        // Track the map's height so a pin-select can lift the pin above the sheet.
+        .background(
+            GeometryReader { g in
+                Color.clear
+                    .onAppear { containerH = g.size.height }
+                    .onChange(of: g.size.height) { _, h in containerH = h }
+            }
+        )
+        .onAppear {
+            model.start(auth: auth)
+            Haptics.prepare()
+            // A spot preselected at mount (deep link, or the DEBUG -map-open flag) frames
+            // above the sheet, exactly as a tap would (selectSpot does the same lift).
+            if let s = selectedSpot { viewport = liftedViewport(s.coordinate, zoom: Self.selectZoom) }
+        }
         .onDisappear { model.stop() }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
@@ -233,6 +262,11 @@ struct SJMapView: View {
             default:          break
             }
         }
+        // When the last selection clears (detail back button, backdrop tap, or swiping the
+        // POI card away), release the camera's bottom padding so the map re-settles level
+        // instead of staying jammed to the top under a now-collapsed sheet.
+        .onChange(of: selectedSpot?.id) { _, id in if id == nil { releaseCameraLift() } }
+        .onChange(of: selectedPOI?.id) { _, id in if id == nil { releaseCameraLift() } }
         .sheet(isPresented: $quickAdding) {
             QuickAddSheet(spots: MapSpots.all)
         }
@@ -295,6 +329,16 @@ struct SJMapView: View {
                     // Never cull; the selected/live badge must always beat its neighbors.
                     .allowOverlap(true)
                 }
+                // A tapped POI gets an on-map selected treatment (spec §2): a haloed,
+                // enlarged (1.25×) family badge overlaid at its coordinate — the same
+                // SwiftUI-annotation approach the civic pins use for selection, so we
+                // stay clear of clustered-source feature-state. Cleared with the sheet.
+                if let poi = selectedPOI {
+                    MapViewAnnotation(coordinate: poi.coordinate) {
+                        POISelectedMarker(poi: poi)
+                    }
+                    .allowOverlap(true)
+                }
             }
             .mapStyle(MapStyle(uri: StyleURI(rawValue: MAP_STYLE_URL)!))
             .onStyleLoaded { _ in
@@ -307,16 +351,21 @@ struct SJMapView: View {
                 model.updateTown(center: $0.cameraState.center)
                 model.updateZoom($0.cameraState.zoom)
             }
-            // If a filter change hides the selected spot, drop the stale selection so the
-            // detail sheet doesn't linger over a pin that's no longer on the map.
+            // Toggling the category filter ticks a selection haptic (spec §10 / §12.5 —
+            // the native Menu supplies none we control). If the change hides the selected
+            // spot, drop the stale selection so the detail sheet doesn't linger.
             .onChange(of: filter) { _, _ in
+                Haptics.selection()
                 if let s = selectedSpot, !filteredSpots.contains(where: { $0.id == s.id }) { closeCard() }
             }
             // POIs load async (once) after the style — push them into the source when they land.
             .onChange(of: model.pois) { _, pois in
                 if let map = proxy.map { POILayer.update(on: map, pois: pois) }
                 #if DEBUG
-                if selectedPOI == nil, let poi = SJMapView.debugOpenPOI(in: pois) { selectedPOI = poi }
+                if selectedPOI == nil, let poi = SJMapView.debugOpenPOI(in: pois) {
+                    selectedPOI = poi
+                    viewport = liftedViewport(poi.coordinate, zoom: Self.selectZoom)
+                }
                 #endif
             }
             .ignoresSafeArea(edges: .bottom)
@@ -395,10 +444,10 @@ struct SJMapView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
-        .background(Hue.surface, in: Capsule())
+        .background(.thinMaterial, in: Capsule())      // §8: chips = thin material
         .overlay(Capsule().stroke(Hue.mapHairline, lineWidth: 1))
         .mapFloatShadow()
-        .animation(.easeInOut(duration: 0.2), value: model.townLabel)
+        .animation(Motion.smooth, value: model.townLabel)
         .accessibilityElement(children: .combine)
     }
 
@@ -442,9 +491,9 @@ struct SJMapView: View {
 
     private var recenterButton: some View {
         Button {
-            withViewportAnimation(.fly(duration: 0.8)) {
-                viewport = .camera(center: MapSpots.center, zoom: 13.5)
-            }
+            let home = { viewport = .camera(center: MapSpots.center, zoom: 13.5) }
+            if reduceMotion { home() }                       // §11: no fly under Reduce Motion
+            else { withViewportAnimation(.fly(duration: 0.8)) { home() } }
             closeCard()
         } label: {
             chromeCircle(icon: "location")
@@ -457,7 +506,7 @@ struct SJMapView: View {
     /// ink line icon.
     private func chromeCircle(icon: String, active: Bool = false) -> some View {
         Circle()
-            .fill(Hue.surface)
+            .fill(.regularMaterial)                     // §8: floating buttons = regular material
             .frame(width: 44, height: 44)
             .overlay(Circle().stroke(active ? Hue.accent : Hue.mapHairline, lineWidth: active ? 1.5 : 1))
             .mapFloatShadow()
@@ -470,49 +519,84 @@ struct SJMapView: View {
 
     // MARK: Actions
 
-    /// A Today/Places row tap: fly to the spot and open its detail in the sheet.
+    /// A camera viewport centered on `coord` with the bottom band reserved as padding, so
+    /// the pin lands in the visible map ABOVE the sheet (which rises to ~medium on select)
+    /// rather than behind it — the math-free "pin above the card" (spec §2/§4). Reserving
+    /// ~half the height mirrors MapSheet's medium detent (H*0.5).
+    private func liftedViewport(_ coord: CLLocationCoordinate2D, zoom: CGFloat) -> Viewport {
+        liftedCoord = coord
+        var vp = Viewport.camera(center: coord, zoom: zoom)
+        let lift = max(240, containerH * 0.5)
+        vp.padding = EdgeInsets(top: 0, leading: 0, bottom: lift, trailing: 0)
+        return vp
+    }
+
+    /// Drop the camera's bottom padding once nothing is selected, settling on the last-lifted
+    /// spot with a plain (unpadded) camera — otherwise Mapbox keeps the ~half-screen inset and
+    /// the map stays jammed to the top after the sheet collapses. Guarded so a civic→POI (or
+    /// POI→civic) hand-off, which momentarily clears one selection, doesn't fight the new lift.
+    private func releaseCameraLift() {
+        guard selectedSpot == nil, selectedPOI == nil, let c = liftedCoord else { return }
+        liftedCoord = nil
+        let settle = { viewport = .camera(center: c, zoom: Self.selectZoom) }   // zero padding
+        if reduceMotion { settle() } else { withViewportAnimation(.easeInOut(duration: 0.35)) { settle() } }
+    }
+
+    /// A Today/Places row tap: fly to the spot (a longer, deliberate 1.0s fly since the
+    /// spot may be off-screen — spec §4 0.9–1.2s band) and open its detail in the sheet,
+    /// landing the pin above the card.
     private func focus(_ spot: Spot) {
         Haptics.light()
         selectedPOI = nil
-        withViewportAnimation(.fly(duration: 0.7)) {
-            viewport = .camera(center: spot.coordinate, zoom: 15)
-        }
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
-            selectedSpot = spot
-        }
+        let move = { viewport = liftedViewport(spot.coordinate, zoom: Self.selectZoom) }
+        if reduceMotion { move() } else { withViewportAnimation(.fly(duration: 1.0)) { move() } }
+        withAnimation(reduceMotion ? Motion.smooth : Motion.card) { selectedSpot = spot }
     }
 
+    /// A direct pin tap: pop the selection (Motion.select) and, when ENTERING a selection,
+    /// ease-recenter the pin above the card in the same gesture (spec §12.2). Toggling the
+    /// same pin off fires NO haptic and no recenter (spec §2 — deselect is silent).
     private func selectSpot(_ spot: Spot) {
-        Haptics.light()
         selectedPOI = nil                       // civic + POI detail are mutually exclusive
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
-            selectedSpot = (selectedSpot?.id == spot.id) ? nil : spot
+        let entering = selectedSpot?.id != spot.id
+        if entering { Haptics.light() }
+        withAnimation(reduceMotion ? Motion.smooth : Motion.select) {
+            selectedSpot = entering ? spot : nil
         }
+        guard entering else { return }
+        let move = { viewport = liftedViewport(spot.coordinate, zoom: Self.selectZoom) }
+        if reduceMotion { move() }              // §11: instant set, no ease, under Reduce Motion
+        else { withViewportAnimation(.easeInOut(duration: 0.45)) { move() } }
     }
 
     /// Open a tapped food/business POI's detail (resolved from the tapped feature's
-    /// `id` property). Closes any civic card first — the two details never coexist.
+    /// `id` property). Closes any civic card first — the two details never coexist — and
+    /// eases the POI above its detail sheet, same as a civic pin.
     private func selectPOI(id: String) {
         guard let poi = model.pois.first(where: { $0.id == id }) else { return }
         Haptics.light()
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { selectedSpot = nil }
+        withAnimation(reduceMotion ? Motion.smooth : Motion.card) { selectedSpot = nil }
         selectedPOI = poi
+        let move = { viewport = liftedViewport(poi.coordinate, zoom: Self.selectZoom) }
+        if reduceMotion { move() } else { withViewportAnimation(.easeInOut(duration: 0.45)) { move() } }
     }
 
-    /// A tapped cluster zooms in to ~15 (above the 14.5 awake threshold), splitting it
-    /// into individual glyph markers centered on the tapped area.
+    /// A tapped cluster eases in (0.4s easeInOut — spec §7) to ~15.5, above the 14.5 awake
+    /// threshold so the cluster splits into individual glyph markers. (clusterMaxZoom is 13,
+    /// so this reliably breaks any cluster apart; easing to exact leaf bounds would need the
+    /// async cluster-expansion-zoom API — a nicety not worth the async tap handler here.)
     private func zoomToCluster(_ coord: CLLocationCoordinate2D) {
         Haptics.light()
-        withViewportAnimation(.fly(duration: 0.6)) {
-            viewport = .camera(center: coord, zoom: 15)
-        }
+        let move = { viewport = .camera(center: coord, zoom: 15.5) }
+        if reduceMotion { move() } else { withViewportAnimation(.easeInOut(duration: 0.4)) { move() } }
     }
 
     private func closeCard() {
-        guard selectedSpot != nil else { return }
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+        guard selectedSpot != nil || selectedPOI != nil else { return }
+        withAnimation(reduceMotion ? Motion.smooth : Motion.card) {
             selectedSpot = nil
         }
+        selectedPOI = nil   // the POI card's map is tappable behind it now — dismiss it too
     }
 
     private func accessibilityLabel(for spot: Spot, live: Bool) -> String {
@@ -565,10 +649,11 @@ private struct PulseRing: View {
 // live:     coral fill + pulse ring + coral label (live always wins the tint; the
 //           pulse still shows compact — it's the one thing worth keeping glanceable
 //           at any zoom).
-// selected: scale 1.15, deeper shadow, always expanded regardless of zoom.
-// Motion:   wake = opacity 0→1 + scale 0.6→1.0 spring (~220ms) on first appear;
-//           expand/shrink = spring on diameter + icon/label crossfade; Reduce Motion
-//           drops every scale/spring to an instant or simple opacity change.
+// selected: scale 1.25 (Motion.select), lifted marker shadow, always expanded.
+// Motion:   wake = opacity 0→1 + scale 0.6→1.0 spring on first appear (Motion.select);
+//           expand/shrink = Motion.card on diameter + icon/label crossfade; select bump =
+//           Motion.select; tint change = Motion.smooth. Reduce Motion drops every
+//           scale/spring to a simple opacity/colour crossfade (never removed — §11).
 
 private struct MapPinBadge: View {
     let spot: Spot
@@ -591,17 +676,21 @@ private struct MapPinBadge: View {
 
     var body: some View {
         badge
-            .scaleEffect(appeared ? (selected && !reduceMotion ? 1.15 : 1.0) : (reduceMotion ? 1.0 : 0.6))
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: selected)
+            .scaleEffect(appeared ? (selected && !reduceMotion ? 1.25 : 1.0) : (reduceMotion ? 1.0 : 0.6))
+            // Selection pop (scale + the shadow lift below). Under Reduce Motion the scale
+            // is suppressed above, but the shadow/label change still crossfades (Motion.smooth)
+            // — meaning-carrying motion becomes a cross-fade, not nothing (§11).
+            .animation(reduceMotion ? Motion.smooth : Motion.select, value: selected)
             // A spot going live/saved (a real event starting, a save toggled) crossfades
             // its tint instead of snapping — the annotation view persists across these
             // transitions (Mapbox reuses it by the spot's stable id), so without this the
-            // color change would be the only unanimated state change on the badge.
-            .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: base)
-            // Shrink/expand — a spring so six pins settling to a new size on a pinch
+            // color change would be the only unanimated state change on the badge. A colour
+            // fade aids comprehension, so it stays under Reduce Motion too.
+            .animation(Motion.smooth, value: base)
+            // Shrink/expand — Motion.card so six pins settling to a new size on a pinch
             // feels like one physical move, not a snap. Reduce Motion still crossfades
-            // (opacity below), just without the size spring.
-            .animation(reduceMotion ? .easeInOut(duration: 0.2) : .spring(response: 0.35, dampingFraction: 0.8), value: expanded)
+            // (Motion.smooth + the opacity below), just without the size spring.
+            .animation(reduceMotion ? Motion.smooth : Motion.card, value: expanded)
             // The name label attaches AFTER scaleEffect, as an overlay rather than a
             // ZStack sibling of the circle — so it (a) reads its position off badge's
             // un-scaled layout frame via `.overlay(alignment: .leading)` + leading
@@ -628,8 +717,7 @@ private struct MapPinBadge: View {
             .frame(width: 44, height: 44)
             .contentShape(Rectangle())
             .onAppear {
-                withAnimation(reduceMotion ? .easeOut(duration: 0.18)
-                                           : .spring(response: 0.22, dampingFraction: 0.72)) {
+                withAnimation(reduceMotion ? Motion.smooth : Motion.select) {
                     appeared = true
                 }
             }
@@ -649,7 +737,7 @@ private struct MapPinBadge: View {
             Circle()
                 .fill(tint)
                 .frame(width: diameter, height: diameter)
-                .mapFloatShadow(pressed: selected)
+                .mapMarkerShadow(selected: selected)   // tighter than a button; lifts on select (§8)
                 .overlay(Circle().stroke(Hue.surface, lineWidth: 1.5))
 
             Image(systemName: spot.category.filledSymbol)
@@ -698,8 +786,56 @@ private struct HaloText: View {
 
     private var label: some View {
         Text(text)
-            .font(.sansBold(12))
+            .font(.sansSemibold(12))   // spec §9: marker label is semibold, not bold
             .lineLimit(2)
             .multilineTextAlignment(.leading)
+    }
+}
+
+// MARK: - Selected POI marker (on-map overlay for a tapped food/business POI)
+//
+// The POIs live in a clustered Mapbox style layer (POILayer); rather than wire
+// clustered-source feature-state + promoteId for a selected size bump, the tapped POI
+// gets a SwiftUI annotation overlaid at its coordinate — the same approach the civic
+// pins use for selection. Spec §2: scale to ~1.25, a lifted marker shadow, and a soft
+// halo faded in beneath it. Reduce Motion drops the pop to a plain fade.
+
+private struct POISelectedMarker: View {
+    let poi: POI
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var appeared = false
+
+    var body: some View {
+        ZStack {
+            // Halo — a soft family-tinted disc that reads as elevation under the marker.
+            Circle()
+                .fill(poi.family.tint.opacity(0.22))
+                .frame(width: 54, height: 54)
+                .scaleEffect(appeared ? 1 : 0.6)
+                .opacity(appeared ? 1 : 0)
+
+            // The enlarged badge — 34pt, sized to match a SELECTED CIVIC pin (28pt × 1.25 ≈ 35pt)
+            // for on-map parity, rather than 1.25× the POI's own ~20pt awake dot; white-ringed,
+            // lifted shadow. The halo carries the extra emphasis a bare 1.25× wouldn't.
+            Circle()
+                .fill(poi.family.tint)
+                .frame(width: 34, height: 34)
+                .overlay(Circle().stroke(.white, lineWidth: 2))
+                .mapMarkerShadow(selected: true)
+
+            Image(systemName: poi.glyph)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.white)
+        }
+        .frame(width: 54, height: 54)
+        // Never animate in from a point-source — start just under full size (emil-design-eng).
+        .scaleEffect(appeared || reduceMotion ? 1 : 0.85)
+        .onAppear {
+            if reduceMotion { appeared = true }
+            else { withAnimation(Motion.select) { appeared = true } }
+        }
+        // Taps are handled by the underlying POI style layer + the map's tap interaction.
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }

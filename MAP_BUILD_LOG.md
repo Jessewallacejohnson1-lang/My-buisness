@@ -878,3 +878,83 @@ all findings triaged & fixed (MainActor `nonisolated`, non-throwing `updateGeoJS
 iPhone 17 at **z12** (clusters 26/12/4/2), **z14** (small amber/indigo rest dots, no glyphs/labels),
 **z15.5** (glyph markers + de-conflicting labels), and the **Krewe Restaurant** detail sheet (amber
 fork.knife header, address, Open-in-Maps, live Google interior photo + hours/website/phone).
+
+## Map premium-feel pass — quantified motion/haptics/material spec (2026-07-15)
+
+Branch `feat/map-premium-feel` (off `today-tab-remake`). Drove a quantified Apple-Maps-grade
+premium-feel spec (named-spring motion vocabulary, marker select, camera-above-card, materials,
+haptics, reduce-motion) against the already-mature map. Two design skills (`/impeccable`,
+`/emil-design-eng`) + a 7-agent gap audit up front and a 4-dimension find→verify review at the end.
+
+**Two user-chosen forks** (asked before building; the rest was autonomous): frosted
+`.regularMaterial` surfaces (Apple look — overrides the /impeccable glass-ban as a direct
+instruction), and pin-tap → sheet-to-**medium** + camera lifts the enlarged pin above the card.
+
+- **`Theme/Motion.swift` (new)** — the ONE motion vocabulary (acceptance §12.1): `snappy`
+  `.spring(0.25,bounce:0.15)` · `card` `.spring(0.28,0.78)` · `select` `.spring(0.32,0.72)` ·
+  `smooth` `.smooth(0.35)` · `interactive` `.interactiveSpring(0.15,0.86,0.25)` · `sheet`
+  `.spring(0.42,0.86)` (a 6th token — a full-width sheet has more mass than a small card, so it
+  keeps its own spring rather than being forced onto `card`). Plus `staggeredAppear` (the §5
+  content cascade: opacity+8pt, 0.03s/row, capped 0.24s, RM-instant). Every inline map spring now
+  routes through a token; the perpetual live-pulse loops (PulseRing/StatusDot) correctly stay out.
+- **`Support/Haptics.swift`** — held generators + `prepare()` + Low-Power-Mode skip (§10), zero
+  callsite churn. New events wired: filter toggle → `.selection()` (the blocking §12.5 miss),
+  sheet-detent snap/step → `.selection()`, save-a-place → `.success()` (light on un-save),
+  QuickAdd failure → `.error()`. Deselect fires NO haptic.
+- **Marker select (`SJMapView`)** — scale 1.15 → **1.25**, dedicated `mapMarkerShadow(selected:)`
+  (§8: awake 0.12/r4/y1 → selected 0.20/r10/y3, the y-lift reads as "rose toward you"), `.light`
+  haptic on ENTER only. POIs get an on-map selected treatment via a SwiftUI `MapViewAnnotation`
+  overlay (halo + enlarged glyph) — deliberately NOT clustered-source feature-state (avoids
+  `promoteId`/cluster-id fragility); 34pt for parity with a selected civic pin, halo carries the
+  emphasis.
+- **Camera "pin above the card" (§12.2, the headline)** — `liftedViewport()` sets
+  `Viewport.padding.bottom = ~containerH·0.5` (math-free, mirrors the medium detent) and eases via
+  `withViewportAnimation(.easeInOut(0.45))`; the tapped/selected pin lands in the map band ABOVE
+  the sheet. Cluster tap → `.easeInOut(0.4)` (was `.fly(0.6)` to a fixed zoom). All camera flys are
+  reduce-motion-gated to an instant set (§12.6). Padding is RELEASED on dismiss (see review below).
+- **Sheets** — kept the custom persistent `MapSheet` (three detents, momentum snap, grabber ARE
+  wired — no lying affordance); did NOT swap it for a system `.sheet`. Select lifts it to `.medium`
+  (was `.full`). `.regularMaterial` frost (map blurs through), 20pt corners, content cascade. POI
+  `POIDetailSheet` (system sheet): detents `[.height(96), .medium, .large]` opening at medium,
+  `.presentationBackgroundInteraction(.enabled(upThrough:.medium))` (map stays draggable behind),
+  frosted + 20pt. `QuickAddSheet` kept OPAQUE (a data-entry form needs solid field backing;
+  frosting is for the place cards).
+- **POI layer** — glyph/label reveal changed from a hard zoom `step` to an `interpolate` band
+  (14.25→14.55) + icon/text `StyleTransition` 0.20/0.25s so labels fade, never pop (§12.4). Cluster
+  size is now a discrete `step` — 28/34/40pt (radii 14/17/20) by count bucket (§7), count 13pt;
+  labels 12pt + 1pt halo, DIN fontstack (the tileset's closest to SF Pro semibold — the app bundles
+  no map font).
+- **Reduce Motion** — container-level `accessibilityReduceMotion` added to `SJMapView`/`MapSheet`
+  (they previously never read it); every camera fly → instant, every card/sheet spring → `smooth`
+  crossfade, no scale-pops (§12.6).
+
+**Verified in-sim (iPhone 17, DEBUG flags):** build **0 warnings** every pass. Screenshot-confirmed:
+default (frosted chrome + cluster step-sizing 19>2 + dots-below-14.5), `-map-open downtown
+-map-force-live` (1.25× coral pin lifted above the medium frosted card, bold card title),
+`-map-open-poi krewe` (frosted POI card at medium, real Google enrichment, map live behind),
+`-map-detent full` (frost genuinely translucent — park greenery blurs through). NOTE: XcodeBuildMCP
+tap/gesture is NOT enabled here (only `snapshot_ui`+`screenshot`), so live taps were verified via
+the debug preselect path (which now also lifts the camera — correct deep-link behavior, not just a
+test hook).
+
+**Adversarial review (4 dims × find→verify, 15 agents): 11 raised → 4 confirmed, all fixed** (zero
+critical/high — the core was sound):
+1. *(med)* Camera lift padding was never released on dismiss → the back-button / POI-swipe left the
+   map jammed to the top with a half-screen inset. Fixed: `liftedCoord` + `releaseCameraLift()` on
+   `.onChange` of both selections going nil (guarded so a civic↔POI hand-off doesn't fight the new
+   lift); `closeCard` now dismisses a POI too (the card's map is tappable behind it now).
+2. *(med)* 13pt `grayLight` (#9CA3AF, ~2.4:1) captions on the frosted sheet failed WCAG → switched
+   the reading captions to `gray` (#6B7280); decorative dots/chevrons left.
+3. *(low)* POI selected overlay comment miscited a 28pt/1.25× basis → corrected (34pt = civic-select
+   parity, not 1.25× the POI's ~20pt dot).
+4. *(low, accepted)* Every entering tap eases 0.45s with no skip-when-visible guard — kept: the
+   recenter is spec-mandated (§12.2) and usually justified (the medium sheet would occlude the pin);
+   a projection-based skip wasn't worth the plumbing.
+
+Refuted (7): filtered-pin exit-pop (pre-existing, not this diff), StyleTransition-on-zoom no-op (no
+concrete failure), same open/close spring, 0.35s RM fade "too long", 1.0s row-tap fly, save
+double-animate, gray-15pt "borderline" (the verify pass deemed `gray` acceptable).
+
+Uncommitted on `feat/map-premium-feel`. 8 files: `Theme/Motion.swift` (new),
+`Support/Haptics.swift`, `Theme/HyggeMetrics.swift`, `Features/Map/{SJMapView,MapSheet,POILayer,
+POIDetailSheet,QuickAddSheet}.swift`.

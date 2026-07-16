@@ -147,14 +147,21 @@ enum POILayer {
             sym.iconColor = .constant(StyleColor(.white))
             sym.iconSize = .constant(0.42)
             sym.iconOpacity = .expression(revealAtAwake())
+            // Fade the glyph in over 0.20s (never a hard pop) — spec §3/§6. The zoom
+            // band below does the zoom-linked fade; this smooths any non-zoom change.
+            sym.iconOpacityTransition = StyleTransition(duration: 0.20, delay: 0)
             sym.iconAllowOverlap = .constant(true)      // the glyph must stay with its dot
             sym.iconAnchor = .constant(.center)
             sym.textField = .expression(Exp(.get) { "name" })
-            sym.textSize = .constant(11)
+            sym.textSize = .constant(12)                 // spec §9: 12pt marker label
+            // Closest available to SF Pro semibold in the basemap tileset's fontstack —
+            // the app bundles no map font, so a name label leans on DIN Medium here.
+            sym.textFont = .constant(["DIN Offc Pro Medium", "Arial Unicode MS Regular"])
             sym.textColor = .constant(StyleColor(UIColor(Hue.ink)))
             sym.textHaloColor = .constant(StyleColor(.white))
-            sym.textHaloWidth = .constant(1.2)
+            sym.textHaloWidth = .constant(1.0)           // spec §9: white 1pt halo
             sym.textOpacity = .expression(revealAtAwake())
+            sym.textOpacityTransition = StyleTransition(duration: 0.25, delay: 0)  // label fade 0.25s
             sym.textAnchor = .constant(.top)
             sym.textOffset = .constant([0, 0.8])         // label sits under the marker
             sym.textAllowOverlap = .constant(false)      // labels de-conflict…
@@ -172,21 +179,26 @@ enum POILayer {
             cluster.circleOpacity = .constant(0.9)
             cluster.circleStrokeColor = .constant(StyleColor(.white))
             cluster.circleStrokeWidth = .constant(1.5)
-            cluster.circleRadius = .expression(Exp(.interpolate) {
-                Exp(.linear); Exp(.get) { "point_count" }
-                2.0; 13.0
-                10.0; 18.0
-                25.0; 24.0
+            // Discrete count-bucket sizes (spec §7): 1–9 → 28pt, 10–24 → 34pt, 25+ → 40pt
+            // (radii 14 / 17 / 20). A step, not a smooth interpolate — the old linear ramp
+            // overshot to ~48pt at 25+ and never rested on a clean size.
+            cluster.circleRadius = .expression(Exp(.step) {
+                Exp(.get) { "point_count" }
+                14.0            // 1–9   → 28pt
+                10.0; 17.0      // 10–24 → 34pt
+                25.0; 20.0      // 25+   → 40pt
             })
+            cluster.circleRadiusTransition = StyleTransition(duration: 0.20, delay: 0)
             attempt("addLayer(\(clusterLayerID))") { try map.addLayer(cluster) }
         }
 
-        // 4. Cluster count.
+        // 4. Cluster count — 13pt semibold white (spec §7/§9).
         if !map.layerExists(withId: countLayerID) {
             var count = SymbolLayer(id: countLayerID, source: sourceID)
             count.filter = isCluster
             count.textField = .expression(Exp(.get) { "point_count_abbreviated" })
-            count.textSize = .constant(12)
+            count.textSize = .constant(13)
+            count.textFont = .constant(["DIN Offc Pro Bold", "Arial Unicode MS Bold"])
             count.textColor = .constant(StyleColor(.white))
             count.textAllowOverlap = .constant(true)
             count.textIgnorePlacement = .constant(true)
@@ -219,12 +231,14 @@ enum POILayer {
         }
     }
 
-    /// 0 below the awake zoom, 1 at/above it — the glyph & label reveal, reusing 14.5.
+    /// Glyph & label reveal: a real zoom-linked cross-fade across a narrow band around
+    /// the awake threshold (14.5), so a pinch fades them in over ~0.25s and never *pops*
+    /// them (spec §3 / acceptance §12.4). Below 14.25 → dots only; fully in by 14.55.
     private static func revealAtAwake() -> Exp {
-        Exp(.step) {
-            Exp(.zoom)
-            0.0
-            awakeZoom; 1.0
+        Exp(.interpolate) {
+            Exp(.linear); Exp(.zoom)
+            awakeZoom - 0.25; 0.0
+            awakeZoom + 0.05; 1.0
         }
     }
 }
