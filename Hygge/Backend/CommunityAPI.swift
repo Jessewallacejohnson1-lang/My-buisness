@@ -197,6 +197,13 @@ struct CommunityAPI {
         return counts
     }
 
+    /// Count-only RSVP tally for a set of event ids (fetches its own token).
+    func rsvpCounts(eventIds ids: [String]) async throws -> [String: Int] {
+        guard !ids.isEmpty else { return [:] }
+        let t = try await token()
+        return try await rsvpCounts(eventIds: ids, token: t)
+    }
+
     func rsvpEvent(_ eventId: String) async throws {
         let t = try await token()
         let uid = try await uidOrThrow()
