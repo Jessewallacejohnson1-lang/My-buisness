@@ -192,7 +192,7 @@ struct BentoStatGrid: View {
     /// collapse tap — so tapping "Next" opens the day WITHOUT collapsing the tile.
     /// Kept as an accessibility button so VoiceOver still announces + activates it.
     private func subStatsRow(_ tile: InsightsData.InterestTile) -> some View {
-        HStack(alignment: .top, spacing: 0) {
+        HStack(alignment: .top, spacing: 10) {
             VStack(alignment: .leading, spacing: 1) {
                 Text("\(tile.thisWeek)")
                     .font(.system(size: 19, weight: .bold))
@@ -201,7 +201,7 @@ struct BentoStatGrid: View {
                     .font(.sans(11))
                     .foregroundStyle(InsightsPalette.onDark.opacity(0.78))
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: true, vertical: false)
 
             if let key = tile.nextDayKey, let part = tile.nextDayPart {
                 VStack(alignment: .leading, spacing: 1) {
