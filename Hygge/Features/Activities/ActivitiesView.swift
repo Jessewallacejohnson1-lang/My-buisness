@@ -201,16 +201,23 @@ struct ActivitiesView: View {
 
     @ViewBuilder
     private var content: some View {
-        if model.loading && !model.loaded {
-            ProgressView().tint(Hue.gray)
-                .frame(maxWidth: .infinity).padding(.top, 90)
-        } else if model.failed {
-            failedState.padding(.horizontal, 18)
-        } else if isDiscovery {
-            discovery
-        } else {
-            focused
+        ZStack {
+            if model.loading && !model.loaded {
+                ActivitiesSkeleton()
+                    .transition(.opacity)
+            } else if model.failed {
+                failedState.padding(.horizontal, 18)
+                    .transition(.opacity)
+            } else if isDiscovery {
+                discovery
+                    .transition(.opacity)
+            } else {
+                focused
+                    .transition(.opacity)
+            }
         }
+        // Cross-fade the skeleton → real content hand-off (a settle, not a pop).
+        .animation(Motion.smooth, value: model.loaded)
     }
 
     /// A real outage (not an empty town) — distinct from `emptyState` so an offline

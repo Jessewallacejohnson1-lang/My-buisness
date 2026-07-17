@@ -58,6 +58,9 @@ struct RootView: View {
                 // Preview the tab loading cover full-screen (bypassing the auth gate)
                 // so the rainbow-wave indicator + copy can be verified headlessly.
                 TabLoadingCover()
+            } else if ProcessInfo.processInfo.arguments.contains("-show-skeletons") {
+                // Preview the per-tab shimmer skeletons (bypassing the auth gate).
+                SkeletonGalleryPreview()
             } else if ProcessInfo.processInfo.arguments.contains("-show-map-intro"),
                       !debugIntroDismissed {
                 MapIntroView { debugIntroDismissed = true }

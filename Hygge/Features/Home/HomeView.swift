@@ -116,16 +116,40 @@ struct HomeView: View {
     }
 }
 
-/// Subtle placeholder while today's events load.
+/// Shimmering placeholder for the "Today" section — mirrors the real header
+/// ("Today" + count) and a couple of event rows, so nothing shifts when the
+/// events land. One light sweep travels across the whole group.
 struct TodayLoadingCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            RoundedRectangle(cornerRadius: 6).fill(Hue.paper200).frame(width: 80, height: 12)
-            RoundedRectangle(cornerRadius: 6).fill(Hue.paper200).frame(width: 200, height: 20)
-            RoundedRectangle(cornerRadius: 6).fill(Hue.paper200).frame(maxWidth: .infinity).frame(height: 14)
+            HStack {
+                SkeletonBlock(cornerRadius: 6).frame(width: 84, height: 22)
+                Spacer()
+                SkeletonBlock(cornerRadius: 6).frame(width: 52, height: 12)
+            }
+            eventRowShell
+            eventRowShell
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .hyggeCard(padding: 18)
-        .redacted(reason: .placeholder)
+        .shimmering()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Loading today's events")
+    }
+
+    private var eventRowShell: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 7) {
+                SkeletonBlock(cornerRadius: 5).frame(width: 60, height: 11)   // time
+                SkeletonBlock(cornerRadius: 6).frame(width: 178, height: 15)  // title
+                SkeletonBlock(cornerRadius: 5).frame(width: 108, height: 11)  // club
+                SkeletonBlock(cornerRadius: 5).frame(width: 140, height: 11)  // location
+            }
+            Spacer(minLength: 12)
+            VStack(alignment: .trailing, spacing: 8) {
+                SkeletonBlock(cornerRadius: 14).frame(width: 74, height: 28)  // RSVP capsule
+                SkeletonBlock(cornerRadius: 5).frame(width: 46, height: 10)   // "N going"
+            }
+        }
+        .hyggeCard(padding: 16)
     }
 }

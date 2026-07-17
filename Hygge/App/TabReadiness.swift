@@ -48,13 +48,14 @@ struct TabLoadingHost: View {
     let resetKey: AnyHashable
     var title: String = "Just a second"
 
-    // A tab that loads faster than `appearDelay` never shows the cover (no flash on
-    // a quick switch); once shown it holds at least `minVisible` (no flicker). The
-    // exit is faster than the entrance — the content is already rendered underneath,
-    // so revealing it should snap, while the entrance stays soft to cushion the
-    // light→dark luminance jump.
-    private static let appearDelay: Duration = .milliseconds(250)
-    private static let minVisible: TimeInterval = 0.4
+    // The branded rainbow cover is reserved for genuinely long waits — first
+    // sign-in, a cold boot, a network stall — NOT routine tab switches (those get
+    // the per-tab skeleton instead). So the cover only appears once a load has run
+    // past `appearDelay` (~3s); anything faster is handled entirely by the skeleton
+    // underneath and never sees this screen. Once shown it holds `minVisible` so it
+    // can't flicker, and the exit is quicker than the entrance.
+    private static let appearDelay: Duration = .seconds(3)
+    private static let minVisible: TimeInterval = 0.5
     /// Hard cap: if readiness never arrives (a failed load whose model can't report
     /// ready, e.g. an offline Mapbox style that never paints), lift the cover anyway
     /// so it can't hang forever and mask the tab's own error state.
