@@ -59,7 +59,8 @@ struct QuickAddSheet: View {
                 }
                 .padding(18)
             }
-            .background(Hue.surface)
+            .background(Hue.surface)   // opaque: a data-entry form needs solid, high-contrast
+                                       // field backing — frosting is for the map's place cards
             .navigationTitle("Add a happening")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -72,6 +73,7 @@ struct QuickAddSheet: View {
         // hidden primary action is exactly the kind of slop Part C rejects.
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+        .presentationCornerRadius(Radius.xl)
     }
 
     // MARK: Fields
@@ -159,6 +161,7 @@ struct QuickAddSheet: View {
             Haptics.success()
             dismiss()
         } catch {
+            Haptics.error()   // spec §10: a failed action → error notification
             self.error = (error as? SupabaseError)?.message ?? "Couldn't post — try again."
         }
     }

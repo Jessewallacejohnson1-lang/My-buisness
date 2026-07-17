@@ -84,6 +84,9 @@ struct MapSheet: View {
     /// Latest laid-out container height, so the drag-end snap can reason about the
     /// actual detent heights (they're derived from it). Updated off the layout pass.
     @State private var containerH: CGFloat = 0
+    /// This is a hand-rolled sheet, so §11 doesn't get honored for free — it self-gates:
+    /// detent/select springs drop to a non-bouncy crossfade under Reduce Motion.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.openURL) private var openURL
     /// The device-local saved set (shared with Explore). Observed so the detail
     /// header's bookmark reflects saves live; also the source of the map's Saved pin.
@@ -135,13 +138,15 @@ struct MapSheet: View {
             .padding(.bottom, Self.tabBarClearance)
             .onChange(of: H, initial: true) { _, h in containerH = h }
         }
-        .animation(.spring(response: 0.42, dampingFraction: 0.86), value: detent)
-        .animation(.spring(response: 0.42, dampingFraction: 0.86), value: selected?.id)
-        // A tapped pin lifts the sheet to full to show its detail.
-        .onChange(of: selected?.id) { _, id in if id != nil { detent = .full } }
+        .animation(reduceMotion ? Motion.smooth : Motion.sheet, value: detent)
+        .animation(reduceMotion ? Motion.smooth : Motion.sheet, value: selected?.id)
+        // A tapped pin lifts the sheet to MEDIUM (Apple-Maps feel): the card rises to ~half
+        // while the map stays the hero and the camera lifts the pin above it (see SJMapView).
+        // Full is a drag-up away.
+        .onChange(of: selected?.id) { _, id in if id != nil { detent = .medium } }
         // onChange only fires on a transition; a spot preselected at mount (e.g. the
         // `-map-open` debug flag, or deep-linking into a spot) needs the same lift.
-        .onAppear { if selected != nil { detent = .full } }
+        .onAppear { if selected != nil { detent = .medium } }
     }
 
     /// The three rest heights, derived from the container height. peek is fixed
@@ -202,7 +207,7 @@ struct MapSheet: View {
         // Pick the detent whose rest height is closest to where we're heading.
         let stops: [(SheetDetent, CGFloat)] = [(.peek, m.peek), (.medium, m.medium), (.full, m.full)]
         let next = stops.min { abs($0.1 - targetHeight) < abs($1.1 - targetHeight) }?.0 ?? detent
-        if next != detent { Haptics.light() }
+        if next != detent { Haptics.selection() }   // detent snap = a segmented tick (§10)
         detent = next
     }
 
@@ -220,14 +225,15 @@ struct MapSheet: View {
         let order: [SheetDetent] = [.peek, .medium, .full]
         guard let i = order.firstIndex(of: detent) else { return }
         let j = min(max(i + (up ? 1 : -1), 0), order.count - 1)
-        if j != i { Haptics.light(); detent = order[j] }
+        if j != i { Haptics.selection(); detent = order[j] }   // detent step = a segmented tick (§10)
     }
 
     private var sheetBackground: some View {
         UnevenRoundedRectangle(topLeadingRadius: Radius.xl,
                                topTrailingRadius: Radius.xl,
                                style: .continuous)
-            .fill(Hue.surface)
+            // Frosted glass (Apple-Maps surface) — the live map blurs through the sheet.
+            .fill(.regularMaterial)
             .mapSheetShadow()
     }
 
@@ -239,7 +245,7 @@ struct MapSheet: View {
         Button {
             switch state {
             case .offline, .error: onRetry()
-            default:               Haptics.light(); detent = .medium
+            default:               Haptics.selection(); detent = .medium   // detent change (§10)
             }
         } label: {
             HStack(spacing: 12) {
@@ -311,7 +317,7 @@ struct MapSheet: View {
 
     private var peekSecondaryColor: Color {
         if peekIsRetry { return Hue.accent }
-        return liveEvents.isEmpty ? Hue.grayLight : Hue.accent
+        return liveEvents.isEmpty ? Hue.gray : Hue.accent   // gray, not grayLight — legible on frosted material
     }
 
     @ViewBuilder
@@ -367,14 +373,14 @@ struct MapSheet: View {
         switch mode {
         case .places:
             Text("\(spots.count) places in town")
-                .font(.sans(13)).foregroundStyle(Hue.grayLight)
+                .font(.sans(13)).foregroundStyle(Hue.gray)
         case .today:
             switch state {
             case .loading:
-                Text("Loading…").font(.sans(13)).foregroundStyle(Hue.grayLight)
+                Text("Loading…").font(.sans(13)).foregroundStyle(Hue.gray)
             case .loaded, .empty:
                 if events.isEmpty {
-                    Text("A quiet day so far").font(.sans(13)).foregroundStyle(Hue.grayLight)
+                    Text("A quiet day so far").font(.sans(13)).foregroundStyle(Hue.gray)
                 } else {
                     Text("^[\(events.count) happening](inflect: true) today")
                         .font(.mono(13)).foregroundStyle(Hue.gray).monospacedDigit()
@@ -400,8 +406,8 @@ struct MapSheet: View {
 
     private var toggleButton: some View {
         Button {
-            Haptics.light()
-            withAnimation(.easeInOut(duration: 0.2)) {
+            Haptics.selection()   // a segmented Today⇄Places choice → selection tick
+            withAnimation(Motion.snappy) {
                 mode = (mode == .today) ? .places : .today
             }
         } label: {
@@ -488,8 +494,10 @@ struct MapSheet: View {
     private func saveButton(_ spot: Spot) -> some View {
         let isSaved = saved.isSaved(spot.id)
         return Button {
-            Haptics.light()
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.62)) { saved.toggle(spot.id) }
+            // Saving a place is a positive milestone → success notification; un-saving is
+            // a light tap (spec §10 — success marks the save, not the removal).
+            if isSaved { Haptics.light() } else { Haptics.success() }
+            withAnimation(reduceMotion ? Motion.smooth : Motion.select) { saved.toggle(spot.id) }
         } label: {
             Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
                 .font(.system(size: 15, weight: .semibold))
@@ -522,19 +530,21 @@ struct MapSheet: View {
                     .accessibilityLabel("Back to list")
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(spot.name).font(.displaySemi(20)).foregroundStyle(Hue.mapInk).lineLimit(1)
+                        Text(spot.name).font(.display(20)).foregroundStyle(Hue.mapInk).lineLimit(1)  // §9: card title 20pt bold
                         if let blurb = spot.blurb {
-                            Text(blurb).font(.sans(13)).foregroundStyle(Hue.grayLight).lineLimit(1)
+                            Text(blurb).font(.sans(15)).foregroundStyle(Hue.gray).lineLimit(1)       // §9: subtitle 15pt
                         }
                     }
                     Spacer(minLength: 0)
                     saveButton(spot)
                 }
+                .staggeredAppear(0)
 
                 VenueInfoView(query: "\(spot.name) St Joseph MN",
                               palette: .map,
                               identity: VenueIdentity(name: spot.name, coordinate: spot.coordinate))
                     .padding(.top, 16)
+                    .staggeredAppear(1)
 
                 if !items.isEmpty {
                     VStack(spacing: 13) {
@@ -550,6 +560,7 @@ struct MapSheet: View {
                         }
                     }
                     .padding(.top, 18)
+                    .staggeredAppear(2)
                 }
 
                 Button {
@@ -562,6 +573,7 @@ struct MapSheet: View {
                 }
                 .buttonStyle(CoralPillStyle())
                 .padding(.top, 20)
+                .staggeredAppear(3)
                 .accessibilityLabel("Directions to \(spot.name)")
             }
             .padding(.horizontal, 20)
@@ -635,7 +647,7 @@ private struct TodayEventRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(event.title).font(.sansMedium(15)).foregroundStyle(Hue.mapInk).lineLimit(1)
                 if let loc = event.location ?? event.clubName {
-                    Text(loc).font(.sans(13)).foregroundStyle(Hue.grayLight).lineLimit(1)
+                    Text(loc).font(.sans(13)).foregroundStyle(Hue.gray).lineLimit(1)
                 }
             }
             Spacer(minLength: 8)
@@ -667,7 +679,7 @@ private struct PlaceRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(spot.name).font(.sansMedium(15)).foregroundStyle(Hue.mapInk).lineLimit(1)
                 if let blurb = spot.blurb {
-                    Text(blurb).font(.sans(13)).foregroundStyle(Hue.grayLight).lineLimit(1)
+                    Text(blurb).font(.sans(13)).foregroundStyle(Hue.gray).lineLimit(1)
                 }
             }
             Spacer(minLength: 8)

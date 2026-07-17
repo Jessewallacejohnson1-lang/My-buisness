@@ -12,25 +12,35 @@ import SwiftUI
 struct POIDetailSheet: View {
     let poi: POI
     @Environment(\.openURL) private var openURL
+    /// Opens at medium so the map (lifted so the pin sits above the card — see SJMapView)
+    /// and the card share the screen, Apple-Maps style. Peek/large are a drag away.
+    @State private var detent: PresentationDetent = .medium
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                header
+                header.staggeredAppear(0)
                 if let address = poi.address, !address.isEmpty {
                     Text(address)
-                        .font(.sans(14)).foregroundStyle(Hue.gray)
+                        .font(.sans(15)).foregroundStyle(Hue.gray)          // §9: 15pt subtitle
                         .fixedSize(horizontal: false, vertical: true)
+                        .staggeredAppear(1)
                 }
-                openInMapsButton
+                openInMapsButton.staggeredAppear(2)
                 VenueInfoView(query: poi.name,
                               identity: VenueIdentity(name: poi.name, coordinate: poi.coordinate))
+                    .staggeredAppear(3)
             }
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .presentationDetents([.medium, .large])
+        // Three detents incl. a small peek; the map stays live/draggable behind the card up
+        // through medium (spec §5) — the same "map is the hero" model as MapSheet.
+        .presentationDetents([.height(96), .medium, .large], selection: $detent)
         .presentationDragIndicator(.visible)
+        .presentationBackgroundInteraction(.enabled(upThrough: .medium))
+        .presentationBackground(.regularMaterial)      // frosted, Apple-Maps card
+        .presentationCornerRadius(Radius.xl)           // 20pt
     }
 
     private var header: some View {
@@ -42,7 +52,7 @@ struct POIDetailSheet: View {
                     .foregroundStyle(.white)
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text(poi.name).font(.display(21)).foregroundStyle(Hue.ink)
+                Text(poi.name).font(.display(20)).foregroundStyle(Hue.ink)   // §9: card title 20pt bold
                     .fixedSize(horizontal: false, vertical: true)
                 Text(poi.family.label.uppercased())
                     .font(.mono(11)).tracking(1.2).foregroundStyle(Hue.gray)
