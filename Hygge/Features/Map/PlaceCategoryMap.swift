@@ -95,6 +95,11 @@ enum PlaceCategoryMap {
         "real_estate_agency", "insurance_agency", "lawyer", "travel_agency",
         "veterinary_care", "florist", "service", "professional_service",
         "general_contractor", "plumber", "electrician", "moving_company", "storage",
+        // Hand-seeded local venues (see 20260716120000_places_seed_local.sql): keep
+        // these in sync with the glyph cases below so family() and glyph() agree.
+        "dentist", "doctor", "chiropractor", "physiotherapist",
+        "lodging", "bed_and_breakfast", "guest_house", "farm", "garden_center",
+        "art_gallery", "art_studio", "day_care_center", "child_care_agency", "preschool",
     ]
 
     nonisolated private static func isFood(_ t: String) -> Bool {
@@ -179,8 +184,10 @@ enum PlaceCategoryMap {
              "store", "shopping_mall":
             return "bag.fill"
 
-        // — Makers, growers, care & stays (hand-seeded local venues; see
-        //   20260716120000_places_seed_local.sql) — types outside the Google sweep. —
+        // — Makers, growers, care & stays — the hyper-local venue subtypes hand-seeded
+        //   in 20260716120000_places_seed_local.sql. These are also in businessPrimaryTypes
+        //   above, so family() and glyph() agree (a live Places result classifies too, not
+        //   only the SQL-seeded rows that carry their own family column). —
         case "florist", "garden_center", "farm":
             return "leaf.fill"
         case "art_gallery", "art_studio":
@@ -191,6 +198,8 @@ enum PlaceCategoryMap {
             return "cross.case.fill"
         case "lodging", "bed_and_breakfast", "guest_house":
             return "bed.double.fill"
+        case "day_care_center", "child_care_agency", "preschool":
+            return "figure.and.child.holdinghands"
 
         default:
             if (primaryType ?? "").hasSuffix("_restaurant") { return "fork.knife" }
