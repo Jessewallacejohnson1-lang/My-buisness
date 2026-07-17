@@ -77,6 +77,8 @@ struct HomeView: View {
             almanacReplay += 1   // and the Almanac re-writes itself as the card springs back
         }
         .task { await model.load(api) }
+        // Cover the tab with the loading screen until Today's data is in.
+        .tabReady(model.loaded)
         // Springs in when Today first appears and each time it's returned to.
         .onAppear { revealed = true }
         // A name edit in the profile writes Interests.displayName synchronously;

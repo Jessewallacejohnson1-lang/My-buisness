@@ -147,6 +147,7 @@ struct ActivitiesView: View {
             }
         }
         .task { await model.load(api) }
+        .tabReady(model.loaded)
         .sheet(item: $presentedPlace) { PlaceDetailView(place: $0) }
         .sheet(item: $presentedPark) { ParkDetailView(park: $0) }
         // The focused search overlay covers the whole screen (tab bar included).

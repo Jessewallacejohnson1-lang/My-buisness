@@ -97,6 +97,9 @@ struct CalendarView: View {
         .background(Hue.canvas)
         // The compose "+" is now the ComposeSpeedDial, hosted by MainTabsView.
         .task { await model.load(api) }
+        // `loaded` flips only on success, so also lift on `failed` — otherwise a
+        // failed cold load leaves the cover up forever, hiding the error UI.
+        .tabReady(model.loaded || model.failed)
         .onAppear { applyDebugLaunchState() }
         // isPresented (not item:) so chevron day-nav mutates `dayDetailDate` in
         // place — the cover stays up and DayDetailView replays its cascade via

@@ -25,6 +25,11 @@ final class MapModel: ObservableObject {
     /// they don't change with today's events or the Realtime pipeline.
     @Published private(set) var pois: [POI] = []
     @Published private(set) var state: LoadState = .loading
+    /// Whether Mapbox has finished loading its style + first tiles (`onStyleLoaded`).
+    /// The map tab is only visually "ready" once this is true: `state` can flip to
+    /// `.loaded` (today's events are in) while the basemap is still blank — that
+    /// blank-then-paint is exactly the pop-in the loading cover exists to hide.
+    @Published private(set) var styleLoaded = false
     /// A 1-minute wall-clock heartbeat. Bumped on a timer so any view observing this
     /// model re-evaluates DateHelpers.isLiveNow off the current time even when no
     /// data changes — a pin/"Now" badge must light at an event's start minute and go
@@ -63,6 +68,9 @@ final class MapModel: ObservableObject {
     private var loadGeneration = 0
 
     // MARK: Lifecycle (driven by SJMapView.onAppear/onDisappear + scenePhase)
+
+    /// Called from `SJMapView.onStyleLoaded` — the basemap has painted.
+    func markStyleLoaded() { styleLoaded = true }
 
     func start(auth: AuthStore) {
         if self.auth == nil { self.auth = auth }
