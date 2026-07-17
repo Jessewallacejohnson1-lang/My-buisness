@@ -68,18 +68,26 @@ struct BentoStatGrid: View {
         }
     }
 
+    /// The expanded slot resolved to its spec — nil when collapsed OR when
+    /// `expanded` names a slot with no backing tile (a truncated `tiles` array via
+    /// the DEBUG flags), so the layout falls back to compact instead of crashing.
+    private var expandedSpec: BentoSpec? {
+        expanded.flatMap { e in specs.first { $0.card == e } }
+    }
+
     var body: some View {
-        GeometryReader { geo in
+        let big = expandedSpec
+        return GeometryReader { geo in
             let total = geo.size.width
             ZStack(alignment: .topLeading) {
                 ForEach(specs, id: \.card) { spec in
-                    let f = frame(for: spec.card, total: total)
+                    let f = frame(for: spec.card, big: big, total: total)
                     tile(spec, f)
                         .offset(x: f.x, y: f.y)
                 }
             }
         }
-        .frame(height: expanded == nil ? compactH : expandedH)
+        .frame(height: big == nil ? compactH : expandedH)
         .animation(reduceMotion ? nil : spring, value: expanded)
         .onAppear { debugAutoExpand() }
     }
@@ -88,24 +96,23 @@ struct BentoStatGrid: View {
 
     private struct Rect { let x, y, w, h: CGFloat }
 
-    private func frame(for card: BentoCard, total: CGFloat) -> Rect {
-        guard let e = expanded else {
+    private func frame(for card: BentoCard, big: BentoSpec?, total: CGFloat) -> Rect {
+        guard let e = big else {
             let w = (total - gap * 2) / 3
             let i = CGFloat(index(of: card))
             return Rect(x: i * (w + gap), y: 0, w: w, h: compactH)
         }
         let bigW = (total - gap) * 0.635
         let colW = total - gap - bigW
-        let bigSpec = spec(e)
-        let leading = bigSpec.side == .leading
+        let leading = e.side == .leading
         let bigX: CGFloat = leading ? 0 : colW + gap
         let colX: CGFloat = leading ? bigW + gap : 0
 
-        if card == e {
+        if card == e.card {
             return Rect(x: bigX, y: 0, w: bigW, h: expandedH)
         }
         // The two non-expanded cards, in their original order, stack in the column.
-        let others = specs.map(\.card).filter { $0 != e }
+        let others = specs.map(\.card).filter { $0 != e.card }
         let slot = others.firstIndex(of: card) ?? 0
         return Rect(x: colX, y: CGFloat(slot) * (compactH + gap), w: colW, h: compactH)
     }
@@ -135,7 +142,7 @@ struct BentoStatGrid: View {
     /// count stands on its own; "0" reads honestly.
     private func compactContent(_ spec: BentoSpec) -> some View {
         VStack(spacing: 0) {
-            Text(spec.tile.title)
+            Text(compactTitle(spec.tile.title))
                 .font(.sansSemibold(13))
                 .foregroundStyle(InsightsPalette.onDark)
                 .lineLimit(1)
@@ -180,9 +187,10 @@ struct BentoStatGrid: View {
         .padding(.vertical, 14)
     }
 
-    /// Bottom row: "This week" static sub-stat + the "Next" doorway. The doorway
-    /// taps route to the day and MUST take priority over the tile's collapse tap,
-    /// so it's a Button (its hit region swallows the tap before the tile gesture).
+    /// Bottom row: "This week" static sub-stat + the "Next" doorway. The doorway is
+    /// a DESCENDANT tap gesture, which SwiftUI resolves ahead of the tile's ancestor
+    /// collapse tap — so tapping "Next" opens the day WITHOUT collapsing the tile.
+    /// Kept as an accessibility button so VoiceOver still announces + activates it.
     private func subStatsRow(_ tile: InsightsData.InterestTile) -> some View {
         HStack(alignment: .top, spacing: 0) {
             VStack(alignment: .leading, spacing: 1) {
@@ -196,28 +204,28 @@ struct BentoStatGrid: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             if let key = tile.nextDayKey, let part = tile.nextDayPart {
-                Button {
-                    onOpenDay?(key)
-                } label: {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Next")
-                            .font(.sans(11))
-                            .foregroundStyle(InsightsPalette.onDark.opacity(0.78))
-                        HStack(spacing: 3) {
-                            Text(part)
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(InsightsPalette.onDark)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.75)
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(InsightsPalette.onDark.opacity(0.7))
-                        }
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Next")
+                        .font(.sans(11))
+                        .foregroundStyle(InsightsPalette.onDark.opacity(0.78))
+                    HStack(spacing: 3) {
+                        Text(part)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(InsightsPalette.onDark)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(InsightsPalette.onDark.opacity(0.7))
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                .onTapGesture { onOpenDay?(key) }
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityLabel("Next: \(part)")
+                .accessibilityHint("Opens that day")
             }
         }
     }
@@ -229,8 +237,13 @@ struct BentoStatGrid: View {
         expanded = (expanded == card) ? nil : card
     }
 
-    private func spec(_ card: BentoCard) -> BentoSpec { specs.first { $0.card == card }! }
     private func index(of card: BentoCard) -> Int { specs.firstIndex { $0.card == card } ?? 0 }
+
+    /// Long category labels ("Breweries & Taprooms") don't fit the narrow compact
+    /// tile — show the leading segment there; the expanded tile keeps the full name.
+    private func compactTitle(_ label: String) -> String {
+        label.components(separatedBy: " & ").first ?? label
+    }
 
     /// DEBUG-only: `-bento-autoexpand journaled|visited|written` fires the expand
     /// spring ~1.5s after appear so the tap-to-expand motion can be recorded

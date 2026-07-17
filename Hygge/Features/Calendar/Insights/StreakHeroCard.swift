@@ -56,6 +56,7 @@ struct StreakHeroCard: View {
                 .font(.system(size: 13, weight: .regular))
                 .foregroundStyle(InsightsPalette.onDarkMuted)
                 .lineLimit(1)
+                .minimumScaleFactor(0.82)   // never clip the town RSVP social-proof line
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 16)

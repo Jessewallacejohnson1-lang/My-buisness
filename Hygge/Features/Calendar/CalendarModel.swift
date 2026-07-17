@@ -65,9 +65,9 @@ final class CalendarModel: ObservableObject {
             // Personal overlay, concurrent + non-blocking: signed-out throws → empty,
             // which is the expected degraded state (the town dashboard already stands).
             async let mine = personalRsvps(api)
-            async let counts = personalCounts(api, ids: upcoming.map(\.id))
+            async let goingCounts = personalCounts(api, ids: upcoming.map(\.id))
             myRsvps = await mine
-            rsvpCounts = await counts
+            rsvpCounts = await goingCounts
         } catch {
             // Keep whatever is already on screen; only flag when there's nothing.
             if !loaded { failed = true }

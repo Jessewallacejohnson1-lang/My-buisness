@@ -137,7 +137,7 @@ struct InsightsMiniCalendar: View {
         let hasEvents = day - 1 < dayCounts.count && dayCounts[day - 1] > 0
         if isMine || hasEvents {
             Circle()
-                .fill(isMine ? InsightsPalette.todayFill : InsightsPalette.weekday)
+                .fill(isMine ? InsightsPalette.eventDay : InsightsPalette.townDot)
                 .frame(width: dotDiameter, height: dotDiameter)
                 .padding(.bottom, dotBottomInset)
         }
