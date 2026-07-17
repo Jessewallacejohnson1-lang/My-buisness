@@ -42,7 +42,8 @@ enum InsightsPalette {
     static let calendarNav = Color(hex: 0x6C5CE7)     // ‹ › chevrons (periwinkle-violet)
     static let calendarTitle = Color(hex: 0x1C1B22)
     static let weekday = Color(hex: 0xB6B6BE)
-    static let eventDay = Color(hex: 0xE0655E)     // a day with happenings (coral numeral)
+    static let eventDay = Color(hex: 0xE0655E)     // YOUR day dot (coral) — clears 3:1 on white
+    static let townDot = Color(hex: 0x83838B)      // a town-happening day dot (neutral gray, ≥3:1 on white)
     static let todayFill = Color(hex: 0xFF6B57)    // today's filled circle (app coral)
 
     // Text on colored cards

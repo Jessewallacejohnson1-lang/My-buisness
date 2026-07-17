@@ -144,8 +144,8 @@ struct EntriesStatCard: View {
                 ForEach(axisTicks.indices, id: \.self) { i in
                     let y = plotTop + plotHeight * (CGFloat(i) / CGFloat(axisTicks.count - 1))
                     Text(axisTicks[i])
-                        .font(.system(size: 9, weight: .regular))
-                        .foregroundStyle(Color.white.opacity(0.45))
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(Color.white.opacity(0.6))
                         .position(x: plotWidth - sideInset + 2, y: y)
                 }
             }

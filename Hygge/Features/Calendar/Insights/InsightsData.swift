@@ -30,7 +30,7 @@ struct InsightsData {
     var yearTotal: Int                 // upcoming events matching your interests (town total if none picked)
     var months: [YearMonth]            // 12, current month first — yours (foreground) + town (ghost)
     var yearMarkerIndex: Int           // the highlighted peak column
-    var yearCaption: String            // "August is your fullest month ahead." / "Pick interests to make this yours."
+    var yearCaption: String            // "August is your fullest month ahead." / "Adding a few interests makes this yours."
     var hasInterests: Bool
 
     // 3 · Interest bento — exactly 3 tiles.
@@ -169,7 +169,7 @@ struct InsightsData {
             seen.insert(ev.id)
         } else if let m = c.upcoming.first(where: { c.matches($0, c.interests) }) {
             let ev = Ev(id: m.id, title: m.title, date: m.eventDate, start: m.startTime)
-            pages.append(page(.yours, "Yours", ev, reason: whenPhrase(ev), c))
+            pages.append(page(.yours, "Yours", ev, reason: whenPhrase(ev, today: c.today), c))
             seen.insert(ev.id)
         }
 
@@ -184,7 +184,7 @@ struct InsightsData {
         if let first = c.upcoming.first {
             let ev = Ev(id: first.id, title: first.title, date: first.eventDate, start: first.startTime)
             if !seen.contains(ev.id) {
-                pages.append(page(.next, "Next up", ev, reason: whenPhrase(ev), c))
+                pages.append(page(.next, "Next up", ev, reason: whenPhrase(ev, today: c.today), c))
                 seen.insert(ev.id)
             }
         }
@@ -255,7 +255,7 @@ struct InsightsData {
 
         let caption: String
         if !hasInterests {
-            caption = "Pick interests to make this yours."
+            caption = "Adding a few interests makes this yours."
         } else if yourTotal == 0 {
             caption = "Nothing matching your interests yet."
         } else {
@@ -292,7 +292,7 @@ struct InsightsData {
             return InterestTile(
                 id: pick.id, title: label, count: count, picked: pick.picked,
                 thisWeek: week,
-                nextDayPart: ev.map { whenPhrase($0) },
+                nextDayPart: ev.map { whenPhrase($0, today: c.today) },
                 nextDayKey: ev?.date,
                 emptyLine: count == 0 ? "A quiet stretch for \(shortNoun(label))." : nil)
         }
@@ -333,7 +333,9 @@ struct InsightsData {
         let next = c.myRsvps.map(\.eventDate)
             + (c.interests.isEmpty ? [] : c.upcoming.filter { c.matches($0, c.interests) }.map(\.eventDate))
         if let soonest = next.filter({ $0 >= c.today }).min() {
-            return "Your next full day: \(fullWeekday(soonest))."
+            let days = DateHelpers.daysBetween(c.today, soonest) ?? 0
+            let label = days > 6 ? DateHelpers.prettyDate(soonest) : fullWeekday(soonest)
+            return "Your next full day: \(label)."
         }
         return "Nothing of yours on the calendar yet."
     }
@@ -347,13 +349,15 @@ struct InsightsData {
         return ("\(d)", d == 1 ? "Day" : "Days")
     }
 
-    /// "Friday evening" — weekday + day-part; weekday alone for untimed events
-    /// (day-parts beat clock times; an untimed event never guesses "evening").
-    private static func whenPhrase(_ ev: Ev) -> String {
-        let weekday = fullWeekday(ev.date)
+    /// "Friday evening" for this week; "Fri, Aug 7" once it's more than a week out
+    /// (a bare weekday would misread as *this* Friday). Weekday alone for untimed
+    /// events — day-parts beat clock times, and an untimed event never guesses.
+    private static func whenPhrase(_ ev: Ev, today: String) -> String {
+        let days = DateHelpers.daysBetween(today, ev.date) ?? 0
+        if days > 6 { return DateHelpers.prettyDate(ev.date) }
         let mins = DateHelpers.minutesOf(ev.start)
-        guard let start = ev.start, !start.isEmpty, mins < 24 * 60 else { return weekday }
-        return "\(weekday) \(dayPart(mins))"
+        guard mins < 24 * 60 else { return fullWeekday(ev.date) }   // untimed → weekday only
+        return "\(fullWeekday(ev.date)) \(dayPart(mins))"
     }
 
     private static func dayPart(_ minutes: Int) -> String {
@@ -442,16 +446,16 @@ extension InsightsData {
                 SpotlightPage(id: 1, kind: .town, label: "In town", value: "12", unit: "Days",
                               subtitle: "Joetown Rocks · 24 neighbors are going"),
             ],
-            yearTotal: 46,
+            yearTotal: 41,
             months: (0..<12).map { YearMonth(id: $0, letter: letters[$0], yours: town[$0], town: town[$0]) },
-            yearMarkerIndex: 0, yearCaption: "Pick interests to make this yours.", hasInterests: false,
+            yearMarkerIndex: 0, yearCaption: "Adding a few interests makes this yours.", hasInterests: false,
             bento: [
                 InterestTile(id: "festivals", title: "Festivals & Fairs", count: 4, picked: false, thisWeek: 1,
                              nextDayPart: "Saturday afternoon", nextDayKey: "2026-07-18", emptyLine: nil),
                 InterestTile(id: "farmers_market", title: "Farmers Market", count: 3, picked: false, thisWeek: 1,
                              nextDayPart: "Friday morning", nextDayKey: "2026-07-17", emptyLine: nil),
                 InterestTile(id: "live_music", title: "Live Music", count: 2, picked: false, thisWeek: 0,
-                             nextDayPart: "Saturday evening", nextDayKey: "2026-07-25", emptyLine: nil),
+                             nextDayPart: "Sat, Jul 25", nextDayKey: "2026-07-25", emptyLine: nil),
             ],
             grid: Grid(title: "July 2026", leadingBlanks: 3, dayCount: 31, counts: counts,
                        mineDays: [17], todayDay: 15),
@@ -493,7 +497,7 @@ extension InsightsData {
                                       subtitle: "Nothing on the calendar yet")],
             yearTotal: 0,
             months: (0..<12).map { YearMonth(id: $0, letter: "·", yours: 0, town: 0) },
-            yearMarkerIndex: 0, yearCaption: "Pick interests to make this yours.", hasInterests: false,
+            yearMarkerIndex: 0, yearCaption: "Adding a few interests makes this yours.", hasInterests: false,
             bento: [
                 InterestTile(id: "a", title: "Live Music", count: 0, picked: false, thisWeek: 0,
                              nextDayPart: nil, nextDayKey: nil, emptyLine: "A quiet stretch for live music."),
@@ -516,7 +520,7 @@ extension InsightsData {
                                       subtitle: "Nothing on the calendar yet")],
             yearTotal: 0,
             months: (0..<12).map { YearMonth(id: $0, letter: "·", yours: 0, town: 0) },
-            yearMarkerIndex: 0, yearCaption: "Pick interests to make this yours.", hasInterests: false,
+            yearMarkerIndex: 0, yearCaption: "Adding a few interests makes this yours.", hasInterests: false,
             bento: (0..<3).map { InterestTile(id: "\($0)", title: "", count: 0, picked: false, thisWeek: 0,
                                               nextDayPart: nil, nextDayKey: nil, emptyLine: nil) },
             grid: Grid(title: "", leadingBlanks: 0, dayCount: 30, counts: Array(repeating: 0, count: 30),
