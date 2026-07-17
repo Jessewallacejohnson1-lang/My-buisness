@@ -176,8 +176,21 @@ enum PlaceCategoryMap {
         case "clothing_store", "shoe_store", "jewelry_store", "gift_shop",
              "department_store", "discount_store", "furniture_store", "home_goods_store",
              "electronics_store", "book_store", "pet_store", "sporting_goods_store",
-             "florist", "store", "shopping_mall":
+             "store", "shopping_mall":
             return "bag.fill"
+
+        // — Makers, growers, care & stays (hand-seeded local venues; see
+        //   20260716120000_places_seed_local.sql) — types outside the Google sweep. —
+        case "florist", "garden_center", "farm":
+            return "leaf.fill"
+        case "art_gallery", "art_studio":
+            return "paintpalette.fill"
+        case "veterinary_care":
+            return "pawprint.fill"
+        case "dentist", "doctor", "chiropractor", "physiotherapist":
+            return "cross.case.fill"
+        case "lodging", "bed_and_breakfast", "guest_house":
+            return "bed.double.fill"
 
         default:
             if (primaryType ?? "").hasSuffix("_restaurant") { return "fork.knife" }
