@@ -21,41 +21,56 @@ struct UpcomingInsightsView: View {
     var onOpenDay: ((String) -> Void)? = nil
 
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 20) {
-                section("Coming up") {
-                    SpotlightWheel(pages: data.spotlight)
-                }
-                section("At a glance") {
-                    VStack(spacing: InsightsPalette.cardGap) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            EntriesStatCard(line1: "Your Year", line2: "Ahead",
-                                            count: data.yearTotal,
-                                            monthData: data.months.map { ($0.letter, $0.yours, $0.town) },
-                                            markerIndex: data.yearMarkerIndex,
-                                            expandable: false)
-                            caption(data.yearCaption)
+        ScrollViewReader { proxy in
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 20) {
+                    section("Coming up") {
+                        SpotlightWheel(pages: data.spotlight)
+                    }
+                    section("At a glance") {
+                        VStack(spacing: InsightsPalette.cardGap) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                EntriesStatCard(line1: "Your Year", line2: "Ahead",
+                                                count: data.yearTotal,
+                                                monthData: data.months.map { ($0.letter, $0.yours, $0.town) },
+                                                markerIndex: data.yearMarkerIndex,
+                                                expandable: false)
+                                caption(data.yearCaption)
+                            }
+                            BentoStatGrid(tiles: data.bento, onOpenDay: onOpenDay)
                         }
-                        BentoStatGrid(tiles: data.bento, onOpenDay: onOpenDay)
                     }
-                }
-                section("Calendar") {
-                    VStack(alignment: .leading, spacing: 6) {
-                        InsightsMiniCalendar(title: data.grid.title,
-                                             leadingBlanks: data.grid.leadingBlanks,
-                                             dayCount: data.grid.dayCount,
-                                             dayCounts: data.grid.counts,
-                                             mineDays: data.grid.mineDays,
-                                             todayDay: data.grid.todayDay)
-                        caption(data.gridCaption)
+                    section("Calendar") {
+                        VStack(alignment: .leading, spacing: 6) {
+                            InsightsMiniCalendar(title: data.grid.title,
+                                                 leadingBlanks: data.grid.leadingBlanks,
+                                                 dayCount: data.grid.dayCount,
+                                                 dayCounts: data.grid.counts,
+                                                 mineDays: data.grid.mineDays,
+                                                 todayDay: data.grid.todayDay)
+                            caption(data.gridCaption)
+                        }
                     }
+                    .id("calendar")
+                    Color.clear.frame(height: 96)   // clear the tab bar / compose disc
                 }
-                Color.clear.frame(height: 96)   // clear the tab bar / compose disc
+                .padding(.horizontal, 18)
+                .padding(.top, 8)
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 8)
+            .background(InsightsPalette.canvas)
+            .onAppear { debugScrollIfNeeded(proxy) }
         }
-        .background(InsightsPalette.canvas)
+    }
+
+    /// DEBUG-only: `-insights-scroll-calendar` scrolls to the mini-month card on
+    /// launch so its two dot kinds can be screenshotted headlessly. No effect in release.
+    private func debugScrollIfNeeded(_ proxy: ScrollViewProxy) {
+        #if DEBUG
+        guard ProcessInfo.processInfo.arguments.contains("-insights-scroll-calendar") else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("calendar", anchor: .bottom) }
+        }
+        #endif
     }
 
     /// A gray section label with its content below.
