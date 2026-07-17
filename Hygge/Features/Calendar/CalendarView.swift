@@ -33,14 +33,22 @@ struct CalendarView: View {
     private var api: CommunityAPI { CommunityAPI(auth: auth) }
     private var todayKey: String { DateHelpers.localDate() }
 
-    /// Real town-calendar data for the Upcoming Insights face, derived from the
-    /// same CalendarModel load the grid uses. DEBUG `-insights-sample` injects
-    /// sample data so populated rendering can be screenshotted on a signed-out sim.
+    /// Real, PERSONAL town-calendar data for the Upcoming Insights face, derived
+    /// from the same CalendarModel load the grid uses plus two small personal reads
+    /// (myRsvps, rsvpCounts) and the on-device onboarding interests. DEBUG
+    /// `-insights-sample[-nointerests|-sparse|-empty]` injects each state so every
+    /// card variant can be screenshotted headlessly on a signed-out sim.
     private var insightsData: InsightsData {
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-insights-sample") { return .sample }
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("-insights-sample-nointerests") { return .sampleNoInterests }
+        if args.contains("-insights-sample-sparse") { return .sampleSparse }
+        if args.contains("-insights-sample-empty") { return .empty }
+        if args.contains("-insights-sample") { return .sample }
         #endif
-        return InsightsData.from(counts: model.counts, upcoming: model.upcoming, today: todayKey)
+        return InsightsData.from(counts: model.counts, upcoming: model.upcoming,
+                                 myRsvps: model.myRsvps, rsvpCounts: model.rsvpCounts,
+                                 interests: Interests.get(), today: todayKey)
     }
 
     /// DEBUG-only: `-calendar-face upcoming|grid` starts the tab on a given face
@@ -86,7 +94,7 @@ struct CalendarView: View {
                         .transition(reduceMotion ? .opacity
                             : .offset(x: 28).combined(with: .opacity))
                 } else {
-                    UpcomingInsightsView(data: insightsData)
+                    UpcomingInsightsView(data: insightsData, onOpenDay: pick)
                         .transition(reduceMotion ? .opacity
                             : .offset(x: -28).combined(with: .opacity))
                 }
