@@ -12,8 +12,9 @@ final class ActivitiesModel: ObservableObject {
     @Published var trails: [Trail] = []
     @Published var events: [UpcomingEvent] = []
     /// The city's official park system — a fixed civic dataset, not fetched
-    /// from the backend (see CityParks.swift).
-    let parks: [Park] = CityParks.all
+    /// from the backend (see CityParks.swift). A `var` so the imageless-card filter
+    /// can prune it alongside the fetched collections.
+    @Published private(set) var parks: [Park] = CityParks.all
     @Published var loading = true
     @Published var loaded = false
     /// A real fetch failure with nothing to show — so the view can say "couldn't
@@ -28,17 +29,27 @@ final class ActivitiesModel: ObservableObject {
 
     func load(_ api: CommunityAPI) async {
         if !loaded { loading = true }
+        // Fetch into locals (seeded from the current values so a failed refresh keeps
+        // what's on screen), filter, then publish all four collections ONCE at the end.
+        // Publishing the unfiltered fetch first would flash the imageless cards on a
+        // `.refreshable` (where `loaded` is already true), breaking the no-pop invariant.
+        var newClubs = clubs, newTrails = trails, newEvents = events
         do {
-            clubs = try await api.getApprovedClubs()
-            trails = try await api.getTrails()
-            events = try await api.getUpcomingEvents()
+            newClubs = try await api.getApprovedClubs()
+            newTrails = try await api.getTrails()
+            newEvents = try await api.getUpcomingEvents()
             failed = false
         } catch {
             // Only flag failed when we have nothing to show, so a refresh error
             // doesn't blank data the user is already looking at.
-            if clubs.isEmpty && trails.isEmpty && events.isEmpty { failed = true }
+            if newClubs.isEmpty && newTrails.isEmpty && newEvents.isEmpty { failed = true }
             Log.network("ActivitiesModel.load: \(error)")
         }
+        // Hide imageless cards (a photo-forward Explore) before publishing, so nothing
+        // pops out after the fact. Bounded + fail-open (see imagedActivities). The FULL
+        // civic park set is fed in so every park is re-evaluated each load.
+        let imaged = await imagedActivities(events: newEvents, clubs: newClubs, trails: newTrails, parks: CityParks.all)
+        events = imaged.events; clubs = imaged.clubs; trails = imaged.trails; parks = imaged.parks
         loading = false
         loaded = true
     }
