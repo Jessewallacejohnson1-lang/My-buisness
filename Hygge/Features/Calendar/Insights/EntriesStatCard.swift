@@ -1,13 +1,16 @@
 //
 //  EntriesStatCard.swift
-//  Hygge — the wide "Entries This Year" stat card for the Insights face.
+//  Hygge — the wide "Your Year Ahead" stat card for the Insights face.
 //
-//  Reference-faithful first pass (fixed placeholder content, matched 1:1 to the
-//  reference recording). A periwinkle gradient card with a big "7", stacked
-//  "Entries / This Year" label, and a faint decorative 12-month mini bar chart.
-//  Tapping it springs the card taller to reveal a row of category sub-stats
-//  (Places · Audio · Reflections · Drawings · State of Mind), matching the
-//  reference. Real calendar data is wired in a follow-up.
+//  A periwinkle gradient card with a big count, a stacked "Your Year / Ahead"
+//  label, and a faint two-series 12-month mini bar chart: the town's monthly
+//  totals as ghost bars (the ceiling) with YOUR interest-matched subset drawn
+//  brighter in front at the same x positions. A bright marker column highlights
+//  the peak month; month letters + axis ticks read the town ceiling.
+//
+//  Non-expandable in the Insights face — the TapToExpand machinery is kept intact
+//  (inert when `expandable: false`). The significance caption is rendered by the
+//  orchestrator BELOW the card, not inside it.
 //
 
 import SwiftUI
@@ -17,21 +20,16 @@ struct EntriesStatCard: View {
     @State private var expanded: Bool = Self.debugExpanded()
 
     // Injectable content, defaulting to the reference-frame look.
-    var line1: String = "Entries"
-    var line2: String = "This Year"
+    var line1: String = "Your Year"
+    var line2: String = "Ahead"
     var count: Int = 7
-    var monthData: [(letter: String, count: Int)] = [
-        ("J", 3), ("F", 5), ("M", 9), ("A", 4), ("M", 3), ("J", 5),
-        ("J", 4), ("A", 6), ("S", 3), ("O", 5), ("N", 3), ("D", 4),
+    // Two-series month data: the town's total (ghost ceiling) + your matched subset.
+    var monthData: [(letter: String, yours: Int, town: Int)] = [
+        ("J", 3, 3), ("F", 4, 5), ("M", 5, 9), ("A", 2, 4), ("M", 1, 3), ("J", 2, 5),
+        ("J", 1, 4), ("A", 3, 6), ("S", 1, 3), ("O", 2, 5), ("N", 1, 3), ("D", 1, 4),
     ]
     var markerIndex: Int = 2   // the bright vertical marker column
     var expandable: Bool = true
-
-    private let axisTicks = ["10", "5", "0"]
-    private let subStats: [(String, String)] = [
-        ("3", "Places"), ("2", "Audio"), ("2", "Reflections"),
-        ("2", "Drawings"), ("2", "State of Mind"),
-    ]
 
     private let compactH: CGFloat = 106
     private let expandedH: CGFloat = 172
@@ -42,8 +40,6 @@ struct EntriesStatCard: View {
         ZStack(alignment: .top) {
             chart(isExpanded: isExpanded)
             content
-            subStatRow
-                .opacity(isExpanded ? 1 : 0)
         }
         .frame(maxWidth: .infinity)
         .frame(height: isExpanded ? expandedH : compactH)
@@ -82,35 +78,18 @@ struct EntriesStatCard: View {
         .frame(maxHeight: .infinity, alignment: .top)
     }
 
-    // MARK: - Sub-stat row (revealed when expanded)
-
-    private var subStatRow: some View {
-        HStack(alignment: .top, spacing: 0) {
-            ForEach(subStats, id: \.1) { s in
-                VStack(spacing: 2) {
-                    Text(s.0).font(.system(size: 20, weight: .bold))
-                        .foregroundStyle(InsightsPalette.onDark)
-                    Text(s.1).font(.sans(10.5))
-                        .foregroundStyle(InsightsPalette.onDark.opacity(0.8))
-                        .lineLimit(1).minimumScaleFactor(0.75)
-                }
-                .frame(maxWidth: .infinity)
-            }
-        }
-        .padding(.horizontal, 18)
-        .padding(.bottom, 16)
-        .frame(maxHeight: .infinity, alignment: .bottom)
-    }
-
-    // MARK: - Background chart (decorative, low-contrast)
+    // MARK: - Background chart (decorative, low-contrast, two series)
 
     private func chart(isExpanded: Bool) -> some View {
         let months = monthData.map(\.letter)
-        let maxC = max(1, monthData.map(\.count).max() ?? 1)
+        // Both series scale to the town ceiling so ghost bars define the top and
+        // your (subset) bars sit within them.
+        let maxC = max(1, monthData.map(\.town).max() ?? 1)
+        let axisTicks = axisTickLabels(max: maxC)
         return GeometryReader { geo in
             let plotWidth = geo.size.width
             // In the compact state the chart owns the whole card; when expanded the
-            // sub-stat row takes the lower band, so the chart hugs the top.
+            // chart still hugs the top band.
             let bottomInset: CGFloat = isExpanded ? geo.size.height - compactH + 22 : 22
             let topInset: CGFloat = 16
             let sideInset: CGFloat = 16
@@ -122,14 +101,27 @@ struct EntriesStatCard: View {
             let barWidth = step * 0.30
 
             ZStack(alignment: .topLeading) {
+                // Ghost bars — the town's totals, behind.
                 ForEach(monthData.indices, id: \.self) { i in
                     let x = sideInset + step * (CGFloat(i) + 0.5)
-                    let fraction = CGFloat(monthData[i].count) / CGFloat(maxC)
-                    let h = plotHeight * fraction
+                    let h = plotHeight * (CGFloat(monthData[i].town) / CGFloat(maxC))
                     Capsule()
                         .fill(Color.white.opacity(0.08))
                         .frame(width: barWidth, height: max(h, 3))
                         .position(x: x, y: plotBottom - h / 2)
+                }
+
+                // Foreground bars — your interest-matched subset, in front.
+                ForEach(monthData.indices, id: \.self) { i in
+                    let x = sideInset + step * (CGFloat(i) + 0.5)
+                    let yours = min(monthData[i].yours, monthData[i].town)
+                    let h = plotHeight * (CGFloat(yours) / CGFloat(maxC))
+                    if yours > 0 {
+                        Capsule()
+                            .fill(Color.white.opacity(0.30))
+                            .frame(width: barWidth, height: max(h, 3))
+                            .position(x: x, y: plotBottom - h / 2)
+                    }
                 }
 
                 let markerX = sideInset + step * (CGFloat(markerIndex) + 0.5)
@@ -138,8 +130,7 @@ struct EntriesStatCard: View {
                     .frame(width: 2, height: plotHeight)
                     .position(x: markerX, y: plotTop + plotHeight / 2)
 
-                // Month labels sit along the plot's baseline; hidden when the
-                // sub-stat row occupies the bottom.
+                // Month labels sit along the plot's baseline.
                 if !isExpanded {
                     ForEach(months.indices, id: \.self) { i in
                         let x = sideInset + step * (CGFloat(i) + 0.5)
@@ -153,12 +144,19 @@ struct EntriesStatCard: View {
                 ForEach(axisTicks.indices, id: \.self) { i in
                     let y = plotTop + plotHeight * (CGFloat(i) / CGFloat(axisTicks.count - 1))
                     Text(axisTicks[i])
-                        .font(.system(size: 9, weight: .regular))
-                        .foregroundStyle(Color.white.opacity(0.45))
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(Color.white.opacity(0.6))
                         .position(x: plotWidth - sideInset + 2, y: y)
                 }
             }
         }
+    }
+
+    /// Axis ticks reading the town ceiling: max, half, 0. A sparse town (peak
+    /// month == 1) would collapse the half to 0 and print "1 / 0 / 0", so drop the
+    /// mid tick until there's a real midpoint — the quiet case stays honest and clean.
+    private func axisTickLabels(max: Int) -> [String] {
+        max >= 2 ? ["\(max)", "\(max / 2)", "0"] : ["\(max)", "0"]
     }
 
     /// DEBUG-only: `-entries-expand` forces the expanded state on launch for a
@@ -193,7 +191,7 @@ private struct TapToExpand: ViewModifier {
 }
 
 #Preview {
-    EntriesStatCard()
+    EntriesStatCard(expandable: false)
         .padding()
         .background(InsightsPalette.canvas)
 }

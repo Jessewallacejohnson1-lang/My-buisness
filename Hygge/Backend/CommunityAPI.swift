@@ -207,6 +207,13 @@ struct CommunityAPI {
         return counts
     }
 
+    /// Count-only RSVP tally for a set of event ids (fetches its own token).
+    func rsvpCounts(eventIds ids: [String]) async throws -> [String: Int] {
+        guard !ids.isEmpty else { return [:] }
+        let t = try await token()
+        return try await rsvpCounts(eventIds: ids, token: t)
+    }
+
     func rsvpEvent(_ eventId: String) async throws {
         let t = try await token()
         let uid = try await uidOrThrow()
@@ -340,7 +347,7 @@ struct CommunityAPI {
         guard !ids.isEmpty else { return [] }
         let today = DateHelpers.localDate()
         let (data, _) = try await SupabaseHTTP.rest("club_events",
-            query: "select=*&id=in.(\(ids.joined(separator: ",")))&status=eq.approved&kind=eq.event&event_date=gte.\(today)\(Self.realOnly)&order=event_date.asc",
+            query: "select=*&id=in.(\(ids.joined(separator: ",")))&status=eq.approved&kind=eq.event&event_date=gte.\(today)\(Self.realOnly)&order=event_date.asc,start_time.asc",
             accessToken: t)
         let events: [RawEvent] = try decode(data)
         let counts = try await rsvpCounts(eventIds: events.map(\.id), token: t)
