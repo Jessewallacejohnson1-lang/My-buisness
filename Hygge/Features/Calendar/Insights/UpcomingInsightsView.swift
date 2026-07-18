@@ -30,7 +30,7 @@ struct UpcomingInsightsView: View {
                     section("At a glance") {
                         VStack(spacing: InsightsPalette.cardGap) {
                             VStack(alignment: .leading, spacing: 6) {
-                                EntriesStatCard(line1: "Your Year", line2: "Ahead",
+                                EntriesStatCard(line1: data.hasInterests ? "Your Year" : "The Year", line2: "Ahead",
                                                 count: data.yearTotal,
                                                 monthData: data.months.map { ($0.letter, $0.yours, $0.town) },
                                                 markerIndex: data.yearMarkerIndex,

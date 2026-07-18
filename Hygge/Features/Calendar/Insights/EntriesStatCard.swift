@@ -152,9 +152,11 @@ struct EntriesStatCard: View {
         }
     }
 
-    /// Three axis ticks reading the town ceiling: max, half, 0.
+    /// Axis ticks reading the town ceiling: max, half, 0. A sparse town (peak
+    /// month == 1) would collapse the half to 0 and print "1 / 0 / 0", so drop the
+    /// mid tick until there's a real midpoint — the quiet case stays honest and clean.
     private func axisTickLabels(max: Int) -> [String] {
-        ["\(max)", "\(max / 2)", "0"]
+        max >= 2 ? ["\(max)", "\(max / 2)", "0"] : ["\(max)", "0"]
     }
 
     /// DEBUG-only: `-entries-expand` forces the expanded state on launch for a

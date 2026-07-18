@@ -57,6 +57,11 @@ struct SpotlightWheel: View {
         }
         .onAppear(perform: startLoopIfRequested)
         .onDisappear { loopTask?.cancel(); loopTask = nil }
+        .onChange(of: pages.count) { _, newCount in
+            // A data refresh can shrink the deduped page set; keep the paged hero
+            // from resting on a now-missing page (instant clamp, no animation).
+            if selection >= newCount { selection = max(0, newCount - 1) }
+        }
     }
 
     private var dots: some View {
