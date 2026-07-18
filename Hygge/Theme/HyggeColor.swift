@@ -60,6 +60,7 @@ enum Hue {
     static let sky800 = Color(hex: 0x3e4d54)
 
     // honey → warmth (use sparingly)
+    static let honey500 = Color(hex: 0xEDAE1C)  // brighter sun-gold — the Almanac sun glyph
     static let honey600 = Color(hex: 0xb07d2b)
     static let honey700 = Color(hex: 0x8a5f1c)
 
