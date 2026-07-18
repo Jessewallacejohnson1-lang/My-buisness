@@ -20,11 +20,6 @@ final class CalendarModel: ObservableObject {
     @Published var loaded = false
     @Published var failed = false                // first load failed — nothing to show
 
-    // Personal overlay for the Insights face — degrades to empty when signed-out/failed
-    // (never blocks or wipes the town dashboard above).
-    @Published var myRsvps: [UpcomingEvent] = []      // your RSVP'd upcoming events
-    @Published var rsvpCounts: [String: Int] = [:]    // eventId → going count, for `upcoming`
-
     @Published var dayEvents: [TimelineEvent] = []
     @Published var loadingDay = false
     @Published var dayFailed = false
@@ -61,27 +56,10 @@ final class CalendarModel: ObservableObject {
             liveNow = events.contains { $0.eventDate == today && DateHelpers.isLiveNow($0.startTime) }
             failed = false
             loaded = true
-
-            // Personal overlay, concurrent + non-blocking: signed-out throws → empty,
-            // which is the expected degraded state (the town dashboard already stands).
-            async let mine = personalRsvps(api)
-            async let goingCounts = personalCounts(api, ids: upcoming.map(\.id))
-            myRsvps = await mine
-            rsvpCounts = await goingCounts
         } catch {
             // Keep whatever is already on screen; only flag when there's nothing.
             if !loaded { failed = true }
         }
-    }
-
-    /// The signed-in user's upcoming RSVPs — empty on any failure (e.g. signed-out).
-    private func personalRsvps(_ api: CommunityAPI) async -> [UpcomingEvent] {
-        do { return try await api.getMyUpcomingRsvps() } catch { return [] }
-    }
-
-    /// Going-counts for the upcoming ids — empty on any failure (e.g. signed-out).
-    private func personalCounts(_ api: CommunityAPI, ids: [String]) async -> [String: Int] {
-        do { return try await api.rsvpCounts(eventIds: ids) } catch { return [:] }
     }
 
     private var rsvpInFlight: Set<String> = []

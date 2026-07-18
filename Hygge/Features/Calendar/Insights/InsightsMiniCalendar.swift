@@ -2,11 +2,11 @@
 //  InsightsMiniCalendar.swift
 //  Hygge — the white "Calendar" mini month card for the Insights face.
 //
-//  Numerals are a uniform neutral ink; the color hierarchy lives in a small dot
-//  under each day — coral when the day is YOURS (RSVP'd / interest-matched),
-//  a soft neutral gray when the town simply has happenings, and none otherwise.
-//  Today keeps its filled coral circle (white numeral, no dot). The dots sit
-//  within the existing 40pt cell, so the card size + grid geometry are unchanged.
+//  Reference-faithful first pass (fixed placeholder content, matched 1:1 to the
+//  reference recording). In the resting frames only the header is above the fold
+//  (title + weekday row); the full March 2026 grid is rendered so the card reads
+//  correctly once scrolled. Real calendar data + navigation are wired in a
+//  follow-up. March 1, 2026 falls on a Sunday, so there are no leading blanks.
 //
 
 import SwiftUI
@@ -17,7 +17,6 @@ struct InsightsMiniCalendar: View {
     var leadingBlanks: Int = 0
     var dayCount: Int = 31
     var dayCounts: [Int] = Array(repeating: 0, count: 31)   // per day 1…dayCount; >0 means that day has happenings
-    var mineDays: Set<Int> = []                              // days that are YOURS → coral dot under the numeral
     var todayDay: Int? = nil                                 // day-of-month that is "today", if in this month
 
     private let weekdays = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]
@@ -106,12 +105,10 @@ struct InsightsMiniCalendar: View {
         }
     }
 
-    private let dotDiameter: CGFloat = 5
-    private let dotBottomInset: CGFloat = 2
-
     @ViewBuilder
     private func dayCell(_ day: Int) -> some View {
-        // Today keeps its filled coral circle + white numeral and carries NO dot.
+        let hasEvents = day - 1 < dayCounts.count && dayCounts[day - 1] > 0
+
         if day == todayDay {
             Text("\(day)")
                 .font(.system(size: 15, weight: .semibold))
@@ -119,41 +116,22 @@ struct InsightsMiniCalendar: View {
                 .frame(width: todayCircleDiameter, height: todayCircleDiameter)
                 .background(Circle().fill(InsightsPalette.todayFill))
                 .frame(maxWidth: .infinity, minHeight: cellHeight)
+        } else if hasEvents {
+            Text("\(day)")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(InsightsPalette.eventDay)
+                .frame(maxWidth: .infinity, minHeight: cellHeight)
         } else {
-            // Uniform neutral numeral — the color hierarchy now lives in the dot.
             Text("\(day)")
                 .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(dayColor)
                 .frame(maxWidth: .infinity, minHeight: cellHeight)
-                .overlay(alignment: .bottom) { dayDot(day) }
-        }
-    }
-
-    /// Coral if the day is yours; else a soft neutral dot if the town has anything;
-    /// else nothing. Sits within the existing 40pt cell — geometry is unchanged.
-    @ViewBuilder
-    private func dayDot(_ day: Int) -> some View {
-        let isMine = mineDays.contains(day)
-        let hasEvents = day - 1 < dayCounts.count && dayCounts[day - 1] > 0
-        if isMine || hasEvents {
-            Circle()
-                .fill(isMine ? InsightsPalette.eventDay : InsightsPalette.townDot)
-                .frame(width: dotDiameter, height: dotDiameter)
-                .padding(.bottom, dotBottomInset)
         }
     }
 }
 
 #Preview {
-    var counts = Array(repeating: 0, count: 31)
-    for (d, n) in [(6, 2), (12, 1), (17, 1), (24, 3), (26, 1)] { counts[d - 1] = n }
-    return InsightsMiniCalendar(
-        title: "July 2026",
-        leadingBlanks: 3,
-        dayCount: 31,
-        dayCounts: counts,          // days 6·12·17·24·26 have town happenings → neutral dots
-        mineDays: [17, 24],         // days 17·24 are yours → coral dots
-        todayDay: 15)               // filled coral circle, no dot
-    .padding()
-    .background(InsightsPalette.canvas)
+    InsightsMiniCalendar()
+        .padding()
+        .background(InsightsPalette.canvas)
 }
