@@ -8,6 +8,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 extension Color {
     /// Build a Color from a 0xRRGGBB hex literal.
@@ -16,6 +17,17 @@ extension Color {
         let g = Double((hex >> 8) & 0xFF) / 255
         let b = Double(hex & 0xFF) / 255
         self.init(.sRGB, red: r, green: g, blue: b, opacity: alpha)
+    }
+
+    /// The reverse of `init(hex:)` — a `"#RRGGBB"` string, for APIs (like Mapbox's
+    /// runtime style setters) that want a hex string rather than a `Color`. Lets a
+    /// call site reuse a `Hue` token instead of duplicating its hex as a literal.
+    var hexString: String {
+        let c = UIColor(self).cgColor.converted(to: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                                  intent: .defaultIntent, options: nil) ?? UIColor(self).cgColor
+        let comps = c.components ?? [0, 0, 0, 1]
+        let r = Int((comps[0] * 255).rounded()), g = Int((comps[1] * 255).rounded()), b = Int((comps[2] * 255).rounded())
+        return String(format: "#%02X%02X%02X", r, g, b)
     }
 }
 
@@ -73,4 +85,8 @@ enum Hue {
 
     static let mapInk      = Color(hex: 0x1A1D21)  // primary text + icons on map
     static let mapHairline = Color(hex: 0xE5E7EB)  // borders / grabber pill
+    // SwiftUI counterpart of the basemap ground (BasemapPalette.land "#F4F3EC") — used
+    // by chrome that fades over the map (e.g. the tab-bar fade) so it dissolves into
+    // the map's own cream, not a mismatched white.
+    static let mapLand     = Color(hex: 0xF4F3EC)  // warm cream — matches the basemap
 }

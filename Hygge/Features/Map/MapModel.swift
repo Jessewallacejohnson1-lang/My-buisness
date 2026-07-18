@@ -30,6 +30,15 @@ final class MapModel: ObservableObject {
     /// The town the map is currently panned over — names the top pill. Starts on
     /// St. Joe (the initial camera) and follows the map as it moves.
     @Published private(set) var townLabel = "Saint Joseph"
+    /// Whether pins should show their icon+label (true) or shrink to a small dot
+    /// (false) — driven by zoom, so labels only take up map space once there's
+    /// room for them. Starts `false` to match SJMapView's default camera zoom
+    /// (13.5, below `Self.pinExpandZoom`); the first `updateZoom` call corrects it
+    /// immediately if the camera actually starts elsewhere (e.g. `-map-zoom`).
+    @Published private(set) var pinsExpanded = false
+    /// Zoom at/above which pins expand — matches the old pin-hierarchy's label
+    /// threshold (T=14.5), a value already tuned by screenshot for this town.
+    static let pinExpandZoom: Double = 14.5
 
     private var auth: AuthStore?
     private var api: CommunityAPI? { auth.map(CommunityAPI.init(auth:)) }
@@ -40,6 +49,7 @@ final class MapModel: ObservableObject {
     private var resyncTask: Task<Void, Never>?
     private var midnightTask: Task<Void, Never>?
     private var townTask: Task<Void, Never>?
+    private var zoomTask: Task<Void, Never>?
     private var clockTask: Task<Void, Never>?
     private var started = false
     /// Monotonic token so an older in-flight load can't clobber a newer one's
@@ -96,6 +106,26 @@ final class MapModel: ObservableObject {
             let name = await GeocoderService.shared.town(lat: center.latitude, lon: center.longitude)
             guard !Task.isCancelled, let name else { return }
             self?.townLabel = name
+        }
+    }
+
+    // MARK: Pin expand/shrink (zoom-driven)
+
+    /// The map's zoom changed. Same "never the view's @State" rule as `updateTown`
+    /// — `onCameraChanged` fires every rendering frame, so the actual `@Published`
+    /// write is deferred to a task, not made synchronously in the callback. Unlike
+    /// the town name this doesn't wait for the pan to fully settle (a shrink/expand
+    /// that lagged the whole gesture would feel unresponsive) — just a short debounce
+    /// so hovering exactly on the threshold during a bouncy fling doesn't flicker,
+    /// and a same-value write is skipped so panning within one zoom band is a no-op.
+    func updateZoom(_ zoom: Double) {
+        let expanded = zoom >= Self.pinExpandZoom
+        guard expanded != pinsExpanded else { return }
+        zoomTask?.cancel()
+        zoomTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            guard !Task.isCancelled else { return }
+            self?.pinsExpanded = expanded
         }
     }
 
