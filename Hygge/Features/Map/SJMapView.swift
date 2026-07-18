@@ -70,12 +70,14 @@ struct SJMapView: View {
 
     @EnvironmentObject private var auth: AuthStore
     @Environment(\.scenePhase) private var scenePhase
-    @StateObject private var model = MapModel()
+    // Not `private`: the POI-clustering + autozoom methods in SJMapView+POIClustering.swift
+    // read `model` and drive `viewport`, and Swift `private` is file-scoped.
+    @StateObject var model = MapModel()
     /// Device-local saved set (shared with Explore). Observed so saving a place from
     /// the sheet updates its pin to the Saved state live.
     @ObservedObject private var saved = SavedStore.shared
 
-    @State private var viewport: Viewport = .camera(
+    @State var viewport: Viewport = .camera(
         center: SJMapView.debugInitialCenter() ?? MapSpots.center,
         zoom: SJMapView.debugInitialZoom() ?? 13.5,
         bearing: 0,
@@ -113,6 +115,39 @@ struct SJMapView: View {
     /// A tapped food/business POI marker (mutually exclusive with `selectedSpot`).
     @State private var selectedPOI: POI?
     @State private var filter: SpotFilter = .all
+
+    // MARK: Client-side POI clustering (replaces the retired POILayer)
+    //
+    // The 52 POIs are all mounted as view annotations (POIClusterMarker); this state is
+    // the recomputed layout that drives their merge/split glide. Recomputed on zoom-step
+    // changes + at camera idle (never every frame — mirrors how Mapbox only reclusters at
+    // zoom steps), off the LIVE projection via proxy.map.point(for:).
+
+    // These drive the clusterer that lives in SJMapView+POIClustering.swift, so they are
+    // not `private` (Swift `private` is file-scoped and the extension is another file).
+
+    /// POI id → where it should sit (its cluster seed, or itself when solo). Every leaf
+    /// reads its own entry; a flip animates that leaf's spring.
+    @State var poiAssignments: [String: POIAssignment] = [:]
+    /// The cluster bubbles to draw, including ones currently fading out (a split keeps a
+    /// dissolving bubble mounted a beat so it fades rather than pops).
+    @State var renderedClusters: [POIClusterRender] = []
+    /// Last zoom we reclustered at — so we only recompute on a real zoom step, not on
+    /// every camera frame.
+    @State var lastClusterZoom: Double = .nan
+    /// Debounced "camera settled" recompute (cancelled + rescheduled while moving).
+    @State var clusterSettle: DispatchWorkItem?
+    #if DEBUG
+    /// Guards the `-map-autozoom` demo so it fires only once per launch.
+    @State var autozoomStarted = false
+    #endif
+
+    /// Recompute once the zoom has moved at least this much since the last cluster pass —
+    /// small enough that a continuous zoom glides through intermediate cluster states, and
+    /// tight enough that seed screen-distances can't drift far enough between recomputes for
+    /// two bubbles to converge and overlap mid-zoom (0.1 zoom ⇒ ≤7% distance drift). The
+    /// per-zoom grouping distance itself lives in POICluster.clusterRadius(zoom:).
+    static let clusterZoomStep: Double = 0.1
 
     /// DEBUG-only: `-map-open <spotid>` preselects a spot so its detail card can be
     /// screenshotted headlessly. No effect in release / without the flag.
@@ -254,16 +289,36 @@ struct SJMapView: View {
     private var mapLayer: some View {
         MapReader { proxy in
             Map(viewport: $viewport) {
-                // A tap on a POI marker opens its detail; a tap on a cluster zooms in
-                // to split it. Layer-scoped interactions are evaluated BEFORE the
-                // map-wide tap, so these win over closeCard() when a marker/cluster is hit.
-                TapInteraction(.layer(POILayer.dotLayerID)) { feature, _ in
-                    if let id = feature.properties["id"]??.string { selectPOI(id: id) }
-                    return true
+                // POIs now cluster client-side and render as SwiftUI view annotations that
+                // GLIDE on merge/split (POIClusterMarker + POIClusterBubbleView) — the old
+                // Mapbox POI style layers + their layer taps are retired. Taps live on the
+                // annotation views themselves (SwiftUI overlays sit above the map, so they
+                // resolve before the map-wide closeCard tap): a POI opens its detail, a
+                // cluster zooms in to split. Declared BEFORE the civic pins so civic pins
+                // always win the z-order (they must never be clustered or covered).
+                ForEvery(model.pois) { poi in
+                    MapViewAnnotation(coordinate: poi.coordinate) {
+                        POIClusterMarker(
+                            poi: poi,
+                            assignment: poiAssignments[poi.id]
+                                ?? POIAssignment(anchor: poi.coordinate, clustered: false),
+                            expanded: model.pinsExpanded,
+                            proxy: proxy,
+                            onTap: { selectPOI(id: poi.id) }
+                        )
+                    }
+                    // Never cull — merged markers stack on their seed and must not vanish.
+                    .allowOverlap(true)
                 }
-                TapInteraction(.layer(POILayer.clusterLayerID)) { _, context in
-                    zoomToCluster(context.coordinate)
-                    return true
+                ForEvery(renderedClusters) { cluster in
+                    MapViewAnnotation(coordinate: cluster.coordinate) {
+                        POIClusterBubbleView(count: cluster.count,
+                                             active: cluster.active,
+                                             maxDiameter: cluster.maxDiameter) {
+                            zoomToCluster(cluster.coordinate)
+                        }
+                    }
+                    .allowOverlap(true)
                 }
                 // A tap on the open map (not a badge/marker) just dismisses the detail —
                 // every curated spot owns a real tappable badge, so there's no
@@ -299,24 +354,29 @@ struct SJMapView: View {
             .mapStyle(MapStyle(uri: StyleURI(rawValue: MAP_STYLE_URL)!))
             .onStyleLoaded { _ in
                 recolorBasemap(proxy.map)
-                if let map = proxy.map { POILayer.install(on: map, pois: model.pois) }
+                recomputeClusters(proxy.map)   // POIs may still be loading — pois-change reclusters
             }
-            // Name whatever town the map is panned over, and shrink/expand pins to fit
-            // the zoom (both debounced in the model — never the view's @State here).
+            // Name whatever town the map is panned over, shrink/expand pins to fit the
+            // zoom (both debounced in the model — never the view's @State here), and
+            // recluster on zoom steps / at idle so merges + splits glide.
             .onCameraChanged {
                 model.updateTown(center: $0.cameraState.center)
                 model.updateZoom($0.cameraState.zoom)
+                scheduleClusterRecompute(zoom: $0.cameraState.zoom, map: proxy.map)
             }
             // If a filter change hides the selected spot, drop the stale selection so the
             // detail sheet doesn't linger over a pin that's no longer on the map.
             .onChange(of: filter) { _, _ in
                 if let s = selectedSpot, !filteredSpots.contains(where: { $0.id == s.id }) { closeCard() }
             }
-            // POIs load async (once) after the style — push them into the source when they land.
+            // POIs load async (once) after the style — recompute the layout when they land.
             .onChange(of: model.pois) { _, pois in
-                if let map = proxy.map { POILayer.update(on: map, pois: pois) }
+                recomputeClusters(proxy.map)
                 #if DEBUG
                 if selectedPOI == nil, let poi = SJMapView.debugOpenPOI(in: pois) { selectedPOI = poi }
+                // Kick the autozoom demo only ONCE the POIs exist (they load a few seconds
+                // after launch) — otherwise the merge sweep would run over an empty map.
+                if !pois.isEmpty { startAutozoomIfNeeded() }
                 #endif
             }
             .ignoresSafeArea(edges: .bottom)
@@ -508,6 +568,9 @@ struct SJMapView: View {
         }
     }
 
+    // Client-side POI clustering (recompute trigger, reclustering, bubble lifecycle) and
+    // the DEBUG autozoom demo live in SJMapView+POIClustering.swift.
+
     private func closeCard() {
         guard selectedSpot != nil else { return }
         withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
@@ -678,7 +741,7 @@ private struct MapPinBadge: View {
 // fill (park green, water blue, cream ground) without a background pill — matches
 // the reference's bare-on-the-map label treatment.
 
-private struct HaloText: View {
+struct HaloText: View {
     let text: String
     let color: Color
 

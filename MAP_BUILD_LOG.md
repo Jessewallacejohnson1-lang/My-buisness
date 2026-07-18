@@ -878,3 +878,43 @@ all findings triaged & fixed (MainActor `nonisolated`, non-throwing `updateGeoJS
 iPhone 17 at **z12** (clusters 26/12/4/2), **z14** (small amber/indigo rest dots, no glyphs/labels),
 **z15.5** (glyph markers + de-conflicting labels), and the **Krewe Restaurant** detail sheet (amber
 fork.knife header, address, Open-in-Maps, live Google interior photo + hours/website/phone).
+
+---
+
+## 2026-07-18 — Map UI overhaul, Phase A: POI clustering snap → glide
+
+Replaced the built-in Mapbox GeoJSON clustering (`POILayer`, `cluster: true` → `CircleLayer`s) —
+which **snaps** pins between the clustered/unclustered layouts at zoom steps and stranded straggler
+dots beside bubbles — with a **client-side clusterer + SwiftUI view-annotation markers** that GLIDE.
+
+- **`POICluster`** — a deterministic greedy screen-space clusterer: project every POI
+  (`MapboxMap.point(for:)`), iterate in sorted-id order, seed a cluster from each unassigned POI and
+  absorb every unassigned POI within `radius`. Membership-by-radius ⇒ **no straggler can sit under a
+  bubble, by construction** (the old gold/gray/green orphans are structurally impossible now). The
+  **seed** is the cluster's stable id AND anchor coordinate, so the bubble sits on the seed and its
+  count rolls without the jitter a recomputed geometric centroid would show. **Zoom-dependent radius**
+  (`clusterRadius(zoom:)`, 52pt at z≤13 → 36pt at z≥15) keeps downtown calmly clustered when zoomed
+  out but **explodes to individual shops at street level**. A **bubble-diameter cap** (`radius − 8`)
+  guarantees two bubbles can never touch (seeds are always >radius apart) ⇒ no overlapping bubbles at
+  any zoom.
+- **`POIMarkers`** — the leaf view-annotation views. `POIClusterMarker` uses "Mechanism B": anchored
+  at its true coord, it glides via a screen-space `.offset` toward the seed (+ scale/opacity), with
+  the animating state on **isolated leaf `@State`** so the map's camera callbacks can't cancel it (the
+  `PulseRing` isolation lesson — a `MapViewAnnotation.coordinate` is itself NOT SwiftUI-animatable).
+  `POIClusterBubbleView` handles appear/dissolve + a `contentTransition(.numericText())` count roll.
+- **`SJMapView+POIClustering`** — the recompute trigger (`onCameraChanged` when zoom moved ≥0.1, plus
+  a 130ms settle debounce; also on style-load / pois-change), the bubble appear/dissolve lifecycle,
+  and a DEBUG `-map-autozoom` demo. POIs render as `MapViewAnnotation`s **before** the civic
+  `ForEvery`, so civic pins win z-order and never cluster. Retired `POILayer` + its layer
+  `TapInteraction`s; POI tap → `POIDetailSheet` via the marker's `onTapGesture`; cluster tap →
+  `zoomToCluster` (unchanged).
+
+**Verified:** build 0 warnings. A throwaway spike (`-spike-cluster`, since removed) proved the glide
+mechanism first. Two independent review passes (a fresh QA + a fresh Design Director) plus orchestrator
+frame review; v1 findings — over-clustering at z15, overlapping bubbles in the dense core — fixed in v2
+(zoom-dependent radius + bubble cap + 0.1 recompute step). Count integrity checked against the live DB:
+`places` = **91 rows, 91 distinct names, 0 duplicates** (the "68"/"91" counts are honest — the clusterer
+assigns each POI exactly once, no double-count). Screenshotted rest states z11–z15 (no stragglers, no
+bubble overlap, individual shops at z15) + a live autozoom clip (glide, no snap). **Deferred to Phase C
+by design:** bubble glass styling + category tint + size-by-count, brighter map green (`#D6E8C4` →
+`≈#B8E6A0`), town-label occlusion, POI label de-confliction. Spec: `docs/superpowers/specs/2026-07-18-*`.
