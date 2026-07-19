@@ -100,7 +100,8 @@ private struct CommunityFeedEventCard: View {
                 .multilineTextAlignment(.center)
         }
         .foregroundStyle(Hue.accent)
-        .frame(width: 74, minHeight: 48)
+        .frame(width: 74)
+        .frame(minHeight: 48)
         .padding(.horizontal, 6)
         .padding(.vertical, 7)
         .background(Hue.accentSoft, in: RoundedRectangle(cornerRadius: Radius.sm, style: .continuous))
@@ -251,10 +252,14 @@ private struct CommunityFeedPostedImage: View {
 private struct CommunityFeedLoadingState: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            Text("Loading community plans")
+                .font(.sans(14))
+                .foregroundStyle(Hue.ink2)
+                .accessibilityAddTraits(.updatesFrequently)
+
             CommunityFeedSkeletonCard()
             CommunityFeedSkeletonCard()
         }
-        .accessibilityHidden(true)
     }
 }
 
@@ -281,6 +286,7 @@ private struct CommunityFeedSkeletonCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .hyggeCard(padding: 16)
         .redacted(reason: .placeholder)
+        .accessibilityHidden(true)
     }
 }
 
