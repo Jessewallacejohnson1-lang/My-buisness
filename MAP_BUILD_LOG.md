@@ -1053,3 +1053,36 @@ Design Director: **DON'T SHIP** — open items, all needing a product decision r
    off markers, but nothing else ties the two sets together.
 6. De-confliction doesn't reserve the app's own floating chrome or Mapbox's street labels — at z16 a
    POI label draws under the filter chip; the "5" bubble covers "Cedar St E" at the default zoom.
+
+### Post-final-pass fixes (2026-07-19)
+
+Three of the Design Director's six open items fixed; three left, with reasons.
+
+**Fixed**
+- **De-confliction now reserves the app's own floating chrome** (`chromeRects` in
+  `SJMapView+POIClustering`, fed to `POICluster.labelledPOIs` as the highest-priority
+  reservation). Top row, the collapsed sheet + tab bar, and the ?/locate circles. Previously a
+  granted label could draw UNDER the filter chip or compose "+" — not merely crowded, invisible.
+  Verified at z16. Map size is measured in the view layer via `GeometryReader`; `MapboxMap.size`
+  is `internal` to the SDK.
+- **Cluster fill no longer cool.** Base moved off `Hue.surface` (pure white — the app's surface
+  ramp is cool) to a warm near-white `#FBFAF5` in the map's cartography family, and the category
+  wash dropped 7% → 5%. Measured interior: **#E8E9ED (R−B −5, cool) → #E8E8E8 (R−B 0, neutral)**.
+  Honest limit: the land is `#F4F3EC` (R−B +8), so the disc is now NEUTRAL, not warm — a ~8-point
+  gap rather than the previous 17-point reversal. Pushing warmer starts dissolving the disc into
+  the ground.
+- **Town label at the default zoom** — resolved by the `maxzoom 13` cap already in place.
+
+**Not fixed, and why**
+- **A civic REST DOT can still graze the town name at z12.** Anchoring the label ABOVE the
+  centroid was tried and measured WORSE (it lands squarely behind the 61-bubble — the bubble is
+  centred on the centroid). A larger offset detaches the name from its own dot, and our pins
+  can't dodge because they sit at real coordinates while the label belongs to Mapbox. Four
+  iterations in; the remaining fixes cost more than the defect.
+- **A POI badge occludes the Sacred Heart Chapel civic landmark at z15/z16** and captures its
+  name label. PRE-EXISTING (present in the before-shots). Civic annotations are already declared
+  last, which should win z-order and doesn't, so this needs a real fix in the annotation layering
+  — not a tweak. The alternative (withholding a colliding POI badge) hides a genuine business.
+- **Sheet glass transmits green / bleaches warm backdrops**, and **civic vs POI are still two
+  palettes** (the spec's "one family" bullet). Both are design changes with real blast radius —
+  the second means retuning `PlaceFamily.tint` app-wide — and belong to Jesse, not to a fix pass.

@@ -71,11 +71,34 @@ extension SJMapView {
             assignments: output.assignments,
             bubbles: rendered,
             civicSpots: filteredSpots.map { ($0.coordinate, $0.name) },
+            chrome: chromeRects(mapSize: mapSize),
             // Incumbency: labels already on screen keep their grant, so a pinch can't strobe
             // them on and off at a collision boundary.
             previous: labelledPOIs,
             project: { map.point(for: $0) }
         )
+    }
+
+    /// Screen boxes the app's own floating chrome occupies, so the label pass never grants a
+    /// name that would draw underneath it. These are SwiftUI overlays sitting above the whole
+    /// annotation layer, so a label there isn't merely crowded — it is invisible.
+    ///
+    /// Approximated as bands rather than measured: the chrome is at fixed insets, and over-
+    /// reserving the very top and bottom of the map costs little (few POIs sit there, and the
+    /// ones that do keep their badge — only the text is withheld).
+    func chromeRects(mapSize: CGSize) -> [CGRect] {
+        let W = mapSize.width, H = mapSize.height
+        guard W > 0, H > 0 else { return [] }
+        // Top row: filter chip · town pill · compose "+" — safe area + padding + a 44pt control.
+        let topBand = CGRect(x: 0, y: 0, width: W, height: 118)
+        // The collapsed sheet (peek) plus the tab bar it rests on.
+        let sheetTop = H - (MapSheet.tabBarReserve + MapSheet.peekHeight)
+        let bottomBand = CGRect(x: 0, y: sheetTop, width: W, height: max(0, H - sheetTop))
+        // The ? and locate circles, which float above the sheet.
+        let controlsY = sheetTop - 96 - 44
+        let help = CGRect(x: 16, y: controlsY, width: 44, height: 44)
+        let recenter = CGRect(x: W - 60, y: controlsY, width: 44, height: 44)
+        return [topBand, bottomBand, help, recenter]
     }
 
     // MARK: Bubble lifecycle (stable ids → persist / roll / fade-out)

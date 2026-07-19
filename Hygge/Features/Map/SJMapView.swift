@@ -206,6 +206,10 @@ struct SJMapView: View {
     /// medium), published by `MapSheet` via `SheetExpansionKey`. Drives the fade-out of
     /// the floating ?/locate controls so they never collide with the rising sheet.
     @State private var sheetExpansion: CGFloat = 0
+    /// The map view's own size, measured in the view layer (the SDK's `MapboxMap.size` is
+    /// internal). Feeds the label pass's floating-chrome reservation. Not `private`: the
+    /// clustering extension reads it.
+    @State var mapSize: CGSize = .zero
 
     /// Bottom margin (from the map's bottom edge) that lifts the required Mapbox logo +
     /// attribution button to rest just above the collapsed unified glass, so they're no
@@ -276,6 +280,16 @@ struct SJMapView: View {
                 onRetry: { model.retry() }
             )
         }
+        // Screen size, for the label pass's chrome reservation (`MapboxMap.size` is internal
+        // to the SDK, so measure the view instead). Written once at layout, and again only on
+        // a real size change (rotation / multitasking) — not per frame.
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear { mapSize = geo.size }
+                    .onChange(of: geo.size) { _, new in mapSize = new }
+            }
+        )
         // The sheet publishes how far it's grown past peek; the floating controls fade
         // off it (see `floatingControls`).
         .onPreferenceChange(SheetExpansionKey.self) { sheetExpansion = $0 }
@@ -488,12 +502,18 @@ struct SJMapView: View {
             try? map.setLayerProperty(for: id, property: "text-offset", value: [0.0, 2.4])
         }
         // Above z13 the town name stops earning its space: you are unambiguously INSIDE one
-        // town, the top pill already names it, and the offset label lands in the civic pin
-        // cluster around the town centre — a rest dot was rendering it "St⬤oseph" at the
-        // default 13.5. Capping it matches what light-v11 already does to
-        // `settlement-minor-label` (maxzoom 13), so majors and minors now retire together.
+        // town and the top pill already names it. Capping matches what light-v11 already does
+        // to `settlement-minor-label` (maxzoom 13), so majors and minors retire together.
         // Below z13 — the regional view, where naming Collegeville / Saint Wendel / Rockville
         // is the whole point — the offset label stays and clears the bubbles.
+        //
+        // KNOWN LIMIT, deliberately not chased further: at z12 a civic REST DOT can still
+        // graze the first glyphs of the name. The offset dodges the cluster bubble (which is
+        // centred on the town centroid) but the civic spots trail just south of it, which is
+        // where the offset puts the text. Anchoring ABOVE instead was measured and is WORSE —
+        // the label lands squarely behind the 61-bubble. The remaining options both cost more
+        // than the defect: a larger offset detaches the name from its own dot, and our pins
+        // can't dodge because they sit at real coordinates while the label is Mapbox's.
         try? map.setLayerProperty(for: "settlement-major-label", property: "maxzoom", value: 13.0)
     }
 

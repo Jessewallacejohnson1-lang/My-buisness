@@ -289,9 +289,13 @@ enum POICluster {
                              assignments: [String: POIAssignment],
                              bubbles: [POIClusterRender],
                              civicSpots: [(coordinate: CLLocationCoordinate2D, name: String)],
+                             chrome: [CGRect],
                              previous: Set<String>,
                              project: (CLLocationCoordinate2D) -> CGPoint) -> Set<String> {
-        var reserved: [CGRect] = []
+        // The app's OWN floating chrome outranks everything — it is drawn above the whole
+        // annotation layer, so a label granted underneath it doesn't compete, it just
+        // disappears behind the filter chip / compose "+" / bottom sheet.
+        var reserved: [CGRect] = chrome
 
         for spot in civicSpots {
             let p = project(spot.coordinate)

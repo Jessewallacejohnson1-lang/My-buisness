@@ -172,6 +172,14 @@ struct POIClusterBubbleView: View {
         _displayCount = State(initialValue: count)
     }
 
+    /// The disc's base. NOT `Hue.surface` (pure white): the app's surface ramp is cool
+    /// (`#FFFFFF` / `#F6F7F8`) and the map's ground is warm cream (`BasemapPalette.land`
+    /// `#F4F3EC`), so a white disc reads as a cold chip dropped on a warm map. This is a
+    /// warm near-white — same family as the land, a few points lighter so the bubble still
+    /// lifts off it. A map-cartography hex, like `BasemapPalette` and `SpotCategory.tint`
+    /// (see CLAUDE.md's carve-out); keep it in step with `BasemapPalette.land`.
+    private static let bubbleBase = Color(hex: 0xFBFAF5)
+
     /// Size-by-count, clamped to the clusterer's overlap cap. Defined in `POICluster` so the
     /// label de-confliction pass reserves the exact box this draws.
     private var diameter: CGFloat {
@@ -194,11 +202,13 @@ struct POIClusterBubbleView: View {
                 // 0.95, not 0.90: at 0.90 the POI badges stacked underneath GHOSTED through a
                 // big bubble as a pale disc-inside-a-disc smudge. Still translucent enough to
                 // sit on the map rather than punch a hole in it.
-                .fill(Hue.surface.opacity(0.95))
-                // Dominant-category wash — a whisper. The ring, not the fill, carries the
-                // category; a heavier wash turns the disc into a colour chip (indigo washed
-                // over cream reads lavender) instead of a light disc with a coloured edge.
-                .overlay(Circle().fill(family.tint.opacity(0.07)))
+                .fill(Self.bubbleBase.opacity(0.95))
+                // Dominant-category wash — a whisper, and dropped to 5%. The ring, not the
+                // fill, carries the category. At 7% over a pure-white base the disc measured
+                // #EAEBF3 (blue-leaning by 9) sitting on #F4F3EC land (red-leaning by 8) — a
+                // 17-point hue REVERSAL, i.e. a cold chip on a warm map. That periwinkle cast
+                // was previously blamed on the ring; it was the fill.
+                .overlay(Circle().fill(family.tint.opacity(0.05)))
                 // Category ring — the bubble's category signal, and what makes it read as
                 // Apple-style cluster chrome. 1.8pt rather than 1.5: a ring is a FIXED width
                 // on a disc whose size varies 22→44pt, so the thinnest-looking bubble is the
