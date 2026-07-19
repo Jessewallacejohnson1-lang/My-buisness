@@ -17,6 +17,9 @@ final class HomeModel: ObservableObject {
     @Published var name: String?
     @Published var loading = true
     @Published var loaded = false
+    @Published var upcoming: [UpcomingEvent] = []
+    @Published var communityFeedLoaded = false
+    private var upcomingRsvpInFlight: Set<String> = []
 
     func load(_ api: CommunityAPI) async {
         if !loaded { loading = true }
@@ -44,6 +47,15 @@ final class HomeModel: ObservableObject {
             // Leave whatever we have; the UI shows calm empty states.
             Log.network("HomeModel.load today/quest: \(error)")
         }
+
+        // The lower community feed is deliberately independent of the Today agenda:
+        // a feed failure leaves both the existing feed and today's schedule intact.
+        do {
+            upcoming = try await api.getUpcomingEvents()
+        } catch {
+            Log.network("HomeModel.load upcoming: \(error)")
+        }
+        communityFeedLoaded = true
 
         // The curated town board — its own fetch so a board hiccup never disturbs
         // the timeline above, and vice versa.
@@ -88,6 +100,32 @@ final class HomeModel: ObservableObject {
             guard let j = today.firstIndex(where: { $0.id == ev.id }) else { return }
             today[j].rsvpd = wasGoing
             today[j].goingCount += wasGoing ? 1 : -1
+        }
+    }
+
+    /// RSVP from the lower community feed. This intentionally does not affect the
+    /// Today agenda or roll-call because same-day events are excluded from that feed.
+    func toggleUpcomingRsvp(_ api: CommunityAPI, _ event: UpcomingEvent) async {
+        guard !upcomingRsvpInFlight.contains(event.id) else { return }
+        guard let i = upcoming.firstIndex(where: { $0.id == event.id }) else { return }
+        let wasGoing = upcoming[i].rsvpd
+        upcoming[i].rsvpd.toggle()
+        upcoming[i].goingCount += wasGoing ? -1 : 1
+        upcomingRsvpInFlight.insert(event.id)
+        defer { upcomingRsvpInFlight.remove(event.id) }
+        do {
+            if wasGoing { try await api.unRsvpEvent(event.id) } else { try await api.rsvpEvent(event.id) }
+            // A concurrent load() can replace the list with a pre-write snapshot;
+            // re-assert the intended state after a successful request.
+            if let j = upcoming.firstIndex(where: { $0.id == event.id }), upcoming[j].rsvpd == wasGoing {
+                upcoming[j].rsvpd = !wasGoing
+                upcoming[j].goingCount += wasGoing ? -1 : 1
+            }
+        } catch {
+            // Re-resolve by id in case a concurrent load() replaced the feed.
+            guard let j = upcoming.firstIndex(where: { $0.id == event.id }) else { return }
+            upcoming[j].rsvpd = wasGoing
+            upcoming[j].goingCount += wasGoing ? 1 : -1
         }
     }
 

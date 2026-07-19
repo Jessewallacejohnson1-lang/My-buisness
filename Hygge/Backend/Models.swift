@@ -72,6 +72,13 @@ struct UpcomingEvent: Identifiable, Hashable {
     /// The organizer's own uploaded photo (club_events.image_url) — the truest
     /// "photo of this event". Threaded through from RawEvent; nil when none.
     var imageUrl: String? = nil
+    /// The viewer's RSVP state. Defaulted so activities and profile callers that
+    /// only need the event summary remain source-compatible.
+    var rsvpd: Bool = false
+    /// The organizing club, when this event belongs to one.
+    var clubName: String? = nil
+    /// The event category, with legacy/null rows falling back to the neutral icon.
+    var category: EventCategory = .other
 }
 
 struct WeekEvent: Identifiable, Hashable {
