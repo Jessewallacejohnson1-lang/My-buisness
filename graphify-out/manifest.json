@@ -1,0 +1,1197 @@
+{
+  "Hygge/App/RootView.swift": {
+    "mtime": 1784481391.6160827,
+    "ast_hash": "6c57e28008111be2a52a4b597c97f854",
+    "semantic_hash": ""
+  },
+  "Hygge/App/SplashView.swift": {
+    "mtime": 1784477978.8080268,
+    "ast_hash": "51a7fdaaed1ff24e947bde4264c0e07d",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/AccentColor.colorset/Contents.json": {
+    "mtime": 1784477978.808359,
+    "ast_hash": "55019f7265dde0a78318b0807f98e847",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/AppIcon.appiconset/Contents.json": {
+    "mtime": 1784477978.8091636,
+    "ast_hash": "67425efba4ad62a4368a0fc76becea74",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Contents.json": {
+    "mtime": 1784477978.8093781,
+    "ast_hash": "9deb2ada1cc834bbebf8bbad9c8978a1",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/Contents.json": {
+    "mtime": 1784477978.809516,
+    "ast_hash": "9deb2ada1cc834bbebf8bbad9c8978a1",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-art_exhibits.imageset/Contents.json": {
+    "mtime": 1784477978.8099027,
+    "ast_hash": "109a3df29a13695059641fa9ea970385",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-biking.imageset/Contents.json": {
+    "mtime": 1784477978.812744,
+    "ast_hash": "368a344c016f4ceb2eb8ee0ad1b21e7d",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-books.imageset/Contents.json": {
+    "mtime": 1784477978.8146856,
+    "ast_hash": "8524a4781ead0b30a6951c6bda504add",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-breweries.imageset/Contents.json": {
+    "mtime": 1784477978.8163733,
+    "ast_hash": "7fc3e413efe14dcc7dba23d00972fe23",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-coffee.imageset/Contents.json": {
+    "mtime": 1784477978.8178332,
+    "ast_hash": "44fda66197609f5b4091c4c21de35efe",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-dining.imageset/Contents.json": {
+    "mtime": 1784477978.8196106,
+    "ast_hash": "c3ddab75976f1566ae85e8a217f61307",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-faith.imageset/Contents.json": {
+    "mtime": 1784477978.821138,
+    "ast_hash": "614b0e740c5cca84349e70a28b298ba1",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-families_kids.imageset/Contents.json": {
+    "mtime": 1784477978.8228762,
+    "ast_hash": "ec3c8d809c780b214715613ee16802b6",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-farmers_market.imageset/Contents.json": {
+    "mtime": 1784477978.82668,
+    "ast_hash": "3859e7aef91e63287f749145c26184b0",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-festivals.imageset/Contents.json": {
+    "mtime": 1784477978.828746,
+    "ast_hash": "e63b22e7fcc8e1a4a5bcacb9214c10f4",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-fitness_yoga.imageset/Contents.json": {
+    "mtime": 1784477978.82981,
+    "ast_hash": "32181509ecc61b7a8584bee3fad7e3c5",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-health_wellness.imageset/Contents.json": {
+    "mtime": 1784477978.8317828,
+    "ast_hash": "23a87842ff231104c230e96464e14cc9",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-lakes_swimming.imageset/Contents.json": {
+    "mtime": 1784477978.833677,
+    "ast_hash": "ba32b4a281f5e5f64f362e7e1414ea9a",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-live_music.imageset/Contents.json": {
+    "mtime": 1784477978.835439,
+    "ast_hash": "c3418adba0c2c184a84377e609742d0b",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-parks_gardens.imageset/Contents.json": {
+    "mtime": 1784477978.8385549,
+    "ast_hash": "f9008f3b508785ea2976fc86d17bc950",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-sports_leagues.imageset/Contents.json": {
+    "mtime": 1784477978.8405898,
+    "ast_hash": "d1aca21c97fbf9318108465107cfa8c9",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-trails_hiking.imageset/Contents.json": {
+    "mtime": 1784477978.8426511,
+    "ast_hash": "b1ce9fc196653718bd834ad9c90bc109",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-volunteering.imageset/Contents.json": {
+    "mtime": 1784477978.846939,
+    "ast_hash": "1d9db82e7a26c4ec8131f4085fd3c698",
+    "semantic_hash": ""
+  },
+  "Hygge/Backend/AuthStore.swift": {
+    "mtime": 1784477978.849086,
+    "ast_hash": "17ccae215f2893ccfebfb813cef73528",
+    "semantic_hash": ""
+  },
+  "Hygge/Backend/CalendarExport.swift": {
+    "mtime": 1784477978.8495018,
+    "ast_hash": "12ce4f70ef9ae718b7c58a2653cbe6ba",
+    "semantic_hash": ""
+  },
+  "Hygge/Backend/CityParks.swift": {
+    "mtime": 1784477978.8500798,
+    "ast_hash": "d5a3135247207e2329f15cd6d39d8468",
+    "semantic_hash": ""
+  },
+  "Hygge/Backend/CommunityAPI.swift": {
+    "mtime": 1784479483.5321896,
+    "ast_hash": "4d07b2e1e6fc2ccfb3611fa62c3c4491",
+    "semantic_hash": ""
+  },
+  "Hygge/Backend/DailyAlmanac.swift": {
+    "mtime": 1784477978.8511431,
+    "ast_hash": "9adcb4500234ffa650aaa7dc43ce35f5",
+    "semantic_hash": ""
+  },
+  "Hygge/Backend/DateHelpers.swift": {
+    "mtime": 1784477978.8514013,
+    "ast_hash": "66551a5431468b70ff19102c7042acc6",
+    "semantic_hash": ""
+  },
+  "Hygge/Backend/GooglePlacesService.swift": {
+    "mtime": 1784477978.8517733,
+    "ast_hash": "4870a28f3d3cd2d34c03129b3bf7cf67",
+    "semantic_hash": ""
+  },
+  "Hygge/Backend/Interests.swift": {
+    "mtime": 1784477978.8521714,
+    "ast_hash": "515f5631ff0023b888c285d6c1c4dd16",
+    "semantic_hash": ""
+  },
+  "Hygge/Backend/KnownVenues.swift": {
+    "mtime": 1784477978.8524148,
+    "ast_hash": "cf1b0adacecd979ea8dee82dce3d1b65",
+    "semantic_hash": ""
+  },
+  "Hygge/Backend/Models.swift": {
+    "mtime": 1784479483.5309517,
+    "ast_hash": "4a0a784f63cccf2efb8b355f6899494e",
+    "semantic_hash": ""
+  },
+  "Hygge/Backend/Moderation.swift": {
+    "mtime": 1784477978.853092,
+    "ast_hash": "42281d14f29b63ba256b5e6d041ba8c7",
+    "semantic_hash": ""
+  },
+  "Hygge/Backend/PlaceSeeder.swift": {
+    "mtime": 1784477978.853449,
+    "ast_hash": "5ceb646642b9125e049c5d42d7e325e5",
+    "semantic_hash": ""
+  },
+  "Hygge/Backend/ProfileAPI.swift": {
+    "mtime": 1784477978.8536623,
+    "ast_hash": "f7f6c0307336717c4ddb7fffe20911ff",
+    "semantic_hash": ""
+  },
+  "Hygge/Backend/RealtimeClient.swift": {
+    "mtime": 1784477978.8539848,
+    "ast_hash": "b6b98fce4ee935adf40f96e07fcb80c3",
+    "semantic_hash": ""
+  },
+  "Hygge/Backend/Reminders.swift": {
+    "mtime": 1784477978.854403,
+    "ast_hash": "20b48b44119c34904e0585a100e54328",
+    "semantic_hash": ""
+  },
+  "Hygge/Backend/Session.swift": {
+    "mtime": 1784477978.854622,
+    "ast_hash": "aec6c083ea1602aebf4e0da1c0b51c66",
+    "semantic_hash": ""
+  },
+  "Hygge/Backend/SocialAPI.swift": {
+    "mtime": 1784477978.8553524,
+    "ast_hash": "361b8a5baf9c265fc2d40b919f1fc31e",
+    "semantic_hash": ""
+  },
+  "Hygge/Backend/Storage.swift": {
+    "mtime": 1784477978.855821,
+    "ast_hash": "de1cd930ed182d9de84671531b813568",
+    "semantic_hash": ""
+  },
+  "Hygge/Backend/SupabaseConfig.swift": {
+    "mtime": 1784477978.8563497,
+    "ast_hash": "03319fc3f60ea0e7b53bc9468f34ea00",
+    "semantic_hash": ""
+  },
+  "Hygge/Backend/SupabaseHTTP.swift": {
+    "mtime": 1784477978.8566315,
+    "ast_hash": "440b348a6b2f42ee842fa6d1f13160a1",
+    "semantic_hash": ""
+  },
+  "Hygge/Backend/TokenProviding.swift": {
+    "mtime": 1784477978.8569353,
+    "ast_hash": "bb701c74a357ca42f58fd20a192c691e",
+    "semantic_hash": ""
+  },
+  "Hygge/Backend/TownSearch.swift": {
+    "mtime": 1784477978.8576114,
+    "ast_hash": "06657859071f22a913686933da06ccc9",
+    "semantic_hash": ""
+  },
+  "Hygge/Backend/TrailServices.swift": {
+    "mtime": 1784477978.8583217,
+    "ast_hash": "5aa9fc8f37383c196ba7876e3593cebb",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Activities/ActivitiesModel.swift": {
+    "mtime": 1784477978.8592234,
+    "ast_hash": "2a5f91041b100118ff7c7d799fa1f34e",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Activities/ActivitiesView.swift": {
+    "mtime": 1784477978.8597126,
+    "ast_hash": "98c7ddfde9dc3b7b9afa39d23c793e6e",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Activities/ExploreDiscovery.swift": {
+    "mtime": 1784477978.8599744,
+    "ast_hash": "8472f4406d99431ce97e635a6acad8d3",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Activities/ExploreSearchOverlay.swift": {
+    "mtime": 1784477978.8602428,
+    "ast_hash": "ea0a510cc48dcf8519e8ae89ed27ca6b",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Activities/ParkDetailView.swift": {
+    "mtime": 1784477978.8606038,
+    "ast_hash": "952c6e1218404ae50b44691e43657011",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Activities/TrailsListView.swift": {
+    "mtime": 1784477978.8608458,
+    "ast_hash": "9b477ee378389db37cedf820b847dab6",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Activities/TrailsMapView.swift": {
+    "mtime": 1784477978.8611236,
+    "ast_hash": "a5b96cac6625ff72cf1ad39fead3f71d",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Add/AddFormView.swift": {
+    "mtime": 1784477978.8614123,
+    "ast_hash": "a529130fd6b1fe9843a88f758bd54561",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Add/AddModel.swift": {
+    "mtime": 1784477978.861672,
+    "ast_hash": "abc772b17fbb44a41e62173440829b6a",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Add/AddView.swift": {
+    "mtime": 1784477978.862076,
+    "ast_hash": "3449d49b68bdd2d266b24857a2397d52",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Auth/LoginView.swift": {
+    "mtime": 1784477978.8625064,
+    "ast_hash": "04046770f45e6b46e4d6ff080bf920d7",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Board/BoardView.swift": {
+    "mtime": 1784477978.8628645,
+    "ast_hash": "5273eb351a9f20b66d60d39e5cf63b49",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Calendar/CalendarModel.swift": {
+    "mtime": 1784477978.863309,
+    "ast_hash": "c8d81fe664f619cfeddc725475886b3e",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Calendar/CalendarView.swift": {
+    "mtime": 1784477978.8638732,
+    "ast_hash": "479f4040d303ce1f5dbe4237d1661943",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Calendar/DayDetailView.swift": {
+    "mtime": 1784477978.8644009,
+    "ast_hash": "2f02c4c70ae7d1cbc80cda2a3e6db4a1",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Calendar/Insights/BentoStatGrid.swift": {
+    "mtime": 1784477978.865333,
+    "ast_hash": "49553e029ab0fcc19876f630308afd95",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Calendar/Insights/EntriesStatCard.swift": {
+    "mtime": 1784477978.8657265,
+    "ast_hash": "aeba4abeb453399f66cff90c050978f1",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Calendar/Insights/InsightsData.swift": {
+    "mtime": 1784477978.8659453,
+    "ast_hash": "11e1450472d03ec10df3e969fa928844",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Calendar/Insights/InsightsMiniCalendar.swift": {
+    "mtime": 1784477978.86627,
+    "ast_hash": "8007d9696ee61f57cf45702522b2c26e",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Calendar/Insights/InsightsPalette.swift": {
+    "mtime": 1784477978.8664405,
+    "ast_hash": "9901625f81b56fbd04c7d8e72dd36b37",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Calendar/Insights/StreakHeroCard.swift": {
+    "mtime": 1784477978.866667,
+    "ast_hash": "8fbbe0b384c22c4cebabe6a6ed181614",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Calendar/Insights/UpcomingInsightsView.swift": {
+    "mtime": 1784477978.868462,
+    "ast_hash": "7ea22117d8c93a67ecdf347e876f5d37",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Components/ActivityTile.swift": {
+    "mtime": 1784477978.8690755,
+    "ast_hash": "357eb0648d9c0e541e2c7df499669e3e",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Components/ComposeSpeedDial.swift": {
+    "mtime": 1784477978.8696322,
+    "ast_hash": "ddec7f535ac5a512a2c8307eae14d2e6",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Components/EventRow.swift": {
+    "mtime": 1784477978.8703718,
+    "ast_hash": "e922d69ac9c3bde6892c82772a289445",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Components/ExploreKit.swift": {
+    "mtime": 1784477978.8712769,
+    "ast_hash": "cef66d054494bc71b95c430eac79c107",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Components/GlassShowcaseOverlay.swift": {
+    "mtime": 1784477978.8720694,
+    "ast_hash": "b6ed2c4a8e1be9862d246ae67c19b3c7",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Components/HyggeLogoBadge.swift": {
+    "mtime": 1784477978.8724804,
+    "ast_hash": "54ca16e69c322ebe3dc52081420929b7",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Components/InlineAction.swift": {
+    "mtime": 1784477978.8728814,
+    "ast_hash": "a49f574cc2e33cbce746c9107161bcf6",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Components/InviteCard.swift": {
+    "mtime": 1784477978.8733509,
+    "ast_hash": "76832f21c69d7c96117e9ec9ce5f67b8",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Components/KnownLocalPhoto.swift": {
+    "mtime": 1784477978.8740048,
+    "ast_hash": "4ca39a838bd15aa5fc4edea90a6da4d3",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Components/SafariView.swift": {
+    "mtime": 1784477978.875876,
+    "ast_hash": "7c4b047db81a549574e872d49f73e8a4",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Components/SpringReveal.swift": {
+    "mtime": 1784477978.8780167,
+    "ast_hash": "19768d73f278c88e6472f9a055dc09e7",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Components/TypewriterText.swift": {
+    "mtime": 1784477978.8791983,
+    "ast_hash": "4ef7a7e9255fc580d43d3eea087c57f7",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Components/VenueAutocompleteField.swift": {
+    "mtime": 1784477978.8810022,
+    "ast_hash": "13bb19dee463959577f2975e08cb3b8d",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Components/VenueInfoView.swift": {
+    "mtime": 1784477978.8820724,
+    "ast_hash": "ed70232e8b8ac14818f1193b65637c12",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Components/VenuePhoto.swift": {
+    "mtime": 1784477978.8834035,
+    "ast_hash": "cf55cc105257a16150c71597e0b633d7",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Home/Almanac/MoonPhase.swift": {
+    "mtime": 1784477978.8838644,
+    "ast_hash": "c2d1f8d89f945b3d0a0e613314e4ffcf",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Home/Almanac/OnThisDay.swift": {
+    "mtime": 1784477978.8841758,
+    "ast_hash": "058b5a51c3812290ea2809605d02cb28",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Home/AlmanacSection.swift": {
+    "mtime": 1784477978.8846421,
+    "ast_hash": "6b0b92565c3a6d1f57119eb2e3aff117",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Home/AroundTownCarousel.swift": {
+    "mtime": 1784477978.884897,
+    "ast_hash": "b04bc8cba9213561ecbc8322fd3ead49",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Home/DailyGreeting.swift": {
+    "mtime": 1784477978.8853633,
+    "ast_hash": "24767030429cd1729aba1dab6a51f90d",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Home/HomeModel.swift": {
+    "mtime": 1784481791.5773396,
+    "ast_hash": "e94bb8c843cde67e1a809de792ae858f",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Home/HomeView.swift": {
+    "mtime": 1784481159.7567823,
+    "ast_hash": "c72c73f9358cb63f2cd5d5f75976c731",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Home/Masthead.swift": {
+    "mtime": 1784477978.8862026,
+    "ast_hash": "fd5c51597339f9fe1c7ca2c1c3593f1e",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Home/TodayCard.swift": {
+    "mtime": 1784477978.886475,
+    "ast_hash": "92bd5349e674b144df6e47c5e4879057",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Home/TodayInStJoe.swift": {
+    "mtime": 1784477978.8867595,
+    "ast_hash": "a5f425aaaa7b9141519f39b94c440c69",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Home/TownMenuView.swift": {
+    "mtime": 1784477978.8870225,
+    "ast_hash": "c3417c2ac2e23f5c73e2332d8fb5f4e7",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Home/WeatherBackground.swift": {
+    "mtime": 1784477978.8873158,
+    "ast_hash": "f25941b89cf84c57f1d8629a73b185f2",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Home/WeatherBar.swift": {
+    "mtime": 1784477978.8875995,
+    "ast_hash": "2154e63b8f01e7dcf71c5e7ade7d7949",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Map/BasemapPalette.swift": {
+    "mtime": 1784477978.8881054,
+    "ast_hash": "e4128645c1237439d47123e3af4e24f2",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Map/MapModel.swift": {
+    "mtime": 1784477978.89082,
+    "ast_hash": "716b9dab21dd58c32d1e6c526f4784b5",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Map/MapSheet.swift": {
+    "mtime": 1784477978.8955448,
+    "ast_hash": "1d8c509ec5f02baacf177cec55280790",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Map/MapSpots.swift": {
+    "mtime": 1784477978.901765,
+    "ast_hash": "692c274001b420f6c0c7849e386f75b9",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Map/POI.swift": {
+    "mtime": 1784477978.903399,
+    "ast_hash": "a3d63021264f3250638b6dd21211631a",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Map/POIDetailSheet.swift": {
+    "mtime": 1784477978.9041271,
+    "ast_hash": "34e09ed29bb00ae3d1a14130049d7bbf",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Map/POILayer.swift": {
+    "mtime": 1784477978.9045024,
+    "ast_hash": "95cf2d720e1486b6a503354a8a2841a6",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Map/PinDisplay.swift": {
+    "mtime": 1784477978.9109404,
+    "ast_hash": "13584f0bb4c9f5b4127ad11c4cb808b0",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Map/PlaceCategoryMap.swift": {
+    "mtime": 1784477978.9126182,
+    "ast_hash": "f7c9111b9614dccc1350f776241abf83",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Map/QuickAddSheet.swift": {
+    "mtime": 1784477978.9131944,
+    "ast_hash": "05332a08f18ce04578e3d476ce263f3a",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Map/SJMapView.swift": {
+    "mtime": 1784477978.9169705,
+    "ast_hash": "24466534ace056dde01007db8059a5a6",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Onboarding/AvatarStepView.swift": {
+    "mtime": 1784477978.9182427,
+    "ast_hash": "76b861156fb46d024ffc9a5781792fac",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Onboarding/InterestCard.swift": {
+    "mtime": 1784477978.9193509,
+    "ast_hash": "e6226695063352faed26c9ca846e8065",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Onboarding/InterestImage.swift": {
+    "mtime": 1784477978.9196792,
+    "ast_hash": "36d4cbc9714f6018141918e42d4af7c5",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Onboarding/InterestPickerView.swift": {
+    "mtime": 1784477978.9202623,
+    "ast_hash": "420f9185d1bf97b714c65f3010ddcc8b",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Onboarding/MapIntroView.swift": {
+    "mtime": 1784477978.9205542,
+    "ast_hash": "de31df4ecb7449e2c35527939516ddf5",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Onboarding/NameStepView.swift": {
+    "mtime": 1784477978.9208186,
+    "ast_hash": "d5837a52b8de35ba05a4635c20207b74",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Onboarding/OnboardingChrome.swift": {
+    "mtime": 1784477978.9210887,
+    "ast_hash": "7f5730f870ce2eb1b1d438f91b95c190",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Onboarding/OnboardingView.swift": {
+    "mtime": 1784477978.9275432,
+    "ast_hash": "23002bd94a9eb0b073e57b4cc130bb3e",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Place/PlaceDetailView.swift": {
+    "mtime": 1784477978.9299219,
+    "ast_hash": "3f0cea795cd728e1a70eb2b271223d89",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Profile/EditProfileView.swift": {
+    "mtime": 1784477978.931498,
+    "ast_hash": "e6287adf3e29e31bebc772300cd68a30",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Profile/ModerationView.swift": {
+    "mtime": 1784477978.9323683,
+    "ast_hash": "c2fff3a76985aaae7bba1b71f2cd9dc9",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Profile/ProfileComponents.swift": {
+    "mtime": 1784477978.9329603,
+    "ast_hash": "8f0f798039150bfd79ab7d5539552c3c",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Profile/ProfileModel.swift": {
+    "mtime": 1784477978.9339752,
+    "ast_hash": "96b599399286f4aa9e3a85eb8051c348",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Profile/ProfileView.swift": {
+    "mtime": 1784477978.9347003,
+    "ast_hash": "4244c194036bb0272b0ac5dc4327a40b",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Share/AppInviteCard.swift": {
+    "mtime": 1784477978.9359295,
+    "ast_hash": "182d94a6f91adffa921e16cab163e0d4",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Share/ShareCenter.swift": {
+    "mtime": 1784477978.9385889,
+    "ast_hash": "50a4f382645483a3ee3be4057fc87099",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Share/ShareRevealView.swift": {
+    "mtime": 1784477978.939316,
+    "ast_hash": "b991353004394d8d0cb215061b942c68",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Share/ShareTargets.swift": {
+    "mtime": 1784477978.9421813,
+    "ast_hash": "54e1f84d0446919883376115df6cfc2b",
+    "semantic_hash": ""
+  },
+  "Hygge/HyggeApp.swift": {
+    "mtime": 1784477978.9461584,
+    "ast_hash": "0fcecc49f95a299be7dc33123087e14c",
+    "semantic_hash": ""
+  },
+  "Hygge/Models/Place.swift": {
+    "mtime": 1784477978.948461,
+    "ast_hash": "fb52c6f785b01844efd7f65e6c7f4a36",
+    "semantic_hash": ""
+  },
+  "Hygge/Support/BundleImage.swift": {
+    "mtime": 1784477979.0657806,
+    "ast_hash": "5e9d9e36045ffd53558bc32180c25b18",
+    "semantic_hash": ""
+  },
+  "Hygge/Support/Haptics.swift": {
+    "mtime": 1784477979.0660765,
+    "ast_hash": "90f465be09faa420b6111bdd44a65998",
+    "semantic_hash": ""
+  },
+  "Hygge/Support/Log.swift": {
+    "mtime": 1784477979.0664508,
+    "ast_hash": "a43f369cb5e1cc616768063836e30f81",
+    "semantic_hash": ""
+  },
+  "Hygge/Theme/EventCategory.swift": {
+    "mtime": 1784477979.0671382,
+    "ast_hash": "74a606167c52a0649d75dcfa134f0e31",
+    "semantic_hash": ""
+  },
+  "Hygge/Theme/HyggeColor.swift": {
+    "mtime": 1784477979.0674732,
+    "ast_hash": "9926a296d77109e88f5408d85126075c",
+    "semantic_hash": ""
+  },
+  "Hygge/Theme/HyggeFont.swift": {
+    "mtime": 1784477979.0677202,
+    "ast_hash": "6055c43e087dd2b7104fb8b8a2a23429",
+    "semantic_hash": ""
+  },
+  "Hygge/Theme/HyggeMetrics.swift": {
+    "mtime": 1784477979.0681279,
+    "ast_hash": "ddc9fac8cc1a081a9deb3787a15374ec",
+    "semantic_hash": ""
+  },
+  "Hygge/Theme/Motion.swift": {
+    "mtime": 1784477979.0684645,
+    "ast_hash": "0c4f9963b5655c977fbcdc1358ffea8c",
+    "semantic_hash": ""
+  },
+  "HyggeTests/DateHelpersTests.swift": {
+    "mtime": 1784477979.07001,
+    "ast_hash": "a18d00154c3a95522ccab8acccff92a5",
+    "semantic_hash": ""
+  },
+  "HyggeTests/FakeTokenProvider.swift": {
+    "mtime": 1784477979.0703444,
+    "ast_hash": "1440e1c46b9c7fba762c878b8505eac7",
+    "semantic_hash": ""
+  },
+  "scripts/review_park_photos.py": {
+    "mtime": 1784477979.0819943,
+    "ast_hash": "4714e23d908f0e7342055055f1de990b",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260706000000_map_realtime_pipeline.sql": {
+    "mtime": 1784477979.0826752,
+    "ast_hash": "5d54ecff312a85124640128d7bfef216",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260707000000_town_profiles_and_avatars.sql": {
+    "mtime": 1784477979.083517,
+    "ast_hash": "965e5853cc76ea18c45e695a7108f019",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260709000000_board_items_dedup_index.sql": {
+    "mtime": 1784477979.0836327,
+    "ast_hash": "9687c585162bb42c1c0acffac699f1ff",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260711000000_today_social_layer.sql": {
+    "mtime": 1784477979.083932,
+    "ast_hash": "3244cd8a65bbdaa8f27c151e7090c7d2",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260714000000_club_events_category.sql": {
+    "mtime": 1784477979.0841424,
+    "ast_hash": "2de5fd768b399295f273242f04e98cd4",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260715000000_places.sql": {
+    "mtime": 1784477979.0843825,
+    "ast_hash": "8461f0390a022f27ab5b7b442d8612d7",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260715120000_places_seed.sql": {
+    "mtime": 1784477979.0845873,
+    "ast_hash": "357bf7db4458679de8850fcecabfb000",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260716120000_places_seed_local.sql": {
+    "mtime": 1784477979.0850537,
+    "ast_hash": "e043f20947f14c695184a8094cdf0680",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260716130000_places_remove_chains.sql": {
+    "mtime": 1784477979.0852537,
+    "ast_hash": "8cdbf164876e34a5b0dbb4c2bb357e47",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260717120000_places_stragglers_and_fixes.sql": {
+    "mtime": 1784477979.0863252,
+    "ast_hash": "599ce5e7978e9965c20699ee62e63a61",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260717130000_places_spread_multitenant.sql": {
+    "mtime": 1784477979.0868168,
+    "ast_hash": "d7287435bd321bf5f69f22f5015b50a7",
+    "semantic_hash": ""
+  },
+  "supabase/pending/20260711_sunset_wellness_app.sql": {
+    "mtime": 1784477979.0870798,
+    "ast_hash": "18cd6b74b26735d3fdd5e7b7554b8613",
+    "semantic_hash": ""
+  },
+  "supabase/pending/status_authorization.sql": {
+    "mtime": 1784477979.0874507,
+    "ast_hash": "351bfca0a6097edf7cc8de780c3e7cd4",
+    "semantic_hash": ""
+  },
+  ".superpowers/sdd/progress.md": {
+    "mtime": 1784481006.2316637,
+    "ast_hash": "11381cee5d7732d1e2b377949ede526e",
+    "semantic_hash": ""
+  },
+  "CLAUDE.md": {
+    "mtime": 1784477978.8049612,
+    "ast_hash": "33598b8779051981df6c8d002ff6c94f",
+    "semantic_hash": ""
+  },
+  "DESIGN.md": {
+    "mtime": 1784477978.805586,
+    "ast_hash": "169bba737546c731915117b96e1f7e5b",
+    "semantic_hash": ""
+  },
+  "HyggeTests/README.md": {
+    "mtime": 1784477979.0706015,
+    "ast_hash": "089995281f5c7490751b71a531613d8d",
+    "semantic_hash": ""
+  },
+  "MAP_BUILD_LOG.md": {
+    "mtime": 1784477979.071094,
+    "ast_hash": "da2ee87f4a6d4f752536a2ebbca27237",
+    "semantic_hash": ""
+  },
+  "PRODUCT.md": {
+    "mtime": 1784477979.0714114,
+    "ast_hash": "2bee81067ac309a70572a5ee30824227",
+    "semantic_hash": ""
+  },
+  "REVIEW.md": {
+    "mtime": 1784477979.0721536,
+    "ast_hash": "6c9cfcc4ed1901bf82d70fdc725174f3",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-06-30-hygge-feature-expansion.md": {
+    "mtime": 1784477979.072487,
+    "ast_hash": "70b1f9edf2eedcf1b17fec0e8def4420",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-07-05-weather-background.md": {
+    "mtime": 1784477979.0728126,
+    "ast_hash": "07264f830a8cdfdf277642bb21a56bde",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-07-07-onboarding-community-profile.md": {
+    "mtime": 1784477979.073273,
+    "ast_hash": "cb689d691c765b0f29f74356fe7acf50",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-07-11-share-reveal-animation.md": {
+    "mtime": 1784477979.0735977,
+    "ast_hash": "70bb15c1e7976389a904680e769e0bd4",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-07-11-today-tab-remake.md": {
+    "mtime": 1784477979.0738518,
+    "ast_hash": "f41bae093eaa2b9e1d756f4bf16bee23",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-07-13-living-basemap.md": {
+    "mtime": 1784477979.074322,
+    "ast_hash": "6561585e55e7816edf3e072ef828adea",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-07-19-st-joe-community-feed.md": {
+    "mtime": 1784481508.3280032,
+    "ast_hash": "d68868efb1ee517ffcc9fe41eb2bd538",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-07-05-daily-almanac-ai-summary-design.md": {
+    "mtime": 1784477979.0748193,
+    "ast_hash": "a1ffa6fdcffe34a0cafd3fa9d91cea92",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-07-05-weather-background-design.md": {
+    "mtime": 1784477979.0751042,
+    "ast_hash": "dce0849d5f74c05fd135972989fd4fd9",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-07-06-map-intro-onboarding-design.md": {
+    "mtime": 1784477979.0754058,
+    "ast_hash": "a1f1069ebfb148876f019006ce3ab8e4",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-07-07-community-profile-screen-design.md": {
+    "mtime": 1784477979.0756376,
+    "ast_hash": "7849ebdd22b2ec6df192befaebe6ec38",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-07-07-onboarding-community-profile-design.md": {
+    "mtime": 1784477979.0760808,
+    "ast_hash": "4365b241d16102fc34ab2608ba89e8fe",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-07-11-share-reveal-animation-design.md": {
+    "mtime": 1784477979.0764577,
+    "ast_hash": "d9a815e2d5561f53aee8a9e425788a0a",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-07-11-today-tab-remake-design.md": {
+    "mtime": 1784477979.0770326,
+    "ast_hash": "135b48b7b94e3e3506c086f53ed10d8f",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-07-12-button-press-pop-animation-design.md": {
+    "mtime": 1784477979.0781693,
+    "ast_hash": "05699a869fa086b19a94c59416c09adc",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-07-12-compose-speed-dial-design.md": {
+    "mtime": 1784477979.078512,
+    "ast_hash": "780d521850a54ad2ac7ee62847a91289",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-07-13-almanac-daily-write-design.md": {
+    "mtime": 1784477979.0793235,
+    "ast_hash": "faaee577a76ad0ad9d803d06f5060faf",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-07-13-living-basemap-design.md": {
+    "mtime": 1784477979.0795994,
+    "ast_hash": "553f9f286626c5dfeea6014fc7a80df6",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-07-13-map-pin-hierarchy-design.md": {
+    "mtime": 1784477979.0798478,
+    "ast_hash": "f094429723fa1d3cd29212c1409b709a",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-07-13-save-to-map-design.md": {
+    "mtime": 1784477979.080789,
+    "ast_hash": "2d9557d2192a799b24c5644d04402f4f",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-07-14-calendar-day-detail-animation-design.md": {
+    "mtime": 1784477979.081094,
+    "ast_hash": "ade4de133264328c56f379616df7c16d",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-07-16-upcoming-insights-personal-design.md": {
+    "mtime": 1784477979.0814657,
+    "ast_hash": "4333151da07db735ca03110f4732f6d3",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-07-16-upcoming-insights-personal-prompt.md": {
+    "mtime": 1784477979.0816891,
+    "ast_hash": "3d5222be7f16068144079b06e9d75c77",
+    "semantic_hash": ""
+  },
+  "supabase/README.md": {
+    "mtime": 1784477979.0823681,
+    "ast_hash": "21bb031279ddde12a657bf239000c8a3",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/AppIcon.appiconset/AppIcon.png": {
+    "mtime": 1784477978.8087664,
+    "ast_hash": "1ddb97a50b89a6f914292d1b50db4f26",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-art_exhibits.imageset/interest-art_exhibits.jpg": {
+    "mtime": 1784477978.8113983,
+    "ast_hash": "9da1f1a567c773bfb1e3651aa5d523cc",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-biking.imageset/interest-biking.jpg": {
+    "mtime": 1784477978.8143485,
+    "ast_hash": "2c1a5df1a4d5c21f1fc78cf6098ab4b2",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-books.imageset/interest-books.jpg": {
+    "mtime": 1784477978.8157268,
+    "ast_hash": "7036b039a3b5db2f162df06576260f9b",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-breweries.imageset/interest-breweries.jpg": {
+    "mtime": 1784477978.8173027,
+    "ast_hash": "70317b16d06537953a93a0a8a0e81460",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-coffee.imageset/interest-coffee.jpg": {
+    "mtime": 1784477978.819322,
+    "ast_hash": "1a25b7f758e6890be9931bf399805c6c",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-dining.imageset/interest-dining.jpg": {
+    "mtime": 1784477978.820825,
+    "ast_hash": "99093bde42305ee7249d94bfd0622998",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-faith.imageset/interest-faith.jpg": {
+    "mtime": 1784477978.8223083,
+    "ast_hash": "585ac5f98158cfa8bc4af1730afc23f8",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-families_kids.imageset/interest-families_kids.jpg": {
+    "mtime": 1784477978.8262935,
+    "ast_hash": "9783eb88d271a5768f2d6637d4b703bc",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-farmers_market.imageset/interest-farmers_market.jpg": {
+    "mtime": 1784477978.8283236,
+    "ast_hash": "292605297da815ae313bf46510a66435",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-festivals.imageset/interest-festivals.jpg": {
+    "mtime": 1784477978.8295636,
+    "ast_hash": "94f2ed6a0882b7382a353521d685c2dc",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-fitness_yoga.imageset/interest-fitness_yoga.jpg": {
+    "mtime": 1784477978.8313127,
+    "ast_hash": "ade7bf5d4b7b164ac25bc5626af5c62a",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-health_wellness.imageset/interest-health_wellness.jpg": {
+    "mtime": 1784477978.8328872,
+    "ast_hash": "c1c0b3b0faffc3f4976c3296f7baefb0",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-lakes_swimming.imageset/interest-lakes_swimming.jpg": {
+    "mtime": 1784477978.8350155,
+    "ast_hash": "87bcc53af49d0f819af95642839aa892",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-live_music.imageset/interest-live_music.jpg": {
+    "mtime": 1784477978.8370836,
+    "ast_hash": "29766903e47bfb636b69d688ff6a8fd5",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-parks_gardens.imageset/interest-parks_gardens.jpg": {
+    "mtime": 1784477978.8398027,
+    "ast_hash": "ea038aa923985c19f082a5209149301f",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-sports_leagues.imageset/interest-sports_leagues.jpg": {
+    "mtime": 1784477978.8418806,
+    "ast_hash": "90ff38623c2f20339dea0703b8a17f6c",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-trails_hiking.imageset/interest-trails_hiking.jpg": {
+    "mtime": 1784477978.8460572,
+    "ast_hash": "aac3b730d4ca1cadcb831ce9474f19f7",
+    "semantic_hash": ""
+  },
+  "Hygge/Assets.xcassets/Interests/interest-volunteering.imageset/interest-volunteering.jpg": {
+    "mtime": 1784477978.8484907,
+    "ast_hash": "a401bccab605ad020e022bf5994eb698",
+    "semantic_hash": ""
+  },
+  "Hygge/Resources/Images/bad-habit-brewing.jpg": {
+    "mtime": 1784477978.9875858,
+    "ast_hash": "29baca7d976af7db1f13dc59af9de92c",
+    "semantic_hash": ""
+  },
+  "Hygge/Resources/Images/boardwalk-loop-trail.jpg": {
+    "mtime": 1784477978.9933167,
+    "ast_hash": "9dc6cea368ec736fc2e578ef8643c306",
+    "semantic_hash": ""
+  },
+  "Hygge/Resources/Images/centennial-park.jpg": {
+    "mtime": 1784477979.0002394,
+    "ast_hash": "0b054dcd095143086e9afef860a0f29c",
+    "semantic_hash": ""
+  },
+  "Hygge/Resources/Images/chapel-trail-stella-maris.jpg": {
+    "mtime": 1784477979.0037184,
+    "ast_hash": "b6172781816e6eaef3bab56ee8d20736",
+    "semantic_hash": ""
+  },
+  "Hygge/Resources/Images/clear-day.jpg": {
+    "mtime": 1784477979.0053065,
+    "ast_hash": "4b8b988aef3aadfb845e12812a4e56ac",
+    "semantic_hash": ""
+  },
+  "Hygge/Resources/Images/clear-night.jpg": {
+    "mtime": 1784477979.0058095,
+    "ast_hash": "7702d8dcbc9d0824ca572d05312edcad",
+    "semantic_hash": ""
+  },
+  "Hygge/Resources/Images/clouds.jpg": {
+    "mtime": 1784477979.0068207,
+    "ast_hash": "97d6b7e796762778a518daddcefd0007",
+    "semantic_hash": ""
+  },
+  "Hygge/Resources/Images/downtown.jpg": {
+    "mtime": 1784477979.008586,
+    "ast_hash": "2746521bb8c5e3d66c764af0ba24314f",
+    "semantic_hash": ""
+  },
+  "Hygge/Resources/Images/farmers-market.jpg": {
+    "mtime": 1784477979.0118124,
+    "ast_hash": "ef9573220a35c94fd9d63653a5b86e4e",
+    "semantic_hash": ""
+  },
+  "Hygge/Resources/Images/fog.jpg": {
+    "mtime": 1784477979.0144165,
+    "ast_hash": "0bc677f5aaed1e7e0513f4345aca3de3",
+    "semantic_hash": ""
+  },
+  "Hygge/Resources/Images/klinefelter-park-trail.jpg": {
+    "mtime": 1784477979.0208533,
+    "ast_hash": "fc937ca97a6771319ecb0db318a8e767",
+    "semantic_hash": ""
+  },
+  "Hygge/Resources/Images/memorial-park.jpg": {
+    "mtime": 1784477979.0259142,
+    "ast_hash": "b27d7b2904f7949cd8c0ff8cc9d7c5ae",
+    "semantic_hash": ""
+  },
+  "Hygge/Resources/Images/millstream-arts-festival.jpg": {
+    "mtime": 1784477979.030173,
+    "ast_hash": "9f7c4bea2be648f9401b23768ec8d3bd",
+    "semantic_hash": ""
+  },
+  "Hygge/Resources/Images/overcast.jpg": {
+    "mtime": 1784477979.0306623,
+    "ast_hash": "eaecb13c312d47c37f2d79a45a552726",
+    "semantic_hash": ""
+  },
+  "Hygge/Resources/Images/rain.png": {
+    "mtime": 1784477979.0331068,
+    "ast_hash": "eaf0b5a9840ce1bd5aaec4c09b2b53a2",
+    "semantic_hash": ""
+  },
+  "Hygge/Resources/Images/rivers-bend-park.jpg": {
+    "mtime": 1784477979.034849,
+    "ast_hash": "7b2550a069c6fe60d4c2fe767a87fb7c",
+    "semantic_hash": ""
+  },
+  "Hygge/Resources/Images/rocktoberfest.jpg": {
+    "mtime": 1784477979.0419219,
+    "ast_hash": "7612cad071f41d407efcf4b964b9e8d1",
+    "semantic_hash": ""
+  },
+  "Hygge/Resources/Images/sacred-heart-chapel.jpg": {
+    "mtime": 1784477979.0429084,
+    "ast_hash": "f25b78db185361cec0b7bd89aa32ab6e",
+    "semantic_hash": ""
+  },
+  "Hygge/Resources/Images/saint-bens.jpg": {
+    "mtime": 1784477979.0437357,
+    "ast_hash": "0dace41729ab33ab6774c5f005df2673",
+    "semantic_hash": ""
+  },
+  "Hygge/Resources/Images/saint-johns-abbey.jpg": {
+    "mtime": 1784477979.044933,
+    "ast_hash": "7a43c0ecdda067e47c01200d0d370faf",
+    "semantic_hash": ""
+  },
+  "Hygge/Resources/Images/sju-arboretum-trail.jpg": {
+    "mtime": 1784477979.0552542,
+    "ast_hash": "e420611826c7f83bb23c4a7af03cde22",
+    "semantic_hash": ""
+  },
+  "Hygge/Resources/Images/snow.jpg": {
+    "mtime": 1784477979.058647,
+    "ast_hash": "57620c7ee9644ce0d9db86a3c3ad4600",
+    "semantic_hash": ""
+  },
+  "Hygge/Resources/Images/storm.jpg": {
+    "mtime": 1784477979.0598035,
+    "ast_hash": "830afba5bed6a0cfb3e0497efed8b95a",
+    "semantic_hash": ""
+  },
+  "Hygge/Resources/Images/the-local-blend.jpg": {
+    "mtime": 1784477979.0642269,
+    "ast_hash": "b854eb40ebb128357277b0ea2e548a69",
+    "semantic_hash": ""
+  },
+  "Hygge/Resources/Images/wobegon-trail.jpg": {
+    "mtime": 1784477979.0653424,
+    "ast_hash": "f694b59c2cfb1f0f251f1524758e27f1",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Home/CommunityFeed/CommunityFeedBucketer.swift": {
+    "mtime": 1784478856.2116961,
+    "ast_hash": "881661265c180c0799c410ebc0b1e40a",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Home/CommunityFeed/CommunityFeedBucketerSelfCheck.swift": {
+    "mtime": 1784479319.6327732,
+    "ast_hash": "a44958608758ea8b7cf5102915ff39ea",
+    "semantic_hash": ""
+  },
+  ".superpowers/sdd/task-1-brief.md": {
+    "mtime": 1784479296.890436,
+    "ast_hash": "6a67f3f67e73e27ffe108293d2761143",
+    "semantic_hash": ""
+  },
+  ".superpowers/sdd/task-1-report.md": {
+    "mtime": 1784479351.6644764,
+    "ast_hash": "1f7a1331e32fafa46dd2a6cd13623dcf",
+    "semantic_hash": ""
+  },
+  ".superpowers/sdd/task-2-brief.md": {
+    "mtime": 1784480142.5022192,
+    "ast_hash": "b26166728f9c3bbd6925bf8ddfcf8111",
+    "semantic_hash": ""
+  },
+  ".superpowers/sdd/task-2-report.md": {
+    "mtime": 1784480214.6510632,
+    "ast_hash": "4578e7b4a80d2f18134ea3fa4f0b465d",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Home/CommunityFeed/CommunityFeedTimelineView.swift": {
+    "mtime": 1784480927.8629315,
+    "ast_hash": "a0dac2c4222e274383df4381205c3d79",
+    "semantic_hash": ""
+  },
+  ".superpowers/sdd/task-3-brief.md": {
+    "mtime": 1784480392.8186386,
+    "ast_hash": "3d63d867e21f9d4f249908858541bc7c",
+    "semantic_hash": ""
+  },
+  ".superpowers/sdd/task-3-report.md": {
+    "mtime": 1784480955.503648,
+    "ast_hash": "03e83d69b8f964795a8478eb612fc5b0",
+    "semantic_hash": ""
+  },
+  "Hygge/Features/Home/CommunityFeed/CommunityFeedPreview.swift": {
+    "mtime": 1784482108.124699,
+    "ast_hash": "dfba00a76ba70861b56d91fde8549aa6",
+    "semantic_hash": ""
+  },
+  ".superpowers/sdd/task-4-brief.md": {
+    "mtime": 1784481515.007888,
+    "ast_hash": "15930d0deda9c57ddeaef72a4cc8d740",
+    "semantic_hash": ""
+  },
+  ".superpowers/sdd/task-4-report.md": {
+    "mtime": 1784482218.316361,
+    "ast_hash": "703050dd64e79890ca8a53b18016fe68",
+    "semantic_hash": ""
+  }
+}

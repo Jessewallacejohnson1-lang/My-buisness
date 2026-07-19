@@ -52,7 +52,12 @@ struct RootView: View {
             // so it can be verified headlessly in the simulator. No effect in
             // release or without the flag. The intro's button falls through to the
             // gate, so "Explore the map" is live here too (not a dead preview).
-            if ProcessInfo.processInfo.arguments.contains("-show-splash") {
+            if ProcessInfo.processInfo.arguments.contains("-show-home") {
+                // A deterministic Home route for simulator verification. The Home
+                // preview loader supplies local data, so this bypasses auth and
+                // onboarding without changing either production flow.
+                MainTabsView()
+            } else if ProcessInfo.processInfo.arguments.contains("-show-splash") {
                 SplashView()
             } else if ProcessInfo.processInfo.arguments.contains("-show-map-intro"),
                       !debugIntroDismissed {

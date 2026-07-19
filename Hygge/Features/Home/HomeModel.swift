@@ -93,6 +93,26 @@ final class HomeModel: ObservableObject {
         loaded = true
     }
 
+    #if DEBUG
+    /// Loads a deterministic local state for the community-feed simulator preview.
+    /// It deliberately bypasses every backend API so preview launches are reliable.
+    func loadCommunityFeedPreview() {
+        today = CommunityFeedPreview.today
+        board = .empty
+        weekGoing = 0
+        quest = nil
+        questCount = 0
+        questDone = false
+        name = "Neighbor"
+        upcoming = CommunityFeedPreview.events
+        communityFeedLoaded = true
+        upcomingRsvpInFlight = []
+        upcomingRsvpOverrides = [:]
+        loading = false
+        loaded = true
+    }
+    #endif
+
     func toggleRsvp(_ api: CommunityAPI, _ ev: TimelineEvent) async {
         guard let i = today.firstIndex(where: { $0.id == ev.id }) else { return }
         let wasGoing = today[i].rsvpd
