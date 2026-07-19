@@ -392,6 +392,14 @@ struct SJMapView: View {
                 recolorBasemap(proxy.map)
                 recomputeClusters(proxy.map)   // POIs may still be loading — pois-change reclusters
             }
+            // Re-apply once the map reports fully loaded. `onStyleLoaded` alone was a ONE-SHOT
+            // application and it intermittently lost the race: a launch would occasionally
+            // render a complete but UNRECOLOURED map — default Mapbox grey land, grey parks,
+            // no cream — instead of the town's palette. (Caught by histogram, not by eye: the
+            // frame is fully drawn, so it looks like a finished render, just the wrong one.)
+            // `recolorBasemap` is pure `setLayerProperty` calls, so a second application is
+            // idempotent and costs nothing when the first one already landed.
+            .onMapLoaded { _ in recolorBasemap(proxy.map) }
             // Name whatever town the map is panned over, shrink/expand pins to fit the
             // zoom (both debounced in the model — never the view's @State here), and
             // recluster on zoom steps / at idle so merges + splits glide.

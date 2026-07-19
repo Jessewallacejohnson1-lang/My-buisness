@@ -191,14 +191,20 @@ struct POIClusterBubbleView: View {
                 // putting near-black `mapInk` digits on a near-black disc over a cream map —
                 // the count, which is the bubble's whole payload, would vanish. A fixed
                 // surface fill is scheme-independent, like the charcoal disc it replaces.
-                .fill(Hue.surface.opacity(0.90))
+                // 0.95, not 0.90: at 0.90 the POI badges stacked underneath GHOSTED through a
+                // big bubble as a pale disc-inside-a-disc smudge. Still translucent enough to
+                // sit on the map rather than punch a hole in it.
+                .fill(Hue.surface.opacity(0.95))
                 // Dominant-category wash — a whisper. The ring, not the fill, carries the
                 // category; a heavier wash turns the disc into a colour chip (indigo washed
                 // over cream reads lavender) instead of a light disc with a coloured edge.
                 .overlay(Circle().fill(family.tint.opacity(0.07)))
-                // Thin category ring at near-full strength — the bubble's category signal,
-                // and what makes it read as Apple-style cluster chrome.
-                .overlay(Circle().strokeBorder(family.tint.opacity(0.9), lineWidth: 1.5))
+                // Category ring — the bubble's category signal, and what makes it read as
+                // Apple-style cluster chrome. 1.8pt rather than 1.5: a ring is a FIXED width
+                // on a disc whose size varies 22→44pt, so the thinnest-looking bubble is the
+                // smallest one — and a 22pt "2" was measurably QUIETER than a single solid
+                // rest dot beside it. The extra weight lands hardest where it was needed.
+                .overlay(Circle().strokeBorder(family.tint.opacity(0.9), lineWidth: 1.8))
                 // Deeper than the pins' float shadow ON PURPOSE: a bubble stands for many
                 // places, so it must sit ABOVE the individual rest dots around it. With the
                 // pale fill and the pins' lighter shadow it read as the quieter element —

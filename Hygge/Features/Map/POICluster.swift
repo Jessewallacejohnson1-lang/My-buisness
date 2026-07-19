@@ -260,7 +260,10 @@ enum POICluster {
     /// stay clear, then walk candidates in priority order and grant a label only when its
     /// text box is still free. The pass is translation-invariant (`pitch`/`bearing` are 0, so
     /// projection under pan is a pure translation and every box moves together), so panning
-    /// at a fixed zoom can't change the outcome.
+    /// at a fixed zoom can't change the outcome. Note `previous` makes the pass stateful, not
+    /// invariant: right after a ZOOM change the first pass can grant labels the prior one
+    /// withheld (the greedy order differs), settling one pass later. It converges — the
+    /// granted set is always re-grantable — so it damps rather than strobes.
     ///
     /// Reservation priority (highest first): civic landmark badges + labels — the six curated
     /// spots are the map's anchors and must never be covered; then cluster bubbles; then every

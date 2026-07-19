@@ -194,8 +194,10 @@ struct MapSheet: View {
     private func metrics(_ H: CGFloat) -> (peek: CGFloat, medium: CGFloat, full: CGFloat) {
         let peek = Self.peekHeight
         let medium = max(peek + 120, H * 0.5)
-        // full sits a constant 132pt below the top so it clears the chrome (~85% of a
-        // phone screen); the H*0.9 arm only binds on iPad-class heights (H > 1320).
+        // full is H−132, but `.padding(.bottom, tabBarReserve)` is applied AFTER this
+        // height frame, so the sheet's real top clearance is 132 − tabBarReserve ≈ 66pt
+        // (measured 68) — still clear of the floating chrome. The H*0.9 arm only binds on
+        // iPad-class heights (H > 1320).
         let full = max(medium + 80, min(H * 0.9, H - 132))
         return (peek, medium, full)
     }

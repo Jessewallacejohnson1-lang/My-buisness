@@ -25,7 +25,11 @@ extension SJMapView {
             DispatchQueue.main.async { recomputeClusters(map) }
         }
         clusterSettle?.cancel()
-        let work = DispatchWorkItem {
+        // `weak map`, matching `schedulePrune`: this fires 0.13s late and the map tab can be
+        // torn down inside that window — a strong capture would keep a `MapboxMap` alive past
+        // its `MapView` and then project against it.
+        let work = DispatchWorkItem { [weak map] in
+            guard let map else { return }
             lastClusterZoom = zoom
             recomputeClusters(map)
         }

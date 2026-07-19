@@ -1000,3 +1000,45 @@ reading as special. Markers are unified by category palette + shared casing/shad
 for Jesse. (4) "Greens match Apple Maps" is eyeball-graded against the spec's target, NOT sampled from
 a real Apple Maps screenshot: the simulator's Maps app blocks on its onboarding flow and this
 XcodeBuildMCP profile has UI-tap tools disabled. Spec: `docs/superpowers/specs/2026-07-18-*`.
+
+### Final pass (2026-07-19) — fresh Design Director + fresh code audit
+
+Code audit: **SHIP**, zero blocking defects, 0 warnings; label geometry, pass convergence, prune
+lifecycle, Phase A overlap/orphan invariants and the non-map tabs all verified correct. Fixed from its
+non-blocking list:
+
+- **Intermittent unstyled basemap.** `recolorBasemap` ran ONCE on `onStyleLoaded` and occasionally lost
+  the race — a launch would render a complete but un-recoloured map (default Mapbox grey land/parks,
+  no cream). Now re-applied on `onMapLoaded` too (pure `setLayerProperty`, so idempotent). **Caught by
+  histogram, not by eye** — the bad frame is fully drawn, so it reads as a finished render: 3.3% cream
+  / 0.3% green vs 66% / 7% when correct. **The fix is reasoned, not proven:** the failure is rare and
+  was never reproduced on demand (pre-fix 3/3 clean, post-fix 4/4 clean). Re-verify by histogram.
+- `scheduleClusterRecompute`'s 0.13s `DispatchWorkItem` captured `MapboxMap` strongly with no
+  teardown cancel — the same hazard `schedulePrune` was hardened against. Now `[weak map]`.
+- Removed dead `mapSheetShadow()` (its only caller, the sheet's opaque background, died in Phase B)
+  and corrected stale docs: `CLAUDE.md` peek 120→96pt + the dead token, `MapSheet`'s full-detent
+  clearance (132 − `tabBarReserve` ≈ 66pt, not 132), and `POICluster`'s label-pass invariance claim
+  (with `previous` fed back the pass is stateful and settles one pass later — it damps, not strobes).
+
+**CORRECTION to the Phase B entry above:** the Dark Mode failure of the bottom sheet is **not**
+pre-existing as first recorded. `MapSheet.swift` `.glassEffect(.regular, in:)` REPLACED a fixed
+`Hue.surface` fill, and `.glassEffect` IS appearance-adaptive — so Phase B introduced the sheet half.
+It fails at the peek rest state specifically (the `frost` overlay opacifies the body from `medium` up).
+The TAB BAR going dark is genuinely pre-existing (`RootView.swift`, unchanged).
+
+Design Director: **DON'T SHIP** — open items, all needing a product decision rather than a fix:
+1. **Rest dots don't dodge the town label** — at z12 a civic dot sits on the "St" of "St. Joseph". The
+   centroid-offset cleared the cluster BUBBLES only. Options: cap the label at maxzoom 12 (z12–13 then
+   has no town names at all), push the offset further (detaches the label from its dot), or accept.
+2. **A POI badge occludes the Sacred Heart Chapel civic landmark at z15** and captures its name label.
+   PRE-EXISTING (present in the before-shots), but violates "civic landmarks stay always-on-top".
+3. **Cluster fill is cool, not neutral** — `#EAEBF3` (B−R +9) on `#F4F3EC` land (R−B +8), a 17-point
+   hue reversal. The earlier "it's the ring" diagnosis was wrong; it is the fill.
+4. **The sheet's glass bleaches warm backdrops while transmitting green** — park polygon SHAPES are
+   readable through the panel at the default zoom. Earlier judged "inherent to glass"; that does not
+   survive measurement and is a tuning problem.
+5. **Civic and POI markers are still two families** (`SpotCategory` slate/ochre vs `PlaceCategoryMap`
+   amber/indigo, ~20pt apart on screen) — the "one family" bullet is unmet. Coral was correctly kept
+   off markers, but nothing else ties the two sets together.
+6. De-confliction doesn't reserve the app's own floating chrome or Mapbox's street labels — at z16 a
+   POI label draws under the filter chip; the "5" bubble covers "Cedar St E" at the default zoom.

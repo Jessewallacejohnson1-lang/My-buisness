@@ -54,8 +54,4 @@ extension View {
         )
     }
 
-    /// Bottom sheet: y=−2 (upward), blur=16, 8% opacity.
-    func mapSheetShadow() -> some View {
-        self.shadow(color: .black.opacity(0.08), radius: 16, x: 0, y: -2)
-    }
 }
