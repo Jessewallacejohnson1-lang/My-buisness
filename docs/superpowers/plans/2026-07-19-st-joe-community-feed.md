@@ -151,11 +151,13 @@ Add these properties to `HomeModel`:
 @Published var upcoming: [UpcomingEvent] = []
 @Published var communityFeedLoaded = false
 private var upcomingRsvpInFlight: Set<String> = []
+private var upcomingRsvpOverrides: [String: Bool] = [:]
+private var upcomingLoadGeneration = 0
 ```
 
 After the existing Today/quest fetch, independently load `upcoming = try await api.getUpcomingEvents()`. A failure must retain prior values, set `communityFeedLoaded = true`, log the error, and never blank the existing Today agenda.
 
-Implement `toggleUpcomingRsvp(_ api: CommunityAPI, _ event: UpcomingEvent) async` with the same per-ID optimistic-update / success re-assertion / error rollback discipline already used by `toggleRsvp`. Ignore a second tap while an event id is in `upcomingRsvpInFlight`. Do not update the top Today agenda here because Task 1 excludes same-day values from the lower feed.
+Implement `toggleUpcomingRsvp(_ api: CommunityAPI, _ event: UpcomingEvent) with a durable per-id desired-state override. On tap, store `upcomingRsvpOverrides[event.id] = !wasGoing`, optimistically mutate that one row, and block a second tap while its id is in `upcomingRsvpInFlight`. Give every upcoming-events GET a monotonically increasing `upcomingLoadGeneration`; only the most recently started GET may assign `upcoming` or change the lower-feed loaded/error state. Every accepted successful assignment must merge overrides afterward. For each override: retain it while its id remains in flight even if a GET happens to match; after the write is no longer in flight, remove it only when an accepted GET matches the desired state; if the event is absent from an accepted full response and is no longer in flight, prune its override; otherwise restore the desired RSVP state and adjust its count exactly once. This prevents both an old GET after a successful POST and two out-of-order GETs from undoing the user’s intent. On POST failure, remove the override and roll back only if the currently displayed row still has the intended optimistic state; if a concurrent load already restored the pre-toggle state, do not apply inverse count arithmetic again. Do not update the top Today agenda here because Task 1 excludes same-day values from the lower feed.
 
 - [ ] **Step 4: Build the app and check the client contract**
 
