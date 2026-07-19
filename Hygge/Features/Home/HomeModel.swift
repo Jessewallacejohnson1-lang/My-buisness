@@ -23,6 +23,8 @@ final class HomeModel: ObservableObject {
     /// Desired RSVP states that have not yet been confirmed by an upcoming-feed
     /// read. This survives stale GET snapshots that race a successful POST.
     private var upcomingRsvpOverrides: [String: Bool] = [:]
+    /// Only the most recently started lower-feed read may reconcile its response.
+    private var upcomingLoadGeneration = 0
 
     func load(_ api: CommunityAPI) async {
         if !loaded { loading = true }
@@ -53,13 +55,21 @@ final class HomeModel: ObservableObject {
 
         // The lower community feed is deliberately independent of the Today agenda:
         // a feed failure leaves both the existing feed and today's schedule intact.
+        upcomingLoadGeneration += 1
+        let loadGeneration = upcomingLoadGeneration
         do {
-            upcoming = try await api.getUpcomingEvents()
-            mergeUpcomingRsvpOverrides()
+            let events = try await api.getUpcomingEvents()
+            if loadGeneration == upcomingLoadGeneration {
+                upcoming = events
+                mergeUpcomingRsvpOverrides()
+                communityFeedLoaded = true
+            }
         } catch {
-            Log.network("HomeModel.load upcoming: \(error)")
+            if loadGeneration == upcomingLoadGeneration {
+                Log.network("HomeModel.load upcoming: \(error)")
+                communityFeedLoaded = true
+            }
         }
-        communityFeedLoaded = true
 
         // The curated town board — its own fetch so a board hiccup never disturbs
         // the timeline above, and vice versa.
@@ -139,9 +149,16 @@ final class HomeModel: ObservableObject {
     private func mergeUpcomingRsvpOverrides() {
         let overrides = upcomingRsvpOverrides
         for (eventId, desiredState) in overrides {
-            guard let i = upcoming.firstIndex(where: { $0.id == eventId }) else { continue }
+            guard let i = upcoming.firstIndex(where: { $0.id == eventId }) else {
+                if !upcomingRsvpInFlight.contains(eventId) {
+                    upcomingRsvpOverrides.removeValue(forKey: eventId)
+                }
+                continue
+            }
             if upcoming[i].rsvpd == desiredState {
-                upcomingRsvpOverrides.removeValue(forKey: eventId)
+                if !upcomingRsvpInFlight.contains(eventId) {
+                    upcomingRsvpOverrides.removeValue(forKey: eventId)
+                }
             } else {
                 upcoming[i].rsvpd = desiredState
                 upcoming[i].goingCount += desiredState ? 1 : -1
