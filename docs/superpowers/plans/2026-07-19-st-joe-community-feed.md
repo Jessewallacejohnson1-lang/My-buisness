@@ -40,11 +40,20 @@ Create `CommunityFeedBucketerSelfCheck.swift` under `#if DEBUG`. It must constru
 ```swift
 assert(sections.map(\.bucket) == [.thisWeek, .fresh, .later])
 assert(sections[0].events.map(\.id) == ["tomorrow-early", "tomorrow-late", "day-seven"])
-assert(sections[1].events.map(\.id) == ["fresh-day-eight"])
-assert(sections[2].events.map(\.id) == ["later-day-eight", "later-tie-a", "later-tie-b"])
+assert(sections[1].events.map(\.id) == [
+    "fresh-newest",
+    "fresh-date-early",
+    "fresh-date-late",
+    "fresh-time-early",
+    "fresh-time-late",
+    "fresh-tie-a",
+    "fresh-tie-b",
+    "fresh-exactly-seven-days"
+])
+assert(sections[2].events.map(\.id) == ["stale-day-eight", "later-day-eight", "later-tie-a", "later-tie-b"])
 ```
 
-Fixtures must also include a same-day event, an invalid-date event, and a stale-created day-eight event. They must not appear in any lower feed section. `later-tie-a` must precede `later-tie-b` when both date and time match, proving source-order stability.
+The Fresh fixtures must include one newest item; two equal-created items whose event-date order is intentionally reversed in source input; two equal-created, equal-date items whose start-time order is intentionally reversed in source input; two equal-created/date/time items (`fresh-tie-a`, then `fresh-tie-b`) that prove source-order stability; and one item created exactly seven days before `now`. Fixtures must also include a same-day event, an invalid-date event, and a stale-created day-eight event. The same-day and invalid-date events must not appear in any lower feed section; the stale-created future event must appear in `.later`, proving that a real upcoming plan is never hidden merely because it was posted earlier. `later-tie-a` must precede `later-tie-b` when both date and time match, proving source-order stability.
 
 - [ ] **Step 2: Run the Debug build and verify the expected RED failure**
 
@@ -290,4 +299,3 @@ git commit -m "feat(home): integrate St. Joe community feed"
 ```
 
 Record the build and screenshot result in the task report before review.
-
