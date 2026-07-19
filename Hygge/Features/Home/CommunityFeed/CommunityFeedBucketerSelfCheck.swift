@@ -10,7 +10,12 @@ enum CommunityFeedBucketerSelfCheck {
             event("tomorrow-late", date: "2026-07-20", time: "8pm", createdAt: "2026-07-19T11:00:00Z"),
             event("tomorrow-early", date: "2026-07-20", time: "8am", createdAt: "2026-07-19T11:00:00Z"),
             event("day-seven", date: "2026-07-26", time: "noon", createdAt: "2026-07-19T11:00:00Z"),
-            event("fresh-day-eight", date: "2026-07-27", time: "7pm", createdAt: "2026-07-18T12:00:00Z"),
+            event("fresh-newest", date: "2026-08-02", time: "5pm", createdAt: "2026-07-19T11:00:00Z"),
+            event("fresh-date-late", date: "2026-07-30", time: "8pm", createdAt: "2026-07-18T12:00:00Z"),
+            event("fresh-date-early", date: "2026-07-29", time: "7am", createdAt: "2026-07-18T12:00:00Z"),
+            event("fresh-tie-a", date: "2026-07-31", time: "6pm", createdAt: "2026-07-18T12:00:00Z"),
+            event("fresh-tie-b", date: "2026-07-31", time: "6pm", createdAt: "2026-07-18T12:00:00Z"),
+            event("fresh-exactly-seven-days", date: "2026-08-03", time: "noon", createdAt: "2026-07-12T12:00:00Z"),
             event("stale-day-eight", date: "2026-07-27", time: "8am", createdAt: "2026-07-12T11:59:59Z"),
             event("later-day-eight", date: "2026-07-27", time: "9am", createdAt: "2026-07-12T11:59:59Z"),
             event("later-tie-a", date: "2026-07-28", time: "6pm", createdAt: "2026-07-12T11:59:59Z"),
@@ -22,7 +27,14 @@ enum CommunityFeedBucketerSelfCheck {
 
         assert(sections.map(\.bucket) == [.thisWeek, .fresh, .later])
         assert(sections[0].events.map(\.id) == ["tomorrow-early", "tomorrow-late", "day-seven"])
-        assert(sections[1].events.map(\.id) == ["fresh-day-eight"])
+        assert(sections[1].events.map(\.id) == [
+            "fresh-newest",
+            "fresh-date-early",
+            "fresh-date-late",
+            "fresh-tie-a",
+            "fresh-tie-b",
+            "fresh-exactly-seven-days"
+        ])
         assert(sections[2].events.map(\.id) == ["stale-day-eight", "later-day-eight", "later-tie-a", "later-tie-b"])
     }
 
