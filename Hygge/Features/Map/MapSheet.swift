@@ -41,11 +41,30 @@ struct MapSheet: View {
     let onSelectSpot: (Spot) -> Void           // fly camera + select
     let onRetry: () -> Void
 
-    /// Cleared from behind the tab bar so the last row / Directions never hide.
-    static let tabBarClearance: CGFloat = 56
-    /// Collapsed height — grabber + the single live-now line. The map's floating
-    /// controls sit just above this.
-    static let peekHeight: CGFloat = 120
+    /// Vertical space the unified tab bar occupies at the very bottom. The sheet's
+    /// glass sits flush on top of it; both live in one `GlassEffectContainer` (see
+    /// `MainTabsView`) so they read/merge as a single continuous Liquid Glass shape.
+    static let tabBarReserve: CGFloat = 66
+    /// Collapsed height — grabber + the single live-now line, sized to sit right on
+    /// top of the tab bar (no floating gap). The map's floating ?/locate controls
+    /// rest just above this and fade out as the sheet grows.
+    static let peekHeight: CGFloat = 96
+    /// Breathing room under the last row, above the sheet's bottom edge (the tab bar
+    /// sits below the sheet now, so content no longer needs to clear a 56pt gap).
+    static let contentBottomInset: CGFloat = 18
+    /// Corner radius of the unified glass — matches `HyggeTabBar`'s shell (26) so the
+    /// sheet reads as the tab bar stretching upward, not a second panel.
+    static let glassRadius: CGFloat = 26
+    /// Peak opacity of the content frost veil at full expansion. Near-opaque so the
+    /// dark map cluster bubbles can't bleed through the body as smudges; not 1.0 so a
+    /// whisper of glass depth survives (and the grabber/join bands stay fully glassy).
+    static let frostMax: CGFloat = 0.94
+
+    /// The unified glass silhouette: rounded top (like the tab bar), square bottom so
+    /// it blends straight down into the tab bar it sits on.
+    static let sheetShape = UnevenRoundedRectangle(
+        topLeadingRadius: glassRadius, bottomLeadingRadius: 0,
+        bottomTrailingRadius: 0, topTrailingRadius: glassRadius, style: .continuous)
 
     @State private var mode: SheetMode = MapSheet.initialMode()
     @State private var detent: SheetDetent = MapSheet.initialDetent()
@@ -98,6 +117,11 @@ struct MapSheet: View {
             let height = min(max(resting - drag, m.peek), m.full)
             // 0 at peek → 1 by the time we reach medium: drives the line⇄list fade.
             let p = min(max((height - m.peek) / max(1, m.medium - m.peek), 0), 1)
+            // Content frost: 0 at peek (pure glass), ramps to near-opaque by medium so the
+            // expanded content reads as a clean frosted surface — the map's dark cluster
+            // bubbles can't bleed through the empty middle as smudges. Faded out at the
+            // grabber + the tab-bar join (below), so the continuous-glass morph still reads.
+            let frost = p * Self.frostMax
 
             VStack(spacing: 0) {
                 grabber
@@ -125,14 +149,33 @@ struct MapSheet: View {
             }
             .frame(maxWidth: .infinity, alignment: .top)
             .frame(height: height, alignment: .top)
-            .background(sheetBackground)
-            .clipShape(
-                UnevenRoundedRectangle(topLeadingRadius: Radius.xl,
-                                       topTrailingRadius: Radius.xl,
-                                       style: .continuous)
-            )
+            // Frost veil between the content and the glass. Transparent at the grabber
+            // (top) and the tab-bar join (bottom) so those bands stay glassy and the
+            // continuous morph reads; near-opaque in the body once expanded so content
+            // sits on a clean surface. Whole veil scales with `frost` (0 at peek).
+            .background {
+                LinearGradient(
+                    stops: [
+                        .init(color: Hue.surface.opacity(0),     location: 0.00),
+                        .init(color: Hue.surface.opacity(frost), location: 0.05),
+                        .init(color: Hue.surface.opacity(frost), location: 0.90),
+                        .init(color: Hue.surface.opacity(0),     location: 1.00)
+                    ],
+                    startPoint: .top, endPoint: .bottom
+                )
+            }
+            .clipShape(Self.sheetShape)
+            // Real Liquid Glass — the SAME material + radius as HyggeTabBar. Both sit
+            // in one GlassEffectContainer (MainTabsView), so the sheet's glass and the
+            // tab bar merge into a single continuous bottom shape.
+            .glassEffect(.regular, in: Self.sheetShape)
             .frame(maxHeight: .infinity, alignment: .bottom)
-            .padding(.bottom, Self.tabBarClearance)
+            .padding(.horizontal, 20)                 // match the tab bar's side insets
+            .padding(.bottom, Self.tabBarReserve)      // rest flush on top of the tab bar
+            // Publish how far the sheet has grown past peek (0 = collapsed) so the map's
+            // floating ?/locate controls can fade out before the sheet reaches them.
+            .preference(key: SheetExpansionKey.self,
+                        value: min(1, max(0, (height - m.peek) / 64)))
             .onChange(of: H, initial: true) { _, h in containerH = h }
         }
         .animation(.spring(response: 0.42, dampingFraction: 0.86), value: detent)
@@ -223,14 +266,6 @@ struct MapSheet: View {
         if j != i { Haptics.light(); detent = order[j] }
     }
 
-    private var sheetBackground: some View {
-        UnevenRoundedRectangle(topLeadingRadius: Radius.xl,
-                               topTrailingRadius: Radius.xl,
-                               style: .continuous)
-            .fill(Hue.surface)
-            .mapSheetShadow()
-    }
-
     // MARK: Peek — one line: what's live right now
 
     /// The single glanceable line shown at the peek detent. Tapping it lifts the
@@ -288,7 +323,7 @@ struct MapSheet: View {
             let live = liveEvents
             if live.count == 1 { return live[0].title }
             if live.count > 1  { return "\(live.count) happening now" }
-            if events.isEmpty  { return "A quiet day in St. Joe" }
+            if events.isEmpty  { return "St. Joe today" }
             return "Nothing live right now"
         }
     }
@@ -304,7 +339,7 @@ struct MapSheet: View {
                 return "Live now"
             }
             if live.count > 1 { return "Live across town right now" }
-            if events.isEmpty { return "Nothing on the map yet today" }
+            if events.isEmpty { return "Tap a pin to explore" }
             return "\(events.count) today — pull up to see"
         }
     }
@@ -422,18 +457,47 @@ struct MapSheet: View {
 
     // MARK: List body
 
+    /// A non-scrolling state (nothing to scroll): center its block in the available
+    /// height so full-over-empty reads as a composed screen, never a top-clinging void.
+    private var isCenteredEmptyState: Bool {
+        guard mode == .today else { return false }   // Places always has the catalogue
+        switch state {
+        case .loaded, .empty:  return events.isEmpty
+        case .offline, .error: return true
+        default:               return false          // loading shows skeletons (scroll)
+        }
+    }
+
     @ViewBuilder
     private var listBody: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                switch mode {
-                case .today:  todayRows
-                case .places: placeRows
+        if isCenteredEmptyState {
+            emptyStateBlock
+                .frame(maxWidth: .infinity, maxHeight: .infinity)   // fill + center
+                .padding(.bottom, Self.contentBottomInset)
+        } else {
+            ScrollView {
+                VStack(spacing: 0) {
+                    switch mode {
+                    case .today:  todayRows
+                    case .places: placeRows
+                    }
                 }
+                .padding(.bottom, Self.contentBottomInset)
             }
-            .padding(.bottom, Self.tabBarClearance + 12)
+            .scrollIndicators(.hidden)
         }
-        .scrollIndicators(.hidden)
+    }
+
+    /// The centered empty/error content (routed here by `isCenteredEmptyState`).
+    @ViewBuilder
+    private var emptyStateBlock: some View {
+        switch state {
+        case .offline, .error:
+            emptyState(icon: "wifi.slash", text: "Couldn't load today's happenings.")
+        default:
+            emptyState(icon: "moon.stars",
+                       text: "No events or activity posted yet today — but all your local spots are on the map. Tap a pin to explore.")
+        }
     }
 
     @ViewBuilder
@@ -442,18 +506,16 @@ struct MapSheet: View {
         case .loading:
             ForEach(0..<3, id: \.self) { _ in SkeletonRow() }
         case .loaded, .empty:
-            if events.isEmpty {
-                emptyState(icon: "moon.stars", text: "Nothing on the map yet today.")
-            } else {
-                ForEach(events) { ev in
-                    TodayEventRow(event: ev, live: DateHelpers.isLiveNow(ev.startTime))
-                        .contentShape(Rectangle())
-                        .onTapGesture { if let s = spotFor(ev) { onSelectSpot(s) } }
-                    rowDivider
-                }
+            // Empty is handled by the centered path (isCenteredEmptyState); here we only
+            // reach the populated list.
+            ForEach(events) { ev in
+                TodayEventRow(event: ev, live: DateHelpers.isLiveNow(ev.startTime))
+                    .contentShape(Rectangle())
+                    .onTapGesture { if let s = spotFor(ev) { onSelectSpot(s) } }
+                rowDivider
             }
         case .offline, .error:
-            emptyState(icon: "wifi.slash", text: "Couldn't load today's happenings.")
+            EmptyView()   // handled by the centered path
         }
     }
 
@@ -474,9 +536,10 @@ struct MapSheet: View {
         VStack(spacing: 10) {
             Image(systemName: icon).font(.system(size: 26, weight: .light)).foregroundStyle(Hue.grayLight)
             Text(text).font(.sans(14)).foregroundStyle(Hue.gray)
+                .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 36)
+        .padding(.horizontal, 24)   // centered block; keep the copy off the glass edges
     }
 
     // MARK: Detail — one spot (replaces the old MapBottomCard)
@@ -565,7 +628,7 @@ struct MapSheet: View {
                 .accessibilityLabel("Directions to \(spot.name)")
             }
             .padding(.horizontal, 20)
-            .padding(.bottom, Self.tabBarClearance + 12)
+            .padding(.bottom, Self.contentBottomInset)
         }
         .scrollIndicators(.hidden)
     }
@@ -738,5 +801,17 @@ private struct CoralPillStyle: ButtonStyle {
         configuration.label
             .background(configuration.isPressed ? Hue.accentPressed : Hue.accent, in: Capsule())
             .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
+// MARK: - Sheet expansion preference
+
+/// How far `MapSheet` has grown past its peek detent (0 = collapsed, 1 = at/above
+/// medium). Read by `SJMapView` to fade the floating ?/locate controls before the
+/// sheet reaches them, and to keep them out of the way as it expands.
+struct SheetExpansionKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }

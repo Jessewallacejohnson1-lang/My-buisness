@@ -199,40 +199,49 @@ struct MainTabsView: View {
         ZStack(alignment: .bottom) {
             Hue.canvas.ignoresSafeArea()
 
-            Group {
-                switch tab {
-                case .home:
-                    // Home carries the brand in its own "Hygge" masthead — a second
-                    // coral badge would be redundant, so Home is the one tab without it.
-                    HomeView(
-                        onCompose: { composing = true },
-                        onMenu: { showMenu = true },
-                        menuOpen: showMenu,
-                        profileShown: showProfileSheet,
-                        expandedPlace: $expandedPlace,
-                        cardNS: cardNS
-                    )
-                // No brand badge on these tabs — the top-right corner carries
-                // screen chrome now (the map's compose "+" etc.).
-                case .activities: ActivitiesView(onCompose: { composing = true })
-                case .calendar:   CalendarView(onCompose: { composing = true })
-                // The map's non-admin "+" opens the speed-dial (admins still get
-                // QuickAddSheet, wired inside SJMapView).
-                case .map:        SJMapView(onCompose: { speedDialOpen = true })
+            // The tab content and the tab bar share ONE GlassEffectContainer. On the
+            // Map tab the bottom sheet's Liquid Glass sits flush on top of the tab bar,
+            // so the two glass shapes MERGE into a single continuous piece — the sheet
+            // reads as the tab bar stretching upward. On the other three tabs there's
+            // no adjacent glass, so the tab bar looks and behaves exactly as before.
+            GlassEffectContainer(spacing: 22) {
+                ZStack(alignment: .bottom) {
+                    Group {
+                        switch tab {
+                        case .home:
+                            // Home carries the brand in its own "Hygge" masthead — a second
+                            // coral badge would be redundant, so Home is the one tab without it.
+                            HomeView(
+                                onCompose: { composing = true },
+                                onMenu: { showMenu = true },
+                                menuOpen: showMenu,
+                                profileShown: showProfileSheet,
+                                expandedPlace: $expandedPlace,
+                                cardNS: cardNS
+                            )
+                        // No brand badge on these tabs — the top-right corner carries
+                        // screen chrome now (the map's compose "+" etc.).
+                        case .activities: ActivitiesView(onCompose: { composing = true })
+                        case .calendar:   CalendarView(onCompose: { composing = true })
+                        // The map's non-admin "+" opens the speed-dial (admins still get
+                        // QuickAddSheet, wired inside SJMapView).
+                        case .map:        SJMapView(onCompose: { speedDialOpen = true })
+                        }
+                    }
+                    // Identity keyed on the tab so a switch is an insertion+removal that
+                    // the page transition can animate: the outgoing screen slides off one
+                    // edge while the incoming slides in from the other, in lockstep — a
+                    // swipe to the new tab rather than a flat swap.
+                    .id(tab)
+                    .transition(pageTransition)
+                    // The speed-dial recedes the content behind its wash (the reference's
+                    // "home recedes"); tab bar stays put and is dimmed by the wash.
+                    .scaleEffect(reduceMotion ? 1 : (speedDialOpen ? 0.97 : 1))
+                    .animation(.spring(response: 0.34, dampingFraction: 0.72), value: speedDialOpen)
+
+                    HyggeTabBar(selection: $tab, onSelect: select)
                 }
             }
-            // Identity keyed on the tab so a switch is an insertion+removal that
-            // the page transition can animate: the outgoing screen slides off one
-            // edge while the incoming slides in from the other, in lockstep — a
-            // swipe to the new tab rather than a flat swap.
-            .id(tab)
-            .transition(pageTransition)
-            // The speed-dial recedes the content behind its wash (the reference's
-            // "home recedes"); tab bar stays put and is dimmed by the wash.
-            .scaleEffect(reduceMotion ? 1 : (speedDialOpen ? 0.97 : 1))
-            .animation(.spring(response: 0.34, dampingFraction: 0.72), value: speedDialOpen)
-
-            HyggeTabBar(selection: $tab, onSelect: select)
         }
         .overlay {
             // Place-expansion overlay

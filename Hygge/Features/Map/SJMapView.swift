@@ -198,6 +198,17 @@ struct SJMapView: View {
 
     @State private var quickAdding = false
     @State private var showingHelp = false
+    /// How far the bottom sheet has grown past its peek (0 = collapsed, 1 = at/above
+    /// medium), published by `MapSheet` via `SheetExpansionKey`. Drives the fade-out of
+    /// the floating ?/locate controls so they never collide with the rising sheet.
+    @State private var sheetExpansion: CGFloat = 0
+
+    /// Bottom margin (from the map's bottom edge) that lifts the required Mapbox logo +
+    /// attribution button to rest just above the collapsed unified glass, so they're no
+    /// longer clipped into slivers behind it. The expanding sheet occludes them (drawn
+    /// on top) — they're clearly visible at the collapsed/peek rest state.
+    private static let ornamentBottomMargin: CGFloat =
+        MapSheet.tabBarReserve + MapSheet.peekHeight + 40
 
     private var isAdmin: Bool {
         // DEBUG-only: `-force-nonadmin` launch arg forces the non-admin branch so
@@ -259,6 +270,9 @@ struct SJMapView: View {
                 onRetry: { model.retry() }
             )
         }
+        // The sheet publishes how far it's grown past peek; the floating controls fade
+        // off it (see `floatingControls`).
+        .onPreferenceChange(SheetExpansionKey.self) { sheetExpansion = $0 }
         .onAppear { model.start(auth: auth) }
         .onDisappear { model.stop() }
         .onChange(of: scenePhase) { _, phase in
@@ -352,6 +366,20 @@ struct SJMapView: View {
                 }
             }
             .mapStyle(MapStyle(uri: StyleURI(rawValue: MAP_STYLE_URL)!))
+            // Lift the required Mapbox logo + attribution to just above the collapsed
+            // unified glass so they're never clipped into slivers behind the bottom bar.
+            // The scale bar stays hidden (it was never wanted on this civic map). This
+            // is a Map-specific modifier, so it must precede the standard .onChange
+            // modifiers below (those erase the concrete Map type).
+            .ornamentOptions(OrnamentOptions(
+                scaleBar: ScaleBarViewOptions(visibility: .hidden),
+                logo: LogoViewOptions(
+                    position: .bottomLeading,
+                    margins: CGPoint(x: 16, y: Self.ornamentBottomMargin)),
+                attributionButton: AttributionButtonOptions(
+                    position: .bottomTrailing,
+                    margins: CGPoint(x: 14, y: Self.ornamentBottomMargin))
+            ))
             .onStyleLoaded { _ in
                 recolorBasemap(proxy.map)
                 recomputeClusters(proxy.map)   // POIs may still be loading — pois-change reclusters
@@ -484,8 +512,14 @@ struct SJMapView: View {
                 recenterButton
             }
             .padding(.horizontal, 16)
-            // Sit just above the sheet peek, which itself sits above the tab bar.
-            .padding(.bottom, MapSheet.tabBarClearance + MapSheet.peekHeight + 12)
+            // Stack ABOVE the map's attribution row (logo + info button, which sit just
+            // above the collapsed glass) so the two never collide; fade + lift out of the
+            // way as the sheet grows so they never collide with it either.
+            .padding(.bottom, MapSheet.tabBarReserve + MapSheet.peekHeight + 96)
+            .offset(y: -sheetExpansion * 10)
+            .opacity(Double(1 - min(1, sheetExpansion * 1.3)))
+            .allowsHitTesting(sheetExpansion < 0.12)
+            .animation(.easeOut(duration: 0.18), value: sheetExpansion)
         }
     }
 
