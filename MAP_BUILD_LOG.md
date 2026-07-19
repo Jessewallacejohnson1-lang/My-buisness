@@ -1020,11 +1020,22 @@ non-blocking list:
   clearance (132 − `tabBarReserve` ≈ 66pt, not 132), and `POICluster`'s label-pass invariance claim
   (with `previous` fed back the pass is stateful and settles one pass later — it damps, not strobes).
 
-**CORRECTION to the Phase B entry above:** the Dark Mode failure of the bottom sheet is **not**
-pre-existing as first recorded. `MapSheet.swift` `.glassEffect(.regular, in:)` REPLACED a fixed
+**FIXED (and CORRECTION to the Phase B entry above):** the Dark Mode failure of the bottom sheet was
+**not** pre-existing as first recorded. `MapSheet.swift` `.glassEffect(.regular, in:)` REPLACED a fixed
 `Hue.surface` fill, and `.glassEffect` IS appearance-adaptive — so Phase B introduced the sheet half.
-It fails at the peek rest state specifically (the `frost` overlay opacifies the body from `medium` up).
-The TAB BAR going dark is genuinely pre-existing (`RootView.swift`, unchanged).
+It failed at the peek rest state specifically (the `frost` overlay opacifies the body from `medium`
+up). The TAB BAR going dark was genuinely pre-existing.
+
+Fixed by declaring `.environment(\.colorScheme, .light)` on the `GlassEffectContainer` in
+`MainTabsView` — on the CONTAINER so both glass surfaces resolve together (pinning only the sheet
+would light it while the tab bar stayed dark, visibly splitting the continuous piece the container
+exists to create). This states what the app already assumes — every Hue token is a fixed light hex and
+the basemap is light-v11 recoloured — rather than adding behaviour. Measured on the "Today" tab label
+in Dark Mode: **1.07:1 → 3.71:1**, i.e. exact parity with light mode. Note 3.71:1 is what the app
+ships in light mode too, and is BELOW the 4.5:1 WCAG AA threshold for normal text — a separate,
+pre-existing question this fix does not address. Verified in Dark Mode on the map (peek) and the
+Activities tab. If real Dark Mode is ever wanted, removing that line is the START of the work (a dark
+Hue ramp + a dark basemap palette), not the whole of it.
 
 Design Director: **DON'T SHIP** — open items, all needing a product decision rather than a fix:
 1. **Rest dots don't dodge the town label** — at z12 a civic dot sits on the "St" of "St. Joseph". The

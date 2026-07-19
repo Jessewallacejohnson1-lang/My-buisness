@@ -242,6 +242,21 @@ struct MainTabsView: View {
                     HyggeTabBar(selection: $tab, onSelect: select)
                 }
             }
+            // This app is light-only BY CONSTRUCTION — every Hue token is a fixed light hex,
+            // the basemap is light-v11 recoloured to a fixed cream palette, and nothing here
+            // has a dark counterpart. `.glassEffect` (the tab bar AND the map sheet) is the
+            // one appearance-ADAPTIVE surface in the tree, so under iOS Dark Mode it resolved
+            // charcoal while every colour drawn on it stayed light: the sheet's peek line and
+            // the tab labels fell to ~1:1 contrast — the primary navigation, unreadable.
+            //
+            // Declared on the container so BOTH glass surfaces resolve the same way; pinning
+            // only the sheet would light it while the tab bar stayed dark, visibly splitting
+            // the one continuous piece this container exists to create.
+            //
+            // This states what the app already assumes rather than adding a behaviour. If real
+            // Dark Mode support is ever wanted, removing this line is the START of that work
+            // (a full dark ramp for Hue + a dark basemap palette), not the whole of it.
+            .environment(\.colorScheme, .light)
         }
         .overlay {
             // Place-expansion overlay
