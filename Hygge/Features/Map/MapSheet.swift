@@ -59,6 +59,12 @@ struct MapSheet: View {
     /// dark map cluster bubbles can't bleed through the body as smudges; not 1.0 so a
     /// whisper of glass depth survives (and the grabber/join bands stay fully glassy).
     static let frostMax: CGFloat = 0.94
+    /// Floor of that veil at the PEEK rest state. Was 0, i.e. pure glass — and pure glass over
+    /// this basemap bleaches the warm cream ground while transmitting park green, so the
+    /// collapsed sheet picked up green blotches whose polygon SHAPES were readable through the
+    /// panel. Deliberately low: enough to flatten that chroma, not enough to stop the peek band
+    /// reading as the same glass as the tab bar it merges into.
+    static let frostMin: CGFloat = 0.30
 
     /// The unified glass silhouette: rounded top (like the tab bar), square bottom so
     /// it blends straight down into the tab bar it sits on.
@@ -121,7 +127,7 @@ struct MapSheet: View {
             // expanded content reads as a clean frosted surface — the map's dark cluster
             // bubbles can't bleed through the empty middle as smudges. Faded out at the
             // grabber + the tab-bar join (below), so the continuous-glass morph still reads.
-            let frost = p * Self.frostMax
+            let frost = Self.frostMin + p * (Self.frostMax - Self.frostMin)
 
             VStack(spacing: 0) {
                 grabber

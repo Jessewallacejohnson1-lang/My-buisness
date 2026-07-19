@@ -1086,3 +1086,29 @@ Three of the Design Director's six open items fixed; three left, with reasons.
 - **Sheet glass transmits green / bleaches warm backdrops**, and **civic vs POI are still two
   palettes** (the spec's "one family" bullet). Both are design changes with real blast radius —
   the second means retuning `PlaceFamily.tint` app-wide — and belong to Jesse, not to a fix pass.
+
+### The last three open items — fixed (2026-07-19)
+
+- **Civic landmarks now actually win z-order.** `MapViewAnnotation` draw order is controlled by
+  **`.priority(Int)`**, NOT by declaration order — which is why the six civic pins, declared
+  last precisely so they'd win, were still being covered by POI badges (a blue POI disc sat on
+  Sacred Heart Chapel and captured its name label). Now explicit: `poiPriority 0` <
+  `clusterPriority 10` < `civicPriority 20`. Higher draws on top — verified empirically at z15,
+  where the chapel badge is fully visible with its own label and the POI disc sits behind it.
+- **One marker family.** `PlaceFamily.tint` moved off the borrowed `EventCategory` tokens
+  (food `#F08A3C`, games `#5B6EE0`) to map-palette tints: **food `#C67439`** (muted terracotta,
+  beside `Hue.honey600`) and **business `#5A76A8`** (muted slate blue, beside `Hue.sky600`).
+  The old pair carried ~20 points more saturation than the civic earth tones, so the map ran two
+  colour systems — and the saturated POI dots visually OUTRANKED the landmarks they defer to.
+  POI was brought DOWN into the civic band rather than civic pushed up, since the app tokens are
+  the fixed point. Dropping business off hue 231 also removes the periwinkle cast it lent the
+  cluster bubbles.
+- **Sheet glass no longer prints park shapes.** The content frost veil ramped `0 → 0.94` from
+  peek to medium, i.e. **pure glass at the peek rest state** — and pure glass over this basemap
+  bleaches the warm cream ground while transmitting park green, so the collapsed sheet picked up
+  green blotches whose polygon shapes were readable. Added `frostMin = 0.30`. Measured in the
+  sheet interior at the default zoom: **green-cast 73.9% → 31.1% of pixels, meanDev +10.95 →
+  +7.93**. Honest limit: reduced, NOT eliminated — the brightest spots still come through at
+  roughly the same intensity (worst pixel `#E3F8D6` → `#E5F8D8`), there are just far fewer of
+  them. A higher floor would finish the job but stops the peek band reading as the same glass as
+  the tab bar it merges into, which is the whole point of Phase B.

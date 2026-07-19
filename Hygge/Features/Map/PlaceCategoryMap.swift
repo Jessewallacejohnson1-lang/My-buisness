@@ -32,16 +32,29 @@ enum PlaceFamily: String, Codable, Hashable, CaseIterable {
     case business
 
     /// Marker tint — one colour per family (places differ by glyph, not colour).
-    /// Reuses the already-shipped EventCategory tokens (food = orange `#F08A3C`,
-    /// games = indigo `#5B6EE0`): both are on-palette, both read clearly distinct
-    /// from the sacred live-coral `#FF6B57` (so a POI never looks "selected") and
-    /// from the pale basemap water `#9EDAF3` (so indigo never clashes). No new hexes.
+    ///
+    /// These are MAP-palette tints, deliberately not the brighter `EventCategory` tokens
+    /// they started as (food `#F08A3C`, games `#5B6EE0`). Reusing those meant the map carried
+    /// two unrelated colour systems: the civic landmarks use muted earth tones
+    /// (`SpotCategory.tint` → `Hue.honey600` `#B07D2B`, `Hue.sky600` `#6B7B84`, map green)
+    /// while the POIs were high-chroma amber and indigo. On screen the two sets sat ~20 points
+    /// apart in saturation and read as different products — and worse, the saturated POI dots
+    /// visually OUTRANKED the civic landmarks they are supposed to defer to.
+    ///
+    /// So POI tints are brought DOWN into the civic band rather than civic being pushed up
+    /// (the app tokens are the fixed point). Same hue identity — warm for food, cool for
+    /// business — at the map's quieter saturation. Cartography tints, like `SpotCategory.tint`
+    /// and `BasemapPalette`, under CLAUDE.md's map carve-out.
+    ///
+    /// Still clearly distinct from the sacred live-coral `#FF6B57` (a POI must never look
+    /// "live") and from the pale basemap water `#9EDAF3`. Dropping business off hue 231 also
+    /// kills the periwinkle cast it gave the cluster bubbles.
     /// Named `tint` to match `SpotCategory.tint` / `EventCategory.tint`, so a shared
     /// pin renderer can read one accessor across civic and POI pins.
     var tint: Color {
         switch self {
-        case .food:     return Color(hex: 0xF08A3C)   // amber / tangerine
-        case .business: return Color(hex: 0x5B6EE0)   // indigo
+        case .food:     return Color(hex: 0xC67439)   // muted terracotta — sits beside honey600
+        case .business: return Color(hex: 0x5A76A8)   // muted slate blue — sits beside sky600
         }
     }
 

@@ -153,6 +153,14 @@ struct SJMapView: View {
     /// per-zoom grouping distance itself lives in POICluster.clusterRadius(zoom:).
     static let clusterZoomStep: Double = 0.1
 
+    /// Annotation draw order. Mapbox draws view annotations by `priority`, NOT by declaration
+    /// order — which is why the six civic landmarks, declared last, were still being covered
+    /// by POI badges. Higher wins. Civic landmarks are the map's anchors and sit on top of
+    /// everything; a cluster bubble outranks the individual pins it stands for.
+    static let poiPriority = 0
+    static let clusterPriority = 10
+    static let civicPriority = 20
+
     /// DEBUG-only: `-map-open <spotid>` preselects a spot so its detail card can be
     /// screenshotted headlessly. No effect in release / without the flag.
     private static func debugSelectedSpot() -> Spot? {
@@ -344,6 +352,12 @@ struct SJMapView: View {
                     }
                     // Never cull — merged markers stack on their seed and must not vanish.
                     .allowOverlap(true)
+                    // Explicit draw order. Declaration order does NOT control it — a POI badge
+                    // was rendering OVER the Sacred Heart Chapel landmark and stealing its
+                    // name label, despite civic being declared last. `priority` is the actual
+                    // knob: POIs < cluster bubbles < civic landmarks, which must never be
+                    // covered (see the header + CLAUDE.md).
+                    .priority(Self.poiPriority)
                 }
                 ForEvery(renderedClusters) { cluster in
                     MapViewAnnotation(coordinate: cluster.coordinate) {
@@ -355,6 +369,7 @@ struct SJMapView: View {
                         }
                     }
                     .allowOverlap(true)
+                    .priority(Self.clusterPriority)
                 }
                 // A tap on the open map (not a badge/marker) just dismisses the detail —
                 // every curated spot owns a real tappable badge, so there's no
@@ -385,6 +400,7 @@ struct SJMapView: View {
                     }
                     // Never cull; the selected/live badge must always beat its neighbors.
                     .allowOverlap(true)
+                    .priority(Self.civicPriority)
                 }
             }
             .mapStyle(MapStyle(uri: StyleURI(rawValue: MAP_STYLE_URL)!))
