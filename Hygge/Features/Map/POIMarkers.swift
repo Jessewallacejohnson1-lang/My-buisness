@@ -30,6 +30,10 @@ struct POIClusterMarker: View {
     let poi: POI
     let assignment: POIAssignment
     let expanded: Bool
+    /// Granted by the clusterer's label de-confliction pass — false when this POI's name
+    /// would collide with a civic landmark, a cluster bubble, another badge, or a label
+    /// that was granted first. The badge always draws; only the text is withheld.
+    let showsLabel: Bool
     /// Read live each transition to project the true coord + the cluster seed to screen.
     let proxy: MapProxy
     let onTap: () -> Void
@@ -41,7 +45,7 @@ struct POIClusterMarker: View {
     @State private var t: Double = 0
 
     var body: some View {
-        POIBadge(poi: poi, expanded: expanded)
+        POIBadge(poi: poi, expanded: expanded, showsLabel: showsLabel)
             .scaleEffect(1 - 0.7 * t)
             .opacity(1 - t)
             .offset(mergeOffset)
@@ -77,10 +81,12 @@ struct POIClusterMarker: View {
 
 /// Family tint (amber food / indigo business) + white glyph. Compact = a small tint dot
 /// when zoomed out; expanded (at/above the awake zoom) = a larger disc + glyph + a halo'd
-/// name label beside it, mirroring the civic MapPinBadge. Final polish is Phase C.
+/// name label beside it, mirroring the civic MapPinBadge. The label additionally needs a
+/// de-confliction grant (`showsLabel`) so dense blocks don't turn into overlapping text.
 private struct POIBadge: View {
     let poi: POI
     let expanded: Bool
+    let showsLabel: Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -111,8 +117,11 @@ private struct POIBadge: View {
                 .padding(.leading, Self.expandedDiameter + 5)
                 .allowsHitTesting(false)
                 .scaleEffect(expanded ? 1 : 0.9, anchor: .leading)
-                .opacity(expanded ? 1 : 0)
+                .opacity(expanded && showsLabel ? 1 : 0)
         }
+        // Fade a label in/out as the de-confliction pass grants or withdraws it (a zoom
+        // step can free up room), so text never pops.
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: showsLabel)
         // Consistent ≥44pt tap target regardless of the current visual size, centered on
         // the badge so the annotation's coordinate anchor doesn't move.
         .frame(width: 44, height: 44)
@@ -125,13 +134,22 @@ private struct POIBadge: View {
 
 // MARK: - Cluster count bubble (leaf; owns appear / dissolve / count-roll)
 
-/// Charcoal disc + white count, close to the retired renderer. Scales up + fades in as
-/// members merge (`active`), scales down + fades out when the cluster dissolves (`active`
-/// false — the container keeps it mounted a beat so the split fades, not pops). The count
-/// ROLLS on change (numericText), never a hard cut. Size steps up gently with the count.
+/// A LIGHT disc: a translucent (but NOT appearance-adaptive — see the fill) surface + a
+/// dominant-category tint wash + a thin category ring + a soft shadow for depth, with the
+/// count in map ink. It replaces the old
+/// flat charcoal disc, which read as a heavy black blob dropped on a pale map and shared no
+/// visual language with the pins it stands for. Now a cluster reads as the same family as
+/// the pins inside it — same category palette, same surface ring, same float shadow — just
+/// aggregated.
+///
+/// Scales up + fades in as members merge (`active`), scales down + fades out when the
+/// cluster dissolves (`active` false — the container keeps it mounted a beat so the split
+/// fades, not pops). The count ROLLS on change (numericText), never a hard cut.
 struct POIClusterBubbleView: View {
     let count: Int
     let active: Bool
+    /// Tints the wash + ring, so a bubble hints at what's inside it.
+    let family: PlaceFamily
     /// Overlap cap from the clusterer — the disc never draws larger than this, so two
     /// seeds (always > radius apart) can't host bubbles that reach each other.
     let maxDiameter: CGFloat
@@ -145,38 +163,60 @@ struct POIClusterBubbleView: View {
     /// change reads as a roll, not a cut.
     @State private var displayCount: Int
 
-    init(count: Int, active: Bool, maxDiameter: CGFloat, onTap: @escaping () -> Void) {
+    init(count: Int, active: Bool, family: PlaceFamily, maxDiameter: CGFloat, onTap: @escaping () -> Void) {
         self.count = count
         self.active = active
+        self.family = family
         self.maxDiameter = maxDiameter
         self.onTap = onTap
         _displayCount = State(initialValue: count)
     }
 
-    /// Size-by-count, then clamped to the clusterer's overlap cap.
+    /// Size-by-count, clamped to the clusterer's overlap cap. Defined in `POICluster` so the
+    /// label de-confliction pass reserves the exact box this draws.
     private var diameter: CGFloat {
-        let byCount: CGFloat
-        switch displayCount {
-        case ..<10:   byCount = 34
-        case 10..<25: byCount = 40
-        default:      byCount = 46
-        }
-        return min(byCount, maxDiameter)
+        POICluster.bubbleDiameter(count: displayCount, maxDiameter: maxDiameter)
     }
 
     var body: some View {
         ZStack {
             Circle()
-                .fill(Hue.mapInk.opacity(0.92))
-                .overlay(Circle().stroke(Hue.surface, lineWidth: 2))
-                .mapFloatShadow()
+                // Translucent light fill — the basemap reads faintly through it, so the
+                // bubble sits ON the map rather than punching a hole in it.
+                //
+                // NOT `.regularMaterial`: that is appearance-adaptive, and this app is
+                // light-only by construction (every Hue token is a fixed light hex, the
+                // basemap is light-v11 recoloured to a fixed cream palette, and nothing sets
+                // preferredColorScheme). Under iOS Dark Mode a material would resolve DARK,
+                // putting near-black `mapInk` digits on a near-black disc over a cream map —
+                // the count, which is the bubble's whole payload, would vanish. A fixed
+                // surface fill is scheme-independent, like the charcoal disc it replaces.
+                .fill(Hue.surface.opacity(0.90))
+                // Dominant-category wash — a whisper. The ring, not the fill, carries the
+                // category; a heavier wash turns the disc into a colour chip (indigo washed
+                // over cream reads lavender) instead of a light disc with a coloured edge.
+                .overlay(Circle().fill(family.tint.opacity(0.07)))
+                // Thin category ring at near-full strength — the bubble's category signal,
+                // and what makes it read as Apple-style cluster chrome.
+                .overlay(Circle().strokeBorder(family.tint.opacity(0.9), lineWidth: 1.5))
+                // Deeper than the pins' float shadow ON PURPOSE: a bubble stands for many
+                // places, so it must sit ABOVE the individual rest dots around it. With the
+                // pale fill and the pins' lighter shadow it read as the quieter element —
+                // an inverted hierarchy.
+                .shadow(color: Hue.mapInk.opacity(0.22), radius: 5, x: 0, y: 2)
             Text("\(displayCount)")
-                // Scale the digits to the (possibly capped) disc so a small bubble stays legible.
-                .font(.system(size: min(15, diameter * 0.46), weight: .bold))
+                // Scale the digits to the (possibly capped) disc, with an 11pt floor so the
+                // SMALLEST bubble — the most common one at street zoom — stays legible.
+                .font(.system(size: max(11, min(17, diameter * 0.46)), weight: .bold))
                 .monospacedDigit()
-                .foregroundStyle(.white)
+                // Ink, not white — the disc is light now. ~13:1 against the surface fill.
+                .foregroundStyle(Hue.mapInk)
                 .contentTransition(.numericText())
         }
+        // The dominant family can flip (amber ⇄ indigo) when membership shifts across a
+        // near-tie, so the wash + ring must CROSS-FADE, not cut. Phase A's whole thesis is
+        // "nothing snaps"; MapPinBadge animates its own tint changes for the same reason.
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: family)
         .frame(width: diameter, height: diameter)
         .animation(reduceMotion ? nil : CLUSTER_SPRING, value: diameter)
         .scaleEffect(shown ? 1 : 0.3)
@@ -184,6 +224,9 @@ struct POIClusterBubbleView: View {
         .contentShape(Circle())
         .onTapGesture(perform: onTap)
         .accessibilityElement(children: .ignore)
+        // Just the count: `family` is the DOMINANT family, which on an exact tie falls back
+        // to the seed's — so "mostly Food & Drink" would be a claim the data doesn't support.
+        // The tint is a visual hint; the spoken label stays factual.
         .accessibilityLabel("Cluster of \(displayCount) places")
         .accessibilityAddTraits(.isButton)
         .onAppear {

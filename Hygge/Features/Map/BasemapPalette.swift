@@ -18,7 +18,14 @@ import Foundation
 enum BasemapPalette {
     // MARK: Ground & natural features
     static let land     = "#F4F3EC"   // warm cream ground
-    static let green    = "#D6E8C4"   // sage — parks, landcover, woods
+    // Parks, landcover, woods. Nudged up from the original sage #D6E8C4, which read as
+    // "barely there" against the cream ground — parks all but vanished at town zoom.
+    // Tuned to Apple Maps' light-mode park green (≈#C7E5B0): enough chroma that green reads
+    // as GREEN at a glance, but it still RECEDES as terrain rather than advancing as a flat
+    // card. An earlier pass at #B8E6A0 (S58 L76) overshot — large park masses became the
+    // loudest thing on screen, and, because the bottom sheet is Liquid Glass, the excess
+    // chroma bloomed THROUGH it and tinted the tab bar green at the default zoom.
+    static let green    = "#C2E6AC"   // fresh park green
     static let water    = "#9EDAF3"   // sky blue
     static let building = "#EDEBE1"   // barely lifts off the land
 

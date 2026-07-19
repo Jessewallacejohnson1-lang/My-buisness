@@ -42,7 +42,8 @@ extension SJMapView {
         let pois = model.pois
         guard !pois.isEmpty else {
             poiAssignments = [:]
-            renderedClusters = deactivating(renderedClusters)
+            renderedClusters = deactivating(renderedClusters, map)
+            labelledPOIs = []   // one recompute owns ALL the layout state it writes
             return
         }
         // Radius follows the LIVE zoom: big/calm clusters zoomed out, mostly individuals at
@@ -52,7 +53,25 @@ extension SJMapView {
         let maxBubble = POICluster.bubbleMaxDiameter(radius: radius)
         let output = POICluster.compute(pois: pois, radius: radius) { map.point(for: $0) }
         poiAssignments = output.assignments
-        renderedClusters = merge(existing: renderedClusters, incoming: output.bubbles, maxDiameter: maxBubble)
+        let rendered = merge(existing: renderedClusters, incoming: output.bubbles, maxDiameter: maxBubble, map: map)
+        renderedClusters = rendered
+        // Which POI names have room to draw at this layout. Only matters once pins are
+        // expanded (labels are hidden below the awake zoom anyway), but it's computed off
+        // the same projection pass, so there's nothing to gain by gating it.
+        //
+        // Reserve against the RENDERED bubbles, not `output.bubbles`: a just-split bubble is
+        // absent from the fresh output but stays on screen for its 0.55s fade, and a label
+        // granted through it would draw over visible chrome.
+        labelledPOIs = POICluster.labelledPOIs(
+            pois: pois,
+            assignments: output.assignments,
+            bubbles: rendered,
+            civicSpots: filteredSpots.map { ($0.coordinate, $0.name) },
+            // Incumbency: labels already on screen keep their grant, so a pinch can't strobe
+            // them on and off at a collision boundary.
+            previous: labelledPOIs,
+            project: { map.point(for: $0) }
+        )
     }
 
     // MARK: Bubble lifecycle (stable ids → persist / roll / fade-out)
@@ -61,7 +80,8 @@ extension SJMapView {
     /// bubble persists (count rolls) and dissolving ones fade out before removal.
     private func merge(existing: [POIClusterRender],
                        incoming: [POIClusterBubble],
-                       maxDiameter: CGFloat) -> [POIClusterRender] {
+                       maxDiameter: CGFloat,
+                       map: MapboxMap) -> [POIClusterRender] {
         let incomingByID = Dictionary(incoming.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         var result: [POIClusterRender] = []
         var handled = Set<String>()
@@ -70,39 +90,58 @@ extension SJMapView {
             if let bubble = incomingByID[current.id] {
                 // Still a cluster (or a dissolving one reformed) → active, updated count + cap.
                 result.append(POIClusterRender(id: bubble.id, coordinate: bubble.coordinate,
-                                               count: bubble.count, active: true, maxDiameter: maxDiameter))
+                                               count: bubble.count, dominantFamily: bubble.dominantFamily,
+                                               active: true, maxDiameter: maxDiameter))
                 handled.insert(current.id)
             } else if current.active {
                 // Just dissolved → keep it a beat, fading out, then prune.
                 result.append(POIClusterRender(id: current.id, coordinate: current.coordinate,
-                                               count: current.count, active: false, maxDiameter: current.maxDiameter))
-                schedulePrune(current.id)
+                                               count: current.count, dominantFamily: current.dominantFamily,
+                                               active: false, maxDiameter: current.maxDiameter))
+                schedulePrune(current.id, map)
             } else {
                 result.append(current)   // already fading — leave the prune to fire
             }
         }
         for bubble in incoming where !handled.contains(bubble.id) {
             result.append(POIClusterRender(id: bubble.id, coordinate: bubble.coordinate,
-                                           count: bubble.count, active: true, maxDiameter: maxDiameter))
+                                           count: bubble.count, dominantFamily: bubble.dominantFamily,
+                                           active: true, maxDiameter: maxDiameter))
         }
         return result
     }
 
     /// Flip every active bubble to dissolving (used when POIs vanish entirely).
-    private func deactivating(_ clusters: [POIClusterRender]) -> [POIClusterRender] {
+    private func deactivating(_ clusters: [POIClusterRender], _ map: MapboxMap) -> [POIClusterRender] {
         clusters.map { c in
             guard c.active else { return c }
-            schedulePrune(c.id)
+            schedulePrune(c.id, map)
             return POIClusterRender(id: c.id, coordinate: c.coordinate, count: c.count,
+                                    dominantFamily: c.dominantFamily,
                                     active: false, maxDiameter: c.maxDiameter)
         }
     }
 
     /// Remove a dissolved bubble once its fade-out has played — unless it reformed
     /// (`active` again) in the meantime.
-    private func schedulePrune(_ id: String) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
+    ///
+    /// Recomputes afterwards so the label pass gives back the space the bubble was holding.
+    /// Without it a label suppressed by a dissolving bubble would stay hidden until the next
+    /// camera move, since pruning writes `renderedClusters` without rerunning the pass.
+    /// Terminates: the pruned bubble is in neither `existing` nor `incoming` on the next pass,
+    /// so it schedules nothing further.
+    ///
+    /// `weak map`: this fires 0.55s late, and the map tab can be torn down inside that window —
+    /// a strong capture would keep a `MapboxMap` alive past its `MapView` and then project
+    /// against it. And the recompute only runs if the bubble ACTUALLY went away: a bubble that
+    /// reformed (active again) is still holding its space, so nothing was freed and a full
+    /// cluster + label pass would be pure waste.
+    private func schedulePrune(_ id: String, _ map: MapboxMap) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) { [weak map] in
+            let before = renderedClusters.count
             renderedClusters.removeAll { $0.id == id && !$0.active }
+            guard renderedClusters.count != before, let map else { return }
+            recomputeClusters(map)
         }
     }
 

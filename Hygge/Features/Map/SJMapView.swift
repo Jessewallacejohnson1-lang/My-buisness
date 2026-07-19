@@ -132,6 +132,10 @@ struct SJMapView: View {
     /// The cluster bubbles to draw, including ones currently fading out (a split keeps a
     /// dissolving bubble mounted a beat so it fades rather than pops).
     @State var renderedClusters: [POIClusterRender] = []
+    /// POI ids whose name label has room to draw at the current layout (see
+    /// `POICluster.labelledPOIs`). Everything else shows its badge but withholds its text,
+    /// so a dense block reads as a clean map instead of a pile of overlapping names.
+    @State var labelledPOIs: Set<String> = []
     /// Last zoom we reclustered at — so we only recompute on a real zoom step, not on
     /// every camera frame.
     @State var lastClusterZoom: Double = .nan
@@ -220,7 +224,9 @@ struct SJMapView: View {
         return Admin.isAdmin(auth.email)
     }
 
-    private var filteredSpots: [Spot] { MapSpots.all.filter { filter.matches($0.category) } }
+    /// Not `private`: the label de-confliction pass in SJMapView+POIClustering.swift
+    /// reserves these civic badges/labels first (they're the map's anchors).
+    var filteredSpots: [Spot] { MapSpots.all.filter { filter.matches($0.category) } }
 
     /// Real events at this spot today — searches title AND location so an event
     /// like "Independence Day Parade" at location "Downtown" still matches.
@@ -317,6 +323,7 @@ struct SJMapView: View {
                             assignment: poiAssignments[poi.id]
                                 ?? POIAssignment(anchor: poi.coordinate, clustered: false),
                             expanded: model.pinsExpanded,
+                            showsLabel: labelledPOIs.contains(poi.id),
                             proxy: proxy,
                             onTap: { selectPOI(id: poi.id) }
                         )
@@ -328,6 +335,7 @@ struct SJMapView: View {
                     MapViewAnnotation(coordinate: cluster.coordinate) {
                         POIClusterBubbleView(count: cluster.count,
                                              active: cluster.active,
+                                             family: cluster.dominantFamily,
                                              maxDiameter: cluster.maxDiameter) {
                             zoomToCluster(cluster.coordinate)
                         }
@@ -396,6 +404,11 @@ struct SJMapView: View {
             // detail sheet doesn't linger over a pin that's no longer on the map.
             .onChange(of: filter) { _, _ in
                 if let s = selectedSpot, !filteredSpots.contains(where: { $0.id == s.id }) { closeCard() }
+                // The label de-confliction pass reserves the CIVIC badges/labels first, and
+                // the filter changes which of those are on the map — so a filter change can
+                // free up (or take away) room for POI names. Recompute now rather than
+                // leaving stale grants until the next camera move.
+                recomputeClusters(proxy.map)
             }
             // POIs load async (once) after the style — recompute the layout when they land.
             .onChange(of: model.pois) { _, pois in
@@ -441,6 +454,39 @@ struct SJMapView: View {
         for id in ["road-label-simple", "settlement-major-label", "settlement-minor-label", "settlement-subdivision-label"] {
             try? map.setLayerProperty(for: id, property: "text-color", value: labelInk)
         }
+        // Move the SETTLEMENT (town/city) names DOWN, out from under the cluster bubbles.
+        // A town's POI cluster necessarily sits on the town centroid — exactly where Mapbox
+        // anchors the town name — so the biggest bubble always landed on "St. Joseph" (the
+        // overhaul spec's "no cluster covers the town label"). Mapbox's own label collision
+        // can't help: these bubbles are SwiftUI view annotations drawn above the map canvas,
+        // so the style never sees them.
+        //
+        // Anchoring the text to its TOP and pushing it below the point clears the bubble while
+        // keeping every name on the map. (Hiding the layers instead would kill Collegeville,
+        // Saint Wendel, Five Points and St. Cloud too — the town pill only reverse-geocodes
+        // the viewport CENTRE, so it can't name the towns around it, and a nameless map at
+        // z11 is worse than the collision ever was.)
+        //
+        // The offset is in ems of the label's own text size, which light-v11 interpolates to
+        // ~14–24pt by zoom and `symbolrank`. It must clear the LARGEST bubble radius — the
+        // overlap cap tops out at 44pt across ⇒ 22pt — so 2.4em (≈34–58pt) clears with room.
+        // 1.4em was measurably short: the z11 "69" bubble still clipped "St. Joseph".
+        //
+        // Both layers also carry a `text-radial-offset`, which takes precedence over
+        // `text-offset` where it is non-zero. light-v11 steps it to 0 at z ≥ 8 and this map
+        // lives at z11–15, so `text-offset` is the one that applies here.
+        for id in ["settlement-major-label", "settlement-minor-label"] {
+            try? map.setLayerProperty(for: id, property: "text-anchor", value: "top")
+            try? map.setLayerProperty(for: id, property: "text-offset", value: [0.0, 2.4])
+        }
+        // Above z13 the town name stops earning its space: you are unambiguously INSIDE one
+        // town, the top pill already names it, and the offset label lands in the civic pin
+        // cluster around the town centre — a rest dot was rendering it "St⬤oseph" at the
+        // default 13.5. Capping it matches what light-v11 already does to
+        // `settlement-minor-label` (maxzoom 13), so majors and minors now retire together.
+        // Below z13 — the regional view, where naming Collegeville / Saint Wendel / Rockville
+        // is the whole point — the offset label stays and clears the bubbles.
+        try? map.setLayerProperty(for: "settlement-major-label", property: "maxzoom", value: 13.0)
     }
 
     // MARK: Top chrome — filter · town pill · compose (replaces the title header)
