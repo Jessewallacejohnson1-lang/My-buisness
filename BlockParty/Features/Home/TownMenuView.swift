@@ -57,7 +57,7 @@ struct TownMenuView: View {
             // so there's no trailing blank space; it grows down only as rows are added.
             Text("Block Party")
                 .font(.logo(20))
-                .foregroundStyle(Hue.ink3)
+                .foregroundStyle(Hue.inkSecondary)
                 .padding(.top, 20)
                 .padding(.bottom, 22)
         }
@@ -79,7 +79,7 @@ struct TownMenuView: View {
                     .lineLimit(1)
                 Text("Saint Joseph, MN")
                     .font(.sans(13))
-                    .foregroundStyle(Hue.ink3)
+                    .foregroundStyle(Hue.inkSecondary)
             }
         }
     }

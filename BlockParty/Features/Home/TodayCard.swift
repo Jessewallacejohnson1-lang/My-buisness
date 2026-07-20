@@ -13,7 +13,7 @@ struct TodayCard: View {
             Text("TODAY")
                 .font(.mono(11))
                 .tracking(1.5)
-                .foregroundStyle(Hue.ink3)
+                .foregroundStyle(Hue.inkSecondary)
 
             Text("A clear day in St. Joe")
                 .font(.displaySemi(24))
@@ -22,7 +22,7 @@ struct TodayCard: View {
 
             Text("Nothing on the calendar yet. When neighbors post events, today's plans show up right here.")
                 .font(.sans(14))
-                .foregroundStyle(Hue.ink2)
+                .foregroundStyle(Hue.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             Button { onAdd?() } label: {
@@ -32,11 +32,11 @@ struct TodayCard: View {
                     Text("Add an event")
                         .font(.sansSemibold(14))
                 }
-                .foregroundStyle(Hue.paper)
+                .foregroundStyle(Hue.surface)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 11)
-                .background(Hue.moss700)
-                .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
+                .background(Hue.ink)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             }
             .buttonStyle(.plain)
             .padding(.top, 2)

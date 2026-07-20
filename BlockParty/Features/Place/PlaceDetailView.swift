@@ -16,7 +16,7 @@ struct PlaceDetailView: View {
                 content
             }
         }
-        .background(Hue.canvas)
+        .background(Hue.paper)
         .ignoresSafeArea(edges: .top)
         .overlay(alignment: .topLeading) { closeButton }
     }
@@ -53,7 +53,7 @@ struct PlaceDetailView: View {
                 ForEach(place.description, id: \.self) { para in
                     Text(para)
                         .font(.sans(15))
-                        .foregroundStyle(Hue.ink2)
+                        .foregroundStyle(Hue.inkSecondary)
                         .lineSpacing(4)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -67,7 +67,7 @@ struct PlaceDetailView: View {
                         HStack {
                             Text(fact.label)
                                 .font(.sans(14))
-                                .foregroundStyle(Hue.ink3)
+                                .foregroundStyle(Hue.inkSecondary)
                             Spacer()
                             Text(fact.value)
                                 .font(isNumeric(fact.value) ? .monoMedium(14) : .sansMedium(14))
@@ -81,9 +81,9 @@ struct PlaceDetailView: View {
                     }
                 }
                 .padding(.horizontal, 16)
-                .background(Hue.paper)
-                .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
+                .background(Hue.surface)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
             }
 
             // Hours & contact (Google Places, New) — renders only when data exists
@@ -102,8 +102,8 @@ struct PlaceDetailView: View {
                     .foregroundStyle(Hue.ink)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 13)
-                    .background(Hue.paper200)
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
+                    .background(Hue.fill)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
@@ -115,7 +115,7 @@ struct PlaceDetailView: View {
         Text(text)
             .font(.mono(11))
             .tracking(1.5)
-            .foregroundStyle(Hue.ink3)
+            .foregroundStyle(Hue.inkSecondary)
     }
 
     private var closeButton: some View {

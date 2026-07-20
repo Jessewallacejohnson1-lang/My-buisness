@@ -2,8 +2,8 @@
 //  SplashView.swift
 //  Block Party — the launch splash.
 //
-//  A full-bleed coral field with the white "Block Party" wordmark centered — the same
-//  coral + Atkinson lockup as the app icon and the brand badge. Shown while the
+//  A full-bleed ink field with the white "Block Party" wordmark centered — the same
+//  ink + Jost lockup as the app icon and the brand badge. Shown while the
 //  app boots (RootView) and mirrored by the launch screen so the hand-off is
 //  seamless.
 //
@@ -13,10 +13,10 @@ import SwiftUI
 struct SplashView: View {
     var body: some View {
         ZStack {
-            Hue.accent                            // coral #FF6B57
+            Hue.ink
             GeometryReader { geo in
                 Text("Block Party")
-                    .font(.logo(88))              // Atkinson Hyperlegible Bold — large
+                    .font(.logo(88))              // Jost SemiBold — large
                     .foregroundStyle(.white)
                     // Sit a touch below the lowest side button (volume-down, the one
                     // nearest the charging port) — upper-third, not dead-center.

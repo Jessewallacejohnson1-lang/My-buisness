@@ -18,7 +18,7 @@ struct ParkDetailView: View {
                 content
             }
         }
-        .background(Hue.canvas)
+        .background(Hue.paper)
         .ignoresSafeArea(edges: .top)
         .overlay(alignment: .topLeading) { closeButton }
     }
@@ -63,7 +63,7 @@ struct ParkDetailView: View {
                 sectionLabel("ABOUT")
                 Text(park.description)
                     .font(.sans(15))
-                    .foregroundStyle(Hue.ink2)
+                    .foregroundStyle(Hue.inkSecondary)
                     .lineSpacing(4)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -77,7 +77,7 @@ struct ParkDetailView: View {
                         HStack(spacing: 10) {
                             Image(systemName: row.icon)
                                 .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(Hue.accent)
+                                .foregroundStyle(Hue.ink)
                                 .frame(width: 18)
                             Text(row.text)
                                 .font(.sans(14))
@@ -91,9 +91,9 @@ struct ParkDetailView: View {
                     }
                 }
                 .padding(.horizontal, 16)
-                .background(Hue.paper)
-                .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
+                .background(Hue.surface)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
             }
 
             // Open in Maps
@@ -107,8 +107,8 @@ struct ParkDetailView: View {
                 .foregroundStyle(Hue.ink)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 13)
-                .background(Hue.paper200)
-                .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
+                .background(Hue.fill)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             }
             .buttonStyle(.plain)
         }
@@ -127,7 +127,7 @@ struct ParkDetailView: View {
         Text(text)
             .font(.mono(11))
             .tracking(1.5)
-            .foregroundStyle(Hue.ink3)
+            .foregroundStyle(Hue.inkSecondary)
     }
 
     private var closeButton: some View {

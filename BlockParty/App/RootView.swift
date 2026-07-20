@@ -212,7 +212,7 @@ struct MainTabsView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            Hue.canvas.ignoresSafeArea()
+            Hue.paper.ignoresSafeArea()
 
             Group {
                 switch tab {
@@ -451,13 +451,13 @@ struct BlockPartyTabBar: View {
                 Text(tab.title)
                     .font(.sansMedium(11))
             }
-            .foregroundStyle(selected ? Hue.accent : Hue.ink3)
+            .foregroundStyle(selected ? Hue.ink : Hue.inkSecondary)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 9)
             .background {
                 if selected {
                     RoundedRectangle(cornerRadius: pillRadius, style: .continuous)
-                        .fill(Hue.accentSoft)
+                        .fill(Hue.fill)
                         .matchedGeometryEffect(id: "pill", in: pill)
                 }
             }

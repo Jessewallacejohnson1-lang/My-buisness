@@ -4,11 +4,11 @@
 //  still loading, so the user never watches a half-built screen pop into place.
 //
 //  Layout mirrors the reference: a quiet wordmark up top, a short title in the
-//  upper third, the rainbow-wave indicator dead centre, and a soft rotating
+//  upper third, the monochrome-wave indicator dead centre, and a soft rotating
 //  subtitle in the lower third — over a deep, faintly-vignetted dark field (the
 //  app is otherwise light, so this reads as an intentional "loading" moment, and
-//  the saturated dots need a dark backdrop to sing). `Hue.mapInk` is the app's
-//  one sanctioned dark token; the gradient brackets it for depth.
+//  the neutral dots need a dark backdrop to read). The gradient stays within
+//  the canonical ink ramp.
 //
 //  The subtitle is honest about the wait (loading the town's daily data) and then
 //  cross-fades through a few real, neighborly facts about the app — not marketing
@@ -107,11 +107,9 @@ struct TabLoadingCover: View {
     }
 
     private var background: some View {
-        // A gradient bracketing `Hue.mapInk` (#1A1D21) — a touch lighter at the top,
-        // a touch deeper at the bottom — for vignette depth. The app has no dark
-        // token beyond mapInk, so this is a deliberate loading-only carve-out.
+        // A value-only gradient within the canonical ink ramp.
         LinearGradient(
-            colors: [Color(hex: 0x23272E), Color(hex: 0x15171A)],
+            colors: [Hue.inkSecondary, Hue.ink],
             startPoint: .top, endPoint: .bottom
         )
         .overlay(

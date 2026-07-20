@@ -22,7 +22,7 @@ struct POIDetailSheet: View {
                 header.staggeredAppear(0)
                 if let address = poi.address, !address.isEmpty {
                     Text(address)
-                        .font(.sans(15)).foregroundStyle(Hue.gray)          // §9: 15pt subtitle
+                        .font(.sans(15)).foregroundStyle(Hue.inkSecondary)          // §9: 15pt subtitle
                         .fixedSize(horizontal: false, vertical: true)
                         .staggeredAppear(1)
                 }
@@ -40,7 +40,7 @@ struct POIDetailSheet: View {
         .presentationDragIndicator(.visible)
         .presentationBackgroundInteraction(.enabled(upThrough: .medium))
         .presentationBackground(.regularMaterial)      // frosted, Apple-Maps card
-        .presentationCornerRadius(Radius.xl)           // 20pt
+        .presentationCornerRadius(Radius.card)           // 20pt
     }
 
     private var header: some View {
@@ -55,7 +55,7 @@ struct POIDetailSheet: View {
                 Text(poi.name).font(.display(20)).foregroundStyle(Hue.ink)   // §9: card title 20pt bold
                     .fixedSize(horizontal: false, vertical: true)
                 Text(poi.family.label.uppercased())
-                    .font(.mono(11)).tracking(1.2).foregroundStyle(Hue.gray)
+                    .font(.mono(11)).tracking(1.2).foregroundStyle(Hue.inkSecondary)
             }
         }
     }
@@ -69,7 +69,7 @@ struct POIDetailSheet: View {
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 13)
-            .background(Hue.accent, in: RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
+            .background(Hue.ink, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Open \(poi.name) in Maps")

@@ -53,7 +53,7 @@ struct DayDetailView: View {
             timeline
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Hue.canvas)
+        .background(Hue.paper)
         .onAppear {
             revealed = true
             #if DEBUG
@@ -102,7 +102,7 @@ struct DayDetailView: View {
                         .foregroundStyle(Hue.ink)
                     Text(Self.prettyFormatter.string(from: dayDate))
                         .font(.sans(13))
-                        .foregroundStyle(Hue.ink3)
+                        .foregroundStyle(Hue.inkSecondary)
                 }
                 dayChevron(system: "chevron.right") { onChangeDay?(1) }
             }
@@ -121,7 +121,7 @@ struct DayDetailView: View {
         } label: {
             Image(systemName: system)
                 .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(Hue.ink3)
+                .foregroundStyle(Hue.inkSecondary)
                 .frame(width: 34, height: 44)
                 .contentShape(Rectangle())
         }
@@ -155,7 +155,7 @@ struct DayDetailView: View {
             LazyVStack(alignment: .leading, spacing: 20) {
                 let s = slots
                 if !showSample && loading {
-                    ProgressView().tint(Hue.ink3)
+                    ProgressView().tint(Hue.inkSecondary)
                         .frame(maxWidth: .infinity)
                         .padding(.top, 64)
                 } else if !showSample && failed {
@@ -163,7 +163,7 @@ struct DayDetailView: View {
                         Text("Couldn't load this day")
                             .font(.sansSemibold(15)).foregroundStyle(Hue.ink)
                         Text("Check your connection and try again.")
-                            .font(.sans(13)).foregroundStyle(Hue.ink2)
+                            .font(.sans(13)).foregroundStyle(Hue.inkSecondary)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.top, 64)
@@ -173,7 +173,7 @@ struct DayDetailView: View {
                             Text("A clear day")
                                 .font(.sansSemibold(15)).foregroundStyle(Hue.ink)
                             Text("Nothing on the calendar for this day yet.")
-                                .font(.sans(13)).foregroundStyle(Hue.ink2)
+                                .font(.sans(13)).foregroundStyle(Hue.inkSecondary)
                         }
                         Button {
                             Haptics.light()
@@ -182,7 +182,8 @@ struct DayDetailView: View {
                             Text("Add the first thing")
                                 .font(.sansSemibold(14)).foregroundStyle(.white)
                                 .padding(.horizontal, 18).padding(.vertical, 10)
-                                .background(Hue.accent, in: Capsule())
+                                .background(Hue.ink,
+                                            in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                         }
                         .buttonStyle(PressableStyle(scale: 0.96))
                     }
@@ -397,7 +398,7 @@ private struct TimelineSlotView: View {
                 Text(slot.hourLabel)
                     .font(.monoMedium(11))
                     .monospacedDigit()
-                    .foregroundStyle(Hue.ink3)
+                    .foregroundStyle(Hue.inkSecondary)
             }
             switch slot.kind {
             case let .event(ev):
@@ -468,12 +469,12 @@ private struct TimelineSlotView: View {
                 } label: {
                     ZStack {
                         if ev.rsvpd {
-                            Circle().fill(Hue.accent)
+                            Circle().fill(Hue.ink)
                             Image(systemName: "checkmark")
                                 .font(.system(size: 12, weight: .bold))
                                 .foregroundStyle(.white)
                         } else {
-                            Circle().stroke(Hue.ink3.opacity(0.5), lineWidth: 1.5)
+                            Circle().stroke(Hue.inkSecondary.opacity(0.5), lineWidth: 1.5)
                         }
                     }
                     .frame(width: 26, height: 26)
@@ -492,7 +493,7 @@ private struct TimelineSlotView: View {
 
             Text("1 hour  →  No plans")
                 .font(.sans(15))
-                .foregroundStyle(Hue.ink3)
+                .foregroundStyle(Hue.inkSecondary)
 
             Spacer(minLength: 8)
 
@@ -501,9 +502,9 @@ private struct TimelineSlotView: View {
             } label: {
                 Image(systemName: "plus")
                     .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(Hue.ink3)
+                    .foregroundStyle(Hue.inkSecondary)
                     .frame(width: 30, height: 30)
-                    .background(Hue.paper200, in: Circle())
+                    .background(Hue.fill, in: Circle())
                     .contentShape(Circle())
             }
             .buttonStyle(PressableStyle(scale: 0.9))
@@ -524,7 +525,7 @@ private struct ThreeDots: View {
         VStack(spacing: 5) {
             ForEach(0..<3, id: \.self) { i in
                 Circle()
-                    .fill(Hue.ink3.opacity(0.65))
+                    .fill(Hue.inkSecondary.opacity(0.65))
                     .frame(width: 4, height: 4)
                     .opacity(reduceMotion ? 1 : (flicker ? 1.0 : 0.3))
                     // small pulse — swells a touch past rest at the peak.
@@ -558,12 +559,12 @@ private struct EventDescriptionSheet: View {
                     .foregroundStyle(Hue.ink)
                     .padding(.top, 8)
 
-                metaRow(icon: "clock", text: whenText, tint: Hue.ink2)
+                metaRow(icon: "clock", text: whenText, tint: Hue.inkSecondary)
                 if let club = event.clubName, !club.isEmpty {
-                    metaRow(icon: "person.2.fill", text: club, tint: Hue.sky600)
+                    metaRow(icon: "person.2.fill", text: club, tint: Hue.ink)
                 }
                 if let loc = event.location, !loc.isEmpty {
-                    metaRow(icon: "mappin.and.ellipse", text: loc, tint: Hue.ink2)
+                    metaRow(icon: "mappin.and.ellipse", text: loc, tint: Hue.inkSecondary)
                 }
 
                 Divider().overlay(Hue.hairline).padding(.vertical, 4)
@@ -576,7 +577,7 @@ private struct EventDescriptionSheet: View {
                 } else {
                     Text("No description yet.")
                         .font(.sans(14))
-                        .foregroundStyle(Hue.ink3)
+                        .foregroundStyle(Hue.inkSecondary)
                 }
 
                 if let onToggleRsvp {
@@ -586,11 +587,13 @@ private struct EventDescriptionSheet: View {
                     } label: {
                         Text(event.rsvpd ? "Going" : "RSVP")
                             .font(.sansSemibold(15))
-                            .foregroundStyle(event.rsvpd ? .white : Hue.accent)
+                            .foregroundStyle(event.rsvpd ? .white : Hue.ink)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 12)
-                            .background(event.rsvpd ? Hue.accent : Hue.paper, in: Capsule())
-                            .overlay(Capsule().stroke(event.rsvpd ? Color.clear : Hue.accent.opacity(0.4), lineWidth: 1))
+                            .background(event.rsvpd ? Hue.ink : Hue.surface,
+                                        in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
+                                .stroke(event.rsvpd ? Color.clear : Hue.ink.opacity(0.4), lineWidth: 1))
                     }
                     .buttonStyle(PressableStyle(scale: 0.97))
                     .padding(.top, 4)
@@ -599,7 +602,7 @@ private struct EventDescriptionSheet: View {
                 if event.goingCount > 0 {
                     Text("\(event.goingCount) going")
                         .font(.mono(12)).monospacedDigit()
-                        .foregroundStyle(Hue.ink3)
+                        .foregroundStyle(Hue.inkSecondary)
                 }
 
                 Spacer(minLength: 0)
@@ -607,7 +610,7 @@ private struct EventDescriptionSheet: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 20)
         }
-        .background(Hue.canvas)
+        .background(Hue.paper)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
     }

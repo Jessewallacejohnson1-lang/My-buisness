@@ -18,7 +18,7 @@ struct LoginView: View {
 
     var body: some View {
         ZStack {
-            Hue.canvas.ignoresSafeArea()
+            Hue.paper.ignoresSafeArea()
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     VStack(alignment: .leading, spacing: 6) {
@@ -27,7 +27,7 @@ struct LoginView: View {
                             .foregroundStyle(Hue.ink)
                         Text("One calm place for everything happening in St. Joe.")
                             .font(.sans(15))
-                            .foregroundStyle(Hue.ink2)
+                            .foregroundStyle(Hue.inkSecondary)
                     }
                     .padding(.top, 60)
 
@@ -42,7 +42,7 @@ struct LoginView: View {
                         Button(action: resetPassword) {
                             Text("Forgot password?")
                                 .font(.sans(13))
-                                .foregroundStyle(Hue.ink3)
+                                .foregroundStyle(Hue.inkSecondary)
                         }
                         .buttonStyle(.plain)
                         .disabled(busy)
@@ -50,22 +50,22 @@ struct LoginView: View {
 
                     if let message {
                         Text(message)
-                            .font(.sans(13))
-                            .foregroundStyle(messageIsError ? Hue.clay700 : Hue.moss500)
+                            .font(messageIsError ? .sansBold(13) : .sans(13))
+                            .foregroundStyle(Hue.ink)
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
                     Button(action: submit) {
                         HStack {
-                            if busy { ProgressView().tint(Hue.paper) }
+                            if busy { ProgressView().tint(Hue.surface) }
                             Text(mode == .signIn ? "Log in" : "Create account")
                                 .font(.sansSemibold(16))
                         }
-                        .foregroundStyle(Hue.paper)
+                        .foregroundStyle(Hue.surface)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
-                        .background(canSubmit ? Hue.moss700 : Hue.moss700.opacity(0.4))
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
+                        .background(canSubmit ? Hue.ink : Hue.ink.opacity(0.4))
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                     }
                     .buttonStyle(PressableStyle(scale: 0.97, haptic: true))
                     .disabled(!canSubmit || busy)
@@ -81,8 +81,8 @@ struct LoginView: View {
             toggleButton("Sign up", .signUp)
         }
         .padding(3)
-        .background(Hue.paper200)
-        .clipShape(Capsule())
+        .background(Hue.fill)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
     }
 
     private func toggleButton(_ label: String, _ m: Mode) -> some View {
@@ -92,11 +92,11 @@ struct LoginView: View {
         } label: {
             Text(label)
                 .font(.sansSemibold(14))
-                .foregroundStyle(on ? Hue.ink : Hue.ink3)
+                .foregroundStyle(on ? Hue.ink : Hue.inkSecondary)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 9)
-                .background(on ? Hue.paper : Color.clear)
-                .clipShape(Capsule())
+                .background(on ? Hue.surface : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
         }
         .buttonStyle(.plain)
     }
@@ -116,8 +116,8 @@ struct LoginView: View {
         .foregroundStyle(Hue.ink)
         .padding(.horizontal, 14)
         .padding(.vertical, 13)
-        .background(Hue.paper)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
+        .background(Hue.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
         .blockPartyHairline()
     }
 

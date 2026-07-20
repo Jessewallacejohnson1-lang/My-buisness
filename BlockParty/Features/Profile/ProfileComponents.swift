@@ -15,10 +15,10 @@ import SwiftUI
 /// wash lets the blurred Home show faintly through while keeping ink text crisp,
 /// with a bright glass rim + a grounding hairline.
 private struct GlassPanel: ViewModifier {
-    var radius: CGFloat = Radius.lg
+    var radius: CGFloat = Radius.card
     func body(content: Content) -> some View {
         content
-            .background(Hue.paper.opacity(0.62), in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .background(Hue.surface.opacity(0.62), in: RoundedRectangle(cornerRadius: radius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
                     .stroke(.white.opacity(0.5), lineWidth: 0.75)
@@ -27,13 +27,13 @@ private struct GlassPanel: ViewModifier {
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
                     .stroke(Hue.hairline, lineWidth: 1)
             )
-            .shadow(color: Color(hex: 0x2a241c, alpha: 0.08), radius: 12, x: 0, y: 5)
+            .modifier(CardShadow())
     }
 }
 
 extension View {
     /// Warm frosted-glass surface — the profile's card/group background.
-    func glassPanel(_ radius: CGFloat = Radius.lg) -> some View { modifier(GlassPanel(radius: radius)) }
+    func glassPanel(_ radius: CGFloat = Radius.card) -> some View { modifier(GlassPanel(radius: radius)) }
 }
 
 // MARK: - Avatar
@@ -51,7 +51,7 @@ struct ProfileAvatar: View {
                 AsyncImage(url: u) { phase in
                     switch phase {
                     case .success(let img): img.resizable().scaledToFill()
-                    case .empty: ZStack { Hue.paper; ProgressView().tint(Hue.accent) }
+                    case .empty: ZStack { Hue.surface; ProgressView().tint(Hue.ink) }
                     default: blank
                     }
                 }
@@ -68,10 +68,10 @@ struct ProfileAvatar: View {
 
     private var blank: some View {
         ZStack {
-            Hue.paper
+            Hue.surface
             Image(systemName: "person.fill")
                 .font(.system(size: size * 0.42))
-                .foregroundStyle(Hue.ink3.opacity(0.5))
+                .foregroundStyle(Hue.inkSecondary.opacity(0.5))
         }
     }
 }
@@ -82,11 +82,11 @@ struct ProfileAvatar: View {
 func interestChip(_ label: String) -> some View {
     Text(label)
         .font(.sansMedium(13))
-        .foregroundStyle(Hue.accent)
+        .foregroundStyle(Hue.ink)
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
-        .background(Hue.accentSoft.opacity(0.92), in: Capsule())
-        .overlay(Capsule().stroke(Hue.accent.opacity(0.16), lineWidth: 1))
+        .background(Hue.fill.opacity(0.92), in: Capsule())
+        .overlay(Capsule().stroke(Hue.ink.opacity(0.16), lineWidth: 1))
 }
 
 /// A minimal flow layout — chips wrap onto new lines within the available width.
@@ -146,16 +146,16 @@ struct ProfileRow: View {
         HStack(spacing: 13) {
             Image(systemName: icon)
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(destructive ? Hue.clay700 : iconTint)
+                .foregroundStyle(destructive ? Hue.ink : iconTint)
                 .frame(width: 26)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.sansMedium(16))
-                    .foregroundStyle(destructive ? Hue.clay700 : Hue.ink)
+                    .font(destructive ? .sansBold(16) : .sansMedium(16))
+                    .foregroundStyle(Hue.ink)
                 if let subtitle {
                     Text(subtitle)
                         .font(.sans(13))
-                        .foregroundStyle(Hue.ink3)
+                        .foregroundStyle(Hue.inkSecondary)
                         .lineLimit(1)
                 }
             }
@@ -164,7 +164,7 @@ struct ProfileRow: View {
                 Text(trailing)
                     .font(.monoMedium(15))
                     .monospacedDigit()
-                    .foregroundStyle(Hue.ink2)
+                    .foregroundStyle(Hue.inkSecondary)
             }
             accessoryView
         }
@@ -179,11 +179,11 @@ struct ProfileRow: View {
         case .chevron:
             Image(systemName: "chevron.right")
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Hue.ink3.opacity(0.7))
+                .foregroundStyle(Hue.inkSecondary.opacity(0.7))
         case .expand(let open):
             Image(systemName: "chevron.down")
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Hue.ink3.opacity(0.7))
+                .foregroundStyle(Hue.inkSecondary.opacity(0.7))
                 .rotationEffect(.degrees(open ? 0 : -90))
         }
     }
@@ -221,9 +221,9 @@ struct FeatureFace: View {
         VStack(alignment: .leading, spacing: 0) {
             Image(systemName: icon)
                 .font(.system(size: 19, weight: .semibold))
-                .foregroundStyle(coral ? Hue.accent : Hue.ink)
+                .foregroundStyle(coral ? Hue.ink : Hue.ink)
                 .frame(width: 42, height: 42)
-                .background((coral ? Hue.accentSoft : Hue.paper200).opacity(0.9), in: Circle())
+                .background((coral ? Hue.fill : Hue.fill).opacity(0.9), in: Circle())
             Spacer(minLength: 12)
             Text(value)
                 .font(.displaySemi(21))
@@ -232,18 +232,18 @@ struct FeatureFace: View {
                 .lineLimit(1)
             Text(label)
                 .font(.sans(13))
-                .foregroundStyle(Hue.ink2)
+                .foregroundStyle(Hue.inkSecondary)
                 .lineLimit(1)
             if let subtitle {
                 Text(subtitle)
                     .font(.sans(12))
-                    .foregroundStyle(Hue.ink3)
+                    .foregroundStyle(Hue.inkSecondary)
                     .lineLimit(1)
                     .padding(.top, 2)
             }
         }
         .frame(maxWidth: .infinity, minHeight: 138, alignment: .leading)
         .padding(16)
-        .glassPanel(Radius.xl)
+        .glassPanel(Radius.card)
     }
 }

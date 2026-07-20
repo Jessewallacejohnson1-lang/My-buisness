@@ -94,7 +94,7 @@ struct ExploreSearchOverlay: View {
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(Hue.ink3)
+                    .foregroundStyle(Hue.inkSecondary)
                 TextField("Search St. Joe", text: $query)
                     .font(.sans(17))
                     .foregroundStyle(Hue.ink)
@@ -109,7 +109,7 @@ struct ExploreSearchOverlay: View {
                     Button { query = "" } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 16))
-                            .foregroundStyle(Hue.grayLight)
+                            .foregroundStyle(Hue.inkSecondary)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Clear")
@@ -117,13 +117,13 @@ struct ExploreSearchOverlay: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
-            .background(Hue.paper)                                  // crisp white
+            .background(Hue.surface)                                  // crisp white
             .clipShape(Capsule())
             .shadow(color: .black.opacity(0.12), radius: 20, x: 0, y: 8)
 
             Button("Cancel") { dismiss { onCancel() } }
                 .font(.sansSemibold(15))
-                .foregroundStyle(Hue.accent)
+                .foregroundStyle(Hue.ink)
                 .buttonStyle(.plain)
         }
     }
@@ -137,7 +137,7 @@ struct ExploreSearchOverlay: View {
                 Button { dismiss { onPick(s) } } label: {
                     Text(s.title)
                         .font(.sans(16))
-                        .foregroundStyle(Hue.gray)
+                        .foregroundStyle(Hue.inkSecondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.vertical, 13)
                         .padding(.horizontal, 10)

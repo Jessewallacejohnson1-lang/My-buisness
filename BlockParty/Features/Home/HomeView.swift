@@ -74,7 +74,7 @@ struct HomeView: View {
                 Color.clear.frame(height: 96)
             }
         }
-        .background(Hue.canvas)
+        .background(Hue.paper)
         .refreshable {
             // Collapse instantly (animated: false → no reverse cascade), load,
             // then spring it all back in — the reference's "reload → springs out" beat.
@@ -113,7 +113,7 @@ struct HomeView: View {
                     Text("\(model.today.count) thing\(model.today.count == 1 ? "" : "s")")
                         .font(.mono(12))
                         .monospacedDigit()
-                        .foregroundStyle(Hue.ink3)
+                        .foregroundStyle(Hue.inkSecondary)
                 }
                 ForEach(model.today) { event in
                     EventRow(event: event, date: DateHelpers.localDate()) {

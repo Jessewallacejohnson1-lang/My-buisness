@@ -41,7 +41,7 @@ struct TrailsListView: View {
                 if trails.isEmpty {
                     Text("Community-posted trails will appear here once neighbors add them.")
                         .font(.sans(14))
-                        .foregroundStyle(Hue.ink3)
+                        .foregroundStyle(Hue.inkSecondary)
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: .infinity)
                         .padding(.horizontal, 18)
@@ -51,7 +51,7 @@ struct TrailsListView: View {
                 Color.clear.frame(height: 100)
             }
         }
-        .background(Hue.canvas)
+        .background(Hue.paper)
     }
 
     private var header: some View {
@@ -64,7 +64,7 @@ struct TrailsListView: View {
                         Text("Activities")
                             .font(.sansMedium(13))
                     }
-                    .foregroundStyle(Hue.sky700)
+                    .foregroundStyle(Hue.ink)
                 }
                 .buttonStyle(.plain)
 
@@ -77,12 +77,13 @@ struct TrailsListView: View {
                         Text("Map")
                             .font(.sansSemibold(13))
                     }
-                    .foregroundStyle(Hue.moss700)
+                    .foregroundStyle(Hue.ink)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
-                    .background(Hue.moss700.opacity(0.09))
-                    .clipShape(Capsule())
-                    .overlay(Capsule().stroke(Hue.moss700.opacity(0.2), lineWidth: 1))
+                    .background(Hue.ink.opacity(0.09))
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
+                        .stroke(Hue.ink.opacity(0.2), lineWidth: 1))
                 }
                 .buttonStyle(.plain)
             }
@@ -126,20 +127,20 @@ private struct WobegonListCard: View {
                     .foregroundStyle(Hue.ink)
                 Text("Trailhead by the water tower · County Rd 2")
                     .font(.sans(13))
-                    .foregroundStyle(Hue.ink2)
+                    .foregroundStyle(Hue.inkSecondary)
                 HStack(spacing: 6) {
                     statBadge(icon: "figure.hiking", label: "Easy")
                     dot
-                    Text("65 mi paved").font(.mono(11)).foregroundStyle(Hue.sky600)
+                    Text("65 mi paved").font(.mono(11)).foregroundStyle(Hue.ink)
                     dot
-                    Text("Bike · Run · Walk").font(.mono(11)).foregroundStyle(Hue.sky600)
+                    Text("Bike · Run · Walk").font(.mono(11)).foregroundStyle(Hue.ink)
                 }
             }
             .padding(14)
         }
-        .background(Hue.paper)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
+        .background(Hue.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
         .modifier(CardShadow())
     }
 }
@@ -173,7 +174,7 @@ private struct CommunityTrailCard: View {
                 Text(trail.title).font(.sansBold(16)).foregroundStyle(Hue.ink)
 
                 if let loc = trail.location, !loc.isEmpty {
-                    Text(loc).font(.sans(13)).foregroundStyle(Hue.ink2)
+                    Text(loc).font(.sans(13)).foregroundStyle(Hue.inkSecondary)
                 }
 
                 let meta = [trail.difficulty, trail.length]
@@ -182,20 +183,20 @@ private struct CommunityTrailCard: View {
                     HStack(spacing: 6) {
                         ForEach(Array(meta.enumerated()), id: \.offset) { i, s in
                             if i > 0 { dot }
-                            Text(s).font(.mono(11)).foregroundStyle(Hue.sky600)
+                            Text(s).font(.mono(11)).foregroundStyle(Hue.ink)
                         }
                     }
                 }
 
                 if let desc = trail.description, !desc.isEmpty {
-                    Text(desc).font(.sans(13)).foregroundStyle(Hue.ink2).lineLimit(2)
+                    Text(desc).font(.sans(13)).foregroundStyle(Hue.inkSecondary).lineLimit(2)
                 }
             }
             .padding(14)
         }
-        .background(Hue.paper)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
+        .background(Hue.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
         .modifier(CardShadow())
         .task {
             // Geocode location for accurate Maps pin
@@ -222,7 +223,7 @@ private struct CommunityTrailCard: View {
 
     private var placeholder: some View {
         ZStack {
-            LinearGradient(colors: [Hue.sky800.opacity(0.4), Hue.moss700.opacity(0.5)],
+            LinearGradient(colors: [Hue.ink.opacity(0.4), Hue.ink.opacity(0.5)],
                            startPoint: .topLeading, endPoint: .bottomTrailing)
             ProgressView().tint(.white.opacity(0.7))
         }
@@ -239,8 +240,8 @@ private func mapPill() -> some View {
     .foregroundStyle(.white)
     .padding(.horizontal, 12)
     .padding(.vertical, 7)
-    .background(Hue.moss700)
-    .clipShape(Capsule())
+    .background(Hue.ink)
+    .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
     .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
 }
 
@@ -249,11 +250,11 @@ private func statBadge(icon: String, label: String) -> some View {
         Image(systemName: icon).font(.system(size: 10, weight: .medium))
         Text(label).font(.mono(11))
     }
-    .foregroundStyle(Hue.moss500)
+    .foregroundStyle(Hue.ink)
 }
 
 private var dot: some View {
-    Text("·").font(.mono(11)).foregroundStyle(Hue.ink3)
+    Text("·").font(.mono(11)).foregroundStyle(Hue.inkSecondary)
 }
 
 private func googleMapsURL(label: String, coord: CLLocationCoordinate2D? = nil) -> URL? {

@@ -8,12 +8,8 @@
 //  `club_events.category` is a nullable text column — a null / legacy / unknown
 //  row resolves to `.other` (see `from(_:)`) so a category icon never renders blank.
 //
-//  Each case carries a filled SF Symbol glyph (white, on the colored circle) and a
-//  tint. The tints are a small local palette in raw hex — the same reference-fidelity
-//  carve-out the calendar already used for its order-based SlotTint and the map uses
-//  for BasemapPalette / SpotCategory.tint: a real calendar reads deliberately
-//  multi-color, and these hues don't map onto the app's one-job-each accents. `.other`
-//  stays a calm neutral so an uncategorized row never shouts.
+//  Each case carries a filled SF Symbol glyph on an ink ground. Category is conveyed
+//  by glyph, not colour; every tint resolves to the canonical ink token.
 //
 
 import SwiftUI
@@ -56,7 +52,7 @@ enum EventCategory: String, CaseIterable, Identifiable, Hashable {
         }
     }
 
-    /// Filled SF Symbol — reads cleanly in white at ~22pt on the colored circle,
+    /// Filled SF Symbol — reads cleanly in white at ~22pt on the ink circle,
     /// the same filled-glyph choice SpotCategory.filledSymbol makes for map pins.
     var glyph: String {
         switch self {
@@ -73,21 +69,19 @@ enum EventCategory: String, CaseIterable, Identifiable, Hashable {
         }
     }
 
-    /// Category tint — a small reference-fidelity palette in raw hex (see file note).
-    /// Distinct, warm-leaning hues that each carry a white glyph; `.other` is a calm
-    /// warm gray so unlabeled rows stay quiet.
+    /// Category tint is monochrome; the glyph carries the category distinction.
     var tint: Color {
         switch self {
-        case .outdoors:  return Color(hex: 0x4FA96A)   // green — outdoors reads green everywhere
-        case .musicArts: return Color(hex: 0x8E7BF0)   // violet
-        case .food:      return Color(hex: 0xF08A3C)   // orange
-        case .families:  return Color(hex: 0xE0A43B)   // honey
-        case .faith:     return Color(hex: 0x6C7A9C)   // slate blue
-        case .sports:    return Color(hex: 0xE05C4B)   // tomato
-        case .books:     return Color(hex: 0x2FA6A0)   // teal
-        case .service:   return Color(hex: 0xE0648A)   // rose
-        case .games:     return Color(hex: 0x5B6EE0)   // indigo
-        case .other:     return Color(hex: 0x9A8F86)   // warm gray — calm fallback
+        case .outdoors:  return Hue.ink
+        case .musicArts: return Hue.ink
+        case .food:      return Hue.ink
+        case .families:  return Hue.ink
+        case .faith:     return Hue.ink
+        case .sports:    return Hue.ink
+        case .books:     return Hue.ink
+        case .service:   return Hue.ink
+        case .games:     return Hue.ink
+        case .other:     return Hue.ink
         }
     }
 }

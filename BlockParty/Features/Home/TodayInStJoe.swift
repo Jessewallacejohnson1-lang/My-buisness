@@ -68,10 +68,10 @@ struct TodayInStJoeCard: View {
                 .shadow(color: .black.opacity(0.35), radius: 6, y: 1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
-        .shadow(color: Color(hex: 0x2a241c, alpha: 0.10), radius: 11, x: 0, y: 6)   // matches blockPartyCard's one lift
-        .contentShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
+        .modifier(CardShadow())
+        .contentShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         .onTapGesture { route = .board }
         .task { weather = await WeatherService.current() }
         .sheet(item: $route) { r in

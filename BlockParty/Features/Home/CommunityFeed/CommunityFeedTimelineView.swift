@@ -99,12 +99,12 @@ private struct CommunityFeedEventCard: View {
                 .font(.sansSemibold(11))
                 .multilineTextAlignment(.center)
         }
-        .foregroundStyle(Hue.accent)
+        .foregroundStyle(Hue.ink)
         .frame(width: 74)
         .frame(minHeight: 48)
         .padding(.horizontal, 6)
         .padding(.vertical, 7)
-        .background(Hue.accentSoft, in: RoundedRectangle(cornerRadius: Radius.sm, style: .continuous))
+        .background(Hue.fill, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
         .accessibilityHidden(true)
     }
 
@@ -122,7 +122,7 @@ private struct CommunityFeedEventCard: View {
                     if let clubName = event.clubName, !clubName.isEmpty {
                         Text(clubName)
                             .font(.sans(13))
-                            .foregroundStyle(Hue.ink2)
+                            .foregroundStyle(Hue.inkSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -133,7 +133,7 @@ private struct CommunityFeedEventCard: View {
             Text("\(event.goingCount) going")
                 .font(.mono(12))
                 .monospacedDigit()
-                .foregroundStyle(Hue.ink3)
+                .foregroundStyle(Hue.inkSecondary)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(event.title)
@@ -159,7 +159,7 @@ private struct CommunityFeedEventCard: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .foregroundStyle(Hue.ink2)
+            .foregroundStyle(Hue.inkSecondary)
         }
     }
 
@@ -169,13 +169,13 @@ private struct CommunityFeedEventCard: View {
             onToggleRsvp(event)
         }
         .font(.sansSemibold(14))
-        .foregroundStyle(event.rsvpd ? Hue.paper : Hue.accent)
+        .foregroundStyle(event.rsvpd ? Hue.surface : Hue.ink)
         .frame(maxWidth: .infinity, minHeight: 44)
-        .background(event.rsvpd ? Hue.accent : Hue.paper)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
+        .background(event.rsvpd ? Hue.ink : Hue.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: Radius.md, style: .continuous)
-                .stroke(event.rsvpd ? Color.clear : Hue.accent.opacity(0.4), lineWidth: 1)
+            RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
+                .stroke(event.rsvpd ? Color.clear : Hue.ink.opacity(0.4), lineWidth: 1)
         )
         .buttonStyle(PressableStyle(scale: 0.96))
         .animation(reduceMotion ? nil : Motion.snappy, value: event.rsvpd)
@@ -187,11 +187,11 @@ private struct CommunityFeedEventCard: View {
         Button(action: toggleReminder) {
             Text(reminderOn ? "Saved" : "Save")
                 .font(.sansSemibold(14))
-                .foregroundStyle(reminderOn ? Hue.accent : Hue.ink2)
+                .foregroundStyle(reminderOn ? Hue.ink : Hue.inkSecondary)
                 .frame(maxWidth: .infinity, minHeight: 44)
-                .background(Hue.paper100, in: RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
+                .background(Hue.fill, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: Radius.md, style: .continuous)
+                    RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
                         .stroke(Hue.hairline, lineWidth: 1)
                 )
         }
@@ -254,7 +254,7 @@ private struct CommunityFeedLoadingState: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Loading community plans")
                 .font(.sans(14))
-                .foregroundStyle(Hue.ink2)
+                .foregroundStyle(Hue.inkSecondary)
                 .accessibilityAddTraits(.updatesFrequently)
 
             CommunityFeedSkeletonCard()
@@ -266,20 +266,20 @@ private struct CommunityFeedLoadingState: View {
 private struct CommunityFeedSkeletonCard: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            RoundedRectangle(cornerRadius: Radius.sm, style: .continuous)
-                .fill(Hue.paper200)
+            RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
+                .fill(Hue.fill)
                 .frame(width: 74, height: 58)
 
             VStack(alignment: .leading, spacing: 9) {
                 RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .fill(Hue.paper200)
+                    .fill(Hue.fill)
                     .frame(maxWidth: .infinity)
                     .frame(height: 17)
                 RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .fill(Hue.paper200)
+                    .fill(Hue.fill)
                     .frame(width: 150, height: 13)
-                RoundedRectangle(cornerRadius: Radius.md, style: .continuous)
-                    .fill(Hue.paper200)
+                RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
+                    .fill(Hue.fill)
                     .frame(width: 110, height: 44)
             }
         }
@@ -302,14 +302,14 @@ private struct CommunityFeedEmptyState: View {
 
             Text("Here’s what’s coming up when neighbors add plans.")
                 .font(.sans(14))
-                .foregroundStyle(Hue.ink2)
+                .foregroundStyle(Hue.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             Button("Post something") {
                 onCompose?()
             }
             .font(.sansSemibold(14))
-            .foregroundStyle(Hue.accent)
+            .foregroundStyle(Hue.ink)
             .frame(minHeight: 44)
             .buttonStyle(PressableStyle(scale: 0.96))
             .disabled(onCompose == nil)
@@ -325,10 +325,10 @@ private struct CommunityFeedEndState: View {
         VStack(alignment: .leading, spacing: 4) {
             Text("You’re all caught up for now.")
                 .font(.sansSemibold(14))
-                .foregroundStyle(Hue.ink2)
+                .foregroundStyle(Hue.inkSecondary)
             Text("More neighbor plans will appear here.")
                 .font(.sans(13))
-                .foregroundStyle(Hue.ink3)
+                .foregroundStyle(Hue.inkSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 2)

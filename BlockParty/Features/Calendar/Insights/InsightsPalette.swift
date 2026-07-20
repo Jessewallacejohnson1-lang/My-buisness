@@ -1,56 +1,48 @@
 //
 //  InsightsPalette.swift
-//  Block Party — reference-fidelity color carve-out for the Upcoming "Insights" face.
-//
-//  These hexes are sampled directly from the reference recording
-//  (Screen Recording 2026-07-14 at 5.50.51 PM.mov) and are a deliberate,
-//  documented carve-out from the app's one-job-each accent system — the same
-//  license `EventCategory.tint` and `BasemapPalette` take. A rich multi-card
-//  dashboard reads as its own visual world; forcing it into `Hue.*` would lose
-//  the reference. This is the FIRST pass (placeholder content, matched 1:1 to
-//  the reference); real calendar data is wired in a follow-up.
+//  Block Party — monochrome token aliases for the Upcoming "Insights" face.
 //
 
 import SwiftUI
 
 enum InsightsPalette {
     // Page
-    static let canvas = Color(hex: 0xFAF6F7)
-    static let sectionLabel = Color(hex: 0x9A9AA2)   // "Streaks" / "Stats" / "Calendar"
+    static let canvas = Hue.paper
+    static let sectionLabel = Hue.inkSecondary
 
-    // Streak hero card — dark indigo → plum, with translucent 3D blobs
-    static let streakTop = Color(hex: 0x2A2740)
-    static let streakBottom = Color(hex: 0x7A3B59)
-    static let blobBlue = Color(hex: 0x6E79D6)
-    static let blobCoral = Color(hex: 0xE0655E)
-    static let blobPlum = Color(hex: 0x8A4E74)
+    // Streak hero card
+    static let streakTop = Hue.ink
+    static let streakBottom = Hue.ink
+    static let blobBlue = Hue.ink
+    static let blobCoral = Hue.ink
+    static let blobPlum = Hue.ink
 
-    // Entries card — periwinkle
-    static let entriesTop = Color(hex: 0x8493E8)
-    static let entriesBottom = Color(hex: 0x6F6BAB)
+    // Entries card
+    static let entriesTop = Hue.inkSecondary
+    static let entriesBottom = Hue.ink
 
-    // Bento — Journaled (coral→rose), Written (salmon), Visited (purple→navy)
-    static let journaledTop = Color(hex: 0xDD5A5A)
-    static let journaledBottom = Color(hex: 0xA5536F)
-    static let writtenTop = Color(hex: 0xDD7E80)
-    static let writtenBottom = Color(hex: 0xDF6568)
-    static let visitedTop = Color(hex: 0x756DAC)
-    static let visitedBottom = Color(hex: 0x343351)
+    // Bento cards
+    static let journaledTop = Hue.ink
+    static let journaledBottom = Hue.inkSecondary
+    static let writtenTop = Hue.inkSecondary
+    static let writtenBottom = Hue.ink
+    static let visitedTop = Hue.ink
+    static let visitedBottom = Hue.ink
 
     // Calendar mini-card
-    static let calendarCard = Color(hex: 0xFFFFFF)
-    static let calendarNav = Color(hex: 0x6C5CE7)     // ‹ › chevrons (periwinkle-violet)
-    static let calendarTitle = Color(hex: 0x1C1B22)
-    static let weekday = Color(hex: 0xB6B6BE)
-    static let eventDay = Color(hex: 0xE0655E)     // a day with happenings (coral numeral)
-    static let todayFill = Color(hex: 0xFF6B57)    // today's filled circle (app coral)
+    static let calendarCard = Hue.surface
+    static let calendarNav = Hue.ink
+    static let calendarTitle = Hue.ink
+    static let weekday = Hue.inkSecondary
+    static let eventDay = Hue.ink
+    static let todayFill = Hue.ink
 
-    // Text on colored cards
-    static let onDark = Color.white
-    static let onDarkMuted = Color.white.opacity(0.72)
+    // Text on ink cards
+    static let onDark = Hue.surface
+    static let onDarkMuted = Hue.surface.opacity(0.72)
 
     // Card treatment
-    static let cardRadius: CGFloat = 30
+    static let cardRadius: CGFloat = Radius.card
     static let cardGap: CGFloat = 11
 }
 

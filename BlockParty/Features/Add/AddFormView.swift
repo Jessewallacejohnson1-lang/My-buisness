@@ -35,7 +35,7 @@ struct AddFormView: View {
                     }
 
                     if let err = model.error {
-                        Text(err).font(.sans(13)).foregroundStyle(Hue.clay700)
+                        Text(err).font(.sansBold(13)).foregroundStyle(Hue.ink)
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
@@ -43,12 +43,12 @@ struct AddFormView: View {
                 }
                 .padding(18)
             }
-            .background(Hue.canvas)
+            .background(Hue.paper)
             .navigationTitle("New \(kind.title)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }.foregroundStyle(Hue.ink2)
+                    Button("Cancel") { dismiss() }.foregroundStyle(Hue.inkSecondary)
                 }
             }
             .onAppear { if let initialDate { model.eventDate = initialDate } }
@@ -71,7 +71,7 @@ struct AddFormView: View {
     private var eventFields: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text("When").font(.sansMedium(12)).foregroundStyle(Hue.ink3)
+                Text("When").font(.sansMedium(12)).foregroundStyle(Hue.inkSecondary)
                 Spacer()
                 DatePicker("", selection: $model.eventDate, in: Date()..., displayedComponents: .date)
                     .labelsHidden()
@@ -79,7 +79,7 @@ struct AddFormView: View {
                     .labelsHidden()
             }
             .padding(.horizontal, 14).padding(.vertical, 10)
-            .background(Hue.paper).clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous)).blockPartyHairline()
+            .background(Hue.surface).clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous)).blockPartyHairline()
 
             VenueAutocompleteField(label: "Where", placeholder: "Church of St. Joseph, Minnesota St",
                                    text: $model.location, curated: KnownVenues.suggestions)
@@ -89,10 +89,10 @@ struct AddFormView: View {
             Stepper(value: $model.repeatWeeklyCount, in: 1...8) {
                 Text(model.repeatWeeklyCount == 1 ? "Doesn't repeat"
                      : "Repeats weekly · \(model.repeatWeeklyCount) weeks")
-                    .font(.sans(14)).foregroundStyle(Hue.ink2)
+                    .font(.sans(14)).foregroundStyle(Hue.inkSecondary)
             }
             .padding(.horizontal, 14).padding(.vertical, 6)
-            .background(Hue.paper).clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous)).blockPartyHairline()
+            .background(Hue.surface).clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous)).blockPartyHairline()
         }
     }
 
@@ -125,7 +125,7 @@ struct AddFormView: View {
     /// calendar speak the same visual language. Default `.other`.
     private var categoryField: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Category").font(.sansMedium(12)).foregroundStyle(Hue.ink3)
+            Text("Category").font(.sansMedium(12)).foregroundStyle(Hue.inkSecondary)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(EventCategory.allCases) { categoryChip($0) }
@@ -147,10 +147,10 @@ struct AddFormView: View {
                     .foregroundStyle(selected ? .white : cat.tint)
                 Text(cat.label)
                     .font(.sansMedium(13))
-                    .foregroundStyle(selected ? .white : Hue.ink2)
+                    .foregroundStyle(selected ? .white : Hue.inkSecondary)
             }
             .padding(.horizontal, 12).padding(.vertical, 8)
-            .background(Capsule().fill(selected ? cat.tint : Hue.paper))
+            .background(Capsule().fill(selected ? cat.tint : Hue.surface))
             .overlay(Capsule().stroke(selected ? Color.clear : Hue.hairline, lineWidth: 1))
             .animation(.easeOut(duration: 0.16), value: selected)
         }
@@ -167,7 +167,7 @@ struct AddFormView: View {
 
     private func labeledField(_ label: String, _ text: Binding<String>, placeholder: String, multiline: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(label).font(.sansMedium(12)).foregroundStyle(Hue.ink3)
+            Text(label).font(.sansMedium(12)).foregroundStyle(Hue.inkSecondary)
             Group {
                 if multiline {
                     TextField(placeholder, text: text, axis: .vertical).lineLimit(3...6)
@@ -178,7 +178,7 @@ struct AddFormView: View {
             .font(.sans(15)).foregroundStyle(Hue.ink)
             .autocorrectionDisabled(false)
             .padding(.horizontal, 14).padding(.vertical, 12)
-            .background(Hue.paper).clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous)).blockPartyHairline()
+            .background(Hue.surface).clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous)).blockPartyHairline()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -190,15 +190,15 @@ struct AddFormView: View {
                 if let ui {
                     Image(uiImage: ui).resizable().scaledToFill()
                         .frame(height: 180).frame(maxWidth: .infinity).clipped()
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
                 } else {
                     VStack(spacing: 8) {
                         Image(systemName: "photo.badge.plus").font(.system(size: 26, weight: .light))
                         Text("Add a photo (optional)").font(.sans(13))
                     }
-                    .foregroundStyle(Hue.ink3)
+                    .foregroundStyle(Hue.inkSecondary)
                     .frame(maxWidth: .infinity).frame(height: 120)
-                    .overlay(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous)
+                    .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
                         .stroke(style: StrokeStyle(lineWidth: 1.5, dash: [6, 5])).foregroundStyle(Hue.hairline))
                 }
             }
@@ -206,7 +206,7 @@ struct AddFormView: View {
 
             if model.photo != nil {
                 Button { model.photo = nil; pickerItem = nil } label: {
-                    Text("Remove photo").font(.sans(13)).foregroundStyle(Hue.clay700)
+                    Text("Remove photo").font(.sans(13)).foregroundStyle(Hue.ink)
                 }
                 .buttonStyle(.plain)
             }
@@ -218,13 +218,13 @@ struct AddFormView: View {
             Task { await model.submit(kind: kind, api: api, storage: storage, moderation: moderation) }
         } label: {
             HStack(spacing: 8) {
-                if model.submitting { ProgressView().tint(Hue.paper) }
+                if model.submitting { ProgressView().tint(Hue.surface) }
                 Text("Post").font(.sansSemibold(16))
             }
-            .foregroundStyle(Hue.paper)
+            .foregroundStyle(Hue.surface)
             .frame(maxWidth: .infinity).padding(.vertical, 14)
-            .background(model.submitting ? Hue.moss700.opacity(0.5) : Hue.moss700)
-            .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
+            .background(model.submitting ? Hue.ink.opacity(0.5) : Hue.ink)
+            .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
         }
         .buttonStyle(.plain)
         .disabled(model.submitting)

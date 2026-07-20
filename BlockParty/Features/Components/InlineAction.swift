@@ -1,11 +1,11 @@
 //
 //  InlineAction.swift
-//  Block Party — a self-contained "do one async thing, then confirm it" pill.
+//  Block Party — a self-contained "do one async thing, then confirm it" action.
 //
 //  Ported from a React/Motion component the app liked, rebuilt natively and
-//  re-skinned onto the coral-on-white system: an icon chip + label on the left,
-//  and a right-hand control that runs idle → loading (indeterminate coral bar) →
-//  success (collapses to a coral disc with a shimmer sweep + checkmark).
+//  re-skinned onto the ink-on-paper system: an icon chip + label on the left,
+//  and a right-hand control that runs idle → loading (indeterminate ink bar) →
+//  success (collapses to an ink disc with a shimmer sweep + checkmark).
 //
 //  Unlike the source, success is TERMINAL here (it settles into "done" instead of
 //  auto-resetting) — a calendar-add shouldn't invite an accidental second tap.
@@ -37,9 +37,9 @@ struct InlineAction: View {
         HStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(Hue.accent)
+                .foregroundStyle(Hue.ink)
                 .frame(width: 46, height: 46)
-                .background(Hue.accentSoft)
+                .background(Hue.fill)
                 .clipShape(Circle())
 
             VStack(alignment: .leading, spacing: 2) {
@@ -51,8 +51,8 @@ struct InlineAction: View {
                     .contentTransition(.opacity)
                 if let failureNote {
                     Text(failureNote)
-                        .font(.sans(11))
-                        .foregroundStyle(Hue.clay700)
+                        .font(.sansBold(11))
+                        .foregroundStyle(Hue.ink)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                         .transition(.opacity)
@@ -64,15 +64,15 @@ struct InlineAction: View {
             control
                 .frame(width: collapsed ? 46 : 118, height: 46)
                 .background(moduleFill)
-                .clipShape(Capsule())
+                .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
         }
         .padding(.vertical, 8)
         .padding(.leading, 8)
         .padding(.trailing, 8)
         .frame(maxWidth: .infinity)
-        .background(Hue.paper)
-        .clipShape(Capsule())
-        .overlay(Capsule().stroke(Hue.hairline, lineWidth: 1))
+        .background(Hue.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
         .modifier(CardShadow())
         .accessibilityElement(children: .combine)
         .accessibilityLabel(label)
@@ -88,7 +88,7 @@ struct InlineAction: View {
                 Button(action: trigger) {
                     Text(actionText)
                         .font(.sansBold(14))
-                        .foregroundStyle(Hue.accent)
+                        .foregroundStyle(Hue.ink)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .contentShape(Rectangle())
                 }
@@ -115,9 +115,9 @@ struct InlineAction: View {
 
     private var moduleFill: Color {
         switch phase {
-        case .idle, .loading: return Hue.paper200
-        case .success:        return Hue.accent
-        case .error:          return Hue.clay700
+        case .idle, .loading: return Hue.fill
+        case .success:        return Hue.ink
+        case .error:          return Hue.ink
         }
     }
 
@@ -159,7 +159,7 @@ struct InlineAction: View {
     }
 }
 
-// MARK: - Loading: an indeterminate coral bar sliding left ↔ right
+// MARK: - Loading: an indeterminate ink bar sliding left ↔ right
 
 private struct LoadingBar: View {
     let reduceMotion: Bool
@@ -169,7 +169,7 @@ private struct LoadingBar: View {
         if reduceMotion {
             ProgressView()
                 .progressViewStyle(.circular)
-                .tint(Hue.accent)
+                .tint(Hue.ink)
                 .scaleEffect(0.72)
                 .frame(maxWidth: .infinity)
         } else {
@@ -177,12 +177,12 @@ private struct LoadingBar: View {
                 let trackW = geo.size.width
                 let pillW = max(18, trackW * 0.34)
                 Capsule()
-                    .fill(Hue.paper300)
+                    .fill(Hue.fill)
                     .frame(height: 6)
                     .frame(maxHeight: .infinity)
                     .overlay(alignment: .leading) {
                         Capsule()
-                            .fill(Hue.accent)
+                            .fill(Hue.ink)
                             .frame(width: pillW, height: 6)
                             .offset(x: animating ? trackW - pillW : 0)
                             .animation(
@@ -196,7 +196,7 @@ private struct LoadingBar: View {
     }
 }
 
-// MARK: - Success: coral disc, a one-shot shimmer sweep, a checkmark that pops in
+// MARK: - Success: ink disc, a one-shot shimmer sweep, a checkmark that pops in
 
 private struct SuccessDisc: View {
     let reduceMotion: Bool

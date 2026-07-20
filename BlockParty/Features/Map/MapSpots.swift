@@ -44,22 +44,17 @@ enum SpotCategory {
         }
     }
 
-    /// Pin badge tint — one job per category, reusing app tokens where they fit.
-    /// The one exception is `mapGreen`: parks/trails read as green on every map
-    /// (Apple, Google, Life360 included), and the map already owns its own raw
-    /// cartography hexes (see BasemapPalette) — this extends that same carve-out
-    /// to park iconography rather than force park pins into the coral/ink system.
+    /// Pin badge tint — categories are distinguished by glyph, not colour.
     var tint: Color {
         switch self {
         case .park, .trail:        return SpotCategory.mapGreen
-        case .downtown, .coffee, .fitness: return Hue.honey600
-        case .college, .chapel:    return Hue.sky600
-        case .default:             return Hue.mapInk
+        case .downtown, .coffee, .fitness: return Hue.ink
+        case .college, .chapel:    return Hue.ink
+        case .default:             return Hue.ink
         }
     }
 
-    /// Map-only green, pixel-sampled off the Life360 reference's park badges.
-    private static let mapGreen = Color(hex: 0x6BBE52)
+    private static let mapGreen = Hue.ink
 }
 
 struct Spot: Identifiable, Hashable {

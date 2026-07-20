@@ -47,10 +47,10 @@ struct ExploreTownHeader: View {
     private var restingRow: some View {
         HStack(spacing: 11) {
             ZStack {
-                Circle().fill(Hue.accentSoft)
+                Circle().fill(Hue.fill)
                 Image(systemName: "mappin.and.ellipse")
                     .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(Hue.accent)
+                    .foregroundStyle(Hue.ink)
             }
             .frame(width: 40, height: 40)
 
@@ -60,7 +60,7 @@ struct ExploreTownHeader: View {
                     .foregroundStyle(Hue.ink)
                 Image(systemName: "chevron.down")
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(Hue.ink3)
+                    .foregroundStyle(Hue.inkSecondary)
             }
 
             Spacer(minLength: 8)
@@ -68,9 +68,9 @@ struct ExploreTownHeader: View {
             Button { onOpen() } label: {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(Hue.mapInk)
+                    .foregroundStyle(Hue.ink)
                     .frame(width: 42, height: 42)
-                    .background(Hue.bgSubtle)
+                    .background(Hue.paper)
                     .clipShape(Circle())
             }
             .buttonStyle(PressableStyle(scale: 0.92))
@@ -79,32 +79,32 @@ struct ExploreTownHeader: View {
     }
 
     /// The persistent slim bar shown after a search is committed — crisp white
-    /// pill + shadow, matching the overlay's bar so reopening feels continuous.
+    /// rounded control + shadow, matching the overlay's bar so reopening feels continuous.
     private var committedBar: some View {
         HStack(spacing: 12) {
             Button { onOpen() } label: {
                 HStack(spacing: 10) {
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(Hue.ink3)
+                        .foregroundStyle(Hue.inkSecondary)
                     Text(query.isEmpty ? "Search St. Joe" : query)
                         .font(.sans(16))
-                        .foregroundStyle(query.isEmpty ? Hue.ink3 : Hue.ink)
+                        .foregroundStyle(query.isEmpty ? Hue.inkSecondary : Hue.ink)
                         .lineLimit(1)
                     Spacer(minLength: 0)
                 }
                 .padding(.horizontal, 14).padding(.vertical, 10)
-                .background(Hue.paper)
-                .clipShape(Capsule())
+                .background(Hue.surface)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 .shadow(color: .black.opacity(0.10), radius: 12, x: 0, y: 4)
-                .contentShape(Capsule())
+                .contentShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Edit search")
 
             Button("Cancel") { onCancel() }
                 .font(.sansSemibold(15))
-                .foregroundStyle(Hue.accent)
+                .foregroundStyle(Hue.ink)
                 .buttonStyle(.plain)
         }
     }
@@ -125,20 +125,20 @@ struct ExploreCategoryTile: View {
         Button(action: action) {
             VStack(spacing: 9) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: Radius.xl, style: .continuous)
-                        .fill(selected ? Hue.accentSoft : Hue.bgSubtle)
+                    RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+                        .fill(selected ? Hue.fill : Hue.paper)
                     Image(systemName: icon)
                         .font(.system(size: 26, weight: .regular))
-                        .foregroundStyle(selected ? Hue.accent : Hue.ink)
+                        .foregroundStyle(selected ? Hue.ink : Hue.ink)
                 }
                 .frame(width: 74, height: 74)
                 .overlay(
-                    RoundedRectangle(cornerRadius: Radius.xl, style: .continuous)
-                        .stroke(selected ? Hue.accent : Color.clear, lineWidth: 2)
+                    RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+                        .stroke(selected ? Hue.ink : Color.clear, lineWidth: 2)
                 )
                 Text(title)
                     .font(.sansMedium(12.5))
-                    .foregroundStyle(selected ? Hue.accent : Hue.ink2)
+                    .foregroundStyle(selected ? Hue.ink : Hue.inkSecondary)
                     .lineLimit(1)
             }
         }
@@ -148,7 +148,7 @@ struct ExploreCategoryTile: View {
     }
 }
 
-// MARK: - Section header + "See all" pill
+// MARK: - Section header + "See all" button
 
 /// A bold section title with an optional trailing control — the Wolt "Happy
 /// Women's Day  ·  See all" row.
@@ -167,18 +167,18 @@ struct ExploreSectionHeader<Trailing: View>: View {
     }
 }
 
-/// The light-coral "See all" pill (Wolt's tinted pill, in Block Party coral).
+/// The light "See all" button.
 struct SeeAllPill: View {
     var action: () -> Void
     var body: some View {
         Button(action: action) {
             Text("See all")
                 .font(.sansSemibold(13))
-                .foregroundStyle(Hue.accent)
+                .foregroundStyle(Hue.ink)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 7)
-                .background(Hue.accentSoft)
-                .clipShape(Capsule())
+                .background(Hue.fill)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
         }
         .buttonStyle(PressableStyle(scale: 0.95))
     }
@@ -246,9 +246,9 @@ struct FeaturedEventCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(height: 210)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.xl, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: Radius.xl, style: .continuous)
+            RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
                 .stroke(Hue.hairline, lineWidth: 1)
         )
         .modifier(CardShadow())
@@ -257,7 +257,7 @@ struct FeaturedEventCard: View {
                 Button(action: onInvite) {
                     Image(systemName: "square.and.arrow.up")
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(Hue.mapInk)
+                        .foregroundStyle(Hue.ink)
                         .frame(width: 38, height: 38)
                         .background(.ultraThinMaterial, in: Circle())
                 }
@@ -291,7 +291,7 @@ struct FeaturedEventCard: View {
     /// motif, so the white overline/title/location always read.
     private var coralPanel: some View {
         ZStack(alignment: .topTrailing) {
-            LinearGradient(colors: [Hue.accent, Hue.accentPressed],
+            LinearGradient(colors: [Hue.ink, Hue.ink],
                            startPoint: .topLeading, endPoint: .bottomTrailing)
             Image(systemName: "calendar")
                 .font(.system(size: 118, weight: .light))
@@ -310,7 +310,7 @@ struct CarouselDots: View {
         HStack(spacing: 6) {
             ForEach(0..<count, id: \.self) { i in
                 Capsule()
-                    .fill(i == index ? Hue.accent : Hue.paper300)
+                    .fill(i == index ? Hue.ink : Hue.fill)
                     .frame(width: i == index ? 20 : 7, height: 7)
             }
         }
@@ -336,17 +336,17 @@ struct EventShelfCard: View {
             VStack(alignment: .leading, spacing: 5) {
                 Text(exploreEventDateline(event))
                     .font(.monoMedium(12)).monospacedDigit()
-                    .foregroundStyle(Hue.accent)
+                    .foregroundStyle(Hue.ink)
                     .lineLimit(1)
                 Text(event.title)
                     .font(.sansBold(16))
-                    .foregroundStyle(Hue.mapInk)
+                    .foregroundStyle(Hue.ink)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                 if let loc = event.location, !loc.isEmpty {
                     Text(loc)
                         .font(.sans(13))
-                        .foregroundStyle(Hue.gray)
+                        .foregroundStyle(Hue.inkSecondary)
                         .lineLimit(1)
                 }
                 if event.goingCount > 0 {
@@ -354,7 +354,7 @@ struct EventShelfCard: View {
                         Image(systemName: "person.2.fill").font(.system(size: 10, weight: .semibold))
                         Text("\(event.goingCount) going").font(.monoMedium(12)).monospacedDigit()
                     }
-                    .foregroundStyle(Hue.gray)
+                    .foregroundStyle(Hue.inkSecondary)
                 }
             }
             .padding(.horizontal, 13)
@@ -362,10 +362,10 @@ struct EventShelfCard: View {
             .padding(.bottom, 13)
             .frame(width: 232, alignment: .leading)
         }
-        .background(Hue.paper)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
+        .background(Hue.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: Radius.lg, style: .continuous)
+            RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
                 .stroke(Hue.hairline, lineWidth: 1)
         )
         .modifier(CardShadow())
@@ -417,9 +417,9 @@ struct ExplorePlaceCard: View {
                     .padding(14)
             }
             .frame(width: 212, height: 150)
-            .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: Radius.lg, style: .continuous)
+                RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
                     .stroke(Hue.hairline, lineWidth: 1)
             )
             .modifier(CardShadow())
@@ -443,7 +443,7 @@ struct ExplorePlaceCard: View {
     /// none — a faint leaf motif, so white type over it always reads.
     private var placeFallback: some View {
         ZStack(alignment: .topTrailing) {
-            LinearGradient(colors: [Hue.moss400, Hue.accent],
+            LinearGradient(colors: [Hue.ink, Hue.ink],
                            startPoint: .topLeading, endPoint: .bottomTrailing)
             Image(systemName: "leaf.fill")
                 .font(.system(size: 74, weight: .regular))
@@ -465,13 +465,13 @@ struct ExploreComposeBanner: View {
         Button { action?() } label: {
             HStack(spacing: 14) {
                 ZStack {
-                    Circle().fill(Hue.accent)
+                    Circle().fill(Hue.ink)
                     Image(systemName: "plus")
                         .font(.system(size: 18, weight: .bold))
                         .foregroundStyle(.white)
                 }
                 .frame(width: 46, height: 46)
-                .shadow(color: Hue.accent.opacity(0.3), radius: 6, x: 0, y: 3)
+                .shadow(color: Hue.ink.opacity(0.3), radius: 6, x: 0, y: 3)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Add your own happening")
@@ -479,18 +479,18 @@ struct ExploreComposeBanner: View {
                         .foregroundStyle(Hue.ink)
                     Text("Post an event, club, or trail for neighbors")
                         .font(.sans(13))
-                        .foregroundStyle(Hue.ink2)
+                        .foregroundStyle(Hue.inkSecondary)
                         .lineLimit(1)
                 }
                 Spacer(minLength: 6)
                 Image(systemName: "chevron.right")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Hue.accent)
+                    .foregroundStyle(Hue.ink)
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Hue.accentSoft)
-            .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
+            .background(Hue.fill)
+            .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         }
         .buttonStyle(PressableStyle(scale: 0.98))
     }

@@ -51,7 +51,7 @@ struct QuickAddSheet: View {
 
                     if let error {
                         Text(error)
-                            .font(.sans(13)).foregroundStyle(Hue.clay700)
+                            .font(.sansBold(13)).foregroundStyle(Hue.ink)
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
@@ -65,7 +65,7 @@ struct QuickAddSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }.foregroundStyle(Hue.gray)
+                    Button("Cancel") { dismiss() }.foregroundStyle(Hue.inkSecondary)
                 }
             }
         }
@@ -73,14 +73,14 @@ struct QuickAddSheet: View {
         // hidden primary action is exactly the kind of slop Part C rejects.
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
-        .presentationCornerRadius(Radius.xl)
+        .presentationCornerRadius(Radius.card)
     }
 
     // MARK: Fields
 
     private var whenRow: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("When").font(.sansMedium(12)).foregroundStyle(Hue.gray)
+            Text("When").font(.sansMedium(12)).foregroundStyle(Hue.inkSecondary)
             HStack {
                 DatePicker("", selection: $date, in: Calendar.current.startOfDay(for: Date())...,
                            displayedComponents: .date)
@@ -90,17 +90,17 @@ struct QuickAddSheet: View {
                     .labelsHidden()
             }
             .padding(.horizontal, 14).padding(.vertical, 8)
-            .background(Hue.bgSubtle)
-            .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: Radius.md, style: .continuous)
-                .stroke(Hue.mapHairline, lineWidth: 1))
+            .background(Hue.paper)
+            .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
+                .stroke(Hue.hairline, lineWidth: 1))
         }
     }
 
     private func labeledField(_ label: String, _ text: Binding<String>,
                               placeholder: String, multiline: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(label).font(.sansMedium(12)).foregroundStyle(Hue.gray)
+            Text(label).font(.sansMedium(12)).foregroundStyle(Hue.inkSecondary)
             Group {
                 if multiline {
                     TextField(placeholder, text: text, axis: .vertical).lineLimit(2...4)
@@ -108,12 +108,12 @@ struct QuickAddSheet: View {
                     TextField(placeholder, text: text)
                 }
             }
-            .font(.sans(15)).foregroundStyle(Hue.mapInk)
+            .font(.sans(15)).foregroundStyle(Hue.ink)
             .padding(.horizontal, 14).padding(.vertical, 12)
-            .background(Hue.bgSubtle)
-            .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: Radius.md, style: .continuous)
-                .stroke(Hue.mapHairline, lineWidth: 1))
+            .background(Hue.paper)
+            .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
+                .stroke(Hue.hairline, lineWidth: 1))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -128,7 +128,8 @@ struct QuickAddSheet: View {
                     .font(.sansSemibold(16)).foregroundStyle(.white)
             }
             .frame(maxWidth: .infinity).frame(height: 50)
-            .background(submitting ? Hue.accent.opacity(0.5) : Hue.accent, in: Capsule())
+            .background(submitting ? Hue.ink.opacity(0.5) : Hue.ink,
+                        in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
         }
         .buttonStyle(.plain)
         .disabled(submitting)

@@ -23,7 +23,7 @@ struct OnboardingView: View {
 
     var body: some View {
         ZStack {
-            Hue.canvas.ignoresSafeArea()
+            Hue.paper.ignoresSafeArea()
             switch step {
             case .hello:
                 hello.transition(.opacity)
@@ -61,18 +61,18 @@ struct OnboardingView: View {
                 .font(.display(38)).foregroundStyle(Hue.ink)
                 .fixedSize(horizontal: false, vertical: true)
             Text("One calm place for everything happening in St. Joseph — a daily look at town, a shared calendar anyone can add to, and small nudges to get out and meet your neighbors.")
-                .font(.sans(16)).foregroundStyle(Hue.ink2).lineSpacing(4)
+                .font(.sans(16)).foregroundStyle(Hue.inkSecondary).lineSpacing(4)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer()
             Button(action: { go(.name) }) {
                 Text("Get started")
                     .font(.sansSemibold(16)).foregroundStyle(.white)
                     .frame(maxWidth: .infinity).padding(.vertical, 16)
-                    .background(Hue.accent, in: RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
+                    .background(Hue.ink, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
             }
             .buttonStyle(.plain)
             Button(action: { finishData(); finish() }) {
-                Text("Skip for now").font(.sans(14)).foregroundStyle(Hue.ink3)
+                Text("Skip for now").font(.sans(14)).foregroundStyle(Hue.inkSecondary)
                     .frame(maxWidth: .infinity).padding(.vertical, 4)
             }
             .buttonStyle(.plain)

@@ -48,7 +48,7 @@ struct EditProfileView: View {
             }
             footer
         }
-        .background(Hue.canvas.ignoresSafeArea())
+        .background(Hue.paper.ignoresSafeArea())
         .presentationDetents([.large])
         .onAppear {
             if name.isEmpty { name = model.displayName }
@@ -77,7 +77,7 @@ struct EditProfileView: View {
             Text("Edit profile").font(.sansSemibold(17)).foregroundStyle(Hue.ink)
             HStack {
                 Button { Haptics.light(); dismiss() } label: {
-                    Text("Cancel").font(.sans(16)).foregroundStyle(Hue.ink2)
+                    Text("Cancel").font(.sans(16)).foregroundStyle(Hue.inkSecondary)
                 }
                 .buttonStyle(.plain)
                 Spacer()
@@ -93,8 +93,8 @@ struct EditProfileView: View {
             Rectangle().fill(Hue.hairline).frame(height: 1)
             if saveFailed {
                 Text("Couldn't save — check your connection and try again.")
-                    .font(.sans(13))
-                    .foregroundStyle(Hue.clay700)
+                    .font(.sansBold(13))
+                    .foregroundStyle(Hue.ink)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, 24)
@@ -124,14 +124,14 @@ struct EditProfileView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
-                .background(Hue.accent, in: RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
+                .background(Hue.ink, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
             }
             .buttonStyle(.plain)
             .padding(.horizontal, 24)
             .padding(.top, 12)
             .padding(.bottom, 8)
         }
-        .background(Hue.canvas)
+        .background(Hue.paper)
     }
 
     // MARK: - Fields
@@ -141,13 +141,13 @@ struct EditProfileView: View {
             if let image {
                 Image(uiImage: image).resizable().scaledToFill()
             } else if let url = model.avatarUrl, let u = URL(string: url) {
-                AsyncImage(url: u) { img in img.resizable().scaledToFill() } placeholder: { Hue.paper }
+                AsyncImage(url: u) { img in img.resizable().scaledToFill() } placeholder: { Hue.surface }
             } else {
                 ZStack {
-                    Hue.paper
+                    Hue.surface
                     VStack(spacing: 8) {
-                        Image(systemName: "camera.fill").font(.system(size: 24)).foregroundStyle(Hue.accent)
-                        Text("Add photo").font(.sansMedium(13)).foregroundStyle(Hue.ink3)
+                        Image(systemName: "camera.fill").font(.system(size: 24)).foregroundStyle(Hue.ink)
+                        Text("Add photo").font(.sansMedium(13)).foregroundStyle(Hue.inkSecondary)
                     }
                 }
             }
@@ -161,7 +161,7 @@ struct EditProfileView: View {
             Image(systemName: "camera.fill")
                 .font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
                 .frame(width: 34, height: 34)
-                .background(Hue.accent, in: Circle())
+                .background(Hue.ink, in: Circle())
                 .overlay(Circle().stroke(.white, lineWidth: 2))
         }
         .accessibilityLabel(image == nil ? "Add a profile picture" : "Change profile picture")
@@ -169,24 +169,24 @@ struct EditProfileView: View {
 
     private var nameField: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("NAME").font(.mono(11)).tracking(1.5).foregroundStyle(Hue.ink3)
+            Text("NAME").font(.mono(11)).tracking(1.5).foregroundStyle(Hue.inkSecondary)
             TextField("Your name", text: $name)
                 .font(.sans(17)).foregroundStyle(Hue.ink)
                 .textInputAutocapitalization(.words)
                 .submitLabel(.done)
                 .padding(.horizontal, 14).padding(.vertical, 13)
-                .background(Hue.paper, in: RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Radius.md, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
+                .background(Hue.surface, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
                 .onChange(of: name) { _, v in if v.count > 24 { name = String(v.prefix(24)) } }
         }
     }
 
     private var interestsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("INTERESTS").font(.mono(11)).tracking(1.5).foregroundStyle(Hue.ink3)
+            Text("INTERESTS").font(.mono(11)).tracking(1.5).foregroundStyle(Hue.inkSecondary)
             if interests.isEmpty {
                 Text("Pick a few so we can quietly surface what fits around town.")
-                    .font(.sans(14)).foregroundStyle(Hue.ink3)
+                    .font(.sans(14)).foregroundStyle(Hue.inkSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 FlowLayout(spacing: 8) {
@@ -199,10 +199,10 @@ struct EditProfileView: View {
                     Text(interests.isEmpty ? "Choose interests" : "Edit interests · \(interests.count)")
                         .font(.sansSemibold(15))
                 }
-                .foregroundStyle(Hue.accent)
+                .foregroundStyle(Hue.ink)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 13)
-                .background(Hue.accentSoft.opacity(0.9), in: RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
+                .background(Hue.fill.opacity(0.9), in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             }
             .buttonStyle(PressableStyle())
         }

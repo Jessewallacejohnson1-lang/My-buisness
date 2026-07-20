@@ -18,16 +18,16 @@ struct ShareTargetRow: View {
     var body: some View {
         HStack(spacing: 30) {
             if center.canSendMessages {
-                target("message.fill", "Messages", tint: .white, bg: Color(hex: 0x34C759)) {
+                target("message.fill", "Messages", tint: .white, bg: Hue.ink) {
                     center.sendMessages()
                 }
             }
             if includesImage {
-                target("square.and.arrow.down", "Save image", tint: Hue.ink, bg: Hue.canvas) {
+                target("square.and.arrow.down", "Save image", tint: Hue.ink, bg: Hue.paper) {
                     center.saveImage()
                 }
             }
-            target("ellipsis", "More", tint: Hue.ink, bg: Hue.canvas) {
+            target("ellipsis", "More", tint: Hue.ink, bg: Hue.paper) {
                 center.shareMore()
             }
         }
@@ -45,7 +45,7 @@ struct ShareTargetRow: View {
                     .overlay(Circle().stroke(Hue.hairline, lineWidth: 1))
                 Text(label)
                     .font(.sans(12))
-                    .foregroundStyle(Hue.ink2)
+                    .foregroundStyle(Hue.inkSecondary)
             }
         }
         .buttonStyle(PressableStyle(scale: 0.9))

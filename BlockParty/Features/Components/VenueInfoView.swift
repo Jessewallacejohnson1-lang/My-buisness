@@ -37,9 +37,9 @@ struct VenueInfoView: View {
         let sub: Color
         let hairline: Color
         /// Cooler map chrome (MapSheet spot detail).
-        static let map = Palette(card: Hue.bgSubtle, ink: Hue.mapInk, sub: Hue.gray, hairline: Hue.mapHairline)
+        static let map = Palette(card: Hue.paper, ink: Hue.ink, sub: Hue.inkSecondary, hairline: Hue.hairline)
         /// Warm surfaces (PlaceDetailView).
-        static let warm = Palette(card: Hue.paper, ink: Hue.ink, sub: Hue.ink3, hairline: Hue.hairline)
+        static let warm = Palette(card: Hue.surface, ink: Hue.ink, sub: Hue.inkSecondary, hairline: Hue.hairline)
     }
 
     let query: String
@@ -95,7 +95,7 @@ struct VenueInfoView: View {
                 }
             }
             .frame(height: 150).frame(maxWidth: .infinity).clipped()
-            .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
 
             if !p.attributions.isEmpty {
                 Text(p.attributions.joined(separator: ", "))
@@ -118,8 +118,8 @@ struct VenueInfoView: View {
             }
         }
         .background(palette.card)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.md, style: .continuous).stroke(palette.hairline, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).stroke(palette.hairline, lineWidth: 1))
     }
 
     @ViewBuilder
@@ -168,7 +168,7 @@ struct VenueInfoView: View {
         Button(action: action) {
             HStack(spacing: 10) {
                 Image(systemName: icon).font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(Hue.accent).frame(width: 18)
+                    .foregroundStyle(Hue.ink).frame(width: 18)
                 Text(text).font(.sansMedium(14)).foregroundStyle(palette.ink).lineLimit(1)
                 Spacer()
                 Image(systemName: "arrow.up.right").font(.system(size: 11, weight: .semibold))
@@ -221,7 +221,7 @@ struct VenueInfoView: View {
     }
 
     private func statusColor(_ d: PlaceDetails) -> Color {
-        d.openNow == true ? Hue.accent : palette.ink
+        d.openNow == true ? Hue.ink : palette.ink
     }
 
     private func call(_ phone: String?) {

@@ -19,7 +19,7 @@ struct EventRow: View {
                     Text(time)
                         .font(.mono(12))
                         .monospacedDigit()
-                        .foregroundStyle(Hue.ink3)
+                        .foregroundStyle(Hue.inkSecondary)
                 }
                 Text(event.title)
                     .font(.sansBold(16))
@@ -28,7 +28,7 @@ struct EventRow: View {
                 if let club = event.clubName, !club.isEmpty {
                     Text(club)
                         .font(.sans(12))
-                        .foregroundStyle(Hue.sky600)
+                        .foregroundStyle(Hue.ink)
                 }
                 if let loc = event.location, !loc.isEmpty {
                     HStack(spacing: 4) {
@@ -36,7 +36,7 @@ struct EventRow: View {
                             .font(.system(size: 11))
                         Text(loc).font(.sans(13))
                     }
-                    .foregroundStyle(Hue.ink2)
+                    .foregroundStyle(Hue.inkSecondary)
                 }
             }
             Spacer(minLength: 8)
@@ -48,12 +48,12 @@ struct EventRow: View {
                     } label: {
                         Text(event.rsvpd ? "Going" : "RSVP")
                             .font(.sansSemibold(13))
-                            .foregroundStyle(event.rsvpd ? .white : Hue.accent)
+                            .foregroundStyle(event.rsvpd ? .white : Hue.ink)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 7)
-                            .background(event.rsvpd ? Hue.accent : Hue.paper)
-                            .clipShape(Capsule())
-                            .overlay(Capsule().stroke(event.rsvpd ? Color.clear : Hue.accent.opacity(0.4), lineWidth: 1))
+                            .background(event.rsvpd ? Hue.ink : Hue.surface)
+                            .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).stroke(event.rsvpd ? Color.clear : Hue.ink.opacity(0.4), lineWidth: 1))
                     }
                     .buttonStyle(PressableStyle(scale: 0.94))
                 }
@@ -61,13 +61,13 @@ struct EventRow: View {
                     Text("\(event.goingCount) going")
                         .font(.mono(11))
                         .monospacedDigit()
-                        .foregroundStyle(Hue.ink3)
+                        .foregroundStyle(Hue.inkSecondary)
                 }
                 if date != nil {
                     Button(action: toggleReminder) {
                         Image(systemName: reminderOn ? "bell.fill" : "bell")
                             .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(reminderOn ? Hue.accent : Hue.ink3)
+                            .foregroundStyle(reminderOn ? Hue.ink : Hue.inkSecondary)
                             .symbolEffect(.bounce, value: reminderOn)
                     }
                     .buttonStyle(.plain)

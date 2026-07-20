@@ -28,7 +28,7 @@ struct ActivitiesSkeleton: View {
     // Full-width 210pt hero + three page dots (mirrors FeaturedCarousel).
     private var featuredHero: some View {
         VStack(spacing: 12) {
-            SkeletonBlock(cornerRadius: Radius.xl)
+            SkeletonBlock(cornerRadius: Radius.card)
                 .frame(height: 210)
             HStack(spacing: 6) {
                 ForEach(0..<3, id: \.self) { _ in SkeletonCircle(diameter: 6) }
@@ -60,7 +60,7 @@ struct ActivitiesSkeleton: View {
     // A 232×132 photo block with a title + meta line beneath (mirrors EventShelfCard).
     private var shelfCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SkeletonBlock(cornerRadius: Radius.lg)
+            SkeletonBlock(cornerRadius: Radius.card)
                 .frame(width: 232, height: 132)
             SkeletonLine(widthFraction: 0.85, height: 12)
             SkeletonLine(widthFraction: 0.55, height: 10)
@@ -72,6 +72,6 @@ struct ActivitiesSkeleton: View {
 #if DEBUG
 #Preview("Activities skeleton") {
     ScrollView { ActivitiesSkeleton() }
-        .background(Hue.canvas)
+        .background(Hue.paper)
 }
 #endif

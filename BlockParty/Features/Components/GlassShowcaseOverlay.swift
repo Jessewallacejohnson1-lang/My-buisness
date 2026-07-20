@@ -50,7 +50,7 @@ struct GlassShowcaseOverlay<Content: View>: View {
                     // The whole app frosts into glass and fades out behind the panel.
                     Rectangle()
                         .fill(.regularMaterial)
-                        .overlay(Hue.canvas.opacity(0.45))
+                        .overlay(Hue.paper.opacity(0.45))
                         .overlay(Color.black.opacity(0.04))
                         .opacity(shown ? 1 : 0)
                         .ignoresSafeArea()

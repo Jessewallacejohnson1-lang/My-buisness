@@ -31,7 +31,7 @@ struct SkeletonBlock: View {
 
     var body: some View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            .fill(Hue.paper200)
+            .fill(Hue.fill)
     }
 }
 
@@ -55,7 +55,7 @@ struct SkeletonCircle: View {
 
     var body: some View {
         Circle()
-            .fill(Hue.paper200)
+            .fill(Hue.fill)
             .frame(width: diameter, height: diameter)
     }
 }
@@ -121,17 +121,17 @@ struct SkeletonGalleryPreview: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
-                Text("Activities").font(.displaySemi(16)).foregroundStyle(Hue.ink3)
+                Text("Activities").font(.displaySemi(16)).foregroundStyle(Hue.inkSecondary)
                     .padding(.horizontal, 18)
                 ActivitiesSkeleton()
 
-                Text("Today card").font(.displaySemi(16)).foregroundStyle(Hue.ink3)
+                Text("Today card").font(.displaySemi(16)).foregroundStyle(Hue.inkSecondary)
                     .padding(.horizontal, 18)
                 TodayLoadingCard().padding(.horizontal, 18)
             }
             .padding(.vertical, 24)
         }
-        .background(Hue.canvas.ignoresSafeArea())
+        .background(Hue.paper.ignoresSafeArea())
     }
 }
 

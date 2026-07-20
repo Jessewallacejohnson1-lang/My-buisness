@@ -146,8 +146,8 @@ struct WeatherBar: View {
             .shadow(color: .black.opacity(0.3), radius: 8, y: 1)
         }
         .frame(height: 75)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
         .task { weather = await WeatherService.current() }
     }
 }

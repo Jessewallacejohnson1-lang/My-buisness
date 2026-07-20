@@ -37,7 +37,7 @@ struct Masthead: View {
                 Text(dateLine)
                     .font(.mono(13))
                     .monospacedDigit()
-                    .foregroundStyle(Hue.ink2)
+                    .foregroundStyle(Hue.inkSecondary)
             }
             Spacer()
             menuButton.padding(.top, 4)
@@ -66,7 +66,7 @@ struct Masthead: View {
             // the button as it's tapped, then restores on close.
             VStack(spacing: 3) {
                 ForEach(0..<3, id: \.self) { _ in
-                    Circle().fill(Hue.ink3).frame(width: 4, height: 4)
+                    Circle().fill(Hue.inkSecondary).frame(width: 4, height: 4)
                 }
             }
             .opacity(activated ? 0 : 1)

@@ -130,11 +130,13 @@ struct ProfileView: View {
                     Image(systemName: "pencil").font(.system(size: 13, weight: .semibold))
                     Text("Edit").font(.sansSemibold(15))
                 }
-                .foregroundStyle(Hue.accent)
+                .foregroundStyle(Hue.ink)
                 .padding(.horizontal, 15)
                 .padding(.vertical, 9)
-                .background(Hue.accentSoft.opacity(0.92), in: Capsule())
-                .overlay(Capsule().stroke(Hue.accent.opacity(0.18), lineWidth: 1))
+                .background(Hue.fill.opacity(0.92),
+                            in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
+                    .stroke(Hue.ink.opacity(0.18), lineWidth: 1))
             }
             .buttonStyle(PressableStyle())
         }
@@ -166,7 +168,7 @@ struct ProfileView: View {
                         .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(.white)
                         .frame(width: 30, height: 30)
-                        .background(Hue.accent, in: Circle())
+                        .background(Hue.ink, in: Circle())
                         .overlay(Circle().stroke(.white, lineWidth: 2))
                         .offset(x: 3, y: 3)
                 }
@@ -176,7 +178,7 @@ struct ProfileView: View {
             VStack(spacing: 6) {
                 Text(model.displayName.isEmpty ? "Add your name" : model.displayName)
                     .font(.display(26))
-                    .foregroundStyle(model.displayName.isEmpty ? Hue.ink3 : Hue.ink)
+                    .foregroundStyle(model.displayName.isEmpty ? Hue.inkSecondary : Hue.ink)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .minimumScaleFactor(0.8)
@@ -185,7 +187,7 @@ struct ProfileView: View {
                     Image(systemName: "mappin.and.ellipse").font(.system(size: 11, weight: .semibold))
                     Text(subLine).font(.sans(13))
                 }
-                .foregroundStyle(Hue.ink2)
+                .foregroundStyle(Hue.inkSecondary)
 
                 if model.isAdmin { organizerBadge }
             }
@@ -212,10 +214,10 @@ struct ProfileView: View {
             Image(systemName: "checkmark.seal.fill").font(.system(size: 11, weight: .bold))
             Text("Town organizer").font(.sansSemibold(12))
         }
-        .foregroundStyle(Hue.accent)
+        .foregroundStyle(Hue.ink)
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
-        .background(Hue.accentSoft.opacity(0.92), in: Capsule())
+        .background(Hue.fill.opacity(0.92), in: Capsule())
         .padding(.top, 2)
     }
 
@@ -309,15 +311,15 @@ struct ProfileView: View {
 
     private func eventItem(_ e: UpcomingEvent) -> some View {
         HStack(spacing: 11) {
-            Circle().fill(Hue.accent).frame(width: 7, height: 7)
+            Circle().fill(Hue.ink).frame(width: 7, height: 7)
             VStack(alignment: .leading, spacing: 2) {
                 Text(e.title).font(.sansMedium(14)).foregroundStyle(Hue.ink).lineLimit(1)
-                Text(eventWhen(e)).font(.sans(12)).foregroundStyle(Hue.ink3).lineLimit(1)
+                Text(eventWhen(e)).font(.sans(12)).foregroundStyle(Hue.inkSecondary).lineLimit(1)
             }
             Spacer(minLength: 6)
             if e.goingCount > 0 {
                 Text("\(e.goingCount) going")
-                    .font(.monoMedium(12)).monospacedDigit().foregroundStyle(Hue.ink3)
+                    .font(.monoMedium(12)).monospacedDigit().foregroundStyle(Hue.inkSecondary)
             }
         }
         .padding(.leading, 4)
@@ -331,15 +333,15 @@ struct ProfileView: View {
 
     private func clubItem(_ c: ClubView) -> some View {
         HStack(spacing: 11) {
-            Image(systemName: "person.2.fill").font(.system(size: 12)).foregroundStyle(Hue.accent).frame(width: 16)
+            Image(systemName: "person.2.fill").font(.system(size: 12)).foregroundStyle(Hue.ink).frame(width: 16)
             VStack(alignment: .leading, spacing: 2) {
                 Text(c.name).font(.sansMedium(14)).foregroundStyle(Hue.ink).lineLimit(1)
                 if let sched = c.schedule, !sched.isEmpty {
-                    Text(sched).font(.sans(12)).foregroundStyle(Hue.ink3).lineLimit(1)
+                    Text(sched).font(.sans(12)).foregroundStyle(Hue.inkSecondary).lineLimit(1)
                 }
             }
             Spacer(minLength: 6)
-            Text("\(c.memberCount)").font(.monoMedium(12)).monospacedDigit().foregroundStyle(Hue.ink3)
+            Text("\(c.memberCount)").font(.monoMedium(12)).monospacedDigit().foregroundStyle(Hue.inkSecondary)
         }
         .padding(.leading, 4)
     }
@@ -378,10 +380,10 @@ struct ProfileView: View {
                 Image(systemName: "rectangle.portrait.and.arrow.right").font(.system(size: 15, weight: .semibold))
                 Text("Sign out").font(.sansSemibold(16))
             }
-            .foregroundStyle(Hue.clay700)
+            .foregroundStyle(Hue.ink)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 15)
-            .glassPanel(Radius.lg)
+            .glassPanel(Radius.card)
         }
         .buttonStyle(PressableStyle())
     }
@@ -389,7 +391,7 @@ struct ProfileView: View {
     // MARK: - Helpers
 
     private func groupLabel(_ text: String) -> some View {
-        Text(text).font(.mono(11)).tracking(1.5).foregroundStyle(Hue.ink3).padding(.leading, 6)
+        Text(text).font(.mono(11)).tracking(1.5).foregroundStyle(Hue.inkSecondary).padding(.leading, 6)
     }
 
     private func openSystemSettings() {
@@ -418,18 +420,18 @@ struct AboutBlockPartySheet: View {
                 Button { dismiss() } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 14, weight: .semibold)).foregroundStyle(Hue.ink)
-                        .frame(width: 34, height: 34).background(Hue.paper200, in: Circle())
+                        .frame(width: 34, height: 34).background(Hue.fill, in: Circle())
                 }
                 .buttonStyle(.plain)
             }
             Text("One calm place for everything happening in St. Joseph, Minnesota — a daily look at town, a shared calendar anyone can add to, a live town map, and small nudges to get out and meet your neighbors.")
-                .font(.sans(16)).foregroundStyle(Hue.ink2).lineSpacing(4)
+                .font(.sans(16)).foregroundStyle(Hue.inkSecondary).lineSpacing(4)
                 .fixedSize(horizontal: false, vertical: true)
-            Text(versionLine).font(.monoMedium(13)).monospacedDigit().foregroundStyle(Hue.ink3)
+            Text(versionLine).font(.monoMedium(13)).monospacedDigit().foregroundStyle(Hue.inkSecondary)
             Spacer()
         }
         .padding(24)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Hue.canvas.ignoresSafeArea())
+        .background(Hue.paper.ignoresSafeArea())
     }
 }

@@ -17,8 +17,7 @@
 //  than reaching for another file. Suffix rules (`_restaurant` → food, `_store` →
 //  business) catch the long tail of cuisine/retail variants without enumerating them.
 //
-//  Families are differentiated by GLYPH, not colour: every food place shares one
-//  amber tint, every business shares one indigo tint (see `PlaceFamily.color`).
+//  Families are differentiated by GLYPH, not colour; all place pins use ink.
 //
 
 import SwiftUI
@@ -31,17 +30,13 @@ enum PlaceFamily: String, Codable, Hashable, CaseIterable {
     case food
     case business
 
-    /// Marker tint — one colour per family (places differ by glyph, not colour).
-    /// Reuses the already-shipped EventCategory tokens (food = orange `#F08A3C`,
-    /// games = indigo `#5B6EE0`): both are on-palette, both read clearly distinct
-    /// from the sacred live-coral `#FF6B57` (so a POI never looks "selected") and
-    /// from the pale basemap water `#9EDAF3` (so indigo never clashes). No new hexes.
+    /// Marker tint — places differ by glyph, not colour.
     /// Named `tint` to match `SpotCategory.tint` / `EventCategory.tint`, so a shared
     /// pin renderer can read one accessor across civic and POI pins.
     var tint: Color {
         switch self {
-        case .food:     return Color(hex: 0xF08A3C)   // amber / tangerine
-        case .business: return Color(hex: 0x5B6EE0)   // indigo
+        case .food:     return Hue.ink
+        case .business: return Hue.ink
         }
     }
 

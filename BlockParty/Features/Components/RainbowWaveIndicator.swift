@@ -1,11 +1,11 @@
 //
 //  RainbowWaveIndicator.swift
-//  Block Party — the six-dot "rainbow wave" loading indicator.
+//  Block Party — the six-dot monochrome wave loading indicator.
 //
 //  Reverse-engineered frame-by-frame from a reference screen recording (the
 //  "ss loop" method: track every dot's centroid per frame, then replay). Six
-//  dots — yellow · orange · red · purple · blue · green — sit in a centred row
-//  and ripple UPWARD in a left-to-right travelling wave: each dot lifts ~2.7×
+//  neutral dots sit in a centred row and ripple UPWARD in a left-to-right
+//  travelling wave: each dot lifts ~2.7×
 //  its own diameter, holds near the top, then falls back through rest with a
 //  soft overshoot before settling. Period ≈ 1.987s.
 //
@@ -39,12 +39,12 @@ struct RainbowWaveIndicator: View {
     private static let period: Double = 1.987
 
     private static let colors: [Color] = [
-        Color(hex: 0xFED218), // yellow
-        Color(hex: 0xFD7C16), // orange
-        Color(hex: 0xF2164B), // red
-        Color(hex: 0x7B61E3), // purple
-        Color(hex: 0x08A9E6), // blue
-        Color(hex: 0x02B64C), // green
+        Hue.surface,
+        Hue.fill,
+        Hue.hairline,
+        Hue.inkSecondary,
+        Hue.fill,
+        Hue.surface,
     ]
 
     var body: some View {
@@ -176,7 +176,7 @@ private let dotCurves: [[CGFloat]] = [
 #if DEBUG
 #Preview("Rainbow wave") {
     ZStack {
-        LinearGradient(colors: [Color(hex: 0x23272E), Color(hex: 0x15171A)],
+        LinearGradient(colors: [Hue.inkSecondary, Hue.ink],
                        startPoint: .top, endPoint: .bottom).ignoresSafeArea()
         RainbowWaveIndicator(dotDiameter: 16)
     }

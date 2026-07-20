@@ -105,7 +105,7 @@ struct ComposeSpeedDial: View {
             // the host). Faintly translucent so a ghost shows through, like the
             // reference. Tap anywhere off the menu to close.
             if isOpen {
-                Hue.canvas.opacity(0.92)
+                Hue.paper.opacity(0.92)
                     .ignoresSafeArea()
                     .transition(.opacity)
                     .contentShape(Rectangle())
@@ -177,9 +177,9 @@ struct ComposeSpeedDial: View {
     private func iconCircle(_ item: SpeedDialItem) -> some View {
         Image(systemName: item.symbol)
             .font(.system(size: 19, weight: .semibold))
-            .foregroundStyle(item.primary ? .white : Hue.accent)
+            .foregroundStyle(item.primary ? .white : Hue.ink)
             .frame(width: iconSize, height: iconSize)
-            .background(item.primary ? Hue.accent : Hue.accentSoft, in: Circle())
+            .background(item.primary ? Hue.ink : Hue.fill, in: Circle())
             .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 2)
     }
 
@@ -195,12 +195,12 @@ struct ComposeSpeedDial: View {
                 Circle()
                     .fill(Hue.surface)
                     .frame(width: discSize, height: discSize)
-                    .overlay(Circle().stroke(Hue.mapHairline, lineWidth: 1))
+                    .overlay(Circle().stroke(Hue.hairline, lineWidth: 1))
                     .mapFloatShadow()
                     .overlay(
                         Image(systemName: "plus")
                             .font(.system(size: 16, weight: .medium))
-                            .foregroundStyle(Hue.mapInk)
+                            .foregroundStyle(Hue.ink)
                             .rotationEffect(.degrees(isOpen ? 135 : 0))
                     )
             } else {
@@ -209,8 +209,8 @@ struct ComposeSpeedDial: View {
                     .foregroundStyle(.white)
                     .rotationEffect(.degrees(isOpen ? 135 : 0))
                     .frame(width: discSize, height: discSize)
-                    .background(Hue.accent, in: Circle())
-                    .shadow(color: Hue.accent.opacity(0.35), radius: 10, x: 0, y: 5)
+                    .background(Hue.ink, in: Circle())
+                    .shadow(color: Hue.ink.opacity(0.35), radius: 10, x: 0, y: 5)
             }
         }
         .buttonStyle(PressableStyle(scale: 0.90, haptic: true))

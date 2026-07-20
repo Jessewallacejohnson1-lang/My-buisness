@@ -24,10 +24,10 @@ struct InterestCard: View {
             }
             .frame(height: 130)
             .frame(maxWidth: .infinity)
-            .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: Radius.lg, style: .continuous)
-                    .stroke(selected ? Hue.accent : Hue.hairline, lineWidth: selected ? 3 : 1)
+                RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+                    .stroke(selected ? Hue.ink : Hue.hairline, lineWidth: selected ? 3 : 1)
             )
             .animation(.spring(response: 0.3, dampingFraction: 0.75), value: selected)
         }
@@ -43,9 +43,9 @@ struct InterestCard: View {
                 .scaleEffect(selected && !reduceMotion ? 1.05 : 1)
         } else {
             // Calm tinted fallback (no gradient slop) until a photo is present.
-            Rectangle().fill(Hue.paper200)
+            Rectangle().fill(Hue.fill)
                 .overlay(Image(systemName: "photo")
-                    .font(.system(size: 22)).foregroundStyle(Hue.ink3))
+                    .font(.system(size: 22)).foregroundStyle(Hue.inkSecondary))
         }
     }
 
@@ -67,7 +67,7 @@ struct InterestCard: View {
     private var checkCircle: some View {
         ZStack {
             Circle()
-                .fill(selected ? Hue.accent : .black.opacity(0.25))
+                .fill(selected ? Hue.ink : .black.opacity(0.25))
                 .overlay(Circle().stroke(.white.opacity(selected ? 0 : 0.9), lineWidth: 1.5))
                 .frame(width: 26, height: 26)
             if selected {

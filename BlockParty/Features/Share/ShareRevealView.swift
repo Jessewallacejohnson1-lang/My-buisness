@@ -50,13 +50,13 @@ struct ShareRevealView: View {
                 Button { center.dismiss() } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(Hue.ink3)
+                        .foregroundStyle(Hue.inkSecondary)
                 }
                 .buttonStyle(PressableStyle(scale: 0.9, haptic: true))
                 Spacer()
                 Text(payload.title)
                     .font(.mono(11)).tracking(1.6)
-                    .foregroundStyle(Hue.ink3)
+                    .foregroundStyle(Hue.inkSecondary)
                 Spacer()
                 Color.clear.frame(width: 15, height: 15)   // balances the X
             }
@@ -71,10 +71,10 @@ struct ShareRevealView: View {
         // ignoresSafeArea, so it bleeds flush to the physical bottom edge —
         // clip-then-ignore left a dim strip over the home indicator.
         .background(
-            UnevenRoundedRectangle(topLeadingRadius: Radius.xl,
-                                   topTrailingRadius: Radius.xl,
+            UnevenRoundedRectangle(topLeadingRadius: Radius.card,
+                                   topTrailingRadius: Radius.card,
                                    style: .continuous)
-                .fill(Hue.paper)
+                .fill(Hue.surface)
                 .ignoresSafeArea(edges: .bottom)
         )
     }

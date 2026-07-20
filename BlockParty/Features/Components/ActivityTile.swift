@@ -8,8 +8,7 @@
 //
 //  Ports the RN twin's ActivityTile (apps/mobile/src/components/ActivityTile.tsx)
 //  and shares FeaturedEventCard's scrim + coral-panel idiom, so a vertical tile
-//  and the featured hero read as one system. White surface, coral (Hue.accent)
-//  the one accent.
+//  and the featured hero read as one system. White surface with ink active states.
 //
 
 import SwiftUI
@@ -69,9 +68,9 @@ struct ActivityTile<Photo: View, Trailing: View>: View {
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .clipShape(RoundedRectangle(cornerRadius: Radius.xl, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: Radius.xl, style: .continuous)
+            RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
                 .stroke(Hue.hairline, lineWidth: 1)
         )
         .modifier(CardShadow())
@@ -93,7 +92,7 @@ struct ActivityCoralPanel: View {
     var glyph: String = "sparkles"
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            LinearGradient(colors: [Hue.moss400, Hue.accent, Hue.accentPressed],
+            LinearGradient(colors: [Hue.ink, Hue.ink, Hue.ink],
                            startPoint: .topLeading, endPoint: .bottomTrailing)
             Image(systemName: glyph)
                 .font(.system(size: 116, weight: .light))

@@ -58,12 +58,12 @@ struct BoardView: View {
                 .padding(18)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .background(Hue.canvas)
+            .background(Hue.paper)
             .navigationTitle("The Board")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }.foregroundStyle(Hue.accent)
+                    Button("Done") { dismiss() }.foregroundStyle(Hue.ink)
                 }
             }
             .refreshable { await model.load(api) }
@@ -96,14 +96,14 @@ struct BoardView: View {
                     Text(t)
                         .font(.mono(12))
                         .monospacedDigit()
-                        .foregroundStyle(Hue.ink3)
+                        .foregroundStyle(Hue.inkSecondary)
                 }
             }
 
             if let blurb = item.blurb, !blurb.isEmpty {
                 Text(blurb)
                     .font(.sans(14))
-                    .foregroundStyle(Hue.ink2)
+                    .foregroundStyle(Hue.inkSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -123,14 +123,14 @@ struct BoardView: View {
                     Image(systemName: "arrow.up.right").font(.system(size: 10, weight: .semibold))
                 }
                 .font(.sansMedium(12))
-                .foregroundStyle(Hue.accent)
+                .foregroundStyle(Hue.ink)
             }
             .buttonStyle(.plain)
             .padding(.top, 2)
         } else {
             Text("via \(item.sourceName)")
                 .font(.sansMedium(12))
-                .foregroundStyle(Hue.ink3)
+                .foregroundStyle(Hue.inkSecondary)
                 .padding(.top, 2)
         }
     }
@@ -142,7 +142,7 @@ struct BoardView: View {
                 .foregroundStyle(Hue.ink)
             Text("Nothing posted right now. Check back soon — new happenings show up here as neighbors and the town add them.")
                 .font(.sans(15))
-                .foregroundStyle(Hue.ink2)
+                .foregroundStyle(Hue.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

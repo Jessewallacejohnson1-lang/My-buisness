@@ -2,7 +2,7 @@
 //  BlockPartyLogoBadge.swift
 //  Block Party — the brand mark
 //
-//  The wordmark set in Atkinson Hyperlegible Bold, white on a crisp coral
+//  The wordmark set in Jost SemiBold, white on a crisp ink
 //  rectangle (square corners — a printed stamp, not a button). This is the ONE
 //  place the logo face is used; every other surface is the system font.
 //
@@ -14,12 +14,12 @@ import SwiftUI
 struct BlockPartyLogoBadge: View {
     var body: some View {
         Text("Block Party")
-            .font(.logo(15))                 // Atkinson Hyperlegible Bold
+            .font(.logo(15))                 // Jost SemiBold
             .foregroundStyle(.white)
             .kerning(0.2)
             .padding(.horizontal, 11)
             .padding(.vertical, 5)
-            .background(Hue.accent)          // coral #FF6B57 — a crisp rectangle, no radius
+            .background(Hue.ink)          // a crisp rectangle, no radius
             // A light lift so the mark holds over the map / photos without reading heavy.
             .shadow(color: .black.opacity(0.12), radius: 3, x: 0, y: 2)
             .accessibilityAddTraits(.isImage)
@@ -48,7 +48,7 @@ extension View {
 
 #Preview {
     ZStack {
-        Hue.canvas.ignoresSafeArea()
+        Hue.paper.ignoresSafeArea()
         VStack(spacing: 24) {
             BlockPartyLogoBadge()
             BlockPartyLogoBadge().scaleEffect(2)

@@ -16,7 +16,7 @@ struct InviteCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("YOU'RE INVITED")
-                .font(.mono(12)).tracking(2).foregroundStyle(Hue.ink3)
+                .font(.mono(12)).tracking(2).foregroundStyle(Hue.inkSecondary)
             Text(title)
                 .font(.display(30)).foregroundStyle(Hue.ink)
                 .fixedSize(horizontal: false, vertical: true)
@@ -26,18 +26,18 @@ struct InviteCard: View {
             }
             Rectangle().fill(Hue.hairline).frame(height: 1).padding(.top, 2)
             Text("Come with me — from Block Party, St. Joseph, MN")
-                .font(.sans(13)).foregroundStyle(Hue.ink2)
+                .font(.sans(13)).foregroundStyle(Hue.inkSecondary)
         }
         .padding(24)
         .frame(width: 360, alignment: .leading)
-        .background(Hue.paper)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.xl, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.xl, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
+        .background(Hue.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
     }
 
     private func row(_ symbol: String, _ text: String, mono: Bool) -> some View {
         HStack(spacing: 8) {
-            Image(systemName: symbol).font(.system(size: 14)).foregroundStyle(Hue.moss500)
+            Image(systemName: symbol).font(.system(size: 14)).foregroundStyle(Hue.ink)
             Text(text).font(mono ? .monoMedium(15) : .sans(15)).foregroundStyle(Hue.ink)
         }
     }
@@ -59,7 +59,7 @@ struct InviteButton: View {
                 Image(systemName: "square.and.arrow.up").font(.system(size: 12, weight: .semibold))
                 Text("Invite a neighbor").font(.sansSemibold(13))
             }
-            .foregroundStyle(Hue.sky700)
+            .foregroundStyle(Hue.ink)
         }
         .buttonStyle(.plain)
     }

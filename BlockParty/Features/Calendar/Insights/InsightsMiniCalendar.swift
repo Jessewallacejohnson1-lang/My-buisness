@@ -27,7 +27,7 @@ struct InsightsMiniCalendar: View {
     private let todayCircleDiameter: CGFloat = 30
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
 
-    private let dayColor = Color(hex: 0x3A3A42)
+    private let dayColor = Hue.ink
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {

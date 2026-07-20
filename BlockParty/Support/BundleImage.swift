@@ -34,7 +34,7 @@ struct PhotoView: View {
         if let ui = Photo.uiImage(name) {
             Image(uiImage: ui).resizable()
         } else {
-            Rectangle().fill(Hue.paper200)
+            Rectangle().fill(Hue.fill)
         }
     }
 }

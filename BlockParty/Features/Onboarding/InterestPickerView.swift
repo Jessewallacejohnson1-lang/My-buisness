@@ -46,7 +46,7 @@ struct InterestPickerView: View {
                         .fixedSize(horizontal: false, vertical: true)
                     Text("Pick a few — we'll quietly surface what fits around St. Joe.")
                         .font(.sans(15))
-                        .foregroundStyle(Hue.ink2)
+                        .foregroundStyle(Hue.inkSecondary)
                 }
             }
             .padding(.horizontal, 24)
@@ -58,7 +58,7 @@ struct InterestPickerView: View {
                         VStack(alignment: .leading, spacing: 10) {
                             Text(section.title)
                                 .font(.sansSemibold(13))
-                                .foregroundStyle(Hue.ink3)
+                                .foregroundStyle(Hue.inkSecondary)
                                 .textCase(.uppercase)
                                 .tracking(0.5)
                             LazyVGrid(columns: columns, spacing: 12) {
@@ -81,7 +81,7 @@ struct InterestPickerView: View {
 
             footer
         }
-        .background(Hue.canvas.ignoresSafeArea())
+        .background(Hue.paper.ignoresSafeArea())
         .onAppear {
             guard !appeared else { return }
             withAnimation(.easeOut(duration: 0.5)) { appeared = true }
@@ -98,7 +98,7 @@ struct InterestPickerView: View {
             .padding(.top, 12)
             .padding(.bottom, 8)
         }
-        .background(Hue.canvas)
+        .background(Hue.paper)
     }
 
     private func toggle(_ id: String) {

@@ -1,9 +1,9 @@
 //
 //  CalendarView.swift
 //  Block Party — the town calendar, BeReal-style: a fixed header (Upcoming ⇄ Calendar
-//  pill + info), then a scrolling year of month grids. Coral numbers are days
-//  with happenings, the filled circle is today, the outlined cell is the day
-//  you're looking at, and a pulse above today means live right now.
+//  pill + info), then a scrolling year of month grids. The filled circle is today,
+//  the outlined cell is the day you're looking at, and a pulse above today means
+//  live right now.
 //
 
 import SwiftUI
@@ -94,7 +94,7 @@ struct CalendarView: View {
                 }
             }
         }
-        .background(Hue.canvas)
+        .background(Hue.paper)
         // The compose "+" is now the ComposeSpeedDial, hosted by MainTabsView.
         .task { await model.load(api) }
         // `loaded` flips only on success, so also lift on `failed` — otherwise a
@@ -160,24 +160,27 @@ struct CalendarView: View {
                 } label: {
                     Text(f.rawValue)
                         .font(.sansSemibold(14))
-                        .foregroundStyle(on ? .white : Hue.ink2)
+                        .foregroundStyle(on ? .white : Hue.inkSecondary)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 9)
                         .background {
                             if on {
-                                Capsule().fill(Hue.ink)
+                                RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
+                                    .fill(Hue.ink)
                                     .matchedGeometryEffect(id: "seg", in: segmentNS)
                             }
                         }
-                        .contentShape(Capsule())
+                        .contentShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 }
                 .buttonStyle(PressableStyle(scale: 0.97))
                 .accessibilityAddTraits(on ? [.isSelected] : [])
             }
         }
         .padding(3)
-        .background(Hue.surface, in: Capsule())
-        .overlay(Capsule().stroke(Hue.hairline, lineWidth: 1))
+        .background(Hue.surface,
+                    in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
+            .stroke(Hue.hairline, lineWidth: 1))
         .mapFloatShadow()
     }
 
@@ -217,7 +220,7 @@ struct CalendarView: View {
                     offlineNote
                         .padding(.top, 64)
                 } else if !model.loaded {
-                    ProgressView().tint(Hue.ink3)
+                    ProgressView().tint(Hue.inkSecondary)
                         .frame(maxWidth: .infinity)
                         .padding(.top, 64)
                 } else if model.upcoming.isEmpty {
@@ -225,7 +228,7 @@ struct CalendarView: View {
                         Text("Nothing on the calendar yet")
                             .font(.sansSemibold(15)).foregroundStyle(Hue.ink)
                         Text("Anyone can add something — it's the whole town's calendar.")
-                            .font(.sans(13)).foregroundStyle(Hue.ink2)
+                            .font(.sans(13)).foregroundStyle(Hue.inkSecondary)
                             .multilineTextAlignment(.center)
                     }
                     .frame(maxWidth: .infinity)
@@ -254,7 +257,7 @@ struct CalendarView: View {
             Text("Couldn't reach the calendar")
                 .font(.sansSemibold(15)).foregroundStyle(Hue.ink)
             Text("Pull down to try again.")
-                .font(.sans(13)).foregroundStyle(Hue.ink2)
+                .font(.sans(13)).foregroundStyle(Hue.inkSecondary)
         }
         .frame(maxWidth: .infinity)
     }
@@ -262,11 +265,11 @@ struct CalendarView: View {
     private func agendaHeader(_ date: String) -> some View {
         HStack(spacing: 6) {
             if date == todayKey {
-                Text("Today").font(.sansSemibold(13)).foregroundStyle(Hue.accent)
-                Text("·").font(.sans(13)).foregroundStyle(Hue.ink3)
+                Text("Today").font(.sansSemibold(13)).foregroundStyle(Hue.ink)
+                Text("·").font(.sans(13)).foregroundStyle(Hue.inkSecondary)
             }
             Text(DateHelpers.prettyDate(date))
-                .font(.sansSemibold(13)).foregroundStyle(Hue.ink2)
+                .font(.sansSemibold(13)).foregroundStyle(Hue.inkSecondary)
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
@@ -386,7 +389,7 @@ private struct MonthSection: View {
                     Text(s.0)
                         .font(.sansMedium(11))
                         .kerning(0.4)
-                        .foregroundStyle(Hue.ink3)
+                        .foregroundStyle(Hue.inkSecondary)
                         .frame(maxWidth: .infinity)
                         .accessibilityLabel(s.1)
                 }
@@ -434,12 +437,11 @@ private struct DayCell: View {
 
     private var hasEvents: Bool { count > 0 }
 
-    // Deep coral (accentPressed) for the numerals — same family as the live
-    // circle but clears 3:1 on the near-white canvas, which FF6B57 doesn't.
+    // Event numerals use ink; past empty days recede to secondary ink.
     private var numberColor: Color {
         if isToday { return .white }
-        if hasEvents { return Hue.accentPressed }
-        return isPast ? Hue.ink3 : Hue.ink
+        if hasEvents { return Hue.ink }
+        return isPast ? Hue.inkSecondary : Hue.ink
     }
 
     var body: some View {
@@ -452,7 +454,7 @@ private struct DayCell: View {
                 .foregroundStyle(numberColor)
                 .frame(width: 38, height: 38)
                 .background {
-                    if isToday { Circle().fill(Hue.accent) }
+                    if isToday { Circle().fill(Hue.ink) }
                 }
                 .animation(.easeOut(duration: 0.25), value: hasEvents)
                 .frame(maxWidth: .infinity)
@@ -486,7 +488,7 @@ private struct DayCell: View {
     }
 }
 
-/// The live-now marker above today: a coral dot with a soft expanding pulse.
+/// The live-now marker above today: an ink dot with a soft expanding pulse.
 /// Reduce Motion gets the dot alone, no pulse.
 private struct LivePulseDot: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -494,12 +496,12 @@ private struct LivePulseDot: View {
 
     var body: some View {
         Circle()
-            .fill(Hue.accent)
+            .fill(Hue.ink)
             .frame(width: 6, height: 6)
             .background {
                 if !reduceMotion {
                     Circle()
-                        .fill(Hue.accent.opacity(0.35))
+                        .fill(Hue.ink.opacity(0.35))
                         .scaleEffect(pulsing ? 2.8 : 1)
                         .opacity(pulsing ? 0 : 0.7)
                 }
@@ -536,7 +538,7 @@ private struct AgendaRowCard: View {
                                 .font(.system(size: 11))
                             Text(loc).font(.sans(13))
                         }
-                        .foregroundStyle(Hue.ink2)
+                        .foregroundStyle(Hue.inkSecondary)
                     }
                 }
                 Spacer(minLength: 8)
@@ -544,7 +546,7 @@ private struct AgendaRowCard: View {
                     Text(time)
                         .font(.mono(12))
                         .monospacedDigit()
-                        .foregroundStyle(Hue.ink3)
+                        .foregroundStyle(Hue.inkSecondary)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -569,14 +571,14 @@ private struct CalendarLegendSheet: View {
                     .font(.system(size: 15, weight: .semibold)).monospacedDigit()
                     .foregroundStyle(.white)
                     .frame(width: 32, height: 32)
-                    .background(Circle().fill(Hue.accent))
+                    .background(Circle().fill(Hue.ink))
             }
 
             legendRow(detailTitle: "A day with happenings",
-                      detail: "Coral days have something planned — tap one to see it.") {
+                      detail: "Tap any day to see what's planned.") {
                 Text("14")
                     .font(.system(size: 15, weight: .semibold)).monospacedDigit()
-                    .foregroundStyle(Hue.accent)
+                    .foregroundStyle(Hue.ink)
                     .frame(width: 32, height: 32)
             }
 
@@ -587,13 +589,13 @@ private struct CalendarLegendSheet: View {
 
             Text("This is the whole town's calendar — anyone can add to it.")
                 .font(.sans(13))
-                .foregroundStyle(Hue.ink3)
+                .foregroundStyle(Hue.inkSecondary)
 
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 22)
-        .background(Hue.canvas)
+        .background(Hue.paper)
         .presentationDetents([.height(330)])
         .presentationDragIndicator(.visible)
     }
@@ -603,15 +605,15 @@ private struct CalendarLegendSheet: View {
         HStack(alignment: .center, spacing: 14) {
             sample()
                 .frame(width: 44, height: 44)
-                .background(Hue.paper, in: RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
+                .background(Hue.surface, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: Radius.md, style: .continuous)
+                    RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
                         .stroke(Hue.hairline, lineWidth: 1)
                 )
                 .accessibilityHidden(true)   // decorative — the text row says it all
             VStack(alignment: .leading, spacing: 2) {
                 Text(detailTitle).font(.sansSemibold(14)).foregroundStyle(Hue.ink)
-                Text(detail).font(.sans(13)).foregroundStyle(Hue.ink2)
+                Text(detail).font(.sans(13)).foregroundStyle(Hue.inkSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }

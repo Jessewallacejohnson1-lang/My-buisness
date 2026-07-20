@@ -15,7 +15,7 @@ struct OnboardingBackButton: View {
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(Hue.ink)
                 .frame(width: 44, height: 44)
-                .background(Hue.paper, in: Circle())
+                .background(Hue.surface, in: Circle())
                 .overlay(Circle().stroke(Hue.hairline, lineWidth: 1))
         }
         .buttonStyle(.plain)

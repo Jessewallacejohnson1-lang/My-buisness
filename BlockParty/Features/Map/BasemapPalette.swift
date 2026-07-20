@@ -4,7 +4,7 @@
 //
 //  Pixel-sampled from the Life360/Mobbin reference (Bukit Batok, Singapore):
 //  a warm cream ground, sage parks, sky-blue water, and neutral-grey roads with
-//  a charcoal label ink shared with the app's own Hue.ink2. These are the only
+//  a charcoal label ink shared with the app's own Hue.inkSecondary. These are the only
 //  raw hexes the map is allowed — it owns cartography.
 //
 //  There is deliberately NO time/season/weather modulation. The base map looks the
@@ -33,6 +33,6 @@ enum BasemapPalette {
     static let road = "#FBFAF6"
 
     // MARK: Labels — shared with the app's own ink ramp (not map-only)
-    // Neighborhood / road labels: #555553 sampled off the reference ≈ Hue.ink2 (#5E5D56).
-    // Call sites should use `Hue.ink2.hexString`, not duplicate this hex.
+    // Neighborhood / road labels: #555553 sampled off the reference ≈ Hue.inkSecondary (#6E6E6E).
+    // Call sites should use `Hue.inkSecondary.hexString`, not duplicate this hex.
 }

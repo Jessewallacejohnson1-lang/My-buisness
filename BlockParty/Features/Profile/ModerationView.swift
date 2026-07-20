@@ -67,7 +67,7 @@ struct ModerationView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
                     if model.loading && pendingCount == 0 {
-                        ProgressView().tint(Hue.ink3).frame(maxWidth: .infinity).padding(.top, 60)
+                        ProgressView().tint(Hue.inkSecondary).frame(maxWidth: .infinity).padding(.top, 60)
                     } else if model.failed {
                         emptyState(icon: "wifi.slash", title: "Couldn't load the queue",
                                    detail: "Check your connection, then pull to refresh.")
@@ -101,12 +101,12 @@ struct ModerationView: View {
                 }
                 .padding(18)
             }
-            .background(Hue.canvas)
+            .background(Hue.paper)
             .navigationTitle("Review queue")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }.foregroundStyle(Hue.ink2)
+                    Button("Done") { dismiss() }.foregroundStyle(Hue.inkSecondary)
                 }
             }
             .task { await model.load(api) }
@@ -119,7 +119,7 @@ struct ModerationView: View {
     }
 
     private func sectionLabel(_ text: String) -> some View {
-        Text(text).font(.mono(11)).tracking(1.5).foregroundStyle(Hue.ink3)
+        Text(text).font(.mono(11)).tracking(1.5).foregroundStyle(Hue.inkSecondary)
             .padding(.leading, 4).padding(.top, 4)
     }
 
@@ -129,23 +129,25 @@ struct ModerationView: View {
             Text(title).font(.sansBold(16)).foregroundStyle(Hue.ink)
                 .fixedSize(horizontal: false, vertical: true)
             if !subtitle.isEmpty {
-                Text(subtitle).font(.sans(13)).foregroundStyle(Hue.ink2)
+                Text(subtitle).font(.sans(13)).foregroundStyle(Hue.inkSecondary)
             }
             if let detail, !detail.isEmpty {
-                Text(detail).font(.sans(14)).foregroundStyle(Hue.ink2)
+                Text(detail).font(.sans(14)).foregroundStyle(Hue.inkSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             HStack(spacing: 10) {
                 Button { Haptics.light(); onApprove() } label: {
                     Text("Approve").font(.sansSemibold(14)).foregroundStyle(.white)
                         .frame(maxWidth: .infinity).padding(.vertical, 10)
-                        .background(Hue.accent, in: Capsule())
+                        .background(Hue.ink,
+                                    in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 }
                 .buttonStyle(PressableStyle(scale: 0.96))
                 Button { Haptics.light(); onReject() } label: {
-                    Text("Not yet").font(.sansSemibold(14)).foregroundStyle(Hue.ink2)
+                    Text("Not yet").font(.sansSemibold(14)).foregroundStyle(Hue.inkSecondary)
                         .frame(maxWidth: .infinity).padding(.vertical, 10)
-                        .background(Capsule().stroke(Hue.hairline, lineWidth: 1))
+                        .background(RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
+                            .stroke(Hue.hairline, lineWidth: 1))
                 }
                 .buttonStyle(PressableStyle(scale: 0.96))
             }
@@ -157,9 +159,9 @@ struct ModerationView: View {
 
     private func emptyState(icon: String, title: String, detail: String) -> some View {
         VStack(spacing: 10) {
-            Image(systemName: icon).font(.system(size: 30, weight: .light)).foregroundStyle(Hue.ink3)
+            Image(systemName: icon).font(.system(size: 30, weight: .light)).foregroundStyle(Hue.inkSecondary)
             Text(title).font(.sansSemibold(16)).foregroundStyle(Hue.ink)
-            Text(detail).font(.sans(14)).foregroundStyle(Hue.ink2).multilineTextAlignment(.center)
+            Text(detail).font(.sans(14)).foregroundStyle(Hue.inkSecondary).multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity).padding(.top, 60).padding(.horizontal, 24)
     }

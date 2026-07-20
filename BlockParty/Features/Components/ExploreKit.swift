@@ -3,7 +3,7 @@
 //  Block Party — the AllTrails-style "Explore" building blocks: a photo-card shell,
 //  a coral metadata row, a saved-bookmark toggle, and shared press/appear motion.
 //
-//  White surface, coral (Hue.accent) as the one accent. Reused by ActivitiesView.
+//  White surface with ink active states. Reused by ActivitiesView.
 //
 
 import SwiftUI
@@ -178,7 +178,7 @@ struct SaveBookmarkButton: View {
         } label: {
             Image(systemName: saved ? "bookmark.fill" : "bookmark")
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(saved ? Hue.accent : Hue.mapInk)
+                .foregroundStyle(saved ? Hue.ink : Hue.ink)
                 .symbolEffect(.bounce, value: saved)
                 .frame(width: 38, height: 38)
                 .background(Hue.surface)
@@ -206,7 +206,7 @@ func exploreMetaRow(_ items: [MetaItem]) -> some View {
     HStack(spacing: 7) {
         ForEach(Array(items.enumerated()), id: \.offset) { i, m in
             if i > 0 {
-                Text("·").font(.mono(12)).foregroundStyle(Hue.grayLight)
+                Text("·").font(.mono(12)).foregroundStyle(Hue.inkSecondary)
             }
             HStack(spacing: 4) {
                 if let ic = m.icon {
@@ -214,7 +214,7 @@ func exploreMetaRow(_ items: [MetaItem]) -> some View {
                 }
                 Text(m.text).font(.monoMedium(12)).monospacedDigit()
             }
-            .foregroundStyle(m.coral ? Hue.accent : Hue.gray)
+            .foregroundStyle(m.coral ? Hue.ink : Hue.inkSecondary)
             .lineLimit(1)
         }
     }
@@ -226,11 +226,11 @@ func exploreMetaRow(_ items: [MetaItem]) -> some View {
 func exploreCircleIcon(_ system: String, filled: Bool = false) -> some View {
     Image(systemName: system)
         .font(.system(size: 15, weight: .semibold))
-        .foregroundStyle(filled ? .white : Hue.accent)
+        .foregroundStyle(filled ? .white : Hue.ink)
         .frame(width: 40, height: 40)
-        .background(filled ? Hue.accent : Hue.surface)
+        .background(filled ? Hue.ink : Hue.surface)
         .clipShape(Circle())
-        .overlay(Circle().stroke(filled ? Color.clear : Hue.accent.opacity(0.45), lineWidth: 1.5))
+        .overlay(Circle().stroke(filled ? Color.clear : Hue.ink.opacity(0.45), lineWidth: 1.5))
         .shadow(color: .black.opacity(0.06), radius: 3, x: 0, y: 1)
         .contentTransition(.symbolEffect(.replace))
 }
@@ -242,10 +242,10 @@ func exploreCircleIcon(_ system: String, filled: Bool = false) -> some View {
 struct ExploreBlankPhoto: View {
     var body: some View {
         ZStack {
-            Hue.bgSubtle
+            Hue.paper
             Image(systemName: "photo")
                 .font(.system(size: 20, weight: .light))
-                .foregroundStyle(Hue.accent.opacity(0.3))
+                .foregroundStyle(Hue.ink.opacity(0.3))
         }
     }
 }
@@ -269,14 +269,14 @@ struct ExploreCard<Photo: View, Trailing: View>: View {
                 photo()
                     .frame(maxWidth: .infinity)
                     .frame(height: 172)
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.xl, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
                 SaveBookmarkButton(id: id).padding(11)
             }
 
             HStack(alignment: .center, spacing: 10) {
                 Text(title)
                     .font(.sansBold(18))
-                    .foregroundStyle(Hue.mapInk)
+                    .foregroundStyle(Hue.ink)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 6)
@@ -286,7 +286,7 @@ struct ExploreCard<Photo: View, Trailing: View>: View {
             if let subtitle, !subtitle.isEmpty {
                 Text(subtitle)
                     .font(.sans(14))
-                    .foregroundStyle(Hue.gray)
+                    .foregroundStyle(Hue.inkSecondary)
                     .lineLimit(1)
             }
 

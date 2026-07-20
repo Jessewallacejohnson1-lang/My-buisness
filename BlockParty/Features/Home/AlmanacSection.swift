@@ -124,9 +124,9 @@ struct AlmanacSection: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18)
-        .background(Hue.paper)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous).stroke(Hue.accent, lineWidth: 1.5))
+        .background(Hue.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).stroke(Hue.ink, lineWidth: 1.5))
         .modifier(CardShadow())
         .task {
             // Template shows instantly; both fetches ride their own caches and the
@@ -196,9 +196,9 @@ struct AlmanacSection: View {
     /// the same one the read uses once the sun's down. An honest signal, not decoration.
     private var greetingGlyph: (symbol: String, tint: Color) {
         switch DailyGreeting.part() {
-        case .morning:   return ("sunrise.fill",    Hue.honey500)
-        case .afternoon: return ("sun.max.fill",    Hue.honey500)
-        case .evening:   return ("moon.stars.fill", Hue.sky600)
+        case .morning:   return ("sunrise.fill",    Hue.ink)
+        case .afternoon: return ("sun.max.fill",    Hue.ink)
+        case .evening:   return ("moon.stars.fill", Hue.ink)
         }
     }
 
@@ -290,7 +290,7 @@ enum Almanac {
     static func nudge(for weather: Weather?, now: Date = Date()) -> Nudge {
         guard let w = weather else {
             return Nudge(
-                icon: "sun.max", iconTint: Hue.accent,
+                icon: "sun.max", iconTint: Hue.ink,
                 line: hero("A few minutes outside today."),
                 detail: body("Fresh air beats a screen — even a short loop counts."),
                 pointer: nil
@@ -314,15 +314,15 @@ enum Almanac {
             } else {
                 detail = body("Rest easy — see you outside tomorrow.")
             }
-            return Nudge(icon: "moon.stars.fill", iconTint: Hue.sky600,
+            return Nudge(icon: "moon.stars.fill", iconTint: Hue.ink,
                          line: hero("Sun's down for the day."), detail: detail, pointer: nil)
         }
 
         // Cold / snow → cozy, but still a small brisk nudge.
         if w.state == .snow || temp <= 32 {
             return Nudge(
-                icon: "snowflake", iconTint: Hue.sky600,
-                line: hero("It's ") + heroNum("\(temp)°", Hue.sky600) + hero(" out."),
+                icon: "snowflake", iconTint: Hue.ink,
+                line: hero("It's ") + heroNum("\(temp)°", Hue.ink) + hero(" out."),
                 detail: body("Cold and \(labelLower) — but a brisk ") + bodyNum("10")
                     + body("-minute loop still beats the couch. Then earn your cocoa."),
                 pointer: "The Lake Wobegon Trail is quiet in the snow."
@@ -338,7 +338,7 @@ enum Almanac {
             } else {
                 detail = body("It's coming down out there — a window-side coffee counts too.")
             }
-            return Nudge(icon: "cloud.rain.fill", iconTint: Hue.sky600,
+            return Nudge(icon: "cloud.rain.fill", iconTint: Hue.ink,
                          line: hero("Wet one today."), detail: detail, pointer: nil)
         }
 
@@ -348,8 +348,8 @@ enum Almanac {
             if mins <= 60 {
                 let m = max(1, mins)
                 return Nudge(
-                    icon: "sunset.fill", iconTint: Hue.accent,
-                    line: hero("About ") + heroNum("\(m)", Hue.accent)
+                    icon: "sunset.fill", iconTint: Hue.ink,
+                    line: hero("About ") + heroNum("\(m)", Hue.ink)
                         + hero(" minute\(m == 1 ? "" : "s") of daylight left."),
                     detail: body("Catch the last of it — a short walk before ")
                         + bodyNum(clock(sunset)) + body("."),
@@ -361,12 +361,12 @@ enum Almanac {
         // Default: a clear, mild day with time to spare → get outside.
         let line: AttributedString
         if let sunset = w.sunset {
-            line = hero("Sun's up till ") + heroNum(clock(sunset), Hue.accent) + hero(".")
+            line = hero("Sun's up till ") + heroNum(clock(sunset), Hue.ink) + hero(".")
         } else {
             line = hero("A good day to be outside.")
         }
         return Nudge(
-            icon: "sun.max.fill", iconTint: Hue.accent,
+            icon: "sun.max.fill", iconTint: Hue.ink,
             line: line,
             detail: body("\(article(labelLower)) \(labelLower) ") + bodyNum("\(temp)°")
                 + body(" \(timeWord) — ") + bodyNum("20")
@@ -385,19 +385,19 @@ enum Almanac {
     }
     private static func hero(_ s: String) -> AttributedString { run(s, .displaySemi(20), Hue.ink) }
     private static func heroNum(_ s: String, _ tint: Color) -> AttributedString { run(s, .monoMedium(19), tint) }
-    private static func body(_ s: String) -> AttributedString { run(s, .sans(15), Hue.ink2) }
-    private static func bodyNum(_ s: String) -> AttributedString { run(s, .monoMedium(14), Hue.ink2) }
+    private static func body(_ s: String) -> AttributedString { run(s, .sans(15), Hue.inkSecondary) }
+    private static func bodyNum(_ s: String) -> AttributedString { run(s, .monoMedium(14), Hue.inkSecondary) }
 
     /// The template read as ONE attributed block (hero + detail + optional pointer),
     /// so the daily "write" can reveal it word-by-word as a single flowing set of
     /// lines. Each run keeps its own font, so the hierarchy survives concatenation.
     static func readBlock(_ nudge: Nudge) -> AttributedString {
         var out = nudge.line
-        out += run("\n", .sans(15), Hue.ink2)
+        out += run("\n", .sans(15), Hue.inkSecondary)
         out += nudge.detail
         if let pointer = nudge.pointer {
-            out += run("\n", .sans(13), Hue.ink3)
-            out += run(pointer, .sans(13), Hue.ink3)
+            out += run("\n", .sans(13), Hue.inkSecondary)
+            out += run(pointer, .sans(13), Hue.inkSecondary)
         }
         return out
     }

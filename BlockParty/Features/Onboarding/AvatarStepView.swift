@@ -32,7 +32,7 @@ struct AvatarStepView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Text(firstName.isEmpty ? "So neighbors know it's you." : "So neighbors know it's you, \(firstName).")
                     .font(.sans(16))
-                    .foregroundStyle(Hue.ink2)
+                    .foregroundStyle(Hue.inkSecondary)
                     .multilineTextAlignment(.center)
             }
             .padding(.top, 36)
@@ -54,7 +54,7 @@ struct AvatarStepView: View {
             // heavy button, and only shows until a photo is chosen.
             Button(action: { Haptics.selection(); onContinue() }) {
                 Text(image == nil ? "I'll add one later" : " ")
-                    .font(.sans(14)).foregroundStyle(Hue.ink3)
+                    .font(.sans(14)).foregroundStyle(Hue.inkSecondary)
                     .frame(maxWidth: .infinity).padding(.vertical, 10)
             }
             .buttonStyle(.plain)
@@ -62,7 +62,7 @@ struct AvatarStepView: View {
             .allowsHitTesting(image == nil)
         }
         .padding(24)
-        .background(Hue.canvas.ignoresSafeArea())
+        .background(Hue.paper.ignoresSafeArea())
         .onChange(of: pick) { _, item in
             guard let item else { return }
             Task {
@@ -85,14 +85,14 @@ struct AvatarStepView: View {
                     .transition(.scale.combined(with: .opacity))
             } else {
                 Circle()
-                    .fill(Hue.paper)
+                    .fill(Hue.surface)
                     .frame(width: 176, height: 176)
                     .overlay(Circle().stroke(Hue.hairline, style: StrokeStyle(lineWidth: 2, dash: [7, 6])))
                     .overlay(
                         VStack(spacing: 8) {
                             Image(systemName: "camera.fill")
-                                .font(.system(size: 26)).foregroundStyle(Hue.accent)
-                            Text("Add photo").font(.sansMedium(14)).foregroundStyle(Hue.ink3)
+                                .font(.system(size: 26)).foregroundStyle(Hue.ink)
+                            Text("Add photo").font(.sansMedium(14)).foregroundStyle(Hue.inkSecondary)
                         }
                     )
             }

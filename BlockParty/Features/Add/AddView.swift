@@ -32,7 +32,7 @@ struct AddView: View {
                         .foregroundStyle(Hue.ink)
                     Text("What would you like to share with the town?")
                         .font(.sans(15))
-                        .foregroundStyle(Hue.ink2)
+                        .foregroundStyle(Hue.inkSecondary)
                 }
                 .padding(.top, 8)
 
@@ -47,7 +47,7 @@ struct AddView: View {
             }
             .padding(.horizontal, 18)
         }
-        .background(Hue.canvas)
+        .background(Hue.paper)
         .sheet(item: $selected) { kind in
             AddFormView(kind: kind)
         }
@@ -57,22 +57,22 @@ struct AddView: View {
         HStack(spacing: 14) {
             Image(systemName: kind.symbol)
                 .font(.system(size: 18, weight: .medium))
-                .foregroundStyle(Hue.moss700)
+                .foregroundStyle(Hue.ink)
                 .frame(width: 46, height: 46)
-                .background(Hue.paper100)
-                .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
+                .background(Hue.fill)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             VStack(alignment: .leading, spacing: 3) {
                 Text(kind.title)
                     .font(.sansBold(16))
                     .foregroundStyle(Hue.ink)
                 Text(kind.subtitle)
                     .font(.sans(13))
-                    .foregroundStyle(Hue.ink2)
+                    .foregroundStyle(Hue.inkSecondary)
             }
             Spacer()
             Image(systemName: "chevron.right")
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Hue.ink3)
+                .foregroundStyle(Hue.inkSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .blockPartyCard(padding: 14)

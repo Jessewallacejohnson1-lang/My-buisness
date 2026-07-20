@@ -28,13 +28,13 @@ struct NameStepView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Text("What should we call you?")
                     .font(.sans(16))
-                    .foregroundStyle(Hue.ink2)
+                    .foregroundStyle(Hue.inkSecondary)
             }
             .padding(.top, 40)
 
             Spacer()
 
-            TextField("", text: $name, prompt: Text("Your name").foregroundColor(Hue.ink3))
+            TextField("", text: $name, prompt: Text("Your name").foregroundColor(Hue.inkSecondary))
                 .font(.display(34))
                 .foregroundStyle(Hue.ink)
                 .multilineTextAlignment(.center)
@@ -57,7 +57,7 @@ struct NameStepView: View {
             }
         }
         .padding(24)
-        .background(Hue.canvas.ignoresSafeArea())
+        .background(Hue.paper.ignoresSafeArea())
         .onAppear {
             // Auto-focus the field (a beat after the transition settles).
             DispatchQueue.main.asyncAfter(deadline: .now() + (reduceMotion ? 0 : 0.35)) { focused = true }
@@ -77,8 +77,8 @@ struct ContinueButton: View {
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
-                .background(enabled ? Hue.accent : Hue.accent.opacity(0.4),
-                            in: RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
+                .background(enabled ? Hue.ink : Hue.ink.opacity(0.4),
+                            in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         }
         .buttonStyle(.plain)
         .disabled(!enabled)

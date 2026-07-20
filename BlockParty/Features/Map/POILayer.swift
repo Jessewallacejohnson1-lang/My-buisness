@@ -175,7 +175,7 @@ enum POILayer {
         if !map.layerExists(withId: clusterLayerID) {
             var cluster = CircleLayer(id: clusterLayerID, source: sourceID)
             cluster.filter = isCluster
-            cluster.circleColor = .constant(StyleColor(UIColor(Hue.mapInk)))
+            cluster.circleColor = .constant(StyleColor(UIColor(Hue.ink)))
             cluster.circleOpacity = .constant(0.9)
             cluster.circleStrokeColor = .constant(StyleColor(.white))
             cluster.circleStrokeWidth = .constant(1.5)
@@ -227,7 +227,7 @@ enum POILayer {
             Exp(.get) { "family" }
             PlaceFamily.food.rawValue;     PlaceFamily.food.tint.hexString
             PlaceFamily.business.rawValue; PlaceFamily.business.tint.hexString
-            Hue.mapInk.hexString   // default (should never hit — family is always set)
+            Hue.ink.hexString   // default (should never hit — family is always set)
         }
     }
 

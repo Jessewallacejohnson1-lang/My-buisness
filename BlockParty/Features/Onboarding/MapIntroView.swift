@@ -59,9 +59,9 @@ struct MapIntroView: View {
             // legible contrast without leaving the coral identity.
             LinearGradient(
                 stops: [
-                    .init(color: Hue.accent, location: 0.0),
-                    .init(color: Hue.accent, location: 0.45),
-                    .init(color: Hue.accentPressed, location: 1.0),
+                    .init(color: Hue.ink, location: 0.0),
+                    .init(color: Hue.ink, location: 0.45),
+                    .init(color: Hue.ink, location: 1.0),
                 ],
                 startPoint: .top, endPoint: .bottom
             )
@@ -147,7 +147,7 @@ struct MapIntroView: View {
     // MARK: Support line + button
 
     private var supportLine: some View {
-        Text("Cafés, trails, and gatherings across St. Joe — all in one place. When a pin glows coral, it's happening right now.")
+        Text("Cafés, trails, and gatherings across St. Joe — all in one place. When a pin pulses, it's happening right now.")
             .font(.sansMedium(16))
             .foregroundStyle(.white)
             .multilineTextAlignment(.center)
@@ -165,7 +165,7 @@ struct MapIntroView: View {
         } label: {
             Text(ctaTitle)
                 .font(.sansSemibold(17))
-                .foregroundStyle(Hue.accentPressed)
+                .foregroundStyle(Hue.ink)
         }
         .buttonStyle(WhitePillButtonStyle())
         .opacity(revealed ? 1 : 0)
@@ -262,7 +262,7 @@ private struct PortholeMap: View {
                 .allowsHitTesting(false)
         )
         .overlay(Circle().strokeBorder(.white, lineWidth: 3))
-        .overlay(Circle().strokeBorder(Hue.mapHairline.opacity(0.7), lineWidth: 1).padding(3))
+        .overlay(Circle().strokeBorder(Hue.hairline.opacity(0.7), lineWidth: 1).padding(3))
         .allowsHitTesting(false)
         .shadow(color: .black.opacity(0.16), radius: 22, x: 0, y: 10)
     }
@@ -300,17 +300,17 @@ private struct PinWithLabel: View {
     private var label: some View {
         HStack(spacing: 4) {
             if model.live {
-                Circle().fill(Hue.accent).frame(width: 5, height: 5)
+                Circle().fill(Hue.ink).frame(width: 5, height: 5)
             }
             Text(model.name)
                 .font(.sansSemibold(11))
-                .foregroundStyle(model.live ? Hue.accent : Hue.mapInk)
+                .foregroundStyle(model.live ? Hue.ink : Hue.ink)
                 .lineLimit(1)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 3.5)
         .background(.white, in: Capsule())
-        .overlay(Capsule().stroke(Hue.mapHairline, lineWidth: 0.5))
+        .overlay(Capsule().stroke(Hue.hairline, lineWidth: 0.5))
         .shadow(color: .black.opacity(0.14), radius: 4, x: 0, y: 1)
         .fixedSize()
     }
@@ -349,18 +349,18 @@ private struct TeardropPin: View {
             .overlay(
                 // Hairline keeps the white pin crisp against pale map tiles.
                 Circle()
-                    .stroke(live ? Color.clear : Hue.mapHairline, lineWidth: 1)
+                    .stroke(live ? Color.clear : Hue.hairline, lineWidth: 1)
                     .frame(width: head, height: head)
             )
 
             Image(systemName: icon)
                 .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(live ? .white : Hue.mapInk)
+                .foregroundStyle(live ? .white : Hue.ink)
         }
         .frame(width: 48, height: 58, alignment: .center)
     }
 
-    private var fill: Color { live ? Hue.accent : Hue.surface }
+    private var fill: Color { live ? Hue.ink : Hue.surface }
 }
 
 /// The live heartbeat — coral 0.35 → 0, scale 1 → 2.2, 1.5s loop. Identical to the
@@ -370,7 +370,7 @@ private struct IntroPulseRing: View {
 
     var body: some View {
         Circle()
-            .fill(Hue.accent.opacity(pulsing ? 0 : 0.35))
+            .fill(Hue.ink.opacity(pulsing ? 0 : 0.35))
             .frame(width: 42, height: 42)
             .scaleEffect(pulsing ? 2.2 : 1.0)
             .onAppear {
@@ -383,14 +383,15 @@ private struct IntroPulseRing: View {
 
 // MARK: - Button style
 //
-// White pill on the coral field, coral label, soft lift. Presses in slightly.
+// White rounded-square button on the ink field, ink label, soft lift.
 
 private struct WhitePillButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .frame(maxWidth: .infinity)
             .padding(.vertical, 17)
-            .background(Color.white, in: Capsule())
+            .background(Color.white,
+                        in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 4)
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .opacity(configuration.isPressed ? 0.92 : 1)

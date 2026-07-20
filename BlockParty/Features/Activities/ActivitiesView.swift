@@ -7,7 +7,7 @@
 //  a neighborly compose banner, and the "Around St. Joe" directory. Tap a tile
 //  (or search) to drop into a focused, filtered list of that category.
 //
-//  Coral (Hue.accent) is the one accent; every surface is built from the shared
+//  Ink is the active tone; every surface is built from the shared
 //  tokens + ExploreKit primitives. Discovery chrome lives in ExploreDiscovery.swift.
 //
 
@@ -226,11 +226,11 @@ struct ActivitiesView: View {
         VStack(spacing: 10) {
             Image(systemName: "wifi.slash")
                 .font(.system(size: 28, weight: .light))
-                .foregroundStyle(Hue.gray)
+                .foregroundStyle(Hue.inkSecondary)
             Text("Couldn't reach St. Joe")
-                .font(.sansBold(16)).foregroundStyle(Hue.mapInk)
+                .font(.sansBold(16)).foregroundStyle(Hue.ink)
             Text("Check your connection, then pull to refresh.")
-                .font(.sans(14)).foregroundStyle(Hue.gray)
+                .font(.sans(14)).foregroundStyle(Hue.inkSecondary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
@@ -493,11 +493,11 @@ struct ActivitiesView: View {
         VStack(spacing: 10) {
             Image(systemName: savedMode ? "bookmark" : "square.grid.2x2")
                 .font(.system(size: 28, weight: .light))
-                .foregroundStyle(Hue.accent.opacity(0.7))
+                .foregroundStyle(Hue.ink.opacity(0.7))
             Text(emptyTitle)
-                .font(.sansBold(16)).foregroundStyle(Hue.mapInk)
+                .font(.sansBold(16)).foregroundStyle(Hue.ink)
             Text(emptyBody)
-                .font(.sans(14)).foregroundStyle(Hue.gray)
+                .font(.sans(14)).foregroundStyle(Hue.inkSecondary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
@@ -535,13 +535,13 @@ struct ActivitiesView: View {
                 Image(systemName: "slider.horizontal.3")
                     .font(.system(size: 13, weight: .semibold))
             }
-            .foregroundStyle(active ? .white : Hue.accent)
+            .foregroundStyle(active ? .white : Hue.ink)
             .padding(.horizontal, active ? 12 : 0)
             .frame(height: 30)
             .frame(minWidth: 30)
-            .background(active ? Hue.accent : Hue.bgSubtle)
-            .clipShape(Capsule())
-            .shadow(color: active ? Hue.accent.opacity(0.32) : .black.opacity(0.04),
+            .background(active ? Hue.ink : Hue.paper)
+            .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+            .shadow(color: active ? Hue.ink.opacity(0.32) : .black.opacity(0.04),
                     radius: active ? 5 : 2, x: 0, y: 1)
         }
         .buttonStyle(.plain)
@@ -551,7 +551,7 @@ struct ActivitiesView: View {
     private var trailsMapLink: some View {
         HStack {
             Text("Trails near St. Joe")
-                .font(.sansSemibold(15)).foregroundStyle(Hue.mapInk)
+                .font(.sansSemibold(15)).foregroundStyle(Hue.ink)
             Spacer()
             Button {
                 Haptics.selection()
@@ -563,8 +563,9 @@ struct ActivitiesView: View {
                 }
                 .foregroundStyle(.white)
                 .padding(.horizontal, 14).padding(.vertical, 8)
-                .background(Hue.accent).clipShape(Capsule())
-                .shadow(color: Hue.accent.opacity(0.3), radius: 6, x: 0, y: 3)
+                .background(Hue.ink)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                .shadow(color: Hue.ink.opacity(0.3), radius: 6, x: 0, y: 3)
             }
             .buttonStyle(PressableStyle())
         }
@@ -576,7 +577,7 @@ struct ActivitiesView: View {
     private var suggestedSection: some View {
         VStack(alignment: .leading, spacing: 22) {
             Text("Suggested for you")
-                .font(.sansBold(16)).foregroundStyle(Hue.mapInk)
+                .font(.sansBold(16)).foregroundStyle(Hue.ink)
             ForEach(suggestedClubs) { c in
                 ClubExploreCard(club: c) { Task { await model.toggleJoin(api, c) } }
             }

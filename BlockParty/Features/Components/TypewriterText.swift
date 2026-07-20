@@ -82,7 +82,7 @@ struct TypewriterText: View {
         }
         if showsCaret && revealed < bounds.count {
             var caret = AttributedString("▌")
-            caret.foregroundColor = Hue.accent
+            caret.foregroundColor = Hue.ink
             caret.font = caretFont
             out += caret
         }

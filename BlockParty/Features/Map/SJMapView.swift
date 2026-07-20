@@ -30,7 +30,7 @@ import MapboxMaps
 // MARK: - Constants
 
 private let MAP_STYLE_URL = "mapbox://styles/mapbox/light-v11"
-private let LIVE_COLOR    = Hue.accent   // warm coral — change here to rebrand
+private let LIVE_COLOR    = Hue.ink
 
 // Basemap cartography lives in BasemapPalette (Features/Map/BasemapPalette.swift) —
 // one static palette, pixel-matched to the Life360 reference. No modulation.
@@ -407,10 +407,10 @@ struct SJMapView: View {
         // not color; see BasemapPalette.road's comment).
         try? map.setLayerProperty(for: "road-simple", property: "line-color", value: p.road)
         // Labels — the reference's road/place names read as a bold, dark charcoal,
-        // not the style default's light grey. Reuse Hue.ink2 rather than duplicate
+        // not the style default's light grey. Reuse Hue.inkSecondary rather than duplicate
         // its hex (it's a near-exact match for the reference's sampled label ink,
         // #555553).
-        let labelInk = Hue.ink2.hexString
+        let labelInk = Hue.inkSecondary.hexString
         for id in ["road-label-simple", "settlement-major-label", "settlement-minor-label", "settlement-subdivision-label"] {
             try? map.setLayerProperty(for: id, property: "text-color", value: labelInk)
         }
@@ -448,16 +448,16 @@ struct SJMapView: View {
         HStack(spacing: 6) {
             Image(systemName: "mappin.circle.fill")
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Hue.accent)
+                .foregroundStyle(Hue.ink)
             Text(model.townLabel)
                 .font(.sansSemibold(15))
-                .foregroundStyle(Hue.mapInk)
+                .foregroundStyle(Hue.ink)
                 .lineLimit(1)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
         .background(.thinMaterial, in: Capsule())      // §8: chips = thin material
-        .overlay(Capsule().stroke(Hue.mapHairline, lineWidth: 1))
+        .overlay(Capsule().stroke(Hue.hairline, lineWidth: 1))
         .mapFloatShadow()
         .animation(Motion.smooth, value: model.townLabel)
         .accessibilityElement(children: .combine)
@@ -520,12 +520,12 @@ struct SJMapView: View {
         Circle()
             .fill(.regularMaterial)                     // §8: floating buttons = regular material
             .frame(width: 44, height: 44)
-            .overlay(Circle().stroke(active ? Hue.accent : Hue.mapHairline, lineWidth: active ? 1.5 : 1))
+            .overlay(Circle().stroke(active ? Hue.ink : Hue.hairline, lineWidth: active ? 1.5 : 1))
             .mapFloatShadow()
             .overlay(
                 Image(systemName: icon)
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(active ? Hue.accent : Hue.mapInk)
+                    .foregroundStyle(active ? Hue.ink : Hue.ink)
             )
     }
 
@@ -760,10 +760,10 @@ private struct MapPinBadge: View {
             if saved {
                 Image(systemName: "bookmark.fill")
                     .font(.system(size: 7, weight: .bold))
-                    .foregroundStyle(Hue.mapInk)
+                    .foregroundStyle(Hue.ink)
                     .frame(width: 12, height: 12)
                     .background(Circle().fill(Hue.surface))
-                    .overlay(Circle().stroke(Hue.mapHairline, lineWidth: 1))
+                    .overlay(Circle().stroke(Hue.hairline, lineWidth: 1))
                     .offset(x: Self.expandedDiameter / 2 - 3, y: -(Self.expandedDiameter / 2 - 3))
                     .opacity(expanded ? 1 : 0)   // same — no room on the compact dot
             }

@@ -105,7 +105,7 @@ struct TrailsMapView: View {
             // Drag handle + header — only this area carries the gesture
             VStack(spacing: 0) {
                 Capsule()
-                    .fill(Hue.ink3.opacity(0.3))
+                    .fill(Hue.inkSecondary.opacity(0.3))
                     .frame(width: 36, height: 5)
                     .padding(.vertical, 10)
 
@@ -117,7 +117,7 @@ struct TrailsMapView: View {
                             Text("Activities")
                                 .font(.sansMedium(13))
                         }
-                        .foregroundStyle(Hue.sky700)
+                        .foregroundStyle(Hue.ink)
                     }
                     .buttonStyle(.plain)
 
@@ -159,7 +159,7 @@ struct TrailsMapView: View {
                     if trails.isEmpty {
                         Text("Community-posted trails will appear here.")
                             .font(.sans(13))
-                            .foregroundStyle(Hue.ink3)
+                            .foregroundStyle(Hue.inkSecondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, 2)
                     }
@@ -171,7 +171,7 @@ struct TrailsMapView: View {
         }
         .frame(height: sheetH, alignment: .top)
         .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.xl, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         .shadow(color: .black.opacity(0.1), radius: 20, x: 0, y: -8)
     }
 }
@@ -184,7 +184,7 @@ private struct TrailMapPin: View {
         VStack(spacing: 0) {
             ZStack {
                 Circle()
-                    .fill(Hue.moss700)
+                    .fill(Hue.ink)
                     .frame(width: 38, height: 38)
                     .shadow(color: .black.opacity(0.25), radius: 4, x: 0, y: 2)
                 Image(systemName: "figure.hiking")
@@ -193,7 +193,7 @@ private struct TrailMapPin: View {
             }
             // Callout triangle
             Triangle()
-                .fill(Hue.moss700)
+                .fill(Hue.ink)
                 .frame(width: 10, height: 6)
         }
     }
@@ -239,8 +239,8 @@ private struct WobegonAnchorCard: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 7)
-                    .background(Hue.moss700)
-                    .clipShape(Capsule())
+                    .background(Hue.ink)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                     .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
                 }
                 .buttonStyle(.plain)
@@ -255,32 +255,32 @@ private struct WobegonAnchorCard: View {
 
                 Text("Trailhead by the water tower · County Rd 2")
                     .font(.sans(13))
-                    .foregroundStyle(Hue.ink2)
+                    .foregroundStyle(Hue.inkSecondary)
 
                 HStack(spacing: 6) {
                     Label("Easy", systemImage: "figure.hiking")
                         .font(.mono(11))
-                        .foregroundStyle(Hue.moss500)
+                        .foregroundStyle(Hue.ink)
                     dot
                     Text("65 mi paved")
                         .font(.mono(11))
-                        .foregroundStyle(Hue.sky600)
+                        .foregroundStyle(Hue.ink)
                     dot
                     Text("Bike · Run · Walk")
                         .font(.mono(11))
-                        .foregroundStyle(Hue.sky600)
+                        .foregroundStyle(Hue.ink)
                 }
             }
             .padding(14)
         }
-        .background(Hue.paper)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
+        .background(Hue.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
         .modifier(CardShadow())
     }
 
     private var dot: some View {
-        Text("·").font(.mono(11)).foregroundStyle(Hue.ink3)
+        Text("·").font(.mono(11)).foregroundStyle(Hue.inkSecondary)
     }
 }
 
@@ -301,7 +301,7 @@ private struct TrailSheetCard: View {
                     let meta = [trail.location, trail.length, trail.difficulty]
                         .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
                     if !meta.isEmpty {
-                        Text(meta).font(.mono(11)).foregroundStyle(Hue.sky600)
+                        Text(meta).font(.mono(11)).foregroundStyle(Hue.ink)
                     }
                 }
                 Spacer(minLength: 8)
@@ -316,12 +316,13 @@ private struct TrailSheetCard: View {
                             Text("Map")
                                 .font(.sansSemibold(12))
                         }
-                        .foregroundStyle(Hue.moss700)
+                        .foregroundStyle(Hue.ink)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
-                        .background(Hue.moss700.opacity(0.08))
-                        .clipShape(Capsule())
-                        .overlay(Capsule().stroke(Hue.moss700.opacity(0.25), lineWidth: 1))
+                        .background(Hue.ink.opacity(0.08))
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
+                            .stroke(Hue.ink.opacity(0.25), lineWidth: 1))
                     }
                     .buttonStyle(.plain)
                 }
@@ -330,7 +331,7 @@ private struct TrailSheetCard: View {
             if let desc = trail.description, !desc.isEmpty {
                 Text(desc)
                     .font(.sans(13))
-                    .foregroundStyle(Hue.ink2)
+                    .foregroundStyle(Hue.inkSecondary)
                     .lineLimit(2)
             }
         }

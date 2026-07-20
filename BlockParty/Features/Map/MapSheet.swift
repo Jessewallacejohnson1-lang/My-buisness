@@ -130,8 +130,8 @@ struct MapSheet: View {
             .frame(height: height, alignment: .top)
             .background(sheetBackground)
             .clipShape(
-                UnevenRoundedRectangle(topLeadingRadius: Radius.xl,
-                                       topTrailingRadius: Radius.xl,
+                UnevenRoundedRectangle(topLeadingRadius: Radius.card,
+                                       topTrailingRadius: Radius.card,
                                        style: .continuous)
             )
             .frame(maxHeight: .infinity, alignment: .bottom)
@@ -174,7 +174,7 @@ struct MapSheet: View {
 
     private var grabber: some View {
         Capsule()
-            .fill(Hue.mapHairline)
+            .fill(Hue.hairline)
             .frame(width: 40, height: 5)
             .frame(maxWidth: .infinity)
             .padding(.top, 8)
@@ -229,8 +229,8 @@ struct MapSheet: View {
     }
 
     private var sheetBackground: some View {
-        UnevenRoundedRectangle(topLeadingRadius: Radius.xl,
-                               topTrailingRadius: Radius.xl,
+        UnevenRoundedRectangle(topLeadingRadius: Radius.card,
+                               topTrailingRadius: Radius.card,
                                style: .continuous)
             // Frosted glass (Apple-Maps surface) — the live map blurs through the sheet.
             .fill(.regularMaterial)
@@ -253,7 +253,7 @@ struct MapSheet: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(peekPrimary)
                         .font(.sansSemibold(16))
-                        .foregroundStyle(Hue.mapInk)
+                        .foregroundStyle(Hue.ink)
                         .lineLimit(1)
                     if let secondary = peekSecondary {
                         Text(secondary)
@@ -316,8 +316,8 @@ struct MapSheet: View {
     }
 
     private var peekSecondaryColor: Color {
-        if peekIsRetry { return Hue.accent }
-        return liveEvents.isEmpty ? Hue.gray : Hue.accent   // gray, not grayLight — legible on frosted material
+        if peekIsRetry { return Hue.ink }
+        return liveEvents.isEmpty ? Hue.inkSecondary : Hue.ink   // secondary ink stays legible on frosted material
     }
 
     @ViewBuilder
@@ -325,16 +325,16 @@ struct MapSheet: View {
         if peekIsRetry {
             Image(systemName: "arrow.clockwise")
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(Hue.accent)
+                .foregroundStyle(Hue.ink)
                 .frame(width: 30, height: 30)
-                .background(Hue.accentSoft, in: Circle())
+                .background(Hue.fill, in: Circle())
         } else {
             // A quiet "pull up" affordance — a soft chevron that hints there's more.
             Image(systemName: "chevron.up")
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Hue.grayLight)
+                .foregroundStyle(Hue.inkSecondary)
                 .frame(width: 30, height: 30)
-                .background(Hue.bgSubtle, in: Circle())
+                .background(Hue.paper, in: Circle())
         }
     }
 
@@ -358,7 +358,7 @@ struct MapSheet: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(mode == .today ? "Today" : "Places")
                     .font(.displaySemi(22))
-                    .foregroundStyle(Hue.mapInk)
+                    .foregroundStyle(Hue.ink)
                 subtitle
             }
             Spacer()
@@ -373,17 +373,17 @@ struct MapSheet: View {
         switch mode {
         case .places:
             Text("\(spots.count) places in town")
-                .font(.sans(13)).foregroundStyle(Hue.gray)
+                .font(.sans(13)).foregroundStyle(Hue.inkSecondary)
         case .today:
             switch state {
             case .loading:
-                Text("Loading…").font(.sans(13)).foregroundStyle(Hue.gray)
+                Text("Loading…").font(.sans(13)).foregroundStyle(Hue.inkSecondary)
             case .loaded, .empty:
                 if events.isEmpty {
-                    Text("A quiet day so far").font(.sans(13)).foregroundStyle(Hue.gray)
+                    Text("A quiet day so far").font(.sans(13)).foregroundStyle(Hue.inkSecondary)
                 } else {
                     Text("^[\(events.count) happening](inflect: true) today")
-                        .font(.mono(13)).foregroundStyle(Hue.gray).monospacedDigit()
+                        .font(.mono(13)).foregroundStyle(Hue.inkSecondary).monospacedDigit()
                 }
             case .offline:
                 retryLabel("Offline — tap to retry", icon: "wifi.slash")
@@ -399,7 +399,7 @@ struct MapSheet: View {
                 Image(systemName: icon).font(.system(size: 11, weight: .medium))
                 Text(text)
             }
-            .font(.sans(13)).foregroundStyle(Hue.accent)
+            .font(.sans(13)).foregroundStyle(Hue.ink)
         }
         .buttonStyle(.plain)
     }
@@ -420,7 +420,8 @@ struct MapSheet: View {
             .foregroundStyle(.white)
             .padding(.horizontal, 14)
             .padding(.vertical, 9)
-            .background(Hue.accent, in: Capsule())
+            .background(Hue.ink,
+                        in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(mode == .today ? "Show places" : "Show today")
@@ -476,13 +477,13 @@ struct MapSheet: View {
     }
 
     private var rowDivider: some View {
-        Rectangle().fill(Hue.mapHairline).frame(height: 1).padding(.leading, 20)
+        Rectangle().fill(Hue.hairline).frame(height: 1).padding(.leading, 20)
     }
 
     private func emptyState(icon: String, text: String) -> some View {
         VStack(spacing: 10) {
-            Image(systemName: icon).font(.system(size: 26, weight: .light)).foregroundStyle(Hue.grayLight)
-            Text(text).font(.sans(14)).foregroundStyle(Hue.gray)
+            Image(systemName: icon).font(.system(size: 26, weight: .light)).foregroundStyle(Hue.inkSecondary)
+            Text(text).font(.sans(14)).foregroundStyle(Hue.inkSecondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 36)
@@ -504,10 +505,10 @@ struct MapSheet: View {
         } label: {
             Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(isSaved ? Hue.accent : Hue.mapInk)
+                .foregroundStyle(isSaved ? Hue.ink : Hue.ink)
                 .symbolEffect(.bounce, value: isSaved)
                 .frame(width: 36, height: 36)
-                .background(Hue.bgSubtle, in: Circle())
+                .background(Hue.paper, in: Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(isSaved ? "Saved" : "Save this place")
@@ -525,17 +526,17 @@ struct MapSheet: View {
                     } label: {
                         Image(systemName: "chevron.left")
                             .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(Hue.mapInk)
+                            .foregroundStyle(Hue.ink)
                             .frame(width: 32, height: 32)
-                            .background(Hue.bgSubtle, in: Circle())
+                            .background(Hue.paper, in: Circle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Back to list")
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(spot.name).font(.display(20)).foregroundStyle(Hue.mapInk).lineLimit(1)  // §9: card title 20pt bold
+                        Text(spot.name).font(.display(20)).foregroundStyle(Hue.ink).lineLimit(1)  // §9: card title 20pt bold
                         if let blurb = spot.blurb {
-                            Text(blurb).font(.sans(15)).foregroundStyle(Hue.gray).lineLimit(1)       // §9: subtitle 15pt
+                            Text(blurb).font(.sans(15)).foregroundStyle(Hue.inkSecondary).lineLimit(1)       // §9: subtitle 15pt
                         }
                     }
                     Spacer(minLength: 0)
@@ -554,11 +555,11 @@ struct MapSheet: View {
                         ForEach(items) { h in
                             HStack(spacing: 8) {
                                 Circle()
-                                    .fill(DateHelpers.isLiveNow(h.startTime) ? Hue.accent : Hue.grayLight)
+                                    .fill(DateHelpers.isLiveNow(h.startTime) ? Hue.ink : Hue.inkSecondary)
                                     .frame(width: 6, height: 6)
-                                Text(h.title).font(.sansMedium(15)).foregroundStyle(Hue.mapInk).lineLimit(1)
+                                Text(h.title).font(.sansMedium(15)).foregroundStyle(Hue.ink).lineLimit(1)
                                 Spacer()
-                                Text(h.startTime ?? "all day").font(.sans(13)).foregroundStyle(Hue.gray)
+                                Text(h.startTime ?? "all day").font(.sans(13)).foregroundStyle(Hue.inkSecondary)
                             }
                         }
                     }
@@ -599,13 +600,13 @@ private struct StatusDot: View {
         ZStack {
             if live && !reduceMotion {
                 Circle()
-                    .stroke(Hue.accent, lineWidth: 1.5)
+                    .stroke(Hue.ink, lineWidth: 1.5)
                     .frame(width: 12, height: 12)
                     .scaleEffect(pulsing ? 2.2 : 1)
                     .opacity(pulsing ? 0 : 0.5)
             }
             Circle()
-                .fill(live ? Hue.accent : Hue.grayLight)
+                .fill(live ? Hue.ink : Hue.inkSecondary)
                 .frame(width: 9, height: 9)
         }
         .frame(width: 26, height: 26)          // stable slot so text never shifts
@@ -642,25 +643,25 @@ private struct TodayEventRow: View {
     var body: some View {
         HStack(spacing: 12) {
             ZStack {
-                Circle().fill(live ? Hue.accentSoft : Hue.bgSubtle).frame(width: 38, height: 38)
+                Circle().fill(live ? Hue.fill : Hue.paper).frame(width: 38, height: 38)
                 Image(systemName: live ? "dot.radiowaves.left.and.right" : "clock")
                     .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(live ? Hue.accent : Hue.gray)
+                    .foregroundStyle(live ? Hue.ink : Hue.inkSecondary)
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text(event.title).font(.sansMedium(15)).foregroundStyle(Hue.mapInk).lineLimit(1)
+                Text(event.title).font(.sansMedium(15)).foregroundStyle(Hue.ink).lineLimit(1)
                 if let loc = event.location ?? event.clubName {
-                    Text(loc).font(.sans(13)).foregroundStyle(Hue.gray).lineLimit(1)
+                    Text(loc).font(.sans(13)).foregroundStyle(Hue.inkSecondary).lineLimit(1)
                 }
             }
             Spacer(minLength: 8)
             if live {
                 Text("Now")
-                    .font(.sansSemibold(12)).foregroundStyle(Hue.accent)
+                    .font(.sansSemibold(12)).foregroundStyle(Hue.ink)
                     .padding(.horizontal, 8).padding(.vertical, 3)
-                    .background(Hue.accentSoft, in: Capsule())
+                    .background(Hue.fill, in: Capsule())
             } else if let t = event.startTime {
-                Text(t).font(.mono(13)).foregroundStyle(Hue.gray).monospacedDigit()
+                Text(t).font(.mono(13)).foregroundStyle(Hue.inkSecondary).monospacedDigit()
             }
         }
         .padding(.horizontal, 20)
@@ -680,19 +681,19 @@ private struct PlaceRow: View {
         HStack(spacing: 12) {
             thumbnail
             VStack(alignment: .leading, spacing: 2) {
-                Text(spot.name).font(.sansMedium(15)).foregroundStyle(Hue.mapInk).lineLimit(1)
+                Text(spot.name).font(.sansMedium(15)).foregroundStyle(Hue.ink).lineLimit(1)
                 if let blurb = spot.blurb {
-                    Text(blurb).font(.sans(13)).foregroundStyle(Hue.gray).lineLimit(1)
+                    Text(blurb).font(.sans(13)).foregroundStyle(Hue.inkSecondary).lineLimit(1)
                 }
             }
             Spacer(minLength: 8)
             if liveCount > 0 {
                 Text("^[\(liveCount) live](inflect: true)")
-                    .font(.sansSemibold(12)).foregroundStyle(Hue.accent)
+                    .font(.sansSemibold(12)).foregroundStyle(Hue.ink)
                     .padding(.horizontal, 8).padding(.vertical, 3)
-                    .background(Hue.accentSoft, in: Capsule())
+                    .background(Hue.fill, in: Capsule())
             }
-            Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Hue.grayLight)
+            Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Hue.inkSecondary)
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
@@ -723,10 +724,10 @@ private struct PlaceRow: View {
 
     private var iconCircle: some View {
         ZStack {
-            Circle().fill(liveCount > 0 ? Hue.accentSoft : Hue.bgSubtle).frame(width: 38, height: 38)
+            Circle().fill(liveCount > 0 ? Hue.fill : Hue.paper).frame(width: 38, height: 38)
             Image(systemName: spot.category.symbol)
                 .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(liveCount > 0 ? Hue.accent : Hue.gray)
+                .foregroundStyle(liveCount > 0 ? Hue.ink : Hue.inkSecondary)
         }
     }
 }
@@ -735,10 +736,10 @@ private struct PlaceRow: View {
 private struct SkeletonRow: View {
     var body: some View {
         HStack(spacing: 12) {
-            Circle().fill(Hue.bgSubtle).frame(width: 38, height: 38)
+            Circle().fill(Hue.paper).frame(width: 38, height: 38)
             VStack(alignment: .leading, spacing: 6) {
-                Capsule().fill(Hue.bgSubtle).frame(width: 150, height: 11)
-                Capsule().fill(Hue.bgSubtle).frame(width: 90, height: 9)
+                Capsule().fill(Hue.paper).frame(width: 150, height: 11)
+                Capsule().fill(Hue.paper).frame(width: 90, height: 9)
             }
             Spacer()
         }
@@ -746,12 +747,13 @@ private struct SkeletonRow: View {
     }
 }
 
-// MARK: - Coral primary pill (Directions)
+// MARK: - Ink primary button (Directions)
 
 private struct CoralPillStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .background(configuration.isPressed ? Hue.accentPressed : Hue.accent, in: Capsule())
+            .background(configuration.isPressed ? Hue.ink.opacity(0.85) : Hue.ink,
+                        in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }
 }

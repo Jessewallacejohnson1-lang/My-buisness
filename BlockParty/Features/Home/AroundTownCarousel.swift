@@ -132,19 +132,19 @@ struct PlaceCard: View {
                     Spacer(minLength: 0)
                     Image(systemName: placeSymbol(place))
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(Hue.moss700)
+                        .foregroundStyle(Hue.ink)
                 }
                 Text(place.tagline)
                     .font(.sans(11))
-                    .foregroundStyle(Hue.ink2)
+                    .foregroundStyle(Hue.inkSecondary)
                     .lineLimit(2)
             }
             .padding(.horizontal, 11)
             .padding(.vertical, 10)
         }
-        .background(Hue.paper)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
+        .background(Hue.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
         .modifier(CardShadow())
     }
 }
@@ -192,7 +192,7 @@ struct PlaceExpandedCard: View {
                     ForEach(place.description.prefix(2), id: \.self) { para in
                         Text(para)
                             .font(.sans(14))
-                            .foregroundStyle(Hue.ink2)
+                            .foregroundStyle(Hue.inkSecondary)
                             .lineSpacing(4)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -201,7 +201,7 @@ struct PlaceExpandedCard: View {
                         VStack(spacing: 0) {
                             ForEach(Array(place.facts.enumerated()), id: \.element.id) { i, fact in
                                 HStack {
-                                    Text(fact.label).font(.sans(13)).foregroundStyle(Hue.ink3)
+                                    Text(fact.label).font(.sans(13)).foregroundStyle(Hue.inkSecondary)
                                     Spacer()
                                     Text(fact.value).font(.sansMedium(13)).foregroundStyle(Hue.ink)
                                 }
@@ -212,9 +212,9 @@ struct PlaceExpandedCard: View {
                             }
                         }
                         .padding(.horizontal, 14)
-                        .background(Hue.canvas)
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: Radius.md).stroke(Hue.hairline, lineWidth: 1))
+                        .background(Hue.paper)
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: Radius.button).stroke(Hue.hairline, lineWidth: 1))
                     }
 
                     if let addr = place.where_ {
@@ -231,9 +231,9 @@ struct PlaceExpandedCard: View {
                             .foregroundStyle(Hue.ink)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 13)
-                            .background(Hue.canvas)
-                            .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
-                            .overlay(RoundedRectangle(cornerRadius: Radius.md).stroke(Hue.hairline, lineWidth: 1))
+                            .background(Hue.paper)
+                            .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: Radius.button).stroke(Hue.hairline, lineWidth: 1))
                         }
                         .buttonStyle(.plain)
                     }
@@ -244,8 +244,8 @@ struct PlaceExpandedCard: View {
             .frame(maxHeight: 240)
         }
         .frame(maxWidth: .infinity)
-        .background(Hue.paper)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.xl, style: .continuous))
+        .background(Hue.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         .clipped()
         .shadow(color: .black.opacity(0.2), radius: 28, x: 0, y: 10)
         // Spring-scale entry/exit

@@ -21,9 +21,9 @@ struct VenueAutocompleteField: View {
         let label: Color
         let hairline: Color
         /// Warm composer surfaces (AddFormView).
-        static let composer = Palette(fieldBg: Hue.paper, ink: Hue.ink, label: Hue.ink3, hairline: Hue.hairline)
+        static let composer = Palette(fieldBg: Hue.surface, ink: Hue.ink, label: Hue.inkSecondary, hairline: Hue.hairline)
         /// Cooler map chrome (QuickAddSheet).
-        static let map = Palette(fieldBg: Hue.bgSubtle, ink: Hue.mapInk, label: Hue.gray, hairline: Hue.mapHairline)
+        static let map = Palette(fieldBg: Hue.paper, ink: Hue.ink, label: Hue.inkSecondary, hairline: Hue.hairline)
     }
 
     let label: String
@@ -47,8 +47,8 @@ struct VenueAutocompleteField: View {
                 .autocorrectionDisabled()
                 .padding(.horizontal, 14).padding(.vertical, 12)
                 .background(palette.fieldBg)
-                .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Radius.md, style: .continuous)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
                     .stroke(palette.hairline, lineWidth: 1))
 
             if focused && !suggestions.isEmpty {
@@ -98,9 +98,9 @@ struct VenueAutocompleteField: View {
                 }
             }
         }
-        .background(Hue.paper)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.md, style: .continuous)
+        .background(Hue.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
             .stroke(palette.hairline, lineWidth: 1))
         .mapFloatShadow()
     }
