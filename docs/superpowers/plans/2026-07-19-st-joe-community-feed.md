@@ -244,6 +244,7 @@ git commit -m "feat(home): render time-bucketed community feed"
 
 **Files:**
 - Create: `Hygge/Features/Home/CommunityFeed/CommunityFeedPreview.swift`
+- Modify: `Hygge/App/RootView.swift:33-73`
 - Modify: `Hygge/Features/Home/HomeView.swift:22-108`
 - Modify: `Hygge/Features/Home/HomeModel.swift:21-66`
 
@@ -253,13 +254,15 @@ git commit -m "feat(home): render time-bucketed community feed"
 
 - [ ] **Step 1: Add DEBUG-only deterministic fixtures**
 
-In `CommunityFeedPreview.swift`, provide a `#if DEBUG` fixture set with an empty Today state and future events that render all three lower sections: three This Week items, one Fresh item, and two Later items. Fixture image URLs must be `nil`. Include a `TimelineEvent` fixture only when a preview needs to demonstrate the top RSVP state; never include the fixture path in release builds.
+In `CommunityFeedPreview.swift`, provide a `#if DEBUG` fixture set with one `TimelineEvent` for Today (so the `Happening today` heading and existing RSVP behavior are visible) plus future events that render all three lower sections: three This Week items, one Fresh item, and two Later items. Fixture image URLs must be `nil`. Never include the fixture path in release builds.
 
 - [ ] **Step 2: Centralize Home loading for preview and production**
 
 Add a private `loadHome()` async helper to `HomeView`. In DEBUG, if `ProcessInfo.processInfo.arguments` contains `-community-feed-self-check`, run `CommunityFeedBucketerSelfCheck.run()`. If arguments contain `-community-feed-preview`, call a DEBUG-only `HomeModel.loadCommunityFeedPreview()` and skip network fetches. Otherwise call the existing `model.load(api)`.
 
 Make both the initial `.task` and `.refreshable` call `await loadHome()`. Preserve the existing collapse/reveal and almanac replay behavior.
+
+In DEBUG, add a `-show-home` branch in `RootView` that renders `MainTabsView()` directly before the auth/onboarding gate. This makes `-show-home -community-feed-preview` a deterministic simulator route even when no persisted account exists. It must not compile into release, must not invoke production networking, and must not change the ordinary signed-in/onboarding flow.
 
 - [ ] **Step 3: Place the feed without disturbing the page hierarchy**
 
@@ -283,7 +286,7 @@ immediately after `todaySection` and before `AroundTownCarousel`. Shift the caro
 Use XcodeBuildMCP, after confirming the session defaults point at `/Users/owner/Documents/hygge-community-feed/Hygge.xcodeproj`, the `Hygge` scheme, and the `Hygge-Shots` simulator. Build and run with:
 
 ```text
--community-feed-self-check -community-feed-preview
+-show-home -community-feed-self-check -community-feed-preview
 ```
 
 Capture a screenshot and inspect: all headings are ordered `Happening today → This week → Fresh from around town → Coming up later`; no fixtures leak into release code; the RSVP and Save controls are distinct and visible; the footer is visible; no clipping or tab-bar overlap occurs.
@@ -296,6 +299,7 @@ Run `graphify update .` from the worktree, then commit:
 git add Hygge/Features/Home/HomeView.swift \
   Hygge/Features/Home/HomeModel.swift \
   Hygge/Features/Home/CommunityFeed/CommunityFeedPreview.swift \
+  Hygge/App/RootView.swift \
   graphify-out
 git commit -m "feat(home): integrate St. Joe community feed"
 ```
