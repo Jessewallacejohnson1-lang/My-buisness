@@ -140,8 +140,29 @@ Several states are deliberately distinguished by value or weight alone:
 
 - **Dark mode.** The token set is light-mode only (ink on paper). There is also
   a pre-existing Dark Mode tab-bar contrast bug noted on the map branch.
-- **A single optional accent colour.** Phase 1–4 ship pure monochrome; photos
-  carry all colour. Adding one accent later is a deliberate, separate decision.
+- **A single accent colour — DECIDED 2026-07-20, NOT YET IMPLEMENTED.**
+  Phases 1–4 shipped pure monochrome per the original brief ("accent: NONE in
+  phase 1"). Jesse has since decided to introduce **one accent**, scoped to where
+  it carries meaning — **live events · active filters · selected state · saved
+  pins · primary CTAs** — and nowhere else. Chrome, body copy, cards, and
+  category glyphs stay ink/paper; the accent is not decoration.
+
+  **The hue has not been chosen.** It must not be the retired coral `#FF6B57`.
+  The app icon is pure black-on-white, so the accent is additive to the brand
+  mark rather than derived from it.
+
+  When implementing, fold it into the five state cues that currently rely on
+  shape/value workarounds — they exist *because* colour was removed, and an
+  accent does the job better:
+  - `SJMapView` live pin — the static ink ring (`badge`)
+  - `SJMapView.chromeCircle(active:)` — the ink-fill inversion
+  - `InlineAction` — outlined-vs-filled error/success
+  - `ProfileComponents` `emphasized` — the ink-fill inversion
+  - Saved pin state, still the weakest in the system (§4b)
+
+  Keep the value-step fixes in the two calendars (`CalendarView.numberColor`,
+  `InsightsMiniCalendar`) regardless — those distinguish *has data* from *empty*,
+  which is not a live/active state and should not consume the accent.
 - **App Store listing rename**, marketing assets, screenshots, and the
   App Store description.
 - **App icon pixels.** The old 1024×1024 `AppIcon.png` had the "Hygge" wordmark
