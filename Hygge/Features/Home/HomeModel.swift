@@ -17,6 +17,14 @@ final class HomeModel: ObservableObject {
     @Published var name: String?
     @Published var loading = true
     @Published var loaded = false
+    @Published var upcoming: [UpcomingEvent] = []
+    @Published var communityFeedLoaded = false
+    private var upcomingRsvpInFlight: Set<String> = []
+    /// Desired RSVP states that have not yet been confirmed by an upcoming-feed
+    /// read. This survives stale GET snapshots that race a successful POST.
+    private var upcomingRsvpOverrides: [String: Bool] = [:]
+    /// Only the most recently started lower-feed read may reconcile its response.
+    private var upcomingLoadGeneration = 0
 
     func load(_ api: CommunityAPI) async {
         if !loaded { loading = true }
@@ -45,6 +53,24 @@ final class HomeModel: ObservableObject {
             Log.network("HomeModel.load today/quest: \(error)")
         }
 
+        // The lower community feed is deliberately independent of the Today agenda:
+        // a feed failure leaves both the existing feed and today's schedule intact.
+        upcomingLoadGeneration += 1
+        let loadGeneration = upcomingLoadGeneration
+        do {
+            let events = try await api.getUpcomingEvents()
+            if loadGeneration == upcomingLoadGeneration {
+                upcoming = events
+                mergeUpcomingRsvpOverrides()
+                communityFeedLoaded = true
+            }
+        } catch {
+            if loadGeneration == upcomingLoadGeneration {
+                Log.network("HomeModel.load upcoming: \(error)")
+                communityFeedLoaded = true
+            }
+        }
+
         // The curated town board — its own fetch so a board hiccup never disturbs
         // the timeline above, and vice versa.
         do {
@@ -67,6 +93,26 @@ final class HomeModel: ObservableObject {
         loaded = true
     }
 
+    #if DEBUG
+    /// Loads a deterministic local state for the community-feed simulator preview.
+    /// It deliberately bypasses every backend API so preview launches are reliable.
+    func loadCommunityFeedPreview() {
+        today = CommunityFeedPreview.today
+        board = .empty
+        weekGoing = 0
+        quest = nil
+        questCount = 0
+        questDone = false
+        name = "Neighbor"
+        upcoming = CommunityFeedPreview.events
+        communityFeedLoaded = true
+        upcomingRsvpInFlight = []
+        upcomingRsvpOverrides = [:]
+        loading = false
+        loaded = true
+    }
+    #endif
+
     func toggleRsvp(_ api: CommunityAPI, _ ev: TimelineEvent) async {
         guard let i = today.firstIndex(where: { $0.id == ev.id }) else { return }
         let wasGoing = today[i].rsvpd
@@ -88,6 +134,55 @@ final class HomeModel: ObservableObject {
             guard let j = today.firstIndex(where: { $0.id == ev.id }) else { return }
             today[j].rsvpd = wasGoing
             today[j].goingCount += wasGoing ? 1 : -1
+        }
+    }
+
+    /// RSVP from the lower community feed. This intentionally does not affect the
+    /// Today agenda or roll-call because same-day events are excluded from that feed.
+    func toggleUpcomingRsvp(_ api: CommunityAPI, _ event: UpcomingEvent) async {
+        guard !upcomingRsvpInFlight.contains(event.id) else { return }
+        guard let i = upcoming.firstIndex(where: { $0.id == event.id }) else { return }
+        let wasGoing = upcoming[i].rsvpd
+        let intendedState = !wasGoing
+        upcomingRsvpOverrides[event.id] = intendedState
+        upcoming[i].rsvpd = intendedState
+        upcoming[i].goingCount += intendedState ? 1 : -1
+        upcomingRsvpInFlight.insert(event.id)
+        defer { upcomingRsvpInFlight.remove(event.id) }
+        do {
+            if wasGoing { try await api.unRsvpEvent(event.id) } else { try await api.rsvpEvent(event.id) }
+        } catch {
+            upcomingRsvpOverrides.removeValue(forKey: event.id)
+            // Re-resolve by id in case a concurrent load() replaced the feed. Only
+            // undo an active optimistic value; a newer snapshot may already have
+            // restored the pre-toggle state, whose count must not be inverted again.
+            guard let j = upcoming.firstIndex(where: { $0.id == event.id }) else { return }
+            guard upcoming[j].rsvpd == intendedState else { return }
+            upcoming[j].rsvpd = wasGoing
+            upcoming[j].goingCount += wasGoing ? 1 : -1
+        }
+    }
+
+    /// Reconcile a just-fetched snapshot with local RSVP writes. An override is
+    /// cleared only once a server read agrees with it; otherwise the desired state
+    /// is reapplied once to this snapshot, including its matching count delta.
+    private func mergeUpcomingRsvpOverrides() {
+        let overrides = upcomingRsvpOverrides
+        for (eventId, desiredState) in overrides {
+            guard let i = upcoming.firstIndex(where: { $0.id == eventId }) else {
+                if !upcomingRsvpInFlight.contains(eventId) {
+                    upcomingRsvpOverrides.removeValue(forKey: eventId)
+                }
+                continue
+            }
+            if upcoming[i].rsvpd == desiredState {
+                if !upcomingRsvpInFlight.contains(eventId) {
+                    upcomingRsvpOverrides.removeValue(forKey: eventId)
+                }
+            } else {
+                upcoming[i].rsvpd = desiredState
+                upcoming[i].goingCount += desiredState ? 1 : -1
+            }
         }
     }
 

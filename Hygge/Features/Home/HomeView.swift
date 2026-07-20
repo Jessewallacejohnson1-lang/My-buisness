@@ -59,8 +59,17 @@ struct HomeView: View {
                     .padding(.horizontal, 18)
                     .springReveal(3, revealed: revealed, animated: revealAnimated)
 
+                CommunityFeedTimelineView(
+                    events: model.upcoming,
+                    isLoading: model.loading && !model.communityFeedLoaded,
+                    onToggleRsvp: { event in Task { await model.toggleUpcomingRsvp(api, event) } },
+                    onCompose: onCompose
+                )
+                .padding(.horizontal, 18)
+                .springReveal(4, revealed: revealed, animated: revealAnimated)
+
                 AroundTownCarousel(expanded: $expandedPlace, ns: cardNS)
-                    .springReveal(4, revealed: revealed, animated: revealAnimated)
+                    .springReveal(5, revealed: revealed, animated: revealAnimated)
 
                 Color.clear.frame(height: 96)
             }
@@ -71,12 +80,12 @@ struct HomeView: View {
             // then spring it all back in — the reference's "reload → springs out" beat.
             revealAnimated = false
             revealed = false
-            await model.load(api)
+            await loadHome()
             revealAnimated = true
             revealed = true
             almanacReplay += 1   // and the Almanac re-writes itself as the card springs back
         }
-        .task { await model.load(api) }
+        .task { await loadHome() }
         // Springs in when Today first appears and each time it's returned to.
         .onAppear { revealed = true }
         // A name edit in the profile writes Interests.displayName synchronously;
@@ -95,7 +104,7 @@ struct HomeView: View {
         } else {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    Text("Today")
+                    Text("Happening today")
                         .font(.displaySemi(22))
                         .foregroundStyle(Hue.ink)
                     Spacer()
@@ -111,6 +120,20 @@ struct HomeView: View {
                 }
             }
         }
+    }
+
+    private func loadHome() async {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-community-feed-self-check") {
+            CommunityFeedBucketerSelfCheck.run()
+        }
+        if arguments.contains("-community-feed-preview") {
+            model.loadCommunityFeedPreview()
+            return
+        }
+        #endif
+        await model.load(api)
     }
 }
 

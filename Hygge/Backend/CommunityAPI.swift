@@ -167,17 +167,30 @@ struct CommunityAPI {
 
     func getUpcomingEvents() async throws -> [UpcomingEvent] {
         let t = try await token()
+        let uid = auth.userId
         let today = DateHelpers.localDate()
         let (data, _) = try await SupabaseHTTP.rest("club_events",
-            query: "select=*&status=eq.approved&kind=eq.event&event_date=gte.\(today)\(Self.realOnly)&order=event_date.asc",
+            query: "select=*,clubs(name)&status=eq.approved&kind=eq.event&event_date=gte.\(today)\(Self.realOnly)&order=event_date.asc",
             accessToken: t)
         let events: [RawEvent] = try decode(data)
-        let counts = try await rsvpCounts(eventIds: events.map(\.id), token: t)
+        let ids = events.map(\.id)
+        var counts: [String: Int] = [:]
+        var mine = Set<String>()
+        if !ids.isEmpty {
+            let (rd, _) = try await SupabaseHTTP.rest("event_rsvps",
+                query: "select=event_id,user_id&event_id=in.(\(ids.joined(separator: ",")))", accessToken: t)
+            let rsvps: [RsvpRow] = try decode(rd)
+            for r in rsvps {
+                counts[r.eventId, default: 0] += 1
+                if let uid, r.userId == uid { mine.insert(r.eventId) }
+            }
+        }
         return events.map {
             UpcomingEvent(id: $0.id, title: $0.title, eventDate: $0.eventDate ?? "",
                           startTime: $0.startTime, location: $0.location,
                           goingCount: counts[$0.id] ?? 0, createdAt: $0.createdAt ?? "",
-                          imageUrl: $0.imageUrl)
+                          imageUrl: $0.imageUrl, rsvpd: mine.contains($0.id),
+                          clubName: $0.clubs?.name, category: EventCategory.from($0.category))
         }
     }
 
@@ -348,7 +361,7 @@ struct CommunityAPI {
             UpcomingEvent(id: $0.id, title: $0.title, eventDate: $0.eventDate ?? "",
                           startTime: $0.startTime, location: $0.location,
                           goingCount: counts[$0.id] ?? 0, createdAt: $0.createdAt ?? "",
-                          imageUrl: $0.imageUrl)
+                          imageUrl: $0.imageUrl, rsvpd: true)
         }
     }
 
