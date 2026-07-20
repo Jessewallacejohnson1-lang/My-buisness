@@ -65,6 +65,10 @@ struct InlineAction: View {
                 .frame(width: collapsed ? 46 : 118, height: 46)
                 .background(moduleFill)
                 .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
+                        .stroke(moduleStroke, lineWidth: 1.5)
+                )
         }
         .padding(.vertical, 8)
         .padding(.leading, 8)
@@ -105,20 +109,32 @@ struct InlineAction: View {
                     .transition(.blurFade)
 
             case .error:
+                // Outlined, not filled — see moduleFill. Ink on surface, with the
+                // border supplying the edge the fill no longer does.
                 Image(systemName: "exclamationmark")
                     .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Hue.ink)
                     .transition(.blurFade)
             }
         }
     }
 
+    /// Success is FILLED ink; error is OUTLINED. Without an accent colour both were
+    /// solid ink, separated only by a checkmark vs an exclamation — so a failed
+    /// calendar-add read as a successful one at a glance. Filled-vs-outlined is the
+    /// monochrome way to say "done" vs "didn't happen".
     private var moduleFill: Color {
         switch phase {
         case .idle, .loading: return Hue.fill
         case .success:        return Hue.ink
-        case .error:          return Hue.ink
+        case .error:          return Hue.surface
         }
+    }
+
+    /// Only the error state carries a border — it is the one phase whose fill alone
+    /// would otherwise be indistinguishable from the surface behind it.
+    private var moduleStroke: Color {
+        phase == .error ? Hue.ink : .clear
     }
 
     private var accessibilityValue: String {

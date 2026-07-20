@@ -627,17 +627,21 @@ struct SJMapView: View {
         .accessibilityLabel("Recenter map")
     }
 
-    /// The shared chrome bubble — 44px surface circle, hairline, ink line icon.
+    /// The shared chrome bubble — 44px circle, hairline, ink line icon.
+    /// Active INVERTS to a solid ink fill with a white icon. A weight step alone
+    /// (medium → semibold) is not a legible "filter is on" signal now that the
+    /// coral stroke is gone, and a user who cannot see the filter is active reads
+    /// the hidden pins as missing data.
     private func chromeCircle(icon: String, active: Bool = false) -> some View {
         Circle()
-            .fill(Hue.surface)
+            .fill(active ? Hue.ink : Hue.surface)
             .frame(width: 44, height: 44)
-            .overlay(Circle().stroke(Hue.hairline, lineWidth: 1))
+            .overlay(Circle().stroke(active ? Hue.ink : Hue.hairline, lineWidth: 1))
             .mapFloatShadow()
             .overlay(
                 Image(systemName: icon)
                     .font(.system(size: 16, weight: active ? .semibold : .medium))
-                    .foregroundStyle(Hue.ink)
+                    .foregroundStyle(active ? Hue.surface : Hue.ink)
             )
     }
 
@@ -868,15 +872,21 @@ private struct MapPinBadge: View {
             // zoomed all the way out.
             if live && !selected { PulseRing(diameter: diameter) }
 
-            // Mono-only: a STATIC ring outside a live badge. Coral used to say "live"
-            // without moving; motion alone left liveness invisible in a still frame.
-            // Drawn at diameter + 7 so it clears the badge's own 1.5pt white keyline
-            // and reads as a separate mark rather than a thick border.
+            // STATIC live ring. The pulse alone cannot carry "happening now" for three
+            // separate reasons: it is suppressed while selected; Reduce Motion renders it
+            // as a same-size disc fully occluded by the opaque badge above; and in any
+            // still frame it may be caught mid-cycle at zero opacity. Coral used to be the
+            // real signal — without it a Reduce Motion user could not tell a live spot from
+            // a dormant one at all. This ring is GEOMETRY, not colour, so it survives every
+            // one of those cases, and it is deliberately NOT gated on `expanded`: a compact
+            // dot is exactly where a glanceable live cue matters most.
+            //
+            // Routed through MarkerRole so the pending accent colour (live events are on its
+            // shortlist) lands in ONE place rather than here.
             if live {
                 Circle()
                     .stroke(MarkerRole.liveStaticRing, lineWidth: 2)
                     .frame(width: diameter + 7, height: diameter + 7)
-                    .opacity(expanded ? 1 : 0)   // no room around a 14pt compact dot
             }
 
             Circle()

@@ -4,75 +4,70 @@ Visual system for Block Party, captured from `BlockParty/Theme/` (`BlockPartyCol
 
 ## Theme
 
-**Coral + white, "Strava-clean" (July 2026 rebrand).** Pure-white cards lift off a near-white canvas; charcoal ink for text; a single warm **coral** accent carries everything live or tappable. The older warm-linen surfaces and green buttons are retired — do not reintroduce a cream/linen body background or a green primary. Warmth now comes from the coral accent and copy, not from a tinted surface.
+**Ink on paper, monochrome (July 2026 rebrand).** White cards lift off a warm near-white page; near-black ink carries text, buttons, active states and pins. **There is no accent colour** — photographs carry all the colour in the app, and that contrast against monochrome chrome is the point of the system. The earlier coral accent, the warm-linen surfaces, and the green buttons are all retired; do not reintroduce any of them. Warmth comes from the paper tone and the copy.
+
+If a design seems to need an accent, it needs hierarchy instead — weight, size, value, or fill-vs-outline.
 
 Mood: a calm community bulletin board in daylight. Light mode only today.
 
 ## Color
 
-All values are sRGB hex from `Hue` (`BlockPartyColor.swift`).
+All values are sRGB hex from `Hue` (`BlockPartyColor.swift`). Six tokens, and nothing else.
 
-### Surfaces
 | Token | Hex | Role |
 |---|---|---|
-| `Hue.paper` / `surface` | `#FFFFFF` | Default surface — pure white cards, floating elements |
-| `Hue.paper100` | `#F6F7F8` | Raised tint |
-| `Hue.paper200` | `#EFF1F3` | Muted surface |
-| `Hue.paper300` | `#E5E7EB` | De-emphasized / dividers |
-| `Hue.canvas` / `bgSubtle` | `#F6F7F8` | App page background — white cards lift off it |
+| `Hue.ink` | `#111111` | Primary text, buttons, FABs, active states, pins |
+| `Hue.paper` | `#FAFAF7` | App page background (warm white — matches the icon) |
+| `Hue.surface` | `#FFFFFF` | Cards |
+| `Hue.inkSecondary` | `#6E6E6E` | Secondary text, captions, inactive states |
+| `Hue.hairline` | `#E7E7E4` | Borders, dividers |
+| `Hue.fill` | `#F1F1EF` | Inert fills — placeholders, skeletons, disabled |
 
-### Text — charcoal ink ramp (WCAG-verified on paper)
-| Token | Hex | Role |
-|---|---|---|
-| `Hue.ink` | `#2A2A28` | Primary text (AAA) |
-| `Hue.ink2` | `#5E5D56` | Secondary / body (AA) |
-| `Hue.ink3` | `#828077` | Tertiary / placeholder |
+> Note the surface/page swap in the rebrand: `Hue.paper` used to mean "white card" and
+> `Hue.canvas` meant "page background". `Hue.paper` **is** the page background now, and
+> cards are `Hue.surface`. Deleted entirely: `accent`, `accentPressed`, `accentSoft`, the
+> `moss`/`sky`/`honey`/`clay` ramps, `paper100/200/300`, `canvas`, `ink2`, `ink3`, `gray`,
+> `grayLight`, `bgSubtle`, `mapInk`, `mapHairline`.
 
-### Accent — coral (the one job: live + tappable)
-| Token | Hex | Role |
-|---|---|---|
-| `Hue.accent` / `moss700` | `#FF6B57` | **Primary accent** — live indicators, primary buttons, active/selected, tappable |
-| `Hue.accentPressed` / `moss500` | `#E5503C` | Pressed state |
-| `Hue.moss400` | `#FF8A79` | Light coral |
-| `Hue.moss800` | `#C7452F` | Deepest pressed |
-| `Hue.accentSoft` | `#FFF0EC` | Soft coral tint (backgrounds behind coral content) |
+**Contrast:** `ink` passes AA everywhere. `inkSecondary` measures 4.88:1 on `paper`,
+5.10:1 on `surface`, and **4.51:1 on `fill`** — passing with no margin, so do not add
+opacity to secondary text over a filled surface.
 
-> Naming note: the `moss*` keys are historical (green→coral rebrand kept the key names to avoid churning ~30 call sites). They are coral now. Reach for `Hue.accent`/`accentSoft`/`accentPressed` in new code.
+**Emphasis is weight, never colour.** Where a state used to be carried by hue it is now
+carried by value, weight, shape, or filled-vs-outlined — e.g. calendar days with
+happenings are `ink` and empty days `inkSecondary`; `InlineAction` success is filled ink
+and error is outlined; live map pins carry a static ring.
 
-### Secondary hues (use sparingly, one job each)
-| Token | Hex | Role |
-|---|---|---|
-| `Hue.sky600` | `#6B7B84` | Brand / focus / calm-day signal |
-| `Hue.honey600` | `#B07D2B` | Warmth (sparingly) |
-| `Hue.clay700` | `#B0573A` | Warning / error only |
-| `Hue.hairline` | `black @ 7%` | Hairline borders |
-| `Hue.mapInk` | `#1A1D21` | Text/icons on the map |
-
-**Contrast rule:** body text stays at `ink`/`ink2`. Never lighten body copy toward `ink3` "for elegance." Placeholder text is the only `ink3` body use.
+**Allowed raw hexes** — only two files: `BlockPartyColor.swift` itself, and
+`Features/Map/BasemapPalette.swift`, whose grayscale cartography ramp (land `#FAFAF7`,
+parks `#EFEFEC`, water `#E4E4E0`, building `#F1F1EF`, roads `#FFFFFF`) must stay
+separable by value now that hue is gone.
 
 ## Typography
 
-**Platform system font (SF Pro) everywhere — weight carries hierarchy.** Helpers in `BlockPartyFont.swift` map straight onto `.system(size:weight:)`:
+**Two faces: Jost for display, SF Pro for everything else.** Helpers live in `BlockPartyFont.swift`:
 
 | Helper | Maps to | Use |
 |---|---|---|
-| `Font.display(_)` | system **bold** | Display / headings |
-| `Font.displaySemi(_)` | system **semibold** | Section titles (e.g. "Today", 22pt) |
+| `Font.display(_)` | **Jost** `JostRoman-Bold` | Wordmark, display, headings |
+| `Font.displaySemi(_)` | **Jost** `JostRoman-SemiBold` | Section titles (e.g. "Today", 22pt) |
 | `Font.sans(_)` | system regular | Body |
 | `Font.sansMedium/Semibold/Bold(_)` | system medium/semibold/bold | UI emphasis |
 | `Font.mono(_)` / `Font.monoMedium(_)` | system regular/medium | Data — **pair with `.monospacedDigit()`** for tabular figures |
 
 - **Numbers are always tabular** (`.monospacedDigit()` at the call site). This is a house rule — times, temps, counts.
-- Small labels/eyebrows use `Font.mono(11)` with `.tracking(1.5)` in `Hue.ink3` (e.g. `ALMANAC`, `TODAY IN ST. JOE`). This tracked-mono micro-label is an established in-app pattern, not the banned generic eyebrow.
-- **One custom face:** `Font.logo` → **Atkinson Hyperlegible Bold**, used only by `BlockPartyLogoBadge`. Fixed size (a logo never scales with Dynamic Type). Do not reintroduce a bundled UI font (Spectral/DM Sans/Geist Mono were removed in the rebrand).
+- Small labels/eyebrows use `Font.mono(11)` with `.tracking(1.5)` in `Hue.inkSecondary` (e.g. `ALMANAC`, `TODAY IN ST. JOE`). This tracked-mono micro-label is an established in-app pattern, not the banned generic eyebrow.
+- **Jost is a variable font and its PostScript names are inconsistent upstream** — `Jost-Regular`, but `JostRoman-Medium` / `JostRoman-SemiBold` / `JostRoman-Bold`. Use them exactly; a wrong name falls back to the system font **silently**, with no error.
+- `Font.logo` is `JostRoman-SemiBold`. Fixed size — a logo never scales with Dynamic Type. `AtkinsonHyperlegible-Bold.ttf` is still bundled but no longer referenced.
+- Do not add a third family.
 
 ## Layout, radii & elevation
 
 From `BlockPartyMetrics.swift`.
 
-- **Radius scale:** `sm 8` (chips), `md 12` (inputs/buttons), `lg 16` (cards), `xl 20` (sheets/hero). Always `.continuous`.
-- **One elevation:** a single soft warm lift — `CardShadow` = `#2A241C @ 10%`, radius 11, y 6. Everything else stays flat, leaning on fill + hairline border.
-- **`blockPartyCard(radius:padding:)`** — the house card: white fill, hairline border, `lg` radius, the one shadow. Default padding 16.
+- **Radius scale — three tokens:** `Radius.button 12` (buttons — a **rounded square, never a pill**), `Radius.tile 16`, `Radius.card 20`. Always `.continuous`. The old `sm/md/lg/xl` scale is gone.
+- **One elevation:** `CardShadow` = black @ 6%, radius 10, y 4 — neutral, replacing the old warm-brown hex. Prefer a `hairline` border over a shadow; reach for shadow only when something genuinely floats (FAB, sheet).
+- **`blockPartyCard(radius:padding:)`** — the house card: `surface` fill, hairline border, `card` radius, the one shadow. Default padding 16.
 - **`blockPartyHairline(radius:)`** — bordered surface, no shadow (chips, inputs, flat tiles).
 - **Map shadows:** `mapFloatShadow` (y2, blur10, 10%) and `mapSheetShadow` (y−2 upward, blur16, 8%) — softer/diffuse, no hard edges.
 - **Spacing:** Home stack uses ~18pt section spacing and 18pt horizontal insets; vary rhythm rather than one uniform gap. Cards are used deliberately; **never nest cards**.
@@ -85,11 +80,12 @@ From `BlockPartyMetrics.swift`.
 
 ## Iconography
 
-SF Symbols, small and quiet (`.font(.system(size: 12–13, weight: .medium))`), tinted to signal meaning — coral (`Hue.accent`) for get-out/live days, `Hue.sky600` for calm/rest/indoor. Icons support the copy; they don't decorate.
+SF Symbols, small and quiet (`.font(.system(size: 12–13, weight: .medium))`), always `Hue.ink` or `Hue.inkSecondary` — **meaning is carried by the glyph, not by a tint.** Category, POI family, and pin type all read by glyph now. Square-framed marks are preferred where there's a choice, and the block mark (`building.2.fill`) is the brand glyph; it replaces decorative lifestyle iconography. Photo-less states use a `fill` placeholder with a square-frame mark — never an emoji, never a coloured illustration.
 
 ## Bans (this project)
 
-- No cream/linen/sand body background; no green primary button (retired in the coral rebrand).
+- No accent colour of any kind. No coral, no cream/linen/sand body background, no green primary button — all retired.
+- No pill-shaped buttons; buttons are rounded squares at `Radius.button`.
 - No fabricated counts or seeded demo data in any surface.
 - No AI-drawn mascots/illustrations as final art (real photos or vector UI only).
 - No decorative gradient text, no side-stripe accent borders, no nested cards.
