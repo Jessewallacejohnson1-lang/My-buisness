@@ -97,13 +97,17 @@ private struct POIBadge: View {
     var body: some View {
         ZStack {
             Circle()
-                .fill(poi.family.tint)
+                .fill(MarkerRole.poiFill(poi.family, expanded: expanded))
                 .frame(width: diameter, height: diameter)
-                .overlay(Circle().stroke(Hue.surface, lineWidth: 1.5))
+                // Mono fills an EXPANDED POI pin with surface — the lightest tier — so it
+                // needs a real hairline edge to read against paper, where the warm skin's
+                // saturated fill only needed a white lift. A compact dot inverts to mid
+                // grey and takes the white keyline instead. See MonoMarkerPalette.swift.
+                .overlay(Circle().stroke(MarkerRole.pinStroke(isLightFill: expanded), lineWidth: 1.5))
                 .mapFloatShadow()
             Image(systemName: poi.glyph)
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(MarkerRole.poiGlyph)
                 .opacity(expanded ? 1 : 0)   // too cramped on the compact dot
         }
         .frame(width: diameter, height: diameter)
@@ -111,7 +115,9 @@ private struct POIBadge: View {
         .animation(reduceMotion ? .easeInOut(duration: 0.2) : .spring(response: 0.35, dampingFraction: 0.8),
                    value: expanded)
         .overlay(alignment: .leading) {
-            HaloText(poi.name, color: poi.family.tint)
+            // NOT `poiFill` — in mono that is surface, i.e. white text on paper. A label
+            // must stay readable, so it takes the ink role while the DOT goes light.
+            HaloText(poi.name, color: MarkerRole.label(base: poi.family.tint))
                 .frame(width: 100, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.leading, Self.expandedDiameter + 5)
@@ -202,19 +208,21 @@ struct POIClusterBubbleView: View {
                 // 0.95, not 0.90: at 0.90 the POI badges stacked underneath GHOSTED through a
                 // big bubble as a pale disc-inside-a-disc smudge. Still translucent enough to
                 // sit on the map rather than punch a hole in it.
-                .fill(Self.bubbleBase.opacity(0.95))
+                .fill(MarkerRole.clusterFill(warmBase: Self.bubbleBase).opacity(0.95))
                 // Dominant-category wash — a whisper, and dropped to 5%. The ring, not the
                 // fill, carries the category. At 7% over a pure-white base the disc measured
                 // #EAEBF3 (blue-leaning by 9) sitting on #F4F3EC land (red-leaning by 8) — a
                 // 17-point hue REVERSAL, i.e. a cold chip on a warm map. That periwinkle cast
                 // was previously blamed on the ring; it was the fill.
-                .overlay(Circle().fill(family.tint.opacity(0.05)))
+                // Mono drops the category wash entirely — at 5% of a grey it is invisible,
+                // and keeping a tinted wash would be the one hue left on the map.
+                .overlay(Circle().fill(MarkerSkin.current.isMono ? .clear : family.tint.opacity(0.05)))
                 // Category ring — the bubble's category signal, and what makes it read as
                 // Apple-style cluster chrome. 1.8pt rather than 1.5: a ring is a FIXED width
                 // on a disc whose size varies 22→44pt, so the thinnest-looking bubble is the
                 // smallest one — and a 22pt "2" was measurably QUIETER than a single solid
                 // rest dot beside it. The extra weight lands hardest where it was needed.
-                .overlay(Circle().strokeBorder(family.tint.opacity(0.9), lineWidth: 1.8))
+                .overlay(Circle().strokeBorder(MarkerRole.clusterStroke(family), lineWidth: 1.8))
                 // Deeper than the pins' float shadow ON PURPOSE: a bubble stands for many
                 // places, so it must sit ABOVE the individual rest dots around it. With the
                 // pale fill and the pins' lighter shadow it read as the quieter element —
@@ -226,7 +234,7 @@ struct POIClusterBubbleView: View {
                 .font(.system(size: max(11, min(17, diameter * 0.46)), weight: .bold))
                 .monospacedDigit()
                 // Ink, not white — the disc is light now. ~13:1 against the surface fill.
-                .foregroundStyle(Hue.mapInk)
+                .foregroundStyle(MarkerRole.clusterText)
                 .contentTransition(.numericText())
         }
         // The dominant family can flip (amber ⇄ indigo) when membership shifts across a

@@ -724,7 +724,12 @@ private struct PulseRing: View {
 
     var body: some View {
         Circle()
-            .fill(LIVE_COLOR.opacity(pulsing ? 0 : 0.35))
+            // In mono this halo IS the liveness signal — there is no coral left to
+            // carry it, so the pin's only "something is happening here" cue is this
+            // expanding ink ring plus the always-on name label. Held at 0.35 in both
+            // skins: ink at 35% over paper lands close to the coral's weight, so the
+            // pulse reads with the same urgency it always did.
+            .fill(MarkerRole.liveRing(warm: LIVE_COLOR).opacity(pulsing ? 0 : 0.35))
             .frame(width: diameter, height: diameter)
             .scaleEffect(pulsing ? 2.2 : 1.0)
             .onAppear {
@@ -774,7 +779,9 @@ private struct MapPinBadge: View {
     private var diameter: CGFloat { expanded ? Self.expandedDiameter : Self.compactDiameter }
     private var live: Bool  { base == .live }
     private var saved: Bool { base == .saved }
-    private var tint: Color { live ? LIVE_COLOR : spot.category.tint }
+    /// Badge fill, routed through `MarkerRole` so the monochrome skin swaps in
+    /// without branching here (see MonoMarkerPalette.swift).
+    private var tint: Color { live ? MarkerRole.liveFill(warm: LIVE_COLOR) : MarkerRole.civicFill(spot.category) }
 
     var body: some View {
         badge
@@ -833,15 +840,28 @@ private struct MapPinBadge: View {
             // zoomed all the way out.
             if live && !selected { PulseRing(diameter: diameter) }
 
+            // Mono-only: a STATIC ring outside a live badge. Coral used to say "live"
+            // without moving; motion alone left liveness invisible in a still frame.
+            // Drawn at diameter + 7 so it clears the badge's own 1.5pt white keyline
+            // and reads as a separate mark rather than a thick border.
+            if live, let ring = MarkerRole.liveStaticRing {
+                Circle()
+                    .stroke(ring, lineWidth: 2)
+                    .frame(width: diameter + 7, height: diameter + 7)
+                    .opacity(expanded ? 1 : 0)   // no room around a 14pt compact dot
+            }
+
             Circle()
                 .fill(tint)
                 .frame(width: diameter, height: diameter)
                 .mapFloatShadow(pressed: selected)
-                .overlay(Circle().stroke(Hue.surface, lineWidth: 1.5))
+                // Civic pins are ink-filled in both skins' terms (dark fill), so the
+                // keyline stays the white lift — `isLightFill: false`.
+                .overlay(Circle().stroke(MarkerRole.pinStroke(isLightFill: false), lineWidth: 1.5))
 
             Image(systemName: spot.category.filledSymbol)
                 .font(.system(size: Self.iconSize, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(MarkerRole.civicGlyph)
                 .opacity(expanded ? 1 : 0)   // too cramped on a 14pt compact dot
 
             if saved {
