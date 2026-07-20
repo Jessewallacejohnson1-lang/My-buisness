@@ -446,7 +446,10 @@ struct MapSheet: View {
     private var todayRows: some View {
         switch state {
         case .loading:
-            ForEach(0..<3, id: \.self) { _ in SkeletonRow() }
+            VStack(spacing: 0) {
+                ForEach(0..<3, id: \.self) { _ in SkeletonRow() }
+            }
+            .shimmering()
         case .loaded, .empty:
             if events.isEmpty {
                 emptyState(icon: "moon.stars", text: "Nothing on the map yet today.")

@@ -59,6 +59,13 @@ struct RootView: View {
                 MainTabsView()
             } else if ProcessInfo.processInfo.arguments.contains("-show-splash") {
                 SplashView()
+            } else if ProcessInfo.processInfo.arguments.contains("-show-loading-cover") {
+                // Preview the tab loading cover full-screen (bypassing the auth gate)
+                // so the rainbow-wave indicator + copy can be verified headlessly.
+                TabLoadingCover()
+            } else if ProcessInfo.processInfo.arguments.contains("-show-skeletons") {
+                // Preview the per-tab shimmer skeletons (bypassing the auth gate).
+                SkeletonGalleryPreview()
             } else if ProcessInfo.processInfo.arguments.contains("-show-map-intro"),
                       !debugIntroDismissed {
                 MapIntroView { debugIntroDismissed = true }
@@ -182,6 +189,9 @@ struct MainTabsView: View {
 
     @State private var expandedPlace: Place?
     @State private var composing = false
+    /// Readiness of the *current* tab's content, gathered from `TabReadyPreferenceKey`.
+    /// Drives the loading cover that hides a not-yet-rendered tab.
+    @State private var activeTabReady = false
     /// The compose "+" speed-dial (Explore / Calendar). Owned here so the wash can
     /// recede the tab content and float above the tab bar.
     @State private var speedDialOpen = false
@@ -236,6 +246,13 @@ struct MainTabsView: View {
             // "home recedes"); tab bar stays put and is dimmed by the wash.
             .scaleEffect(reduceMotion ? 1 : (speedDialOpen ? 0.97 : 1))
             .animation(.spring(response: 0.34, dampingFraction: 0.72), value: speedDialOpen)
+            // Cover a not-yet-loaded tab with the rainbow-wave loading screen until
+            // its content reports ready. Sits above the content but below the tab
+            // bar (a later ZStack sibling), so switching tabs stays possible.
+            .onPreferenceChange(TabReadyPreferenceKey.self) { activeTabReady = $0 }
+            .overlay {
+                TabLoadingHost(isReady: activeTabReady, resetKey: AnyHashable(tab))
+            }
 
             HyggeTabBar(selection: $tab, onSelect: select)
         }

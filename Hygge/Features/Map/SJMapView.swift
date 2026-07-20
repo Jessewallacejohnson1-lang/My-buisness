@@ -254,6 +254,13 @@ struct SJMapView: View {
             // above the sheet, exactly as a tap would (selectSpot does the same lift).
             if let s = selectedSpot { viewport = liftedViewport(s.coordinate, zoom: Self.selectZoom) }
         }
+        // Map is "ready" once the data has resolved AND the basemap has painted —
+        // otherwise the cover would lift onto a blank grey map. But if the data
+        // errored/went offline, lift immediately (show that surface; don't wait for
+        // tiles that also won't load). `styleLoaded` also flips on a style-load error
+        // below, and `TabLoadingHost` has a hard timeout, so the cover can't hang.
+        .tabReady(model.state != .loading
+                  && (model.styleLoaded || model.state == .error || model.state == .offline))
         .onDisappear { model.stop() }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
@@ -344,7 +351,12 @@ struct SJMapView: View {
             .onStyleLoaded { _ in
                 recolorBasemap(proxy.map)
                 if let map = proxy.map { POILayer.install(on: map, pois: model.pois) }
+                model.markStyleLoaded()
             }
+            // If the basemap can't load (offline first run, bad token), treat the map
+            // as "painted" so the loading cover lifts to reveal the map's own state
+            // rather than hanging on a screen that will never finish.
+            .onMapLoadingError { _ in model.markStyleLoaded() }
             // Name whatever town the map is panned over, and shrink/expand pins to fit
             // the zoom (both debounced in the model — never the view's @State here).
             .onCameraChanged {

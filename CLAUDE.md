@@ -42,6 +42,7 @@ xcrun simctl install <udid> "$DIR/Hygge.app"   # install OVER the app — do NOT
 
 **DEBUG-only launch arguments** (for headless screenshot verification, no UI driving needed):
 - `-open-tab map|activities|calendar` — start on a given tab (`MainTabsView.initialTab()` in `App/RootView.swift`).
+- `-show-loading-cover` — render the tab loading cover (`TabLoadingCover`, the rainbow-wave "Just a second" screen) full-screen, bypassing the auth gate, so the indicator + copy can be screenshotted/recorded headlessly (`RootView` gate branch).
 - `-force-nonadmin` — force the non-admin branch so admin-gated UI (the map "+") can be verified without a second account (`SJMapView.isAdmin`).
 - `-explore-filter events|clubs|trails|parks` — start the Activities ("Explore") tab on a given category chip so each card state can be screenshotted headlessly (`ActivitiesView.initialFilter()`).
 - `-explore-timeframe today|week|month|upcoming` — start the Explore tab with a given event time-frame filter applied (`ActivitiesView.initialTimeFrame()`).
