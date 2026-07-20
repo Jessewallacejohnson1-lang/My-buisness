@@ -119,14 +119,18 @@ struct WeatherBar: View {
                 startPoint: .top, endPoint: .bottom
             )
 
+            // Preserve the established weather-backdrop lifecycle and motion while
+            // presenting the rebrand's single, solid hero treatment.
+            Hue.ink
+
             HStack(alignment: .bottom) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("St. Joseph, Minnesota")
                         .font(.sansSemibold(14))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Hue.surface)
                     Text(weather?.label ?? "—")
                         .font(.sans(12))
-                        .foregroundStyle(.white.opacity(0.85))
+                        .foregroundStyle(Hue.surface)
                 }
                 Spacer()
                 if let w = weather {
@@ -134,11 +138,11 @@ struct WeatherBar: View {
                         Text("\(w.tempF)°")
                             .font(.monoMedium(30))
                             .monospacedDigit()
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Hue.surface)
                         Text("H \(w.highF)°  L \(w.lowF)°")
                             .font(.mono(11))
                             .monospacedDigit()
-                            .foregroundStyle(.white.opacity(0.85))
+                            .foregroundStyle(Hue.surface)
                     }
                 }
             }

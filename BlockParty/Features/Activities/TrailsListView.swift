@@ -211,21 +211,13 @@ private struct CommunityTrailCard: View {
             AsyncImage(url: url) { phase in
                 switch phase {
                 case .success(let img): img.resizable().scaledToFill()
-                default: placeholder
+                default: ExploreBlankPhoto()
                 }
             }
         } else if let localName = KnownLocalPhoto.name(forTitle: trail.title) {
             PhotoView(name: localName).scaledToFill()
         } else {
-            VenuePhoto(venueName: trail.title, hint: trail.location) { placeholder }
-        }
-    }
-
-    private var placeholder: some View {
-        ZStack {
-            LinearGradient(colors: [Hue.ink.opacity(0.4), Hue.ink.opacity(0.5)],
-                           startPoint: .topLeading, endPoint: .bottomTrailing)
-            ProgressView().tint(.white.opacity(0.7))
+            VenuePhoto(venueName: trail.title, hint: trail.location) { ExploreBlankPhoto() }
         }
     }
 }

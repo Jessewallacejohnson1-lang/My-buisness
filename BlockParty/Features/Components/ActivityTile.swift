@@ -1,13 +1,13 @@
 //
 //  ActivityTile.swift
 //  Block Party — the photo-forward browse tile for the Explore lists. A full-bleed
-//  photo (or a unified-coral panel when none resolves) with the category tag +
+//  photo (or the shared neutral placeholder when none resolves) with the category tag +
 //  title + one concise meta line overlaid on the foot, and the type action +
 //  bookmark floating top-right. Text moves ONTO the image so the title/subtitle/
 //  meta stack no longer takes space below it.
 //
 //  Ports the RN twin's ActivityTile (apps/mobile/src/components/ActivityTile.tsx)
-//  and shares FeaturedEventCard's scrim + coral-panel idiom, so a vertical tile
+//  and shares FeaturedEventCard's full-bleed idiom, so a vertical tile
 //  and the featured hero read as one system. White surface with ink active states.
 //
 
@@ -15,7 +15,7 @@ import SwiftUI
 
 /// One photo-forward tile for the vertical browse lists (events, clubs, trails,
 /// parks). A real photo when the wrapper resolves one; otherwise
-/// `ActivityCoralPanel`, which keeps the white type legible — never a light blank.
+/// `ExploreBlankPhoto`, with the existing foot scrim keeping white type legible.
 struct ActivityTile<Photo: View, Trailing: View>: View {
     let id: String
     /// The uppercase category overline (EVENT / CLUB / TRAIL / PARK).
@@ -80,25 +80,6 @@ struct ActivityTile<Photo: View, Trailing: View>: View {
                 SaveBookmarkButton(id: id)
             }
             .padding(12)
-        }
-    }
-}
-
-/// The unified-coral fallback shown when no real photo resolves — a warm coral
-/// gradient (light → accent → deep) with a faint category glyph, so the white
-/// tag / title / meta always read. Coral is THE accent; the glyph is barely-there
-/// texture. Mirrors FeaturedEventCard.coralPanel and the RN twin's coral tile.
-struct ActivityCoralPanel: View {
-    var glyph: String = "sparkles"
-    var body: some View {
-        ZStack(alignment: .topTrailing) {
-            LinearGradient(colors: [Hue.ink, Hue.ink, Hue.ink],
-                           startPoint: .topLeading, endPoint: .bottomTrailing)
-            Image(systemName: glyph)
-                .font(.system(size: 116, weight: .light))
-                .foregroundStyle(.white.opacity(0.12))
-                .rotationEffect(.degrees(-8))
-                .offset(x: 24, y: -16)
         }
     }
 }

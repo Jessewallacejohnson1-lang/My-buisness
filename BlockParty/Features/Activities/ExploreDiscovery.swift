@@ -126,7 +126,7 @@ struct ExploreCategoryTile: View {
             VStack(spacing: 9) {
                 ZStack {
                     RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                        .fill(selected ? Hue.fill : Hue.paper)
+                        .fill(Hue.fill)
                     Image(systemName: icon)
                         .font(.system(size: 26, weight: .regular))
                         .foregroundStyle(selected ? Hue.ink : Hue.ink)
@@ -213,8 +213,7 @@ struct FeaturedCarousel: View {
 }
 
 /// The hero card. A bundled photo (dark-scrimmed for legible white type) when
-/// one exists, otherwise a typographic coral panel — never a fake photo, and
-/// never white text on a light blank slot.
+/// one exists, otherwise the shared neutral no-photo mark.
 struct FeaturedEventCard: View {
     let event: UpcomingEvent
     var onInvite: () -> Void
@@ -276,28 +275,14 @@ struct FeaturedEventCard: View {
             AsyncImage(url: url) { phase in
                 switch phase {
                 case .success(let img): img.resizable().scaledToFill()
-                default: coralPanel
+                default: ExploreBlankPhoto()
                 }
             }
         } else if let name = KnownLocalPhoto.name(forTitle: event.title) {
             PhotoView(name: name).scaledToFill()
         } else {
             VenuePhoto(venueName: event.location ?? event.title,
-                       hint: event.location != nil ? event.title : nil, maxWidth: 1200) { coralPanel }
-        }
-    }
-
-    /// The typographic coral panel shown when there's no photo — a faint calendar
-    /// motif, so the white overline/title/location always read.
-    private var coralPanel: some View {
-        ZStack(alignment: .topTrailing) {
-            LinearGradient(colors: [Hue.ink, Hue.ink],
-                           startPoint: .topLeading, endPoint: .bottomTrailing)
-            Image(systemName: "calendar")
-                .font(.system(size: 118, weight: .light))
-                .foregroundStyle(.white.opacity(0.12))
-                .rotationEffect(.degrees(-8))
-                .offset(x: 26, y: -18)
+                       hint: event.location != nil ? event.title : nil, maxWidth: 1200) { ExploreBlankPhoto() }
         }
     }
 }
@@ -321,7 +306,7 @@ struct CarouselDots: View {
 // MARK: - "Happening this week" shelf (Wolt's Treats/Flowers row)
 
 /// A compact photo card for the horizontal weekly shelf. Text sits *below* the
-/// image, so the standard photo slot (real photo or coral-glyph blank) is safe.
+/// image, so the standard photo slot (real photo or neutral blank) is safe.
 struct EventShelfCard: View {
     let event: UpcomingEvent
 
@@ -392,8 +377,8 @@ struct EventShelfCard: View {
 // MARK: - Place card (Wolt's collection cards → St. Joe parks)
 
 /// A large photo collection card for the horizontal "Parks & green space" shelf
-/// — a bundled/venue photo (or a typographic coral panel when none exists, so
-/// white type is always legible), the park name bottom-left, tap → detail.
+/// — a bundled/venue photo (or the shared neutral blank), the park name
+/// bottom-left, tap → detail.
 struct ExplorePlaceCard: View {
     let park: Park
     @State private var showDetail = false
@@ -435,28 +420,14 @@ struct ExplorePlaceCard: View {
             PhotoView(name: name).scaledToFill()
         } else {
             VenuePhoto(venueName: park.title, hint: park.address,
-                       coordinate: park.coordinate, maxWidth: 700) { placeFallback }
-        }
-    }
-
-    /// The typographic coral panel shown while a photo resolves or when there is
-    /// none — a faint leaf motif, so white type over it always reads.
-    private var placeFallback: some View {
-        ZStack(alignment: .topTrailing) {
-            LinearGradient(colors: [Hue.ink, Hue.ink],
-                           startPoint: .topLeading, endPoint: .bottomTrailing)
-            Image(systemName: "leaf.fill")
-                .font(.system(size: 74, weight: .regular))
-                .foregroundStyle(.white.opacity(0.16))
-                .rotationEffect(.degrees(-12))
-                .offset(x: 14, y: -10)
+                       coordinate: park.coordinate, maxWidth: 700) { ExploreBlankPhoto() }
         }
     }
 }
 
 // MARK: - Compose banner (Wolt+ upsell → a neighborly "add yours")
 
-/// The wide, soft-coral call-to-action that replaces Wolt's paid-tier banner —
+/// The wide contribution card that replaces Wolt's paid-tier banner —
 /// on-brand: an invitation to contribute, not an upsell. Opens the composer.
 struct ExploreComposeBanner: View {
     var action: (() -> Void)?
@@ -464,14 +435,13 @@ struct ExploreComposeBanner: View {
     var body: some View {
         Button { action?() } label: {
             HStack(spacing: 14) {
-                ZStack {
-                    Circle().fill(Hue.ink)
-                    Image(systemName: "plus")
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundStyle(.white)
-                }
-                .frame(width: 46, height: 46)
-                .shadow(color: Hue.ink.opacity(0.3), radius: 6, x: 0, y: 3)
+                Image(systemName: "plus")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(Hue.surface)
+                    .frame(width: 46, height: 46)
+                    .background(Hue.ink,
+                                in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                    .shadow(color: Hue.ink.opacity(0.3), radius: 6, x: 0, y: 3)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Add your own happening")
@@ -489,8 +459,12 @@ struct ExploreComposeBanner: View {
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Hue.fill)
+            .background(Hue.surface)
             .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+                    .stroke(Hue.hairline, lineWidth: 1)
+            )
         }
         .buttonStyle(PressableStyle(scale: 0.98))
     }

@@ -126,7 +126,7 @@ struct AlmanacSection: View {
         .padding(18)
         .background(Hue.surface)
         .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).stroke(Hue.ink, lineWidth: 1.5))
+        .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
         .modifier(CardShadow())
         .task {
             // Template shows instantly; both fetches ride their own caches and the
@@ -212,7 +212,7 @@ struct AlmanacSection: View {
     private func liveRead() -> AttributedString {
         let nudge = Almanac.nudge(for: weather)
         if let aiLine {
-            return Almanac.styled(aiLine, numberTint: nudge.iconTint)
+            return Almanac.styled(aiLine)
         }
         return Almanac.readBlock(nudge)
     }
@@ -322,7 +322,7 @@ enum Almanac {
         if w.state == .snow || temp <= 32 {
             return Nudge(
                 icon: "snowflake", iconTint: Hue.ink,
-                line: hero("It's ") + heroNum("\(temp)°", Hue.ink) + hero(" out."),
+                line: hero("It's ") + heroNum("\(temp)°") + hero(" out."),
                 detail: body("Cold and \(labelLower) — but a brisk ") + bodyNum("10")
                     + body("-minute loop still beats the couch. Then earn your cocoa."),
                 pointer: "The Lake Wobegon Trail is quiet in the snow."
@@ -349,7 +349,7 @@ enum Almanac {
                 let m = max(1, mins)
                 return Nudge(
                     icon: "sunset.fill", iconTint: Hue.ink,
-                    line: hero("About ") + heroNum("\(m)", Hue.ink)
+                    line: hero("About ") + heroNum("\(m)")
                         + hero(" minute\(m == 1 ? "" : "s") of daylight left."),
                     detail: body("Catch the last of it — a short walk before ")
                         + bodyNum(clock(sunset)) + body("."),
@@ -361,7 +361,7 @@ enum Almanac {
         // Default: a clear, mild day with time to spare → get outside.
         let line: AttributedString
         if let sunset = w.sunset {
-            line = hero("Sun's up till ") + heroNum(clock(sunset), Hue.ink) + hero(".")
+            line = hero("Sun's up till ") + heroNum(clock(sunset)) + hero(".")
         } else {
             line = hero("A good day to be outside.")
         }
@@ -384,7 +384,9 @@ enum Almanac {
         return a
     }
     private static func hero(_ s: String) -> AttributedString { run(s, .displaySemi(20), Hue.ink) }
-    private static func heroNum(_ s: String, _ tint: Color) -> AttributedString { run(s, .monoMedium(19), tint) }
+    private static func heroNum(_ s: String) -> AttributedString {
+        run(s, .system(size: 19, weight: .bold, design: .monospaced), Hue.ink)
+    }
     private static func body(_ s: String) -> AttributedString { run(s, .sans(15), Hue.inkSecondary) }
     private static func bodyNum(_ s: String) -> AttributedString { run(s, .monoMedium(14), Hue.inkSecondary) }
 
@@ -402,10 +404,9 @@ enum Almanac {
         return out
     }
 
-    /// Render an AI-written line: numeric runs (times, temps, counts) in Geist Mono
-    /// tinted with the day's mood color, prose in DM Sans — so the AI line honors
-    /// "every number is mono" exactly like the template.
-    static func styled(_ line: String, numberTint: Color) -> AttributedString {
+    /// Render an AI-written line: numeric runs (times, temps, counts) use bold ink
+    /// while prose stays regular — emphasis is weight, never colour.
+    static func styled(_ line: String) -> AttributedString {
         let ns = line as NSString
         // A contiguous run of digits (with optional : . , inside) + optional trailing °:
         // matches 8:58, 84°, 2.5, 20 — leaves words like "noon" in DM Sans.
@@ -417,7 +418,8 @@ enum Almanac {
             if r.location > idx {
                 out += run(ns.substring(with: NSRange(location: idx, length: r.location - idx)), .sans(16), Hue.ink)
             }
-            out += run(ns.substring(with: r), .monoMedium(15), numberTint)
+            out += run(ns.substring(with: r),
+                       .system(size: 15, weight: .bold, design: .monospaced), Hue.ink)
             idx = r.location + r.length
         }
         if idx < ns.length {

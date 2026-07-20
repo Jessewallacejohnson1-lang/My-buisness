@@ -805,14 +805,14 @@ private struct EventExploreCard: View {
             AsyncImage(url: url) { phase in
                 switch phase {
                 case .success(let img): img.resizable().scaledToFill()
-                default: ActivityCoralPanel(glyph: "calendar")
+                default: ExploreBlankPhoto()
                 }
             }
         } else if let localName = KnownLocalPhoto.name(forTitle: event.title) {
             PhotoView(name: localName).scaledToFill()
         } else {
             VenuePhoto(venueName: event.location ?? event.title,
-                       hint: event.location != nil ? event.title : nil, maxWidth: 1200) { ActivityCoralPanel(glyph: "calendar") }
+                       hint: event.location != nil ? event.title : nil, maxWidth: 1200) { ExploreBlankPhoto() }
         }
     }
     /// One line on the tile foot: the recurrence summary ("Every Friday · 3 PM"),
@@ -829,7 +829,7 @@ private struct ClubExploreCard: View {
     var body: some View {
         ActivityTile(id: club.id, tag: "Club", title: club.name, metaLine: metaLine) {
             VenuePhoto(venueName: club.location ?? club.name,
-                       hint: club.location != nil ? club.name : nil, maxWidth: 1200) { ActivityCoralPanel(glyph: "person.2.fill") }
+                       hint: club.location != nil ? club.name : nil, maxWidth: 1200) { ExploreBlankPhoto() }
         } trailing: {
             Button {
                 Haptics.light()
@@ -882,13 +882,13 @@ private struct TrailExploreCard: View {
             AsyncImage(url: url) { phase in
                 switch phase {
                 case .success(let img): img.resizable().scaledToFill()
-                default: ActivityCoralPanel(glyph: "figure.hiking")
+                default: ExploreBlankPhoto()
                 }
             }
         } else if let localName = KnownLocalPhoto.name(forTitle: trail.title) {
             PhotoView(name: localName).scaledToFill()
         } else {
-            VenuePhoto(venueName: trail.title, hint: trail.location, maxWidth: 1200) { ActivityCoralPanel(glyph: "figure.hiking") }
+            VenuePhoto(venueName: trail.title, hint: trail.location, maxWidth: 1200) { ExploreBlankPhoto() }
         }
     }
 
@@ -936,7 +936,7 @@ private struct ParkExploreCard: View {
             PhotoView(name: localName).scaledToFill()
         } else {
             VenuePhoto(venueName: park.title, hint: park.address,
-                       coordinate: park.coordinate, maxWidth: 1200) { ActivityCoralPanel(glyph: "tree.fill") }
+                       coordinate: park.coordinate, maxWidth: 1200) { ExploreBlankPhoto() }
         }
     }
 

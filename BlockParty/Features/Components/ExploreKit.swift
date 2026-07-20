@@ -237,15 +237,15 @@ func exploreCircleIcon(_ system: String, filled: Bool = false) -> some View {
 
 // MARK: - Photo slot
 
-/// The empty image area for a card with no photo yet: a clean, faintly-coral
-/// placeholder the user can drop a real photo into later.
+/// The empty image area for a card with no photo yet: a neutral block mark that
+/// inherits each real photo slot's exact frame and clipping from its caller.
 struct ExploreBlankPhoto: View {
     var body: some View {
         ZStack {
-            Hue.paper
-            Image(systemName: "photo")
-                .font(.system(size: 20, weight: .light))
-                .foregroundStyle(Hue.ink.opacity(0.3))
+            Hue.fill
+            Image(systemName: "square.on.square")
+                .font(.system(size: 28, weight: .medium))
+                .foregroundStyle(Hue.inkSecondary)
         }
     }
 }

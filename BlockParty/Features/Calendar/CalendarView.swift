@@ -468,9 +468,9 @@ private struct DayCell: View {
                 }
                 .overlay {
                     if isSelected {
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
                             .stroke(Hue.ink, lineWidth: 1.5)
-                            .frame(width: 42, height: 48)
+                            .frame(width: 42, height: 42)
                             .matchedGeometryEffect(id: "daySelection", in: selectionNS)
                     }
                 }
