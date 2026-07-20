@@ -122,9 +122,13 @@ struct InsightsMiniCalendar: View {
                 .foregroundStyle(InsightsPalette.eventDay)
                 .frame(maxWidth: .infinity, minHeight: cellHeight)
         } else {
+            // Empty days recede to secondary ink. Without an accent colour a weight
+            // step alone at 15pt does not separate "has happenings" from "empty",
+            // and these cells carry no accessibility label, so VoiceOver cannot
+            // recover the distinction either. Mirrors the same fix in CalendarView.
             Text("\(day)")
                 .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(dayColor)
+                .foregroundStyle(Hue.inkSecondary)
                 .frame(maxWidth: .infinity, minHeight: cellHeight)
         }
     }

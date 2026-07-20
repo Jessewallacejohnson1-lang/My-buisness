@@ -249,7 +249,7 @@ struct ProfileView: View {
                                value: "\(model.goingCount)",
                                label: model.goingCount == 1 ? "plan" : "plans",
                                subtitle: hasPlans ? nextPlanLabel : "No plans yet",
-                               coral: hasPlans)
+                               emphasized: hasPlans)
         if hasPlans {
             Button { Haptics.light(); toggle(.events) } label: { face }
                 .buttonStyle(PressableStyle())

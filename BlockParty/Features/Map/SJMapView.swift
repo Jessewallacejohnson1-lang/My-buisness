@@ -487,17 +487,21 @@ struct SJMapView: View {
         .accessibilityLabel("Recenter map")
     }
 
-    /// The shared chrome bubble — 44px surface circle, hairline, ink line icon.
+    /// The shared chrome bubble — 44px circle, hairline, ink line icon.
+    /// Active INVERTS to a solid ink fill with a white icon. A weight step alone
+    /// (medium → semibold) is not a legible "filter is on" signal now that the
+    /// coral stroke is gone, and a user who cannot see the filter is active reads
+    /// the hidden pins as missing data.
     private func chromeCircle(icon: String, active: Bool = false) -> some View {
         Circle()
-            .fill(Hue.surface)
+            .fill(active ? Hue.ink : Hue.surface)
             .frame(width: 44, height: 44)
-            .overlay(Circle().stroke(Hue.hairline, lineWidth: 1))
+            .overlay(Circle().stroke(active ? Hue.ink : Hue.hairline, lineWidth: 1))
             .mapFloatShadow()
             .overlay(
                 Image(systemName: icon)
                     .font(.system(size: 16, weight: active ? .semibold : .medium))
-                    .foregroundStyle(Hue.ink)
+                    .foregroundStyle(active ? Hue.surface : Hue.ink)
             )
     }
 
@@ -717,6 +721,18 @@ private struct MapPinBadge: View {
             // Kept even compact — the one live signal worth keeping glanceable
             // zoomed all the way out.
             if live && !selected { PulseRing(diameter: diameter) }
+
+            // STATIC live ring. The pulse alone cannot carry "happening now": it is
+            // suppressed while selected, and Reduce Motion renders it as a same-size
+            // disc fully occluded by the opaque badge above. Coral used to be the
+            // real signal; without it a Reduce Motion user could not distinguish a
+            // live spot from a dormant one at all. This ring is geometry, not colour,
+            // so it survives both cases.
+            if live {
+                Circle()
+                    .stroke(Hue.ink, lineWidth: 2)
+                    .frame(width: diameter + 7, height: diameter + 7)
+            }
 
             Circle()
                 .fill(tint)

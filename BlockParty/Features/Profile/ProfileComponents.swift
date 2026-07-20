@@ -215,15 +215,19 @@ struct FeatureFace: View {
     let value: String
     let label: String
     var subtitle: String? = nil
-    var coral = false
+    /// Marks the tile as live and tappable (the caller wraps it in a Button only in
+    /// that case). Was a coral treatment; collapsing it to ink made both branches
+    /// identical, so a tappable tile looked exactly like an inert one. Now it
+    /// inverts — the affordance is carried by fill, not hue.
+    var emphasized = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Image(systemName: icon)
                 .font(.system(size: 19, weight: .semibold))
-                .foregroundStyle(coral ? Hue.ink : Hue.ink)
+                .foregroundStyle(emphasized ? Hue.surface : Hue.ink)
                 .frame(width: 42, height: 42)
-                .background((coral ? Hue.fill : Hue.fill).opacity(0.9), in: Circle())
+                .background((emphasized ? Hue.ink : Hue.fill).opacity(0.9), in: Circle())
             Spacer(minLength: 12)
             Text(value)
                 .font(.displaySemi(21))

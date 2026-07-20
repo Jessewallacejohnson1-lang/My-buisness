@@ -91,6 +91,51 @@ that branch lands.
 
 ---
 
+## 4b. Open design questions raised by going monochrome
+
+These are consequences of removing the accent colour. None is a bug; each is
+a judgement call for Jesse. **Do not "fix" any of them by reintroducing a
+hue** — the fix, if wanted, is weight, size, value, or spacing.
+
+### Basemap contrast — recommend widening
+The grayscale ramp is land `#FAFAF7` → parks `#EFEFEC` → water `#E4E4E0`:
+about a 6% luminance spread. The Sauk River and the parks are visible but
+faint, where before they were sky-blue and sage and read instantly. The map
+is the one screen where the background *is* the content, so this is the
+weakest point of the monochrome system. Widening to roughly water `#DDDDD8`
+and parks `#E9E9E5` stays fully grayscale while letting them work as
+landmarks again.
+
+### The Saved pin is the weakest state
+Pin state precedence (selected > live > saved > rest) is intact, but Saved
+now differs only by a small bookmark corner badge and effectively disappears
+in compact mode. Colour used to carry it. Needs a weight/size/fill treatment.
+
+### Accepted, not fixed: POI dots below zoom 14.25
+`PlaceCategoryMap.tint` collapses food and business to `Hue.ink` (they were amber
+and indigo). Glyphs distinguish them, but glyphs only cross-fade in around the
+awake threshold (`POILayer.revealAtAwake`, ~14.25–14.55), so at town-level zoom
+the two families are undifferentiated ink dots where colour used to separate them.
+
+Not fixed here on purpose. The only in-place fixes are lowering the awake
+threshold — which changes tuned decluttering behaviour, outside a reskin — or
+restructuring the Mapbox `circle-color` expression, which is work on
+`POILayer.swift`, the file being retired for the SwiftUI-annotation rewrite
+(§4). **Carry this into that rewrite:** the new markers need a non-colour way to
+separate food from business at low zoom (size, or filled-vs-ring).
+
+### Value now carries what colour used to
+Several states are deliberately distinguished by value or weight alone:
+- Calendar: days with happenings are `ink`, empty days `inkSecondary`. This
+  was a real regression when both were `ink` (fixed in `dc1c467`) — upcoming
+  events had become invisible in the grid.
+- `InlineAction` success vs error: both `ink`, separated by the check /
+  exclamation glyph and bold copy.
+- Login success vs error messages: same treatment.
+- Destructive actions: the row label loses its red, but the confirmation
+  dialog still uses SwiftUI's `.destructive` role, which iOS renders red
+  outside our theme — so the warning survives where the decision happens.
+
 ## 5. Deferred / out of scope for this rebrand
 
 - **Dark mode.** The token set is light-mode only (ink on paper). There is also
@@ -99,9 +144,18 @@ that branch lands.
   carry all colour. Adding one accent later is a deliberate, separate decision.
 - **App Store listing rename**, marketing assets, screenshots, and the
   App Store description.
-- **App icon pixels.** The 1024×1024 `AppIcon.png` has the "Hygge" wordmark
-  baked into the image. A grep can never catch this — it is replaced by Jesse's
-  `block-party-icon.png` in Phase 4.
+- **App icon pixels.** The old 1024×1024 `AppIcon.png` had the "Hygge" wordmark
+  baked into the image — the one rebrand artifact a grep could never catch.
+  Replaced in Phase 4 (`4a0fd09`).
+
+  The supplied artwork needed mechanical correction first: it was 1092×1092
+  with rounded corners, a drop shadow, and ~200px of outer margin baked in.
+  iOS applies its own superellipse mask, so shipping it unmodified would have
+  double-rounded the corners and left a shadow ring and grey margin inside the
+  tile, shrinking the mark by roughly 15%. It was remapped so the rounded card
+  fills the full canvas (mark at 64.6%, centred), output 1024×1024 8-bit RGB
+  with no alpha. **If the icon is ever re-exported, export it full-bleed** —
+  no rounded corners, no shadow, no transparency.
 - `HyggeTests/` has **no target in the Xcode project** (verified — it is inert
   source, never compiled). It is renamed for consistency but wiring it up as a
   real test target remains a separate task.
