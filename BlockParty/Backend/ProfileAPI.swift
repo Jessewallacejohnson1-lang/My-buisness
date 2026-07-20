@@ -34,7 +34,7 @@ struct ProfileAPI {
     func upsert(displayName: String?, avatarUrl: String?,
                 interests: [String], onboarded: Bool) async throws {
         let t = try await token()
-        guard let uid = auth.userId else { throw SupabaseError(message: "Not signed in", status: 401) }
+        guard let uid = auth.userId else { throw SupabaseError(message: "Your session ended. Sign in and try again.", status: 401) }
 
         let iso = ISO8601DateFormatter()
         iso.formatOptions = [.withInternetDateTime]

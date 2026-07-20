@@ -45,7 +45,7 @@ enum SupabaseHTTP {
         let (data, resp) = try await session.data(for: req)
         let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
         if !(200..<300).contains(code) {
-            throw SupabaseError(message: parseAuthError(data) ?? "Auth failed (\(code))", status: code)
+            throw SupabaseError(message: parseAuthError(data) ?? "The account request didn't go through. Check your connection and try again. (Code \(code))", status: code)
         }
         return data
     }
@@ -74,7 +74,7 @@ enum SupabaseHTTP {
         let code = http?.statusCode ?? 0
         if !(200..<300).contains(code) {
             if code == 401 { onUnauthorized?() }   // token rejected server-side → refresh or route to Login
-            throw SupabaseError(message: parseRestError(data) ?? "Request failed (\(code))", status: code)
+            throw SupabaseError(message: parseRestError(data) ?? "The server couldn't complete this request. Check your connection and try again. (Code \(code))", status: code)
         }
         return (data, http!)
     }

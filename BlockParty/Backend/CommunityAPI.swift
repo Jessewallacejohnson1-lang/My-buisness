@@ -37,7 +37,7 @@ struct CommunityAPI {
     }
 
     private func uidOrThrow() async throws -> String {
-        guard let uid = auth.userId else { throw SupabaseError(message: "Not signed in", status: 401) }
+        guard let uid = auth.userId else { throw SupabaseError(message: "Your session ended. Sign in and try again.", status: 401) }
         return uid
     }
 
@@ -115,7 +115,7 @@ struct CommunityAPI {
         let (data, _) = try await SupabaseHTTP.rest("clubs", method: "POST", accessToken: t,
                                                     body: try body(b), prefer: "return=representation")
         let rows: [ClubRow] = try decode(data)
-        guard let row = rows.first else { throw SupabaseError(message: "Insert returned no row", status: nil) }
+        guard let row = rows.first else { throw SupabaseError(message: "The server didn't return the new club. Refresh before posting it again.", status: nil) }
         return row
     }
 

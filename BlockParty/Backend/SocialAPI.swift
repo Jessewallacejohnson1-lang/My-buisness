@@ -64,7 +64,7 @@ struct SocialAPI {
     private func token() async throws -> String { try await auth.validAccessToken() }
 
     private func uidOrThrow() async throws -> String {
-        guard let uid = auth.userId else { throw SupabaseError(message: "Not signed in", status: 401) }
+        guard let uid = auth.userId else { throw SupabaseError(message: "Your session ended. Sign in and try again.", status: 401) }
         return uid
     }
 
@@ -173,7 +173,7 @@ struct SocialAPI {
                                                      body: try jsonBody(["event_id": eventId, "user_id": uid, "body": body]),
                                                      prefer: "return=representation")
         let rows: [InsertedCommentRow] = try decode(data)
-        guard let row = rows.first else { throw SupabaseError(message: "Insert returned no row", status: nil) }
+        guard let row = rows.first else { throw SupabaseError(message: "The server didn't return the new comment. Refresh before posting it again.", status: nil) }
 
         let profile = try? await ProfileAPI(auth: auth).getMyProfile()
         let authorName = profile?.displayName ?? firstNameFromEmail(auth.email) ?? "A neighbor"

@@ -275,7 +275,7 @@ struct PlaceExpandedCard: View {
 
 private func placeSymbol(_ place: Place) -> String {
     switch place.slug {
-    case "downtown":             return "cup.and.saucer.fill"
+    case "downtown":             return "building.2.fill"
     case "saint-bens":           return "book.fill"
     case "sacred-heart-chapel":  return "building.columns.fill"
     case "saint-johns":          return "book.fill"

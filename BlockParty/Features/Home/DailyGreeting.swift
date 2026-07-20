@@ -154,7 +154,7 @@ enum DailyGreeting {
     ]
 
     private static let morningFun: [String] = [
-        "First one out gets the sidewalk.",
+        "See who waves first.",
         "Porch check, {name}?",
         "Take the scenic block.",
     ]
@@ -207,7 +207,7 @@ enum DailyGreeting {
     private static let afternoonFun: [String] = [
         "Take the long block home.",
         "What's happening after five, {name}?",
-        "The sidewalk votes yes.",
+        "One block, then back to it.",
         "A trail break counts, {name}.",
         "Seen any neighbors yet?",
         "One more stop, then home.",
@@ -277,7 +277,7 @@ enum DailyGreeting {
         "One more loop around town.",
         "What's happening after dark, {name}?",
         "Take the scenic block home.",
-        "Tonight belongs to the sidewalks.",
+        "Streetlights and one more block.",
         "Meet you at the corner, {name}.",
         "One last look around.",
     ]
