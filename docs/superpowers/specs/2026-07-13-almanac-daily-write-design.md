@@ -45,7 +45,7 @@ right in front of them" on the first open of the day.
   optional caret. Three states: `.hidden` (reserve, show nothing), `.writing` (play),
   `.shown` (render whole). Driven by a `.task(id: state)` so it plays when a stage flips.
 - **`Features/Home/AlmanacSection.swift`** —
-  - `AlmanacReveal` gate: UserDefaults `hygge.almanac.lastWrittenDay` vs
+  - `AlmanacReveal` gate: UserDefaults `blockparty.almanac.lastWrittenDay` vs
     `DateHelpers.localDate()`.
   - Eyebrow becomes coffee glyph (`cup.and.saucer.fill`) + the slot word.
   - Greeting hero (char write) → read block (word write) as a two-stage chain

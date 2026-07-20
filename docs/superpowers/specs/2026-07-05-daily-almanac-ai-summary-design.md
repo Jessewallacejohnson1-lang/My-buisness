@@ -106,7 +106,7 @@ Behaviour:
 ### 3. Anti-hallucination contract (system prompt)
 
 ```
-You write ONE calm line for the "Daily Almanac" card in Hygge, a warm, quiet,
+You write ONE calm line for the "Daily Almanac" card in Block Party, a warm, quiet,
 hyper-local app for the real town of St. Joseph, Minnesota.
 
 Use ONLY the facts provided below. Never invent a number, a time, a temperature,
@@ -123,7 +123,7 @@ Respond with ONLY a JSON object: {"line": "<the line>"}. No preamble, no reasoni
 The final-answer-only instruction matters on Opus 4.8 with thinking off (it can
 otherwise leak reasoning into the visible response).
 
-### 4. `Hygge/Backend/DailyAlmanac.swift` (new client, mirrors `Moderation.swift`)
+### 4. `BlockParty/Backend/DailyAlmanac.swift` (new client, mirrors `Moderation.swift`)
 
 ```swift
 struct DailyAlmanac {

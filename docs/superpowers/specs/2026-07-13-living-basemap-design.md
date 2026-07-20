@@ -67,7 +67,7 @@ protocol WeatherProvider {
 - `OpenMeteoWeatherProvider` — one `URLSession` GET, no key:
   `GET api.open-meteo.com/v1/forecast?latitude=45.5644&longitude=-94.3211&current=temperature_2m,weather_code,is_day&temperature_unit=fahrenheit&timezone=America/Chicago`
   Decodes one small struct. Maps **WMO weather_code → SkyCondition** (0 clear; 1–3 cloudy; 45/48 fog; 51–67 rain; 71–86 snow; 95–99 storm) with a light/moderate/heavy intensity read off the code band.
-- `CachedWeatherProvider` — wraps any provider; persists the last `WeatherSnapshot` + timestamp in **UserDefaults** (`hygge.atmosphere.weather`), ~20-min TTL. Returns cache instantly, refreshes behind it, and serves stale cache when offline (never blanks the whisper).
+- `CachedWeatherProvider` — wraps any provider; persists the last `WeatherSnapshot` + timestamp in **UserDefaults** (`blockparty.atmosphere.weather`), ~20-min TTL. Returns cache instantly, refreshes behind it, and serves stale cache when offline (never blanks the whisper).
 - **WeatherKit seam:** a `WeatherKitWeatherProvider` conforming to the same protocol is the *only* change needed when Jesse's paid dev account lands — one file + one line in `AtmosphereModel` to switch. Documented in the file header.
 
 ### `BasemapPalette.swift` — atmosphere → Mapbox layer colors

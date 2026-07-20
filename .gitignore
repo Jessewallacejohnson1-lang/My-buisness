@@ -1,6 +1,7 @@
 # Xcode / Swift build artifacts
 build/
 DerivedData/
+.dd/
 *.xcuserstate
 xcuserdata/
 .DS_Store
@@ -17,15 +18,15 @@ xcuserdata/
 # XcodeBuildMCP / config
 .xcodebuildmcp/
 
-# "impeccable" tool cache — must NOT live inside the Hygge/ synchronized group,
+# "impeccable" tool cache — must NOT live inside the BlockParty/ synchronized group,
 # or Xcode bundles duplicate hook.cache.json files and the build fails.
 .impeccable/
 
 # Mapbox token — never commit
-Hygge/Config/MapboxConfig.swift
+BlockParty/Config/MapboxConfig.swift
 
 # Google Places API key — never commit
-Hygge/Config/GooglePlacesConfig.swift
+BlockParty/Config/GooglePlacesConfig.swift
 
 # graphify knowledge-graph output — generated artifact, never commit
 graphify-out/

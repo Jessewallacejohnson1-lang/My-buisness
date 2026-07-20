@@ -14,7 +14,7 @@
 - **No new SPM dependencies** — only `mapbox-maps-ios` is allowed.
 - **"Verified" = builds clean (0 warnings) + confirmed in the simulator via screenshots.** There is NO XCTest target. Each task's verification is a build (prefer XcodeBuildMCP `build_sim`; raw fallback below) plus, for UI, a sim screenshot. TDD's "write failing test" maps to "add the demo trigger / build and observe."
 - **DerivedData trap:** resolve `BUILT_PRODUCTS_DIR` via `xcodebuild -showBuildSettings`; `simctl install` OVER the app — never `uninstall` (it wipes `hygge.onboarded` and bounces to onboarding).
-- **Design tokens only.** Use `Hue.*`, `Radius.*`, `HyggeMetrics.*`, the `.mono/.sans/.display/.sansSemibold/.monoMedium` font helpers, `PressableStyle`, `Haptics`. No raw hex or ad-hoc spacing that a token covers (the only allowed raw color here is the black scrim, matching the existing place-expansion overlay `Color.black.opacity(0.45)`).
+- **Design tokens only.** Use `Hue.*`, `Radius.*`, `BlockPartyMetrics.*`, the `.mono/.sans/.display/.sansSemibold/.monoMedium` font helpers, `PressableStyle`, `Haptics`. No raw hex or ad-hoc spacing that a token covers (the only allowed raw color here is the black scrim, matching the existing place-expansion overlay `Color.black.opacity(0.45)`).
 - **No drawn mascots/illustrations.** Preview cards are typographic/tokenized only (reuse `InviteCard`'s language). Real photos or vector UI only.
 - **Neighborly voice, real data only.** No inflated counts, no badges/streaks.
 - **Motion:** spring, concurrent choreography. Honor `@Environment(\.accessibilityReduceMotion)` (cross-fade instead of scale). Fire `Haptics.light()` on present + each target tap.
@@ -24,15 +24,15 @@
 
 ```bash
 # Build (Debug, iPhone 17 sim). Prefer XcodeBuildMCP build_sim.
-xcodebuild -project Hygge.xcodeproj -scheme Hygge -configuration Debug \
+xcodebuild -project BlockParty.xcodeproj -scheme BlockParty -configuration Debug \
   -destination 'platform=iOS Simulator,name=iPhone 17' build 2>&1 | tail -20
 
 # Resolve the REAL build output, install over, launch with a debug flag, screenshot
 UDID=$(xcrun simctl list devices booted | grep -oE '[0-9A-F-]{36}' | head -1)
-DIR=$(xcodebuild -project Hygge.xcodeproj -scheme Hygge -configuration Debug \
+DIR=$(xcodebuild -project BlockParty.xcodeproj -scheme BlockParty -configuration Debug \
   -destination 'platform=iOS Simulator,name=iPhone 17' -showBuildSettings \
   | awk -F' = ' '/ BUILT_PRODUCTS_DIR =/{print $2; exit}')
-xcrun simctl install "$UDID" "$DIR/Hygge.app"
+xcrun simctl install "$UDID" "$DIR/BlockParty.app"
 xcrun simctl launch "$UDID" Jesse.Hygge -share-demo
 xcrun simctl io "$UDID" screenshot /tmp/share.png
 ```
@@ -41,18 +41,18 @@ xcrun simctl io "$UDID" screenshot /tmp/share.png
 
 ## File Structure
 
-**New — `Hygge/Features/Share/`:**
+**New — `BlockParty/Features/Share/`:**
 - `ShareCenter.swift` — `SharePayload` (value type) + `ShareCenter` (`@MainActor final class ObservableObject`, singleton) + overlay `UIWindow` lifecycle + imperative presentation of Messages/ActivityView. One responsibility: *own the share state and the window*.
 - `ShareRevealView.swift` — the SwiftUI reveal: scrim + centered preview card + bottom sheet chrome + the motion. One responsibility: *the visual + animation*.
 - `ShareTargets.swift` — the target row + platform helpers: `MessagesComposer` (MFMessageComposeViewController), `PhotoSaver` (PHPhotoLibrary add), and the "More" ActivityView bridge. One responsibility: *the send actions*.
-- `AppInviteCard.swift` — the typographic "SHARE HYGGE" preview card (no illustration). One responsibility: *the app-invite card visual*.
+- `AppInviteCard.swift` — the typographic "SHARE BLOCKPARTY" preview card (no illustration). One responsibility: *the app-invite card visual*.
 
 **Modified:**
-- `Hygge.xcodeproj/project.pbxproj` — add `INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription` to both build configs.
-- `Hygge/Features/Components/InviteCard.swift` — `InviteButton` routes to `ShareCenter`; keep `InviteCard` + `ActivityView` (reused).
-- `Hygge/Features/Activities/ActivitiesView.swift` — `EventInviteCircle` routes to `ShareCenter`.
-- `Hygge/Features/Profile/ProfileView.swift` — the app-invite `ShareLink` (line 210) becomes a `Button` → `ShareCenter`.
-- `Hygge/App/RootView.swift` — DEBUG `-share-demo` launch arg triggers a sample reveal on appear.
+- `BlockParty.xcodeproj/project.pbxproj` — add `INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription` to both build configs.
+- `BlockParty/Features/Components/InviteCard.swift` — `InviteButton` routes to `ShareCenter`; keep `InviteCard` + `ActivityView` (reused).
+- `BlockParty/Features/Activities/ActivitiesView.swift` — `EventInviteCircle` routes to `ShareCenter`.
+- `BlockParty/Features/Profile/ProfileView.swift` — the app-invite `ShareLink` (line 210) becomes a `Button` → `ShareCenter`.
+- `BlockParty/App/RootView.swift` — DEBUG `-share-demo` launch arg triggers a sample reveal on appear.
 - `CLAUDE.md` — document the share primitive.
 
 ---
@@ -60,8 +60,8 @@ xcrun simctl io "$UDID" screenshot /tmp/share.png
 ## Task 1: `SharePayload` + `ShareCenter` skeleton + overlay window (bare scrim)
 
 **Files:**
-- Create: `Hygge/Features/Share/ShareCenter.swift`
-- Modify: `Hygge/App/RootView.swift` (add `-share-demo` demo trigger)
+- Create: `BlockParty/Features/Share/ShareCenter.swift`
+- Modify: `BlockParty/App/RootView.swift` (add `-share-demo` demo trigger)
 
 **Interfaces:**
 - Produces:
@@ -80,7 +80,7 @@ xcrun simctl io "$UDID" screenshot /tmp/share.png
 ```swift
 //
 //  ShareCenter.swift
-//  Hygge — the one entry point for the app-wide "share reveal".
+//  Block Party — the one entry point for the app-wide "share reveal".
 //
 //  Any share in the app calls `ShareCenter.shared.present(...)`. The reveal is a
 //  preview card of exactly what's being shared (the same view is rendered to the
@@ -180,12 +180,12 @@ final class ShareCenter: ObservableObject {
 
 - [ ] **Step 2: Add a temporary bare `ShareRevealView` so the window has content that compiles (scrim only; the real card/sheet come in Tasks 2–3).**
 
-Create the file `Hygge/Features/Share/ShareRevealView.swift` with a scrim-only first version:
+Create the file `BlockParty/Features/Share/ShareRevealView.swift` with a scrim-only first version:
 
 ```swift
 //
 //  ShareRevealView.swift
-//  Hygge — the share reveal UI (scrim + preview card + target sheet).
+//  Block Party — the share reveal UI (scrim + preview card + target sheet).
 //
 
 import SwiftUI
@@ -207,7 +207,7 @@ struct ShareRevealView: View {
 
 - [ ] **Step 3: Wire a DEBUG `-share-demo` trigger in `RootView`.**
 
-In `Hygge/App/RootView.swift`, add a demo presenter. Add this modifier to the `MainTabsView(...)` call inside `RootView.body` (around line 89), or to `MainTabsView`'s root `ZStack`. Add to `MainTabsView.body`'s outer `ZStack` (after `.sheet(isPresented: $composing)`):
+In `BlockParty/App/RootView.swift`, add a demo presenter. Add this modifier to the `MainTabsView(...)` call inside `RootView.body` (around line 89), or to `MainTabsView`'s root `ZStack`. Add to `MainTabsView.body`'s outer `ZStack` (after `.sheet(isPresented: $composing)`):
 
 ```swift
         #if DEBUG
@@ -216,7 +216,7 @@ In `Hygge/App/RootView.swift`, add a demo presenter. Add this modifier to the `M
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
                     ShareCenter.shared.present(
                         SharePayload(title: "SHARE THIS EVENT",
-                                     shareText: "Come to Farmers Market with me — Sat 9am. (via Hygge)",
+                                     shareText: "Come to Farmers Market with me — Sat 9am. (via Block Party)",
                                      includesImage: true) {
                             InviteCard(title: "Farmers Market",
                                        dateLabel: "Saturday, Jul 12",
@@ -237,7 +237,7 @@ Expected: after ~0.6s the screen dims (~55% black) covering the whole screen **i
 - [ ] **Step 5: Commit.**
 
 ```bash
-git add Hygge/Features/Share/ShareCenter.swift Hygge/Features/Share/ShareRevealView.swift Hygge/App/RootView.swift
+git add BlockParty/Features/Share/ShareCenter.swift BlockParty/Features/Share/ShareRevealView.swift BlockParty/App/RootView.swift
 git commit -m "$(printf 'feat(share): ShareCenter + overlay window scaffold\n\nApp-wide share coordinator presenting a full-screen dim scrim in a\ndedicated UIWindow above the tab bar and sheets. -share-demo debug\ntrigger for headless verification.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>')"
 ```
 
@@ -246,7 +246,7 @@ git commit -m "$(printf 'feat(share): ShareCenter + overlay window scaffold\n\nA
 ## Task 2: Preview card — centered, spring scale-up
 
 **Files:**
-- Modify: `Hygge/Features/Share/ShareRevealView.swift`
+- Modify: `BlockParty/Features/Share/ShareRevealView.swift`
 
 **Interfaces:**
 - Consumes: `ShareCenter.shared.payload` (`SharePayload?`), `ShareCenter.shared.revealed` (`Bool`).
@@ -315,7 +315,7 @@ Expected: card scales from small→full with a soft settle over ~0.45s; scrim fa
 - [ ] **Step 4: Commit.**
 
 ```bash
-git add Hygge/Features/Share/ShareRevealView.swift
+git add BlockParty/Features/Share/ShareRevealView.swift
 git commit -m "$(printf 'feat(share): spring-reveal the preview card\n\nCentered preview card scales 0.32->1.0 with a soft settle over the dim;\nReduce Motion cross-fades instead. Card is the payloads own view.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>')"
 ```
 
@@ -324,7 +324,7 @@ git commit -m "$(printf 'feat(share): spring-reveal the preview card\n\nCentered
 ## Task 3: Bottom sheet chrome — close X, title, target row container
 
 **Files:**
-- Modify: `Hygge/Features/Share/ShareRevealView.swift`
+- Modify: `BlockParty/Features/Share/ShareRevealView.swift`
 
 **Interfaces:**
 - Consumes: `payload.title`, `payload.includesImage`, `ShareCenter.shared.revealed`.
@@ -388,7 +388,7 @@ Expected: a white sheet pinned to the bottom with an "✕" left, "SHARE THIS EVE
 - [ ] **Step 3: Commit.**
 
 ```bash
-git add Hygge/Features/Share/ShareRevealView.swift
+git add BlockParty/Features/Share/ShareRevealView.swift
 git commit -m "$(printf 'feat(share): bottom sheet chrome (close + title)\n\nPaper sheet with rounded top, close X, mono tracked title; slides up and\nfades concurrently with the card reveal.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>')"
 ```
 
@@ -397,8 +397,8 @@ git commit -m "$(printf 'feat(share): bottom sheet chrome (close + title)\n\nPap
 ## Task 4: Share targets — Messages · Save image · More (+ Photos permission)
 
 **Files:**
-- Create: `Hygge/Features/Share/ShareTargets.swift`
-- Modify: `Hygge/Features/Share/ShareRevealView.swift` (drop the placeholder row in), `Hygge/Features/Share/ShareCenter.swift` (image render helper), `Hygge.xcodeproj/project.pbxproj` (Photos usage string)
+- Create: `BlockParty/Features/Share/ShareTargets.swift`
+- Modify: `BlockParty/Features/Share/ShareRevealView.swift` (drop the placeholder row in), `BlockParty/Features/Share/ShareCenter.swift` (image render helper), `BlockParty.xcodeproj/project.pbxproj` (Photos usage string)
 
 **Interfaces:**
 - Consumes: `ShareCenter.shared.payload`, `ShareCenter.shared.overlayPresenter` (`UIViewController?`).
@@ -464,7 +464,7 @@ Append to `ShareCenter` in `ShareCenter.swift`:
 ```swift
 //
 //  ShareTargets.swift
-//  Hygge — the share sheet's target row (Messages · Save image · More) and the
+//  Block Party — the share sheet's target row (Messages · Save image · More) and the
 //  platform bridges behind each (Messages composer, Photos save, OS share sheet).
 //
 
@@ -536,7 +536,7 @@ enum MessagesComposer {
         let vc = MFMessageComposeViewController()
         vc.body = text
         if let image, let data = image.pngData() {
-            vc.addAttachmentData(data, typeIdentifier: "public.png", filename: "hygge.png")
+            vc.addAttachmentData(data, typeIdentifier: "public.png", filename: "blockparty.png")
         }
         let delegate = Delegate()
         Delegate.retained = delegate
@@ -558,7 +558,7 @@ enum PhotoSaver {
 }
 ```
 
-Note: `Color(hex:)` is the existing initializer used throughout `HyggeColor.swift`. `0x34C759` is the system iMessage green — an intentional, recognized brand color for the Messages target (documented exception to "tokens only", like the scrim).
+Note: `Color(hex:)` is the existing initializer used throughout `BlockPartyColor.swift`. `0x34C759` is the system iMessage green — an intentional, recognized brand color for the Messages target (documented exception to "tokens only", like the scrim).
 
 - [ ] **Step 3: Drop the target row into the sheet.**
 
@@ -579,10 +579,10 @@ with:
 
 - [ ] **Step 4: Add the Photos usage string to both build configs.**
 
-In `Hygge.xcodeproj/project.pbxproj`, add this line immediately after each existing `INFOPLIST_KEY_NSCalendarsWriteOnlyAccessUsageDescription = …;` line (there are two — Debug and Release):
+In `BlockParty.xcodeproj/project.pbxproj`, add this line immediately after each existing `INFOPLIST_KEY_NSCalendarsWriteOnlyAccessUsageDescription = …;` line (there are two — Debug and Release):
 
 ```
-				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Hygge saves the share card to your Photos when you tap Save image.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Block Party saves the share card to your Photos when you tap Save image.";
 ```
 
 - [ ] **Step 5: Build clean + screenshot the full sheet + exercise the targets.**
@@ -593,7 +593,7 @@ Expected: three round targets — green **Messages**, neutral **Save image**, ne
 - [ ] **Step 6: Commit.**
 
 ```bash
-git add Hygge/Features/Share/ShareTargets.swift Hygge/Features/Share/ShareRevealView.swift Hygge/Features/Share/ShareCenter.swift Hygge.xcodeproj/project.pbxproj
+git add BlockParty/Features/Share/ShareTargets.swift BlockParty/Features/Share/ShareRevealView.swift BlockParty/Features/Share/ShareCenter.swift BlockParty.xcodeproj/project.pbxproj
 git commit -m "$(printf 'feat(share): Messages / Save image / More targets\n\nCustom target row copied from the reference: iMessage composer, Photos\nadd-only save, and the OS share sheet. Row adapts when a share carries no\nimage. Adds NSPhotoLibraryAddUsageDescription.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>')"
 ```
 
@@ -602,13 +602,13 @@ git commit -m "$(printf 'feat(share): Messages / Save image / More targets\n\nCu
 ## Task 5: App-invite preview card (`AppInviteCard`)
 
 **Files:**
-- Create: `Hygge/Features/Share/AppInviteCard.swift`
-- Modify: `Hygge/Features/Share/ShareCenter.swift` (add the `appInvite` + `event` factories)
+- Create: `BlockParty/Features/Share/AppInviteCard.swift`
+- Modify: `BlockParty/Features/Share/ShareCenter.swift` (add the `appInvite` + `event` factories)
 
 **Interfaces:**
 - Consumes: nothing new.
 - Produces:
-  - `struct AppInviteCard: View` — a typographic "Join me on Hygge" card (no illustration).
+  - `struct AppInviteCard: View` — a typographic "Join me on Block Party" card (no illustration).
   - `SharePayload.event(title:dateLabel:time:location:) -> SharePayload`
   - `SharePayload.appInvite() -> SharePayload`
 
@@ -617,7 +617,7 @@ git commit -m "$(printf 'feat(share): Messages / Save image / More targets\n\nCu
 ```swift
 //
 //  AppInviteCard.swift
-//  Hygge — the preview card for "SHARE HYGGE" (app invite). Typographic only,
+//  Block Party — the preview card for "SHARE BLOCKPARTY" (app invite). Typographic only,
 //  matching InviteCard's language — no illustration (house rule).
 //
 
@@ -635,7 +635,7 @@ struct AppInviteCard: View {
                 .font(.sans(15)).foregroundStyle(Hue.ink2)
                 .fixedSize(horizontal: false, vertical: true)
             Rectangle().fill(Hue.hairline).frame(height: 1).padding(.top, 2)
-            Text("Hygge")
+            Text("Block Party")
                 .font(.logo(20)).foregroundStyle(Hue.accent)
         }
         .padding(24)
@@ -649,7 +649,7 @@ struct AppInviteCard: View {
 }
 ```
 
-Note: `Font.logo(_:)` is the app's one custom face (Atkinson Hyperlegible Bold) per `HyggeFont.swift`. If the helper signature differs, use the exact `.logo` helper as defined there.
+Note: `Font.logo(_:)` is the app's one custom face (Atkinson Hyperlegible Bold) per `BlockPartyFont.swift`. If the helper signature differs, use the exact `.logo` helper as defined there.
 
 - [ ] **Step 2: Add the payload factories to `ShareCenter.swift`.**
 
@@ -661,7 +661,7 @@ extension SharePayload {
         var text = "Come to \(title) with me — \(dateLabel)"
         if let time, !time.isEmpty { text += " at \(time)" }
         if let location, !location.isEmpty { text += ", \(location)" }
-        text += ". (via Hygge)"
+        text += ". (via Block Party)"
         return SharePayload(title: "SHARE THIS EVENT", shareText: text, includesImage: true) {
             InviteCard(title: title, dateLabel: dateLabel, time: time, location: location)
         }
@@ -669,8 +669,8 @@ extension SharePayload {
 
     static func appInvite() -> SharePayload {
         SharePayload(
-            title: "SHARE HYGGE",
-            shareText: "Come see what's happening in St. Joseph — Hygge has the town's calendar, today's happenings, and a live map of what's on. 🌿",
+            title: "SHARE BLOCKPARTY",
+            shareText: "Come see what's happening in St. Joseph — Block Party has the town's calendar, today's happenings, and a live map of what's on. 🌿",
             includesImage: true
         ) { AppInviteCard() }
     }
@@ -691,13 +691,13 @@ In `RootView.swift`, replace the `-share-demo` payload body with:
 - [ ] **Step 4: Build clean + screenshot both cards.**
 
 Build (0 warnings). Screenshot the event demo. Then temporarily swap the demo to `.appInvite()` and screenshot the app-invite card (revert after).
-Expected: event card shows the `InviteCard`; app-invite shows the tokenized "Come see what's happening in town / Hygge" card — no illustration.
+Expected: event card shows the `InviteCard`; app-invite shows the tokenized "Come see what's happening in town / Block Party" card — no illustration.
 
 - [ ] **Step 5: Commit.**
 
 ```bash
-git add Hygge/Features/Share/AppInviteCard.swift Hygge/Features/Share/ShareCenter.swift Hygge/App/RootView.swift
-git commit -m "$(printf 'feat(share): event + app-invite payload factories\n\nSharePayload.event reuses InviteCard; .appInvite adds a typographic\n"Share Hygge" card (no illustration, house rule).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>')"
+git add BlockParty/Features/Share/AppInviteCard.swift BlockParty/Features/Share/ShareCenter.swift BlockParty/App/RootView.swift
+git commit -m "$(printf 'feat(share): event + app-invite payload factories\n\nSharePayload.event reuses InviteCard; .appInvite adds a typographic\n"Share Block Party" card (no illustration, house rule).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>')"
 ```
 
 ---
@@ -705,7 +705,7 @@ git commit -m "$(printf 'feat(share): event + app-invite payload factories\n\nSh
 ## Task 6: Motion tuning + dismiss affordances (match the reference ~99%)
 
 **Files:**
-- Modify: `Hygge/Features/Share/ShareCenter.swift`, `Hygge/Features/Share/ShareRevealView.swift`
+- Modify: `BlockParty/Features/Share/ShareCenter.swift`, `BlockParty/Features/Share/ShareRevealView.swift`
 
 **Interfaces:**
 - Consumes/Produces: no signature changes — this task tunes constants and choreography.
@@ -734,7 +734,7 @@ Expected: side-by-side montages are visually indistinguishable in scale trajecto
 - [ ] **Step 5: Commit.**
 
 ```bash
-git add Hygge/Features/Share/ShareCenter.swift Hygge/Features/Share/ShareRevealView.swift
+git add BlockParty/Features/Share/ShareCenter.swift BlockParty/Features/Share/ShareRevealView.swift
 git commit -m "$(printf 'feat(share): tune reveal motion to the reference (~99%)\n\nSpring constants + concurrency matched frame-by-frame against the source\nrecording montage; Reduce Motion cross-fades.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>')"
 ```
 
@@ -743,7 +743,7 @@ git commit -m "$(printf 'feat(share): tune reveal motion to the reference (~99%)
 ## Task 7: Rollout — route all existing share points through `ShareCenter`
 
 **Files:**
-- Modify: `Hygge/Features/Components/InviteCard.swift`, `Hygge/Features/Activities/ActivitiesView.swift`, `Hygge/Features/Profile/ProfileView.swift`
+- Modify: `BlockParty/Features/Components/InviteCard.swift`, `BlockParty/Features/Activities/ActivitiesView.swift`, `BlockParty/Features/Profile/ProfileView.swift`
 
 **Interfaces:**
 - Consumes: `ShareCenter.shared.present(_:)`, `SharePayload.event(...)`, `SharePayload.appInvite()`.
@@ -801,7 +801,7 @@ In `ProfileView.swift`, replace the `ShareLink(item: inviteMessage) { FeatureFac
                 FeatureFace(icon: "person.badge.plus",
                             value: "Invite",
                             label: "a neighbor",
-                            subtitle: "Share Hygge")
+                            subtitle: "Share Block Party")
             }
             .buttonStyle(PressableStyle())
 ```
@@ -812,13 +812,13 @@ In `ProfileView.swift`, replace the `ShareLink(item: inviteMessage) { FeatureFac
 
 Build (0 warnings). Verify:
 - Explore event share: `launch … -explore-filter events`, tap a card's share circle (or add a note that the demo covers the motion; the call-site screenshot confirms the button renders). Screenshot.
-- Profile: `launch … -open-profile`, tap "Invite / a neighbor", screenshot the "SHARE HYGGE" reveal.
+- Profile: `launch … -open-profile`, tap "Invite / a neighbor", screenshot the "SHARE BLOCKPARTY" reveal.
 Expected: both present the reveal with the correct preview card; no leftover per-site `.sheet` presenting the old OS sheet directly.
 
 - [ ] **Step 5: Commit.**
 
 ```bash
-git add Hygge/Features/Components/InviteCard.swift Hygge/Features/Activities/ActivitiesView.swift Hygge/Features/Profile/ProfileView.swift
+git add BlockParty/Features/Components/InviteCard.swift BlockParty/Features/Activities/ActivitiesView.swift BlockParty/Features/Profile/ProfileView.swift
 git commit -m "$(printf 'feat(share): route all share points through ShareCenter\n\nEvent invites (Explore + InviteButton) and the Profile app-invite now\npresent the reveal instead of jumping to the OS sheet. Future shares are\none present() call.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>')"
 ```
 

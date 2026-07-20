@@ -3,9 +3,9 @@
 **Date:** 2026-07-06 · **Branch:** mapbox-map-tab · **Status:** approved, ready to build
 
 ## Goal
-A first-run introduction to the **Map** feature of Hygge (St. Joseph, MN). Adapts the
-Life360 "Now you can create your Circle" reference ~90–95% into Hygge's coral+white
-brand, with rich, alive animation. Since Hygge is a *town* map (not a family locator),
+A first-run introduction to the **Map** feature of Block Party (St. Joseph, MN). Adapts the
+Life360 "Now you can create your Circle" reference ~90–95% into Block Party's coral+white
+brand, with rich, alive animation. Since Block Party is a *town* map (not a family locator),
 the pins are the real St. Joe venues — which also teaches the actual map UI.
 
 ## Decisions (locked with user)
@@ -38,11 +38,11 @@ the pins are the real St. Joe venues — which also teaches the actual map UI.
 Under Reduce Motion: everything renders in its final state, no pulse/bob.
 
 ## Files
-- **New** `Hygge/Features/Onboarding/MapIntroView.swift` — self-contained; local `IntroPin`
+- **New** `BlockParty/Features/Onboarding/MapIntroView.swift` — self-contained; local `IntroPin`
   mirrors the real badge (no Mapbox import). Takes `onContinue: () -> Void`.
-- **Edit** `Hygge/Features/Onboarding/OnboardingView.swift` — add `.map` step; Interests
+- **Edit** `BlockParty/Features/Onboarding/OnboardingView.swift` — add `.map` step; Interests
   "Continue" advances to `.map`; the map step renders `MapIntroView { finish() }`.
-- **Edit** `Hygge/App/RootView.swift` — DEBUG `-show-map-intro` launch arg (mirrors
+- **Edit** `BlockParty/App/RootView.swift` — DEBUG `-show-map-intro` launch arg (mirrors
   `-show-splash`) to render `MapIntroView` for headless screenshot verification.
 
 ## Verify

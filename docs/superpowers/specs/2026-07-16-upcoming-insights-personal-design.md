@@ -1,7 +1,7 @@
 # Upcoming Insights — Personal Spotlight Edition
 
 **Date:** 2026-07-16 · **Status:** approved design, ready for implementation
-**Scope:** the Calendar tab's "Upcoming" face (`Hygge/Features/Calendar/Insights/`)
+**Scope:** the Calendar tab's "Upcoming" face (`BlockParty/Features/Calendar/Insights/`)
 
 ## Problem
 

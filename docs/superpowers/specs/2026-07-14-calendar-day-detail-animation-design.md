@@ -13,7 +13,7 @@ A full-screen single-day **timeline agenda**:
 ## Final build (v2 — full 1:1 timeline)
 An **hourly ruler**: `DaySlot.build` spans first→last event hour; each hour is an event block or an open "No plans" slot. Event block = colored bar + **title only** (tap → `EventDescriptionSheet` with the real `club_events.description`, plumbed onto `TimelineEvent.details`) + big tinted icon circle (letter badge; multi-color palette by slot order — a reference-fidelity carve-out like the map's) + RSVP checkbox. Open slot = **3 dots + "1 hour → No plans" + "+"**. The **3 dots pulse continuously** (staggered ease-in-out, 0.72 s, scale 0.68→1.12, Reduce-Motion static). Whole ruler reveals top-down (stagger 0.10, duration 0.60, bounce 0.16); icons pop. Wired as `.fullScreenCover(isPresented:)` so chevron day-nav updates in place + replays.
 
-## Adaptation to Hygge (decisions)
+## Adaptation to Block Party (decisions)
 - **Real data only** (house rule): bind to `CalendarModel.dayEvents` (real `TimelineEvent`s for the tapped day). No demo "Focus time/Lunch". No fabricated "3" inbox badge.
 - `TimelineEvent` has no duration/category → **coral accent** everywhere (palette rule: coral is THE accent); icon-glyph varies by a *real* attribute (location/club) so rows still feel distinct.
 - Reference **checkbox → RSVP toggle** (`model.toggleRsvp`), filled coral check when `rsvpd`.

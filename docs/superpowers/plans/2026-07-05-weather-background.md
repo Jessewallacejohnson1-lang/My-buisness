@@ -12,8 +12,8 @@
 
 - **Deployment target iOS 26.5, Swift 5** — `onChange(of:) { _, _ in }` two-param signature and `URLSession.download(from:)` async are available.
 - **No XCTest target.** "Verified" = builds clean with **0 warnings** + confirmed in the running simulator via screenshot (per `MAP_BUILD_LOG.md` discipline). The per-task cycle below is build → (screenshot for visible tasks) → commit.
-- **Prefer XcodeBuildMCP** (`build_sim`, `build_run_sim`, `screenshot`) over raw `xcodebuild`. Scheme `Hygge`, bundle id `Jesse.Hygge`, simulator `iPhone 17`.
-- **File-system-synchronized Xcode group:** new files under `Hygge/` are auto-included — no `.pbxproj` edit needed. After any build failure mentioning "Multiple commands produce", run `find Hygge -type d -name .impeccable -exec rm -rf {} +`.
+- **Prefer XcodeBuildMCP** (`build_sim`, `build_run_sim`, `screenshot`) over raw `xcodebuild`. Scheme `BlockParty`, bundle id `Jesse.Hygge`, simulator `iPhone 17`.
+- **File-system-synchronized Xcode group:** new files under `BlockParty/` are auto-included — no `.pbxproj` edit needed. After any build failure mentioning "Multiple commands produce", run `find BlockParty -type d -name .impeccable -exec rm -rf {} +`.
 - **Honest data only / on-brand:** never a fabricated temperature; coral (`Hue.accent`) is reserved for live/tappable and must not appear in this backdrop; don't hardcode a hex a `Hue` token already covers (the six sky gradients are the sanctioned exception, like the map's base-map hexes).
 - **Public bucket, no auth:** clip URLs are `SupabaseConfig.url/storage/v1/object/public/weather-loops/<name>.mp4`, mirroring `Storage.swift`'s public-URL construction.
 - The six clip base names are exactly: `clear-day`, `clear-night`, `cloudy`, `rain`, `snow`, `storm`.
@@ -23,7 +23,7 @@
 ### Task 1: `WeatherState` — six states, mapping, matched gradients
 
 **Files:**
-- Create: `Hygge/Features/Home/WeatherBackground.swift`
+- Create: `BlockParty/Features/Home/WeatherBackground.swift`
 
 **Interfaces:**
 - Produces: `enum WeatherState: String, CaseIterable` with `rawValue` == clip base name; `static func from(code: Int, isDay: Bool) -> WeatherState`; `var gradient: [Color]` (2 stops, top→bottom).
@@ -33,7 +33,7 @@
 ```swift
 //
 //  WeatherBackground.swift
-//  Hygge — looping video backdrop for the Today weather bar.
+//  Block Party — looping video backdrop for the Today weather bar.
 //
 //  Six weather-state clips live in the public `weather-loops` Supabase bucket
 //  (clear-day.mp4 … storm.mp4). On first use a clip is downloaded to the Caches
@@ -89,13 +89,13 @@ enum WeatherState: String, CaseIterable {
 
 - [ ] **Step 2: Build to verify it compiles clean**
 
-Run (XcodeBuildMCP): `build_sim` — scheme `Hygge`, simulator `iPhone 17`.
-Expected: **BUILD SUCCEEDED, 0 warnings.** (`Color(hex:)` resolves via the extension in `HyggeColor.swift`.)
+Run (XcodeBuildMCP): `build_sim` — scheme `BlockParty`, simulator `iPhone 17`.
+Expected: **BUILD SUCCEEDED, 0 warnings.** (`Color(hex:)` resolves via the extension in `BlockPartyColor.swift`.)
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add Hygge/Features/Home/WeatherBackground.swift
+git add BlockParty/Features/Home/WeatherBackground.swift
 git commit -m "feat(weather): WeatherState enum with WMO mapping + matched gradients"
 ```
 
@@ -104,7 +104,7 @@ git commit -m "feat(weather): WeatherState enum with WMO mapping + matched gradi
 ### Task 2: `WeatherClipCache` — download + local cache
 
 **Files:**
-- Modify: `Hygge/Features/Home/WeatherBackground.swift` (append)
+- Modify: `BlockParty/Features/Home/WeatherBackground.swift` (append)
 
 **Interfaces:**
 - Consumes: `WeatherState` (Task 1), `SupabaseConfig.url`.
@@ -164,13 +164,13 @@ actor WeatherClipCache {
 
 - [ ] **Step 2: Build to verify it compiles clean**
 
-Run: `build_sim` (scheme `Hygge`, `iPhone 17`).
+Run: `build_sim` (scheme `BlockParty`, `iPhone 17`).
 Expected: **BUILD SUCCEEDED, 0 warnings.**
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add Hygge/Features/Home/WeatherBackground.swift
+git add BlockParty/Features/Home/WeatherBackground.swift
 git commit -m "feat(weather): WeatherClipCache — download + cache clips, nil on failure"
 ```
 
@@ -179,7 +179,7 @@ git commit -m "feat(weather): WeatherClipCache — download + cache clips, nil o
 ### Task 3: `WeatherVideoController` + `AVPlayerLayer` host
 
 **Files:**
-- Modify: `Hygge/Features/Home/WeatherBackground.swift` (append)
+- Modify: `BlockParty/Features/Home/WeatherBackground.swift` (append)
 
 **Interfaces:**
 - Produces: `@MainActor final class WeatherVideoController` exposing `let player: AVQueuePlayer`, `func load(_ url: URL)`, `func play()`, `func pause()`; `struct PlayerLayerView: UIViewRepresentable` (init `player: AVPlayer`); `final class PlayerHostView: UIView`.
@@ -240,13 +240,13 @@ final class PlayerHostView: UIView {
 
 - [ ] **Step 2: Build to verify it compiles clean**
 
-Run: `build_sim` (scheme `Hygge`, `iPhone 17`).
+Run: `build_sim` (scheme `BlockParty`, `iPhone 17`).
 Expected: **BUILD SUCCEEDED, 0 warnings.**
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add Hygge/Features/Home/WeatherBackground.swift
+git add BlockParty/Features/Home/WeatherBackground.swift
 git commit -m "feat(weather): looping muted AVPlayer controller + AVPlayerLayer host"
 ```
 
@@ -255,7 +255,7 @@ git commit -m "feat(weather): looping muted AVPlayer controller + AVPlayerLayer 
 ### Task 4: `WeatherBackground` — composed backdrop with lifecycle
 
 **Files:**
-- Modify: `Hygge/Features/Home/WeatherBackground.swift` (append)
+- Modify: `BlockParty/Features/Home/WeatherBackground.swift` (append)
 
 **Interfaces:**
 - Consumes: `WeatherState`, `WeatherClipCache.shared`, `WeatherVideoController`, `PlayerLayerView` (Tasks 1–3).
@@ -322,13 +322,13 @@ struct WeatherBackground: View {
 
 - [ ] **Step 2: Build to verify it compiles clean**
 
-Run: `build_sim` (scheme `Hygge`, `iPhone 17`).
+Run: `build_sim` (scheme `BlockParty`, `iPhone 17`).
 Expected: **BUILD SUCCEEDED, 0 warnings.** (`onChange(of: state)` compiles because `WeatherState?` is `Equatable` via its `String` raw value.)
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add Hygge/Features/Home/WeatherBackground.swift
+git add BlockParty/Features/Home/WeatherBackground.swift
 git commit -m "feat(weather): WeatherBackground — gradient + looping video, focus-aware"
 ```
 
@@ -337,7 +337,7 @@ git commit -m "feat(weather): WeatherBackground — gradient + looping video, fo
 ### Task 5: Wire `WeatherBackground` into `WeatherBar` (state + 30-min cache + swap backdrop)
 
 **Files:**
-- Modify: `Hygge/Features/Home/WeatherBar.swift`
+- Modify: `BlockParty/Features/Home/WeatherBar.swift`
 
 **Interfaces:**
 - Consumes: `WeatherState.from(code:isDay:)`, `WeatherBackground(state:)`.
@@ -465,12 +465,12 @@ This drops the now-unused `@Environment(\.accessibilityReduceMotion)`, `@State p
 
 - [ ] **Step 3: Build clean**
 
-Run: `build_sim` (scheme `Hygge`, `iPhone 17`).
+Run: `build_sim` (scheme `BlockParty`, `iPhone 17`).
 Expected: **BUILD SUCCEEDED, 0 warnings.**
 
 - [ ] **Step 4: Run in the simulator and screenshot the Today tab**
 
-Run: `build_run_sim` (scheme `Hygge`, `iPhone 17`), then `screenshot`.
+Run: `build_run_sim` (scheme `BlockParty`, `iPhone 17`), then `screenshot`.
 Expected: the weather bar shows a **matched gradient** (the `weather-loops` bucket is empty today, so no video yet) with the live temperature, label, and H/L overlaid and readable over the bottom fade — **not** a blank/broken box. The gradient tone matches the current condition/day (e.g. blue by day, indigo at night).
 
 - [ ] **Step 5: Verify focus/background pausing doesn't crash**
@@ -482,7 +482,7 @@ Switch to the Map tab and back (`build_run_sim` then drive, or launch with `-ope
 - [ ] **Step 7: Commit**
 
 ```bash
-git add Hygge/Features/Home/WeatherBar.swift
+git add BlockParty/Features/Home/WeatherBar.swift
 git commit -m "feat(weather): swap WeatherBar photo backdrop for WeatherBackground video + 30-min cache"
 ```
 

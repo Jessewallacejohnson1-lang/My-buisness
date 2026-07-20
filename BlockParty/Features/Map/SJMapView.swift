@@ -1,0 +1,853 @@
+//
+//  SJMapView.swift
+//  Block Party — Mapbox map of Saint Joseph, Minnesota.
+//
+//  Life360-style layout: floating top chrome (filter · town pill · compose), one
+//  static warm basemap (BasemapPalette — no time/season/weather modulation), a
+//  persistent draggable bottom sheet (MapSheet), and coral reserved for live
+//  indicators + primary/tappable elements.
+//
+//  Pins: every curated spot always shows a small badge — a solid category-color
+//  circle (green parks/trails, honey downtown/coffee/fitness, sky campus) with a
+//  white glyph, plus a halo'd name label beside it — matching the Life360/Mobbin
+//  reference (small icon + text, never a big bulky badge). `PinDisplay` still
+//  resolves state (selected > live > saved > rest); live/saved/selected layer an
+//  accent on top of the same small badge rather than swapping to a different
+//  visual language. Pure SwiftUI overlay (`MapViewAnnotation`) — at six curated
+//  spots there's no need for a separate Mapbox collision layer.
+//
+//  Live pipeline: MapModel owns a Realtime subscription on club_events. A new /
+//  ended / deleted happening re-syncs the map with no manual refresh — the pin
+//  lights or goes quiet on its own. Spots come from the curated MapSpots catalog;
+//  liveness + "today's happenings" come only from real events. One-line rebrand:
+//  change LIVE_COLOR below.
+//
+
+import SwiftUI
+import UIKit
+import MapboxMaps
+
+// MARK: - Constants
+
+private let MAP_STYLE_URL = "mapbox://styles/mapbox/light-v11"
+private let LIVE_COLOR    = Hue.accent   // warm coral — change here to rebrand
+
+// Basemap cartography lives in BasemapPalette (Features/Map/BasemapPalette.swift) —
+// one static palette, pixel-matched to the Life360 reference. No modulation.
+
+// MARK: - Spot filter (top-left chip)
+
+/// The map's category chip. Groups the curated categories into the few buckets a
+/// neighbor actually thinks in; `.all` shows every pin.
+enum SpotFilter: CaseIterable, Hashable {
+    case all, downtown, outdoors, campus
+
+    var title: String {
+        switch self {
+        case .all:      return "Everything"
+        case .downtown: return "Downtown"
+        case .outdoors: return "Parks & trails"
+        case .campus:   return "Campus"
+        }
+    }
+
+    func matches(_ c: SpotCategory) -> Bool {
+        switch self {
+        case .all:      return true
+        case .downtown: return c == .downtown || c == .coffee
+        case .outdoors: return c == .park || c == .trail
+        case .campus:   return c == .college || c == .chapel
+        }
+    }
+}
+
+// MARK: - Main view
+
+struct SJMapView: View {
+    /// Non-admins tap the top-right "+" into the global composer (admins get the
+    /// map's own QuickAddSheet). Injected by MainTabsView, like HomeView.
+    var onCompose: (() -> Void)? = nil
+
+    @EnvironmentObject private var auth: AuthStore
+    @Environment(\.scenePhase) private var scenePhase
+    /// Container-level Reduce Motion (the self-contained pin animations read their own;
+    /// this one gates the camera flys + the card/selection springs — spec §11 / §12.6).
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @StateObject private var model = MapModel()
+
+    /// Latest laid-out map height, so a pin-select can reserve the bottom band (where the
+    /// sheet rises to ~medium) as camera padding and land the pin ABOVE the card — the
+    /// math-free "pin above the card" (spec §2/§4). Updated off the layout pass.
+    @State private var containerH: CGFloat = 0
+    /// The coordinate the camera is currently lifted onto (non-nil while a selection holds
+    /// the bottom padding). Used to settle the camera back to no-padding on dismiss so the
+    /// map isn't left mis-framed with a half-screen inset once the sheet collapses.
+    @State private var liftedCoord: CLLocationCoordinate2D?
+    /// The zoom a tapped/focused spot settles at — above the 14.5 awake threshold so its
+    /// label shows. Shared by direct pin taps and Today/Places row taps.
+    private static let selectZoom: CGFloat = 15
+    /// Device-local saved set (shared with Explore). Observed so saving a place from
+    /// the sheet updates its pin to the Saved state live.
+    @ObservedObject private var saved = SavedStore.shared
+
+    @State private var viewport: Viewport = .camera(
+        center: SJMapView.debugInitialCenter() ?? MapSpots.center,
+        zoom: SJMapView.debugInitialZoom() ?? 13.5,
+        bearing: 0,
+        pitch: 0
+    )
+
+    /// DEBUG-only: `-map-center <lat>,<lon>` starts the camera elsewhere so the
+    /// town pill's reverse-geocoding can be screenshotted over another city. No
+    /// effect in release / without the flag.
+    private static func debugInitialCenter() -> CLLocationCoordinate2D? {
+        #if DEBUG
+        let a = ProcessInfo.processInfo.arguments
+        if let i = a.firstIndex(of: "-map-center"), i + 1 < a.count {
+            let parts = a[i + 1].split(separator: ",")
+            if parts.count == 2, let lat = Double(parts[0]), let lon = Double(parts[1]) {
+                return CLLocationCoordinate2D(latitude: lat, longitude: lon)
+            }
+        }
+        #endif
+        return nil
+    }
+
+    /// DEBUG-only: `-map-zoom <z>` starts the camera at a given zoom for
+    /// screenshotting the basemap/pins at a consistent framing. No effect in
+    /// release / without the flag.
+    private static func debugInitialZoom() -> Double? {
+        #if DEBUG
+        let a = ProcessInfo.processInfo.arguments
+        if let i = a.firstIndex(of: "-map-zoom"), i + 1 < a.count { return Double(a[i + 1]) }
+        #endif
+        return nil
+    }
+
+    @State private var selectedSpot: Spot? = SJMapView.debugSelectedSpot()
+    /// A tapped food/business POI marker (mutually exclusive with `selectedSpot`).
+    @State private var selectedPOI: POI?
+    @State private var filter: SpotFilter = .all
+
+    /// DEBUG-only: `-map-open <spotid>` preselects a spot so its detail card can be
+    /// screenshotted headlessly. No effect in release / without the flag.
+    private static func debugSelectedSpot() -> Spot? {
+        #if DEBUG
+        let a = ProcessInfo.processInfo.arguments
+        if let i = a.firstIndex(of: "-map-open"), i + 1 < a.count {
+            return MapSpots.all.first { $0.id == a[i + 1] }
+        }
+        #endif
+        return nil
+    }
+
+    /// DEBUG-only: `-map-open-poi <name-substring | id>` opens a POI's detail sheet
+    /// once `places` loads, so the sheet can be screenshotted headlessly. No effect
+    /// in release / without the flag.
+    private static func debugOpenPOI(in pois: [POI]) -> POI? {
+        #if DEBUG
+        let a = ProcessInfo.processInfo.arguments
+        if let i = a.firstIndex(of: "-map-open-poi"), i + 1 < a.count {
+            let key = a[i + 1].lowercased()
+            return pois.first { $0.id == a[i + 1] || $0.name.lowercased().contains(key) }
+        }
+        #endif
+        return nil
+    }
+
+    /// DEBUG-only: `-map-save <spotid>` (repeatable) forces a spot into the Saved
+    /// state, and `-map-force-live <spotid>` (repeatable) forces it Live, so those
+    /// pin states render headlessly without a real save / live event. No effect in
+    /// release / without the flag.
+    private static func debugSavedIds() -> Set<String> {
+        #if DEBUG
+        let a = ProcessInfo.processInfo.arguments
+        return Set(zip(a, a.dropFirst()).filter { $0.0 == "-map-save" }.map { $0.1 })
+        #else
+        return []
+        #endif
+    }
+    private static func debugForceLiveIds() -> Set<String> {
+        #if DEBUG
+        let a = ProcessInfo.processInfo.arguments
+        return Set(zip(a, a.dropFirst()).filter { $0.0 == "-map-force-live" }.map { $0.1 })
+        #else
+        return []
+        #endif
+    }
+
+    @State private var quickAdding = false
+    @State private var showingHelp = false
+
+    private var isAdmin: Bool {
+        // DEBUG-only: `-force-nonadmin` launch arg forces the non-admin branch so
+        // simulator verification can screenshot the gated map without a second
+        // account. No effect in release builds or without the flag.
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-force-nonadmin") { return false }
+        #endif
+        return Admin.isAdmin(auth.email)
+    }
+
+    private var filteredSpots: [Spot] { MapSpots.all.filter { filter.matches($0.category) } }
+
+    /// Real events at this spot today — searches title AND location so an event
+    /// like "Independence Day Parade" at location "Downtown" still matches.
+    private func events(at spot: Spot) -> [TimelineEvent] {
+        model.todayEvents.filter { ev in
+            let haystack = [ev.title, ev.location].compactMap { $0 }.joined(separator: " ").lowercased()
+            return spot.keywords.contains { haystack.contains($0) }
+        }
+    }
+
+    /// The pin an event resolves to (first curated spot whose keyword it matches),
+    /// so a Today row can fly you there. nil for an unlisted venue.
+    private func spot(for ev: TimelineEvent) -> Spot? {
+        let haystack = [ev.title, ev.location].compactMap { $0 }.joined(separator: " ").lowercased()
+        return MapSpots.all.first { $0.keywords.contains { haystack.contains($0) } }
+    }
+
+    /// A spot glows only while one of its events is actually happening.
+    private func isLive(_ spot: Spot) -> Bool {
+        #if DEBUG
+        if Self.debugForceLiveIds().contains(spot.id) { return true }
+        #endif
+        return events(at: spot).contains { DateHelpers.isLiveNow($0.startTime) }
+    }
+
+    /// Whether the viewer has saved this place (device-local; the map's Saved pin).
+    private func isSavedSpot(_ spot: Spot) -> Bool {
+        #if DEBUG
+        if Self.debugSavedIds().contains(spot.id) { return true }
+        #endif
+        return saved.isSaved(spot.id)
+    }
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            mapLayer
+            topChrome
+            floatingControls
+            MapSheet(
+                events: model.todayEvents,
+                state: model.state,
+                spots: filteredSpots,
+                selected: $selectedSpot,
+                happenings: { events(at: $0) },
+                spotFor: { spot(for: $0) },
+                onSelectSpot: { focus($0) },
+                onRetry: { model.retry() }
+            )
+        }
+        // Track the map's height so a pin-select can lift the pin above the sheet.
+        .background(
+            GeometryReader { g in
+                Color.clear
+                    .onAppear { containerH = g.size.height }
+                    .onChange(of: g.size.height) { _, h in containerH = h }
+            }
+        )
+        .onAppear {
+            model.start(auth: auth)
+            Haptics.prepare()
+            // A spot preselected at mount (deep link, or the DEBUG -map-open flag) frames
+            // above the sheet, exactly as a tap would (selectSpot does the same lift).
+            if let s = selectedSpot { viewport = liftedViewport(s.coordinate, zoom: Self.selectZoom) }
+        }
+        // Map is "ready" once the data has resolved AND the basemap has painted —
+        // otherwise the cover would lift onto a blank grey map. But if the data
+        // errored/went offline, lift immediately (show that surface; don't wait for
+        // tiles that also won't load). `styleLoaded` also flips on a style-load error
+        // below, and `TabLoadingHost` has a hard timeout, so the cover can't hang.
+        .tabReady(model.state != .loading
+                  && (model.styleLoaded || model.state == .error || model.state == .offline))
+        .onDisappear { model.stop() }
+        .onChange(of: scenePhase) { _, phase in
+            switch phase {
+            case .active:     model.onForeground()
+            case .background: model.onBackground()
+            default:          break
+            }
+        }
+        // When the last selection clears (detail back button, backdrop tap, or swiping the
+        // POI card away), release the camera's bottom padding so the map re-settles level
+        // instead of staying jammed to the top under a now-collapsed sheet.
+        .onChange(of: selectedSpot?.id) { _, id in if id == nil { releaseCameraLift() } }
+        .onChange(of: selectedPOI?.id) { _, id in if id == nil { releaseCameraLift() } }
+        .sheet(isPresented: $quickAdding) {
+            QuickAddSheet(spots: MapSpots.all)
+        }
+        // A tapped POI marker opens its detail (name, category, address, Open in Maps,
+        // and live Google hours/website/phone/photo). POI is Identifiable by its row id.
+        .sheet(item: $selectedPOI) { poi in
+            POIDetailSheet(poi: poi)
+        }
+        // The "?" chrome button reopens the map intro any time — full-bleed, so it
+        // gets its own cover. `instant` skips the first-run bloom so the reference
+        // is readable immediately on every open.
+        .fullScreenCover(isPresented: $showingHelp) {
+            MapIntroView(ctaTitle: "Got it", instant: true) { showingHelp = false }
+        }
+    }
+
+    // MARK: Map
+
+    private var mapLayer: some View {
+        MapReader { proxy in
+            Map(viewport: $viewport) {
+                // A tap on a POI marker opens its detail; a tap on a cluster zooms in
+                // to split it. Layer-scoped interactions are evaluated BEFORE the
+                // map-wide tap, so these win over closeCard() when a marker/cluster is hit.
+                TapInteraction(.layer(POILayer.dotLayerID)) { feature, _ in
+                    if let id = feature.properties["id"]??.string { selectPOI(id: id) }
+                    return true
+                }
+                TapInteraction(.layer(POILayer.clusterLayerID)) { _, context in
+                    zoomToCluster(context.coordinate)
+                    return true
+                }
+                // A tap on the open map (not a badge/marker) just dismisses the detail —
+                // every curated spot owns a real tappable badge, so there's no
+                // nearest-neighbor hit-testing to do here.
+                TapInteraction { _ in
+                    closeCard()
+                    return true
+                }
+                // Every curated spot always shows its small badge (see MapPinBadge) —
+                // live/saved/selected layer an accent on top of the same badge.
+                ForEvery(filteredSpots) { spot in
+                    // Computed once and reused below — isLive(spot) scans today's events,
+                    // no need to repeat that scan for the badge tint and the a11y label.
+                    let spotIsLive = isLive(spot)
+                    MapViewAnnotation(coordinate: spot.coordinate) {
+                        // `base` colors the badge (live/saved/rest); `selected` is a
+                        // separate scale/shadow accent layered on top, so a selected+live
+                        // spot keeps its coral + pulse (see PinDisplay.swift's header).
+                        MapPinBadge(spot: spot,
+                                    base: PinDisplay.resolve(isLive: spotIsLive, isSaved: isSavedSpot(spot)),
+                                    selected: selectedSpot?.id == spot.id,
+                                    // A selected pin always shows its label regardless of
+                                    // zoom (you asked for it); everyone else expands/shrinks
+                                    // with the zoom-driven room the map actually has.
+                                    expanded: selectedSpot?.id == spot.id || model.pinsExpanded,
+                                    a11yLabel: accessibilityLabel(for: spot, live: spotIsLive))
+                            .onTapGesture { selectSpot(spot) }
+                    }
+                    // Never cull; the selected/live badge must always beat its neighbors.
+                    .allowOverlap(true)
+                }
+                // A tapped POI gets an on-map selected treatment (spec §2): a haloed,
+                // enlarged (1.25×) family badge overlaid at its coordinate — the same
+                // SwiftUI-annotation approach the civic pins use for selection, so we
+                // stay clear of clustered-source feature-state. Cleared with the sheet.
+                if let poi = selectedPOI {
+                    MapViewAnnotation(coordinate: poi.coordinate) {
+                        POISelectedMarker(poi: poi)
+                    }
+                    .allowOverlap(true)
+                }
+            }
+            .mapStyle(MapStyle(uri: StyleURI(rawValue: MAP_STYLE_URL)!))
+            .onStyleLoaded { _ in
+                recolorBasemap(proxy.map)
+                if let map = proxy.map { POILayer.install(on: map, pois: model.pois) }
+                model.markStyleLoaded()
+            }
+            // If the basemap can't load (offline first run, bad token), treat the map
+            // as "painted" so the loading cover lifts to reveal the map's own state
+            // rather than hanging on a screen that will never finish.
+            .onMapLoadingError { _ in model.markStyleLoaded() }
+            // Name whatever town the map is panned over, and shrink/expand pins to fit
+            // the zoom (both debounced in the model — never the view's @State here).
+            .onCameraChanged {
+                model.updateTown(center: $0.cameraState.center)
+                model.updateZoom($0.cameraState.zoom)
+            }
+            // Toggling the category filter ticks a selection haptic (spec §10 / §12.5 —
+            // the native Menu supplies none we control). If the change hides the selected
+            // spot, drop the stale selection so the detail sheet doesn't linger.
+            .onChange(of: filter) { _, _ in
+                Haptics.selection()
+                if let s = selectedSpot, !filteredSpots.contains(where: { $0.id == s.id }) { closeCard() }
+            }
+            // POIs load async (once) after the style — push them into the source when they land.
+            .onChange(of: model.pois) { _, pois in
+                if let map = proxy.map { POILayer.update(on: map, pois: pois) }
+                #if DEBUG
+                if selectedPOI == nil, let poi = SJMapView.debugOpenPOI(in: pois) {
+                    selectedPOI = poi
+                    viewport = liftedViewport(poi.coordinate, zoom: Self.selectZoom)
+                }
+                #endif
+            }
+            .ignoresSafeArea(edges: .bottom)
+        }
+    }
+
+    /// Warm the flat light-v11 basemap to the static Life360-reference palette
+    /// (BasemapPalette — no modulation). Layer ids are verified against light-v11's
+    /// actual style JSON (`GET styles/v1/mapbox/light-v11`) — it's a much simpler
+    /// style than Mapbox Streets (one consolidated `land`/`road-simple`/`road-label-simple`
+    /// layer apiece, no per-class road/motorway split), so don't reach for Streets'
+    /// layer names here without checking. Each set is still best-effort (try?) since
+    /// a given layer id may not exist in every style version.
+    private func recolorBasemap(_ map: MapboxMap?) {
+        guard let map else { return }
+        let p = BasemapPalette.self
+        try? map.setLayerProperty(for: "land", property: "background-color", value: p.land)
+        // Parks / grass / woods (fill layers) — light-v11 only has these two.
+        for id in ["landuse", "national-park"] {
+            try? map.setLayerProperty(for: id, property: "fill-color", value: p.green)
+        }
+        try? map.setLayerProperty(for: "water",    property: "fill-color", value: p.water)
+        try? map.setLayerProperty(for: "waterway", property: "line-color", value: p.water)
+        try? map.setLayerProperty(for: "building", property: "fill-color",         value: p.building)
+        try? map.setLayerProperty(for: "building", property: "fill-outline-color", value: p.building)
+        // Roads — one consolidated layer in light-v11 (width-differentiated by class,
+        // not color; see BasemapPalette.road's comment).
+        try? map.setLayerProperty(for: "road-simple", property: "line-color", value: p.road)
+        // Labels — the reference's road/place names read as a bold, dark charcoal,
+        // not the style default's light grey. Reuse Hue.ink2 rather than duplicate
+        // its hex (it's a near-exact match for the reference's sampled label ink,
+        // #555553).
+        let labelInk = Hue.ink2.hexString
+        for id in ["road-label-simple", "settlement-major-label", "settlement-minor-label", "settlement-subdivision-label"] {
+            try? map.setLayerProperty(for: id, property: "text-color", value: labelInk)
+        }
+    }
+
+    // MARK: Top chrome — filter · town pill · compose (replaces the title header)
+
+    private var topChrome: some View {
+        HStack(spacing: 10) {
+            filterMenu
+            Spacer(minLength: 8)
+            townPill
+            Spacer(minLength: 8)
+            composeButton
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+    }
+
+    private var filterMenu: some View {
+        Menu {
+            Picker("Filter", selection: $filter) {
+                ForEach(SpotFilter.allCases, id: \.self) { f in Text(f.title).tag(f) }
+            }
+        } label: {
+            chromeCircle(icon: "slider.horizontal.3", active: filter != .all)
+        }
+        // Strip the default menu/glass control background so only the chrome
+        // circle shows — matches the sibling Button chrome (which use .plain).
+        .buttonStyle(.plain)
+        .accessibilityLabel("Filter places")
+    }
+
+    private var townPill: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "mappin.circle.fill")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Hue.accent)
+            Text(model.townLabel)
+                .font(.sansSemibold(15))
+                .foregroundStyle(Hue.mapInk)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(.thinMaterial, in: Capsule())      // §8: chips = thin material
+        .overlay(Capsule().stroke(Hue.mapHairline, lineWidth: 1))
+        .mapFloatShadow()
+        .animation(Motion.smooth, value: model.townLabel)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var composeButton: some View {
+        Button {
+            Haptics.light()
+            if isAdmin { quickAdding = true } else { onCompose?() }
+        } label: {
+            chromeCircle(icon: "plus")
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Add an event")
+    }
+
+    // MARK: Floating controls — help (bottom-left) + recenter (bottom-right)
+
+    private var floatingControls: some View {
+        VStack {
+            Spacer()
+            HStack(alignment: .bottom) {
+                helpButton
+                Spacer()
+                recenterButton
+            }
+            .padding(.horizontal, 16)
+            // Sit just above the sheet peek, which itself sits above the tab bar.
+            .padding(.bottom, MapSheet.tabBarClearance + MapSheet.peekHeight + 12)
+        }
+    }
+
+    private var helpButton: some View {
+        Button {
+            Haptics.light()
+            showingHelp = true
+        } label: {
+            chromeCircle(icon: "questionmark")
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("How the map works")
+    }
+
+    private var recenterButton: some View {
+        Button {
+            let home = { viewport = .camera(center: MapSpots.center, zoom: 13.5) }
+            if reduceMotion { home() }                       // §11: no fly under Reduce Motion
+            else { withViewportAnimation(.fly(duration: 0.8)) { home() } }
+            closeCard()
+        } label: {
+            chromeCircle(icon: "location")
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Recenter map")
+    }
+
+    /// The shared chrome bubble — 44px white circle, hairline (coral when active),
+    /// ink line icon.
+    private func chromeCircle(icon: String, active: Bool = false) -> some View {
+        Circle()
+            .fill(.regularMaterial)                     // §8: floating buttons = regular material
+            .frame(width: 44, height: 44)
+            .overlay(Circle().stroke(active ? Hue.accent : Hue.mapHairline, lineWidth: active ? 1.5 : 1))
+            .mapFloatShadow()
+            .overlay(
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(active ? Hue.accent : Hue.mapInk)
+            )
+    }
+
+    // MARK: Actions
+
+    /// A camera viewport centered on `coord` with the bottom band reserved as padding, so
+    /// the pin lands in the visible map ABOVE the sheet (which rises to ~medium on select)
+    /// rather than behind it — the math-free "pin above the card" (spec §2/§4). Reserving
+    /// ~half the height mirrors MapSheet's medium detent (H*0.5).
+    private func liftedViewport(_ coord: CLLocationCoordinate2D, zoom: CGFloat) -> Viewport {
+        liftedCoord = coord
+        var vp = Viewport.camera(center: coord, zoom: zoom)
+        let lift = max(240, containerH * 0.5)
+        vp.padding = EdgeInsets(top: 0, leading: 0, bottom: lift, trailing: 0)
+        return vp
+    }
+
+    /// Drop the camera's bottom padding once nothing is selected, settling on the last-lifted
+    /// spot with a plain (unpadded) camera — otherwise Mapbox keeps the ~half-screen inset and
+    /// the map stays jammed to the top after the sheet collapses. Guarded so a civic→POI (or
+    /// POI→civic) hand-off, which momentarily clears one selection, doesn't fight the new lift.
+    private func releaseCameraLift() {
+        guard selectedSpot == nil, selectedPOI == nil, let c = liftedCoord else { return }
+        liftedCoord = nil
+        let settle = { viewport = .camera(center: c, zoom: Self.selectZoom) }   // zero padding
+        if reduceMotion { settle() } else { withViewportAnimation(.easeInOut(duration: 0.35)) { settle() } }
+    }
+
+    /// A Today/Places row tap: fly to the spot (a longer, deliberate 1.0s fly since the
+    /// spot may be off-screen — spec §4 0.9–1.2s band) and open its detail in the sheet,
+    /// landing the pin above the card.
+    private func focus(_ spot: Spot) {
+        Haptics.light()
+        selectedPOI = nil
+        let move = { viewport = liftedViewport(spot.coordinate, zoom: Self.selectZoom) }
+        if reduceMotion { move() } else { withViewportAnimation(.fly(duration: 1.0)) { move() } }
+        withAnimation(reduceMotion ? Motion.smooth : Motion.card) { selectedSpot = spot }
+    }
+
+    /// A direct pin tap: pop the selection (Motion.select) and, when ENTERING a selection,
+    /// ease-recenter the pin above the card in the same gesture (spec §12.2). Toggling the
+    /// same pin off fires NO haptic and no recenter (spec §2 — deselect is silent).
+    private func selectSpot(_ spot: Spot) {
+        selectedPOI = nil                       // civic + POI detail are mutually exclusive
+        let entering = selectedSpot?.id != spot.id
+        if entering { Haptics.light() }
+        withAnimation(reduceMotion ? Motion.smooth : Motion.select) {
+            selectedSpot = entering ? spot : nil
+        }
+        guard entering else { return }
+        let move = { viewport = liftedViewport(spot.coordinate, zoom: Self.selectZoom) }
+        if reduceMotion { move() }              // §11: instant set, no ease, under Reduce Motion
+        else { withViewportAnimation(.easeInOut(duration: 0.45)) { move() } }
+    }
+
+    /// Open a tapped food/business POI's detail (resolved from the tapped feature's
+    /// `id` property). Closes any civic card first — the two details never coexist — and
+    /// eases the POI above its detail sheet, same as a civic pin.
+    private func selectPOI(id: String) {
+        guard let poi = model.pois.first(where: { $0.id == id }) else { return }
+        Haptics.light()
+        withAnimation(reduceMotion ? Motion.smooth : Motion.card) { selectedSpot = nil }
+        selectedPOI = poi
+        let move = { viewport = liftedViewport(poi.coordinate, zoom: Self.selectZoom) }
+        if reduceMotion { move() } else { withViewportAnimation(.easeInOut(duration: 0.45)) { move() } }
+    }
+
+    /// A tapped cluster eases in (0.4s easeInOut — spec §7) to ~15.5, above the 14.5 awake
+    /// threshold so the cluster splits into individual glyph markers. (clusterMaxZoom is 13,
+    /// so this reliably breaks any cluster apart; easing to exact leaf bounds would need the
+    /// async cluster-expansion-zoom API — a nicety not worth the async tap handler here.)
+    private func zoomToCluster(_ coord: CLLocationCoordinate2D) {
+        Haptics.light()
+        let move = { viewport = .camera(center: coord, zoom: 15.5) }
+        if reduceMotion { move() } else { withViewportAnimation(.easeInOut(duration: 0.4)) { move() } }
+    }
+
+    private func closeCard() {
+        guard selectedSpot != nil || selectedPOI != nil else { return }
+        withAnimation(reduceMotion ? Motion.smooth : Motion.card) {
+            selectedSpot = nil
+        }
+        selectedPOI = nil   // the POI card's map is tappable behind it now — dismiss it too
+    }
+
+    private func accessibilityLabel(for spot: Spot, live: Bool) -> String {
+        let n = events(at: spot).count
+        let base = n == 0 ? "\(spot.name), nothing today"
+                          : "\(spot.name), \(n) happening today"
+        return live ? base + ", happening now" : base
+    }
+}
+
+// MARK: - Live pulse ring
+//
+// Self-contained — @State is local so the animation loop never propagates updates
+// to sibling pins or the parent map. Core Animation renders each frame off the
+// main thread. Coral, opacity 0.35 → 0, scale 1 → 2.2, 1.5 s loop. Static under
+// Reduce Motion (no pulse; the coral fill still marks "live").
+
+private struct PulseRing: View {
+    let diameter: CGFloat
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pulsing = false
+
+    var body: some View {
+        Circle()
+            .fill(LIVE_COLOR.opacity(pulsing ? 0 : 0.35))
+            .frame(width: diameter, height: diameter)
+            .scaleEffect(pulsing ? 2.2 : 1.0)
+            .onAppear {
+                guard !reduceMotion else { return }
+                withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
+                    pulsing = true
+                }
+            }
+    }
+}
+
+// MARK: - Marker chip (every curated spot; shrinks/expands with zoom)
+//
+// Life360/Mobbin-reference pattern: a small SOLID category-color circle with a
+// white glyph, plus a bold halo'd name label beside it — never a big bulky badge.
+// The circle's ANCHOR stays fixed at the badge's own center regardless of size; the
+// label is an overlay that hangs to the right without shifting where the pin
+// actually points.
+//
+// compact (zoomed out / not selected): a plain 14pt tint dot — no icon, no label,
+//           so six pins share the map without crowding each other's names.
+// expanded (zoomed in enough, or selected): 28pt circle + white glyph + halo'd
+//           label beside it, same as before.
+// saved:    + a small ink bookmark corner accent (expanded only — too cramped compact).
+// live:     coral fill + pulse ring + coral label (live always wins the tint; the
+//           pulse still shows compact — it's the one thing worth keeping glanceable
+//           at any zoom).
+// selected: scale 1.25 (Motion.select), lifted marker shadow, always expanded.
+// Motion:   wake = opacity 0→1 + scale 0.6→1.0 spring on first appear (Motion.select);
+//           expand/shrink = Motion.card on diameter + icon/label crossfade; select bump =
+//           Motion.select; tint change = Motion.smooth. Reduce Motion drops every
+//           scale/spring to a simple opacity/colour crossfade (never removed — §11).
+
+private struct MapPinBadge: View {
+    let spot: Spot
+    let base: PinDisplay      // rest | saved | live — the coloring (selection ignored)
+    let selected: Bool
+    let expanded: Bool        // zoom-driven (or forced by `selected`) — see SJMapView
+    let a11yLabel: String
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var appeared = false
+
+    private static let expandedDiameter: CGFloat = 28
+    private static let compactDiameter: CGFloat = 14
+    private static let iconSize: CGFloat = 13
+
+    private var diameter: CGFloat { expanded ? Self.expandedDiameter : Self.compactDiameter }
+    private var live: Bool  { base == .live }
+    private var saved: Bool { base == .saved }
+    private var tint: Color { live ? LIVE_COLOR : spot.category.tint }
+
+    var body: some View {
+        badge
+            .scaleEffect(appeared ? (selected && !reduceMotion ? 1.25 : 1.0) : (reduceMotion ? 1.0 : 0.6))
+            // Selection pop (scale + the shadow lift below). Under Reduce Motion the scale
+            // is suppressed above, but the shadow/label change still crossfades (Motion.smooth)
+            // — meaning-carrying motion becomes a cross-fade, not nothing (§11).
+            .animation(reduceMotion ? Motion.smooth : Motion.select, value: selected)
+            // A spot going live/saved (a real event starting, a save toggled) crossfades
+            // its tint instead of snapping — the annotation view persists across these
+            // transitions (Mapbox reuses it by the spot's stable id), so without this the
+            // color change would be the only unanimated state change on the badge. A colour
+            // fade aids comprehension, so it stays under Reduce Motion too.
+            .animation(Motion.smooth, value: base)
+            // Shrink/expand — Motion.card so six pins settling to a new size on a pinch
+            // feels like one physical move, not a snap. Reduce Motion still crossfades
+            // (Motion.smooth + the opacity below), just without the size spring.
+            .animation(reduceMotion ? Motion.smooth : Motion.card, value: expanded)
+            // The name label attaches AFTER scaleEffect, as an overlay rather than a
+            // ZStack sibling of the circle — so it (a) reads its position off badge's
+            // un-scaled layout frame via `.overlay(alignment: .leading)` + leading
+            // padding (a ZStack-centered frame + `.offset()` looks similar but is wrong:
+            // the centering happens BEFORE the offset is applied, so the offset would
+            // need to also account for the label's own width, which varies per name),
+            // and (b) never grows 1.15x with the selected scale bump the way the circle
+            // does — labels stayed a constant size in the pre-redesign badge too.
+            .overlay(alignment: .leading) {
+                HaloText(spot.name, color: tint)
+                    .frame(width: 100, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.leading, Self.expandedDiameter + 6)
+                    .allowsHitTesting(false)
+                    // Never animate in from scale(0) — a barely-visible starting shape
+                    // reads as natural, a point-source doesn't (emil-design-eng).
+                    .scaleEffect(expanded ? 1 : 0.9, anchor: .leading)
+                    .opacity(expanded ? 1 : 0)
+            }
+            .opacity(appeared ? 1 : (reduceMotion ? 1 : 0))
+            // Enlarge the invisible tap target to Apple's ≥44×44pt HIG minimum
+            // regardless of the current visual size — centered the same as the
+            // visual circle, so the annotation's map-coordinate anchor doesn't move.
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
+            .onAppear {
+                withAnimation(reduceMotion ? Motion.smooth : Motion.select) {
+                    appeared = true
+                }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(a11yLabel)
+            .accessibilityAddTraits(.isButton)
+    }
+
+    private var badge: some View {
+        ZStack {
+            // Suppressed once selected — the scale bump + always-visible label is
+            // the "you tapped this" cue; a pulsing ring behind it reads as noise.
+            // Kept even compact — the one live signal worth keeping glanceable
+            // zoomed all the way out.
+            if live && !selected { PulseRing(diameter: diameter) }
+
+            Circle()
+                .fill(tint)
+                .frame(width: diameter, height: diameter)
+                .mapMarkerShadow(selected: selected)   // tighter than a button; lifts on select (§8)
+                .overlay(Circle().stroke(Hue.surface, lineWidth: 1.5))
+
+            Image(systemName: spot.category.filledSymbol)
+                .font(.system(size: Self.iconSize, weight: .semibold))
+                .foregroundStyle(.white)
+                .opacity(expanded ? 1 : 0)   // too cramped on a 14pt compact dot
+
+            if saved {
+                Image(systemName: "bookmark.fill")
+                    .font(.system(size: 7, weight: .bold))
+                    .foregroundStyle(Hue.mapInk)
+                    .frame(width: 12, height: 12)
+                    .background(Circle().fill(Hue.surface))
+                    .overlay(Circle().stroke(Hue.mapHairline, lineWidth: 1))
+                    .offset(x: Self.expandedDiameter / 2 - 3, y: -(Self.expandedDiameter / 2 - 3))
+                    .opacity(expanded ? 1 : 0)   // same — no room on the compact dot
+            }
+        }
+        .frame(width: diameter, height: diameter)
+    }
+}
+
+// MARK: - Halo'd map label
+//
+// A bold colored label with a white outline so it stays legible over any basemap
+// fill (park green, water blue, cream ground) without a background pill — matches
+// the reference's bare-on-the-map label treatment.
+
+private struct HaloText: View {
+    let text: String
+    let color: Color
+
+    init(_ text: String, color: Color) { self.text = text; self.color = color }
+
+    private static let haloOffsets: [(CGFloat, CGFloat)] =
+        [(-1, -1), (0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1)]
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            ForEach(Array(Self.haloOffsets.enumerated()), id: \.offset) { _, o in
+                label.foregroundStyle(.white).offset(x: o.0, y: o.1)
+            }
+            label.foregroundStyle(color)
+        }
+    }
+
+    private var label: some View {
+        Text(text)
+            .font(.sansSemibold(12))   // spec §9: marker label is semibold, not bold
+            .lineLimit(2)
+            .multilineTextAlignment(.leading)
+    }
+}
+
+// MARK: - Selected POI marker (on-map overlay for a tapped food/business POI)
+//
+// The POIs live in a clustered Mapbox style layer (POILayer); rather than wire
+// clustered-source feature-state + promoteId for a selected size bump, the tapped POI
+// gets a SwiftUI annotation overlaid at its coordinate — the same approach the civic
+// pins use for selection. Spec §2: scale to ~1.25, a lifted marker shadow, and a soft
+// halo faded in beneath it. Reduce Motion drops the pop to a plain fade.
+
+private struct POISelectedMarker: View {
+    let poi: POI
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var appeared = false
+
+    var body: some View {
+        ZStack {
+            // Halo — a soft family-tinted disc that reads as elevation under the marker.
+            Circle()
+                .fill(poi.family.tint.opacity(0.22))
+                .frame(width: 54, height: 54)
+                .scaleEffect(appeared ? 1 : 0.6)
+                .opacity(appeared ? 1 : 0)
+
+            // The enlarged badge — 34pt, sized to match a SELECTED CIVIC pin (28pt × 1.25 ≈ 35pt)
+            // for on-map parity, rather than 1.25× the POI's own ~20pt awake dot; white-ringed,
+            // lifted shadow. The halo carries the extra emphasis a bare 1.25× wouldn't.
+            Circle()
+                .fill(poi.family.tint)
+                .frame(width: 34, height: 34)
+                .overlay(Circle().stroke(.white, lineWidth: 2))
+                .mapMarkerShadow(selected: true)
+
+            Image(systemName: poi.glyph)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.white)
+        }
+        .frame(width: 54, height: 54)
+        // Never animate in from a point-source — start just under full size (emil-design-eng).
+        .scaleEffect(appeared || reduceMotion ? 1 : 0.85)
+        .onAppear {
+            if reduceMotion { appeared = true }
+            else { withAnimation(Motion.select) { appeared = true } }
+        }
+        // Taps are handled by the underlying POI style layer + the map's tap interaction.
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}

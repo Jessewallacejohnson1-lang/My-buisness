@@ -6,7 +6,7 @@
 
 ## Summary
 
-Port Duolingo's "Share this sentence" reveal into Hygge as a **reusable, app-wide
+Port Duolingo's "Share this sentence" reveal into Block Party as a **reusable, app-wide
 share experience**. On any share action, instead of jumping straight to the iOS
 share sheet, the app first springs up a **preview card of exactly what is being
 shared** over a dimmed backdrop, alongside a Duolingo-style row of share targets
@@ -33,7 +33,7 @@ the Motion section below. The reference end-state: a centered white content card
 - One reusable primitive used **everywhere** a share happens today, and trivially
   adopted by anything built in the future (one call site line).
 - Copy the Duolingo target row exactly: Messages · Save image · More.
-- Stay on-brand: Hygge design tokens for chrome, no drawn mascots/illustrations
+- Stay on-brand: Block Party design tokens for chrome, no drawn mascots/illustrations
   (preview cards use the existing typographic `InviteCard` language).
 
 ## Non-goals
@@ -98,7 +98,7 @@ Describes one share:
 ### `ShareRevealView` (SwiftUI)
 - Full-bleed black scrim (tap-to-dismiss).
 - Centered preview card (`payload.preview`) with the scale/opacity spring.
-- Bottom sheet: rounded top corners, `Hue.paper` surface, `HyggeMetrics`
+- Bottom sheet: rounded top corners, `Hue.paper` surface, `BlockPartyMetrics`
   shadow, a close **X** (top-left), a `.mono(12).tracking(2)` title, and the
   target row.
 
@@ -125,19 +125,19 @@ preview card:
 |-----------|------|--------------|-------|
 | `EventInviteCircle` | `Features/Activities/ActivitiesView.swift` | `InviteCard(event…)` | SHARE THIS EVENT |
 | `InviteButton` | `Features/Components/InviteCard.swift` | `InviteCard(…)` | SHARE THIS EVENT |
-| Profile "Invite a neighbor" | `Features/Profile/ProfileView.swift` | branded "Join me on Hygge" card | SHARE HYGGE |
-| Profile hero `ShareLink` | `Features/Profile/ProfileComponents.swift` | same app-invite card | SHARE HYGGE |
+| Profile "Invite a neighbor" | `Features/Profile/ProfileView.swift` | branded "Join me on Block Party" card | SHARE BLOCKPARTY |
+| Profile hero `ShareLink` | `Features/Profile/ProfileComponents.swift` | same app-invite card | SHARE BLOCKPARTY |
 
 The two Profile `ShareLink`s become `Button`s that call `ShareCenter`. A small
 app-invite preview card (typographic, tokenized — no illustration) is added for
-the "SHARE HYGGE" case so it also carries an image (Save image applies).
+the "SHARE BLOCKPARTY" case so it also carries an image (Save image applies).
 
 **Future shares:** one line — `ShareCenter.shared.present(SharePayload(...))`.
 Documented in the `ShareCenter.swift` header and in `CLAUDE.md`.
 
 ## Files
 
-**New** (`Hygge/Features/Share/`):
+**New** (`BlockParty/Features/Share/`):
 - `ShareCenter.swift` — coordinator + overlay-window management + `SharePayload`.
 - `ShareRevealView.swift` — the reveal UI (scrim, card, sheet).
 - `ShareTargets.swift` — target buttons + Messages/Photos/ActivityView helpers.
@@ -184,4 +184,4 @@ simulator**:
   via `UIApplication.shared.connectedScenes`).
 - Whether the sheet supports interactive swipe-to-dismiss in v1 (reference has a
   close X; swipe is a nice-to-have).
-- Final app-invite preview card copy/layout ("Join me on Hygge in St. Joseph…").
+- Final app-invite preview card copy/layout ("Join me on Block Party in St. Joseph…").

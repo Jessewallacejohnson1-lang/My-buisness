@@ -6,7 +6,7 @@
 
 ## 1. Goal
 
-Remake the Today tab (`Hygge/Features/Home/`) into three stacked, scrollable zones:
+Remake the Today tab (`BlockParty/Features/Home/`) into three stacked, scrollable zones:
 
 1. **Almanac** (top) — a living, weather-reactive header: real weather, sun times, moon phase, an AI "read of the day" line, an "On this day in St. Joe" fact, and the daily-quest momentum ring.
 2. **Today's Agenda** (middle) — the real `getTodayEvents()` list as a clean timeline.
@@ -154,14 +154,14 @@ $$;
 
 Per-user state (did *I* like / follow / RSVP) is fetched in a second small query keyed by `auth.uid()` and merged client-side, so the RPC stays user-agnostic and cacheable. **Fallback:** if the RPC isn't present yet, the client uses the existing N+1 pattern (as `getApprovedClubs` already does for member counts).
 
-### 5.4 CommunityAPI additions (`Hygge/Backend/CommunityAPI.swift`)
+### 5.4 CommunityAPI additions (`BlockParty/Backend/CommunityAPI.swift`)
 
 - `follow(_ target: FollowTarget)` / `unfollow(_:)` / `isFollowing(_:) -> Bool` / `followerCount(_:) -> Int` / `myFollowing() -> [FollowTarget]`
 - `likeEvent(_ id:)` / `unlikeEvent(_ id:)` / `likeCount(_ id:) -> Int` / `hasLiked(_ id:) -> Bool`
 - `addComment(eventId:_ body:)` (→ Moderation → insert) / `comments(eventId:) -> [EventComment]` / `deleteComment(_ id:)`
 - `getFeedPostings(limit:) -> [FeedPosting]` (RPC, with N+1 fallback)
 
-New models (`Hygge/Backend/Models.swift`): `FollowTarget { type, id }`, `EventComment { id, eventId, author, avatarUrl?, body, createdAt }`, `FeedPosting { …event fields…, imageUrl?, poster (club|profile), followerCount, likeCount, commentCount, goingCount, liked, following, rsvpd }`.
+New models (`BlockParty/Backend/Models.swift`): `FollowTarget { type, id }`, `EventComment { id, eventId, author, avatarUrl?, body, createdAt }`, `FeedPosting { …event fields…, imageUrl?, poster (club|profile), followerCount, likeCount, commentCount, goingCount, liked, following, rsvpd }`.
 
 ## 6. Data plumbing changes
 

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a calm, real-data, time-bucketed community-events feed to Hygge’s Today tab so a neighbor can find plans for today, this week, fresh additions, and later without engagement-ranking or fabricated activity.
+**Goal:** Add a calm, real-data, time-bucketed community-events feed to Block Party’s Today tab so a neighbor can find plans for today, this week, fresh additions, and later without engagement-ranking or fabricated activity.
 
 **Architecture:** Keep the existing Today agenda as the `Happening today` bucket and source the three lower buckets from the existing approved `club_events` query. A pure bucketer classifies only future `UpcomingEvent` values by local-date semantics; `HomeModel` owns RSVP state and optimistic writes; a dedicated SwiftUI section renders compact, accessible event cards and a natural end state. No schema, RLS, notification, moderation, or SocialAPI work is part of this slice.
 
@@ -10,12 +10,12 @@
 
 ## Global Constraints
 
-- Work only in `/Users/owner/Documents/hygge-community-feed` on branch `feat/st-joe-community-feed`; do not modify the original dirty worktree.
+- Work only in `/Users/owner/Documents/blockparty-community-feed` on branch `feat/st-joe-community-feed`; do not modify the original dirty worktree.
 - Use only real approved `club_events` and real RSVP counts; never create fixture data outside the DEBUG-only screenshot path and never fabricate social counts.
 - Treat device-local date as authoritative. Do not parse `YYYY-MM-DD` as a UTC instant; input dates belong to `DateHelpers.localDate()` semantics.
 - Preserve the existing top agenda as the `Happening today` bucket. The new section must contain, in this order, `This week`, `Fresh from around town`, then `Coming up later`.
 - Bucket order is transparent and deterministic: date/time first for event buckets, recent creation time only for the Fresh bucket. Do not add behavioral or engagement ranking.
-- Coral (`Hue.accent`) is reserved for Today / the primary RSVP action. Reuse `Hue`, `Radius`, `hyggeCard`, `Motion`, and `SpringReveal` tokens; do not introduce raw colors, shadows, or inline spring constants.
+- Coral (`Hue.accent`) is reserved for Today / the primary RSVP action. Reuse `Hue`, `Radius`, `blockPartyCard`, `Motion`, and `SpringReveal` tokens; do not introduce raw colors, shadows, or inline spring constants.
 - Make section headings accessibility headings; each event card must expose date, time, place, attendance, and RSVP state to VoiceOver; buttons must remain independent controls with at least 44pt tap areas; support Dynamic Type and Reduce Motion.
 - Never use generic stock imagery. Show an image only when `UpcomingEvent.imageUrl` is a real posted image; otherwise use a typographic card.
 - Do not revive the historical `FeedCard`, `FeedSection`, or `CommentSheet` from commit `2436d14`; they depend on the abandoned SocialAPI surface and public social metrics that conflict with this feature.
@@ -26,11 +26,11 @@
 ### Task 1: Make time bucketing a pure, checked contract
 
 **Files:**
-- Create: `Hygge/Features/Home/CommunityFeed/CommunityFeedBucketer.swift`
-- Create: `Hygge/Features/Home/CommunityFeed/CommunityFeedBucketerSelfCheck.swift`
+- Create: `BlockParty/Features/Home/CommunityFeed/CommunityFeedBucketer.swift`
+- Create: `BlockParty/Features/Home/CommunityFeed/CommunityFeedBucketerSelfCheck.swift`
 
 **Interfaces:**
-- Consumes: `UpcomingEvent` from `Hygge/Backend/Models.swift` and `DateHelpers.minutesOf(_:)` semantics.
+- Consumes: `UpcomingEvent` from `BlockParty/Backend/Models.swift` and `DateHelpers.minutesOf(_:)` semantics.
 - Produces: `CommunityFeedBucket`, `CommunityFeedSection`, and `CommunityFeedBucketer.sections(for:today:now:)` for the SwiftUI renderer.
 
 - [ ] **Step 1: Write the DEBUG-only failing self-check first**
@@ -111,17 +111,17 @@ Add a temporary DEBUG invocation only in the task-local validation path, or comp
 - [ ] **Step 5: Commit the contract**
 
 ```bash
-git add Hygge/Features/Home/CommunityFeed/CommunityFeedBucketer.swift \
-  Hygge/Features/Home/CommunityFeed/CommunityFeedBucketerSelfCheck.swift
+git add BlockParty/Features/Home/CommunityFeed/CommunityFeedBucketer.swift \
+  BlockParty/Features/Home/CommunityFeed/CommunityFeedBucketerSelfCheck.swift
 git commit -m "feat(home): add community feed bucketer"
 ```
 
 ### Task 2: Provide future-event RSVP state to the Home feature
 
 **Files:**
-- Modify: `Hygge/Backend/Models.swift:64-76`
-- Modify: `Hygge/Backend/CommunityAPI.swift:168-182,332-354`
-- Modify: `Hygge/Features/Home/HomeModel.swift:9-104`
+- Modify: `BlockParty/Backend/Models.swift:64-76`
+- Modify: `BlockParty/Backend/CommunityAPI.swift:168-182,332-354`
+- Modify: `BlockParty/Features/Home/HomeModel.swift:9-104`
 
 **Interfaces:**
 - Consumes: `CommunityFeedBucketer.sections(for:today:now:)` from Task 1 and existing `CommunityAPI.rsvpEvent(_:)` / `unRsvpEvent(_:)`.
@@ -166,17 +166,17 @@ Run a Debug simulator build. Expected result: existing Activities and Profile ca
 - [ ] **Step 5: Commit the data state**
 
 ```bash
-git add Hygge/Backend/Models.swift Hygge/Backend/CommunityAPI.swift Hygge/Features/Home/HomeModel.swift
+git add BlockParty/Backend/Models.swift BlockParty/Backend/CommunityAPI.swift BlockParty/Features/Home/HomeModel.swift
 git commit -m "feat(home): load community feed event state"
 ```
 
 ### Task 3: Render the warm lower-bucket feed
 
 **Files:**
-- Create: `Hygge/Features/Home/CommunityFeed/CommunityFeedTimelineView.swift`
+- Create: `BlockParty/Features/Home/CommunityFeed/CommunityFeedTimelineView.swift`
 
 **Interfaces:**
-- Consumes: `CommunityFeedBucketer.sections(for:today:now:)`, `UpcomingEvent`, `Reminders`, `Hue`, `Radius`, `hyggeCard`, `Motion`.
+- Consumes: `CommunityFeedBucketer.sections(for:today:now:)`, `UpcomingEvent`, `Reminders`, `Hue`, `Radius`, `blockPartyCard`, `Motion`.
 - Produces: `CommunityFeedTimelineView(events:isLoading:onToggleRsvp:onCompose:)` for Task 4.
 
 - [ ] **Step 1: Create a focused SwiftUI renderer**
@@ -236,16 +236,16 @@ Use `Motion.snappy` only for RSVP-state changes and let `SpringReveal` be applie
 - [ ] **Step 5: Build and commit the renderer**
 
 ```bash
-git add Hygge/Features/Home/CommunityFeed/CommunityFeedTimelineView.swift
+git add BlockParty/Features/Home/CommunityFeed/CommunityFeedTimelineView.swift
 git commit -m "feat(home): render time-bucketed community feed"
 ```
 
 ### Task 4: Integrate Today, add deterministic preview, and verify in the simulator
 
 **Files:**
-- Create: `Hygge/Features/Home/CommunityFeed/CommunityFeedPreview.swift`
-- Modify: `Hygge/Features/Home/HomeView.swift:22-108`
-- Modify: `Hygge/Features/Home/HomeModel.swift:21-66`
+- Create: `BlockParty/Features/Home/CommunityFeed/CommunityFeedPreview.swift`
+- Modify: `BlockParty/Features/Home/HomeView.swift:22-108`
+- Modify: `BlockParty/Features/Home/HomeModel.swift:21-66`
 
 **Interfaces:**
 - Consumes: `CommunityFeedTimelineView` from Task 3 and `CommunityFeedBucketerSelfCheck.run()` from Task 1.
@@ -280,7 +280,7 @@ immediately after `todaySection` and before `AroundTownCarousel`. Shift the caro
 
 - [ ] **Step 4: Build and run the exact worktree binary**
 
-Use XcodeBuildMCP, after confirming the session defaults point at `/Users/owner/Documents/hygge-community-feed/Hygge.xcodeproj`, the `Hygge` scheme, and the `Hygge-Shots` simulator. Build and run with:
+Use XcodeBuildMCP, after confirming the session defaults point at `/Users/owner/Documents/blockparty-community-feed/BlockParty.xcodeproj`, the `BlockParty` scheme, and the `BlockParty-Shots` simulator. Build and run with:
 
 ```text
 -community-feed-self-check -community-feed-preview
@@ -293,9 +293,9 @@ Capture a screenshot and inspect: all headings are ordered `Happening today → 
 Run `graphify update .` from the worktree, then commit:
 
 ```bash
-git add Hygge/Features/Home/HomeView.swift \
-  Hygge/Features/Home/HomeModel.swift \
-  Hygge/Features/Home/CommunityFeed/CommunityFeedPreview.swift \
+git add BlockParty/Features/Home/HomeView.swift \
+  BlockParty/Features/Home/HomeModel.swift \
+  BlockParty/Features/Home/CommunityFeed/CommunityFeedPreview.swift \
   graphify-out
 git commit -m "feat(home): integrate St. Joe community feed"
 ```

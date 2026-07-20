@@ -6,7 +6,7 @@ ultracode
 Implement the approved design in
 docs/superpowers/specs/2026-07-16-upcoming-insights-personal-design.md — read it
 fully first. It remakes the CONTENT of the Calendar tab's "Upcoming" Insights face
-(Hygge/Features/Calendar/Insights/) into a personal town dashboard: a swipeable
+(BlockParty/Features/Calendar/Insights/) into a personal town dashboard: a swipeable
 spotlight-wheel hero (your event first, then the town's), a "Your Year Ahead"
 interest-matched chart, a bento of my 3 onboarding-interest categories, and a
 participation mini-grid. Layout, card sizes, InsightsPalette, and the shipped
@@ -18,7 +18,7 @@ Process:
    calm paged snap for the spotlight wheel, no parallax, no autoplay, Reduce
    Motion honored everywhere.
 2. Branch first: feat/upcoming-personal-insights. If you use a fresh worktree,
-   copy the gitignored Hygge/Config/MapboxConfig.swift into it or the build fails.
+   copy the gitignored BlockParty/Config/MapboxConfig.swift into it or the build fails.
 3. Orchestrate with parallel Opus-powered agents (Workflow tool, model: 'opus'):
    - Phase 1, parallel implementation agents, one per unit: (a) InsightsData pure
      logic + a swiftc -D DEBUG unit harness (spotlight ladder, dedupe, interest

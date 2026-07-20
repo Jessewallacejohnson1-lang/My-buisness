@@ -10,7 +10,7 @@ Expand first-run onboarding from `hello → interests → map` into a warm, boun
 wizard that also **collects real customer data** (name, interests, profile
 picture) and **persists it to Supabase**. Adapts the three Hypelist reference
 screens ("What are you into?", "Let's get you set up", "Add a profile picture")
-into Hygge's hyper-local St. Joseph community context.
+into Block Party's hyper-local St. Joseph community context.
 
 The existing coral **Map intro** (`MapIntroView`) stays the emotional finale.
 
@@ -205,20 +205,20 @@ simulator**. Screenshot loop each screen at each state:
 Record results in `MAP_BUILD_LOG.md` (onboarding subsection) as the app does for map work.
 
 ## 9. File-by-file change list
-- `Hygge/Backend/Interests.swift` — new 18-item taxonomy + sections; add
+- `BlockParty/Backend/Interests.swift` — new 18-item taxonomy + sections; add
   `displayName` get/set; keep `matches`, `get/set`, `isOnboarded` API.
-- `Hygge/Backend/Models.swift` — `TownProfile`.
-- `Hygge/Backend/ProfileAPI.swift` — **new** get/upsert.
-- `Hygge/Backend/Storage.swift` — add `uploadAvatar`.
-- `Hygge/Features/Onboarding/OnboardingView.swift` — new step machine, progress
+- `BlockParty/Backend/Models.swift` — `TownProfile`.
+- `BlockParty/Backend/ProfileAPI.swift` — **new** get/upsert.
+- `BlockParty/Backend/Storage.swift` — add `uploadAvatar`.
+- `BlockParty/Features/Onboarding/OnboardingView.swift` — new step machine, progress
   bar, back chevron; wire name/interests/avatar; Supabase upsert on finish.
-- `Hygge/Features/Onboarding/InterestPickerView.swift` — **new** photo-card grid.
-- `Hygge/Features/Onboarding/InterestCard.swift` — **new** card component + resolver.
-- `Hygge/Features/Onboarding/NameStepView.swift` — **new**.
-- `Hygge/Features/Onboarding/AvatarStepView.swift` — **new** (PhotosPicker).
-- `Hygge/Features/Onboarding/OnboardingChrome.swift` — **new** progress bar + back.
-- `Hygge/Assets.xcassets/` — `interest-<id>` imagesets (18).
-- `Hygge/App/RootView.swift` — hydrate profile on launch; DEBUG step args.
+- `BlockParty/Features/Onboarding/InterestPickerView.swift` — **new** photo-card grid.
+- `BlockParty/Features/Onboarding/InterestCard.swift` — **new** card component + resolver.
+- `BlockParty/Features/Onboarding/NameStepView.swift` — **new**.
+- `BlockParty/Features/Onboarding/AvatarStepView.swift` — **new** (PhotosPicker).
+- `BlockParty/Features/Onboarding/OnboardingChrome.swift` — **new** progress bar + back.
+- `BlockParty/Assets.xcassets/` — `interest-<id>` imagesets (18).
+- `BlockParty/App/RootView.swift` — hydrate profile on launch; DEBUG step args.
 - Supabase — `town_profiles` table + `avatars` bucket + policies (via migration).
 - `MAP_BUILD_LOG.md` — onboarding verification log.
 

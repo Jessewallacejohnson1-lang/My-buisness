@@ -12,7 +12,7 @@
 
 - **Builds must be clean: 0 warnings.** Verified = builds clean + screenshot in the sim.
 - **Real data only — never seeded/inflated counts.** Every on-screen number traces to a real row; zero/empty states read honestly.
-- **Do not hardcode hex/spacing a `Hue`/`Radius`/`HyggeMetrics` token already covers.** System font everywhere (weight carries hierarchy); numbers use mono + `.monospacedDigit()`.
+- **Do not hardcode hex/spacing a `Hue`/`Radius`/`BlockPartyMetrics` token already covers.** System font everywhere (weight carries hierarchy); numbers use mono + `.monospacedDigit()`.
 - **Coral (`Hue.accent`) is reserved for live/tappable.** Live-glow = *now* only (`DateHelpers.isLiveNow`, start ≤ now ≤ start+2h).
 - **Dates are user-timezone** (`DateHelpers.localDate()` / `nowMinutes()`), never derived from a UTC ISO string.
 - **Feed voice is literal komoot:** "Follow", "N followers", "N liked this", "N comments".
@@ -25,25 +25,25 @@
 
 **New**
 - `supabase/migrations/<ts>_today_social_layer.sql` — tables + RLS + indexes + `get_feed_postings` RPC + `town_almanac` + seed
-- `Hygge/Backend/SocialAPI.swift` — follow / like / comment / feed reads (own struct over `SupabaseHTTP`, constructed like `CommunityAPI`)
-- `Hygge/Features/Home/Almanac/AlmanacHeader.swift` — Zone 1 composition
-- `Hygge/Features/Home/Almanac/MoonPhase.swift` — pure moon-phase math
-- `Hygge/Features/Home/Almanac/OnThisDay.swift` — model + fetch for `town_almanac`
-- `Hygge/Features/Home/Feed/FeedSection.swift` — Zone 3 list + interest ordering
-- `Hygge/Features/Home/Feed/FeedCard.swift` — the komoot card
-- `Hygge/Features/Home/Feed/CommentSheet.swift` — flat comments UI
-- `Hygge/Features/Home/CompanionSlot.swift` — empty hook (`EmptyView` today)
+- `BlockParty/Backend/SocialAPI.swift` — follow / like / comment / feed reads (own struct over `SupabaseHTTP`, constructed like `CommunityAPI`)
+- `BlockParty/Features/Home/Almanac/AlmanacHeader.swift` — Zone 1 composition
+- `BlockParty/Features/Home/Almanac/MoonPhase.swift` — pure moon-phase math
+- `BlockParty/Features/Home/Almanac/OnThisDay.swift` — model + fetch for `town_almanac`
+- `BlockParty/Features/Home/Feed/FeedSection.swift` — Zone 3 list + interest ordering
+- `BlockParty/Features/Home/Feed/FeedCard.swift` — the komoot card
+- `BlockParty/Features/Home/Feed/CommentSheet.swift` — flat comments UI
+- `BlockParty/Features/Home/CompanionSlot.swift` — empty hook (`EmptyView` today)
 
 **Modify**
-- `Hygge/Backend/Models.swift` — add `FeedPosting`, `EventComment`, `FollowTarget`, `MoonInfo`, `AlmanacFact`; surface `imageUrl` on feed path
-- `Hygge/Backend/CommunityAPI.swift` — map `RawEvent.imageUrl` through; add `getRecentPostings` fallback if RPC absent
-- `Hygge/Features/Home/HomeView.swift` — new three-zone body
-- `Hygge/Features/Home/HomeModel.swift` — load feed + per-user social state; optimistic like/follow/rsvp
-- `Hygge/Features/Home/TodayInStJoe.swift` / `AlmanacSection.swift` — retire/absorb into `AlmanacHeader`
+- `BlockParty/Backend/Models.swift` — add `FeedPosting`, `EventComment`, `FollowTarget`, `MoonInfo`, `AlmanacFact`; surface `imageUrl` on feed path
+- `BlockParty/Backend/CommunityAPI.swift` — map `RawEvent.imageUrl` through; add `getRecentPostings` fallback if RPC absent
+- `BlockParty/Features/Home/HomeView.swift` — new three-zone body
+- `BlockParty/Features/Home/HomeModel.swift` — load feed + per-user social state; optimistic like/follow/rsvp
+- `BlockParty/Features/Home/TodayInStJoe.swift` / `AlmanacSection.swift` — retire/absorb into `AlmanacHeader`
 
 **Reuse unchanged:** `WeatherService`, `WeatherBackground`, `DailyAlmanac`, `SpringReveal`, `EventRow`, `PhotoView`/`KnownLocalPhoto`/`VenuePhoto`/`ExploreBlankPhoto`, `Interests`, theme tokens, `Haptics`, `PressableStyle`.
 
-> **Parallelism note for the orchestrator:** the Xcode project uses a **file-system-synchronized group**, so *new* files under `Hygge/` are auto-included with no `project.pbxproj` edit — new-file tasks (MoonPhase, FeedCard, CommentSheet, AlmanacHeader, SocialAPI) can be built in parallel. **Shared-file edits** (`HomeView`, `HomeModel`, `Models.swift`, `CommunityAPI.swift`) must be **serialized** to avoid clobbering. Integrate + build-verify on one worktree.
+> **Parallelism note for the orchestrator:** the Xcode project uses a **file-system-synchronized group**, so *new* files under `BlockParty/` are auto-included with no `project.pbxproj` edit — new-file tasks (MoonPhase, FeedCard, CommentSheet, AlmanacHeader, SocialAPI) can be built in parallel. **Shared-file edits** (`HomeView`, `HomeModel`, `Models.swift`, `CommunityAPI.swift`) must be **serialized** to avoid clobbering. Integrate + build-verify on one worktree.
 
 ---
 
@@ -96,7 +96,7 @@ $$;
 
 ## Task 1: Social backend (Swift) — models + `SocialAPI`
 
-**Files:** Create `Hygge/Backend/SocialAPI.swift`; Modify `Hygge/Backend/Models.swift`, `Hygge/Backend/CommunityAPI.swift`
+**Files:** Create `BlockParty/Backend/SocialAPI.swift`; Modify `BlockParty/Backend/Models.swift`, `BlockParty/Backend/CommunityAPI.swift`
 
 **Interfaces — Consumes:** Task 0 tables/RPC. **Produces (relied on by HomeModel + Feed views):**
 
@@ -143,7 +143,7 @@ func hydrateUserState(_ postings: [FeedPosting]) async throws -> [FeedPosting] /
 
 ## Task 2: `MoonPhase` (pure function)
 
-**Files:** Create `Hygge/Features/Home/Almanac/MoonPhase.swift`
+**Files:** Create `BlockParty/Features/Home/Almanac/MoonPhase.swift`
 
 **Interfaces — Produces:** `struct MoonInfo { let phaseName: String; let symbol: String; let illumination: Double }` and `func moonInfo(for date: Date, tz: TimeZone = .current) -> MoonInfo`.
 
@@ -155,7 +155,7 @@ func hydrateUserState(_ postings: [FeedPosting]) async throws -> [FeedPosting] /
 
 ## Task 3: `OnThisDay` (curated fact)
 
-**Files:** Create `Hygge/Features/Home/Almanac/OnThisDay.swift`; content seeded in Task 0's migration.
+**Files:** Create `BlockParty/Features/Home/Almanac/OnThisDay.swift`; content seeded in Task 0's migration.
 
 **Interfaces — Produces:** `struct AlmanacFact { let fact: String; let source: String?; let link: String? }` and `func onThisDay(_ date: Date, auth:) async -> AlmanacFact?` (queries `town_almanac` by `MM-DD`; returns nil when absent).
 
@@ -167,7 +167,7 @@ func hydrateUserState(_ postings: [FeedPosting]) async throws -> [FeedPosting] /
 
 ## Task 4: `AlmanacHeader` (Zone 1)
 
-**Files:** Create `Hygge/Features/Home/Almanac/AlmanacHeader.swift`, `CompanionSlot.swift`; retire hero from `TodayInStJoe.swift`.
+**Files:** Create `BlockParty/Features/Home/Almanac/AlmanacHeader.swift`, `CompanionSlot.swift`; retire hero from `TodayInStJoe.swift`.
 
 **Interfaces — Consumes:** `WeatherService`/`Weather`, `WeatherBackground`, `DailyAlmanac.line`, `MoonInfo`, `AlmanacFact`, quest data from `HomeModel`.
 
@@ -189,7 +189,7 @@ func hydrateUserState(_ postings: [FeedPosting]) async throws -> [FeedPosting] /
 
 ## Task 6: `FeedCard` + `FeedSection` (Zone 3)
 
-**Files:** Create `Hygge/Features/Home/Feed/FeedCard.swift`, `FeedSection.swift`
+**Files:** Create `BlockParty/Features/Home/Feed/FeedCard.swift`, `FeedSection.swift`
 
 **Interfaces — Consumes:** `FeedPosting`, the photo resolution chain, `Interests.matches`. **Produces:** callbacks `onLike`, `onFollow`, `onSave`, `onComment`, `onOpen` wired by `HomeModel`.
 
@@ -202,7 +202,7 @@ func hydrateUserState(_ postings: [FeedPosting]) async throws -> [FeedPosting] /
 
 ## Task 7: `CommentSheet` + wiring
 
-**Files:** Create `Hygge/Features/Home/Feed/CommentSheet.swift`; wire in `FeedCard`/`HomeModel`.
+**Files:** Create `BlockParty/Features/Home/Feed/CommentSheet.swift`; wire in `FeedCard`/`HomeModel`.
 
 - [ ] **Step 1:** Flat comment list (author + avatar + body + relative time), a composer (→ `SocialAPI.addComment` through Moderation), own-comment delete, honest empty state.
 - [ ] **Step 2: Verify** — build clean; screenshot the sheet (with comments + empty + composer focused).

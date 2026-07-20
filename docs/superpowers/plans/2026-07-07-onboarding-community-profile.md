@@ -10,16 +10,16 @@
 
 ## Global Constraints
 
-- iOS deployment target 26.5, Swift 5. Xcode project `Hygge.xcodeproj`, scheme `Hygge`, bundle id `Jesse.Hygge`.
+- iOS deployment target 26.5, Swift 5. Xcode project `BlockParty.xcodeproj`, scheme `BlockParty`, bundle id `Jesse.Hygge`.
 - **No XCTest target.** "Verified" = **builds clean (0 warnings)** + **confirmed in the simulator via screenshots**. Every task's "test" step is a build + a screenshot, never a unit test.
 - **Prefer XcodeBuildMCP** (`build_sim`, `build_run_sim`, `screenshot`) over raw `xcodebuild`/`simctl`.
 - Only SPM dep is `mapbox-maps-ios`. Do **not** add dependencies. `PhotosUI` is a system framework (no SPM).
-- Design tokens only — `Hue.*`, `Font.*`, `Radius.*`, `HyggeMetrics`. No raw hex/spacing a token covers. Coral (`Hue.accent`) is reserved for live/primary/tappable.
+- Design tokens only — `Hue.*`, `Font.*`, `Radius.*`, `BlockPartyMetrics`. No raw hex/spacing a token covers. Coral (`Hue.accent`) is reserved for live/primary/tappable.
 - Voice: warm, calm, neighborly, hyper-local. Real data only. No badges/streaks/gamification.
 - Full **Reduce Motion** path on every animated screen (mirror `MapIntroView.runIntro`).
 - Supabase project id: `lxdgwhvqjqmqliobwjpi`. Same project as the wellness app — **do not touch `profiles`, `food_logs`, `workouts`.**
-- New files must be added to the `Hygge` file-system-synchronized group (they are, since the group syncs the `Hygge/` folder) — no manual `project.pbxproj` edits needed for `.swift` files under `Hygge/`.
-- After any `.impeccable/` hazard: `find Hygge -type d -name .impeccable -exec rm -rf {} +` before building.
+- New files must be added to the `BlockParty` file-system-synchronized group (they are, since the group syncs the `BlockParty/` folder) — no manual `project.pbxproj` edits needed for `.swift` files under `BlockParty/`.
+- After any `.impeccable/` hazard: `find BlockParty -type d -name .impeccable -exec rm -rf {} +` before building.
 
 ---
 
@@ -77,9 +77,9 @@ Run `get_advisors` (type `security`) → no new **errors** introduced by these o
 ### Task 2: Backend — `TownProfile`, `ProfileAPI`, `Storage.uploadAvatar`
 
 **Files:**
-- Modify: `Hygge/Backend/Models.swift` (append `TownProfile`)
-- Create: `Hygge/Backend/ProfileAPI.swift`
-- Modify: `Hygge/Backend/Storage.swift` (add `uploadAvatar`)
+- Modify: `BlockParty/Backend/Models.swift` (append `TownProfile`)
+- Create: `BlockParty/Backend/ProfileAPI.swift`
+- Modify: `BlockParty/Backend/Storage.swift` (add `uploadAvatar`)
 
 **Interfaces:**
 - Consumes: Task 1's table/bucket; existing `SupabaseHTTP.rest`, `AuthStore` (`userId`, `validAccessToken`), `SupabaseConfig`.
@@ -107,7 +107,7 @@ struct TownProfile: Decodable {
 ```swift
 //
 //  ProfileAPI.swift
-//  Hygge — the community-profile query layer (name · avatar · interests),
+//  Block Party — the community-profile query layer (name · avatar · interests),
 //  hand-rolled over PostgREST like CommunityAPI. Writes to `town_profiles`
 //  (own-row RLS). Separate from the wellness app's `profiles` table.
 //
@@ -193,12 +193,12 @@ struct ProfileAPI {
 
 - [ ] **Step 4: Build clean**
 
-Run: XcodeBuildMCP `build_sim` (scheme `Hygge`, iPhone 17 simulator). Expected: **BUILD SUCCEEDED, 0 warnings**.
+Run: XcodeBuildMCP `build_sim` (scheme `BlockParty`, iPhone 17 simulator). Expected: **BUILD SUCCEEDED, 0 warnings**.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Hygge/Backend/Models.swift Hygge/Backend/ProfileAPI.swift Hygge/Backend/Storage.swift
+git add BlockParty/Backend/Models.swift BlockParty/Backend/ProfileAPI.swift BlockParty/Backend/Storage.swift
 git commit -m "feat(onboarding): TownProfile model, ProfileAPI, avatar upload"
 ```
 
@@ -207,7 +207,7 @@ git commit -m "feat(onboarding): TownProfile model, ProfileAPI, avatar upload"
 ### Task 3: Interests taxonomy — 18 categories, sections, name cache
 
 **Files:**
-- Modify: `Hygge/Backend/Interests.swift`
+- Modify: `BlockParty/Backend/Interests.swift`
 
 **Interfaces:**
 - Consumes: nothing new.
@@ -224,7 +224,7 @@ git commit -m "feat(onboarding): TownProfile model, ProfileAPI, avatar upload"
 ```swift
 //
 //  Interests.swift
-//  Hygge — on-device interests + name for onboarding and "Suggested for you".
+//  Block Party — on-device interests + name for onboarding and "Suggested for you".
 //  Interests/name are mirrored to Supabase (town_profiles); UserDefaults stays
 //  the synchronous source for keyword matching. Matching is plain keyword-contains.
 //
@@ -336,7 +336,7 @@ Run: XcodeBuildMCP `build_sim`. Expected: **BUILD SUCCEEDED, 0 warnings.** (The 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add Hygge/Backend/Interests.swift
+git add BlockParty/Backend/Interests.swift
 git commit -m "feat(onboarding): expand interest taxonomy to 18 St. Joe categories + sections + name cache"
 ```
 
@@ -345,8 +345,8 @@ git commit -m "feat(onboarding): expand interest taxonomy to 18 St. Joe categori
 ### Task 4: Interest card photos + resolver
 
 **Files:**
-- Create: `Hygge/Assets.xcassets/Interests/interest-<id>.imageset/` for all 18 ids (each with `Contents.json` + one `@2x`/`@3x` or single universal JPEG).
-- Create: `Hygge/Features/Onboarding/InterestImage.swift`
+- Create: `BlockParty/Assets.xcassets/Interests/interest-<id>.imageset/` for all 18 ids (each with `Contents.json` + one `@2x`/`@3x` or single universal JPEG).
+- Create: `BlockParty/Features/Onboarding/InterestImage.swift`
 
 **Interfaces:**
 - Produces: `enum InterestImage { static func image(for id: String) -> Image }` — returns the resolved SwiftUI `Image` for a card (real-photo override if present, else seed asset, else a tinted fallback so a missing asset never crashes the grid).
@@ -363,7 +363,7 @@ Post-process: center-crop to 4:3, downscale to ≤1200px wide, JPEG ~80%. Reject
 
 - [ ] **Step 2: Add each as an imageset**
 
-For each id, create `Hygge/Assets.xcassets/Interests/interest-<id>.imageset/Contents.json`:
+For each id, create `BlockParty/Assets.xcassets/Interests/interest-<id>.imageset/Contents.json`:
 
 ```json
 {
@@ -379,7 +379,7 @@ Place the JPEG next to it. (The `Interests` folder can hold its own `Contents.js
 ```swift
 //
 //  InterestImage.swift
-//  Hygge — resolves an interest card's photo. Real local photo wins if present;
+//  Block Party — resolves an interest card's photo. Real local photo wins if present;
 //  otherwise the bundled seed art; otherwise a calm tinted fallback so a missing
 //  asset never breaks the grid. Drop a real St. Joe photo named the same and it
 //  takes over with zero code changes (hybrid imagery — see the design spec).
@@ -400,12 +400,12 @@ enum InterestImage {
 
 - [ ] **Step 4: Build clean + verify assets load**
 
-Run: `find Hygge -type d -name .impeccable -exec rm -rf {} +` then XcodeBuildMCP `build_sim`. Expected: **BUILD SUCCEEDED, 0 warnings**, no "unassigned image" asset warnings.
+Run: `find BlockParty -type d -name .impeccable -exec rm -rf {} +` then XcodeBuildMCP `build_sim`. Expected: **BUILD SUCCEEDED, 0 warnings**, no "unassigned image" asset warnings.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Hygge/Assets.xcassets/Interests Hygge/Features/Onboarding/InterestImage.swift
+git add BlockParty/Assets.xcassets/Interests BlockParty/Features/Onboarding/InterestImage.swift
 git commit -m "feat(onboarding): art-directed interest card photos + hybrid resolver"
 ```
 
@@ -414,7 +414,7 @@ git commit -m "feat(onboarding): art-directed interest card photos + hybrid reso
 ### Task 5: Onboarding chrome — progress bar + back
 
 **Files:**
-- Create: `Hygge/Features/Onboarding/OnboardingChrome.swift`
+- Create: `BlockParty/Features/Onboarding/OnboardingChrome.swift`
 
 **Interfaces:**
 - Produces:
@@ -427,7 +427,7 @@ git commit -m "feat(onboarding): art-directed interest card photos + hybrid reso
 ```swift
 //
 //  OnboardingChrome.swift
-//  Hygge — shared top chrome for the onboarding wizard: a circular back button
+//  Block Party — shared top chrome for the onboarding wizard: a circular back button
 //  and a slim segmented progress bar. Present only on the data-collection steps
 //  (name · interests · avatar); Welcome and the Map finale are full-bleed.
 //
@@ -490,7 +490,7 @@ struct OnboardingTopBar: View {
 - [ ] **Step 3: Commit**
 
 ```bash
-git add Hygge/Features/Onboarding/OnboardingChrome.swift
+git add BlockParty/Features/Onboarding/OnboardingChrome.swift
 git commit -m "feat(onboarding): progress bar + back chrome"
 ```
 
@@ -499,7 +499,7 @@ git commit -m "feat(onboarding): progress bar + back chrome"
 ### Task 6: Name step
 
 **Files:**
-- Create: `Hygge/Features/Onboarding/NameStepView.swift`
+- Create: `BlockParty/Features/Onboarding/NameStepView.swift`
 
 **Interfaces:**
 - Consumes: `OnboardingTopBar`.
@@ -510,7 +510,7 @@ git commit -m "feat(onboarding): progress bar + back chrome"
 ```swift
 //
 //  NameStepView.swift
-//  Hygge — "What should we call you?" One warm centered field. First data step.
+//  Block Party — "What should we call you?" One warm centered field. First data step.
 //
 
 import SwiftUI
@@ -604,7 +604,7 @@ Add a temporary DEBUG preview or use the Task 9 launch arg once wired. For now: 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add Hygge/Features/Onboarding/NameStepView.swift
+git add BlockParty/Features/Onboarding/NameStepView.swift
 git commit -m "feat(onboarding): name step"
 ```
 
@@ -613,8 +613,8 @@ git commit -m "feat(onboarding): name step"
 ### Task 7: Interest photo-card grid
 
 **Files:**
-- Create: `Hygge/Features/Onboarding/InterestCard.swift`
-- Create: `Hygge/Features/Onboarding/InterestPickerView.swift`
+- Create: `BlockParty/Features/Onboarding/InterestCard.swift`
+- Create: `BlockParty/Features/Onboarding/InterestPickerView.swift`
 
 **Interfaces:**
 - Consumes: `Interests.sections`, `InterestImage.image(for:)`, `OnboardingTopBar`, `ContinueButton`.
@@ -627,7 +627,7 @@ git commit -m "feat(onboarding): name step"
 ```swift
 //
 //  InterestCard.swift
-//  Hygge — a photo interest card (reference-faithful): image, bottom scrim +
+//  Block Party — a photo interest card (reference-faithful): image, bottom scrim +
 //  label, and a top-right selection circle. Selecting rings it coral, checks it,
 //  and zooms the photo a touch. Full Reduce-Motion path.
 //
@@ -721,7 +721,7 @@ struct InterestCard: View {
 ```swift
 //
 //  InterestPickerView.swift
-//  Hygge — "What are you into around town?" The reference's photo-card grid,
+//  Block Party — "What are you into around town?" The reference's photo-card grid,
 //  grouped into sections. Gentle: pick a few (min 1). Sticky coral CTA with a
 //  live count. Cards fade+rise in on first appear (capped stagger).
 //
@@ -822,7 +822,7 @@ struct InterestPickerView: View {
 - [ ] **Step 4: Commit**
 
 ```bash
-git add Hygge/Features/Onboarding/InterestCard.swift Hygge/Features/Onboarding/InterestPickerView.swift
+git add BlockParty/Features/Onboarding/InterestCard.swift BlockParty/Features/Onboarding/InterestPickerView.swift
 git commit -m "feat(onboarding): photo interest-card grid"
 ```
 
@@ -831,7 +831,7 @@ git commit -m "feat(onboarding): photo interest-card grid"
 ### Task 8: Avatar step
 
 **Files:**
-- Create: `Hygge/Features/Onboarding/AvatarStepView.swift`
+- Create: `BlockParty/Features/Onboarding/AvatarStepView.swift`
 
 **Interfaces:**
 - Consumes: `OnboardingTopBar`, `ContinueButton`, `PhotosUI`.
@@ -842,7 +842,7 @@ git commit -m "feat(onboarding): photo interest-card grid"
 ```swift
 //
 //  AvatarStepView.swift
-//  Hygge — "Add a profile picture." Tap the circular well to pick from the
+//  Block Party — "Add a profile picture." Tap the circular well to pick from the
 //  library; Skip is always allowed. Upload happens after this step (Task 9).
 //
 
@@ -949,7 +949,7 @@ struct AvatarStepView: View {
 - [ ] **Step 3: Commit**
 
 ```bash
-git add Hygge/Features/Onboarding/AvatarStepView.swift
+git add BlockParty/Features/Onboarding/AvatarStepView.swift
 git commit -m "feat(onboarding): avatar step with PhotosPicker"
 ```
 
@@ -958,7 +958,7 @@ git commit -m "feat(onboarding): avatar step with PhotosPicker"
 ### Task 9: Wire the step machine + persist + DEBUG args
 
 **Files:**
-- Modify: `Hygge/Features/Onboarding/OnboardingView.swift` (full rewrite of the step machine)
+- Modify: `BlockParty/Features/Onboarding/OnboardingView.swift` (full rewrite of the step machine)
 
 **Interfaces:**
 - Consumes: `NameStepView`, `InterestPickerView`, `AvatarStepView`, `MapIntroView`, `ProfileAPI`, `Storage`, `AuthStore.shared`, `Interests`.
@@ -969,7 +969,7 @@ git commit -m "feat(onboarding): avatar step with PhotosPicker"
 ```swift
 //
 //  OnboardingView.swift
-//  Hygge — first-run wizard: Welcome → Name → Interests → Avatar → Map finale.
+//  Block Party — first-run wizard: Welcome → Name → Interests → Avatar → Map finale.
 //  Collects name + interests + avatar, mirrors them to Supabase (best-effort,
 //  non-blocking) and to UserDefaults (synchronous matching). Mirrors the Expo
 //  onboarding, extended for community-profile capture.
@@ -1022,7 +1022,7 @@ struct OnboardingView: View {
     private var hello: some View {
         VStack(alignment: .leading, spacing: 16) {
             Spacer()
-            Text("Welcome to Hygge")
+            Text("Welcome to Block Party")
                 .font(.display(38)).foregroundStyle(Hue.ink)
                 .fixedSize(horizontal: false, vertical: true)
             Text("One calm place for everything happening in St. Joseph — a daily look at town, a shared calendar anyone can add to, and small nudges to get out and meet your neighbors.")
@@ -1103,7 +1103,7 @@ extension OnboardingView {
 }
 ```
 
-- [ ] **Step 2: Build clean.** `find Hygge -type d -name .impeccable -exec rm -rf {} +` then XcodeBuildMCP `build_sim`. Expected: **BUILD SUCCEEDED, 0 warnings**.
+- [ ] **Step 2: Build clean.** `find BlockParty -type d -name .impeccable -exec rm -rf {} +` then XcodeBuildMCP `build_sim`. Expected: **BUILD SUCCEEDED, 0 warnings**.
 
 - [ ] **Step 3: Screenshot loop — every screen + state**
 
@@ -1122,7 +1122,7 @@ Screenshot each with XcodeBuildMCP `screenshot`. Verify: name field centered + u
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Hygge/Features/Onboarding/OnboardingView.swift
+git add BlockParty/Features/Onboarding/OnboardingView.swift
 git commit -m "feat(onboarding): wire name→interests→avatar→map wizard + Supabase persist + debug args"
 ```
 
@@ -1131,7 +1131,7 @@ git commit -m "feat(onboarding): wire name→interests→avatar→map wizard + S
 ### Task 10: Launch hydration from Supabase
 
 **Files:**
-- Modify: `Hygge/App/RootView.swift`
+- Modify: `BlockParty/App/RootView.swift`
 
 **Interfaces:**
 - Consumes: `ProfileAPI`, `Interests`, `AuthStore`.
@@ -1186,7 +1186,7 @@ Add these members to `RootView`:
 - [ ] **Step 4: Commit**
 
 ```bash
-git add Hygge/App/RootView.swift
+git add BlockParty/App/RootView.swift
 git commit -m "feat(onboarding): hydrate community profile on launch; honor remote onboarded stamp"
 ```
 

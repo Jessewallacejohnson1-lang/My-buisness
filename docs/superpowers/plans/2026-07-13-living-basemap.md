@@ -25,7 +25,7 @@ Every task's requirements implicitly include this section. Values copied verbati
 - **Real only** — weather is real; time/season are the device clock + St. Joe coordinates. Nothing seeded.
 - **Reduce Motion honored** — every animated element (wash cross-fade, particles) has a static fallback (mirrors `PulseRing`).
 - **Weather is swappable** — all weather access goes through `protocol WeatherProvider`. `OpenMeteoWeatherProvider` now; `WeatherKitWeatherProvider` is a one-file, one-line swap later.
-- **New files auto-compile.** `Hygge/` is an Xcode file-system-synchronized group — files created under `Hygge/Features/Map/Atmosphere/` are picked up automatically; **no `.pbxproj` editing.** (Verify by building.) Do NOT let a `.impeccable/` dir land inside `Hygge/` (duplicate-bundle build failure).
+- **New files auto-compile.** `BlockParty/` is an Xcode file-system-synchronized group — files created under `BlockParty/Features/Map/Atmosphere/` are picked up automatically; **no `.pbxproj` editing.** (Verify by building.) Do NOT let a `.impeccable/` dir land inside `BlockParty/` (duplicate-bundle build failure).
 - **"Verified"** = builds clean with **0 warnings** AND confirmed in the running simulator via screenshots.
 - **Tokens only** — no raw hex/spacing a `Hue`/metric token covers, except the basemap cartography hexes (which this feature owns and modulates).
 
@@ -34,10 +34,10 @@ Every task's requirements implicitly include this section. Values copied verbati
 Pure-Foundation units are tested by compiling the **real source file** together with a throwaway `main.swift` under `scratchpad/`, so the test exercises the shipped code (no copy drift):
 
 ```bash
-SP=/private/tmp/claude-501/-Users-owner-Documents-Hygge/c4aed1e4-6c44-4c16-bae6-c04b4307c0d3/scratchpad
+SP=/private/tmp/claude-501/-Users-owner-Documents-BlockParty/c4aed1e4-6c44-4c16-bae6-c04b4307c0d3/scratchpad
 swiftc -D DEBUG -o "$SP/check" \
-  Hygge/Features/Map/Atmosphere/<Unit>.swift \
-  Hygge/Features/Map/Atmosphere/TownAtmosphere.swift \
+  BlockParty/Features/Map/Atmosphere/<Unit>.swift \
+  BlockParty/Features/Map/Atmosphere/TownAtmosphere.swift \
   "$SP/<unit>_main.swift" && "$SP/check"
 ```
 
@@ -50,7 +50,7 @@ swiftc -D DEBUG -o "$SP/check" \
 The shared value types every other unit speaks. Pure Foundation/CoreLocation.
 
 **Files:**
-- Create: `Hygge/Features/Map/Atmosphere/TownAtmosphere.swift`
+- Create: `BlockParty/Features/Map/Atmosphere/TownAtmosphere.swift`
 - Test: `scratchpad/atmo_main.swift`
 
 **Interfaces — Produces:**
@@ -108,15 +108,15 @@ exit(failures == 0 ? 0 : 1)
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `swiftc -D DEBUG -o "$SP/check" Hygge/Features/Map/Atmosphere/TownAtmosphere.swift "$SP/atmo_main.swift" && "$SP/check"`
+Run: `swiftc -D DEBUG -o "$SP/check" BlockParty/Features/Map/Atmosphere/TownAtmosphere.swift "$SP/atmo_main.swift" && "$SP/check"`
 Expected: FAIL — `TownAtmosphere.swift` doesn't exist / symbols undefined.
 
-- [ ] **Step 3: Implement** — `Hygge/Features/Map/Atmosphere/TownAtmosphere.swift`
+- [ ] **Step 3: Implement** — `BlockParty/Features/Map/Atmosphere/TownAtmosphere.swift`
 
 ```swift
 //
 //  TownAtmosphere.swift
-//  Hygge — the composed environment value for the Living Basemap.
+//  Block Party — the composed environment value for the Living Basemap.
 //
 //  TownAtmosphere = f(time-of-day, season, sky). Computed on-device; time+season
 //  are synchronous/offline so the map is alive on the first frame, sky (weather)
@@ -223,13 +223,13 @@ struct TownAtmosphere: Equatable {
 
 - [ ] **Step 4: Run to verify it passes**
 
-Run: `swiftc -D DEBUG -o "$SP/check" Hygge/Features/Map/Atmosphere/TownAtmosphere.swift "$SP/atmo_main.swift" && "$SP/check"`
+Run: `swiftc -D DEBUG -o "$SP/check" BlockParty/Features/Map/Atmosphere/TownAtmosphere.swift "$SP/atmo_main.swift" && "$SP/check"`
 Expected: all `PASS`, exit 0.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Hygge/Features/Map/Atmosphere/TownAtmosphere.swift
+git add BlockParty/Features/Map/Atmosphere/TownAtmosphere.swift
 git commit -m "feat(map): atmosphere vocabulary — TownAtmosphere value types"
 ```
 
@@ -240,7 +240,7 @@ git commit -m "feat(map): atmosphere vocabulary — TownAtmosphere value types"
 Offline sunrise/sunset + continuous `dayFactor` + `phase`, via the NOAA sunrise equation. This is the one place correctness is subtle and invisible to screenshots, so it gets an almanac-checked harness.
 
 **Files:**
-- Create: `Hygge/Features/Map/Atmosphere/SolarClock.swift`
+- Create: `BlockParty/Features/Map/Atmosphere/SolarClock.swift`
 - Test: `scratchpad/solar_main.swift`
 
 **Interfaces — Consumes:** `TimePhase` (Task 1). **Produces:**
@@ -304,15 +304,15 @@ exit(failures == 0 ? 0 : 1)
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `swiftc -D DEBUG -o "$SP/check" Hygge/Features/Map/Atmosphere/SolarClock.swift Hygge/Features/Map/Atmosphere/TownAtmosphere.swift "$SP/solar_main.swift" && "$SP/check"`
+Run: `swiftc -D DEBUG -o "$SP/check" BlockParty/Features/Map/Atmosphere/SolarClock.swift BlockParty/Features/Map/Atmosphere/TownAtmosphere.swift "$SP/solar_main.swift" && "$SP/check"`
 Expected: FAIL — `SolarClock` undefined.
 
-- [ ] **Step 3: Implement** — `Hygge/Features/Map/Atmosphere/SolarClock.swift`
+- [ ] **Step 3: Implement** — `BlockParty/Features/Map/Atmosphere/SolarClock.swift`
 
 ```swift
 //
 //  SolarClock.swift
-//  Hygge — offline sunrise/sunset + continuous day factor + time phase.
+//  Block Party — offline sunrise/sunset + continuous day factor + time phase.
 //
 //  NOAA "sunrise equation" (the Wikipedia Julian-day formulation), so golden hour
 //  lands at St. Joe's REAL hour — sunset swings ~9:03pm (late June) to ~4:34pm
@@ -392,7 +392,7 @@ enum SolarClock {
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Hygge/Features/Map/Atmosphere/SolarClock.swift
+git add BlockParty/Features/Map/Atmosphere/SolarClock.swift
 git commit -m "feat(map): SolarClock — offline sunrise/sunset, dayFactor, phase"
 ```
 
@@ -401,7 +401,7 @@ git commit -m "feat(map): SolarClock — offline sunrise/sunset, dayFactor, phas
 ### Task 3: SeasonClock (`SeasonClock.swift`)
 
 **Files:**
-- Create: `Hygge/Features/Map/Atmosphere/SeasonClock.swift`
+- Create: `BlockParty/Features/Map/Atmosphere/SeasonClock.swift`
 - Test: `scratchpad/season_main.swift`
 
 **Interfaces — Consumes:** `Season` (Task 1). **Produces:**
@@ -424,14 +424,14 @@ expect(SeasonClock.current(d(2026,8,29)).blend > 0.5, "late Aug ramps toward aut
 exit(failures == 0 ? 0 : 1)
 ```
 
-- [ ] **Step 2: Run to verify it fails** — `swiftc -D DEBUG -o "$SP/check" Hygge/Features/Map/Atmosphere/SeasonClock.swift Hygge/Features/Map/Atmosphere/TownAtmosphere.swift "$SP/season_main.swift" && "$SP/check"` → FAIL.
+- [ ] **Step 2: Run to verify it fails** — `swiftc -D DEBUG -o "$SP/check" BlockParty/Features/Map/Atmosphere/SeasonClock.swift BlockParty/Features/Map/Atmosphere/TownAtmosphere.swift "$SP/season_main.swift" && "$SP/check"` → FAIL.
 
-- [ ] **Step 3: Implement** — `Hygge/Features/Map/Atmosphere/SeasonClock.swift`
+- [ ] **Step 3: Implement** — `BlockParty/Features/Map/Atmosphere/SeasonClock.swift`
 
 ```swift
 //
 //  SeasonClock.swift
-//  Hygge — offline season from the local date (meteorological, N. hemisphere).
+//  Block Party — offline season from the local date (meteorological, N. hemisphere).
 //  blend eases the palette into the next season over the season's final 15 days.
 //
 
@@ -470,7 +470,7 @@ enum SeasonClock {
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Hygge/Features/Map/Atmosphere/SeasonClock.swift
+git add BlockParty/Features/Map/Atmosphere/SeasonClock.swift
 git commit -m "feat(map): SeasonClock — offline season + boundary blend"
 ```
 
@@ -479,7 +479,7 @@ git commit -m "feat(map): SeasonClock — offline season + boundary blend"
 ### Task 4: WeatherProvider (`WeatherProvider.swift`)
 
 **Files:**
-- Create: `Hygge/Features/Map/Atmosphere/WeatherProvider.swift`
+- Create: `BlockParty/Features/Map/Atmosphere/WeatherProvider.swift`
 - Test: `scratchpad/weather_main.swift`
 
 **Interfaces — Consumes:** `WeatherSnapshot`, `SkyCondition`, `WeatherIntensity` (Task 1). **Produces:**
@@ -522,14 +522,14 @@ expect(cache.cached?.tempF == 38, "cache round-trips")
 exit(failures == 0 ? 0 : 1)
 ```
 
-- [ ] **Step 2: Run to verify it fails** — `swiftc -D DEBUG -o "$SP/check" Hygge/Features/Map/Atmosphere/WeatherProvider.swift Hygge/Features/Map/Atmosphere/TownAtmosphere.swift "$SP/weather_main.swift" && "$SP/check"` → FAIL.
+- [ ] **Step 2: Run to verify it fails** — `swiftc -D DEBUG -o "$SP/check" BlockParty/Features/Map/Atmosphere/WeatherProvider.swift BlockParty/Features/Map/Atmosphere/TownAtmosphere.swift "$SP/weather_main.swift" && "$SP/check"` → FAIL.
 
-- [ ] **Step 3: Implement** — `Hygge/Features/Map/Atmosphere/WeatherProvider.swift`
+- [ ] **Step 3: Implement** — `BlockParty/Features/Map/Atmosphere/WeatherProvider.swift`
 
 ```swift
 //
 //  WeatherProvider.swift
-//  Hygge — the sky dimension: real weather behind a swappable protocol.
+//  Block Party — the sky dimension: real weather behind a swappable protocol.
 //
 //  OpenMeteoWeatherProvider is a keyless URLSession GET matching the app's
 //  hand-rolled backend. CachedWeatherProvider persists the last snapshot in
@@ -608,7 +608,7 @@ final class CachedWeatherProvider {
     private let base: WeatherProvider
     private let defaults: UserDefaults
     private let ttl: TimeInterval
-    private let key = "hygge.atmosphere.weather"
+    private let key = "blockparty.atmosphere.weather"
 
     init(base: WeatherProvider, defaults: UserDefaults = .standard, ttlSeconds: TimeInterval = 1200) {
         self.base = base; self.defaults = defaults; self.ttl = ttlSeconds
@@ -643,7 +643,7 @@ final class CachedWeatherProvider {
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Hygge/Features/Map/Atmosphere/WeatherProvider.swift
+git add BlockParty/Features/Map/Atmosphere/WeatherProvider.swift
 git commit -m "feat(map): WeatherProvider — Open-Meteo + WMO map + UserDefaults cache"
 ```
 
@@ -654,7 +654,7 @@ git commit -m "feat(map): WeatherProvider — Open-Meteo + WMO map + UserDefault
 Atmosphere → Mapbox layer hexes + a wash spec. The tuned aesthetic core. Guarded so summer·noon·clear reproduces today's exact anchor (regression guard on the Life360 look).
 
 **Files:**
-- Create: `Hygge/Features/Map/Atmosphere/BasemapPalette.swift`
+- Create: `BlockParty/Features/Map/Atmosphere/BasemapPalette.swift`
 - Test: `scratchpad/palette_main.swift`
 
 **Interfaces — Consumes:** `TownAtmosphere` (Task 1). **Produces:**
@@ -697,14 +697,14 @@ for hex in [p.land, p.green, p.water, p.building, pn.land, pw.green] {
 exit(failures == 0 ? 0 : 1)
 ```
 
-- [ ] **Step 2: Run to verify it fails** — `swiftc -D DEBUG -o "$SP/check" Hygge/Features/Map/Atmosphere/BasemapPalette.swift Hygge/Features/Map/Atmosphere/TownAtmosphere.swift "$SP/palette_main.swift" && "$SP/check"` → FAIL.
+- [ ] **Step 2: Run to verify it fails** — `swiftc -D DEBUG -o "$SP/check" BlockParty/Features/Map/Atmosphere/BasemapPalette.swift BlockParty/Features/Map/Atmosphere/TownAtmosphere.swift "$SP/palette_main.swift" && "$SP/check"` → FAIL.
 
-- [ ] **Step 3: Implement** — `Hygge/Features/Map/Atmosphere/BasemapPalette.swift`
+- [ ] **Step 3: Implement** — `BlockParty/Features/Map/Atmosphere/BasemapPalette.swift`
 
 ```swift
 //
 //  BasemapPalette.swift
-//  Hygge — the Living Basemap's tuned cartography: TownAtmosphere → Mapbox layer
+//  Block Party — the Living Basemap's tuned cartography: TownAtmosphere → Mapbox layer
 //  hexes + a time wash. Summer·noon·clear reproduces the tuned Life360 anchor
 //  exactly; season/time/sky modulate around it in HSB, bounded to stay tasteful.
 //  Pure Foundation — the ONLY raw hexes the map is allowed (it owns cartography).
@@ -835,7 +835,7 @@ private extension Double { func clamped(_ lo: Double, _ hi: Double) -> Double { 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Hygge/Features/Map/Atmosphere/BasemapPalette.swift
+git add BlockParty/Features/Map/Atmosphere/BasemapPalette.swift
 git commit -m "feat(map): BasemapPalette — atmosphere → tuned cartography + wash"
 ```
 
@@ -844,8 +844,8 @@ git commit -m "feat(map): BasemapPalette — atmosphere → tuned cartography + 
 ### Task 6: AtmosphereModel + DEBUG override (`AtmosphereModel.swift`, `AtmosphereOverride.swift`)
 
 **Files:**
-- Create: `Hygge/Features/Map/Atmosphere/AtmosphereOverride.swift` (pure parser)
-- Create: `Hygge/Features/Map/Atmosphere/AtmosphereModel.swift` (@MainActor model)
+- Create: `BlockParty/Features/Map/Atmosphere/AtmosphereOverride.swift` (pure parser)
+- Create: `BlockParty/Features/Map/Atmosphere/AtmosphereModel.swift` (@MainActor model)
 - Test: `scratchpad/override_main.swift` (parser only; model verified in Task 10)
 
 **Interfaces — Consumes:** all of Tasks 1–5. **Produces:**
@@ -867,14 +867,14 @@ expect(applied.season == .winter && applied.sky == .snow && applied.tempF == 38 
 exit(failures == 0 ? 0 : 1)
 ```
 
-- [ ] **Step 2: Run to verify it fails** — `swiftc -D DEBUG -o "$SP/check" Hygge/Features/Map/Atmosphere/AtmosphereOverride.swift Hygge/Features/Map/Atmosphere/TownAtmosphere.swift "$SP/override_main.swift" && "$SP/check"` → FAIL.
+- [ ] **Step 2: Run to verify it fails** — `swiftc -D DEBUG -o "$SP/check" BlockParty/Features/Map/Atmosphere/AtmosphereOverride.swift BlockParty/Features/Map/Atmosphere/TownAtmosphere.swift "$SP/override_main.swift" && "$SP/check"` → FAIL.
 
-- [ ] **Step 3a: Implement** — `Hygge/Features/Map/Atmosphere/AtmosphereOverride.swift`
+- [ ] **Step 3a: Implement** — `BlockParty/Features/Map/Atmosphere/AtmosphereOverride.swift`
 
 ```swift
 //
 //  AtmosphereOverride.swift
-//  Hygge — DEBUG-only launch-arg parser to force any atmosphere for headless
+//  Block Party — DEBUG-only launch-arg parser to force any atmosphere for headless
 //  screenshot verification: -atmosphere season:winter,phase:night,sky:snow,temp:38
 //  Keys: season, phase, sky, intensity, temp, daylight (0…1), isday. Any subset.
 //
@@ -897,12 +897,12 @@ enum AtmosphereOverride {
 
 - [ ] **Step 3b: Run parser test** — same command as Step 2. Expected: all `PASS`.
 
-- [ ] **Step 3c: Implement** — `Hygge/Features/Map/Atmosphere/AtmosphereModel.swift`
+- [ ] **Step 3c: Implement** — `BlockParty/Features/Map/Atmosphere/AtmosphereModel.swift`
 
 ```swift
 //
 //  AtmosphereModel.swift
-//  Hygge — owns the Living Basemap's composed atmosphere.
+//  Block Party — owns the Living Basemap's composed atmosphere.
 //
 //  Time + season are computed synchronously (offline) so `current` is alive the
 //  instant the map appears; cached weather fills sky immediately; a background
@@ -1012,7 +1012,7 @@ final class AtmosphereModel: ObservableObject {
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Hygge/Features/Map/Atmosphere/AtmosphereOverride.swift Hygge/Features/Map/Atmosphere/AtmosphereModel.swift
+git add BlockParty/Features/Map/Atmosphere/AtmosphereOverride.swift BlockParty/Features/Map/Atmosphere/AtmosphereModel.swift
 git commit -m "feat(map): AtmosphereModel + DEBUG -atmosphere override"
 ```
 
@@ -1021,7 +1021,7 @@ git commit -m "feat(map): AtmosphereModel + DEBUG -atmosphere override"
 ### Task 7: TimeWashOverlay (`TimeWashOverlay.swift`)
 
 **Files:**
-- Create: `Hygge/Features/Map/Atmosphere/TimeWashOverlay.swift`
+- Create: `BlockParty/Features/Map/Atmosphere/TimeWashOverlay.swift`
 
 **Interfaces — Consumes:** `TownAtmosphere`, `BasemapPalette` (Tasks 1, 5). **Produces:** `struct TimeWashOverlay: View { let atmosphere: TownAtmosphere }` — a non-interactive full-field gradient; night ≈ uniform veil, golden/dawn/dusk ≈ directional; opacity cross-fades on phase change (Reduce Motion: instant).
 
@@ -1030,7 +1030,7 @@ git commit -m "feat(map): AtmosphereModel + DEBUG -atmosphere override"
 ```swift
 //
 //  TimeWashOverlay.swift
-//  Hygge — the atmospheric glow above the basemap. Low opacity (≤0.16) so pins
+//  Block Party — the atmospheric glow above the basemap. Low opacity (≤0.16) so pins
 //  stay crisp; the palette (below the pins) carries most of the time feel. Night
 //  is a near-uniform veil; golden/dawn/dusk are directional (light from a corner).
 //
@@ -1065,7 +1065,7 @@ struct TimeWashOverlay: View {
 - [ ] **Step 3: Commit**
 
 ```bash
-git add Hygge/Features/Map/Atmosphere/TimeWashOverlay.swift
+git add BlockParty/Features/Map/Atmosphere/TimeWashOverlay.swift
 git commit -m "feat(map): TimeWashOverlay — time-of-day glow"
 ```
 
@@ -1074,7 +1074,7 @@ git commit -m "feat(map): TimeWashOverlay — time-of-day glow"
 ### Task 8: WeatherParticles (`WeatherParticles.swift`)
 
 **Files:**
-- Create: `Hygge/Features/Map/Atmosphere/WeatherParticles.swift`
+- Create: `BlockParty/Features/Map/Atmosphere/WeatherParticles.swift`
 
 **Interfaces — Consumes:** `TownAtmosphere` (Task 1). **Produces:** `struct WeatherParticles: View { let atmosphere: TownAtmosphere }` — snow/rain/storm only; `Canvas` in `TimelineView(.animation)`; capped counts; non-interactive; `accessibilityHidden`; Reduce Motion → static frame.
 
@@ -1083,7 +1083,7 @@ git commit -m "feat(map): TimeWashOverlay — time-of-day glow"
 ```swift
 //
 //  WeatherParticles.swift
-//  Hygge — GPU-cheap precip over the map. Snow drifts, rain streaks; fog/overcast
+//  Block Party — GPU-cheap precip over the map. Snow drifts, rain streaks; fog/overcast
 //  get no particles (handled as haze in the palette). Capped counts, non-
 //  interactive, decorative. Reduce Motion → a still frame (no TimelineView).
 //
@@ -1168,7 +1168,7 @@ struct WeatherParticles: View {
 - [ ] **Step 3: Commit**
 
 ```bash
-git add Hygge/Features/Map/Atmosphere/WeatherParticles.swift
+git add BlockParty/Features/Map/Atmosphere/WeatherParticles.swift
 git commit -m "feat(map): WeatherParticles — snow/rain, Reduce-Motion static"
 ```
 
@@ -1177,7 +1177,7 @@ git commit -m "feat(map): WeatherParticles — snow/rain, Reduce-Motion static"
 ### Task 9: AtmosphereWhisper (`AtmosphereWhisper.swift`)
 
 **Files:**
-- Create: `Hygge/Features/Map/Atmosphere/AtmosphereWhisper.swift`
+- Create: `BlockParty/Features/Map/Atmosphere/AtmosphereWhisper.swift`
 
 **Interfaces — Consumes:** `TownAtmosphere` (Task 1) + `Hue` tokens. **Produces:** `struct AtmosphereWhisper: View { let atmosphere: TownAtmosphere }` — the town pill's second line; muted glyph + `Hue.ink2` text; **no coral**; fades/slides in when weather resolves; a11y label from `accessibilityText`.
 
@@ -1186,7 +1186,7 @@ git commit -m "feat(map): WeatherParticles — snow/rain, Reduce-Motion static"
 ```swift
 //
 //  AtmosphereWhisper.swift
-//  Hygge — the quiet "why" under the town pill: "❄ 38° · light snow · 4:15".
+//  Block Party — the quiet "why" under the town pill: "❄ 38° · light snow · 4:15".
 //  Neutral ink + a muted weather glyph — never coral (coral stays live/tappable).
 //  Hidden until weather resolves; expands in with a gentle fade+slide.
 //
@@ -1220,14 +1220,14 @@ struct AtmosphereWhisper: View {
 }
 ```
 
-> If `Font.sansMedium(_:)` isn't the exact helper name, use the nearest existing `Font.sans*` helper from `HyggeFont.swift` (all map to the system font by weight) — check that file; do not introduce a new font.
+> If `Font.sansMedium(_:)` isn't the exact helper name, use the nearest existing `Font.sans*` helper from `BlockPartyFont.swift` (all map to the system font by weight) — check that file; do not introduce a new font.
 
 - [ ] **Step 2: Build to verify it compiles** — Task 10 build command. Expected: 0 warnings.
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add Hygge/Features/Map/Atmosphere/AtmosphereWhisper.swift
+git add BlockParty/Features/Map/Atmosphere/AtmosphereWhisper.swift
 git commit -m "feat(map): AtmosphereWhisper — quiet weather line under the pill"
 ```
 
@@ -1238,7 +1238,7 @@ git commit -m "feat(map): AtmosphereWhisper — quiet weather line under the pil
 Wire the model in, recolor from the palette **on atmosphere change** (the key change — recolor currently runs once on style load), layer in the wash + particles, embed the whisper in the town pill, and verify every mood in the sim.
 
 **Files:**
-- Modify: `Hygge/Features/Map/SJMapView.swift`
+- Modify: `BlockParty/Features/Map/SJMapView.swift`
 - Docs: append a `-atmosphere` bullet to `CLAUDE.md` DEBUG-flag list + a Living Basemap entry to `MAP_BUILD_LOG.md`.
 
 **Interfaces — Consumes:** `AtmosphereModel`, `BasemapPalette`, `TimeWashOverlay`, `WeatherParticles`, `AtmosphereWhisper` (Tasks 5–9).
@@ -1314,20 +1314,20 @@ private var townPill: some View {
 - [ ] **Step 6: Build clean (0 warnings).**
 
 ```bash
-xcodebuild -project Hygge.xcodeproj -scheme Hygge -configuration Debug \
+xcodebuild -project BlockParty.xcodeproj -scheme BlockParty -configuration Debug \
   -destination 'platform=iOS Simulator,name=iPhone 17' build 2>&1 | tail -20
 ```
-Expected: `** BUILD SUCCEEDED **`, no warnings. (New files auto-included via the synchronized group.) If "Multiple commands produce": `find Hygge -type d -name .impeccable -exec rm -rf {} +` and rebuild.
+Expected: `** BUILD SUCCEEDED **`, no warnings. (New files auto-included via the synchronized group.) If "Multiple commands produce": `find BlockParty -type d -name .impeccable -exec rm -rf {} +` and rebuild.
 
 - [ ] **Step 7: Install the FRESH build (avoid the DerivedData trap) + boot sim.**
 
 ```bash
 UDID=$(xcrun simctl list devices booted | grep -oE '[0-9A-F-]{36}' | head -1)
 [ -z "$UDID" ] && UDID=$(xcrun simctl boot "iPhone 17" >/dev/null 2>&1; xcrun simctl list devices booted | grep -oE '[0-9A-F-]{36}' | head -1)
-DIR=$(xcodebuild -project Hygge.xcodeproj -scheme Hygge -configuration Debug \
+DIR=$(xcodebuild -project BlockParty.xcodeproj -scheme BlockParty -configuration Debug \
   -destination 'platform=iOS Simulator,name=iPhone 17' -showBuildSettings \
   | awk -F' = ' '/ BUILT_PRODUCTS_DIR =/{print $2; exit}')
-xcrun simctl install "$UDID" "$DIR/Hygge.app"
+xcrun simctl install "$UDID" "$DIR/BlockParty.app"
 ```
 
 - [ ] **Step 8: Screenshot the mood matrix** (each forces a mood headlessly; `-force-nonadmin` keeps chrome consistent):
@@ -1351,7 +1351,7 @@ done
 - [ ] **Step 10: Update docs + commit.** Add to `CLAUDE.md` the `-atmosphere` DEBUG bullet (mirroring the `-almanac-write` entry style) and a "Living basemap" note in the Map section; append a dated Living Basemap section to `MAP_BUILD_LOG.md` (what shipped + verified moods).
 
 ```bash
-git add Hygge/Features/Map/SJMapView.swift CLAUDE.md MAP_BUILD_LOG.md
+git add BlockParty/Features/Map/SJMapView.swift CLAUDE.md MAP_BUILD_LOG.md
 git commit -m "feat(map): Living Basemap — time/season/weather modulate the map
 
 Atmosphere (SolarClock + SeasonClock + Open-Meteo) drives the basemap palette,

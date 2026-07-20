@@ -22,23 +22,23 @@ No Google photo bytes are persisted here beyond this local review folder.
 import json, urllib.request, math, re, struct, pathlib, sys
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
-IMAGES = REPO / "Hygge/Resources/Images"
+IMAGES = REPO / "BlockParty/Resources/Images"
 OUT = REPO / "build/park-photo-review"
 OUT.mkdir(parents=True, exist_ok=True)
 
 def read(p): return (REPO / p).read_text()
 
-KEY = re.search(r'AIza[A-Za-z0-9_-]+', read("Hygge/Config/GooglePlacesConfig.swift")).group(0)
+KEY = re.search(r'AIza[A-Za-z0-9_-]+', read("BlockParty/Config/GooglePlacesConfig.swift")).group(0)
 GBASE = "https://places.googleapis.com/v1"
 
 # Parse CityParks.swift -> [(title, lat, lon)]
-cp = read("Hygge/Backend/CityParks.swift")
+cp = read("BlockParty/Backend/CityParks.swift")
 parks = []
 for m in re.finditer(r'title:\s*"([^"]+)".*?lat:\s*([\d.\-]+),\s*lon:\s*([\d.\-]+)', cp, re.S):
     parks.append((m.group(1), float(m.group(2)), float(m.group(3))))
 
 # Parse KnownLocalPhoto.swift byTitle -> {title: slug}
-bundled = dict(re.findall(r'"([^"]+)":\s*"([^"]+)"', read("Hygge/Features/Components/KnownLocalPhoto.swift")))
+bundled = dict(re.findall(r'"([^"]+)":\s*"([^"]+)"', read("BlockParty/Features/Components/KnownLocalPhoto.swift")))
 
 def dist(a, b):
     R = 6371000; la1, lo1 = map(math.radians, a); la2, lo2 = map(math.radians, b)

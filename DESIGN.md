@@ -1,6 +1,6 @@
 # Design
 
-Visual system for Hygge, captured from `Hygge/Theme/` (`HyggeColor.swift`, `HyggeFont.swift`, `HyggeMetrics.swift`) and the shipped screens. Source of truth is the Swift tokens; this document mirrors them for design work. When they drift, the code wins — update this file.
+Visual system for Block Party, captured from `BlockParty/Theme/` (`BlockPartyColor.swift`, `BlockPartyFont.swift`, `BlockPartyMetrics.swift`) and the shipped screens. Source of truth is the Swift tokens; this document mirrors them for design work. When they drift, the code wins — update this file.
 
 ## Theme
 
@@ -10,7 +10,7 @@ Mood: a calm community bulletin board in daylight. Light mode only today.
 
 ## Color
 
-All values are sRGB hex from `Hue` (`HyggeColor.swift`).
+All values are sRGB hex from `Hue` (`BlockPartyColor.swift`).
 
 ### Surfaces
 | Token | Hex | Role |
@@ -52,7 +52,7 @@ All values are sRGB hex from `Hue` (`HyggeColor.swift`).
 
 ## Typography
 
-**Platform system font (SF Pro) everywhere — weight carries hierarchy.** Helpers in `HyggeFont.swift` map straight onto `.system(size:weight:)`:
+**Platform system font (SF Pro) everywhere — weight carries hierarchy.** Helpers in `BlockPartyFont.swift` map straight onto `.system(size:weight:)`:
 
 | Helper | Maps to | Use |
 |---|---|---|
@@ -64,16 +64,16 @@ All values are sRGB hex from `Hue` (`HyggeColor.swift`).
 
 - **Numbers are always tabular** (`.monospacedDigit()` at the call site). This is a house rule — times, temps, counts.
 - Small labels/eyebrows use `Font.mono(11)` with `.tracking(1.5)` in `Hue.ink3` (e.g. `ALMANAC`, `TODAY IN ST. JOE`). This tracked-mono micro-label is an established in-app pattern, not the banned generic eyebrow.
-- **One custom face:** `Font.logo` → **Atkinson Hyperlegible Bold**, used only by `HyggeLogoBadge`. Fixed size (a logo never scales with Dynamic Type). Do not reintroduce a bundled UI font (Spectral/DM Sans/Geist Mono were removed in the rebrand).
+- **One custom face:** `Font.logo` → **Atkinson Hyperlegible Bold**, used only by `BlockPartyLogoBadge`. Fixed size (a logo never scales with Dynamic Type). Do not reintroduce a bundled UI font (Spectral/DM Sans/Geist Mono were removed in the rebrand).
 
 ## Layout, radii & elevation
 
-From `HyggeMetrics.swift`.
+From `BlockPartyMetrics.swift`.
 
 - **Radius scale:** `sm 8` (chips), `md 12` (inputs/buttons), `lg 16` (cards), `xl 20` (sheets/hero). Always `.continuous`.
 - **One elevation:** a single soft warm lift — `CardShadow` = `#2A241C @ 10%`, radius 11, y 6. Everything else stays flat, leaning on fill + hairline border.
-- **`hyggeCard(radius:padding:)`** — the house card: white fill, hairline border, `lg` radius, the one shadow. Default padding 16.
-- **`hyggeHairline(radius:)`** — bordered surface, no shadow (chips, inputs, flat tiles).
+- **`blockPartyCard(radius:padding:)`** — the house card: white fill, hairline border, `lg` radius, the one shadow. Default padding 16.
+- **`blockPartyHairline(radius:)`** — bordered surface, no shadow (chips, inputs, flat tiles).
 - **Map shadows:** `mapFloatShadow` (y2, blur10, 10%) and `mapSheetShadow` (y−2 upward, blur16, 8%) — softer/diffuse, no hard edges.
 - **Spacing:** Home stack uses ~18pt section spacing and 18pt horizontal insets; vary rhythm rather than one uniform gap. Cards are used deliberately; **never nest cards**.
 

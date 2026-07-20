@@ -5,7 +5,7 @@
 ## Goal
 A profile screen where a neighbor can see everything the app knows about them, in
 one calm place. Layout copies a Revolut profile reference ~95% (avatar → name →
-two feature cards → grouped list rows), but rendered in Hygge's **warm frosted
+two feature cards → grouped list rows), but rendered in Block Party's **warm frosted
 glass** — real iOS 26 translucency over the light canvas, coral accent — not the
 reference's dark theme. Decided with the user:
 - **Look:** warm frosted glass (see-through, on-brand), not dark.
@@ -49,7 +49,7 @@ queries concurrently (`async let`). Derives:
 - Grouped glass card "Around town": Events you're going to (N, expandable list) ·
   Clubs you've joined (N, expandable) · Quests completed (N).
 - Grouped glass card "Settings": Edit profile · Notifications (opens iOS Settings) ·
-  About Hygge · Account (email shown).
+  About Block Party · Account (email shown).
 - Destructive: **Sign out** (`clay700`, confirmationDialog → `auth.signOut()`).
 
 ### `EditProfileView` (sheet)
@@ -72,7 +72,7 @@ system helpers + `.monospacedDigit()` for all counts.
 ## Wiring
 `Masthead` gains `onProfile: (() -> Void)?` on the `person` glass circle;
 `HomeView` holds `@State showProfile` and presents `ProfileView` (inherits
-`AuthStore` env). New files live in `Hygge/Features/Profile/` (auto-joins the
+`AuthStore` env). New files live in `BlockParty/Features/Profile/` (auto-joins the
 target via the Xcode synchronized group).
 
 ## Verify

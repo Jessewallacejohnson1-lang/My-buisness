@@ -1,7 +1,7 @@
 # WeatherBackground — looping video backdrop for the Today weather bar
 
 **Date:** 2026-07-05
-**Repo:** Hygge (native SwiftUI + Mapbox iOS app — *not* the Expo repo)
+**Repo:** Block Party (native SwiftUI + Mapbox iOS app — *not* the Expo repo)
 **Status:** Approved for planning
 
 ## Summary
@@ -44,8 +44,8 @@ of scope here.
 
 ## Architecture
 
-One new file — `Hygge/Features/Home/WeatherBackground.swift` — plus small edits
-to `Hygge/Features/Home/WeatherBar.swift`.
+One new file — `BlockParty/Features/Home/WeatherBackground.swift` — plus small edits
+to `BlockParty/Features/Home/WeatherBar.swift`.
 
 ### 1. `WeatherState` — the six states
 
