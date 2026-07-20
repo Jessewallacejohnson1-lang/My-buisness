@@ -26,6 +26,9 @@ struct HomeView: View {
     @State private var revealed = false
     /// False only during a refresh collapse, so the reset is instant (see refresh).
     @State private var revealAnimated = true
+    /// Bumped on each pull-to-refresh so the Almanac re-writes itself in sync with the
+    /// spring-back (the first open writes on its own — see AlmanacSection).
+    @State private var almanacReplay = 0
 
     private var api: CommunityAPI { CommunityAPI(auth: auth) }
 
@@ -46,7 +49,7 @@ struct HomeView: View {
                 // The daily almanac — a warm time-of-day greeting over the read-of-
                 // the-day, in a white card with the coral accent border. On the first
                 // open of the day it writes itself in (greeting types, read follows).
-                AlmanacSection(name: model.name)
+                AlmanacSection(name: model.name, replay: almanacReplay)
                     .padding(.horizontal, 18)
                     .springReveal(2, revealed: revealed, animated: revealAnimated)
 
@@ -70,6 +73,7 @@ struct HomeView: View {
             await model.load(api)
             revealAnimated = true
             revealed = true
+            almanacReplay += 1   // and the Almanac re-writes itself as the card springs back
         }
         .task { await model.load(api) }
         // Springs in when Today first appears and each time it's returned to.

@@ -95,9 +95,35 @@ struct TypewriterText: View {
         for k in 1...bounds.count {
             if Task.isCancelled { return }
             revealed = k
-            if k < bounds.count { try? await Task.sleep(for: .seconds(perUnit)) }
+            if k < bounds.count {
+                try? await Task.sleep(for: .seconds(perUnit + Self.pause(afterUnit: k, of: content, bounds: bounds)))
+            }
         }
         onFinished?()
+    }
+
+    // MARK: - Human cadence
+    //
+    // A real hand — and Claude, writing in front of you — rests a beat at punctuation.
+    // A small extra pause after the last glyph of a just-revealed unit turns a
+    // metronomic reveal into readable prose: a fuller rest at a sentence end, a small
+    // beat at a clause break. Subtle enough that the write still lands quickly.
+    private static func pause(afterUnit k: Int, of s: AttributedString, bounds: [AttributedString.Index]) -> Double {
+        guard k >= 1, k <= bounds.count else { return 0 }
+        let chars = s.characters
+        // Walk back from the unit's exclusive end to its last real glyph (word mode
+        // folds the trailing space into the unit, so skip whitespace first).
+        var i = bounds[k - 1]
+        while i > chars.startIndex {
+            i = chars.index(before: i)
+            if !chars[i].isWhitespace { break }
+        }
+        guard i < chars.endIndex, !chars[i].isWhitespace else { return 0 }
+        switch chars[i] {
+        case ".", "?", "!":            return 0.20   // sentence end — a fuller rest
+        case ",", ";", ":", "—", "–":  return 0.10   // clause break — a small beat
+        default:                       return 0
+        }
     }
 
     // MARK: - Unit boundaries
