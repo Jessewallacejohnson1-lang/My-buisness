@@ -29,6 +29,16 @@ enum DailyGreeting {
 
     /// Part-of-day in the town's clock, matching the Almanac read's own time words.
     static func part(at date: Date = Date()) -> DayPart {
+        #if DEBUG
+        // `-almanac-part morning|afternoon|evening` pins the part so the greeting +
+        // its sun/moon glyph can be captured headlessly at any hour (mirrors
+        // `-almanac-write`). No effect in release or without the flag.
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-almanac-part"), i + 1 < args.count,
+           let forced = DayPart(rawValue: args[i + 1].uppercased()) {
+            return forced
+        }
+        #endif
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = WeatherService.townTZ
         let h = cal.component(.hour, from: date)
@@ -114,18 +124,18 @@ enum DailyGreeting {
         "The town's just waking up.",
         "Morning's here, {name}.",
         "Mug's full, world's quiet.",
-        "Take the morning gently, {name}.",
+        "Take it gently, {name}.",
         "New day.",
         "Take the morning slow, {name}.",
-        "Good morning, {name}. Coffee first.",
+        "Morning, {name}. Coffee first.",
         "Slow start in town.",
         "Stretching into the morning.",
         "A quiet, unhurried start.",
         "Slow start.",
-        "Welcome to the morning, {name}.",
-        "Tea's steeping — morning, {name}.",
-        "Coffee's on somewhere in town.",
-        "Stay under the blanket a while.",
+        "Welcome, {name}.",
+        "Tea's steeping, {name}.",
+        "Coffee's on in town.",
+        "Stay under the blanket.",
         "A slow morning to you, {name}.",
         "Slow morning, warm cup.",
         "Morning, {name}. Sip it slow.",
@@ -134,12 +144,12 @@ enum DailyGreeting {
         "Easing into it, {name}.",
         "Let it be a gentle one.",
         "Coffee first, {name}.",
-        "Good morning. Glad you're here.",
+        "Glad you're here.",
         "Fresh pot, quiet morning.",
         "Warm and easy, {name}.",
         "A fresh one, {name}.",
-        "Good morning from St. Joe, {name}.",
-        "A candlelit kind of morning.",
+        "Morning from St. Joe, {name}.",
+        "A candlelit morning.",
         "Hello, morning.",
     ]
 
@@ -195,10 +205,10 @@ enum DailyGreeting {
     ]
 
     private static let afternoonFun: [String] = [
-        "Afternoon — kettle's still warm.",
-        "Coasting into the afternoon, {name}.",
-        "Steeping the afternoon slowly.",
-        "Afternoon, {name}. Tea's steeping.",
+        "Kettle's still warm.",
+        "Coasting along, {name}.",
+        "Steeping it slowly.",
+        "Afternoon — tea's steeping.",
         "The kettle's on.",
         "Puttering along nicely.",
         "Time for a refill, {name}.",
@@ -223,7 +233,7 @@ enum DailyGreeting {
         "Dusk in St. Joseph.",
         "Ease into the evening.",
         "Good evening.",
-        "A calm evening to you, {name}.",
+        "A calm evening, {name}.",
         "Quiet night ahead, {name}.",
         "A quiet, cozy night.",
         "Evening's settling in, {name}.",
@@ -237,7 +247,7 @@ enum DailyGreeting {
         "The evening's soft and slow.",
         "You made it, {name}.",
         "Easy evening, {name}.",
-        "Wind down, {name} — tea's warm.",
+        "Wind down, {name}. Tea's warm.",
         "Winding down in St. Joe.",
         "Wind down, {name}.",
         "Settling in.",
@@ -253,11 +263,11 @@ enum DailyGreeting {
         "Tucking in the day.",
         "Cozy up, {name}.",
         "Quiet hours.",
-        "Hello, {name}. Evening's here.",
+        "Evening's here, {name}.",
         "Cozy evening, {name}.",
         "Slowing to a hum.",
         "Let the day go quiet.",
-        "Evening — settle in with tea.",
+        "Settle in with tea.",
     ]
 
     private static let eveningFun: [String] = [
@@ -268,7 +278,7 @@ enum DailyGreeting {
         "Time for a blanket.",
         "Hey there, {name}.",
         "Kettle's whistling, {name}.",
-        "Good evening. Steep something.",
+        "Steep something warm.",
         "One last pour, {name}.",
     ]
 }

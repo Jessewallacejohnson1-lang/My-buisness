@@ -81,28 +81,34 @@ struct AlmanacSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 7) {
-                Image(systemName: "cup.and.saucer.fill")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Hue.accent)
-                Text(DailyGreeting.part().rawValue)
-                    .font(.mono(11))
-                    .tracking(1.5)
-                    .foregroundStyle(Hue.ink3)
-            }
+            // The greeting — a warm, inviting hello with a time-of-day glyph inline to
+            // its left: a sunrise at dawn, the high sun midday, the moon at night (the
+            // town's real part of day — the same one the read speaks in). It types
+            // char-by-char with a soft coral caret on day one; the glyph sits steady.
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Image(systemName: greetingGlyph.symbol)
+                    .font(.system(size: greetingSize - 1, weight: .semibold))
+                    .foregroundStyle(greetingGlyph.tint)
+                    .offset(y: 1)   // nudge the glyph to sit centered on the first line
+                    .accessibilityHidden(true)
 
-            // The greeting — types char-by-char with a soft coral caret on day one.
-            TypewriterText(
-                content: greetingContent,
-                mode: .character,
-                state: greetingState,
-                perUnit: 0.032,
-                startDelay: 0.5,           // let the card's spring settle first
-                showsCaret: true,
-                caretFont: .system(size: 20, weight: .semibold),
-                onFinished: greetingDone
-            )
-            .fixedSize(horizontal: false, vertical: true)
+                TypewriterText(
+                    content: greetingContent,
+                    mode: .character,
+                    state: greetingState,
+                    perUnit: 0.032,
+                    startDelay: 0.5,           // let the card's spring settle first
+                    showsCaret: true,
+                    caretFont: .system(size: greetingSize, weight: .bold),
+                    onFinished: greetingDone
+                )
+                // The greeting stays a ONE-LINE hero, always: short hellos render big at
+                // full size; a wordier line (or a long name) auto-dims to fit rather than
+                // ever wrapping to a second line. The read below is unaffected.
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .fixedSize(horizontal: false, vertical: true)
+            }
 
             // The read-of-the-day — writes in word-by-word underneath the greeting.
             TypewriterText(
@@ -176,9 +182,24 @@ struct AlmanacSection: View {
 
     private var liveGreeting: AttributedString {
         var a = AttributedString(DailyGreeting.line(name: resolvedName))
-        a.font = .displaySemi(20)
+        a.font = .display(greetingSize)      // bold hero — was semibold 20
         a.foregroundColor = Hue.ink
         return a
+    }
+
+    /// The greeting's type size — a warm card hero (up from the old eyebrow-era 20).
+    /// The inline glyph and the write caret both track it so they stay in sync.
+    private let greetingSize: CGFloat = 24
+
+    /// Time-of-day glyph shown inline before the greeting: sunrise → high sun → moon.
+    /// The sun carries the warmth (honey) tint; the moon the calm night (sky) tint —
+    /// the same one the read uses once the sun's down. An honest signal, not decoration.
+    private var greetingGlyph: (symbol: String, tint: Color) {
+        switch DailyGreeting.part() {
+        case .morning:   return ("sunrise.fill",    Hue.honey500)
+        case .afternoon: return ("sun.max.fill",    Hue.honey500)
+        case .evening:   return ("moon.stars.fill", Hue.sky600)
+        }
     }
 
     /// Live during a normal open (so the AI line upgrades in place) and while the
