@@ -18,6 +18,10 @@ xcuserdata/
 # XcodeBuildMCP / config
 .xcodebuildmcp/
 
+# graphify knowledge-graph output — regenerated artifact, never commit
+graphify-out/
+# .dd tool cache — multi-GB, would swamp `git add -A` and Codex review scope
+.dd/
 # "impeccable" tool cache — must NOT live inside the BlockParty/ synchronized group,
 # or Xcode bundles duplicate hook.cache.json files and the build fails.
 .impeccable/

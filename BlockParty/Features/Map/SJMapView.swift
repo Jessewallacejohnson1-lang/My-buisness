@@ -73,7 +73,9 @@ struct SJMapView: View {
     /// Container-level Reduce Motion (the self-contained pin animations read their own;
     /// this one gates the camera flys + the card/selection springs — spec §11 / §12.6).
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @StateObject private var model = MapModel()
+    // Not `private`: the POI-clustering + autozoom methods in SJMapView+POIClustering.swift
+    // read `model` and drive `viewport`, and Swift `private` is file-scoped.
+    @StateObject var model = MapModel()
 
     /// Latest laid-out map height, so a pin-select can reserve the bottom band (where the
     /// sheet rises to ~medium) as camera padding and land the pin ABOVE the card — the
@@ -90,7 +92,7 @@ struct SJMapView: View {
     /// the sheet updates its pin to the Saved state live.
     @ObservedObject private var saved = SavedStore.shared
 
-    @State private var viewport: Viewport = .camera(
+    @State var viewport: Viewport = .camera(
         center: SJMapView.debugInitialCenter() ?? MapSpots.center,
         zoom: SJMapView.debugInitialZoom() ?? 13.5,
         bearing: 0,
@@ -128,6 +130,51 @@ struct SJMapView: View {
     /// A tapped food/business POI marker (mutually exclusive with `selectedSpot`).
     @State private var selectedPOI: POI?
     @State private var filter: SpotFilter = .all
+
+    // MARK: Client-side POI clustering (replaces the retired POILayer)
+    //
+    // The 52 POIs are all mounted as view annotations (POIClusterMarker); this state is
+    // the recomputed layout that drives their merge/split glide. Recomputed on zoom-step
+    // changes + at camera idle (never every frame — mirrors how Mapbox only reclusters at
+    // zoom steps), off the LIVE projection via proxy.map.point(for:).
+
+    // These drive the clusterer that lives in SJMapView+POIClustering.swift, so they are
+    // not `private` (Swift `private` is file-scoped and the extension is another file).
+
+    /// POI id → where it should sit (its cluster seed, or itself when solo). Every leaf
+    /// reads its own entry; a flip animates that leaf's spring.
+    @State var poiAssignments: [String: POIAssignment] = [:]
+    /// The cluster bubbles to draw, including ones currently fading out (a split keeps a
+    /// dissolving bubble mounted a beat so it fades rather than pops).
+    @State var renderedClusters: [POIClusterRender] = []
+    /// POI ids whose name label has room to draw at the current layout (see
+    /// `POICluster.labelledPOIs`). Everything else shows its badge but withholds its text,
+    /// so a dense block reads as a clean map instead of a pile of overlapping names.
+    @State var labelledPOIs: Set<String> = []
+    /// Last zoom we reclustered at — so we only recompute on a real zoom step, not on
+    /// every camera frame.
+    @State var lastClusterZoom: Double = .nan
+    /// Debounced "camera settled" recompute (cancelled + rescheduled while moving).
+    @State var clusterSettle: DispatchWorkItem?
+    #if DEBUG
+    /// Guards the `-map-autozoom` demo so it fires only once per launch.
+    @State var autozoomStarted = false
+    #endif
+
+    /// Recompute once the zoom has moved at least this much since the last cluster pass —
+    /// small enough that a continuous zoom glides through intermediate cluster states, and
+    /// tight enough that seed screen-distances can't drift far enough between recomputes for
+    /// two bubbles to converge and overlap mid-zoom (0.1 zoom ⇒ ≤7% distance drift). The
+    /// per-zoom grouping distance itself lives in POICluster.clusterRadius(zoom:).
+    static let clusterZoomStep: Double = 0.1
+
+    /// Annotation draw order. Mapbox draws view annotations by `priority`, NOT by declaration
+    /// order — which is why the six civic landmarks, declared last, were still being covered
+    /// by POI badges. Higher wins. Civic landmarks are the map's anchors and sit on top of
+    /// everything; a cluster bubble outranks the individual pins it stands for.
+    static let poiPriority = 0
+    static let clusterPriority = 10
+    static let civicPriority = 20
 
     /// DEBUG-only: `-map-open <spotid>` preselects a spot so its detail card can be
     /// screenshotted headlessly. No effect in release / without the flag.
@@ -178,6 +225,21 @@ struct SJMapView: View {
 
     @State private var quickAdding = false
     @State private var showingHelp = false
+    /// How far the bottom sheet has grown past its peek (0 = collapsed, 1 = at/above
+    /// medium), published by `MapSheet` via `SheetExpansionKey`. Drives the fade-out of
+    /// the floating ?/locate controls so they never collide with the rising sheet.
+    @State private var sheetExpansion: CGFloat = 0
+    /// The map view's own size, measured in the view layer (the SDK's `MapboxMap.size` is
+    /// internal). Feeds the label pass's floating-chrome reservation. Not `private`: the
+    /// clustering extension reads it.
+    @State var mapSize: CGSize = .zero
+
+    /// Bottom margin (from the map's bottom edge) that lifts the required Mapbox logo +
+    /// attribution button to rest just above the collapsed unified glass, so they're no
+    /// longer clipped into slivers behind it. The expanding sheet occludes them (drawn
+    /// on top) — they're clearly visible at the collapsed/peek rest state.
+    private static let ornamentBottomMargin: CGFloat =
+        MapSheet.tabBarReserve + MapSheet.peekHeight + 40
 
     private var isAdmin: Bool {
         // DEBUG-only: `-force-nonadmin` launch arg forces the non-admin branch so
@@ -189,7 +251,9 @@ struct SJMapView: View {
         return Admin.isAdmin(auth.email)
     }
 
-    private var filteredSpots: [Spot] { MapSpots.all.filter { filter.matches($0.category) } }
+    /// Not `private`: the label de-confliction pass in SJMapView+POIClustering.swift
+    /// reserves these civic badges/labels first (they're the map's anchors).
+    var filteredSpots: [Spot] { MapSpots.all.filter { filter.matches($0.category) } }
 
     /// Real events at this spot today — searches title AND location so an event
     /// like "Independence Day Parade" at location "Downtown" still matches.
@@ -239,14 +303,20 @@ struct SJMapView: View {
                 onRetry: { model.retry() }
             )
         }
-        // Track the map's height so a pin-select can lift the pin above the sheet.
+        // Track the map's HEIGHT (a pin-select lifts the pin above the sheet) and its full
+        // SIZE (the label pass's chrome reservation — `MapboxMap.size` is internal to the
+        // SDK, so measure the view instead). One reader feeds both; written at layout and
+        // again only on a real size change (rotation / multitasking), never per frame.
         .background(
             GeometryReader { g in
                 Color.clear
-                    .onAppear { containerH = g.size.height }
-                    .onChange(of: g.size.height) { _, h in containerH = h }
+                    .onAppear { containerH = g.size.height; mapSize = g.size }
+                    .onChange(of: g.size) { _, new in containerH = new.height; mapSize = new }
             }
         )
+        // The sheet publishes how far it's grown past peek; the floating controls fade
+        // off it (see `floatingControls`).
+        .onPreferenceChange(SheetExpansionKey.self) { sheetExpansion = $0 }
         .onAppear {
             model.start(auth: auth)
             Haptics.prepare()
@@ -295,16 +365,45 @@ struct SJMapView: View {
     private var mapLayer: some View {
         MapReader { proxy in
             Map(viewport: $viewport) {
-                // A tap on a POI marker opens its detail; a tap on a cluster zooms in
-                // to split it. Layer-scoped interactions are evaluated BEFORE the
-                // map-wide tap, so these win over closeCard() when a marker/cluster is hit.
-                TapInteraction(.layer(POILayer.dotLayerID)) { feature, _ in
-                    if let id = feature.properties["id"]??.string { selectPOI(id: id) }
-                    return true
+                // POIs now cluster client-side and render as SwiftUI view annotations that
+                // GLIDE on merge/split (POIClusterMarker + POIClusterBubbleView) — the old
+                // Mapbox POI style layers + their layer taps are retired. Taps live on the
+                // annotation views themselves (SwiftUI overlays sit above the map, so they
+                // resolve before the map-wide closeCard tap): a POI opens its detail, a
+                // cluster zooms in to split. Declared BEFORE the civic pins so civic pins
+                // always win the z-order (they must never be clustered or covered).
+                ForEvery(model.pois) { poi in
+                    MapViewAnnotation(coordinate: poi.coordinate) {
+                        POIClusterMarker(
+                            poi: poi,
+                            assignment: poiAssignments[poi.id]
+                                ?? POIAssignment(anchor: poi.coordinate, clustered: false),
+                            expanded: model.pinsExpanded,
+                            showsLabel: labelledPOIs.contains(poi.id),
+                            proxy: proxy,
+                            onTap: { selectPOI(id: poi.id) }
+                        )
+                    }
+                    // Never cull — merged markers stack on their seed and must not vanish.
+                    .allowOverlap(true)
+                    // Explicit draw order. Declaration order does NOT control it — a POI badge
+                    // was rendering OVER the Sacred Heart Chapel landmark and stealing its
+                    // name label, despite civic being declared last. `priority` is the actual
+                    // knob: POIs < cluster bubbles < civic landmarks, which must never be
+                    // covered (see the header + CLAUDE.md).
+                    .priority(Self.poiPriority)
                 }
-                TapInteraction(.layer(POILayer.clusterLayerID)) { _, context in
-                    zoomToCluster(context.coordinate)
-                    return true
+                ForEvery(renderedClusters) { cluster in
+                    MapViewAnnotation(coordinate: cluster.coordinate) {
+                        POIClusterBubbleView(count: cluster.count,
+                                             active: cluster.active,
+                                             family: cluster.dominantFamily,
+                                             maxDiameter: cluster.maxDiameter) {
+                            zoomToCluster(cluster.coordinate)
+                        }
+                    }
+                    .allowOverlap(true)
+                    .priority(Self.clusterPriority)
                 }
                 // A tap on the open map (not a badge/marker) just dismisses the detail —
                 // every curated spot owns a real tappable badge, so there's no
@@ -335,6 +434,7 @@ struct SJMapView: View {
                     }
                     // Never cull; the selected/live badge must always beat its neighbors.
                     .allowOverlap(true)
+                    .priority(Self.civicPriority)
                 }
                 // A tapped POI gets an on-map selected treatment (spec §2): a haloed,
                 // enlarged (1.25×) family badge overlaid at its coordinate — the same
@@ -348,20 +448,46 @@ struct SJMapView: View {
                 }
             }
             .mapStyle(MapStyle(uri: StyleURI(rawValue: MAP_STYLE_URL)!))
+            // Lift the required Mapbox logo + attribution to just above the collapsed
+            // unified glass so they're never clipped into slivers behind the bottom bar.
+            // The scale bar stays hidden (it was never wanted on this civic map). This
+            // is a Map-specific modifier, so it must precede the standard .onChange
+            // modifiers below (those erase the concrete Map type).
+            .ornamentOptions(OrnamentOptions(
+                scaleBar: ScaleBarViewOptions(visibility: .hidden),
+                logo: LogoViewOptions(
+                    position: .bottomLeading,
+                    margins: CGPoint(x: 16, y: Self.ornamentBottomMargin)),
+                attributionButton: AttributionButtonOptions(
+                    position: .bottomTrailing,
+                    margins: CGPoint(x: 14, y: Self.ornamentBottomMargin))
+            ))
             .onStyleLoaded { _ in
                 recolorBasemap(proxy.map)
-                if let map = proxy.map { POILayer.install(on: map, pois: model.pois) }
+                // POILayer.install is GONE — Phase A retired the Mapbox clustered layer for
+                // client-side clustering, so the POIs mount as view annotations instead.
+                recomputeClusters(proxy.map)   // POIs may still be loading — pois-change reclusters
                 model.markStyleLoaded()
             }
+            // Re-apply once the map reports fully loaded. `onStyleLoaded` alone was a ONE-SHOT
+            // application and it intermittently lost the race: a launch would occasionally
+            // render a complete but UNRECOLOURED map — default Mapbox grey land, grey parks —
+            // instead of the town's palette. (Caught by histogram, not by eye: the frame is
+            // fully drawn, so it looks like a finished render, just the wrong one.)
+            // `recolor` is pure `setLayerProperty` calls, so a second application is
+            // idempotent and costs nothing when the first one already landed.
+            .onMapLoaded { _ in BasemapPalette.recolor(proxy.map) }
             // If the basemap can't load (offline first run, bad token), treat the map
             // as "painted" so the loading cover lifts to reveal the map's own state
             // rather than hanging on a screen that will never finish.
             .onMapLoadingError { _ in model.markStyleLoaded() }
-            // Name whatever town the map is panned over, and shrink/expand pins to fit
-            // the zoom (both debounced in the model — never the view's @State here).
+            // Name whatever town the map is panned over, shrink/expand pins to fit the
+            // zoom (both debounced in the model — never the view's @State here), and
+            // recluster on zoom steps / at idle so merges + splits glide.
             .onCameraChanged {
                 model.updateTown(center: $0.cameraState.center)
                 model.updateZoom($0.cameraState.zoom)
+                scheduleClusterRecompute(zoom: $0.cameraState.zoom, map: proxy.map)
             }
             // Toggling the category filter ticks a selection haptic (spec §10 / §12.5 —
             // the native Menu supplies none we control). If the change hides the selected
@@ -369,15 +495,23 @@ struct SJMapView: View {
             .onChange(of: filter) { _, _ in
                 Haptics.selection()
                 if let s = selectedSpot, !filteredSpots.contains(where: { $0.id == s.id }) { closeCard() }
+                // The label de-confliction pass reserves the CIVIC badges/labels first, and
+                // the filter changes which of those are on the map — so a filter change can
+                // free up (or take away) room for POI names. Recompute now rather than
+                // leaving stale grants until the next camera move.
+                recomputeClusters(proxy.map)
             }
-            // POIs load async (once) after the style — push them into the source when they land.
+            // POIs load async (once) after the style — recompute the layout when they land.
             .onChange(of: model.pois) { _, pois in
-                if let map = proxy.map { POILayer.update(on: map, pois: pois) }
+                recomputeClusters(proxy.map)
                 #if DEBUG
                 if selectedPOI == nil, let poi = SJMapView.debugOpenPOI(in: pois) {
                     selectedPOI = poi
                     viewport = liftedViewport(poi.coordinate, zoom: Self.selectZoom)
                 }
+                // Kick the autozoom demo only ONCE the POIs exist (they load a few seconds
+                // after launch) — otherwise the merge sweep would run over an empty map.
+                if !pois.isEmpty { startAutozoomIfNeeded() }
                 #endif
             }
             .ignoresSafeArea(edges: .bottom)
@@ -458,8 +592,14 @@ struct SJMapView: View {
                 recenterButton
             }
             .padding(.horizontal, 16)
-            // Sit just above the sheet peek, which itself sits above the tab bar.
-            .padding(.bottom, MapSheet.tabBarClearance + MapSheet.peekHeight + 12)
+            // Stack ABOVE the map's attribution row (logo + info button, which sit just
+            // above the collapsed glass) so the two never collide; fade + lift out of the
+            // way as the sheet grows so they never collide with it either.
+            .padding(.bottom, MapSheet.tabBarReserve + MapSheet.peekHeight + 96)
+            .offset(y: -sheetExpansion * 10)
+            .opacity(Double(1 - min(1, sheetExpansion * 1.3)))
+            .allowsHitTesting(sheetExpansion < 0.12)
+            .animation(.easeOut(duration: 0.18), value: sheetExpansion)
         }
     }
 
@@ -575,6 +715,9 @@ struct SJMapView: View {
         if reduceMotion { move() } else { withViewportAnimation(.easeInOut(duration: 0.4)) { move() } }
     }
 
+    // Client-side POI clustering (recompute trigger, reclustering, bubble lifecycle) and
+    // the DEBUG autozoom demo live in SJMapView+POIClustering.swift.
+
     private func closeCard() {
         guard selectedSpot != nil || selectedPOI != nil else { return }
         withAnimation(reduceMotion ? Motion.smooth : Motion.card) {
@@ -605,7 +748,12 @@ private struct PulseRing: View {
 
     var body: some View {
         Circle()
-            .fill(LIVE_COLOR.opacity(pulsing ? 0 : 0.35))
+            // In mono this halo IS the liveness signal — there is no coral left to
+            // carry it, so the pin's only "something is happening here" cue is this
+            // expanding ink ring plus the always-on name label. Held at 0.35 in both
+            // skins: ink at 35% over paper lands close to the coral's weight, so the
+            // pulse reads with the same urgency it always did.
+            .fill(MarkerRole.liveRing.opacity(pulsing ? 0 : 0.35))
             .frame(width: diameter, height: diameter)
             .scaleEffect(pulsing ? 2.2 : 1.0)
             .onAppear {
@@ -656,7 +804,9 @@ private struct MapPinBadge: View {
     private var diameter: CGFloat { expanded ? Self.expandedDiameter : Self.compactDiameter }
     private var live: Bool  { base == .live }
     private var saved: Bool { base == .saved }
-    private var tint: Color { live ? LIVE_COLOR : spot.category.tint }
+    /// Badge fill, routed through `MarkerRole` so the monochrome skin swaps in
+    /// without branching here (see MonoMarkerPalette.swift).
+    private var tint: Color { live ? MarkerRole.liveFill : MarkerRole.civicFill(spot.category) }
 
     var body: some View {
         badge
@@ -718,15 +868,28 @@ private struct MapPinBadge: View {
             // zoomed all the way out.
             if live && !selected { PulseRing(diameter: diameter) }
 
+            // Mono-only: a STATIC ring outside a live badge. Coral used to say "live"
+            // without moving; motion alone left liveness invisible in a still frame.
+            // Drawn at diameter + 7 so it clears the badge's own 1.5pt white keyline
+            // and reads as a separate mark rather than a thick border.
+            if live {
+                Circle()
+                    .stroke(MarkerRole.liveStaticRing, lineWidth: 2)
+                    .frame(width: diameter + 7, height: diameter + 7)
+                    .opacity(expanded ? 1 : 0)   // no room around a 14pt compact dot
+            }
+
             Circle()
                 .fill(tint)
                 .frame(width: diameter, height: diameter)
                 .mapMarkerShadow(selected: selected)   // tighter than a button; lifts on select (§8)
-                .overlay(Circle().stroke(Hue.surface, lineWidth: 1.5))
+                // Civic pins are ink-filled (dark), so the keyline stays the white lift —
+                // `isLightFill: false`. Routed through MarkerRole so the skin owns the value.
+                .overlay(Circle().stroke(MarkerRole.pinStroke(isLightFill: false), lineWidth: 1.5))
 
             Image(systemName: spot.category.filledSymbol)
                 .font(.system(size: Self.iconSize, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(MarkerRole.civicGlyph)
                 .opacity(expanded ? 1 : 0)   // too cramped on a 14pt compact dot
 
             if saved {
@@ -750,7 +913,7 @@ private struct MapPinBadge: View {
 // fill (park green, water blue, cream ground) without a background pill — matches
 // the reference's bare-on-the-map label treatment.
 
-private struct HaloText: View {
+struct HaloText: View {
     let text: String
     let color: Color
 

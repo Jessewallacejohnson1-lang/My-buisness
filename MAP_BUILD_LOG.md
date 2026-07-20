@@ -958,3 +958,236 @@ double-animate, gray-15pt "borderline" (the verify pass deemed `gray` acceptable
 Uncommitted on `feat/map-premium-feel`. 8 files: `Theme/Motion.swift` (new),
 `Support/Haptics.swift`, `Theme/HyggeMetrics.swift`, `Features/Map/{SJMapView,MapSheet,POILayer,
 POIDetailSheet,QuickAddSheet}.swift`.
+---
+
+## 2026-07-18 — Map UI overhaul, Phase A: POI clustering snap → glide
+
+Replaced the built-in Mapbox GeoJSON clustering (`POILayer`, `cluster: true` → `CircleLayer`s) —
+which **snaps** pins between the clustered/unclustered layouts at zoom steps and stranded straggler
+dots beside bubbles — with a **client-side clusterer + SwiftUI view-annotation markers** that GLIDE.
+
+- **`POICluster`** — a deterministic greedy screen-space clusterer: project every POI
+  (`MapboxMap.point(for:)`), iterate in sorted-id order, seed a cluster from each unassigned POI and
+  absorb every unassigned POI within `radius`. Membership-by-radius ⇒ **no straggler can sit under a
+  bubble, by construction** (the old gold/gray/green orphans are structurally impossible now). The
+  **seed** is the cluster's stable id AND anchor coordinate, so the bubble sits on the seed and its
+  count rolls without the jitter a recomputed geometric centroid would show. **Zoom-dependent radius**
+  (`clusterRadius(zoom:)`, 52pt at z≤13 → 36pt at z≥15) keeps downtown calmly clustered when zoomed
+  out but **explodes to individual shops at street level**. A **bubble-diameter cap** (`radius − 8`)
+  guarantees two bubbles can never touch (seeds are always >radius apart) ⇒ no overlapping bubbles at
+  any zoom.
+- **`POIMarkers`** — the leaf view-annotation views. `POIClusterMarker` uses "Mechanism B": anchored
+  at its true coord, it glides via a screen-space `.offset` toward the seed (+ scale/opacity), with
+  the animating state on **isolated leaf `@State`** so the map's camera callbacks can't cancel it (the
+  `PulseRing` isolation lesson — a `MapViewAnnotation.coordinate` is itself NOT SwiftUI-animatable).
+  `POIClusterBubbleView` handles appear/dissolve + a `contentTransition(.numericText())` count roll.
+- **`SJMapView+POIClustering`** — the recompute trigger (`onCameraChanged` when zoom moved ≥0.1, plus
+  a 130ms settle debounce; also on style-load / pois-change), the bubble appear/dissolve lifecycle,
+  and a DEBUG `-map-autozoom` demo. POIs render as `MapViewAnnotation`s **before** the civic
+  `ForEvery`, so civic pins win z-order and never cluster. Retired `POILayer` + its layer
+  `TapInteraction`s; POI tap → `POIDetailSheet` via the marker's `onTapGesture`; cluster tap →
+  `zoomToCluster` (unchanged).
+
+**Verified:** build 0 warnings. A throwaway spike (`-spike-cluster`, since removed) proved the glide
+mechanism first. Two independent review passes (a fresh QA + a fresh Design Director) plus orchestrator
+frame review; v1 findings — over-clustering at z15, overlapping bubbles in the dense core — fixed in v2
+(zoom-dependent radius + bubble cap + 0.1 recompute step). Count integrity checked against the live DB:
+`places` = **91 rows, 91 distinct names, 0 duplicates** (the "68"/"91" counts are honest — the clusterer
+assigns each POI exactly once, no double-count). Screenshotted rest states z11–z15 (no stragglers, no
+bubble overlap, individual shops at z15) + a live autozoom clip (glide, no snap). **Deferred to Phase C
+by design:** bubble glass styling + category tint + size-by-count, brighter map green (`#D6E8C4` →
+`≈#B8E6A0`), town-label occlusion, POI label de-confliction. Spec: `docs/superpowers/specs/2026-07-18-*`.
+
+## 2026-07-19 — Map UI overhaul, Phase B: one continuous bottom glass
+
+`MapSheet` + the global `HyggeTabBar` are now ONE Liquid Glass piece: the tab bar IS the collapsed
+state, and pulling up grows the SAME glass upward.
+
+- **`RootView`** — tab content + `HyggeTabBar` moved inside one `GlassEffectContainer(spacing: 22)`,
+  so the map sheet's glass MERGES with the tab bar instead of stacking as a second panel. The other
+  three tabs have no adjacent glass, so their tab bar is unchanged (verified by screenshot).
+  Rejected `presentationDetents`: a native detent sheet renders in a separate presentation layer that
+  can't share a `GlassEffectContainer`, so it could never morph into one shape. The hand-rolled
+  in-tree sheet (whose detent/drag/snap logic was already good) stays.
+- **`MapSheet`** — opaque `Hue.surface` + `mapSheetShadow()` → `.glassEffect(.regular)` at the tab
+  bar's material, radius and horizontal insets; no longer edge-to-edge, and its bottom MEETS the tab
+  bar (the old 56pt `tabBarClearance` gap is gone). New empty-state copy — it never claims "nothing
+  on the map" while pins are visible.
+- **`SJMapView`** — floating ?/locate controls fade + lift as the sheet grows past peek
+  (`SheetExpansionKey`); Mapbox logo + attribution lifted above the collapsed glass via
+  `ornamentOptions`, removing the clipped orphan slivers.
+
+**Verified:** build 0 warnings; map peek + a non-map tab screenshotted on iPhone 17 Pro Max.
+Preserved: 3 detents + drag + momentum snap + VoiceOver adjustable, Today⇄Places, spot detail,
+realtime, `SavedStore`, every debug flag. Commit `84a5624`.
+
+## 2026-07-19 — Map UI overhaul, Phase C: colour + marker polish
+
+Closes every item Phase A deferred.
+
+- **Basemap green** `#D6E8C4` → **`#C2E6AC`** (`BasemapPalette`). Parks previously all but vanished
+  against the cream. An intermediate `#B8E6A0` overshot — S58/L76, chartreuse-leaning; large park
+  masses became the loudest thing on screen AND, because the bottom sheet is Liquid Glass, the excess
+  chroma bloomed THROUGH it and tinted the tab bar green at the default zoom. `#C2E6AC` keeps the
+  brightness win and calms both.
+- **Cluster bubbles** — flat charcoal disc → LIGHT disc: `Hue.surface.opacity(0.90)` + a 7%
+  dominant-category wash + a 90% category ring + a deepened shadow, count in `Hue.mapInk`.
+  Deliberately **NOT `.regularMaterial`**: that is appearance-adaptive and this app is light-only by
+  construction, so under iOS Dark Mode the disc resolved dark and the near-black digits vanished —
+  caught in review, fixed, and verified with a Dark Mode capture.
+- **Dominant category** — `POIClusterBubble/Render` carry a `dominantFamily` (amber food / indigo
+  business) computed in `POICluster.compute`; a family takes the tint only by STRICTLY outnumbering
+  the seed's, ties hold the seed's. That is deterministic per pass but is **not** hysteresis, so the
+  bubble cross-fades tint changes rather than cutting.
+- **Size-by-count** — 3 discrete steps (34/40/46) → a continuous log ramp, `minBubbleDiameter` 22 →
+  `maxBubbleDiameter` 48, saturating at `bubbleRampCeiling` = 26 MEMBERS. The ramp is scaled INTO the
+  overlap cap, not clamped against it: clamping made size-by-count completely inert at z ≥ 15, where
+  the cap (36 − 8 = 28) equalled the old 28pt floor, so a "2" and a "10" drew identically. Ordering
+  now holds at every zoom. One definition (`POICluster.bubbleDiameter`) shared by the view and the
+  label pass.
+- **Town-label occlusion** — the town's biggest cluster necessarily sits on the town centroid, which
+  is exactly where Mapbox anchors the name, and SwiftUI view annotations draw above the map canvas so
+  Mapbox's collision engine can never see them. First attempt set `visibility: none`, which deleted
+  EVERY town name in the viewport (Collegeville, Saint Wendel, Five Points, Rockville) — a nine-label
+  sledgehammer for a one-label problem; caught in review. Now: `text-anchor: top` +
+  `text-offset: [0, 2.4]` (ems of a 14–24pt label ⇒ clears the 22pt max bubble radius), plus
+  `maxzoom 13.0` on `settlement-major-label` — above z13 you are unambiguously inside one town, the
+  pill names it, and the offset label landed in the civic pin cluster ("St⬤oseph"). Matches what
+  light-v11 already does to `settlement-minor-label`.
+- **POI label de-confliction** (`POICluster.labelledPOIs`) — a greedy screen-space pass, same shape as
+  the clusterer: reserve civic badges+labels (the map's anchors), then rendered bubbles (including
+  ones mid-fade), then every POI badge, then grant labels. Boxes are ESTIMATED from the name rather
+  than always reserving the 100×34 max. Priority is incumbents-first (so a pinch can't strobe a label
+  on a collision boundary, and one label losing its box can't cascade), then food, then name —
+  previously Supabase row-id order, i.e. arbitrary. `showsLabel` threads to `POIBadge`; the badge
+  always draws, only the text is withheld, and the a11y label is NOT gated so VoiceOver still
+  announces suppressed names.
+
+**Verified:** build 0 warnings. Two independent review rounds (fresh QA + fresh Design Director, twice
+each; the agent that wrote the code never reviewed it). Round-1 findings — Dark Mode count invisible,
+global town-name deletion, unanimated tint flip, inert size ramp, over-reserved label boxes, arbitrary
+label priority, no label hysteresis — all fixed and re-verified. Screenshotted z11 / z12 / z13.5 / z15
+peek + expanded, plus a Dark Mode capture.
+
+**Known / deferred:** (1) Park green still blooms faintly through the Liquid Glass sheet — inherent to
+glass sampling its backdrop; judged correct behaviour, not tuned further. (2) **Dark Mode: the bottom
+sheet + tab bar go dark olive with ~1.05:1 label contrast.** PRE-EXISTING — the system glass materials
+predate this work — but Phase C's brighter green is what makes the slab read olive. Worth its own pass
+if Dark Mode is ever supported. (3) The spec's "unify markers … tied by coral `#FF6B57`" was NOT
+implemented: coral is reserved for live-now, and putting it on cluster chrome would stop a live badge
+reading as special. Markers are unified by category palette + shared casing/shadow instead — flagged
+for Jesse. (4) "Greens match Apple Maps" is eyeball-graded against the spec's target, NOT sampled from
+a real Apple Maps screenshot: the simulator's Maps app blocks on its onboarding flow and this
+XcodeBuildMCP profile has UI-tap tools disabled. Spec: `docs/superpowers/specs/2026-07-18-*`.
+
+### Final pass (2026-07-19) — fresh Design Director + fresh code audit
+
+Code audit: **SHIP**, zero blocking defects, 0 warnings; label geometry, pass convergence, prune
+lifecycle, Phase A overlap/orphan invariants and the non-map tabs all verified correct. Fixed from its
+non-blocking list:
+
+- **Intermittent unstyled basemap.** `recolorBasemap` ran ONCE on `onStyleLoaded` and occasionally lost
+  the race — a launch would render a complete but un-recoloured map (default Mapbox grey land/parks,
+  no cream). Now re-applied on `onMapLoaded` too (pure `setLayerProperty`, so idempotent). **Caught by
+  histogram, not by eye** — the bad frame is fully drawn, so it reads as a finished render: 3.3% cream
+  / 0.3% green vs 66% / 7% when correct. **The fix is reasoned, not proven:** the failure is rare and
+  was never reproduced on demand (pre-fix 3/3 clean, post-fix 4/4 clean). Re-verify by histogram.
+- `scheduleClusterRecompute`'s 0.13s `DispatchWorkItem` captured `MapboxMap` strongly with no
+  teardown cancel — the same hazard `schedulePrune` was hardened against. Now `[weak map]`.
+- Removed dead `mapSheetShadow()` (its only caller, the sheet's opaque background, died in Phase B)
+  and corrected stale docs: `CLAUDE.md` peek 120→96pt + the dead token, `MapSheet`'s full-detent
+  clearance (132 − `tabBarReserve` ≈ 66pt, not 132), and `POICluster`'s label-pass invariance claim
+  (with `previous` fed back the pass is stateful and settles one pass later — it damps, not strobes).
+
+**FIXED (and CORRECTION to the Phase B entry above):** the Dark Mode failure of the bottom sheet was
+**not** pre-existing as first recorded. `MapSheet.swift` `.glassEffect(.regular, in:)` REPLACED a fixed
+`Hue.surface` fill, and `.glassEffect` IS appearance-adaptive — so Phase B introduced the sheet half.
+It failed at the peek rest state specifically (the `frost` overlay opacifies the body from `medium`
+up). The TAB BAR going dark was genuinely pre-existing.
+
+Fixed by declaring `.environment(\.colorScheme, .light)` on the `GlassEffectContainer` in
+`MainTabsView` — on the CONTAINER so both glass surfaces resolve together (pinning only the sheet
+would light it while the tab bar stayed dark, visibly splitting the continuous piece the container
+exists to create). This states what the app already assumes — every Hue token is a fixed light hex and
+the basemap is light-v11 recoloured — rather than adding behaviour. Measured on the "Today" tab label
+in Dark Mode: **1.07:1 → 3.71:1**, i.e. exact parity with light mode. Note 3.71:1 is what the app
+ships in light mode too, and is BELOW the 4.5:1 WCAG AA threshold for normal text — a separate,
+pre-existing question this fix does not address. Verified in Dark Mode on the map (peek) and the
+Activities tab. If real Dark Mode is ever wanted, removing that line is the START of the work (a dark
+Hue ramp + a dark basemap palette), not the whole of it.
+
+Design Director: **DON'T SHIP** — open items, all needing a product decision rather than a fix:
+1. **Rest dots don't dodge the town label** — at z12 a civic dot sits on the "St" of "St. Joseph". The
+   centroid-offset cleared the cluster BUBBLES only. Options: cap the label at maxzoom 12 (z12–13 then
+   has no town names at all), push the offset further (detaches the label from its dot), or accept.
+2. **A POI badge occludes the Sacred Heart Chapel civic landmark at z15** and captures its name label.
+   PRE-EXISTING (present in the before-shots), but violates "civic landmarks stay always-on-top".
+3. **Cluster fill is cool, not neutral** — `#EAEBF3` (B−R +9) on `#F4F3EC` land (R−B +8), a 17-point
+   hue reversal. The earlier "it's the ring" diagnosis was wrong; it is the fill.
+4. **The sheet's glass bleaches warm backdrops while transmitting green** — park polygon SHAPES are
+   readable through the panel at the default zoom. Earlier judged "inherent to glass"; that does not
+   survive measurement and is a tuning problem.
+5. **Civic and POI markers are still two families** (`SpotCategory` slate/ochre vs `PlaceCategoryMap`
+   amber/indigo, ~20pt apart on screen) — the "one family" bullet is unmet. Coral was correctly kept
+   off markers, but nothing else ties the two sets together.
+6. De-confliction doesn't reserve the app's own floating chrome or Mapbox's street labels — at z16 a
+   POI label draws under the filter chip; the "5" bubble covers "Cedar St E" at the default zoom.
+
+### Post-final-pass fixes (2026-07-19)
+
+Three of the Design Director's six open items fixed; three left, with reasons.
+
+**Fixed**
+- **De-confliction now reserves the app's own floating chrome** (`chromeRects` in
+  `SJMapView+POIClustering`, fed to `POICluster.labelledPOIs` as the highest-priority
+  reservation). Top row, the collapsed sheet + tab bar, and the ?/locate circles. Previously a
+  granted label could draw UNDER the filter chip or compose "+" — not merely crowded, invisible.
+  Verified at z16. Map size is measured in the view layer via `GeometryReader`; `MapboxMap.size`
+  is `internal` to the SDK.
+- **Cluster fill no longer cool.** Base moved off `Hue.surface` (pure white — the app's surface
+  ramp is cool) to a warm near-white `#FBFAF5` in the map's cartography family, and the category
+  wash dropped 7% → 5%. Measured interior: **#E8E9ED (R−B −5, cool) → #E8E8E8 (R−B 0, neutral)**.
+  Honest limit: the land is `#F4F3EC` (R−B +8), so the disc is now NEUTRAL, not warm — a ~8-point
+  gap rather than the previous 17-point reversal. Pushing warmer starts dissolving the disc into
+  the ground.
+- **Town label at the default zoom** — resolved by the `maxzoom 13` cap already in place.
+
+**Not fixed, and why**
+- **A civic REST DOT can still graze the town name at z12.** Anchoring the label ABOVE the
+  centroid was tried and measured WORSE (it lands squarely behind the 61-bubble — the bubble is
+  centred on the centroid). A larger offset detaches the name from its own dot, and our pins
+  can't dodge because they sit at real coordinates while the label belongs to Mapbox. Four
+  iterations in; the remaining fixes cost more than the defect.
+- **A POI badge occludes the Sacred Heart Chapel civic landmark at z15/z16** and captures its
+  name label. PRE-EXISTING (present in the before-shots). Civic annotations are already declared
+  last, which should win z-order and doesn't, so this needs a real fix in the annotation layering
+  — not a tweak. The alternative (withholding a colliding POI badge) hides a genuine business.
+- **Sheet glass transmits green / bleaches warm backdrops**, and **civic vs POI are still two
+  palettes** (the spec's "one family" bullet). Both are design changes with real blast radius —
+  the second means retuning `PlaceFamily.tint` app-wide — and belong to Jesse, not to a fix pass.
+
+### The last three open items — fixed (2026-07-19)
+
+- **Civic landmarks now actually win z-order.** `MapViewAnnotation` draw order is controlled by
+  **`.priority(Int)`**, NOT by declaration order — which is why the six civic pins, declared
+  last precisely so they'd win, were still being covered by POI badges (a blue POI disc sat on
+  Sacred Heart Chapel and captured its name label). Now explicit: `poiPriority 0` <
+  `clusterPriority 10` < `civicPriority 20`. Higher draws on top — verified empirically at z15,
+  where the chapel badge is fully visible with its own label and the POI disc sits behind it.
+- **One marker family.** `PlaceFamily.tint` moved off the borrowed `EventCategory` tokens
+  (food `#F08A3C`, games `#5B6EE0`) to map-palette tints: **food `#C67439`** (muted terracotta,
+  beside `Hue.honey600`) and **business `#5A76A8`** (muted slate blue, beside `Hue.sky600`).
+  The old pair carried ~20 points more saturation than the civic earth tones, so the map ran two
+  colour systems — and the saturated POI dots visually OUTRANKED the landmarks they defer to.
+  POI was brought DOWN into the civic band rather than civic pushed up, since the app tokens are
+  the fixed point. Dropping business off hue 231 also removes the periwinkle cast it lent the
+  cluster bubbles.
+- **Sheet glass no longer prints park shapes.** The content frost veil ramped `0 → 0.94` from
+  peek to medium, i.e. **pure glass at the peek rest state** — and pure glass over this basemap
+  bleaches the warm cream ground while transmitting park green, so the collapsed sheet picked up
+  green blotches whose polygon shapes were readable. Added `frostMin = 0.30`. Measured in the
+  sheet interior at the default zoom: **green-cast 73.9% → 31.1% of pixels, meanDev +10.95 →
+  +7.93**. Honest limit: reduced, NOT eliminated — the brightest spots still come through at
+  roughly the same intensity (worst pixel `#E3F8D6` → `#E5F8D8`), there are just far fewer of
+  them. A higher floor would finish the job but stops the peek band reading as the same glass as
+  the tab bar it merges into, which is the whole point of Phase B.

@@ -54,5 +54,42 @@ enum BasemapPalette {
         for id in ["road-label-simple", "settlement-major-label", "settlement-minor-label", "settlement-subdivision-label"] {
             try? map.setLayerProperty(for: id, property: "text-color", value: labelInk)
         }
+
+        // Move the SETTLEMENT (town/city) names DOWN, out from under the cluster bubbles.
+        // A town's POI cluster necessarily sits on the town centroid — exactly where Mapbox
+        // anchors the town name — so the biggest bubble always landed on "St. Joseph". Mapbox's
+        // own label collision can't help: these bubbles are SwiftUI view annotations drawn above
+        // the map canvas, so the style never sees them.
+        //
+        // Anchoring the text to its TOP and pushing it below the point clears the bubble while
+        // keeping every name on the map. (Hiding the layers instead would kill Collegeville,
+        // Saint Wendel, Five Points and St. Cloud too — the town pill only reverse-geocodes the
+        // viewport CENTRE, so it can't name the towns around it, and a nameless map at z11 is
+        // worse than the collision ever was.)
+        //
+        // The offset is in ems of the label's own text size, which light-v11 interpolates to
+        // ~14–24pt by zoom and `symbolrank`. It must clear the LARGEST bubble radius — the
+        // overlap cap tops out at 44pt across ⇒ 22pt — so 2.4em (≈34–58pt) clears with room.
+        // 1.4em was measurably short: the z11 "69" bubble still clipped "St. Joseph".
+        //
+        // Both layers also carry a `text-radial-offset`, which takes precedence over
+        // `text-offset` where it is non-zero. light-v11 steps it to 0 at z ≥ 8 and this map
+        // lives at z11–15, so `text-offset` is the one that applies here.
+        for id in ["settlement-major-label", "settlement-minor-label"] {
+            try? map.setLayerProperty(for: id, property: "text-anchor", value: "top")
+            try? map.setLayerProperty(for: id, property: "text-offset", value: [0.0, 2.4])
+        }
+        // Above z13 the town name stops earning its space: you are unambiguously INSIDE one
+        // town and the top pill already names it. Capping matches what light-v11 already does
+        // to `settlement-minor-label` (maxzoom 13), so majors and minors retire together.
+        //
+        // KNOWN LIMIT, deliberately not chased further: at z12 a civic REST DOT can still graze
+        // the first glyphs of the name. The offset dodges the cluster bubble (centred on the
+        // town centroid) but the civic spots trail just south of it, which is where the offset
+        // puts the text. Anchoring ABOVE instead was measured and is WORSE — the label lands
+        // squarely behind the bubble. The remaining options both cost more than the defect: a
+        // larger offset detaches the name from its own dot, and our pins can't dodge because
+        // they sit at real coordinates while the label is Mapbox's.
+        try? map.setLayerProperty(for: "settlement-major-label", property: "maxzoom", value: 13.0)
     }
 }
