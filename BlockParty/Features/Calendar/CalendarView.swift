@@ -437,11 +437,13 @@ private struct DayCell: View {
 
     private var hasEvents: Bool { count > 0 }
 
-    // Event numerals use ink; past empty days recede to secondary ink.
+    // Days with happenings carry full ink; empty days recede to secondary ink.
+    // Without an accent colour this value step is the only thing distinguishing a
+    // day that has something on it from one that doesn't, so it applies to future
+    // days too — not just past ones.
     private var numberColor: Color {
         if isToday { return .white }
-        if hasEvents { return Hue.ink }
-        return isPast ? Hue.inkSecondary : Hue.ink
+        return hasEvents ? Hue.ink : Hue.inkSecondary
     }
 
     var body: some View {
