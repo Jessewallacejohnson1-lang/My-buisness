@@ -22,8 +22,8 @@ enum CalendarExport {
             switch self {
             case .accessDenied: return "Calendar access is off. Turn it on in Settings › Block Party."
             case .noEvents:     return "There's nothing on this day to add."
-            case .noCalendar:   return "No calendar is available to add to."
-            case .saveFailed:   return "Couldn't add these to your calendar."
+            case .noCalendar:   return "No calendar found. Create one in Calendar, then retry."
+            case .saveFailed:   return "Calendar couldn't save these events. Try again."
             }
         }
     }

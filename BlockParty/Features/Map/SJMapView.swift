@@ -444,7 +444,7 @@ struct SJMapView: View {
             chromeCircle(icon: "plus")
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Add an event")
+        .accessibilityLabel(isAdmin ? "Add an event" : "Open add menu")
     }
 
     // MARK: Floating controls — help (bottom-left) + recenter (bottom-right)

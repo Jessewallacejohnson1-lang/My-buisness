@@ -164,7 +164,7 @@ private struct CommunityFeedEventCard: View {
     }
 
     private var rsvpButton: some View {
-        Button(event.rsvpd ? "Going" : "RSVP") {
+        Button(event.rsvpd ? "Cancel RSVP" : "RSVP") {
             Haptics.light()
             onToggleRsvp(event)
         }
@@ -179,13 +179,13 @@ private struct CommunityFeedEventCard: View {
         )
         .buttonStyle(PressableStyle(scale: 0.96))
         .animation(reduceMotion ? nil : Motion.snappy, value: event.rsvpd)
-        .accessibilityLabel(event.rsvpd ? "Going" : "RSVP")
-        .accessibilityHint("Updates your attendance for \(event.title)")
+        .accessibilityLabel(event.rsvpd ? "Cancel RSVP for \(event.title)" : "RSVP to \(event.title)")
+        .accessibilityHint(event.rsvpd ? "Removes you from the attendee list" : "Marks you as going")
     }
 
     private var reminderButton: some View {
         Button(action: toggleReminder) {
-            Text(reminderOn ? "Saved" : "Save")
+            Text(reminderOn ? "Remove reminder" : "Set reminder")
                 .font(.sansSemibold(14))
                 .foregroundStyle(reminderOn ? Hue.ink : Hue.inkSecondary)
                 .frame(maxWidth: .infinity, minHeight: 44)
@@ -196,8 +196,8 @@ private struct CommunityFeedEventCard: View {
                 )
         }
         .buttonStyle(PressableStyle(scale: 0.96))
-        .accessibilityLabel(reminderOn ? "Saved reminder" : "Save reminder")
-        .accessibilityHint("Saves a reminder for \(event.title)")
+        .accessibilityLabel(reminderOn ? "Remove reminder for \(event.title)" : "Set reminder for \(event.title)")
+        .accessibilityHint(reminderOn ? "Cancels the saved reminder" : "Saves a reminder for this event")
     }
 
     private var hasTimeOrPlace: Bool {
@@ -209,7 +209,7 @@ private struct CommunityFeedEventCard: View {
     private var cardAccessibilityValue: String {
         let time = event.startTime?.isEmpty == false ? event.startTime! : "Time not listed"
         let location = event.location?.isEmpty == false ? event.location! : "Place not listed"
-        let rsvp = event.rsvpd ? "You are going" : "Not yet RSVP’d"
+        let rsvp = event.rsvpd ? "You are going" : "You have not RSVP'd"
         return "\(DateHelpers.prettyDate(event.eventDate)), \(time), \(location), \(event.goingCount) going, \(rsvp)"
     }
 
@@ -295,17 +295,17 @@ private struct CommunityFeedEmptyState: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("It’s a quiet day in St. Joe 🌿")
+            Text("No plans posted yet")
                 .font(.displaySemi(22))
                 .foregroundStyle(Hue.ink)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text("Here’s what’s coming up when neighbors add plans.")
+            Text("Add the first event, club, or trail for neighbors to find.")
                 .font(.sans(14))
                 .foregroundStyle(Hue.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Button("Post something") {
+            Button("Choose what to add") {
                 onCompose?()
             }
             .font(.sansSemibold(14))
@@ -323,10 +323,10 @@ private struct CommunityFeedEmptyState: View {
 private struct CommunityFeedEndState: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("You’re all caught up for now.")
+            Text("That's everything for now.")
                 .font(.sansSemibold(14))
                 .foregroundStyle(Hue.inkSecondary)
-            Text("More neighbor plans will appear here.")
+            Text("New plans will show up here when neighbors add them.")
                 .font(.sans(13))
                 .foregroundStyle(Hue.inkSecondary)
         }

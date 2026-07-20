@@ -25,7 +25,7 @@ struct LoginView: View {
                         Text("Block Party")
                             .font(.display(44))
                             .foregroundStyle(Hue.ink)
-                        Text("One calm place for everything happening in St. Joe.")
+                        Text("See what's happening around St. Joe.")
                             .font(.sans(15))
                             .foregroundStyle(Hue.inkSecondary)
                     }
@@ -128,7 +128,7 @@ struct LoginView: View {
     private func resetPassword() {
         let mail = email.trimmingCharacters(in: .whitespaces)
         guard !mail.isEmpty else {
-            message = "Enter your email above first, then tap this."
+            message = "Enter your email, then tap Forgot password."
             messageIsError = true
             return
         }

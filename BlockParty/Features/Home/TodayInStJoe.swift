@@ -105,7 +105,7 @@ struct TodayInStJoeCard: View {
 
             Rectangle().fill(.white.opacity(0.18)).frame(height: 1)
 
-            Text("TODAY IN ST. JOE")
+            Text("Today in St. Joe")
                 .font(.mono(11))
                 .tracking(1.5)
                 .foregroundStyle(.white.opacity(0.9))
@@ -150,7 +150,7 @@ struct TodayInStJoeCard: View {
                 .font(.sans(14))
                 .foregroundStyle(.white.opacity(0.85))
         case .empty:
-            Text("Nothing on the board today — tap to see what's around town.")
+            Text("Nothing posted for today. Open the board to see what's around town.")
                 .font(.sans(14))
                 .foregroundStyle(.white.opacity(0.9))
                 .fixedSize(horizontal: false, vertical: true)

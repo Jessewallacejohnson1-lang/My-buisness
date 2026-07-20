@@ -125,8 +125,8 @@ struct InlineAction: View {
         switch phase {
         case .idle:    return actionText
         case .loading: return "Adding…"
-        case .success: return "Done"
-        case .error:   return failureNote ?? "Couldn't add"
+        case .success: return "Added"
+        case .error:   return failureNote ?? "Couldn't add these events"
         }
     }
 
@@ -144,7 +144,7 @@ struct InlineAction: View {
                 withAnimation(spring) { phase = .success }
             } catch {
                 Haptics.error()
-                let note = (error as? LocalizedError)?.errorDescription ?? "Couldn't add — try again."
+                let note = (error as? LocalizedError)?.errorDescription ?? "Couldn't add these events. Try again."
                 withAnimation(spring) {
                     failureNote = note
                     phase = .error

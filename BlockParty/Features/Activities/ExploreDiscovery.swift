@@ -444,10 +444,10 @@ struct ExploreComposeBanner: View {
                     .shadow(color: Hue.ink.opacity(0.3), radius: 6, x: 0, y: 3)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Add your own happening")
+                    Text("Choose what to add")
                         .font(.sansBold(16))
                         .foregroundStyle(Hue.ink)
-                    Text("Post an event, club, or trail for neighbors")
+                    Text("Event, club, or trail")
                         .font(.sans(13))
                         .foregroundStyle(Hue.inkSecondary)
                         .lineLimit(1)

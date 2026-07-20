@@ -95,7 +95,7 @@ struct MapIntroView: View {
     // MARK: Title
 
     private var title: some View {
-        Text("Everything in town,\non one map")
+        Text("Events and places,\non one town map")
             .font(.display(34))
             .foregroundStyle(.white)
             .multilineTextAlignment(.center)
@@ -147,7 +147,7 @@ struct MapIntroView: View {
     // MARK: Support line + button
 
     private var supportLine: some View {
-        Text("Cafés, trails, and gatherings across St. Joe — all in one place. When a pin pulses, it's happening right now.")
+        Text("See cafés, trails, and gatherings across St. Joe. A pulsing pin marks what's happening now.")
             .font(.sansMedium(16))
             .foregroundStyle(.white)
             .multilineTextAlignment(.center)

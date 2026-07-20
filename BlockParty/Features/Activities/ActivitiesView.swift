@@ -227,7 +227,7 @@ struct ActivitiesView: View {
             Image(systemName: "wifi.slash")
                 .font(.system(size: 28, weight: .light))
                 .foregroundStyle(Hue.inkSecondary)
-            Text("Couldn't reach St. Joe")
+            Text("Couldn't load activities")
                 .font(.sansBold(16)).foregroundStyle(Hue.ink)
             Text("Check your connection, then pull to refresh.")
                 .font(.sans(14)).foregroundStyle(Hue.inkSecondary)
@@ -510,8 +510,8 @@ struct ActivitiesView: View {
     }
     private var emptyBody: String {
         if !queryEmpty { return "Try a different search." }
-        if savedMode { return "Tap the bookmark on any card to save it here for later." }
-        return "Real clubs, events, and trails show up here once neighbors post them."
+        if savedMode { return "Use the bookmark on any card to save it here for later." }
+        return "Add the first event, club, or trail for neighbors to find."
     }
 
     // MARK: - Time-frame menu (events focus)
@@ -838,7 +838,7 @@ private struct ClubExploreCard: View {
                 exploreCircleIcon(club.joined ? "checkmark" : "plus", filled: club.joined)
             }
             .buttonStyle(PressableStyle(scale: 0.9))
-            .accessibilityLabel(club.joined ? "Joined" : "Join")
+            .accessibilityLabel(club.joined ? "Leave \(club.name)" : "Join \(club.name)")
         }
     }
     /// One line on the foot: the meeting schedule, else the real member count,
@@ -869,7 +869,7 @@ private struct TrailExploreCard: View {
                 exploreCircleIcon("map.fill")
             }
             .buttonStyle(PressableStyle(scale: 0.9))
-            .accessibilityLabel("Directions")
+            .accessibilityLabel("Directions to \(trail.title)")
         }
         .task {
             coord = await GeocoderService.shared.coordinate(for: "\(trail.title) \(trail.location ?? "St. Joseph MN")")
@@ -922,7 +922,7 @@ private struct ParkExploreCard: View {
                     exploreCircleIcon("map.fill")
                 }
                 .buttonStyle(PressableStyle(scale: 0.9))
-                .accessibilityLabel("Directions")
+                .accessibilityLabel("Directions to \(park.title)")
             }
         }
         .buttonStyle(PressableStyle(scale: 0.98))
@@ -968,7 +968,7 @@ private struct WobegonExploreCard: View {
                 exploreCircleIcon("map.fill")
             }
             .buttonStyle(PressableStyle(scale: 0.9))
-            .accessibilityLabel("Directions")
+            .accessibilityLabel("Directions to Lake Wobegon Trail")
         }
     }
 }

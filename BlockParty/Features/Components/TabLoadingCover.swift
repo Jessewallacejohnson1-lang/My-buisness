@@ -22,7 +22,7 @@
 import SwiftUI
 
 struct TabLoadingCover: View {
-    var title: String = "Just a second"
+    var title: String = "Loading the town"
     /// A small wordmark at the top, echoing the reference. Nil hides it.
     var wordmark: String? = "Block Party"
     /// Lower-third lines: the honest "what's loading" line first, then a few real
@@ -30,10 +30,10 @@ struct TabLoadingCover: View {
     /// is up (most loads only ever show the first one).
     var facts: [String] = [
         "Loading today's happenings in St. Joe…",
-        "The map lights up when something's happening right now.",
-        "Your daily quest refreshes every morning.",
-        "Anyone can add a town event — everyone sees it.",
-        "One calm place for everything in St. Joseph.",
+        "A pulsing map pin marks what's happening now.",
+        "The calendar shows what neighbors have added.",
+        "You can add an event, club, or trail.",
+        "Find today's plans and places around town.",
     ]
 
     private static let factInterval: Duration = .seconds(2.6)

@@ -49,7 +49,7 @@ struct PlaceDetailView: View {
         VStack(alignment: .leading, spacing: 22) {
             // About
             VStack(alignment: .leading, spacing: 12) {
-                sectionLabel("ABOUT")
+                sectionLabel("About")
                 ForEach(place.description, id: \.self) { para in
                     Text(para)
                         .font(.sans(15))
@@ -61,7 +61,7 @@ struct PlaceDetailView: View {
 
             // Good to know
             VStack(alignment: .leading, spacing: 12) {
-                sectionLabel("GOOD TO KNOW")
+                sectionLabel("Good to know")
                 VStack(spacing: 0) {
                     ForEach(Array(place.facts.enumerated()), id: \.element.id) { i, fact in
                         HStack {

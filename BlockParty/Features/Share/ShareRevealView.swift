@@ -53,6 +53,7 @@ struct ShareRevealView: View {
                         .foregroundStyle(Hue.inkSecondary)
                 }
                 .buttonStyle(PressableStyle(scale: 0.9, haptic: true))
+                .accessibilityLabel("Close sharing")
                 Spacer()
                 Text(payload.title)
                     .font(.mono(11)).tracking(1.6)

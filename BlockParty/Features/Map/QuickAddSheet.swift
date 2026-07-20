@@ -39,14 +39,14 @@ struct QuickAddSheet: View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 16) {
-                    labeledField("What's happening?", $title, placeholder: "Independence Day Parade")
+                    labeledField("Title", $title, placeholder: "Independence Day parade")
 
-                    VenueAutocompleteField(label: "Where", placeholder: "Pick or search a spot",
+                    VenueAutocompleteField(label: "Where", placeholder: "Downtown",
                                            text: $location, curated: MapSpots.pinnableSuggestions, palette: .map)
                     whenRow
 
-                    labeledField("A line about it", $note,
-                                 placeholder: "Anything neighbors should know (optional)",
+                    labeledField("Details (optional)", $note,
+                                 placeholder: "Parking is behind City Hall",
                                  multiline: true)
 
                     if let error {
@@ -142,8 +142,8 @@ struct QuickAddSheet: View {
         error = nil
         let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
         let loc = location.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !t.isEmpty else { error = "Give it a title."; return }
-        guard !loc.isEmpty else { error = "Where is it happening?"; return }
+        guard !t.isEmpty else { error = "Add a title."; return }
+        guard !loc.isEmpty else { error = "Choose a location."; return }
 
         submitting = true
         defer { submitting = false }
@@ -163,7 +163,7 @@ struct QuickAddSheet: View {
             dismiss()
         } catch {
             Haptics.error()   // spec §10: a failed action → error notification
-            self.error = (error as? SupabaseError)?.message ?? "Couldn't post — try again."
+            self.error = (error as? SupabaseError)?.message ?? "Couldn't post this happening. Check your connection and try again."
         }
     }
 

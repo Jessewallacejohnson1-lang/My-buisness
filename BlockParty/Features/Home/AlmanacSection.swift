@@ -309,23 +309,23 @@ enum Almanac {
         if let sunset = w.sunset, now > sunset {
             let detail: AttributedString
             if let sunrise = w.sunrise {
-                detail = body("Rest easy — first light's back around ")
+                detail = body("First light is back around ")
                     + bodyNum(clock(sunrise)) + body(".")
             } else {
-                detail = body("Rest easy — see you outside tomorrow.")
+                detail = body("See you outside tomorrow.")
             }
             return Nudge(icon: "moon.stars.fill", iconTint: Hue.ink,
                          line: hero("Sun's down for the day."), detail: detail, pointer: nil)
         }
 
-        // Cold / snow → cozy, but still a small brisk nudge.
+        // Cold / snow → stay-in leaning, but still a small brisk nudge.
         if w.state == .snow || temp <= 32 {
             return Nudge(
                 icon: "snowflake", iconTint: Hue.ink,
                 line: hero("It's ") + heroNum("\(temp)°") + hero(" out."),
                 detail: body("Cold and \(labelLower) — but a brisk ") + bodyNum("10")
-                    + body("-minute loop still beats the couch. Then earn your cocoa."),
-                pointer: "The Lake Wobegon Trail is quiet in the snow."
+                    + body("-minute loop still counts. Keep it close to home."),
+                pointer: "Try a short stretch of the Lake Wobegon Trail."
             )
         }
 
@@ -334,9 +334,9 @@ enum Almanac {
             let detail: AttributedString
             if let sunset = w.sunset {
                 detail = body("Sun's up till ") + bodyNum(clock(sunset))
-                    + body(", but it's coming down — a window-side coffee counts too.")
+                    + body(", but it's coming down — take the next dry break outside.")
             } else {
-                detail = body("It's coming down out there — a window-side coffee counts too.")
+                detail = body("It's coming down out there — take the next dry break outside.")
             }
             return Nudge(icon: "cloud.rain.fill", iconTint: Hue.ink,
                          line: hero("Wet one today."), detail: detail, pointer: nil)
@@ -370,7 +370,7 @@ enum Almanac {
             line: line,
             detail: body("\(article(labelLower)) \(labelLower) ") + bodyNum("\(temp)°")
                 + body(" \(timeWord) — ") + bodyNum("20")
-                + body(" quiet minutes outside beats any screen."),
+                + body(" minutes outside can reset the day."),
             pointer: trailPointer(month: month)
         )
     }

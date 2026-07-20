@@ -92,7 +92,7 @@ struct EditProfileView: View {
         VStack(spacing: 0) {
             Rectangle().fill(Hue.hairline).frame(height: 1)
             if saveFailed {
-                Text("Couldn't save — check your connection and try again.")
+                Text("Couldn't save your profile. Check your connection and try again.")
                     .font(.sansBold(13))
                     .foregroundStyle(Hue.ink)
                     .multilineTextAlignment(.center)
@@ -119,7 +119,7 @@ struct EditProfileView: View {
             } label: {
                 HStack(spacing: 8) {
                     if saving { ProgressView().tint(.white) }
-                    Text(saving ? "Saving…" : "Save")
+                    Text(saving ? "Saving changes…" : "Save changes")
                         .font(.sansSemibold(17)).foregroundStyle(.white)
                 }
                 .frame(maxWidth: .infinity)
@@ -169,7 +169,7 @@ struct EditProfileView: View {
 
     private var nameField: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("NAME").font(.mono(11)).tracking(1.5).foregroundStyle(Hue.inkSecondary)
+            Text("Name").font(.mono(11)).tracking(1.5).foregroundStyle(Hue.inkSecondary)
             TextField("Your name", text: $name)
                 .font(.sans(17)).foregroundStyle(Hue.ink)
                 .textInputAutocapitalization(.words)
@@ -183,9 +183,9 @@ struct EditProfileView: View {
 
     private var interestsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("INTERESTS").font(.mono(11)).tracking(1.5).foregroundStyle(Hue.inkSecondary)
+            Text("Interests").font(.mono(11)).tracking(1.5).foregroundStyle(Hue.inkSecondary)
             if interests.isEmpty {
-                Text("Pick a few so we can quietly surface what fits around town.")
+                Text("Choose a few to see events, clubs, and trails that match.")
                     .font(.sans(14)).foregroundStyle(Hue.inkSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {

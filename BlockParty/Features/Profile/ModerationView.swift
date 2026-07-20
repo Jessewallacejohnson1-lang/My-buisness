@@ -76,7 +76,7 @@ struct ModerationView: View {
                                    detail: "Nothing is waiting for review.")
                     } else {
                         if !model.posts.isEmpty {
-                            sectionLabel("EVENTS & TRAILS")
+                            sectionLabel("Events & trails")
                             ForEach(model.posts) { post in
                                 reviewCard(
                                     title: post.trail.title,
@@ -87,7 +87,7 @@ struct ModerationView: View {
                             }
                         }
                         if !model.clubs.isEmpty {
-                            sectionLabel("CLUBS")
+                            sectionLabel("Clubs")
                             ForEach(model.clubs) { club in
                                 reviewCard(
                                     title: club.name,
@@ -144,7 +144,7 @@ struct ModerationView: View {
                 }
                 .buttonStyle(PressableStyle(scale: 0.96))
                 Button { Haptics.light(); onReject() } label: {
-                    Text("Not yet").font(.sansSemibold(14)).foregroundStyle(Hue.inkSecondary)
+                    Text("Reject").font(.sansSemibold(14)).foregroundStyle(Hue.inkSecondary)
                         .frame(maxWidth: .infinity).padding(.vertical, 10)
                         .background(RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
                             .stroke(Hue.hairline, lineWidth: 1))

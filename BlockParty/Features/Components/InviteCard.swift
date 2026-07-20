@@ -15,7 +15,7 @@ struct InviteCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("YOU'RE INVITED")
+            Text("You're invited")
                 .font(.mono(12)).tracking(2).foregroundStyle(Hue.inkSecondary)
             Text(title)
                 .font(.display(30)).foregroundStyle(Hue.ink)
@@ -25,7 +25,7 @@ struct InviteCard: View {
                 if let location, !location.isEmpty { row("mappin.and.ellipse", location, mono: false) }
             }
             Rectangle().fill(Hue.hairline).frame(height: 1).padding(.top, 2)
-            Text("Come with me — from Block Party, St. Joseph, MN")
+            Text("Come with me. Shared from Block Party in St. Joseph, MN.")
                 .font(.sans(13)).foregroundStyle(Hue.inkSecondary)
         }
         .padding(24)

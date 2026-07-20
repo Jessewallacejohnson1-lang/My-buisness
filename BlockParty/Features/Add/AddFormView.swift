@@ -58,10 +58,10 @@ struct AddFormView: View {
                 }
             }
             .onChange(of: model.posted) { _, done in if done { dismiss() } }
-            .alert("Thanks — it's in the queue", isPresented: $model.pendingNotice) {
-                Button("OK") { dismiss() }
+            .alert("Sent for review", isPresented: $model.pendingNotice) {
+                Button("Done") { dismiss() }
             } message: {
-                Text("A moderator will take a quick look before it goes live.")
+                Text("A moderator will review it before it appears.")
             }
         }
     }
@@ -84,7 +84,7 @@ struct AddFormView: View {
             VenueAutocompleteField(label: "Where", placeholder: "Church of St. Joseph, Minnesota St",
                                    text: $model.location, curated: KnownVenues.suggestions)
             categoryField
-            labeledField("Details", $model.details, placeholder: "Anything neighbors should know (optional)", multiline: true)
+            labeledField("Details (optional)", $model.details, placeholder: "Parking is behind the church", multiline: true)
 
             Stepper(value: $model.repeatWeeklyCount, in: 1...8) {
                 Text(model.repeatWeeklyCount == 1 ? "Doesn't repeat"
@@ -98,23 +98,23 @@ struct AddFormView: View {
 
     private var clubFields: some View {
         VStack(alignment: .leading, spacing: 16) {
-            labeledField("Host", $model.host, placeholder: "Who runs it?")
-            labeledField("When", $model.schedule, placeholder: "Every Saturday, 7am")
-            labeledField("Where", $model.location, placeholder: "Millstream Park (optional)")
-            labeledField("Vibe", $model.vibe, placeholder: "A one-line feel (optional)")
-            labeledField("About", $model.details, placeholder: "What is it? (optional)", multiline: true)
-            labeledField("What to expect", $model.expectations, placeholder: "What to bring / expect (optional)", multiline: true)
+            labeledField("Host", $model.host, placeholder: "St. Joe Running Club")
+            labeledField("When", $model.schedule, placeholder: "Saturdays at 7 AM")
+            labeledField("Where (optional)", $model.location, placeholder: "Millstream Park")
+            labeledField("What it's like (optional)", $model.vibe, placeholder: "Open to beginners")
+            labeledField("About (optional)", $model.details, placeholder: "Weekly group run around St. Joe", multiline: true)
+            labeledField("What to expect (optional)", $model.expectations, placeholder: "Bring water and running shoes", multiline: true)
         }
     }
 
     private var trailFields: some View {
         VStack(alignment: .leading, spacing: 16) {
-            labeledField("Trailhead", $model.location, placeholder: "Where does it start?")
+            labeledField("Trailhead", $model.location, placeholder: "Water tower on County Rd 2")
             HStack(spacing: 12) {
                 labeledField("Length", $model.length, placeholder: "3.2 mi")
                 labeledField("Difficulty", $model.difficulty, placeholder: "Easy")
             }
-            labeledField("Details", $model.details, placeholder: "Describe the route (optional)", multiline: true)
+            labeledField("Details (optional)", $model.details, placeholder: "Paved loop with one road crossing", multiline: true)
         }
     }
 
@@ -162,7 +162,7 @@ struct AddFormView: View {
     // MARK: - Pieces
 
     private var titlePlaceholder: String {
-        switch kind { case .event: return "Farmers Market"; case .club: return "Thursday Run Club"; case .trail: return "Wobegon loop" }
+        switch kind { case .event: return "Farmers market"; case .club: return "Thursday run club"; case .trail: return "Wobegon loop" }
     }
 
     private func labeledField(_ label: String, _ text: Binding<String>, placeholder: String, multiline: Bool = false) -> some View {
@@ -219,7 +219,7 @@ struct AddFormView: View {
         } label: {
             HStack(spacing: 8) {
                 if model.submitting { ProgressView().tint(Hue.surface) }
-                Text("Post").font(.sansSemibold(16))
+                Text(model.submitting ? "Posting…" : "Post").font(.sansSemibold(16))
             }
             .foregroundStyle(Hue.surface)
             .frame(maxWidth: .infinity).padding(.vertical, 14)

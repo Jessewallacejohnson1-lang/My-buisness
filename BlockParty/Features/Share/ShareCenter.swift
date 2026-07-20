@@ -153,19 +153,19 @@ final class ShareCenter: ObservableObject {
 
 extension SharePayload {
     static func event(title: String, dateLabel: String, time: String?, location: String?) -> SharePayload {
-        var text = "Come to \(title) with me — \(dateLabel)"
+        var text = "Come to \(title) with me. \(dateLabel)"
         if let time, !time.isEmpty { text += " at \(time)" }
         if let location, !location.isEmpty { text += ", \(location)" }
-        text += ". (via Block Party)"
-        return SharePayload(title: "SHARE THIS EVENT", shareText: text, includesImage: true) {
+        text += ". Shared from Block Party."
+        return SharePayload(title: "Share this event", shareText: text, includesImage: true) {
             InviteCard(title: title, dateLabel: dateLabel, time: time, location: location)
         }
     }
 
     static func appInvite() -> SharePayload {
         SharePayload(
-            title: "SHARE BLOCK PARTY",
-            shareText: "Come see what's happening in St. Joseph — Block Party has the town's calendar, today's happenings, and a live map of what's on. 🌿",
+            title: "Share Block Party",
+            shareText: "Come see what's happening in St. Joseph. Block Party has today's events, the town calendar, and a live map.",
             includesImage: true
         ) { AppInviteCard() }
     }

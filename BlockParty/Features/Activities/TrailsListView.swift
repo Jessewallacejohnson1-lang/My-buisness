@@ -39,7 +39,7 @@ struct TrailsListView: View {
                 }
 
                 if trails.isEmpty {
-                    Text("Community-posted trails will appear here once neighbors add them.")
+                    Text("Add the first trail for neighbors to find.")
                         .font(.sans(14))
                         .foregroundStyle(Hue.inkSecondary)
                         .multilineTextAlignment(.center)
@@ -133,7 +133,7 @@ private struct WobegonListCard: View {
                     dot
                     Text("65 mi paved").font(.mono(11)).foregroundStyle(Hue.ink)
                     dot
-                    Text("Bike · Run · Walk").font(.mono(11)).foregroundStyle(Hue.ink)
+                    Text("Bike · run · walk").font(.mono(11)).foregroundStyle(Hue.ink)
                 }
             }
             .padding(14)

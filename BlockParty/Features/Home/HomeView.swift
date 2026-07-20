@@ -110,7 +110,7 @@ struct HomeView: View {
                         .font(.displaySemi(22))
                         .foregroundStyle(Hue.ink)
                     Spacer()
-                    Text("\(model.today.count) thing\(model.today.count == 1 ? "" : "s")")
+                    Text("\(model.today.count) event\(model.today.count == 1 ? "" : "s")")
                         .font(.mono(12))
                         .monospacedDigit()
                         .foregroundStyle(Hue.inkSecondary)

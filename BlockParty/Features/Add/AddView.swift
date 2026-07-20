@@ -16,7 +16,7 @@ struct AddView: View {
     }
 
     private let kinds = [
-        Kind(addKind: .event, symbol: "calendar", title: "Event", subtitle: "Something happening on a day and time"),
+        Kind(addKind: .event, symbol: "calendar", title: "Event", subtitle: "An event with a date and time"),
         Kind(addKind: .club, symbol: "person.2", title: "Club", subtitle: "A group that meets again and again"),
         Kind(addKind: .trail, symbol: "figure.walk", title: "Trail", subtitle: "A walk, ride, or run worth sharing"),
     ]

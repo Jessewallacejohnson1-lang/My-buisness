@@ -186,7 +186,7 @@ struct SaveBookmarkButton: View {
                 .mapFloatShadow()
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(saved ? "Saved" : "Save")
+        .accessibilityLabel(saved ? "Remove from saved" : "Save for later")
     }
 }
 

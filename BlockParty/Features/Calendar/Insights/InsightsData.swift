@@ -87,12 +87,12 @@ struct InsightsData {
             ?? "Nothing on the calendar yet"
 
         let bento = [
-            Stat(title: "This Week", value: week,
-                 subA: Sub(label: "This Week", value: week), subB: Sub(label: "This Month", value: thisMonth)),
-            Stat(title: "This Month", value: thisMonth,
-                 subA: Sub(label: "This Month", value: thisMonth), subB: Sub(label: "Upcoming", value: total)),
+            Stat(title: "This week", value: week,
+                 subA: Sub(label: "This week", value: week), subB: Sub(label: "This month", value: thisMonth)),
+            Stat(title: "This month", value: thisMonth,
+                 subA: Sub(label: "This month", value: thisMonth), subB: Sub(label: "Upcoming", value: total)),
             Stat(title: "Upcoming", value: total,
-                 subA: Sub(label: "This Month", value: thisMonth), subB: Sub(label: "Upcoming", value: total)),
+                 subA: Sub(label: "This month", value: thisMonth), subB: Sub(label: "Upcoming", value: total)),
         ]
 
         let dayCount = cal.range(of: .day, in: .month, for: base)?.count ?? 30
@@ -127,9 +127,9 @@ struct InsightsData {
             heroSubtitle: "Next: St. Joseph Farmers Market · Fri, Jul 17",
             entriesTotal: 34,
             months: zip(letters, cnts).map { Month(letter: $0, count: $1) },
-            bento: [Stat(title: "This Week", value: 4, subA: Sub(label: "This Week", value: 4), subB: Sub(label: "This Month", value: 12)),
-                    Stat(title: "This Month", value: 12, subA: Sub(label: "This Month", value: 12), subB: Sub(label: "Upcoming", value: 34)),
-                    Stat(title: "Upcoming", value: 34, subA: Sub(label: "This Month", value: 12), subB: Sub(label: "Upcoming", value: 34))],
+            bento: [Stat(title: "This week", value: 4, subA: Sub(label: "This week", value: 4), subB: Sub(label: "This month", value: 12)),
+                    Stat(title: "This month", value: 12, subA: Sub(label: "This month", value: 12), subB: Sub(label: "Upcoming", value: 34)),
+                    Stat(title: "Upcoming", value: 34, subA: Sub(label: "This month", value: 12), subB: Sub(label: "Upcoming", value: 34))],
             grid: Grid(title: "July 2026", leadingBlanks: 3, dayCount: 31, counts: grid, todayDay: 15),
             isEmpty: false)
     }
@@ -137,9 +137,9 @@ struct InsightsData {
     static var empty: InsightsData {
         InsightsData(heroValue: "—", heroUnit: "", heroSubtitle: "Nothing on the calendar yet",
                      entriesTotal: 0, months: Array(repeating: Month(letter: "·", count: 0), count: 12),
-                     bento: [Stat(title: "This Week", value: 0, subA: Sub(label: "This Week", value: 0), subB: Sub(label: "This Month", value: 0)),
-                             Stat(title: "This Month", value: 0, subA: Sub(label: "This Month", value: 0), subB: Sub(label: "Upcoming", value: 0)),
-                             Stat(title: "Upcoming", value: 0, subA: Sub(label: "This Month", value: 0), subB: Sub(label: "Upcoming", value: 0))],
+                     bento: [Stat(title: "This week", value: 0, subA: Sub(label: "This week", value: 0), subB: Sub(label: "This month", value: 0)),
+                             Stat(title: "This month", value: 0, subA: Sub(label: "This month", value: 0), subB: Sub(label: "Upcoming", value: 0)),
+                             Stat(title: "Upcoming", value: 0, subA: Sub(label: "This month", value: 0), subB: Sub(label: "Upcoming", value: 0))],
                      grid: Grid(title: "", leadingBlanks: 0, dayCount: 30, counts: Array(repeating: 0, count: 30), todayDay: nil),
                      isEmpty: true)
     }

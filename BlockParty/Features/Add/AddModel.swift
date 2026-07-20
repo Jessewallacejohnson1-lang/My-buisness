@@ -12,7 +12,7 @@ enum AddKind: String, Identifiable, CaseIterable {
     case event, club, trail
     var id: String { rawValue }
     var title: String {
-        switch self { case .event: return "Event"; case .club: return "Club"; case .trail: return "Trail" }
+        switch self { case .event: return "event"; case .club: return "club"; case .trail: return "trail" }
     }
 }
 
@@ -68,11 +68,11 @@ final class AddModel: ObservableObject {
         let loc = location.trimmingCharacters(in: .whitespacesAndNewlines)
         let desc = details.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard !t.isEmpty else { error = "Please add a title."; return }
+        guard !t.isEmpty else { error = "Add a title."; return }
         switch kind {
-        case .event: guard !loc.isEmpty else { error = "Where is it happening?"; return }
-        case .trail: guard !loc.isEmpty else { error = "Where's the trailhead?"; return }
-        case .club:  guard !host.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { error = "Who hosts it?"; return }
+        case .event: guard !loc.isEmpty else { error = "Add a location."; return }
+        case .trail: guard !loc.isEmpty else { error = "Add the trailhead."; return }
+        case .club:  guard !host.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { error = "Add the host."; return }
         }
 
         submitting = true
@@ -91,7 +91,7 @@ final class AddModel: ObservableObject {
             imageUrl: imageUrl)
         let queued = reason == Moderation.queueSentinel
         if !ok && !queued {
-            error = reason.isEmpty ? "That didn't pass review — try rewording it." : reason
+            error = reason.isEmpty ? "Review flagged the wording. Revise the title or details and try again." : reason
             return
         }
         let status: ClubStatus = queued ? .pending : .approved
@@ -132,7 +132,7 @@ final class AddModel: ObservableObject {
             }
             if becamePending { pendingNotice = true } else { posted = true }
         } catch {
-            self.error = (error as? SupabaseError)?.message ?? "Couldn't post — please try again."
+            self.error = (error as? SupabaseError)?.message ?? "Couldn't post this \(kind.title). Check your connection and try again."
         }
     }
 }

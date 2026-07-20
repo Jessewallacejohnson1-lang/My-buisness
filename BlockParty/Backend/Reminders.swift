@@ -26,7 +26,7 @@ enum Reminders {
         guard let fire = fireDate(date: date, startTime: startTime), fire > Date() else { return }
         let content = UNMutableNotificationContent()
         content.title = title
-        content.body = "Starts soon in St. Joe."
+        content.body = "Starts in 45 minutes."
         content.sound = .default
         let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fire)
         let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)

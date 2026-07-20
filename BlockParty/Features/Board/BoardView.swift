@@ -59,7 +59,7 @@ struct BoardView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .background(Hue.paper)
-            .navigationTitle("The Board")
+            .navigationTitle("Town board")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -137,10 +137,10 @@ struct BoardView: View {
 
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Quiet on the board")
+            Text("Nothing posted yet")
                 .font(.displaySemi(20))
                 .foregroundStyle(Hue.ink)
-            Text("Nothing posted right now. Check back soon — new happenings show up here as neighbors and the town add them.")
+            Text("New events and town notices will show up here when they're added.")
                 .font(.sans(15))
                 .foregroundStyle(Hue.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)

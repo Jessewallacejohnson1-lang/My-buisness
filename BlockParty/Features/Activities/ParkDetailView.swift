@@ -60,7 +60,7 @@ struct ParkDetailView: View {
         VStack(alignment: .leading, spacing: 22) {
             // About
             VStack(alignment: .leading, spacing: 12) {
-                sectionLabel("ABOUT")
+                sectionLabel("About")
                 Text(park.description)
                     .font(.sans(15))
                     .foregroundStyle(Hue.inkSecondary)
@@ -71,7 +71,7 @@ struct ParkDetailView: View {
             // Amenities — acreage (if known) leads the list, then every real
             // feature transcribed from the park's city facilities page.
             VStack(alignment: .leading, spacing: 12) {
-                sectionLabel("AMENITIES")
+                sectionLabel("Amenities")
                 VStack(spacing: 0) {
                     ForEach(Array(amenityRows.enumerated()), id: \.offset) { i, row in
                         HStack(spacing: 10) {

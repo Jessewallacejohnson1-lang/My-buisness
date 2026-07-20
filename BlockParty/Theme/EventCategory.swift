@@ -40,14 +40,14 @@ enum EventCategory: String, CaseIterable, Identifiable, Hashable {
     var label: String {
         switch self {
         case .outdoors:  return "Outdoors"
-        case .musicArts: return "Music & Arts"
-        case .food:      return "Food & Drink"
-        case .families:  return "Families & Kids"
+        case .musicArts: return "Music & arts"
+        case .food:      return "Food & drink"
+        case .families:  return "Families & kids"
         case .faith:     return "Faith"
-        case .sports:    return "Sports & Fitness"
-        case .books:     return "Books & Learning"
+        case .sports:    return "Sports & fitness"
+        case .books:     return "Books & learning"
         case .service:   return "Service"
-        case .games:     return "Games & Social"
+        case .games:     return "Games & social"
         case .other:     return "Other"
         }
     }

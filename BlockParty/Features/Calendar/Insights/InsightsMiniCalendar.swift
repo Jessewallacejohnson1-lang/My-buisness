@@ -19,7 +19,7 @@ struct InsightsMiniCalendar: View {
     var dayCounts: [Int] = Array(repeating: 0, count: 31)   // per day 1…dayCount; >0 means that day has happenings
     var todayDay: Int? = nil                                 // day-of-month that is "today", if in this month
 
-    private let weekdays = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]
+    private let weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
     private let cardPadding: CGFloat = 18
     private let cellHeight: CGFloat = 40

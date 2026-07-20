@@ -22,11 +22,11 @@ struct NameStepView: View {
                 .padding(.top, 8)
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Let's get you set up")
+                Text("Your name on the block")
                     .font(.display(32))
                     .foregroundStyle(Hue.ink)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("What should we call you?")
+                Text("What should neighbors call you?")
                     .font(.sans(16))
                     .foregroundStyle(Hue.inkSecondary)
             }

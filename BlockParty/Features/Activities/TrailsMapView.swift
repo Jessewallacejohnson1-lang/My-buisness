@@ -157,7 +157,7 @@ struct TrailsMapView: View {
                     }
 
                     if trails.isEmpty {
-                        Text("Community-posted trails will appear here.")
+                        Text("Add the first trail for neighbors to find.")
                             .font(.sans(13))
                             .foregroundStyle(Hue.inkSecondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -266,7 +266,7 @@ private struct WobegonAnchorCard: View {
                         .font(.mono(11))
                         .foregroundStyle(Hue.ink)
                     dot
-                    Text("Bike · Run · Walk")
+                    Text("Bike · run · walk")
                         .font(.mono(11))
                         .foregroundStyle(Hue.ink)
                 }

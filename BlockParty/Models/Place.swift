@@ -38,7 +38,7 @@ enum Places {
             kw: ["downtown", "minnesota st", "local blend", "krewe", "bo diddley", "middy", "college ave", "bad habit"],
             description: [
                 "St. Joe's main street is a few walkable blocks of Minnesota Street — locally-owned coffee, a deli, a brewery taproom, and storefronts where the person behind the counter tends to know your order.",
-                "It's the town's living room: slow mornings at the coffeehouse, a summer farmers market, and a steady drift of students and families on foot.",
+                "The summer farmers market brings vendors downtown, and students and families make regular use of the sidewalks.",
             ],
             facts: [
                 PlaceFact(label: "Where", value: "Minnesota Street"),
@@ -72,7 +72,7 @@ enum Places {
             kw: ["chapel", "sacred heart", "monastery", "mass", "sisters"],
             description: [
                 "At the heart of Saint Benedict's Monastery stands the Sacred Heart Chapel, its copper dome a landmark you can spot from the highway.",
-                "Home to the Benedictine sisters who founded both the monastery and the college, it's a quiet, candle-warmed space open for prayer and song.",
+                "Home to the Benedictine sisters who founded both the monastery and the college, the chapel is open for prayer and song.",
             ],
             facts: [
                 PlaceFact(label: "Feature", value: "Copper dome"),
@@ -84,7 +84,7 @@ enum Places {
         Place(
             slug: "saint-johns",
             name: "Saint John's",
-            tagline: "The Abbey in Collegeville",
+            tagline: "The abbey in Collegeville",
             image: "saint-johns-abbey",
             kw: ["saint john", "st. john", "st john", "sju", "abbey", "collegeville"],
             description: [

@@ -46,7 +46,7 @@ struct TabLoadingHost: View {
     let isReady: Bool
     /// Identity of the active tab. A change re-arms the timing for the new tab.
     let resetKey: AnyHashable
-    var title: String = "Just a second"
+    var title: String = "Loading the town"
 
     // The branded rainbow cover is reserved for genuinely long waits — first
     // sign-in, a cold boot, a network stall — NOT routine tab switches (those get

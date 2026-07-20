@@ -9,12 +9,12 @@ import SwiftUI
 struct AppInviteCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("ST. JOSEPH, MN")
+            Text("St. Joseph, MN")
                 .font(.mono(12)).tracking(2).foregroundStyle(Hue.inkSecondary)
             Text("Come see what's happening in town")
                 .font(.display(28)).foregroundStyle(Hue.ink)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("The town calendar, today's happenings, and a live map of what's on — in one calm place.")
+            Text("Today's events, the town calendar, and a live map — all in one place.")
                 .font(.sans(15)).foregroundStyle(Hue.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             Rectangle().fill(Hue.hairline).frame(height: 1).padding(.top, 2)

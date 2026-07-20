@@ -272,7 +272,7 @@ struct MapSheet: View {
         .buttonStyle(PeekLineStyle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel(peekA11yLabel)
-        .accessibilityHint(peekIsRetry ? "Retries loading" : "Opens the list")
+        .accessibilityHint(peekIsRetry ? "Retries loading today's happenings" : "Opens the map list")
     }
 
     /// Today's events that are happening right now.
@@ -288,13 +288,13 @@ struct MapSheet: View {
         switch state {
         case .loading: return "Checking what's on…"
         case .offline: return "You're offline"
-        case .error:   return "Couldn't load today"
+        case .error:   return "Couldn't load today's happenings"
         case .loaded, .empty:
             let live = liveEvents
             if live.count == 1 { return live[0].title }
             if live.count > 1  { return "\(live.count) happening now" }
-            if events.isEmpty  { return "A quiet day in St. Joe" }
-            return "Nothing live right now"
+            if events.isEmpty  { return "Nothing happening yet today" }
+            return "Nothing happening right now"
         }
     }
 
@@ -308,8 +308,8 @@ struct MapSheet: View {
                 if let where0 = live[0].location ?? live[0].clubName { return "Live now · \(where0)" }
                 return "Live now"
             }
-            if live.count > 1 { return "Live across town right now" }
-            if events.isEmpty { return "Nothing on the map yet today" }
+            if live.count > 1 { return "Happening across town right now" }
+            if events.isEmpty { return "Use + to share the first event" }
             return "\(events.count) today — pull up to see"
         }
     }
@@ -379,7 +379,7 @@ struct MapSheet: View {
                 Text("Loading…").font(.sans(13)).foregroundStyle(Hue.inkSecondary)
             case .loaded, .empty:
                 if events.isEmpty {
-                    Text("A quiet day so far").font(.sans(13)).foregroundStyle(Hue.inkSecondary)
+                    Text("Nothing happening yet today").font(.sans(13)).foregroundStyle(Hue.inkSecondary)
                 } else {
                     Text("^[\(events.count) happening](inflect: true) today")
                         .font(.mono(13)).foregroundStyle(Hue.inkSecondary).monospacedDigit()
@@ -387,7 +387,7 @@ struct MapSheet: View {
             case .offline:
                 retryLabel("Offline — tap to retry", icon: "wifi.slash")
             case .error:
-                retryLabel("Couldn't load — tap to retry", icon: "arrow.clockwise")
+                retryLabel("Couldn't load today's happenings — tap to retry", icon: "arrow.clockwise")
             }
         }
     }
@@ -452,7 +452,7 @@ struct MapSheet: View {
             .shimmering()
         case .loaded, .empty:
             if events.isEmpty {
-                emptyState(icon: "moon.stars", text: "Nothing on the map yet today.")
+                emptyState(icon: "moon.stars", text: "No happenings on the map yet. Use + to share one.")
             } else {
                 ForEach(events) { ev in
                     TodayEventRow(event: ev, live: DateHelpers.isLiveNow(ev.startTime))
@@ -462,7 +462,7 @@ struct MapSheet: View {
                 }
             }
         case .offline, .error:
-            emptyState(icon: "wifi.slash", text: "Couldn't load today's happenings.")
+            emptyState(icon: "wifi.slash", text: "Couldn't load today's happenings. Check your connection and try again.")
         }
     }
 
@@ -510,7 +510,7 @@ struct MapSheet: View {
                 .background(Hue.paper, in: Circle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(isSaved ? "Saved" : "Save this place")
+        .accessibilityLabel(isSaved ? "Remove \(spot.name) from saved places" : "Save \(spot.name)")
     }
 
     private func detailContent(_ spot: Spot) -> some View {

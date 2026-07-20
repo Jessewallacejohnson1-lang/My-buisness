@@ -163,7 +163,7 @@ struct SocialAPI {
                                                         length: nil, description: nil, imageUrl: nil)
         guard check.ok else {
             let reason = check.reason == Moderation.queueSentinel
-                ? "Couldn't post that comment right now — try again in a moment."
+                ? "Couldn't post your comment. Wait a moment and try again."
                 : check.reason
             throw SupabaseError(message: reason, status: nil)
         }

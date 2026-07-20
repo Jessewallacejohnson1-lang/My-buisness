@@ -112,7 +112,7 @@ struct ExploreSearchOverlay: View {
                             .foregroundStyle(Hue.inkSecondary)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Clear")
+                    .accessibilityLabel("Clear search")
                 }
             }
             .padding(.horizontal, 16)

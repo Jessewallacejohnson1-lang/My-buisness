@@ -227,7 +227,7 @@ struct CalendarView: View {
                     VStack(spacing: 6) {
                         Text("Nothing on the calendar yet")
                             .font(.sansSemibold(15)).foregroundStyle(Hue.ink)
-                        Text("Anyone can add something — it's the whole town's calendar.")
+                        Text("Use + to share the first event with the town.")
                             .font(.sans(13)).foregroundStyle(Hue.inkSecondary)
                             .multilineTextAlignment(.center)
                     }
@@ -254,7 +254,7 @@ struct CalendarView: View {
     /// Quiet failure copy — shown only when a load failed with nothing to show.
     private var offlineNote: some View {
         VStack(spacing: 6) {
-            Text("Couldn't reach the calendar")
+            Text("Couldn't load the calendar")
                 .font(.sansSemibold(15)).foregroundStyle(Hue.ink)
             Text("Pull down to try again.")
                 .font(.sans(13)).foregroundStyle(Hue.inkSecondary)
@@ -373,8 +373,8 @@ private struct MonthSection: View {
     let onPick: (String) -> Void
 
     private static let symbols = [
-        ("SUN", "Sunday"), ("MON", "Monday"), ("TUE", "Tuesday"), ("WED", "Wednesday"),
-        ("THU", "Thursday"), ("FRI", "Friday"), ("SAT", "Saturday"),
+        ("Sun", "Sunday"), ("Mon", "Monday"), ("Tue", "Tuesday"), ("Wed", "Wednesday"),
+        ("Thu", "Thursday"), ("Fri", "Friday"), ("Sat", "Saturday"),
     ]
 
     var body: some View {
@@ -563,7 +563,7 @@ private struct AgendaRowCard: View {
 private struct CalendarLegendSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
-            Text("Reading the calendar")
+            Text("Calendar guide")
                 .font(.displaySemi(20))
                 .foregroundStyle(Hue.ink)
                 .padding(.top, 8)
@@ -576,8 +576,8 @@ private struct CalendarLegendSheet: View {
                     .background(Circle().fill(Hue.ink))
             }
 
-            legendRow(detailTitle: "A day with happenings",
-                      detail: "Tap any day to see what's planned.") {
+            legendRow(detailTitle: "A day with events",
+                      detail: "Tap any day to see its events.") {
                 Text("14")
                     .font(.system(size: 15, weight: .semibold)).monospacedDigit()
                     .foregroundStyle(Hue.ink)
@@ -585,11 +585,11 @@ private struct CalendarLegendSheet: View {
             }
 
             legendRow(detailTitle: "Live right now",
-                      detail: "A pulse above today means something's happening this minute.") {
+                      detail: "A pulse above today means an event is happening now.") {
                 LivePulseDot().frame(width: 32, height: 32)
             }
 
-            Text("This is the whole town's calendar — anyone can add to it.")
+            Text("Neighbors can share events on the town calendar.")
                 .font(.sans(13))
                 .foregroundStyle(Hue.inkSecondary)
 

@@ -16,12 +16,12 @@ struct UpcomingInsightsView: View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 20) {
                 section("Coming up") {
-                    StreakHeroCard(title: "Up Next", value: data.heroValue,
+                    StreakHeroCard(title: "Up next", value: data.heroValue,
                                    unit: data.heroUnit, subtitle: data.heroSubtitle)
                 }
                 section("At a glance") {
                     VStack(spacing: InsightsPalette.cardGap) {
-                        EntriesStatCard(line1: "The Year", line2: "Ahead",
+                        EntriesStatCard(line1: "The year", line2: "ahead",
                                         count: data.entriesTotal,
                                         monthData: data.months.map { ($0.letter, $0.count) },
                                         markerIndex: 0, expandable: false)

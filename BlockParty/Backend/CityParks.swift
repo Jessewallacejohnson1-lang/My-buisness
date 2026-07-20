@@ -47,7 +47,7 @@ enum CityParks {
              title: "Cloverdale Park",
              address: "800 Able St E, St. Joseph, MN 56374",
              acres: "0.48",
-             description: "A small residential tot lot with playground equipment, a play structure, and a shaded picnic shelter — a quiet corner park the city has eyed for a future meditative-garden redesign.",
+             description: "A small residential tot lot with playground equipment, a play structure, and a shaded picnic shelter. The city has considered the site for a future meditative-garden redesign.",
              features: ["Playground", "Play structure", "Picnic shelter"],
              lat: 45.564391, lon: -94.30518),
 
@@ -55,7 +55,7 @@ enum CityParks {
              title: "Hollow Park",
              address: "207 5th Ave NW, St. Joseph, MN 56374",
              acres: nil,
-             description: "A neighborhood play area tucked into a residential pocket on the northwest side of town.",
+             description: "A neighborhood play area in a residential pocket on the northwest side of town.",
              features: ["Playground"],
              lat: 45.5660231, lon: -94.3266238),
 

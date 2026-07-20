@@ -144,7 +144,7 @@ struct DayDetailView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(PressableStyle(scale: 0.92))
-        .accessibilityLabel("Close")
+        .accessibilityLabel("Close day")
     }
 
     // MARK: - Timeline
@@ -170,16 +170,16 @@ struct DayDetailView: View {
                 } else if s.isEmpty {
                     VStack(spacing: 12) {
                         VStack(spacing: 6) {
-                            Text("A clear day")
+                            Text("Nothing planned yet")
                                 .font(.sansSemibold(15)).foregroundStyle(Hue.ink)
-                            Text("Nothing on the calendar for this day yet.")
+                            Text("Add the first event to this day.")
                                 .font(.sans(13)).foregroundStyle(Hue.inkSecondary)
                         }
                         Button {
                             Haptics.light()
                             composing = true
                         } label: {
-                            Text("Add the first thing")
+                            Text("Add an event")
                                 .font(.sansSemibold(14)).foregroundStyle(.white)
                                 .padding(.horizontal, 18).padding(.vertical, 10)
                                 .background(Hue.ink,
@@ -481,6 +481,7 @@ private struct TimelineSlotView: View {
                 }
                 .buttonStyle(PressableStyle(scale: 0.9))
                 .animation(.spring(response: 0.3, dampingFraction: 0.7), value: ev.rsvpd)
+                .accessibilityLabel(ev.rsvpd ? "Cancel RSVP for \(ev.title)" : "RSVP to \(ev.title)")
             }
         }
     }
@@ -508,7 +509,7 @@ private struct TimelineSlotView: View {
                     .contentShape(Circle())
             }
             .buttonStyle(PressableStyle(scale: 0.9))
-            .accessibilityLabel("Add something at this time")
+            .accessibilityLabel("Add an event to this day")
         }
         .frame(minHeight: 48)
     }
@@ -575,7 +576,7 @@ private struct EventDescriptionSheet: View {
                         .foregroundStyle(Hue.ink)
                         .fixedSize(horizontal: false, vertical: true)
                 } else {
-                    Text("No description yet.")
+                    Text("No details provided.")
                         .font(.sans(14))
                         .foregroundStyle(Hue.inkSecondary)
                 }
@@ -585,7 +586,7 @@ private struct EventDescriptionSheet: View {
                         Haptics.light()
                         onToggleRsvp()
                     } label: {
-                        Text(event.rsvpd ? "Going" : "RSVP")
+                        Text(event.rsvpd ? "Cancel RSVP" : "RSVP")
                             .font(.sansSemibold(15))
                             .foregroundStyle(event.rsvpd ? .white : Hue.ink)
                             .frame(maxWidth: .infinity)
@@ -596,6 +597,7 @@ private struct EventDescriptionSheet: View {
                                 .stroke(event.rsvpd ? Color.clear : Hue.ink.opacity(0.4), lineWidth: 1))
                     }
                     .buttonStyle(PressableStyle(scale: 0.97))
+                    .accessibilityLabel(event.rsvpd ? "Cancel RSVP for \(event.title)" : "RSVP to \(event.title)")
                     .padding(.top, 4)
                 }
 

@@ -124,11 +124,12 @@ struct ProfileView: View {
     private var topBar: some View {
         HStack {
             circleButton("xmark") { close() }
+                .accessibilityLabel("Close profile")
             Spacer()
             Button { Haptics.selection(); editing = true } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "pencil").font(.system(size: 13, weight: .semibold))
-                    Text("Edit").font(.sansSemibold(15))
+                    Text("Edit profile").font(.sansSemibold(15))
                 }
                 .foregroundStyle(Hue.ink)
                 .padding(.horizontal, 15)
@@ -139,6 +140,7 @@ struct ProfileView: View {
                     .stroke(Hue.ink.opacity(0.18), lineWidth: 1))
             }
             .buttonStyle(PressableStyle())
+            .accessibilityLabel("Edit profile")
         }
         .padding(.horizontal, 16)
         .padding(.top, 12)
@@ -174,6 +176,7 @@ struct ProfileView: View {
                 }
             }
             .buttonStyle(PressableStyle())
+            .accessibilityLabel("Edit profile picture")
 
             VStack(spacing: 6) {
                 Text(model.displayName.isEmpty ? "Add your name" : model.displayName)
@@ -245,7 +248,7 @@ struct ProfileView: View {
         let face = FeatureFace(icon: "calendar",
                                value: "\(model.goingCount)",
                                label: model.goingCount == 1 ? "plan" : "plans",
-                               subtitle: hasPlans ? nextPlanLabel : "Nothing yet",
+                               subtitle: hasPlans ? nextPlanLabel : "No plans yet",
                                coral: hasPlans)
         if hasPlans {
             Button { Haptics.light(); toggle(.events) } label: { face }
@@ -264,7 +267,7 @@ struct ProfileView: View {
 
     private var aroundTown: some View {
         VStack(alignment: .leading, spacing: 10) {
-            groupLabel("AROUND TOWN")
+            groupLabel("Around town")
             GlassGroup {
                 ProfileRow(icon: "calendar",
                            title: "Events you're going to",
@@ -350,11 +353,11 @@ struct ProfileView: View {
 
     private var settingsGroup: some View {
         VStack(alignment: .leading, spacing: 10) {
-            groupLabel("SETTINGS")
+            groupLabel("Settings")
             GlassGroup {
                 if model.isAdmin {
                     ProfileRow(icon: "checkmark.shield", title: "Review queue",
-                               subtitle: "Approve what neighbors submit",
+                               subtitle: "Approve or reject neighbor submissions",
                                action: { Haptics.selection(); showModeration = true })
                     ProfileRowDivider()
                 }
@@ -423,8 +426,9 @@ struct AboutBlockPartySheet: View {
                         .frame(width: 34, height: 34).background(Hue.fill, in: Circle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Close About Block Party")
             }
-            Text("One calm place for everything happening in St. Joseph, Minnesota — a daily look at town, a shared calendar anyone can add to, a live town map, and small nudges to get out and meet your neighbors.")
+            Text("Block Party puts today's events, the town calendar, and a live map of St. Joseph in one place. Neighbors can share events, clubs, and trails.")
                 .font(.sans(16)).foregroundStyle(Hue.inkSecondary).lineSpacing(4)
                 .fixedSize(horizontal: false, vertical: true)
             Text(versionLine).font(.monoMedium(13)).monospacedDigit().foregroundStyle(Hue.inkSecondary)

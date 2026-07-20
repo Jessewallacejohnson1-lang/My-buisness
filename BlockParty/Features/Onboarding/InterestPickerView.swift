@@ -44,7 +44,7 @@ struct InterestPickerView: View {
                         .font(.display(28))
                         .foregroundStyle(Hue.ink)
                         .fixedSize(horizontal: false, vertical: true)
-                    Text("Pick a few — we'll quietly surface what fits around St. Joe.")
+                    Text("Pick a few. We'll show events, clubs, and trails that match.")
                         .font(.sans(15))
                         .foregroundStyle(Hue.inkSecondary)
                 }

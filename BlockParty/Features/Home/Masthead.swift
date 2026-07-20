@@ -83,7 +83,7 @@ struct Masthead: View {
             }
             .buttonStyle(.plain)
             .scaleEffect(bounce ? 1.12 : 1)
-            .accessibilityLabel("Menu")
+            .accessibilityLabel("Open town menu")
         }
     }
 

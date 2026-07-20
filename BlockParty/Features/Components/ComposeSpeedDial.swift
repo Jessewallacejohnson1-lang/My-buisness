@@ -214,7 +214,7 @@ struct ComposeSpeedDial: View {
             }
         }
         .buttonStyle(PressableStyle(scale: 0.90, haptic: true))
-        .accessibilityLabel(isOpen ? "Close" : "Add to the town")
+        .accessibilityLabel(isOpen ? "Close add menu" : "Add to St. Joe")
     }
 
     // MARK: Actions

@@ -51,7 +51,7 @@ enum PlaceFamily: String, Codable, Hashable, CaseIterable {
     /// Accessibility / label word for the family.
     var label: String {
         switch self {
-        case .food:     return "Food & Drink"
+        case .food:     return "Food & drink"
         case .business: return "Business"
         }
     }
