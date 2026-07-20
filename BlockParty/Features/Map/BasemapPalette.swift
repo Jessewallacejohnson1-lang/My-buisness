@@ -2,10 +2,22 @@
 //  BasemapPalette.swift
 //  Block Party — the map's ONE static cartography palette.
 //
-//  A neutral grayscale ramp continuous with the app's ink-on-paper system. Land,
-//  parks, water, buildings, and roads stay separable by value alone; labels share
-//  the app's secondary ink and retain the light-v11 style's white halos. Raw hexes
-//  live here only where the app palette has no matching Hue token.
+//  THE MAP IS CONTENT, NOT CHROME. The app's UI is monochrome ink-on-paper and
+//  photographs carry the colour; the map is the same kind of thing — a picture of
+//  the town — so its NATURAL features keep their real colours. Parks are green and
+//  water is blue here for the same reason they are on every map ever made: on a
+//  town map those two are the primary landmarks, and they are how you orient.
+//
+//  This replaced a fully grayscale ramp that made land, parks and water sit within
+//  ~6% luminance of each other. It was elegant and it did not work: the Sauk River
+//  and the parks were both faint grey shapes, so the one screen whose BACKGROUND is
+//  the content lost its landmarks.
+//
+//  Built form stays neutral on purpose. Buildings and roads take app tokens, so
+//  colour is spent only on the natural features that carry meaning, and ink markers
+//  still dominate everything. Labels share the app's secondary ink and keep
+//  light-v11's white halos. Raw hexes live here only where no Hue token fits —
+//  this file plus BlockPartyColor.swift are the only two allowed to hold them.
 //
 //  There is deliberately NO time/season/weather modulation. The base map looks the
 //  same at every hour, by design — one calm base layer. (The old "Living Basemap"
@@ -18,10 +30,12 @@ import MapboxMaps
 
 enum BasemapPalette {
     // MARK: Ground & natural features
+    // Land stays the app's paper so the map reads as continuous with the app, and
+    // the two natural features carry real hue — muted, so ink markers still win.
     static let land     = Hue.paper.hexString   // app background continues into the map
-    static let green    = "#EFEFEC"             // parks: one value step below land
-    static let water    = "#E4E4E0"             // water: darker again, without hue
-    static let building = Hue.fill.hexString    // inert built-form fill
+    static let green    = "#D9E8C8"             // parks & green space — sage, not vivid
+    static let water    = "#A8D8EE"             // water — soft sky; the river must read
+    static let building = Hue.fill.hexString    // built form stays neutral, on token
 
     // MARK: Road network
     // light-v11 consolidates every road class (motorway → residential) into ONE

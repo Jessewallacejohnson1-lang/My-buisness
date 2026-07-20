@@ -108,6 +108,10 @@ The house pattern is a `SomethingView` paired with a `SomethingModel` (`@MainAct
 
 Do **not** hardcode hex/spacing that a `Hue`/metric token already covers. **Exactly one** file may hold raw hexes now: `Features/Map/BasemapPalette.swift`, the grayscale cartography ramp (land `#FAFAF7` · parks `#EFEFEC` · water `#E4E4E0` · building `#F1F1EF` · roads `#FFFFFF`), applied once on style load via `BasemapPalette.recolor(_:)` — which the onboarding map also calls, so there is no second palette. Those five must stay separable by **value**, since hue is gone. `SpotCategory.tint`, `PlaceFamily.tint`, and `EventCategory.tint` all resolve to `Hue.ink`: **category is carried by the glyph, not by colour.**
 
+### Strategy playbook — `docs/playbook.md`
+
+**`docs/playbook.md` ("Steal This") is the competitive playbook behind the brand and rollout decisions — read it before design or launch-strategy work.** Partiful is the north-star model (monochrome action hierarchy, photography as the only colour layer, SMS-first not push-first); Front Porch Forum / Nextdoor set the community mechanics (verified real-name signup, per-town go-live thresholds, seed content *before* users arrive, no raw social feed); Instagram / Airbnb / Twitter→X set the rebrand rules (keep the bundle id and App Store record, phase the change, explain it). The `block-party-brand` skill encodes the visual tokens; **where the two disagree, the skill wins** — notably the playbook's 3-state green/amber/red status palette, which the current token set bans and which is still Jesse's call.
+
 ## Conventions & gotchas
 
 - **On-brand bar** (inherited from the Expo app): warm, calm, quiet, neighborly, hyper-local. No badges/streaks/feeds/notification-spam. **Real data only — never seeded/inflated counts.** Voice is a neighbor, not a brand.

@@ -97,7 +97,20 @@ These are consequences of removing the accent colour. None is a bug; each is
 a judgement call for Jesse. **Do not "fix" any of them by reintroducing a
 hue** — the fix, if wanted, is weight, size, value, or spacing.
 
-### Basemap contrast — recommend widening
+### RESOLVED 2026-07-20 — the basemap is colourful again
+Jesse's call: **keep the UI white/monochrome, but the map keeps real colour.**
+Parks `#D9E8C8`, water `#A8D8EE`; land stays `Hue.paper` and buildings/roads stay
+on tokens, so colour is spent only on the natural features that carry meaning and
+ink markers still dominate.
+
+The framing that makes this consistent rather than an exception-by-exception
+carve-out: **the map is content, not chrome** — the same category as photography.
+Chrome is monochrome; content keeps its colour.
+
+The original grayscale attempt and its failure are recorded below, because the
+reasoning still applies to any future "make it quieter" instinct.
+
+### Superseded: basemap contrast — the grayscale attempt
 The grayscale ramp is land `#FAFAF7` → parks `#EFEFEC` → water `#E4E4E0`:
 about a 6% luminance spread. The Sauk River and the parks are visible but
 faint, where before they were sky-blue and sage and read instantly. The map
