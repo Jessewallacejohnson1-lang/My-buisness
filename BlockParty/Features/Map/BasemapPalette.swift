@@ -69,6 +69,23 @@ enum BasemapPalette {
             try? map.setLayerProperty(for: id, property: "text-color", value: labelInk)
         }
 
+        // Hide the basemap's OWN business labels. light-v11 ships a `poi-label` symbol layer
+        // (source-layer `poi_label`) that names cafés, shops and B&Bs — the exact venues we
+        // already draw ourselves from the `places` table, with our own badge + halo'd label.
+        // Left on, every POI's name prints TWICE: our bold ink label and Mapbox's italic grey
+        // one, overlapping. At mid zoom that doubled text sits under our badges and reads as
+        // two stacked, untappable pins — which is how this was first reported.
+        //
+        // Mapbox's own label collision can't help: our markers are SwiftUI view annotations
+        // drawn above the map canvas, so the style never sees them and cannot yield to them.
+        // Hiding the layer is the fix; `POICluster.labelledPOIs` already de-conflicts OUR
+        // labels against each other, the civic pins, the cluster bubbles and the app chrome.
+        //
+        // Trade-off, accepted deliberately: this also drops basemap labels for venues we do
+        // NOT carry. That is the correct side to err on — a name we render is tappable and
+        // opens a real detail sheet, while a basemap name is inert text that looks tappable.
+        try? map.setLayerProperty(for: "poi-label", property: "visibility", value: "none")
+
         // Move the SETTLEMENT (town/city) names DOWN, out from under the cluster bubbles.
         // A town's POI cluster necessarily sits on the town centroid — exactly where Mapbox
         // anchors the town name — so the biggest bubble always landed on "St. Joseph". Mapbox's

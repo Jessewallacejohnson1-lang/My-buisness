@@ -4,6 +4,41 @@ Branch: `mapbox-map-tab` | Base: `main` (d45ad7b)
 
 ---
 
+## Duplicate POI labels — basemap `poi-label` hidden (2026-07-20)
+
+**Reported as "overlapping / untappable pins."** It was not pin-on-pin: `light-v11`
+ships its own `poi-label` symbol layer (source-layer `poi_label`) naming the same
+cafés/shops/B&Bs we draw from the `places` table. Every POI's name printed TWICE —
+our bold ink label plus Mapbox's italic grey one, overlapping. At mid zoom that
+doubled text sits under our badges and reads as two stacked pins.
+
+**Ruled out along the way** (each disproven with evidence, not assumed):
+- *Unapplied spread migration* — `20260717130000_places_spread_multitenant.sql` IS
+  applied; queried the live row for `hair-by-hanna` and it matches the migration.
+- *Exact-coordinate collisions* — zero in the live `places` table (91 rows).
+- *A clustering bug* — `POICluster.compute` guarantees any two seeds are `> radius`
+  apart, and the pair in question (The Estates ↔ Jupiter Moon, 26.6 m) measured
+  18.3 pt at z16.2 and 45 pt at z17.5, clustering and splitting exactly as predicted.
+  Verified by screenshot at z15.0 / z16.2 / z17.5.
+
+**Fix:** one line in `BasemapPalette.recolor` — `poi-label` → `visibility: none`.
+Layer id confirmed against the live style JSON first, because `try?` swallows a
+wrong id silently. Our own labels already de-conflict via `POICluster.labelledPOIs`.
+
+**KNOWN TRADE-OFF, unresolved:** this also drops basemap names we do not carry —
+notably **"College of Saint Benedict"** at town zoom. That is in tension with the
+`b1bef1a` principle that a town map's landmarks are how you orient. The surgical
+alternative is to FILTER `poi-label` by class (keep education/park/landmark, drop
+the food/shopping/services classes we render ourselves) rather than hide it
+wholesale. Not done — it is Jesse's call which way to go.
+
+**Data note, separate from this bug:** 9 pairs in `places` sit within 12 m, and
+several were *created* by the spread migration — it fans a building's tenants onto a
+fixed 11 m circle without checking spacing against unrelated nearby places
+(`Two Bits ↔ White Peony` 4.8 m, `Newsleaders ↔ St Joseph Meat Market` 5.0 m). Not
+currently a visual defect (clustering absorbs them), but a future spread migration
+should solve globally, not per-building.
+
 ## FIX 1 — Map style → light-v11
 
 **Change:** `MAP_STYLE_URL = "mapbox://styles/mapbox/light-v11"`
