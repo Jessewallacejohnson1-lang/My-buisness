@@ -233,8 +233,8 @@ private struct IntroPinModel: Identifiable {
 // MARK: - Real map porthole
 //
 // A live Mapbox map of downtown Saint Joseph clipped into a white-rimmed disc,
-// styled with the same cartography as SJMapView (blue water, green parks, grey
-// buildings). Non-interactive — it's a preview, not a control.
+// styled with the same neutral cartography as SJMapView. Non-interactive — it's a
+// preview, not a control.
 
 private struct PortholeMap: View {
     let size: CGFloat
@@ -246,7 +246,7 @@ private struct PortholeMap: View {
         MapReader { proxy in
             Map(viewport: $viewport)
                 .mapStyle(MapStyle(uri: StyleURI(rawValue: "mapbox://styles/mapbox/light-v11")!))
-                .onStyleLoaded { _ in applyCartography(proxy) }
+                .onStyleLoaded { _ in BasemapPalette.recolor(proxy.map) }
         }
         // Render taller than the clip circle so Mapbox's bottom-edge logo +
         // attribution fall outside the porthole (attribution lives on the real
@@ -265,18 +265,6 @@ private struct PortholeMap: View {
         .overlay(Circle().strokeBorder(Hue.hairline.opacity(0.7), lineWidth: 1).padding(3))
         .allowsHitTesting(false)
         .shadow(color: .black.opacity(0.16), radius: 22, x: 0, y: 10)
-    }
-
-    /// Same base-map colors as the live map, so the porthole is a true preview.
-    private func applyCartography(_ proxy: MapProxy) {
-        guard let map = proxy.map else { return }
-        try? map.setLayerProperty(for: "water",    property: "fill-color", value: "#4A90D9")
-        try? map.setLayerProperty(for: "waterway", property: "line-color", value: "#4A90D9")
-        for id in ["landuse", "national-park", "landcover", "park"] {
-            try? map.setLayerProperty(for: id, property: "fill-color", value: "#7AB870")
-        }
-        try? map.setLayerProperty(for: "building", property: "fill-color",         value: "#B8B8B8")
-        try? map.setLayerProperty(for: "building", property: "fill-outline-color", value: "#B8B8B8")
     }
 }
 

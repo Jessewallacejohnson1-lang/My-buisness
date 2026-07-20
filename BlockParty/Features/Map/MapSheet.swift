@@ -232,8 +232,7 @@ struct MapSheet: View {
         UnevenRoundedRectangle(topLeadingRadius: Radius.card,
                                topTrailingRadius: Radius.card,
                                style: .continuous)
-            // Frosted glass (Apple-Maps surface) — the live map blurs through the sheet.
-            .fill(.regularMaterial)
+            .fill(Hue.surface)
             .mapSheetShadow()
     }
 

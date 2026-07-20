@@ -384,36 +384,9 @@ struct SJMapView: View {
         }
     }
 
-    /// Warm the flat light-v11 basemap to the static Life360-reference palette
-    /// (BasemapPalette — no modulation). Layer ids are verified against light-v11's
-    /// actual style JSON (`GET styles/v1/mapbox/light-v11`) — it's a much simpler
-    /// style than Mapbox Streets (one consolidated `land`/`road-simple`/`road-label-simple`
-    /// layer apiece, no per-class road/motorway split), so don't reach for Streets'
-    /// layer names here without checking. Each set is still best-effort (try?) since
-    /// a given layer id may not exist in every style version.
+    /// Apply the shared static palette once after light-v11 finishes loading.
     private func recolorBasemap(_ map: MapboxMap?) {
-        guard let map else { return }
-        let p = BasemapPalette.self
-        try? map.setLayerProperty(for: "land", property: "background-color", value: p.land)
-        // Parks / grass / woods (fill layers) — light-v11 only has these two.
-        for id in ["landuse", "national-park"] {
-            try? map.setLayerProperty(for: id, property: "fill-color", value: p.green)
-        }
-        try? map.setLayerProperty(for: "water",    property: "fill-color", value: p.water)
-        try? map.setLayerProperty(for: "waterway", property: "line-color", value: p.water)
-        try? map.setLayerProperty(for: "building", property: "fill-color",         value: p.building)
-        try? map.setLayerProperty(for: "building", property: "fill-outline-color", value: p.building)
-        // Roads — one consolidated layer in light-v11 (width-differentiated by class,
-        // not color; see BasemapPalette.road's comment).
-        try? map.setLayerProperty(for: "road-simple", property: "line-color", value: p.road)
-        // Labels — the reference's road/place names read as a bold, dark charcoal,
-        // not the style default's light grey. Reuse Hue.inkSecondary rather than duplicate
-        // its hex (it's a near-exact match for the reference's sampled label ink,
-        // #555553).
-        let labelInk = Hue.inkSecondary.hexString
-        for id in ["road-label-simple", "settlement-major-label", "settlement-minor-label", "settlement-subdivision-label"] {
-            try? map.setLayerProperty(for: id, property: "text-color", value: labelInk)
-        }
+        BasemapPalette.recolor(map)
     }
 
     // MARK: Top chrome — filter · town pill · compose (replaces the title header)
@@ -456,7 +429,7 @@ struct SJMapView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
-        .background(.thinMaterial, in: Capsule())      // §8: chips = thin material
+        .background(Hue.surface, in: Capsule())
         .overlay(Capsule().stroke(Hue.hairline, lineWidth: 1))
         .mapFloatShadow()
         .animation(Motion.smooth, value: model.townLabel)
@@ -514,18 +487,17 @@ struct SJMapView: View {
         .accessibilityLabel("Recenter map")
     }
 
-    /// The shared chrome bubble — 44px white circle, hairline (coral when active),
-    /// ink line icon.
+    /// The shared chrome bubble — 44px surface circle, hairline, ink line icon.
     private func chromeCircle(icon: String, active: Bool = false) -> some View {
         Circle()
-            .fill(.regularMaterial)                     // §8: floating buttons = regular material
+            .fill(Hue.surface)
             .frame(width: 44, height: 44)
-            .overlay(Circle().stroke(active ? Hue.ink : Hue.hairline, lineWidth: active ? 1.5 : 1))
+            .overlay(Circle().stroke(Hue.hairline, lineWidth: 1))
             .mapFloatShadow()
             .overlay(
                 Image(systemName: icon)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(active ? Hue.ink : Hue.ink)
+                    .font(.system(size: 16, weight: active ? .semibold : .medium))
+                    .foregroundStyle(Hue.ink)
             )
     }
 
