@@ -32,7 +32,7 @@ open ones are collected under **Decisions for the gate** at the bottom.
 | **Facepile** | komoot "480 liked this" + overlapping avatars bottom-left; Strava "You and 174 others" | **Keep spec.** 24pt avatars, 8pt overlap, max 3, `Sam and 3 others are going` in `inkSecondary`. Add a 1.5pt `paper` separator ring between avatars for legibility. |
 | **Like animation** | IG double-tap = big white heart burst, center | **Keep spec.** Tap: 1.0→1.3→1.0 `spring(0.3, 0.5)`, fills on upswing. Double-tap: white heart 0→1.15→1.0 `spring(0.3, 0.55)`, hold 500ms, fade 200ms. |
 | **Save** | Airbnb heart top-right on image; bookmark is standard | **Keep spec.** Bookmark translates down 4pt + fills, returns `spring(0.35, 0.7)`. |
-| **Join / going button** | Partiful delight, but gradient bubbles + emoji = far too colorful for us | **Reject Partiful's palette.** Keep spec's 44pt circular `ink` "+" → checkmark morph + ring burst + success haptic. Borrow only the *count* idea → surface going count in the facepile line. **Circle-vs-square is Decision 1.** |
+| **Join / going button** | Partiful delight, but gradient bubbles + emoji = far too colorful for us | **Reject Partiful's palette.** 44pt **rounded-square** (radius 12) `ink` "+" → checkmark morph + **square** ring-stroke burst + success haptic (Decision 1 → square, on-brand). Borrow only the *count* idea → surface going count in the facepile line. |
 | **Count animation** | Partiful shows a live "1 Going" capsule | Going count rolls up via `.numericText()`; new avatar pops into facepile scale 0→1.0 `spring(0.35, 0.6)`. |
 | **Empty state** | Strava "Be the first to give kudos!" — inline, no box | **Keep spec.** One quiet inline row, 15pt `inkSecondary`: `Nothing planned today` + 28pt ghost "+". No card. On-voice: also OK → "Nobody's planned anything today." |
 | **Section labels** | Cosmos/Airbnb: near-zero section chrome | **Keep spec.** Micro-labels only, 11pt semibold uppercase `ink` @ 35%, tracking 1.0, 32pt top pad: `TODAY` / `THIS WEEK` / `LATER`. Kill the H2s and the boxed empty card. |
@@ -55,21 +55,14 @@ open ones are collected under **Decisions for the gate** at the bottom.
 5. **Voice:** greeting header follows `Evening on the block, Jesse.` (time + "on the
    block" + first name). No cozy/hygge language anywhere.
 
-## Decisions for the gate (need Jesse before Phase 1)
+## Decisions (locked at Phase 0 gate)
 
-1. **Join button shape — circle vs square.** Spec centers a *circular* "+" FAB with a
-   ring burst. Brand is a square-frame system ("square-framed marks, not circles,
-   wherever there's a choice"; the block glyph is the mark). This is the single biggest
-   motif tension. Options: (a) keep circular FAB — iOS-conventional, matches the spec's
-   morph choreography as written; (b) rounded-square `12` add button — on-brand, morph
-   still works (plus→check rotate + burst). **My lean: (a)** for the FAB exception, but
-   it's your call.
-2. **Title overlaid vs below the image.** Every photo-card reference (Airbnb, komoot,
-   Strava) puts the title *below* the image; the spec overlays it on a scrim. Overlay is
-   more image-forward and I recommend keeping it — confirming you're good with diverging
-   from the references here, since acceptance item 6 asks it to read side-by-side with them.
-3. **Likes shown once, on the heart** (see Like-count row). Confirm dropping `· 12 likes`
-   from the facepile line so likes aren't printed twice.
+1. **Join button = rounded-square**, radius 12, `ink` fill (not a circle). Plus→check
+   rotate morph and the ring-burst are preserved; the burst is a **square** stroke.
+2. **Title = overlaid on the scrim** (spec), not below the image. Intentional divergence
+   from Airbnb/komoot/Strava for a more image-forward card.
+3. **Likes render once — on the action-row heart** (`.numericText()`). The facepile line
+   carries the "going" avatars + `Sam and 3 others are going` only; no `· 12 likes` there.
 
 ---
-*Gate: stop here for review before Phase 1.*
+*Phase 0 gate passed. Phase 1 (feed card) proceeds under these locks.*
