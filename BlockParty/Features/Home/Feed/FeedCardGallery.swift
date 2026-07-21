@@ -11,13 +11,36 @@ struct FeedCardGallery: View {
         ScrollView {
             LazyVStack(spacing: 28) {
                 ForEach(Self.samples) { item in
-                    FeedEventCard(item: item)
+                    let isFirstCard = item.id == Self.samples.first?.id
+                    FeedEventCard(
+                        item: item,
+                        comments: isFirstCard ? Self.sampleComments : [],
+                        onShare: isFirstCard ? shareAction(for: item) : nil,
+                        debugAutoplay: isFirstCard && debugAutoplayEnabled
+                    )
                 }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 28)
         }
         .background(Hue.paper.ignoresSafeArea())
+    }
+
+    private var debugAutoplayEnabled: Bool {
+        ProcessInfo.processInfo.arguments.contains("-feed-card-autoplay")
+    }
+
+    private func shareAction(for item: FeedCardItem) -> () -> Void {
+        {
+            ShareCenter.shared.present(
+                .event(
+                    title: item.title,
+                    dateLabel: item.dateChip,
+                    time: item.shareTime,
+                    location: item.shareLocation
+                )
+            )
+        }
     }
 
     private static let samples: [FeedCardItem] = {
@@ -39,7 +62,7 @@ struct FeedCardGallery: View {
                 goingAvatars: [memorialPark, localBlend, farmersMarket],
                 goingSummary: "Sam and 3 others are going",
                 likeCount: 12,
-                isLiked: true,
+                isLiked: false,
                 isSaved: false,
                 isJoined: false
             ),
@@ -105,6 +128,33 @@ struct FeedCardGallery: View {
             )
         ]
     }()
+
+    private static let sampleComments = [
+        EventComment(
+            id: "gallery-comment-1",
+            body: "We’ll bring a picnic blanket and a few lawn games.",
+            createdAt: Date(timeIntervalSinceReferenceDate: 805_200_000),
+            authorId: "gallery-sam",
+            authorName: "Sam",
+            authorAvatar: nil
+        ),
+        EventComment(
+            id: "gallery-comment-2",
+            body: "Is the east entrance the easiest place to meet?",
+            createdAt: Date(timeIntervalSinceReferenceDate: 805_203_600),
+            authorId: "gallery-maya",
+            authorName: "Maya",
+            authorAvatar: nil
+        ),
+        EventComment(
+            id: "gallery-comment-3",
+            body: "Yes — right by the pavilion. See everyone Friday!",
+            createdAt: Date(timeIntervalSinceReferenceDate: 805_207_200),
+            authorId: "gallery-lee",
+            authorName: "Lee",
+            authorAvatar: nil
+        )
+    ]
 
     private static func bundledPhoto(_ name: String) -> URL {
         Bundle.main.url(forResource: name, withExtension: "jpg")

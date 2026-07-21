@@ -8,6 +8,41 @@ import UIKit
 
 struct FeedEventCard: View {
     let item: FeedCardItem
+    let comments: [EventComment]
+    let onLike: ((Bool) -> Void)?
+    let onSave: ((Bool) -> Void)?
+    let onComment: (() -> Void)?
+    let onShare: (() -> Void)?
+    let debugAutoplay: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    @State private var actionState: FeedCardActionState
+    @State private var commentState: FeedCommentState
+    @State private var commentsPresented = false
+    @State private var burstScale: CGFloat = 0
+    @State private var burstOpacity: Double = 0
+    @State private var burstGeneration = 0
+    @State private var autoplayStep = 0
+
+    init(
+        item: FeedCardItem,
+        comments: [EventComment] = [],
+        onLike: ((Bool) -> Void)? = nil,
+        onSave: ((Bool) -> Void)? = nil,
+        onComment: (() -> Void)? = nil,
+        onShare: (() -> Void)? = nil,
+        debugAutoplay: Bool = false
+    ) {
+        self.item = item
+        self.comments = comments
+        self.onLike = onLike
+        self.onSave = onSave
+        self.onComment = onComment
+        self.onShare = onShare
+        self.debugAutoplay = debugAutoplay
+        _actionState = State(initialValue: FeedCardActionState(item: item))
+        _commentState = State(initialValue: FeedCommentState(comments: comments))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -20,6 +55,10 @@ struct FeedEventCard: View {
                 .padding(.top, 12)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .sheet(isPresented: $commentsPresented) {
+            FeedCommentSheet(commentState: $commentState, onSend: onComment)
+        }
+        .task { await runDebugAutoplay() }
     }
 
     private var imageSection: some View {
@@ -43,6 +82,15 @@ struct FeedEventCard: View {
         .aspectRatio(5.0 / 4.0, contentMode: .fit)
         .frame(maxWidth: .infinity)
         .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+        .overlay {
+            Image(systemName: "heart.fill")
+                .font(.system(size: 84, weight: .bold))
+                .symbolRenderingMode(.monochrome)
+                .foregroundStyle(.white)
+                .scaleEffect(motionIsReduced ? 1 : burstScale)
+                .opacity(burstOpacity)
+                .accessibilityHidden(true)
+        }
         .overlay(alignment: .topLeading) {
             chipRow
                 .padding(12)
@@ -67,6 +115,8 @@ struct FeedEventCard: View {
             joinBlock
                 .offset(y: 22)
         }
+        .contentShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+        .gesture(TapGesture(count: 2).onEnded(performImageLike))
         // Reserve the lower half of the overlapping join block before the social row.
         .padding(.bottom, 22)
     }
@@ -164,38 +214,89 @@ struct FeedEventCard: View {
     }
 
     private var actionRow: some View {
-        HStack(spacing: 0) {
-            HStack(spacing: 24) {
-                HStack(spacing: 5) {
-                    actionIcon(item.isLiked ? "heart.fill" : "heart", active: item.isLiked)
-
-                    if item.likeCount > 0 {
-                        Text("\(item.likeCount)")
-                            .font(.mono(13))
-                            .monospacedDigit()
-                            .foregroundStyle(Hue.ink.opacity(0.45))
-                    }
-                }
-
-                actionIcon("bubble.right")
-                actionIcon("square.and.arrow.up")
-            }
-
-            Spacer()
-
-            actionIcon(item.isSaved ? "bookmark.fill" : "bookmark", active: item.isSaved)
-        }
-        .frame(height: 44)
-        .accessibilityHidden(true)
+        FeedEventCardActionRow(
+            state: $actionState,
+            reduceMotion: motionIsReduced,
+            autoplayStep: autoplayStep,
+            onLike: onLike,
+            onSave: onSave,
+            onComment: { commentsPresented = true },
+            onShare: onShare
+        )
     }
 
-    private func actionIcon(_ name: String, active: Bool = false) -> some View {
-        // SF Symbols does not expose a 1.75pt stroke; regular approximates the spec.
-        Image(systemName: name)
-            .font(.system(size: 22, weight: .regular))
-            .symbolRenderingMode(.monochrome)
-            .foregroundStyle(Hue.ink.opacity(active ? 1 : 0.45))
-            .frame(width: 22, height: 44)
+    private var motionIsReduced: Bool {
+        #if DEBUG
+        accessibilityReduceMotion && !debugAutoplay
+        #else
+        accessibilityReduceMotion
+        #endif
+    }
+
+    private func performImageLike() {
+        burstGeneration += 1
+        let generation = burstGeneration
+        let changed = !actionState.isLiked
+
+        if motionIsReduced {
+            burstScale = 1
+            withAnimation(.easeInOut(duration: 0.15)) {
+                _ = actionState.like()
+                burstOpacity = 1
+            }
+        } else {
+            burstScale = 0
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.55)) {
+                _ = actionState.like()
+                burstScale = 1.15
+                burstOpacity = 1
+            }
+        }
+
+        if changed { onLike?(true) }
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(150))
+            guard generation == burstGeneration else { return }
+
+            if !motionIsReduced {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.55)) {
+                    burstScale = 1
+                }
+            }
+
+            try? await Task.sleep(for: .milliseconds(500))
+            guard generation == burstGeneration else { return }
+            withAnimation(.linear(duration: 0.2)) { burstOpacity = 0 }
+
+            try? await Task.sleep(for: .milliseconds(200))
+            guard generation == burstGeneration else { return }
+            burstScale = 0
+        }
+    }
+
+    /// DEBUG-only gallery driver: like → image burst → save → unlike.
+    private func runDebugAutoplay() async {
+        #if DEBUG
+        guard debugAutoplay, autoplayStep == 0 else { return }
+
+        try? await Task.sleep(for: .milliseconds(800))
+        guard !Task.isCancelled else { return }
+        autoplayStep = 1
+
+        try? await Task.sleep(for: .milliseconds(1_200))
+        guard !Task.isCancelled else { return }
+        autoplayStep = 2
+        performImageLike()
+
+        try? await Task.sleep(for: .milliseconds(1_800))
+        guard !Task.isCancelled else { return }
+        autoplayStep = 3
+
+        try? await Task.sleep(for: .milliseconds(1_400))
+        guard !Task.isCancelled else { return }
+        autoplayStep = 4
+        #endif
     }
 }
 
