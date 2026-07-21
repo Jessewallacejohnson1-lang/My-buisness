@@ -14,6 +14,12 @@ import { generateLine, extractPlaces } from "./generate.ts"
 import { addDaysISO } from "./dates.ts"
 import type { DataSource, HistoryRow, UpcomingEvent } from "./datasource.ts"
 import type { WeatherData } from "./weather.ts"
+import { assertPromptSync } from "./prompt-sync.check.mts"
+
+// The blob embedded in index.ts is the prompt that actually runs in production
+// (prompts/almanac.md never ships with the deploy). Verifying against a .md that
+// prod doesn't use would be verifying the wrong thing — so fail fast on drift.
+assertPromptSync()
 
 const KEY = process.env.ANTHROPIC_API_KEY ?? ""
 const LIVE = KEY.length > 0
