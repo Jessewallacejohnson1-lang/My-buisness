@@ -9,6 +9,7 @@ import UIKit
 struct FeedEventCard: View {
     let item: FeedCardItem
     let comments: [EventComment]
+    let onJoin: ((Bool) -> Void)?
     let onLike: ((Bool) -> Void)?
     let onSave: ((Bool) -> Void)?
     let onComment: (() -> Void)?
@@ -17,16 +18,20 @@ struct FeedEventCard: View {
 
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @State private var actionState: FeedCardActionState
+    @State private var joinState: FeedCardJoinState
     @State private var commentState: FeedCommentState
+    @State private var showsCurrentUserAvatar: Bool
     @State private var commentsPresented = false
     @State private var burstScale: CGFloat = 0
     @State private var burstOpacity: Double = 0
     @State private var burstGeneration = 0
     @State private var autoplayStep = 0
+    @State private var autoplayJoinPressed = false
 
     init(
         item: FeedCardItem,
         comments: [EventComment] = [],
+        onJoin: ((Bool) -> Void)? = nil,
         onLike: ((Bool) -> Void)? = nil,
         onSave: ((Bool) -> Void)? = nil,
         onComment: (() -> Void)? = nil,
@@ -35,13 +40,19 @@ struct FeedEventCard: View {
     ) {
         self.item = item
         self.comments = comments
+        self.onJoin = onJoin
         self.onLike = onLike
         self.onSave = onSave
         self.onComment = onComment
         self.onShare = onShare
         self.debugAutoplay = debugAutoplay
         _actionState = State(initialValue: FeedCardActionState(item: item))
+        let initialJoinState = FeedCardJoinState(item: item)
+        _joinState = State(initialValue: initialJoinState)
         _commentState = State(initialValue: FeedCommentState(comments: comments))
+        _showsCurrentUserAvatar = State(
+            initialValue: initialJoinState.hasCurrentUserAvatar
+        )
     }
 
     var body: some View {
@@ -179,24 +190,27 @@ struct FeedEventCard: View {
     }
 
     private var joinBlock: some View {
-        Image(systemName: "plus")
-            .font(.system(size: 20, weight: .semibold))
-            .foregroundStyle(.white)
-            .frame(width: 44, height: 44)
-            .background(
-                Hue.ink,
-                in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
-            )
-            .accessibilityHidden(true)
+        FeedEventCardJoinButton(
+            isJoined: joinState.isJoined,
+            isFallback: item.image.isFallback,
+            reduceMotion: motionIsReduced,
+            autoplayPressed: autoplayJoinPressed,
+            onToggle: performJoinTap
+        )
     }
 
     private var socialRow: some View {
         HStack(spacing: 8) {
-            if !facepileSlots.isEmpty {
-                FeedCardFacepile(slots: facepileSlots)
+            if showsCurrentUserAvatar || !item.goingAvatars.isEmpty {
+                FeedCardFacepile(
+                    neighborAvatars: item.goingAvatars,
+                    goingCount: joinState.goingCount,
+                    includesCurrentUser: showsCurrentUserAvatar,
+                    reduceMotion: motionIsReduced
+                )
             }
 
-            Text(item.goingSummary)
+            goingSummaryText
                 .font(.sans(13))
                 .foregroundStyle(Hue.inkSecondary)
                 .lineLimit(1)
@@ -205,12 +219,50 @@ struct FeedEventCard: View {
         .frame(minHeight: 24)
     }
 
-    private var facepileSlots: [URL?] {
-        guard !item.goingAvatars.isEmpty else { return [] }
-        let count = min(3, max(item.goingAvatars.count, item.goingCount))
-        return (0..<count).map { index in
-            index < item.goingAvatars.count ? item.goingAvatars[index] : nil
+    @ViewBuilder
+    private var goingSummaryText: some View {
+        if let summary = numericGoingSummary {
+            HStack(spacing: 0) {
+                Text(summary.prefix)
+                animatedGoingCount(summary.count)
+                Text(summary.suffix)
+            }
+            .accessibilityElement(children: .combine)
+        } else if joinState.goingCount == item.goingCount {
+            Text(item.goingSummary)
+        } else {
+            HStack(spacing: 0) {
+                animatedGoingCount(joinState.goingCount)
+                Text(joinState.goingCount == 1 ? " neighbor is going" : " neighbors are going")
+            }
+            .accessibilityElement(children: .combine)
         }
+    }
+
+    private var numericGoingSummary: (prefix: String, count: Int, suffix: String)? {
+        guard let range = item.goingSummary.range(
+            of: #"[0-9]+"#,
+            options: .regularExpression
+        ), let initialCount = Int(item.goingSummary[range]) else {
+            return nil
+        }
+
+        let delta = joinState.goingCount - item.goingCount
+        return (
+            String(item.goingSummary[..<range.lowerBound]),
+            max(0, initialCount + delta),
+            String(item.goingSummary[range.upperBound...])
+        )
+    }
+
+    private func animatedGoingCount(_ count: Int) -> some View {
+        Text("\(count)")
+            .monospacedDigit()
+            .contentTransition(.numericText())
+            .animation(
+                motionIsReduced ? nil : .easeOut(duration: 0.35),
+                value: count
+            )
     }
 
     private var actionRow: some View {
@@ -231,6 +283,27 @@ struct FeedEventCard: View {
         #else
         accessibilityReduceMotion
         #endif
+    }
+
+    private func performJoinTap() {
+        let joined = joinState.toggleJoin()
+
+        if motionIsReduced {
+            showsCurrentUserAvatar = joined
+        } else {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) {
+                showsCurrentUserAvatar = joined
+            }
+        }
+
+        if joined {
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+        } else {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        }
+
+        // Phase 4: onJoin → schedule/cancel 1h reminder
+        onJoin?(joined)
     }
 
     private func performImageLike() {
@@ -275,7 +348,7 @@ struct FeedEventCard: View {
         }
     }
 
-    /// DEBUG-only gallery driver: like → image burst → save → unlike.
+    /// DEBUG-only gallery driver: like → image burst → save → unlike → join → leave.
     private func runDebugAutoplay() async {
         #if DEBUG
         guard debugAutoplay, autoplayStep == 0 else { return }
@@ -296,78 +369,28 @@ struct FeedEventCard: View {
         try? await Task.sleep(for: .milliseconds(1_400))
         guard !Task.isCancelled else { return }
         autoplayStep = 4
+
+        try? await Task.sleep(for: .milliseconds(1_500))
+        guard !Task.isCancelled else { return }
+        autoplayStep = 5
+        autoplayJoinPressed = true
+
+        try? await Task.sleep(for: .milliseconds(250))
+        guard !Task.isCancelled else { return }
+        autoplayJoinPressed = false
+        autoplayStep = 6
+        performJoinTap()
+
+        try? await Task.sleep(for: .milliseconds(1_500))
+        guard !Task.isCancelled else { return }
+        autoplayStep = 7
+        autoplayJoinPressed = true
+
+        try? await Task.sleep(for: .milliseconds(250))
+        guard !Task.isCancelled else { return }
+        autoplayJoinPressed = false
+        autoplayStep = 8
+        performJoinTap()
         #endif
-    }
-}
-
-private struct FeedCardFacepile: View {
-    let slots: [URL?]
-    private let placeholderInitials = ["A", "M", "S"]
-
-    var body: some View {
-        HStack(spacing: -8) {
-            ForEach(Array(slots.enumerated()), id: \.offset) { index, url in
-                avatar(url: url, index: index)
-                    .zIndex(Double(index))
-            }
-        }
-        .accessibilityHidden(true)
-    }
-
-    @ViewBuilder
-    private func avatar(url: URL?, index: Int) -> some View {
-        ZStack {
-            Circle().fill(Hue.fill)
-
-            if let url {
-                FeedCardURLPhoto(url: url)
-                    .frame(width: 24, height: 24)
-                    .clipShape(Circle())
-            } else {
-                Text(placeholderInitials[index % placeholderInitials.count])
-                    .font(.sansSemibold(10))
-                    .foregroundStyle(Hue.ink)
-            }
-        }
-        .frame(width: 24, height: 24)
-        .clipShape(Circle())
-        .overlay(Circle().strokeBorder(Hue.paper, lineWidth: 1.5))
-    }
-}
-
-private struct FeedCardURLPhoto: View {
-    let url: URL
-
-    var body: some View {
-        if url.isFileURL, let image = UIImage(contentsOfFile: url.path) {
-            configured(Image(uiImage: image))
-        } else {
-            AsyncImage(url: url) { phase in
-                if case .success(let image) = phase {
-                    configured(image)
-                } else {
-                    Rectangle().fill(Hue.fill)
-                }
-            }
-        }
-    }
-
-    private func configured(_ image: Image) -> some View {
-        image
-            .resizable()
-            .scaledToFill()
-    }
-}
-
-private extension FeedCardImageSource {
-    var isPhoto: Bool {
-        switch self {
-        case .eventPhoto, .placesPhoto: true
-        case .fallback: false
-        }
-    }
-
-    var attribution: String? {
-        if case .placesPhoto(_, let attribution) = self { attribution } else { nil }
     }
 }
