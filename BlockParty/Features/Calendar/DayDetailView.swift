@@ -481,7 +481,7 @@ private struct TimelineSlotView: View {
                 }
                 .buttonStyle(PressableStyle(scale: 0.9))
                 .animation(.spring(response: 0.3, dampingFraction: 0.7), value: ev.rsvpd)
-                .accessibilityLabel(ev.rsvpd ? "Cancel RSVP for \(ev.title)" : "RSVP to \(ev.title)")
+                .accessibilityLabel(ev.rsvpd ? "Leave \(ev.title)" : "Join \(ev.title)")
             }
         }
     }
@@ -586,7 +586,7 @@ private struct EventDescriptionSheet: View {
                         Haptics.light()
                         onToggleRsvp()
                     } label: {
-                        Text(event.rsvpd ? "Cancel RSVP" : "RSVP")
+                        Text(event.rsvpd ? "Going" : "Join")
                             .font(.sansSemibold(15))
                             .foregroundStyle(event.rsvpd ? .white : Hue.ink)
                             .frame(maxWidth: .infinity)
@@ -597,7 +597,7 @@ private struct EventDescriptionSheet: View {
                                 .stroke(event.rsvpd ? Color.clear : Hue.ink.opacity(0.4), lineWidth: 1))
                     }
                     .buttonStyle(PressableStyle(scale: 0.97))
-                    .accessibilityLabel(event.rsvpd ? "Cancel RSVP for \(event.title)" : "RSVP to \(event.title)")
+                    .accessibilityLabel(event.rsvpd ? "Leave \(event.title)" : "Join \(event.title)")
                     .padding(.top, 4)
                 }
 

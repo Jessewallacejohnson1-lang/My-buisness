@@ -46,7 +46,7 @@ struct EventRow: View {
                         Haptics.light()
                         onToggleRsvp()
                     } label: {
-                        Text(event.rsvpd ? "Cancel RSVP" : "RSVP")
+                        Text(event.rsvpd ? "Going" : "Join")
                             .font(.sansSemibold(13))
                             .foregroundStyle(event.rsvpd ? .white : Hue.ink)
                             .padding(.horizontal, 14)
@@ -56,7 +56,7 @@ struct EventRow: View {
                             .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).stroke(event.rsvpd ? Color.clear : Hue.ink.opacity(0.4), lineWidth: 1))
                     }
                     .buttonStyle(PressableStyle(scale: 0.94))
-                    .accessibilityLabel(event.rsvpd ? "Cancel RSVP for \(event.title)" : "RSVP to \(event.title)")
+                    .accessibilityLabel(event.rsvpd ? "Leave \(event.title)" : "Join \(event.title)")
                 }
                 if event.goingCount > 0 {
                     Text("\(event.goingCount) going")
@@ -72,7 +72,7 @@ struct EventRow: View {
                             .symbolEffect(.bounce, value: reminderOn)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(reminderOn ? "Remove reminder for \(event.title)" : "Set reminder for \(event.title)")
+                    .accessibilityLabel(reminderOn ? "Turn off reminder for \(event.title)" : "Turn on reminder for \(event.title)")
                 }
             }
         }
