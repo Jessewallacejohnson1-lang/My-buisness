@@ -84,16 +84,21 @@ enum MarkerRole {
 
     // — Live —
 
+    // The live cue is the map's first accent target (live events top the brand's
+    // meaning-scoped accent list). It routes through `Hue.accent`, which is a
+    // placeholder equal to ink today — so this is monochrome now and lights up the
+    // moment a brand hue is chosen, with no change here.
+
     /// Fill of a live pin. Liveness is carried by the ring + pulse, not by the fill,
     /// so this matches the civic tier rather than introducing a fourth value.
-    static var liveFill: Color { Hue.ink }
+    static var liveFill: Color { Hue.accent }
 
     /// The expanding halo behind a live pin — the motion half of the live signal.
-    static var liveRing: Color { Hue.ink }
+    static var liveRing: Color { Hue.accent }
 
     /// A STATIC concentric ring outside a live badge — the half of the live signal that
     /// survives a still frame. See defect 2; do not remove without replacing the cue.
-    static var liveStaticRing: Color { Hue.ink }
+    static var liveStaticRing: Color { Hue.accent }
 
     // — Clusters —
 

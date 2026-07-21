@@ -25,7 +25,9 @@ doubled text sits under our badges and reads as two stacked pins.
 Layer id confirmed against the live style JSON first, because `try?` swallows a
 wrong id silently. Our own labels already de-conflict via `POICluster.labelledPOIs`.
 
-**KNOWN TRADE-OFF, unresolved:** this also drops basemap names we do not carry —
+**RESOLVED (2026-07-20) — keep the hide.** Investigated the class-filter alternative with tilequery ground truth: the orientation landmarks near CSB/SJU are `building`/`education`-class points that resolve to ~30 individual dorm/hall names (Regina Hall, Ardolf, Dominica, Sohler…), so allowing those classes carpet-bombs the campus at street zoom; and `religion` overlaps our curated civic pins (Sacred Heart Chapel), re-creating duplicates. There is no clean class split that restores a single "College of Saint Benedict" label without one of those costs. Decision: the basemap's own POI labels stay hidden. The map's named places come from our pins; losing basemap institution labels is the accepted price of a clean, duplicate-free map. (Original trade-off note kept below.)
+
+**Original trade-off note:** this also drops basemap names we do not carry —
 notably **"College of Saint Benedict"** at town zoom. That is in tension with the
 `b1bef1a` principle that a town map's landmarks are how you orient. The surgical
 alternative is to FILTER `poi-label` by class (keep education/park/landmark, drop

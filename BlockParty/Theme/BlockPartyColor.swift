@@ -38,4 +38,13 @@ enum Hue {
     static let inkSecondary  = Color(hex: 0x6E6E6E)  // secondary text, captions, inactive
     static let hairline      = Color(hex: 0xE7E7E4)  // borders, dividers
     static let fill          = Color(hex: 0xF1F1EF)  // inert fills, placeholders, skeletons
+
+    /// The one pending brand accent — meaning-scoped ONLY (live events, active
+    /// filters, selected/saved state, primary CTAs), never decoration or body copy.
+    /// Placeholder = ink (0x111111), so the app stays fully monochrome and there is
+    /// NO visual change until a hue is chosen — activating the accent is a single hex
+    /// edit on this line. Currently applied via `MarkerRole` to the map's live cue;
+    /// extend to filter chips / CTAs / selected / saved pins when the hue lands.
+    /// Must NOT be the retired coral 0xFF6B57. See DECISIONS.md.
+    static let accent        = Color(hex: 0x111111)  // = ink, placeholder
 }
