@@ -45,6 +45,13 @@ struct RootView: View {
     @State private var debugIntroDismissed = false
     #endif
 
+    /// The launch loader plays for at least this long so it's actually seen (boot often
+    /// resolves in <200ms). Tunable — raise for more dwell, set to 0 to show it only for
+    /// the real boot. ~1.4s ≈ one full bloom-and-fade plus the start of the next.
+    private let loaderMinDuration: Double = 1.4
+    /// Flipped true once `loaderMinDuration` has elapsed since launch.
+    @State private var minLoaderShown = false
+
     var body: some View {
         Group {
             #if DEBUG
@@ -59,6 +66,10 @@ struct RootView: View {
                 MainTabsView()
             } else if ProcessInfo.processInfo.arguments.contains("-show-splash") {
                 SplashView()
+            } else if ProcessInfo.processInfo.arguments.contains("-show-loader") {
+                // Preview the Pinterest-style launch loader full-screen (bypassing the
+                // auth gate) so its looping bloom can be recorded/screenshotted headlessly.
+                LaunchLoaderView()
             } else if ProcessInfo.processInfo.arguments.contains("-show-loading-cover") {
                 // Preview the tab loading cover full-screen (bypassing the auth gate)
                 // so the rainbow-wave indicator + copy can be verified headlessly.
@@ -94,13 +105,27 @@ struct RootView: View {
 
     @ViewBuilder
     private var gate: some View {
-        if auth.booting {
-            SplashView()
-        } else if auth.isSignedIn {
-            authedRoot
-                .task(id: auth.userId) { await hydrateIfNeeded() }
-        } else {
-            LoginView()
+        // The launch loader plays while the app boots — "coming into the app", the same
+        // slot Pinterest fills — and for a short minimum beyond so it's actually seen,
+        // then cross-fades to the authed shell / login once auth resolves.
+        ZStack {
+            if auth.booting || !minLoaderShown {
+                LaunchLoaderView()
+                    .transition(.opacity)
+            } else if auth.isSignedIn {
+                authedRoot
+                    .task(id: auth.userId) { await hydrateIfNeeded() }
+                    .transition(.opacity)
+            } else {
+                LoginView()
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.4), value: auth.booting)
+        .animation(.easeInOut(duration: 0.4), value: minLoaderShown)
+        .task {
+            try? await Task.sleep(for: .seconds(loaderMinDuration))
+            minLoaderShown = true
         }
     }
 
