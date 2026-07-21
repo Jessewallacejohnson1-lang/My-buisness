@@ -20,7 +20,13 @@ struct SocialAPI {
 
     private struct IdRow: Decodable { let id: String }
     private struct LikeRow: Decodable { let eventId: String }
+    private struct SaveRow: Decodable { let eventId: String }
     private struct FollowRow: Decodable { let targetType: FollowTargetType; let targetId: String }
+    private struct GoingProfileRow: Decodable {
+        let userId: String
+        let displayName: String?
+        let avatarUrl: String?
+    }
 
     /// `get_event_comments` RPC row shape.
     private struct CommentRPCRow: Decodable {
@@ -150,6 +156,32 @@ struct SocialAPI {
         return !rows.isEmpty
     }
 
+    // MARK: - Saves
+
+    func saveEvent(_ id: String) async throws {
+        let t = try await token()
+        let uid = try await uidOrThrow()
+        _ = try await SupabaseHTTP.rest("event_saves", method: "POST", query: "on_conflict=event_id,user_id",
+                                        accessToken: t, body: try jsonBody(["event_id": id, "user_id": uid]),
+                                        prefer: "resolution=merge-duplicates,return=minimal")
+    }
+
+    func unsaveEvent(_ id: String) async throws {
+        let t = try await token()
+        let uid = try await uidOrThrow()
+        _ = try await SupabaseHTTP.rest("event_saves", method: "DELETE",
+                                        query: "event_id=eq.\(id)&user_id=eq.\(uid)", accessToken: t)
+    }
+
+    func hasSaved(_ id: String) async throws -> Bool {
+        let t = try await token()
+        let uid = try await uidOrThrow()
+        let (data, _) = try await SupabaseHTTP.rest("event_saves",
+            query: "select=event_id&event_id=eq.\(id)&user_id=eq.\(uid)&limit=1", accessToken: t)
+        let rows: [SaveRow] = try decode(data)
+        return !rows.isEmpty
+    }
+
     // MARK: - Comments
 
     /// Moderates through the existing Claude edge function (same discipline as
@@ -213,6 +245,66 @@ struct SocialAPI {
         }
     }
 
+    /// Fetches the visible feed's facepile identities in two batched queries:
+    /// all RSVP pairs first, then all matching public profile fields.
+    func goingPreviews(eventIds: [String]) async throws -> [String: GoingPreview] {
+        let eventIds = Array(Set(eventIds)).filter { !$0.isEmpty }
+        guard !eventIds.isEmpty else { return [:] }
+
+        let t = try await token()
+        let eventIdList = eventIds.joined(separator: ",")
+        let (rsvpData, _) = try await SupabaseHTTP.rest(
+            "event_rsvps",
+            query: "select=event_id,user_id&event_id=in.(\(eventIdList))",
+            accessToken: t
+        )
+        let rsvpRows: [RsvpRow] = try decode(rsvpData)
+
+        var seenUserIds = Set<String>()
+        let userIds = rsvpRows.compactMap(\.userId).filter {
+            seenUserIds.insert($0).inserted
+        }
+        guard !userIds.isEmpty else { return [:] }
+
+        let userIdList = userIds.joined(separator: ",")
+        let (profileData, _) = try await SupabaseHTTP.rest(
+            "town_profiles",
+            query: "select=user_id,display_name,avatar_url&user_id=in.(\(userIdList))",
+            accessToken: t
+        )
+        let profileRows: [GoingProfileRow] = try decode(profileData)
+        let profilesByUserId = Dictionary(
+            uniqueKeysWithValues: profileRows.map { ($0.userId, $0) }
+        )
+
+        var userIdsByEvent: [String: [String]] = [:]
+        for row in rsvpRows {
+            guard let userId = row.userId,
+                  userIdsByEvent[row.eventId, default: []].count < 3
+            else { continue }
+            userIdsByEvent[row.eventId, default: []].append(userId)
+        }
+
+        return eventIds.reduce(into: [:]) { previews, eventId in
+            let profiles = userIdsByEvent[eventId, default: []].compactMap {
+                profilesByUserId[$0]
+            }
+            let names = profiles.compactMap { row -> String? in
+                guard let name = row.displayName?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      !name.isEmpty
+                else { return nil }
+                return name
+            }
+            let avatars = profiles.compactMap { row -> URL? in
+                guard let raw = row.avatarUrl?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      !raw.isEmpty
+                else { return nil }
+                return URL(string: raw)
+            }
+            previews[eventId] = GoingPreview(names: names, avatars: avatars)
+        }
+    }
+
     /// Fills in `liked`/`following`/`rsvpd` for the signed-in user via three
     /// small own-rows queries, merged client-side — keeps `get_feed_postings`
     /// itself user-agnostic and cacheable (spec §5.3).
@@ -229,6 +321,9 @@ struct SocialAPI {
             query: "select=target_type,target_id&follower_id=eq.\(uid)", accessToken: t)
         async let rsvpCall = SupabaseHTTP.rest("event_rsvps",
             query: "select=event_id&user_id=eq.\(uid)&event_id=in.(\(idList))", accessToken: t)
+        // Phase 5 (staged): batch event_saves here once the migration is applied.
+        // async let savedCall = SupabaseHTTP.rest("event_saves",
+        //     query: "select=event_id&user_id=eq.\(uid)&event_id=in.(\(idList))", accessToken: t)
 
         let likedRows: [LikeRow] = try decode(try await likedCall.0)
         let followRows: [FollowRow] = try decode(try await followCall.0)

@@ -92,11 +92,44 @@ enum FeedPipelineSelfCheck {
         assert(locationOnly.metaLine == "Library")
         if case .fallback = locationOnly.image {} else { assertionFailure("Expected fallback artwork") }
 
+        let avatarURLs = [
+            URL(string: "https://example.com/sam.jpg")!,
+            URL(string: "https://example.com/maya.jpg")!,
+            URL(string: "https://example.com/alex.jpg")!,
+            URL(string: "https://example.com/lee.jpg")!
+        ]
+        let preview = GoingPreview(
+            names: ["Sam Rivera", "Maya Chen", "Alex Kim"],
+            avatars: avatarURLs
+        )
+
         let oneGoing = FeedCardItem(
             from: posting("one", title: "One", date: "2026-07-24", going: 1),
+            recurrence: nil,
+            goingPreview: preview
+        )
+        assert(oneGoing.goingSummary == "Sam is going")
+
+        let twoGoing = FeedCardItem(
+            from: posting("two", title: "Two", date: "2026-07-24", going: 2),
+            recurrence: nil,
+            goingPreview: preview
+        )
+        assert(twoGoing.goingSummary == "Sam and 1 other are going")
+
+        let manyGoing = FeedCardItem(
+            from: posting("many", title: "Many", date: "2026-07-24", going: 4),
+            recurrence: nil,
+            goingPreview: preview
+        )
+        assert(manyGoing.goingSummary == "Sam and 3 others are going")
+        assert(manyGoing.goingAvatars == Array(avatarURLs.prefix(3)))
+
+        let unnamedGoing = FeedCardItem(
+            from: posting("unnamed", title: "Unnamed", date: "2026-07-24", going: 3),
             recurrence: nil
         )
-        assert(oneGoing.goingSummary == "1 going")
+        assert(unnamedGoing.goingSummary == "3 going")
     }
 
     private static func posting(

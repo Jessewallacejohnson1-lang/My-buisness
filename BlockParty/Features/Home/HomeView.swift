@@ -71,6 +71,7 @@ struct HomeView: View {
                         Task { await model.setFeedJoined(api, eventID: eventID, joined: joined) }
                     },
                     onSave: { eventID, saved in
+                        // Phase 5 (staged): wire onSave → SocialAPI.saveEvent/unsaveEvent once event_saves is applied
                         model.setFeedSaved(eventID: eventID, saved: saved)
                     }
                 )

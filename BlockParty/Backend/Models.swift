@@ -138,6 +138,13 @@ struct EventComment: Identifiable {
     let authorAvatar: String?
 }
 
+/// Up to three public identities for an event's going facepile. Counts remain
+/// authoritative on `FeedPosting`; this is only the lightweight display sample.
+struct GoingPreview {
+    let names: [String]
+    let avatars: [URL]
+}
+
 /// One komoot-style feed card's worth of data — a posting (club_events row)
 /// with its poster identity + real social counts + the viewer's own state.
 /// `liked`/`following`/`rsvpd` start false from the RPC and are filled in by
