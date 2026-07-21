@@ -37,4 +37,6 @@ You will be told which FORMAT today's entry takes. Follow it. The six formats:
 
 ## Emphasis
 
-- Wrap AT MOST TWO data points in double asterisks for bold: a time, a temperature, or a count (e.g. `**7pm**`, `**82°**`, `**6 going**`). Bold nothing else. If nothing numeric fits naturally, use no bold.
+- If your entry contains ANY number — a time, a temperature, a count, a duration, written as digits or as words — you MUST bold at least ONE of them in double asterisks (e.g. `**7pm**`, `**82°**`, `**6 going**`, `**thirteen minutes**`). A numeric entry with no bold is wrong.
+- Bold AT MOST TWO, and bold nothing else — no place names, no event names, no adjectives.
+- Only an entry carrying no number at all has no bold.
