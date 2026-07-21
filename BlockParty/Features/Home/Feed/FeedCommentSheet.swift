@@ -11,6 +11,7 @@ struct FeedCommentSheet: View {
     let onSend: ((String) async throws -> EventComment)?
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var draft = ""
     @State private var isLoading = false
     @State private var isSending = false
@@ -75,8 +76,12 @@ struct FeedCommentSheet: View {
             }
             .onChange(of: commentState.comments.count) { _, _ in
                 guard let newest = commentState.comments.last else { return }
-                withAnimation(.easeOut(duration: 0.2)) {
+                if reduceMotion {
                     proxy.scrollTo(newest.id, anchor: .bottom)
+                } else {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        proxy.scrollTo(newest.id, anchor: .bottom)
+                    }
                 }
             }
         }
@@ -84,9 +89,15 @@ struct FeedCommentSheet: View {
 
     private var loadingState: some View {
         HStack(spacing: 10) {
-            ProgressView()
-                .controlSize(.small)
-                .tint(Hue.ink)
+            if reduceMotion {
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    .fill(Hue.ink)
+                    .frame(width: 12, height: 12)
+            } else {
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(Hue.ink)
+            }
             Text("Loading comments")
                 .font(.sans(15))
                 .foregroundStyle(Hue.inkSecondary)

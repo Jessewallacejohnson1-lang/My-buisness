@@ -12,6 +12,10 @@ struct TodayFeedView: View {
     var onJoin: ((String, Bool) -> Void)?
     var onSave: ((String, Bool) -> Void)?
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var initialEntranceCardIDs: [String]?
+    @State private var revealedCardIDs: Set<String> = []
+
     var body: some View {
         LazyVStack(alignment: .leading, spacing: 0) {
             if isLoading {
@@ -66,6 +70,7 @@ struct TodayFeedView: View {
     private func cardStack(_ items: [FeedCardItem]) -> some View {
         LazyVStack(spacing: 28) {
             ForEach(items) { item in
+                let entranceIndex = entranceIndex(for: item.id)
                 FeedEventCard(
                     item: item,
                     onJoin: { joined in onJoin?(item.id, joined) },
@@ -75,6 +80,55 @@ struct TodayFeedView: View {
                     onComment: commentSender(for: item.id),
                     onShare: { onShare?(item) }
                 )
+                .opacity(cardIsRevealed(item.id, at: entranceIndex) ? 1 : 0)
+                .offset(
+                    y: reduceMotion || cardIsRevealed(item.id, at: entranceIndex)
+                        ? 0
+                        : 12
+                )
+                .onAppear { revealCardIfNeeded(item.id) }
+            }
+        }
+    }
+
+    private var initialEntranceCandidates: [String] {
+        let todayItems = sections
+            .first(where: { $0.kind == .today })?
+            .items ?? []
+        let laterItems = sections
+            .filter { $0.kind != .today }
+            .flatMap(\.items)
+        return Array((todayItems + laterItems).prefix(6).map(\.id))
+    }
+
+    private func entranceIndex(for id: String) -> Int? {
+        (initialEntranceCardIDs ?? initialEntranceCandidates)
+            .firstIndex(of: id)
+    }
+
+    private func cardIsRevealed(_ id: String, at index: Int?) -> Bool {
+        reduceMotion || index == nil || revealedCardIDs.contains(id)
+    }
+
+    private func revealCardIfNeeded(_ id: String) {
+        if initialEntranceCardIDs == nil {
+            // Freeze the first loaded six. A later refresh can replace the feed,
+            // but it must not create a second "first-load" entrance.
+            initialEntranceCardIDs = initialEntranceCandidates
+        }
+
+        guard let index = initialEntranceCardIDs?.firstIndex(of: id),
+              !revealedCardIDs.contains(id)
+        else { return }
+
+        if reduceMotion {
+            revealedCardIDs.insert(id)
+        } else {
+            withAnimation(
+                .spring(response: 0.4, dampingFraction: 0.8)
+                    .delay(Double(index) * 0.05)
+            ) {
+                _ = revealedCardIDs.insert(id)
             }
         }
     }

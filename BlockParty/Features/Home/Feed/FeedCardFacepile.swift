@@ -20,7 +20,7 @@ struct FeedCardFacepile: View {
                     .zIndex(slot.isCurrentUser ? 10 : Double(slot.order))
                     .transition(
                         slot.isCurrentUser
-                            ? .scale(scale: 0, anchor: .center)
+                            ? currentUserTransition
                             : .identity
                     )
             }
@@ -86,7 +86,13 @@ struct FeedCardFacepile: View {
             .font(.sansSemibold(9))
             .monospacedDigit()
             .foregroundStyle(Hue.ink)
-            .contentTransition(.numericText())
+            .contentTransition(reduceMotion ? .opacity : .numericText())
+            .animation(
+                reduceMotion
+                    ? .easeInOut(duration: 0.15)
+                    : .spring(response: 0.35, dampingFraction: 0.6),
+                value: overflowCount
+            )
             .frame(width: 24, height: 24)
             .background(Hue.fill, in: Circle())
             .overlay(Circle().strokeBorder(Hue.paper, lineWidth: 1.5))
@@ -113,6 +119,12 @@ struct FeedCardFacepile: View {
         .frame(width: 24, height: 24)
         .clipShape(Circle())
         .overlay(Circle().strokeBorder(Hue.paper, lineWidth: 1.5))
+    }
+
+    private var currentUserTransition: AnyTransition {
+        reduceMotion
+            ? .identity
+            : .scale(scale: 0.75, anchor: .center).combined(with: .opacity)
     }
 }
 
