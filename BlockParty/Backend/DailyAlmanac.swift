@@ -18,16 +18,25 @@
 import Foundation
 
 enum DailyAlmanac {
-    private static var cached: (line: String, day: String, at: Date)?
+    // Keyed by OWNER as well as town-day. The line is personal — the server builds it from
+    // this user's RSVPs and their own history — so a cache keyed by date alone leaks it to
+    // whoever signs in next. This static outlives a sign-out (AuthStore.signOut clears the
+    // Keychain and the interests mirror, and RootView swaps Login/authed in-process, but
+    // neither touches this), so the owner has to live in the key rather than depend on
+    // someone remembering to clear it.
+    private static var cached: (line: String, day: String, at: Date, userId: String)?
     private static let ttl: TimeInterval = 30 * 60  // 30 minutes, within a single town-day
 
     /// This user's personalized line for today, or nil to fall back to the template nudge.
     static func line(auth: AuthStore) async -> String? {
-        // Serve the cache only within the SAME town-day and the TTL, so a line can never
-        // carry past local midnight (the server keys its own cache by date too), and the
-        // 30-min TTL lets a mid-day server refresh land on the next open.
+        // Serve the cache only to the SAME user, within the SAME town-day and the TTL, so a
+        // line can never cross accounts, nor carry past local midnight (the server keys its
+        // own cache by user+date too), and the 30-min TTL lets a mid-day server refresh land
+        // on the next open.
         let today = townDayStamp()
-        if let c = cached, c.day == today, Date().timeIntervalSince(c.at) < ttl { return c.line }
+        let currentUser = auth.userId
+        if let c = cached, let user = currentUser, c.userId == user,
+           c.day == today, Date().timeIntervalSince(c.at) < ttl { return c.line }
         guard let token = try? await auth.validAccessToken() else { return nil }
 
         var req = URLRequest(url: SupabaseConfig.url.appendingPathComponent("functions/v1/daily-almanac"))
@@ -44,7 +53,9 @@ enum DailyAlmanac {
               !line.isEmpty
         else { return nil }
 
-        cached = (line, today, Date())
+        // Store only when the line can be attributed to a user. An unattributable line is
+        // still returned to this caller but never cached, so it can't be served to anyone else.
+        if let owner = auth.userId { cached = (line, today, Date(), owner) }
         return line
     }
 
