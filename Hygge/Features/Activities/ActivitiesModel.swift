@@ -11,6 +11,9 @@ final class ActivitiesModel: ObservableObject {
     @Published var clubs: [ClubView] = []
     @Published var trails: [Trail] = []
     @Published var events: [UpcomingEvent] = []
+    /// The city's official park system — a fixed civic dataset, not fetched
+    /// from the backend (see CityParks.swift).
+    let parks: [Park] = CityParks.all
     @Published var loading = true
     @Published var loaded = false
     /// A real fetch failure with nothing to show — so the view can say "couldn't

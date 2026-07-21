@@ -67,7 +67,7 @@ struct LoginView: View {
                         .background(canSubmit ? Hue.moss700 : Hue.moss700.opacity(0.4))
                         .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(PressableStyle(scale: 0.97, haptic: true))
                     .disabled(!canSubmit || busy)
                 }
                 .padding(.horizontal, 24)

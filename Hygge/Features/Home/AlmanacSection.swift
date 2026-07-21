@@ -5,12 +5,13 @@
 //  step outside. The app's "health" pillar, rendered as PLACE — calm, neighborly,
 //  real data only (never a fake number).
 //
-//  On the FIRST open of the day the card writes itself in front of the neighbor:
-//  the greeting types out char-by-char (soft coral caret), then the read writes in
-//  word-by-word underneath (see TypewriterText). Every later open the same day —
-//  and under Reduce Motion — it just renders, fully written, instantly. The once-a-
-//  day gate is AlmanacReveal (a UserDefaults day-stamp). DEBUG `-almanac-write`
-//  forces the write regardless of the stamp so it can be captured headlessly.
+//  On the FIRST open of each app launch the card writes itself in front of the
+//  neighbor: the greeting types out char-by-char (soft coral caret), then the read
+//  writes in word-by-word underneath (see TypewriterText). A pull-to-refresh replays
+//  the write (Home bumps `replay`); a tab-return within the same launch — and Reduce
+//  Motion — just renders, fully written, instantly. The first-open gate is
+//  AlmanacReveal (an in-memory per-launch flag). DEBUG `-almanac-write` forces the
+//  write regardless so it can be captured headlessly.
 //
 //  Sun + weather come from the shared WeatherService.current() (open-meteo, no
 //  key) that the WeatherBar above already primed, so this reads the 30-min cache
@@ -24,25 +25,27 @@
 //
 
 import SwiftUI
+import UIKit   // UIAccessibility.isReduceMotionEnabled — read in init, before @Environment exists
 
-/// The once-a-day gate for the Almanac write, keyed on the device-local day.
+/// First-open gate for the Almanac write, scoped to the app LAUNCH (not the day):
+/// the card writes itself the first time Home appears each launch, and again on any
+/// pull-to-refresh (driven by AlmanacSection's `replay` nonce from Home). A fresh
+/// launch resets it, so every time you open the app the Almanac greets you by writing
+/// itself — while a tab-return within the same launch stays instant, and Reduce Motion
+/// never animates. Main-actor only (mutated from SwiftUI view lifecycle).
+@MainActor
 enum AlmanacReveal {
-    private static let key = "hygge.almanac.lastWrittenDay"
-
-    /// True on the first open of a new local day (no write recorded for today yet).
-    static func shouldWriteToday() -> Bool {
-        UserDefaults.standard.string(forKey: key) != DateHelpers.localDate()
-    }
-
-    static func markWrittenToday() {
-        UserDefaults.standard.set(DateHelpers.localDate(), forKey: key)
-    }
+    static var hasWrittenThisLaunch = false
 }
 
 struct AlmanacSection: View {
     /// The neighbor's first name, threaded from HomeModel so a profile edit keeps
     /// the greeting in sync; falls back to the mirror / email locally.
     var name: String?
+
+    /// A monotonic token from Home, bumped on pull-to-refresh: each change replays the
+    /// write. The first open of the launch writes automatically (seeded in init).
+    var replay: Int = 0
 
     @EnvironmentObject private var auth: AuthStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -62,9 +65,14 @@ struct AlmanacSection: View {
     /// resolves to a different name can't swap the greeting out from under the cursor.
     @State private var frozenGreeting: AttributedString?
 
-    init(name: String? = nil) {
+    init(name: String? = nil, replay: Int = 0) {
         self.name = name
-        var write = AlmanacReveal.shouldWriteToday()
+        self.replay = replay
+        // First open of the launch writes itself; a tab-return within the launch, or
+        // Reduce Motion, renders instantly. Reduce Motion is read HERE (not only in
+        // onAppear) so the very first frame is already correct — no flash of the
+        // finished card before it would animate.
+        var write = !AlmanacReveal.hasWrittenThisLaunch && !UIAccessibility.isReduceMotionEnabled
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-almanac-write") { write = true }
         #endif
@@ -102,7 +110,7 @@ struct AlmanacSection: View {
                 mode: .word,
                 state: readState,
                 perUnit: 0.045,
-                startDelay: 0.1,
+                startDelay: 0.3,   // a breath after the greeting lands, before the read writes
                 onFinished: readDone
             )
             .lineSpacing(5)
@@ -135,16 +143,21 @@ struct AlmanacSection: View {
             if !Task.isCancelled { startRead(force: true) }
         }
         .onAppear {
-            // A writing day was seeded in init. Reduce Motion collapses it to a plain
-            // (instant) render; otherwise freeze the greeting (so a late name load can't
-            // change it mid-type) and stamp today so it writes only once.
+            // A first-open write was seeded in init (Reduce Motion & tab-returns already
+            // skipped it there). Freeze the greeting so a late name load can't change it
+            // mid-type, and mark this launch written so a tab-return stays instant.
             guard activeStage == 0 else { return }
-            if reduceMotion && !forceWrite {
-                activeStage = Int.max
-                return
-            }
             frozenGreeting = liveGreeting
-            if !forceWrite { AlmanacReveal.markWrittenToday() }
+            if !forceWrite { AlmanacReveal.hasWrittenThisLaunch = true }
+        }
+        // Pull-to-refresh (Home bumps `replay`) re-writes the card in sync with the
+        // spring-back — the greeting's startDelay lets the spring settle first. Reduce
+        // Motion still renders instantly.
+        .onChange(of: replay) { _, _ in
+            guard replay > 0, !reduceMotion || forceWrite else { return }
+            frozenRead = nil
+            frozenGreeting = liveGreeting
+            activeStage = 0
         }
     }
 

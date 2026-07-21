@@ -25,10 +25,16 @@ struct ActivitiesView: View {
 
     @State private var filter: Filter = ActivitiesView.initialFilter()
     @State private var timeFrame: TimeFrame = ActivitiesView.initialTimeFrame()
-    @State private var query = ""
-    @State private var searching = false
+    @State private var query = ActivitiesView.initialSearch()?.query ?? ""
+    @State private var searching = ActivitiesView.initialSearch()?.open ?? false
     @FocusState private var searchFocused: Bool
+    /// DEBUG-only guard so the auto-focus for `-explore-search…` fires just once.
+    @State private var didAutoSearch = false
     @State private var trailsShowingMap = false
+    /// A curated place / park picked from the search dropdown, presented as its
+    /// detail sheet (both are `Identifiable`, so `.sheet(item:)` drives them).
+    @State private var presentedPlace: Place?
+    @State private var presentedPark: Park?
 
     /// DEBUG-only: `-explore-filter events|clubs|trails|parks|saved` starts on a given
     /// chip so simulator verification can screenshot each card state headlessly.
@@ -42,6 +48,24 @@ struct ActivitiesView: View {
         }
         #endif
         return .all
+    }
+
+    /// DEBUG-only: open the search dropdown on launch so its states can be
+    /// screenshotted headlessly (no UI driving needed):
+    ///   `-explore-search-open`      → the focused-but-empty "Popular" dropdown
+    ///   `-explore-search <query>`   → the recommendations for <query>
+    /// The field is focused a beat after appear (see `explore`'s `.onAppear`).
+    private static func initialSearch() -> (open: Bool, query: String)? {
+        #if DEBUG
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-explore-search"), i + 1 < args.count {
+            return (true, args[i + 1])
+        }
+        if args.contains("-explore-search-open") {
+            return (true, "")
+        }
+        #endif
+        return nil
     }
 
     /// DEBUG-only: `-explore-timeframe today|week|month|upcoming` starts on a given
@@ -107,6 +131,8 @@ struct ActivitiesView: View {
             }
         }
         .task { await model.load(api) }
+        .sheet(item: $presentedPlace) { PlaceDetailView(place: $0) }
+        .sheet(item: $presentedPark) { ParkDetailView(park: $0) }
     }
 
     // MARK: - Explore scroll
@@ -115,11 +141,22 @@ struct ActivitiesView: View {
         ScrollView(showsIndicators: false) {
             LazyVStack(alignment: .leading, spacing: 22) {
                 ExploreTownHeader(searching: $searching, query: $query, searchField: $searchFocused)
+                    // Keep the search button LEFT of the pinned compose "+" (top-right).
+                    .padding(.trailing, ComposeSpeedDial.topDiscHeaderClearance)
                     .padding(.top, 6)
                     .appearStagger(0)
-                categoryTiles
-                    .appearStagger(1)
-                content
+                // Focused = show recommendations (Google's "typing shows suggestions,
+                // committing shows results"). Once a suggestion is picked the field
+                // loses focus and the tiles + filtered results take over.
+                if searchFocused {
+                    ExploreSearchSuggestions(suggestions: searchSuggestions,
+                                             isEmptyQuery: queryEmpty,
+                                             onPick: onSuggestion)
+                        .padding(.horizontal, 18)
+                } else {
+                    categoryTiles
+                    content
+                }
                 Color.clear.frame(height: 96)
             }
             .padding(.top, 6)
@@ -128,6 +165,15 @@ struct ActivitiesView: View {
         .refreshable { await model.load(api) }
         .scrollDismissesKeyboard(.interactively)
         // The compose "+" is now the ComposeSpeedDial, hosted by MainTabsView.
+        #if DEBUG
+        .onAppear {
+            // DEBUG `-explore-search…` opened the field; focus it a beat after the
+            // screen settles so the dropdown renders for a headless screenshot.
+            guard searching, !didAutoSearch else { return }
+            didAutoSearch = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { searchFocused = true }
+        }
+        #endif
     }
 
     @ViewBuilder
@@ -166,14 +212,21 @@ struct ActivitiesView: View {
     private var categoryTiles: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 14) {
-                ForEach(Filter.tiles, id: \.self) { f in
+                // Each tile pops in one at a time (scale+fade), left → right — the
+                // Wolt Discovery entrance, tuned frame-by-frame to the reference.
+                // `base` holds a beat so the cascade clears the tab-slide / splash
+                // and plays on a settled screen (as it does in the reference).
+                ForEach(Array(Filter.tiles.enumerated()), id: \.element) { i, f in
                     ExploreCategoryTile(title: f.rawValue, icon: f.icon, selected: filter == f) {
                         toggleFilter(f)
                     }
+                    .popIn(i, base: 0.22)
                 }
             }
             .padding(.horizontal, 18)
-            .padding(.vertical, 2)
+            // Headroom so the pop's rise + bounce-overshoot are never clipped by the
+            // horizontal scroll view's bounds.
+            .padding(.vertical, 12)
         }
     }
 
@@ -194,6 +247,47 @@ struct ActivitiesView: View {
                                           dateLabel: DateHelpers.prettyDate(event.eventDate),
                                           time: event.startTime,
                                           location: event.location))
+    }
+
+    // MARK: - Search suggestions (the Google-style dropdown)
+
+    /// Ranked recommendations for the current query, or Popular starters when the
+    /// field is focused but empty. Recomputed per render — the data is tiny and
+    /// local, so there's no debounce and no per-keystroke animation to manage.
+    private var searchSuggestions: [Suggestion] {
+        let q = query.trimmingCharacters(in: .whitespaces)
+        if q.isEmpty { return TownSearch.popular() }
+        return TownSearch.suggestions(query: q, events: model.events,
+                                      clubs: model.clubs, trails: model.trails, parks: model.parks)
+    }
+
+    /// A dropdown row was tapped: a Place/Park opens its detail; anything else
+    /// commits the search (fills the query, drops the list into the right category)
+    /// and dismisses the keyboard so the results show.
+    private func onSuggestion(_ s: Suggestion) {
+        Haptics.selection()
+        switch s.action {
+        case .openPlace(let p):
+            searchFocused = false
+            presentedPlace = p
+        case .openPark(let p):
+            searchFocused = false
+            presentedPark = p
+        case .runSearch(let term, let f):
+            query = term
+            filter = mapFilter(f)
+            searchFocused = false   // hides the dropdown; the filtered list takes over
+        }
+    }
+
+    private func mapFilter(_ f: TownSearch.SearchFilter?) -> Filter {
+        switch f {
+        case .events: return .events
+        case .clubs:  return .clubs
+        case .trails: return .trails
+        case .parks:  return .parks
+        case nil:     return .all
+        }
     }
 
     // MARK: - Discovery (unfiltered)
@@ -451,10 +545,11 @@ struct ActivitiesView: View {
     private var showTrails: Bool { filter == .all || filter == .trails || savedMode }
     private var showParks: Bool { filter == .all || filter == .parks || savedMode }
 
+    /// Reference-aware field match for the filtered results list — the same engine
+    /// the suggestions dropdown uses, so a related word ("pint", "csb", a small
+    /// typo) filters the list, not just the literal name. Empty query passes all.
     private func matches(_ haystack: String...) -> Bool {
-        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
-        if q.isEmpty { return true }
-        return haystack.contains { $0.lowercased().contains(q) }
+        TownSearch.matches(query, haystack)
     }
     /// In Saved mode every list is narrowed to the viewer's bookmarked ids.
     private func savedPass(_ id: String) -> Bool { !savedMode || saved.isSaved(id) }
