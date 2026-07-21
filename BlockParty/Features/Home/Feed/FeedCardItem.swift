@@ -69,6 +69,26 @@ struct FeedCardActionState: Equatable {
     }
 }
 
+struct FeedCardJoinState: Equatable {
+    private(set) var goingCount: Int
+    private(set) var isJoined: Bool
+    private(set) var hasCurrentUserAvatar: Bool
+
+    init(item: FeedCardItem) {
+        goingCount = item.goingCount
+        isJoined = item.isJoined
+        hasCurrentUserAvatar = item.isJoined
+    }
+
+    @discardableResult
+    mutating func toggleJoin() -> Bool {
+        isJoined.toggle()
+        goingCount = max(0, goingCount + (isJoined ? 1 : -1))
+        hasCurrentUserAvatar = isJoined
+        return isJoined
+    }
+}
+
 enum FeedCardImageSource: Hashable {
     case eventPhoto(URL)
     case placesPhoto(URL, attribution: String)
