@@ -1,4 +1,6 @@
--- STAGED: not yet applied to the live project.
+-- APPLIED to the live project (lxdgwhvqjqmqliobwjpi) on 2026-07-21.
+-- Re-running is safe except the three create policy lines, which are not
+-- if-not-exists guarded and will error harmlessly if they already exist.
 
 create table if not exists public.event_saves (
     event_id   uuid not null references public.club_events (id) on delete cascade,

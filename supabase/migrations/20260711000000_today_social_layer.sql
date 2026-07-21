@@ -122,6 +122,13 @@ as $$
         where e.status = 'approved'
           and e.kind = 'event'
           and e.submitted_by is not null
+          -- Today-or-future only. Without this the feed hands the client past
+          -- events, and FeedSectioning's `default:` arm files any negative day
+          -- offset under LATER — stale events surface as upcoming ones.
+          -- Anchored to the town's zone, NOT the server's UTC `current_date`:
+          -- after ~7pm local, UTC has already rolled over and today's events
+          -- would drop out of the feed for the rest of the evening.
+          and e.event_date >= (now() at time zone 'America/Chicago')::date
     )
     select b.id, b.title, b.event_date, b.start_time, b.location,
            b.image_url, b.created_at,
