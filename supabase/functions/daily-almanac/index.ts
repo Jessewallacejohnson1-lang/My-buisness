@@ -15,7 +15,7 @@
 //     -> 200 { "line": null }   fail-open — the client keeps its on-device template
 //
 // St. Joseph, MN. Weather pinned to America/Chicago.
-import { buildAlmanacContext } from "./context.ts"
+import { buildAlmanacContext, type AlmanacContext } from "./context.ts"
 import { makeRest, postgrestDataSource } from "./datasource.ts"
 import { pickFormat } from "./variety.ts"
 import { generateLine, extractPlaces } from "./generate.ts"
@@ -46,36 +46,42 @@ Deno.serve(async (req) => {
     const now = new Date()
     const today = localDateISO(now, TZ)
     const rest = makeRest(supaUrl, serviceKey)
-
-    // --- One generation per user per day, ever -------------------------------
-    const cached = await readCached(rest, userId, today)
-    if (cached) return json({ line: cached.body_text, format: cached.format_used, cached: true })
-
-    // --- Build the day, pick a format ----------------------------------------
     const data = postgrestDataSource(rest)
+
+    // --- Build the day's real context, then fingerprint its MATERIAL facts ----
+    // We serve the cached line while the fingerprint matches, and rewrite the row
+    // when the day's facts change — so the line stays fresh within the day, not
+    // only at first open. (The row key is per user per day, so it also rolls at
+    // local midnight.) Building the context is cheap; only Claude is gated.
     const context = await buildAlmanacContext({ userId, now, tz: TZ, data })
+    const factsHash = await sha256(materialFacts(context))
+
+    const cached = await readCached(rest, userId, today)
+    if (cached && cached.facts_hash === factsHash && cached.body_text) {
+      return json({ line: cached.body_text, format: cached.format_used, cached: true })
+    }
+
+    // --- Facts changed (or first line today) → pick a format and (re)generate --
     const yesterdayFormat = context.recent_history.formats[0] ?? null
     const pick = pickFormat(context, { yesterdayFormat, seed: `${userId}:${today}` })
     console.log(`[almanac] user=${userId} date=${today} format=${pick.format} ` +
-      `qualified=[${pick.qualified.join(",")}] reason="${pick.reason}"`)
+      `${cached ? "REGEN" : "first"} qualified=[${pick.qualified.join(",")}]`)
 
-    // --- Generate --------------------------------------------------------------
     let systemPrompt: string
     try {
       systemPrompt = await Deno.readTextFile(new URL("./prompts/almanac.md", import.meta.url))
     } catch {
-      return json({ line: null }) // no prompt on disk → fall open
+      return keepOrFallOpen(cached, json) // no prompt on disk → keep any existing line, else fall open
     }
 
     const gen = await generateLine({ systemPrompt, context, format: pick.format, apiKey: anthropicKey })
     if (gen.usage) {
       console.log(`[almanac] tokens in=${gen.usage.input_tokens} out=${gen.usage.output_tokens}`)
     }
-    if (!gen.line) return json({ line: null }) // generation failed — fall open, no row written
+    if (!gen.line) return keepOrFallOpen(cached, json) // failed refresh keeps today's existing line
 
-    // --- Store (one row per user per day) + return ---------------------------
     const places = extractPlaces(gen.line, context)
-    await writeRow(rest, { userId, today, line: gen.line, format: pick.format, places })
+    await writeRow(rest, { userId, today, line: gen.line, format: pick.format, places, factsHash })
     return json({ line: gen.line, format: pick.format, cached: false })
   } catch {
     return json({ line: null })
@@ -85,6 +91,7 @@ Deno.serve(async (req) => {
 interface CachedRow {
   body_text: string
   format_used: string
+  facts_hash: string | null
 }
 
 async function readCached(
@@ -93,21 +100,67 @@ async function readCached(
   today: string,
 ): Promise<CachedRow | null> {
   try {
-    const res = await rest(`almanac_daily?select=body_text,format_used&user_id=eq.${userId}&date=eq.${today}`)
+    const res = await rest(
+      `almanac_daily?select=body_text,format_used,facts_hash&user_id=eq.${userId}&date=eq.${today}`,
+    )
     if (!res.ok) return null
     const rows = await res.json()
     const row = rows?.[0]
-    return row && row.body_text ? { body_text: row.body_text, format_used: row.format_used } : null
+    return row && row.body_text
+      ? { body_text: row.body_text, format_used: row.format_used, facts_hash: row.facts_hash ?? null }
+      : null
   } catch {
     return null
   }
 }
 
+/** A failed/absent generation keeps today's existing line (if any) rather than blanking. */
+function keepOrFallOpen(cached: CachedRow | null, json: (b: unknown, s?: number) => Response): Response {
+  if (cached && cached.body_text) {
+    return json({ line: cached.body_text, format: cached.format_used, cached: true })
+  }
+  return json({ line: null })
+}
+
+/** SHA-256 hex of a string (Web Crypto — available in Deno). */
+async function sha256(s: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s))
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("")
+}
+
+/**
+ * The day's MATERIAL facts — a change here means the line should be rewritten. Excludes
+ * the exact high/low (a 1° forecast tick shouldn't churn a rewrite), plus recent_history
+ * and field_note_candidates (ledger/derived, not "today's facts"). Includes weather state,
+ * sun, moon, season, the user's events, last-attended, town pulse, and nothing_planned.
+ */
+function materialFacts(c: AlmanacContext): string {
+  return JSON.stringify({
+    condition: c.weather.condition,
+    sunrise: c.sun.sunrise,
+    sunset: c.sun.sunset,
+    day_len_delta: c.sun.day_length_change_minutes,
+    moon: c.moon_phase.name,
+    seasons: c.calendar.season_markers.map((m) => m.key),
+    events: c.my_events.map((e) => `${e.name}@${e.day}|${e.days_until}|${e.going_count}`),
+    last_attended: c.last_attended
+      ? `${c.last_attended.name}|${c.last_attended.days_ago}|${c.last_attended.recurs}`
+      : null,
+    pulse_posts: c.town_pulse.new_posts_24h,
+    pulse_newest: c.town_pulse.newest_event
+      ? `${c.town_pulse.newest_event.title}|${c.town_pulse.newest_event.going_count}`
+      : null,
+    nothing_planned: c.nothing_planned,
+  })
+}
+
 async function writeRow(
   rest: (path: string, init?: RequestInit) => Promise<Response>,
-  row: { userId: string; today: string; line: string; format: string; places: string[] },
+  row: { userId: string; today: string; line: string; format: string; places: string[]; factsHash: string },
 ): Promise<void> {
   try {
+    // Upsert on (user_id, date): first line of the day inserts, a same-day refresh
+    // overwrites body_text/format/places/facts_hash and stamps updated_at.
     await rest(`almanac_daily?on_conflict=user_id,date`, {
       method: "POST",
       headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
@@ -117,6 +170,8 @@ async function writeRow(
         body_text: row.line,
         format_used: row.format,
         places_mentioned: row.places,
+        facts_hash: row.factsHash,
+        updated_at: new Date().toISOString(),
       }),
     })
   } catch {

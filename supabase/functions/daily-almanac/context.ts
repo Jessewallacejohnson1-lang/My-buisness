@@ -70,7 +70,7 @@ export async function buildAlmanacContext(deps: AlmanacDeps): Promise<AlmanacCon
     data.lastAttendedEvent(userId, today),
     data.newPostCount24h(since24h),
     data.newestEvent(),
-    data.recentHistory(userId, HISTORY_DEPTH),
+    data.recentHistory(userId, HISTORY_DEPTH + 1), // +1 in case today's row is already written
   ])
 
   const [, month, day] = today.split("-").map(Number)
@@ -84,8 +84,11 @@ export async function buildAlmanacContext(deps: AlmanacDeps): Promise<AlmanacCon
     going_count: e.going_count,
   }))
 
+  // Strictly PRIOR days: strip today's own row so a mid-day rewrite doesn't treat this
+  // morning's line as "yesterday" (no-repeat) or exclude its own place from candidates.
+  const priorHistory = history.filter((h) => h.date < today).slice(0, HISTORY_DEPTH)
   const historyPlaces = Array.from(
-    new Set(history.flatMap((h) => h.places_mentioned).filter(Boolean)),
+    new Set(priorHistory.flatMap((h) => h.places_mentioned).filter(Boolean)),
   )
 
   // Fresh field-note places: curated local spots not named in recent history,
@@ -125,9 +128,9 @@ export async function buildAlmanacContext(deps: AlmanacDeps): Promise<AlmanacCon
     },
     nothing_planned: myEvents.length === 0,
     recent_history: {
-      texts: history.map((h) => h.body_text),
+      texts: priorHistory.map((h) => h.body_text),
       places: historyPlaces,
-      formats: history.map((h) => h.format_used ?? "").filter(Boolean),
+      formats: priorHistory.map((h) => h.format_used ?? "").filter(Boolean),
     },
     field_note_candidates: fieldNoteCandidates,
   }
