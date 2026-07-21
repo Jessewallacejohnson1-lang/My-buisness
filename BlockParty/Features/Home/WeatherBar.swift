@@ -119,10 +119,6 @@ struct WeatherBar: View {
                 startPoint: .top, endPoint: .bottom
             )
 
-            // Preserve the established weather-backdrop lifecycle and motion while
-            // presenting the rebrand's single, solid hero treatment.
-            Hue.ink
-
             HStack(alignment: .bottom) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("St. Joseph, Minnesota")
