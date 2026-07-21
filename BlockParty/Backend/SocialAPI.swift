@@ -182,6 +182,20 @@ struct SocialAPI {
         return !rows.isEmpty
     }
 
+    /// Batched: which of these events the signed-in user has saved, in one query
+    /// (mirrors the liked-state read in `hydrateUserState`; no N+1).
+    func savedEventIds(in ids: [String]) async throws -> Set<String> {
+        let ids = Array(Set(ids)).filter { !$0.isEmpty }
+        guard !ids.isEmpty else { return [] }
+        let t = try await token()
+        let uid = try await uidOrThrow()
+        let idList = ids.joined(separator: ",")
+        let (data, _) = try await SupabaseHTTP.rest("event_saves",
+            query: "select=event_id&user_id=eq.\(uid)&event_id=in.(\(idList))", accessToken: t)
+        let rows: [SaveRow] = try decode(data)
+        return Set(rows.map(\.eventId))
+    }
+
     // MARK: - Comments
 
     /// Moderates through the existing Claude edge function (same discipline as

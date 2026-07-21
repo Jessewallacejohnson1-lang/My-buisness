@@ -125,9 +125,11 @@ final class HomeModel: ObservableObject {
                 previews = [:]
                 Log.network("HomeModel.load going previews: \(error)")
             }
+            let saved = (try? await api.savedEventIds(in: hydrated.map(\.id))) ?? []
             guard generation == feedLoadGeneration else { return }
             feedPostings = hydrated
             feedGoingPreviews = previews
+            feedSavedIDs = saved
             feedLoaded = true
         } catch {
             guard generation == feedLoadGeneration else { return }
@@ -222,11 +224,20 @@ final class HomeModel: ObservableObject {
         }
     }
 
-    func setFeedSaved(eventID: String, saved: Bool) {
-        if saved {
-            feedSavedIDs.insert(eventID)
-        } else {
-            feedSavedIDs.remove(eventID)
+    func setFeedSaved(
+        _ api: SocialAPI,
+        eventID: String,
+        saved: Bool
+    ) async {
+        let wasSaved = feedSavedIDs.contains(eventID)
+        guard wasSaved != saved else { return }
+        if saved { feedSavedIDs.insert(eventID) } else { feedSavedIDs.remove(eventID) }
+        do {
+            if saved { try await api.saveEvent(eventID) } else { try await api.unsaveEvent(eventID) }
+        } catch {
+            // Roll back the optimistic toggle if the write failed.
+            if saved { feedSavedIDs.remove(eventID) } else { feedSavedIDs.insert(eventID) }
+            Log.network("HomeModel.setFeedSaved \(eventID): \(error)")
         }
     }
 
