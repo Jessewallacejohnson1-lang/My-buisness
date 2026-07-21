@@ -19,8 +19,12 @@ struct FeedCardItem: Identifiable, Hashable {
     var isLiked: Bool
     var isSaved: Bool
     var isJoined: Bool
+    var eventDate: String? = nil
+    var startTime: String? = nil
+    var location: String? = nil
 
     var shareTime: String? {
+        if let startTime { return startTime }
         let parts = metaLine.components(separatedBy: " · ")
         guard parts.count > 1 else { return nil }
         let time = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
@@ -28,6 +32,7 @@ struct FeedCardItem: Identifiable, Hashable {
     }
 
     var shareLocation: String? {
+        if let location { return location }
         let parts = metaLine.components(separatedBy: " · ")
         let location = (parts.count > 1 ? parts.dropFirst().joined(separator: " · ") : metaLine)
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -67,6 +72,12 @@ struct FeedCardActionState: Equatable {
         isSaved.toggle()
         return isSaved
     }
+
+    mutating func sync(with item: FeedCardItem) {
+        likeCount = item.likeCount
+        isLiked = item.isLiked
+        isSaved = item.isSaved
+    }
 }
 
 struct FeedCardJoinState: Equatable {
@@ -86,6 +97,12 @@ struct FeedCardJoinState: Equatable {
         goingCount = max(0, goingCount + (isJoined ? 1 : -1))
         hasCurrentUserAvatar = isJoined
         return isJoined
+    }
+
+    mutating func sync(with item: FeedCardItem) {
+        goingCount = item.goingCount
+        isJoined = item.isJoined
+        hasCurrentUserAvatar = item.isJoined
     }
 }
 

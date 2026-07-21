@@ -19,14 +19,23 @@ final class HomeModel: ObservableObject {
     @Published var loaded = false
     @Published var upcoming: [UpcomingEvent] = []
     @Published var communityFeedLoaded = false
+    @Published var feedPostings: [FeedPosting] = []
+    @Published var feedLoaded = false
+    @Published private var feedSavedIDs: Set<String> = []
     private var upcomingRsvpInFlight: Set<String> = []
     /// Desired RSVP states that have not yet been confirmed by an upcoming-feed
     /// read. This survives stale GET snapshots that race a successful POST.
     private var upcomingRsvpOverrides: [String: Bool] = [:]
     /// Only the most recently started lower-feed read may reconcile its response.
     private var upcomingLoadGeneration = 0
+    private var feedLoadGeneration = 0
 
-    func load(_ api: CommunityAPI) async {
+    var feedSections: [FeedCardSection] {
+        FeedSectioning.sections(for: dedupeRecurring(feedPostings))
+            .map { $0.mapped(savedIDs: feedSavedIDs) }
+    }
+
+    func load(_ api: CommunityAPI, socialAPI: SocialAPI) async {
         if !loaded { loading = true }
         // Prefer the canonical community name (what the profile shows/edits);
         // fall back to the email-derived first name only when none is set.
@@ -71,6 +80,8 @@ final class HomeModel: ObservableObject {
             }
         }
 
+        await loadFeed(socialAPI)
+
         // The curated town board — its own fetch so a board hiccup never disturbs
         // the timeline above, and vice versa.
         do {
@@ -93,6 +104,24 @@ final class HomeModel: ObservableObject {
         loaded = true
     }
 
+    /// The social feed has its own failure boundary so agenda, roll-call, quest,
+    /// and board loading remain intact if a social RPC is unavailable.
+    func loadFeed(_ api: SocialAPI) async {
+        feedLoadGeneration += 1
+        let generation = feedLoadGeneration
+        do {
+            let postings = try await api.getFeedPostings()
+            let hydrated = try await api.hydrateUserState(postings)
+            guard generation == feedLoadGeneration else { return }
+            feedPostings = hydrated
+            feedLoaded = true
+        } catch {
+            guard generation == feedLoadGeneration else { return }
+            feedLoaded = true
+            Log.network("HomeModel.load feed: \(error)")
+        }
+    }
+
     #if DEBUG
     /// Loads a deterministic local state for the community-feed simulator preview.
     /// It deliberately bypasses every backend API so preview launches are reliable.
@@ -112,6 +141,93 @@ final class HomeModel: ObservableObject {
         loaded = true
     }
     #endif
+
+    func setFeedLike(
+        _ api: SocialAPI,
+        eventID: String,
+        liked: Bool
+    ) async {
+        guard let index = feedPostings.firstIndex(where: { $0.id == eventID }) else { return }
+        let previousLiked = feedPostings[index].liked
+        let previousCount = feedPostings[index].likeCount
+        guard previousLiked != liked else { return }
+
+        feedPostings[index].liked = liked
+        feedPostings[index].likeCount = max(0, previousCount + (liked ? 1 : -1))
+        do {
+            if liked {
+                try await api.likeEvent(eventID)
+            } else {
+                try await api.unlikeEvent(eventID)
+            }
+        } catch {
+            if let rollbackIndex = feedPostings.firstIndex(where: { $0.id == eventID }),
+               feedPostings[rollbackIndex].liked == liked {
+                feedPostings[rollbackIndex].liked = previousLiked
+                feedPostings[rollbackIndex].likeCount = previousCount
+            }
+            Log.network("HomeModel.setFeedLike \(eventID): \(error)")
+        }
+    }
+
+    func setFeedJoined(
+        _ api: CommunityAPI,
+        eventID: String,
+        joined: Bool
+    ) async {
+        guard let index = feedPostings.firstIndex(where: { $0.id == eventID }) else { return }
+        let previousJoined = feedPostings[index].rsvpd
+        let previousCount = feedPostings[index].goingCount
+        let event = feedPostings[index]
+        guard previousJoined != joined else { return }
+
+        feedPostings[index].rsvpd = joined
+        feedPostings[index].goingCount = max(0, previousCount + (joined ? 1 : -1))
+        do {
+            if joined {
+                try await api.rsvpEvent(eventID)
+                if let date = event.eventDate, await Reminders.requestAuth() {
+                    await Reminders.schedule(
+                        eventId: eventID,
+                        title: event.title,
+                        date: date,
+                        startTime: event.startTime
+                    )
+                }
+            } else {
+                try await api.unRsvpEvent(eventID)
+                Reminders.cancel(eventId: eventID)
+            }
+        } catch {
+            if let rollbackIndex = feedPostings.firstIndex(where: { $0.id == eventID }),
+               feedPostings[rollbackIndex].rsvpd == joined {
+                feedPostings[rollbackIndex].rsvpd = previousJoined
+                feedPostings[rollbackIndex].goingCount = previousCount
+            }
+            Log.network("HomeModel.setFeedJoined \(eventID): \(error)")
+        }
+    }
+
+    func setFeedSaved(eventID: String, saved: Bool) {
+        // Phase 5: event_saves
+        if saved {
+            feedSavedIDs.insert(eventID)
+        } else {
+            feedSavedIDs.remove(eventID)
+        }
+    }
+
+    func feedComments(_ api: SocialAPI, eventID: String) async throws -> [EventComment] {
+        try await api.comments(eventId: eventID)
+    }
+
+    func addFeedComment(
+        _ api: SocialAPI,
+        eventID: String,
+        body: String
+    ) async throws -> EventComment {
+        try await api.addComment(eventId: eventID, body: body)
+    }
 
     func toggleRsvp(_ api: CommunityAPI, _ ev: TimelineEvent) async {
         guard let i = today.firstIndex(where: { $0.id == ev.id }) else { return }

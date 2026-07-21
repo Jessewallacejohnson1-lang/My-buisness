@@ -52,7 +52,7 @@ enum DateHelpers {
 
     /// Whole-day difference between two YYYY-MM-DD strings (b − a), parsed local.
     /// nil on parse failure. Used to detect an event's recurrence cadence.
-    static func daysBetween(_ a: String, _ b: String) -> Int? {
+    nonisolated static func daysBetween(_ a: String, _ b: String) -> Int? {
         let pa = a.split(separator: "-").compactMap { Int($0) }
         let pb = b.split(separator: "-").compactMap { Int($0) }
         guard pa.count == 3, pb.count == 3 else { return nil }

@@ -12,7 +12,8 @@ struct FeedEventCard: View {
     let onJoin: ((Bool) -> Void)?
     let onLike: ((Bool) -> Void)?
     let onSave: ((Bool) -> Void)?
-    let onComment: (() -> Void)?
+    let onLoadComments: (() async throws -> [EventComment])?
+    let onComment: ((String) async throws -> EventComment)?
     let onShare: (() -> Void)?
     let debugAutoplay: Bool
 
@@ -34,7 +35,8 @@ struct FeedEventCard: View {
         onJoin: ((Bool) -> Void)? = nil,
         onLike: ((Bool) -> Void)? = nil,
         onSave: ((Bool) -> Void)? = nil,
-        onComment: (() -> Void)? = nil,
+        onLoadComments: (() async throws -> [EventComment])? = nil,
+        onComment: ((String) async throws -> EventComment)? = nil,
         onShare: (() -> Void)? = nil,
         debugAutoplay: Bool = false
     ) {
@@ -43,6 +45,7 @@ struct FeedEventCard: View {
         self.onJoin = onJoin
         self.onLike = onLike
         self.onSave = onSave
+        self.onLoadComments = onLoadComments
         self.onComment = onComment
         self.onShare = onShare
         self.debugAutoplay = debugAutoplay
@@ -67,7 +70,16 @@ struct FeedEventCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .sheet(isPresented: $commentsPresented) {
-            FeedCommentSheet(commentState: $commentState, onSend: onComment)
+            FeedCommentSheet(
+                commentState: $commentState,
+                onLoad: onLoadComments,
+                onSend: onComment
+            )
+        }
+        .onChange(of: item) { _, updatedItem in
+            actionState.sync(with: updatedItem)
+            joinState.sync(with: updatedItem)
+            showsCurrentUserAvatar = updatedItem.isJoined
         }
         .task { await runDebugAutoplay() }
     }
@@ -144,7 +156,9 @@ struct FeedEventCard: View {
 
     private var chipRow: some View {
         HStack(spacing: 8) {
-            chip(item.dateChip)
+            if !item.dateChip.isEmpty {
+                chip(item.dateChip)
+            }
             if let recurrence = item.recurrence {
                 chip(recurrence)
             }

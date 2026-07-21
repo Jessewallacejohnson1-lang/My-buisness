@@ -20,13 +20,13 @@ enum Reminders {
         }
     }
 
-    /// Schedule a reminder 45 minutes before the event starts. No-op if the
+    /// Schedule a reminder one hour before the event starts. No-op if the
     /// time can't be parsed or is already in the past.
     static func schedule(eventId: String, title: String, date: String, startTime: String?) async {
         guard let fire = fireDate(date: date, startTime: startTime), fire > Date() else { return }
         let content = UNMutableNotificationContent()
         content.title = title
-        content.body = "Starts in 45 minutes."
+        content.body = "Starts in 1 hour."
         content.sound = .default
         let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fire)
         let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
@@ -46,7 +46,7 @@ enum Reminders {
     private static func id(_ eventId: String) -> String { "event-\(eventId)" }
 
     /// "YYYY-MM-DD" + a free-text display time ("5 PM", "noon", "midnight", nil) →
-    /// local Date 45m before start. Shares the app's one time parser
+    /// local Date one hour before start. Shares the app's one time parser
     /// (DateHelpers.minutesOf) so "midnight"/"noon" agree with the rest of the app;
     /// an all-day / unparseable time has no meaningful "starts soon" → no reminder.
     private static func fireDate(date ymd: String, startTime: String?) -> Date? {
@@ -59,6 +59,6 @@ enum Reminders {
         comps.hour = minutes / 60
         comps.minute = minutes % 60
         guard let start = Calendar.current.date(from: comps) else { return nil }
-        return start.addingTimeInterval(-45 * 60)
+        return start.addingTimeInterval(-60 * 60)
     }
 }
