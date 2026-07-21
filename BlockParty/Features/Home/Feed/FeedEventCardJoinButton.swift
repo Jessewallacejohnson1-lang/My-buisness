@@ -72,12 +72,21 @@ struct FeedEventCardJoinButton: View {
     }
 
     private var ring: some View {
-        RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
-            .strokeBorder(Color.white, lineWidth: 1.75)
+        ZStack {
+            ringHalo
+
+            RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
+                .strokeBorder(Hue.ink, lineWidth: 1.75)
+        }
             .scaleEffect(reduceMotion ? 1 : ringScale)
             .opacity(reduceMotion ? 0 : ringOpacity)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
+    }
+
+    private var ringHalo: some View {
+        RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
+            .strokeBorder(Color.white, lineWidth: 3.75)
     }
 
     private var buttonBorder: Color {

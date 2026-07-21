@@ -21,8 +21,8 @@ struct HomeView: View {
     @EnvironmentObject private var auth: AuthStore
     @StateObject private var model = HomeModel()
 
-    /// Drives the staggered spring entrance. Starts hidden, springs in on appear
-    /// (app open / switching back to Today) and again after a pull-to-refresh.
+    /// Drives the masthead/Almanac spring entrance. Feed cards own their separate,
+    /// first-load-only reveal in TodayFeedView.
     @State private var revealed = false
     /// False only during a refresh collapse, so the reset is instant (see refresh).
     @State private var revealAnimated = true
@@ -75,7 +75,6 @@ struct HomeView: View {
                         model.setFeedSaved(eventID: eventID, saved: saved)
                     }
                 )
-                .springReveal(3, revealed: revealed, animated: revealAnimated)
 
                 Color.clear.frame(height: 96)
             }
@@ -88,7 +87,7 @@ struct HomeView: View {
             feedRefreshing = false
 
             // Collapse instantly after the refreshed data arrives, then spring the
-            // masthead, almanac, and feed back in together.
+            // masthead and Almanac back in together. Feed cards do not replay.
             revealAnimated = false
             revealed = false
             await Task.yield()

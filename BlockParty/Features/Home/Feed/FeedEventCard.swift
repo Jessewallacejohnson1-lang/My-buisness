@@ -28,6 +28,7 @@ struct FeedEventCard: View {
     @State private var burstGeneration = 0
     @State private var autoplayStep = 0
     @State private var autoplayJoinPressed = false
+    @GestureState private var cardIsPressed = false
 
     init(
         item: FeedCardItem,
@@ -69,6 +70,15 @@ struct FeedEventCard: View {
                 .padding(.top, 12)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .scaleEffect(motionIsReduced ? 1 : (cardIsPressed ? 0.98 : 1))
+        .animation(
+            motionIsReduced
+                ? nil
+                : .spring(response: 0.3, dampingFraction: 0.7),
+            value: cardIsPressed
+        )
+        .simultaneousGesture(cardPressGesture)
         .sheet(isPresented: $commentsPresented) {
             FeedCommentSheet(
                 commentState: $commentState,
@@ -272,9 +282,11 @@ struct FeedEventCard: View {
     private func animatedGoingCount(_ count: Int) -> some View {
         Text("\(count)")
             .monospacedDigit()
-            .contentTransition(.numericText())
+            .contentTransition(motionIsReduced ? .opacity : .numericText())
             .animation(
-                motionIsReduced ? nil : .easeOut(duration: 0.35),
+                motionIsReduced
+                    ? .easeInOut(duration: 0.15)
+                    : .easeOut(duration: 0.35),
                 value: count
             )
     }
@@ -292,11 +304,14 @@ struct FeedEventCard: View {
     }
 
     private var motionIsReduced: Bool {
-        #if DEBUG
-        accessibilityReduceMotion && !debugAutoplay
-        #else
         accessibilityReduceMotion
-        #endif
+    }
+
+    private var cardPressGesture: some Gesture {
+        LongPressGesture(minimumDuration: 0, maximumDistance: 16)
+            .updating($cardIsPressed) { isPressing, state, _ in
+                state = isPressing
+            }
     }
 
     private func performJoinTap() {
@@ -354,7 +369,11 @@ struct FeedEventCard: View {
 
             try? await Task.sleep(for: .milliseconds(500))
             guard generation == burstGeneration else { return }
-            withAnimation(.linear(duration: 0.2)) { burstOpacity = 0 }
+            withAnimation(
+                .linear(duration: motionIsReduced ? 0.15 : 0.2)
+            ) {
+                burstOpacity = 0
+            }
 
             try? await Task.sleep(for: .milliseconds(200))
             guard generation == burstGeneration else { return }
