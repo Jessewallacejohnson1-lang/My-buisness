@@ -35,6 +35,12 @@ const WEIGHTS: Record<AlmanacFormat, number> = {
   callback: 1,
 }
 
+// Recency penalty: beyond the hard no-repeat (yesterday), softly down-weight a format
+// for each time it appears in the last RECENCY_WINDOW days, so the spread stays varied
+// across a week rather than the same qualifier winning every other day.
+const RECENCY_WINDOW = 3
+const RECENCY_DECAY = 0.3
+
 export interface FormatPick {
   format: AlmanacFormat
   qualified: AlmanacFormat[]
@@ -87,7 +93,11 @@ export function pickFormat(
   }
 
   const rand = mulberry32(hashString(opts.seed))
-  const pool = available.map((f) => ({ item: f, weight: WEIGHTS[f] }))
+  const recent = c.recent_history.formats.slice(0, RECENCY_WINDOW)
+  const pool = available.map((f) => ({
+    item: f,
+    weight: WEIGHTS[f] * Math.pow(RECENCY_DECAY, recent.filter((r) => r === f).length),
+  }))
   const format = weightedPick(pool, rand)
   return {
     format,
