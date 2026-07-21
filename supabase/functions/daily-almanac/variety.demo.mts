@@ -15,7 +15,7 @@ const WEATHER: WeatherData = {
   sunrise: "5:52",
   sunset: "8:52",
   day_length_minutes: 900,
-  day_length_change_minutes: -2,
+  day_length_change_minutes_vs_week_ago: -2,
 }
 
 function fakeData(over: Partial<DataSource>): DataSource {

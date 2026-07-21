@@ -31,7 +31,7 @@ export interface AlmanacContext {
     sunrise: string | null
     sunset: string | null
     day_length_minutes: number | null
-    day_length_change_minutes: number | null
+    day_length_change_minutes_vs_week_ago: number | null
   }
   moon_phase: MoonPhase
   calendar: { weekday: string; date: string; season_markers: SeasonMarker[] }
@@ -105,7 +105,7 @@ export async function buildAlmanacContext(deps: AlmanacDeps): Promise<AlmanacCon
       sunrise: weather.sunrise,
       sunset: weather.sunset,
       day_length_minutes: weather.day_length_minutes,
-      day_length_change_minutes: weather.day_length_change_minutes,
+      day_length_change_minutes_vs_week_ago: weather.day_length_change_minutes_vs_week_ago,
     },
     moon_phase: moonPhase(now),
     calendar: {

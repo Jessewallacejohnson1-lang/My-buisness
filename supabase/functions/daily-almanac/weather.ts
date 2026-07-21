@@ -15,7 +15,11 @@ export interface WeatherData {
   sunrise: string | null // today, "h:mm"
   sunset: string | null // today, "h:mm"
   day_length_minutes: number | null
-  day_length_change_minutes: number | null // today minus 7 days ago
+  // Today's day length minus the day length 7 days ago (see DAYS_AGO_FOR_DELTA).
+  // The name carries the baseline because this object is serialized straight into
+  // the model's prompt — an unqualified "change" reads as "since yesterday" and
+  // gets reported as such, which is ~7x wrong.
+  day_length_change_minutes_vs_week_ago: number | null
 }
 
 const EMPTY: WeatherData = {
@@ -25,7 +29,7 @@ const EMPTY: WeatherData = {
   sunrise: null,
   sunset: null,
   day_length_minutes: null,
-  day_length_change_minutes: null,
+  day_length_change_minutes_vs_week_ago: null,
 }
 
 // WMO weather code -> human label (day-aware). Mirrors WeatherService.label in the app.
@@ -79,7 +83,7 @@ export async function fetchWeather(fetchImpl: FetchLike = fetch): Promise<Weathe
       sunrise: clock(sunriseArr[todayIdx]),
       sunset: clock(sunsetArr[todayIdx]),
       day_length_minutes: todayLen,
-      day_length_change_minutes: delta,
+      day_length_change_minutes_vs_week_ago: delta,
     }
   } catch {
     return EMPTY

@@ -13,7 +13,7 @@ const FORMAT_BRIEF: Record<AlmanacFormat, string> = {
   countdown: "Count down the soonest event in my_events — name it and its day, and make it feel close.",
   field_note: "Point at ONE place from field_note_candidates (never one in recent_history.places). A plain observation, not a recommendation.",
   town_pulse: "Report the town's activity: town_pulse.new_posts_24h new posts and the newest_event people are showing up to.",
-  almanac_fact: "State a quiet fact about the day itself: the day-length change, the moon phase, or a season_markers entry.",
+  almanac_fact: "State a quiet fact about the day itself: the day-length change since a week ago (never call it a day-over-day change), the moon phase, or a season_markers entry.",
   nudge: "Nothing is planned and it's midweek — a gentle, low-bar nudge to get outside. No pressure, no place required.",
   callback: "The reader recently attended last_attended and it comes back around — a light 'you were just there' note.",
 }

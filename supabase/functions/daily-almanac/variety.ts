@@ -110,7 +110,7 @@ export function pickFormat(
 function almanacFactQualifies(c: AlmanacContext): boolean {
   // Moon is always present, so this is the guaranteed fallback qualifier.
   return (
-    c.sun.day_length_change_minutes != null ||
+    c.sun.day_length_change_minutes_vs_week_ago != null ||
     c.calendar.season_markers.length > 0 ||
     c.moon_phase != null
   )

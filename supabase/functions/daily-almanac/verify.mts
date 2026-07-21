@@ -23,7 +23,7 @@ const SYSTEM_PROMPT = readFileSync(join(HERE, "prompts/almanac.md"), "utf8")
 
 const WEATHER: WeatherData = {
   condition: "Partly cloudy", high: 79, low: 62,
-  sunrise: "5:50", sunset: "8:56", day_length_minutes: 906, day_length_change_minutes: -9,
+  sunrise: "5:50", sunset: "8:56", day_length_minutes: 906, day_length_change_minutes_vs_week_ago: -9,
 }
 
 const DATES = Array.from({ length: 10 }, (_, i) => addDaysISO("2026-07-15", i))

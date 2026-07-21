@@ -17,7 +17,7 @@ const SYSTEM_PROMPT = readFileSync(join(HERE, "prompts/almanac.md"), "utf8")
 
 const WEATHER: WeatherData = {
   condition: "Partly cloudy", high: 82, low: 61,
-  sunrise: "5:52", sunset: "8:52", day_length_minutes: 900, day_length_change_minutes: -2,
+  sunrise: "5:52", sunset: "8:52", day_length_minutes: 900, day_length_change_minutes_vs_week_ago: -2,
 }
 
 function fakeData(over: Partial<DataSource>): DataSource {
