@@ -2,15 +2,17 @@
 //  DailyAlmanac.swift
 //  Block Party — client for the `daily-almanac` Supabase Edge Function.
 //
-//  Contract (supabase/functions/daily-almanac/index.ts):
-//    POST /functions/v1/daily-almanac  ->  { "line": String? }
-//  The function gathers the town's real day server-side (sun + weather + today's
-//  events + quest) and returns ONE calm, AI-written line the whole town shares.
-//  nil on any failure — the Almanac card then keeps its honest template nudge.
+//  Contract (my-business repo: supabase/functions/daily-almanac/index.ts):
+//    POST /functions/v1/daily-almanac  ->  { "line": String?, "format"?, "cached"? }
+//  The function reads THIS user's real day server-side (sun + weather + moon + season
+//  + their RSVPs + town pulse + their own history), picks a format, and returns ONE
+//  warm, AI-written line personalized to them — cached one-per-user-per-day. The user
+//  is identified from the Bearer JWT we send below. nil on any failure — the Almanac
+//  card then keeps its honest on-device template nudge (the static weather sentence).
 //
-//  Same 30-min cache discipline as WeatherService (the line is town-wide and
-//  stable within a session). We cache only successes, so a transient failure
-//  retries on the next tab open rather than sticking on the template.
+//  Same 30-min cache discipline as WeatherService (the line is stable within a session).
+//  We cache only successes, so a transient failure retries on the next tab open rather
+//  than sticking on the template.
 //
 
 import Foundation
