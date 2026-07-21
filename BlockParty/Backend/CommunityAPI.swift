@@ -89,9 +89,11 @@ struct CommunityAPI {
     func joinClub(_ clubId: String) async throws {
         let t = try await token()
         let uid = try await uidOrThrow()
+        // ignore-duplicates: membership is presence-only and club_members has no
+        // UPDATE policy, so merge-duplicates (ON CONFLICT DO UPDATE) fails RLS on rejoin.
         _ = try await SupabaseHTTP.rest("club_members", method: "POST", query: "on_conflict=club_id,user_id",
                                         accessToken: t, body: try body(["club_id": clubId, "user_id": uid]),
-                                        prefer: "resolution=merge-duplicates,return=minimal")
+                                        prefer: "resolution=ignore-duplicates,return=minimal")
     }
 
     func leaveClub(_ clubId: String) async throws {
@@ -223,9 +225,12 @@ struct CommunityAPI {
     func rsvpEvent(_ eventId: String) async throws {
         let t = try await token()
         let uid = try await uidOrThrow()
+        // ignore-duplicates: an RSVP is presence-only and event_rsvps has no UPDATE
+        // policy, so merge-duplicates (ON CONFLICT DO UPDATE) fails RLS on re-RSVP —
+        // which the feed's join button hits whenever its optimistic state drifts.
         _ = try await SupabaseHTTP.rest("event_rsvps", method: "POST", query: "on_conflict=event_id,user_id",
                                         accessToken: t, body: try body(["event_id": eventId, "user_id": uid]),
-                                        prefer: "resolution=merge-duplicates,return=minimal")
+                                        prefer: "resolution=ignore-duplicates,return=minimal")
     }
 
     func unRsvpEvent(_ eventId: String) async throws {

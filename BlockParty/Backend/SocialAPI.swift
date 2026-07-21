@@ -106,10 +106,14 @@ struct SocialAPI {
     func follow(_ target: FollowTarget) async throws {
         let t = try await token()
         let uid = try await uidOrThrow()
+        // ignore-duplicates, not merge: a follow is presence, with no payload to
+        // merge. merge-duplicates makes PostgREST emit ON CONFLICT DO UPDATE, and
+        // town_follows has no UPDATE policy (by design — the row is immutable), so
+        // re-following would fail RLS 42501. DO NOTHING needs no UPDATE policy.
         _ = try await SupabaseHTTP.rest("town_follows", method: "POST",
                                         query: "on_conflict=follower_id,target_type,target_id", accessToken: t,
                                         body: try jsonBody(["follower_id": uid, "target_type": target.type.rawValue, "target_id": target.id]),
-                                        prefer: "resolution=merge-duplicates,return=minimal")
+                                        prefer: "resolution=ignore-duplicates,return=minimal")
     }
 
     func unfollow(_ target: FollowTarget) async throws {
@@ -135,9 +139,11 @@ struct SocialAPI {
     func likeEvent(_ id: String) async throws {
         let t = try await token()
         let uid = try await uidOrThrow()
+        // ignore-duplicates: a like is presence-only and event_likes has no UPDATE
+        // policy, so merge-duplicates (ON CONFLICT DO UPDATE) fails RLS on re-like.
         _ = try await SupabaseHTTP.rest("event_likes", method: "POST", query: "on_conflict=event_id,user_id",
                                         accessToken: t, body: try jsonBody(["event_id": id, "user_id": uid]),
-                                        prefer: "resolution=merge-duplicates,return=minimal")
+                                        prefer: "resolution=ignore-duplicates,return=minimal")
     }
 
     func unlikeEvent(_ id: String) async throws {
@@ -161,9 +167,11 @@ struct SocialAPI {
     func saveEvent(_ id: String) async throws {
         let t = try await token()
         let uid = try await uidOrThrow()
+        // ignore-duplicates: a save is presence-only and event_saves has no UPDATE
+        // policy, so merge-duplicates (ON CONFLICT DO UPDATE) fails RLS on re-save.
         _ = try await SupabaseHTTP.rest("event_saves", method: "POST", query: "on_conflict=event_id,user_id",
                                         accessToken: t, body: try jsonBody(["event_id": id, "user_id": uid]),
-                                        prefer: "resolution=merge-duplicates,return=minimal")
+                                        prefer: "resolution=ignore-duplicates,return=minimal")
     }
 
     func unsaveEvent(_ id: String) async throws {
@@ -335,9 +343,8 @@ struct SocialAPI {
             query: "select=target_type,target_id&follower_id=eq.\(uid)", accessToken: t)
         async let rsvpCall = SupabaseHTTP.rest("event_rsvps",
             query: "select=event_id&user_id=eq.\(uid)&event_id=in.(\(idList))", accessToken: t)
-        // Phase 5 (staged): batch event_saves here once the migration is applied.
-        // async let savedCall = SupabaseHTTP.rest("event_saves",
-        //     query: "select=event_id&user_id=eq.\(uid)&event_id=in.(\(idList))", accessToken: t)
+        // Saved state is seeded separately by savedEventIds(in:), which HomeModel
+        // calls alongside this — event_saves is applied and no longer staged.
 
         let likedRows: [LikeRow] = try decode(try await likedCall.0)
         let followRows: [FollowRow] = try decode(try await followCall.0)
