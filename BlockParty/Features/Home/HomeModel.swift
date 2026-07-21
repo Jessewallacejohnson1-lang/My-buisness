@@ -21,6 +21,7 @@ final class HomeModel: ObservableObject {
     @Published var communityFeedLoaded = false
     @Published var feedPostings: [FeedPosting] = []
     @Published var feedLoaded = false
+    @Published private var feedGoingPreviews: [String: GoingPreview] = [:]
     @Published private var feedSavedIDs: Set<String> = []
     private var upcomingRsvpInFlight: Set<String> = []
     /// Desired RSVP states that have not yet been confirmed by an upcoming-feed
@@ -32,7 +33,12 @@ final class HomeModel: ObservableObject {
 
     var feedSections: [FeedCardSection] {
         FeedSectioning.sections(for: dedupeRecurring(feedPostings))
-            .map { $0.mapped(savedIDs: feedSavedIDs) }
+            .map {
+                $0.mapped(
+                    goingPreviews: feedGoingPreviews,
+                    savedIDs: feedSavedIDs
+                )
+            }
     }
 
     func load(_ api: CommunityAPI, socialAPI: SocialAPI) async {
@@ -112,8 +118,16 @@ final class HomeModel: ObservableObject {
         do {
             let postings = try await api.getFeedPostings()
             let hydrated = try await api.hydrateUserState(postings)
+            let previews: [String: GoingPreview]
+            do {
+                previews = try await api.goingPreviews(eventIds: hydrated.map(\.id))
+            } catch {
+                previews = [:]
+                Log.network("HomeModel.load going previews: \(error)")
+            }
             guard generation == feedLoadGeneration else { return }
             feedPostings = hydrated
+            feedGoingPreviews = previews
             feedLoaded = true
         } catch {
             guard generation == feedLoadGeneration else { return }
@@ -209,7 +223,6 @@ final class HomeModel: ObservableObject {
     }
 
     func setFeedSaved(eventID: String, saved: Bool) {
-        // Phase 5: event_saves
         if saved {
             feedSavedIDs.insert(eventID)
         } else {

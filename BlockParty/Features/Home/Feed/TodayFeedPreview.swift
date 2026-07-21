@@ -22,7 +22,9 @@ struct TodayFeedPreview: View {
         let deduped = dedupeRecurring(source)
         assert(deduped.filter { $0.posting.title == "Friday Trail Walk" }.count == 1)
         assert(deduped.first { $0.posting.title == "Friday Trail Walk" }?.recurrence?.hasPrefix("WEEKLY") == true)
-        return FeedSectioning.sections(for: deduped).map { $0.mapped() }
+        return FeedSectioning.sections(for: deduped).map {
+            $0.mapped(goingPreviews: goingPreviews)
+        }
     }
 
     private static let postings: [FeedPosting] = {
@@ -90,6 +92,14 @@ struct TodayFeedPreview: View {
         ]
     }()
 
+    private static let goingPreviews: [String: GoingPreview] = [
+        "preview-today": GoingPreview(
+            names: ["Sam Rivera", "Maya Chen", "Alex Kim"],
+            avatars: ["the-local-blend", "farmers-market", "rivers-bend-park"]
+                .compactMap(bundledPhotoURL)
+        )
+    ]
+
     private static func posting(
         _ id: String,
         title: String,
@@ -124,7 +134,11 @@ struct TodayFeedPreview: View {
     }
 
     private static func bundledPhoto(_ name: String) -> String? {
-        Bundle.main.url(forResource: name, withExtension: "jpg")?.absoluteString
+        bundledPhotoURL(name)?.absoluteString
+    }
+
+    private nonisolated static func bundledPhotoURL(_ name: String) -> URL? {
+        Bundle.main.url(forResource: name, withExtension: "jpg")
     }
 }
 #endif

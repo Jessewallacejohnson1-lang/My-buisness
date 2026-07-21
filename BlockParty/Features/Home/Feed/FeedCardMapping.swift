@@ -8,7 +8,11 @@ struct FeedCardSection: Identifiable {
 }
 
 extension FeedCardItem {
-    init(from posting: FeedPosting, recurrence: String?) {
+    init(
+        from posting: FeedPosting,
+        recurrence: String?,
+        goingPreview: GoingPreview? = nil
+    ) {
         let time = Self.nonempty(posting.startTime)
         let location = Self.nonempty(posting.location)
         let metadata = [time, location].compactMap { $0 }.joined(separator: " · ")
@@ -21,8 +25,11 @@ extension FeedCardItem {
             image: Self.imageSource(from: posting.imageUrl),
             recurrence: recurrence,
             goingCount: posting.goingCount,
-            goingAvatars: [], // Phase 5: real attendee avatars
-            goingSummary: Self.goingSummary(for: posting.goingCount),
+            goingAvatars: Array(goingPreview?.avatars.prefix(3) ?? []),
+            goingSummary: Self.goingSummary(
+                for: posting.goingCount,
+                names: goingPreview?.names ?? []
+            ),
             likeCount: posting.likeCount,
             isLiked: posting.liked,
             isSaved: false,
@@ -70,21 +77,32 @@ extension FeedCardItem {
         return .fallback
     }
 
-    private static func goingSummary(for count: Int) -> String {
-        switch count {
-        case 0: "Nobody's going yet — be first."
-        case 1: "1 going"
-        default: "\(count) going"
+    private static func goingSummary(for count: Int, names: [String]) -> String {
+        guard count > 0 else { return "Nobody's going yet — be first." }
+        guard let name = names.first?.split(whereSeparator: \.isWhitespace).first.map(String.init)
+        else { return "\(count) going" }
+
+        return switch count {
+        case 1: "\(name) is going"
+        case 2: "\(name) and 1 other are going"
+        default: "\(name) and \(count - 1) others are going"
         }
     }
 }
 
 extension FeedPostingSection {
-    func mapped(savedIDs: Set<String> = []) -> FeedCardSection {
+    func mapped(
+        goingPreviews: [String: GoingPreview] = [:],
+        savedIDs: Set<String> = []
+    ) -> FeedCardSection {
         FeedCardSection(
             kind: kind,
             items: postings.map { value in
-                var item = FeedCardItem(from: value.posting, recurrence: value.recurrence)
+                var item = FeedCardItem(
+                    from: value.posting,
+                    recurrence: value.recurrence,
+                    goingPreview: goingPreviews[value.posting.id]
+                )
                 item.isSaved = savedIDs.contains(item.id)
                 return item
             }
