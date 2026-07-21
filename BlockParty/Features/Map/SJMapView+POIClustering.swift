@@ -59,6 +59,9 @@ extension SJMapView {
         poiAssignments = output.assignments
         let rendered = merge(existing: renderedClusters, incoming: output.bubbles, maxDiameter: maxBubble, map: map)
         renderedClusters = rendered
+        // Lift any bubble off a civic landmark pin it overlaps — visual only (the annotations
+        // stay anchored at their seeds; see the offset application + computeCivicOffsets).
+        clusterOffsets = computeCivicOffsets(rendered, map: map)
         // Which POI names have room to draw at this layout. Only matters once pins are
         // expanded (labels are hidden below the awake zoom anyway), but it's computed off
         // the same projection pass, so there's nothing to gain by gating it.
@@ -99,6 +102,78 @@ extension SJMapView {
         let help = CGRect(x: 16, y: controlsY, width: 44, height: 44)
         let recenter = CGRect(x: W - 60, y: controlsY, width: 44, height: 44)
         return [topBand, bottomBand, help, recenter]
+    }
+
+    // MARK: Civic-pin keep-away (overlapping-icons fix — visual offsets only)
+
+    /// Screen-space offsets that lift cluster bubbles off the civic landmark pins they'd
+    /// otherwise overlap. VISUAL ONLY: the bubble's map anchor stays its seed, so tap-to-zoom
+    /// (which targets the seed), the member merge/split glide (which targets the seed), and the
+    /// stable id are all untouched — unlike moving the coordinate, which divorced those. The
+    /// offset is invariant under pan (pitch/bearing are 0, so a seed and a civic pin translate
+    /// together) and recomputed on zoom steps with everything else, so it never goes stale.
+    ///
+    /// Guards the clusterer's own no-overlap-between-bubbles invariant: a shift is TAKEN only
+    /// if the bubble's offset position stays clear of every other bubble's current position. If
+    /// clearing a civic pin would collide with a neighbour bubble, the bubble keeps its seat —
+    /// a civic pin grazing a bubble edge is a lesser evil than two count bubbles merging.
+    /// Deterministic (stable id order), so the same layout yields the same offsets.
+    func computeCivicOffsets(_ rendered: [POIClusterRender], map: MapboxMap) -> [String: CGSize] {
+        let civicPoints = filteredSpots.compactMap { spot -> CGPoint? in
+            let p = map.point(for: spot.coordinate)
+            return (p.x.isFinite && p.y.isFinite) ? p : nil
+        }
+        guard !civicPoints.isEmpty else { return [:] }
+
+        // Seed screen point + radius per bubble, in stable id order. INCLUDES dissolving
+        // (`active == false`) bubbles: they stay rendered for their 0.55s fade, so they must
+        // keep their offset (otherwise they'd animate back onto the civic pin as they fade)
+        // AND be considered by the collision guard (so an active bubble won't shift onto one).
+        let seeds: [(id: String, seed: CGPoint, radius: CGFloat)] = rendered
+            .sorted { $0.id < $1.id }
+            .compactMap { b in
+                let p = map.point(for: b.coordinate)
+                guard p.x.isFinite, p.y.isFinite else { return nil }
+                return (b.id, p, POICluster.bubbleDiameter(count: b.count, maxDiameter: b.maxDiameter) / 2)
+            }
+        guard !seeds.isEmpty else { return [:] }
+
+        // Civic badge radius (~18 expanded) + a small margin so the bubble edge clears it.
+        let keepAway: CGFloat = 32
+        var offsets: [String: CGSize] = [:]
+        // Each bubble's current on-screen position (starts at its seed, updated as it shifts).
+        var positions: [String: CGPoint] = Dictionary(uniqueKeysWithValues: seeds.map { ($0.id, $0.seed) })
+
+        for entry in seeds {
+            var p = entry.seed
+            for c in civicPoints {
+                let dx = p.x - c.x, dy = p.y - c.y
+                let dist = (dx * dx + dy * dy).squareRoot()
+                guard dist < keepAway else { continue }
+                if dist > 0.5 {
+                    let push = keepAway - dist
+                    p.x += dx / dist * push
+                    p.y += dy / dist * push
+                } else {
+                    p.x += keepAway   // exactly coincident → push one side deterministically
+                }
+            }
+            guard p != entry.seed else { continue }   // nothing to clear
+
+            // Only take the shift if it doesn't collide with another bubble's current position.
+            var safe = true
+            for other in seeds where other.id != entry.id {
+                let q = positions[other.id] ?? other.seed
+                let need = entry.radius + other.radius + POICluster.bubbleOverlapMargin
+                let dx = p.x - q.x, dy = p.y - q.y
+                if dx * dx + dy * dy < need * need { safe = false; break }
+            }
+            guard safe else { continue }
+
+            offsets[entry.id] = CGSize(width: p.x - entry.seed.x, height: p.y - entry.seed.y)
+            positions[entry.id] = p
+        }
+        return offsets
     }
 
     // MARK: Bubble lifecycle (stable ids → persist / roll / fade-out)

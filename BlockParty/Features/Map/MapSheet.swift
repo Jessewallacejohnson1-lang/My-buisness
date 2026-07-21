@@ -34,6 +34,9 @@ struct MapSheet: View {
     let state: MapModel.LoadState
     let spots: [Spot]                          // already filtered by the map's chip
     @Binding var selected: Spot?               // non-nil → show that spot's detail
+    /// A tapped food/business POI (mutually exclusive with `selected`). Its detail now
+    /// renders INSIDE this bar too, instead of the old swipe-up Apple modal.
+    @Binding var selectedPOI: POI?
 
     // Callbacks up to SJMapView
     let happenings: (Spot) -> [TimelineEvent]  // events resolving to a spot
@@ -74,6 +77,8 @@ struct MapSheet: View {
 
     @State private var mode: SheetMode = MapSheet.initialMode()
     @State private var detent: SheetDetent = MapSheet.initialDetent()
+    /// Namespace for the Today ⇄ Places segmented control's sliding selection pill.
+    @Namespace private var segment
 
     /// DEBUG-only: `-map-sheet places` opens the sheet on the Places list so it can
     /// be screenshotted headlessly. No effect in release / without the flag.
@@ -136,6 +141,8 @@ struct MapSheet: View {
                 grabber
                 if let spot = selected {
                     detailContent(spot)
+                } else if let poi = selectedPOI {
+                    poiDetailContent(poi)
                 } else {
                     ZStack(alignment: .top) {
                         // Bias the two curves off the shared `p` so one layer is always
@@ -189,13 +196,15 @@ struct MapSheet: View {
         }
         .animation(reduceMotion ? Motion.smooth : Motion.sheet, value: detent)
         .animation(reduceMotion ? Motion.smooth : Motion.sheet, value: selected?.id)
+        .animation(reduceMotion ? Motion.smooth : Motion.sheet, value: selectedPOI?.id)
         // A tapped pin lifts the sheet to MEDIUM (Apple-Maps feel): the card rises to ~half
         // while the map stays the hero and the camera lifts the pin above it (see SJMapView).
-        // Full is a drag-up away.
+        // Full is a drag-up away. A POI opens into the same in-bar detail, so it lifts too.
         .onChange(of: selected?.id) { _, id in if id != nil { detent = .medium } }
-        // onChange only fires on a transition; a spot preselected at mount (e.g. the
-        // `-map-open` debug flag, or deep-linking into a spot) needs the same lift.
-        .onAppear { if selected != nil { detent = .medium } }
+        .onChange(of: selectedPOI?.id) { _, id in if id != nil { detent = .medium } }
+        // onChange only fires on a transition; a spot/POI preselected at mount (e.g. the
+        // `-map-open` / `-map-open-poi` debug flags, or a deep link) needs the same lift.
+        .onAppear { if selected != nil || selectedPOI != nil { detent = .medium } }
     }
 
     /// The three rest heights, derived from the container height. peek is fixed
@@ -393,20 +402,15 @@ struct MapSheet: View {
         }
     }
 
-    // MARK: List header — title + coral toggle pill (Today ⇄ Places)
+    // MARK: List header — Today | Places segmented control + context subtitle
 
     private var listHeader: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(mode == .today ? "Today" : "Places")
-                    .font(.displaySemi(22))
-                    .foregroundStyle(Hue.ink)
-                subtitle
-            }
-            Spacer()
-            toggleButton
+        VStack(alignment: .leading, spacing: 8) {
+            segmentedControl
+            subtitle
         }
         .padding(.horizontal, 20)
+        .padding(.top, 2)
         .padding(.bottom, 12)
     }
 
@@ -446,27 +450,44 @@ struct MapSheet: View {
         .buttonStyle(.plain)
     }
 
-    private var toggleButton: some View {
-        Button {
-            Haptics.selection()   // a segmented Today⇄Places choice → selection tick
-            withAnimation(Motion.snappy) {
-                mode = (mode == .today) ? .places : .today
-            }
+    /// A visible two-segment switch — both destinations always shown — replacing the old
+    /// blind flip-button (you had to read the label to know where it'd take you). The
+    /// SELECTED segment takes the brand accent; "selected state" is one of the accent's
+    /// meaning-scoped seams. Mirrors `BlockPartyTabBar`'s sliding matchedGeometry pill.
+    private var segmentedControl: some View {
+        HStack(spacing: 4) {
+            segmentButton(.today, "Today")
+            segmentButton(.places, "Places")
+        }
+        .padding(4)
+        .background(Hue.fill, in: RoundedRectangle(cornerRadius: Radius.button + 2, style: .continuous))
+        .accessibilityElement(children: .contain)
+    }
+
+    private func segmentButton(_ target: SheetMode, _ title: String) -> some View {
+        let isSelected = mode == target
+        return Button {
+            guard mode != target else { return }
+            Haptics.selection()   // a segmented Today⇄Places choice → selection tick (§10)
+            withAnimation(reduceMotion ? Motion.smooth : Motion.snappy) { mode = target }
         } label: {
-            HStack(spacing: 6) {
-                Image(systemName: mode == .today ? "building.2.fill" : "calendar")
-                    .font(.system(size: 12, weight: .semibold))
-                Text(mode == .today ? "Places" : "Today")
-                    .font(.sansSemibold(14))
-            }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 9)
-            .background(Hue.ink,
-                        in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+            Text(title)
+                .font(.sansSemibold(14))
+                .foregroundStyle(isSelected ? .white : Hue.inkSecondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background {
+                    if isSelected {
+                        RoundedRectangle(cornerRadius: Radius.button - 2, style: .continuous)
+                            .fill(Hue.accent)
+                            .matchedGeometryEffect(id: "segmentPill", in: segment)
+                    }
+                }
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(mode == .today ? "Show places" : "Show today")
+        .accessibilityLabel(title)
+        .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
     }
 
     // MARK: List body
@@ -561,10 +582,10 @@ struct MapSheet: View {
 
     // MARK: Detail — one spot (replaces the old MapBottomCard)
 
-    /// Save/unsave this place. Reuses the app's bookmark language (coral when saved,
-    /// like Explore's SaveBookmarkButton) — this is a tappable control in the sheet,
-    /// so coral is fine here; the map *pin's* saved mark stays ink so coral keeps
-    /// meaning "live" on the canvas. Powers the map's Saved pin via SavedStore.
+    /// Save/unsave this place. Saved takes the brand accent ("saved state" is one of the
+    /// accent's meaning-scoped seams) — this is a tappable control in the SHEET, so accent
+    /// is fine here; the map *pin's* saved mark stays ink so accent keeps meaning "live" on
+    /// the canvas. Powers the map's Saved pin via SavedStore.
     private func saveButton(_ spot: Spot) -> some View {
         let isSaved = saved.isSaved(spot.id)
         return Button {
@@ -575,7 +596,7 @@ struct MapSheet: View {
         } label: {
             Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(isSaved ? Hue.ink : Hue.ink)
+                .foregroundStyle(isSaved ? Hue.accent : Hue.ink)
                 .symbolEffect(.bounce, value: isSaved)
                 .frame(width: 36, height: 36)
                 .background(Hue.paper, in: Circle())
@@ -625,7 +646,7 @@ struct MapSheet: View {
                         ForEach(items) { h in
                             HStack(spacing: 8) {
                                 Circle()
-                                    .fill(DateHelpers.isLiveNow(h.startTime) ? Hue.ink : Hue.inkSecondary)
+                                    .fill(DateHelpers.isLiveNow(h.startTime) ? Hue.accent : Hue.inkSecondary)
                                     .frame(width: 6, height: 6)
                                 Text(h.title).font(.sansMedium(15)).foregroundStyle(Hue.ink).lineLimit(1)
                                 Spacer()
@@ -645,10 +666,82 @@ struct MapSheet: View {
                         .font(.sansSemibold(16)).foregroundStyle(.white)
                         .frame(maxWidth: .infinity).frame(height: 50)
                 }
-                .buttonStyle(CoralPillStyle())
+                .buttonStyle(AccentPillStyle())
                 .padding(.top, 20)
                 .staggeredAppear(3)
                 .accessibilityLabel("Directions to \(spot.name)")
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, Self.contentBottomInset)
+        }
+        .scrollIndicators(.hidden)
+    }
+
+    // MARK: Detail — one POI (food / business), rendered IN the bar (no more modal)
+
+    /// The tapped-POI detail, hosted inside the bar exactly like a spot's — replacing the
+    /// old swipe-up Apple modal (POIDetailSheet). Back-chevron returns to the list; the
+    /// accent primary CTA opens the venue in Maps. `VenueInfoView` adds live Google
+    /// hours/website/phone/photo when they resolve, and nothing when they don't.
+    private func poiDetailContent(_ poi: POI) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 10) {
+                    Button {
+                        Haptics.light()
+                        selectedPOI = nil
+                        detent = .peek
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(Hue.ink)
+                            .frame(width: 32, height: 32)
+                            .background(Hue.paper, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Back to list")
+
+                    ZStack {
+                        Circle().fill(poi.family.tint).frame(width: 40, height: 40)
+                        Image(systemName: poi.glyph)
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(.white)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(poi.name).font(.display(20)).foregroundStyle(Hue.ink).lineLimit(1)   // §9: card title
+                        Text(poi.family.label.uppercased())
+                            .font(.mono(11)).tracking(1.2).foregroundStyle(Hue.inkSecondary)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .staggeredAppear(0)
+
+                if let address = poi.address, !address.isEmpty {
+                    Text(address)
+                        .font(.sans(15)).foregroundStyle(Hue.inkSecondary)   // §9: 15pt subtitle
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 12)
+                        .staggeredAppear(1)
+                }
+
+                VenueInfoView(query: poi.name,
+                              palette: .map,
+                              identity: VenueIdentity(name: poi.name, coordinate: poi.coordinate))
+                    .padding(.top, 16)
+                    .staggeredAppear(2)
+
+                Button {
+                    let q = poi.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+                    if let url = URL(string: "http://maps.apple.com/?q=\(q)&ll=\(poi.lat),\(poi.lon)") { openURL(url) }
+                } label: {
+                    Text("Open in Maps")
+                        .font(.sansSemibold(16)).foregroundStyle(.white)
+                        .frame(maxWidth: .infinity).frame(height: 50)
+                }
+                .buttonStyle(AccentPillStyle())
+                .padding(.top, 20)
+                .staggeredAppear(3)
+                .accessibilityLabel("Open \(poi.name) in Maps")
             }
             .padding(.horizontal, 20)
             .padding(.bottom, Self.contentBottomInset)
@@ -659,8 +752,9 @@ struct MapSheet: View {
 
 // MARK: - Status dot (peek line)
 
-/// A small dot that reads as "live" (coral, with a slow breathing ring) or "quiet"
+/// A small dot that reads as "live" (accent, with a slow breathing ring) or "quiet"
 /// (soft gray). The ring is gated by Reduce Motion — calm by default, alive on live.
+/// Accent = "live" here, matching the live pins on the map canvas.
 private struct StatusDot: View {
     let live: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -670,13 +764,13 @@ private struct StatusDot: View {
         ZStack {
             if live && !reduceMotion {
                 Circle()
-                    .stroke(Hue.ink, lineWidth: 1.5)
+                    .stroke(Hue.accent, lineWidth: 1.5)
                     .frame(width: 12, height: 12)
                     .scaleEffect(pulsing ? 2.2 : 1)
                     .opacity(pulsing ? 0 : 0.5)
             }
             Circle()
-                .fill(live ? Hue.ink : Hue.inkSecondary)
+                .fill(live ? Hue.accent : Hue.inkSecondary)
                 .frame(width: 9, height: 9)
         }
         .frame(width: 26, height: 26)          // stable slot so text never shifts
@@ -716,7 +810,7 @@ private struct TodayEventRow: View {
                 Circle().fill(live ? Hue.fill : Hue.paper).frame(width: 38, height: 38)
                 Image(systemName: live ? "dot.radiowaves.left.and.right" : "clock")
                     .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(live ? Hue.ink : Hue.inkSecondary)
+                    .foregroundStyle(live ? Hue.accent : Hue.inkSecondary)
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(event.title).font(.sansMedium(15)).foregroundStyle(Hue.ink).lineLimit(1)
@@ -727,7 +821,7 @@ private struct TodayEventRow: View {
             Spacer(minLength: 8)
             if live {
                 Text("Now")
-                    .font(.sansSemibold(12)).foregroundStyle(Hue.ink)
+                    .font(.sansSemibold(12)).foregroundStyle(Hue.accent)
                     .padding(.horizontal, 8).padding(.vertical, 3)
                     .background(Hue.fill, in: Capsule())
             } else if let t = event.startTime {
@@ -759,7 +853,7 @@ private struct PlaceRow: View {
             Spacer(minLength: 8)
             if liveCount > 0 {
                 Text("^[\(liveCount) live](inflect: true)")
-                    .font(.sansSemibold(12)).foregroundStyle(Hue.ink)
+                    .font(.sansSemibold(12)).foregroundStyle(Hue.accent)
                     .padding(.horizontal, 8).padding(.vertical, 3)
                     .background(Hue.fill, in: Capsule())
             }
@@ -817,12 +911,14 @@ private struct SkeletonRow: View {
     }
 }
 
-// MARK: - Ink primary button (Directions)
+// MARK: - Accent primary button (Directions / Open in Maps)
 
-private struct CoralPillStyle: ButtonStyle {
+/// The detail's primary CTA. Takes the brand accent — "primary CTAs" is one of the
+/// accent's meaning-scoped seams — rather than the old ink fill.
+private struct AccentPillStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .background(configuration.isPressed ? Hue.ink.opacity(0.85) : Hue.ink,
+            .background(configuration.isPressed ? Hue.accent.opacity(0.85) : Hue.accent,
                         in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }

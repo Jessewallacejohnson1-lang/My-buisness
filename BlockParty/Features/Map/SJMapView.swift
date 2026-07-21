@@ -147,6 +147,11 @@ struct SJMapView: View {
     /// The cluster bubbles to draw, including ones currently fading out (a split keeps a
     /// dissolving bubble mounted a beat so it fades rather than pops).
     @State var renderedClusters: [POIClusterRender] = []
+    /// Per-cluster VISUAL screen-space offset that lifts a bubble off any civic landmark pin
+    /// it would overlap (the "overlapping icons" fix). Purely visual — the bubble's map
+    /// anchor stays its seed, so tap-to-zoom, the member glide, and the stable id are
+    /// untouched. Recomputed with the clusters; invariant under pan. See `computeCivicOffsets`.
+    @State var clusterOffsets: [String: CGSize] = [:]
     /// POI ids whose name label has room to draw at the current layout (see
     /// `POICluster.labelledPOIs`). Everything else shows its badge but withholds its text,
     /// so a dense block reads as a clean map instead of a pile of overlapping names.
@@ -234,12 +239,16 @@ struct SJMapView: View {
     /// clustering extension reads it.
     @State var mapSize: CGSize = .zero
 
-    /// Bottom margin (from the map's bottom edge) that lifts the required Mapbox logo +
-    /// attribution button to rest just above the collapsed unified glass, so they're no
-    /// longer clipped into slivers behind it. The expanding sheet occludes them (drawn
-    /// on top) — they're clearly visible at the collapsed/peek rest state.
+    /// Bottom margin (from the map's bottom edge) for the Mapbox logo + attribution
+    /// button. Mapbox's Terms of Service REQUIRE both to stay visible — they may be
+    /// repositioned but not removed, and the logo may not be restyled (the ⓘ is already
+    /// the smallest-footprint attribution and carries the required telemetry opt-out).
+    /// So "minimize screen space" = tuck them to just an 8pt sliver above the collapsed
+    /// glass (was +40, floating well into the map) — as low as they can sit while still
+    /// resting ABOVE the peek sheet rather than hidden behind it. The expanding sheet
+    /// occludes them (drawn on top); they're clearly visible at the collapsed/peek rest.
     private static let ornamentBottomMargin: CGFloat =
-        MapSheet.tabBarReserve + MapSheet.peekHeight + 40
+        MapSheet.tabBarReserve + MapSheet.peekHeight + 8
 
     private var isAdmin: Bool {
         // DEBUG-only: `-force-nonadmin` launch arg forces the non-admin branch so
@@ -297,6 +306,7 @@ struct SJMapView: View {
                 state: model.state,
                 spots: filteredSpots,
                 selected: $selectedSpot,
+                selectedPOI: $selectedPOI,
                 happenings: { events(at: $0) },
                 spotFor: { spot(for: $0) },
                 onSelectSpot: { focus($0) },
@@ -347,11 +357,10 @@ struct SJMapView: View {
         .sheet(isPresented: $quickAdding) {
             QuickAddSheet(spots: MapSpots.all)
         }
-        // A tapped POI marker opens its detail (name, category, address, Open in Maps,
-        // and live Google hours/website/phone/photo). POI is Identifiable by its row id.
-        .sheet(item: $selectedPOI) { poi in
-            POIDetailSheet(poi: poi)
-        }
+        // A tapped POI no longer opens a separate Apple modal (which slid up over
+        // everything with its own drag detents). Its detail now renders INSIDE the
+        // unified bottom glass — the same in-bar surface the civic spots use — so there
+        // is one draggable sheet, not a modal stacked on top. See MapSheet.poiDetailContent.
         // The "?" chrome button reopens the map intro any time — full-bleed, so it
         // gets its own cover. `instant` skips the first-run bloom so the reference
         // is readable immediately on every open.
@@ -399,8 +408,15 @@ struct SJMapView: View {
                                              active: cluster.active,
                                              family: cluster.dominantFamily,
                                              maxDiameter: cluster.maxDiameter) {
+                            // Zoom to the SEED (cluster.coordinate), not the visually offset
+                            // position — the members live at the seed, so this splits them into view.
                             zoomToCluster(cluster.coordinate)
                         }
+                        // Visual-only shift off an overlapping civic pin (see computeCivicOffsets);
+                        // the annotation stays anchored at the seed. Animated so a zoom-step change
+                        // glides rather than jumps.
+                        .offset(clusterOffsets[cluster.id] ?? .zero)
+                        .animation(reduceMotion ? nil : Motion.card, value: clusterOffsets[cluster.id])
                     }
                     .allowOverlap(true)
                     .priority(Self.clusterPriority)
@@ -448,6 +464,16 @@ struct SJMapView: View {
                 }
             }
             .mapStyle(MapStyle(uri: StyleURI(rawValue: MAP_STYLE_URL)!))
+            // Keep the map north-up and flat: disable the rotate + pitch gestures. Every
+            // camera move already uses bearing 0 / pitch 0, and BOTH the POI label
+            // de-confliction pass and the cluster civic-offset pass assume screen-space
+            // projection is a pure translation under pan — true only while bearing/pitch stay
+            // 0. Disabling these gestures makes that assumption real rather than aspirational
+            // (a deliberate two-finger rotate/pitch would otherwise drift labels + offsets
+            // until the next settle recompute).
+            .gestureOptions(GestureOptions(rotateEnabled: false,
+                                           simultaneousRotateAndPinchZoomEnabled: false,
+                                           pitchEnabled: false))
             // Lift the required Mapbox logo + attribution to just above the collapsed
             // unified glass so they're never clipped into slivers behind the bottom bar.
             // The scale bar stays hidden (it was never wanted on this civic map). This
@@ -551,23 +577,35 @@ struct SJMapView: View {
         .accessibilityLabel("Filter places")
     }
 
+    /// The town-name pill. Names whatever town the camera is over (reverse-geocoded);
+    /// now TAPPABLE — a quick "take me back to Saint Joseph" that flies home when you've
+    /// panned off over a neighboring town. The whole thing is one control, so the label
+    /// spells the action out for VoiceOver.
     private var townPill: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "mappin.circle.fill")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Hue.ink)
-            Text(model.townLabel)
-                .font(.sansSemibold(15))
-                .foregroundStyle(Hue.ink)
-                .lineLimit(1)
+        Button {
+            flyHome()
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "mappin.circle.fill")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Hue.ink)
+                Text(model.townLabel)
+                    .font(.sansSemibold(15))
+                    .foregroundStyle(Hue.ink)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(Hue.surface, in: Capsule())
+            .overlay(Capsule().stroke(Hue.hairline, lineWidth: 1))
+            .mapFloatShadow()
+            .contentShape(Capsule())
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        .background(Hue.surface, in: Capsule())
-        .overlay(Capsule().stroke(Hue.hairline, lineWidth: 1))
-        .mapFloatShadow()
+        .buttonStyle(.plain)
         .animation(Motion.smooth, value: model.townLabel)
         .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(model.townLabel). Tap to return to Saint Joseph")
+        .accessibilityAddTraits(.isButton)
     }
 
     private var composeButton: some View {
@@ -616,10 +654,7 @@ struct SJMapView: View {
 
     private var recenterButton: some View {
         Button {
-            let home = { viewport = .camera(center: MapSpots.center, zoom: 13.5) }
-            if reduceMotion { home() }                       // §11: no fly under Reduce Motion
-            else { withViewportAnimation(.fly(duration: 0.8)) { home() } }
-            closeCard()
+            flyHome()   // §11: flyHome honors Reduce Motion (no fly, instant set)
         } label: {
             chromeCircle(icon: "location")
         }
@@ -628,15 +663,15 @@ struct SJMapView: View {
     }
 
     /// The shared chrome bubble — 44px circle, hairline, ink line icon.
-    /// Active INVERTS to a solid ink fill with a white icon. A weight step alone
-    /// (medium → semibold) is not a legible "filter is on" signal now that the
-    /// coral stroke is gone, and a user who cannot see the filter is active reads
-    /// the hidden pins as missing data.
+    /// Active INVERTS to a solid ACCENT fill with a white icon — "active filter" is
+    /// one of the brand's meaning-scoped accent seams, and a legible "filter is on"
+    /// signal (a weight step alone isn't): a user who can't see the filter is active
+    /// reads the hidden pins as missing data.
     private func chromeCircle(icon: String, active: Bool = false) -> some View {
         Circle()
-            .fill(active ? Hue.ink : Hue.surface)
+            .fill(active ? Hue.accent : Hue.surface)
             .frame(width: 44, height: 44)
-            .overlay(Circle().stroke(active ? Hue.ink : Hue.hairline, lineWidth: 1))
+            .overlay(Circle().stroke(active ? Hue.accent : Hue.hairline, lineWidth: 1))
             .mapFloatShadow()
             .overlay(
                 Image(systemName: icon)
@@ -668,6 +703,19 @@ struct SJMapView: View {
         liftedCoord = nil
         let settle = { viewport = .camera(center: c, zoom: Self.selectZoom) }   // zero padding
         if reduceMotion { settle() } else { withViewportAnimation(.easeInOut(duration: 0.35)) { settle() } }
+    }
+
+    /// Fly the camera home to Saint Joseph and dismiss any open card. Clears `liftedCoord`
+    /// FIRST: `closeCard()` nils the selection, which fires `.onChange` → `releaseCameraLift`
+    /// on the next update — and that would re-target the pin that WAS open (at selectZoom),
+    /// stomping this home fly. With `liftedCoord` already nil, `releaseCameraLift` no-ops and
+    /// the home fly wins. Shared by the tappable town pill and the recenter control.
+    private func flyHome() {
+        Haptics.light()
+        liftedCoord = nil
+        closeCard()
+        let home = { viewport = .camera(center: MapSpots.center, zoom: 13.5) }
+        if reduceMotion { home() } else { withViewportAnimation(.fly(duration: 0.8)) { home() } }
     }
 
     /// A Today/Places row tap: fly to the spot (a longer, deliberate 1.0s fly since the
