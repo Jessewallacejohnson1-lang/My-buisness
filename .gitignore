@@ -53,3 +53,19 @@ skills-lock.json
 
 # Supabase admin creds (machine-local, never commit)
 .supabase-admin.env
+
+# Agent / editor tooling caches (machine-local, not part of the app)
+.codex/
+.superpowers/
+.xcodebuildmcp/
+
+# graphify knowledge-graph output + its local ignore config
+graphify-out/
+.graphifyignore
+
+# Obsidian vault + scratch notes (personal, not repo content)
+.obsidian/
+Untitled*.canvas
+Untitled*.base
+Untitled*.md
+brain.base
