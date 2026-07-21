@@ -39,15 +39,18 @@ enum WeatherState: String, CaseIterable {
         }
     }
 
-    /// Two neutral stops (top → bottom) distinguish conditions by value, not hue.
+    /// Real-sky stops (top → bottom): the weather bar's backdrop is *content*
+    /// (today's actual sky), not chrome, so it keeps its colour — the matched
+    /// gradient stands in for the looping clip while it loads / under Reduce
+    /// Motion, and gives the white readout its contrast.
     var gradient: [Color] {
         switch self {
-        case .clearDay:   return [Hue.paper, Hue.fill]
-        case .clearNight: return [Hue.ink, Hue.inkSecondary]
-        case .cloudy:     return [Hue.fill, Hue.hairline]
-        case .rain:       return [Hue.inkSecondary, Hue.ink]
-        case .snow:       return [Hue.surface, Hue.fill]
-        case .storm:      return [Hue.ink, Hue.ink]
+        case .clearDay:   return [Color(hex: 0x6FB4E8), Color(hex: 0xBFE0F5)]
+        case .clearNight: return [Color(hex: 0x1B2A4A), Color(hex: 0x33415E)]
+        case .cloudy:     return [Color(hex: 0x8A97A6), Color(hex: 0xB9C2CC)]
+        case .rain:       return [Color(hex: 0x4E5A66), Color(hex: 0x74818C)]
+        case .snow:       return [Color(hex: 0xAEB8C2), Color(hex: 0xDDE4EA)]
+        case .storm:      return [Color(hex: 0x2C2E3A), Color(hex: 0x4A4E63)]
         }
     }
 }

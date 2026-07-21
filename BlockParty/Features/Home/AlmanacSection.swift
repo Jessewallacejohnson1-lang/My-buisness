@@ -51,7 +51,13 @@ struct AlmanacSection: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var weather: Weather?
-    @State private var aiLine: String?   // the shared AI day-summary; nil → template nudge
+    @State private var aiLine: String?   // this user's AI day-line; nil → template nudge
+    /// True once the AI-line fetch has RESOLVED (even to nil) — lets us tell "still
+    /// loading" apart from "loaded, no line", so the loading skeleton knows when to lift.
+    @State private var lineLoaded = false
+    /// Flips true ~300ms after appear: the skeleton lifts to the fallback if the AI
+    /// line hasn't landed by then (a cache hit usually beats it, and shows directly).
+    @State private var read300msReady = false
 
     /// The write is a two-stage chain: stage 0 = greeting types, stage 1 = read
     /// writes. `Int.max` means "no write" (a later open, or Reduce Motion) — every
@@ -75,6 +81,9 @@ struct AlmanacSection: View {
         var write = !AlmanacReveal.hasWrittenThisLaunch && !UIAccessibility.isReduceMotionEnabled
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-almanac-write") { write = true }
+        // Force the resting (already-written) card so a screenshot captures the read
+        // fully rendered, not mid-write.
+        if ProcessInfo.processInfo.arguments.contains("-almanac-static") { write = false }
         #endif
         _activeStage = State(initialValue: write ? 0 : Int.max)
     }
@@ -111,16 +120,22 @@ struct AlmanacSection: View {
             }
 
             // The read-of-the-day — writes in word-by-word underneath the greeting.
-            TypewriterText(
-                content: readContent,
-                mode: .word,
-                state: readState,
-                perUnit: 0.045,
-                startDelay: 0.3,   // a breath after the greeting lands, before the read writes
-                onFinished: readDone
-            )
-            .lineSpacing(5)
-            .fixedSize(horizontal: false, vertical: true)
+            // On a static open we hold a brief skeleton (<=300ms) so a fast cache-hit
+            // AI line renders directly instead of flashing the template first.
+            if showReadSkeleton {
+                AlmanacReadSkeleton()
+            } else {
+                TypewriterText(
+                    content: readContent,
+                    mode: .word,
+                    state: readState,
+                    perUnit: 0.045,
+                    startDelay: 0.3,   // a breath after the greeting lands, before the read writes
+                    onFinished: readDone
+                )
+                .lineSpacing(5)
+                .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18)
@@ -129,12 +144,32 @@ struct AlmanacSection: View {
         .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
         .modifier(CardShadow())
         .task {
-            // Template shows instantly; both fetches ride their own caches and the
-            // AI line upgrades the copy in place when it lands (on a later open).
+            // Both fetches ride their own caches; the AI line swaps into the read in
+            // place when it lands (same open), else the template fallback stands.
+            #if DEBUG
+            if let demo = Self.debugDemoLine { aiLine = demo; lineLoaded = true }
+            #endif
             async let w = WeatherService.current()
             async let l = DailyAlmanac.line(auth: auth)
             weather = await w
+            #if DEBUG
+            if Self.debugDemoLine != nil { return }        // canned line already set
+            if Self.debugFail { lineLoaded = true; return } // force the template fallback
+            #endif
             aiLine = await l
+            lineLoaded = true
+        }
+        // Skeleton grace: lift to the fallback if the AI line hasn't landed in 300ms.
+        .task {
+            try? await Task.sleep(for: .milliseconds(300))
+            read300msReady = true
+        }
+        // A slow AI line that lands after the read already settled swaps in silently.
+        // (During a static open the read is live and swaps on its own; this covers the
+        // post-write resting state.)
+        .onChange(of: aiLine) { _, line in
+            guard let line, activeStage == 3 else { return }
+            frozenRead = Almanac.styled(line)
         }
         // When the day's data lands, write the real read (fires in the update cycle
         // with fresh state — unlike a detached Task, which would read @State stale).
@@ -258,6 +293,15 @@ struct AlmanacSection: View {
     private func readDone() {
         guard activeStage == 2 else { return }
         activeStage = 3
+        // If the AI line landed while the template was writing, swap it in now (silent).
+        if let aiLine { frozenRead = Almanac.styled(aiLine) }
+    }
+
+    /// Hold a brief skeleton only on a static (non-writing) open, before the first read
+    /// content resolves. Lifts the moment the AI line lands, the fetch resolves, or 300ms
+    /// passes — so a cache-hit line shows directly and a slow one falls back cleanly.
+    private var showReadSkeleton: Bool {
+        activeStage == Int.max && aiLine == nil && !lineLoaded && !read300msReady
     }
 
     private var forceWrite: Bool {
@@ -266,6 +310,39 @@ struct AlmanacSection: View {
         #else
         return false
         #endif
+    }
+
+    #if DEBUG
+    /// `-almanac-demo-line "<text>"` — inject a canned AI line (renders `**bold**`),
+    /// so the personalized card can be screenshotted without a deployed function.
+    private static var debugDemoLine: String? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-almanac-demo-line"), i + 1 < args.count else { return nil }
+        return args[i + 1]
+    }
+    /// `-almanac-fail` — simulate the API failing so the on-device template fallback shows.
+    private static var debugFail: Bool {
+        ProcessInfo.processInfo.arguments.contains("-almanac-fail")
+    }
+    #endif
+}
+
+/// A calm two-bar placeholder for the read while the day's line loads (<=300ms). Ink-on-
+/// paper `fill` gray, no shimmer — motion is reserved for confirmation, not loading.
+private struct AlmanacReadSkeleton: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Hue.fill)
+                .frame(height: 15)
+                .frame(maxWidth: .infinity)
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Hue.fill)
+                .frame(height: 15)
+                .frame(maxWidth: 210)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityHidden(true)
     }
 }
 
@@ -404,28 +481,34 @@ enum Almanac {
         return out
     }
 
-    /// Render an AI-written line: numeric runs (times, temps, counts) use bold ink
-    /// while prose stays regular — emphasis is weight, never colour.
+    /// Render an AI-written line. Emphasis is carried by **double asterisks** in the
+    /// copy — the almanac prompt bolds at most two data points (a time, temperature, or
+    /// count). Those spans become semibold ink with tabular digits; everything else is
+    /// regular ink. Emphasis is weight, never colour (brand rule), and the asterisks
+    /// themselves are stripped. A line with no `**` simply renders all prose.
     static func styled(_ line: String) -> AttributedString {
-        let ns = line as NSString
-        // A contiguous run of digits (with optional : . , inside) + optional trailing °:
-        // matches 8:58, 84°, 2.5, 20 — leaves words like "noon" in DM Sans.
-        let re = try! NSRegularExpression(pattern: "[0-9]+(?:[.,:][0-9]+)*°?")
         var out = AttributedString("")
-        var idx = 0
-        for m in re.matches(in: line, range: NSRange(location: 0, length: ns.length)) {
-            let r = m.range
-            if r.location > idx {
-                out += run(ns.substring(with: NSRange(location: idx, length: r.location - idx)), .sans(16), Hue.ink)
+        var rest = Substring(line)
+        while let open = rest.range(of: "**") {
+            let before = rest[rest.startIndex..<open.lowerBound]
+            if !before.isEmpty { out += prose(String(before)) }
+            let afterOpen = rest[open.upperBound...]
+            guard let close = afterOpen.range(of: "**") else {
+                // Unmatched "**" — render the remainder (asterisks and all) as prose.
+                out += prose(String(rest[open.lowerBound...]))
+                return out
             }
-            out += run(ns.substring(with: r),
-                       .system(size: 15, weight: .bold, design: .monospaced), Hue.ink)
-            idx = r.location + r.length
+            let bold = afterOpen[afterOpen.startIndex..<close.lowerBound]
+            if !bold.isEmpty { out += emphasis(String(bold)) }
+            rest = afterOpen[close.upperBound...]
         }
-        if idx < ns.length {
-            out += run(ns.substring(from: idx), .sans(16), Hue.ink)
-        }
+        if !rest.isEmpty { out += prose(String(rest)) }
         return out
+    }
+
+    private static func prose(_ s: String) -> AttributedString { run(s, .sans(16), Hue.ink) }
+    private static func emphasis(_ s: String) -> AttributedString {
+        run(s, .system(size: 16, weight: .semibold).monospacedDigit(), Hue.ink)
     }
 
     /// "h:mm" in the town's timezone → "8:58", "5:47".
