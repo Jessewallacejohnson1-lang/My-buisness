@@ -67,6 +67,12 @@ struct RootView: View {
                 // Preview the static feed-card states full-screen (bypassing the auth
                 // gate) so the component can be verified headlessly.
                 FeedCardGallery()
+            } else if ProcessInfo.processInfo.arguments.contains("-today-feed-preview")
+                        || ProcessInfo.processInfo.arguments.contains("-today-feed-empty")
+                        || ProcessInfo.processInfo.arguments.contains("-today-feed-skeleton") {
+                // Preview the real Today feed pipeline and its empty/loading variants
+                // full-screen, without auth or onboarding.
+                TodayFeedPreview()
             } else if ProcessInfo.processInfo.arguments.contains("-show-skeletons") {
                 // Preview the per-tab shimmer skeletons (bypassing the auth gate).
                 SkeletonGalleryPreview()

@@ -1,16 +1,20 @@
 //
 //  FeedCommentSheet.swift
-//  Block Party — local flat comments and an in-memory composer.
+//  Block Party — backend-loaded flat comments with optimistic sending.
 //
 
 import SwiftUI
 
 struct FeedCommentSheet: View {
     @Binding var commentState: FeedCommentState
-    let onSend: (() -> Void)?
+    let onLoad: (() async throws -> [EventComment])?
+    let onSend: ((String) async throws -> EventComment)?
 
     @Environment(\.dismiss) private var dismiss
     @State private var draft = ""
+    @State private var isLoading = false
+    @State private var isSending = false
+    @State private var errorMessage: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -24,6 +28,7 @@ struct FeedCommentSheet: View {
         .presentationDetents([.medium])
         .presentationCornerRadius(24)
         .presentationDragIndicator(.visible)
+        .task { await loadComments() }
     }
 
     private var header: some View {
@@ -54,7 +59,9 @@ struct FeedCommentSheet: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
-                    if commentState.comments.isEmpty {
+                    if isLoading && commentState.comments.isEmpty {
+                        loadingState
+                    } else if commentState.comments.isEmpty {
                         emptyState
                     } else {
                         ForEach(commentState.comments) { comment in
@@ -73,6 +80,19 @@ struct FeedCommentSheet: View {
                 }
             }
         }
+    }
+
+    private var loadingState: some View {
+        HStack(spacing: 10) {
+            ProgressView()
+                .controlSize(.small)
+                .tint(Hue.ink)
+            Text("Loading comments")
+                .font(.sans(15))
+                .foregroundStyle(Hue.inkSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 24)
     }
 
     private var emptyState: some View {
@@ -106,31 +126,40 @@ struct FeedCommentSheet: View {
     }
 
     private var composer: some View {
-        HStack(alignment: .bottom, spacing: 10) {
-            TextField("Add a comment", text: $draft, axis: .vertical)
-                .font(.sans(15))
-                .foregroundStyle(Hue.ink)
-                .lineLimit(1...3)
-                .submitLabel(.send)
-                .onSubmit(send)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 11)
-                .background(Hue.fill, in: buttonShape)
-
-            Button(action: send) {
-                Image(systemName: "arrow.up")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 44, height: 44)
-                    .background(
-                        canSend ? Hue.ink : Hue.ink.opacity(0.35),
-                        in: buttonShape
-                    )
-                    .contentShape(buttonShape)
+        VStack(alignment: .leading, spacing: 6) {
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(.sans(12))
+                    .foregroundStyle(Hue.inkSecondary)
             }
-            .buttonStyle(.plain)
-            .disabled(!canSend)
-            .accessibilityLabel("Send comment")
+
+            HStack(alignment: .bottom, spacing: 10) {
+                TextField("Add a comment", text: $draft, axis: .vertical)
+                    .font(.sans(15))
+                    .foregroundStyle(Hue.ink)
+                    .lineLimit(1...3)
+                    .submitLabel(.send)
+                    .onSubmit(send)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 11)
+                    .background(Hue.fill, in: buttonShape)
+                    .disabled(isLoading || isSending)
+
+                Button(action: send) {
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 44, height: 44)
+                        .background(
+                            canSend ? Hue.ink : Hue.ink.opacity(0.35),
+                            in: buttonShape
+                        )
+                        .contentShape(buttonShape)
+                }
+                .buttonStyle(.plain)
+                .disabled(!canSend)
+                .accessibilityLabel("Send comment")
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
@@ -138,7 +167,8 @@ struct FeedCommentSheet: View {
     }
 
     private var canSend: Bool {
-        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !isLoading && !isSending
+            && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private var buttonShape: RoundedRectangle {
@@ -146,8 +176,37 @@ struct FeedCommentSheet: View {
     }
 
     private func send() {
-        guard commentState.appendLocal(body: draft) else { return }
+        let body = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let local = commentState.appendLocal(body: body) else { return }
         draft = ""
-        onSend?()
+        errorMessage = nil
+        guard let onSend else { return }
+
+        isSending = true
+        Task { @MainActor in
+            do {
+                let posted = try await onSend(body)
+                commentState.replace(local.id, with: posted)
+            } catch {
+                commentState.remove(local.id)
+                draft = body
+                errorMessage = "Couldn't post that comment. Try again."
+                Log.network("FeedCommentSheet.send: \(error)")
+            }
+            isSending = false
+        }
+    }
+
+    private func loadComments() async {
+        guard let onLoad else { return }
+        isLoading = true
+        errorMessage = nil
+        do {
+            commentState.replaceAll(with: try await onLoad())
+        } catch {
+            errorMessage = "Couldn't load comments. Pull the sheet down and try again."
+            Log.network("FeedCommentSheet.load: \(error)")
+        }
+        isLoading = false
     }
 }

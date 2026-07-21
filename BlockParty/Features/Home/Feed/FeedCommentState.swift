@@ -1,6 +1,6 @@
 //
 //  FeedCommentState.swift
-//  Block Party — deterministic in-memory state for the Phase 2 comment sheet.
+//  Block Party — optimistic flat-comment state for the feed sheet.
 //
 
 import Foundation
@@ -17,20 +17,36 @@ struct FeedCommentState {
         body: String,
         id: String = UUID().uuidString,
         createdAt: Date = Date()
-    ) -> Bool {
+    ) -> EventComment? {
         let trimmedBody = body.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedBody.isEmpty else { return false }
+        guard !trimmedBody.isEmpty else { return nil }
 
-        comments.append(
-            EventComment(
-                id: id,
-                body: trimmedBody,
-                createdAt: createdAt,
-                authorId: "local",
-                authorName: "You",
-                authorAvatar: nil
-            )
+        let comment = EventComment(
+            id: id,
+            body: trimmedBody,
+            createdAt: createdAt,
+            authorId: "local",
+            authorName: "You",
+            authorAvatar: nil
         )
-        return true
+        comments.append(comment)
+        return comment
+    }
+
+    mutating func replaceAll(with loadedComments: [EventComment]) {
+        comments = loadedComments.sorted { $0.createdAt < $1.createdAt }
+    }
+
+    mutating func replace(_ localID: String, with comment: EventComment) {
+        guard let index = comments.firstIndex(where: { $0.id == localID }) else {
+            comments.append(comment)
+            comments.sort { $0.createdAt < $1.createdAt }
+            return
+        }
+        comments[index] = comment
+    }
+
+    mutating func remove(_ id: String) {
+        comments.removeAll { $0.id == id }
     }
 }
