@@ -18,12 +18,16 @@
 import Foundation
 
 enum DailyAlmanac {
-    private static var cached: (line: String, at: Date)?
-    private static let ttl: TimeInterval = 30 * 60  // 30 minutes
+    private static var cached: (line: String, day: String, at: Date)?
+    private static let ttl: TimeInterval = 30 * 60  // 30 minutes, within a single town-day
 
-    /// Today's shared town summary, or nil to fall back to the template nudge.
+    /// This user's personalized line for today, or nil to fall back to the template nudge.
     static func line(auth: AuthStore) async -> String? {
-        if let c = cached, Date().timeIntervalSince(c.at) < ttl { return c.line }
+        // Serve the cache only within the SAME town-day and the TTL, so a line can never
+        // carry past local midnight (the server keys its own cache by date too), and the
+        // 30-min TTL lets a mid-day server refresh land on the next open.
+        let today = townDayStamp()
+        if let c = cached, c.day == today, Date().timeIntervalSince(c.at) < ttl { return c.line }
         guard let token = try? await auth.validAccessToken() else { return nil }
 
         var req = URLRequest(url: SupabaseConfig.url.appendingPathComponent("functions/v1/daily-almanac"))
@@ -40,7 +44,16 @@ enum DailyAlmanac {
               !line.isEmpty
         else { return nil }
 
-        cached = (line, Date())
+        cached = (line, today, Date())
         return line
+    }
+
+    /// Today's date (yyyy-MM-dd) in the town's timezone — matches the server's date key.
+    private static func townDayStamp() -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = WeatherService.townTZ
+        f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: Date())
     }
 }

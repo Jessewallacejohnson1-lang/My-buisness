@@ -5,6 +5,11 @@
 -- per-user replacement for the town-wide `daily_almanac` table (one shared row per
 -- day); once the daily-almanac edge function writes here instead, `daily_almanac`
 -- becomes orphaned and can be dropped in a follow-up.
+--
+-- `facts_hash` fingerprints the day's MATERIAL facts (weather state, the user's
+-- RSVPs, town pulse, etc.). The function returns the cached line while the hash
+-- matches, and rewrites the row when the day's facts change — so the line stays
+-- fresh within the day, not just at dawn. `updated_at` records the last (re)write.
 
 create table if not exists public.almanac_daily (
     id               uuid primary key default gen_random_uuid(),
@@ -13,7 +18,9 @@ create table if not exists public.almanac_daily (
     body_text        text not null,
     format_used      text not null,
     places_mentioned text[] not null default '{}',
+    facts_hash       text,
     created_at       timestamptz not null default now(),
+    updated_at       timestamptz not null default now(),
     unique (user_id, date)
 );
 
