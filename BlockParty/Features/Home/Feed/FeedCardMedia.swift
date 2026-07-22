@@ -9,6 +9,10 @@ import SwiftUI
 
 struct FeedCardURLPhoto: View {
     let url: URL
+    /// Fired once the downsampled bitmap has actually decoded and is on screen. The
+    /// feed card uses it to hold its fallback typography until the photo exists, so it
+    /// never animates into photo-mode over an undownloaded flat-ink frame.
+    var onReady: (() -> Void)? = nil
 
     @Environment(\.displayScale) private var displayScale
 
@@ -23,7 +27,8 @@ struct FeedCardURLPhoto: View {
                 request: FeedCardImageRequest(
                     url: url,
                     maxPixelSize: targetPixelWidth
-                )
+                ),
+                onReady: onReady
             )
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
@@ -32,6 +37,7 @@ struct FeedCardURLPhoto: View {
 
 private struct FeedCardDownsampledPhoto: View {
     let request: FeedCardImageRequest
+    var onReady: (() -> Void)? = nil
 
     @State private var image: CGImage?
 
@@ -41,6 +47,7 @@ private struct FeedCardDownsampledPhoto: View {
                 Image(decorative: image, scale: 1)
                     .resizable()
                     .scaledToFill()
+                    .transition(.opacity)
             } else {
                 // Ink, not a light fill: the card's title is white and already sits on
                 // top during this beat, so a pale placeholder would swallow it. This
@@ -51,7 +58,9 @@ private struct FeedCardDownsampledPhoto: View {
         .task(id: request) {
             let loadedImage = await FeedCardImageLoader.shared.image(for: request)
             guard !Task.isCancelled else { return }
-            image = loadedImage
+            // Cross-fade the photograph in rather than hard-cutting it over the ink.
+            withAnimation(.easeOut(duration: 0.2)) { image = loadedImage }
+            if loadedImage != nil { onReady?() }
         }
     }
 }
@@ -150,22 +159,6 @@ struct FeedCardPhotoScrim: View {
     var body: some View {
         LinearGradient(stops: Self.stops, startPoint: .top, endPoint: .bottom)
             .frame(height: imageHeight * Self.coverage)
-    }
-}
-
-/// The Google ToS attribution caption — the house treatment, matching VenuePhoto.
-struct FeedCardPhotoAttribution: View {
-    let attribution: String
-
-    var body: some View {
-        Text(attribution)
-            .font(.sans(9))
-            .foregroundStyle(.white.opacity(0.95))
-            .lineLimit(1)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            .background(.black.opacity(0.4), in: Capsule())
-            .padding(8)
     }
 }
 

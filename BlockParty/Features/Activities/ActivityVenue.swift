@@ -62,13 +62,10 @@ struct ActivityVenue {
         ActivityVenue(name: location ?? ownName, anchor: anchor(at: location, named: ownName))
     }
 
-    /// Location FIRST. Only when the location alone means nothing to KnownVenues do
-    /// we let the item's own name join the lookup — that rescue still matters (an
-    /// event at "the back room" whose title names Bad Habit Brewing), it just must
-    /// never override a location the table already knows.
+    /// Location FIRST — see `KnownVenues.anchor(location:named:)`, the shared rule the
+    /// Feed path (`FeedCardVenuePhoto` → `confidentPhoto(forFreeText:)`) uses too, so
+    /// Activities and the feed can never disagree about how a venue anchors.
     private static func anchor(at location: String?, named ownName: String) -> CLLocationCoordinate2D? {
-        guard let location, !location.isEmpty else { return KnownVenues.coordinate(for: ownName) }
-        if let known = KnownVenues.coordinate(for: location) { return known }
-        return KnownVenues.coordinate(for: "\(location) \(ownName)")
+        KnownVenues.anchor(location: location, named: ownName)
     }
 }

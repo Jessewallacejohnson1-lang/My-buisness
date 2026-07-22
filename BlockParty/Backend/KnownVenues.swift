@@ -64,4 +64,20 @@ enum KnownVenues {
         guard let t = location?.lowercased(), !t.isEmpty else { return nil }
         return venues.first { $0.kw.contains(where: t.contains) }?.coord
     }
+
+    /// The curated anchor for something that HAPPENS at a place — the single,
+    /// location-first rule every photo-lookup path shares so they can never drift.
+    ///
+    /// Location FIRST: the place is the `location`, and the item's own `name` (an event
+    /// title, a trail's address line) is only a *rescue* for a location this table
+    /// doesn't recognise. It must never override a location the table already knows —
+    /// concatenating the two and matching the first keyword anywhere in the combined
+    /// string is exactly the title-hijack bug this replaces (measured 2026-07-21:
+    /// "Millstream Arts Festival" at "Downtown St. Joseph" anchored on Millstream Park
+    /// 1,025 m away and blanked the card; location-first anchors it to 26 m and resolves).
+    static func anchor(location: String?, named name: String) -> CLLocationCoordinate2D? {
+        guard let location, !location.isEmpty else { return coordinate(for: name) }
+        if let known = coordinate(for: location) { return known }
+        return coordinate(for: "\(location) \(name)")
+    }
 }

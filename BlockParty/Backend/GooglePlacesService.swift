@@ -95,10 +95,36 @@ final class GooglePlacesService {
     private var searchCache: [String: [PlaceResult]] = [:]
     private var detailsCache: [String: PlaceDetails] = [:]
     private var confidentPhotoCache: [String: ConfidentPhoto?] = [:]   // "name|lat,lon" → resolved (or checked-nil)
-    private var confidentPhotoInFlight: [String: Task<ConfidentPhoto?, Never>] = [:]  // coalesce concurrent callers per key
+    private var confidentPhotoInFlight: [String: Task<PhotoLookup, Never>] = [:]  // coalesce concurrent callers per key
 
     private static let base = "https://places.googleapis.com/v1"
     private static let biasRadius = 15_000.0   // ~15 km around town
+
+    /// The session for the JSON endpoints (autocomplete / details / searchText /
+    /// nearby). It is EPHEMERAL with `urlCache = nil` on purpose: a Place Details
+    /// response carries `photos[].name`, which the ToS forbids persisting, and
+    /// `URLSession.shared`'s default protocol-cache policy writes those responses to
+    /// disk (`Library/Caches/.../fsCachedData`) where they survive relaunch. An
+    /// ephemeral, un-cached session keeps every photo name in memory only.
+    ///
+    /// The photo *media* request (`photoURL`) is deliberately NOT routed here — it is
+    /// loaded by the views (AsyncImage / FeedCardImageLoader) on the shared session,
+    /// and image bytes carry no photo name, so caching them is fine and desirable.
+    private static let jsonSession: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.urlCache = nil
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        return URLSession(configuration: config)
+    }()
+
+    /// The outcome of a confident-photo lookup, kept distinct so a *transient* failure
+    /// (a 429, a dropped connection) is never cached as a permanent "no photo".
+    private enum PhotoLookup {
+        case found(ConfidentPhoto)   // a candidate cleared Rule A and carries a photo
+        case none                    // checked against a 2xx response — genuinely no confident photo
+        case unavailable             // a request transport-failed — could not check, so do not cache
+        var photo: ConfidentPhoto? { if case .found(let cp) = self { return cp } else { return nil } }
+    }
 
     /// A fresh autocomplete session token. The caller holds one while the user
     /// types, passes it to every autocomplete(_:) call and the final
@@ -127,7 +153,7 @@ final class GooglePlacesService {
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: req)
+            let (data, response) = try await Self.jsonSession.data(for: req)
             // A non-2xx returns a JSON error body that decodes as an all-nil "success";
             // bail before caching so a transient 429 doesn't poison the query.
             guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return [] }
@@ -164,7 +190,7 @@ final class GooglePlacesService {
                      forHTTPHeaderField: "X-Goog-FieldMask")
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: req)
+            let (data, response) = try await Self.jsonSession.data(for: req)
             guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
             let resp = try JSONDecoder().decode(DetailsResponse.self, from: data)
             guard let loc = resp.location else { return nil }
@@ -224,6 +250,14 @@ final class GooglePlacesService {
     /// St-Joe-biased text search — used ONLY as a geocode fallback (Phase 3).
     /// A place_id from here is a fuzzy match: never source a photo from it. [] on failure.
     func search(_ query: String) async -> [PlaceResult] {
+        await searchResults(query) ?? []
+    }
+
+    /// The real search. `nil` distinguishes "the request FAILED" (network / non-2xx)
+    /// from `[]` "Google genuinely returned nothing" — a difference `confidentPhoto`
+    /// needs so a transient failure is never cached as a permanent "no photo". Only
+    /// genuine results are cached; a failure is not, so the next appearance retries.
+    private func searchResults(_ query: String) async -> [PlaceResult]? {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty else { return [] }
         if let hit = searchCache[q] { return hit }
@@ -242,8 +276,8 @@ final class GooglePlacesService {
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: req)
-            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return [] }
+            let (data, response) = try await Self.jsonSession.data(for: req)
+            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
             let resp = try JSONDecoder().decode(SearchResponse.self, from: data)
             let results: [PlaceResult] = (resp.places ?? []).compactMap { p in
                 guard let loc = p.location, let name = p.displayName?.text, !name.isEmpty else { return nil }
@@ -255,7 +289,7 @@ final class GooglePlacesService {
             }
             searchCache[q] = results
             return results
-        } catch { return [] }
+        } catch { return nil }
     }
 
     // MARK: Nearby search (POI seeding — one-time, never on a map load)
@@ -289,7 +323,7 @@ final class GooglePlacesService {
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: req)
+            let (data, response) = try await Self.jsonSession.data(for: req)
             guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return [] }
             let resp = try JSONDecoder().decode(NearbyResponse.self, from: data)
             return (resp.places ?? []).compactMap { p in
@@ -327,8 +361,13 @@ final class GooglePlacesService {
     /// text-search result against, and KnownVenues is the only source of one outside
     /// the fixed MapSpots set. No KnownVenues match → nil, never a guess.
     func confidentPhoto(forFreeText title: String, hint: String?) async -> ConfidentPhoto? {
-        let query = [title, hint].compactMap { $0 }.joined(separator: " ")
-        guard let coord = KnownVenues.coordinate(for: query) else { return nil }
+        // Location FIRST via the shared rule (`KnownVenues.anchor`): `title` IS the venue
+        // (a `location`), `hint` is the item's own name and only rescues a location the
+        // table doesn't know. The old code concatenated the two and matched the first
+        // keyword anywhere in the combined string, which let an event title hijack the
+        // anchor away from its location (Millstream Arts Festival → Millstream Park,
+        // 1,025 m off, card blanked). See `KnownVenues.anchor(location:named:)`.
+        guard let coord = KnownVenues.anchor(location: title, named: hint ?? title) else { return nil }
         return await confidentPhoto(name: title, coordinate: coord)
     }
 
@@ -352,16 +391,20 @@ final class GooglePlacesService {
         if let hit = confidentPhotoCache[key] { return hit }
         // Coalesce concurrent callers for the same venue (e.g. several list cards
         // sharing one location) onto a single billed Places round-trip.
-        if let inFlight = confidentPhotoInFlight[key] { return await inFlight.value }
+        if let inFlight = confidentPhotoInFlight[key] { return await inFlight.value.photo }
 
-        let task = Task { () -> ConfidentPhoto? in
+        let task = Task { () -> PhotoLookup in
             // Google's first hit isn't always the right place — a "Monument Park"
             // query can rank the (wrong) "Memorial Park" first and the real one
             // third. Scan the top few and gate each with Rule A using the cheap
             // search result: it already carries primaryType + types, so the
             // large-footprint tier costs no extra billed field and no extra call.
             // Only a candidate that has cleared the gate is worth a details() call.
-            for candidate in await self.search("\(name) St Joseph MN").prefix(5) {
+            //
+            // `nil` from searchResults means the SEARCH itself failed (network / 429),
+            // not "nothing matched" — surface that as `.unavailable` so it is not cached.
+            guard let candidates = await self.searchResults("\(name) St Joseph MN") else { return .unavailable }
+            for candidate in candidates.prefix(5) {
                 guard RuleA.clears(resolvedName: candidate.name,
                                    resolvedCoordinate: candidate.coordinate,
                                    types: candidate.types,
@@ -369,16 +412,27 @@ final class GooglePlacesService {
                                    curatedName: name,
                                    curatedCoordinate: coordinate)
                 else { continue }
-                guard let d = await self.details(placeId: candidate.placeId), let photo = d.photo else { continue }
-                return ConfidentPhoto(photoName: photo.name, attributions: photo.attributions)
+                // A cleared candidate IS the right place. If details can't be fetched we
+                // couldn't check for a photo, so return `.unavailable` (retry later)
+                // rather than let a network blip cache this venue as photoless forever.
+                guard let d = await self.details(placeId: candidate.placeId) else { return .unavailable }
+                if let photo = d.photo {
+                    return .found(ConfidentPhoto(photoName: photo.name, attributions: photo.attributions))
+                }
+                // Details succeeded but this candidate has no photo — try the next one.
             }
-            return nil
+            return .none
         }
         confidentPhotoInFlight[key] = task
-        let result = await task.value
+        let lookup = await task.value
         confidentPhotoInFlight[key] = nil
-        confidentPhotoCache[key] = .some(result)
-        return result
+        // Only a COMPLETED lookup writes the cache. `.unavailable` (a transport failure)
+        // leaves the key absent so the next appearance retries instead of staying blank.
+        switch lookup {
+        case .found(let cp): confidentPhotoCache[key] = .some(cp); return cp
+        case .none:          confidentPhotoCache[key] = .some(nil); return nil
+        case .unavailable:   return nil
+        }
     }
 
     // MARK: Shared

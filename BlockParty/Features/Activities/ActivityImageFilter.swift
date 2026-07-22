@@ -116,6 +116,10 @@ private func keepImaged<T>(_ items: [T], _ has: @escaping @MainActor (T) async -
     var verdicts: [Bool] = []
     verdicts.reserveCapacity(items.count)
     for start in stride(from: 0, to: items.count, by: PhotoFilterTuning.maxConcurrentLookups) {
+        // The deadline fired while an earlier window was resolving: stop opening new
+        // Places round-trips and fail open (keep everything) rather than block on the
+        // rest. `withDeadline` cancels this task the moment it gives up.
+        if Task.isCancelled { return items }
         let end = min(start + PhotoFilterTuning.maxConcurrentLookups, items.count)
         verdicts += await concurrentVerdicts(Array(items[start..<end]), has)
     }
@@ -136,14 +140,39 @@ private func concurrentVerdicts<T>(_ items: [T], _ has: @escaping @MainActor (T)
     }
 }
 
-/// Run `op`, or return nil if it doesn't finish within `seconds`.
+/// Run `op`, or return nil if it doesn't finish within `seconds` — and RETURN AT the
+/// deadline, not after `op` eventually finishes.
+///
+/// This cannot be a `withTaskGroup`: a group awaits (drains) every child before it
+/// returns, so a `group.addTask { await op() }` child that ignores cancellation holds
+/// the whole call open for the full duration of `op` — which is exactly why the old
+/// 3 s deadline never fired and the Activities tab hung 20-45 s on a cold load. Instead
+/// `op` runs as an UNSTRUCTURED task and races a sleep on a one-shot continuation:
+/// whichever finishes first settles it, the loser is ignored, and a slow `op` is
+/// cancelled and left to unwind on its own (its structured children — `keepImaged`'s
+/// windows — see the cancellation and stop opening new Places calls).
 @MainActor
 private func withDeadline<T: Sendable>(_ seconds: Double, _ op: @escaping @MainActor () async -> T) async -> T? {
-    await withTaskGroup(of: T?.self) { group in
-        group.addTask { @MainActor in await op() }
-        group.addTask { try? await Task.sleep(for: .seconds(seconds)); return nil }
-        let first = await group.next() ?? nil
-        group.cancelAll()
-        return first
+    let work = Task { @MainActor in await op() }
+
+    let result: T? = await withCheckedContinuation { continuation in
+        let gate = DeadlineGate<T>(continuation)
+        Task { await gate.settle(with: await work.value) }
+        Task { try? await Task.sleep(for: .seconds(seconds)); await gate.settle(with: nil) }
+    }
+
+    work.cancel()   // deadline won → stop the abandoned work from billing further windows
+    return result
+}
+
+/// One-shot resume guard for `withDeadline`'s race. An actor (so it's `Sendable` and
+/// safe to capture in the two racing tasks) that resumes the continuation exactly once
+/// — the second `settle` is a no-op, so neither racer can double-resume.
+private actor DeadlineGate<T: Sendable> {
+    private var continuation: CheckedContinuation<T?, Never>?
+    init(_ continuation: CheckedContinuation<T?, Never>) { self.continuation = continuation }
+    func settle(with value: T?) {
+        continuation?.resume(returning: value)
+        continuation = nil
     }
 }

@@ -86,25 +86,24 @@ struct VenueInfoView: View {
     // MARK: Photo
 
     private func photoView(_ p: (url: URL, attributions: [String])) -> some View {
-        ZStack(alignment: .bottomTrailing) {
-            AsyncImage(url: p.url) { phase in
-                if case .success(let img) = phase {
-                    img.resizable().scaledToFill()
-                } else {
-                    Rectangle().fill(palette.card)
-                }
-            }
-            .frame(height: 150).frame(maxWidth: .infinity).clipped()
-            .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-
-            if !p.attributions.isEmpty {
-                Text(p.attributions.joined(separator: ", "))
-                    .font(.sans(9)).foregroundStyle(.white.opacity(0.95)).lineLimit(1)
-                    .padding(.horizontal, 6).padding(.vertical, 3)
-                    .background(.black.opacity(0.4), in: Capsule())
-                    .padding(8)
+        // The credit lives INSIDE the `.success` branch — the same discipline as
+        // `VenuePhoto.filled` — so it never draws over the loading/failed placeholder,
+        // crediting a photo nobody can see. It rides the CLEAR success container rather
+        // than the image (which `scaledToFill` renders larger than the box), and reuses
+        // the one shared `PhotoCredit` treatment.
+        AsyncImage(url: p.url) { phase in
+            switch phase {
+            case .success(let img):
+                Color.clear
+                    .overlay { img.resizable().scaledToFill() }
+                    .clipped()
+                    .overlay(alignment: .bottomTrailing) { PhotoCredit(names: p.attributions) }
+            default:
+                Rectangle().fill(palette.card)
             }
         }
+        .frame(height: 150).frame(maxWidth: .infinity).clipped()
+        .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
     }
 
     // MARK: Hours / contact card

@@ -23,6 +23,7 @@ struct FeedEventCard: View {
 
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @State private var resolvedVenuePhoto: ResolvedVenuePhoto?
+    @State private var venuePhotoDecoded = false
     @State private var actionState: FeedCardActionState
     @State private var joinState: FeedCardJoinState
     @State private var commentState: FeedCommentState
@@ -108,13 +109,34 @@ struct FeedEventCard: View {
         let image: FeedCardImageSource
     }
 
-    /// What the card renders right now. A `venueLookup` shows the fallback treatment
-    /// until it resolves into a `.placesPhoto`; every other source is already final.
-    private var displayImage: FeedCardImageSource {
+    /// The source whose bitmap the hero LOADS. As soon as the venue resolves the
+    /// download starts here — even while the typography still shows the fallback (see
+    /// `displayImage`), so the photo decodes behind the flat-ink beat, not after it.
+    private var loadedSource: FeedCardImageSource {
         guard case .venueLookup = item.image else { return item.image }
         guard let resolved = resolvedVenuePhoto, resolved.lookup == item.image
         else { return .fallback }
         return resolved.image
+    }
+
+    /// What the card's TYPOGRAPHY, scrim, and join treatment reflect. A resolved venue
+    /// photo only counts once its bitmap has actually decoded (`venuePhotoDecoded`), so
+    /// the card never sits in the half-state the 0.25 s ease was meant to prevent:
+    /// small type + meta line + a scrim gradient over an undownloaded flat-ink frame.
+    /// Every non-`venueLookup` source is already final and shows immediately.
+    private var displayImage: FeedCardImageSource {
+        guard case .venueLookup = item.image else { return item.image }
+        guard venuePhotoDecoded, let resolved = resolvedVenuePhoto, resolved.lookup == item.image
+        else { return .fallback }
+        return resolved.image
+    }
+
+    /// The photographer credit for the photo currently on screen, in the array form
+    /// `PhotoCredit` takes. Empty unless a Places photo is actually displayed, so the
+    /// credit can never render over the ink fallback.
+    private var creditNames: [String] {
+        guard let attribution = displayImage.attribution else { return [] }
+        return [attribution]
     }
 
     /// The one place the feed spends a billed Google call. It runs from `.task`, so a
@@ -128,12 +150,27 @@ struct FeedEventCard: View {
         // don't drop it and re-render the fallback for a frame on the way back in.
         guard resolvedVenuePhoto?.lookup != item.image else { return }
 
+        // A genuinely new venue — its photo hasn't decoded yet, so the card holds the
+        // fallback until this lookup's bitmap is ready (see markVenuePhotoDecoded).
+        venuePhotoDecoded = false
+
         let lookup = item.image
         let resolved = await FeedCardVenuePhoto.resolve(name: name, hint: hint)
         guard !Task.isCancelled, let resolved else { return }
 
+        // No animation here: this only starts the download — imageContent shows the same
+        // flat ink meanwhile. The single visible transition runs on decode, below.
+        resolvedVenuePhoto = ResolvedVenuePhoto(lookup: lookup, image: resolved)
+    }
+
+    /// The resolved photo's bitmap has decoded and is on screen: flip the card's
+    /// typography + scrim to photo-mode in one animation, joined to the cross-fade the
+    /// image itself runs (`FeedCardDownsampledPhoto`) — so there is no hard cut and no
+    /// undesigned half-state on the way in.
+    private func markVenuePhotoDecoded() {
+        guard !venuePhotoDecoded else { return }
         withAnimation(motionIsReduced ? nil : .easeOut(duration: 0.25)) {
-            resolvedVenuePhoto = ResolvedVenuePhoto(lookup: lookup, image: resolved)
+            venuePhotoDecoded = true
         }
     }
 
@@ -166,16 +203,22 @@ struct FeedEventCard: View {
             chipRow
                 .padding(12)
         }
-        .overlay(alignment: .bottomLeading) {
-            imageCopy
-                .padding(16)
-                .padding(.trailing, 60)
-        }
-        .overlay(alignment: .bottomTrailing) {
-            if let attribution = displayImage.attribution {
-                FeedCardPhotoAttribution(attribution: attribution)
-                    .padding(.trailing, Self.joinBlockClearance)
+        .overlay(alignment: .bottom) {
+            // Copy and the ToS credit share ONE bottom-aligned row, so the copy's
+            // available width is derived from the credit's measured width instead of a
+            // hard-coded inset. They used to be two independent bottom overlays whose
+            // fixed insets guaranteed they overlapped ("Karry Rood" landing on the meta
+            // line). Trailing room is reserved for the join block, which overlaps the
+            // card's lower-right corner.
+            HStack(alignment: .bottom, spacing: 8) {
+                imageCopy
+                if !creditNames.isEmpty {
+                    Spacer(minLength: 8)
+                    PhotoCredit(names: creditNames)
+                }
             }
+            .padding(16)
+            .padding(.trailing, Self.joinBlockClearance)
         }
         .overlay(alignment: .bottomTrailing) {
             joinBlock
@@ -189,9 +232,9 @@ struct FeedEventCard: View {
 
     @ViewBuilder
     private var imageContent: some View {
-        switch displayImage {
+        switch loadedSource {
         case .eventPhoto(let url), .placesPhoto(let url, _):
-            FeedCardURLPhoto(url: url)
+            FeedCardURLPhoto(url: url, onReady: markVenuePhotoDecoded)
         case .venueLookup, .fallback:
             Rectangle().fill(Hue.ink)
         }
