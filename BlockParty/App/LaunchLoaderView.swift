@@ -71,16 +71,19 @@ private enum Loader {
     /// reference logo's extent.
     ///
     /// The reference logo spans 0.252·W (127 px of 504, and the earlier measurement pass
-    /// recorded the same figure). What the eye compares is the ink, not the white plate
-    /// it sits on, and `LaunchMark`'s ink occupies 0.751 of the asset — so the plate has
-    /// to be 0.252/0.751 to land the ink on the reference. At the previous 0.30 the ink
-    /// measured 0.225·W in a screenshot: an 11% under-size against the target.
+    /// recorded the same figure). What the eye compares is the ink, so the box is derived
+    /// from `inkFraction` rather than set directly — the two move together and the rendered
+    /// ink stays on 0.252·W however the asset is cropped. (It was 0.7511 when the asset
+    /// still carried the white plate, ~0.9925 now it is cropped to the ink.) Setting the
+    /// box directly is what put the ink at 0.225·W — an 11% under-size no screenshot shows.
     static let markSide: CGFloat = 0.252 / BlockPartyMark.inkFraction
     static let markScaleStart: Double = 0.61               // starts here, grows to 1
     static let markFullAt: Double = 0.48                   // full scale at 0.48 of the bloom
 
     // Icon envelope (shared by all five; they bloom together).
-    static let iconBaseSize: CGFloat = 0.115               // frac of screen WIDTH
+    /// Nominal glyph box, frac of screen WIDTH. `sizeMul` below does the real work —
+    /// this is just the scale the multipliers hang off.
+    static let iconBaseSize: CGFloat = 0.115
 
     /// The five icons at their settled position (fractions of the screen). Each one sits
     /// where the reference shape of the same slot sits — that mapping was originally
@@ -93,12 +96,25 @@ private enum Loader {
     /// belongs. Recovered by classifying pixels on their deviation-from-white DIRECTION,
     /// which is opacity-invariant (compositing over white scales that vector uniformly,
     /// so anti-aliased edge pixels keep their hue and a fading shape does not drift).
+    /// `sizeMul` normalises each glyph's INK MASS to the reference shape in its slot,
+    /// which is not the same as matching its bounding box.
+    ///
+    /// The reference's five shapes are solid and all carry comparable mass. SF Symbols do
+    /// not: at one nominal size `book.fill` renders 1.76× the ink of `figure.run`, because
+    /// a stick figure's box is mostly empty. So the two metrics disagree, and in places
+    /// they disagree in DIRECTION — `figure.run`'s box measured 1.27× the reference's while
+    /// its ink measured 0.91×. Matching boxes would have shrunk the runner 21% when it
+    /// wanted to grow. Mass is what the eye weighs, so mass is what these match; it also
+    /// evens out our own glyphs, which previously read heavy (book, storefront) against
+    /// light (runner, yoga) at the same size.
+    ///
+    /// Measured as sqrt(inked pixels)/W on the settled frame, ours vs the reference.
     static let icons: [LoaderIcon] = [
-        LoaderIcon(kind: .run,    peak: UnitPoint(x: 0.417, y: 0.215), sizeMul: 1.00, spinDeg: 45), // top
-        LoaderIcon(kind: .book,   peak: UnitPoint(x: 0.655, y: 0.251), sizeMul: 1.00, spinDeg: 43), // top-right
-        LoaderIcon(kind: .yoga,   peak: UnitPoint(x: 0.248, y: 0.317), sizeMul: 1.02, spinDeg: 42), // left
-        LoaderIcon(kind: .truck,  peak: UnitPoint(x: 0.495, y: 0.332), sizeMul: 1.15, spinDeg: 49), // centre
-        LoaderIcon(kind: .market, peak: UnitPoint(x: 0.818, y: 0.343), sizeMul: 1.02, spinDeg: 43), // right
+        LoaderIcon(kind: .run,    peak: UnitPoint(x: 0.417, y: 0.215), sizeMul: 1.10, spinDeg: 45), // top
+        LoaderIcon(kind: .book,   peak: UnitPoint(x: 0.655, y: 0.251), sizeMul: 0.69, spinDeg: 43), // top-right
+        LoaderIcon(kind: .yoga,   peak: UnitPoint(x: 0.248, y: 0.317), sizeMul: 0.87, spinDeg: 42), // left
+        LoaderIcon(kind: .truck,  peak: UnitPoint(x: 0.495, y: 0.332), sizeMul: 0.88, spinDeg: 49), // centre
+        LoaderIcon(kind: .market, peak: UnitPoint(x: 0.818, y: 0.343), sizeMul: 0.68, spinDeg: 43), // right
     ]
 }
 
