@@ -57,8 +57,18 @@ private enum Loader {
     static let startDelay: Double = 0.32
 
     // Centre mark — the app icon (see LoaderBlockPartyMark).
-    static let markCenter = UnitPoint(x: 0.50, y: 0.49)   // frac of screen
-    static let markSide: CGFloat = 0.30                    // frac of screen WIDTH (square)
+    /// Measured centre of the reference logo, not the screen centre — it sits a hair
+    /// right of and below dead centre.
+    static let markCenter = UnitPoint(x: 0.505, y: 0.492)  // frac of screen
+    /// Frac of screen WIDTH for the icon PLATE — sized so the INK inside it matches the
+    /// reference logo's extent.
+    ///
+    /// The reference logo spans 0.252·W (127 px of 504, and the earlier measurement pass
+    /// recorded the same figure). What the eye compares is the ink, not the white plate
+    /// it sits on, and `LaunchMark`'s ink occupies 0.751 of the asset — so the plate has
+    /// to be 0.252/0.751 to land the ink on the reference. At the previous 0.30 the ink
+    /// measured 0.225·W in a screenshot: an 11% under-size against the target.
+    static let markSide: CGFloat = 0.252 / BlockPartyMark.inkFraction
     static let markScaleStart: Double = 0.61               // starts here, grows to 1
     static let markFullAt: Double = 0.48                   // full scale at 0.48 of the bloom
 
@@ -69,12 +79,18 @@ private enum Loader {
     /// the reference layout to the nearest-colour position so the palette lands where
     /// the eye expects it. `spinDeg` is the measured angle each emerges at, in degrees
     /// counter-clockwise from its settled orientation.
+    ///
+    /// Peaks are the measured centroids of each reference shape, not the rounded figures
+    /// carried over from v1 — the clover in particular sat 0.015·W left of where it
+    /// belongs. Recovered by classifying pixels on their deviation-from-white DIRECTION,
+    /// which is opacity-invariant (compositing over white scales that vector uniformly,
+    /// so anti-aliased edge pixels keep their hue and a fading shape does not drift).
     static let icons: [LoaderIcon] = [
-        LoaderIcon(kind: .run,    color: .orange, peak: UnitPoint(x: 0.42, y: 0.22),  sizeMul: 1.00, spinDeg: 45), // top
-        LoaderIcon(kind: .book,   color: .green,  peak: UnitPoint(x: 0.64, y: 0.25),  sizeMul: 1.00, spinDeg: 43), // top-right
-        LoaderIcon(kind: .yoga,   color: .purple, peak: UnitPoint(x: 0.24, y: 0.315), sizeMul: 1.02, spinDeg: 42), // left
-        LoaderIcon(kind: .truck,  color: .red,    peak: UnitPoint(x: 0.49, y: 0.335), sizeMul: 1.15, spinDeg: 49), // centre
-        LoaderIcon(kind: .market, color: .yellow, peak: UnitPoint(x: 0.81, y: 0.345), sizeMul: 1.02, spinDeg: 43), // right
+        LoaderIcon(kind: .run,    color: .orange, peak: UnitPoint(x: 0.417, y: 0.215), sizeMul: 1.00, spinDeg: 45), // top
+        LoaderIcon(kind: .book,   color: .green,  peak: UnitPoint(x: 0.655, y: 0.251), sizeMul: 1.00, spinDeg: 43), // top-right
+        LoaderIcon(kind: .yoga,   color: .purple, peak: UnitPoint(x: 0.248, y: 0.317), sizeMul: 1.02, spinDeg: 42), // left
+        LoaderIcon(kind: .truck,  color: .red,    peak: UnitPoint(x: 0.495, y: 0.332), sizeMul: 1.15, spinDeg: 49), // centre
+        LoaderIcon(kind: .market, color: .yellow, peak: UnitPoint(x: 0.818, y: 0.343), sizeMul: 1.02, spinDeg: 43), // right
     ]
 }
 
