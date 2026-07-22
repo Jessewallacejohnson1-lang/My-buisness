@@ -71,11 +71,11 @@ private enum Loader {
     /// reference logo's extent.
     ///
     /// The reference logo spans 0.252·W (127 px of 504, and the earlier measurement pass
-    /// recorded the same figure). What the eye compares is the ink, so the box is derived
-    /// from `inkFraction` rather than set directly — the two move together and the rendered
-    /// ink stays on 0.252·W however the asset is cropped. (It was 0.7511 when the asset
-    /// still carried the white plate, ~0.9925 now it is cropped to the ink.) Setting the
-    /// box directly is what put the ink at 0.225·W — an 11% under-size no screenshot shows.
+    /// recorded the same figure). What the eye compares is the ink FRAME, not the white
+    /// plate it sits on, so the box is derived from `inkFraction` rather than set directly:
+    /// the plate is scaled up so the ink inside it lands on 0.252·W (inkFraction 0.7511 ⇒
+    /// plate 0.3355·W). Setting the box directly is what put the ink at 0.225·W — an 11%
+    /// under-size no screenshot shows.
     static let markSide: CGFloat = 0.252 / BlockPartyMark.inkFraction
     static let markScaleStart: Double = 0.61               // starts here, grows to 1
     static let markFullAt: Double = 0.48                   // full scale at 0.48 of the bloom
