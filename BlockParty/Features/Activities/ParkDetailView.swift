@@ -51,8 +51,9 @@ struct ParkDetailView: View {
         if let localName = KnownLocalPhoto.name(forTitle: park.title) {
             PhotoView(name: localName).scaledToFill()
         } else {
-            VenuePhoto(venueName: park.title, hint: park.address,
-                       coordinate: park.coordinate, maxWidth: 1600) { ExploreBlankPhoto() }
+            let venue = ActivityVenue.park(park)
+            VenuePhoto(venueName: venue.name, coordinate: venue.anchor,
+                       maxWidth: 1600) { ExploreBlankPhoto() }
         }
     }
 

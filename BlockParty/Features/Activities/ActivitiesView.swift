@@ -811,8 +811,9 @@ private struct EventExploreCard: View {
         } else if let localName = KnownLocalPhoto.name(forTitle: event.title) {
             PhotoView(name: localName).scaledToFill()
         } else {
-            VenuePhoto(venueName: event.location ?? event.title,
-                       hint: event.location != nil ? event.title : nil, maxWidth: 1200) { ExploreBlankPhoto() }
+            let venue = ActivityVenue.event(event)
+            VenuePhoto(venueName: venue.name, coordinate: venue.anchor,
+                       maxWidth: 1200) { ExploreBlankPhoto() }
         }
     }
     /// One line on the tile foot: the recurrence summary ("Every Friday · 3 PM"),
@@ -828,8 +829,9 @@ private struct ClubExploreCard: View {
     var onJoin: () -> Void
     var body: some View {
         ActivityTile(id: club.id, tag: "Club", title: club.name, metaLine: metaLine) {
-            VenuePhoto(venueName: club.location ?? club.name,
-                       hint: club.location != nil ? club.name : nil, maxWidth: 1200) { ExploreBlankPhoto() }
+            let venue = ActivityVenue.club(club)
+            VenuePhoto(venueName: venue.name, coordinate: venue.anchor,
+                       maxWidth: 1200) { ExploreBlankPhoto() }
         } trailing: {
             Button {
                 Haptics.light()
@@ -888,7 +890,9 @@ private struct TrailExploreCard: View {
         } else if let localName = KnownLocalPhoto.name(forTitle: trail.title) {
             PhotoView(name: localName).scaledToFill()
         } else {
-            VenuePhoto(venueName: trail.title, hint: trail.location, maxWidth: 1200) { ExploreBlankPhoto() }
+            let venue = ActivityVenue.trail(trail)
+            VenuePhoto(venueName: venue.name, coordinate: venue.anchor,
+                       maxWidth: 1200) { ExploreBlankPhoto() }
         }
     }
 
@@ -935,8 +939,9 @@ private struct ParkExploreCard: View {
         if let localName = KnownLocalPhoto.name(forTitle: park.title) {
             PhotoView(name: localName).scaledToFill()
         } else {
-            VenuePhoto(venueName: park.title, hint: park.address,
-                       coordinate: park.coordinate, maxWidth: 1200) { ExploreBlankPhoto() }
+            let venue = ActivityVenue.park(park)
+            VenuePhoto(venueName: venue.name, coordinate: venue.anchor,
+                       maxWidth: 1200) { ExploreBlankPhoto() }
         }
     }
 

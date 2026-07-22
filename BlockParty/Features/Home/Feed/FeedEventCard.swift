@@ -17,7 +17,12 @@ struct FeedEventCard: View {
     let onShare: (() -> Void)?
     let debugAutoplay: Bool
 
+    /// Horizontal room the overlapping join block needs, so the ToS attribution
+    /// caption stays fully legible beside it.
+    private static let joinBlockClearance: CGFloat = 44
+
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    @State private var resolvedVenuePhoto: ResolvedVenuePhoto?
     @State private var actionState: FeedCardActionState
     @State private var joinState: FeedCardJoinState
     @State private var commentState: FeedCommentState
@@ -91,7 +96,45 @@ struct FeedEventCard: View {
             joinState.sync(with: updatedItem)
             showsCurrentUserAvatar = updatedItem.isJoined
         }
+        .task(id: item.image) { await resolveVenuePhoto() }
         .task { await runDebugAutoplay() }
+    }
+
+    /// A resolved venue photo, tagged with the lookup that produced it — so a card
+    /// whose item changed under it can tell "already resolved" from "someone else's
+    /// photo" without ever flashing the wrong venue.
+    private struct ResolvedVenuePhoto {
+        let lookup: FeedCardImageSource
+        let image: FeedCardImageSource
+    }
+
+    /// What the card renders right now. A `venueLookup` shows the fallback treatment
+    /// until it resolves into a `.placesPhoto`; every other source is already final.
+    private var displayImage: FeedCardImageSource {
+        guard case .venueLookup = item.image else { return item.image }
+        guard let resolved = resolvedVenuePhoto, resolved.lookup == item.image
+        else { return .fallback }
+        return resolved.image
+    }
+
+    /// The one place the feed spends a billed Google call. It runs from `.task`, so a
+    /// card that never scrolls into view never costs anything, and `GooglePlacesService`
+    /// caches + coalesces, so cards sharing a venue share one round-trip. A venue that
+    /// can't be confidently identified simply stays on the fallback — no gray box, no
+    /// spinner, no retry loop.
+    private func resolveVenuePhoto() async {
+        guard case .venueLookup(let name, let hint) = item.image else { return }
+        // Same venue as the last appearance — displayImage is already showing it, so
+        // don't drop it and re-render the fallback for a frame on the way back in.
+        guard resolvedVenuePhoto?.lookup != item.image else { return }
+
+        let lookup = item.image
+        let resolved = await FeedCardVenuePhoto.resolve(name: name, hint: hint)
+        guard !Task.isCancelled, let resolved else { return }
+
+        withAnimation(motionIsReduced ? nil : .easeOut(duration: 0.25)) {
+            resolvedVenuePhoto = ResolvedVenuePhoto(lookup: lookup, image: resolved)
+        }
     }
 
     private var imageSection: some View {
@@ -101,13 +144,8 @@ struct FeedEventCard: View {
                     .frame(width: proxy.size.width, height: proxy.size.height)
                     .clipped()
 
-                if item.image.isPhoto {
-                    LinearGradient(
-                        colors: [Color.black.opacity(0), Color.black.opacity(0.55)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(height: proxy.size.height * 0.4)
+                if displayImage.isPhoto {
+                    FeedCardPhotoScrim(imageHeight: proxy.size.height)
                 }
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
@@ -134,14 +172,9 @@ struct FeedEventCard: View {
                 .padding(.trailing, 60)
         }
         .overlay(alignment: .bottomTrailing) {
-            if let attribution = item.image.attribution {
-                Text(attribution)
-                    .font(.sans(10))
-                    .foregroundStyle(.white.opacity(0.7))
-                    .lineLimit(1)
-                    // Keep the required caption legible beside the overlapping join block.
-                    .padding(.trailing, 52)
-                    .padding(.bottom, 8)
+            if let attribution = displayImage.attribution {
+                FeedCardPhotoAttribution(attribution: attribution)
+                    .padding(.trailing, Self.joinBlockClearance)
             }
         }
         .overlay(alignment: .bottomTrailing) {
@@ -156,10 +189,10 @@ struct FeedEventCard: View {
 
     @ViewBuilder
     private var imageContent: some View {
-        switch item.image {
+        switch displayImage {
         case .eventPhoto(let url), .placesPhoto(let url, _):
             FeedCardURLPhoto(url: url)
-        case .fallback:
+        case .venueLookup, .fallback:
             Rectangle().fill(Hue.ink)
         }
     }
@@ -191,8 +224,8 @@ struct FeedEventCard: View {
 
     @ViewBuilder
     private var imageCopy: some View {
-        switch item.image {
-        case .fallback:
+        switch displayImage {
+        case .venueLookup, .fallback:
             Text(item.title)
                 .font(.display(32))
                 .foregroundStyle(.white)
@@ -210,13 +243,14 @@ struct FeedEventCard: View {
                     .foregroundStyle(.white.opacity(0.85))
                     .lineLimit(1)
             }
+            .feedCardPhotoTypeShadow()
         }
     }
 
     private var joinBlock: some View {
         FeedEventCardJoinButton(
             isJoined: joinState.isJoined,
-            isFallback: item.image.isFallback,
+            isFallback: displayImage.isFallback,
             reduceMotion: motionIsReduced,
             autoplayPressed: autoplayJoinPressed,
             onToggle: performJoinTap

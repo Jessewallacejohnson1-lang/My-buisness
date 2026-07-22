@@ -22,7 +22,11 @@ extension FeedCardItem {
             title: posting.title,
             dateChip: Self.dateChip(from: posting.eventDate),
             metaLine: metadata,
-            image: Self.imageSource(from: posting.imageUrl),
+            image: Self.imageSource(
+                imageUrl: posting.imageUrl,
+                location: location,
+                title: posting.title
+            ),
             recurrence: recurrence,
             goingCount: posting.goingCount,
             goingAvatars: Array(goingPreview?.avatars.prefix(3) ?? []),
@@ -69,12 +73,26 @@ extension FeedCardItem {
         return formatter.string(from: date).uppercased()
     }
 
-    private static func imageSource(from value: String?) -> FeedCardImageSource {
-        if let raw = nonempty(value), let url = URL(string: raw) {
+    /// An organizer's own photo always wins. Failing that we hand the card the
+    /// *intent* to look the venue up — resolving it here would be an async, billed
+    /// Google call per posting on every feed load (see `FeedCardImageSource`).
+    ///
+    /// Which string is the venue mirrors `ActivityImage.has(event:)`: an event's
+    /// title says what is happening, not where, so the venue name is its `location`
+    /// when it has one and the title is only a hint for the KnownVenues lookup.
+    /// A posting with neither is the genuinely-nothing case.
+    private static func imageSource(
+        imageUrl: String?,
+        location: String?,
+        title: String
+    ) -> FeedCardImageSource {
+        if let raw = nonempty(imageUrl), let url = URL(string: raw) {
             return .eventPhoto(url)
         }
-        // Phase 5: optional curated Places photo
-        return .fallback
+
+        let title = nonempty(title)
+        guard let venue = location ?? title else { return .fallback }
+        return .venueLookup(name: venue, hint: location != nil ? title : nil)
     }
 
     private static func goingSummary(for count: Int, names: [String]) -> String {

@@ -4,6 +4,8 @@
 //  photo-forward (a product choice). "Has a photo" mirrors each card's own 3-tier
 //  cascade exactly: an organizer-uploaded `imageUrl`, a bundled `KnownLocalPhoto`,
 //  else a confidence-gated Google Places lookup (`VenuePhoto` / `GooglePlacesService`).
+//  Both sides derive the venue through `ActivityVenue`, so the filter and the card can
+//  never disagree about which place is being looked up.
 //
 //  The Google tier is async, so resolution runs before the tab reveals (gated by
 //  `ActivitiesModel.loaded`) — cards never pop-then-vanish. It's bounded by a
@@ -16,45 +18,82 @@ import CoreLocation
 
 @MainActor
 enum ActivityImage {
-    /// Event: organizer photo → bundled → venue lookup (name = its location, else title).
+    /// Event: organizer photo → bundled → venue lookup.
     static func has(event e: UpcomingEvent) async -> Bool {
         if e.imageUrl.flatMap(URL.init(string:)) != nil { return true }
         if KnownLocalPhoto.name(forTitle: e.title) != nil { return true }
-        let name = e.location ?? e.title
-        let hint = e.location != nil ? e.title : nil
-        return await GooglePlacesService.shared.confidentPhoto(forFreeText: name, hint: hint) != nil
+        return await resolves(ActivityVenue.event(e))
     }
 
     /// Club: no photo field at all — only a venue lookup can supply one.
+    /// NOTE: `clubs` is EMPTY in production (0 rows), so this path is dead weight
+    /// today. Kept because the composer can create clubs; not worth optimising.
     static func has(club c: ClubView) async -> Bool {
-        let name = c.location ?? c.name
-        let hint = c.location != nil ? c.name : nil
-        return await GooglePlacesService.shared.confidentPhoto(forFreeText: name, hint: hint) != nil
+        await resolves(ActivityVenue.club(c))
     }
 
-    /// Trail: the bundled Wobegon card always has one; else imageUrl → bundled → lookup.
+    /// Trail: imageUrl → bundled → lookup. (`WobegonExploreCard` is a hardcoded view,
+    /// not a fetched row, so it never passes through this filter.)
     static func has(trail t: Trail) async -> Bool {
-        if t.id == "wobegon-trail" { return true }
         if t.imageUrl.flatMap(URL.init(string:)) != nil { return true }
         if KnownLocalPhoto.name(forTitle: t.title) != nil { return true }
-        return await GooglePlacesService.shared.confidentPhoto(forFreeText: t.title, hint: t.location) != nil
+        return await resolves(ActivityVenue.trail(t))
     }
 
     /// Park: bundled → coordinate-anchored lookup (curated pin, so it usually resolves).
     static func has(park p: Park) async -> Bool {
         if KnownLocalPhoto.name(forTitle: p.title) != nil { return true }
-        return await GooglePlacesService.shared.confidentPhoto(name: p.title, coordinate: p.coordinate) != nil
+        return await resolves(ActivityVenue.park(p))
+    }
+
+    /// Does this venue clear Rule A and carry a photo? No curated anchor means no
+    /// photo can ever clear the gate, so skip the round-trip entirely.
+    private static func resolves(_ venue: ActivityVenue) async -> Bool {
+        guard let anchor = venue.anchor else { return false }
+        return await GooglePlacesService.shared.confidentPhoto(name: venue.name, coordinate: anchor) != nil
     }
 }
 
+// MARK: - Tuning (measured, not guessed)
+
+/// Stateless, so `nonisolated` — a MainActor-isolated constant can't be read from a
+/// default argument without tripping the 0-warning bar.
+private nonisolated enum PhotoFilterTuning {
+
+    /// How long the whole filter may take before it gives up and shows everything.
+    ///
+    /// MEASURED 2026-07-21 against the live Places API with today's real content. The
+    /// long pole is the city-park lane: 6 of the 9 parks have no bundled photo, so each
+    /// needs one `searchText` plus (when a candidate clears Rule A) one `details`.
+    ///   • Run SERIALLY, as this filter used to: 12 sequential requests, **3.07 s** on
+    ///     a fast desktop connection — so a 3.0 s deadline fired on EVERY cold load and
+    ///     the photo-forward filter was silently inert on first paint.
+    ///   • Run in `maxConcurrentLookups`-wide windows: **1.42 s** for the same work
+    ///     (2.2x), because the critical path collapses to one venue's search → details
+    ///     pair rather than twelve requests end to end.
+    /// 3.0 s therefore stays, but it is now a genuine safety valve with ~2x headroom
+    /// instead of a budget the normal path blows through. It is not raised further
+    /// because `ActivitiesModel.loaded` gates the tab reveal: every extra second spent
+    /// here is an extra second of skeleton.
+    static let deadlineSeconds = 3.0
+
+    /// Photo lookups in flight at once, per collection. Each is one Places `searchText`
+    /// (plus at most one `details`), so this is the burst we're willing to send Google
+    /// for a single screen. Six covers the whole city-park set in one wave and keeps a
+    /// future 50-event town from firing 50 requests simultaneously.
+    static let maxConcurrentLookups = 6
+}
+
+// MARK: - Filter
+
 /// Filtered copies of the four Activities collections, keeping only items with a
-/// resolvable photo. Runs the four types concurrently (each serial within, so the
-/// Google lookups' network I/O overlaps) and returns the originals unchanged if it
-/// can't finish within `deadline` (fail-open).
+/// resolvable photo. Runs the four types concurrently (and, within each type, up to
+/// `maxConcurrentLookups` at a time) and returns the originals unchanged if it can't
+/// finish within the deadline (fail-open).
 @MainActor
 func imagedActivities(
     events: [UpcomingEvent], clubs: [ClubView], trails: [Trail], parks: [Park],
-    deadline: Double = 3.0
+    deadline: Double = PhotoFilterTuning.deadlineSeconds
 ) async -> (events: [UpcomingEvent], clubs: [ClubView], trails: [Trail], parks: [Park]) {
 
     let filtered = await withDeadline(deadline) {
@@ -68,16 +107,33 @@ func imagedActivities(
     return (f.0, f.1, f.2, f.3)
 }
 
-/// Keep the items for which `has` is true, preserving order.
+/// Keep the items for which `has` is true, preserving order. Items are evaluated in
+/// windows of `maxConcurrentLookups` so their network round-trips overlap; verdicts
+/// are collected by index, so concurrency can never reorder a shelf.
 @MainActor
-private func keepImaged<T>(_ items: [T], _ has: (T) async -> Bool) async -> [T] {
-    var kept: [T] = []
-    kept.reserveCapacity(items.count)
-    for item in items {
-        if Task.isCancelled { return items }   // deadline fired → don't hide anything
-        if await has(item) { kept.append(item) }
+private func keepImaged<T>(_ items: [T], _ has: @escaping @MainActor (T) async -> Bool) async -> [T] {
+    guard !items.isEmpty else { return [] }
+    var verdicts: [Bool] = []
+    verdicts.reserveCapacity(items.count)
+    for start in stride(from: 0, to: items.count, by: PhotoFilterTuning.maxConcurrentLookups) {
+        let end = min(start + PhotoFilterTuning.maxConcurrentLookups, items.count)
+        verdicts += await concurrentVerdicts(Array(items[start..<end]), has)
     }
-    return kept
+    if Task.isCancelled { return items }   // deadline fired → don't hide anything
+    return items.indices.compactMap { verdicts[$0] ? items[$0] : nil }
+}
+
+/// `has` applied to every item at once, returned in input order.
+@MainActor
+private func concurrentVerdicts<T>(_ items: [T], _ has: @escaping @MainActor (T) async -> Bool) async -> [Bool] {
+    await withTaskGroup(of: (Int, Bool).self) { group -> [Bool] in
+        for (i, item) in items.enumerated() {
+            group.addTask { @MainActor in (i, await has(item)) }
+        }
+        var verdicts = [Bool](repeating: false, count: items.count)
+        for await (i, ok) in group { verdicts[i] = ok }
+        return verdicts
+    }
 }
 
 /// Run `op`, or return nil if it doesn't finish within `seconds`.

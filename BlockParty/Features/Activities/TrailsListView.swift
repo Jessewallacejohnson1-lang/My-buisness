@@ -217,7 +217,8 @@ private struct CommunityTrailCard: View {
         } else if let localName = KnownLocalPhoto.name(forTitle: trail.title) {
             PhotoView(name: localName).scaledToFill()
         } else {
-            VenuePhoto(venueName: trail.title, hint: trail.location) { ExploreBlankPhoto() }
+            let venue = ActivityVenue.trail(trail)
+            VenuePhoto(venueName: venue.name, coordinate: venue.anchor) { ExploreBlankPhoto() }
         }
     }
 }
