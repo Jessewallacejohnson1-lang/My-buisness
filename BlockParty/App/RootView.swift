@@ -46,9 +46,14 @@ struct RootView: View {
     #endif
 
     /// The launch loader plays for at least this long so it's actually seen (boot often
-    /// resolves in <200ms). Tunable — raise for more dwell, set to 0 to show it only for
-    /// the real boot. ~1.4s ≈ one full bloom-and-fade plus the start of the next.
-    private let loaderMinDuration: Double = 1.4
+    /// resolves in <200ms).
+    ///
+    /// Derived from the bloom rather than hardcoded: hold just long enough for the
+    /// animation to land, plus a beat to read as landed, and then hand off — the 0.4s
+    /// cross-fade below supplies the rest of the dwell. The old flat 1.4s dated from
+    /// the looping loader, where there was always a next bloom to show; against a
+    /// one-shot it left ~0.4s of dead still frame on every cold start.
+    private let loaderMinDuration: Double = LaunchLoaderView.bloomCompletesAt + 0.30
     /// Flipped true once `loaderMinDuration` has elapsed since launch.
     @State private var minLoaderShown = false
 

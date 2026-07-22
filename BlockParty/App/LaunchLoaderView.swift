@@ -3,8 +3,15 @@
 //  Block Party — the launch loader (a single bloom, ported from a Pinterest reference).
 //
 //  A centred app mark grows while five little icons EMANATE from behind it — they
-//  travel centre→peak, grow, fade in, and TURN, settling into place together. Then
-//  it holds. One pop, not a heartbeat.
+//  travel centre→peak, grow, and TURN, settling into place together. Then it holds.
+//  One pop, not a heartbeat.
+//
+//  The icons are INK, like the rest of the chrome. The reference's are colourful and
+//  v1 copied those colours, treating the bloom as a one-off illustrated moment; that
+//  was always a knowing exception, and it is now retired. The brand allows colour in
+//  exactly two places, photography and the map basemap, on the grounds that both are
+//  content — a launch loader is neither. So this follows the same rule the map
+//  markers do: the category is carried by the GLYPH, and only the colour collapses.
 //
 //  v1 looped this on a ~0.8 s cycle, faithfully reproducing the reference's
 //  rise→hold→fall. On a real cold launch that read as the loader "popping twice"
@@ -75,10 +82,11 @@ private enum Loader {
     // Icon envelope (shared by all five; they bloom together).
     static let iconBaseSize: CGFloat = 0.115               // frac of screen WIDTH
 
-    /// The five icons at their settled position (fractions of the screen), mapped from
-    /// the reference layout to the nearest-colour position so the palette lands where
-    /// the eye expects it. `spinDeg` is the measured angle each emerges at, in degrees
-    /// counter-clockwise from its settled orientation.
+    /// The five icons at their settled position (fractions of the screen). Each one sits
+    /// where the reference shape of the same slot sits — that mapping was originally
+    /// chosen by colour, which no longer means anything now the icons are ink, but the
+    /// positions are the reference's and stay. `spinDeg` is the measured angle each
+    /// emerges at, in degrees counter-clockwise from its settled orientation.
     ///
     /// Peaks are the measured centroids of each reference shape, not the rounded figures
     /// carried over from v1 — the clover in particular sat 0.015·W left of where it
@@ -86,35 +94,12 @@ private enum Loader {
     /// which is opacity-invariant (compositing over white scales that vector uniformly,
     /// so anti-aliased edge pixels keep their hue and a fading shape does not drift).
     static let icons: [LoaderIcon] = [
-        LoaderIcon(kind: .run,    color: .orange, peak: UnitPoint(x: 0.417, y: 0.215), sizeMul: 1.00, spinDeg: 45), // top
-        LoaderIcon(kind: .book,   color: .green,  peak: UnitPoint(x: 0.655, y: 0.251), sizeMul: 1.00, spinDeg: 43), // top-right
-        LoaderIcon(kind: .yoga,   color: .purple, peak: UnitPoint(x: 0.248, y: 0.317), sizeMul: 1.02, spinDeg: 42), // left
-        LoaderIcon(kind: .truck,  color: .red,    peak: UnitPoint(x: 0.495, y: 0.332), sizeMul: 1.15, spinDeg: 49), // centre
-        LoaderIcon(kind: .market, color: .yellow, peak: UnitPoint(x: 0.818, y: 0.343), sizeMul: 1.02, spinDeg: 43), // right
+        LoaderIcon(kind: .run,    peak: UnitPoint(x: 0.417, y: 0.215), sizeMul: 1.00, spinDeg: 45), // top
+        LoaderIcon(kind: .book,   peak: UnitPoint(x: 0.655, y: 0.251), sizeMul: 1.00, spinDeg: 43), // top-right
+        LoaderIcon(kind: .yoga,   peak: UnitPoint(x: 0.248, y: 0.317), sizeMul: 1.02, spinDeg: 42), // left
+        LoaderIcon(kind: .truck,  peak: UnitPoint(x: 0.495, y: 0.332), sizeMul: 1.15, spinDeg: 49), // centre
+        LoaderIcon(kind: .market, peak: UnitPoint(x: 0.818, y: 0.343), sizeMul: 1.02, spinDeg: 43), // right
     ]
-}
-
-/// Local content palette for the launch icons — NOT chrome tokens. These are the
-/// reference icon colours; the monochrome system deliberately allows colour only for
-/// content (photos, the map), and the launch bloom is a one-off illustrated moment.
-private enum LoaderIconColor {
-    static let orange = Color(red: 0.937, green: 0.545, blue: 0.235) // runner
-    static let green  = Color(red: 0.486, green: 0.667, blue: 0.235) // book
-    static let red    = Color(red: 0.937, green: 0.325, blue: 0.314) // truck
-    static let purple = Color(red: 0.612, green: 0.529, blue: 0.831) // yoga
-    static let yellow = Color(red: 0.949, green: 0.792, blue: 0.267) // market
-}
-
-private enum IconColorKey { case orange, green, red, purple, yellow
-    var color: Color {
-        switch self {
-        case .orange: return LoaderIconColor.orange
-        case .green:  return LoaderIconColor.green
-        case .red:    return LoaderIconColor.red
-        case .purple: return LoaderIconColor.purple
-        case .yellow: return LoaderIconColor.yellow
-        }
-    }
 }
 
 private enum IconKind { case run, book, yoga, truck, market }
@@ -122,7 +107,6 @@ private enum IconKind { case run, book, yoga, truck, market }
 private struct LoaderIcon: Identifiable {
     let id = UUID()
     let kind: IconKind
-    let color: IconColorKey
     let peak: UnitPoint
     let sizeMul: CGFloat
     /// Degrees counter-clockwise from settled that this icon emerges at.
@@ -141,6 +125,13 @@ private struct LoaderIcon: Identifiable {
 private final class BloomClock { var firstFrame: Date? }
 
 struct LaunchLoaderView: View {
+    /// How long after the loader first appears the bloom has fully landed.
+    ///
+    /// `RootView`'s minimum-dwell gate is derived from this rather than hardcoded, so
+    /// retuning the bloom can't silently leave the gate holding a finished animation
+    /// on screen (or, worse, cutting a longer one off).
+    static var bloomCompletesAt: Double { Loader.startDelay + Loader.bloomDuration }
+
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Animation anchor, set by the first rendered frame. Date() is fine in app code
     /// (only Workflow scripts ban it).
@@ -228,18 +219,18 @@ struct LaunchLoaderView: View {
     @ViewBuilder
     private func iconView(_ icon: LoaderIcon, side: CGFloat) -> some View {
         switch icon.kind {
-        case .run:    symbol("figure.run", side: side, color: icon.color.color)
-        case .book:   symbol("book.fill", side: side, color: icon.color.color)
-        case .yoga:   symbol("figure.mind.and.body", side: side, color: icon.color.color)
-        case .market: symbol("storefront.fill", side: side, color: icon.color.color)
-        case .truck:  GarbageTruckIcon(color: icon.color.color).frame(width: side, height: side)
+        case .run:    symbol("figure.run", side: side)
+        case .book:   symbol("book.fill", side: side)
+        case .yoga:   symbol("figure.mind.and.body", side: side)
+        case .market: symbol("storefront.fill", side: side)
+        case .truck:  GarbageTruckIcon(color: Hue.ink).frame(width: side, height: side)
         }
     }
 
-    private func symbol(_ name: String, side: CGFloat, color: Color) -> some View {
+    private func symbol(_ name: String, side: CGFloat) -> some View {
         Image(systemName: name)
             .font(.system(size: side, weight: .regular))
-            .foregroundStyle(color)
+            .foregroundStyle(Hue.ink)
             .frame(width: side, height: side)
     }
 }
