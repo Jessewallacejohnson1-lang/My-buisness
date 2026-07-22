@@ -30,6 +30,12 @@ struct BlockPartyMark: View {
     /// Apple's icon corner ratio — the mark is clipped exactly as iOS masks an icon.
     private static let cornerRatio: CGFloat = 0.2237
 
+    /// Fraction of the asset's side taken up by the ink frame (661 px of 880), measured
+    /// off `LaunchMark.png` itself. The loader sizes the plate through this so that the
+    /// INK — the part the eye actually compares against the reference logo — lands at the
+    /// reference's extent, rather than the white plate doing so.
+    static let inkFraction: CGFloat = 0.7511
+
     var body: some View {
         Image("LaunchMark")
             .resizable()
