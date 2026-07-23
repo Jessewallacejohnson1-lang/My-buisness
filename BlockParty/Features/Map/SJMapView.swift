@@ -240,8 +240,8 @@ struct SJMapView: View {
     @State var viewport: Viewport = .camera(
         center: SJMapView.debugInitialCenter() ?? MapSpots.center,
         zoom: SJMapView.debugInitialZoom() ?? 13.5,
-        bearing: 0,
-        pitch: 0
+        bearing: SJMapView.debugInitialBearing() ?? 0,
+        pitch: SJMapView.debugInitialPitch() ?? 0
     )
 
     /// DEBUG-only: `-map-center <lat>,<lon>` starts the camera elsewhere so the
@@ -267,6 +267,25 @@ struct SJMapView: View {
         #if DEBUG
         let a = ProcessInfo.processInfo.arguments
         if let i = a.firstIndex(of: "-map-zoom"), i + 1 < a.count { return Double(a[i + 1]) }
+        #endif
+        return nil
+    }
+
+    /// DEBUG-only: `-map-bearing <deg>` / `-map-pitch <deg>` start the camera already rotated
+    /// / tilted, so the compass-visible state and the tilted horizon can be screenshotted
+    /// headlessly (the sim has no two-finger gesture automation). No effect in release.
+    private static func debugInitialBearing() -> Double? {
+        #if DEBUG
+        let a = ProcessInfo.processInfo.arguments
+        if let i = a.firstIndex(of: "-map-bearing"), i + 1 < a.count { return Double(a[i + 1]) }
+        #endif
+        return nil
+    }
+
+    private static func debugInitialPitch() -> Double? {
+        #if DEBUG
+        let a = ProcessInfo.processInfo.arguments
+        if let i = a.firstIndex(of: "-map-pitch"), i + 1 < a.count { return Double(a[i + 1]) }
         #endif
         return nil
     }
@@ -369,6 +388,13 @@ struct SJMapView: View {
     /// internal). Feeds the label pass's floating-chrome reservation. Not `private`: the
     /// clustering extension reads it.
     @State var mapSize: CGSize = .zero
+
+    /// Live camera heading (bearing/pitch) + last center/zoom, updated every camera frame so
+    /// the compass needle tracks rotation 1:1. Held as `@State` (a stable reference), NOT
+    /// `@StateObject`: `@State` does not subscribe to the object's publisher, so mutating its
+    /// `@Published` bearing re-renders only `MapCompass` (which observes it) and never this
+    /// whole map view — the isolation that keeps per-frame rotation at 120 Hz.
+    @State private var compass = CompassHeading()
 
     /// Bottom margin (from the map's bottom edge) for the Mapbox logo + attribution
     /// button. Mapbox's Terms of Service REQUIRE both to stay visible — they may be
@@ -611,12 +637,22 @@ struct SJMapView: View {
                 }
             }
             .mapStyle(MapStyle(uri: StyleURI(rawValue: MAP_STYLE_URL)!))
-            // Keep the map north-up and flat: the label de-confliction pass assumes
-            // screen-space projection is a pure translation under pan, which is true only
-            // while bearing/pitch stay 0.
-            .gestureOptions(GestureOptions(rotateEnabled: false,
-                                           simultaneousRotateAndPinchZoomEnabled: false,
-                                           pitchEnabled: false))
+            // Apple-Maps-grade rotate + tilt. The label de-confliction pass is bearing/pitch
+            // agnostic in practice: it projects every marker through the LIVE camera
+            // (`map.point(for:)`) and re-runs 0.13s after the camera settles (rotation included,
+            // via `.onCameraChanged`), so a rotated frame re-deconflicts correctly; and every
+            // pin/cluster/label is a SwiftUI `MapViewAnnotation`, which stays screen-upright
+            // rather than rotating with the basemap. `focalPoint` is left nil so rotate + zoom
+            // pivot around the two-finger centroid (Apple's focal behavior). Rotation hysteresis
+            // is the SDK's built-in engage threshold, gated further by
+            // `simultaneousRotateAndPinchZoomEnabled` so a pinch-zoom doesn't drift into a
+            // rotation. `panDecelerationFactor` (velocity × factor per ms during the release
+            // glide) defaults to `UIScrollView.DecelerationRate.normal` ≈ 0.998 — set explicitly
+            // so it's one of the tunable feel knobs.
+            .gestureOptions(GestureOptions(rotateEnabled: true,
+                                           simultaneousRotateAndPinchZoomEnabled: true,
+                                           pitchEnabled: true,
+                                           panDecelerationFactor: 0.998))
             // Lift the required Mapbox logo + attribution to just above the collapsed
             // unified glass so they're never clipped into slivers behind the bottom bar.
             // The scale bar stays hidden (it was never wanted on this civic map). This
@@ -624,6 +660,12 @@ struct SJMapView: View {
             // modifiers below (those erase the concrete Map type).
             .ornamentOptions(OrnamentOptions(
                 scaleBar: ScaleBarViewOptions(visibility: .hidden),
+                // Suppress the built-in compass: its needle is coral (the monochrome brand
+                // deletes that hue) and its 0.3s fade / bearing-only tap aren't the spec. Our
+                // own `MapCompass` overlay replaces it (adaptive, 0.25s fade, resets bearing
+                // AND pitch). Without this the SDK's default `.adaptive` compass would surface
+                // at top-trailing the moment rotation is enabled.
+                compass: CompassViewOptions(visibility: .hidden),
                 logo: LogoViewOptions(
                     position: .bottomLeading,
                     margins: CGPoint(x: 16, y: Self.ornamentBottomMargin)),
@@ -631,8 +673,13 @@ struct SJMapView: View {
                     position: .bottomTrailing,
                     margins: CGPoint(x: 14, y: Self.ornamentBottomMargin))
             ))
+            // ProMotion: let the renderer run up to 120 Hz (floor 80) so rotate/tilt/pan
+            // inertia is buttery on 120 Hz devices. `preferred: 120` targets the ceiling;
+            // the SwiftUI facade maps this to `MapView.preferredFrameRateRange`.
+            .frameRate(range: 80...120, preferred: 120)
             .onStyleLoaded { _ in
                 recolorBasemap(proxy.map)
+                clampPitch(proxy.map)
                 // POILayer.install is GONE — Phase A retired the Mapbox clustered layer for
                 // client-side clustering, so the POIs mount as view annotations instead.
                 recomputeClusters(proxy.map)   // POIs may still be loading — pois-change reclusters
@@ -657,6 +704,10 @@ struct SJMapView: View {
                 model.updateTown(center: $0.cameraState.center)
                 model.updateZoom($0.cameraState.zoom)
                 scheduleClusterRecompute(zoom: $0.cameraState.zoom, map: proxy.map)
+                // Feed the live heading to the compass. `update` only touches @Published when
+                // bearing/pitch actually change, so a pure pan/zoom (bearing 0) doesn't churn
+                // the compass every frame.
+                compass.update(cameraState: $0.cameraState)
             }
             // Toggling the category filter ticks a selection haptic (spec §10 / §12.5 —
             // the native Menu supplies none we control). If the change hides the selected
@@ -775,23 +826,31 @@ struct SJMapView: View {
     // MARK: Floating controls — help (bottom-left) + recenter (bottom-right)
 
     private var floatingControls: some View {
-        VStack {
+        VStack(spacing: 12) {
             Spacer()
+            // Compass rides in its OWN fixed 44pt slot directly above the recenter control, so
+            // it can fade in/out as the map rotates without ever reflowing the help/recenter
+            // row beneath it. Right-aligned to sit over recenter. Hidden (no reflow) at north.
+            HStack {
+                Spacer()
+                MapCompass(heading: compass, reduceMotion: reduceMotion, onReset: resetNorth)
+            }
+            .frame(height: 44)
             HStack(alignment: .bottom) {
                 helpButton
                 Spacer()
                 recenterButton
             }
-            .padding(.horizontal, 16)
-            // Stack ABOVE the map's attribution row (logo + info button, which sit just
-            // above the collapsed glass) so the two never collide; fade + lift out of the
-            // way as the sheet grows so they never collide with it either.
-            .padding(.bottom, MapSheet.tabBarReserve + MapSheet.peekHeight + 96)
-            .offset(y: -sheetExpansion * 10)
-            .opacity(Double(1 - min(1, sheetExpansion * 1.3)))
-            .allowsHitTesting(sheetExpansion < 0.12)
-            .animation(.easeOut(duration: 0.18), value: sheetExpansion)
         }
+        .padding(.horizontal, 16)
+        // Stack ABOVE the map's attribution row (logo + info button, which sit just
+        // above the collapsed glass) so the two never collide; fade + lift out of the
+        // way as the sheet grows so they never collide with it either.
+        .padding(.bottom, MapSheet.tabBarReserve + MapSheet.peekHeight + 96)
+        .offset(y: -sheetExpansion * 10)
+        .opacity(Double(1 - min(1, sheetExpansion * 1.3)))
+        .allowsHitTesting(sheetExpansion < 0.12)
+        .animation(.easeOut(duration: 0.18), value: sheetExpansion)
     }
 
     private var helpButton: some View {
@@ -879,6 +938,31 @@ struct SJMapView: View {
         closeCard()
         let home = { viewport = .camera(center: MapSpots.center, zoom: 13.5) }
         if reduceMotion { home() } else { withViewportAnimation(.fly(duration: 0.8)) { home() } }
+    }
+
+    /// Tap-compass action: ease the camera back to due north AND level (bearing 0, pitch 0),
+    /// keeping the current center + zoom, over 0.4s easeOut. Once bearing reaches 0 the compass
+    /// fades itself out (its visibility is adaptive on bearing). Honors Reduce Motion with an
+    /// instant set. `compass.center/zoom` hold the last camera frame, so the map only rotates
+    /// level — it doesn't recenter.
+    private func resetNorth() {
+        Haptics.light()
+        let level = {
+            viewport = .camera(center: compass.center, zoom: compass.zoom, bearing: 0, pitch: 0)
+        }
+        if reduceMotion { level() } else { withViewportAnimation(.easeOut(duration: 0.4)) { level() } }
+    }
+
+    /// Clamp the tilt gesture to 0–70° (past ~70° the horizon smears and labels pile up).
+    /// Applied once on style load. `setCameraBounds` throws, so catch + log rather than a
+    /// silent `try?` — the repo's 0-warning bar wants the intent explicit.
+    private func clampPitch(_ map: MapboxMap?) {
+        guard let map else { return }
+        do {
+            try map.setCameraBounds(with: CameraBoundsOptions(maxPitch: 70, minPitch: 0))
+        } catch {
+            print("[SJMapView] setCameraBounds(pitch 0–70) failed: \(error)")
+        }
     }
 
     /// A Today/Places row tap: fly to the spot (a longer, deliberate 1.0s fly since the
