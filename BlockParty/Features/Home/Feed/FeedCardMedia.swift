@@ -9,6 +9,10 @@ import SwiftUI
 
 struct FeedCardURLPhoto: View {
     let url: URL
+    /// Fired once the downsampled bitmap has actually decoded and is on screen. The
+    /// feed card uses it to hold its fallback typography until the photo exists, so it
+    /// never animates into photo-mode over an undownloaded flat-ink frame.
+    var onReady: (() -> Void)? = nil
 
     @Environment(\.displayScale) private var displayScale
 
@@ -23,7 +27,8 @@ struct FeedCardURLPhoto: View {
                 request: FeedCardImageRequest(
                     url: url,
                     maxPixelSize: targetPixelWidth
-                )
+                ),
+                onReady: onReady
             )
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
@@ -32,6 +37,7 @@ struct FeedCardURLPhoto: View {
 
 private struct FeedCardDownsampledPhoto: View {
     let request: FeedCardImageRequest
+    var onReady: (() -> Void)? = nil
 
     @State private var image: CGImage?
 
@@ -41,14 +47,20 @@ private struct FeedCardDownsampledPhoto: View {
                 Image(decorative: image, scale: 1)
                     .resizable()
                     .scaledToFill()
+                    .transition(.opacity)
             } else {
-                Rectangle().fill(Hue.fill)
+                // Ink, not a light fill: the card's title is white and already sits on
+                // top during this beat, so a pale placeholder would swallow it. This
+                // way the load-in reads as the card's own fallback treatment.
+                Rectangle().fill(Hue.ink)
             }
         }
         .task(id: request) {
             let loadedImage = await FeedCardImageLoader.shared.image(for: request)
             guard !Task.isCancelled else { return }
-            image = loadedImage
+            // Cross-fade the photograph in rather than hard-cutting it over the ink.
+            withAnimation(.easeOut(duration: 0.2)) { image = loadedImage }
+            if loadedImage != nil { onReady?() }
         }
     }
 }
@@ -125,19 +137,63 @@ private actor FeedCardImageLoader {
     }
 }
 
+/// The scrim that keeps a card's overlaid white title legible on a real photograph.
+///
+/// The title had only ever been seen against flat ink, where a single 0 → 0.55 ramp
+/// over the bottom 40% was plenty; a bright frame (a noon sky, a sunlit lawn) washed
+/// it out. This covers more of the image so the ramp starts well above the copy, and
+/// leans a little deeper at the very bottom — but it stays a shadow, not a black bar.
+/// The last of the contrast is carried by `feedCardPhotoTypeShadow()` on the copy
+/// itself, which is cheaper visually than blanketing the photograph.
+struct FeedCardPhotoScrim: View {
+    /// Height of the image this scrim sits on; the scrim covers its bottom `coverage`.
+    let imageHeight: CGFloat
+
+    private static let coverage: CGFloat = 0.58
+    private static let stops: [Gradient.Stop] = [
+        .init(color: .black.opacity(0), location: 0),
+        .init(color: .black.opacity(0.18), location: 0.45),
+        .init(color: .black.opacity(0.68), location: 1),
+    ]
+
+    var body: some View {
+        LinearGradient(stops: Self.stops, startPoint: .top, endPoint: .bottom)
+            .frame(height: imageHeight * Self.coverage)
+    }
+}
+
+extension View {
+    /// Soft ink halo for white type sitting directly on a photograph. The scrim does
+    /// most of the work; this catches what a scrim can't — a bright patch landing
+    /// exactly under a letterform.
+    func feedCardPhotoTypeShadow() -> some View {
+        shadow(color: .black.opacity(0.35), radius: 6, y: 1)
+    }
+}
+
 extension FeedCardImageSource {
+    /// Whether a photograph is on screen. An unresolved `venueLookup` is not one yet —
+    /// the card shows the fallback treatment until (and unless) it resolves.
     var isPhoto: Bool {
         switch self {
         case .eventPhoto, .placesPhoto: true
-        case .fallback: false
+        case .venueLookup, .fallback: false
         }
     }
 
+    /// Google ToS: a Places photo's author attributions must be displayed wherever the
+    /// image appears. nil when there are none, so no empty caption capsule renders.
     var attribution: String? {
-        if case .placesPhoto(_, let attribution) = self { attribution } else { nil }
+        guard case .placesPhoto(_, let attribution) = self, !attribution.isEmpty
+        else { return nil }
+        return attribution
     }
 
+    /// Whether the card renders the ink fallback treatment (flat ink, big title).
     var isFallback: Bool {
-        if case .fallback = self { true } else { false }
+        switch self {
+        case .venueLookup, .fallback: true
+        case .eventPhoto, .placesPhoto: false
+        }
     }
 }

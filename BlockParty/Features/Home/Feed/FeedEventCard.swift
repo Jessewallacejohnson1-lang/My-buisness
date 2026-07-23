@@ -17,7 +17,13 @@ struct FeedEventCard: View {
     let onShare: (() -> Void)?
     let debugAutoplay: Bool
 
+    /// Horizontal room the overlapping join block needs, so the ToS attribution
+    /// caption stays fully legible beside it.
+    private static let joinBlockClearance: CGFloat = 44
+
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    @State private var resolvedVenuePhoto: ResolvedVenuePhoto?
+    @State private var venuePhotoDecoded = false
     @State private var actionState: FeedCardActionState
     @State private var joinState: FeedCardJoinState
     @State private var commentState: FeedCommentState
@@ -28,8 +34,6 @@ struct FeedEventCard: View {
     @State private var burstGeneration = 0
     @State private var autoplayStep = 0
     @State private var autoplayJoinPressed = false
-    @GestureState private var cardIsPressed = false
-
     init(
         item: FeedCardItem,
         comments: [EventComment] = [],
@@ -71,14 +75,6 @@ struct FeedEventCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
-        .scaleEffect(motionIsReduced ? 1 : (cardIsPressed ? 0.98 : 1))
-        .animation(
-            motionIsReduced
-                ? nil
-                : .spring(response: 0.3, dampingFraction: 0.7),
-            value: cardIsPressed
-        )
-        .simultaneousGesture(cardPressGesture)
         .sheet(isPresented: $commentsPresented) {
             FeedCommentSheet(
                 commentState: $commentState,
@@ -91,7 +87,81 @@ struct FeedEventCard: View {
             joinState.sync(with: updatedItem)
             showsCurrentUserAvatar = updatedItem.isJoined
         }
+        .task(id: item.image) { await resolveVenuePhoto() }
         .task { await runDebugAutoplay() }
+    }
+
+    /// A resolved venue photo, tagged with the lookup that produced it — so a card
+    /// whose item changed under it can tell "already resolved" from "someone else's
+    /// photo" without ever flashing the wrong venue.
+    private struct ResolvedVenuePhoto {
+        let lookup: FeedCardImageSource
+        let image: FeedCardImageSource
+    }
+
+    /// The source whose bitmap the hero LOADS. As soon as the venue resolves the
+    /// download starts here — even while the typography still shows the fallback (see
+    /// `displayImage`), so the photo decodes behind the flat-ink beat, not after it.
+    private var loadedSource: FeedCardImageSource {
+        guard case .venueLookup = item.image else { return item.image }
+        guard let resolved = resolvedVenuePhoto, resolved.lookup == item.image
+        else { return .fallback }
+        return resolved.image
+    }
+
+    /// What the card's TYPOGRAPHY, scrim, and join treatment reflect. A resolved venue
+    /// photo only counts once its bitmap has actually decoded (`venuePhotoDecoded`), so
+    /// the card never sits in the half-state the 0.25 s ease was meant to prevent:
+    /// small type + meta line + a scrim gradient over an undownloaded flat-ink frame.
+    /// Every non-`venueLookup` source is already final and shows immediately.
+    private var displayImage: FeedCardImageSource {
+        guard case .venueLookup = item.image else { return item.image }
+        guard venuePhotoDecoded, let resolved = resolvedVenuePhoto, resolved.lookup == item.image
+        else { return .fallback }
+        return resolved.image
+    }
+
+    /// The photographer credit for the photo currently on screen, in the array form
+    /// `PhotoCredit` takes. Empty unless a Places photo is actually displayed, so the
+    /// credit can never render over the ink fallback.
+    private var creditNames: [String] {
+        guard let attribution = displayImage.attribution else { return [] }
+        return [attribution]
+    }
+
+    /// The one place the feed spends a billed Google call. It runs from `.task`, so a
+    /// card that never scrolls into view never costs anything, and `GooglePlacesService`
+    /// caches + coalesces, so cards sharing a venue share one round-trip. A venue that
+    /// can't be confidently identified simply stays on the fallback — no gray box, no
+    /// spinner, no retry loop.
+    private func resolveVenuePhoto() async {
+        guard case .venueLookup(let name, let hint) = item.image else { return }
+        // Same venue as the last appearance — displayImage is already showing it, so
+        // don't drop it and re-render the fallback for a frame on the way back in.
+        guard resolvedVenuePhoto?.lookup != item.image else { return }
+
+        // A genuinely new venue — its photo hasn't decoded yet, so the card holds the
+        // fallback until this lookup's bitmap is ready (see markVenuePhotoDecoded).
+        venuePhotoDecoded = false
+
+        let lookup = item.image
+        let resolved = await FeedCardVenuePhoto.resolve(name: name, hint: hint)
+        guard !Task.isCancelled, let resolved else { return }
+
+        // No animation here: this only starts the download — imageContent shows the same
+        // flat ink meanwhile. The single visible transition runs on decode, below.
+        resolvedVenuePhoto = ResolvedVenuePhoto(lookup: lookup, image: resolved)
+    }
+
+    /// The resolved photo's bitmap has decoded and is on screen: flip the card's
+    /// typography + scrim to photo-mode in one animation, joined to the cross-fade the
+    /// image itself runs (`FeedCardDownsampledPhoto`) — so there is no hard cut and no
+    /// undesigned half-state on the way in.
+    private func markVenuePhotoDecoded() {
+        guard !venuePhotoDecoded else { return }
+        withAnimation(motionIsReduced ? nil : .easeOut(duration: 0.25)) {
+            venuePhotoDecoded = true
+        }
     }
 
     private var imageSection: some View {
@@ -101,13 +171,8 @@ struct FeedEventCard: View {
                     .frame(width: proxy.size.width, height: proxy.size.height)
                     .clipped()
 
-                if item.image.isPhoto {
-                    LinearGradient(
-                        colors: [Color.black.opacity(0), Color.black.opacity(0.55)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(height: proxy.size.height * 0.4)
+                if displayImage.isPhoto {
+                    FeedCardPhotoScrim(imageHeight: proxy.size.height)
                 }
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
@@ -128,38 +193,39 @@ struct FeedEventCard: View {
             chipRow
                 .padding(12)
         }
-        .overlay(alignment: .bottomLeading) {
-            imageCopy
-                .padding(16)
-                .padding(.trailing, 60)
-        }
-        .overlay(alignment: .bottomTrailing) {
-            if let attribution = item.image.attribution {
-                Text(attribution)
-                    .font(.sans(10))
-                    .foregroundStyle(.white.opacity(0.7))
-                    .lineLimit(1)
-                    // Keep the required caption legible beside the overlapping join block.
-                    .padding(.trailing, 52)
-                    .padding(.bottom, 8)
+        .overlay(alignment: .bottom) {
+            // Copy and the ToS credit share ONE bottom-aligned row, so the copy's
+            // available width is derived from the credit's measured width instead of a
+            // hard-coded inset. They used to be two independent bottom overlays whose
+            // fixed insets guaranteed they overlapped ("Karry Rood" landing on the meta
+            // line). Trailing room is reserved for the join block, which overlaps the
+            // card's lower-right corner.
+            HStack(alignment: .bottom, spacing: 8) {
+                imageCopy
+                if !creditNames.isEmpty {
+                    Spacer(minLength: 8)
+                    PhotoCredit(names: creditNames)
+                }
             }
+            .padding(16)
+            .padding(.trailing, Self.joinBlockClearance)
         }
         .overlay(alignment: .bottomTrailing) {
             joinBlock
                 .offset(y: 22)
         }
         .contentShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
-        .gesture(TapGesture(count: 2).onEnded(performImageLike))
+        .simultaneousGesture(TapGesture(count: 2).onEnded(performImageLike))
         // Reserve the lower half of the overlapping join block before the social row.
         .padding(.bottom, 22)
     }
 
     @ViewBuilder
     private var imageContent: some View {
-        switch item.image {
+        switch loadedSource {
         case .eventPhoto(let url), .placesPhoto(let url, _):
-            FeedCardURLPhoto(url: url)
-        case .fallback:
+            FeedCardURLPhoto(url: url, onReady: markVenuePhotoDecoded)
+        case .venueLookup, .fallback:
             Rectangle().fill(Hue.ink)
         }
     }
@@ -191,8 +257,8 @@ struct FeedEventCard: View {
 
     @ViewBuilder
     private var imageCopy: some View {
-        switch item.image {
-        case .fallback:
+        switch displayImage {
+        case .venueLookup, .fallback:
             Text(item.title)
                 .font(.display(32))
                 .foregroundStyle(.white)
@@ -210,13 +276,14 @@ struct FeedEventCard: View {
                     .foregroundStyle(.white.opacity(0.85))
                     .lineLimit(1)
             }
+            .feedCardPhotoTypeShadow()
         }
     }
 
     private var joinBlock: some View {
         FeedEventCardJoinButton(
             isJoined: joinState.isJoined,
-            isFallback: item.image.isFallback,
+            isFallback: displayImage.isFallback,
             reduceMotion: motionIsReduced,
             autoplayPressed: autoplayJoinPressed,
             onToggle: performJoinTap
@@ -305,13 +372,6 @@ struct FeedEventCard: View {
 
     private var motionIsReduced: Bool {
         accessibilityReduceMotion
-    }
-
-    private var cardPressGesture: some Gesture {
-        LongPressGesture(minimumDuration: 0, maximumDistance: 16)
-            .updating($cardIsPressed) { isPressing, state, _ in
-                state = isPressing
-            }
     }
 
     private func performJoinTap() {

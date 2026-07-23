@@ -281,8 +281,9 @@ struct FeaturedEventCard: View {
         } else if let name = KnownLocalPhoto.name(forTitle: event.title) {
             PhotoView(name: name).scaledToFill()
         } else {
-            VenuePhoto(venueName: event.location ?? event.title,
-                       hint: event.location != nil ? event.title : nil, maxWidth: 1200) { ExploreBlankPhoto() }
+            let venue = ActivityVenue.event(event)
+            VenuePhoto(venueName: venue.name, coordinate: venue.anchor,
+                       maxWidth: 1200) { ExploreBlankPhoto() }
         }
     }
 }
@@ -368,8 +369,9 @@ struct EventShelfCard: View {
         } else if let name = KnownLocalPhoto.name(forTitle: event.title) {
             PhotoView(name: name).scaledToFill()
         } else {
-            VenuePhoto(venueName: event.location ?? event.title,
-                       hint: event.location != nil ? event.title : nil, maxWidth: 700) { ExploreBlankPhoto() }
+            let venue = ActivityVenue.event(event)
+            VenuePhoto(venueName: venue.name, coordinate: venue.anchor,
+                       maxWidth: 700) { ExploreBlankPhoto() }
         }
     }
 }
@@ -419,8 +421,9 @@ struct ExplorePlaceCard: View {
         if let name = KnownLocalPhoto.name(forTitle: park.title) {
             PhotoView(name: name).scaledToFill()
         } else {
-            VenuePhoto(venueName: park.title, hint: park.address,
-                       coordinate: park.coordinate, maxWidth: 700) { ExploreBlankPhoto() }
+            let venue = ActivityVenue.park(park)
+            VenuePhoto(venueName: venue.name, coordinate: venue.anchor,
+                       maxWidth: 700) { ExploreBlankPhoto() }
         }
     }
 }

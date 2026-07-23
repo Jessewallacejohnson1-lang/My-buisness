@@ -739,17 +739,20 @@ private struct TodayEventRow: View {
     }
 }
 
-/// A curated place: a confidently-identified photo thumbnail (else the category
-/// icon), name, blurb, live-today count, chevron.
+/// A curated place: the category glyph badge, name, blurb, live-today count, chevron.
+///
+/// This row deliberately does NOT render a Places photo. The credit Google's ToS
+/// requires cannot be shown legibly on a 38pt thumbnail, and there is no "too small to
+/// bother" exemption — so the row stays on the app's glyph language (an ink circle +
+/// category symbol, matching the map pins) and the full, *credited* venue photo is
+/// shown in the spot detail (`VenueInfoView`) where the credit fits.
 private struct PlaceRow: View {
     let spot: Spot
     let liveCount: Int
 
-    @State private var photoURL: URL?
-
     var body: some View {
         HStack(spacing: 12) {
-            thumbnail
+            iconCircle
             VStack(alignment: .leading, spacing: 2) {
                 Text(spot.name).font(.sansMedium(15)).foregroundStyle(Hue.ink).lineLimit(1)
                 if let blurb = spot.blurb {
@@ -767,29 +770,6 @@ private struct PlaceRow: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
-        .task(id: spot.id) {
-            photoURL = nil
-            if let cp = await GooglePlacesService.shared.confidentPhoto(name: spot.name, coordinate: spot.coordinate) {
-                photoURL = GooglePlacesService.shared.photoURL(name: cp.photoName, maxWidth: 160)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var thumbnail: some View {
-        if let photoURL {
-            AsyncImage(url: photoURL) { phase in
-                if case .success(let img) = phase {
-                    img.resizable().scaledToFill()
-                } else {
-                    iconCircle
-                }
-            }
-            .frame(width: 38, height: 38)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        } else {
-            iconCircle
-        }
     }
 
     private var iconCircle: some View {

@@ -90,7 +90,27 @@ enum FeedPipelineSelfCheck {
             recurrence: nil
         )
         assert(locationOnly.metaLine == "Library")
-        if case .fallback = locationOnly.image {} else { assertionFailure("Expected fallback artwork") }
+        // No organizer photo but a real place → the card gets a lazy venue lookup.
+        // The venue is the LOCATION; the title is only a KnownVenues hint.
+        if case .venueLookup(let name, let hint) = locationOnly.image {
+            assert(name == "Library")
+            assert(hint == "Place")
+        } else { assertionFailure("Expected a venue lookup") }
+
+        let titleOnly = FeedCardItem(
+            from: posting("titled", title: "Potluck", date: "2026-07-24"),
+            recurrence: nil
+        )
+        if case .venueLookup(let name, let hint) = titleOnly.image {
+            assert(name == "Potluck")
+            assert(hint == nil)
+        } else { assertionFailure("Expected a title-only venue lookup") }
+
+        let nameless = FeedCardItem(
+            from: posting("nameless", title: "   ", date: "2026-07-24"),
+            recurrence: nil
+        )
+        if case .fallback = nameless.image {} else { assertionFailure("Expected fallback artwork") }
 
         let avatarURLs = [
             URL(string: "https://example.com/sam.jpg")!,

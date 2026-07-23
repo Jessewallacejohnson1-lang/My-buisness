@@ -106,8 +106,19 @@ struct FeedCardJoinState: Equatable {
     }
 }
 
+/// What sits behind a feed card's title.
+///
+/// `venueLookup` is an INTENT, not an image: no first-party photo exists, but the
+/// posting names a place we can ask Google Places about. It stays unresolved here
+/// because `FeedCardItem`'s init is synchronous and a Places lookup is async AND
+/// billed — resolving during the feed load would spend a call on every card,
+/// including the ones nobody scrolls to. The card resolves it lazily when it
+/// appears (`FeedEventCard.resolveVenuePhoto`), landing on `.placesPhoto`; until
+/// then — and forever if the venue can't be confidently identified — the card
+/// renders the `fallback` treatment.
 enum FeedCardImageSource: Hashable {
     case eventPhoto(URL)
     case placesPhoto(URL, attribution: String)
+    case venueLookup(name: String, hint: String?)
     case fallback
 }

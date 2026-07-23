@@ -22,7 +22,11 @@ extension FeedCardItem {
             title: posting.title,
             dateChip: Self.dateChip(from: posting.eventDate),
             metaLine: metadata,
-            image: Self.imageSource(from: posting.imageUrl),
+            image: Self.imageSource(
+                imageUrl: posting.imageUrl,
+                location: location,
+                title: posting.title
+            ),
             recurrence: recurrence,
             goingCount: posting.goingCount,
             goingAvatars: Array(goingPreview?.avatars.prefix(3) ?? []),
@@ -69,12 +73,40 @@ extension FeedCardItem {
         return formatter.string(from: date).uppercased()
     }
 
-    private static func imageSource(from value: String?) -> FeedCardImageSource {
-        if let raw = nonempty(value), let url = URL(string: raw) {
+    /// The same three-tier cascade Activities uses (`ActivityImage.has(event:)`):
+    /// an organizer's own photo → a bundled, human-verified `KnownLocalPhoto` →
+    /// the *intent* to look the venue up live (resolving here would be an async,
+    /// billed Google call per posting on every feed load — see `FeedCardImageSource`).
+    ///
+    /// The bundled tier matters: `bestScenicPhoto` is geometry-only and can surface a
+    /// poor Google match (a highway sign for the "Downtown St. Joseph" locality behind
+    /// Millstream Arts Festival). `KnownLocalPhoto` is exactly the set of human-vetted
+    /// overrides for that, and the feed used to skip it, so those cards went to Places
+    /// and could look bad. Bundled photos carry no Google attribution, so they ride
+    /// `.eventPhoto` like an organizer's photo.
+    ///
+    /// Which string is the venue: an event's title says what is happening, not where,
+    /// so the venue name is its `location` when it has one and the title is only a hint
+    /// for the KnownVenues lookup. A posting with neither is the genuinely-nothing case.
+    private static func imageSource(
+        imageUrl: String?,
+        location: String?,
+        title: String
+    ) -> FeedCardImageSource {
+        if let raw = nonempty(imageUrl), let url = URL(string: raw) {
             return .eventPhoto(url)
         }
-        // Phase 5: optional curated Places photo
-        return .fallback
+
+        let title = nonempty(title)
+
+        if let title,
+           let slug = KnownLocalPhoto.name(forTitle: title),
+           let url = Bundle.main.url(forResource: slug, withExtension: "jpg") {
+            return .eventPhoto(url)
+        }
+
+        guard let venue = location ?? title else { return .fallback }
+        return .venueLookup(name: venue, hint: location != nil ? title : nil)
     }
 
     private static func goingSummary(for count: Int, names: [String]) -> String {

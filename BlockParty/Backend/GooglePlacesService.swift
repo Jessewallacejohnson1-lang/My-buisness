@@ -13,6 +13,12 @@
 //     for ARE the cost. No rating fields, ever (brand rule).
 //   • details are cached hard by place_id (the main spend lever).
 //
+//  Locked Rule A — the trust gate that clears a photo for display — lives in the
+//  `RuleA` enum at the bottom of this file. An aligned name is always required; the
+//  radius allowed around the curated coordinate is sized by how exact the name match
+//  is and how large the place's footprint is (90 m fuzzy / 400 m exact / 2 km exact
+//  on a park·arboretum·trail·campus type). Measured, not guessed — see RuleA's docs.
+//
 //  Google ToS: place_ids may be persisted (do that in Supabase); photo names may
 //  NOT be persisted — they live only in this in-memory session cache and must be
 //  re-fetched from a fresh details() call. Any photo authorAttributions must be
@@ -89,10 +95,36 @@ final class GooglePlacesService {
     private var searchCache: [String: [PlaceResult]] = [:]
     private var detailsCache: [String: PlaceDetails] = [:]
     private var confidentPhotoCache: [String: ConfidentPhoto?] = [:]   // "name|lat,lon" → resolved (or checked-nil)
-    private var confidentPhotoInFlight: [String: Task<ConfidentPhoto?, Never>] = [:]  // coalesce concurrent callers per key
+    private var confidentPhotoInFlight: [String: Task<PhotoLookup, Never>] = [:]  // coalesce concurrent callers per key
 
     private static let base = "https://places.googleapis.com/v1"
     private static let biasRadius = 15_000.0   // ~15 km around town
+
+    /// The session for the JSON endpoints (autocomplete / details / searchText /
+    /// nearby). It is EPHEMERAL with `urlCache = nil` on purpose: a Place Details
+    /// response carries `photos[].name`, which the ToS forbids persisting, and
+    /// `URLSession.shared`'s default protocol-cache policy writes those responses to
+    /// disk (`Library/Caches/.../fsCachedData`) where they survive relaunch. An
+    /// ephemeral, un-cached session keeps every photo name in memory only.
+    ///
+    /// The photo *media* request (`photoURL`) is deliberately NOT routed here — it is
+    /// loaded by the views (AsyncImage / FeedCardImageLoader) on the shared session,
+    /// and image bytes carry no photo name, so caching them is fine and desirable.
+    private static let jsonSession: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.urlCache = nil
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        return URLSession(configuration: config)
+    }()
+
+    /// The outcome of a confident-photo lookup, kept distinct so a *transient* failure
+    /// (a 429, a dropped connection) is never cached as a permanent "no photo".
+    private enum PhotoLookup {
+        case found(ConfidentPhoto)   // a candidate cleared Rule A and carries a photo
+        case none                    // checked against a 2xx response — genuinely no confident photo
+        case unavailable             // a request transport-failed — could not check, so do not cache
+        var photo: ConfidentPhoto? { if case .found(let cp) = self { return cp } else { return nil } }
+    }
 
     /// A fresh autocomplete session token. The caller holds one while the user
     /// types, passes it to every autocomplete(_:) call and the final
@@ -121,7 +153,7 @@ final class GooglePlacesService {
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: req)
+            let (data, response) = try await Self.jsonSession.data(for: req)
             // A non-2xx returns a JSON error body that decodes as an all-nil "success";
             // bail before caching so a transient 429 doesn't poison the query.
             guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return [] }
@@ -158,7 +190,7 @@ final class GooglePlacesService {
                      forHTTPHeaderField: "X-Goog-FieldMask")
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: req)
+            let (data, response) = try await Self.jsonSession.data(for: req)
             guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
             let resp = try JSONDecoder().decode(DetailsResponse.self, from: data)
             guard let loc = resp.location else { return nil }
@@ -218,6 +250,14 @@ final class GooglePlacesService {
     /// St-Joe-biased text search — used ONLY as a geocode fallback (Phase 3).
     /// A place_id from here is a fuzzy match: never source a photo from it. [] on failure.
     func search(_ query: String) async -> [PlaceResult] {
+        await searchResults(query) ?? []
+    }
+
+    /// The real search. `nil` distinguishes "the request FAILED" (network / non-2xx)
+    /// from `[]` "Google genuinely returned nothing" — a difference `confidentPhoto`
+    /// needs so a transient failure is never cached as a permanent "no photo". Only
+    /// genuine results are cached; a failure is not, so the next appearance retries.
+    private func searchResults(_ query: String) async -> [PlaceResult]? {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty else { return [] }
         if let hit = searchCache[q] { return hit }
@@ -236,8 +276,8 @@ final class GooglePlacesService {
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: req)
-            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return [] }
+            let (data, response) = try await Self.jsonSession.data(for: req)
+            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
             let resp = try JSONDecoder().decode(SearchResponse.self, from: data)
             let results: [PlaceResult] = (resp.places ?? []).compactMap { p in
                 guard let loc = p.location, let name = p.displayName?.text, !name.isEmpty else { return nil }
@@ -249,7 +289,7 @@ final class GooglePlacesService {
             }
             searchCache[q] = results
             return results
-        } catch { return [] }
+        } catch { return nil }
     }
 
     // MARK: Nearby search (POI seeding — one-time, never on a map load)
@@ -283,7 +323,7 @@ final class GooglePlacesService {
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: req)
+            let (data, response) = try await Self.jsonSession.data(for: req)
             guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return [] }
             let resp = try JSONDecoder().decode(NearbyResponse.self, from: data)
             return (resp.places ?? []).compactMap { p in
@@ -321,71 +361,78 @@ final class GooglePlacesService {
     /// text-search result against, and KnownVenues is the only source of one outside
     /// the fixed MapSpots set. No KnownVenues match → nil, never a guess.
     func confidentPhoto(forFreeText title: String, hint: String?) async -> ConfidentPhoto? {
-        let query = [title, hint].compactMap { $0 }.joined(separator: " ")
-        guard let coord = KnownVenues.coordinate(for: query) else { return nil }
+        // Location FIRST via the shared rule (`KnownVenues.anchor`): `title` IS the venue
+        // (a `location`), `hint` is the item's own name and only rescues a location the
+        // table doesn't know. The old code concatenated the two and matched the first
+        // keyword anywhere in the combined string, which let an event title hijack the
+        // anchor away from its location (Millstream Arts Festival → Millstream Park,
+        // 1,025 m off, card blanked). See `KnownVenues.anchor(location:named:)`.
+        guard let coord = KnownVenues.anchor(location: title, named: hint ?? title) else { return nil }
         return await confidentPhoto(name: title, coordinate: coord)
     }
 
     // MARK: Confident-match photo (Locked Rule A)
 
     /// A photo for a KNOWN/curated place — but only if Google's text-search match
-    /// lands within 75 m of the curated coordinate with an aligned name. `search()`
-    /// is a fuzzy fallback; this is the ONE place that decides a match is trustworthy
-    /// enough to show its photo. Cached per curated name (a small, fixed set), so
-    /// repeat callers (a list row and its detail view) don't re-run the confidence
-    /// check. nil if not confidently identified or the place has no photo.
+    /// clears the Locked Rule A gate (`RuleA.clears`): the names must line up, and how
+    /// far the match may sit from the curated coordinate depends on how strong that
+    /// name evidence is and how big the place's footprint is — 90 m for a merely
+    /// similar name, 400 m for an exact one, 2 km for an exact name on a large-footprint
+    /// type (park · arboretum · trail · campus). `search()` is a fuzzy fallback; this is
+    /// the ONE place that decides a match is trustworthy enough to show its photo.
+    /// Cached per curated name (a small, fixed set), so repeat callers (a list row and
+    /// its detail view) don't re-run the confidence check. nil if not confidently
+    /// identified or the place has no photo.
     func confidentPhoto(name: String, coordinate: CLLocationCoordinate2D) async -> ConfidentPhoto? {
         // Key on name + coordinate: a generic reused label ("Community Room") can
         // resolve to different curated coordinates per caller, and each must run its
-        // own 75 m confidence check rather than inherit the first caller's result.
+        // own Rule A check rather than inherit the first caller's result.
         let key = "\(name)|\(coordinate.latitude),\(coordinate.longitude)"
         if let hit = confidentPhotoCache[key] { return hit }
         // Coalesce concurrent callers for the same venue (e.g. several list cards
         // sharing one location) onto a single billed Places round-trip.
-        if let inFlight = confidentPhotoInFlight[key] { return await inFlight.value }
+        if let inFlight = confidentPhotoInFlight[key] { return await inFlight.value.photo }
 
-        let task = Task { () -> ConfidentPhoto? in
+        let task = Task { () -> PhotoLookup in
             // Google's first hit isn't always the right place — a "Monument Park"
             // query can rank the (wrong) "Memorial Park" first and the real one
-            // third. Scan the top few, gate each on the 75 m + name match using the
-            // cheap search result, and only spend a details() call on a candidate
-            // that has already cleared the gate.
-            for candidate in await self.search("\(name) St Joseph MN").prefix(5) {
-                guard self.isConfidentMatch(resolvedName: candidate.name,
-                                            resolvedCoordinate: candidate.coordinate,
-                                            curatedName: name, curatedCoordinate: coordinate)
+            // third. Scan the top few and gate each with Rule A using the cheap
+            // search result: it already carries primaryType + types, so the
+            // large-footprint tier costs no extra billed field and no extra call.
+            // Only a candidate that has cleared the gate is worth a details() call.
+            //
+            // `nil` from searchResults means the SEARCH itself failed (network / 429),
+            // not "nothing matched" — surface that as `.unavailable` so it is not cached.
+            guard let candidates = await self.searchResults("\(name) St Joseph MN") else { return .unavailable }
+            for candidate in candidates.prefix(5) {
+                guard RuleA.clears(resolvedName: candidate.name,
+                                   resolvedCoordinate: candidate.coordinate,
+                                   types: candidate.types,
+                                   primaryType: candidate.primaryType,
+                                   curatedName: name,
+                                   curatedCoordinate: coordinate)
                 else { continue }
-                guard let d = await self.details(placeId: candidate.placeId), let photo = d.photo else { continue }
-                return ConfidentPhoto(photoName: photo.name, attributions: photo.attributions)
+                // A cleared candidate IS the right place. If details can't be fetched we
+                // couldn't check for a photo, so return `.unavailable` (retry later)
+                // rather than let a network blip cache this venue as photoless forever.
+                guard let d = await self.details(placeId: candidate.placeId) else { return .unavailable }
+                if let photo = d.photo {
+                    return .found(ConfidentPhoto(photoName: photo.name, attributions: photo.attributions))
+                }
+                // Details succeeded but this candidate has no photo — try the next one.
             }
-            return nil
+            return .none
         }
         confidentPhotoInFlight[key] = task
-        let result = await task.value
+        let lookup = await task.value
         confidentPhotoInFlight[key] = nil
-        confidentPhotoCache[key] = .some(result)
-        return result
-    }
-
-    private func isConfidentMatch(resolvedName: String, resolvedCoordinate: CLLocationCoordinate2D,
-                                  curatedName: String, curatedCoordinate: CLLocationCoordinate2D) -> Bool {
-        let a = CLLocation(latitude: resolvedCoordinate.latitude, longitude: resolvedCoordinate.longitude)
-        let b = CLLocation(latitude: curatedCoordinate.latitude, longitude: curatedCoordinate.longitude)
-        guard a.distance(from: b) <= 75 else { return false }
-        return namesAlign(resolvedName, curatedName)
-    }
-
-    private func namesAlign(_ a: String, _ b: String) -> Bool {
-        let na = normalize(a), nb = normalize(b)
-        guard !na.isEmpty, !nb.isEmpty else { return false }   // empty name must not "contain"-match everything
-        if na.contains(nb) || nb.contains(na) { return true }
-        let ta = Set(na.split(separator: " ").filter { $0.count >= 5 })
-        let tb = Set(nb.split(separator: " ").filter { $0.count >= 5 })
-        return !ta.isDisjoint(with: tb)
-    }
-
-    private func normalize(_ s: String) -> String {
-        String(s.lowercased().map { ($0.isLetter || $0.isNumber || $0 == " ") ? $0 : " " })
+        // Only a COMPLETED lookup writes the cache. `.unavailable` (a transport failure)
+        // leaves the key absent so the next appearance retries instead of staying blank.
+        switch lookup {
+        case .found(let cp): confidentPhotoCache[key] = .some(cp); return cp
+        case .none:          confidentPhotoCache[key] = .some(nil); return nil
+        case .unavailable:   return nil
+        }
     }
 
     // MARK: Shared
@@ -395,6 +442,146 @@ final class GooglePlacesService {
             "center": ["latitude": MapSpots.center.latitude, "longitude": MapSpots.center.longitude],
             "radius": Self.biasRadius,
         ]]
+    }
+}
+
+// MARK: - Locked Rule A (the confidence gate)
+
+/// Decides whether a Google text-search hit is the SAME PLACE as one of our curated
+/// venues. It is the only gate that clears a photo for display, so it errs toward
+/// showing nothing: no name agreement means no photo, at any distance.
+///
+/// Stateless and `nonisolated` so it can be evaluated from any isolation (the module
+/// defaults to MainActor isolation).
+///
+/// THREE TIERS — the strength of the name evidence buys the radius:
+///
+///   1. EXACT normalized name + a large-footprint type → `largeFootprintRadiusMeters`
+///   2. EXACT normalized name, any type                → `exactNameRadiusMeters`
+///   3. Names merely ALIGN (substring / shared 5+-char token) → `fuzzyRadiusMeters`
+///
+/// Why tiers at all: Google's pin for a large-footprint place is a centroid or a main
+/// entrance, which legitimately sits hundreds of metres — for a 2,700-acre arboretum,
+/// kilometres — from the trailhead or door we curated. One flat radius therefore has to
+/// choose between blanking those cards and letting a same-named place in the next town
+/// through. Splitting on name strength + footprint type lets us do neither.
+///
+/// The radii are MEASURED, not guessed: every Block Party venue (events, trails, city
+/// parks, KnownVenues, map spots) was resolved against the live Places API on
+/// 2026-07-21 and every candidate Google returned was replayed through these tiers.
+private nonisolated enum RuleA {
+
+    /// Tier 3 — the safety floor for a name that only *resembles* the curated one
+    /// ("Lake Wobegon Trailhead" → "Lake Wobegon Visitor Center"). This was 75 m, which
+    /// missed by a hair: the two venues that fail on nothing but a small centroid offset
+    /// measure 81.0 m (St Joseph Catholic Church) and 81.9 m (Lake Wobegon Visitor
+    /// Center — the Farmers Market's home, the only recurring event card in the app).
+    /// 90 m is the smallest round number that clears both. The band above it is empty:
+    /// the next CORRECT fuzzy candidate in town is 151.8 m and the nearest WRONG one is
+    /// 199.4 m ("Memorial Park" returned for a "Monument Park" query, which the name
+    /// check rejects anyway).
+    static let fuzzyRadiusMeters: CLLocationDistance = 90
+
+    /// Tier 2 — an exact normalized name is strong evidence, but it must stay bounded:
+    /// `locationBias` is a bias, not a restriction, so "Rivers Bend Park" comes back
+    /// exact-named, with 10 photos, from 76 km away in a different town. The largest
+    /// CORRECT exact-name offset measured is 195.2 m (Klinefelter Park, whose Google pin
+    /// is the parking lot); 400 m is ~2x that and 190x inside that wrong match.
+    static let exactNameRadiusMeters: CLLocationDistance = 400
+
+    /// Tier 1 — exact name AND a type whose pin is a centroid rather than a door. Must
+    /// cover Saint John's Abbey Arboretum at 1535 m from the abbey anchor (a 2,700-acre
+    /// woodland). The nearest measured candidate past that is 2781.6 m, and every
+    /// candidate beyond 2 km in the whole dataset is the wrong place — so this keeps
+    /// ~460 m of headroom over the largest correct distance and still stops ~780 m short
+    /// of the first wrong one.
+    static let largeFootprintRadiusMeters: CLLocationDistance = 2_000
+
+    /// Google types that mark a place whose pin is a centroid/entrance rather than a
+    /// door. Every one of these was RETURNED BY GOOGLE for a real Block Party venue:
+    ///  • `city_park` / `park` — the pin is usually the parking lot or main entrance;
+    ///    measured offsets from our curated pins run 0.5 m to 195 m.
+    ///  • `nature_preserve` — Saint John's Abbey Arboretum, 1535 m out and legitimately so.
+    ///  • `route` — a LINEAR feature with no meaningful centroid at all; Google's point
+    ///    for the 100+ km Lake Wobegon Trail lands 1637 m from our trailhead.
+    ///  • `hiking_area` — what Google calls a trail loop ("Park Walking Loop | Klinefelter Park").
+    ///  • `university` — a campus centroid is legitimately far from any one building (CSB/SJU).
+    ///
+    /// Deliberately NOT here, each for a measured reason:
+    ///  • `locality` / `political` ("Saint Joseph") — genuinely large-footprint, but at 2 km
+    ///    any venue whose name shares a token with the town's would inherit the town's
+    ///    photo. The locality pin is 26 m from downtown anyway, so it never needs relief.
+    ///  • `tourist_attraction` — the loosest label Google hands out, and the venues carrying
+    ///    it (Centennial Park at 53.8 m) already clear a tighter tier on their own.
+    ///  • `church` / `historical_landmark` / `visitor_center` / `coffee_shop` / `brewery` /
+    ///    `restaurant` — all measured, all small-footprint, all inside the fuzzy floor.
+    ///
+    /// Do not add a type on faith. If Google never returned it for a Block Party venue,
+    /// there is no measurement behind it.
+    static let largeFootprintTypes: Set<String> = [
+        "park",
+        "city_park",
+        "nature_preserve",
+        "hiking_area",
+        "route",
+        "university",
+    ]
+
+    /// Shortest word that counts as shared evidence between two names. Below this,
+    /// filler ("park", "the", "st") would align almost anything with anything.
+    static let minSharedTokenLength = 5
+
+    /// True when `resolved` (a Google text-search hit) is confidently the same place as
+    /// `curated`. `types`/`primaryType` come straight off the search result — no extra
+    /// billed field, no details() call.
+    static func clears(resolvedName: String,
+                       resolvedCoordinate: CLLocationCoordinate2D,
+                       types: [String],
+                       primaryType: String?,
+                       curatedName: String,
+                       curatedCoordinate: CLLocationCoordinate2D) -> Bool {
+        let resolved = normalize(resolvedName)
+        let curated = normalize(curatedName)
+        // An empty name must not "contain"-match everything.
+        guard !resolved.isEmpty, !curated.isEmpty else { return false }
+
+        let metres = distance(from: resolvedCoordinate, to: curatedCoordinate)
+
+        if resolved == curated {
+            let limit = hasLargeFootprint(types: types, primaryType: primaryType)
+                ? largeFootprintRadiusMeters
+                : exactNameRadiusMeters
+            return metres <= limit
+        }
+
+        guard namesAlign(resolved, curated) else { return false }
+        return metres <= fuzzyRadiusMeters
+    }
+
+    /// Loose name agreement — one name contains the other, or they share a substantial
+    /// word. Both arguments must already be `normalize`d.
+    static func namesAlign(_ a: String, _ b: String) -> Bool {
+        if a.contains(b) || b.contains(a) { return true }
+        return !tokens(a).isDisjoint(with: tokens(b))
+    }
+
+    static func hasLargeFootprint(types: [String], primaryType: String?) -> Bool {
+        if let primaryType, largeFootprintTypes.contains(primaryType) { return true }
+        return types.contains { largeFootprintTypes.contains($0) }
+    }
+
+    /// Lowercased, punctuation flattened to spaces — "St. Joseph's" → "st  joseph s".
+    static func normalize(_ s: String) -> String {
+        String(s.lowercased().map { ($0.isLetter || $0.isNumber || $0 == " ") ? $0 : " " })
+    }
+
+    private static func tokens(_ normalized: String) -> Set<Substring> {
+        Set(normalized.split(separator: " ").filter { $0.count >= minSharedTokenLength })
+    }
+
+    private static func distance(from a: CLLocationCoordinate2D, to b: CLLocationCoordinate2D) -> CLLocationDistance {
+        CLLocation(latitude: a.latitude, longitude: a.longitude)
+            .distance(from: CLLocation(latitude: b.latitude, longitude: b.longitude))
     }
 }
 

@@ -35,7 +35,6 @@ struct TodayFeedPreview: View {
         let rawFridayOffset = (friday - weekday + 7) % 7
         let nextFridayOffset = rawFridayOffset == 0 ? 7 : rawFridayOffset
         let photoOne = bundledPhoto("memorial-park")
-        let photoTwo = bundledPhoto("wobegon-trail")
 
         return [
             posting(
@@ -58,13 +57,17 @@ struct TodayFeedPreview: View {
                 going: 0,
                 likes: 2
             ),
+            // No imageURL, on purpose: every real club_events row has image_url NULL,
+            // so this is the production path — a lazy venue lookup against a real
+            // St. Joe venue. Lets the resolved Places photo + its ToS attribution be
+            // verified headlessly, without auth (see FeedCardVenuePhoto).
             posting(
                 "preview-recurring-nearest",
                 title: "Friday Trail Walk",
                 daysFromToday: nextFridayOffset,
                 time: "3 PM",
                 location: "Lake Wobegon Trailhead",
-                imageURL: photoTwo,
+                imageURL: nil,
                 going: 3,
                 likes: 8,
                 joined: true
@@ -75,7 +78,7 @@ struct TodayFeedPreview: View {
                 daysFromToday: nextFridayOffset + 7,
                 time: "3 PM",
                 location: "Lake Wobegon Trailhead",
-                imageURL: photoTwo,
+                imageURL: nil,
                 going: 2,
                 likes: 3
             ),

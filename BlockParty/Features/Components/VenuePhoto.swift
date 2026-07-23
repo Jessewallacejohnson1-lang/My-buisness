@@ -6,7 +6,9 @@
 //  match exists — never a generic stock photo, never a gray placeholder box.
 //
 //  See GooglePlacesService.confidentPhoto(forFreeText:hint:) for the Rule A
-//  confidence gate (a KnownVenues curated anchor is required).
+//  confidence gate (a KnownVenues curated anchor is required). Activities callers
+//  should hand it a resolved `coordinate` via `ActivityVenue` rather than relying on
+//  the free-text path.
 //
 
 import SwiftUI
@@ -37,19 +39,10 @@ struct VenuePhoto<Blank: View>: View {
     var body: some View {
         Group {
             if let cp = photo {
-                ZStack(alignment: .bottomTrailing) {
-                    AsyncImage(url: GooglePlacesService.shared.photoURL(name: cp.photoName, maxWidth: maxWidth)) { phase in
-                        switch phase {
-                        case .success(let img): img.resizable().scaledToFill()
-                        default: blank()
-                        }
-                    }
-                    if !cp.attributions.isEmpty {
-                        Text(cp.attributions.joined(separator: ", "))
-                            .font(.sans(9)).foregroundStyle(.white.opacity(0.95)).lineLimit(1)
-                            .padding(.horizontal, 6).padding(.vertical, 3)
-                            .background(.black.opacity(0.4), in: Capsule())
-                            .padding(8)
+                AsyncImage(url: GooglePlacesService.shared.photoURL(name: cp.photoName, maxWidth: maxWidth)) { phase in
+                    switch phase {
+                    case .success(let img): filled(img, credit: cp.attributions)
+                    default: blank()
                     }
                 }
             } else {
@@ -67,6 +60,21 @@ struct VenuePhoto<Blank: View>: View {
                 photo = await GooglePlacesService.shared.confidentPhoto(forFreeText: venueName, hint: hint)
             }
         }
+    }
+
+    /// The loaded photo filling the caller's box, with the required author credit
+    /// pinned to its corner. The credit sits on the CLEAR container rather than on
+    /// the image itself: `scaledToFill` renders a bitmap larger than the box, so an
+    /// overlay anchored to the image would land outside the caller's clip.
+    ///
+    /// Attribution is attached to this branch only — a photo that is still loading,
+    /// or that failed to load, draws `blank()` and must not carry a credit for an
+    /// image nobody can see.
+    private func filled(_ img: Image, credit names: [String]) -> some View {
+        Color.clear
+            .overlay { img.resizable().scaledToFill() }
+            .clipped()
+            .overlay(alignment: .bottomTrailing) { PhotoCredit(names: names) }
     }
 
     /// Re-run the lookup only when what determines the *match* changes (name +
