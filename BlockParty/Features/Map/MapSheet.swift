@@ -12,21 +12,18 @@
 //  the list. All content is REAL (no invented counts):
 //    • today  — today's happenings from MapModel.todayEvents (coral dot = live now)
 //    • places — the curated MapSpots catalogue, with each spot's live count today
-//    • detail — one spot: blurb, its happenings, Directions (set by tapping a pin)
 //
-//  Mirrors Life360's "People / Places" sheet: a title + a coral toggle pill on the
-//  right, a scrollable list, and a spot detail that replaces the list when a pin is
-//  tapped (so nothing stacks). The old pop-up MapBottomCard is subsumed here.
+//  Place detail belongs to the morphing global tab shell. This sheet now has one job:
+//  preserve the draggable Today / Places peek and list from the map's browse state.
 //
 
 import SwiftUI
-import CoreLocation
 
 /// How far the sheet is pulled up. Three detents; the grabber snaps between them.
-private enum SheetDetent: CaseIterable { case peek, medium, full }
+enum SheetDetent: CaseIterable { case peek, medium, full }
 
-/// The two list faces of the sheet (a spot detail temporarily overrides both).
-private enum SheetMode { case today, places }
+/// The two list faces of the sheet.
+enum SheetMode { case today, places }
 
 /// A vertical gesture belongs to exactly one surface at a time. `scroll` may hand
 /// off to `sheet` when a downward drag reaches the active ScrollView's top.
@@ -37,10 +34,6 @@ struct MapSheet: View {
     let events: [TimelineEvent]
     let state: MapModel.LoadState
     let spots: [Spot]                          // already filtered by the map's chip
-    @Binding var selected: Spot?               // non-nil → show that spot's detail
-    /// A tapped food/business POI (mutually exclusive with `selected`). Its detail now
-    /// renders INSIDE this bar too, instead of the old swipe-up Apple modal.
-    @Binding var selectedPOI: POI?
 
     // Callbacks up to SJMapView
     let happenings: (Spot) -> [TimelineEvent]  // events resolving to a spot
@@ -79,14 +72,14 @@ struct MapSheet: View {
         topLeadingRadius: glassRadius, bottomLeadingRadius: 0,
         bottomTrailingRadius: 0, topTrailingRadius: glassRadius, style: .continuous)
 
-    @State private var mode: SheetMode = MapSheet.initialMode()
-    @State private var detent: SheetDetent = MapSheet.initialDetent()
+    @Binding var mode: SheetMode
+    @Binding var detent: SheetDetent
     /// Namespace for the Today ⇄ Places segmented control's sliding selection pill.
     @Namespace private var segment
 
     /// DEBUG-only: `-map-sheet places` opens the sheet on the Places list so it can
     /// be screenshotted headlessly. No effect in release / without the flag.
-    private static func initialMode() -> SheetMode {
+    static func initialMode() -> SheetMode {
         #if DEBUG
         let a = ProcessInfo.processInfo.arguments
         if let i = a.firstIndex(of: "-map-sheet"), i + 1 < a.count, a[i + 1] == "places" { return .places }
@@ -97,7 +90,7 @@ struct MapSheet: View {
     /// DEBUG-only: `-map-detent peek|medium|full` opens the sheet at a given detent
     /// so each rest state (and the peek line ⇄ list cross-fade) can be screenshotted
     /// headlessly. No effect in release / without the flag.
-    private static func initialDetent() -> SheetDetent {
+    static func initialDetent() -> SheetDetent {
         #if DEBUG
         let a = ProcessInfo.processInfo.arguments
         if let i = a.firstIndex(of: "-map-detent"), i + 1 < a.count {
@@ -126,18 +119,12 @@ struct MapSheet: View {
     /// from that exact point instead of jumping by the distance already scrolled.
     @State private var dragHandoffTranslation: CGFloat = 0
     @State private var listScrollAtTop = true
-    @State private var spotDetailScrollAtTop = true
-    @State private var poiDetailScrollAtTop = true
     /// Latest laid-out container height, so the drag-end snap can reason about the
     /// actual detent heights (they're derived from it). Updated off the layout pass.
     @State private var containerH: CGFloat = 0
     /// This is a hand-rolled sheet, so §11 doesn't get honored for free — it self-gates:
     /// detent/select springs drop to a non-bouncy crossfade under Reduce Motion.
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.openURL) private var openURL
-    /// The device-local saved set (shared with Explore). Observed so the detail
-    /// header's bookmark reflects saves live; also the source of the map's Saved pin.
-    @ObservedObject private var saved = SavedStore.shared
 
     var body: some View {
         GeometryReader { geo in
@@ -156,29 +143,23 @@ struct MapSheet: View {
 
             VStack(spacing: 0) {
                 grabber
-                if let spot = selected {
-                    detailContent(spot)
-                } else if let poi = selectedPOI {
-                    poiDetailContent(poi)
-                } else {
-                    ZStack(alignment: .top) {
-                        // Bias the two curves off the shared `p` so one layer is always
-                        // dominant — no muddy 50/50 crossing when you scrub slowly. The
-                        // outgoing line also blurs a touch to soften the handoff seam.
-                        let peekOut = 1 - min(1, p * 1.7)            // gone by p≈0.59
-                        let listIn = max(0, (p - 0.3) / 0.7)         // in from p≈0.3
-                        listStack
-                            .opacity(listIn)
-                            .allowsHitTesting(p > 0.5)
-                            .accessibilityHidden(p <= 0.5)
-                        peekLine
-                            .opacity(peekOut)
-                            .blur(radius: (1 - peekOut) * 2)
-                            .allowsHitTesting(p <= 0.5)
-                            .accessibilityHidden(p > 0.5)
-                    }
-                    .frame(maxHeight: .infinity, alignment: .top)
+                ZStack(alignment: .top) {
+                    // Bias the two curves off the shared `p` so one layer is always
+                    // dominant — no muddy 50/50 crossing when you scrub slowly. The
+                    // outgoing line also blurs a touch to soften the handoff seam.
+                    let peekOut = 1 - min(1, p * 1.7)            // gone by p≈0.59
+                    let listIn = max(0, (p - 0.3) / 0.7)         // in from p≈0.3
+                    listStack
+                        .opacity(listIn)
+                        .allowsHitTesting(p > 0.5)
+                        .accessibilityHidden(p <= 0.5)
+                    peekLine
+                        .opacity(peekOut)
+                        .blur(radius: (1 - peekOut) * 2)
+                        .allowsHitTesting(p <= 0.5)
+                        .accessibilityHidden(p > 0.5)
                 }
+                .frame(maxHeight: .infinity, alignment: .top)
             }
             .frame(maxWidth: .infinity, alignment: .top)
             .frame(height: height, alignment: .top)
@@ -215,19 +196,9 @@ struct MapSheet: View {
             .onChange(of: H, initial: true) { _, h in containerH = h }
         }
         .animation(reduceMotion ? Motion.smooth : Motion.sheet, value: detent)
-        .animation(reduceMotion ? Motion.smooth : Motion.sheet, value: selected?.id)
-        .animation(reduceMotion ? Motion.smooth : Motion.sheet, value: selectedPOI?.id)
-        // A tapped pin lifts the sheet to MEDIUM (Apple-Maps feel): the card rises to ~half
-        // while the map stays the hero and the camera lifts the pin above it (see SJMapView).
-        // Full is a drag-up away. A POI opens into the same in-bar detail, so it lifts too.
-        .onChange(of: selected?.id) { _, id in if id != nil { detent = .medium } }
-        .onChange(of: selectedPOI?.id) { _, id in if id != nil { detent = .medium } }
         .onChange(of: dragGestureActive) { wasActive, isActive in
             if wasActive && !isActive { resetDrag() }
         }
-        // onChange only fires on a transition; a spot/POI preselected at mount (e.g. the
-        // `-map-open` / `-map-open-poi` debug flags, or a deep link) needs the same lift.
-        .onAppear { if selected != nil || selectedPOI != nil { detent = .medium } }
     }
 
     /// The three rest heights, derived from the container height. peek is fixed
@@ -292,8 +263,6 @@ struct MapSheet: View {
     }
 
     private var activeScrollAtTop: Bool {
-        if selected != nil { return spotDetailScrollAtTop }
-        if selectedPOI != nil { return poiDetailScrollAtTop }
         if isCenteredEmptyState { return true }
         return listScrollAtTop
     }
@@ -694,186 +663,6 @@ struct MapSheet: View {
         .padding(.horizontal, 24)   // centered block; keep the copy off the glass edges
     }
 
-    // MARK: Detail — one spot (replaces the old MapBottomCard)
-
-    /// Save/unsave this place. Saved takes the brand accent ("saved state" is one of the
-    /// accent's meaning-scoped seams) — this is a tappable control in the SHEET, so accent
-    /// is fine here; the map *pin's* saved mark stays ink so accent keeps meaning "live" on
-    /// the canvas. Powers the map's Saved pin via SavedStore.
-    private func saveButton(_ spot: Spot) -> some View {
-        let isSaved = saved.isSaved(spot.id)
-        return Button {
-            // Saving a place is a positive milestone → success notification; un-saving is
-            // a light tap (spec §10 — success marks the save, not the removal).
-            if isSaved { Haptics.light() } else { Haptics.success() }
-            withAnimation(reduceMotion ? Motion.smooth : Motion.select) { saved.toggle(spot.id) }
-        } label: {
-            Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(isSaved ? Hue.accent : Hue.ink)
-                .symbolEffect(.bounce, value: isSaved)
-                .frame(width: 36, height: 36)
-                .background(Hue.paper, in: Circle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(isSaved ? "Remove \(spot.name) from saved places" : "Save \(spot.name)")
-    }
-
-    private func detailContent(_ spot: Spot) -> some View {
-        let items = happenings(spot)
-        return ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 10) {
-                    Button {
-                        Haptics.light()
-                        selected = nil
-                        detent = .peek
-                    } label: {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(Hue.ink)
-                            .frame(width: 32, height: 32)
-                            .background(Hue.paper, in: Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Back to list")
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(spot.name).font(.display(20)).foregroundStyle(Hue.ink).lineLimit(1)  // §9: card title 20pt bold
-                        if let blurb = spot.blurb {
-                            Text(blurb).font(.sans(15)).foregroundStyle(Hue.inkSecondary).lineLimit(1)       // §9: subtitle 15pt
-                        }
-                    }
-                    Spacer(minLength: 0)
-                    saveButton(spot)
-                }
-                .staggeredAppear(0)
-
-                VenueInfoView(query: "\(spot.name) St Joseph MN",
-                              palette: .map,
-                              identity: VenueIdentity(name: spot.name, coordinate: spot.coordinate))
-                    .padding(.top, 16)
-                    .staggeredAppear(1)
-
-                if !items.isEmpty {
-                    VStack(spacing: 13) {
-                        ForEach(items) { h in
-                            HStack(spacing: 8) {
-                                Circle()
-                                    .fill(DateHelpers.isLiveNow(h.startTime) ? Hue.accent : Hue.inkSecondary)
-                                    .frame(width: 6, height: 6)
-                                Text(h.title).font(.sansMedium(15)).foregroundStyle(Hue.ink).lineLimit(1)
-                                Spacer()
-                                Text(h.startTime ?? "all day").font(.sans(13)).foregroundStyle(Hue.inkSecondary)
-                            }
-                        }
-                    }
-                    .padding(.top, 18)
-                    .staggeredAppear(2)
-                }
-
-                Button {
-                    let lat = spot.coordinate.latitude, lon = spot.coordinate.longitude
-                    if let url = URL(string: "maps://?daddr=\(lat),\(lon)&dirflg=d") { openURL(url) }
-                } label: {
-                    Text("Directions")
-                        .font(.sansSemibold(16)).foregroundStyle(.white)
-                        .frame(maxWidth: .infinity).frame(height: 50)
-                }
-                .buttonStyle(AccentPillStyle())
-                .padding(.top, 20)
-                .staggeredAppear(3)
-                .accessibilityLabel("Directions to \(spot.name)")
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, Self.contentBottomInset)
-        }
-        .scrollIndicators(.hidden)
-        .scrollDisabled(innerScrollDisabled)
-        .onScrollGeometryChange(for: Bool.self) { geometry in
-            Self.scrollIsAtTop(geometry)
-        } action: { _, isAtTop in
-            spotDetailScrollAtTop = isAtTop
-        }
-    }
-
-    // MARK: Detail — one POI (food / business), rendered IN the bar (no more modal)
-
-    /// The tapped-POI detail, hosted inside the bar exactly like a spot's — replacing the
-    /// old swipe-up Apple modal (POIDetailSheet). Back-chevron returns to the list; the
-    /// accent primary CTA opens the venue in Maps. `VenueInfoView` adds live Google
-    /// hours/website/phone/photo when they resolve, and nothing when they don't.
-    private func poiDetailContent(_ poi: POI) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 10) {
-                    Button {
-                        Haptics.light()
-                        selectedPOI = nil
-                        detent = .peek
-                    } label: {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(Hue.ink)
-                            .frame(width: 32, height: 32)
-                            .background(Hue.paper, in: Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Back to list")
-
-                    ZStack {
-                        Circle().fill(poi.family.tint).frame(width: 40, height: 40)
-                        Image(systemName: poi.glyph)
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(.white)
-                    }
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(poi.name).font(.display(20)).foregroundStyle(Hue.ink).lineLimit(1)   // §9: card title
-                        Text(poi.family.label.uppercased())
-                            .font(.mono(11)).tracking(1.2).foregroundStyle(Hue.inkSecondary)
-                    }
-                    Spacer(minLength: 0)
-                }
-                .staggeredAppear(0)
-
-                if let address = poi.address, !address.isEmpty {
-                    Text(address)
-                        .font(.sans(15)).foregroundStyle(Hue.inkSecondary)   // §9: 15pt subtitle
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, 12)
-                        .staggeredAppear(1)
-                }
-
-                VenueInfoView(query: poi.name,
-                              palette: .map,
-                              identity: VenueIdentity(name: poi.name, coordinate: poi.coordinate))
-                    .padding(.top, 16)
-                    .staggeredAppear(2)
-
-                Button {
-                    let q = poi.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-                    if let url = URL(string: "http://maps.apple.com/?q=\(q)&ll=\(poi.lat),\(poi.lon)") { openURL(url) }
-                } label: {
-                    Text("Open in Maps")
-                        .font(.sansSemibold(16)).foregroundStyle(.white)
-                        .frame(maxWidth: .infinity).frame(height: 50)
-                }
-                .buttonStyle(AccentPillStyle())
-                .padding(.top, 20)
-                .staggeredAppear(3)
-                .accessibilityLabel("Open \(poi.name) in Maps")
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, Self.contentBottomInset)
-        }
-        .scrollIndicators(.hidden)
-        .scrollDisabled(innerScrollDisabled)
-        .onScrollGeometryChange(for: Bool.self) { geometry in
-            Self.scrollIsAtTop(geometry)
-        } action: { _, isAtTop in
-            poiDetailScrollAtTop = isAtTop
-        }
-    }
 }
 
 // MARK: - Status dot (peek line)
@@ -1034,19 +823,6 @@ private struct SkeletonRow: View {
             Spacer()
         }
         .padding(.horizontal, 20).padding(.vertical, 12)
-    }
-}
-
-// MARK: - Accent primary button (Directions / Open in Maps)
-
-/// The detail's primary CTA. Takes the brand accent — "primary CTAs" is one of the
-/// accent's meaning-scoped seams — rather than the old ink fill.
-private struct AccentPillStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .background(configuration.isPressed ? Hue.accent.opacity(0.85) : Hue.accent,
-                        in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }
 }
 
