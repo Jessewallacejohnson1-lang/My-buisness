@@ -1385,3 +1385,34 @@ every exit path clears it), morph return-to-4-icons clean (no `matchedGeometryEf
 the `MapSheet` gut left no dead code, and Issues 1 & 2 are unaffected. The live morph animation
 and browse-state preservation are confirmed by code review + on-device (not sim-automatable).
 Build: 0 warnings, 0 errors.
+
+## 2026-07-23 — Follow-up: expand the morphed detail into rich venue info
+
+A grabber/chevron on the morphed place detail expands the SAME glass bar upward into the rich
+detail — civic: blurb + happenings + `VenueInfoView` (Google hours/website/phone/photo); POI:
+address + `VenueInfoView` — and collapses back to compact (X still closes to the 4-icon bar from
+either state). One continuous `.glassEffect` shell (content grows inside `detailPanel`; no second
+card). Grabber-OWNED drag (up=expand / down=collapse) + tap toggle; `Motion.sheet` /
+`Motion.smooth` under Reduce Motion; the drag is non-interactive (a Bool via spring) so an
+interrupted drag can't stick half-open. `VenueInfoView` is instantiated only when expanded (no
+Google fetch for selections that are never expanded). Happenings reach the tab bar via a
+`mapDetailHappenings` binding that `SJMapView` fills from `MapModel.todayEvents`, resynced on
+selection AND on realtime event changes, and cleared for POIs / dismissal.
+
+Review fixes: expanded ScrollView height is `min(440, containerH*0.55)` (was a fixed 440 that
+rode into the status bar on small devices at large Dynamic Type); the expand affordance is
+suppressed when there is nothing extra to show (civic with no blurb + no happenings, POI with no
+address); happenings rows are combined VoiceOver stops that announce "live now" in text. Left
+as-is: a cosmetic one-frame `VenueInfoView` blank→populate flash on re-expand (in-memory cache
+hit, no network).
+
+DEBUG: `-map-detail-expanded` (with `-map-open <id>` / `-map-open-poi`) starts the detail
+expanded for headless screenshots — there is no UI-automation tap in this setup.
+
+Independently reviewed (no CRITICAL/HIGH): the expand state resets on every selection/dismissal
+(no stale rich content for the wrong place), happenings are correct + non-stale, the gesture is
+cancel-safe, one-glass continuity holds, and Issues 1 & 2 are unaffected. Verified in the
+simulator (blurb + real distance — 350 ft downtown vs 3.8 mi St John's — + the expand growth).
+Rich venue data is often sparse for the civic spots (their `"<name> St Joseph MN"` query resolves
+poorly for Collegeville venues — inherited from the prior detail); the payoff shows on real POIs
+and event days. Build: 0 warnings, 0 errors.
