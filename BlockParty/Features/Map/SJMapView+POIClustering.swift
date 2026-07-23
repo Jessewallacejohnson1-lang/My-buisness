@@ -3,7 +3,7 @@
 //  Hygge — the client-side POI clustering that SJMapView drives: the recompute trigger,
 //  the recompute itself, the bubble appear/dissolve lifecycle, and the DEBUG autozoom
 //  demo. Split out of SJMapView.swift to keep that file cohesive; the @State it reads
-//  (poiAssignments / renderedClusters / lastClusterZoom / viewport …) lives on the main
+//  (markerAssignments / renderedClusters / lastClusterZoom / viewport …) lives on the main
 //  struct — extensions can't add stored properties.
 //
 
@@ -37,44 +37,90 @@ extension SJMapView {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.13, execute: work)
     }
 
-    /// Cluster the current POIs at the live projection and fold the result into the
-    /// rendered layout. Writing `poiAssignments` / `renderedClusters` (container @State)
+    /// Cluster current POIs plus eligible civic landmarks at the live projection and fold
+    /// the result into the rendered layout. Writing `markerAssignments` / `renderedClusters`
+    /// (container @State)
     /// is safe: each marker/bubble animates from its OWN leaf state, so this write can't
     /// cancel an in-flight glide.
     func recomputeClusters(_ map: MapboxMap?) {
         guard let map else { return }
+        let zoom = map.cameraState.zoom
         let pois = model.pois
-        guard !pois.isEmpty else {
-            poiAssignments = [:]
-            renderedClusters = deactivating(renderedClusters, map)
-            labelledPOIs = []   // one recompute owns ALL the layout state it writes
-            return
+        let selected = selectedClusterMarkerID
+
+        // A selected marker is never counted by an aggregate. Civic landmarks participate
+        // only below the shared expand threshold, so crossing 14.5 gives each one a solo
+        // assignment and the same retained-anchor leaf animates it home.
+        var inputs = pois.compactMap { poi -> ClusterMarkerInput? in
+            let id = ClusterMarkerID.poi(poi.id)
+            guard id != selected else { return nil }
+            return ClusterMarkerInput(
+                id: id,
+                coordinate: poi.coordinate,
+                family: poi.family,
+                isLive: false
+            )
         }
+        if zoom < MapModel.pinExpandZoom {
+            inputs.append(contentsOf: filteredSpots.compactMap { spot -> ClusterMarkerInput? in
+                let id = ClusterMarkerID.civic(spot.id)
+                guard id != selected else { return nil }
+                return ClusterMarkerInput(
+                    id: id,
+                    coordinate: spot.coordinate,
+                    family: nil,
+                    isLive: isLive(spot)
+                )
+            })
+        }
+
         // Radius follows the LIVE zoom: big/calm clusters zoomed out, mostly individuals at
         // street level. The bubble diameter is capped to `maxBubble` (< radius) so two seeds
         // — always > radius apart — can never host overlapping bubbles at any zoom.
-        let radius = POICluster.clusterRadius(zoom: map.cameraState.zoom)
+        let radius = POICluster.clusterRadius(zoom: zoom)
         let maxBubble = POICluster.bubbleMaxDiameter(radius: radius)
-        let output = POICluster.compute(pois: pois, radius: radius) { map.point(for: $0) }
-        poiAssignments = output.assignments
+        let output = POICluster.compute(
+            markers: inputs,
+            radius: radius,
+            forceAllIntoClusters: zoom < MapModel.pinExpandZoom,
+            project: { map.point(for: $0) }
+        )
+
+        var assignments = output.assignments
+        // Markers excluded from `inputs` still need explicit solo assignments: selected
+        // POIs at any zoom, selected civics, and every civic at/above pinExpandZoom.
+        for poi in pois {
+            let id = ClusterMarkerID.poi(poi.id)
+            if assignments[id] == nil {
+                assignments[id] = POIAssignment(anchor: poi.coordinate, clustered: false)
+            }
+        }
+        for spot in filteredSpots {
+            let id = ClusterMarkerID.civic(spot.id)
+            if assignments[id] == nil {
+                assignments[id] = POIAssignment(anchor: spot.coordinate, clustered: false)
+            }
+        }
+        markerAssignments = assignments
+
         let rendered = merge(existing: renderedClusters, incoming: output.bubbles, maxDiameter: maxBubble, map: map)
         renderedClusters = rendered
-        // Which POI names have room to draw at this layout. Only matters once pins are
-        // expanded (labels are hidden below the awake zoom anyway), but it's computed off
-        // the same projection pass, so there's nothing to gain by gating it.
+        // Which POI/civic names have room to draw at this layout. Only matters once pins
+        // are expanded (labels are hidden below the threshold), but computing in the same
+        // projection pass keeps the first expanded frame correct.
         //
         // Reserve against the RENDERED bubbles, not `output.bubbles`: a just-split bubble is
         // absent from the fresh output but stays on screen for its 0.55s fade, and a label
         // granted through it would draw over visible chrome.
-        labelledPOIs = POICluster.labelledPOIs(
+        labelledMarkers = POICluster.labelledMarkers(
             pois: pois,
-            assignments: output.assignments,
+            assignments: assignments,
             bubbles: rendered,
-            civicSpots: filteredSpots.map { ($0.coordinate, $0.name) },
+            civicSpots: filteredSpots.map { ($0.id, $0.coordinate) },
+            selected: selected,
+            previous: labelledMarkers,
             chrome: chromeRects(mapSize: mapSize),
-            // Incumbency: labels already on screen keep their grant, so a pinch can't strobe
-            // them on and off at a collision boundary.
-            previous: labelledPOIs,
+            focus: map.point(for: map.cameraState.center),
             project: { map.point(for: $0) }
         )
     }
@@ -101,29 +147,34 @@ extension SJMapView {
         return [topBand, bottomBand, help, recenter]
     }
 
-    // MARK: Bubble lifecycle (stable ids → persist / roll / fade-out)
+    // MARK: Bubble lifecycle (stable ids → persist / crossfade / fade-out)
 
     /// Reconcile the previous bubble set with the new one, keeping stable ids so each
-    /// bubble persists (count rolls) and dissolving ones fade out before removal.
+    /// bubble persists (count crossfades) and dissolving ones fade out before removal.
     private func merge(existing: [POIClusterRender],
                        incoming: [POIClusterBubble],
                        maxDiameter: CGFloat,
                        map: MapboxMap) -> [POIClusterRender] {
         let incomingByID = Dictionary(incoming.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         var result: [POIClusterRender] = []
-        var handled = Set<String>()
+        var handled = Set<ClusterMarkerID>()
 
         for current in existing {
             if let bubble = incomingByID[current.id] {
                 // Still a cluster (or a dissolving one reformed) → active, updated count + cap.
                 result.append(POIClusterRender(id: bubble.id, coordinate: bubble.coordinate,
-                                               count: bubble.count, dominantFamily: bubble.dominantFamily,
+                                               count: bubble.count,
+                                               collisionCount: max(current.collisionCount, bubble.count),
+                                               dominantFamily: bubble.dominantFamily,
+                                               containsLive: bubble.containsLive,
                                                active: true, maxDiameter: maxDiameter))
                 handled.insert(current.id)
             } else if current.active {
                 // Just dissolved → keep it a beat, fading out, then prune.
                 result.append(POIClusterRender(id: current.id, coordinate: current.coordinate,
-                                               count: current.count, dominantFamily: current.dominantFamily,
+                                               count: current.count, collisionCount: current.collisionCount,
+                                               dominantFamily: current.dominantFamily,
+                                               containsLive: current.containsLive,
                                                active: false, maxDiameter: current.maxDiameter))
                 schedulePrune(current.id, map)
             } else {
@@ -132,21 +183,12 @@ extension SJMapView {
         }
         for bubble in incoming where !handled.contains(bubble.id) {
             result.append(POIClusterRender(id: bubble.id, coordinate: bubble.coordinate,
-                                           count: bubble.count, dominantFamily: bubble.dominantFamily,
+                                           count: bubble.count, collisionCount: bubble.count,
+                                           dominantFamily: bubble.dominantFamily,
+                                           containsLive: bubble.containsLive,
                                            active: true, maxDiameter: maxDiameter))
         }
         return result
-    }
-
-    /// Flip every active bubble to dissolving (used when POIs vanish entirely).
-    private func deactivating(_ clusters: [POIClusterRender], _ map: MapboxMap) -> [POIClusterRender] {
-        clusters.map { c in
-            guard c.active else { return c }
-            schedulePrune(c.id, map)
-            return POIClusterRender(id: c.id, coordinate: c.coordinate, count: c.count,
-                                    dominantFamily: c.dominantFamily,
-                                    active: false, maxDiameter: c.maxDiameter)
-        }
     }
 
     /// Remove a dissolved bubble once its fade-out has played — unless it reformed
@@ -163,7 +205,7 @@ extension SJMapView {
     /// against it. And the recompute only runs if the bubble ACTUALLY went away: a bubble that
     /// reformed (active again) is still holding its space, so nothing was freed and a full
     /// cluster + label pass would be pure waste.
-    private func schedulePrune(_ id: String, _ map: MapboxMap) {
+    private func schedulePrune(_ id: ClusterMarkerID, _ map: MapboxMap) {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) { [weak map] in
             let before = renderedClusters.count
             renderedClusters.removeAll { $0.id == id && !$0.active }

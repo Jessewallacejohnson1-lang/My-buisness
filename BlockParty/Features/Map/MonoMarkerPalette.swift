@@ -63,6 +63,11 @@ enum MarkerRole {
     /// The glyph inside a civic pin — the value that reads on `civicFill`.
     static var civicGlyph: Color { Hue.surface }
 
+    /// Device-local saved accent drawn on a civic pin.
+    static var savedGlyph: Color { Hue.ink }
+    static var savedBadgeFill: Color { Hue.surface }
+    static var savedBadgeStroke: Color { Hue.hairline }
+
     // — POI (food / business) pins —
 
     /// Fill of a POI pin: surface when EXPANDED, inkSecondary when compact.
@@ -75,6 +80,17 @@ enum MarkerRole {
 
     /// The glyph inside an expanded POI pin, which sits on a light fill.
     static var poiGlyph: Color { Hue.ink }
+
+    /// A selected POI is promoted to the mid ink tier with white content; the soft
+    /// halo repeats that ink at lower opacity rather than reintroducing family hue.
+    static func selectedPOIFill(_ family: PlaceFamily) -> Color { Hue.inkSecondary }
+
+    /// A selected POI that carries a BRAND LOGO keeps the light surface fill — a mark
+    /// can't sit legibly on mid grey — and the ring + halo + lifted shadow continue to
+    /// carry the selection emphasis on their own.
+    static var selectedPOILogoFill: Color { Hue.surface }
+    static func selectedPOIHalo(_ family: PlaceFamily) -> Color { Hue.inkSecondary }
+    static var selectedPOIGlyph: Color { Hue.surface }
 
     /// A pin's keyline. A light-filled pin needs a real hairline edge to read against
     /// paper; a dark-filled one takes the white lift that separates it from the map.
@@ -113,9 +129,17 @@ enum MarkerRole {
     /// The count, which sits on the mid-grey disc.
     static var clusterText: Color { Hue.surface }
 
+    /// Depth under an aggregate; darker than an individual pin because the bubble
+    /// represents many places and sits at the top of the marker hierarchy.
+    static var clusterShadow: Color { Hue.ink.opacity(0.22) }
+
     // — Labels —
 
     /// A pin's name label. Always ink: labels can't carry category meaning without hue,
     /// so the glyph is the only category channel and the text just has to be readable.
     static func label(base: Color) -> Color { Hue.ink }
+
+    /// The light lift around bare map text, routed here with the ink itself so labels
+    /// never choose a raw white at their call site.
+    static var labelHalo: Color { Hue.surface }
 }

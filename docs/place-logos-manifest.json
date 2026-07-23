@@ -1,0 +1,736 @@
+{
+  "generated": "2026-07-23",
+  "pipeline": "fetch_place_logos.py + Codex hunt agents (2 rounds: strict brand-mark, then relaxed representative-mark incl. parent-institution logos) + Claude vision verification",
+  "approved": 77,
+  "places": 91,
+  "entries": [
+    {
+      "id": "ab44fdd8-302b-4523-abca-d087d89874f1",
+      "name": "All Occasion Floral & Gifts",
+      "status": "approved",
+      "candidate": "apple-touch-icon",
+      "source_url": "https://cdn.myfsn.com/myfsn/images/touch-icons/apple-touch-icon-120x120.png",
+      "source_px": "120x120"
+    },
+    {
+      "id": "5be29c95-5f5d-45aa-83b0-0f591916b4ee",
+      "name": "AMS Tax & Accounting Solutions, PA",
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "file:build/place-logos/ams-logo-source",
+      "source_px": "2000x2000"
+    },
+    {
+      "id": "cf3c7388-f4ab-4522-ae1d-3d2a018c69a5",
+      "name": "Amy Hedtke - State Farm",
+      "status": "approved",
+      "candidate": "apple-touch-icon",
+      "source_url": "https://ephemera.mirus.io/cache/storage.googleapis.com/tintype.mirus.io/mx-static-shared-assets/master/7fea504f5e9d36c3657ef1c249c96b38f626bcf1/img/apple-touch-icon.webp",
+      "source_px": "180x180"
+    },
+    {
+      "id": "2f68442e-0399-4ac5-b60d-cc3237fa7746",
+      "name": "Autobody 2000 Inc",
+      "status": "approved",
+      "candidate": "apple-touch-icon",
+      "source_url": "https://ab2k.com/wp-content/uploads/2020/09/cropped-FAV-180x180.png",
+      "source_px": "180x180"
+    },
+    {
+      "id": "3f3c5259-67f9-491e-9af5-5c4b21a80b58",
+      "name": "Bad Habit Brewing Company",
+      "status": "approved",
+      "candidate": "link-icon",
+      "source_url": "https://images.squarespace-cdn.com/content/v1/5537141ae4b08a8487d6c3c0/ed967e71-8e76-491c-8696-9799162c7206/favicon.ico?format=100w",
+      "source_px": "100x100"
+    },
+    {
+      "id": "a36c5d37-f384-477b-b601-7f535b2ea7fd",
+      "name": "Bello Cucina | Italian",
+      "status": "approved",
+      "candidate": "agent-rescue",
+      "source_url": "https://graph.facebook.com/1549213738715041/picture?type=large&redirect=true",
+      "source_px": "480x480"
+    },
+    {
+      "id": "2b90146d-3652-4a02-b1a5-a5d132c62522",
+      "name": "Blush Salon",
+      "status": "approved",
+      "candidate": "agent-hunt",
+      "source_url": "https://static.wixstatic.com/media/a14fb7_f5bf1073b1c249299a48da3ea8a5fc24~mv2.png",
+      "source_px": "2875x2615"
+    },
+    {
+      "id": "dcc05e93-f05b-4143-b05c-d2a665bf72f2",
+      "name": "Bo Diddley's Deli",
+      "status": "approved",
+      "candidate": "agent-hunt",
+      "source_url": "http://static1.squarespace.com/static/5b8076cde2ccd1174e4a87db/t/64908d07dec9b927ee3a19b8/1687194887109/BoDiddley%27s_Deli_Logo_Navy.png?format=1500w",
+      "source_px": "1500x914"
+    },
+    {
+      "id": "2e89bbb6-8728-4ae6-8b8b-53c1629ba395",
+      "name": "Brenny Transportation, Inc.",
+      "status": "approved",
+      "candidate": "apple-touch-icon",
+      "source_url": "https://i0.wp.com/brennytransportation.com/wp-content/uploads/2017/02/logo1.jpg?fit=180%2C180&ssl=1",
+      "source_px": "180x180"
+    },
+    {
+      "id": "443332c9-0465-49f3-9afc-f5f103eb3bad",
+      "name": "Bruno Press",
+      "status": "approved",
+      "candidate": "agent-rescue",
+      "source_url": "https://images.squarespace-cdn.com/content/v1/58a3b86203596e0fdbb1174f/d51c4d15-b5b0-4552-93e0-54550dcd41fb/Bruno+Press+Logo-01.png?format=1500w",
+      "source_px": "1500x2206"
+    },
+    {
+      "id": "ffc8cb61-7783-4676-9e3d-ba8bc813b718",
+      "name": "Cedar Street Salon & Spa",
+      "status": "approved",
+      "candidate": "agent-hunt",
+      "source_url": "file:build/place-logos/hunt-cedar-instagram.jpg",
+      "source_px": "100x100"
+    },
+    {
+      "id": "c70fd279-04d4-46b0-b605-878a85bdb2fa",
+      "name": "CentraCare - St. Joseph Clinic",
+      "status": "approved",
+      "candidate": "google-favicon",
+      "source_url": "https://www.google.com/s2/favicons?domain=www.centracare.com&sz=256",
+      "source_px": "180x180"
+    },
+    {
+      "id": "3a9a0946-ad17-4d83-9883-6f245a032569",
+      "name": "Central MN Realty",
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://www.centralmnrealty.com/wp-content/uploads/2020/09/cropped-favicon-180x180.png",
+      "source_px": "180x180"
+    },
+    {
+      "id": "fa4b334d-2a48-4f99-94eb-1ac8ea764367",
+      "name": "China One",
+      "status": "missing",
+      "candidate": null,
+      "source_url": null,
+      "source_px": null
+    },
+    {
+      "id": "c29f89a1-5caa-423a-9424-b08373328871",
+      "name": "Chiropractic Connection, PC",
+      "status": "missing",
+      "candidate": null,
+      "source_url": null,
+      "source_px": null
+    },
+    {
+      "id": "20b5fabb-0c41-438d-840a-ce8da5d6d6e4",
+      "name": "CMS Autobody",
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://static.wixstatic.com/media/f2688e_2c68743ef36f453ba975d0589b7d7a5f~mv2_d_4032_3024_s_4_2.jpg",
+      "source_px": "4032x3024"
+    },
+    {
+      "id": "cbd3dec1-e1ed-4aa7-b32d-a02f7ae4ff8d",
+      "name": "Coborn's Grocery Store",
+      "status": "approved",
+      "candidate": "apple-touch-icon",
+      "source_url": "https://coborns.com/assets/coborns/apple-touch-icon.png",
+      "source_px": "180x180"
+    },
+    {
+      "id": "0ad2d330-9895-4735-9ff1-44c8b1d43b31",
+      "name": "Coborn's Pharmacy",
+      "status": "approved",
+      "candidate": "apple-touch-icon",
+      "source_url": "https://coborns.com/assets/coborns/apple-touch-icon.png",
+      "source_px": "180x180"
+    },
+    {
+      "id": "cc5cf7ef-2f3a-477f-a1e2-f26c4fd4178e",
+      "name": "CSB Benedicta Arts Center Galleries (Gorecki Gallery)",
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://www.csbsju.edu/wp-content/uploads/2024/06/CSBSJU_Logo_Lockup.png",
+      "source_px": "2856x386"
+    },
+    {
+      "id": "23dd1b61-a5ae-4fb3-bb1e-af98c921ae55",
+      "name": "Daisy A Day Floral & Gift",
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://scontent.cdninstagram.com/v/t51.82787-19/629149903_18410074102193564_6874744449854238803_n.jpg?stp=dst-jpg_s100x100_tt6&_nc_cat=101&ccb=7-5&_nc_sid=bf7eb4&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy4xMDI0LkMzIn0%3D&_nc_ohc=z3WVnoFJstQQ7kNvwFwDcAU&_nc_oc=AdpTh2wrrcfw8TFxOr92Jk9V2ERTVdzY4nb3gauphsfJIkf8QCfot6PM4sUKbSQSbR1VixAJhDUNNFwu2d1Sqqkq&_nc_zt=24&_nc_ht=scontent.cdninstagram.com&_nc_gid=sacfgOXiGOo1TPWljiFxhQ&_nc_ss=7f60f&oh=00_AQCqMB8NinCC9l7_YpHpRQzBVCTiXlwp81dVDBtk0XIxIw&oe=6A683BA8",
+      "source_px": "100x100"
+    },
+    {
+      "id": "012f809a-029a-426e-8440-4f55ed50d41e",
+      "name": "Exponential Chiropractic Healing Center",
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://www.exponentialchiropractic.com/img/site_assets/logo.png",
+      "source_px": "800x200"
+    },
+    {
+      "id": "f974053c-c39a-4bb3-a6ef-bf163d232b7f",
+      "name": "Floor to Ceiling",
+      "status": "approved",
+      "candidate": "apple-touch-icon",
+      "source_url": "https://www.floortoceilingmn.com/wp-content/uploads/2024/06/cropped-FTC-Ottumwa-Favicon-180x180.png",
+      "source_px": "180x180"
+    },
+    {
+      "id": "c10adb95-4e83-4b9a-95c5-f96178dad197",
+      "name": "Floral Arts Inc.",
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://asset.bloomnation.com/c_fit%2Cdpr_1%2Cf_auto%2Ch_1000%2Cq_auto%2Cw_1000/v1/vendor/7379/profile/20190617094128_file_5d080908b7e20.png",
+      "source_px": "1000x434"
+    },
+    {
+      "id": "fed769b6-ec34-4cc6-bb05-8e7016e79aec",
+      "name": "Flour & Flower",
+      "status": "approved",
+      "candidate": "apple-touch-icon",
+      "source_url": "https://static.wixstatic.com/media/b87d12_8401f1ab13e34de7a5508b111c08039a%7Emv2.png/v1/fill/w_180%2Ch_180%2Clg_1%2Cusm_0.66_1.00_0.01/b87d12_8401f1ab13e34de7a5508b111c08039a%7Emv2.png",
+      "source_px": "180x180"
+    },
+    {
+      "id": "971d058c-e779-44e5-a133-bd4fc2d08b8b",
+      "name": "Gary's Pizza",
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://graph.facebook.com/GarysPizzaMN/picture?type=large&redirect=true",
+      "source_px": "480x480"
+    },
+    {
+      "id": "21e97746-5906-433f-8322-76fdb267b86a",
+      "name": "Golden Hour Tanning",
+      "status": "approved",
+      "candidate": "agent-hunt",
+      "source_url": "https://images.squarespace-cdn.com/content/v1/6887c0874f25e169c20829dd/fcfb6217-0ec4-4577-be7f-05819f309e2b/Golden+Hour+Wellness.png?format=1500w",
+      "source_px": "1500x1500"
+    },
+    {
+      "id": "432e41ab-313d-4d88-b891-08e42ab95b69",
+      "name": "Granite City Gymnastics",
+      "status": "missing",
+      "candidate": null,
+      "source_url": null,
+      "source_px": null
+    },
+    {
+      "id": "13db727c-f385-43ab-a67d-8cb534833563",
+      "name": "Groundsman LLC",
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://graph.facebook.com/GroundsmanLLC/picture?type=large&redirect=true",
+      "source_px": "480x480"
+    },
+    {
+      "id": "8e61e7d8-f5aa-426e-9325-bebb2875cae9",
+      "name": "Hair By Hanna",
+      "status": "missing",
+      "candidate": null,
+      "source_url": null,
+      "source_px": null
+    },
+    {
+      "id": "5acceae4-ff09-40c7-9c46-e05d2857f018",
+      "name": "Hansen & Company Woodworks",
+      "status": "approved",
+      "candidate": "agent-hunt",
+      "source_url": "https://hcowoodworks.com/wp-content/uploads/2021/10/HCo-Logo.jpg",
+      "source_px": "500x500"
+    },
+    {
+      "id": "0afa5fe5-4429-482c-9a66-1babcadb17ab",
+      "name": "Heim-kins Rescued Treasures",
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://graph.facebook.com/445632982261414/picture?type=large&redirect=true",
+      "source_px": "480x480"
+    },
+    {
+      "id": "4600a722-e962-4182-ad2a-035c04de3b74",
+      "name": "Her Hair Studio",
+      "status": "approved",
+      "candidate": "link-icon",
+      "source_url": "https://images.squarespace-cdn.com/content/v1/645acdcf3de63933c02a9495/841b2623-dd1c-4c04-ba42-5c2254e13b92/favicon.ico?format=100w",
+      "source_px": "100x119"
+    },
+    {
+      "id": "71571e13-d608-48c8-8755-f3e78bb391a8",
+      "name": "Home Town Title",
+      "status": "approved",
+      "candidate": "agent-rescue",
+      "source_url": "https://i0.wp.com/httitle.com/wp-content/uploads/2026/03/HTT-Logo-updated.png?fit=1024%2C1024&ssl=1",
+      "source_px": "1024x1024"
+    },
+    {
+      "id": "339de4f9-8cdb-4e9c-8a4d-5a21ea96f86a",
+      "name": "Hudson & Company",
+      "status": "approved",
+      "candidate": "agent-hunt",
+      "source_url": "https://scontent.ffsd3-1.fna.fbcdn.net/v/t39.30808-1/211348261_102372948780744_1874299479241912890_n.png?stp=dst-png&cstp=mx599x600&ctp=s599x600&_nc_cat=108&ccb=1-7&_nc_sid=3ab345&_nc_ohc=BpkU4MUOmMgQ7kNvwGGgPjT&_nc_oc=Adp1awb2Ps4IDhbwfuQwYq0KhaojSE9GDpaunLhjQxV6EzBB0SDXodYbBBgy5BLsaGkl5oLk5-o2Z-1pVJX35YaG&_nc_zt=24&_nc_ht=scontent.ffsd3-1.fna&_nc_gid=eYLjz5_ifw9REF2DDp-pfw&_nc_ss=7220f&oh=00_AQCgXYBrrx_7QbQixvBAo7EhmsLR5q13zkUzbzt0q62h0A&oe=6A67FAC4",
+      "source_px": "599x600"
+    },
+    {
+      "id": "eec1f213-8624-4b14-9b00-2a5285e306df",
+      "name": "Insurance Advisors",
+      "status": "missing",
+      "candidate": null,
+      "source_url": null,
+      "source_px": null
+    },
+    {
+      "id": "c8b85b16-7751-4328-b8b1-9f5faf27dbd6",
+      "name": "Jan's Barbershop",
+      "status": "missing",
+      "candidate": null,
+      "source_url": null,
+      "source_px": null
+    },
+    {
+      "id": "d2737fe2-749c-4473-8346-35b2c5c774b0",
+      "name": "Joetown Smashburger",
+      "status": "approved",
+      "candidate": "agent-rescue",
+      "source_url": "https://images.squarespace-cdn.com/content/v1/66686fb22aa73606ac8814c5/e1589009-f0c4-412f-ad74-c974fd476de8/Joetown_Logo-01.png?format=1500w",
+      "source_px": "1500x1502"
+    },
+    {
+      "id": "b8088f9f-a0b8-44ee-a63c-6242e10fe4d8",
+      "name": "John Kuebelbeck American Legion Post 328",
+      "status": "approved",
+      "candidate": "agent-rescue",
+      "source_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cf/American_Legion_Seal_SVG.svg/1280px-American_Legion_Seal_SVG.svg.png",
+      "source_px": "1280x1333"
+    },
+    {
+      "id": "0a0698ad-ffd4-4c7c-af9a-bcf20d264fba",
+      "name": "Joseph's Spa and Salon",
+      "status": "missing",
+      "candidate": null,
+      "source_url": null,
+      "source_px": null
+    },
+    {
+      "id": "63fd93ff-7254-461c-9e64-b7c9169a56ae",
+      "name": "Jupiter Moon Ice Cream - St. Joseph",
+      "status": "approved",
+      "candidate": "apple-touch-icon",
+      "source_url": "https://cdn.prod.website-files.com/60abf23b1c57cc93dbfd7173/60b8c1f98e70e0efeee34542_webclip.png",
+      "source_px": "256x256"
+    },
+    {
+      "id": "c109060a-ab8c-4197-bfc6-0d6cda06c964",
+      "name": "Kay's Kitchen",
+      "status": "approved",
+      "candidate": "agent-hunt",
+      "source_url": "https://graph.facebook.com/114515908607728/picture?type=large",
+      "source_px": "480x480"
+    },
+    {
+      "id": "b21d44d8-e28f-4b4e-8a7d-65eed035eb31",
+      "name": "Kensington Bank",
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://graph.facebook.com/446509739212876/picture?type=large&redirect=true",
+      "source_px": "480x480"
+    },
+    {
+      "id": "e70d7fad-c801-48f5-b874-2191defaf9b5",
+      "name": "KPower Yoga",
+      "status": "approved",
+      "candidate": "agent-rescue",
+      "source_url": "https://graph.facebook.com/307944620155650/picture?type=large&redirect=true",
+      "source_px": "480x476"
+    },
+    {
+      "id": "02280501-5d7d-4c2b-8a6b-2ec671ce9c7c",
+      "name": "Krewe Restaurant",
+      "status": "approved",
+      "candidate": "apple-touch-icon",
+      "source_url": "https://static.spotapps.co/website_images/ab_websites/109080_website/favicons/apple-touch-icon.png",
+      "source_px": "180x180"
+    },
+    {
+      "id": "1f6263f8-77cb-4e9a-a767-c8326723e9c3",
+      "name": "La Playette Bar",
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://laplayette.com/media/LaLogo2025_transparent_40d908f9.png",
+      "source_px": "791x511"
+    },
+    {
+      "id": "c14fa998-6e8e-4a83-935e-6b288045bfe4",
+      "name": "Laser Dentistry",
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://www.laserdentistrymn.com/wp-content/themes/charlie-child/images/logo.png",
+      "source_px": "281x149"
+    },
+    {
+      "id": "a5cd14e5-24b9-4d32-b57f-accb06cfdf1c",
+      "name": "Lee's Ace Hardware",
+      "status": "approved",
+      "candidate": "agent-hunt",
+      "source_url": "https://cdn-tp6.mozu.com/24645-37138/resources/images/ace/ace_logo.png",
+      "source_px": "185x100"
+    },
+    {
+      "id": "d66e9cbf-d9d8-48e1-8fdf-412c8cf8202d",
+      "name": "Little Saints Academy",
+      "status": "approved",
+      "candidate": "agent-hunt",
+      "source_url": "http://static1.squarespace.com/static/6795bae96fa2a46fa3ecdcd1/t/6796f93a03eefe5dafa5ea99/1737947450699/new+lsa+logo+background+removed.png?format=1500w",
+      "source_px": "1242x755"
+    },
+    {
+      "id": "05bfe9d4-4da2-4e4b-bd8b-ba62ef8ca0c8",
+      "name": "M & T Off Sale Liquor",
+      "status": "missing",
+      "candidate": null,
+      "source_url": null,
+      "source_px": null
+    },
+    {
+      "id": "805fce4e-79c4-428b-bbb2-ec2799fcaf82",
+      "name": "Magnifi Financial",
+      "status": "approved",
+      "candidate": "apple-touch-icon",
+      "source_url": "https://mymagnifi.org/apple-touch-icon.png",
+      "source_px": "180x180"
+    },
+    {
+      "id": "adc8dc90-6582-4b84-ab02-60045af02894",
+      "name": "Medelberg Family Chiropractic",
+      "status": "missing",
+      "candidate": null,
+      "source_url": null,
+      "source_px": null
+    },
+    {
+      "id": "1b35c7a9-713b-4da7-906e-4f74b0c2cb80",
+      "name": "Milbert Johnson Family Dentistry",
+      "status": "approved",
+      "candidate": "agent-hunt",
+      "source_url": "https://static.wixstatic.com/media/532dba_96902ff77d934133b7349a78f52860ab~mv2.jpg",
+      "source_px": "500x500"
+    },
+    {
+      "id": "796f4577-dd1a-49f6-aac5-49d3f8632ecb",
+      "name": "Milk & Honey Ciders",
+      "status": "approved",
+      "candidate": "link-icon",
+      "source_url": "https://images.squarespace-cdn.com/content/v1/5339a86fe4b0a1f2af94cc42/1517360063665-3KJCEAY76LGJGHSDYZWX/favicon.ico?format=100w",
+      "source_px": "100x100"
+    },
+    {
+      "id": "7566738c-0349-4b9e-837b-f0c5ad5ed64e",
+      "name": "Minnesota Street Market, Food & Art Co-op",
+      "status": "approved",
+      "candidate": "apple-touch-icon",
+      "source_url": "https://mnstreetmarket.com/wp-content/uploads/2019/08/mnstmktnewlogoicon.png?w=180",
+      "source_px": "180x180"
+    },
+    {
+      "id": "3a51b1c2-eb45-4de4-8e38-5b48ca6ef44f",
+      "name": "Neighbors Route 75",
+      "status": "approved",
+      "candidate": "apple-touch-icon",
+      "source_url": "https://neighborsbarandgrill.com/wp-content/uploads/2020/07/cropped-neighbors-site-id-180x180.png",
+      "source_px": "180x180"
+    },
+    {
+      "id": "00041f04-ca31-4c78-83d2-0c99dc78cb8b",
+      "name": "Obbink Distilling",
+      "status": "approved",
+      "candidate": "link-icon",
+      "source_url": "https://images.squarespace-cdn.com/content/v1/62bb882684bc19337ce0f69f/f5054da4-905b-4ae4-9725-dcd6fc7e5eaf/favicon.ico?format=100w",
+      "source_px": "100x100"
+    },
+    {
+      "id": "a6e854dd-632e-4e84-a6e5-2ce40c753af5",
+      "name": "Omann Insurance Agency, LLC",
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "file:build/place-logos/candidates/omann-round2-logo-padded2.png",
+      "source_px": "425x96"
+    },
+    {
+      "id": "b4af59d7-0006-4fb7-8ff9-b79bb2e380c4",
+      "name": "Pierce Insurance Agency",
+      "status": "approved",
+      "candidate": "apple-touch-icon",
+      "source_url": "https://www.pierceinsurance.com/wp-content/uploads/2025/08/cropped-logo-180x180.jpg",
+      "source_px": "180x180"
+    },
+    {
+      "id": "48258ad2-2c0c-4d87-ab65-950e7ab083e4",
+      "name": "Powerhouse Outdoor Equipment",
+      "status": "approved",
+      "candidate": "agent-hunt",
+      "source_url": "file:build/place-logos/hunt-powerhouse.jpg",
+      "source_px": "236x236"
+    },
+    {
+      "id": "b370e75b-0fcc-41be-91df-0b26b41e76a2",
+      "name": "RJ's Auto Repair",
+      "status": "missing",
+      "candidate": null,
+      "source_url": null,
+      "source_px": null
+    },
+    {
+      "id": "8f895259-9d33-412e-bfcb-9adc2605935b",
+      "name": "Saint Joseph Off Sale Liquor (Hollander's St. Joseph Liquor Shoppe)",
+      "status": "missing",
+      "candidate": null,
+      "source_url": null,
+      "source_px": null
+    },
+    {
+      "id": "6b0f79a9-fff6-4e60-af98-a6a45ce51223",
+      "name": "Sal's Bar & Grill",
+      "status": "approved",
+      "candidate": "apple-touch-icon",
+      "source_url": "https://salsbarstjoe.com/wp-content/uploads/2018/04/cropped-sals2.png?w=180",
+      "source_px": "180x180"
+    },
+    {
+      "id": "fea5593e-15d0-446e-85b0-4bbc42dbda0c",
+      "name": "Sentry Bank",
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://graph.facebook.com/188966251134871/picture?type=large&redirect=true",
+      "source_px": "180x180"
+    },
+    {
+      "id": "e47c4da2-b44f-44d2-af68-adb8181634b1",
+      "name": "Sheryl Matters Massage",
+      "status": "missing",
+      "candidate": null,
+      "source_url": null,
+      "source_px": null
+    },
+    {
+      "id": "2b59f99a-f6da-4c3a-86c3-a5b10b1ca8e3",
+      "name": "Solar Nails of St Joseph",
+      "status": "approved",
+      "candidate": "agent-rescue",
+      "source_url": "https://solarnailsmn.com/wp-content/uploads/2025/09/logo.png",
+      "source_px": "631x315"
+    },
+    {
+      "id": "8d32d5e6-2c7b-47d4-8b58-86afc63e6442",
+      "name": "St Joseph Meat Market Inc",
+      "status": "approved",
+      "candidate": "agent-hunt",
+      "source_url": "https://stjosephmeatmarket.com/wp-content/uploads/2023/06/logo@2x.png",
+      "source_px": "402x426"
+    },
+    {
+      "id": "4a213aca-4735-40dd-9ac4-2b58696a0427",
+      "name": "St. Joseph Farmers' Market",
+      "status": "approved",
+      "candidate": "agent-hunt",
+      "source_url": "https://lh3.googleusercontent.com/sitesv/AG8ngQUx1F_KRFDgkAo_3-uyXgaLgRuMOzb06cg1J5klbA0NqjTA5jHXQctRiFojAS3GzB_b91_HtVyqKCCQHPcstBM9nA0gJ5cFJcwEGlBp8XMlwNCkuxe5fzvVX0KRbI71-iJp51E2OaDoomNWj7O2fzU_WjtNRKO7B8xifvfyzKu63eLF1mzpKOdKyaWa0Pa78pRkyuFasxKgVpusPykD9pVY00IrDR9Szv9NNUH0=w1280",
+      "source_px": "598x366"
+    },
+    {
+      "id": "f2f87782-f065-4a9b-b812-45f1bd27757e",
+      "name": "St. Joseph Health & Wellness, LLC",
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://graph.facebook.com/St.JosephHealthandWellness/picture?width=512&height=512",
+      "source_px": "360x360"
+    },
+    {
+      "id": "c9038816-1498-4bf2-8724-d726040b608c",
+      "name": "St. Joseph Veterinary Clinic",
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://graph.facebook.com/906194649584006/picture?type=large&redirect=true",
+      "source_px": "480x480"
+    },
+    {
+      "id": "448b008c-6c70-4591-b3e6-f094d6e41899",
+      "name": "Sunny Mary Meadow",
+      "status": "approved",
+      "candidate": "apple-touch-icon",
+      "source_url": "https://sunnymarymeadow.com/storage/2022/06/icon_smm-300x300.png",
+      "source_px": "300x300"
+    },
+    {
+      "id": "3eb6bc6a-0a46-4c42-b7fe-1a6179d07a59",
+      "name": "Tacoholic",
+      "status": "missing",
+      "candidate": null,
+      "source_url": null,
+      "source_px": null
+    },
+    {
+      "id": "afb922c5-2d75-4704-8179-5c6043323627",
+      "name": "The Estates Bed & Breakfast",
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "file:build/place-logos/candidates/estates-round2-wordmark-crop.png",
+      "source_px": "1100x300"
+    },
+    {
+      "id": "7a27d0a0-126d-412c-871d-20a531a8ba72",
+      "name": "The House Food and Tap",
+      "status": "approved",
+      "candidate": "link-icon",
+      "source_url": "https://images.squarespace-cdn.com/content/v1/66686fb22aa73606ac8814c5/d44fcd83-8f21-49ed-8fa3-fd7c5ee3a2ee/favicon.ico?format=100w",
+      "source_px": "100x100"
+    },
+    {
+      "id": "ed7a8833-6520-42b5-8eda-b11694731209",
+      "name": "The Local Blend",
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://thelocalblend.net/wp-content/uploads/2025/02/footer-logo-1.png",
+      "source_px": "500x500"
+    },
+    {
+      "id": "ef33e2f0-a5e6-47da-b91f-23f2142adcd3",
+      "name": "The Middy",
+      "status": "missing",
+      "candidate": null,
+      "source_url": null,
+      "source_px": null
+    },
+    {
+      "id": "b69f0ecb-e938-45a8-861b-87ce92a01710",
+      "name": "The Newsleaders",
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://thenewsleaders.com/wp-content/uploads/2024/05/Newsleaders-logo.jpg",
+      "source_px": "1200x628"
+    },
+    {
+      "id": "8cd01a3f-1441-4c1d-9aef-81419a6a75f0",
+      "name": "The Perfect Fit, LLC",
+      "status": "approved",
+      "candidate": "agent-rescue",
+      "source_url": "https://graph.facebook.com/1579178149030435/picture?type=large&redirect=true",
+      "source_px": "480x480"
+    },
+    {
+      "id": "01ed0060-197a-4ce3-bfb4-a15ba1777285",
+      "name": "The Wandering Cow Ice Cream",
+      "status": "approved",
+      "candidate": "apple-touch-icon",
+      "source_url": "https://wanderingcowmn.com/wp-content/uploads/2025/08/cropped-cowhead-180x180.png",
+      "source_px": "180x180"
+    },
+    {
+      "id": "f97e06d6-8cf9-4a75-9acd-b891ba516509",
+      "name": "Thomsen's Garden Center",
+      "status": "approved",
+      "candidate": "apple-touch-icon",
+      "source_url": "https://www.thomsensgardencenter.com/wp-content/uploads/2024/12/logo-small-200.png",
+      "source_px": "200x200"
+    },
+    {
+      "id": "10d6b505-b952-4b17-a1ba-64b7affe7338",
+      "name": "TireMaxx Service Centers",
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://tiremaxx.com/wp-content/themes/tiremaxx/img/tiremaxx-logo.png",
+      "source_px": "369x103"
+    },
+    {
+      "id": "75afbf0c-cb83-462b-8d38-5890d9cd0f06",
+      "name": "Trobec's Bus Service, Inc.",
+      "status": "approved",
+      "candidate": "agent-rescue",
+      "source_url": "https://graph.facebook.com/111852018869161/picture?type=large&redirect=true",
+      "source_px": "480x480"
+    },
+    {
+      "id": "bfcfe784-444a-44b5-835f-f3518032899c",
+      "name": "Two Bits Men's Grooming Salon",
+      "status": "approved",
+      "candidate": "apple-touch-icon",
+      "source_url": "https://cdn.prod.website-files.com/5f1f1c2f363234f7b4e02612/5f84759c2780ea64aed109c4_webclip",
+      "source_px": "256x256"
+    },
+    {
+      "id": "43d7228e-1fe5-487a-a30a-f53065818e22",
+      "name": "United States Postal Service",
+      "status": "approved",
+      "candidate": "agent-hunt",
+      "source_url": "file:build/place-logos/hunt-usps.jpg",
+      "source_px": "750x750"
+    },
+    {
+      "id": "e945c8d1-4575-4151-a415-db3403b0c54b",
+      "name": "Unwind: Collaborative Healing Center",
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://static.wixstatic.com/media/c1f053_64188c1cbc2245f2ac2bd567f437eb6c~mv2.png",
+      "source_px": "4728x1501"
+    },
+    {
+      "id": "32654a5c-2f31-460d-b750-fe559b7f3d4c",
+      "name": "Uptown Styles",
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://irp.cdn-website.com/dce7c5df/dms3rep/multi/Logo_Small__200_200__200x200.png",
+      "source_px": "200x200"
+    },
+    {
+      "id": "16b7e598-78b2-4b10-a95b-e03958879fe0",
+      "name": "WELL & Company St. Joseph",
+      "status": "approved",
+      "candidate": "apple-touch-icon",
+      "source_url": "https://wellandcomn.com/wp-content/uploads/2022/01/cropped-WELL_Favicon-180x180.png",
+      "source_px": "180x180"
+    },
+    {
+      "id": "bc27d1cb-ec01-4a70-a084-9948376f8a2a",
+      "name": "Whitby Gift Shop & Gallery",
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://sbm.osb.org/wp-content/uploads/2023/06/logo02.png",
+      "source_px": "340x156"
+    },
+    {
+      "id": "606a751d-98e2-4f3a-8926-a1d3966592e0",
+      "name": "White Peony Boutique",
+      "status": "approved",
+      "candidate": "agent-hunt",
+      "source_url": "https://whitepeonyboutique.com/cdn/shop/files/lindsay-bahr-logo-black_transparent_-04_68f85a21-e59e-4fbb-8548-e44fedec737e_4168x4167.png?v=1728654530",
+      "source_px": "4168x4167"
+    },
+    {
+      "id": "b367e8ab-b872-4142-b814-ecdd4e318d5d",
+      "name": "Wildwood Ranch Maple Syrup",
+      "status": "approved",
+      "candidate": "agent-rescue",
+      "source_url": "https://graph.facebook.com/250698192049983/picture?type=large&redirect=true",
+      "source_px": "480x480"
+    },
+    {
+      "id": "1b601b20-6069-41bb-81dc-07ce8f3c65e1",
+      "name": "Woodcrest of Country Manor",
+      "status": "approved",
+      "candidate": "apple-touch-icon",
+      "source_url": "https://irp.cdn-website.com/6ef1d0e7/dms3rep/multi/Woodcrest-f423284e.png",
+      "source_px": "500x500"
+    },
+    {
+      "id": "132e001b-e5b6-45fa-8db8-18ec28eb0c85",
+      "name": "W|R Home Co.",
+      "status": "approved",
+      "candidate": "agent-hunt",
+      "source_url": "https://wrhomecompany.com/cdn/shop/files/S1_-_White_Background_w_Taupe.png?crop=center&height=1200&v=1784602213&width=1200",
+      "source_px": "1200x628"
+    }
+  ]
+}

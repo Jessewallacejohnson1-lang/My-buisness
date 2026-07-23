@@ -1,7 +1,7 @@
 //
 //  POICluster.swift
 //  Hygge — the client-side, deterministic clusterer that replaces Mapbox's built-in
-//  GeoJSON clustering for the town's food/business POIs (the retired POILayer).
+//  GeoJSON clustering for the town's POIs and curated civic landmarks.
 //
 //  Why client-side: Mapbox's GeoJSON clustering SNAPS pins between the clustered and
 //  unclustered layouts at zoom steps (and occasionally leaves a straggler dot beside a
@@ -9,25 +9,53 @@
 //  (spring) as it merges into / splits out of a cluster — but that needs a layout we
 //  own. This is that layout.
 //
-//  Algorithm — greedy, screen-space, single pass (52 POIs, so no need for Supercluster):
-//  project every POI to its current screen point, then, iterating in a STABLE id order,
-//  seed a cluster from each not-yet-assigned POI and absorb every not-yet-assigned POI
-//  within `radius` points of that seed. Membership-by-radius means every pin within
-//  range of a seed joins it, so no orphan can be left sitting under the bubble — the
-//  straggler fix is by construction. The seed is the cluster's stable anchor coordinate
-//  AND its id, so a bubble persists (its count just rolls) as members join/leave across
-//  zoom-step recomputes, and it never jitters the way a recomputed geometric centroid
-//  would when membership shifts.
+//  Algorithm — greedy, screen-space, deterministic (the town data set is tiny):
+//  project every marker to its current screen point, then, iterating in a STABLE id order,
+//  seed a cluster and absorb every unassigned marker within `radius`. Below the expand
+//  threshold, remaining singletons join their nearest real group, so every non-selected
+//  projectable marker is counted exactly once. The seed is the cluster's stable anchor
+//  coordinate AND its id, so a persistent bubble can crossfade its count without jitter.
 //
 
 import CoreLocation
 import CoreGraphics
 
-// MARK: - Per-POI assignment
+// MARK: - Shared marker input
 
-/// Where a single POI marker should sit after clustering: the coordinate it flies
+/// Namespaces the two marker catalogs before they enter one cluster pass. Civic ids are
+/// short slugs while POI ids are UUIDs today, but making that accidental distinction part
+/// of correctness would be brittle.
+enum ClusterMarkerID: Hashable, Comparable {
+    case poi(String)
+    case civic(String)
+
+    private var sortKey: String {
+        switch self {
+        case .poi(let id):   return "poi:\(id)"
+        case .civic(let id): return "civic:\(id)"
+        }
+    }
+
+    static func < (lhs: ClusterMarkerID, rhs: ClusterMarkerID) -> Bool {
+        lhs.sortKey < rhs.sortKey
+    }
+}
+
+/// The common geometry the clusterer needs from a POI or curated civic landmark.
+/// `family` remains optional because a civic marker has no food/business family; the
+/// cluster's monochrome role does not invent one just to absorb a landmark.
+struct ClusterMarkerInput {
+    let id: ClusterMarkerID
+    let coordinate: CLLocationCoordinate2D
+    let family: PlaceFamily?
+    let isLive: Bool
+}
+
+// MARK: - Per-marker assignment
+
+/// Where a single marker should sit after clustering: the coordinate it flies
 /// toward (its cluster's seed anchor, or its own coord when solo) and whether it is a
-/// member of a multi-POI cluster. Drives the fade / scale / screen-offset in the leaf
+/// member of a multi-marker cluster. Drives the fade / scale / screen-offset in the leaf
 /// marker view. Equatable (hand-rolled — `CLLocationCoordinate2D` isn't) so a leaf can
 /// `onChange` on it and animate only when its target actually flips.
 struct POIAssignment: Equatable {
@@ -43,18 +71,20 @@ struct POIAssignment: Equatable {
 
 // MARK: - Cluster bubble (engine output)
 
-/// One multi-POI cluster the renderer should draw a count bubble for: a stable id (its
-/// seed POI id), the coordinate it's pinned at (the seed's), the member count, and the
+/// One multi-marker cluster the renderer should draw a count bubble for: a stable id (its
+/// seed marker id), the coordinate it's pinned at (the seed's), the member count, and the
 /// family that most of its members belong to (which tints the bubble, so a cluster hints
 /// at what's inside it rather than reading as an anonymous blob).
 struct POIClusterBubble: Identifiable, Equatable {
-    let id: String
+    let id: ClusterMarkerID
     let coordinate: CLLocationCoordinate2D
     let count: Int
     let dominantFamily: PlaceFamily
+    let containsLive: Bool
 
     static func == (l: POIClusterBubble, r: POIClusterBubble) -> Bool {
         l.id == r.id && l.count == r.count && l.dominantFamily == r.dominantFamily
+            && l.containsLive == r.containsLive
             && l.coordinate.latitude == r.coordinate.latitude
             && l.coordinate.longitude == r.coordinate.longitude
     }
@@ -66,20 +96,25 @@ struct POIClusterBubble: Identifiable, Equatable {
 /// When a cluster dissolves (a split) the container keeps its bubble mounted a beat with
 /// `active == false` so it can FADE OUT rather than pop — the members fading in cover the
 /// same spot in the meantime. Stable id ⇒ SwiftUI reuses the annotation, so appear /
-/// dissolve / count-roll all animate on one persistent view.
+/// dissolve / count-crossfade all animate on one persistent view.
 struct POIClusterRender: Identifiable, Equatable {
-    let id: String
+    let id: ClusterMarkerID
     let coordinate: CLLocationCoordinate2D
     let count: Int
+    /// Largest count this stable bubble has crossfaded through. Collision geometry
+    /// stays conservative while the displayed count/diameter is between old and new.
+    let collisionCount: Int
     let dominantFamily: PlaceFamily
+    let containsLive: Bool
     var active: Bool
     /// Overlap guard: the bubble caps its on-screen diameter to this, so two seeds — always
     /// > radius apart — can never host bubbles that reach each other (see `bubbleMaxDiameter`).
     var maxDiameter: CGFloat
 
     static func == (l: POIClusterRender, r: POIClusterRender) -> Bool {
-        l.id == r.id && l.count == r.count && l.active == r.active && l.maxDiameter == r.maxDiameter
-            && l.dominantFamily == r.dominantFamily
+        l.id == r.id && l.count == r.count && l.collisionCount == r.collisionCount
+            && l.active == r.active && l.maxDiameter == r.maxDiameter
+            && l.dominantFamily == r.dominantFamily && l.containsLive == r.containsLive
             && l.coordinate.latitude == r.coordinate.latitude
             && l.coordinate.longitude == r.coordinate.longitude
     }
@@ -88,9 +123,9 @@ struct POIClusterRender: Identifiable, Equatable {
 // MARK: - Engine output
 
 struct POIClusterOutput {
-    /// Every POI id → its assignment (solo pins included, so the renderer always has one).
-    let assignments: [String: POIAssignment]
-    /// One entry per multi-POI cluster.
+    /// Every marker id → its assignment (solo pins included, so the renderer always has one).
+    let assignments: [ClusterMarkerID: POIAssignment]
+    /// One entry per multi-marker cluster.
     let bubbles: [POIClusterBubble]
 }
 
@@ -167,28 +202,33 @@ enum POICluster {
     /// coordinate to its screen point (`MapboxMap.point(for:)`); `radius` is the
     /// grouping distance in points (~44). Deterministic: seeds are chosen in sorted-id
     /// order, so the same layout at the same zoom yields the same cluster ids.
-    static func compute(pois: [POI],
+    ///
+    /// Below the label/expand threshold, `forceAllIntoClusters` is true. The radius pass
+    /// first creates the calm local groups the map already used, then any remaining
+    /// singleton joins its nearest real group. That second pass is the collapsed-map
+    /// "zero orphans" invariant: every projectable, non-selected marker is counted by
+    /// exactly one bubble rather than lingering as a loose dot beside it.
+    static func compute(markers: [ClusterMarkerInput],
                         radius: CGFloat,
+                        forceAllIntoClusters: Bool,
                         project: (CLLocationCoordinate2D) -> CGPoint) -> POIClusterOutput {
         // Stable order → deterministic seeds → stable cluster ids across recomputes.
-        let ordered = pois.sorted { $0.id < $1.id }
+        let ordered = markers.sorted { $0.id < $1.id }
         let points = ordered.map { project($0.coordinate) }
         let radius2 = radius * radius
 
         var assigned = [Bool](repeating: false, count: ordered.count)
-        var assignments: [String: POIAssignment] = [:]
-        assignments.reserveCapacity(ordered.count)
-        var bubbles: [POIClusterBubble] = []
+        var groups: [(seed: Int, members: [Int])] = []
+        groups.reserveCapacity(ordered.count)
 
         for i in ordered.indices where !assigned[i] {
             assigned[i] = true
-            let seed = ordered[i]
             let seedPoint = points[i]
 
             // A seed that can't be projected (behind the camera) just renders solo at its
             // own coordinate — it can't sensibly gather neighbours.
             guard seedPoint.x.isFinite, seedPoint.y.isFinite else {
-                assignments[seed.id] = POIAssignment(anchor: seed.coordinate, clustered: false)
+                groups.append((seed: i, members: [i]))
                 continue
             }
 
@@ -203,20 +243,71 @@ enum POICluster {
                     members.append(j)
                 }
             }
+            groups.append((seed: i, members: members))
+        }
 
-            let clustered = members.count >= 2
-            for m in members {
-                assignments[ordered[m].id] = POIAssignment(anchor: seed.coordinate, clustered: clustered)
+        if forceAllIntoClusters, ordered.count > 1 {
+            var clusterIndices = groups.indices.filter { groups[$0].members.count >= 2 }
+
+            // Defensive fallback for a sparse/filtered data set: establish one real group
+            // from all finite markers, then the normal nearest-group rule still holds.
+            if clusterIndices.isEmpty,
+               let first = groups.indices.first(where: {
+                   let p = points[groups[$0].seed]
+                   return p.x.isFinite && p.y.isFinite
+               }) {
+                for i in groups.indices where i != first {
+                    let p = points[groups[i].seed]
+                    guard p.x.isFinite, p.y.isFinite else { continue }
+                    groups[first].members.append(contentsOf: groups[i].members)
+                    groups[i].members.removeAll()
+                }
+                clusterIndices = [first]
             }
-            if clustered {
-                bubbles.append(POIClusterBubble(id: seed.id,
-                                                coordinate: seed.coordinate,
-                                                count: members.count,
-                                                dominantFamily: dominantFamily(of: members, seed: seed, in: ordered)))
+
+            for i in groups.indices where groups[i].members.count == 1 {
+                let p = points[groups[i].seed]
+                guard p.x.isFinite, p.y.isFinite,
+                      let nearest = clusterIndices.min(by: { l, r in
+                          squaredDistance(from: p, to: points[groups[l].seed])
+                              < squaredDistance(from: p, to: points[groups[r].seed])
+                      }),
+                      nearest != i else { continue }
+                groups[nearest].members.append(contentsOf: groups[i].members)
+                groups[i].members.removeAll()
             }
         }
 
+        var assignments: [ClusterMarkerID: POIAssignment] = [:]
+        assignments.reserveCapacity(ordered.count)
+        var bubbles: [POIClusterBubble] = []
+
+        for group in groups where !group.members.isEmpty {
+            let seed = ordered[group.seed]
+            let clustered = group.members.count >= 2
+            for member in group.members {
+                assignments[ordered[member].id] = POIAssignment(
+                    anchor: seed.coordinate,
+                    clustered: clustered
+                )
+            }
+            if clustered {
+                bubbles.append(POIClusterBubble(
+                    id: seed.id,
+                    coordinate: seed.coordinate,
+                    count: group.members.count,
+                    dominantFamily: dominantFamily(of: group.members, in: ordered),
+                    containsLive: group.members.contains { ordered[$0].isLive }
+                ))
+            }
+        }
         return POIClusterOutput(assignments: assignments, bubbles: bubbles)
+    }
+
+    private static func squaredDistance(from lhs: CGPoint, to rhs: CGPoint) -> CGFloat {
+        let dx = lhs.x - rhs.x
+        let dy = lhs.y - rhs.y
+        return dx * dx + dy * dy
     }
 
     // MARK: - Label de-confliction
@@ -232,52 +323,47 @@ enum POICluster {
         static let civicLeadingGap: CGFloat = 20
         static let civicRadius: CGFloat = 18
         static let poiRadius: CGFloat = 16
-        /// The `.frame(width: 100)` cap on the label, and the line box of `.sansBold(12)`.
+        /// The exact `.frame(width: 100)` cap on the label and its two-line ceiling.
+        /// Reserving the maximum is intentionally conservative: this pass promises no
+        /// overlap, so it cannot rely on an average character-width estimate.
         static let maxWidth: CGFloat = 100
         static let lineHeight: CGFloat = 16
+        static let halo: CGFloat = 1
 
-        /// The label's box, ESTIMATED from the name rather than always reserving the full
-        /// 100×34. A fixed max box over-reserved ~2.5× for a short name like "Coborn's",
-        /// suppressing labels that would have fitted fine. `.sansBold(12)` averages ~6.6pt
-        /// per character; over `maxWidth` the label wraps to its 2-line limit.
-        static func text(_ name: String, at p: CGPoint, gap: CGFloat) -> CGRect {
-            let natural = CGFloat(name.count) * 6.6
-            let w = min(maxWidth, natural)
-            let h = natural > maxWidth ? lineHeight * 2 : lineHeight
-            return CGRect(x: p.x + gap, y: p.y - h / 2, width: w, height: h)
+        static func text(at p: CGPoint, gap: CGFloat) -> CGRect {
+            let height = lineHeight * 2
+            return CGRect(
+                x: p.x + gap - halo,
+                y: p.y - height / 2 - halo,
+                width: maxWidth + halo * 2,
+                height: height + halo * 2
+            )
         }
         static func badge(at p: CGPoint, radius: CGFloat) -> CGRect {
             CGRect(x: p.x - radius, y: p.y - radius, width: radius * 2, height: radius * 2)
         }
     }
 
-    /// Which POIs may draw their name label, so a dense street-level view reads as a clean
-    /// map instead of a pile of overlapping text.
+    /// Which POI and civic markers may draw their name label, so a dense street-level
+    /// view reads as a clean map instead of a pile of overlapping text.
     ///
     /// Mapbox's own symbol-collision engine can't help here: these markers are SwiftUI view
     /// annotations drawn ABOVE the map canvas, so the style never sees them. This is the
     /// same greedy screen-space pass the clusterer itself uses — reserve the boxes that must
     /// stay clear, then walk candidates in priority order and grant a label only when its
-    /// text box is still free. The pass is translation-invariant (`pitch`/`bearing` are 0, so
-    /// projection under pan is a pure translation and every box moves together), so panning
-    /// at a fixed zoom can't change the outcome. Note `previous` makes the pass stateful, not
-    /// invariant: right after a ZOOM change the first pass can grant labels the prior one
-    /// withheld (the greedy order differs), settling one pass later. It converges — the
-    /// granted set is always re-grantable — so it damps rather than strobes.
+    /// text box is still free.
     ///
-    /// Reservation priority (highest first): civic landmark badges + labels — the six curated
-    /// spots are the map's anchors and must never be covered; then cluster bubbles; then every
-    /// POI badge (badges always draw, so no label may sit on one); then POI labels.
+    /// Reservation priority (highest first): cluster bubbles; every visible marker badge;
+    /// selected label; then remaining labels by distance to the camera focus. This is the
+    /// hierarchy the renderer uses too: cluster > selected pin > nearer pin. Reserving every
+    /// badge before granting any text is what makes "a label never covers another marker"
+    /// true for both catalogs rather than just within the POI layer.
     ///
-    /// Among POI labels, `previous` wins first: a label already on screen keeps its grant
-    /// before any newcomer competes for the space. Without that incumbency, every 0.1-zoom
-    /// step re-ran an independent greedy pass, so a label sitting on a collision boundary
-    /// strobed during a pinch — and worse, one label losing its box freed space that let two
-    /// others in, cascading several flips per step. Ties below incumbency go to food places
-    /// (this is a town map — where you'd GO ranks above a service), then alphabetically, so
-    /// the surviving set is meaningful rather than an artefact of Supabase row ids.
+    /// Among non-selected candidates, `previous` wins before camera-focus distance. That
+    /// incumbency keeps an already-visible label sticky while every projected box translates
+    /// together during a pan; distance still chooses between NEW labels when space opens.
     ///
-    /// Clustered POIs are not candidates — they're mid-merge and invisible.
+    /// Clustered markers are not candidates — they're mid-merge and invisible.
     ///
     /// `bubbles` is the RENDERED set, not the engine's fresh output: a bubble that just split
     /// stays mounted (`active: false`) for the length of its fade, so it is still on screen and
@@ -285,69 +371,110 @@ enum POICluster {
     /// straight through a dissolving bubble for the whole 0.55s fade. Each render carries the
     /// cap it was built with, so a dissolving one keeps its own diameter rather than borrowing
     /// the current zoom's.
-    static func labelledPOIs(pois: [POI],
-                             assignments: [String: POIAssignment],
-                             bubbles: [POIClusterRender],
-                             civicSpots: [(coordinate: CLLocationCoordinate2D, name: String)],
-                             chrome: [CGRect],
-                             previous: Set<String>,
-                             project: (CLLocationCoordinate2D) -> CGPoint) -> Set<String> {
+    static func labelledMarkers(
+        pois: [POI],
+        assignments: [ClusterMarkerID: POIAssignment],
+        bubbles: [POIClusterRender],
+        civicSpots: [(id: String, coordinate: CLLocationCoordinate2D)],
+        selected: ClusterMarkerID?,
+        previous: Set<ClusterMarkerID>,
+        chrome: [CGRect],
+        focus: CGPoint,
+        project: (CLLocationCoordinate2D) -> CGPoint
+    ) -> Set<ClusterMarkerID> {
+        struct Candidate {
+            let id: ClusterMarkerID
+            let point: CGPoint
+            let badgeRadius: CGFloat
+            let labelGap: CGFloat
+            let distanceToFocus: CGFloat
+        }
+
         // The app's OWN floating chrome outranks everything — it is drawn above the whole
         // annotation layer, so a label granted underneath it doesn't compete, it just
         // disappears behind the filter chip / compose "+" / bottom sheet.
         var reserved: [CGRect] = chrome
 
-        for spot in civicSpots {
-            let p = project(spot.coordinate)
-            guard p.x.isFinite, p.y.isFinite else { continue }
-            reserved.append(LabelBox.badge(at: p, radius: LabelBox.civicRadius))
-            reserved.append(LabelBox.text(spot.name, at: p, gap: LabelBox.civicLeadingGap))
-        }
+        // Bubbles win their space over every label, including a selected one.
         for bubble in bubbles {
             let p = project(bubble.coordinate)
             guard p.x.isFinite, p.y.isFinite else { continue }
-            let d = bubbleDiameter(count: bubble.count, maxDiameter: bubble.maxDiameter)
+            let d = bubbleDiameter(count: bubble.collisionCount, maxDiameter: bubble.maxDiameter)
             reserved.append(LabelBox.badge(at: p, radius: d / 2))
         }
 
-        // Solo POIs only — a clustered one has glided into its bubble and drawn nothing.
-        // Incumbents first (see the doc comment), then food, then name — fully deterministic.
-        let candidates = pois
-            .filter { assignments[$0.id]?.clustered == false }
-            // NOTE: the family tier is a valid strict weak ordering only because PlaceFamily
-            // has exactly TWO cases, so `l.family == .food` totally partitions it. Adding a
-            // third case makes this non-transitive and Swift's debug `sort` can trap — rank
-            // families explicitly (a `sortRank` on PlaceFamily) if one is ever added.
-            .sorted { l, r in
-                let li = previous.contains(l.id), ri = previous.contains(r.id)
-                if li != ri { return li }
-                if l.family != r.family { return l.family == .food }
-                return l.name < r.name
-            }
+        var candidates: [Candidate] = []
+        candidates.reserveCapacity(pois.count + civicSpots.count)
 
-        var points: [String: CGPoint] = [:]
-        for poi in candidates {
+        for poi in pois {
+            let id = ClusterMarkerID.poi(poi.id)
+            guard assignments[id]?.clustered == false else { continue }
             let p = project(poi.coordinate)
             guard p.x.isFinite, p.y.isFinite else { continue }
-            points[poi.id] = p
-            // Every badge draws → always reserved, so no label may sit on one.
-            reserved.append(LabelBox.badge(at: p, radius: LabelBox.poiRadius))
+            let isSelected = id == selected
+            // The selected POI overlay carries a 54pt halo, so its label starts beyond
+            // that halo rather than printing through its own selection treatment.
+            let radius: CGFloat = isSelected ? 28 : LabelBox.poiRadius
+            let gap: CGFloat = isSelected ? 30 : LabelBox.poiLeadingGap
+            let distance = squaredDistance(from: p, to: focus)
+            candidates.append(Candidate(
+                id: id,
+                point: p,
+                badgeRadius: radius,
+                labelGap: gap,
+                distanceToFocus: distance.isFinite ? distance : .infinity
+            ))
         }
 
-        var labelled = Set<String>()
-        for poi in candidates {
-            guard let p = points[poi.id] else { continue }
-            let box = LabelBox.text(poi.name, at: p, gap: LabelBox.poiLeadingGap)
+        for spot in civicSpots {
+            let id = ClusterMarkerID.civic(spot.id)
+            guard assignments[id]?.clustered == false else { continue }
+            let p = project(spot.coordinate)
+            guard p.x.isFinite, p.y.isFinite else { continue }
+            let distance = squaredDistance(from: p, to: focus)
+            candidates.append(Candidate(
+                id: id,
+                point: p,
+                badgeRadius: LabelBox.civicRadius,
+                labelGap: LabelBox.civicLeadingGap,
+                distanceToFocus: distance.isFinite ? distance : .infinity
+            ))
+        }
+
+        // Every visible badge draws, so reserve all of them before considering any label.
+        // This prevents a high-priority label from solving its own collision by covering a
+        // lower-priority marker.
+        for candidate in candidates {
+            reserved.append(LabelBox.badge(at: candidate.point, radius: candidate.badgeRadius))
+        }
+
+        candidates.sort { lhs, rhs in
+            let lhsSelected = lhs.id == selected
+            let rhsSelected = rhs.id == selected
+            if lhsSelected != rhsSelected { return lhsSelected }
+            if !lhsSelected {
+                let lhsIncumbent = previous.contains(lhs.id)
+                let rhsIncumbent = previous.contains(rhs.id)
+                if lhsIncumbent != rhsIncumbent { return lhsIncumbent }
+            }
+            if lhs.distanceToFocus != rhs.distanceToFocus {
+                return lhs.distanceToFocus < rhs.distanceToFocus
+            }
+            return lhs.id < rhs.id
+        }
+
+        var labelled = Set<ClusterMarkerID>()
+        for candidate in candidates {
+            let box = LabelBox.text(at: candidate.point, gap: candidate.labelGap)
             guard !reserved.contains(where: { $0.intersects(box) }) else { continue }
             reserved.append(box)
-            labelled.insert(poi.id)
+            labelled.insert(candidate.id)
         }
         return labelled
     }
 
-    /// The family most of a cluster's members belong to — the bubble's tint. A family only
-    /// takes the tint by STRICTLY outnumbering the seed's; ties hold the seed's family, and
-    /// the sort keeps the pick deterministic regardless of dictionary iteration order.
+    /// The family most of a cluster's POI members belong to — the bubble's legacy styling
+    /// hint. Civic members do not vote; ties hold the first POI member's family.
     ///
     /// That makes any SINGLE evaluation deterministic, but it is not hysteresis: a cluster
     /// balanced near a tie (say 3 food / 4 business) flips tint when one member drifts across
@@ -356,16 +483,22 @@ enum POICluster {
     /// soft settle rather than a snap. True stability would need the previous tint carried
     /// across recomputes — worth doing only if the cross-fade proves visible in practice.
     private static func dominantFamily(of members: [Int],
-                                       seed: POI,
-                                       in ordered: [POI]) -> PlaceFamily {
+                                       in ordered: [ClusterMarkerInput]) -> PlaceFamily {
         var tally: [PlaceFamily: Int] = [:]
-        for m in members { tally[ordered[m].family, default: 0] += 1 }
-        let seedCount = tally[seed.family] ?? 0
+        for m in members {
+            if let family = ordered[m].family { tally[family, default: 0] += 1 }
+        }
+        guard let baseline = members.compactMap({ ordered[$0].family }).first else {
+            // Civic-only bubbles are monochrome, so this fallback never invents a visible
+            // category signal. It simply satisfies the legacy bubble styling interface.
+            return .business
+        }
+        let seedCount = tally[baseline] ?? 0
         let challengers = tally
             .filter { $0.value > seedCount }
             .sorted { l, r in
                 l.value != r.value ? l.value > r.value : l.key.rawValue < r.key.rawValue
             }
-        return challengers.first?.key ?? seed.family
+        return challengers.first?.key ?? baseline
     }
 }

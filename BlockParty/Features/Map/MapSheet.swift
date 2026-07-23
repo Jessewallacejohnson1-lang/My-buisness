@@ -12,28 +12,28 @@
 //  the list. All content is REAL (no invented counts):
 //    • today  — today's happenings from MapModel.todayEvents (coral dot = live now)
 //    • places — the curated MapSpots catalogue, with each spot's live count today
-//    • detail — one spot: blurb, its happenings, Directions (set by tapping a pin)
 //
-//  Mirrors Life360's "People / Places" sheet: a title + a coral toggle pill on the
-//  right, a scrollable list, and a spot detail that replaces the list when a pin is
-//  tapped (so nothing stacks). The old pop-up MapBottomCard is subsumed here.
+//  Place detail belongs to the morphing global tab shell. This sheet now has one job:
+//  preserve the draggable Today / Places peek and list from the map's browse state.
 //
 
 import SwiftUI
-import CoreLocation
 
 /// How far the sheet is pulled up. Three detents; the grabber snaps between them.
-private enum SheetDetent: CaseIterable { case peek, medium, full }
+enum SheetDetent: CaseIterable { case peek, medium, full }
 
-/// The two list faces of the sheet (a spot detail temporarily overrides both).
-private enum SheetMode { case today, places }
+/// The two list faces of the sheet.
+enum SheetMode { case today, places }
+
+/// A vertical gesture belongs to exactly one surface at a time. `scroll` may hand
+/// off to `sheet` when a downward drag reaches the active ScrollView's top.
+private enum SheetDragOwner { case undecided, scroll, sheet }
 
 struct MapSheet: View {
     // Data (owned by MapModel / SJMapView; the sheet only reads)
     let events: [TimelineEvent]
     let state: MapModel.LoadState
     let spots: [Spot]                          // already filtered by the map's chip
-    @Binding var selected: Spot?               // non-nil → show that spot's detail
 
     // Callbacks up to SJMapView
     let happenings: (Spot) -> [TimelineEvent]  // events resolving to a spot
@@ -72,12 +72,14 @@ struct MapSheet: View {
         topLeadingRadius: glassRadius, bottomLeadingRadius: 0,
         bottomTrailingRadius: 0, topTrailingRadius: glassRadius, style: .continuous)
 
-    @State private var mode: SheetMode = MapSheet.initialMode()
-    @State private var detent: SheetDetent = MapSheet.initialDetent()
+    @Binding var mode: SheetMode
+    @Binding var detent: SheetDetent
+    /// Namespace for the Today ⇄ Places segmented control's sliding selection pill.
+    @Namespace private var segment
 
     /// DEBUG-only: `-map-sheet places` opens the sheet on the Places list so it can
     /// be screenshotted headlessly. No effect in release / without the flag.
-    private static func initialMode() -> SheetMode {
+    static func initialMode() -> SheetMode {
         #if DEBUG
         let a = ProcessInfo.processInfo.arguments
         if let i = a.firstIndex(of: "-map-sheet"), i + 1 < a.count, a[i + 1] == "places" { return .places }
@@ -88,7 +90,7 @@ struct MapSheet: View {
     /// DEBUG-only: `-map-detent peek|medium|full` opens the sheet at a given detent
     /// so each rest state (and the peek line ⇄ list cross-fade) can be screenshotted
     /// headlessly. No effect in release / without the flag.
-    private static func initialDetent() -> SheetDetent {
+    static func initialDetent() -> SheetDetent {
         #if DEBUG
         let a = ProcessInfo.processInfo.arguments
         if let i = a.firstIndex(of: "-map-detent"), i + 1 < a.count {
@@ -105,17 +107,24 @@ struct MapSheet: View {
         return .peek
     }
 
-    @GestureState private var drag: CGFloat = 0
+    /// Finger translation applied to the sheet. Unlike the old grabber-only
+    /// GestureState, this is driven by a whole-sheet gesture whose ownership is
+    /// coordinated with the active inner ScrollView.
+    @State private var drag: CGFloat = 0
+    @State private var dragOwner: SheetDragOwner = .undecided
+    /// Unlike `onEnded`, GestureState resets when the recognizer is cancelled.
+    /// Observing that reset prevents stale drag ownership from disabling scrolling.
+    @GestureState private var dragGestureActive = false
+    /// If content reaches its top during a downward drag, the sheet begins at zero
+    /// from that exact point instead of jumping by the distance already scrolled.
+    @State private var dragHandoffTranslation: CGFloat = 0
+    @State private var listScrollAtTop = true
     /// Latest laid-out container height, so the drag-end snap can reason about the
     /// actual detent heights (they're derived from it). Updated off the layout pass.
     @State private var containerH: CGFloat = 0
     /// This is a hand-rolled sheet, so §11 doesn't get honored for free — it self-gates:
     /// detent/select springs drop to a non-bouncy crossfade under Reduce Motion.
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.openURL) private var openURL
-    /// The device-local saved set (shared with Explore). Observed so the detail
-    /// header's bookmark reflects saves live; also the source of the map's Saved pin.
-    @ObservedObject private var saved = SavedStore.shared
 
     var body: some View {
         GeometryReader { geo in
@@ -134,27 +143,23 @@ struct MapSheet: View {
 
             VStack(spacing: 0) {
                 grabber
-                if let spot = selected {
-                    detailContent(spot)
-                } else {
-                    ZStack(alignment: .top) {
-                        // Bias the two curves off the shared `p` so one layer is always
-                        // dominant — no muddy 50/50 crossing when you scrub slowly. The
-                        // outgoing line also blurs a touch to soften the handoff seam.
-                        let peekOut = 1 - min(1, p * 1.7)            // gone by p≈0.59
-                        let listIn = max(0, (p - 0.3) / 0.7)         // in from p≈0.3
-                        listStack
-                            .opacity(listIn)
-                            .allowsHitTesting(p > 0.5)
-                            .accessibilityHidden(p <= 0.5)
-                        peekLine
-                            .opacity(peekOut)
-                            .blur(radius: (1 - peekOut) * 2)
-                            .allowsHitTesting(p <= 0.5)
-                            .accessibilityHidden(p > 0.5)
-                    }
-                    .frame(maxHeight: .infinity, alignment: .top)
+                ZStack(alignment: .top) {
+                    // Bias the two curves off the shared `p` so one layer is always
+                    // dominant — no muddy 50/50 crossing when you scrub slowly. The
+                    // outgoing line also blurs a touch to soften the handoff seam.
+                    let peekOut = 1 - min(1, p * 1.7)            // gone by p≈0.59
+                    let listIn = max(0, (p - 0.3) / 0.7)         // in from p≈0.3
+                    listStack
+                        .opacity(listIn)
+                        .allowsHitTesting(p > 0.5)
+                        .accessibilityHidden(p <= 0.5)
+                    peekLine
+                        .opacity(peekOut)
+                        .blur(radius: (1 - peekOut) * 2)
+                        .allowsHitTesting(p <= 0.5)
+                        .accessibilityHidden(p > 0.5)
                 }
+                .frame(maxHeight: .infinity, alignment: .top)
             }
             .frame(maxWidth: .infinity, alignment: .top)
             .frame(height: height, alignment: .top)
@@ -178,6 +183,9 @@ struct MapSheet: View {
             // in one GlassEffectContainer (MainTabsView), so the sheet's glass and the
             // tab bar merge into a single continuous bottom shape.
             .glassEffect(.regular, in: Self.sheetShape)
+            // Observe the same vertical gesture across the whole sheet. The active
+            // ScrollView remains enabled only while it owns that gesture.
+            .simultaneousGesture(sheetDragGesture)
             .frame(maxHeight: .infinity, alignment: .bottom)
             .padding(.horizontal, 20)                 // match the tab bar's side insets
             .padding(.bottom, Self.tabBarReserve)      // rest flush on top of the tab bar
@@ -188,14 +196,9 @@ struct MapSheet: View {
             .onChange(of: H, initial: true) { _, h in containerH = h }
         }
         .animation(reduceMotion ? Motion.smooth : Motion.sheet, value: detent)
-        .animation(reduceMotion ? Motion.smooth : Motion.sheet, value: selected?.id)
-        // A tapped pin lifts the sheet to MEDIUM (Apple-Maps feel): the card rises to ~half
-        // while the map stays the hero and the camera lifts the pin above it (see SJMapView).
-        // Full is a drag-up away.
-        .onChange(of: selected?.id) { _, id in if id != nil { detent = .medium } }
-        // onChange only fires on a transition; a spot preselected at mount (e.g. the
-        // `-map-open` debug flag, or deep-linking into a spot) needs the same lift.
-        .onAppear { if selected != nil { detent = .medium } }
+        .onChange(of: dragGestureActive) { wasActive, isActive in
+            if wasActive && !isActive { resetDrag() }
+        }
     }
 
     /// The three rest heights, derived from the container height. peek is fixed
@@ -221,7 +224,7 @@ struct MapSheet: View {
         }
     }
 
-    // MARK: Grabber (the drag target)
+    // MARK: Grabber + coordinated sheet drag
 
     private var grabber: some View {
         Capsule()
@@ -231,11 +234,6 @@ struct MapSheet: View {
             .padding(.top, 8)
             .padding(.bottom, 6)
             .contentShape(Rectangle())
-            .gesture(
-                DragGesture()
-                    .updating($drag) { value, state, _ in state = value.translation.height }
-                    .onEnded { value in snap(value) }
-            )
             .accessibilityLabel("Adjust sheet height")
             .accessibilityValue(detentA11yValue)
             .accessibilityAdjustableAction { direction in
@@ -247,19 +245,107 @@ struct MapSheet: View {
             }
     }
 
+    /// The grabber's rendered band is 19pt tall (8 + 5 + 6). Keep the historical
+    /// grabber behavior even when full-height content is scrolled away from its top.
+    private static let grabberDragRegionHeight: CGFloat = 19
+    /// The outer recognizer begins at 1pt for immediate tracking, but movement below
+    /// this distance remains a tap and must never participate in detent projection.
+    private static let tapSlop: CGFloat = 8
+
+    /// A single vertical gesture arbitrates between the sheet and its active
+    /// ScrollView. At non-full detents the sheet always wins. At full, content
+    /// scrolls normally unless a downward drag begins (or arrives) at the top.
+    private var sheetDragGesture: some Gesture {
+        DragGesture(minimumDistance: 1)
+            .updating($dragGestureActive) { _, active, _ in active = true }
+            .onChanged(updateDrag)
+            .onEnded(finishDrag)
+    }
+
+    private var activeScrollAtTop: Bool {
+        if isCenteredEmptyState { return true }
+        return listScrollAtTop
+    }
+
+    private var innerScrollDisabled: Bool {
+        detent != .full || dragOwner == .sheet
+    }
+
+    private func updateDrag(_ value: DragGesture.Value) {
+        let vertical = value.translation.height
+
+        if dragOwner == .undecided {
+            // Ignore a horizontal start instead of stealing taps/segment movement.
+            guard abs(vertical) > abs(value.translation.width) else { return }
+
+            let beganOnGrabber = value.startLocation.y <= Self.grabberDragRegionHeight
+            if beganOnGrabber || detent != .full || (vertical > 0 && activeScrollAtTop) {
+                dragOwner = .sheet
+                dragHandoffTranslation = 0
+            } else {
+                dragOwner = .scroll
+            }
+        } else if dragOwner == .scroll, vertical > 0, activeScrollAtTop {
+            // The ScrollView consumed the portion above its top. Continue this same
+            // finger movement from zero so the sheet handoff has no positional jump.
+            dragOwner = .sheet
+            dragHandoffTranslation = vertical
+        }
+
+        guard dragOwner == .sheet else { return }
+        let sheetTranslation = vertical - dragHandoffTranslation
+        withAnimation(reduceMotion ? Motion.smooth : Motion.interactive) {
+            drag = sheetTranslation
+        }
+    }
+
+    private func finishDrag(_ value: DragGesture.Value) {
+        guard dragOwner == .sheet else {
+            resetDrag()
+            return
+        }
+        let sheetTranslation = value.translation.height - dragHandoffTranslation
+        guard abs(sheetTranslation) >= Self.tapSlop else {
+            resetDrag()
+            return
+        }
+        snap(value, handoffTranslation: dragHandoffTranslation)
+    }
+
     /// Snap to the nearest of the three detents, carried by drag momentum
-    /// (predicted end translation), so a quick flick can skip a stop.
-    private func snap(_ value: DragGesture.Value) {
+    /// (predicted end translation), so a quick flick can skip a stop. A decisive
+    /// downward flick always collapses fully, including after reversing mid-drag.
+    private func snap(_ value: DragGesture.Value, handoffTranslation: CGFloat) {
         let m = metrics(containerH)
         let resting = restHeight(detent, m)
-        // Where the drag is heading (velocity folded in), as a target height.
-        let projected = value.translation.height + value.predictedEndTranslation.height * 0.35
+        let projected = value.predictedEndTranslation.height - handoffTranslation
         let targetHeight = min(max(resting - projected, m.peek), m.full)
-        // Pick the detent whose rest height is closest to where we're heading.
         let stops: [(SheetDetent, CGFloat)] = [(.peek, m.peek), (.medium, m.medium), (.full, m.full)]
-        let next = stops.min { abs($0.1 - targetHeight) < abs($1.1 - targetHeight) }?.0 ?? detent
+        // Points/second. Above this, direction is a stronger signal than distance:
+        // a fast close gesture should never get caught at the medium stop.
+        let isFastDismiss = value.velocity.height >= 1_200
+        let next = isFastDismiss
+            ? SheetDetent.peek
+            : stops.min { abs($0.1 - targetHeight) < abs($1.1 - targetHeight) }?.0 ?? detent
         if next != detent { Haptics.selection() }   // detent snap = a segmented tick (§10)
-        detent = next
+        withAnimation(reduceMotion ? Motion.smooth : Motion.sheet) {
+            detent = next
+            drag = 0
+        }
+        dragOwner = .undecided
+        dragHandoffTranslation = 0
+    }
+
+    private func resetDrag() {
+        drag = 0
+        dragOwner = .undecided
+        dragHandoffTranslation = 0
+    }
+
+    /// Transform scroll geometry to a Bool so state only changes when a scroller
+    /// crosses the top boundary, not on every pixel (important during 60fps scroll).
+    private nonisolated static func scrollIsAtTop(_ geometry: ScrollGeometry) -> Bool {
+        geometry.contentOffset.y + geometry.contentInsets.top <= 0.5
     }
 
     /// Spoken by VoiceOver after each adjustable step, so the landed detent is announced.
@@ -393,20 +479,15 @@ struct MapSheet: View {
         }
     }
 
-    // MARK: List header — title + coral toggle pill (Today ⇄ Places)
+    // MARK: List header — Today | Places segmented control + context subtitle
 
     private var listHeader: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(mode == .today ? "Today" : "Places")
-                    .font(.displaySemi(22))
-                    .foregroundStyle(Hue.ink)
-                subtitle
-            }
-            Spacer()
-            toggleButton
+        VStack(alignment: .leading, spacing: 8) {
+            segmentedControl
+            subtitle
         }
         .padding(.horizontal, 20)
+        .padding(.top, 2)
         .padding(.bottom, 12)
     }
 
@@ -446,27 +527,44 @@ struct MapSheet: View {
         .buttonStyle(.plain)
     }
 
-    private var toggleButton: some View {
-        Button {
-            Haptics.selection()   // a segmented Today⇄Places choice → selection tick
-            withAnimation(Motion.snappy) {
-                mode = (mode == .today) ? .places : .today
-            }
+    /// A visible two-segment switch — both destinations always shown — replacing the old
+    /// blind flip-button (you had to read the label to know where it'd take you). The
+    /// SELECTED segment takes the brand accent; "selected state" is one of the accent's
+    /// meaning-scoped seams. Mirrors `BlockPartyTabBar`'s sliding matchedGeometry pill.
+    private var segmentedControl: some View {
+        HStack(spacing: 4) {
+            segmentButton(.today, "Today")
+            segmentButton(.places, "Places")
+        }
+        .padding(4)
+        .background(Hue.fill, in: RoundedRectangle(cornerRadius: Radius.button + 2, style: .continuous))
+        .accessibilityElement(children: .contain)
+    }
+
+    private func segmentButton(_ target: SheetMode, _ title: String) -> some View {
+        let isSelected = mode == target
+        return Button {
+            guard mode != target else { return }
+            Haptics.selection()   // a segmented Today⇄Places choice → selection tick (§10)
+            withAnimation(reduceMotion ? Motion.smooth : Motion.snappy) { mode = target }
         } label: {
-            HStack(spacing: 6) {
-                Image(systemName: mode == .today ? "building.2.fill" : "calendar")
-                    .font(.system(size: 12, weight: .semibold))
-                Text(mode == .today ? "Places" : "Today")
-                    .font(.sansSemibold(14))
-            }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 9)
-            .background(Hue.ink,
-                        in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+            Text(title)
+                .font(.sansSemibold(14))
+                .foregroundStyle(isSelected ? .white : Hue.inkSecondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background {
+                    if isSelected {
+                        RoundedRectangle(cornerRadius: Radius.button - 2, style: .continuous)
+                            .fill(Hue.accent)
+                            .matchedGeometryEffect(id: "segmentPill", in: segment)
+                    }
+                }
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(mode == .today ? "Show places" : "Show today")
+        .accessibilityLabel(title)
+        .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
     }
 
     // MARK: List body
@@ -499,6 +597,12 @@ struct MapSheet: View {
                 .padding(.bottom, Self.contentBottomInset)
             }
             .scrollIndicators(.hidden)
+            .scrollDisabled(innerScrollDisabled)
+            .onScrollGeometryChange(for: Bool.self) { geometry in
+                Self.scrollIsAtTop(geometry)
+            } action: { _, isAtTop in
+                listScrollAtTop = isAtTop
+            }
         }
     }
 
@@ -559,108 +663,13 @@ struct MapSheet: View {
         .padding(.horizontal, 24)   // centered block; keep the copy off the glass edges
     }
 
-    // MARK: Detail — one spot (replaces the old MapBottomCard)
-
-    /// Save/unsave this place. Reuses the app's bookmark language (coral when saved,
-    /// like Explore's SaveBookmarkButton) — this is a tappable control in the sheet,
-    /// so coral is fine here; the map *pin's* saved mark stays ink so coral keeps
-    /// meaning "live" on the canvas. Powers the map's Saved pin via SavedStore.
-    private func saveButton(_ spot: Spot) -> some View {
-        let isSaved = saved.isSaved(spot.id)
-        return Button {
-            // Saving a place is a positive milestone → success notification; un-saving is
-            // a light tap (spec §10 — success marks the save, not the removal).
-            if isSaved { Haptics.light() } else { Haptics.success() }
-            withAnimation(reduceMotion ? Motion.smooth : Motion.select) { saved.toggle(spot.id) }
-        } label: {
-            Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(isSaved ? Hue.ink : Hue.ink)
-                .symbolEffect(.bounce, value: isSaved)
-                .frame(width: 36, height: 36)
-                .background(Hue.paper, in: Circle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(isSaved ? "Remove \(spot.name) from saved places" : "Save \(spot.name)")
-    }
-
-    private func detailContent(_ spot: Spot) -> some View {
-        let items = happenings(spot)
-        return ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 10) {
-                    Button {
-                        Haptics.light()
-                        selected = nil
-                        detent = .peek
-                    } label: {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(Hue.ink)
-                            .frame(width: 32, height: 32)
-                            .background(Hue.paper, in: Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Back to list")
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(spot.name).font(.display(20)).foregroundStyle(Hue.ink).lineLimit(1)  // §9: card title 20pt bold
-                        if let blurb = spot.blurb {
-                            Text(blurb).font(.sans(15)).foregroundStyle(Hue.inkSecondary).lineLimit(1)       // §9: subtitle 15pt
-                        }
-                    }
-                    Spacer(minLength: 0)
-                    saveButton(spot)
-                }
-                .staggeredAppear(0)
-
-                VenueInfoView(query: "\(spot.name) St Joseph MN",
-                              palette: .map,
-                              identity: VenueIdentity(name: spot.name, coordinate: spot.coordinate))
-                    .padding(.top, 16)
-                    .staggeredAppear(1)
-
-                if !items.isEmpty {
-                    VStack(spacing: 13) {
-                        ForEach(items) { h in
-                            HStack(spacing: 8) {
-                                Circle()
-                                    .fill(DateHelpers.isLiveNow(h.startTime) ? Hue.ink : Hue.inkSecondary)
-                                    .frame(width: 6, height: 6)
-                                Text(h.title).font(.sansMedium(15)).foregroundStyle(Hue.ink).lineLimit(1)
-                                Spacer()
-                                Text(h.startTime ?? "all day").font(.sans(13)).foregroundStyle(Hue.inkSecondary)
-                            }
-                        }
-                    }
-                    .padding(.top, 18)
-                    .staggeredAppear(2)
-                }
-
-                Button {
-                    let lat = spot.coordinate.latitude, lon = spot.coordinate.longitude
-                    if let url = URL(string: "maps://?daddr=\(lat),\(lon)&dirflg=d") { openURL(url) }
-                } label: {
-                    Text("Directions")
-                        .font(.sansSemibold(16)).foregroundStyle(.white)
-                        .frame(maxWidth: .infinity).frame(height: 50)
-                }
-                .buttonStyle(CoralPillStyle())
-                .padding(.top, 20)
-                .staggeredAppear(3)
-                .accessibilityLabel("Directions to \(spot.name)")
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, Self.contentBottomInset)
-        }
-        .scrollIndicators(.hidden)
-    }
 }
 
 // MARK: - Status dot (peek line)
 
-/// A small dot that reads as "live" (coral, with a slow breathing ring) or "quiet"
+/// A small dot that reads as "live" (accent, with a slow breathing ring) or "quiet"
 /// (soft gray). The ring is gated by Reduce Motion — calm by default, alive on live.
+/// Accent = "live" here, matching the live pins on the map canvas.
 private struct StatusDot: View {
     let live: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -670,13 +679,13 @@ private struct StatusDot: View {
         ZStack {
             if live && !reduceMotion {
                 Circle()
-                    .stroke(Hue.ink, lineWidth: 1.5)
+                    .stroke(Hue.accent, lineWidth: 1.5)
                     .frame(width: 12, height: 12)
                     .scaleEffect(pulsing ? 2.2 : 1)
                     .opacity(pulsing ? 0 : 0.5)
             }
             Circle()
-                .fill(live ? Hue.ink : Hue.inkSecondary)
+                .fill(live ? Hue.accent : Hue.inkSecondary)
                 .frame(width: 9, height: 9)
         }
         .frame(width: 26, height: 26)          // stable slot so text never shifts
@@ -716,7 +725,7 @@ private struct TodayEventRow: View {
                 Circle().fill(live ? Hue.fill : Hue.paper).frame(width: 38, height: 38)
                 Image(systemName: live ? "dot.radiowaves.left.and.right" : "clock")
                     .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(live ? Hue.ink : Hue.inkSecondary)
+                    .foregroundStyle(live ? Hue.accent : Hue.inkSecondary)
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(event.title).font(.sansMedium(15)).foregroundStyle(Hue.ink).lineLimit(1)
@@ -727,7 +736,7 @@ private struct TodayEventRow: View {
             Spacer(minLength: 8)
             if live {
                 Text("Now")
-                    .font(.sansSemibold(12)).foregroundStyle(Hue.ink)
+                    .font(.sansSemibold(12)).foregroundStyle(Hue.accent)
                     .padding(.horizontal, 8).padding(.vertical, 3)
                     .background(Hue.fill, in: Capsule())
             } else if let t = event.startTime {
@@ -762,7 +771,7 @@ private struct PlaceRow: View {
             Spacer(minLength: 8)
             if liveCount > 0 {
                 Text("^[\(liveCount) live](inflect: true)")
-                    .font(.sansSemibold(12)).foregroundStyle(Hue.ink)
+                    .font(.sansSemibold(12)).foregroundStyle(Hue.accent)
                     .padding(.horizontal, 8).padding(.vertical, 3)
                     .background(Hue.fill, in: Capsule())
             }
@@ -794,17 +803,6 @@ private struct SkeletonRow: View {
             Spacer()
         }
         .padding(.horizontal, 20).padding(.vertical, 12)
-    }
-}
-
-// MARK: - Ink primary button (Directions)
-
-private struct CoralPillStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .background(configuration.isPressed ? Hue.ink.opacity(0.85) : Hue.ink,
-                        in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }
 }
 

@@ -198,6 +198,9 @@ final class MapModel: ObservableObject {
         do {
             pois = try await api.getPlaces()
             placesLoaded = true
+            // Warm the whole (small-town) logo set once so pins render their final
+            // state on first frame — see POILogoCache's header for why not AsyncImage.
+            POILogoCache.shared.prefetch(pois.compactMap(\.logoURL))
         } catch {
             // Leave pois empty; foreground / retry will try again. The map still works.
         }

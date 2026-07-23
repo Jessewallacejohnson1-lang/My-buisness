@@ -1228,3 +1228,220 @@ Three of the Design Director's six open items fixed; three left, with reasons.
   roughly the same intensity (worst pixel `#E3F8D6` → `#E5F8D8`), there are just far fewer of
   them. A higher floor would finish the job but stops the peek band reading as the same glass as
   the tab bar it merges into, which is the whole point of Phase B.
+
+## 2026-07-23 — Issue 1: civic landmarks join clusters; cluster-first labels
+
+- **One clustering input set below `pinExpandZoom`.** POIs and the filtered civic landmarks now
+  enter `POICluster.compute` through namespaced ids. The radius pass remains deterministic, then
+  any collapsed-band singleton joins its nearest real group: every finite, non-selected marker
+  is assigned once and counted once. At/above 14.5, civic inputs are withheld from grouping and
+  receive explicit solo assignments, so the always-mounted civic leaves de-cluster back to their
+  real anchors.
+- **Selection and live state.** The selected civic or POI id is excluded before grouping and is
+  never included in a bubble count. Live civic pins are absorbed (no live orphan); the aggregate
+  gets a palette-routed static live ring plus a truthful VoiceOver suffix, refreshed when events
+  or the minute heartbeat changes.
+- **Cluster-first collision geometry.** Removed the civic keep-away offsets and reversed the
+  annotation priority to cluster > selected > unselected. One label pass now covers both catalogs:
+  rendered bubbles (including dissolving ones) reserve first, then every visible badge, then the
+  selected label, then remaining labels by distance to the camera focus. It reserves the full
+  100pt/two-line label ceiling plus halo, and retains a conservative count diameter during count
+  crossfades.
+- **Continuous merge/split.** POI and civic markers share one isolated leaf motion wrapper using
+  `CLUSTER_SPRING`. It retains the old cluster anchor through a split, fixing the one-frame return
+  pop; counts crossfade with `Motion.smooth`. Reduce Motion removes travel/scale and crossfades
+  leaf ↔ bubble instead. Marker, label, selection, and live colors remain routed through
+  `MarkerRole`.
+
+**Verified:** iPhone 17 simulator (iOS 26.5), scheme `BlockParty`, Debug:
+
+`xcodebuild -project /Users/owner/Documents/block-party-map-polish/BlockParty.xcodeproj -scheme BlockParty -configuration Debug -skipMacroValidation -destination "platform=iOS Simulator,id=661E32C7-985C-458F-9CA7-6759114CADE8" -collect-test-diagnostics never -derivedDataPath /Users/owner/Library/Developer/XcodeBuildMCP/workspaces/block-party-map-polish-8d94ea1f7730/DerivedData/BlockParty-644c7251adb7 "OTHER_LDFLAGS=$(inherited) -framework AppIntents" build`
+
+Result: **BUILD SUCCEEDED, 0 warnings, 0 errors**. The command-line AppIntents link is verification
+only (no project-file change); it suppresses Xcode 26.5's otherwise unconditional metadata-tool
+"No AppIntents.framework dependency found" warning, while the normal build also reports zero source
+diagnostics.
+
+**Geometry audit:** at z11 and z13, `forceAllIntoClusters` leaves no finite non-selected civic or
+POI assignment solo, so no civic dot can remain on/near a bubble. At z15, every civic assignment is
+solo; bubble rectangles are reserved before all labels, every solo badge before any label, and each
+granted label is appended before the next candidate, so no non-selected label box can intersect a
+bubble, badge, or prior label by construction.
+
+**Honest limits:** no frame-sampled simulator motion/design pass was run. Design QA should watch the
+live 15→11→15 sweep for subjective spring feel and the aggregate live-ring treatment, and confirm
+the conservative full-width label reservation is not visually too sparse.
+
+## 2026-07-23 — Issue 1 adversarial-review follow-up
+
+- Restored label incumbency ahead of focus distance for non-selected candidates, reusing the
+  current labelled set across recomputes; non-finite focus distances normalize to `+∞`.
+- Guarded the collapsed-band fallback against selecting and appending a singleton group to itself.
+- Updated the stale live-color header note to point to `MonoMarkerPalette`'s role table.
+
+**Verified:** iPhone 17 simulator (iOS 26.5), scheme `BlockParty`, Debug:
+**BUILD SUCCEEDED, 0 warnings, 0 errors**. Static review confirms the reservation order remains
+chrome → rendered bubbles → all badges → selected label → non-selected labels.
+
+## 2026-07-23 — Brand logos on POI pins (`feat/poi-logos`)
+
+Businesses with a real brand mark now show it instead of the category glyph — inside the
+expanded 26pt pin circle (inset 3pt so the hairline keyline stays the outer edge), the 34pt
+selected marker (fill flips to `MarkerRole.selectedPOILogoFill` = surface, since a mark can't
+sit on mid grey; ring/halo/shadow keep carrying selection), and the 40pt in-bar detail header.
+Compact 12pt dots and cluster bubbles unchanged. Glyph remains the designed fallback.
+
+- **Backend:** `places.logo_url` + public `place-logos` Storage bucket (admin-gated writes),
+  migration `20260723000000_places_logo.sql`, applied live.
+- **App:** `POILogoCache` (MainActor, `@Published [URL: UIImage]`, own URLSession + URLCache
+  4/50 MB, `.returnCacheDataElseLoad` — logos immutable per URL) prefetched once after
+  `loadPlaces()`; **no AsyncImage** — annotation views rebuild constantly during pan/cluster
+  churn and AsyncImage would flash its placeholder each rebuild, so pins do a synchronous dict
+  lookup and render final state on first frame. `POILogoCircle` renders nothing when absent so
+  each call site keeps its glyph as the fallback layer (one-line integrations).
+- **Curation pipeline:** `scripts/fetch_place_logos.py` (candidate ladder: apple-touch-icon →
+  square-ish og:image → largest link-icon → favicon.ico → Google favicon; auto-reject <96px /
+  extreme aspect / near-blank; normalize to 256px white-padded square) run by 4 parallel Codex
+  agents + a rescue round, then **strict Claude vision verification** (right business's mark ·
+  crisp · reads in a 26pt circle crop) over PIL montages. **53 of 91 places approved**; the 38
+  misses are genuinely logo-less small businesses → glyph fallback. Provenance:
+  `docs/place-logos-manifest.json`. Google Places used transiently for websiteUri only —
+  no Places content persisted (ToS).
+- **DEBUG:** `-poi-logo-stub` renders deterministic code-drawn marks for headless verification.
+
+**Verified:** iPhone 17 Pro simulator (iOS 26.5), scheme `BlockParty`, Debug:
+**BUILD SUCCEEDED, 0 warnings, 0 errors.** Screenshot matrix with `-poi-logo-stub`: logos in
+expanded pins (hairline intact, labels beside), compact dots + clusters unchanged (regression),
+selected marker + detail header logo, and glyph fallback without the flag.
+
+**Shipped live (same day):** 53 PNGs uploaded via a user-approved, immediately-dropped temp
+insert policy (bucket writes are admin-only again; 53 objects verified), `logo_url` set from
+the uploaded object names in one UPDATE. Live-data screenshots verified: Bad Habit's roundel
+in its 26pt pin, Krewe's "K" in the selected marker + detail header, glyph fallback elsewhere.
+Design pass (emil-design-eng + impeccable): white-padded logos blend into the surface-filled
+pins, color arrives only as real business identity, mono value ladder intact — no desaturation
+needed. Gotcha for the record: the first live screenshots showed no logos because a parallel
+session had installed ITS build over this one on the shared booted sim (same bundle id) —
+**reinstall your own .app right before screenshotting when sims are shared.**
+## 2026-07-23 — Issue 2: continuous MapSheet drag/scroll handoff
+
+- Moved the vertical drag recognizer from the grabber to the whole sheet while preserving the
+  grabber as an unconditional sheet-drag region. At non-full detents the sheet owns vertical
+  movement. At full, the active inner ScrollView owns normal scrolling until a downward drag
+  begins or arrives at its top; ownership then latches to the sheet and disables that scroller.
+- Each of the list, spot-detail, and POI-detail scrollers reports only a top/not-top Bool through
+  `onScrollGeometryChange`. A mid-gesture scroll→sheet handoff records the exact translation where
+  the top was reached, so the sheet continues from zero without a jump or double reaction.
+- Sheet tracking uses `Motion.interactive`; release projects `predictedEndTranslation` to the
+  nearest existing detent and settles with `Motion.sheet`. A fast downward velocity overrides the
+  nearest stop and collapses to peek, including after a mid-drag direction reversal. Reduce Motion
+  continues to route through `Motion.smooth`.
+
+**Verified:** iPhone 17 simulator (iOS 26.5), scheme `BlockParty`, Debug:
+**BUILD SUCCEEDED, 0 warnings, 0 errors**. `-show-home -open-tab map -map-detent
+peek|medium|full` launches were screenshot-checked at all three rest states; the original
+peek⇄list `p` cross-fade and unified sheet/tab-bar glass remained intact. The verification build
+used the repository's Xcode 26.5 AppIntents metadata-warning workaround:
+
+`xcodebuild -project /Users/owner/Documents/block-party-map-polish/BlockParty.xcodeproj -scheme
+BlockParty -configuration Debug -skipMacroValidation -destination "platform=iOS
+Simulator,id=661E32C7-985C-458F-9CA7-6759114CADE8" -collect-test-diagnostics never
+-derivedDataPath /Users/owner/Library/Developer/XcodeBuildMCP/workspaces/block-party-map-polish-8d94ea1f7730/DerivedData/BlockParty-644c7251adb7
+CODE_SIGNING_ALLOWED=NO "OTHER_LDFLAGS=$(inherited) -framework AppIntents" build`
+
+**On-device limit:** simulator automation cannot reliably exercise the interactive pan. Human QA
+must confirm immediate 1:1 downward tracking at scroll top, normal full-height content scrolling
+away from top, seamless same-gesture handoff on reaching top, and fast downward flick-to-peek from
+each height (including after reversing mid-drag).
+
+## 2026-07-23 — Issue 2 cancellation + tap-race follow-up
+
+- Added an auto-resetting `@GestureState` lifecycle flag. Its active→inactive transition calls
+  `resetDrag()`, so cancellation clears the offset, owner, and handoff even when `onEnded` is not
+  delivered; at full, that also immediately re-enables the active ScrollView.
+- Kept the outer recognizer at 1pt, but finishes below an 8pt effective vertical translation now
+  reset without entering `snap`, leaving peek/list/segment/row taps authoritative.
+
+**Verified:** iPhone 17 simulator (iOS 26.5), scheme `BlockParty`, Debug:
+**BUILD SUCCEEDED, 0 warnings, 0 errors**.
+
+## 2026-07-23 — Issue 3: tab bar morphs into map place detail
+
+- Lifted map selection into `MainTabsView` as one typed `MapPlaceDetail?`. The enum carries the
+  source `Spot` or `POI`; `SJMapView` derives its existing selected civic/POI state from that
+  binding and routes direct pins, list focus, debug preselection, X, map-background taps, filter
+  dismissal, and camera release through the same value.
+- Kept `BlockPartyTabBar` as one persistent `.glassEffect(.regular)` shell with the existing
+  26pt continuous radius. It conditionally swaps the four tab buttons for the compact name,
+  category/distance badge, Directions, Save, and X content while its container size settles with
+  `Motion.sheet`; Reduce Motion uses an opacity-only content transition with `Motion.smooth`.
+- Removed `MapSheet`'s civic/POI detail renderers and selection-driven medium-detent lifts. While
+  a place is selected the browse sheet is removed from the glass compositor (opacity alone left
+  extracted Liquid Glass child text visible); close restores its unchanged Today/Places peek.
+  The selected camera reserve is now 206pt, capped for short layouts, instead of half the map.
+- Civic details show their real category and coordinate-derived distance from downtown. POIs show
+  their real `PlaceFamily` category, glyph, and coordinate-derived distance. Neither source model
+  has price data, so price is omitted rather than invented. Directions is the plum-filled primary
+  CTA; active Save uses a plum bookmark/keyline plus the selected accessibility trait.
+- VoiceOver exposes the labeled place heading, X, Directions, and Save separately. The other tab
+  buttons return after close, and an Activities round-trip confirmed normal non-detail tab
+  navigation is unchanged.
+
+**Verified:** iPhone 17 simulator (iOS 26.5), scheme `BlockParty`, Debug:
+
+`xcodebuild -project /Users/owner/Documents/block-party-map-polish/BlockParty.xcodeproj -scheme
+BlockParty -configuration Debug -skipMacroValidation -destination "platform=iOS
+Simulator,id=661E32C7-985C-458F-9CA7-6759114CADE8" -collect-test-diagnostics never
+-derivedDataPath /Users/owner/Library/Developer/XcodeBuildMCP/workspaces/block-party-map-polish-8d94ea1f7730/DerivedData/BlockParty-644c7251adb7
+CODE_SIGNING_ALLOWED=NO "OTHER_LDFLAGS=$(inherited) -framework AppIntents" build`
+
+Result: **BUILD SUCCEEDED, 0 warnings, 0 errors** (including a raw-log
+`warning:`/`error:` scan). Screenshot-checked `-open-tab map -map-open downtown`,
+`-open-tab map -map-zoom 16 -map-open-poi`, and plain `-open-tab map`. Simulator
+interaction confirmed X and blank-map taps restore the four-icon bar/peek sheet, active Save is
+plum and selected, and the sheet's peek still opens its Today/Places medium list.
+
+**Tradeoff for review:** pin taps no longer surface the richer in-sheet happenings, address,
+Google venue info, or civic blurb. The compact morph intentionally limits tap detail to identity,
+category/distance, Directions, and Save; Today/Places browsing remains in `MapSheet`.
+
+### Follow-up fixes (post-review, 2026-07-23)
+
+- **Browse state preserved.** `MapSheet`'s `detent`/`mode` were lifted into `SJMapView` as
+  `@State` and passed back as bindings, so opening a place and closing it returns the browse
+  sheet to its exact prior detent + Today/Places mode (previously the unmount/remount reset it
+  to peek/Today).
+- **Camera reserve content-driven.** The selected-pin camera clearance now uses a
+  `@ScaledMetric(relativeTo: .title3)` 250pt two-line baseline (160pt floor, `containerH*0.36`
+  cap) instead of a fixed 206pt, so a 2-line name / large Dynamic Type doesn't hide the pin
+  behind the taller detail bar.
+- **Degenerate distance suppressed.** A sub-30m distance (e.g. the downtown spot measured from
+  the town-center reference) is dropped from the badge + VoiceOver rather than reading a
+  self-distance.
+- **X-close animated** with `Motion.card` to match the map-tap close curve.
+
+Independently reviewed (no CRITICAL/HIGH): selection lifecycle robust (single source of truth,
+every exit path clears it), morph return-to-4-icons clean (no `matchedGeometryEffect` collision),
+the `MapSheet` gut left no dead code, and Issues 1 & 2 are unaffected. The live morph animation
+and browse-state preservation are confirmed by code review + on-device (not sim-automatable).
+Build: 0 warnings, 0 errors.
+
+## 2026-07-23 (later) — Representative marks for (almost) every pin
+
+Product call from Jesse: every POI should carry an image representing what it is — not
+only strict brand marks. Round 2 relaxed the policy: own wordmarks/abstract marks count
+(provenance from the business's own site/page is identity proof), and PARENT-institution
+logos stand in where that's the identity (CSB lockup for the Benedicta Arts Center
+galleries, the monastery mark for Whitby Gift Shop). `--relax` on the import path drops
+the aspect cap so wide wordmarks pad to square. Two Codex agents re-hunted the 38 missing;
+a vision pass (relaxed but sane) approved 24 and rejected 5 building/interior photos that
+smear to noise in a 26pt circle. **77 of 91 places now carry a mark**; the final 14 have
+no owned mark anywhere (closed businesses, avatar-less FB pages) and keep the glyph.
+
+Known tradeoff, accepted deliberately: extreme-aspect wordmarks (Unwind, CSB) read faint
+at 26pt pin size — fine at the 44pt detail-panel avatar. If a specific pin bothers, the
+fix is a hand-cropped monogram import for that row, not a policy change.
+
+**Verified:** live data on iPhone 17 Pro sim — round-2 marks render on pins + detail panel;
+bucket = 77 objects, `places.logo_url` = 77 rows; provenance regenerated in
+`docs/place-logos-manifest.json`.

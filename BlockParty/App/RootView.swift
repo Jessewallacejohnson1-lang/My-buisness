@@ -187,6 +187,7 @@ struct MainTabsView: View {
         self.startTab = startTab
         let resolved = startTab ?? MainTabsView.initialTab()
         _tab = State(initialValue: resolved)
+        _mapDetail = State(initialValue: MapPlaceDetail.debugInitialDetail())
         _showMenu = State(initialValue: resolved == .home && MainTabsView.debugOpenMenu())
         _showProfileSheet = State(initialValue: MainTabsView.debugOpenProfile())
     }
@@ -228,6 +229,10 @@ struct MainTabsView: View {
     }
 
     @State private var expandedPlace: Place?
+    /// The map's one open place, lifted above `SJMapView` so the global tab shell can
+    /// morph into its compact detail. The enum carries the real Spot/POI value rather
+    /// than copying display fields into a second source of truth.
+    @State private var mapDetail: MapPlaceDetail?
     @State private var composing = false
     /// Readiness of the *current* tab's content, gathered from `TabReadyPreferenceKey`.
     /// Drives the loading cover that hides a not-yet-rendered tab.
@@ -280,7 +285,11 @@ struct MainTabsView: View {
                         case .calendar:   CalendarView(onCompose: { composing = true })
                         // The map's non-admin "+" opens the speed-dial (admins still get
                         // QuickAddSheet, wired inside SJMapView).
-                        case .map:        SJMapView(onCompose: { speedDialOpen = true })
+                        case .map:
+                            SJMapView(
+                                mapDetail: $mapDetail,
+                                onCompose: { speedDialOpen = true }
+                            )
                         }
                     }
                     // Identity keyed on the tab so a switch is an insertion+removal that
@@ -301,7 +310,12 @@ struct MainTabsView: View {
                         TabLoadingHost(isReady: activeTabReady, resetKey: AnyHashable(tab))
                     }
 
-                    BlockPartyTabBar(selection: $tab, onSelect: select)
+                    BlockPartyTabBar(
+                        selection: $tab,
+                        mapDetail: $mapDetail,
+                        onSelect: select
+                    )
+                    .zIndex(10)
                 }
             }
             // This app is light-only BY CONSTRUCTION — every token in BlockPartyColor is a
@@ -457,6 +471,7 @@ struct MainTabsView: View {
         withAnimation(reduceMotion
             ? .easeInOut(duration: 0.2)
             : .spring(response: 0.44, dampingFraction: 0.86)) {
+            if newTab != .map { mapDetail = nil }
             tab = newTab
         }
     }
@@ -474,33 +489,62 @@ struct MainTabsView: View {
     }
 }
 
-/// Floating frosted tab bar — a rounded glass pill with a coral-tinted selection
-/// highlight that matched-geometry-slides to whichever tab is active. Selected
-/// state reads coral-on-soft-coral (matches the map's Life360 look); each switch
-/// fires a haptic.
+/// The global bottom shell. It normally hosts the four tab buttons; while a place is
+/// selected on Map, this SAME persistent Liquid Glass view grows into a compact detail
+/// and swaps the buttons out. Keeping `.glassEffect` outside the conditional content is
+/// the container morph: no second card is inserted over the bar, and the shell never
+/// leaves its topmost navigation lane.
 struct BlockPartyTabBar: View {
     @Binding var selection: Tab
+    @Binding var mapDetail: MapPlaceDetail?
     /// Tap handler — the parent owns the animated page slide + haptic, so the pill
     /// (driven by `selection`) and the screen slide ride the same spring.
     var onSelect: (Tab) -> Void
     @Namespace private var pill
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.openURL) private var openURL
+    @ObservedObject private var saved = SavedStore.shared
 
     /// Corner radii: outer glass shell vs. the inner sliding highlight.
-    private let shellRadius: CGFloat = 26
+    static let shellRadius: CGFloat = 26
+    /// Two-line compact-detail baseline + home-indicator band + breathing room.
+    /// `SJMapView` scales it with Dynamic Type before applying its viewport cap.
+    static let detailCameraReserve: CGFloat = 250
     private let pillRadius: CGFloat  = 18
 
     var body: some View {
-        HStack(spacing: 4) {
-            ForEach(Tab.allCases) { tab in
-                tabButton(tab)
+        VStack(spacing: 0) {
+            if let detail = activeDetail {
+                detailPanel(detail)
+                    .transition(contentTransition)
+            } else {
+                HStack(spacing: 4) {
+                    ForEach(Tab.allCases) { tab in
+                        tabButton(tab)
+                    }
+                }
+                .transition(contentTransition)
             }
         }
         .padding(5)
         // Real Liquid Glass (iOS 26): genuinely translucent and refractive, with
         // its own specular rim and floating shadow — no faked frost or white wash.
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: shellRadius, style: .continuous))
+        .glassEffect(
+            .regular,
+            in: RoundedRectangle(cornerRadius: Self.shellRadius, style: .continuous)
+        )
         .padding(.horizontal, 20)
         .padding(.bottom, 4)
+        .animation(reduceMotion ? Motion.smooth : Motion.sheet, value: activeDetail?.id)
+    }
+
+    private var activeDetail: MapPlaceDetail? {
+        selection == .map ? mapDetail : nil
+    }
+
+    private var contentTransition: AnyTransition {
+        guard !reduceMotion else { return .opacity }
+        return .opacity.combined(with: .scale(scale: 0.97, anchor: .bottom))
     }
 
     @ViewBuilder
@@ -529,5 +573,143 @@ struct BlockPartyTabBar: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    private func detailPanel(_ detail: MapPlaceDetail) -> some View {
+        let isSaved = saved.isSaved(detail.saveID)
+
+        return VStack(alignment: .leading, spacing: 11) {
+            HStack(alignment: .top, spacing: 12) {
+                if let poi = detail.poi {
+                    POIPanelLogo(poi: poi, diameter: 44)
+                }
+                VStack(alignment: .leading, spacing: 7) {
+                    Text(detail.name)
+                        .font(.display(20))
+                        .foregroundStyle(Hue.ink)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+
+                    HStack(spacing: 6) {
+                        Image(systemName: detail.glyph)
+                            .font(.system(size: 11, weight: .semibold))
+                        Text(detail.badgeLabel)
+                            .font(.mono(11))
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(Hue.inkSecondary)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(
+                        Hue.fill,
+                        in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    )
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(detail.groupAccessibilityLabel)
+
+                Spacer(minLength: 4)
+
+                Button {
+                    Haptics.light()
+                    withAnimation(Motion.card) {
+                        mapDetail = nil
+                    }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Hue.ink)
+                        .frame(width: 36, height: 36)
+                        .background(
+                            Hue.fill,
+                            in: RoundedRectangle(
+                                cornerRadius: Radius.button,
+                                style: .continuous
+                            )
+                        )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close place details")
+            }
+
+            HStack(spacing: 10) {
+                Button {
+                    Haptics.light()
+                    if let url = detail.directionsURL { openURL(url) }
+                } label: {
+                    Label("Directions", systemImage: "arrow.triangle.turn.up.right.diamond")
+                        .font(.sansSemibold(15))
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: 44)
+                }
+                .buttonStyle(MapDetailActionStyle(role: .primary))
+                .accessibilityLabel("Directions to \(detail.name)")
+
+                Button {
+                    if isSaved { Haptics.light() } else { Haptics.success() }
+                    saved.toggle(detail.saveID)
+                } label: {
+                    HStack(spacing: 7) {
+                        Image(systemName: "bookmark")
+                            .foregroundStyle(isSaved ? Hue.accent : Hue.ink)
+                        Text("Save")
+                            .foregroundStyle(Hue.ink)
+                    }
+                    .font(.sansSemibold(15))
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 44)
+                }
+                .buttonStyle(MapDetailActionStyle(role: isSaved ? .selected : .neutral))
+                .accessibilityLabel(
+                    isSaved
+                        ? "Remove \(detail.name) from saved places"
+                        : "Save \(detail.name)"
+                )
+                .accessibilityAddTraits(isSaved ? .isSelected : [])
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 9)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .contain)
+    }
+}
+
+/// Compact square-corner-family action used only inside the morphed map detail.
+/// Directions is always the primary plum CTA; Save takes plum only while active.
+private enum MapDetailActionRole {
+    case primary
+    case selected
+    case neutral
+}
+
+private struct MapDetailActionStyle: ButtonStyle {
+    let role: MapDetailActionRole
+
+    private var foreground: Color {
+        switch role {
+        case .primary:  return Hue.surface
+        case .selected, .neutral: return Hue.ink
+        }
+    }
+
+    private var background: Color {
+        switch role {
+        case .primary:            return Hue.accent
+        case .selected, .neutral: return Hue.fill
+        }
+    }
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(foreground)
+            .background(
+                background.opacity(configuration.isPressed ? 0.78 : 1),
+                in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
+                    .stroke(role == .selected ? Hue.accent : .clear, lineWidth: 1.5)
+            }
     }
 }
