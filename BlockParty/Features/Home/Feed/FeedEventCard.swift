@@ -34,8 +34,6 @@ struct FeedEventCard: View {
     @State private var burstGeneration = 0
     @State private var autoplayStep = 0
     @State private var autoplayJoinPressed = false
-    @GestureState private var cardIsPressed = false
-
     init(
         item: FeedCardItem,
         comments: [EventComment] = [],
@@ -77,14 +75,6 @@ struct FeedEventCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
-        .scaleEffect(motionIsReduced ? 1 : (cardIsPressed ? 0.98 : 1))
-        .animation(
-            motionIsReduced
-                ? nil
-                : .spring(response: 0.3, dampingFraction: 0.7),
-            value: cardIsPressed
-        )
-        .simultaneousGesture(cardPressGesture)
         .sheet(isPresented: $commentsPresented) {
             FeedCommentSheet(
                 commentState: $commentState,
@@ -225,7 +215,7 @@ struct FeedEventCard: View {
                 .offset(y: 22)
         }
         .contentShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
-        .gesture(TapGesture(count: 2).onEnded(performImageLike))
+        .simultaneousGesture(TapGesture(count: 2).onEnded(performImageLike))
         // Reserve the lower half of the overlapping join block before the social row.
         .padding(.bottom, 22)
     }
@@ -382,13 +372,6 @@ struct FeedEventCard: View {
 
     private var motionIsReduced: Bool {
         accessibilityReduceMotion
-    }
-
-    private var cardPressGesture: some Gesture {
-        LongPressGesture(minimumDuration: 0, maximumDistance: 16)
-            .updating($cardIsPressed) { isPressing, state, _ in
-                state = isPressing
-            }
     }
 
     private func performJoinTap() {
