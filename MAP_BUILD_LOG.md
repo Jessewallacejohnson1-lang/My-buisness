@@ -1282,3 +1282,38 @@ the conservative full-width label reservation is not visually too sparse.
 **Verified:** iPhone 17 simulator (iOS 26.5), scheme `BlockParty`, Debug:
 **BUILD SUCCEEDED, 0 warnings, 0 errors**. Static review confirms the reservation order remains
 chrome → rendered bubbles → all badges → selected label → non-selected labels.
+
+## 2026-07-23 — Brand logos on POI pins (`feat/poi-logos`)
+
+Businesses with a real brand mark now show it instead of the category glyph — inside the
+expanded 26pt pin circle (inset 3pt so the hairline keyline stays the outer edge), the 34pt
+selected marker (fill flips to `MarkerRole.selectedPOILogoFill` = surface, since a mark can't
+sit on mid grey; ring/halo/shadow keep carrying selection), and the 40pt in-bar detail header.
+Compact 12pt dots and cluster bubbles unchanged. Glyph remains the designed fallback.
+
+- **Backend:** `places.logo_url` + public `place-logos` Storage bucket (admin-gated writes),
+  migration `20260723000000_places_logo.sql`, applied live.
+- **App:** `POILogoCache` (MainActor, `@Published [URL: UIImage]`, own URLSession + URLCache
+  4/50 MB, `.returnCacheDataElseLoad` — logos immutable per URL) prefetched once after
+  `loadPlaces()`; **no AsyncImage** — annotation views rebuild constantly during pan/cluster
+  churn and AsyncImage would flash its placeholder each rebuild, so pins do a synchronous dict
+  lookup and render final state on first frame. `POILogoCircle` renders nothing when absent so
+  each call site keeps its glyph as the fallback layer (one-line integrations).
+- **Curation pipeline:** `scripts/fetch_place_logos.py` (candidate ladder: apple-touch-icon →
+  square-ish og:image → largest link-icon → favicon.ico → Google favicon; auto-reject <96px /
+  extreme aspect / near-blank; normalize to 256px white-padded square) run by 4 parallel Codex
+  agents + a rescue round, then **strict Claude vision verification** (right business's mark ·
+  crisp · reads in a 26pt circle crop) over PIL montages. **53 of 91 places approved**; the 38
+  misses are genuinely logo-less small businesses → glyph fallback. Provenance:
+  `docs/place-logos-manifest.json`. Google Places used transiently for websiteUri only —
+  no Places content persisted (ToS).
+- **DEBUG:** `-poi-logo-stub` renders deterministic code-drawn marks for headless verification.
+
+**Verified:** iPhone 17 Pro simulator (iOS 26.5), scheme `BlockParty`, Debug:
+**BUILD SUCCEEDED, 0 warnings, 0 errors.** Screenshot matrix with `-poi-logo-stub`: logos in
+expanded pins (hairline intact, labels beside), compact dots + clusters unchanged (regression),
+selected marker + detail header logo, and glyph fallback without the flag.
+
+**Pending:** Storage upload of the 53 PNGs + `logo_url` UPDATE needs either the service-role
+key in env (`SUPABASE_SERVICE_ROLE_KEY`) or a one-shot approved temp policy — then a live-data
+re-screenshot + design polish pass.
