@@ -342,14 +342,20 @@ def contact_sheet(manifests: list[Path]) -> None:
 
 # ---------- main ----------
 
-def import_candidate(uuid: str, src: str, kind: str) -> None:
-    """Agent-found logo (URL or local file) through the same filter + normalize path."""
+def import_candidate(uuid: str, src: str, kind: str, relax: bool = False) -> None:
+    """Agent-found logo (URL or local file) through the same filter + normalize path.
+
+    `relax` drops the aspect cap (a wide wordmark IS many businesses' real mark —
+    it pads to a square and reads small-but-present in the pin, which the product
+    prefers over a bare glyph) while keeping the min-size and blank checks."""
     data = http_get(src) if src.startswith("http") else Path(src).read_bytes()
     img = load_image(data)
     if img is None:
         sys.exit(f"[rejected] {uuid}: not decodable")
     flat = flatten_white(img)
     reason = reject_reason(flat, kind)
+    if reason and relax and ("aspect" in reason or "square-ish" in reason):
+        reason = None
     if reason:
         sys.exit(f"[rejected] {uuid}: {reason}")
     APPROVED.mkdir(parents=True, exist_ok=True)
@@ -372,11 +378,13 @@ def main() -> None:
     ap.add_argument("--import", dest="import_args", nargs=2, metavar=("UUID", "URL_OR_PATH"),
                     help="run an agent-found logo through the same filter+normalize path")
     ap.add_argument("--kind", default="agent-hunt", help="source label for --import")
+    ap.add_argument("--relax", action="store_true",
+                    help="--import only: drop the aspect cap (pad wordmarks to square)")
     args = ap.parse_args()
 
     OUT.mkdir(parents=True, exist_ok=True)
     if args.import_args:
-        import_candidate(args.import_args[0], args.import_args[1], args.kind)
+        import_candidate(args.import_args[0], args.import_args[1], args.kind, relax=args.relax)
         return
     if args.contact_sheet:
         contact_sheet(sorted(OUT.glob("manifest*.json")))

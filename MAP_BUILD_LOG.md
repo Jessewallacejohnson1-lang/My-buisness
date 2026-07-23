@@ -1425,3 +1425,23 @@ every exit path clears it), morph return-to-4-icons clean (no `matchedGeometryEf
 the `MapSheet` gut left no dead code, and Issues 1 & 2 are unaffected. The live morph animation
 and browse-state preservation are confirmed by code review + on-device (not sim-automatable).
 Build: 0 warnings, 0 errors.
+
+## 2026-07-23 (later) — Representative marks for (almost) every pin
+
+Product call from Jesse: every POI should carry an image representing what it is — not
+only strict brand marks. Round 2 relaxed the policy: own wordmarks/abstract marks count
+(provenance from the business's own site/page is identity proof), and PARENT-institution
+logos stand in where that's the identity (CSB lockup for the Benedicta Arts Center
+galleries, the monastery mark for Whitby Gift Shop). `--relax` on the import path drops
+the aspect cap so wide wordmarks pad to square. Two Codex agents re-hunted the 38 missing;
+a vision pass (relaxed but sane) approved 24 and rejected 5 building/interior photos that
+smear to noise in a 26pt circle. **77 of 91 places now carry a mark**; the final 14 have
+no owned mark anywhere (closed businesses, avatar-less FB pages) and keep the glyph.
+
+Known tradeoff, accepted deliberately: extreme-aspect wordmarks (Unwind, CSB) read faint
+at 26pt pin size — fine at the 44pt detail-panel avatar. If a specific pin bothers, the
+fix is a hand-cropped monogram import for that row, not a policy change.
+
+**Verified:** live data on iPhone 17 Pro sim — round-2 marks render on pins + detail panel;
+bucket = 77 objects, `places.logo_url` = 77 rows; provenance regenerated in
+`docs/place-logos-manifest.json`.

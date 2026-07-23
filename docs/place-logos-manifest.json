@@ -1,7 +1,7 @@
 {
   "generated": "2026-07-23",
-  "pipeline": "scripts/fetch_place_logos.py + 4 Codex hunt agents + Claude vision verification (strict, 2 rounds)",
-  "approved": 53,
+  "pipeline": "fetch_place_logos.py + Codex hunt agents (2 rounds: strict brand-mark, then relaxed representative-mark incl. parent-institution logos) + Claude vision verification",
+  "approved": 77,
   "places": 91,
   "entries": [
     {
@@ -15,10 +15,10 @@
     {
       "id": "5be29c95-5f5d-45aa-83b0-0f591916b4ee",
       "name": "AMS Tax & Accounting Solutions, PA",
-      "status": "missing",
-      "candidate": null,
-      "source_url": null,
-      "source_px": null
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "file:build/place-logos/ams-logo-source",
+      "source_px": "2000x2000"
     },
     {
       "id": "cf3c7388-f4ab-4522-ae1d-3d2a018c69a5",
@@ -103,10 +103,10 @@
     {
       "id": "3a9a0946-ad17-4d83-9883-6f245a032569",
       "name": "Central MN Realty",
-      "status": "missing",
-      "candidate": null,
-      "source_url": null,
-      "source_px": null
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://www.centralmnrealty.com/wp-content/uploads/2020/09/cropped-favicon-180x180.png",
+      "source_px": "180x180"
     },
     {
       "id": "fa4b334d-2a48-4f99-94eb-1ac8ea764367",
@@ -127,10 +127,10 @@
     {
       "id": "20b5fabb-0c41-438d-840a-ce8da5d6d6e4",
       "name": "CMS Autobody",
-      "status": "missing",
-      "candidate": null,
-      "source_url": null,
-      "source_px": null
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://static.wixstatic.com/media/f2688e_2c68743ef36f453ba975d0589b7d7a5f~mv2_d_4032_3024_s_4_2.jpg",
+      "source_px": "4032x3024"
     },
     {
       "id": "cbd3dec1-e1ed-4aa7-b32d-a02f7ae4ff8d",
@@ -151,26 +151,26 @@
     {
       "id": "cc5cf7ef-2f3a-477f-a1e2-f26c4fd4178e",
       "name": "CSB Benedicta Arts Center Galleries (Gorecki Gallery)",
-      "status": "missing",
-      "candidate": null,
-      "source_url": null,
-      "source_px": null
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://www.csbsju.edu/wp-content/uploads/2024/06/CSBSJU_Logo_Lockup.png",
+      "source_px": "2856x386"
     },
     {
       "id": "23dd1b61-a5ae-4fb3-bb1e-af98c921ae55",
       "name": "Daisy A Day Floral & Gift",
-      "status": "missing",
-      "candidate": null,
-      "source_url": null,
-      "source_px": null
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://scontent.cdninstagram.com/v/t51.82787-19/629149903_18410074102193564_6874744449854238803_n.jpg?stp=dst-jpg_s100x100_tt6&_nc_cat=101&ccb=7-5&_nc_sid=bf7eb4&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy4xMDI0LkMzIn0%3D&_nc_ohc=z3WVnoFJstQQ7kNvwFwDcAU&_nc_oc=AdpTh2wrrcfw8TFxOr92Jk9V2ERTVdzY4nb3gauphsfJIkf8QCfot6PM4sUKbSQSbR1VixAJhDUNNFwu2d1Sqqkq&_nc_zt=24&_nc_ht=scontent.cdninstagram.com&_nc_gid=sacfgOXiGOo1TPWljiFxhQ&_nc_ss=7f60f&oh=00_AQCqMB8NinCC9l7_YpHpRQzBVCTiXlwp81dVDBtk0XIxIw&oe=6A683BA8",
+      "source_px": "100x100"
     },
     {
       "id": "012f809a-029a-426e-8440-4f55ed50d41e",
       "name": "Exponential Chiropractic Healing Center",
-      "status": "missing",
-      "candidate": null,
-      "source_url": null,
-      "source_px": null
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://www.exponentialchiropractic.com/img/site_assets/logo.png",
+      "source_px": "800x200"
     },
     {
       "id": "f974053c-c39a-4bb3-a6ef-bf163d232b7f",
@@ -183,10 +183,10 @@
     {
       "id": "c10adb95-4e83-4b9a-95c5-f96178dad197",
       "name": "Floral Arts Inc.",
-      "status": "missing",
-      "candidate": null,
-      "source_url": null,
-      "source_px": null
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://asset.bloomnation.com/c_fit%2Cdpr_1%2Cf_auto%2Ch_1000%2Cq_auto%2Cw_1000/v1/vendor/7379/profile/20190617094128_file_5d080908b7e20.png",
+      "source_px": "1000x434"
     },
     {
       "id": "fed769b6-ec34-4cc6-bb05-8e7016e79aec",
@@ -199,10 +199,10 @@
     {
       "id": "971d058c-e779-44e5-a133-bd4fc2d08b8b",
       "name": "Gary's Pizza",
-      "status": "missing",
-      "candidate": null,
-      "source_url": null,
-      "source_px": null
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://graph.facebook.com/GarysPizzaMN/picture?type=large&redirect=true",
+      "source_px": "480x480"
     },
     {
       "id": "21e97746-5906-433f-8322-76fdb267b86a",
@@ -223,10 +223,10 @@
     {
       "id": "13db727c-f385-43ab-a67d-8cb534833563",
       "name": "Groundsman LLC",
-      "status": "missing",
-      "candidate": null,
-      "source_url": null,
-      "source_px": null
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://graph.facebook.com/GroundsmanLLC/picture?type=large&redirect=true",
+      "source_px": "480x480"
     },
     {
       "id": "8e61e7d8-f5aa-426e-9325-bebb2875cae9",
@@ -247,10 +247,10 @@
     {
       "id": "0afa5fe5-4429-482c-9a66-1babcadb17ab",
       "name": "Heim-kins Rescued Treasures",
-      "status": "missing",
-      "candidate": null,
-      "source_url": null,
-      "source_px": null
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://graph.facebook.com/445632982261414/picture?type=large&redirect=true",
+      "source_px": "480x480"
     },
     {
       "id": "4600a722-e962-4182-ad2a-035c04de3b74",
@@ -335,10 +335,10 @@
     {
       "id": "b21d44d8-e28f-4b4e-8a7d-65eed035eb31",
       "name": "Kensington Bank",
-      "status": "missing",
-      "candidate": null,
-      "source_url": null,
-      "source_px": null
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://graph.facebook.com/446509739212876/picture?type=large&redirect=true",
+      "source_px": "480x480"
     },
     {
       "id": "e70d7fad-c801-48f5-b874-2191defaf9b5",
@@ -359,18 +359,18 @@
     {
       "id": "1f6263f8-77cb-4e9a-a767-c8326723e9c3",
       "name": "La Playette Bar",
-      "status": "missing",
-      "candidate": null,
-      "source_url": null,
-      "source_px": null
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://laplayette.com/media/LaLogo2025_transparent_40d908f9.png",
+      "source_px": "791x511"
     },
     {
       "id": "c14fa998-6e8e-4a83-935e-6b288045bfe4",
       "name": "Laser Dentistry",
-      "status": "missing",
-      "candidate": null,
-      "source_url": null,
-      "source_px": null
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://www.laserdentistrymn.com/wp-content/themes/charlie-child/images/logo.png",
+      "source_px": "281x149"
     },
     {
       "id": "a5cd14e5-24b9-4d32-b57f-accb06cfdf1c",
@@ -455,10 +455,10 @@
     {
       "id": "a6e854dd-632e-4e84-a6e5-2ce40c753af5",
       "name": "Omann Insurance Agency, LLC",
-      "status": "missing",
-      "candidate": null,
-      "source_url": null,
-      "source_px": null
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "file:build/place-logos/candidates/omann-round2-logo-padded2.png",
+      "source_px": "425x96"
     },
     {
       "id": "b4af59d7-0006-4fb7-8ff9-b79bb2e380c4",
@@ -503,10 +503,10 @@
     {
       "id": "fea5593e-15d0-446e-85b0-4bbc42dbda0c",
       "name": "Sentry Bank",
-      "status": "missing",
-      "candidate": null,
-      "source_url": null,
-      "source_px": null
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://graph.facebook.com/188966251134871/picture?type=large&redirect=true",
+      "source_px": "180x180"
     },
     {
       "id": "e47c4da2-b44f-44d2-af68-adb8181634b1",
@@ -543,18 +543,18 @@
     {
       "id": "f2f87782-f065-4a9b-b812-45f1bd27757e",
       "name": "St. Joseph Health & Wellness, LLC",
-      "status": "missing",
-      "candidate": null,
-      "source_url": null,
-      "source_px": null
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://graph.facebook.com/St.JosephHealthandWellness/picture?width=512&height=512",
+      "source_px": "360x360"
     },
     {
       "id": "c9038816-1498-4bf2-8724-d726040b608c",
       "name": "St. Joseph Veterinary Clinic",
-      "status": "missing",
-      "candidate": null,
-      "source_url": null,
-      "source_px": null
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://graph.facebook.com/906194649584006/picture?type=large&redirect=true",
+      "source_px": "480x480"
     },
     {
       "id": "448b008c-6c70-4591-b3e6-f094d6e41899",
@@ -575,10 +575,10 @@
     {
       "id": "afb922c5-2d75-4704-8179-5c6043323627",
       "name": "The Estates Bed & Breakfast",
-      "status": "missing",
-      "candidate": null,
-      "source_url": null,
-      "source_px": null
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "file:build/place-logos/candidates/estates-round2-wordmark-crop.png",
+      "source_px": "1100x300"
     },
     {
       "id": "7a27d0a0-126d-412c-871d-20a531a8ba72",
@@ -591,10 +591,10 @@
     {
       "id": "ed7a8833-6520-42b5-8eda-b11694731209",
       "name": "The Local Blend",
-      "status": "missing",
-      "candidate": null,
-      "source_url": null,
-      "source_px": null
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://thelocalblend.net/wp-content/uploads/2025/02/footer-logo-1.png",
+      "source_px": "500x500"
     },
     {
       "id": "ef33e2f0-a5e6-47da-b91f-23f2142adcd3",
@@ -607,10 +607,10 @@
     {
       "id": "b69f0ecb-e938-45a8-861b-87ce92a01710",
       "name": "The Newsleaders",
-      "status": "missing",
-      "candidate": null,
-      "source_url": null,
-      "source_px": null
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://thenewsleaders.com/wp-content/uploads/2024/05/Newsleaders-logo.jpg",
+      "source_px": "1200x628"
     },
     {
       "id": "8cd01a3f-1441-4c1d-9aef-81419a6a75f0",
@@ -639,10 +639,10 @@
     {
       "id": "10d6b505-b952-4b17-a1ba-64b7affe7338",
       "name": "TireMaxx Service Centers",
-      "status": "missing",
-      "candidate": null,
-      "source_url": null,
-      "source_px": null
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://tiremaxx.com/wp-content/themes/tiremaxx/img/tiremaxx-logo.png",
+      "source_px": "369x103"
     },
     {
       "id": "75afbf0c-cb83-462b-8d38-5890d9cd0f06",
@@ -671,18 +671,18 @@
     {
       "id": "e945c8d1-4575-4151-a415-db3403b0c54b",
       "name": "Unwind: Collaborative Healing Center",
-      "status": "missing",
-      "candidate": null,
-      "source_url": null,
-      "source_px": null
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://static.wixstatic.com/media/c1f053_64188c1cbc2245f2ac2bd567f437eb6c~mv2.png",
+      "source_px": "4728x1501"
     },
     {
       "id": "32654a5c-2f31-460d-b750-fe559b7f3d4c",
       "name": "Uptown Styles",
-      "status": "missing",
-      "candidate": null,
-      "source_url": null,
-      "source_px": null
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://irp.cdn-website.com/dce7c5df/dms3rep/multi/Logo_Small__200_200__200x200.png",
+      "source_px": "200x200"
     },
     {
       "id": "16b7e598-78b2-4b10-a95b-e03958879fe0",
@@ -695,10 +695,10 @@
     {
       "id": "bc27d1cb-ec01-4a70-a084-9948376f8a2a",
       "name": "Whitby Gift Shop & Gallery",
-      "status": "missing",
-      "candidate": null,
-      "source_url": null,
-      "source_px": null
+      "status": "approved",
+      "candidate": "agent-round2",
+      "source_url": "https://sbm.osb.org/wp-content/uploads/2023/06/logo02.png",
+      "source_px": "340x156"
     },
     {
       "id": "606a751d-98e2-4f3a-8926-a1d3966592e0",
