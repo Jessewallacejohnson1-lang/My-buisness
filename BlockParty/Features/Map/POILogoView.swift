@@ -9,6 +9,29 @@
 
 import SwiftUI
 
+/// Detail-panel variant: contributes NO layout element while unresolved (EmptyView
+/// branch), so the panel's HStack spacing collapses cleanly for logo-less places —
+/// the compact header shows a logo avatar or nothing, never a blank circle.
+struct POIPanelLogo: View {
+    let poi: POI
+    let diameter: CGFloat
+
+    @ObservedObject private var cache = POILogoCache.shared
+
+    var body: some View {
+        if let image = cache.resolvedImage(for: poi) {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: diameter, height: diameter)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(Hue.hairline, lineWidth: 1))
+                .transition(.opacity)
+                .accessibilityHidden(true)   // decorative; the name is announced beside it
+        }
+    }
+}
+
 struct POILogoCircle: View {
     let poi: POI
     let diameter: CGFloat

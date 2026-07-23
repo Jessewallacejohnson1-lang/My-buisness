@@ -1323,3 +1323,105 @@ pins, color arrives only as real business identity, mono value ladder intact —
 needed. Gotcha for the record: the first live screenshots showed no logos because a parallel
 session had installed ITS build over this one on the shared booted sim (same bundle id) —
 **reinstall your own .app right before screenshotting when sims are shared.**
+## 2026-07-23 — Issue 2: continuous MapSheet drag/scroll handoff
+
+- Moved the vertical drag recognizer from the grabber to the whole sheet while preserving the
+  grabber as an unconditional sheet-drag region. At non-full detents the sheet owns vertical
+  movement. At full, the active inner ScrollView owns normal scrolling until a downward drag
+  begins or arrives at its top; ownership then latches to the sheet and disables that scroller.
+- Each of the list, spot-detail, and POI-detail scrollers reports only a top/not-top Bool through
+  `onScrollGeometryChange`. A mid-gesture scroll→sheet handoff records the exact translation where
+  the top was reached, so the sheet continues from zero without a jump or double reaction.
+- Sheet tracking uses `Motion.interactive`; release projects `predictedEndTranslation` to the
+  nearest existing detent and settles with `Motion.sheet`. A fast downward velocity overrides the
+  nearest stop and collapses to peek, including after a mid-drag direction reversal. Reduce Motion
+  continues to route through `Motion.smooth`.
+
+**Verified:** iPhone 17 simulator (iOS 26.5), scheme `BlockParty`, Debug:
+**BUILD SUCCEEDED, 0 warnings, 0 errors**. `-show-home -open-tab map -map-detent
+peek|medium|full` launches were screenshot-checked at all three rest states; the original
+peek⇄list `p` cross-fade and unified sheet/tab-bar glass remained intact. The verification build
+used the repository's Xcode 26.5 AppIntents metadata-warning workaround:
+
+`xcodebuild -project /Users/owner/Documents/block-party-map-polish/BlockParty.xcodeproj -scheme
+BlockParty -configuration Debug -skipMacroValidation -destination "platform=iOS
+Simulator,id=661E32C7-985C-458F-9CA7-6759114CADE8" -collect-test-diagnostics never
+-derivedDataPath /Users/owner/Library/Developer/XcodeBuildMCP/workspaces/block-party-map-polish-8d94ea1f7730/DerivedData/BlockParty-644c7251adb7
+CODE_SIGNING_ALLOWED=NO "OTHER_LDFLAGS=$(inherited) -framework AppIntents" build`
+
+**On-device limit:** simulator automation cannot reliably exercise the interactive pan. Human QA
+must confirm immediate 1:1 downward tracking at scroll top, normal full-height content scrolling
+away from top, seamless same-gesture handoff on reaching top, and fast downward flick-to-peek from
+each height (including after reversing mid-drag).
+
+## 2026-07-23 — Issue 2 cancellation + tap-race follow-up
+
+- Added an auto-resetting `@GestureState` lifecycle flag. Its active→inactive transition calls
+  `resetDrag()`, so cancellation clears the offset, owner, and handoff even when `onEnded` is not
+  delivered; at full, that also immediately re-enables the active ScrollView.
+- Kept the outer recognizer at 1pt, but finishes below an 8pt effective vertical translation now
+  reset without entering `snap`, leaving peek/list/segment/row taps authoritative.
+
+**Verified:** iPhone 17 simulator (iOS 26.5), scheme `BlockParty`, Debug:
+**BUILD SUCCEEDED, 0 warnings, 0 errors**.
+
+## 2026-07-23 — Issue 3: tab bar morphs into map place detail
+
+- Lifted map selection into `MainTabsView` as one typed `MapPlaceDetail?`. The enum carries the
+  source `Spot` or `POI`; `SJMapView` derives its existing selected civic/POI state from that
+  binding and routes direct pins, list focus, debug preselection, X, map-background taps, filter
+  dismissal, and camera release through the same value.
+- Kept `BlockPartyTabBar` as one persistent `.glassEffect(.regular)` shell with the existing
+  26pt continuous radius. It conditionally swaps the four tab buttons for the compact name,
+  category/distance badge, Directions, Save, and X content while its container size settles with
+  `Motion.sheet`; Reduce Motion uses an opacity-only content transition with `Motion.smooth`.
+- Removed `MapSheet`'s civic/POI detail renderers and selection-driven medium-detent lifts. While
+  a place is selected the browse sheet is removed from the glass compositor (opacity alone left
+  extracted Liquid Glass child text visible); close restores its unchanged Today/Places peek.
+  The selected camera reserve is now 206pt, capped for short layouts, instead of half the map.
+- Civic details show their real category and coordinate-derived distance from downtown. POIs show
+  their real `PlaceFamily` category, glyph, and coordinate-derived distance. Neither source model
+  has price data, so price is omitted rather than invented. Directions is the plum-filled primary
+  CTA; active Save uses a plum bookmark/keyline plus the selected accessibility trait.
+- VoiceOver exposes the labeled place heading, X, Directions, and Save separately. The other tab
+  buttons return after close, and an Activities round-trip confirmed normal non-detail tab
+  navigation is unchanged.
+
+**Verified:** iPhone 17 simulator (iOS 26.5), scheme `BlockParty`, Debug:
+
+`xcodebuild -project /Users/owner/Documents/block-party-map-polish/BlockParty.xcodeproj -scheme
+BlockParty -configuration Debug -skipMacroValidation -destination "platform=iOS
+Simulator,id=661E32C7-985C-458F-9CA7-6759114CADE8" -collect-test-diagnostics never
+-derivedDataPath /Users/owner/Library/Developer/XcodeBuildMCP/workspaces/block-party-map-polish-8d94ea1f7730/DerivedData/BlockParty-644c7251adb7
+CODE_SIGNING_ALLOWED=NO "OTHER_LDFLAGS=$(inherited) -framework AppIntents" build`
+
+Result: **BUILD SUCCEEDED, 0 warnings, 0 errors** (including a raw-log
+`warning:`/`error:` scan). Screenshot-checked `-open-tab map -map-open downtown`,
+`-open-tab map -map-zoom 16 -map-open-poi`, and plain `-open-tab map`. Simulator
+interaction confirmed X and blank-map taps restore the four-icon bar/peek sheet, active Save is
+plum and selected, and the sheet's peek still opens its Today/Places medium list.
+
+**Tradeoff for review:** pin taps no longer surface the richer in-sheet happenings, address,
+Google venue info, or civic blurb. The compact morph intentionally limits tap detail to identity,
+category/distance, Directions, and Save; Today/Places browsing remains in `MapSheet`.
+
+### Follow-up fixes (post-review, 2026-07-23)
+
+- **Browse state preserved.** `MapSheet`'s `detent`/`mode` were lifted into `SJMapView` as
+  `@State` and passed back as bindings, so opening a place and closing it returns the browse
+  sheet to its exact prior detent + Today/Places mode (previously the unmount/remount reset it
+  to peek/Today).
+- **Camera reserve content-driven.** The selected-pin camera clearance now uses a
+  `@ScaledMetric(relativeTo: .title3)` 250pt two-line baseline (160pt floor, `containerH*0.36`
+  cap) instead of a fixed 206pt, so a 2-line name / large Dynamic Type doesn't hide the pin
+  behind the taller detail bar.
+- **Degenerate distance suppressed.** A sub-30m distance (e.g. the downtown spot measured from
+  the town-center reference) is dropped from the badge + VoiceOver rather than reading a
+  self-distance.
+- **X-close animated** with `Motion.card` to match the map-tap close curve.
+
+Independently reviewed (no CRITICAL/HIGH): selection lifecycle robust (single source of truth,
+every exit path clears it), morph return-to-4-icons clean (no `matchedGeometryEffect` collision),
+the `MapSheet` gut left no dead code, and Issues 1 & 2 are unaffected. The live morph animation
+and browse-state preservation are confirmed by code review + on-device (not sim-automatable).
+Build: 0 warnings, 0 errors.
