@@ -1314,6 +1314,12 @@ Compact 12pt dots and cluster bubbles unchanged. Glyph remains the designed fall
 expanded pins (hairline intact, labels beside), compact dots + clusters unchanged (regression),
 selected marker + detail header logo, and glyph fallback without the flag.
 
-**Pending:** Storage upload of the 53 PNGs + `logo_url` UPDATE needs either the service-role
-key in env (`SUPABASE_SERVICE_ROLE_KEY`) or a one-shot approved temp policy — then a live-data
-re-screenshot + design polish pass.
+**Shipped live (same day):** 53 PNGs uploaded via a user-approved, immediately-dropped temp
+insert policy (bucket writes are admin-only again; 53 objects verified), `logo_url` set from
+the uploaded object names in one UPDATE. Live-data screenshots verified: Bad Habit's roundel
+in its 26pt pin, Krewe's "K" in the selected marker + detail header, glyph fallback elsewhere.
+Design pass (emil-design-eng + impeccable): white-padded logos blend into the surface-filled
+pins, color arrives only as real business identity, mono value ladder intact — no desaturation
+needed. Gotcha for the record: the first live screenshots showed no logos because a parallel
+session had installed ITS build over this one on the shared booted sim (same bundle id) —
+**reinstall your own .app right before screenshotting when sims are shared.**
