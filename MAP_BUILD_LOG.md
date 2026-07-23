@@ -1228,3 +1228,57 @@ Three of the Design Director's six open items fixed; three left, with reasons.
   roughly the same intensity (worst pixel `#E3F8D6` → `#E5F8D8`), there are just far fewer of
   them. A higher floor would finish the job but stops the peek band reading as the same glass as
   the tab bar it merges into, which is the whole point of Phase B.
+
+## 2026-07-23 — Issue 1: civic landmarks join clusters; cluster-first labels
+
+- **One clustering input set below `pinExpandZoom`.** POIs and the filtered civic landmarks now
+  enter `POICluster.compute` through namespaced ids. The radius pass remains deterministic, then
+  any collapsed-band singleton joins its nearest real group: every finite, non-selected marker
+  is assigned once and counted once. At/above 14.5, civic inputs are withheld from grouping and
+  receive explicit solo assignments, so the always-mounted civic leaves de-cluster back to their
+  real anchors.
+- **Selection and live state.** The selected civic or POI id is excluded before grouping and is
+  never included in a bubble count. Live civic pins are absorbed (no live orphan); the aggregate
+  gets a palette-routed static live ring plus a truthful VoiceOver suffix, refreshed when events
+  or the minute heartbeat changes.
+- **Cluster-first collision geometry.** Removed the civic keep-away offsets and reversed the
+  annotation priority to cluster > selected > unselected. One label pass now covers both catalogs:
+  rendered bubbles (including dissolving ones) reserve first, then every visible badge, then the
+  selected label, then remaining labels by distance to the camera focus. It reserves the full
+  100pt/two-line label ceiling plus halo, and retains a conservative count diameter during count
+  crossfades.
+- **Continuous merge/split.** POI and civic markers share one isolated leaf motion wrapper using
+  `CLUSTER_SPRING`. It retains the old cluster anchor through a split, fixing the one-frame return
+  pop; counts crossfade with `Motion.smooth`. Reduce Motion removes travel/scale and crossfades
+  leaf ↔ bubble instead. Marker, label, selection, and live colors remain routed through
+  `MarkerRole`.
+
+**Verified:** iPhone 17 simulator (iOS 26.5), scheme `BlockParty`, Debug:
+
+`xcodebuild -project /Users/owner/Documents/block-party-map-polish/BlockParty.xcodeproj -scheme BlockParty -configuration Debug -skipMacroValidation -destination "platform=iOS Simulator,id=661E32C7-985C-458F-9CA7-6759114CADE8" -collect-test-diagnostics never -derivedDataPath /Users/owner/Library/Developer/XcodeBuildMCP/workspaces/block-party-map-polish-8d94ea1f7730/DerivedData/BlockParty-644c7251adb7 "OTHER_LDFLAGS=$(inherited) -framework AppIntents" build`
+
+Result: **BUILD SUCCEEDED, 0 warnings, 0 errors**. The command-line AppIntents link is verification
+only (no project-file change); it suppresses Xcode 26.5's otherwise unconditional metadata-tool
+"No AppIntents.framework dependency found" warning, while the normal build also reports zero source
+diagnostics.
+
+**Geometry audit:** at z11 and z13, `forceAllIntoClusters` leaves no finite non-selected civic or
+POI assignment solo, so no civic dot can remain on/near a bubble. At z15, every civic assignment is
+solo; bubble rectangles are reserved before all labels, every solo badge before any label, and each
+granted label is appended before the next candidate, so no non-selected label box can intersect a
+bubble, badge, or prior label by construction.
+
+**Honest limits:** no frame-sampled simulator motion/design pass was run. Design QA should watch the
+live 15→11→15 sweep for subjective spring feel and the aggregate live-ring treatment, and confirm
+the conservative full-width label reservation is not visually too sparse.
+
+## 2026-07-23 — Issue 1 adversarial-review follow-up
+
+- Restored label incumbency ahead of focus distance for non-selected candidates, reusing the
+  current labelled set across recomputes; non-finite focus distances normalize to `+∞`.
+- Guarded the collapsed-band fallback against selecting and appending a singleton group to itself.
+- Updated the stale live-color header note to point to `MonoMarkerPalette`'s role table.
+
+**Verified:** iPhone 17 simulator (iOS 26.5), scheme `BlockParty`, Debug:
+**BUILD SUCCEEDED, 0 warnings, 0 errors**. Static review confirms the reservation order remains
+chrome → rendered bubbles → all badges → selected label → non-selected labels.
