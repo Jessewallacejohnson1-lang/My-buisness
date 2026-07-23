@@ -203,6 +203,9 @@ enum SpotFilter: CaseIterable, Hashable {
 struct SJMapView: View {
     /// The source of truth lives in MainTabsView so the global tab shell can morph.
     @Binding var mapDetail: MapPlaceDetail?
+    /// Real happenings for the selected civic spot, projected out of this view's
+    /// `MapModel` for the global tab shell. Always empty for POIs or no selection.
+    @Binding var mapDetailHappenings: [TimelineEvent]
     /// Non-admins tap the top-right "+" into the global composer (admins get the
     /// map's own QuickAddSheet). Injected by MainTabsView, like HomeView.
     var onCompose: (() -> Void)? = nil
@@ -471,6 +474,7 @@ struct SJMapView: View {
         .onAppear {
             model.start(auth: auth)
             Haptics.prepare()
+            syncMapDetailHappenings()
             // A spot preselected at mount (deep link, or the DEBUG -map-open flag) frames
             // above the morphed detail shell, exactly as a direct pin tap would.
             if let s = selectedSpot { viewport = liftedViewport(s.coordinate, zoom: Self.selectZoom) }
@@ -494,6 +498,8 @@ struct SJMapView: View {
         // bottom padding so the map re-settles level instead of staying jammed upward.
         .onChange(of: selectedSpot?.id) { _, id in if id == nil { releaseCameraLift() } }
         .onChange(of: selectedPOI?.id) { _, id in if id == nil { releaseCameraLift() } }
+        .onChange(of: mapDetail?.id) { _, _ in syncMapDetailHappenings() }
+        .onChange(of: model.todayEvents) { _, _ in syncMapDetailHappenings() }
         .sheet(isPresented: $quickAdding) {
             QuickAddSheet(spots: MapSpots.all)
         }
@@ -828,6 +834,14 @@ struct SJMapView: View {
     }
 
     // MARK: Actions
+
+    private func syncMapDetailHappenings() {
+        guard let spot = selectedSpot else {
+            mapDetailHappenings = []
+            return
+        }
+        mapDetailHappenings = events(at: spot)
+    }
 
     /// A camera viewport centered on `coord` with the compact morphed detail shell
     /// reserved as bottom padding. This replaces the old half-screen/medium-sheet lift:
