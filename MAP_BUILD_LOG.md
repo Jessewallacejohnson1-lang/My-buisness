@@ -1282,3 +1282,45 @@ the conservative full-width label reservation is not visually too sparse.
 **Verified:** iPhone 17 simulator (iOS 26.5), scheme `BlockParty`, Debug:
 **BUILD SUCCEEDED, 0 warnings, 0 errors**. Static review confirms the reservation order remains
 chrome → rendered bubbles → all badges → selected label → non-selected labels.
+
+## 2026-07-23 — Issue 2: continuous MapSheet drag/scroll handoff
+
+- Moved the vertical drag recognizer from the grabber to the whole sheet while preserving the
+  grabber as an unconditional sheet-drag region. At non-full detents the sheet owns vertical
+  movement. At full, the active inner ScrollView owns normal scrolling until a downward drag
+  begins or arrives at its top; ownership then latches to the sheet and disables that scroller.
+- Each of the list, spot-detail, and POI-detail scrollers reports only a top/not-top Bool through
+  `onScrollGeometryChange`. A mid-gesture scroll→sheet handoff records the exact translation where
+  the top was reached, so the sheet continues from zero without a jump or double reaction.
+- Sheet tracking uses `Motion.interactive`; release projects `predictedEndTranslation` to the
+  nearest existing detent and settles with `Motion.sheet`. A fast downward velocity overrides the
+  nearest stop and collapses to peek, including after a mid-drag direction reversal. Reduce Motion
+  continues to route through `Motion.smooth`.
+
+**Verified:** iPhone 17 simulator (iOS 26.5), scheme `BlockParty`, Debug:
+**BUILD SUCCEEDED, 0 warnings, 0 errors**. `-show-home -open-tab map -map-detent
+peek|medium|full` launches were screenshot-checked at all three rest states; the original
+peek⇄list `p` cross-fade and unified sheet/tab-bar glass remained intact. The verification build
+used the repository's Xcode 26.5 AppIntents metadata-warning workaround:
+
+`xcodebuild -project /Users/owner/Documents/block-party-map-polish/BlockParty.xcodeproj -scheme
+BlockParty -configuration Debug -skipMacroValidation -destination "platform=iOS
+Simulator,id=661E32C7-985C-458F-9CA7-6759114CADE8" -collect-test-diagnostics never
+-derivedDataPath /Users/owner/Library/Developer/XcodeBuildMCP/workspaces/block-party-map-polish-8d94ea1f7730/DerivedData/BlockParty-644c7251adb7
+CODE_SIGNING_ALLOWED=NO "OTHER_LDFLAGS=$(inherited) -framework AppIntents" build`
+
+**On-device limit:** simulator automation cannot reliably exercise the interactive pan. Human QA
+must confirm immediate 1:1 downward tracking at scroll top, normal full-height content scrolling
+away from top, seamless same-gesture handoff on reaching top, and fast downward flick-to-peek from
+each height (including after reversing mid-drag).
+
+## 2026-07-23 — Issue 2 cancellation + tap-race follow-up
+
+- Added an auto-resetting `@GestureState` lifecycle flag. Its active→inactive transition calls
+  `resetDrag()`, so cancellation clears the offset, owner, and handoff even when `onEnded` is not
+  delivered; at full, that also immediately re-enables the active ScrollView.
+- Kept the outer recognizer at 1pt, but finishes below an 8pt effective vertical translation now
+  reset without entering `snap`, leaving peek/list/segment/row taps authoritative.
+
+**Verified:** iPhone 17 simulator (iOS 26.5), scheme `BlockParty`, Debug:
+**BUILD SUCCEEDED, 0 warnings, 0 errors**.

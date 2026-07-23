@@ -28,6 +28,10 @@ private enum SheetDetent: CaseIterable { case peek, medium, full }
 /// The two list faces of the sheet (a spot detail temporarily overrides both).
 private enum SheetMode { case today, places }
 
+/// A vertical gesture belongs to exactly one surface at a time. `scroll` may hand
+/// off to `sheet` when a downward drag reaches the active ScrollView's top.
+private enum SheetDragOwner { case undecided, scroll, sheet }
+
 struct MapSheet: View {
     // Data (owned by MapModel / SJMapView; the sheet only reads)
     let events: [TimelineEvent]
@@ -110,7 +114,20 @@ struct MapSheet: View {
         return .peek
     }
 
-    @GestureState private var drag: CGFloat = 0
+    /// Finger translation applied to the sheet. Unlike the old grabber-only
+    /// GestureState, this is driven by a whole-sheet gesture whose ownership is
+    /// coordinated with the active inner ScrollView.
+    @State private var drag: CGFloat = 0
+    @State private var dragOwner: SheetDragOwner = .undecided
+    /// Unlike `onEnded`, GestureState resets when the recognizer is cancelled.
+    /// Observing that reset prevents stale drag ownership from disabling scrolling.
+    @GestureState private var dragGestureActive = false
+    /// If content reaches its top during a downward drag, the sheet begins at zero
+    /// from that exact point instead of jumping by the distance already scrolled.
+    @State private var dragHandoffTranslation: CGFloat = 0
+    @State private var listScrollAtTop = true
+    @State private var spotDetailScrollAtTop = true
+    @State private var poiDetailScrollAtTop = true
     /// Latest laid-out container height, so the drag-end snap can reason about the
     /// actual detent heights (they're derived from it). Updated off the layout pass.
     @State private var containerH: CGFloat = 0
@@ -185,6 +202,9 @@ struct MapSheet: View {
             // in one GlassEffectContainer (MainTabsView), so the sheet's glass and the
             // tab bar merge into a single continuous bottom shape.
             .glassEffect(.regular, in: Self.sheetShape)
+            // Observe the same vertical gesture across the whole sheet. The active
+            // ScrollView remains enabled only while it owns that gesture.
+            .simultaneousGesture(sheetDragGesture)
             .frame(maxHeight: .infinity, alignment: .bottom)
             .padding(.horizontal, 20)                 // match the tab bar's side insets
             .padding(.bottom, Self.tabBarReserve)      // rest flush on top of the tab bar
@@ -202,6 +222,9 @@ struct MapSheet: View {
         // Full is a drag-up away. A POI opens into the same in-bar detail, so it lifts too.
         .onChange(of: selected?.id) { _, id in if id != nil { detent = .medium } }
         .onChange(of: selectedPOI?.id) { _, id in if id != nil { detent = .medium } }
+        .onChange(of: dragGestureActive) { wasActive, isActive in
+            if wasActive && !isActive { resetDrag() }
+        }
         // onChange only fires on a transition; a spot/POI preselected at mount (e.g. the
         // `-map-open` / `-map-open-poi` debug flags, or a deep link) needs the same lift.
         .onAppear { if selected != nil || selectedPOI != nil { detent = .medium } }
@@ -230,7 +253,7 @@ struct MapSheet: View {
         }
     }
 
-    // MARK: Grabber (the drag target)
+    // MARK: Grabber + coordinated sheet drag
 
     private var grabber: some View {
         Capsule()
@@ -240,11 +263,6 @@ struct MapSheet: View {
             .padding(.top, 8)
             .padding(.bottom, 6)
             .contentShape(Rectangle())
-            .gesture(
-                DragGesture()
-                    .updating($drag) { value, state, _ in state = value.translation.height }
-                    .onEnded { value in snap(value) }
-            )
             .accessibilityLabel("Adjust sheet height")
             .accessibilityValue(detentA11yValue)
             .accessibilityAdjustableAction { direction in
@@ -256,19 +274,109 @@ struct MapSheet: View {
             }
     }
 
+    /// The grabber's rendered band is 19pt tall (8 + 5 + 6). Keep the historical
+    /// grabber behavior even when full-height content is scrolled away from its top.
+    private static let grabberDragRegionHeight: CGFloat = 19
+    /// The outer recognizer begins at 1pt for immediate tracking, but movement below
+    /// this distance remains a tap and must never participate in detent projection.
+    private static let tapSlop: CGFloat = 8
+
+    /// A single vertical gesture arbitrates between the sheet and its active
+    /// ScrollView. At non-full detents the sheet always wins. At full, content
+    /// scrolls normally unless a downward drag begins (or arrives) at the top.
+    private var sheetDragGesture: some Gesture {
+        DragGesture(minimumDistance: 1)
+            .updating($dragGestureActive) { _, active, _ in active = true }
+            .onChanged(updateDrag)
+            .onEnded(finishDrag)
+    }
+
+    private var activeScrollAtTop: Bool {
+        if selected != nil { return spotDetailScrollAtTop }
+        if selectedPOI != nil { return poiDetailScrollAtTop }
+        if isCenteredEmptyState { return true }
+        return listScrollAtTop
+    }
+
+    private var innerScrollDisabled: Bool {
+        detent != .full || dragOwner == .sheet
+    }
+
+    private func updateDrag(_ value: DragGesture.Value) {
+        let vertical = value.translation.height
+
+        if dragOwner == .undecided {
+            // Ignore a horizontal start instead of stealing taps/segment movement.
+            guard abs(vertical) > abs(value.translation.width) else { return }
+
+            let beganOnGrabber = value.startLocation.y <= Self.grabberDragRegionHeight
+            if beganOnGrabber || detent != .full || (vertical > 0 && activeScrollAtTop) {
+                dragOwner = .sheet
+                dragHandoffTranslation = 0
+            } else {
+                dragOwner = .scroll
+            }
+        } else if dragOwner == .scroll, vertical > 0, activeScrollAtTop {
+            // The ScrollView consumed the portion above its top. Continue this same
+            // finger movement from zero so the sheet handoff has no positional jump.
+            dragOwner = .sheet
+            dragHandoffTranslation = vertical
+        }
+
+        guard dragOwner == .sheet else { return }
+        let sheetTranslation = vertical - dragHandoffTranslation
+        withAnimation(reduceMotion ? Motion.smooth : Motion.interactive) {
+            drag = sheetTranslation
+        }
+    }
+
+    private func finishDrag(_ value: DragGesture.Value) {
+        guard dragOwner == .sheet else {
+            resetDrag()
+            return
+        }
+        let sheetTranslation = value.translation.height - dragHandoffTranslation
+        guard abs(sheetTranslation) >= Self.tapSlop else {
+            resetDrag()
+            return
+        }
+        snap(value, handoffTranslation: dragHandoffTranslation)
+    }
+
     /// Snap to the nearest of the three detents, carried by drag momentum
-    /// (predicted end translation), so a quick flick can skip a stop.
-    private func snap(_ value: DragGesture.Value) {
+    /// (predicted end translation), so a quick flick can skip a stop. A decisive
+    /// downward flick always collapses fully, including after reversing mid-drag.
+    private func snap(_ value: DragGesture.Value, handoffTranslation: CGFloat) {
         let m = metrics(containerH)
         let resting = restHeight(detent, m)
-        // Where the drag is heading (velocity folded in), as a target height.
-        let projected = value.translation.height + value.predictedEndTranslation.height * 0.35
+        let projected = value.predictedEndTranslation.height - handoffTranslation
         let targetHeight = min(max(resting - projected, m.peek), m.full)
-        // Pick the detent whose rest height is closest to where we're heading.
         let stops: [(SheetDetent, CGFloat)] = [(.peek, m.peek), (.medium, m.medium), (.full, m.full)]
-        let next = stops.min { abs($0.1 - targetHeight) < abs($1.1 - targetHeight) }?.0 ?? detent
+        // Points/second. Above this, direction is a stronger signal than distance:
+        // a fast close gesture should never get caught at the medium stop.
+        let isFastDismiss = value.velocity.height >= 1_200
+        let next = isFastDismiss
+            ? SheetDetent.peek
+            : stops.min { abs($0.1 - targetHeight) < abs($1.1 - targetHeight) }?.0 ?? detent
         if next != detent { Haptics.selection() }   // detent snap = a segmented tick (§10)
-        detent = next
+        withAnimation(reduceMotion ? Motion.smooth : Motion.sheet) {
+            detent = next
+            drag = 0
+        }
+        dragOwner = .undecided
+        dragHandoffTranslation = 0
+    }
+
+    private func resetDrag() {
+        drag = 0
+        dragOwner = .undecided
+        dragHandoffTranslation = 0
+    }
+
+    /// Transform scroll geometry to a Bool so state only changes when a scroller
+    /// crosses the top boundary, not on every pixel (important during 60fps scroll).
+    private nonisolated static func scrollIsAtTop(_ geometry: ScrollGeometry) -> Bool {
+        geometry.contentOffset.y + geometry.contentInsets.top <= 0.5
     }
 
     /// Spoken by VoiceOver after each adjustable step, so the landed detent is announced.
@@ -520,6 +628,12 @@ struct MapSheet: View {
                 .padding(.bottom, Self.contentBottomInset)
             }
             .scrollIndicators(.hidden)
+            .scrollDisabled(innerScrollDisabled)
+            .onScrollGeometryChange(for: Bool.self) { geometry in
+                Self.scrollIsAtTop(geometry)
+            } action: { _, isAtTop in
+                listScrollAtTop = isAtTop
+            }
         }
     }
 
@@ -675,6 +789,12 @@ struct MapSheet: View {
             .padding(.bottom, Self.contentBottomInset)
         }
         .scrollIndicators(.hidden)
+        .scrollDisabled(innerScrollDisabled)
+        .onScrollGeometryChange(for: Bool.self) { geometry in
+            Self.scrollIsAtTop(geometry)
+        } action: { _, isAtTop in
+            spotDetailScrollAtTop = isAtTop
+        }
     }
 
     // MARK: Detail — one POI (food / business), rendered IN the bar (no more modal)
@@ -747,6 +867,12 @@ struct MapSheet: View {
             .padding(.bottom, Self.contentBottomInset)
         }
         .scrollIndicators(.hidden)
+        .scrollDisabled(innerScrollDisabled)
+        .onScrollGeometryChange(for: Bool.self) { geometry in
+            Self.scrollIsAtTop(geometry)
+        } action: { _, isAtTop in
+            poiDetailScrollAtTop = isAtTop
+        }
     }
 }
 
