@@ -17,8 +17,13 @@ struct POI: Identifiable, Decodable, Hashable {
     let primaryType: String?    // raw Google primaryType
     let types: [String]
     let address: String?
+    /// Public URL of the curated brand logo (`places.logo_url`, Supabase Storage).
+    /// Null for most places — the category glyph is the designed fallback.
+    let logoUrl: String?
 
     var coordinate: CLLocationCoordinate2D { .init(latitude: lat, longitude: lon) }
+
+    var logoURL: URL? { logoUrl.flatMap(URL.init(string:)) }
 
     /// SF Symbol glyph, derived from the raw `primaryType` (single source of truth =
     /// PlaceCategoryMap) so no glyph column need be stored.

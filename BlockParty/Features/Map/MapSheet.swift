@@ -706,6 +706,7 @@ struct MapSheet: View {
                         Image(systemName: poi.glyph)
                             .font(.system(size: 17, weight: .semibold))
                             .foregroundStyle(.white)
+                        POILogoCircle(poi: poi, diameter: 40, showsHairline: true)
                     }
                     VStack(alignment: .leading, spacing: 2) {
                         Text(poi.name).font(.display(20)).foregroundStyle(Hue.ink).lineLimit(1)   // §9: card title

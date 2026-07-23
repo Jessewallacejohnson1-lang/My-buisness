@@ -205,6 +205,10 @@ private struct POIBadge: View {
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(MarkerRole.poiGlyph)
                 .opacity(expanded ? 1 : 0)   // too cramped on the compact dot
+            // Brand logo covers the glyph when resolved; inset so the hairline keyline
+            // stays the outer edge. Hidden on the compact dot with the glyph.
+            POILogoCircle(poi: poi, diameter: diameter - 3)
+                .opacity(expanded ? 1 : 0)
         }
         .frame(width: diameter, height: diameter)
         // Shrink/expand as a spring so a pinch settles like one physical move.

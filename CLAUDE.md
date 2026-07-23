@@ -54,6 +54,7 @@ xcrun simctl install <udid> "$DIR/BlockParty.app"   # install OVER the app — d
 - `-map-open <spotid>` — preselect a map spot so its detail card renders for a screenshot (`SJMapView.debugSelectedSpot()`; ids are `downtown|saintbens|chapel|wobegon|millstream|saintjohns`).
 - `-map-center <lat>,<lon>` — start the map camera elsewhere so the town pill's reverse-geocoding can be screenshotted over another city (`SJMapView.debugInitialCenter()`).
 - `-map-zoom <z>` — start the map camera at a given zoom for consistent-framing screenshots (`SJMapView.debugInitialZoom()`; default 13.5).
+- `-poi-logo-stub` — every POI marker + the in-bar POI detail header render a deterministic code-drawn brand-logo stub (colored tile + monogram), so the logo layout (26pt pin circle, 34pt selected marker, 40pt detail circle, hairline containment) can be screenshot-verified before any real `places.logo_url` data exists (`POILogoCache.stubEnabled`).
 - `-map-save <spotid>` — (repeatable) force a spot into the **Saved** pin state (category-tint badge + ink `bookmark.fill` corner) without a real save, so the Saved marker renders for a screenshot (`SJMapView.debugSavedIds()`).
 - `-map-force-live <spotid>` — (repeatable) force a spot **Live** (static ink ring + pulse + name label) regardless of real events, so the Live marker can be screenshotted headlessly (`SJMapView.debugForceLiveIds()`).
 - `-calendar-face upcoming|grid` — start the Calendar tab on a given face of the Upcoming ⇄ Calendar toggle (`CalendarView.initialFace()`).

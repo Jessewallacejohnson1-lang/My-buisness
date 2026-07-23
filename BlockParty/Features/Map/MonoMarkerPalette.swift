@@ -84,6 +84,11 @@ enum MarkerRole {
     /// A selected POI is promoted to the mid ink tier with white content; the soft
     /// halo repeats that ink at lower opacity rather than reintroducing family hue.
     static func selectedPOIFill(_ family: PlaceFamily) -> Color { Hue.inkSecondary }
+
+    /// A selected POI that carries a BRAND LOGO keeps the light surface fill — a mark
+    /// can't sit legibly on mid grey — and the ring + halo + lifted shadow continue to
+    /// carry the selection emphasis on their own.
+    static var selectedPOILogoFill: Color { Hue.surface }
     static func selectedPOIHalo(_ family: PlaceFamily) -> Color { Hue.inkSecondary }
     static var selectedPOIGlyph: Color { Hue.surface }
 

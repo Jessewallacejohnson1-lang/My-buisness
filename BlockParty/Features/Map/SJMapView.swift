@@ -1021,8 +1021,12 @@ private struct POISelectedMarker: View {
     let poi: POI
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var appeared = false
+    @ObservedObject private var logoCache = POILogoCache.shared
 
     var body: some View {
+        // A resolved brand logo swaps the fill to the light tier (a mark can't sit on
+        // mid grey); ring, halo and lifted shadow keep carrying the selection emphasis.
+        let hasLogo = logoCache.resolvedImage(for: poi) != nil
         ZStack {
             // Halo — a soft family-tinted disc that reads as elevation under the marker.
             Circle()
@@ -1035,14 +1039,16 @@ private struct POISelectedMarker: View {
             // for on-map parity, rather than 1.25× the POI's own ~20pt awake dot; white-ringed,
             // lifted shadow. The halo carries the extra emphasis a bare 1.25× wouldn't.
             Circle()
-                .fill(MarkerRole.selectedPOIFill(poi.family))
+                .fill(hasLogo ? MarkerRole.selectedPOILogoFill : MarkerRole.selectedPOIFill(poi.family))
                 .frame(width: 34, height: 34)
-                .overlay(Circle().stroke(MarkerRole.pinStroke(isLightFill: false), lineWidth: 2))
+                .overlay(Circle().stroke(MarkerRole.pinStroke(isLightFill: hasLogo), lineWidth: 2))
                 .mapMarkerShadow(selected: true)
 
             Image(systemName: poi.glyph)
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(MarkerRole.selectedPOIGlyph)
+
+            POILogoCircle(poi: poi, diameter: 31)
         }
         .frame(width: 54, height: 54)
         // Never animate in from a point-source — start just under full size (emil-design-eng).
