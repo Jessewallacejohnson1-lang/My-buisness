@@ -73,14 +73,21 @@ extension FeedCardItem {
         return formatter.string(from: date).uppercased()
     }
 
-    /// An organizer's own photo always wins. Failing that we hand the card the
-    /// *intent* to look the venue up — resolving it here would be an async, billed
-    /// Google call per posting on every feed load (see `FeedCardImageSource`).
+    /// The same three-tier cascade Activities uses (`ActivityImage.has(event:)`):
+    /// an organizer's own photo → a bundled, human-verified `KnownLocalPhoto` →
+    /// the *intent* to look the venue up live (resolving here would be an async,
+    /// billed Google call per posting on every feed load — see `FeedCardImageSource`).
     ///
-    /// Which string is the venue mirrors `ActivityImage.has(event:)`: an event's
-    /// title says what is happening, not where, so the venue name is its `location`
-    /// when it has one and the title is only a hint for the KnownVenues lookup.
-    /// A posting with neither is the genuinely-nothing case.
+    /// The bundled tier matters: `bestScenicPhoto` is geometry-only and can surface a
+    /// poor Google match (a highway sign for the "Downtown St. Joseph" locality behind
+    /// Millstream Arts Festival). `KnownLocalPhoto` is exactly the set of human-vetted
+    /// overrides for that, and the feed used to skip it, so those cards went to Places
+    /// and could look bad. Bundled photos carry no Google attribution, so they ride
+    /// `.eventPhoto` like an organizer's photo.
+    ///
+    /// Which string is the venue: an event's title says what is happening, not where,
+    /// so the venue name is its `location` when it has one and the title is only a hint
+    /// for the KnownVenues lookup. A posting with neither is the genuinely-nothing case.
     private static func imageSource(
         imageUrl: String?,
         location: String?,
@@ -91,6 +98,13 @@ extension FeedCardItem {
         }
 
         let title = nonempty(title)
+
+        if let title,
+           let slug = KnownLocalPhoto.name(forTitle: title),
+           let url = Bundle.main.url(forResource: slug, withExtension: "jpg") {
+            return .eventPhoto(url)
+        }
+
         guard let venue = location ?? title else { return .fallback }
         return .venueLookup(name: venue, hint: location != nil ? title : nil)
     }
