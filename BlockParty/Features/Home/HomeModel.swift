@@ -21,6 +21,9 @@ final class HomeModel: ObservableObject {
     @Published var communityFeedLoaded = false
     @Published var feedPostings: [FeedPosting] = []
     @Published var feedLoaded = false
+    /// A real feed outage, distinct from an empty town. Only ever true when we have
+    /// nothing to show — a refresh error over an already-loaded feed keeps the feed.
+    @Published var feedFailed = false
     @Published private var feedGoingPreviews: [String: GoingPreview] = [:]
     @Published private var feedSavedIDs: Set<String> = []
     private var upcomingRsvpInFlight: Set<String> = []
