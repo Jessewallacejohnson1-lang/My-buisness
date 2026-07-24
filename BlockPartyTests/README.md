@@ -1,9 +1,18 @@
 # BlockPartyTests
 
 The first unit-test slice (pure, brand-critical logic) + the fake that the
-`TokenProviding` seam unlocks. These files are ready; they just need a test **target**.
+`TokenProviding` seam unlocks.
 
-## Adding the target (one time, ~15 seconds in Xcode)
+**The `BlockPartyTests` target is now wired** (app-hosted unit-test bundle, added via the
+`xcodeproj` Ruby gem — safe for this objectVersion-77 / synchronized-group project). Run:
+
+```bash
+xcodebuild test -project BlockParty.xcodeproj -scheme BlockParty \
+  -destination 'platform=iOS Simulator,name=iPhone 17' CODE_SIGNING_ALLOWED=NO
+# single test: add -only-testing:BlockPartyTests/DateHelpersTests/testAdminGate
+```
+
+## Re-creating the target from scratch (one time, ~15 seconds in Xcode)
 
 The project is the new format (objectVersion 77, file-system-synchronized groups).
 Adding a target is a one-click GUI action — safer than hand-editing `project.pbxproj`:

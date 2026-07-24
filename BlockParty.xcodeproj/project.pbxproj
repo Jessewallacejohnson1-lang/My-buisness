@@ -7,22 +7,49 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		601CE2FFEC4A8CF9FC1EEDB0 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 42A092CAAEC9643A72B2B683 /* Foundation.framework */; };
+		8D66765DBC1A2AB48CEFB070 /* FakeTokenProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 638DB9DE7EC40B8F6418B2D4 /* FakeTokenProvider.swift */; };
 		EBD0A26B2FF82901009CD00C /* MapboxMaps in Frameworks */ = {isa = PBXBuildFile; productRef = EBD0A26A2FF82901009CD00C /* MapboxMaps */; };
+		F0B0F88446D770042B52B58F /* DateHelpersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB5E7B2FE663BE791435EB12 /* DateHelpersTests.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		932A9E0B29CC85CC6367B650 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = EBBFA6E82FF473FB00A2EDB1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = EBBFA6EF2FF473FB00A2EDB1;
+			remoteInfo = BlockParty;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		42A092CAAEC9643A72B2B683 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		638DB9DE7EC40B8F6418B2D4 /* FakeTokenProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FakeTokenProvider.swift; path = BlockPartyTests/FakeTokenProvider.swift; sourceTree = "<group>"; };
+		B5F7E6B19BACA2FDE7BCD206 /* BlockPartyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BlockPartyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		CB5E7B2FE663BE791435EB12 /* DateHelpersTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DateHelpersTests.swift; path = BlockPartyTests/DateHelpersTests.swift; sourceTree = "<group>"; };
 		EBBFA6F02FF473FB00A2EDB1 /* BlockParty.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BlockParty.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		EBBFA6F22FF473FB00A2EDB1 /* BlockParty */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = BlockParty;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		18D6399AE30D8EC95E537D3A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				601CE2FFEC4A8CF9FC1EEDB0 /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		EBBFA6ED2FF473FB00A2EDB1 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -34,11 +61,30 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		2F4FD3C53C18F79A47EFF42D /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				42A092CAAEC9643A72B2B683 /* Foundation.framework */,
+			);
+			name = iOS;
+			sourceTree = "<group>";
+		};
+		E7FE0881930605D74E08E04E /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				2F4FD3C53C18F79A47EFF42D /* iOS */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		EBBFA6E72FF473FB00A2EDB1 = {
 			isa = PBXGroup;
 			children = (
 				EBBFA6F22FF473FB00A2EDB1 /* BlockParty */,
 				EBBFA6F12FF473FB00A2EDB1 /* Products */,
+				E7FE0881930605D74E08E04E /* Frameworks */,
+				CB5E7B2FE663BE791435EB12 /* DateHelpersTests.swift */,
+				638DB9DE7EC40B8F6418B2D4 /* FakeTokenProvider.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -46,6 +92,7 @@
 			isa = PBXGroup;
 			children = (
 				EBBFA6F02FF473FB00A2EDB1 /* BlockParty.app */,
+				B5F7E6B19BACA2FDE7BCD206 /* BlockPartyTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -53,6 +100,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		C37D6EF8B55ED807A10489A7 /* BlockPartyTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 08BBA07F3B1CD990870E35D5 /* Build configuration list for PBXNativeTarget "BlockPartyTests" */;
+			buildPhases = (
+				DF43239D319731EE580EEDFA /* Sources */,
+				18D6399AE30D8EC95E537D3A /* Frameworks */,
+				BE4D008102CF4D90BCBA4088 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				3FB32C2F1333A17E94A4C905 /* PBXTargetDependency */,
+			);
+			name = BlockPartyTests;
+			productName = BlockPartyTests;
+			productReference = B5F7E6B19BACA2FDE7BCD206 /* BlockPartyTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		EBBFA6EF2FF473FB00A2EDB1 /* BlockParty */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = EBBFA6FB2FF473FD00A2EDB1 /* Build configuration list for PBXNativeTarget "BlockParty" */;
@@ -109,11 +174,19 @@
 			projectRoot = "";
 			targets = (
 				EBBFA6EF2FF473FB00A2EDB1 /* BlockParty */,
+				C37D6EF8B55ED807A10489A7 /* BlockPartyTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		BE4D008102CF4D90BCBA4088 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		EBBFA6EE2FF473FB00A2EDB1 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -124,6 +197,15 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		DF43239D319731EE580EEDFA /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F0B0F88446D770042B52B58F /* DateHelpersTests.swift in Sources */,
+				8D66765DBC1A2AB48CEFB070 /* FakeTokenProvider.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		EBBFA6EC2FF473FB00A2EDB1 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -133,7 +215,51 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		3FB32C2F1333A17E94A4C905 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = BlockParty;
+			target = EBBFA6EF2FF473FB00A2EDB1 /* BlockParty */;
+			targetProxy = 932A9E0B29CC85CC6367B650 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		A40EAC5EC5E4EBCC9241C331 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGNING_ALLOWED = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				PRODUCT_BUNDLE_IDENTIFIER = Jesse.BlockPartyTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BlockParty.app/BlockParty";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		C4E777FB1B4D0CA3F584D774 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGNING_ALLOWED = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				PRODUCT_BUNDLE_IDENTIFIER = Jesse.BlockPartyTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BlockParty.app/BlockParty";
+			};
+			name = Debug;
+		};
 		EBBFA6F92FF473FD00A2EDB1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -326,6 +452,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		08BBA07F3B1CD990870E35D5 /* Build configuration list for PBXNativeTarget "BlockPartyTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A40EAC5EC5E4EBCC9241C331 /* Release */,
+				C4E777FB1B4D0CA3F584D774 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		EBBFA6EB2FF473FB00A2EDB1 /* Build configuration list for PBXProject "BlockParty" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
