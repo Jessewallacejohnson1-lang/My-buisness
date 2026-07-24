@@ -34,3 +34,6 @@ BlockParty/Config/GooglePlacesConfig.swift
 
 # graphify knowledge-graph output — generated artifact, never commit
 graphify-out/
+
+# local sim pin for the onboarding design-match loop
+.bp-sim-udid

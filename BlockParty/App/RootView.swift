@@ -99,6 +99,11 @@ struct RootView: View {
                 // Render the onboarding wizard directly (bypassing the auth gate)
                 // so any step can be screenshotted headlessly via -onboarding-step.
                 OnboardingView { debugIntroDismissed = true }
+            } else if ProcessInfo.processInfo.arguments.contains("-bp-components") {
+                // The Phase 0 component bench for the 20-screen onboarding rebuild —
+                // every signature mechanic in every state on one scrollable screen,
+                // for diffing against refs/onboarding/duolingo/.
+                BPComponentDemoView()
             } else {
                 gate
             }
