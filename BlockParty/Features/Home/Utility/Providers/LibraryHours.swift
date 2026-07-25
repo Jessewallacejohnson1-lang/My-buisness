@@ -3,9 +3,11 @@
 //  Block Party — static hours table + open/closed math for the library Utility
 //  Row tile. Pure, `nonisolated`, no network.
 //
-//  Great River Regional Library — St. Joseph branch.
-//  TODO(jesse): VERIFY these hours. The values below are placeholder typical
-//  small-branch hours so the tile renders honestly until confirmed.
+//  St. Joseph, MN has NO Great River Regional Library branch (33 branches,
+//  Albany→Waite Park; source griver.org/locations). The nearest is the St. Cloud
+//  headquarters (1300 W St Germain St, ~5 mi). Hours below are St. Cloud's, per
+//  griver.org/locations/st-cloud. TODO(jesse): confirm which branch to surface
+//  (St. Cloud vs Waite Park vs the CSB Clemens college library).
 //
 
 import Foundation
@@ -15,12 +17,12 @@ enum LibraryHours {
     /// local midnight. An empty array = closed all day.
     nonisolated static let table: [Int: [Range<Int>]] = [
         1: [],                          // Sun — closed
-        2: [10 * 60 ..< 20 * 60],       // Mon 10 AM – 8 PM
-        3: [10 * 60 ..< 20 * 60],       // Tue 10 AM – 8 PM
-        4: [10 * 60 ..< 20 * 60],       // Wed 10 AM – 8 PM
-        5: [10 * 60 ..< 20 * 60],       // Thu 10 AM – 8 PM
-        6: [10 * 60 ..< 18 * 60],       // Fri 10 AM – 6 PM
-        7: [10 * 60 ..< 17 * 60],       // Sat 10 AM – 5 PM
+        2: [9 * 60 ..< 20 * 60],        // Mon 9 AM – 8 PM
+        3: [9 * 60 ..< 20 * 60],        // Tue 9 AM – 8 PM
+        4: [9 * 60 ..< 20 * 60],        // Wed 9 AM – 8 PM
+        5: [9 * 60 ..< 20 * 60],        // Thu 9 AM – 8 PM
+        6: [9 * 60 ..< 17 * 60],        // Fri 9 AM – 5 PM
+        7: [9 * 60 ..< 16 * 60],        // Sat 9 AM – 4 PM
     ]
 
     enum Status: Equatable, Sendable {

@@ -117,6 +117,26 @@ defects; all real ones are fixed:
 - **Accepted by design (documented):** fixed type sizes (no Dynamic Type scaling) to
   match the bento; long-press is the ongoing reconfigure entry after first save.
 
+## St. Joseph real-world data (sourced 2026-07)
+
+- **Garbage/recycling** (`GarbageSchedule`): refuse every **Thursday**, recycling every
+  other Thursday ("Blue Week"), hauler **Republic Services** — source
+  `stjosephmn.gov/162/Garbage-Recycling`. Recycling anchor `2026-01-15` (a Blue-Week
+  Thursday; the 2026 calendar shows Jan 1 / 15 / 29) — source the city's 2026 Recycling
+  Calendar (`DocumentCenter/View/3049`). The garbage unit tests cross-check parity
+  against that calendar. The holiday-shift mechanism is present, but the 2026 calendar
+  shows **no** shifts and the city lists no policy → **TODO(jesse):** confirm Republic's
+  St. Joseph holiday behavior (empty the observed-holiday list if there is none).
+- **Library** (`LibraryHours`): St. Joseph has **no** Great River Regional branch (33
+  branches Albany→Waite Park). The nearest is the **St. Cloud HQ** (1300 W St Germain
+  St). Hours Mon–Thu 9–8, Fri 9–5, Sat 9–4, Sun closed — source
+  `griver.org/locations/st-cloud`. Tile relabelled "St. Cloud (nearest branch)".
+  **TODO(jesse):** confirm which branch to surface (St. Cloud vs Waite Park vs CSB Clemens).
+- **Backend verified LIVE** with a real user JWT (not the sim's persisted session):
+  `town_status` RLS gate (role `anon` → 0 rows, `authenticated` → the seeded notice);
+  `user_utility_prefs` insert (201) → update via merge-duplicates (200, the
+  ON-CONFLICT/UPDATE-policy trap) → own-row read (RLS-scoped) → cascade delete. All pass.
+
 ## Debug launch flags (RootView gate branch, DEBUG only)
 
 `-utility-row-preview` (render the row past auth) · `-utility-expand` (auto-expand the
