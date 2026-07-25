@@ -67,8 +67,10 @@ enum BPStep: Int, CaseIterable {
 }
 
 struct BPOnboardingFlow: View {
-    /// Called when the user finishes S20. Phase 3 wires this to sign-up + routing.
+    /// Called when the user finishes S20 — hands off to sign-up.
     var onFinish: (() -> Void)?
+    /// S02's "I already have an account" — skip the flow straight to sign-in.
+    var onSignIn: (() -> Void)?
 
     @StateObject private var answers = BPAnswers()
     @State private var step: BPStep = BPOnboardingFlow.initialStep()
@@ -84,7 +86,13 @@ struct BPOnboardingFlow: View {
                 case .splash:
                     BPSplashScreen { advance() }
                 case .welcome:
-                    BPWelcomeScreen(onStart: { advance() }, onSignIn: { /* Phase 3 */ })
+                    BPWelcomeScreen(onStart: { advance() },
+                                    onSignIn: {
+                                        // Skipping the flow still counts as done, or the
+                                        // next signed-out launch would replay it.
+                                        BPOnboardingCompletion.markFlowDone()
+                                        onSignIn?()
+                                    })
                 case .hello:
                     BPTalkingScreen(line: BPCopy.plain("Hey! Welcome to the party. \u{1F44B}"),
                                     step: step, onBack: back, onContinue: advance)
@@ -97,8 +105,45 @@ struct BPOnboardingFlow: View {
                     BPBuildingBlockScreen(step: step, onBack: back, onContinue: advance)
                 case .townLevel:
                     BPTownLevelScreen(answers: answers, step: step, onBack: back, onContinue: advance)
-                default:
-                    BPUnbuiltScreen(step: step, onBack: back, onContinue: advance)
+                case .motivations:
+                    BPMotivationsScreen(answers: answers, step: step, onBack: back, onContinue: advance)
+                case .keepInLoop:
+                    BPTalkingScreen(line: BPCopy.plain("Now let's keep you in the loop!"),
+                                    step: step, onBack: back, onContinue: advance)
+                case .cadence:
+                    BPCadenceScreen(answers: answers, step: step, onBack: back, onContinue: advance)
+                case .happenings:
+                    BPStatementScreen(line: BPHappenings.line, step: step,
+                                      onBack: back, onContinue: advance)
+                case .notifications:
+                    BPPermissionScreen(
+                        step: step,
+                        prompt: BPCopy.plain("We'll give you a heads-up when something good is happening in town."),
+                        dialogTitle: "\u{201C}Block Party\u{201D} Would Like to Send You Notifications",
+                        dialogMessage: "Notifications may include alerts, sounds, and icon badges. These can be configured in Settings.",
+                        dialogAllow: "Allow",
+                        primaryTitle: "Keep me posted",
+                        request: { _ = await Reminders.requestAuth() },
+                        onBack: back, onContinue: advance)
+                case .location:
+                    BPPermissionScreen(
+                        step: step,
+                        prompt: BPCopy.plain("So we can point you to what's close by…"),
+                        dialogTitle: "\u{201C}Block Party\u{201D} Would Like to Use Your Location",
+                        dialogMessage: "Your location is used to show what's happening near you. It is never shared with other neighbors.",
+                        dialogAllow: "Allow While Using App",
+                        primaryTitle: "Show me what's nearby",
+                        quietTitle: "Not now",
+                        request: { _ = await LocationPermission.request() },
+                        onBack: back, onContinue: advance)
+                case .promises:
+                    BPPromisesScreen(step: step, onBack: back, onContinue: advance)
+                case .founding:
+                    BPFoundingScreen(answers: answers, step: step, onBack: back, onContinue: advance)
+                case .landing:
+                    BPLandingScreen(answers: answers, step: step, onBack: back, onContinue: advance)
+                case .finale:
+                    BPFinaleScreen(answers: answers, step: step, onBack: back, onFinish: finish)
                 }
             }
             .transition(push)
@@ -115,8 +160,16 @@ struct BPOnboardingFlow: View {
         return .asymmetric(insertion: .move(edge: inEdge), removal: .move(edge: outEdge))
     }
 
+    /// S20's "Join the party". Marks the flow complete and hands off; the sign-up +
+    /// answer-flush wiring lives in `BPOnboardingCompletion`.
+    private func finish() {
+        Haptics.success()
+        BPOnboardingCompletion.markFlowDone()
+        onFinish?()
+    }
+
     private func advance() {
-        guard let next = BPStep(rawValue: step.rawValue + 1) else { onFinish?(); return }
+        guard let next = BPStep(rawValue: step.rawValue + 1) else { finish(); return }
         goingBack = false
         withAnimation(.spring(response: 0.42, dampingFraction: 0.9)) { step = next }
         answers.resumeIndex = max(answers.resumeIndex, next.rawValue)

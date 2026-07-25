@@ -391,6 +391,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Block Party";
 				INFOPLIST_KEY_NSCalendarsWriteOnlyAccessUsageDescription = "Block Party adds St. Joseph events to your Apple Calendar when you tap Add.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Block Party uses your location to show what's happening close by in St. Joseph.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Block Party saves the share card to your Photos when you tap Save image.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -426,6 +427,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Block Party";
 				INFOPLIST_KEY_NSCalendarsWriteOnlyAccessUsageDescription = "Block Party adds St. Joseph events to your Apple Calendar when you tap Add.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Block Party uses your location to show what's happening close by in St. Joseph.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Block Party saves the share card to your Photos when you tap Save image.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;

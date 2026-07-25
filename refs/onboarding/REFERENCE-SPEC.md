@@ -203,3 +203,52 @@ is matched instead, and a prompt is allowed to wrap where theirs did not.
 S07 shows **no back arrow and no progress bar** — the region below the status bar is
 empty. This contradicts §3 of the build prompt ("Present on S5–S20"). Currently built
 per the SPEC (bar present). Open question for Jesse.
+
+---
+
+## 7. Phase 4 audit results
+
+### Contrast (WCAG 2.1)
+
+| Pair | Ratio | Threshold | Verdict |
+|---|---|---|---|
+| `bpTealText` on `bpTealTint` (selected row label) | **5.36:1** | 4.5 normal | PASS |
+| `bpGray` on `paper` (taglines, captions) | 4.88:1 | 4.5 normal | PASS |
+| `bpGray` on `fill` (disabled button label) | 4.51:1 | 4.5 normal | PASS |
+| `ink` on `paper` (row labels) | 18.06:1 | 4.5 normal | PASS |
+| **white on `bpOrange`** (primary button, 15pt bold caps) | **2.998:1** | 3.0 large | **marginal FAIL** |
+| `bpOrange` on `surface` (secondary button label) | 2.998:1 | 3.0 large | **marginal FAIL** |
+
+The white-on-orange pair misses by **0.07%** — a rounding-scale shortfall, not a visible
+one. Left UNCHANGED because `bpOrange` is spec-locked and brand-derived (the Joetown
+logo). For context, Duolingo's own green is **2.09:1** against white, so the reference
+fails this far harder than we do.
+
+One-character fix if wanted: `#E67633` → `#E47533` gives 3.05:1 and is 0.9% darker,
+i.e. visually indistinguishable. `bpTealText` was already tuned to clear 4.5:1 as the
+spec instructed.
+
+### Reduce Motion — PASS
+
+Verified with `ReduceMotionEnabled = 1`: bubbles render their full line with no type-on,
+check badges appear filled, selected rows carry the tint/border/label recipe, and the
+button press keeps its travel (the translation is the affordance, so it is retained, with
+the spring flattened to a linear settle). **No state is gated on an animation that will
+not fire.**
+
+### Dynamic Type — NOT SUPPORTED (inherited)
+
+At `accessibility-extra-extra-extra-large` the layout is **identical** to default —
+nothing scales, so nothing breaks. That satisfies the checklist item as written
+("Dynamic Type doesn't break layouts") but only in the trivial sense: a user who needs
+larger text does not get it.
+
+This is inherited from the app, not introduced here — the whole codebase uses fixed
+`.system(size:)` / `.custom(_, size:)` with exactly one `@ScaledMetric` in 154 files. It
+is a real accessibility gap and it is app-wide, so fixing it is a separate decision.
+
+### Haptics
+
+`Haptics.light()` on every button and row press-DOWN (with the travel, matching the
+reference), `Haptics.selection()` on back, `Haptics.success()` on S20's "Join the party".
+All route through the app's existing warm-primed generators, which no-op in Low Power Mode.

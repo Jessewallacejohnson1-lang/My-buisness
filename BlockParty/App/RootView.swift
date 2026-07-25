@@ -41,6 +41,12 @@ struct RootView: View {
     /// Set only when the user just finished the wizard, so they land on the Map tab
     /// the finale promised (a returning user still opens to Today).
     @State private var landOnMap = false
+    /// Whether the 20-screen pre-auth onboarding has been completed (or skipped via
+    /// "I already have an account"). Seeded from the persisted flag so a relaunch mid-way
+    /// through the signed-out state doesn't replay a finished flow.
+    @State private var bpFlowDone = BPOnboardingCompletion.flowDone
+    /// The tab S19 asked for, applied once after the answers flush.
+    @State private var bpLandingTab: Tab?
     #if DEBUG
     @State private var debugIntroDismissed = false
     #endif
@@ -131,6 +137,16 @@ struct RootView: View {
                 authedRoot
                     .task(id: auth.userId) { await hydrateIfNeeded() }
                     .transition(.opacity)
+            } else if !bpFlowDone {
+                // PRE-AUTH onboarding (Jesse's gate decision, 2026-07-24): the 20-screen
+                // flow runs before there is an account, exactly as the reference does.
+                // Answers buffer locally and flush on the first successful sign-in.
+                // Both exits mark the flow done, so it is never replayed.
+                BPOnboardingFlow(
+                    onFinish: { bpFlowDone = true },
+                    onSignIn: { bpFlowDone = true }
+                )
+                .transition(.opacity)
             } else {
                 LoginView()
                     .transition(.opacity)
@@ -148,7 +164,8 @@ struct RootView: View {
         if needsOnboarding {
             OnboardingView { markOnboarded() }
         } else {
-            MainTabsView(startTab: landOnMap ? .map : nil)
+            // S19's choice wins when present; otherwise the old wizard's map promise.
+            MainTabsView(startTab: bpLandingTab ?? (landOnMap ? .map : nil))
         }
     }
 
@@ -175,6 +192,15 @@ struct RootView: View {
         guard hydratedUserId != uid else { return }
         hydratedUserId = uid
         onboardingDone = false   // new identity → re-derive from this user's own state
+
+        // Flush the pre-auth onboarding answers now that an identity exists. Read the
+        // landing choice BEFORE the flush, because a successful flush clears the buffer.
+        // A failed flush keeps the buffer and retries on the next launch, so twenty
+        // screens of answers are never lost to a bad moment on the network.
+        let buffered = BPAnswers()
+        bpLandingTab = BPOnboardingCompletion.landingTab(buffered)
+        await BPOnboardingCompletion.flushIfNeeded(buffered)
+
         let fetched = try? await ProfileAPI(auth: .shared).getMyProfile()
         guard let profile = fetched ?? nil else { return }
         if !profile.interests.isEmpty { Interests.set(profile.interests) }
