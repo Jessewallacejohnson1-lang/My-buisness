@@ -99,6 +99,11 @@ struct RootView: View {
                 // Render the onboarding wizard directly (bypassing the auth gate)
                 // so any step can be screenshotted headlessly via -onboarding-step.
                 OnboardingView { debugIntroDismissed = true }
+            } else if ProcessInfo.processInfo.arguments.contains("-bp-flow") {
+                // The 20-screen onboarding rebuild, bypassing the auth gate. Jump to any
+                // step with `-bp-step <case>` — this sim setup has no gesture automation,
+                // so every screen needs a flag to be reachable headlessly.
+                BPOnboardingFlow()
             } else if ProcessInfo.processInfo.arguments.contains("-bp-components") {
                 // The Phase 0 component bench for the 20-screen onboarding rebuild —
                 // every signature mechanic in every state on one scrollable screen,

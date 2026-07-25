@@ -65,18 +65,29 @@ Its UDID is in `.bp-sim-udid` (gitignored). Status bar is pinned to the referenc
 
 Note the iPhone **16** Pro is 402×874, not 393×852 — the 6.3" redesign. Do not use it.
 
-### Colour cannot be compared pixel-to-pixel — geometry can
+### Sample large SOLID areas when checking colour
 
-Simulator screenshots and the reference PNGs are in different colour encodings and
-neither carries an ICC profile. Near-neutrals land within ~1–7/255, but saturated
-colours shift materially (our `#E67633` orange reads back as `#E88347`, a ~35 L1
-delta; `Hue.ink` text reads `#282828`).
+Our solid fills render at **exactly** their token values. Verified: the splash ground,
+the S02 GET STARTED face and the bench's Continue face all read `#E67633`, matching
+`BP.orange` to the byte.
 
-This is a capture artifact, not a token bug — the token relationships are intact
-(our face→edge ratio 0.82 vs the reference's 0.81). **Do not chase it.** It does not
-matter for fidelity either, because the spec *dictates* our colours (`bpOrange`,
-`bpTeal`) rather than deriving them from the reference. Compare geometry in pixels;
-compare colour against token values.
+An earlier pass in this repo's history concluded there was a systematic colour shift
+(`#E67633` reading as `#E88347`). **That was a measurement error and is not true.** It
+came from a `Counter.most_common()` census over a coarse grid, which is dominated by
+antialiased pixels: a 2pt border and text glyphs are mostly edge, so they read
+persistently lighter than their token. `BP.teal` "reading" `#80CBBD` was a 2pt row
+border; `Hue.ink` "reading" `#282828` was antialiased label text.
+
+So: **sample the middle of a large solid region**, not a census. And note that colour
+fidelity against the *reference* is not a goal anyway — the spec dictates `bpOrange`
+and `bpTeal` rather than deriving them from Duolingo's green and blue.
+
+### One capture trap that does bite
+
+A screen mid-transition composites over the flow's paper ground and reads washed out —
+S01's orange sampled as pale peach until `-bp-hold` was added to park the splash past
+its 1.2s auto-advance. If a colour looks desaturated, check you are not screenshotting
+during an animation before you touch a token.
 
 ---
 
@@ -158,3 +169,37 @@ numbers compared directly instead of eyeballed.
 Pagination is not cosmetic — this simulator setup has **no scroll or gesture
 automation**, so a single long ScrollView could only ever be screenshotted at its top
 and everything below the fold would go unverified while still looking covered.
+
+---
+
+## 6. Phase 1 additions (S01–S08)
+
+Measured during the S01–S08 diff loop:
+
+| Thing | Measured | Note |
+|---|---|---|
+| Bubble text size | ~19–20pt | Cap-height 14px @3x on S05's "W". First assumed 17pt — wrong, and it changes the whole bubble footprint |
+| S03 bubble (1 line) | 180.7 x 54pt, **centred**, tail at its own **centre** | Content-sized, not full width |
+| S05 bubble (2 lines) | 221.7 x 81.7pt, tail on the left at **0.43** of height | Text column 181.7pt |
+| Bubble padding | ~20pt horizontal, ~16pt vertical | Derived from outer width minus text run |
+| S05 mascot | 81.7 x 101.7pt, left inset 28.3pt, 13.3pt gap to bubble | Ours is square, so 74pt side carries similar mass |
+| S03 mascot | ~110pt wide, centred under the bubble, ~20pt below it | |
+| S01 mascot | 165.3 x 107.7pt, centred to the pixel, centre y = 413.5pt (0.485 of 852) | Symmetric margins 114.0pt each side |
+| Back affordance | a full **arrow** (shaft + head), not a chevron | ~21pt |
+| Top bar centre-line | 87pt from the top of the screen | |
+| Status bar / top safe area | 59pt | |
+
+### The bubble hugs its text
+
+The single most visible miss in the first S01–S08 pass: our bubbles filled the available
+width. Every reference bubble is content-sized. Fixed by capping the text column
+(`BP.Metric.bubbleTextWidth`) instead of using `maxWidth: .infinity`.
+
+Our copy is longer than Duolingo's, so line COUNT cannot always match — bubble geometry
+is matched instead, and a prompt is allowed to wrap where theirs did not.
+
+### S07 has no top chrome in the reference
+
+S07 shows **no back arrow and no progress bar** — the region below the status bar is
+empty. This contradicts §3 of the build prompt ("Present on S5–S20"). Currently built
+per the SPEC (bar present). Open question for Jesse.

@@ -125,10 +125,25 @@ enum BP {
         static let cardBorder: CGFloat = 2
         static let cardEdge: CGFloat = 4
 
-        /// Speech bubble. Provisional — re-measure against S05 in Phase 1.
+        /// Speech bubble, measured off S03 (one line, 180.7 x 54pt) and S05 (two lines,
+        /// 221.7 x 81.7pt, tail at 0.43 of the height).
+        ///
+        /// The text is BIGGER than it looks — cap-height 14px @3x on S05's "W" puts it
+        /// at ~19–20pt, not the 17pt first assumed. The bubble hugs this text column, so
+        /// getting the font wrong changes the bubble's whole footprint.
         static let bubbleRadius: CGFloat = 14
         static let bubbleBorder: CGFloat = 2
         static let bubbleTail: CGFloat = 9
+        static let bubbleFont: CGFloat = 19
+        static let bubblePadH: CGFloat = 20
+        static let bubblePadV: CGFloat = 16
+        /// The text column a bubble wraps within (bubble outer width minus 2x padH).
+        static let bubbleTextWidth: CGFloat = 196
+
+        /// Back arrow. The reference uses a full ARROW (shaft + head), not a chevron.
+        static let backArrowSize: CGFloat = 21
+        /// Bar/arrow centre-line, measured 87pt from the top of the screen on S05.
+        static let topBarCentreY: CGFloat = 87
     }
 
     // MARK: - Motion

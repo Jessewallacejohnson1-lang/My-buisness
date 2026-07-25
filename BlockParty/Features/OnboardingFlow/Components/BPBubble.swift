@@ -49,6 +49,12 @@ struct BPBubble: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// The bubble HUGS ITS TEXT — it does not fill the available width. Measured:
+    /// S03's one-liner is 180.7pt wide, S05's two-liner 221.7pt (text column 181.7pt).
+    /// Filling the width was the single most visible miss across S03–S08 in the first
+    /// diff pass, so this cap is the text column, not the bubble's outer width.
+    var maxWidth: CGFloat = BP.Metric.bubbleTextWidth
+
     var body: some View {
         TypewriterText(
             content: content,
@@ -57,12 +63,12 @@ struct BPBubble: View {
             perUnit: BP.Motion.typePerChar,
             onFinished: onFinished
         )
-        .font(.sans(17))
+        .font(.sans(BP.Metric.bubbleFont))
         .foregroundStyle(BP.ink)
         .fixedSize(horizontal: false, vertical: true)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
+        .frame(maxWidth: maxWidth, alignment: .leading)
+        .padding(.horizontal, BP.Metric.bubblePadH)
+        .padding(.vertical, BP.Metric.bubblePadV)
         .background {
             BPBubbleShape(tail: tail)
                 .fill(Hue.surface)

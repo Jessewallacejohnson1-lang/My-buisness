@@ -79,8 +79,10 @@ struct BPTopBar: View {
                     Haptics.selection()
                     onBack()
                 } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 20, weight: .bold))
+                    // A full arrow, not a chevron — measured off S05, where the glyph
+                    // has a visible shaft.
+                    Image(systemName: "arrow.left")
+                        .font(.system(size: BP.Metric.backArrowSize, weight: .medium))
                         .foregroundStyle(BP.gray)
                         .frame(width: 32, height: 32)
                         .contentShape(Rectangle())

@@ -80,12 +80,15 @@ struct BPLevelBars: View {
     private let total = 5
 
     var body: some View {
-        let barW = size / CGFloat(total * 2 - 1)
-        HStack(alignment: .bottom, spacing: barW) {
+        // Chunkier than an even bar/gap split: at size/(2n-1) the bars came out ~2.4pt
+        // wide and read as hairlines next to the reference's solid ramp.
+        let barW = size * 0.148
+        let gap = (size - barW * CGFloat(total)) / CGFloat(total - 1)
+        HStack(alignment: .bottom, spacing: gap) {
             ForEach(0 ..< total, id: \.self) { i in
                 let frac = CGFloat(i + 1) / CGFloat(total)
                 Capsule(style: BP.Metric.cornerStyle)
-                    .fill(i < level ? tint : tint.opacity(0.22))
+                    .fill(i < level ? tint : tint.opacity(0.30))
                     .frame(width: barW, height: size * frac)
             }
         }
