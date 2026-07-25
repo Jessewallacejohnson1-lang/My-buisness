@@ -190,8 +190,25 @@ struct BPOnboardingFlow: View {
             let name = args[i + 1]
             if let match = BPStep.allCases.first(where: { "\($0)" == name }) { return match }
         }
+        // `-bp-restart` forces the flow back to the splash even with a saved position,
+        // so the whole run can be replayed without wiping the app container.
+        if args.contains("-bp-restart") { return .splash }
+        // `-bp-seed-resume <n>` writes the resume position from inside the app and then
+        // falls through to the normal resume read, so one launch both seeds and proves it.
+        if let i = args.firstIndex(of: "-bp-seed-resume"), i + 1 < args.count,
+           let n = Int(args[i + 1]) {
+            BPAnswers.seedResumeIndex(n)
+        }
         #endif
-        return .splash
+
+        // Resume where a killed launch left off (spec §5). Skip the splash and welcome:
+        // resuming onto a 1.2s auto-advancing splash would look like a crash-loop, and
+        // re-showing the welcome would offer "Get started" to someone already started.
+        let saved = BPAnswers.persistedResumeIndex
+        guard let step = BPStep(rawValue: saved), step.rawValue > BPStep.hello.rawValue else {
+            return .splash
+        }
+        return step
     }
 }
 
@@ -207,35 +224,5 @@ struct BPScreenTop: View {
     var body: some View {
         BPTopBar(progress: step.showsProgress ? step.progress : nil,
                  onBack: step.showsBack ? onBack : nil)
-    }
-}
-
-/// Placeholder for the steps built in Phases 2–3, so the flow stays navigable and the
-/// progress bar's advance can be verified end to end before those screens exist.
-struct BPUnbuiltScreen: View {
-    let step: BPStep
-    let onBack: () -> Void
-    let onContinue: () -> Void
-
-    var body: some View {
-        VStack(spacing: 0) {
-            BPScreenTop(step: step, onBack: onBack)
-            Spacer()
-            VStack(spacing: 8) {
-                Text(step.refID)
-                    .font(.display(34))
-                    .foregroundStyle(BP.ink)
-                Text("not built yet")
-                    .font(.mono(12))
-                    .tracking(1.4)
-                    .textCase(.uppercase)
-                    .foregroundStyle(BP.gray)
-            }
-            Spacer()
-            BPButton(title: "Continue", action: onContinue)
-                .padding(.horizontal, BP.Metric.pageMargin)
-                .padding(.bottom, 24)
-        }
-        .background(BP.paper.ignoresSafeArea())
     }
 }

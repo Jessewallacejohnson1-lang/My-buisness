@@ -51,6 +51,24 @@ final class BPAnswers: ObservableObject {
     /// The furthest screen reached, so a mid-flow kill resumes where it left off.
     @Published var resumeIndex: Int = 0 { didSet { saveInt(.resume, resumeIndex) } }
 
+    /// Read without constructing the model — the flow needs this at `@State`
+    /// initialisation, before an instance exists.
+    static var persistedResumeIndex: Int {
+        defaults.integer(forKey: Key.resume.rawValue)
+    }
+
+    #if DEBUG
+    /// Seed the resume position from INSIDE the app, for `-bp-seed-resume <n>`.
+    ///
+    /// Needed because this key cannot be seeded from outside: `simctl spawn defaults
+    /// write` does not reach the app for it (the app writes this key itself, and its own
+    /// cached value wins), so an external write silently has no effect and makes the
+    /// resume path look broken when it isn't.
+    static func seedResumeIndex(_ n: Int) {
+        defaults.set(n, forKey: Key.resume.rawValue)
+    }
+    #endif
+
     // MARK: - Lifecycle
 
     init() { load() }
