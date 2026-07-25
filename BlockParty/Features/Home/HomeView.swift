@@ -52,6 +52,11 @@ struct HomeView: View {
                         .springReveal(2, revealed: revealed, animated: revealAnimated)
                 }
 
+                // Utility Row — glanceable town info (weather · garbage · roads ·
+                // library), full-bleed horizontal scroll, below the almanac.
+                UtilityRowView()
+                    .padding(.top, 18)
+
                 TodayFeedView(
                     sections: model.feedSections,
                     isLoading: model.loading && !model.feedLoaded,

@@ -46,6 +46,11 @@ final class RealtimeClient {
 
     var onChange: ((Change) -> Void)?
     var onStatus: ((Status) -> Void)?
+    /// Table-agnostic "something changed" ping — fires on ANY postgres_changes
+    /// frame, before the club_events-shaped `Change` is built. A subscriber to a
+    /// different table (e.g. town_status) that only needs to re-fetch listens here
+    /// and ignores the typed `Change`. (See RoadsTileProvider.)
+    var onAnyChange: (() -> Void)?
 
     // MARK: Config
 
@@ -201,6 +206,7 @@ final class RealtimeClient {
                   let data = payload["data"] as? [String: Any],
                   let typeStr = data["type"] as? String,
                   let kind = Change.Kind(rawValue: typeStr) else { return }
+            onAnyChange?()   // table-agnostic ping (town_status re-fetch); before the typed Change
             let new = row(from: data["record"] as? [String: Any])
             let old = row(from: data["old_record"] as? [String: Any])
             onChange?(Change(kind: kind, new: new, old: old))

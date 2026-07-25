@@ -83,6 +83,11 @@ struct RootView: View {
                 // Preview the static feed-card states full-screen (bypassing the auth
                 // gate) so the component can be verified headlessly.
                 FeedCardGallery()
+            } else if ProcessInfo.processInfo.arguments.contains("-utility-row-preview") {
+                // Preview the Today Utility Row full-screen (bypassing the auth gate)
+                // so the tiles + tap-expand can be verified headlessly. Weather /
+                // garbage / library render live; roads shows its no-session state.
+                UtilityRowPreview()
             } else if ProcessInfo.processInfo.arguments.contains("-today-feed-preview")
                         || ProcessInfo.processInfo.arguments.contains("-today-feed-empty")
                         || ProcessInfo.processInfo.arguments.contains("-today-feed-skeleton") {
