@@ -38,6 +38,13 @@ struct BPButton: View {
     let title: String
     var variant: BPButtonVariant = .primary
     var enabled: Bool = true
+    /// DEBUG-only: drives the press visual with no touch.
+    ///
+    /// `ButtonStyle.isPressed` cannot be synthesised, and this simulator setup exposes no
+    /// tap automation, so the press physics would otherwise be unverifiable — the one
+    /// mechanic the spec calls most important. This feeds the SAME `pressed` state the
+    /// real touch does, so what gets measured is the shipping animation, not a mock of it.
+    var debugPressed: Bool = false
     let action: () -> Void
 
     var body: some View {
@@ -50,7 +57,7 @@ struct BPButton: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
         }
-        .buttonStyle(BPButtonStyle(variant: variant, enabled: enabled))
+        .buttonStyle(BPButtonStyle(variant: variant, enabled: enabled, forcePressed: debugPressed))
         .disabled(!enabled)
         .animation(BP.Motion.select, value: enabled)
     }
@@ -70,11 +77,13 @@ struct BPButton: View {
 private struct BPButtonStyle: ButtonStyle {
     let variant: BPButtonVariant
     let enabled: Bool
+    /// See `BPButton.debugPressed`. Always false in normal use.
+    var forcePressed: Bool = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeBody(configuration: Configuration) -> some View {
-        let pressed = configuration.isPressed && enabled
+        let pressed = (configuration.isPressed || forcePressed) && enabled
 
         return Group {
             if variant == .quiet {

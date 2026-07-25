@@ -252,3 +252,53 @@ is a real accessibility gap and it is app-wide, so fixing it is a separate decis
 `Haptics.light()` on every button and row press-DOWN (with the travel, matching the
 reference), `Haptics.selection()` on back, `Haptics.success()` on S20's "Join the party".
 All route through the app's existing warm-primed generators, which no-op in Low Power Mode.
+
+---
+
+## 8. Phase 4 — motion, measured frame by frame
+
+Each mechanic was recorded off the simulator at 60fps and measured by scanning the frames,
+not by eye. Films: `refs/onboarding/shots/_motion-strips.png` and
+`_motion-press-zoom.png`.
+
+| Mechanic | Measured | Intended | Verdict |
+|---|---|---|---|
+| Button face travel | **12px = 4.00pt** | 4pt | **exact** |
+| Press-down ramp | ~80ms (2px→12px) | — | recorded |
+| Release to rest | ~70ms | — | recorded |
+| Release overshoot above rest | 1px = **0.33pt** at +100ms | underdamped (`dampingFraction 0.62`) | present |
+| Progress advance rise | 0.23s to peak, settled by 0.40s | — | recorded |
+| Progress overshoot ("the pulse") | 5px = **1.67pt** (7.5% of the step) | "subtle overshoot/pulse on increment" | present |
+| Check badge peak scale | **1.061** (6.1% over) at +100ms, settled 0.20s | "pops in with a spring" | present |
+| Bubble type-on | **1.22s** for 34 chars | 34 × 30ms = 1.02s **+ 0.20s** rest at the `.` in "St." = 1.22s | **exact** |
+
+The type-on figure is worth stating precisely: the raw rate is 30ms/char exactly as
+specified, and the extra 0.20s is `TypewriterText`'s built-in sentence-punctuation rest
+firing on the period in "St." — not drift. Naively dividing 1.22s by 34 chars gives a
+misleading 35.9ms/char.
+
+### How the mechanics were driven
+
+There is **no tap automation** in this setup (`snapshot_ui` is available; the tap/gesture
+tools are not), so nothing could be pressed from outside the app. `-bp-motion
+press|progress|badge|typing` renders one mechanic alone on a plain ground at a fixed y and
+drives it **on a loop**, so any recording window catches complete cycles with rest on both
+sides. `BPButton.debugPressed` feeds the same `pressed` state a real touch does, so what
+was measured is the shipping animation rather than a mock of it.
+
+Two traps worth recording:
+- A **single** fire is unmeasurable — app launch takes a variable 1.5–2.5s, and the first
+  take caught the press-down 0.3s before the video ended, missing the release entirely.
+  Hence the loop.
+- The typing bench needs a **longer period than the others** (3.0s vs 1.0s): a 1.0s period
+  restarts the reveal before a 1.22s reveal can finish, so no clean measurement exists.
+
+### What is NOT verified, and cannot be
+
+**None of these timings are compared against Duolingo's.** The reference material is 20
+static PNGs — there is no reference recording, so the acceptance criterion "press physics
+indistinguishable from the refs" is **unverifiable as stated**. What is verified is that
+each mechanic does what the SPEC describes, to the measured numbers above.
+
+To close it properly: a screen recording of the real Duolingo onboarding would let the
+same scanning method run against both and produce a true side-by-side timing diff.

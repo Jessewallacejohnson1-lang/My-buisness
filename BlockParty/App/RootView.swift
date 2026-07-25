@@ -110,6 +110,10 @@ struct RootView: View {
                 // step with `-bp-step <case>` — this sim setup has no gesture automation,
                 // so every screen needs a flag to be reachable headlessly.
                 BPOnboardingFlow()
+            } else if let mechanic = BPMotionMechanic.fromArguments() {
+                // The Phase 4 motion bench: one signature mechanic, alone, driven
+                // programmatically so it can be recorded and measured frame by frame.
+                BPMotionBench(mechanic: mechanic)
             } else if ProcessInfo.processInfo.arguments.contains("-bp-components") {
                 // The Phase 0 component bench for the 20-screen onboarding rebuild —
                 // every signature mechanic in every state on one scrollable screen,
