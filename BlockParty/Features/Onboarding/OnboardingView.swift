@@ -11,36 +11,40 @@ import SwiftUI
 struct OnboardingView: View {
     var onDone: () -> Void
 
-    enum Step { case hello, name, interests, avatar, map }
+    /// TRIMMED to the two things the 20-screen pre-auth flow does NOT collect.
+    ///
+    /// Was `hello → name → interests → avatar → map`. The clone now owns the front door,
+    /// so: `hello` is redundant (S03/S04 greet), `avatar` is dropped (Jesse, 2026-07-25 —
+    /// `EditProfileView` still handles it later, and an empty avatar is a fine state), and
+    /// `map` is redundant AND would fight S19, which now owns the landing-tab promise.
+    ///
+    /// Name and interests stay because they feed real features the clone never asks about:
+    /// the greeting voice ("Evening on the block, Jesse") and interest matching. They keep
+    /// the app's own visual language on purpose — the seam between the orange/teal clone
+    /// and Block Party proper is sign-up, which is a natural narrative boundary.
+    enum Step { case name, interests }
     @State private var step: Step = OnboardingView.initialStep()
 
     @State private var name: String = OnboardingView.initialName()
     @State private var selected: Set<String> = OnboardingView.initialInterests()
-    @State private var avatar: UIImage?
-
     private let profiles = ProfileAPI(auth: .shared)
-    private let storage = Storage(auth: .shared)
 
     var body: some View {
         ZStack {
             Hue.paper.ignoresSafeArea()
             switch step {
-            case .hello:
-                hello.transition(.opacity)
             case .name:
-                NameStepView(name: $name, onBack: { go(.hello) }, onContinue: { go(.interests) })
+                // No back: nothing precedes this now. `onSkip` carries the escape hatch
+                // that used to live on the removed `hello` step.
+                NameStepView(name: $name,
+                             onContinue: { go(.interests) },
+                             onSkip: { finishData(); finish() })
                     .transition(stepTransition)
             case .interests:
                 InterestPickerView(selected: $selected, name: name,
-                                   onBack: { go(.name) }, onContinue: { go(.avatar) })
+                                   onBack: { go(.name) },
+                                   onContinue: { finishData(); finish() })
                     .transition(stepTransition)
-            case .avatar:
-                AvatarStepView(image: $avatar, name: name,
-                               onBack: { go(.interests) },
-                               onContinue: { finishData(); go(.map) })
-                    .transition(stepTransition)
-            case .map:
-                MapIntroView { finish() }.transition(.opacity)
             }
         }
     }
@@ -88,15 +92,14 @@ struct OnboardingView: View {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         Interests.set(ids)
         Interests.displayName = trimmed.isEmpty ? nil : trimmed
-        let img = avatar
         Task {
-            var avatarUrl: String?
-            if let img, let data = img.jpegData(compressionQuality: 0.85),
-               let uid = AuthStore.shared.userId {
-                avatarUrl = await storage.uploadAvatar(data, userId: uid)
-            }
+            // avatarUrl stays nil: this step no longer collects one. `ProfileAPI.upsert`
+            // is a full-row merge, so passing nil here CLEARS any existing avatar — which
+            // is correct on first onboarding (there cannot be one yet) but would be wrong
+            // if this were ever reused for an existing profile. Use `EditProfileView` for
+            // that; it uploads before it upserts.
             try? await profiles.upsert(displayName: trimmed.isEmpty ? nil : trimmed,
-                                       avatarUrl: avatarUrl, interests: ids, onboarded: true)
+                                       avatarUrl: nil, interests: ids, onboarded: true)
         }
     }
 
@@ -115,12 +118,11 @@ extension OnboardingView {
             switch args[i + 1] {
             case "name":      return .name
             case "interests": return .interests
-            case "avatar":    return .avatar
             default:          break
             }
         }
         #endif
-        return .hello
+        return .name
     }
 
     static func initialName() -> String {

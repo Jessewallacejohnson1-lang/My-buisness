@@ -172,13 +172,17 @@ struct BPOnboardingFlow: View {
         guard let next = BPStep(rawValue: step.rawValue + 1) else { finish(); return }
         goingBack = false
         withAnimation(.spring(response: 0.42, dampingFraction: 0.9)) { step = next }
-        answers.resumeIndex = max(answers.resumeIndex, next.rawValue)
+        answers.resumeIndex = next.rawValue
     }
 
     private func back() {
         guard let prev = BPStep(rawValue: step.rawValue - 1) else { return }
         goingBack = true
         withAnimation(.spring(response: 0.42, dampingFraction: 0.9)) { step = prev }
+        // Track the CURRENT step, not the furthest reached. The spec says a killed
+        // launch "resumes at the last screen"; a max() would resume someone who had
+        // navigated back at the wrong place.
+        answers.resumeIndex = prev.rawValue
     }
 
     // MARK: - Debug entry
@@ -204,7 +208,7 @@ struct BPOnboardingFlow: View {
         // Resume where a killed launch left off (spec §5). Skip the splash and welcome:
         // resuming onto a 1.2s auto-advancing splash would look like a crash-loop, and
         // re-showing the welcome would offer "Get started" to someone already started.
-        let saved = BPAnswers.persistedResumeIndex
+        let saved = BPAnswers.persistedResumeIndex()
         guard let step = BPStep(rawValue: saved), step.rawValue > BPStep.hello.rawValue else {
             return .splash
         }

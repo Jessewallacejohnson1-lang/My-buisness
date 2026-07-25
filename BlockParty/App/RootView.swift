@@ -38,9 +38,6 @@ struct RootView: View {
     /// second account on the same device gets its own profile pulled (not the first
     /// account's leftover mirror).
     @State private var hydratedUserId: String?
-    /// Set only when the user just finished the wizard, so they land on the Map tab
-    /// the finale promised (a returning user still opens to Today).
-    @State private var landOnMap = false
     /// Whether the 20-screen pre-auth onboarding has been completed (or skipped via
     /// "I already have an account"). Seeded from the persisted flag so a relaunch mid-way
     /// through the signed-out state doesn't replay a finished flow.
@@ -168,8 +165,7 @@ struct RootView: View {
         if needsOnboarding {
             OnboardingView { markOnboarded() }
         } else {
-            // S19's choice wins when present; otherwise the old wizard's map promise.
-            MainTabsView(startTab: bpLandingTab ?? (landOnMap ? .map : nil))
+            MainTabsView(startTab: bpLandingTab)
         }
     }
 
@@ -183,7 +179,8 @@ struct RootView: View {
 
     private func markOnboarded() {
         if let uid = auth.userId { Interests.setOnboarded(uid: uid) }
-        landOnMap = true          // the map-intro finale promised the map — keep that promise
+        // The map-intro finale is gone from the wizard, so there is no map promise to
+        // keep. S19 now owns where the user lands, via `bpLandingTab`.
         onboardingDone = true
     }
 

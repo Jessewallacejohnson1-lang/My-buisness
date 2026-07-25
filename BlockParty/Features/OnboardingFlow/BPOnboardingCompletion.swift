@@ -74,9 +74,13 @@ enum BPOnboardingCompletion {
                 notifyCadence: answers.notifyCadence,
                 foundingMember: answers.foundingMember,
                 landingChoice: answers.landingChoice,
-                // Only stamp onboarded_at once the flow genuinely finished — it is the
-                // flag that permanently skips the flow on a reinstall.
-                markOnboarded: flowDone
+                // Stamp onboarded_at only when every answer is in — NOT on `flowDone`.
+                //
+                // `flowDone` is also set by "I already have an account", which is reachable
+                // AFTER answering (S05 → back → S02). Gating on it stamped a user who had
+                // answered one question and bailed to sign-in as fully onboarded, which
+                // then skipped the name/interests wizard too and lost that capture.
+                markOnboarded: answers.isComplete
             )
             // Landing choice is read from the buffer immediately after sign-in to route
             // the first screen, so clear only after it has been used.

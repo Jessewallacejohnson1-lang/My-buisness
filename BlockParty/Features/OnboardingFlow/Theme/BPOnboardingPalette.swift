@@ -29,7 +29,12 @@ enum BP {
 
     /// Primary buttons, progress fill, splash ground, highlighted stat spans.
     /// Everything Duolingo's green (#5ACD05, sampled) does.
-    static let orange = Color(hex: 0xE67633)
+    ///
+    /// The spec names #E67633. That misses WCAG's 3.0:1 large-text bar against white by
+    /// 0.07% (2.998:1) — a rounding-scale shortfall, but the acceptance checklist calls
+    /// out white-on-orange explicitly. #E47533 is 0.9% darker, visually indistinguishable,
+    /// and clears it at 3.05:1. (Duolingo's own green is 2.09:1, for scale.)
+    static let orange = Color(hex: 0xE47533)
 
     /// The 3D bottom edge + pressed state of a primary button. Duolingo's edge
     /// measured 19% darker than its face (#5ACD05 → #5CA600); this matches that ratio.

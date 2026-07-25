@@ -7,8 +7,13 @@ import SwiftUI
 
 struct NameStepView: View {
     @Binding var name: String
-    let onBack: () -> Void
+    /// Nil when this is the first step (the trimmed wizard: name → interests).
+    var onBack: (() -> Void)?
     let onContinue: () -> Void
+    /// The wizard's escape hatch. It used to live on the removed `hello` step, and a
+    /// user who won't type a name must still be able to get into the app — both
+    /// remaining steps gate their CTA on having an answer.
+    var onSkip: (() -> Void)?
 
     @FocusState private var focused: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -18,7 +23,7 @@ struct NameStepView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            OnboardingTopBar(index: 0, total: 3, onBack: onBack)
+            OnboardingTopBar(index: 0, total: 2, onBack: onBack)
                 .padding(.top, 8)
 
             VStack(alignment: .leading, spacing: 8) {
@@ -52,8 +57,16 @@ struct NameStepView: View {
             Spacer()
             Spacer()
 
-            ContinueButton(title: "Continue", enabled: canContinue) {
-                Haptics.selection(); onContinue()
+            VStack(spacing: 6) {
+                ContinueButton(title: "Continue", enabled: canContinue) {
+                    Haptics.selection(); onContinue()
+                }
+                if let onSkip {
+                    Button("Skip for now") { Haptics.selection(); onSkip() }
+                        .font(.sans(15))
+                        .foregroundStyle(Hue.inkSecondary)
+                        .padding(.vertical, 10)
+                }
             }
         }
         .padding(24)

@@ -35,7 +35,7 @@ struct InterestPickerView: View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 14) {
                 if showsProgress {
-                    OnboardingTopBar(index: 1, total: 3, onBack: onBack).padding(.top, 8)
+                    OnboardingTopBar(index: 1, total: 2, onBack: onBack).padding(.top, 8)
                 } else {
                     HStack { OnboardingBackButton(action: onBack); Spacer() }.padding(.top, 8)
                 }

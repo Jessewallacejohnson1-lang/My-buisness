@@ -48,10 +48,14 @@ struct OnboardingProgressBar: View {
 struct OnboardingTopBar: View {
     let index: Int
     let total: Int
-    let onBack: () -> Void
+    /// Nil on the first step, which has nowhere to go back to. A back button that does
+    /// nothing is worse than no back button.
+    var onBack: (() -> Void)?
     var body: some View {
         HStack(spacing: 14) {
-            OnboardingBackButton(action: onBack)
+            if let onBack {
+                OnboardingBackButton(action: onBack)
+            }
             OnboardingProgressBar(index: index, total: total)
         }
     }

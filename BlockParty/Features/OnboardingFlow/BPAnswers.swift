@@ -53,8 +53,8 @@ final class BPAnswers: ObservableObject {
 
     /// Read without constructing the model — the flow needs this at `@State`
     /// initialisation, before an instance exists.
-    static var persistedResumeIndex: Int {
-        defaults.integer(forKey: Key.resume.rawValue)
+    static func persistedResumeIndex(in store: UserDefaults = .standard) -> Int {
+        store.integer(forKey: Key.resume.rawValue)
     }
 
     #if DEBUG
@@ -64,19 +64,30 @@ final class BPAnswers: ObservableObject {
     /// write` does not reach the app for it (the app writes this key itself, and its own
     /// cached value wins), so an external write silently has no effect and makes the
     /// resume path look broken when it isn't.
-    static func seedResumeIndex(_ n: Int) {
-        defaults.set(n, forKey: Key.resume.rawValue)
+    static func seedResumeIndex(_ n: Int, in store: UserDefaults = .standard) {
+        store.set(n, forKey: Key.resume.rawValue)
     }
     #endif
 
     // MARK: - Lifecycle
 
-    init() { load() }
+    /// The backing store is injectable so tests can use an isolated suite.
+    ///
+    /// It used to hardcode `UserDefaults.standard`, which made the buffer untestable:
+    /// a test would read whatever the simulator's app container happened to hold, and
+    /// the screenshot-seeding this project relies on writes those very keys. The first
+    /// test written against it failed for exactly that reason.
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        load()
+    }
 
     /// Wipes the buffer once the answers have been flushed to the server, so a second
     /// account on the same device never inherits the first one's answers.
     func clear() {
-        for k in Key.allCases { Self.defaults.removeObject(forKey: k.rawValue) }
+        for k in Key.allCases { defaults.removeObject(forKey: k.rawValue) }
         connection = nil; townLevel = nil; motivations = []
         notifyCadence = nil; foundingMember = nil; landingChoice = nil
         resumeIndex = 0
@@ -100,8 +111,6 @@ final class BPAnswers: ObservableObject {
         case resume      = "hygge.onboarding.resumeIndex"
     }
 
-    private static let defaults = UserDefaults.standard
-
     /// `isLoading` suppresses the `didSet` writes while `load()` populates the
     /// published properties — without it, hydrating would rewrite every key on launch.
     private var isLoading = false
@@ -109,7 +118,7 @@ final class BPAnswers: ObservableObject {
     private func load() {
         isLoading = true
         defer { isLoading = false }
-        let d = Self.defaults
+        let d = defaults
         connection = d.string(forKey: Key.connection.rawValue)
         townLevel = d.object(forKey: Key.townLevel.rawValue) as? Int
         motivations = Set(d.stringArray(forKey: Key.motivations.rawValue) ?? [])
@@ -121,24 +130,24 @@ final class BPAnswers: ObservableObject {
 
     private func save(_ k: Key, _ v: String?) {
         guard !isLoading else { return }
-        if let v { Self.defaults.set(v, forKey: k.rawValue) }
-        else { Self.defaults.removeObject(forKey: k.rawValue) }
+        if let v { defaults.set(v, forKey: k.rawValue) }
+        else { defaults.removeObject(forKey: k.rawValue) }
     }
 
     private func saveInt(_ k: Key, _ v: Int?) {
         guard !isLoading else { return }
-        if let v { Self.defaults.set(v, forKey: k.rawValue) }
-        else { Self.defaults.removeObject(forKey: k.rawValue) }
+        if let v { defaults.set(v, forKey: k.rawValue) }
+        else { defaults.removeObject(forKey: k.rawValue) }
     }
 
     private func saveBool(_ k: Key, _ v: Bool?) {
         guard !isLoading else { return }
-        if let v { Self.defaults.set(v, forKey: k.rawValue) }
-        else { Self.defaults.removeObject(forKey: k.rawValue) }
+        if let v { defaults.set(v, forKey: k.rawValue) }
+        else { defaults.removeObject(forKey: k.rawValue) }
     }
 
     private func saveSet(_ k: Key, _ v: Set<String>) {
         guard !isLoading else { return }
-        Self.defaults.set(Array(v).sorted(), forKey: k.rawValue)
+        defaults.set(Array(v).sorted(), forKey: k.rawValue)
     }
 }

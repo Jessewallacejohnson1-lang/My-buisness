@@ -10,6 +10,7 @@
 		601CE2FFEC4A8CF9FC1EEDB0 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 42A092CAAEC9643A72B2B683 /* Foundation.framework */; };
 		8D66765DBC1A2AB48CEFB070 /* FakeTokenProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 638DB9DE7EC40B8F6418B2D4 /* FakeTokenProvider.swift */; };
 		EBD0A26B2FF82901009CD00C /* MapboxMaps in Frameworks */ = {isa = PBXBuildFile; productRef = EBD0A26A2FF82901009CD00C /* MapboxMaps */; };
+		EE09772EAB1CE87343E23F11 /* OnboardingFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5EBDB149EB0DA570CE276CE /* OnboardingFlowTests.swift */; };
 		F0B0F88446D770042B52B58F /* DateHelpersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB5E7B2FE663BE791435EB12 /* DateHelpersTests.swift */; };
 /* End PBXBuildFile section */
 
@@ -27,6 +28,7 @@
 		42A092CAAEC9643A72B2B683 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		638DB9DE7EC40B8F6418B2D4 /* FakeTokenProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FakeTokenProvider.swift; path = BlockPartyTests/FakeTokenProvider.swift; sourceTree = "<group>"; };
 		B5F7E6B19BACA2FDE7BCD206 /* BlockPartyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BlockPartyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		C5EBDB149EB0DA570CE276CE /* OnboardingFlowTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = OnboardingFlowTests.swift; path = BlockPartyTests/OnboardingFlowTests.swift; sourceTree = "<group>"; };
 		CB5E7B2FE663BE791435EB12 /* DateHelpersTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DateHelpersTests.swift; path = BlockPartyTests/DateHelpersTests.swift; sourceTree = "<group>"; };
 		EBBFA6F02FF473FB00A2EDB1 /* BlockParty.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BlockParty.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -69,6 +71,14 @@
 			name = iOS;
 			sourceTree = "<group>";
 		};
+		A4B2840E7F94B51BBAB03CD0 /* BlockPartyTests */ = {
+			isa = PBXGroup;
+			children = (
+				C5EBDB149EB0DA570CE276CE /* OnboardingFlowTests.swift */,
+			);
+			name = BlockPartyTests;
+			sourceTree = SOURCE_ROOT;
+		};
 		E7FE0881930605D74E08E04E /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
@@ -85,6 +95,7 @@
 				E7FE0881930605D74E08E04E /* Frameworks */,
 				CB5E7B2FE663BE791435EB12 /* DateHelpersTests.swift */,
 				638DB9DE7EC40B8F6418B2D4 /* FakeTokenProvider.swift */,
+				A4B2840E7F94B51BBAB03CD0 /* BlockPartyTests */,
 			);
 			sourceTree = "<group>";
 		};
@@ -203,6 +214,7 @@
 			files = (
 				F0B0F88446D770042B52B58F /* DateHelpersTests.swift in Sources */,
 				8D66765DBC1A2AB48CEFB070 /* FakeTokenProvider.swift in Sources */,
+				EE09772EAB1CE87343E23F11 /* OnboardingFlowTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
