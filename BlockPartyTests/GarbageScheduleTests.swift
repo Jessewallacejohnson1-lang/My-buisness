@@ -43,23 +43,28 @@ final class GarbageScheduleTests: XCTestCase {
 
     // MARK: recycling parity — anchored to Jul 14 2026 (a recycling week)
 
-    func testAnchorWeekIsRecycling() {
-        let p = GarbageSchedule.nextPickup(after: date(2026, 7, 13), pickupWeekday: 3, calendar: cal())
-        XCTAssertTrue(p.isRecyclingWeek)   // week of the anchor
+    func testAnchorWeekIsRecyclingMatchesRealCalendar() {
+        // Thu Jan 15 2026 is a "Blue Week" recycling Thursday (Republic Services 2026 calendar).
+        let p = GarbageSchedule.nextPickup(after: date(2026, 1, 12), pickupWeekday: 5, calendar: cal())
+        XCTAssertEqual(cal().component(.day, from: p.date), 15)
+        XCTAssertTrue(p.isRecyclingWeek)
     }
 
     func testNextWeekIsTrashOnly() {
-        // Mon Jul 20 2026 → pickup Tue Jul 21, the week AFTER the anchor → not recycling.
-        let p = GarbageSchedule.nextPickup(after: date(2026, 7, 20), pickupWeekday: 3, calendar: cal())
+        // Thu Jan 22 2026 is the off week → trash only (white on the real calendar).
+        let p = GarbageSchedule.nextPickup(after: date(2026, 1, 19), pickupWeekday: 5, calendar: cal())
+        XCTAssertEqual(cal().component(.day, from: p.date), 22)
         XCTAssertFalse(p.isRecyclingWeek)
     }
 
     func testParityAlternatesWeekly() {
-        let a = GarbageSchedule.nextPickup(after: date(2026, 7, 13), pickupWeekday: 3, calendar: cal())
-        let b = GarbageSchedule.nextPickup(after: date(2026, 7, 20), pickupWeekday: 3, calendar: cal())
-        let c = GarbageSchedule.nextPickup(after: date(2026, 7, 27), pickupWeekday: 3, calendar: cal())
-        XCTAssertNotEqual(a.isRecyclingWeek, b.isRecyclingWeek)
-        XCTAssertEqual(a.isRecyclingWeek, c.isRecyclingWeek)
+        // Jan 15 recycling · Jan 22 trash · Jan 29 recycling — matches the 2026 calendar.
+        let a = GarbageSchedule.nextPickup(after: date(2026, 1, 12), pickupWeekday: 5, calendar: cal())
+        let b = GarbageSchedule.nextPickup(after: date(2026, 1, 19), pickupWeekday: 5, calendar: cal())
+        let c = GarbageSchedule.nextPickup(after: date(2026, 1, 26), pickupWeekday: 5, calendar: cal())
+        XCTAssertTrue(a.isRecyclingWeek)
+        XCTAssertFalse(b.isRecyclingWeek)
+        XCTAssertTrue(c.isRecyclingWeek)
     }
 
     // MARK: holiday shift — a holiday on/before the pickup day delays pickup +1

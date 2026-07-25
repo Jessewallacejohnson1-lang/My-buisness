@@ -12,17 +12,25 @@
 import Foundation
 
 enum GarbageSchedule {
-    /// Apple weekday numbering: 1=Sun, 2=Mon, 3=Tue … 7=Sat.
-    nonisolated static let defaultWeekday = 3   // Tuesday
+    /// Apple weekday numbering: 1=Sun, 2=Mon … 5=Thu … 7=Sat.
+    /// St. Joseph, MN refuse is collected every THURSDAY by Republic Services
+    /// (source: stjosephmn.gov/162/Garbage-Recycling).
+    nonisolated static let defaultWeekday = 5   // Thursday
 
-    /// A date that fell in a RECYCLING week. Recycling-week parity flows from it
-    /// (every other week). TODO(jesse): verify against the St. Joseph hauler's
-    /// actual calendar — any real recycling-week pickup date works.
-    nonisolated static let recyclingAnchor = DateComponents(year: 2026, month: 7, day: 14)  // Tue Jul 14 2026
+    /// A confirmed RECYCLING-week Thursday — every-other-week parity flows from it.
+    /// St. Joseph recycles on "Blue Week" Thursdays; the 2026 Republic Services
+    /// calendar shows Jan 1 / 15 / 29 (source: stjosephmn.gov 2026 Recycling
+    /// Calendar, DocumentCenter/View/3049). TODO(jesse): re-verify each year — a
+    /// hauler can reset the alternation at the year boundary.
+    nonisolated static let recyclingAnchor = DateComponents(year: 2026, month: 1, day: 15)  // Thu Jan 15 2026 (recycling)
 
     /// FIXED-date observed holidays. The floating ones (Memorial / Labor /
-    /// Thanksgiving) are computed per-year by rule in `floatingHolidays`, so the
-    /// shift stays correct every year. TODO(jesse): verify the hauler's actual list.
+    /// Thanksgiving) are computed per-year by rule in `floatingHolidays`.
+    /// NOTE: the 2026 St. Joseph recycling calendar shows clean alternating
+    /// Thursdays with NO visible holiday shifts, and the city page lists no
+    /// holiday-delay policy. TODO(jesse): confirm whether Republic Services
+    /// delays St. Joseph collection for holidays — if it does NOT, empty this
+    /// list (the shift mechanism then no-ops).
     nonisolated static let observedHolidays: [MonthDay] = [
         MonthDay(1, 1),     // New Year's Day
         MonthDay(7, 4),     // Independence Day

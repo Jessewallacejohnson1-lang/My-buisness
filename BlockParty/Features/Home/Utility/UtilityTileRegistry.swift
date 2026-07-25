@@ -57,7 +57,7 @@ final class UtilityTileRegistry {
             UtilityTileDescriptor(
                 id: .library, displayName: "Library", symbol: "book.fill",
                 gradient: UtilityTileGradient.library,
-                summary: "Great River Regional Library — St. Joseph hours.",
+                summary: "Great River Library — St. Cloud (nearest branch) hours.",
                 provider: LibraryTileProvider(), settingsEditor: nil),
         ]
         catalog = entries.map(\.id)

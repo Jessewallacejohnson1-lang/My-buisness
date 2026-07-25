@@ -33,26 +33,26 @@ final class LibraryHoursTests: XCTestCase {
     }
 
     func testClosedAfterHoursOpensNextDay() {
-        // Wed Jul 15 2026, 9:00 PM → closed, next opening Thu(5) 10 AM.
+        // Wed Jul 15 2026, 9:00 PM → closed, next opening Thu(5) 9 AM.
         let s = LibraryHours.status(at: date(2026, 7, 15, 21), calendar: cal())
-        XCTAssertEqual(s, .closed(opensAt: 10 * 60, weekday: 5))
+        XCTAssertEqual(s, .closed(opensAt: 9 * 60, weekday: 5))
     }
 
     func testClosedBeforeOpeningSameDay() {
-        // Wed Jul 15 2026, 9:00 AM → closed, opens today(4) at 10 AM.
-        let s = LibraryHours.status(at: date(2026, 7, 15, 9), calendar: cal())
-        XCTAssertEqual(s, .closed(opensAt: 10 * 60, weekday: 4))
+        // Wed Jul 15 2026, 8:30 AM → closed, opens today(4) at 9 AM.
+        let s = LibraryHours.status(at: date(2026, 7, 15, 8, 30), calendar: cal())
+        XCTAssertEqual(s, .closed(opensAt: 9 * 60, weekday: 4))
     }
 
     func testSundayClosedOpensMonday() {
-        // Sun Jul 12 2026, noon → closed all day, opens Mon(2) 10 AM.
+        // Sun Jul 12 2026, noon → closed all day, opens Mon(2) 9 AM.
         let s = LibraryHours.status(at: date(2026, 7, 12, 12), calendar: cal())
-        XCTAssertEqual(s, .closed(opensAt: 10 * 60, weekday: 2))
+        XCTAssertEqual(s, .closed(opensAt: 9 * 60, weekday: 2))
     }
 
     func testClosesAtTableUpperBound() {
-        // Sat Jul 11 2026, 2 PM → open, closes 5 PM (Sat closes earlier).
+        // Sat Jul 11 2026, 2 PM → open, closes 4 PM (Sat closes earlier).
         let s = LibraryHours.status(at: date(2026, 7, 11, 14), calendar: cal())
-        XCTAssertEqual(s, .open(closesAt: 17 * 60, weekday: 7))
+        XCTAssertEqual(s, .open(closesAt: 16 * 60, weekday: 7))
     }
 }
