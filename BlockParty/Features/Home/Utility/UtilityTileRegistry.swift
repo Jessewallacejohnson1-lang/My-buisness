@@ -45,7 +45,10 @@ final class UtilityTileRegistry {
                 id: .garbage, displayName: "Garbage", symbol: "trash.fill",
                 gradient: UtilityTileGradient.garbage,
                 summary: "Your next trash and recycling pickup.",
-                provider: GarbageTileProvider(), settingsEditor: nil),   // Phase 3: weekday picker
+                provider: GarbageTileProvider(),
+                settingsEditor: { settings, apply in
+                    AnyView(GarbageWeekdaySetting(settings: settings, apply: apply))
+                }),
             UtilityTileDescriptor(
                 id: .roads, displayName: "Roads", symbol: "road.lanes",
                 gradient: UtilityTileGradient.roads,
