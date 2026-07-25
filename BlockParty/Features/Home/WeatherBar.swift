@@ -41,9 +41,21 @@ enum WeatherService {
     /// parse and display in this zone so the Almanac always speaks in St. Joe time.
     static let townTZ = TimeZone(identifier: "America/Chicago") ?? .current
 
+    private static var inFlight: Task<Weather?, Never>?
+
     static func current() async -> Weather? {
         if let c = cached, Date().timeIntervalSince(c.at) < ttl { return c.weather }
+        // Coalesce concurrent callers (weather tile + almanac + hero) into ONE
+        // fetch, instead of a cache stampede of duplicate open-meteo calls.
+        if let inFlight { return await inFlight.value }
+        let task = Task<Weather?, Never> { await fetchWeather() }
+        inFlight = task
+        let weather = await task.value
+        inFlight = nil
+        return weather
+    }
 
+    private static func fetchWeather() async -> Weather? {
         // Two independent Open-Meteo calls (both free, no key): the forecast API
         // and the air-quality API. They overlap across the network wait. AQI is
         // best-effort — its failure just drops AQI, never the whole readout.

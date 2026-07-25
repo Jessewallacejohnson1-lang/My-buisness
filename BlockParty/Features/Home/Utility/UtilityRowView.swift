@@ -56,9 +56,7 @@ final class UtilityRowModel: ObservableObject {
         let tiles = order.filter { enabled.contains($0) }
         await prefs.save(tiles: tiles, settings: settings)
         for id in Array(states.keys) where !enabled.contains(id) { states[id] = nil }
-        for (id, sub) in subscriptions where !enabled.contains(id) {
-            sub.cancel(); subscriptions[id] = nil
-        }
+        reconcileSubscriptions()
         refreshEnabled()        // re-fetch enabled tiles (settings may have changed)
         openSubscriptions()
     }
@@ -69,6 +67,11 @@ final class UtilityRowModel: ObservableObject {
         refreshEnabled()            // instant, on the mirrored/default set
         openSubscriptions()
         await prefs.hydrate()       // reconcile from Supabase (may reorder / re-enable)
+        // teardown() (or a new start()) may have run during the hydrate network
+        // round-trip; if the lifecycle moved on, bail so we don't resurrect a
+        // subscription that teardown just cancelled (orphaned RealtimeClient leak).
+        guard started, !Task.isCancelled else { return }
+        reconcileSubscriptions()    // drop subs for tiles hydrate disabled
         refreshEnabled()            // fetch any newly-enabled tiles
         openSubscriptions()         // subscribe any new live tiles (idempotent)
 
@@ -128,6 +131,14 @@ final class UtilityRowModel: ObservableObject {
             }) {
                 subscriptions[id] = sub
             }
+        }
+    }
+
+    /// Cancel + drop subscriptions for tiles no longer enabled.
+    private func reconcileSubscriptions() {
+        let enabled = Set(prefs.tiles)
+        for (id, sub) in subscriptions where !enabled.contains(id) {
+            sub.cancel(); subscriptions[id] = nil
         }
     }
 }

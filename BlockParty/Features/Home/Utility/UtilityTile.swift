@@ -149,11 +149,11 @@ extension UtilityTileProvider {
     func subscribe(settings: TileSettings, onChange: @escaping () -> Void) -> UtilitySubscription? { nil }
 }
 
-/// Opaque cancel handle returned by `subscribe`.
+/// Opaque cancel handle returned by `subscribe`. `cancel()` is idempotent.
 final class UtilitySubscription {
-    private let onCancel: () -> Void
+    private var onCancel: (() -> Void)?
     init(onCancel: @escaping () -> Void) { self.onCancel = onCancel }
-    func cancel() { onCancel() }
+    func cancel() { onCancel?(); onCancel = nil }
 }
 
 // MARK: - Settings (the per-tile jsonb blob)
@@ -225,7 +225,8 @@ enum JSONValue: Codable, Equatable, Sendable {
     var intValue: Int? {
         switch self {
         case .int(let i):    return i
-        case .double(let d): return Int(d)
+        // Guard the Int(d) conversion: it traps on NaN/Inf or out-of-range doubles.
+        case .double(let d): return (d.isFinite && abs(d) < 9.007199254740992e15) ? Int(d) : nil
         default:             return nil
         }
     }

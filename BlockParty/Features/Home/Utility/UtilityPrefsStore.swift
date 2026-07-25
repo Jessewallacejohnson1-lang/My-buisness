@@ -24,6 +24,7 @@ final class UtilityPrefsStore: ObservableObject {
     private static let tilesKey = "utility.tiles"
     private static let settingsKey = "utility.settings"
     private static let savedKey = "utility.hasSavedOnce"
+    private static let pendingKey = "utility.pendingSync"   // an offline save awaiting upsert
 
     init(api: UtilityPrefsAPI? = nil,
          knownIDs: Set<UtilityTileID> = Set(UtilityTileID.defaults)) {
@@ -55,6 +56,13 @@ final class UtilityPrefsStore: ObservableObject {
     /// Pull the server row and reconcile (call once per session after sign-in).
     /// A missing row or a network failure leaves the mirrored state untouched.
     func hydrate() async {
+        // If a local save never reached the server (offline), the mirror is NEWER
+        // than the server row — push it instead of letting a stale row overwrite
+        // the un-synced edit (data loss).
+        if isPending {
+            await pushToServer()
+            return
+        }
         guard let row = try? await api.getMine() else { return }
         tiles = Self.sanitize(row.tiles.map { UtilityTileID(rawValue: $0) }, known: knownIDs)
         settings = Self.mapSettings(row.settings)
@@ -63,17 +71,31 @@ final class UtilityPrefsStore: ObservableObject {
     }
 
     /// Persist a new configuration: UserDefaults immediately (so the row updates
-    /// and survives relaunch offline), then a best-effort Supabase upsert.
+    /// and survives relaunch offline), then push to Supabase.
     func save(tiles newTiles: [UtilityTileID], settings newSettings: [UtilityTileID: TileSettings]) async {
         tiles = newTiles
         settings = newSettings
         hasSavedOnce = true
+        setPending(true)   // dirty until the server confirms — protects an offline edit
         mirror()
-
-        let idStrings = newTiles.map(\.rawValue)
-        let settingStrings = Dictionary(uniqueKeysWithValues: newSettings.map { ($0.key.rawValue, $0.value) })
-        try? await api.upsert(tiles: idStrings, settings: settingStrings)
+        await pushToServer()
     }
+
+    /// Upsert local prefs to Supabase; clears the pending flag on success, leaves
+    /// it set (retried on the next hydrate) on failure.
+    private func pushToServer() async {
+        let idStrings = tiles.map(\.rawValue)
+        let settingStrings = Dictionary(uniqueKeysWithValues: settings.map { ($0.key.rawValue, $0.value) })
+        do {
+            try await api.upsert(tiles: idStrings, settings: settingStrings)
+            setPending(false)
+        } catch {
+            // Stays pending; retried on the next hydrate / launch.
+        }
+    }
+
+    private var isPending: Bool { UserDefaults.standard.bool(forKey: Self.pendingKey) }
+    private func setPending(_ value: Bool) { UserDefaults.standard.set(value, forKey: Self.pendingKey) }
 
     /// Update one tile's settings (e.g. garbage weekday) and persist.
     func updateSettings(_ id: UtilityTileID, _ value: TileSettings) async {

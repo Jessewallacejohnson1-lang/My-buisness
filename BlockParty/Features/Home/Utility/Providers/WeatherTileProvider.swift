@@ -41,18 +41,19 @@ final class WeatherTileProvider: UtilityTileProvider {
     }
 
     private func expanded(for w: Weather) -> [UtilityDetailRow] {
+        // Short labels/values so nothing wraps in the narrow (148pt) expanded tile.
         var rows: [UtilityDetailRow] = [
-            UtilityDetailRow(symbol: "thermometer.medium", label: "Feels like", value: "\(w.feelsLikeF)°"),
-            UtilityDetailRow(symbol: "arrow.up.arrow.down", label: "High · Low", value: "\(w.highF)° · \(w.lowF)°"),
+            UtilityDetailRow(symbol: "thermometer.medium", label: "Feels", value: "\(w.feelsLikeF)°"),
+            UtilityDetailRow(symbol: "arrow.up.arrow.down", label: "Hi / Lo", value: "\(w.highF)° / \(w.lowF)°"),
         ]
         if let gust = w.windGustMph {
             rows.append(UtilityDetailRow(symbol: "wind", label: "Gusts", value: "\(gust) mph"))
         }
         if let p = w.precipProbNext2h {
-            rows.append(UtilityDetailRow(symbol: "cloud.rain", label: "Rain (2h)", value: "\(p)%"))
+            rows.append(UtilityDetailRow(symbol: "cloud.rain", label: "Rain 2h", value: "\(p)%"))
         }
         if let aqi = w.aqi {
-            rows.append(UtilityDetailRow(symbol: "aqi.medium", label: "Air quality", value: "\(aqi) · \(aqiBand(aqi))"))
+            rows.append(UtilityDetailRow(symbol: "aqi.medium", label: "Air", value: "\(aqi)"))
         }
         return rows
     }

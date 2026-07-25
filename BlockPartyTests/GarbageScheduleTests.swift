@@ -79,6 +79,15 @@ final class GarbageScheduleTests: XCTestCase {
         XCTAssertEqual(c.component(.month, from: p.date), 12)
     }
 
+    func testFloatingHolidayShiftsInAFutureYear() {
+        // Thanksgiving is the 4th Thursday of Nov — computed per year, not hardcoded.
+        // In 2028 that's Thu Nov 23; a Friday(6) pickup that week shifts to Sat Nov 25.
+        let c = cal()
+        let p = GarbageSchedule.nextPickup(after: date(2028, 11, 20), pickupWeekday: 6, calendar: c)
+        XCTAssertEqual(c.component(.month, from: p.date), 11)
+        XCTAssertEqual(c.component(.day, from: p.date), 25)
+    }
+
     func testNoHolidayNoShift() {
         // A plain week: pickup weekday is returned unshifted.
         let c = cal()

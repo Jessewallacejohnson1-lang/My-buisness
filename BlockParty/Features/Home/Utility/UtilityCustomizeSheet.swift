@@ -77,6 +77,7 @@ struct UtilityCustomizeSheet: View {
                 }
                 Spacer(minLength: 8)
                 Toggle("", isOn: enabledBinding(d.id)).labelsHidden().tint(Hue.ink)
+                    .accessibilityLabel(d.displayName)
             }
             // Inline settings (v1: garbage weekday), shown when enabled.
             if draftEnabled.contains(d.id), let editor = d.settingsEditor {

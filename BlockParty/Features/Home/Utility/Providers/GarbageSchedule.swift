@@ -20,15 +20,12 @@ enum GarbageSchedule {
     /// actual calendar — any real recycling-week pickup date works.
     nonisolated static let recyclingAnchor = DateComponents(year: 2026, month: 7, day: 14)  // Tue Jul 14 2026
 
-    /// Observed holidays that delay collection by a day when they fall on/before
-    /// the pickup weekday in a given week. TODO(jesse): verify the hauler's list;
-    /// floating holidays (Memorial/Labor/Thanksgiving) are per-year — confirm dates.
+    /// FIXED-date observed holidays. The floating ones (Memorial / Labor /
+    /// Thanksgiving) are computed per-year by rule in `floatingHolidays`, so the
+    /// shift stays correct every year. TODO(jesse): verify the hauler's actual list.
     nonisolated static let observedHolidays: [MonthDay] = [
         MonthDay(1, 1),     // New Year's Day
-        MonthDay(5, 25),    // Memorial Day (last Mon May — 2026; TODO verify per year)
         MonthDay(7, 4),     // Independence Day
-        MonthDay(9, 7),     // Labor Day (first Mon Sep — 2026; TODO verify per year)
-        MonthDay(11, 26),   // Thanksgiving (4th Thu Nov — 2026; TODO verify per year)
         MonthDay(12, 25),   // Christmas Day
     ]
 
@@ -81,16 +78,37 @@ enum GarbageSchedule {
         return Int((Double(days) / 7.0).rounded())
     }
 
-    /// True if an observed holiday in this week falls on a weekday ≤ the pickup day.
+    /// True if an observed holiday in this collection week falls ON OR BEFORE the
+    /// pickup day — compared by POSITION in the week (offset from weekStart), so it
+    /// is correct for any calendar's `firstWeekday`, not only Sunday-first.
     private nonisolated static func holidayDelays(weekStarting weekStart: Date, pickupWeekday: Int, _ cal: Calendar) -> Bool {
-        for offset in 0..<7 {
+        let startWeekday = cal.component(.weekday, from: weekStart)
+        let pickupOffset = (pickupWeekday - startWeekday + 7) % 7
+        for offset in 0...pickupOffset {
             guard let day = cal.date(byAdding: .day, value: offset, to: weekStart) else { continue }
-            let c = cal.dateComponents([.month, .day, .weekday], from: day)
-            guard let m = c.month, let d = c.day, let wd = c.weekday else { continue }
-            if wd <= pickupWeekday && observedHolidays.contains(where: { $0.month == m && $0.day == d }) {
-                return true
-            }
+            if isHoliday(day, cal) { return true }
         }
         return false
+    }
+
+    private nonisolated static func isHoliday(_ day: Date, _ cal: Calendar) -> Bool {
+        let c = cal.dateComponents([.year, .month, .day], from: day)
+        guard let y = c.year, let m = c.month, let d = c.day else { return false }
+        if observedHolidays.contains(where: { $0.month == m && $0.day == d }) { return true }
+        return floatingHolidays(year: y, cal).contains { cal.isDate($0, inSameDayAs: day) }
+    }
+
+    /// US floating federal holidays that shift collection, computed for `year`.
+    private nonisolated static func floatingHolidays(year: Int, _ cal: Calendar) -> [Date] {
+        [ nthWeekday(year: year, month: 5, weekday: 2, ordinal: -1, cal),  // Memorial: last Mon May
+          nthWeekday(year: year, month: 9, weekday: 2, ordinal: 1, cal),   // Labor: first Mon Sep
+          nthWeekday(year: year, month: 11, weekday: 5, ordinal: 4, cal) ] // Thanksgiving: 4th Thu Nov
+            .compactMap { $0 }
+    }
+
+    private nonisolated static func nthWeekday(year: Int, month: Int, weekday: Int, ordinal: Int, _ cal: Calendar) -> Date? {
+        var c = DateComponents()
+        c.year = year; c.month = month; c.weekday = weekday; c.weekdayOrdinal = ordinal
+        return cal.date(from: c)
     }
 }

@@ -46,6 +46,7 @@ struct UtilityTileView: View {
         .contentShape(RoundedRectangle(cornerRadius: UtilityTileMetrics.corner, style: .continuous))
         .onTapGesture(perform: onTap)
         .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(.isButton)
         .accessibilityLabel(a11yLabel)
         .accessibilityHint(isExpanded ? "Collapse" : "Expand for detail")
     }
@@ -104,9 +105,13 @@ struct UtilityTileView: View {
                     if let symbol = row.symbol {
                         Image(systemName: symbol).font(.system(size: 11)).frame(width: 15)
                     }
-                    Text(row.label).font(.system(size: 11)).foregroundStyle(.white.opacity(0.8))
+                    Text(row.label)
+                        .font(.system(size: 11)).foregroundStyle(.white.opacity(0.8))
+                        .lineLimit(1)
                     Spacer(minLength: 4)
-                    Text(row.value).font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
+                    Text(row.value)
+                        .font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
+                        .lineLimit(1).minimumScaleFactor(0.7)
                 }
             }
             Spacer(minLength: 0)
@@ -165,7 +170,11 @@ struct UtilityTileView: View {
         case .failed:  parts.append("unavailable")
         case .loaded(let value):
             parts.append(value.content.primary)
+            if value.content.badge == .warning { parts.append("alert") }
             if let secondary = displaySecondary { parts.append(secondary) }
+            if isExpanded {
+                for row in value.content.expanded { parts.append("\(row.label): \(row.value)") }
+            }
         }
         return parts.joined(separator: ", ")
     }
