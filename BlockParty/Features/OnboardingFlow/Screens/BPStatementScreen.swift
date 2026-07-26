@@ -34,10 +34,24 @@ struct BPStatementScreen: View {
 
 /// S13's copy, with the highlighted span in the primary colour.
 ///
-/// `TODO(Jesse)`: verify "30+" against the seeded content before ship. The repo's
-/// standing rule is real data only — never inflated counts — so if the seed does not
-/// actually support 30 a month, this number has to come down or become a live count.
+/// ⚠️ VERIFIED FALSE — DO NOT SHIP AS-IS (checked against the live project 2026-07-25).
+///
+/// The spec's `TODO(Jesse)` asked whether "30+" holds. It does not:
+///   • approved events WITH a date:  9, across 2 months  → 4.5 / month
+///   • approved events total:        14
+///   • upcoming (today onward):      3
+///   • clubs: 0 · places: 91 (venues) · board_items: 62 (bulletin, not happenings)
+///
+/// "30+ a month" overstates reality by ~7x, which collides head-on with the repo rule
+/// "Real data only — never seeded or inflated counts" — the same rule that sent S07 to
+/// its fallback line.
+///
+/// Left unchanged because this is user-facing brand voice and §4 says copy is verbatim;
+/// the number is Jesse's to pick. Recommended replacement drops the count entirely and
+/// keeps the emphasis mechanic:
+///     "That's **every St. Joe happening** — all in one place."
 enum BPHappenings {
+    /// Not supported by real data — see the warning above before shipping.
     static let claim = 30
 
     static var line: AttributedString {
