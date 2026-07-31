@@ -26,6 +26,10 @@ struct ProfileView: View {
     @State private var showModeration = ProfileView.debugModeration()
     @State private var confirmSignOut = false
     @State private var expanded: Expandable? = ProfileView.debugExpand()
+    #if DEBUG
+    /// Replays the 20-screen onboarding while signed in — see `replayOnboardingRow`.
+    @State private var replayOnboarding = false
+    #endif
 
     private enum Expandable { case events, clubs }
 
@@ -96,6 +100,16 @@ struct ProfileView: View {
                 .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showModeration) { ModerationView() }
+        #if DEBUG
+        // Full-screen so the flow renders at its real size — a sheet would inset it and
+        // every measured margin would read wrong.
+        .fullScreenCover(isPresented: $replayOnboarding) {
+            BPOnboardingFlow(
+                onFinish: { endOnboardingReplay() },
+                onSignIn: { endOnboardingReplay() }
+            )
+        }
+        #endif
         .confirmationDialog("Sign out of Block Party?", isPresented: $confirmSignOut, titleVisibility: .visible) {
             Button("Sign out", role: .destructive) { Task { await model.signOut(); close() } }
             Button("Cancel", role: .cancel) {}
@@ -373,9 +387,44 @@ struct ProfileView: View {
                     ProfileRowDivider()
                     ProfileRow(icon: "envelope", title: "Account", subtitle: email, accessory: .none)
                 }
+                #if DEBUG
+                ProfileRowDivider()
+                replayOnboardingRow
+                #endif
             }
         }
     }
+
+    #if DEBUG
+    /// DEBUG-ONLY. The 20-screen onboarding runs PRE-AUTH, so a signed-in user can never
+    /// reach it through the normal gate (`RootView` checks `auth.isSignedIn` first, by
+    /// design). That makes it impossible to review the flow without signing out or wiping
+    /// the app — which is exactly what you don't want to do on a real account.
+    ///
+    /// This replays it read-only: it presents the flow over the app and dismisses on
+    /// finish. It does NOT sign anyone out, does NOT set `flowDone`, and does NOT flush
+    /// answers — `BPAnswers` still buffers to the same keys, so anything tapped here is
+    /// cleared on dismiss to avoid polluting a real profile at the next sign-in.
+    ///
+    /// Wrapped in `#if DEBUG`, so it is compiled out of any shipping build.
+    private var replayOnboardingRow: some View {
+        ProfileRow(icon: "arrow.counterclockwise.circle",
+                   title: "Replay onboarding",
+                   subtitle: "Debug — the 20-screen intro, read-only") {
+            Haptics.selection()
+            replayOnboarding = true
+        }
+    }
+    #endif
+
+    #if DEBUG
+    /// Closes the replay and wipes anything it buffered, so a review pass can never
+    /// write stray answers onto a real profile at the next sign-in.
+    private func endOnboardingReplay() {
+        replayOnboarding = false
+        BPAnswers().clear()
+    }
+    #endif
 
     private var signOutButton: some View {
         Button { Haptics.light(); confirmSignOut = true } label: {
