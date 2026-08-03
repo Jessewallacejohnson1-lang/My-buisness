@@ -5,6 +5,10 @@
 //  step outside. The app's "health" pillar, rendered as PLACE — calm, neighborly,
 //  real data only (never a fake number).
 //
+//  The card opens on a small uppercase date eyebrow (AlmanacDateEyebrow). That line
+//  used to live in the Today header; it moved down here so the header could shed a
+//  line of chrome without the app losing the date. It is static — it does not type in.
+//
 //  On the FIRST open of each app launch the card writes itself in front of the
 //  neighbor: the greeting types out char-by-char (soft coral caret), then the read
 //  writes in word-by-word underneath (see TypewriterText). A pull-to-refresh replays
@@ -90,6 +94,16 @@ struct AlmanacSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            // The day's date, moved DOWN out of the Today header and re-homed here as a
+            // quiet eyebrow: the header sheds a line of chrome without the app losing
+            // the date. Static chrome — it never types in and never joins the write
+            // sequence, so it renders immediately on both the writing and static paths.
+            AlmanacDateEyebrow()
+                // The eyebrow sits 8pt above the greeting, tighter than this VStack's
+                // 12pt rhythm, so it reads as a label ON the greeting rather than as a
+                // sibling line: pull the last 4pt back.
+                .padding(.bottom, -4)
+
             // The greeting — a warm, inviting hello with a time-of-day glyph inline to
             // its left: a sunrise at dawn, the high sun midday, the moon at night (the
             // town's real part of day — the same one the read speaks in). It types
@@ -325,6 +339,42 @@ struct AlmanacSection: View {
         ProcessInfo.processInfo.arguments.contains("-almanac-fail")
     }
     #endif
+}
+
+/// The date line the Today header used to carry, rendered as a small uppercase eyebrow
+/// at the top of the almanac card ("SATURDAY, AUGUST 1"). The visible text comes from
+/// `TodayHeader.eyebrow` — the one definition of the app's date line, on the town's
+/// clock — so the header and this card can never drift apart.
+private struct AlmanacDateEyebrow: View {
+    /// Captured ONCE, then used for both the visible text and the spoken label, so the
+    /// two can't straddle midnight and disagree about what day it is.
+    private let today = Date()
+
+    var body: some View {
+        Text(TodayHeader.eyebrow(for: today))
+            .font(.sansSemibold(11))
+            .tracking(0.6)
+            .foregroundStyle(Hue.inkSecondary)
+            .lineLimit(1)
+            // VoiceOver reads a fully-uppercased string as an acronym and can spell it
+            // out letter by letter, so it hears the natural-case date while the eye
+            // still gets the uppercase eyebrow. Same day, same words — only the casing.
+            .accessibilityLabel(Self.spoken(today))
+    }
+
+    /// "Saturday, August 1" — the same fields, town clock, and `en_US` locale as
+    /// `TodayHeader.eyebrow`, minus the uppercasing. Pinned to `Town.timeZone` for the
+    /// reason `UtilityFormat` pins its formatters: this is the TOWN's date, so a phone
+    /// in another zone must not slide it a day.
+    private static let spokenFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US")
+        f.timeZone = Town.timeZone
+        f.dateFormat = "EEEE, MMMM d"
+        return f
+    }()
+
+    private static func spoken(_ date: Date) -> String { spokenFormatter.string(from: date) }
 }
 
 /// A calm two-bar placeholder for the read while the day's line loads (<=300ms). Ink-on-
