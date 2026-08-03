@@ -26,9 +26,15 @@ enum UtilityFormat {
     }
 
     /// A Date → "3 PM" / "3:30 PM" (for precip "by 3 PM").
+    ///
+    /// Read and formatted on `Town`'s clock (Central), NOT the device's: the tile
+    /// providers compute these instants in town time, so rendering them in the
+    /// phone's zone would print an hour the math never chose. The `en_US` locale
+    /// pin is separate — it only fixes the US "h:mm a" shape.
     nonisolated static func shortTime(_ date: Date) -> String {
-        let m = Calendar.current.component(.minute, from: date)
+        let m = Town.calendar.component(.minute, from: date)
         let f = DateFormatter(); f.locale = Locale(identifier: "en_US")
+        f.timeZone = Town.timeZone
         f.dateFormat = m == 0 ? "h a" : "h:mm a"
         return f.string(from: date)
     }
@@ -41,13 +47,21 @@ enum UtilityFormat {
     }
 
     /// A Date's weekday → "Tuesday" (or short "Tue").
+    ///
+    /// Resolved on `Town.calendar` (Central), NOT `Calendar.current`: `GarbageSchedule`
+    /// already picks the pickup day on the town's clock, so a phone east of Central
+    /// would otherwise print a Thursday pickup as "Friday".
     nonisolated static func weekdayName(_ date: Date, short: Bool = false) -> String {
-        weekdayName(Calendar.current.component(.weekday, from: date), short: short)
+        weekdayName(Town.calendar.component(.weekday, from: date), short: short)
     }
 
     /// A Date → "Tue, Jul 28".
+    ///
+    /// Formatted in `Town.timeZone` (Central) for the same reason as `weekdayName`:
+    /// the instant being shown is a town date, so a device zone would slide it a day.
     nonisolated static func mediumDate(_ date: Date) -> String {
         let f = DateFormatter(); f.locale = Locale(identifier: "en_US")
+        f.timeZone = Town.timeZone
         f.dateFormat = "EEE, MMM d"
         return f.string(from: date)
     }

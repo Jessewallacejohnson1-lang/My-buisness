@@ -21,7 +21,8 @@ final class LibraryTileProvider: UtilityTileProvider {
         case let .closed(opensAt, weekday):
             var secondary: String?
             if let opensAt, let weekday {
-                let today = Calendar.current.component(.weekday, from: Date())
+                // Town time, matching the status above — never the device's.
+                let today = Town.calendar.component(.weekday, from: Date())
                 let when = weekday == today ? "today" : UtilityFormat.weekdayName(weekday, short: true)
                 secondary = "Opens \(UtilityFormat.clock(opensAt)) \(when)"
             }

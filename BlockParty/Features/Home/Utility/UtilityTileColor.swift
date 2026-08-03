@@ -41,20 +41,45 @@ enum UtilityTileGradient {
 enum UtilityContrast {
     /// Relative luminance of an sRGB hex colour (0…1).
     nonisolated static func luminance(_ hex: UInt32) -> Double {
-        func lin(_ c: Double) -> Double { c <= 0.03928 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4) }
-        let r = lin(Double((hex >> 16) & 0xFF) / 255)
-        let g = lin(Double((hex >> 8) & 0xFF) / 255)
-        let b = lin(Double(hex & 0xFF) / 255)
-        return 0.2126 * r + 0.7152 * g + 0.0722 * b
+        luminance(red: channel(hex, shift: 16), green: channel(hex, shift: 8), blue: channel(hex, shift: 0))
     }
 
-    /// Contrast ratio of white text on the given colour.
+    /// Contrast ratio of white text at `alpha` over the opaque colour `hex`.
+    ///
+    /// The white is composited onto the stop in **sRGB** space
+    /// (`alpha·1 + (1−alpha)·channel`) and only THEN linearized — that is what a
+    /// display actually does, and compositing in linear space instead yields
+    /// materially different (optimistic) numbers.
+    nonisolated static func ratio(white alpha: Double, on hex: UInt32) -> Double {
+        let clear = 1 - alpha   // how much of the stop shows through
+        let text = luminance(red:   alpha + clear * channel(hex, shift: 16),
+                             green: alpha + clear * channel(hex, shift: 8),
+                             blue:  alpha + clear * channel(hex, shift: 0))
+        let background = luminance(hex)
+        return (max(text, background) + 0.05) / (min(text, background) + 0.05)
+    }
+
+    /// Contrast ratio of opaque white text on the given colour.
     nonisolated static func ratioOnWhite(_ hex: UInt32) -> Double {
-        1.05 / (luminance(hex) + 0.05)
+        ratio(white: 1, on: hex)
     }
 
     /// Worst-case (lighter-stop) white-text ratio for a gradient; ≥ 4.5 required.
     nonisolated static func worstRatioOnWhite(_ gradient: [UInt32]) -> Double {
         gradient.map(ratioOnWhite).min() ?? 0
+    }
+
+    // MARK: - Private
+
+    /// One 0…1 sRGB channel out of a packed hex.
+    private nonisolated static func channel(_ hex: UInt32, shift: UInt32) -> Double {
+        Double((hex >> shift) & 0xFF) / 255
+    }
+
+    /// WCAG 2.1 relative luminance from 0…1 sRGB channels (kept fractional so a
+    /// composited colour isn't rounded back through 8-bit).
+    private nonisolated static func luminance(red: Double, green: Double, blue: Double) -> Double {
+        func lin(_ c: Double) -> Double { c <= 0.03928 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4) }
+        return 0.2126 * lin(red) + 0.7152 * lin(green) + 0.0722 * lin(blue)
     }
 }

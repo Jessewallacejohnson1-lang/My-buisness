@@ -20,6 +20,10 @@ final class UtilityPrefsStore: ObservableObject {
     private let api: UtilityPrefsAPI
     /// Ids this app version can render — anything else in stored prefs is ignored.
     private let knownIDs: Set<UtilityTileID>
+    /// The mirror's backing store. Injectable so a test can run over a throwaway
+    /// suite — and construct a SECOND store over the same suite to simulate a
+    /// relaunch reading genuinely written bytes.
+    private let defaults: UserDefaults
 
     private static let tilesKey = "utility.tiles"
     private static let settingsKey = "utility.settings"
@@ -27,15 +31,17 @@ final class UtilityPrefsStore: ObservableObject {
     private static let pendingKey = "utility.pendingSync"   // an offline save awaiting upsert
 
     init(api: UtilityPrefsAPI? = nil,
-         knownIDs: Set<UtilityTileID> = Set(UtilityTileID.defaults)) {
+         knownIDs: Set<UtilityTileID> = Set(UtilityTileID.defaults),
+         defaults: UserDefaults = .standard) {
         // Resolve the MainActor default in the (MainActor) init body, never as a
         // default argument — see the CLAUDE.md MainActor-default-arg gotcha.
+        // (`UserDefaults.standard` is nonisolated, so it is safe as a default.)
         self.api = api ?? UtilityPrefsAPI(auth: .shared)
         self.knownIDs = knownIDs
+        self.defaults = defaults
 
         // Instant: read the UserDefaults mirror (or fall back to defaults) so the
         // row renders immediately, offline, on the very first frame.
-        let defaults = UserDefaults.standard
         self.hasSavedOnce = defaults.bool(forKey: Self.savedKey)
 
         if let raw = defaults.data(forKey: Self.tilesKey),
@@ -94,8 +100,8 @@ final class UtilityPrefsStore: ObservableObject {
         }
     }
 
-    private var isPending: Bool { UserDefaults.standard.bool(forKey: Self.pendingKey) }
-    private func setPending(_ value: Bool) { UserDefaults.standard.set(value, forKey: Self.pendingKey) }
+    private var isPending: Bool { defaults.bool(forKey: Self.pendingKey) }
+    private func setPending(_ value: Bool) { defaults.set(value, forKey: Self.pendingKey) }
 
     /// Update one tile's settings (e.g. garbage weekday) and persist.
     func updateSettings(_ id: UtilityTileID, _ value: TileSettings) async {
@@ -107,7 +113,6 @@ final class UtilityPrefsStore: ObservableObject {
     // MARK: - Private
 
     private func mirror() {
-        let defaults = UserDefaults.standard
         if let data = try? JSONEncoder().encode(tiles) { defaults.set(data, forKey: Self.tilesKey) }
         let settingStrings = Dictionary(uniqueKeysWithValues: settings.map { ($0.key.rawValue, $0.value) })
         if let data = try? JSONEncoder().encode(settingStrings) { defaults.set(data, forKey: Self.settingsKey) }

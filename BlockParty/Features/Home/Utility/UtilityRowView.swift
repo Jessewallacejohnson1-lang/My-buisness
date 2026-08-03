@@ -24,13 +24,16 @@ final class UtilityRowModel: ObservableObject {
     private var debugForceEmpty = false
     #endif
 
-    init(registry: UtilityTileRegistry? = nil) {
+    /// `prefs` is injectable so a test can drive the row from a throwaway
+    /// UserDefaults suite instead of the shared one.
+    init(registry: UtilityTileRegistry? = nil, prefs: UtilityPrefsStore? = nil) {
         let reg = registry ?? UtilityTileRegistry()
+        let store = prefs ?? UtilityPrefsStore(knownIDs: reg.knownIDs)
         self.registry = reg
-        self.prefs = UtilityPrefsStore(knownIDs: reg.knownIDs)
+        self.prefs = store
         // Re-publish when the nested prefs store changes so the row + its first-run
         // affordances update after hydrate / save.
-        prefsObserver = prefs.objectWillChange.sink { [weak self] in
+        prefsObserver = store.objectWillChange.sink { [weak self] in
             self?.objectWillChange.send()
         }
     }
@@ -44,10 +47,14 @@ final class UtilityRowModel: ObservableObject {
         return prefs.tiles
     }
 
-    /// First-run affordances: the trailing "Customize" tile shows on first run
-    /// AND whenever zero tiles are enabled (the row never dead-ends). The caption
-    /// shows only until the first save.
-    var showCustomizeTile: Bool { !prefs.hasSavedOnce || tiles.isEmpty }
+    /// The trailing Customize tile is ALWAYS present — it is the row's only
+    /// discoverable way into the sheet (the long-press context menu is not an
+    /// affordance a user can find), so hiding it after the first save made the
+    /// sheet unreachable. Permanent, at every tile count.
+    var showCustomizeTile: Bool { true }
+
+    /// The caption is onboarding copy, not an affordance: it retires for good
+    /// after the first save.
     var showCaption: Bool { !prefs.hasSavedOnce }
 
     /// Persist a customize-sheet draft, then reconcile fetches + subscriptions.
@@ -171,11 +178,13 @@ struct UtilityRowView: View {
                             ))
                         }
                     }
-                    // Trailing "Customize" tile — first run, and whenever zero tiles
-                    // are enabled (the row never dead-ends).
+                    // The permanent trailing Customize tile — the row's entry point
+                    // into the sheet, and its whole content when nothing is enabled.
                     if model.showCustomizeTile {
-                        UtilityCustomizeTile { model.showCustomize = true }
-                            .transition(.opacity)
+                        UtilityCustomizeTile(isEmpty: model.tiles.isEmpty) {
+                            model.showCustomize = true
+                        }
+                        .transition(.opacity)
                     }
                 }
                 .padding(.horizontal, 18)   // standard tab gutter; last tile peeks past the edge
@@ -207,15 +216,21 @@ struct UtilityRowView: View {
 
 /// The trailing neutral "Customize" tile (plus glyph + label).
 struct UtilityCustomizeTile: View {
+    /// Zero tiles enabled — the tile is then the row's ONLY content, so it names
+    /// what it will do ("Add quick info") rather than the sheet it opens.
+    var isEmpty: Bool = false
     let onTap: () -> Void
+
+    private var label: String { isEmpty ? "Add quick info" : "Customize" }
+
     var body: some View {
         VStack(spacing: 6) {
             Image(systemName: "plus")
                 .font(.system(size: 22, weight: .semibold))
                 .foregroundStyle(.white)
-            Text("Customize")
+            Text(label)
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.9))
+                .foregroundStyle(.white.opacity(UtilityTileMetrics.textOpacity))
         }
         .frame(width: UtilityTileMetrics.width, height: UtilityTileMetrics.compactH)
         .background(
@@ -227,7 +242,7 @@ struct UtilityCustomizeTile: View {
         .contentShape(RoundedRectangle(cornerRadius: UtilityTileMetrics.corner, style: .continuous))
         .onTapGesture(perform: onTap)
         .accessibilityElement()
-        .accessibilityLabel("Customize your quick info")
+        .accessibilityLabel(isEmpty ? "Add quick info" : "Customize your quick info")
         .accessibilityAddTraits(.isButton)
     }
 }

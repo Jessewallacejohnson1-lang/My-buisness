@@ -14,6 +14,14 @@ enum UtilityTileMetrics {
     static let compactH: CGFloat = 92        // == bento compact height
     static let expandedH: CGFloat = compactH * 2 + gap
     static let corner: CGFloat = 22          // == bento (hardcoded, deliberate match)
+
+    /// Opacity for EVERY white text layer on a tile — one constant so the whole
+    /// row can be checked (and kept) at WCAG 4.5:1 in one place. 1.0: the gradient
+    /// tokens were tuned for OPAQUE white and clear 4.76–10.20:1 there, while
+    /// dimming to 0.9 / 0.8 measured 3.64–4.24:1 and failed. Hierarchy is carried
+    /// by the size/weight ladder (13pt semibold label · 28pt bold value · 12pt
+    /// secondary), never by alpha.
+    static let textOpacity: Double = 1.0
 }
 
 struct UtilityTileView: View {
@@ -62,7 +70,7 @@ struct UtilityTileView: View {
             if let secondary = displaySecondary {
                 Text(secondary)
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.8))
+                    .foregroundStyle(.white.opacity(UtilityTileMetrics.textOpacity))
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -106,7 +114,7 @@ struct UtilityTileView: View {
                         Image(systemName: symbol).font(.system(size: 11)).frame(width: 15)
                     }
                     Text(row.label)
-                        .font(.system(size: 11)).foregroundStyle(.white.opacity(0.8))
+                        .font(.system(size: 11)).foregroundStyle(.white.opacity(UtilityTileMetrics.textOpacity))
                         .lineLimit(1)
                     Spacer(minLength: 4)
                     Text(row.value)
@@ -136,7 +144,7 @@ struct UtilityTileView: View {
             }
             Spacer(minLength: 0)
         }
-        .foregroundStyle(.white.opacity(0.9))
+        .foregroundStyle(.white.opacity(UtilityTileMetrics.textOpacity))
     }
 
     // MARK: - Derived
