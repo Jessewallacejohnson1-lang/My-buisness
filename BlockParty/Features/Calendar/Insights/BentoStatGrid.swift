@@ -154,7 +154,7 @@ struct BentoStatGrid: View {
             LinearGradient(colors: [spec.top, spec.bottom],
                            startPoint: .topLeading, endPoint: .bottomTrailing)
         )
-        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: Radius.bento, style: .continuous))
         .insightsCardShadow()
         .contentShape(Rectangle())
         .onTapGesture { toggle(spec.card) }

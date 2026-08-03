@@ -20,6 +20,18 @@ enum UtilityTileGradient {
     static let library:   [UInt32] = [0xA14BCD, 0x712B9B]   // purple    · 4.77:1
     static let customize: [UInt32] = [0x727276, 0x47474B]   // neutral   · 4.79:1
 
+    /// The calm, nothing-to-report surface (`UtilityTileContent.isMuted`) — roads on
+    /// an all-clear day. Neutral grey so the tile reads as information rather than as
+    /// an alert; without it a quiet town renders the full-strength amber warning
+    /// gradient. Same stops as the customize tile, named for intent.
+    ///
+    /// Verified like every other token: opaque white measures 4.79:1 on the lighter
+    /// stop and 5.53:1 once the ink watermark darkens it. A LIGHTER grey would drop
+    /// below 4.5:1 (exactly why the amber was darkened in the first place), so the
+    /// de-emphasis is carried by DROPPING THE HUE — never by lifting the tile toward
+    /// the page.
+    static let muted: [UInt32] = [0x727276, 0x47474B]        // neutral   · 4.79:1
+
     /// The live weather tile derives its gradient from the current WeatherState,
     /// darkened so white text stays legible (the raw WeatherState.gradient palettes
     /// are light sky backgrounds and fail 4.5:1). nil → static blue fallback.

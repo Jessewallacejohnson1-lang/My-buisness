@@ -18,13 +18,14 @@
 //  write regardless so it can be captured headlessly.
 //
 //  Sun + weather come from the shared WeatherService.current() (open-meteo, no
-//  key) that the WeatherBar above already primed, so this reads the 30-min cache
-//  — no second network trip. If the fetch never lands we show a calm, number-free
+//  key), whose cache the utility row's weather tile has usually already primed,
+//  so this is normally a cache read — no second network trip (concurrent callers
+//  are coalesced into one fetch). If the fetch never lands we show a calm, number-free
 //  line; if it lands without sun times we drop the clock words. We never invent.
 //  The write snapshots whichever read has resolved when the greeting finishes; a
 //  later AI-line upgrade lands on the next (static) open.
 //
-//  TODO: point the nudge at a live trail/event from CommunityAPI (getTrails /
+//  TODO(jesse): point the nudge at a live trail/event from CommunityAPI (getTrails /
 //  getTodayEvents) instead of the fixed Lake Wobegon Trail landmark below.
 //
 

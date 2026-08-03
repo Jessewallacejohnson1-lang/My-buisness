@@ -58,6 +58,7 @@ final class UtilityTileVisualTests: XCTestCase {
             ("roads",     UtilityTileGradient.roads),
             ("library",   UtilityTileGradient.library),
             ("customize", UtilityTileGradient.customize),
+            ("muted", UtilityTileGradient.muted),
         ]
         let weatherTokens = WeatherState.allCases.map { state in
             (name: "weather(for: .\(state.rawValue))", stops: UtilityTileGradient.weather(for: state))
@@ -86,7 +87,7 @@ final class UtilityTileVisualTests: XCTestCase {
     func testInkWatermarkRaisesContrastOnEveryGradientStop() {
         // Arrange
         let tokens = allGradientTokens()
-        XCTAssertEqual(tokens.count, 11, "Expected 5 static tokens + 6 weather states")
+        XCTAssertEqual(tokens.count, 12, "Expected 6 static tokens + 6 weather states")
         let inkAlpha = UtilityTileMetrics.watermarkAlpha
 
         for token in tokens {

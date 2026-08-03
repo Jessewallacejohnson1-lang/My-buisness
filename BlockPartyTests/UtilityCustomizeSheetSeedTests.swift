@@ -15,6 +15,12 @@
 //  path (`UtilityPrefsStore` over a throwaway `UserDefaults` suite) so a "relaunch"
 //  is a genuine new store reading genuinely written bytes.
 //
+//  Every store here is built LOCAL-MIRROR-ONLY (`makeStore`, i.e. `api: nil`). The
+//  app initializer resolves the real `UtilityPrefsAPI(auth: .shared)`, so on any
+//  simulator or device with a signed-in session these fixtures would upsert into that
+//  user's actual `user_utility_prefs` row — silently, since `pushToServer` swallows
+//  its errors. `testLocalOnlyStoreNeverCallsTheRemote` is the guard on that rule.
+//
 
 import XCTest
 import SwiftUI
@@ -64,6 +70,26 @@ private enum SheetOp {
     }
 }
 
+// MARK: - Remote spy
+
+/// A `UtilityPrefsSyncing` that talks to nothing and counts what it was asked to do.
+/// Injected into a store it proves the seam is live; WITHHELD (`api: nil`) its zero
+/// counts are what "this suite performed no network I/O" looks like.
+@MainActor
+private final class SpyPrefsRemote: UtilityPrefsSyncing {
+    private(set) var getMineCount = 0
+    private(set) var upsertCount = 0
+
+    func getMine() async throws -> UtilityPrefsRow? {
+        getMineCount += 1
+        return nil
+    }
+
+    func upsert(tiles: [String], settings: [String: TileSettings]) async throws {
+        upsertCount += 1
+    }
+}
+
 // MARK: - Tests
 
 @MainActor
@@ -74,6 +100,7 @@ final class UtilityCustomizeSheetSeedTests: XCTestCase {
     /// Fixed base seed — the whole property run is byte-for-byte reproducible.
     private static let baseSeed: UInt64 = 0x5EED_B10C_0000_0001
     private static let tilesKey = "utility.tiles"
+    private static let pendingKey = "utility.pendingSync"
 
     private var suiteNames: [String] = []
 
@@ -141,11 +168,11 @@ final class UtilityCustomizeSheetSeedTests: XCTestCase {
         let registry = UtilityTileRegistry()
         let defaults = try makeSuite()
         let enabled = Set(registry.catalog).subtracting([.roads])
-        let store = UtilityPrefsStore(knownIDs: registry.knownIDs, defaults: defaults)
+        let store = makeStore(registry: registry, defaults: defaults)
 
         // Act — save, then a NEW store over the SAME suite (a relaunch), then seed.
         await store.save(tiles: registry.catalog.filter { enabled.contains($0) }, settings: [:])
-        let relaunched = UtilityPrefsStore(knownIDs: registry.knownIDs, defaults: defaults)
+        let relaunched = makeStore(registry: registry, defaults: defaults)
         let seeded = UtilityCustomizeSheet.seed(saved: relaunched.tiles, catalog: registry.catalog)
 
         // Assert — every tile is still listed; exactly the disabled one is off.
@@ -166,7 +193,7 @@ final class UtilityCustomizeSheetSeedTests: XCTestCase {
         defaults.set(try JSONEncoder().encode(stored), forKey: Self.tilesKey)
 
         // Act
-        let store = UtilityPrefsStore(knownIDs: registry.knownIDs, defaults: defaults)
+        let store = makeStore(registry: registry, defaults: defaults)
         let seeded = UtilityCustomizeSheet.seed(saved: store.tiles, catalog: registry.catalog)
 
         // Assert — the unknown id is gone, the known ones survive in their saved order,
@@ -188,18 +215,18 @@ final class UtilityCustomizeSheetSeedTests: XCTestCase {
         let defaults = try makeSuite()
         let pickupWeekday = 3
         let settings: [UtilityTileID: TileSettings] = [.garbage: TileSettings().setting("day", .int(pickupWeekday))]
-        let store = UtilityPrefsStore(knownIDs: registry.knownIDs, defaults: defaults)
+        let store = makeStore(registry: registry, defaults: defaults)
 
         // Act — save with garbage disabled, relaunch, re-enable, save, relaunch again.
         await store.save(tiles: registry.catalog.filter { $0 != .garbage }, settings: settings)
 
-        let reopened = UtilityPrefsStore(knownIDs: registry.knownIDs, defaults: defaults)
+        let reopened = makeStore(registry: registry, defaults: defaults)
         let whileDisabled = UtilityCustomizeSheet.seed(saved: reopened.tiles, catalog: registry.catalog)
         let reEnabled = whileDisabled.enabled.union([.garbage])
         await reopened.save(tiles: whileDisabled.order.filter { reEnabled.contains($0) },
                             settings: reopened.settings)
 
-        let relaunched = UtilityPrefsStore(knownIDs: registry.knownIDs, defaults: defaults)
+        let relaunched = makeStore(registry: registry, defaults: defaults)
         let afterReEnable = UtilityCustomizeSheet.seed(saved: relaunched.tiles, catalog: registry.catalog)
 
         // Assert — the weekday survived both hops, and garbage is back on.
@@ -217,11 +244,11 @@ final class UtilityCustomizeSheetSeedTests: XCTestCase {
         let registry = UtilityTileRegistry()
         let defaults = try makeSuite()
         let reordered: [UtilityTileID] = [.library, .roads, .weather]
-        let store = UtilityPrefsStore(knownIDs: registry.knownIDs, defaults: defaults)
+        let store = makeStore(registry: registry, defaults: defaults)
 
         // Act
         await store.save(tiles: reordered, settings: [:])
-        let relaunched = UtilityPrefsStore(knownIDs: registry.knownIDs, defaults: defaults)
+        let relaunched = makeStore(registry: registry, defaults: defaults)
         let seeded = UtilityCustomizeSheet.seed(saved: relaunched.tiles, catalog: registry.catalog)
 
         // Assert — enabled tiles keep their order at the top; the off tile trails, still listed.
@@ -232,7 +259,45 @@ final class UtilityCustomizeSheetSeedTests: XCTestCase {
         XCTAssertEqual(Set(seeded.order), Set(registry.catalog))
     }
 
+    // MARK: 6 — the test store is airtight: no remote call, ever
+
+    func testLocalOnlyStoreNeverCallsTheRemoteAndLeavesNothingPending() async throws {
+        // Arrange — one spy, and a store deliberately built WITHOUT it (`api: nil`),
+        // which is exactly how every store in this suite is built.
+        let registry = UtilityTileRegistry()
+        let defaults = try makeSuite()
+        let spy = SpyPrefsRemote()
+        let localOnly = makeStore(registry: registry, defaults: defaults)
+
+        // Act — the two calls that reach the network in the app's store.
+        await localOnly.save(tiles: [.weather, .library],
+                             settings: [.garbage: TileSettings().setting("day", .int(3))])
+        await localOnly.hydrate()
+
+        // Assert — nothing went out, and the mirror still holds the save.
+        XCTAssertEqual(spy.upsertCount, 0)
+        XCTAssertEqual(spy.getMineCount, 0)
+        XCTAssertEqual(localOnly.tiles, [.weather, .library])
+        // "Pending" means the server is behind the mirror; with no server there is
+        // nothing to owe, so the flag must not be left stranded on forever.
+        XCTAssertFalse(defaults.bool(forKey: Self.pendingKey))
+
+        // Act/Assert — the same spy DOES see a save through a store that has a remote,
+        // so the zeroes above are the seam working, not an assertion that can't fail.
+        let syncedDefaults = try makeSuite()
+        let synced = UtilityPrefsStore(api: spy, knownIDs: registry.knownIDs, defaults: syncedDefaults)
+        await synced.save(tiles: [.weather], settings: [:])
+        XCTAssertEqual(spy.upsertCount, 1)
+    }
+
     // MARK: - Helpers
+
+    /// A store with NO remote (`api: nil`). Every store in this file goes through here:
+    /// `UtilityPrefsStore(knownIDs:defaults:)` resolves the LIVE `UtilityPrefsAPI`, which
+    /// would upsert these fixtures into the signed-in user's real row.
+    private func makeStore(registry: UtilityTileRegistry, defaults: UserDefaults) -> UtilityPrefsStore {
+        UtilityPrefsStore(api: nil, knownIDs: registry.knownIDs, defaults: defaults)
+    }
 
     /// A wiped, throwaway suite; removed again in `tearDown`. The test host is the real
     /// app, so `UserDefaults.standard` carries whatever a screenshot session left behind.

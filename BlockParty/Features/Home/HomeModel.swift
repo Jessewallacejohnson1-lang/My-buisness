@@ -9,7 +9,6 @@ import Combine
 @MainActor
 final class HomeModel: ObservableObject {
     @Published var today: [TimelineEvent] = []
-    @Published var board: TodayInStJoeContent = .loading  // curated town board (board_items)
     @Published var weekGoing = 0   // town-wide RSVPs, today → +7 days (the roll call)
     @Published var quest: DailyQuest?
     @Published var questCount = 0
@@ -88,30 +87,12 @@ final class HomeModel: ObservableObject {
 
         await loadFeed(socialAPI)
 
-        // The curated town board — its own fetch so a board hiccup never disturbs
-        // the timeline above, and vice versa.
-        do {
-            let items = try await api.getTodayInStJoe()
-            if items.isEmpty {
-                if let line = try await api.getEvergreenLine() {
-                    board = .evergreen(line)
-                } else {
-                    board = .empty
-                }
-            } else {
-                board = .items(items)
-            }
-        } catch {
-            if case .loading = board { board = .empty }  // never stick on the spinner
-            Log.network("HomeModel.load board: \(error)")
-        }
-
         loading = false
         loaded = true
     }
 
-    /// The social feed has its own failure boundary so agenda, roll-call, quest,
-    /// and board loading remain intact if a social RPC is unavailable.
+    /// The social feed has its own failure boundary so the agenda, roll-call, and
+    /// quest loading remain intact if a social RPC is unavailable.
     func loadFeed(_ api: SocialAPI) async {
         feedLoadGeneration += 1
         let generation = feedLoadGeneration
@@ -143,7 +124,6 @@ final class HomeModel: ObservableObject {
     /// It deliberately bypasses every backend API so preview launches are reliable.
     func loadCommunityFeedPreview() {
         today = CommunityFeedPreview.today
-        board = .empty
         weekGoing = 0
         quest = nil
         questCount = 0

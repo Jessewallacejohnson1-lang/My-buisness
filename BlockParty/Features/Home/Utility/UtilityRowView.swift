@@ -215,7 +215,9 @@ struct UtilityRowView: View {
                     .transition(.opacity)
             }
         }
-        .animation(reduceMotion ? nil : Motion.sheet, value: model.showCustomizeTile)
+        // Only the caption animates. `showCustomizeTile` was a variable when the tile
+        // came and went with `hasSavedOnce`; it is a constant now that the entry point
+        // into the sheet is permanent, so animating on it could never fire.
         .animation(reduceMotion ? nil : Motion.sheet, value: model.showCaption)
         .sheet(isPresented: $model.showCustomize) {
             UtilityCustomizeSheet(model: model)

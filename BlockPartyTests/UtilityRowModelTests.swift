@@ -50,7 +50,10 @@ final class UtilityRowModelTests: XCTestCase {
         defaults.set(hasSavedOnce, forKey: "utility.hasSavedOnce")
 
         let registry = UtilityTileRegistry()
-        let prefs = UtilityPrefsStore(knownIDs: registry.knownIDs, defaults: defaults)
+        // `api: nil` — a local-mirror-only store. The app initializer resolves the
+        // live `UtilityPrefsAPI(auth: .shared)`, so a store built the default way in
+        // a test can POST to the signed-in user's real prefs row.
+        let prefs = UtilityPrefsStore(api: nil, knownIDs: registry.knownIDs, defaults: defaults)
         return UtilityRowModel(registry: registry, prefs: prefs)
     }
 }

@@ -127,12 +127,22 @@ struct UtilityTileView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        Button(action: onTap) { surface }
+        Button(action: tap) { surface }
             .buttonStyle(UtilityTilePressStyle())
             .accessibilityElement(children: .ignore)
             .accessibilityAddTraits(.isButton)
             .accessibilityLabel(a11yLabel)
-            .accessibilityHint(isExpanded ? "Collapse" : "Expand for detail")
+            .accessibilityHint(expandHint)
+    }
+
+    /// Tap only does something when there is something to show. A `.loading` /
+    /// `.failed` tile — and roads on an all-clear day — has no expanded rows, so
+    /// toggling would grow the box 92 → 194 for a label, a divider and empty space.
+    /// Swallowing it HERE (rather than rendering an empty expansion) also keeps
+    /// `UtilityRowModel.toggleExpand`'s expand haptic from firing on a no-op.
+    private func tap() {
+        guard isTappable else { return }
+        onTap()
     }
 
     /// The tile itself — everything inside the button's label.
@@ -142,15 +152,24 @@ struct UtilityTileView: View {
             // Frame EACH content to the tile size (like the bento) so the taller
             // expanded content can't inflate the ZStack and shift the compact
             // content out of the clip.
+            //
+            // The `.frame` sits OUTSIDE `.animation(_:value:)` on purpose: that
+            // modifier scopes every animatable change BELOW it, so a frame inside it
+            // would resize each layer on the cross-fade curve (0.12 / 0.18+0.06)
+            // while the ZStack's own frame rides the ambient `Motion.bentoExpand`
+            // spring (0.44s) from UtilityRowView. The layers are centred, so that
+            // mismatch slides the content ~44pt as it fades. Only opacity — and the
+            // expanded layer's rise — belong on the cross-fade; height stays on the
+            // spring, in step with the box.
             compactContent
-                .frame(width: UtilityTileMetrics.width, height: height)
                 .opacity(isExpanded ? 0 : 1)
                 .animation(crossFade(incoming: !isExpanded), value: isExpanded)
-            expandedContent
                 .frame(width: UtilityTileMetrics.width, height: height)
+            expandedContent
                 .opacity(isExpanded ? 1 : 0)
                 .offset(y: expandedRise)
                 .animation(crossFade(incoming: isExpanded), value: isExpanded)
+                .frame(width: UtilityTileMetrics.width, height: height)
         }
         .frame(width: UtilityTileMetrics.width, height: height)
         .background(tileBackground)
@@ -179,7 +198,10 @@ struct UtilityTileView: View {
     private var watermark: some View {
         Image(systemName: descriptor.symbol)
             .font(.system(size: UtilityTileMetrics.watermarkSize))
-            .foregroundStyle(Hue.ink)
+            // Painted THROUGH `watermarkColorHex`, not from `Hue.ink` directly: the
+            // constant's promise (the measured surface and the painted one cannot
+            // drift) is only true if the render actually reads it.
+            .foregroundStyle(Color(hex: UtilityTileMetrics.watermarkColorHex))
             .opacity(UtilityTileMetrics.watermarkAlpha)
             .offset(x: UtilityTileMetrics.watermarkBleed, y: UtilityTileMetrics.watermarkBleed)
             .allowsHitTesting(false)
@@ -323,10 +345,41 @@ struct UtilityTileView: View {
 
     private var isLoading: Bool { if case .loading = state { return true }; return false }
 
+    /// Is there anything BEHIND the tap? `expandedContent` renders
+    /// `content?.expanded`, so with no rows the expansion is a label, a divider and
+    /// empty space — the box must not grow for that.
+    private var isExpandable: Bool { !(content?.expanded.isEmpty ?? true) }
+
+    /// `isExpandable` OR already open: a live tile can lose its rows while expanded
+    /// (roads' last notice clears under an open tile), and a tile the user cannot
+    /// collapse is worse than one that never opened.
+    private var isTappable: Bool { isExpandable || isExpanded }
+
+    /// Empty string = no hint, which is the honest answer for a tile that does not
+    /// respond to a tap. A `nil`-vs-value branch on the modifier itself would change
+    /// the button's view identity every time a provider's rows appear or clear, which
+    /// resets the press state and the cross-fade mid-flight.
+    private var expandHint: String {
+        guard isTappable else { return "" }
+        return isExpanded ? "Collapse" : "Expand for detail"
+    }
+
     private var symbolName: String? { content?.symbol ?? descriptor.symbol }
 
-    private var colors: [Color] {
-        (content?.gradientHex ?? descriptor.gradient).map { Color(hex: $0) }
+    private var colors: [Color] { gradientStops.map { Color(hex: $0) } }
+
+    /// The gradient this tile paints, in precedence order:
+    /// muted (the provider is reporting an ABSENCE) → the provider's per-value
+    /// override → the registry's static token.
+    ///
+    /// Muted outranks a per-value override deliberately: "nothing to report" is a
+    /// statement about the whole tile, so a provider that computes a colour AND
+    /// reports an absence still renders calm. Without this branch `isMuted` is
+    /// produced and never rendered, and roads on an all-clear day paints the same
+    /// full-strength amber as a live warning.
+    private var gradientStops: [UInt32] {
+        if content?.isMuted == true { return UtilityTileGradient.muted }
+        return content?.gradientHex ?? descriptor.gradient
     }
 
     /// The secondary line, or a ">Nd ago" note when a live tile's value is stale.

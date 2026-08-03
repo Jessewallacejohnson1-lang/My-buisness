@@ -70,7 +70,11 @@ struct HomeView: View {
                     AlmanacSection(name: model.name, replay: almanacReplay)
                         .padding(.horizontal, 18)
                         .padding(.top, 18)
-                        .springReveal(2, revealed: revealed, animated: revealAnimated)
+                        // Index 0: the almanac is the FIRST thing in the cascade now.
+                        // It was 2 when the masthead led the scroll content; the masthead
+                        // is chrome today (`TodayTopBar`, outside the reveal), so a
+                        // non-zero index would just be a dead beat before anything moves.
+                        .springReveal(0, revealed: revealed, animated: revealAnimated)
 
                     // Utility Row — glanceable town info (weather · garbage · roads ·
                     // library), full-bleed horizontal scroll, below the almanac.

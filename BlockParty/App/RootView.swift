@@ -318,8 +318,9 @@ struct MainTabsView: View {
                     Group {
                         switch tab {
                         case .home:
-                            // Home carries the brand in its own "Block Party" masthead — a
-                            // second badge would be redundant, so Home is the one tab without it.
+                            // Home carries the brand in its own `TodayTopBar` — the drawn block
+                            // glyph beside the town name — so a second badge would be redundant.
+                            // Home is the one tab without it.
                             HomeView(
                                 onCompose: { composing = true },
                                 onMenu: { showMenu = true },
