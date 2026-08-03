@@ -102,8 +102,12 @@ final class UtilityRowModel: ObservableObject {
         started = false
     }
 
+    /// Expand fires a light tap; COLLAPSE is silent. Feedback confirms the reveal —
+    /// putting one on the way back out (or on a scroll) turns the row into a buzzer.
     func toggleExpand(_ id: UtilityTileID) {
-        expanded = (expanded == id) ? nil : id
+        let willExpand = expanded != id
+        if willExpand { Haptics.light() }
+        expanded = willExpand ? id : nil
     }
 
     func staleAfter(_ id: UtilityTileID) -> TimeInterval? {
@@ -158,14 +162,17 @@ struct UtilityRowView: View {
         VStack(alignment: .leading, spacing: 8) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .top, spacing: UtilityTileMetrics.gap) {
-                    ForEach(model.tiles, id: \.self) { id in
-                        if let descriptor = model.registry.descriptor(id) {
+                    // Enumerated so each tile knows its POSITION — the entrance
+                    // cascade is a function of where a tile sits, not of when it
+                    // happened to appear.
+                    ForEach(Array(model.tiles.enumerated()), id: \.element) { tile in
+                        if let descriptor = model.registry.descriptor(tile.element) {
                             UtilityTileView(
                                 descriptor: descriptor,
-                                state: model.states[id] ?? .loading,
-                                isExpanded: model.expanded == id,
-                                staleAfter: model.staleAfter(id),
-                                onTap: { model.toggleExpand(id) }
+                                state: model.states[tile.element] ?? .loading,
+                                isExpanded: model.expanded == tile.element,
+                                staleAfter: model.staleAfter(tile.element),
+                                onTap: { model.toggleExpand(tile.element) }
                             )
                             .contextMenu {   // long-press → open the customize sheet
                                 Button { model.showCustomize = true } label: {
@@ -176,6 +183,7 @@ struct UtilityRowView: View {
                                 insertion: .move(edge: .trailing).combined(with: .opacity),
                                 removal: .scale(scale: 0.9).combined(with: .opacity)
                             ))
+                            .utilityTileEntrance(index: tile.offset)
                         }
                     }
                     // The permanent trailing Customize tile — the row's entry point
@@ -185,13 +193,16 @@ struct UtilityRowView: View {
                             model.showCustomize = true
                         }
                         .transition(.opacity)
+                        .utilityTileEntrance(index: model.tiles.count)   // last in the cascade
                     }
                 }
                 .padding(.horizontal, 18)   // standard tab gutter; last tile peeks past the edge
                 .padding(.vertical, 10)      // room for the tile shadows inside the scroll content
             }
-            // Same spring as the Calendar bento's expand/collapse.
-            .animation(reduceMotion ? nil : .spring(response: 0.44, dampingFraction: 0.82), value: model.expanded)
+            // Same spring as the Calendar bento's expand/collapse; Reduce Motion
+            // drops it to the row's flat cross-fade.
+            .animation(reduceMotion ? UtilityTileMetrics.reduceMotionFade : Motion.bentoExpand,
+                       value: model.expanded)
             // Row re-animates on a save: removed tiles fade+scale, added slide in.
             .animation(reduceMotion ? nil : Motion.sheet, value: model.tiles)
 
@@ -214,7 +225,9 @@ struct UtilityRowView: View {
     }
 }
 
-/// The trailing neutral "Customize" tile (plus glyph + label).
+/// The trailing neutral "Customize" tile (plus glyph + label). A `Button` for the
+/// same reason `UtilityTileView` is one: a tap gesture on a scrollable cell claims
+/// the touch on press-down and out-competes the enclosing ScrollView's pan.
 struct UtilityCustomizeTile: View {
     /// Zero tiles enabled — the tile is then the row's ONLY content, so it names
     /// what it will do ("Add quick info") rather than the sheet it opens.
@@ -224,6 +237,14 @@ struct UtilityCustomizeTile: View {
     private var label: String { isEmpty ? "Add quick info" : "Customize" }
 
     var body: some View {
+        Button(action: onTap) { surface }
+            .buttonStyle(UtilityTilePressStyle())
+            .accessibilityElement()
+            .accessibilityLabel(isEmpty ? "Add quick info" : "Customize your quick info")
+            .accessibilityAddTraits(.isButton)
+    }
+
+    private var surface: some View {
         VStack(spacing: 6) {
             Image(systemName: "plus")
                 .font(.system(size: 22, weight: .semibold))
@@ -234,16 +255,66 @@ struct UtilityCustomizeTile: View {
         }
         .frame(width: UtilityTileMetrics.width, height: UtilityTileMetrics.compactH)
         .background(
-            LinearGradient(colors: UtilityTileGradient.customize.map { Color(hex: $0) },
-                           startPoint: .topLeading, endPoint: .bottomTrailing)
+            ZStack(alignment: .bottomTrailing) {
+                LinearGradient(colors: UtilityTileGradient.customize.map { Color(hex: $0) },
+                               startPoint: .topLeading, endPoint: .bottomTrailing)
+                // Same ink watermark as a data tile — the row reads as one family.
+                Image(systemName: "plus")
+                    .font(.system(size: UtilityTileMetrics.watermarkSize))
+                    .foregroundStyle(Hue.ink)
+                    .opacity(UtilityTileMetrics.watermarkAlpha)
+                    .offset(x: UtilityTileMetrics.watermarkBleed, y: UtilityTileMetrics.watermarkBleed)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
         )
         .clipShape(RoundedRectangle(cornerRadius: UtilityTileMetrics.corner, style: .continuous))
         .shadow(color: .black.opacity(0.06), radius: 14, x: 0, y: 8)
         .contentShape(RoundedRectangle(cornerRadius: UtilityTileMetrics.corner, style: .continuous))
-        .onTapGesture(perform: onTap)
-        .accessibilityElement()
-        .accessibilityLabel(isEmpty ? "Add quick info" : "Customize your quick info")
-        .accessibilityAddTraits(.isButton)
+    }
+}
+
+// MARK: - First-appearance cascade
+
+/// Fade + rise for ONE tile of the row's entrance, delayed by its position.
+///
+/// The latch is the point: `.onAppear` fires every time the row comes back on
+/// screen — every tab switch back to Today — so the state is seeded from
+/// `UtilityRowEntrance.hasPlayedThisLaunch` and a later appearance renders in its
+/// final state with no animation at all. Reduce Motion keeps the fade, drops the
+/// rise and the stagger.
+private struct UtilityTileEntrance: ViewModifier {
+    let index: Int
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var shown: Bool
+
+    init(index: Int) {
+        self.index = index
+        _shown = State(initialValue: UtilityRowEntrance.hasPlayedThisLaunch)
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(shown ? 1 : 0)
+            .offset(y: (shown || reduceMotion) ? 0 : UtilityRowEntrance.riseOffset)
+            .onAppear {
+                guard !shown else { return }
+                withAnimation(entrance) { shown = true }
+                UtilityRowEntrance.markPlayed()
+            }
+    }
+
+    private var entrance: Animation {
+        guard !reduceMotion else { return UtilityTileMetrics.reduceMotionFade }
+        return Motion.tileEntrance.delay(UtilityRowEntrance.delay(forTileAt: index))
+    }
+}
+
+extension View {
+    /// Play this tile's part of the row's once-per-launch entrance.
+    fileprivate func utilityTileEntrance(index: Int) -> some View {
+        modifier(UtilityTileEntrance(index: index))
     }
 }
 

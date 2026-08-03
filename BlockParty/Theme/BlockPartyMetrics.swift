@@ -10,6 +10,16 @@ enum Radius {
     static let button: CGFloat = 12
     static let tile: CGFloat = 16
     static let card: CGFloat = 20
+
+    /// The Calendar-bento family — the Insights bento boxes and the Today utility
+    /// tiles, which are the same object at two sizes. Deliberately OUTSIDE the
+    /// 12/16/20 scale: a bento is a large gradient slab, not a white card, and 20
+    /// reads boxy at that footprint while 24 starts to look like a pill.
+    ///
+    /// It exists as a token because the two surfaces MUST stay equal. They were
+    /// two separate literals carrying "deliberate match" comments, and a comment
+    /// cannot fail a build when one of them moves.
+    static let bento: CGFloat = 22
 }
 
 /// The single elevation in the system — one soft, neutral lift. Everything else

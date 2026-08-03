@@ -9,6 +9,9 @@
 /* Begin PBXBuildFile section */
 		04B033270FE8D419879794E6 /* LibraryHoursTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1CCE7FF6529F92BF0ADD2D5 /* LibraryHoursTests.swift */; };
 		19E31A1B53D4417494535231 /* UtilityRowModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E31A1A53D4417494535231 /* UtilityRowModelTests.swift */; };
+		D4047AF050C8A6F5869201BA /* UtilityProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB88173306B6B0A3F645D705 /* UtilityProviderTests.swift */; };
+		D495BE6ED22C8103E4181099 /* UtilityRowMotionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97DD2A9A6776E3A8E6527A8A /* UtilityRowMotionTests.swift */; };
+		C7DF169CE8FD785FF1AAABDD /* UtilityTileVisualTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9BA99115273BA31F2456961 /* UtilityTileVisualTests.swift */; };
 		B93B30CB1F0DB08EE2B0774C /* TodayHeaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54675C405CE976030D232288 /* TodayHeaderTests.swift */; };
 		89F28F368D5E70E326802B9B /* UtilityContrastTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4DA0E62B9E16C5F6FED195E /* UtilityContrastTests.swift */; };
 		75026A6523E933F77B9D1599 /* TownTimezoneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCE178E8E9CAEDC7860D5827 /* TownTimezoneTests.swift */; };
@@ -34,6 +37,9 @@
 
 /* Begin PBXFileReference section */
 		19E31A1A53D4417494535231 /* UtilityRowModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = UtilityRowModelTests.swift; path = BlockPartyTests/UtilityRowModelTests.swift; sourceTree = "<group>"; };
+		EB88173306B6B0A3F645D705 /* UtilityProviderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = UtilityProviderTests.swift; path = BlockPartyTests/UtilityProviderTests.swift; sourceTree = "<group>"; };
+		97DD2A9A6776E3A8E6527A8A /* UtilityRowMotionTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = UtilityRowMotionTests.swift; path = BlockPartyTests/UtilityRowMotionTests.swift; sourceTree = "<group>"; };
+		D9BA99115273BA31F2456961 /* UtilityTileVisualTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = UtilityTileVisualTests.swift; path = BlockPartyTests/UtilityTileVisualTests.swift; sourceTree = "<group>"; };
 		54675C405CE976030D232288 /* TodayHeaderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TodayHeaderTests.swift; path = BlockPartyTests/TodayHeaderTests.swift; sourceTree = "<group>"; };
 		A4DA0E62B9E16C5F6FED195E /* UtilityContrastTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = UtilityContrastTests.swift; path = BlockPartyTests/UtilityContrastTests.swift; sourceTree = "<group>"; };
 		FCE178E8E9CAEDC7860D5827 /* TownTimezoneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TownTimezoneTests.swift; path = BlockPartyTests/TownTimezoneTests.swift; sourceTree = "<group>"; };
@@ -102,6 +108,9 @@
 				EBBFA6F12FF473FB00A2EDB1 /* Products */,
 				E7FE0881930605D74E08E04E /* Frameworks */,
 				19E31A1A53D4417494535231 /* UtilityRowModelTests.swift */,
+				EB88173306B6B0A3F645D705 /* UtilityProviderTests.swift */,
+				97DD2A9A6776E3A8E6527A8A /* UtilityRowMotionTests.swift */,
+				D9BA99115273BA31F2456961 /* UtilityTileVisualTests.swift */,
 				54675C405CE976030D232288 /* TodayHeaderTests.swift */,
 				A4DA0E62B9E16C5F6FED195E /* UtilityContrastTests.swift */,
 				FCE178E8E9CAEDC7860D5827 /* TownTimezoneTests.swift */,
@@ -229,6 +238,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				19E31A1B53D4417494535231 /* UtilityRowModelTests.swift in Sources */,
+				D4047AF050C8A6F5869201BA /* UtilityProviderTests.swift in Sources */,
+				D495BE6ED22C8103E4181099 /* UtilityRowMotionTests.swift in Sources */,
+				C7DF169CE8FD785FF1AAABDD /* UtilityTileVisualTests.swift in Sources */,
 				B93B30CB1F0DB08EE2B0774C /* TodayHeaderTests.swift in Sources */,
 				89F28F368D5E70E326802B9B /* UtilityContrastTests.swift in Sources */,
 				75026A6523E933F77B9D1599 /* TownTimezoneTests.swift in Sources */,

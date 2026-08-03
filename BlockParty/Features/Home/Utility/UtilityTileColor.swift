@@ -39,6 +39,12 @@ enum UtilityTileGradient {
 /// WCAG contrast helper — used to VERIFY the tokens above (Phase 4 report / a
 /// DEBUG self-check). White text ⇒ the lighter stop is the worst case.
 enum UtilityContrast {
+    /// `Hue.ink` #111111 as a packed hex. The tile watermark is painted in this
+    /// colour and the contrast math works on hexes (a SwiftUI `Color` can't be read
+    /// back), so the token is restated here — in the one Utility Row file allowed to
+    /// hold raw hexes — rather than duplicated at each call site.
+    nonisolated static let inkHex: UInt32 = 0x111111
+
     /// Relative luminance of an sRGB hex colour (0…1).
     nonisolated static func luminance(_ hex: UInt32) -> Double {
         luminance(red: channel(hex, shift: 16), green: channel(hex, shift: 8), blue: channel(hex, shift: 0))
@@ -51,11 +57,31 @@ enum UtilityContrast {
     /// display actually does, and compositing in linear space instead yields
     /// materially different (optimistic) numbers.
     nonisolated static func ratio(white alpha: Double, on hex: UInt32) -> Double {
-        let clear = 1 - alpha   // how much of the stop shows through
-        let text = luminance(red:   alpha + clear * channel(hex, shift: 16),
-                             green: alpha + clear * channel(hex, shift: 8),
-                             blue:  alpha + clear * channel(hex, shift: 0))
-        let background = luminance(hex)
+        ratio(white: alpha, on: hex, overlaidByInk: 0)
+    }
+
+    /// Contrast ratio of white text at `alpha` over `hex` once the tile's INK
+    /// WATERMARK has been laid over it at `inkAlpha`.
+    ///
+    /// The order mirrors the render, and it is the whole point: ink composites onto
+    /// the stop FIRST (the watermark sits behind the text and in front of the
+    /// gradient), then the white text composites onto THAT surface. Both mixes are
+    /// sRGB and only the result is linearized, exactly as in `ratio(white:on:)`.
+    ///
+    /// Ink is darker than every gradient stop this row can render, so the watermark
+    /// can only ever RAISE contrast — the purple library stop goes 4.77:1 → 5.53:1.
+    /// A white watermark at the identical alpha lightens the stop instead and drops
+    /// the same pixel to 4.03:1, below AA; that counterfactual is what
+    /// `UtilityTileVisualTests` pins, and it is why the watermark is not a colour
+    /// anyone can swap on taste.
+    nonisolated static func ratio(white alpha: Double, on hex: UInt32,
+                                  overlaidByInk inkAlpha: Double) -> Double {
+        let surface = inked(hex, alpha: inkAlpha)
+        let clear = 1 - alpha   // how much of the surface shows through the text
+        let text = luminance(red:   alpha + clear * surface.red,
+                             green: alpha + clear * surface.green,
+                             blue:  alpha + clear * surface.blue)
+        let background = luminance(red: surface.red, green: surface.green, blue: surface.blue)
         return (max(text, background) + 0.05) / (min(text, background) + 0.05)
     }
 
@@ -70,6 +96,17 @@ enum UtilityContrast {
     }
 
     // MARK: - Private
+
+    /// `hex` with ink composited over it at `alpha`, as 0…1 sRGB channels. Kept
+    /// FRACTIONAL — rounding back through 8 bits before linearizing biases the
+    /// ratio, and nothing downstream needs a packed hex.
+    private nonisolated static func inked(_ hex: UInt32, alpha: Double)
+        -> (red: Double, green: Double, blue: Double) {
+        func mix(_ shift: UInt32) -> Double {
+            alpha * channel(inkHex, shift: shift) + (1 - alpha) * channel(hex, shift: shift)
+        }
+        return (mix(16), mix(8), mix(0))
+    }
 
     /// One 0…1 sRGB channel out of a packed hex.
     private nonisolated static func channel(_ hex: UInt32, shift: UInt32) -> Double {

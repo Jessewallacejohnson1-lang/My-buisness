@@ -1,9 +1,16 @@
 //
 //  UtilityTileView.swift
 //  Block Party — one Utility Row tile. Structural clone of the Calendar bento box
-//  (22pt continuous corners, gradient, soft shadow) that tap-EXPANDS in place
-//  (compact ⇄ expanded, same spring as the bento). Renders generically from a
+//  (`Radius.bento` continuous corners, gradient, soft shadow) that tap-EXPANDS in
+//  place (compact ⇄ expanded, same spring as the bento). Renders generically from a
 //  descriptor + state — no per-tile code, so a future tile needs none here.
+//
+//  The tile is a `Button`, NOT a tap gesture. A card-level gesture claims the touch
+//  on press-DOWN and out-competes the enclosing ScrollView's pan; this tile sits in a
+//  horizontal scroll inside the vertical page scroll, so that mistake costs two pans
+//  (it shipped once in FeedEventCard — see CLAUDE.md). Press feedback therefore comes
+//  from a ButtonStyle's `isPressed`, which composes with scrolling instead of
+//  fighting it.
 //
 
 import SwiftUI
@@ -13,7 +20,11 @@ enum UtilityTileMetrics {
     static let gap: CGFloat = 10
     static let compactH: CGFloat = 92        // == bento compact height
     static let expandedH: CGFloat = compactH * 2 + gap
-    static let corner: CGFloat = 22          // == bento (hardcoded, deliberate match)
+
+    /// The bento corner, read from the shared token rather than restated. The tile
+    /// and the Calendar bento are one object at two sizes; a "deliberate match"
+    /// comment can't fail a build when one of them moves, and `Radius.bento` can.
+    static let corner: CGFloat = Radius.bento
 
     /// Opacity for EVERY white text layer on a tile — one constant so the whole
     /// row can be checked (and kept) at WCAG 4.5:1 in one place. 1.0: the gradient
@@ -22,6 +33,88 @@ enum UtilityTileMetrics {
     /// by the size/weight ladder (13pt semibold label · 28pt bold value · 12pt
     /// secondary), never by alpha.
     static let textOpacity: Double = 1.0
+
+    // MARK: - Watermark
+
+    /// The oversized glyph behind a tile's content is INK, and that is a contrast
+    /// decision rather than a taste one. Ink DARKENS the gradient it sits on, so
+    /// white text over the watermarked pixels gets MORE contrast (4.76–14.22:1
+    /// becomes 5.50–14.74:1). White at the same alpha lightens it and drops the
+    /// purple library stop to 4.03:1 — a fail. See `UtilityTileVisualTests`.
+    static let watermarkAlpha: Double = 0.10
+
+    /// One oversized glyph, not a second icon: 72pt inside a 148×92 tile reads as
+    /// texture next to the 13pt label glyph.
+    static let watermarkSize: CGFloat = 72
+
+    /// `Hue.ink` #111111 — the same number the contrast math composites, so the
+    /// measured surface and the painted one cannot drift.
+    static let watermarkColorHex: UInt32 = UtilityContrast.inkHex
+
+    /// How far the glyph hangs past the bottom-trailing corner before the tile's
+    /// rounded rect clips it. It bleeds off the box; it does not sit parked in it.
+    static let watermarkBleed: CGFloat = 14
+
+    // MARK: - Loading
+
+    /// Gradient opacity while a tile is loading. **1.0 replaced 0.4**: dimming
+    /// blended the gradient toward `Hue.paper` while the tile's label stayed fully
+    /// opaque on top of it, which measured 1.75–1.82:1 — the worst contrast the row
+    /// has ever shipped. The loading tile now keeps its gradient at full strength
+    /// and says "loading" with the shimmering value block alone.
+    static let loadingGradientOpacity: Double = 1.0
+
+    // MARK: - Motion
+
+    /// Finger-down scale. Small enough to read as pressure, not as a shrink.
+    static let pressScale: CGFloat = 0.97
+
+    /// Compact ⇄ expanded cross-fade: the arriving layer waits `contentFadeInDelay`
+    /// and then eases in over `contentFadeIn`, while the leaving layer goes over the
+    /// shorter `contentFadeOut` with no delay — so the box is never showing two
+    /// full-strength layers at once.
+    static let contentFadeIn: Double = 0.18
+    static let contentFadeInDelay: Double = 0.06
+    static let contentFadeOut: Double = 0.12
+
+    /// How far the expanded content rises while it fades in.
+    static let contentRise: CGFloat = 8
+
+    /// A value changing under a tile that is already on screen (weather ticking over).
+    static let valueFade: Double = 0.20
+
+    /// The Reduce Motion substitute for every animation on this row: one flat
+    /// opacity cross-fade. No scale, no offset, no stagger, no spring.
+    static let reduceMotionFade: Animation = .easeInOut(duration: 0.15)
+}
+
+/// Press feedback for a bento tile — the scale lives here (and only here) because a
+/// ButtonStyle's `isPressed` yields to the enclosing ScrollView's pan, where a
+/// card-level gesture would steal it.
+struct UtilityTilePressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        PressedScale(configuration: configuration)
+    }
+
+    /// A real `View`, not `makeBody`'s result directly: a `ButtonStyle` is not a
+    /// `View`, so `@Environment` read on the style itself is never injected.
+    private struct PressedScale: View {
+        let configuration: ButtonStyleConfiguration
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+        var body: some View {
+            configuration.label
+                .scaleEffect(scale)
+                .animation(reduceMotion ? UtilityTileMetrics.reduceMotionFade : Motion.tilePress,
+                           value: configuration.isPressed)
+        }
+
+        /// Reduce Motion drops the scale entirely — press stops being a movement.
+        private var scale: CGFloat {
+            guard !reduceMotion, configuration.isPressed else { return 1 }
+            return UtilityTileMetrics.pressScale
+        }
+    }
 }
 
 struct UtilityTileView: View {
@@ -31,7 +124,19 @@ struct UtilityTileView: View {
     let staleAfter: TimeInterval?
     let onTap: () -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
+        Button(action: onTap) { surface }
+            .buttonStyle(UtilityTilePressStyle())
+            .accessibilityElement(children: .ignore)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel(a11yLabel)
+            .accessibilityHint(isExpanded ? "Collapse" : "Expand for detail")
+    }
+
+    /// The tile itself — everything inside the button's label.
+    private var surface: some View {
         let height = isExpanded ? UtilityTileMetrics.expandedH : UtilityTileMetrics.compactH
         return ZStack {
             // Frame EACH content to the tile size (like the bento) so the taller
@@ -40,23 +145,45 @@ struct UtilityTileView: View {
             compactContent
                 .frame(width: UtilityTileMetrics.width, height: height)
                 .opacity(isExpanded ? 0 : 1)
+                .animation(crossFade(incoming: !isExpanded), value: isExpanded)
             expandedContent
                 .frame(width: UtilityTileMetrics.width, height: height)
                 .opacity(isExpanded ? 1 : 0)
+                .offset(y: expandedRise)
+                .animation(crossFade(incoming: isExpanded), value: isExpanded)
         }
         .frame(width: UtilityTileMetrics.width, height: height)
-        .background(
-            LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
-                .opacity(isLoading ? 0.4 : 1)
-        )
+        .background(tileBackground)
         .clipShape(RoundedRectangle(cornerRadius: UtilityTileMetrics.corner, style: .continuous))
         .shadow(color: .black.opacity(0.06), radius: 14, x: 0, y: 8)   // == insightsCardShadow
         .contentShape(RoundedRectangle(cornerRadius: UtilityTileMetrics.corner, style: .continuous))
-        .onTapGesture(perform: onTap)
-        .accessibilityElement(children: .ignore)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityLabel(a11yLabel)
-        .accessibilityHint(isExpanded ? "Collapse" : "Expand for detail")
+    }
+
+    // MARK: - Background (gradient + ink watermark)
+
+    /// Gradient with the ink watermark on top of it and the content on top of both.
+    /// Lives in `.background` so an oversized glyph can never move the layout, and
+    /// the tile's `clipShape` (applied above) is what bleeds it off the corner.
+    private var tileBackground: some View {
+        ZStack(alignment: .bottomTrailing) {
+            LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
+                .opacity(isLoading ? UtilityTileMetrics.loadingGradientOpacity : 1)
+            watermark
+        }
+    }
+
+    /// The tile's own glyph at 72pt, inked at 10% and bled off the bottom-trailing
+    /// corner. Decorative: hidden from VoiceOver and untouchable, so it can't take a
+    /// tap away from the button. Uses `descriptor.symbol` — the FIXED tile glyph, not
+    /// the provider's live one, so the texture doesn't shuffle when a value changes.
+    private var watermark: some View {
+        Image(systemName: descriptor.symbol)
+            .font(.system(size: UtilityTileMetrics.watermarkSize))
+            .foregroundStyle(Hue.ink)
+            .opacity(UtilityTileMetrics.watermarkAlpha)
+            .offset(x: UtilityTileMetrics.watermarkBleed, y: UtilityTileMetrics.watermarkBleed)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 
     // MARK: - Compact
@@ -75,6 +202,8 @@ struct UtilityTileView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .layoutPriority(1)   // …so does the secondary — never squeezed out
+                    .contentTransition(.opacity)
+                    .animation(valueChange, value: secondary)
             }
         }
         // Width-only fill + leading (matches the bento, which uses no maxHeight —
@@ -99,6 +228,8 @@ struct UtilityTileView: View {
                 .minimumScaleFactor(0.5)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .contentTransition(valueTransition(for: value.content.primary))
+                .animation(valueChange, value: value.content.primary)
         }
     }
 
@@ -124,6 +255,9 @@ struct UtilityTileView: View {
             }
             Spacer(minLength: 0)
         }
+        // The row glyphs carry no style of their own; white here keeps them on the
+        // gradient's text ladder instead of inheriting the button's tint.
+        .foregroundStyle(.white)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(12)
     }
@@ -145,6 +279,39 @@ struct UtilityTileView: View {
             Spacer(minLength: 0)
         }
         .foregroundStyle(.white.opacity(UtilityTileMetrics.textOpacity))
+    }
+
+    // MARK: - Motion
+
+    /// The compact ⇄ expanded swap. The tile GROWS in place (92 → 194 with the
+    /// content cross-faded), so there is deliberately no `matchedGeometryEffect`
+    /// here — nothing moves between containers for it to match.
+    private func crossFade(incoming: Bool) -> Animation {
+        guard !reduceMotion else { return UtilityTileMetrics.reduceMotionFade }
+        return incoming
+            ? .easeOut(duration: UtilityTileMetrics.contentFadeIn)
+                .delay(UtilityTileMetrics.contentFadeInDelay)
+            : .easeOut(duration: UtilityTileMetrics.contentFadeOut)
+    }
+
+    /// Expanded content starts below its resting place and rises as it fades in.
+    /// Reduce Motion removes the travel and leaves the fade.
+    private var expandedRise: CGFloat {
+        guard !reduceMotion, !isExpanded else { return 0 }
+        return UtilityTileMetrics.contentRise
+    }
+
+    private var valueChange: Animation {
+        reduceMotion ? UtilityTileMetrics.reduceMotionFade
+                     : .easeInOut(duration: UtilityTileMetrics.valueFade)
+    }
+
+    /// A numeric value ROLLS; everything else cross-fades. The weather temperature is
+    /// the live numeric case — an odometer roll on "Open" → "Closed" would read as a
+    /// glitch, and Reduce Motion turns the roll off entirely.
+    private func valueTransition(for primary: String) -> ContentTransition {
+        guard !reduceMotion, primary.first?.isNumber == true else { return .opacity }
+        return .numericText()
     }
 
     // MARK: - Derived
