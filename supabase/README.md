@@ -34,8 +34,41 @@ baseline migration of the full current schema, then treat these hand-written fil
 as the historical record of what was applied on top of it. Verify each file against
 prod before relying on it.
 
+## functions/ — edge function source
+
+`functions/daily-almanac/` and `functions/moderate-post/` are the source for the
+two Edge Functions this app calls at runtime (`BlockParty/Backend/DailyAlmanac.swift`
+and `Moderation.swift`). Both are deployed and ACTIVE on the live project.
+
+They previously existed **only** in the Expo repo (`my-business` @ `community-rebuild`),
+a branch with no shared git history with this one — so the source for two live
+production functions sat outside the repo that depends on them. Copied here on
+2026-08-04, verified byte-identical to the deployed versions (`daily-almanac` v5,
+`moderate-post` v6) before committing.
+
+```bash
+supabase functions deploy daily-almanac --project-ref lxdgwhvqjqmqliobwjpi
+supabase secrets set ANTHROPIC_API_KEY=...     # both functions need it
+```
+
+`daily-almanac` ships its own checks — run them before any deploy:
+
+```bash
+cd supabase/functions/daily-almanac
+node --experimental-strip-types prompt-sync.check.mts   # embedded prompt vs prompts/almanac.md
+node --experimental-strip-types verify.mts              # format spread + no-repeat rules
+```
+
+The prompt lives twice on purpose: readable in `prompts/almanac.md`, base64-embedded
+in `index.ts` (Deno deploy ships no side files). `prompt-sync.check.mts` is what stops
+those two drifting — it is not optional.
+
 ## Two-repo note
 
 Anything that must match the Expo repo (`@hygge/core`) — RLS policies, the
 `submitted_by` real-only guard, the admin allowlist — should change in lockstep
 there. See the "backend twin" foundation in `REVIEW.md`.
+
+That repo is now dormant (last commit 2026-07-21) and its web app is a different
+product line. Treat **this** repo as the source of truth for the shared Supabase
+project; pull from the Expo repo only to recover history.
