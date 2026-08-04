@@ -54,11 +54,22 @@ enum LocationPermission {
         let box = AuthDelegate()
         manager.delegate = box
         return await withCheckedContinuation { continuation in
-            box.onDecided = { granted in continuation.resume(returning: granted) }
-            manager.requestWhenInUseAuthorization()
-            // `manager` is captured by the delegate closure below so neither is
-            // deallocated before the callback lands.
+            // `manager.delegate` is a WEAK reference, and after this closure returns the
+            // async frame has no further use for `box` — so ARC is free to release it and
+            // the callback would never fire, hanging the task forever on a screen the user
+            // is staring at. The closure therefore captures `box` explicitly, which is a
+            // deliberate temporary retain cycle (box → onDecided → box); the delegate nils
+            // `onDecided` the moment it fires, which breaks it.
+            //
+            // This survived a live simulator probe unhardened, but only by ARC timing —
+            // an optimised build is free to release earlier. Not worth the gamble for a
+            // hang with no recovery.
+            box.onDecided = { [box] granted in
+                _ = box
+                continuation.resume(returning: granted)
+            }
             box.keepAlive = manager
+            manager.requestWhenInUseAuthorization()
         }
     }
 }
