@@ -1,0 +1,29 @@
+{
+  "configurations" : [
+    {
+      "id" : "87493A8C-EB1D-4538-9F88-CB5782F9CC8D",
+      "name" : "Test Scheme Action",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "performanceAntipatternCheckerEnabled" : true,
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:BlockParty.xcodeproj",
+      "identifier" : "EBBFA6EF2FF473FB00A2EDB1",
+      "name" : "BlockParty"
+    }
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:BlockParty.xcodeproj",
+        "identifier" : "C37D6EF8B55ED807A10489A7",
+        "name" : "BlockPartyTests"
+      }
+    }
+  ],
+  "version" : 1
+}
