@@ -54,16 +54,18 @@ enum LocationPermission {
         let box = AuthDelegate()
         manager.delegate = box
         return await withCheckedContinuation { continuation in
-            // `manager.delegate` is a WEAK reference, and after this closure returns the
-            // async frame has no further use for `box` — so ARC is free to release it and
-            // the callback would never fire, hanging the task forever on a screen the user
-            // is staring at. The closure therefore captures `box` explicitly, which is a
-            // deliberate temporary retain cycle (box → onDecided → box); the delegate nils
-            // `onDecided` the moment it fires, which breaks it.
+            // `manager.delegate` is a WEAK reference, and once this closure returns the
+            // async frame has no further use for `box` — so ARC is free to release it,
+            // the delegate callback never fires, and the task hangs forever on a screen
+            // the user is staring at, with no recovery.
             //
-            // This survived a live simulator probe unhardened, but only by ARC timing —
-            // an optimised build is free to release earlier. Not worth the gamble for a
-            // hang with no recovery.
+            // The closure therefore captures `box` explicitly. That is a deliberate,
+            // temporary retain cycle (box → onDecided → box); the delegate nils
+            // `onDecided` the instant it fires, which breaks it.
+            //
+            // Verified on the simulator across all three paths (see the commit): this
+            // survived UNHARDENED too, but only by ARC timing — an optimised build is
+            // free to release earlier. Not a gamble worth taking for an unrecoverable hang.
             box.onDecided = { [box] granted in
                 _ = box
                 continuation.resume(returning: granted)
