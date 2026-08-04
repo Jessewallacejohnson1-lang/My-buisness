@@ -463,6 +463,7 @@ struct SJMapView: View {
     var body: some View {
         ZStack(alignment: .top) {
             mapLayer
+            mapBottomFade
             topChrome
             floatingControls
             if mapDetail == nil {
@@ -800,9 +801,9 @@ struct SJMapView: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
-            .background(Hue.surface, in: Capsule())
-            .overlay(Capsule().stroke(Hue.hairline, lineWidth: 1))
-            .mapFloatShadow()
+            // Liquid Glass, the same material as the sheet + tab bar, so the map's
+            // chrome reads as one system. Glass carries its own floating shadow.
+            .glassEffect(.regular, in: Capsule())
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -821,6 +822,47 @@ struct SJMapView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(isAdmin ? "Add an event" : "Open add menu")
+    }
+
+    /// A soft frosted dissolve over the map's bottom band. Every other tab sits over
+    /// the calm canvas, but the map is a busy backdrop — without this, map detail
+    /// bleeds through the floating glass tab bar and shows in the strip beneath it.
+    /// Two layers on one top→bottom mask:
+    ///   1. `.ultraThinMaterial` — the same material language as the glass chrome —
+    ///      blurs the live map (labels/roads/pins) into softness color-agnostically,
+    ///      so it reads right over land, water AND parks.
+    ///   2. a paper wash (`Hue.paper`, the basemap's own land tone) — a bare material
+    ///      goes cold-grey over the warm map, so this keeps the frost warm and seals
+    ///      the home-indicator strip.
+    /// A dissolve (invisible top → present at the bottom), never a bar.
+    /// Non-interactive; taps pass through to the map.
+    private var mapBottomFade: some View {
+        ZStack {
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .mask(
+                    LinearGradient(
+                        stops: [
+                            .init(color: .clear,               location: 0.0),
+                            .init(color: .black.opacity(0.85), location: 0.72),
+                            .init(color: .black,               location: 1.0),
+                        ],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                )
+            LinearGradient(
+                stops: [
+                    .init(color: Hue.paper.opacity(0),    location: 0.0),
+                    .init(color: Hue.paper.opacity(0.32), location: 0.55),
+                    .init(color: Hue.paper.opacity(0.82), location: 1.0),
+                ],
+                startPoint: .top, endPoint: .bottom
+            )
+        }
+        .frame(height: 172)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .ignoresSafeArea(edges: .bottom)
+        .allowsHitTesting(false)
     }
 
     // MARK: Floating controls — help (bottom-left) + recenter (bottom-right)
@@ -874,22 +916,29 @@ struct SJMapView: View {
         .accessibilityLabel("Recenter map")
     }
 
-    /// The shared chrome bubble — 44px circle, hairline, ink line icon.
+    /// The shared chrome bubble — 44px circle, ink line icon. At rest it's real
+    /// Liquid Glass (the SAME material as the sheet + tab bar, so the map's controls
+    /// read as one system; glass carries its own floating shadow).
     /// Active INVERTS to a solid ACCENT fill with a white icon — "active filter" is
     /// one of the brand's meaning-scoped accent seams, and a legible "filter is on"
     /// signal (a weight step alone isn't): a user who can't see the filter is active
-    /// reads the hidden pins as missing data.
+    /// reads the hidden pins as missing data. A glass tint can't carry that weight,
+    /// so the active state stays solid rather than tinted glass.
+    @ViewBuilder
     private func chromeCircle(icon: String, active: Bool = false) -> some View {
-        Circle()
-            .fill(active ? Hue.accent : Hue.surface)
+        let label = Image(systemName: icon)
+            .font(.system(size: 16, weight: active ? .semibold : .medium))
+            .foregroundStyle(active ? Hue.surface : Hue.ink)
             .frame(width: 44, height: 44)
-            .overlay(Circle().stroke(active ? Hue.accent : Hue.hairline, lineWidth: 1))
-            .mapFloatShadow()
-            .overlay(
-                Image(systemName: icon)
-                    .font(.system(size: 16, weight: active ? .semibold : .medium))
-                    .foregroundStyle(active ? Hue.surface : Hue.ink)
-            )
+        if active {
+            label
+                .background(Circle().fill(Hue.accent))
+                .overlay(Circle().stroke(Hue.accent, lineWidth: 1))
+                .mapFloatShadow()
+        } else {
+            label
+                .glassEffect(.regular, in: Circle())
+        }
     }
 
     // MARK: Actions
