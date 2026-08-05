@@ -12,6 +12,7 @@
 		19E31A1B53D4417494535231 /* UtilityRowModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E31A1A53D4417494535231 /* UtilityRowModelTests.swift */; };
 		3E4F06DF0449C98F75730B69 /* UtilityPrefsCodecTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A0CDA30E8D9919A9A757BB4 /* UtilityPrefsCodecTests.swift */; };
 		601CE2FFEC4A8CF9FC1EEDB0 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 42A092CAAEC9643A72B2B683 /* Foundation.framework */; };
+		71AF89BE942262B267E9EED5 /* BriefingModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A3955AC9247867FF5BA1693 /* BriefingModelTests.swift */; };
 		75026A6523E933F77B9D1599 /* TownTimezoneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCE178E8E9CAEDC7860D5827 /* TownTimezoneTests.swift */; };
 		847E1C121AFB0ED4DA1097B3 /* GarbageScheduleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22F2FD6B26B33048FB6F1F3A /* GarbageScheduleTests.swift */; };
 		89F28F368D5E70E326802B9B /* UtilityContrastTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4DA0E62B9E16C5F6FED195E /* UtilityContrastTests.swift */; };
@@ -42,6 +43,7 @@
 		42A092CAAEC9643A72B2B683 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		54675C405CE976030D232288 /* TodayHeaderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TodayHeaderTests.swift; path = BlockPartyTests/TodayHeaderTests.swift; sourceTree = "<group>"; };
 		5A0CDA30E8D9919A9A757BB4 /* UtilityPrefsCodecTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = UtilityPrefsCodecTests.swift; path = BlockPartyTests/UtilityPrefsCodecTests.swift; sourceTree = "<group>"; };
+		5A3955AC9247867FF5BA1693 /* BriefingModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BriefingModelTests.swift; path = BlockPartyTests/BriefingModelTests.swift; sourceTree = "<group>"; };
 		5CE60BAD43531FC35F77B15F /* BriefingPayloadTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BriefingPayloadTests.swift; path = BlockPartyTests/BriefingPayloadTests.swift; sourceTree = "<group>"; };
 		638DB9DE7EC40B8F6418B2D4 /* FakeTokenProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FakeTokenProvider.swift; path = BlockPartyTests/FakeTokenProvider.swift; sourceTree = "<group>"; };
 		97DD2A9A6776E3A8E6527A8A /* UtilityRowMotionTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = UtilityRowMotionTests.swift; path = BlockPartyTests/UtilityRowMotionTests.swift; sourceTree = "<group>"; };
@@ -126,6 +128,7 @@
 				5A0CDA30E8D9919A9A757BB4 /* UtilityPrefsCodecTests.swift */,
 				C5EBDB149EB0DA570CE276CE /* OnboardingFlowTests.swift */,
 				5CE60BAD43531FC35F77B15F /* BriefingPayloadTests.swift */,
+				5A3955AC9247867FF5BA1693 /* BriefingModelTests.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -257,6 +260,7 @@
 				3E4F06DF0449C98F75730B69 /* UtilityPrefsCodecTests.swift in Sources */,
 				EE09772EAB1CE87343E23F11 /* OnboardingFlowTests.swift in Sources */,
 				D8D2FFD575A31FD3CE783B52 /* BriefingPayloadTests.swift in Sources */,
+				71AF89BE942262B267E9EED5 /* BriefingModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
