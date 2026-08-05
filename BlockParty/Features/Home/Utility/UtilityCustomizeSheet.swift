@@ -20,12 +20,24 @@ struct UtilityCustomizeSheet: View {
 
     init(model: UtilityRowModel) {
         self.model = model
-        let enabled = model.prefs.tiles
-        let enabledSet = Set(enabled)
-        let disabled = model.registry.catalog.filter { !enabledSet.contains($0) }
-        _draftTiles = State(initialValue: enabled + disabled)
-        _draftEnabled = State(initialValue: enabledSet)
+        let seeded = Self.seed(saved: model.prefs.tiles, catalog: model.registry.catalog)
+        _draftTiles = State(initialValue: seeded.order)
+        _draftEnabled = State(initialValue: seeded.enabled)
         _draftSettings = State(initialValue: model.prefs.settings)
+    }
+
+    /// The sheet's seeding rule: the saved (enabled) tiles first, in their saved
+    /// order, then every remaining catalog tile — listed but OFF, in catalog order.
+    ///
+    /// Listing the whole catalog is the reachability guarantee: a tile the user
+    /// turned off must still appear so it can be turned back on. Pure and
+    /// `nonisolated` so that property is testable without presenting the sheet.
+    nonisolated static func seed(saved: [UtilityTileID],
+                                 catalog: [UtilityTileID]) -> (order: [UtilityTileID],
+                                                               enabled: Set<UtilityTileID>) {
+        let enabled = Set(saved)
+        let disabled = catalog.filter { !enabled.contains($0) }
+        return (order: saved + disabled, enabled: enabled)
     }
 
     var body: some View {

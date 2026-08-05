@@ -4,9 +4,27 @@
 //  instant offline render, hydrated from Supabase (user_utility_prefs) once
 //  available. Unknown tile ids in stored prefs are dropped (forward compat).
 //
+//  The Supabase leg is behind ONE seam (`UtilityPrefsSyncing`) and is optional:
+//  `init(api: nil)` is a local-mirror-only store that never touches the network.
+//
 
 import Foundation
 import Combine
+
+/// The store's ONLY door to the network. Extracted so a test (or a preview) can
+/// build a store with no door at all — see `UtilityPrefsStore.init(api:…)`.
+/// Signatures mirror `UtilityPrefsAPI` exactly; `@MainActor` is explicit rather
+/// than inherited from the module default so the test target (which does not set
+/// `SWIFT_DEFAULT_ACTOR_ISOLATION`) can conform to it without surprises.
+@MainActor
+protocol UtilityPrefsSyncing {
+    func getMine() async throws -> UtilityPrefsRow?
+    func upsert(tiles: [String], settings: [String: TileSettings]) async throws
+}
+
+/// The real, Supabase-backed door. Declared here (same module, so not a
+/// retroactive conformance) to keep `UtilityPrefsAPI` a plain transport type.
+extension UtilityPrefsAPI: UtilityPrefsSyncing {}
 
 @MainActor
 final class UtilityPrefsStore: ObservableObject {
@@ -17,25 +35,43 @@ final class UtilityPrefsStore: ObservableObject {
     /// True once the user has saved at least once (drives Phase-3 first-run UI).
     @Published private(set) var hasSavedOnce: Bool
 
-    private let api: UtilityPrefsAPI
+    /// The remote, or `nil` for a LOCAL-MIRROR-ONLY store: `hydrate()` pulls
+    /// nothing and `pushToServer()` writes nothing. Tests use `nil` so a suite run
+    /// can never POST fixtures to the signed-in user's real `user_utility_prefs` row.
+    private let api: (any UtilityPrefsSyncing)?
     /// Ids this app version can render — anything else in stored prefs is ignored.
     private let knownIDs: Set<UtilityTileID>
+    /// The mirror's backing store. Injectable so a test can run over a throwaway
+    /// suite — and construct a SECOND store over the same suite to simulate a
+    /// relaunch reading genuinely written bytes.
+    private let defaults: UserDefaults
 
     private static let tilesKey = "utility.tiles"
     private static let settingsKey = "utility.settings"
     private static let savedKey = "utility.hasSavedOnce"
     private static let pendingKey = "utility.pendingSync"   // an offline save awaiting upsert
 
-    init(api: UtilityPrefsAPI? = nil,
-         knownIDs: Set<UtilityTileID> = Set(UtilityTileID.defaults)) {
-        // Resolve the MainActor default in the (MainActor) init body, never as a
-        // default argument — see the CLAUDE.md MainActor-default-arg gotcha.
-        self.api = api ?? UtilityPrefsAPI(auth: .shared)
+    /// The app's store: syncs with Supabase. `api` is resolved in the (MainActor)
+    /// init body, never as a default argument — see the CLAUDE.md
+    /// MainActor-default-arg gotcha. (`UserDefaults.standard` is nonisolated, so
+    /// it is safe as a default.)
+    convenience init(knownIDs: Set<UtilityTileID> = Set(UtilityTileID.defaults),
+                     defaults: UserDefaults = .standard) {
+        self.init(api: UtilityPrefsAPI(auth: .shared), knownIDs: knownIDs, defaults: defaults)
+    }
+
+    /// Explicit-remote init. `api: nil` means local-mirror-only — no network at
+    /// all. `api` has NO default here on purpose: "which remote?" must be a
+    /// decision, so a caller can never fall into a live POST by omission.
+    init(api: (any UtilityPrefsSyncing)?,
+         knownIDs: Set<UtilityTileID> = Set(UtilityTileID.defaults),
+         defaults: UserDefaults = .standard) {
+        self.api = api
         self.knownIDs = knownIDs
+        self.defaults = defaults
 
         // Instant: read the UserDefaults mirror (or fall back to defaults) so the
         // row renders immediately, offline, on the very first frame.
-        let defaults = UserDefaults.standard
         self.hasSavedOnce = defaults.bool(forKey: Self.savedKey)
 
         if let raw = defaults.data(forKey: Self.tilesKey),
@@ -56,6 +92,11 @@ final class UtilityPrefsStore: ObservableObject {
     /// Pull the server row and reconcile (call once per session after sign-in).
     /// A missing row or a network failure leaves the mirrored state untouched.
     func hydrate() async {
+        // Local-mirror-only: nothing to pull, and nothing owed (see pushToServer).
+        guard let api else {
+            setPending(false)
+            return
+        }
         // If a local save never reached the server (offline), the mirror is NEWER
         // than the server row — push it instead of letting a stale row overwrite
         // the un-synced edit (data loss).
@@ -84,6 +125,15 @@ final class UtilityPrefsStore: ObservableObject {
     /// Upsert local prefs to Supabase; clears the pending flag on success, leaves
     /// it set (retried on the next hydrate) on failure.
     private func pushToServer() async {
+        // No remote: the UserDefaults mirror IS the source of truth. `pendingSync`
+        // means "the server is behind the mirror" — with no server there is nobody
+        // to be behind, so the honest value is false. (Setting it here rather than
+        // skipping it in `save` keeps the rule in ONE place, and also clears a flag
+        // inherited from a mirror a syncing build left dirty.)
+        guard let api else {
+            setPending(false)
+            return
+        }
         let idStrings = tiles.map(\.rawValue)
         let settingStrings = Dictionary(uniqueKeysWithValues: settings.map { ($0.key.rawValue, $0.value) })
         do {
@@ -94,8 +144,8 @@ final class UtilityPrefsStore: ObservableObject {
         }
     }
 
-    private var isPending: Bool { UserDefaults.standard.bool(forKey: Self.pendingKey) }
-    private func setPending(_ value: Bool) { UserDefaults.standard.set(value, forKey: Self.pendingKey) }
+    private var isPending: Bool { defaults.bool(forKey: Self.pendingKey) }
+    private func setPending(_ value: Bool) { defaults.set(value, forKey: Self.pendingKey) }
 
     /// Update one tile's settings (e.g. garbage weekday) and persist.
     func updateSettings(_ id: UtilityTileID, _ value: TileSettings) async {
@@ -107,7 +157,6 @@ final class UtilityPrefsStore: ObservableObject {
     // MARK: - Private
 
     private func mirror() {
-        let defaults = UserDefaults.standard
         if let data = try? JSONEncoder().encode(tiles) { defaults.set(data, forKey: Self.tilesKey) }
         let settingStrings = Dictionary(uniqueKeysWithValues: settings.map { ($0.key.rawValue, $0.value) })
         if let data = try? JSONEncoder().encode(settingStrings) { defaults.set(data, forKey: Self.settingsKey) }

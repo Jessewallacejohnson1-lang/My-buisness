@@ -63,12 +63,18 @@ struct UtilityTileContent: Equatable, Sendable {
     /// provider drive its tile's colour dynamically (weather → live condition)
     /// while the tile view stays generic. nil = use the registry's static token.
     var gradientHex: [UInt32]?
+    /// "Nothing to see here" — the provider is reporting an absence, not an event
+    /// (roads with zero active notices). The tile renders a calm, de-emphasised
+    /// variant of its gradient so a quiet town doesn't look like an alert.
+    /// A *rendering* hint only: the copy is still the provider's job.
+    var isMuted: Bool
 
     init(symbol: String? = nil, primary: String, secondary: String? = nil,
          badge: UtilityTileBadge? = nil, expanded: [UtilityDetailRow] = [],
-         gradientHex: [UInt32]? = nil) {
+         gradientHex: [UInt32]? = nil, isMuted: Bool = false) {
         self.symbol = symbol; self.primary = primary; self.secondary = secondary
         self.badge = badge; self.expanded = expanded; self.gradientHex = gradientHex
+        self.isMuted = isMuted
     }
 }
 
@@ -96,6 +102,10 @@ struct UtilityTileValue: Equatable, Sendable {
     init(content: UtilityTileContent, updatedAt: Date = Date()) {
         self.content = content; self.updatedAt = updatedAt
     }
+
+    /// Convenience passthrough — the flag rides on the content the tile renders from
+    /// (`UtilityTileContent.isMuted`); this just saves callers a hop.
+    var isMuted: Bool { content.isMuted }
 }
 
 /// Row-facing state. `.failed` renders an em-dash value — never a crash.

@@ -11,7 +11,10 @@
 //  a small chip is `snappy`, a place card is `card`, a marker pop is `select`, a
 //  colour/opacity fade is `smooth`, a finger-tracked drag is `interactive`, and the
 //  large detented bottom sheet is `sheet` (heavier — a big surface shouldn't feel as
-//  loose as a small card, so it keeps its own slightly slower/stiffer spring).
+//  loose as a small card, so it keeps its own slightly slower/stiffer spring). The
+//  bento family (`bentoExpand` / `tilePress` / `tileEntrance`) covers the Calendar
+//  Insights boxes and the Today utility tiles, which share a shape and must therefore
+//  share a feel.
 //
 //  NOT here on purpose: perpetual live-pulse loops (PulseRing, StatusDot) — those are
 //  bespoke `.repeatForever` loops, not discrete state changes, and each is already
@@ -40,6 +43,29 @@ enum Motion {
     /// The large, detented bottom sheet (MapSheet). Heavier than `card` on purpose —
     /// a full-width sheet settling should read as more mass than a small card.
     static let sheet: Animation = .spring(response: 0.42, dampingFraction: 0.86)
+
+    // MARK: Bento family (Calendar Insights boxes + the Today utility tiles)
+
+    /// A bento box expanding/collapsing in place — the Calendar Insights boxes and
+    /// the Utility Row tiles, which must move as one thing because they ARE one
+    /// thing at two sizes (see `Radius.bento`). Slower and calmer than `card`: the
+    /// box GROWS where it stands rather than arriving from somewhere, so it should
+    /// settle rather than pop, and low bounce keeps the neighbouring tiles from
+    /// looking shoved. Replaces the inline literal `UtilityRowView` used to carry.
+    static let bentoExpand: Animation = .spring(response: 0.44, dampingFraction: 0.82)
+
+    /// Finger-down / finger-up on a tile or bento (the press scale). The quickest
+    /// token here on purpose — press feedback that trails the finger reads as lag,
+    /// not as motion — and damped just short of critical so the release settles
+    /// without a visible rebound.
+    static let tilePress: Animation = .spring(response: 0.25, dampingFraction: 0.80)
+
+    /// A tile's first appearance: the fade + short rise of the Utility Row's
+    /// once-per-launch cascade (see `UtilityRowEntrance` for the stagger and the
+    /// launch latch). Damped harder (0.90) than anything else here because several
+    /// tiles land within ~0.2s of each other — any overshoot would read as a row
+    /// of independent wobbles instead of one arrival.
+    static let tileEntrance: Animation = .spring(response: 0.40, dampingFraction: 0.90)
 }
 
 // MARK: - Staggered content reveal (sheet cards)

@@ -2,8 +2,8 @@
 //  SafariView.swift
 //  Block Party — shared in-app browser wrapper (SFSafariViewController).
 //
-//  Used by the Today card and the Board to open a board item's source_url
-//  without leaving the app. No SPM dependency — SafariServices ships with iOS.
+//  Used by the Board to open a board item's source_url without leaving the app.
+//  No SPM dependency — SafariServices ships with iOS.
 //
 
 import SwiftUI

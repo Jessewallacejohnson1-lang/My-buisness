@@ -1,12 +1,18 @@
 //
-//  WeatherBar.swift
-//  Block Party — weather bar: live current conditions over a WeatherBackground.
+//  WeatherService.swift
+//  Block Party — the app's only weather client: live conditions for St. Joseph,
+//  MN, plus the `Weather` readout its callers render.
 //
-//  Honest data only: the temperature comes from open-meteo (no key, no auth).
-//  If the fetch fails we keep the place + a matched gradient, never a fake number.
+//  Honest data only: everything comes from open-meteo (no key, no auth) — the
+//  forecast API for temperature/conditions/sun times and the air-quality API for
+//  AQI. A failed fetch degrades to the last cached reading or to nil, so callers
+//  show a matched gradient or an empty state, never a fake number.
+//
+//  Read by AlmanacSection, DailyGreeting, WeatherTileProvider, and DailyAlmanac;
+//  concurrent callers are coalesced into one fetch behind a 15-minute cache.
 //
 
-import SwiftUI
+import Foundation
 
 // MARK: - Model
 
@@ -188,59 +194,5 @@ enum WeatherService {
         case 95, 96, 99:       return "Storms"
         default:               return isDay ? "Clear" : "Clear night"
         }
-    }
-}
-
-// MARK: - View
-
-struct WeatherBar: View {
-    @State private var weather: Weather?
-
-    var body: some View {
-        HStack(alignment: .bottom) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("St. Joseph, Minnesota")
-                    .font(.sansSemibold(14))
-                    .foregroundStyle(Hue.surface)
-                Text(weather?.label ?? "—")
-                    .font(.sans(12))
-                    .foregroundStyle(Hue.surface)
-            }
-            Spacer()
-            if let w = weather {
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text("\(w.tempF)°")
-                        .font(.monoMedium(30))
-                        .monospacedDigit()
-                        .foregroundStyle(Hue.surface)
-                    Text("H \(w.highF)°  L \(w.lowF)°")
-                        .font(.mono(11))
-                        .monospacedDigit()
-                        .foregroundStyle(Hue.surface)
-                }
-            }
-        }
-        .padding(14)
-        .shadow(color: .black.opacity(0.3), radius: 8, y: 1)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: 75)
-        // The sky rides in as a `.background`, so it always fills the whole bar.
-        // Pinned to a fixed height and bottom-aligned (as it was), the backdrop
-        // left a hairline strip at the top whenever the readout ran a touch taller
-        // than 75pt — the old solid-ink block had hidden it; without that block the
-        // strip showed the page through. `.background` matches the bar's frame
-        // exactly, so the sky reaches every edge and there is no gap to expose.
-        .background {
-            WeatherBackground(state: weather?.state)
-                .overlay(
-                    LinearGradient(
-                        colors: [.clear, .black.opacity(0.45)],
-                        startPoint: .top, endPoint: .bottom
-                    )
-                )
-        }
-        .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
-        .task { weather = await WeatherService.current() }
     }
 }

@@ -30,7 +30,10 @@ enum LibraryHours {
         case closed(opensAt: Int?, weekday: Int?)       // nil/nil = no known next opening
     }
 
-    nonisolated static func status(at now: Date = Date(), calendar cal: Calendar = .current) -> Status {
+    /// The branch is in St. Cloud, MN, so its hours are Central — `Town.calendar`,
+    /// NOT `Calendar.current`: a traveling user still wants the library's clock,
+    /// not their hotel's. An explicit calendar (tests) still overrides.
+    nonisolated static func status(at now: Date = Date(), calendar cal: Calendar = Town.calendar) -> Status {
         let weekday = cal.component(.weekday, from: now)
         let minutes = cal.component(.hour, from: now) * 60 + cal.component(.minute, from: now)
 

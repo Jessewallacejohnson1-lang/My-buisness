@@ -20,6 +20,18 @@ enum UtilityTileGradient {
     static let library:   [UInt32] = [0xA14BCD, 0x712B9B]   // purple    · 4.77:1
     static let customize: [UInt32] = [0x727276, 0x47474B]   // neutral   · 4.79:1
 
+    /// The calm, nothing-to-report surface (`UtilityTileContent.isMuted`) — roads on
+    /// an all-clear day. Neutral grey so the tile reads as information rather than as
+    /// an alert; without it a quiet town renders the full-strength amber warning
+    /// gradient. Same stops as the customize tile, named for intent.
+    ///
+    /// Verified like every other token: opaque white measures 4.79:1 on the lighter
+    /// stop and 5.53:1 once the ink watermark darkens it. A LIGHTER grey would drop
+    /// below 4.5:1 (exactly why the amber was darkened in the first place), so the
+    /// de-emphasis is carried by DROPPING THE HUE — never by lifting the tile toward
+    /// the page.
+    static let muted: [UInt32] = [0x727276, 0x47474B]        // neutral   · 4.79:1
+
     /// The live weather tile derives its gradient from the current WeatherState,
     /// darkened so white text stays legible (the raw WeatherState.gradient palettes
     /// are light sky backgrounds and fail 4.5:1). nil → static blue fallback.
@@ -39,22 +51,84 @@ enum UtilityTileGradient {
 /// WCAG contrast helper — used to VERIFY the tokens above (Phase 4 report / a
 /// DEBUG self-check). White text ⇒ the lighter stop is the worst case.
 enum UtilityContrast {
+    /// `Hue.ink` #111111 as a packed hex. The tile watermark is painted in this
+    /// colour and the contrast math works on hexes (a SwiftUI `Color` can't be read
+    /// back), so the token is restated here — in the one Utility Row file allowed to
+    /// hold raw hexes — rather than duplicated at each call site.
+    nonisolated static let inkHex: UInt32 = 0x111111
+
     /// Relative luminance of an sRGB hex colour (0…1).
     nonisolated static func luminance(_ hex: UInt32) -> Double {
-        func lin(_ c: Double) -> Double { c <= 0.03928 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4) }
-        let r = lin(Double((hex >> 16) & 0xFF) / 255)
-        let g = lin(Double((hex >> 8) & 0xFF) / 255)
-        let b = lin(Double(hex & 0xFF) / 255)
-        return 0.2126 * r + 0.7152 * g + 0.0722 * b
+        luminance(red: channel(hex, shift: 16), green: channel(hex, shift: 8), blue: channel(hex, shift: 0))
     }
 
-    /// Contrast ratio of white text on the given colour.
+    /// Contrast ratio of white text at `alpha` over the opaque colour `hex`.
+    ///
+    /// The white is composited onto the stop in **sRGB** space
+    /// (`alpha·1 + (1−alpha)·channel`) and only THEN linearized — that is what a
+    /// display actually does, and compositing in linear space instead yields
+    /// materially different (optimistic) numbers.
+    nonisolated static func ratio(white alpha: Double, on hex: UInt32) -> Double {
+        ratio(white: alpha, on: hex, overlaidByInk: 0)
+    }
+
+    /// Contrast ratio of white text at `alpha` over `hex` once the tile's INK
+    /// WATERMARK has been laid over it at `inkAlpha`.
+    ///
+    /// The order mirrors the render, and it is the whole point: ink composites onto
+    /// the stop FIRST (the watermark sits behind the text and in front of the
+    /// gradient), then the white text composites onto THAT surface. Both mixes are
+    /// sRGB and only the result is linearized, exactly as in `ratio(white:on:)`.
+    ///
+    /// Ink is darker than every gradient stop this row can render, so the watermark
+    /// can only ever RAISE contrast — the purple library stop goes 4.77:1 → 5.53:1.
+    /// A white watermark at the identical alpha lightens the stop instead and drops
+    /// the same pixel to 4.03:1, below AA; that counterfactual is what
+    /// `UtilityTileVisualTests` pins, and it is why the watermark is not a colour
+    /// anyone can swap on taste.
+    nonisolated static func ratio(white alpha: Double, on hex: UInt32,
+                                  overlaidByInk inkAlpha: Double) -> Double {
+        let surface = inked(hex, alpha: inkAlpha)
+        let clear = 1 - alpha   // how much of the surface shows through the text
+        let text = luminance(red:   alpha + clear * surface.red,
+                             green: alpha + clear * surface.green,
+                             blue:  alpha + clear * surface.blue)
+        let background = luminance(red: surface.red, green: surface.green, blue: surface.blue)
+        return (max(text, background) + 0.05) / (min(text, background) + 0.05)
+    }
+
+    /// Contrast ratio of opaque white text on the given colour.
     nonisolated static func ratioOnWhite(_ hex: UInt32) -> Double {
-        1.05 / (luminance(hex) + 0.05)
+        ratio(white: 1, on: hex)
     }
 
     /// Worst-case (lighter-stop) white-text ratio for a gradient; ≥ 4.5 required.
     nonisolated static func worstRatioOnWhite(_ gradient: [UInt32]) -> Double {
         gradient.map(ratioOnWhite).min() ?? 0
+    }
+
+    // MARK: - Private
+
+    /// `hex` with ink composited over it at `alpha`, as 0…1 sRGB channels. Kept
+    /// FRACTIONAL — rounding back through 8 bits before linearizing biases the
+    /// ratio, and nothing downstream needs a packed hex.
+    private nonisolated static func inked(_ hex: UInt32, alpha: Double)
+        -> (red: Double, green: Double, blue: Double) {
+        func mix(_ shift: UInt32) -> Double {
+            alpha * channel(inkHex, shift: shift) + (1 - alpha) * channel(hex, shift: shift)
+        }
+        return (mix(16), mix(8), mix(0))
+    }
+
+    /// One 0…1 sRGB channel out of a packed hex.
+    private nonisolated static func channel(_ hex: UInt32, shift: UInt32) -> Double {
+        Double((hex >> shift) & 0xFF) / 255
+    }
+
+    /// WCAG 2.1 relative luminance from 0…1 sRGB channels (kept fractional so a
+    /// composited colour isn't rounded back through 8-bit).
+    private nonisolated static func luminance(red: Double, green: Double, blue: Double) -> Double {
+        func lin(_ c: Double) -> Double { c <= 0.03928 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4) }
+        return 0.2126 * lin(red) + 0.7152 * lin(green) + 0.0722 * lin(blue)
     }
 }

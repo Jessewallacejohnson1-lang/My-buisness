@@ -49,9 +49,13 @@ enum GarbageSchedule {
     }
 
     /// The next pickup at/after `now`, applying the recycling parity + holiday shift.
+    ///
+    /// The route is a St. Joseph municipal schedule, so it runs on `Town.calendar`
+    /// (Central) and NOT on `Calendar.current` — a phone in another timezone must
+    /// not shift the town's pickup day. An explicit calendar (tests) still overrides.
     nonisolated static func nextPickup(after now: Date = Date(),
                                        pickupWeekday: Int = defaultWeekday,
-                                       calendar cal: Calendar = .current) -> Pickup {
+                                       calendar cal: Calendar = Town.calendar) -> Pickup {
         let today = cal.startOfDay(for: now)
         let anchorWeek = weekStart(cal.date(from: recyclingAnchor) ?? today, cal)
 
