@@ -90,10 +90,16 @@ struct HomeView: View {
                 showsHairline = shows
             }
             .refreshable {
-                await briefing.refresh(briefingAPI)
+                // Refresh-once-daily. If today's briefing is already on screen,
+                // pulling does NOT hit the network — the spring replay below IS the
+                // acknowledgement. No spinner theatre, and no toast repeating
+                // "new briefing at 6 AM" when the footer a thumb's width away
+                // already says exactly that.
+                if briefing.needsRefresh {
+                    await briefing.refresh(briefingAPI)
+                }
 
-                // Collapse instantly after the refreshed data arrives, then spring
-                // the modules back in.
+                // Collapse instantly, then spring the modules back in.
                 revealAnimated = false
                 revealed = false
                 await Task.yield()
@@ -196,7 +202,8 @@ struct HomeView: View {
             if let payload = briefing.payload {
                 CaughtUpFooter(
                     caughtUp: payload.caughtUp,
-                    briefingDateLabel: BriefingDate.eyebrow(for: payload.briefingDate) ?? ""
+                    briefingDateLabel: BriefingDate.eyebrow(for: payload.briefingDate) ?? "",
+                    briefingDate: payload.briefingDate
                 )
                 .padding(.horizontal, 18)
                 .padding(.top, 34)

@@ -11,6 +11,12 @@ struct DailyTouchCard: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// True only for a vote cast in THIS session. A poll that arrives already
+    /// answered — reopening the app later in the day — shows its results at rest,
+    /// with no fill sweep and no haptic. Celebrating a vote you cast hours ago
+    /// would be theatre.
+    @State private var justVoted = false
+
     var body: some View {
         Group {
             switch touch.kind {
@@ -22,7 +28,21 @@ struct DailyTouchCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .blockPartyCard(padding: 18)
+        .onChange(of: touch.hasVoted) { wasVoted, isVoted in
+            guard !wasVoted, isVoted else { return }
+            justVoted = true
+            // The tap already fired `.light`. This is the results settling, so it
+            // lands after the fill has swept — one beat, not two at once.
+            let settle = reduceMotion ? 0 : Self.fillDuration
+            Task {
+                try? await Task.sleep(for: .seconds(settle))
+                Haptics.success()
+            }
+        }
     }
+
+    /// The bar sweep, and therefore when the results are "settled".
+    static let fillDuration: TimeInterval = 0.30
 
     private var pollContent: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -48,7 +68,8 @@ struct DailyTouchCard: View {
                 option: option,
                 share: touch.share(at: index),
                 count: touch.count(at: index),
-                isMyChoice: touch.myVote == index
+                isMyChoice: touch.myVote == index,
+                animatesIn: justVoted && !reduceMotion
             )
         } else if let onVote {
             Button {
@@ -112,6 +133,14 @@ private struct BriefingPollResultRow: View {
     let share: Double
     let count: Int
     let isMyChoice: Bool
+    /// Sweeps the bar and counts the number up. False when the poll was already
+    /// answered on arrival, or under Reduce Motion.
+    var animatesIn: Bool = false
+
+    /// Drives BOTH the bar width and the percentage, so the number counts up in
+    /// lockstep with the fill instead of racing it.
+    @State private var progress: Double = 0
+    @State private var pop: CGFloat = 1
 
     var body: some View {
         ZStack(alignment: .leading) {
@@ -121,7 +150,7 @@ private struct BriefingPollResultRow: View {
             GeometryReader { proxy in
                 Rectangle()
                     .fill(Hue.ink.opacity(0.12))
-                    .frame(width: proxy.size.width * CGFloat(clampedShare))
+                    .frame(width: proxy.size.width * CGFloat(clampedShare * progress))
             }
             .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             .accessibilityHidden(true)
@@ -155,26 +184,50 @@ private struct BriefingPollResultRow: View {
         }
         .frame(maxWidth: .infinity, minHeight: 58)
         .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+        .scaleEffect(pop)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityAddTraits(isMyChoice ? .isSelected : [])
+        .onAppear {
+            // Rest state FIRST, unconditionally. Visibility is never gated on an
+            // animation — a headless render, or Reduce Motion, must still show the
+            // finished bar and the real number.
+            guard animatesIn else { progress = 1; return }
+            progress = 0
+            withAnimation(.easeOut(duration: DailyTouchCard.fillDuration)) { progress = 1 }
+            guard isMyChoice else { return }
+            // Only the row you picked acknowledges the tap.
+            withAnimation(Motion.select) { pop = 1.02 }
+            Task {
+                try? await Task.sleep(for: .seconds(0.18))
+                withAnimation(Motion.select) { pop = 1 }
+            }
+        }
     }
 
     private nonisolated var clampedShare: Double {
         min(max(share, 0), 1)
     }
 
-    private nonisolated var percentage: Int {
-        Int((clampedShare * 100).rounded())
+    /// Counts up with the bar: derived from the animated progress, not the final
+    /// share, so the number and the fill arrive together.
+    private var percentage: Int {
+        Int((clampedShare * progress * 100).rounded())
     }
 
     private nonisolated var voteCountLabel: String {
         "\(count) \(count == 1 ? "vote" : "votes")"
     }
 
+    /// The settled figure, never the counting-up one — VoiceOver must not announce
+    /// a mid-animation value.
+    private nonisolated var finalPercentage: Int {
+        Int((clampedShare * 100).rounded())
+    }
+
     private nonisolated var accessibilityLabel: String {
         let selection = isMyChoice ? ", your choice" : ""
-        return "\(option), \(percentage) percent, \(voteCountLabel)\(selection)"
+        return "\(option), \(finalPercentage) percent, \(voteCountLabel)\(selection)"
     }
 }
 

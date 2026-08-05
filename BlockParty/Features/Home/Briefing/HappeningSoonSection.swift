@@ -105,6 +105,8 @@ private struct HappeningSoonEventCard: View {
     let onOpen: ((BriefingEvent) -> Void)?
     let onRsvp: ((BriefingEvent, Bool) -> Void)?
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         VStack(spacing: 0) {
             if let onOpen {
@@ -218,21 +220,28 @@ private struct HappeningSoonEventCard: View {
             Spacer(minLength: 8)
 
             if let onRsvp {
-                Button {
-                    Haptics.light()
-                    onRsvp(event, !event.rsvpd)
-                } label: {
-                    Text(event.rsvpd ? "Going" : "RSVP")
-                        .font(.sansSemibold(13))
-                        .foregroundStyle(event.rsvpd ? Hue.surface : Hue.ink)
-                        .frame(minWidth: 72, minHeight: 44)
-                        .padding(.horizontal, 4)
-                        .background(event.rsvpd ? Hue.ink : Hue.fill)
-                        .clipShape(
-                            RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
-                        )
-                }
-                .buttonStyle(BriefingCardPressStyle(pressedScale: 0.96))
+                // The app's existing RSVP control, reused unchanged: a 44pt rounded
+                // square (never a pill) whose plus rotates into a checkmark over
+                // 0.18s, with a square ring burst on join and a 0.88 press scale on
+                // spring(0.25, 0.6). Reusing it rather than inventing a second RSVP
+                // affordance is the whole point — joining should feel identical
+                // wherever you do it.
+                //
+                // Haptics fire HERE rather than inside the button: the feed's call
+                // site uses raw generators, which is a documented deviation, and new
+                // call sites go through the `Haptics` helper (it no-ops under Low
+                // Power Mode).
+                FeedEventCardJoinButton(
+                    isJoined: event.rsvpd,
+                    isFallback: false,
+                    reduceMotion: reduceMotion,
+                    autoplayPressed: false,
+                    onToggle: {
+                        let joining = !event.rsvpd
+                        if joining { Haptics.success() } else { Haptics.light() }
+                        onRsvp(event, joining)
+                    }
+                )
                 .accessibilityLabel(
                     event.rsvpd
                         ? "Cancel RSVP for \(event.title)"
