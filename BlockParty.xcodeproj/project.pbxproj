@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		01CF0850F3E21C5572092741 /* BriefingLiveParityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F64A55A83BA620972A564C4 /* BriefingLiveParityTests.swift */; };
 		04B033270FE8D419879794E6 /* LibraryHoursTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1CCE7FF6529F92BF0ADD2D5 /* LibraryHoursTests.swift */; };
 		113ECFA0DF9F126A677B09A3 /* UtilityCustomizeSheetSeedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD06A519DEAA1CE7383312F9 /* UtilityCustomizeSheetSeedTests.swift */; };
 		19E31A1B53D4417494535231 /* UtilityRowModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E31A1A53D4417494535231 /* UtilityRowModelTests.swift */; };
@@ -46,6 +47,7 @@
 		5A0CDA30E8D9919A9A757BB4 /* UtilityPrefsCodecTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = UtilityPrefsCodecTests.swift; path = BlockPartyTests/UtilityPrefsCodecTests.swift; sourceTree = "<group>"; };
 		5A3955AC9247867FF5BA1693 /* BriefingModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BriefingModelTests.swift; path = BlockPartyTests/BriefingModelTests.swift; sourceTree = "<group>"; };
 		5CE60BAD43531FC35F77B15F /* BriefingPayloadTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BriefingPayloadTests.swift; path = BlockPartyTests/BriefingPayloadTests.swift; sourceTree = "<group>"; };
+		5F64A55A83BA620972A564C4 /* BriefingLiveParityTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BriefingLiveParityTests.swift; path = BlockPartyTests/BriefingLiveParityTests.swift; sourceTree = "<group>"; };
 		638DB9DE7EC40B8F6418B2D4 /* FakeTokenProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FakeTokenProvider.swift; path = BlockPartyTests/FakeTokenProvider.swift; sourceTree = "<group>"; };
 		97DD2A9A6776E3A8E6527A8A /* UtilityRowMotionTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = UtilityRowMotionTests.swift; path = BlockPartyTests/UtilityRowMotionTests.swift; sourceTree = "<group>"; };
 		A1CCE7FF6529F92BF0ADD2D5 /* LibraryHoursTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LibraryHoursTests.swift; path = BlockPartyTests/LibraryHoursTests.swift; sourceTree = "<group>"; };
@@ -132,6 +134,7 @@
 				5CE60BAD43531FC35F77B15F /* BriefingPayloadTests.swift */,
 				5A3955AC9247867FF5BA1693 /* BriefingModelTests.swift */,
 				DA1673803CC241000ECD1272 /* BriefingFeelTests.swift */,
+				5F64A55A83BA620972A564C4 /* BriefingLiveParityTests.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -265,6 +268,7 @@
 				D8D2FFD575A31FD3CE783B52 /* BriefingPayloadTests.swift in Sources */,
 				71AF89BE942262B267E9EED5 /* BriefingModelTests.swift in Sources */,
 				A688BC56EA0CA22D63BA973E /* BriefingFeelTests.swift in Sources */,
+				01CF0850F3E21C5572092741 /* BriefingLiveParityTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
