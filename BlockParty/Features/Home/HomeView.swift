@@ -62,6 +62,7 @@ struct HomeView: View {
 
     private var briefingAPI: BriefingAPI { BriefingAPI(auth: auth) }
     private var communityAPI: CommunityAPI { CommunityAPI(auth: auth) }
+    private var analytics: BriefingAnalytics { .shared }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -113,6 +114,20 @@ struct HomeView: View {
         .task {
             name = Interests.displayName ?? firstNameFromEmail(auth.email)
             await briefing.load(briefingAPI)
+            // The north star: distinct users per day. Once per launch per briefing
+            // date, so returning to the tab is not a second open.
+            if let payload = briefing.payload, payload.status == .published {
+                analytics.recordOnce(
+                    BriefingEventName.briefingOpen,
+                    key: payload.briefingDate,
+                    payload: [
+                        "featured_count": payload.featured.count,
+                        "has_touch": payload.touch != nil,
+                        "from_cache": !briefing.isRefreshing,
+                    ],
+                    auth: auth
+                )
+            }
         }
         // Cover the tab with the loading screen until the briefing is in. A cached
         // briefing satisfies this immediately.
@@ -143,6 +158,13 @@ struct HomeView: View {
             .padding(.horizontal, 18)
             .padding(.top, 18)
             .springReveal(0, revealed: revealed, animated: revealAnimated)
+            .dwell(seconds: 3) {
+                analytics.record(
+                    BriefingEventName.almanacDwell,
+                    payload: ["source": briefing.payload?.almanac?.source ?? "unknown"],
+                    auth: auth
+                )
+            }
 
         case .utility:
             // Owns its own loading, caching, realtime AND entrance cascade
@@ -157,7 +179,16 @@ struct HomeView: View {
                     events: payload.featured,
                     fallback: payload.featuredFallback,
                     onRsvp: { event, going in
-                        Task { await briefing.setRsvp(communityAPI, event: event, going: going) }
+                        Task {
+                            let landed = await briefing.setRsvp(communityAPI, event: event, going: going)
+                            // Only a write that actually persisted counts.
+                            guard landed, going else { return }
+                            analytics.record(
+                                BriefingEventName.rsvpFromHome,
+                                payload: ["event_id": event.id, "rank": event.rank],
+                                auth: auth
+                            )
+                        }
                     }
                 )
                 .padding(.horizontal, 18)
@@ -174,7 +205,15 @@ struct HomeView: View {
                 DailyTouchCard(
                     touch: touch,
                     onVote: { index in
-                        Task { await briefing.vote(briefingAPI, optionIndex: index) }
+                        Task {
+                            let landed = await briefing.vote(briefingAPI, optionIndex: index)
+                            guard landed else { return }
+                            analytics.record(
+                                BriefingEventName.touchVote,
+                                payload: ["touch_id": touch.id, "option_idx": index],
+                                auth: auth
+                            )
+                        }
                     }
                 )
                 .padding(.horizontal, 18)
@@ -208,6 +247,13 @@ struct HomeView: View {
                 .padding(.horizontal, 18)
                 .padding(.top, 34)
                 .springReveal(4, revealed: revealed, animated: revealAnimated)
+                .dwell(seconds: 1) {
+                    analytics.recordOnce(
+                        BriefingEventName.caughtUpReached,
+                        key: payload.briefingDate,
+                        auth: auth
+                    )
+                }
             }
 
         default:

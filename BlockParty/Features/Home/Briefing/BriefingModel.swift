@@ -87,24 +87,30 @@ final class BriefingModel: ObservableObject {
     /// then writes it. On failure the optimistic change is rolled back by
     /// restoring the previous payload — the poll must never show a vote that did
     /// not land.
-    func vote(_ api: BriefingAPI, optionIndex: Int) async {
-        guard let current = payload, let touch = current.touch, !touch.hasVoted else { return }
+    /// Returns whether the vote actually persisted, so a caller only records an
+    /// analytics event for a write that landed.
+    @discardableResult
+    func vote(_ api: BriefingAPI, optionIndex: Int) async -> Bool {
+        guard let current = payload, let touch = current.touch, !touch.hasVoted else { return false }
         let previous = current
         payload = current.applying(touch: touch.applyingVote(optionIndex))
 
         do {
             try await api.vote(touchId: touch.id, optionIndex: optionIndex)
+            return true
         } catch {
             Log.network("touch vote failed: \(error.localizedDescription)")
             payload = previous
+            return false
         }
     }
 
     /// Same shape as voting: flip locally so the control answers the tap, write,
     /// and restore the previous payload if the write fails. The going count moves
     /// with it, so the number never disagrees with the button beside it.
-    func setRsvp(_ api: CommunityAPI, event: BriefingEvent, going: Bool) async {
-        guard let current = payload else { return }
+    @discardableResult
+    func setRsvp(_ api: CommunityAPI, event: BriefingEvent, going: Bool) async -> Bool {
+        guard let current = payload else { return false }
         let previous = current
         payload = current.applyingRsvp(eventID: event.id, going: going)
 
@@ -114,9 +120,11 @@ final class BriefingModel: ObservableObject {
             } else {
                 try await api.unRsvpEvent(event.id)
             }
+            return true
         } catch {
             Log.network("briefing rsvp failed: \(error.localizedDescription)")
             payload = previous
+            return false
         }
     }
 
