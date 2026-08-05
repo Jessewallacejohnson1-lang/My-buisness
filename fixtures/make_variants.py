@@ -49,6 +49,21 @@ def main() -> None:
     voted["touch"]["my_vote"] = 0
     write("briefing_voted.json", voted)
 
+    # No briefing published for this date. The 6 AM routine did not run, or ran
+    # and failed. Distinct from `degraded`: there is no row at all, so there is no
+    # town_line and no fallback copy to fall back to. The screen must still render
+    # the header, the utility row, and the caught-up footer.
+    none = copy.deepcopy(base)
+    none["status"] = "none"
+    none["published_at"] = None
+    none["almanac"] = None
+    none["weather"] = None
+    none["featured"] = []
+    none["featured_fallback"] = None
+    none["touch"] = None
+    none["spotlight"] = None
+    write("briefing_none.json", none)
+
     # Partial failure: every optional module absent, briefing still renders.
     # Mirrors the existing HomeModel rule that a feed outage must not take the
     # rest of Today down with it.

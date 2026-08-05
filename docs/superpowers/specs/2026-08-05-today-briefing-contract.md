@@ -70,9 +70,33 @@ Resolution:
 The RPC is `security definer` but reads `almanac_daily` **filtered to
 `auth.uid()`**, so this does not widen access to other users' lines.
 
-**1.6 — Two tables the plan proposes already exist.** `town_almanac` (curated MM-DD
-facts) is the v2 on-this-day bank. `evergreen_pool` (`active = true`) is the
-0-event fallback copy. Read from them; do not create parallel tables.
+**1.6 — `evergreen_pool` is not fallback copy, and `town_almanac` is empty.**
+Verified against production. `evergreen_pool` holds 15 active rows and its shape is
+`(id, line, active)` — the content is *town history facts* ("St. Joseph was first
+settled in 1854…"), used as the almanac generator's fallback lines. It is the wrong
+voice for a "nothing on today" slot and has no title or deeplink. `town_almanac`
+(`md`, `fact`, `source`, `link`) is the right shape for a v2 on-this-day bank but
+currently has **0 rows** — it is a table, not a bank.
+
+Resolution: the 0-event copy lives on `daily_briefings` as three nullable columns
+(`fallback_title`, `fallback_body`, `fallback_deeplink`), written by the 6 AM
+routine only on a 0-event day. No sixth table, and the payload shape is unchanged.
+
+**1.6b — The empty case is the common case at launch, not an edge case.**
+Production right now: **2** approved upcoming events with a non-null submitter, 10
+real events all-time, and **4** users. Consequences the lanes must design for, not
+defend against:
+
+- `featured` will hold 1–2 entries far more often than 3. The single-event hero
+  variant and the `featured_fallback` slot are the *primary* renderings — build and
+  review them first, not last.
+- A poll's `total_votes` will be 0–4. This is why invariant §7.2 requires showing
+  the true count: a 1-of-1 poll rendering as "100%" with no denominator is the
+  fabricated-confidence failure `DESIGN.md` bans.
+
+**1.6c — `almanac_daily` column names.** The columns are `body_text` and
+`format_used`, not `line`/`format`. The RPC aliases them into the payload's
+`almanac.line` / `almanac.format`.
 
 **1.7 — Phase 4's motion numbers are superseded.** See §6.
 
@@ -92,7 +116,12 @@ written** — that matches the whole model layer, which has none.
 {
   "briefing_date": "2026-08-05",        // date, town-anchored. NOT NULL
   "tz": "America/Chicago",              // text. NOT NULL
-  "status": "published",                // 'draft' | 'published'. NOT NULL
+  "status": "published",                // 'published' | 'none'. NOT NULL
+                                        // 'none' = the routine has not published a
+                                        // briefing for this date. Every module is
+                                        // null, featured is [], caught_up still
+                                        // renders. The RPC never raises and never
+                                        // returns a draft.
   "published_at": "2026-08-05T06:00:00-05:00",  // timestamptz | null
 
   "almanac": {                          // object | null
@@ -167,7 +196,17 @@ written** — that matches the whole model layer, which has none.
 | `fixtures/briefing_one_event.json` | 1 featured event → hero variant |
 | `fixtures/briefing_zero_events.json` | 0 events → `featured_fallback` |
 | `fixtures/briefing_voted.json` | poll with `my_vote` set |
-| `fixtures/briefing_degraded.json` | every optional module null |
+| `fixtures/briefing_none.json` | `status: "none"` — no briefing published for the date |
+| `fixtures/briefing_degraded.json` | published, but every optional module null |
+
+Fixture invariants, enforced by the Phase 3 test that loads them:
+
+- top-level keys are exactly the 11 in the contract, in every fixture
+- `vote_counts` is index-aligned to `options` and sums to `total_votes`
+- `featured` ranks are `1…n` with no gaps
+- `featured_fallback` is non-null **iff** `featured` is empty **and**
+  `status == "published"`
+- `caught_up` is never null
 
 Variants derive from the base via `python3 fixtures/make_variants.py`. Edit the
 base, re-run, never hand-edit a variant.
@@ -186,7 +225,13 @@ create table public.daily_briefings (
     weather       jsonb,
     status        text not null default 'draft' check (status in ('draft','published')),
     published_at  timestamptz,
-    created_at    timestamptz not null default now()
+    created_at    timestamptz not null default now(),
+    -- The 0-event slot copy. Written by the 6 AM routine only when the featured
+    -- picker returns nothing. See correction 1.6 — evergreen_pool is town history
+    -- facts and is the wrong voice for this.
+    fallback_title    text,
+    fallback_body     text,
+    fallback_deeplink text
 );
 
 create table public.briefing_featured (
