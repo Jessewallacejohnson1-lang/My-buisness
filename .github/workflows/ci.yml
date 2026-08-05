@@ -1,0 +1,107 @@
+name: CI
+
+# Runs the test suite that already exists but had nothing running it.
+# Kept dependency-free on purpose: no third-party actions, so there is no
+# supply-chain surface in the job that gates merges.
+
+on:
+  push:
+    branches: [integration/block-party, main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios-tests:
+    name: iOS tests
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pick the newest Xcode the runner has rather than pinning a version that
+      # will rot. The project targets iOS 26.5, so an older Xcode cannot build it.
+      - name: Select newest Xcode
+        run: |
+          set -euo pipefail
+          latest="$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+          echo "Using $latest"
+          sudo xcode-select -s "$latest"
+          xcodebuild -version
+
+      # Runner simulator inventory changes without warning, so resolve a concrete
+      # device at run time instead of hardcoding a name that may not exist.
+      - name: Resolve a simulator
+        id: sim
+        run: |
+          set -euo pipefail
+          xcrun simctl list devices available | grep -E 'iPhone' || true
+          udid="$(xcrun simctl list devices available \
+                  | grep -E 'iPhone' \
+                  | grep -oE '[0-9A-Fa-f-]{36}' \
+                  | head -1)"
+          if [ -z "$udid" ]; then
+            echo "::error::No available iPhone simulator on this runner"
+            exit 1
+          fi
+          echo "Using simulator $udid"
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+
+      # No -testPlan flag: the shared scheme already points at BlockParty.xctestplan,
+      # and naming it again is just another thing that can go stale.
+      # Piped through xcbeautify only when the runner has it, so a runner image
+      # change cannot fail the build for a cosmetic reason.
+      - name: Build and test
+        run: |
+          set -euo pipefail
+          run_tests() {
+            xcodebuild test \
+              -project BlockParty.xcodeproj \
+              -scheme BlockParty \
+              -destination "id=${{ steps.sim.outputs.udid }}" \
+              -resultBundlePath TestResults.xcresult \
+              CODE_SIGNING_ALLOWED=NO
+          }
+          if command -v xcbeautify >/dev/null 2>&1; then
+            set -o pipefail
+            run_tests | xcbeautify
+          else
+            run_tests
+          fi
+
+      - name: Upload results on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcresult
+          path: TestResults.xcresult
+          retention-days: 7
+
+  almanac-checks:
+    name: Almanac edge function checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      # The almanac prompt lives twice — readable in prompts/almanac.md and
+      # base64-embedded in index.ts, because Deno Deploy ships no side files.
+      # This is the check that stops those two silently drifting apart.
+      - name: Prompt sync
+        working-directory: supabase/functions/daily-almanac
+        run: node --experimental-strip-types prompt-sync.check.mts
+
+      # Format spread + no-repeat rules. Runs offline; the opening-phrase check
+      # self-skips without ANTHROPIC_API_KEY, which is expected in CI.
+      - name: Variety and format rules
+        working-directory: supabase/functions/daily-almanac
+        run: node --experimental-strip-types verify.mts
