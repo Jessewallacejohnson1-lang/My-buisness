@@ -64,13 +64,14 @@ struct BriefingGallery: View {
         .background(Hue.paper)
     }
 
-    /// `-briefing-state POLL` renders only the matching states. There is no
+    /// `-gallery-state POLL` renders only the matching states. There is no
     /// scroll/gesture automation in this simulator setup, so a state below the
     /// fold cannot be reached — selecting one is the only way to screenshot it
-    /// headlessly.
+    /// headlessly. (Distinct from `-briefing-state`, which names a whole canned
+    /// payload for the real Today composition.)
     private var only: String? {
         let args = ProcessInfo.processInfo.arguments
-        guard let i = args.firstIndex(of: "-briefing-state"), i + 1 < args.count else { return nil }
+        guard let i = args.firstIndex(of: "-gallery-state"), i + 1 < args.count else { return nil }
         return args[i + 1].uppercased()
     }
 

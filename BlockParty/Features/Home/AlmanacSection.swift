@@ -52,6 +52,16 @@ struct AlmanacSection: View {
     /// write. The first open of the launch writes automatically (seeded in init).
     var replay: Int = 0
 
+    /// The day-line delivered by the briefing payload (`almanac.line`, this user's
+    /// row in `almanac_daily`). When present the card skips its own edge-function
+    /// call — that is what makes the home screen a single round trip.
+    ///
+    /// Nil means the payload had no personal line for this user yet, and the card
+    /// falls back to fetching it exactly as it always has. Weather is deliberately
+    /// NOT injected: `WeatherService` carries a 15-minute cache, which is fresher
+    /// all day than a snapshot taken once at 6 AM.
+    var injectedLine: String?
+
     @EnvironmentObject private var auth: AuthStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -76,9 +86,10 @@ struct AlmanacSection: View {
     /// resolves to a different name can't swap the greeting out from under the cursor.
     @State private var frozenGreeting: AttributedString?
 
-    init(name: String? = nil, replay: Int = 0) {
+    init(name: String? = nil, replay: Int = 0, injectedLine: String? = nil) {
         self.name = name
         self.replay = replay
+        self.injectedLine = injectedLine
         // First open of the launch writes itself; a tab-return within the launch, or
         // Reduce Motion, renders instantly. Reduce Motion is read HERE (not only in
         // onAppear) so the very first frame is already correct — no flash of the
@@ -164,6 +175,16 @@ struct AlmanacSection: View {
             #if DEBUG
             if let demo = Self.debugDemoLine { aiLine = demo; lineLoaded = true }
             #endif
+            // The briefing payload already carried this user's line, so the
+            // edge-function call is skipped entirely. Weather still resolves
+            // through its own 15-minute cache.
+            if let injectedLine, !injectedLine.isEmpty {
+                aiLine = injectedLine
+                lineLoaded = true
+                weather = await WeatherService.current()
+                return
+            }
+
             async let w = WeatherService.current()
             async let l = DailyAlmanac.line(auth: auth)
             weather = await w
@@ -172,6 +193,15 @@ struct AlmanacSection: View {
             if Self.debugFail { lineLoaded = true; return } // force the template fallback
             #endif
             aiLine = await l
+            lineLoaded = true
+        }
+        // The payload almost always lands AFTER this card first appears, so at
+        // `.task` time `injectedLine` is still nil and the fetch above runs. Adopt
+        // the line when it arrives instead — `.task` is tied to view identity and
+        // will not re-run for a changed value.
+        .onChange(of: injectedLine) { _, line in
+            guard let line, !line.isEmpty, line != aiLine else { return }
+            aiLine = line
             lineLoaded = true
         }
         // Skeleton grace: lift to the fallback if the AI line hasn't landed in 300ms.
@@ -261,8 +291,12 @@ struct AlmanacSection: View {
 
     private func liveRead() -> AttributedString {
         let nudge = Almanac.nudge(for: weather)
-        if let aiLine {
-            return Almanac.styled(aiLine)
+        // `injectedLine` first, and deliberately as a PROP rather than via @State:
+        // the payload lands after this card's `.task` has already run, so routing it
+        // through `aiLine` makes the render depend on state-update ordering that the
+        // write chain can beat. Reading the prop at render time cannot lose that race.
+        if let line = injectedLine ?? aiLine, !line.isEmpty {
+            return Almanac.styled(line)
         }
         return Almanac.readBlock(nudge)
     }

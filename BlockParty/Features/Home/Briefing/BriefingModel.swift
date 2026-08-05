@@ -33,6 +33,17 @@ final class BriefingModel: ObservableObject {
 
     /// Renders the cache, then refreshes if the cached briefing is not today's.
     func load(_ api: BriefingAPI) async {
+        #if DEBUG
+        // `-briefing-state <name>` renders Today from a canned payload with no
+        // network at all — the Phase 3 gate, and the only way to reach the
+        // 0-event / none / degraded states on demand.
+        if let seeded = Self.debugSeed {
+            payload = seeded
+            hasLoaded = true
+            return
+        }
+        #endif
+
         if payload == nil, let cached = BriefingCache.load() {
             payload = cached
             hasLoaded = true
@@ -89,6 +100,37 @@ final class BriefingModel: ObservableObject {
         }
     }
 
+    /// Same shape as voting: flip locally so the control answers the tap, write,
+    /// and restore the previous payload if the write fails. The going count moves
+    /// with it, so the number never disagrees with the button beside it.
+    func setRsvp(_ api: CommunityAPI, event: BriefingEvent, going: Bool) async {
+        guard let current = payload else { return }
+        let previous = current
+        payload = current.applyingRsvp(eventID: event.id, going: going)
+
+        do {
+            if going {
+                try await api.rsvpEvent(event.id)
+            } else {
+                try await api.unRsvpEvent(event.id)
+            }
+        } catch {
+            Log.network("briefing rsvp failed: \(error.localizedDescription)")
+            payload = previous
+        }
+    }
+
+    #if DEBUG
+    /// The canned payload named by `-briefing-state <name>`, if any. Defaults to
+    /// the three-event sample when the flag is passed with no name.
+    static var debugSeed: BriefingPayload? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-briefing-state") else { return nil }
+        let name = (i + 1 < args.count && !args[i + 1].hasPrefix("-")) ? args[i + 1] : "sample"
+        return BriefingSample.payload(name)
+    }
+    #endif
+
     // MARK: - Helpers
 
     /// Today in the town's timezone as "YYYY-MM-DD". The briefing is anchored to
@@ -118,7 +160,36 @@ nonisolated extension BriefingTouch {
     }
 }
 
+nonisolated extension BriefingEvent {
+    /// A copy with the caller's RSVP flipped and the going count moved to match.
+    /// The count is floored at zero so a stale payload cannot render "-1 going".
+    func applyingRsvp(_ going: Bool) -> BriefingEvent {
+        guard going != rsvpd else { return self }
+        return BriefingEvent(
+            rank: rank, id: id, title: title, eventDate: eventDate, startTime: startTime,
+            location: location, imageUrl: imageUrl, clubName: clubName, category: category,
+            goingCount: max(0, goingCount + (going ? 1 : -1)), goingAvatars: goingAvatars,
+            likeCount: likeCount, commentCount: commentCount,
+            rsvpd: going, saved: saved, liked: liked
+        )
+    }
+}
+
 nonisolated extension BriefingPayload {
+    /// A copy with one featured event's RSVP state changed.
+    func applyingRsvp(eventID: String, going: Bool) -> BriefingPayload {
+        applying(featured: featured.map { $0.id == eventID ? $0.applyingRsvp(going) : $0 })
+    }
+
+    private func applying(featured newFeatured: [BriefingEvent]) -> BriefingPayload {
+        BriefingPayload(
+            briefingDate: briefingDate, tz: tz, status: status, publishedAt: publishedAt,
+            almanac: almanac, weather: weather, featured: newFeatured,
+            featuredFallback: featuredFallback, touch: touch,
+            spotlight: spotlight, caughtUp: caughtUp
+        )
+    }
+
     /// A copy carrying a different touch, leaving every other module untouched.
     func applying(touch newTouch: BriefingTouch) -> BriefingPayload {
         BriefingPayload(
