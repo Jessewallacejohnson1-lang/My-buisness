@@ -9,21 +9,25 @@
 //  `20260723000000_places_logo.sql` migration for the nominative-use rationale — the
 //  same marks already ride the map pins). There is nothing fabricated here.
 //
-//  WHY A FROZEN LIST, AND WHY 50: `places` carries no popularity signal — no rating,
-//  no visit count — so "top" cannot be derived at runtime without inventing a metric,
-//  which the house rule ("real data only, never seeded/inflated") forbids. Instead
-//  these are the 50 strongest marks by PROVENANCE, ranked off the curation manifest
-//  in the order the pipeline itself trusts:
+//  LOCAL ONLY. Chains, franchises, multi-branch banks, regional health and senior-care
+//  operators, and government/college facilities are cut — a national brand's logo
+//  bouncing across the town map reads as an ad, not as the town. So are locally-owned
+//  but back-office businesses (freight, title, printing) with no storefront the public
+//  would recognise. The exclusion list, with a reason for every entry, lives in
+//  scripts/rank_rain_roster.py — that is the file to edit, not this one.
 //
-//      1. apple-touch-icon (21) — own-site touch icon
-//      2. agent-hunt       (16) — brand-mark hunt (strict)
-//      3. agent-rescue     (10) — brand-mark hunt (rescue)
-//      4. link-icon        ( 3) — own-site <link rel=icon>
+//  ORDERED BY PROVENANCE: `places` carries no popularity signal — no rating, no visit
+//  count — so "best known" cannot be derived at runtime without inventing a metric,
+//  which the house rule ("real data only, never seeded/inflated") forbids. These are
+//  the 0 eligible marks ranked by how the curation pipeline sourced each one:
 //
-//  ties broken by the source image's leading dimension, then name. The 27 approved
-//  marks below the cut are weaker tiers (mostly round-2 "representative" ones, accurate
-//  enough for a 26 pt pin but too loose for a 36 pt ball) — plus however many sit in the
-//  SAME tier as the last one kept and simply lost the tie-break.
+//      1. apple-touch-icon (14) — own-site touch icon
+//      2. agent-hunt       (12) — brand-mark hunt (strict)
+//      3. agent-rescue     ( 7) — brand-mark hunt (rescue)
+//      4. link-icon        ( 5) — own-site <link rel=icon>
+//      5. agent-round2     (18) — representative mark (round 2)
+//
+//  ties broken by the source image's leading dimension, then name.
 //
 //  A missing id is harmless: the field falls back to whatever logo'd places the map
 //  actually loaded, so a re-seeded `places` table degrades instead of breaking.
@@ -31,10 +35,9 @@
 
 enum TownRainRoster {
 
-    /// `places.id` of the 50 businesses whose marks may fall, best provenance first.
+    /// `places.id` of the 0 local businesses whose marks may fall, best
+    /// provenance first.
     static let placeIDs: [String] = [
-        // Woodcrest of Country Manor  —  own-site touch icon, 500x500
-        "1b601b20-6069-41bb-81dc-07ce8f3c65e1",
         // Sunny Mary Meadow  —  own-site touch icon, 300x300
         "448b008c-6c70-4591-b3e6-f094d6e41899",
         // Jupiter Moon Ice Cream - St. Joseph  —  own-site touch icon, 256x256
@@ -43,24 +46,12 @@ enum TownRainRoster {
         "bfcfe784-444a-44b5-835f-f3518032899c",
         // Thomsen's Garden Center  —  own-site touch icon, 200x200
         "f97e06d6-8cf9-4a75-9acd-b891ba516509",
-        // Amy Hedtke - State Farm  —  own-site touch icon, 180x180
-        "cf3c7388-f4ab-4522-ae1d-3d2a018c69a5",
         // Autobody 2000 Inc  —  own-site touch icon, 180x180
         "2f68442e-0399-4ac5-b60d-cc3237fa7746",
-        // Brenny Transportation, Inc.  —  own-site touch icon, 180x180
-        "2e89bbb6-8728-4ae6-8b8b-53c1629ba395",
-        // Coborn's Grocery Store  —  own-site touch icon, 180x180
-        "cbd3dec1-e1ed-4aa7-b32d-a02f7ae4ff8d",
-        // Coborn's Pharmacy  —  own-site touch icon, 180x180
-        "0ad2d330-9895-4735-9ff1-44c8b1d43b31",
-        // Floor to Ceiling  —  own-site touch icon, 180x180
-        "f974053c-c39a-4bb3-a6ef-bf163d232b7f",
         // Flour & Flower  —  own-site touch icon, 180x180
         "fed769b6-ec34-4cc6-bb05-8e7016e79aec",
         // Krewe Restaurant  —  own-site touch icon, 180x180
         "02280501-5d7d-4c2b-8a6b-2ec671ce9c7c",
-        // Magnifi Financial  —  own-site touch icon, 180x180
-        "805fce4e-79c4-428b-bbb2-ec2799fcaf82",
         // Minnesota Street Market, Food & Art Co-op  —  own-site touch icon, 180x180
         "7566738c-0349-4b9e-837b-f0c5ad5ed64e",
         // Neighbors Route 75  —  own-site touch icon, 180x180
@@ -79,22 +70,16 @@ enum TownRainRoster {
         "606a751d-98e2-4f3a-8926-a1d3966592e0",
         // Blush Salon  —  brand-mark hunt (strict), 2875x2615
         "2b90146d-3652-4a02-b1a5-a5d132c62522",
-        // Bo Diddley's Deli  —  brand-mark hunt (strict), 1500x914
-        "dcc05e93-f05b-4143-b05c-d2a665bf72f2",
         // Golden Hour Tanning  —  brand-mark hunt (strict), 1500x1500
         "21e97746-5906-433f-8322-76fdb267b86a",
         // Little Saints Academy  —  brand-mark hunt (strict), 1242x755
         "d66e9cbf-d9d8-48e1-8fdf-412c8cf8202d",
         // W|R Home Co.  —  brand-mark hunt (strict), 1200x628
         "132e001b-e5b6-45fa-8db8-18ec28eb0c85",
-        // United States Postal Service  —  brand-mark hunt (strict), 750x750
-        "43d7228e-1fe5-487a-a30a-f53065818e22",
         // Hudson & Company  —  brand-mark hunt (strict), 599x600
         "339de4f9-8cdb-4e9c-8a4d-5a21ea96f86a",
         // St. Joseph Farmers' Market  —  brand-mark hunt (strict), 598x366
         "4a213aca-4735-40dd-9ac4-2b58696a0427",
-        // Hansen & Company Woodworks  —  brand-mark hunt (strict), 500x500
-        "5acceae4-ff09-40c7-9c46-e05d2857f018",
         // Milbert Johnson Family Dentistry  —  brand-mark hunt (strict), 500x500
         "1b35c7a9-713b-4da7-906e-4f74b0c2cb80",
         // Kay's Kitchen  —  brand-mark hunt (strict), 480x480
@@ -103,26 +88,18 @@ enum TownRainRoster {
         "8d32d5e6-2c7b-47d4-8b58-86afc63e6442",
         // Powerhouse Outdoor Equipment  —  brand-mark hunt (strict), 236x236
         "48258ad2-2c0c-4d87-ab65-950e7ab083e4",
-        // Lee's Ace Hardware  —  brand-mark hunt (strict), 185x100
-        "a5cd14e5-24b9-4d32-b57f-accb06cfdf1c",
         // Cedar Street Salon & Spa  —  brand-mark hunt (strict), 100x100
         "ffc8cb61-7783-4676-9e3d-ba8bc813b718",
-        // Bruno Press  —  brand-mark hunt (rescue), 1500x2206
-        "443332c9-0465-49f3-9afc-f5f103eb3bad",
         // Joetown Smashburger  —  brand-mark hunt (rescue), 1500x1502
         "d2737fe2-749c-4473-8346-35b2c5c774b0",
         // John Kuebelbeck American Legion Post 328  —  brand-mark hunt (rescue), 1280x1333
         "b8088f9f-a0b8-44ee-a63c-6242e10fe4d8",
-        // Home Town Title  —  brand-mark hunt (rescue), 1024x1024
-        "71571e13-d608-48c8-8755-f3e78bb391a8",
         // Solar Nails of St Joseph  —  brand-mark hunt (rescue), 631x315
         "2b59f99a-f6da-4c3a-86c3-a5b10b1ca8e3",
         // Bello Cucina | Italian  —  brand-mark hunt (rescue), 480x480
         "a36c5d37-f384-477b-b601-7f535b2ea7fd",
         // KPower Yoga  —  brand-mark hunt (rescue), 480x476
         "e70d7fad-c801-48f5-b874-2191defaf9b5",
-        // The Perfect Fit, LLC  —  brand-mark hunt (rescue), 480x480
-        "8cd01a3f-1441-4c1d-9aef-81419a6a75f0",
         // Trobec's Bus Service, Inc.  —  brand-mark hunt (rescue), 480x480
         "75afbf0c-cb83-462b-8d38-5890d9cd0f06",
         // Wildwood Ranch Maple Syrup  —  brand-mark hunt (rescue), 480x480
@@ -133,6 +110,46 @@ enum TownRainRoster {
         "4600a722-e962-4182-ad2a-035c04de3b74",
         // Milk & Honey Ciders  —  own-site <link rel=icon>, 100x100
         "796f4577-dd1a-49f6-aac5-49d3f8632ecb",
+        // Obbink Distilling  —  own-site <link rel=icon>, 100x100
+        "00041f04-ca31-4c78-83d2-0c99dc78cb8b",
+        // The House Food and Tap  —  own-site <link rel=icon>, 100x100
+        "7a27d0a0-126d-412c-871d-20a531a8ba72",
+        // Unwind: Collaborative Healing Center  —  representative mark (round 2), 4728x1501
+        "e945c8d1-4575-4151-a415-db3403b0c54b",
+        // CMS Autobody  —  representative mark (round 2), 4032x3024
+        "20b5fabb-0c41-438d-840a-ce8da5d6d6e4",
+        // The Newsleaders  —  representative mark (round 2), 1200x628
+        "b69f0ecb-e938-45a8-861b-87ce92a01710",
+        // The Estates Bed & Breakfast  —  representative mark (round 2), 1100x300
+        "afb922c5-2d75-4704-8179-5c6043323627",
+        // Floral Arts Inc.  —  representative mark (round 2), 1000x434
+        "c10adb95-4e83-4b9a-95c5-f96178dad197",
+        // Exponential Chiropractic Healing Center  —  representative mark (round 2), 800x200
+        "012f809a-029a-426e-8440-4f55ed50d41e",
+        // La Playette Bar  —  representative mark (round 2), 791x511
+        "1f6263f8-77cb-4e9a-a767-c8326723e9c3",
+        // The Local Blend  —  representative mark (round 2), 500x500
+        "ed7a8833-6520-42b5-8eda-b11694731209",
+        // Gary's Pizza  —  representative mark (round 2), 480x480
+        "971d058c-e779-44e5-a133-bd4fc2d08b8b",
+        // Heim-kins Rescued Treasures  —  representative mark (round 2), 480x480
+        "0afa5fe5-4429-482c-9a66-1babcadb17ab",
+        // St. Joseph Veterinary Clinic  —  representative mark (round 2), 480x480
+        "c9038816-1498-4bf2-8724-d726040b608c",
+        // Omann Insurance Agency, LLC  —  representative mark (round 2), 425x96
+        "a6e854dd-632e-4e84-a6e5-2ce40c753af5",
+        // St. Joseph Health & Wellness, LLC  —  representative mark (round 2), 360x360
+        "f2f87782-f065-4a9b-b812-45f1bd27757e",
+        // Whitby Gift Shop & Gallery  —  representative mark (round 2), 340x156
+        "bc27d1cb-ec01-4a70-a084-9948376f8a2a",
+        // Laser Dentistry  —  representative mark (round 2), 281x149
+        "c14fa998-6e8e-4a83-935e-6b288045bfe4",
+        // Uptown Styles  —  representative mark (round 2), 200x200
+        "32654a5c-2f31-460d-b750-fe559b7f3d4c",
+        // Central MN Realty  —  representative mark (round 2), 180x180
+        "3a9a0946-ad17-4d83-9883-6f245a032569",
+        // Daisy A Day Floral & Gift  —  representative mark (round 2), 100x100
+        "23dd1b61-a5ae-4fb3-bb1e-af98c921ae55",
     ]
 
     /// The POIs eligible to fall, in roster order, from whatever the map has loaded.

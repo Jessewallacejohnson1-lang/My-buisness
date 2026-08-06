@@ -38,6 +38,40 @@ TIERS = [
 TIER_RANK = {name: i for i, (name, _) in enumerate(TIERS)}
 TIER_LABEL = dict(TIERS)
 
+# Marks that are curated and accurate but must NOT fall: the drop is meant to be the
+# town's OWN businesses, and a national franchise's logo bouncing past reads as an ad.
+# Keyed by the manifest's `name`, with the reason, because a future re-curation will
+# re-introduce them and the next person needs to know why they were cut.
+#
+# Two grounds only. Anything not listed here falls.
+EXCLUDED = {
+    # --- chain / franchise / multi-site operator / government / institution ---
+    "Coborn's Grocery Store": "regional grocery chain (MN/ND/SD)",
+    "Coborn's Pharmacy": "regional grocery chain (MN/ND/SD)",
+    "Amy Hedtke - State Farm": "national insurance franchise",
+    "Floor to Ceiling": "national franchise / buying group",
+    "Lee's Ace Hardware": "Ace Hardware national brand",
+    "Bo Diddley's Deli": "Minnesota chain",
+    "Magnifi Financial": "regional credit union, many branches",
+    "Kensington Bank": "regional bank, many branches",
+    "Sentry Bank": "regional bank, many branches",
+    "TireMaxx Service Centers": "multi-location service chain",
+    "CentraCare - St. Joseph Clinic": "regional health system",
+    "Woodcrest of Country Manor": "regional senior-care operator",
+    "United States Postal Service": "federal agency, not a local business",
+    "CSB Benedicta Arts Center Galleries (Gorecki Gallery)":
+        "college facility, not a business",
+
+    # --- local, but back-office: no storefront the public would recognise ---
+    "Brenny Transportation, Inc.": "B2B freight",
+    "AMS Tax & Accounting Solutions, PA": "professional services, by appointment",
+    "Home Town Title": "title and closing services",
+    "Bruno Press": "commercial printing",
+    "Hansen & Company Woodworks": "custom fabrication, not a storefront",
+    "Groundsman LLC": "landscaping contractor",
+    "The Perfect Fit, LLC": "unidentifiable to the public from the name or mark",
+}
+
 HEADER = '''//
 //  TownRainRoster.swift
 //  Block Party — which real St. Joseph brand marks are allowed to fall.
@@ -49,18 +83,21 @@ HEADER = '''//
 //  `20260723000000_places_logo.sql` migration for the nominative-use rationale — the
 //  same marks already ride the map pins). There is nothing fabricated here.
 //
-//  WHY A FROZEN LIST, AND WHY {count}: `places` carries no popularity signal — no rating,
-//  no visit count — so "top" cannot be derived at runtime without inventing a metric,
-//  which the house rule ("real data only, never seeded/inflated") forbids. Instead
-//  these are the {count} strongest marks by PROVENANCE, ranked off the curation manifest
-//  in the order the pipeline itself trusts:
+//  LOCAL ONLY. Chains, franchises, multi-branch banks, regional health and senior-care
+//  operators, and government/college facilities are cut — a national brand's logo
+//  bouncing across the town map reads as an ad, not as the town. So are locally-owned
+//  but back-office businesses (freight, title, printing) with no storefront the public
+//  would recognise. The exclusion list, with a reason for every entry, lives in
+//  scripts/rank_rain_roster.py — that is the file to edit, not this one.
+//
+//  ORDERED BY PROVENANCE: `places` carries no popularity signal — no rating, no visit
+//  count — so "best known" cannot be derived at runtime without inventing a metric,
+//  which the house rule ("real data only, never seeded/inflated") forbids. These are
+//  the {count} eligible marks ranked by how the curation pipeline sourced each one:
 //
 {tier_lines}
 //
-//  ties broken by the source image's leading dimension, then name. The {rest} approved
-//  marks below the cut are weaker tiers (mostly round-2 "representative" ones, accurate
-//  enough for a 26 pt pin but too loose for a 36 pt ball) — plus however many sit in the
-//  SAME tier as the last one kept and simply lost the tie-break.
+//  ties broken by the source image's leading dimension, then name.
 //
 //  A missing id is harmless: the field falls back to whatever logo'd places the map
 //  actually loaded, so a re-seeded `places` table degrades instead of breaking.
@@ -68,7 +105,8 @@ HEADER = '''//
 
 enum TownRainRoster {{
 
-    /// `places.id` of the {count} businesses whose marks may fall, best provenance first.
+    /// `places.id` of the {count} local businesses whose marks may fall, best
+    /// provenance first.
     static let placeIDs: [String] = [
 '''
 
@@ -103,7 +141,8 @@ def width(entry):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("manifest", nargs="?", default=str(DEFAULT_MANIFEST))
-    ap.add_argument("--count", type=int, default=50)
+    ap.add_argument("--count", type=int, default=0,
+                    help="cap the roster; 0 (default) keeps every eligible local mark")
     ap.add_argument(
         "--out",
         default="BlockParty/Features/Map/TownRain/TownRainRoster.swift",
@@ -117,14 +156,22 @@ def main():
 
     manifest = json.loads(path.read_text())
     approved = [e for e in manifest["entries"] if e.get("status") == "approved"]
-    if len(approved) < args.count:
+
+    cut = [e for e in approved if e["name"] in EXCLUDED]
+    approved = [e for e in approved if e["name"] not in EXCLUDED]
+    unknown = set(EXCLUDED) - {e["name"] for e in cut}
+    if unknown:
+        print("WARNING — excluded names not present in the manifest (renamed?):")
+        for n in sorted(unknown):
+            print(f"    {n}")
+    if args.count and len(approved) < args.count:
         sys.exit(
-            f"only {len(approved)} approved marks — cannot fill a roster of {args.count}. "
-            "Re-run the logo pipeline or lower --count."
+            f"only {len(approved)} eligible local marks — cannot fill a roster of "
+            f"{args.count}. Re-run the logo pipeline or lower --count."
         )
 
     approved.sort(key=lambda e: (TIER_RANK.get(e.get("candidate"), len(TIERS)), -width(e), e["name"]))
-    top = approved[: args.count]
+    top = approved[: args.count] if args.count else approved
 
     counts = {}
     for e in top:
@@ -148,10 +195,14 @@ def main():
         + "\n"
         + FOOTER
     )
-    print(f"wrote {out} — {len(top)} of {len(approved)} approved marks")
+    print(f"wrote {out} — {len(top)} local marks "
+          f"({len(cut)} chains / back-office cut from {len(top) + len(cut)} approved)")
     for name, _ in TIERS:
         if counts.get(name):
             print(f"  {name:<18} {counts[name]}")
+    print("\ncut:")
+    for e in sorted(cut, key=lambda e: e["name"]):
+        print(f"  {e['name']:<52} {EXCLUDED[e['name']]}")
 
 
 if __name__ == "__main__":

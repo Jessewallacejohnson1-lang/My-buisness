@@ -138,7 +138,8 @@ not "fix" them back toward the recording.
 
 | | reference | here | why |
 |---|---|---|---|
-| count | open-ended, ~1 per 0.21 s | **5 per press**, same 0.21 s stagger | the reference's own 5–7 airborne density, but a burst that ends |
+| count | open-ended, ~1 per 0.21 s | **one per press, accumulating** | the finger is the clock; the reference's 0.21 s cadence no longer applies at all |
+| cast | any food emoji | **local businesses only** | a national franchise's logo bouncing past the town map reads as an ad |
 | sides | open — sprites exit left | **walls** | one ball that leaves immediately is not an animation |
 | drift | always leftward | **either way**, same speed band | an always-left drift walks the ball into the left wall, loses 38% per return, and parks it in the corner in ~2 s |
 | entry | 0.60–1.10 W | **0.15–0.85 W** | the reference's right bias existed to give a left-drifting sprite runway; with walls it just wastes the field |

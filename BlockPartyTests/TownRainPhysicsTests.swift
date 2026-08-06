@@ -11,9 +11,9 @@
 //  These are tolerance tests, not snapshots: the tolerances are the spread of the
 //  reference tracks themselves, so a change that drifts the feel fails here.
 //
-//  `burstCount` and `floorInset` are the exceptions — the reference clip ends while
-//  sprites are still falling and its floor was its own app's bottom bar, so neither is
-//  measurable from it. Where they are asserted, the assertion is a design decision
+//  `maxConcurrent` and `floorInset` are the exceptions — the reference had no cap (it
+//  rained on its own clock, where here the finger is the clock) and its floor was its
+//  own app's bottom bar. Where they are asserted, the assertion is a design decision
 //  being pinned, not a measurement; the comments say which is which.
 //
 
@@ -70,9 +70,6 @@ final class TownRainPhysicsTests: XCTestCase {
         // 0.336, 0.328, 0.324.
         XCTAssertEqual(TownRainPhysics.restitution, 0.33, accuracy: 0.02, "restitution")
 
-        // Steady-state spacing: 0.200, 0.200, 0.217, 0.217 s.
-        XCTAssertEqual(TownRainPhysics.spawnInterval, 0.21, accuracy: 0.015, "spawnInterval")
-
         // Sprite bounding box 96–112 px at @3x ⇒ 32–37 pt.
         XCTAssertGreaterThanOrEqual(TownRainPhysics.ballSize, 32, "ballSize")
         XCTAssertLessThanOrEqual(TownRainPhysics.ballSize, 37, "ballSize")
@@ -86,9 +83,8 @@ final class TownRainPhysicsTests: XCTestCase {
         XCTAssertTrue(TownRainPhysics.bounceSpinRange.contains(720),
                       "post-bounce tumble must be able to reach the measured ~720°/s")
 
-        // The COUNT is a product decision being pinned, but the density behind it is
-        // the reference's: 5–7 airborne at once.
-        XCTAssertEqual(TownRainPhysics.burstCount, 5)
+        // A safety rail rather than a design number — see `maxConcurrent`.
+        XCTAssertGreaterThanOrEqual(TownRainPhysics.maxConcurrent, 8)
     }
 
     // MARK: Free fall — the measured gravity
@@ -132,8 +128,8 @@ final class TownRainPhysicsTests: XCTestCase {
 
         // Act
         let drifts: [CGFloat] = (1...24).compactMap { seed in
-            var e = TownRainEmitter(seed: UInt64(seed), logoCount: 50, bounds: bounds)
-            e = e.advanced(by: fineStep, floorY: 712)
+            var e = TownRainEmitter(seed: UInt64(seed), bounds: bounds)
+            e = e.dropped(logoCount: 50)
             return e.balls.first?.vx
         }
 
@@ -218,8 +214,8 @@ final class TownRainPhysicsTests: XCTestCase {
 
         // Act
         let seen: [CGFloat] = (1...10).compactMap { seed in
-            var emitter = TownRainEmitter(seed: UInt64(seed), logoCount: 50, bounds: bounds)
-            emitter = emitter.advanced(by: fineStep, floorY: 712)
+            var emitter = TownRainEmitter(seed: UInt64(seed), bounds: bounds)
+            emitter = emitter.dropped(logoCount: 50)
             return emitter.balls.first?.bounceSpin
         }
 
@@ -316,7 +312,8 @@ final class TownRainPhysicsTests: XCTestCase {
     func testBallStaysInsideTheFieldForItsWholeLife() {
         // Arrange — a whole burst, in a real-sized field.
         let bounds = CGSize(width: 402, height: 874)
-        var emitter = TownRainEmitter(seed: 21, logoCount: 50, bounds: bounds)
+        var emitter = TownRainEmitter(seed: 21, bounds: bounds)
+        for _ in 0..<6 { emitter = emitter.dropped(logoCount: 50) }
         let r = TownRainPhysics.ballSize / 2
 
         // Act
@@ -408,55 +405,89 @@ final class TownRainPhysicsTests: XCTestCase {
 
     // MARK: The emitter — cadence and determinism
 
-    func testOnePressDropsExactlyTheBurstAtTheMeasuredStagger() {
+    func testEachPressDropsExactlyOneMark() {
         // Arrange
-        var emitter = TownRainEmitter(seed: 7, logoCount: 50,
-                                      bounds: CGSize(width: 402, height: 874))
-
-        // Act — run well past any plausible burst.
-        var spawnTimes: [CGFloat] = []
-        var t: CGFloat = 0
-        while t < 10 {
-            let before = emitter.spawnedCount
-            emitter = emitter.advanced(by: fineStep)
-            if emitter.spawnedCount > before { spawnTimes.append(t) }
-            t += fineStep
-        }
-
-        // Assert
-        XCTAssertEqual(spawnTimes.count, TownRainPhysics.burstCount,
-                       "a press must drop exactly the burst, and never re-arm")
-        XCTAssertEqual(spawnTimes.first ?? -1, 0, accuracy: 0.02,
-                       "the first mark must appear on the press, not a beat later")
-        for (a, b) in zip(spawnTimes, spawnTimes.dropFirst()) {
-            XCTAssertEqual(b - a, TownRainPhysics.spawnInterval, accuracy: 0.02,
-                           "the stagger must hold the reference's 0.21 s cadence")
-        }
-    }
-
-    func testTheWholeBurstIsAirborneTogether() {
-        // Arrange — the point of a burst is that they share the screen. If the stagger
-        // outran the ball lifetime they would arrive one at a time in a queue.
-        var emitter = TownRainEmitter(seed: 9, logoCount: 50,
-                                      bounds: CGSize(width: 402, height: 874))
+        var emitter = TownRainEmitter(seed: 7, bounds: CGSize(width: 402, height: 874))
 
         // Act
-        var peak = 0
-        for _ in 0..<1800 {
-            emitter = emitter.advanced(by: fineStep, floorY: 712)
-            peak = max(peak, emitter.balls.count)
+        emitter = emitter.dropped(logoCount: 50)
+
+        // Assert
+        XCTAssertEqual(emitter.balls.count, 1)
+        XCTAssertEqual(emitter.droppedCount, 1)
+    }
+
+    func testTheFieldNeverSpawnsOnItsOwn() {
+        // Arrange — the finger is the only clock now; nothing arrives unpressed.
+        var emitter = TownRainEmitter(seed: 7, bounds: CGSize(width: 402, height: 874))
+
+        // Act — ten seconds of stepping, no presses.
+        for _ in 0..<2400 { emitter = emitter.advanced(by: fineStep, floorY: 712) }
+
+        // Assert
+        XCTAssertTrue(emitter.balls.isEmpty)
+        XCTAssertEqual(emitter.droppedCount, 0)
+        XCTAssertFalse(emitter.isFinished, "an unpressed field is empty, not finished")
+    }
+
+    func testPressesAccumulateOnScreenInsteadOfReplacing() {
+        // Arrange — the whole point of the change: press again while one is still
+        // bouncing and BOTH are there.
+        let bounds = CGSize(width: 402, height: 874)
+        var emitter = TownRainEmitter(seed: 4, bounds: bounds)
+
+        // Act — four presses a third of a second apart, well inside a mark's lifetime.
+        var counts: [Int] = []
+        for press in 0..<4 {
+            emitter = emitter.dropped(logoCount: 50)
+            counts.append(emitter.balls.count)
+            if press < 3 {
+                for _ in 0..<Int(0.33 / fineStep) {
+                    emitter = emitter.advanced(by: fineStep, floorY: 712)
+                }
+            }
         }
 
         // Assert
-        XCTAssertEqual(peak, TownRainPhysics.burstCount,
-                       "all \(TownRainPhysics.burstCount) marks must be on screen at once")
+        XCTAssertEqual(counts, [1, 2, 3, 4], "each press must add to the field, not reset it")
+    }
+
+    func testHeldDownPressesAreCappedByRetiringTheOldest() {
+        // Arrange — a safety rail: taps must never accumulate without limit, and the
+        // newest press must still show.
+        var emitter = TownRainEmitter(seed: 4, bounds: CGSize(width: 402, height: 874))
+
+        // Act — far more presses than the cap, with no time to fade in between.
+        for _ in 0..<(TownRainPhysics.maxConcurrent * 3) {
+            emitter = emitter.dropped(logoCount: 50)
+        }
+
+        // Assert
+        XCTAssertEqual(emitter.balls.count, TownRainPhysics.maxConcurrent)
+        XCTAssertEqual(emitter.balls.last?.id, emitter.droppedCount - 1,
+                       "the newest press must survive the cap")
+    }
+
+    func testConsecutivePressesShowDifferentBusinesses() {
+        // Arrange — a shuffled deck, so the same mark does not fall twice in a row.
+        var emitter = TownRainEmitter(seed: 12, bounds: CGSize(width: 402, height: 874))
+
+        // Act — a full pool's worth of presses.
+        var marks: [Int] = []
+        for _ in 0..<20 {
+            emitter = emitter.dropped(logoCount: 20)
+            marks.append(emitter.balls.last?.logoIndex ?? -1)
+        }
+
+        // Assert
+        XCTAssertEqual(Set(marks).count, 20, "a pool of 20 must be dealt without repeats")
     }
 
     func testEmitterIsDeterministicForAGivenSeed() {
         // Arrange
         let bounds = CGSize(width: 402, height: 874)
-        var a = TownRainEmitter(seed: 42, logoCount: 50, bounds: bounds)
-        var b = TownRainEmitter(seed: 42, logoCount: 50, bounds: bounds)
+        var a = TownRainEmitter(seed: 42, bounds: bounds).dropped(logoCount: 50)
+        var b = TownRainEmitter(seed: 42, bounds: bounds).dropped(logoCount: 50)
 
         // Act
         for _ in 0..<600 {
@@ -468,26 +499,26 @@ final class TownRainPhysicsTests: XCTestCase {
         XCTAssertEqual(a.balls, b.balls, "same seed must replay identically")
     }
 
-    func testEveryEmittedBallStartsAboveTheTopEdgeAtRest() {
-        // Arrange — reference: sprites enter under gravity alone, not launched.
-        var emitter = TownRainEmitter(seed: 3, logoCount: 50,
-                                      bounds: CGSize(width: 402, height: 874))
-        var seen: [TownRainBall] = []
+    func testEveryDroppedMarkStartsAboveTheTopEdgeAtRest() {
+        // Arrange — reference: sprites enter under gravity alone, not launched. Checked
+        // at PRESS time across many presses, since nothing spawns on its own any more.
+        let bounds = CGSize(width: 402, height: 874)
 
         // Act
-        for _ in 0..<240 {
-            let before = emitter.balls.map(\.id)
-            emitter = emitter.advanced(by: fineStep)
-            seen += emitter.balls.filter { !before.contains($0.id) }
+        let seen: [TownRainBall] = (1...12).compactMap { seed in
+            TownRainEmitter(seed: UInt64(seed), bounds: bounds)
+                .dropped(logoCount: 50).balls.last
         }
 
         // Assert
-        XCTAssertFalse(seen.isEmpty)
+        XCTAssertEqual(seen.count, 12)
         for b in seen {
-            XCTAssertLessThanOrEqual(b.y, 0, "\(b.id) must spawn above the top edge")
+            XCTAssertLessThanOrEqual(b.y, 0, "\(b.id) must enter above the top edge")
             XCTAssertEqual(b.vy, 0, accuracy: 0.001, "\(b.id) must start at rest")
             XCTAssertTrue(TownRainPhysics.driftSpeedRange.contains(abs(b.vx)),
                           "\(b.id) drift \(b.vx) outside the measured range")
+            XCTAssertGreaterThanOrEqual(b.x, bounds.width * TownRainPhysics.spawnXRange.lowerBound - 1)
+            XCTAssertLessThanOrEqual(b.x, bounds.width * TownRainPhysics.spawnXRange.upperBound + 1)
         }
     }
 
@@ -495,8 +526,8 @@ final class TownRainPhysicsTests: XCTestCase {
         // Arrange — with walls the ball no longer exits sideways, so the burst can only
         // end by settling and fading. That path must still close well inside 8 s, or the
         // map control feels like it hangs.
-        var emitter = TownRainEmitter(seed: 11, logoCount: 50,
-                                      bounds: CGSize(width: 402, height: 874))
+        var emitter = TownRainEmitter(seed: 11, bounds: CGSize(width: 402, height: 874))
+            .dropped(logoCount: 50)
 
         // Act
         var t: CGFloat = 0

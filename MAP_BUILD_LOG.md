@@ -1577,3 +1577,24 @@ Follow-up after device testing: `burstCount` 1 → 5. One mark read as too spars
 five is the density the reference actually had. Nothing else changed — the closed field, the
 sheet-tracking floor, the settle/fade and the bubble all carry over, and the 0.21 s stagger
 that was vestigial at a burst of one is load-bearing again. 147 tests, 0 warnings.
+
+Second round of device feedback, two changes:
+
+- **One mark per press, but they accumulate.** `burstCount`/`spawnInterval` are gone — the
+  emitter no longer has a clock of its own. `dropped(logoCount:)` adds a single mark and
+  keeps whatever is still bouncing, so pressing four times in four seconds leaves four on
+  screen. `maxConcurrent` (12) is a safety rail against a held-down pill, and it retires the
+  OLDEST mark rather than refusing the press — a press that visibly does nothing is worse
+  than a crowded field. Consecutive presses deal from a shuffled deck, so the same business
+  never falls twice in a row.
+- **Local businesses only.** The roster excludes chains, franchises, multi-branch banks,
+  regional health/senior-care operators and government or college facilities — Coborn's,
+  State Farm, Ace, Bo Diddley's, Magnifi, Kensington and Sentry Bank, TireMaxx, CentraCare,
+  Country Manor, USPS, the CSB gallery — plus locally-owned but back-office businesses with
+  no storefront the public would recognise (freight, title, printing, tax, fabrication,
+  landscaping). 21 cut, **56 local marks left**, each exclusion carrying its reason in
+  `scripts/rank_rain_roster.py`. Dropping the top-50 cap was the point: filtering for local
+  and then capping at 50 would have thrown away real local businesses to hit a round number.
+
+150 tests, 0 warnings. The preview gate now taps in runs of five, 0.9 s apart, so a recording
+actually shows marks accumulating rather than one arriving alone.

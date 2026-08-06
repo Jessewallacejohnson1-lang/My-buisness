@@ -3,8 +3,8 @@
 //  Block Party — the pure, testable model behind the town-rain drop.
 //
 //  Pressing "Saint Joseph" (the town pill) or the recenter control flies the camera
-//  home; while it flies, a handful of real local brand marks drop into the screen and
-//  bounce around it — off the side walls and off the map sheet's live top edge,
+//  home; while it flies, one real local brand mark drops into the screen — and stays
+//  alongside any still bouncing from an earlier press. Each bounces around the field — off the side walls and off the map sheet's live top edge,
 //  wherever the user has dragged the sheet to — until each runs out of bounce, settles,
 //  and fades.
 //
@@ -21,8 +21,8 @@
 //  many at once, always drifted left, never touched a wall and left the screen rather
 //  than settling — so it has nothing to say about any of the following, and each one
 //  carries its own note explaining the call:
-//    • `burstCount` — 5 per press, not an open-ended rain (the reference's density,
-//      but a burst with an end).
+//    • one mark per press, accumulating — the reference rained on its own clock; here
+//      the finger is the clock, so its spawn cadence does not apply at all.
 //    • `floorInset` — this app's contact surface is its own map sheet.
 //    • `spawnXRange` — entry spread across the middle, not biased to one side.
 //    • the DIRECTION of `driftSpeedRange` (the magnitude is measured).
@@ -83,16 +83,16 @@ enum TownRainPhysics {
     /// matches the pin logo's own optical size, so the marks read as the same objects.
     static let ballSize: CGFloat = 36
 
-    /// Steady-state spawn spacing in the reference: 0.200, 0.200, 0.217, 0.217 s.
-    static let spawnInterval: CGFloat = 0.21
-
-    /// Marks per press. Five is the reference's own measured density — it had 5–7
-    /// airborne at once — and they arrive at the measured `spawnInterval` stagger
-    /// rather than all together, so the screen fills over about a second instead of
-    /// flashing full. Enough to feel alive; few enough that a closed field where marks
-    /// settle rather than exit does not end up with a row of them piled on the sheet.
-    /// Pressing again replaces the whole burst rather than stacking a second one on top.
-    static let burstCount = 5
+    /// One press drops ONE mark — but the field KEEPS the ones already in it, so a
+    /// second press while the first is still bouncing leaves two on screen, a third
+    /// leaves three. The cadence is whatever the finger does; the reference's measured
+    /// 0.21 s spawn interval no longer applies and is gone with the automatic burst.
+    ///
+    /// The cap is a safety rail, not a design number: hold the pill down and taps would
+    /// otherwise accumulate without limit. At the cap the OLDEST mark is retired so the
+    /// newest press still shows — a press that visibly does nothing is worse than a
+    /// crowded field.
+    static let maxConcurrent = 12
 
     /// Speed of the sideways drift. The MAGNITUDE is the reference's (fitted vx was
     /// 207…297 pt/s across all ten tracks) but the DIRECTION is not: every reference
@@ -240,71 +240,74 @@ enum TownRainPhysics {
 
 // MARK: - The emitter
 
-/// Owns one press-worth of rain: the spawn clock, the deterministic draw of which
-/// brand marks fall, and the live balls. A value type stepped by `advanced(by:)`, so
-/// a test can replay a whole burst with no view attached.
+/// Owns the marks currently in the field: which brand falls next, and the live balls.
+/// A value type stepped by `advanced(by:floorY:)` and grown by `dropped(logoCount:)`,
+/// so a test can replay any sequence of presses with no view attached.
 struct TownRainEmitter: Equatable {
 
     private(set) var balls: [TownRainBall] = []
-    private(set) var spawnedCount = 0
+    /// How many presses this field has served. Used only to tell "never pressed" from
+    /// "pressed and everything has since faded".
+    private(set) var droppedCount = 0
 
     private let bounds: CGSize
     /// Fallback until the sheet publishes its live top (see `advanced(by:floorY:)`).
     private let restingFloorY: CGFloat
-    /// Logo indices in the order they will fall — pre-shuffled so no mark repeats
-    /// inside one burst.
-    private let deck: [Int]
+    /// Brand indices not yet used this pass, so consecutive presses show different
+    /// businesses; refilled from a fresh shuffle when it runs out.
+    private var deck: [Int] = []
     private var rng: SplitMix64
-    private var timeToNextSpawn: CGFloat = 0
     private var nextID = 0
 
-    init(seed: UInt64, logoCount: Int, bounds: CGSize) {
+    init(seed: UInt64, bounds: CGSize) {
         self.bounds = bounds
         self.restingFloorY = max(bounds.height * 0.4,
                                  bounds.height - TownRainPhysics.floorInset)
-        var generator = SplitMix64(seed: seed)
-        self.deck = TownRainEmitter.deal(count: TownRainPhysics.burstCount,
-                                         from: max(logoCount, 1),
-                                         using: &generator)
-        self.rng = generator
+        self.rng = SplitMix64(seed: seed)
     }
 
-    /// The burst is over once every ball has been emitted and the last one has left.
-    var isFinished: Bool {
-        spawnedCount >= TownRainPhysics.burstCount && balls.isEmpty
+    /// True once every mark this field ever held has faded. A field that has never been
+    /// pressed is NOT finished — it is simply empty and waiting.
+    var isFinished: Bool { droppedCount > 0 && balls.isEmpty }
+
+    /// One press: add a single mark, keeping whatever is already in flight. Returns a
+    /// NEW emitter (house rule). `logoCount` is passed per press rather than fixed at
+    /// init so a mark whose image resolved after the field was created can still fall.
+    func dropped(logoCount: Int) -> TownRainEmitter {
+        var next = self
+        if next.deck.isEmpty { next.refillDeck(logoCount: max(logoCount, 1)) }
+        let index = next.deck.removeFirst()
+        next.balls.append(next.makeBall(logoIndex: min(index, max(logoCount - 1, 0))))
+        next.droppedCount += 1
+        // Retire the oldest rather than refuse the press — see `maxConcurrent`.
+        if next.balls.count > TownRainPhysics.maxConcurrent {
+            next.balls.removeFirst(next.balls.count - TownRainPhysics.maxConcurrent)
+        }
+        return next
     }
 
-    /// Advance the whole field by `dt`. Existing balls integrate FIRST, then any new
-    /// ball is placed — so a ball's first rendered frame is exactly its spawn state
-    /// (at rest, above the top edge), matching the reference's entry.
-    /// `floorY` is the map sheet's current top edge in field coordinates. Pass nil
-    /// before it is known and the sheet's resting (peek) top is used.
+    /// Advance every mark in the field by `dt`. `floorY` is the map sheet's current top
+    /// edge in field coordinates; pass nil before it is known and the sheet's resting
+    /// (peek) top is used.
     func advanced(by dt: CGFloat, floorY: CGFloat? = nil) -> TownRainEmitter {
         var next = self
-        // Never let the floor rise above the top of the field, or a ball would spawn
+        // Never let the floor rise above the top of the field, or a mark would spawn
         // already below it and be pinned there.
         let plane = min(max(floorY ?? restingFloorY, TownRainPhysics.ballSize),
                         bounds.height)
         next.balls = balls
             .map { TownRainPhysics.stepped($0, dt: dt, floorY: plane, width: bounds.width) }
             .filter { TownRainPhysics.isAlive($0, in: bounds) }
-
-        next.timeToNextSpawn -= dt
-        while next.timeToNextSpawn <= 0 && next.spawnedCount < TownRainPhysics.burstCount {
-            next.balls.append(next.makeBall())
-            next.spawnedCount += 1
-            next.timeToNextSpawn += TownRainPhysics.spawnInterval
-        }
         return next
     }
 
-    private mutating func makeBall() -> TownRainBall {
+    private mutating func makeBall(logoIndex: Int) -> TownRainBall {
         let id = nextID
         nextID += 1
         let size = TownRainPhysics.ballSize
         return TownRainBall(
             id: id,
-            logoIndex: deck[min(spawnedCount, deck.count - 1)],
+            logoIndex: logoIndex,
             x: bounds.width * rng.next(in: TownRainPhysics.spawnXRange),
             y: -size / 2,                                   // one half-ball above the edge
             vx: rng.next(in: TownRainPhysics.driftSpeedRange)
@@ -319,19 +322,12 @@ struct TownRainEmitter: Equatable {
         )
     }
 
-    /// `count` distinct logo indices when the pool is big enough, otherwise a cycled
-    /// shuffle — so a 3-logo town still rains without three identical marks in a row.
-    private static func deal(count: Int, from poolSize: Int,
-                             using rng: inout SplitMix64) -> [Int] {
-        var dealt: [Int] = []
-        while dealt.count < count {
-            var pool = Array(0..<poolSize)
-            for i in stride(from: pool.count - 1, to: 0, by: -1) {
-                pool.swapAt(i, Int(rng.next(upperBound: UInt64(i + 1))))
-            }
-            dealt += pool
+    private mutating func refillDeck(logoCount: Int) {
+        var pool = Array(0..<logoCount)
+        for i in stride(from: pool.count - 1, to: 0, by: -1) {
+            pool.swapAt(i, Int(rng.next(upperBound: UInt64(i + 1))))
         }
-        return Array(dealt.prefix(count))
+        deck = pool
     }
 }
 

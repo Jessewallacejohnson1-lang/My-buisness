@@ -27,9 +27,12 @@ struct TownRainPreview: View {
     @State private var trigger = 0
     @State private var pois: [POI] = TownRainPreview.syntheticPlaces()
 
-    /// Long enough for a whole burst (2.9 s of spawning + ~2 s of flight) to land and
-    /// clear before the next one starts, so a recording always holds a clean cycle.
-    private static let burstPeriod: TimeInterval = 8
+    /// Presses come in runs: several a beat apart, so a recording shows marks
+    /// ACCUMULATING (the thing that changed), then a gap long enough for the field to
+    /// clear before the next run.
+    private static let pressGap: TimeInterval = 0.9
+    private static let pressesPerRun = 5
+    private static let runGap: TimeInterval = 6
 
     var body: some View {
         ZStack {
@@ -57,9 +60,14 @@ struct TownRainPreview: View {
         }
     }
 
-    private func fire() {
+    /// One press, then either the next press in this run or the start of the next run.
+    private func fire(pressesLeft: Int = TownRainPreview.pressesPerRun) {
         trigger += 1
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.burstPeriod) { fire() }
+        let remaining = pressesLeft - 1
+        let delay = remaining > 0 ? Self.pressGap : Self.runGap
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+            fire(pressesLeft: remaining > 0 ? remaining : Self.pressesPerRun)
+        }
     }
 
     /// Stand-ins for `places` rows, one per roster slot, so `TownRainRoster.eligible`

@@ -52,7 +52,7 @@ struct TownRainField: View {
             .accessibilityHidden(true)
             .onChange(of: trigger) { _, _ in
                 guard !reduceMotion else { return }          // §11: nothing falls
-                driver.start(bounds: geo.size, logos: resolvedLogos())
+                driver.drop(bounds: geo.size, logos: resolvedLogos())
             }
             // The floor follows the sheet frame by frame, so dragging the sheet under a
             // ball in flight changes where it lands — and a ball already resting on it
@@ -149,6 +149,9 @@ final class TownRainDriver: NSObject, ObservableObject {
     var floorY: CGFloat = .infinity
 
     private var emitter: TownRainEmitter?
+    /// The size the live field was built for; a resize rebuilds it rather than leaving
+    /// marks bouncing off walls that have moved.
+    private var fieldBounds: CGSize = .zero
     private var link: CADisplayLink?
     private var lastTimestamp: CFTimeInterval = 0
     private var seed: UInt64 = 0
@@ -157,13 +160,20 @@ final class TownRainDriver: NSObject, ObservableObject {
     /// and teleporting every ball through the floor.
     private static let maxStep: CGFloat = 1.0 / 30.0
 
-    func start(bounds: CGSize, logos: [UIImage]) {
+    /// One press: add a mark to the field, keeping anything still bouncing from an
+    /// earlier press. The field is rebuilt only when it is empty (or the view resized),
+    /// so pressing again mid-flight adds to it instead of wiping it.
+    func drop(bounds: CGSize, logos: [UIImage]) {
         guard bounds.width > 0, bounds.height > 0, !logos.isEmpty else { return }
-        seed &+= 1
         self.logos = logos
-        emitter = TownRainEmitter(seed: seed, logoCount: logos.count, bounds: bounds)
-        balls = []
-        lastTimestamp = 0
+        if emitter == nil || emitter?.isFinished == true || fieldBounds != bounds {
+            seed &+= 1
+            emitter = TownRainEmitter(seed: seed, bounds: bounds)
+            fieldBounds = bounds
+            lastTimestamp = 0
+        }
+        emitter = emitter?.dropped(logoCount: logos.count)
+        balls = emitter?.balls ?? []
         guard link == nil else { return }
         let link = CADisplayLink(target: self, selector: #selector(tick))
         link.preferredFrameRateRange = CAFrameRateRange(minimum: 80, maximum: 120, preferred: 120)
@@ -175,6 +185,7 @@ final class TownRainDriver: NSObject, ObservableObject {
         link?.invalidate()
         link = nil
         emitter = nil
+        fieldBounds = .zero
         balls = []
     }
 
