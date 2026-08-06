@@ -3,12 +3,32 @@
 The daily job that composes and publishes `daily_briefings`. Phase 2 of the Today
 tab briefing build. Contract: `docs/superpowers/specs/2026-08-05-today-briefing-contract.md`.
 
-**Host: a Claude Code scheduled agent.** Chosen for judgment — the town almanac
-line is written, not templated. The trade-off is that a missed run means no
-briefing that day, so the routine is built to catch up rather than assume it ran.
+**Host: pg_cron, hourly.** The scheduled-agent path was abandoned once it proved
+unreachable: cloud agents cannot read local env vars, there is no Supabase MCP
+connector, and compose/publish are service_role only — so any external runner
+needs a full-access service-role key stored somewhere. pg_cron needs none of
+that; it runs as the job owner inside Postgres.
 
-Everything deterministic lives in Postgres. The agent supplies only the two things
-SQL cannot: the almanac copy, and a weather snapshot.
+Job: `briefing-reconcile`, `0 * * * *`, calling `run_briefing_reconcile()`.
+
+**Hourly and idempotent**, not one 6 AM fire:
+  · DST-proof — "6 AM Central" moves between 11:00 and 12:00 UTC; an hourly
+    reconcile never has to know.
+  · Self-healing — a missed hour costs an hour, not a whole day.
+  · Cheap — two index lookups when there is nothing to do, which is most hours.
+
+It guarantees: **today is published, tomorrow is drafted.** Tomorrow staying a
+draft is deliberate — it preserves the dashboard edit window, and means the day
+is re-composed against a fresher calendar on the morning it goes live.
+
+The town line comes from `evergreen_pool` (15 written, true town facts), rotated
+deterministically by date — no AI call, no outbound request. The line each
+neighbour actually reads is still their personalized one from `almanac_daily`,
+generated per user by the daily-almanac edge function.
+
+Weather is left null. The utility row and the almanac card both fetch live
+weather through WeatherService's 15-minute cache, which is fresher all day than
+a snapshot taken once at 6 AM.
 
 ---
 
