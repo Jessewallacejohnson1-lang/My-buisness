@@ -86,6 +86,11 @@ struct RootView: View {
                 // Preview the static feed-card states full-screen (bypassing the auth
                 // gate) so the component can be verified headlessly.
                 FeedCardGallery()
+            } else if ProcessInfo.processInfo.arguments.contains("-town-rain-preview") {
+                // Preview the map's town-rain drop full-screen (bypassing the auth
+                // gate) so its physics can be recorded and measured headlessly — the
+                // real trigger is a touch on the town pill, which can't be automated.
+                TownRainPreview()
             } else if ProcessInfo.processInfo.arguments.contains("-utility-row-preview") {
                 // Preview the Today Utility Row full-screen (bypassing the auth gate)
                 // so the tiles + tap-expand can be verified headlessly. Weather /

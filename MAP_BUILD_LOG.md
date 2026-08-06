@@ -1475,3 +1475,64 @@ simulator (blurb + real distance — 350 ft downtown vs 3.8 mi St John's — + t
 Rich venue data is often sparse for the civic spots (their `"<name> St Joseph MN"` query resolves
 poorly for Collegeville venues — inherited from the prior detail); the payoff shows on real POIs
 and event days. Build: 0 warnings, 0 errors.
+
+---
+
+## Town rain — the town's brand marks drop when you press "Saint Joseph"
+
+`flyHome()` (the tappable town pill AND the recenter control — they already shared it) now also
+drops a short burst of REAL local business logos down the screen. They fall under gravity, bounce
+once off the map sheet's peek edge, tumble, and drift out to the left.
+
+Ported frame-by-frame from a reference recording, the same method as the corner drawer and the
+share reveal — but measured numerically rather than eyeballed. Every frame of the reference was
+extracted at 60 Hz, sprites isolated against a per-pixel median background plate, tracked, and each
+flight segment fitted with least squares. Ten tracks, six clean and full-length. Full method,
+per-track fits and the shipped-build re-measurement: `docs/town-rain-reference-measurements.md`.
+
+Measured → shipped: gravity **1090 pt/s²** (fits 1044–1130, mean 1092 — i.e. UIKit Dynamics'
+magnitude-1.0 gravity, nudged) · restitution **0.33** (0.336/0.328/0.324) · spawn cadence **0.21 s**
+(0.200/0.200/0.217/0.217) · drift **−300…−205 pt/s**, always leftward (10/10 tracks) · ball **36 pt**
+(bbox 32–37 pt) · entry at rest a half-ball above the top edge, never launched. 14 balls per press
+holds the reference's 5–7-airborne density across the 0.8 s camera fly, then clears in ~5 s.
+
+- **`TownRainPhysics`** — pure values, no SwiftUI: the constants, the integrator, the emitter and a
+  SplitMix64 so a seed replays a burst exactly. Steppable at 240 Hz in a test with no view.
+- **`TownRainField`** — one `Canvas` (not 14 views) driven by a `CADisplayLink` at 80–120 Hz. The
+  per-frame publish is deliberately trapped in this leaf: `SJMapView` observes nothing, so the
+  Mapbox map does not re-render with the rain. Balls are the same object as the pins — full-bleed
+  mark in a circle with a `Hue.hairline` keyline, matching `POILogoCircle`. Inset marks were tried
+  first and read as a badge-in-a-badge at 36 pt.
+- **`TownRainRoster`** — 50 frozen `places.id`. `places` has no popularity column, so "top" is
+  ranked by logo PROVENANCE off the curation manifest (own-site touch icon 21 → strict hunt 16 →
+  rescue 10 → declared link-icon 3), ties by source resolution then name; round-2 "representative"
+  marks are cut. Regenerate with `scripts/rank_rain_roster.py`. Missing ids degrade to any
+  logo-bearing POI rather than breaking.
+- Z-order: **under** the sheet. The balls' floor IS the sheet's peek edge, so at peek they bounce on
+  its visible top and a raised sheet simply hides them. Non-interactive — it cannot eat a map
+  gesture or a press on the pill it was launched from.
+- Reduce Motion: **nothing falls** (§11). The press keeps its haptic and its camera fly, so the rain
+  never carries information on its own.
+
+DEBUG: `-town-rain-preview` renders the field full-screen past the auth gate and loops a burst —
+there is no tap automation here and the real trigger is a touch on the town pill, so the drop is
+otherwise unrecordable. It builds its `places` stand-ins from the REAL roster uuids against the
+public `place-logos` bucket, so it rains the real marks over the real fetch path; add
+`-poi-logo-stub` for a deterministic offline run when measuring physics. `-town-rain` fires one
+burst on the real map once POIs land.
+
+Verified: the shipped build was recorded on the simulator and run through the SAME tracker,
+twice (before and after the review pass) — g median **1096** then **1128** pt/s², restitution
+**0.334**, drift **−213…−307**, cadence 0.167–0.233 (±1 frame of 60 Hz sampling jitter), exactly
+**14** balls both times. The g spread is tracker noise, not model drift: the same traces imply
+g is simultaneously 3.5% too strong (fitted) and 5% too weak (fall duration), which is what a
+noise-dominated fit looks like. The unit tests are the statement of the physics; this trace is
+a ±5% check that the display link feeds the integrator sane timesteps. 97 tests green, build 0 warnings. A mutation run
+(g 1090→900, e 0.33→0.55, interval 0.21→0.35, size 36→52) fails the suite, so the tests bind to the
+measurements rather than restating them — the first pass did NOT, and
+`testEveryMeasuredConstantStaysInsideItsReferenceSpread` exists because of it.
+
+Not verified end-to-end: the press-to-rain path on the **real signed-in map**. This simulator has no
+session, so `getPlaces()` returns nothing and there is nothing to rain; the roster→cache→ball chain
+was verified against the live bucket through the preview instead. Worth one tap on a signed-in
+device.
