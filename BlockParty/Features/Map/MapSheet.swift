@@ -193,6 +193,13 @@ struct MapSheet: View {
             // floating ?/locate controls can fade out before the sheet reaches them.
             .preference(key: SheetExpansionKey.self,
                         value: min(1, max(0, (height - m.peek) / 64)))
+            // The sheet's live TOP edge, in the map's own coordinate space. Unlike
+            // `SheetExpansionKey` (clamped 0→1 over 64pt, for fading chrome) this is a
+            // real distance and it tracks the detent spring frame by frame — the town
+            // rain uses it as its floor, so a mark lands on the sheet wherever the user
+            // has dragged it to.
+            .preference(key: SheetTopKey.self,
+                        value: max(0, H - height - Self.tabBarReserve))
             .onChange(of: H, initial: true) { _, h in containerH = h }
         }
         .animation(reduceMotion ? Motion.smooth : Motion.sheet, value: detent)
@@ -815,5 +822,15 @@ struct SheetExpansionKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = max(value, nextValue())
+    }
+}
+
+/// The map sheet's live top edge, measured from the top of the map. `.infinity` means
+/// "not published yet" — a consumer should fall back rather than treat it as 0, which
+/// would read as a sheet covering the whole screen.
+struct SheetTopKey: PreferenceKey {
+    static let defaultValue: CGFloat = .infinity
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = min(value, nextValue())
     }
 }

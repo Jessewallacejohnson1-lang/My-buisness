@@ -1536,3 +1536,37 @@ Not verified end-to-end: the press-to-rain path on the **real signed-in map**. T
 session, so `getPlaces()` returns nothing and there is nothing to rain; the roster→cache→ball chain
 was verified against the live bucket through the preview instead. Worth one tap on a signed-in
 device.
+
+### Town rain, revised — one ball, a closed field, and a bubble on the press
+
+Feedback after the first pass: more free flow, land on the sheet instead of behind it, a
+press acknowledgement, and one ball at a time. All four:
+
+- **One mark per press** (`burstCount` 14 → 1). Press and object are one-to-one; pressing
+  again replaces the ball in flight rather than stacking another.
+- **The field is closed.** Side walls at `wallRestitution` 0.62, so the ball returns across
+  the screen instead of exiting. It settles once a floor contact falls under `restSpeed`,
+  rolls to a stop under `rollingDrag`, and fades over `fadeDuration` — with walls there is
+  no edge left to leave by, so the fade IS the exit.
+- **The floor is the sheet's live top edge.** `MapSheet` publishes `SheetTopKey` (a real
+  distance, unlike `SheetExpansionKey`'s clamped 0→1 chrome-fade signal); it tracks the
+  detent spring frame by frame, so dragging the sheet mid-flight changes where the ball
+  lands, and a ball resting on the sheet rides up with it. This closes the hole flagged in
+  the first pass, where a raised sheet hid the whole animation behind itself.
+- **Drift is now two-directional.** Magnitude is still the measured 205–300 pt/s, but the
+  side is drawn per ball. Recording the first cut showed why: an always-left drift (correct
+  for a rain that exits stage left) walks a single ball into the left wall and parks it in
+  the corner within ~2 s. Entry moved to 0.15–0.85 W for the same reason.
+- **`townPillBubble`** — the pill swells 6% and one `Hue.ink` ring blooms out of its own
+  capsule silhouette and dissolves over 0.5 s. It is the only cue at the instant of the tap;
+  the camera fly and the falling mark both take a beat. Reduce Motion keeps the ring's
+  dissolve and drops the scale.
+
+DEBUG `-town-rain` now fires from `onAppear` instead of waiting on `pois`, and plays the
+bubble as well as the drop — signed out, `pois` never lands, so the old gate made the press
+unrecordable.
+
+Verified on the simulator: the ball traverses the full width, bounces off both walls and the
+sheet, settles and fades in ~3.5 s; the bubble blooms at the press and is gone in ~0.45 s.
+146 tests green (up from 99 — the wall, settle, fade, floor-tracking and drift-direction
+rules all carry tests), 0 warnings.

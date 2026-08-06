@@ -129,3 +129,22 @@ The one row that IS a clean signal is the last: raising `spawnXRange`'s lower bo
 Fall time differs on purpose: the reference's floor sat 108 pt above its screen bottom, this
 app's is the map sheet's peek edge at 162 pt, so spawn→contact is 1.14 s here against 1.19 s
 there. The constants that produce it are identical.
+
+## Where this deliberately leaves the reference
+
+The drop started as a straight port. It is not one any more, and the divergences are
+product decisions rather than measurement error — recorded here so a future reader does
+not "fix" them back toward the recording.
+
+| | reference | here | why |
+|---|---|---|---|
+| count | many, ~1 per 0.21 s | **one per press** | the press and the object stay one-to-one |
+| sides | open — sprites exit left | **walls** | one ball that leaves immediately is not an animation |
+| drift | always leftward | **either way**, same speed band | an always-left drift walks the ball into the left wall, loses 38% per return, and parks it in the corner in ~2 s |
+| entry | 0.60–1.10 W | **0.15–0.85 W** | the reference's right bias existed to give a left-drifting sprite runway; with walls it just wastes the field |
+| floor | fixed (its own bottom bar) | **the map sheet's live top** | drag the sheet and the ball lands on it where it now is |
+| exit | leaves frame | **settles, then fades** | with walls there is no frame to leave |
+
+What is still measured, and still pinned by `TownRainPhysicsTests`: `gravity`,
+`restitution`, `ballSize`, the drift SPEED band, and both spin ranges. Those are what
+make it feel like the reference; the rest is what makes it work as a map control.

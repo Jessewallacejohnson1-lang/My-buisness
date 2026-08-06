@@ -31,12 +31,17 @@ final class TownRainPhysicsTests: XCTestCase {
         x: CGFloat = 200, y: CGFloat = 0,
         vx: CGFloat = -250, vy: CGFloat = 0,
         spin: CGFloat = 0, bounceSpin: CGFloat = 650,
-        size: CGFloat = TownRainPhysics.ballSize
+        size: CGFloat = TownRainPhysics.ballSize, restTime: CGFloat = 0
     ) -> TownRainBall {
         TownRainBall(id: 1, logoIndex: 0, x: x, y: y, vx: vx, vy: vy,
                      angle: 0, spin: spin, bounceSpin: bounceSpin,
-                     size: size, hasBounced: false)
+                     size: size, hasBounced: false, restTime: restTime)
     }
+
+    /// Wide enough that the RIGHT wall never interferes unless a test wants it to.
+    /// Note the LEFT wall is always at x = 0 whatever the width, so a test that must
+    /// avoid walls entirely also has to keep `vx` at 0 or start far from the origin.
+    private let openField: CGFloat = 100_000
 
     /// Steps an EXACT whole number of `fineStep`s, so the elapsed time is exactly
     /// `seconds` and the expected values below are plain closed-form arithmetic.
@@ -45,7 +50,7 @@ final class TownRainPhysicsTests: XCTestCase {
     private func advance(_ start: TownRainBall, seconds: CGFloat, floorY: CGFloat) -> TownRainBall {
         var b = start
         for _ in 0..<Int((seconds / fineStep).rounded()) {
-            b = TownRainPhysics.stepped(b, dt: fineStep, floorY: floorY)
+            b = TownRainPhysics.stepped(b, dt: fineStep, floorY: floorY, width: openField)
         }
         return b
     }
@@ -81,9 +86,10 @@ final class TownRainPhysicsTests: XCTestCase {
         XCTAssertTrue(TownRainPhysics.bounceSpinRange.contains(720),
                       "post-bounce tumble must be able to reach the measured ~720°/s")
 
-        // 5–7 airborne at once in the reference: burstCount × interval must cover the
-        // 0.8 s camera fly and a beat after, without running long.
-        XCTAssertEqual(TownRainPhysics.burstCount, 14)
+        // NOT a measurement — a product decision being pinned. The reference rained
+        // many marks; here one press drops one mark, which then has the whole field to
+        // bounce around in.
+        XCTAssertEqual(TownRainPhysics.burstCount, 1)
     }
 
     // MARK: Free fall — the measured gravity
@@ -114,11 +120,31 @@ final class TownRainPhysicsTests: XCTestCase {
         XCTAssertEqual(after.x, 300 - 250 * 0.5, accuracy: 1.0)
     }
 
-    func testDriftRangeMatchesTheReferenceSpread() {
-        XCTAssertLessThanOrEqual(TownRainPhysics.driftRange.upperBound, -200,
-                                 "every reference sprite drifted left; none drifted right")
-        XCTAssertGreaterThanOrEqual(TownRainPhysics.driftRange.lowerBound, -305,
-                                    "fastest measured drift was 297 pt/s")
+    func testDriftSpeedMatchesTheReferenceSpread() {
+        // The magnitude is the reference's (207…297 pt/s); the direction deliberately
+        // is not — see `driftSpeedRange`.
+        XCTAssertGreaterThanOrEqual(TownRainPhysics.driftSpeedRange.lowerBound, 200)
+        XCTAssertLessThanOrEqual(TownRainPhysics.driftSpeedRange.upperBound, 305)
+    }
+
+    func testBallsDriftBothWaysAcrossPresses() {
+        // Arrange — an always-left drift walks the ball into the wall and parks it.
+        let bounds = CGSize(width: 402, height: 874)
+
+        // Act
+        let drifts: [CGFloat] = (1...24).compactMap { seed in
+            var e = TownRainEmitter(seed: UInt64(seed), logoCount: 50, bounds: bounds)
+            e = e.advanced(by: fineStep, floorY: 712)
+            return e.balls.first?.vx
+        }
+
+        // Assert
+        XCTAssertTrue(drifts.contains { $0 < 0 }, "no press ever drifted left")
+        XCTAssertTrue(drifts.contains { $0 > 0 }, "no press ever drifted right")
+        for v in drifts {
+            XCTAssertTrue(TownRainPhysics.driftSpeedRange.contains(abs(v)),
+                          "\(v) outside the measured speed band")
+        }
     }
 
     // MARK: The bounce
@@ -130,7 +156,7 @@ final class TownRainPhysicsTests: XCTestCase {
         let incoming = ball(y: floorY - r - 0.5, vy: 1300)
 
         // Act — one step carries it through the floor plane.
-        let after = TownRainPhysics.stepped(incoming, dt: 1.0 / 60.0, floorY: floorY)
+        let after = TownRainPhysics.stepped(incoming, dt: 1.0 / 60.0, floorY: floorY, width: openField)
 
         // Assert
         XCTAssertLessThan(after.vy, 0, "the ball must come back up")
@@ -151,7 +177,7 @@ final class TownRainPhysicsTests: XCTestCase {
         var worstOvershoot: CGFloat = 0
         var elapsed: CGFloat = 0
         while elapsed < 3.0 {
-            b = TownRainPhysics.stepped(b, dt: fineStep, floorY: floorY)
+            b = TownRainPhysics.stepped(b, dt: fineStep, floorY: floorY, width: openField)
             worstOvershoot = max(worstOvershoot, b.y + b.size / 2 - floorY)
             elapsed += fineStep
         }
@@ -177,7 +203,7 @@ final class TownRainPhysicsTests: XCTestCase {
         let rebounds: [CGFloat] = [60.0, 120.0, 240.0].map { hz in
             var b = start
             let dt = CGFloat(1.0 / hz)
-            while !b.hasBounced { b = TownRainPhysics.stepped(b, dt: dt, floorY: floorY) }
+            while !b.hasBounced { b = TownRainPhysics.stepped(b, dt: dt, floorY: floorY, width: openField) }
             return b.vy
         }
 
@@ -187,23 +213,23 @@ final class TownRainPhysicsTests: XCTestCase {
     }
 
     func testEachBallCarriesItsOwnPostBounceTumble() {
-        // Arrange — the reference's sprites did not all leave the floor at one rate.
-        var emitter = TownRainEmitter(seed: 5, logoCount: 50,
-                                      bounds: CGSize(width: 402, height: 874))
+        // Arrange — one press drops one ball, so the variety to check is ACROSS presses:
+        // ten presses must not all leave the floor spinning at the same rate.
+        let bounds = CGSize(width: 402, height: 874)
 
-        // Act — collect the whole burst.
-        var seen: [CGFloat] = []
-        for _ in 0..<900 {
-            let before = emitter.balls.map(\.id)
-            emitter = emitter.advanced(by: fineStep)
-            seen += emitter.balls.filter { !before.contains($0.id) }.map(\.bounceSpin)
+        // Act
+        let seen: [CGFloat] = (1...10).compactMap { seed in
+            var emitter = TownRainEmitter(seed: UInt64(seed), logoCount: 50, bounds: bounds)
+            emitter = emitter.advanced(by: fineStep, floorY: 712)
+            return emitter.balls.first?.bounceSpin
         }
 
         // Assert
-        XCTAssertGreaterThan(seen.count, 5)
-        XCTAssertGreaterThan(Set(seen).count, 1, "every ball got the same post-bounce spin")
+        XCTAssertEqual(seen.count, 10)
+        XCTAssertGreaterThan(Set(seen).count, 1, "every press got the same post-bounce spin")
         for s in seen {
-            XCTAssertTrue(TownRainPhysics.bounceSpinRange.contains(s), "\(s) outside the measured band")
+            XCTAssertTrue(TownRainPhysics.bounceSpinRange.contains(s),
+                          "\(s) outside the measured band")
         }
     }
 
@@ -214,7 +240,7 @@ final class TownRainPhysicsTests: XCTestCase {
         let incoming = ball(y: floorY - r - 0.5, vy: 1300, spin: 90)
 
         // Act
-        let after = TownRainPhysics.stepped(incoming, dt: 1.0 / 60.0, floorY: floorY)
+        let after = TownRainPhysics.stepped(incoming, dt: 1.0 / 60.0, floorY: floorY, width: openField)
 
         // Assert
         XCTAssertTrue(after.hasBounced)
@@ -223,8 +249,9 @@ final class TownRainPhysicsTests: XCTestCase {
     }
 
     func testSpinIntegratesIntoAngle() {
-        // Arrange
-        let start = ball(spin: 180)
+        // Arrange — vx 0 so the ball never reaches the left wall, which would reverse
+        // and damp the tumble along with the travel.
+        let start = ball(vx: 0, spin: 180)
 
         // Act
         let after = advance(start, seconds: 1.0, floorY: 100_000)
@@ -245,7 +272,7 @@ final class TownRainPhysicsTests: XCTestCase {
         var b = start
         var t: CGFloat = 0
         while !b.hasBounced && t < 5 {
-            b = TownRainPhysics.stepped(b, dt: fineStep, floorY: floorY)
+            b = TownRainPhysics.stepped(b, dt: fineStep, floorY: floorY, width: openField)
             t += fineStep
         }
 
@@ -257,14 +284,95 @@ final class TownRainPhysicsTests: XCTestCase {
 
     // MARK: Lifetime
 
-    func testBallDiesAfterExitingTheLeftEdge() {
-        // Arrange
-        let bounds = CGSize(width: 402, height: 874)
-        let offLeft = ball(x: -TownRainPhysics.ballSize)
+    func testBallBouncesOffTheLeftWallInsteadOfLeaving() {
+        // Arrange — travelling left, already against the wall.
+        let r = TownRainPhysics.ballSize / 2
+        let incoming = ball(x: r - 1, vx: -300)
+
+        // Act
+        let after = TownRainPhysics.stepped(incoming, dt: 1.0 / 60.0,
+                                            floorY: 100_000, width: 402)
 
         // Assert
-        XCTAssertFalse(TownRainPhysics.isAlive(offLeft, in: bounds))
-        XCTAssertTrue(TownRainPhysics.isAlive(ball(x: 10), in: bounds))
+        XCTAssertGreaterThan(after.vx, 0, "it must come back across the field")
+        XCTAssertEqual(after.vx, 300 * TownRainPhysics.wallRestitution, accuracy: 1)
+        XCTAssertGreaterThanOrEqual(after.x, r - 0.001, "and never pass through the wall")
+    }
+
+    func testBallBouncesOffTheRightWallInsteadOfLeaving() {
+        // Arrange
+        let width: CGFloat = 402
+        let r = TownRainPhysics.ballSize / 2
+        let incoming = ball(x: width - r + 1, vx: 300)
+
+        // Act
+        let after = TownRainPhysics.stepped(incoming, dt: 1.0 / 60.0,
+                                            floorY: 100_000, width: width)
+
+        // Assert
+        XCTAssertLessThan(after.vx, 0)
+        XCTAssertLessThanOrEqual(after.x, width - r + 0.001)
+    }
+
+    func testBallStaysInsideTheFieldForItsWholeLife() {
+        // Arrange — a whole burst, in a real-sized field.
+        let bounds = CGSize(width: 402, height: 874)
+        var emitter = TownRainEmitter(seed: 21, logoCount: 50, bounds: bounds)
+        let r = TownRainPhysics.ballSize / 2
+
+        // Act
+        var worstLeft: CGFloat = .greatestFiniteMagnitude
+        var worstRight: CGFloat = 0
+        for _ in 0..<1200 {
+            emitter = emitter.advanced(by: fineStep, floorY: 700)
+            for b in emitter.balls where b.y > 0 {
+                worstLeft = min(worstLeft, b.x)
+                worstRight = max(worstRight, b.x)
+            }
+        }
+
+        // Assert
+        XCTAssertGreaterThanOrEqual(worstLeft, r - 0.5, "left wall leaked")
+        XCTAssertLessThanOrEqual(worstRight, bounds.width - r + 0.5, "right wall leaked")
+    }
+
+    func testASettledBallFadesOutAndIsCulled() {
+        // Arrange — resting on the floor with nothing left.
+        let floorY: CGFloat = 700
+        let bounds = CGSize(width: 402, height: 874)
+        var b = ball(y: floorY - TownRainPhysics.ballSize / 2, vx: 0, vy: 0)
+
+        // Act
+        var t: CGFloat = 0
+        while TownRainPhysics.isAlive(b, in: bounds) && t < 5 {
+            b = TownRainPhysics.stepped(b, dt: fineStep, floorY: floorY, width: bounds.width)
+            t += fineStep
+        }
+
+        // Assert
+        XCTAssertEqual(t, TownRainPhysics.fadeDuration, accuracy: 0.1,
+                       "a settled ball must fade out in about \(TownRainPhysics.fadeDuration)s")
+        XCTAssertEqual(TownRainPhysics.opacity(b), 0, accuracy: 0.05)
+    }
+
+    func testTheFloorFollowsTheSheetMidFlight() {
+        // Arrange — the same drop, once onto a peek-height sheet and once onto a sheet
+        // the user has pulled up 200 pt. The ball must land ON the sheet, not behind it.
+        let bounds = CGSize(width: 402, height: 874)
+        let low: CGFloat = 712, high: CGFloat = 512
+
+        func restY(_ floor: CGFloat) -> CGFloat {
+            var b = ball(x: 200, y: -TownRainPhysics.ballSize / 2, vx: 0, vy: 0)
+            for _ in 0..<600 {
+                b = TownRainPhysics.stepped(b, dt: fineStep, floorY: floor, width: bounds.width)
+            }
+            return b.y + b.size / 2
+        }
+
+        // Assert
+        XCTAssertEqual(restY(low), low, accuracy: 1.0)
+        XCTAssertEqual(restY(high), high, accuracy: 1.0,
+                       "a raised sheet must be the surface, not something to fall behind")
     }
 
     func testBallDiesAfterFallingPastTheBottom() {
@@ -292,7 +400,7 @@ final class TownRainPhysicsTests: XCTestCase {
         let start = ball(y: 100, vy: 200)
 
         // Act
-        _ = TownRainPhysics.stepped(start, dt: 0.1, floorY: 700)
+        _ = TownRainPhysics.stepped(start, dt: 0.1, floorY: 700, width: openField)
 
         // Assert
         XCTAssertEqual(start.y, 100, "stepped() must not mutate its input")
@@ -301,12 +409,12 @@ final class TownRainPhysicsTests: XCTestCase {
 
     // MARK: The emitter — cadence and determinism
 
-    func testEmitterMatchesTheReferenceCadenceAndCount() {
-        // Arrange — reference steady state: one sprite every 0.21 s.
+    func testOnePressDropsExactlyOneBall() {
+        // Arrange
         var emitter = TownRainEmitter(seed: 7, logoCount: 50,
                                       bounds: CGSize(width: 402, height: 874))
 
-        // Act — drain the whole burst, recording the time of each spawn.
+        // Act — run well past any plausible burst.
         var spawnTimes: [CGFloat] = []
         var t: CGFloat = 0
         while t < 10 {
@@ -317,12 +425,10 @@ final class TownRainPhysicsTests: XCTestCase {
         }
 
         // Assert
-        XCTAssertEqual(spawnTimes.count, TownRainPhysics.burstCount)
-        XCTAssertEqual(TownRainPhysics.burstCount, 14)
-        for (a, b) in zip(spawnTimes, spawnTimes.dropFirst()) {
-            XCTAssertEqual(b - a, TownRainPhysics.spawnInterval, accuracy: 0.02,
-                           "spacing must hold the reference's 0.21 s cadence")
-        }
+        XCTAssertEqual(spawnTimes.count, 1, "a press must not stack a second ball")
+        XCTAssertEqual(spawnTimes.first ?? -1, 0, accuracy: 0.02,
+                       "the ball must appear on the press, not a beat later")
+        XCTAssertLessThanOrEqual(emitter.balls.count, 1, "only one ball at a time")
     }
 
     func testEmitterIsDeterministicForAGivenSeed() {
@@ -359,21 +465,22 @@ final class TownRainPhysicsTests: XCTestCase {
         for b in seen {
             XCTAssertLessThanOrEqual(b.y, 0, "\(b.id) must spawn above the top edge")
             XCTAssertEqual(b.vy, 0, accuracy: 0.001, "\(b.id) must start at rest")
-            XCTAssertTrue(TownRainPhysics.driftRange.contains(b.vx),
+            XCTAssertTrue(TownRainPhysics.driftSpeedRange.contains(abs(b.vx)),
                           "\(b.id) drift \(b.vx) outside the measured range")
         }
     }
 
     func testBurstFinishesWithinTheDesignedWindow() {
-        // Arrange — 14 balls at 0.21 s + ~1.2 s fall + bounce-out must clear well
-        // inside 8 s, or the map control feels like it hangs.
+        // Arrange — with walls the ball no longer exits sideways, so the burst can only
+        // end by settling and fading. That path must still close well inside 8 s, or the
+        // map control feels like it hangs.
         var emitter = TownRainEmitter(seed: 11, logoCount: 50,
                                       bounds: CGSize(width: 402, height: 874))
 
         // Act
         var t: CGFloat = 0
         while !emitter.isFinished && t < 20 {
-            emitter = emitter.advanced(by: fineStep)
+            emitter = emitter.advanced(by: fineStep, floorY: 712)
             t += fineStep
         }
 

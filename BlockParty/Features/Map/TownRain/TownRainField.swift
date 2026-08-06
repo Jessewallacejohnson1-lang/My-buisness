@@ -3,14 +3,15 @@
 //  Block Party — the town-rain overlay: real local brand marks drop past the map.
 //
 //  Pressing the "Saint Joseph" town pill (or the recenter control — both call
-//  `flyHome()`) drops a short burst of the town's own business logos down the screen.
-//  They fall under the measured gravity, bounce once off the top of the map sheet and
-//  drift out to the left. `TownRainPhysics` owns every number and every rule; this
-//  file is only the display link and the drawing.
+//  `flyHome()`) drops ONE of the town's own business logos into the screen. It falls
+//  under the measured gravity and bounces around the field — off the side walls, and
+//  off the map sheet's live top edge — until it settles and fades.
+//  `TownRainPhysics` owns every number and every rule; this file is only the display
+//  link and the drawing.
 //
-//  WHY A CANVAS, NOT 14 VIEWS: the field re-renders every frame at up to 120 Hz. One
-//  `Canvas` is one draw pass; fourteen `MapViewAnnotation`-adjacent SwiftUI views
-//  would each re-layout. The driver is held here as `@StateObject` for the same
+//  WHY A CANVAS: the field re-renders every frame at up to 120 Hz. One `Canvas` is one
+//  draw pass, and it stays one draw pass if the burst ever grows past a single ball.
+//  The driver is held here as `@StateObject` for the same
 //  reason `MapCompass` holds its heading as `@State` — the per-frame publish must not
 //  escape into `SJMapView`'s body, or the map re-renders at 120 Hz with it.
 //
@@ -30,6 +31,9 @@ struct TownRainField: View {
     let trigger: Int
     /// The map's loaded places; the roster picks which of them may fall.
     let pois: [POI]
+    /// The map sheet's live top edge — the surface a ball lands on. `.infinity` before
+    /// the sheet has published, which the driver reads as "use the resting floor".
+    var floorY: CGFloat = .infinity
 
     @StateObject private var driver = TownRainDriver()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -50,6 +54,10 @@ struct TownRainField: View {
                 guard !reduceMotion else { return }          // §11: nothing falls
                 driver.start(bounds: geo.size, logos: resolvedLogos())
             }
+            // The floor follows the sheet frame by frame, so dragging the sheet under a
+            // ball in flight changes where it lands — and a ball already resting on it
+            // rides up with it.
+            .onChange(of: floorY, initial: true) { _, top in driver.floorY = top }
             .onChange(of: reduceMotion) { _, isOn in
                 if isOn { driver.stop() }       // §11: honor it mid-burst, not just at press
             }
@@ -89,6 +97,9 @@ struct TownRainField: View {
             let radius = ball.size / 2
             let box = CGRect(x: -radius, y: -radius, width: ball.size, height: ball.size)
             let circle = Path(ellipseIn: box)
+            // A settled ball fades out where it lies — with walls closing the field it
+            // has no edge to leave by.
+            layer.opacity = TownRainPhysics.opacity(ball)
 
             // Drop shadow belongs to the disc, not the mark — filtering the image too
             // would smear a dark halo through any logo with transparency.
@@ -134,6 +145,9 @@ final class TownRainDriver: NSObject, ObservableObject {
     /// shift under a burst that is already in the air.
     private(set) var logos: [UIImage] = []
 
+    /// The map sheet's live top edge; `.infinity` until it publishes one.
+    var floorY: CGFloat = .infinity
+
     private var emitter: TownRainEmitter?
     private var link: CADisplayLink?
     private var lastTimestamp: CFTimeInterval = 0
@@ -174,7 +188,7 @@ final class TownRainDriver: NSObject, ObservableObject {
         }
         lastTimestamp = link.timestamp
 
-        emitter = emitter.advanced(by: dt)
+        emitter = emitter.advanced(by: dt, floorY: floorY.isFinite ? floorY : nil)
         self.emitter = emitter
         balls = emitter.balls
 

@@ -398,6 +398,13 @@ struct SJMapView: View {
     /// Bumped by `flyHome()`; every change drops one burst of town-rain. An Int rather
     /// than a Bool so back-to-back presses each start a fresh burst.
     @State private var rainTrigger = 0
+
+    /// The map sheet's live top edge — the surface the town rain lands on. `.infinity`
+    /// until the sheet publishes, which the field reads as "use the resting floor".
+    @State private var sheetTop: CGFloat = .infinity
+
+    /// Bumped on each town-pill press; drives the bubble that blooms out of the pill.
+    @State private var bubbleNonce = 0
     /// The map view's own size, measured in the view layer (the SDK's `MapboxMap.size` is
     /// internal). Feeds the label pass's floating-chrome reservation. Not `private`: the
     /// clustering extension reads it.
@@ -485,7 +492,7 @@ struct SJMapView: View {
             // the sheet's peek edge, so at peek they bounce on its visible top, and a
             // raised sheet simply hides them instead of letting them bounce over its
             // content. Non-interactive, so it never intercepts a map gesture.
-            TownRainField(trigger: rainTrigger, pois: model.pois)
+            TownRainField(trigger: rainTrigger, pois: model.pois, floorY: sheetTop)
             if mapDetail == nil {
                 MapSheet(
                     events: model.todayEvents,
@@ -518,9 +525,22 @@ struct SJMapView: View {
         // The sheet publishes how far it's grown past peek; the floating controls fade
         // off it (see `floatingControls`).
         .onPreferenceChange(SheetExpansionKey.self) { sheetExpansion = $0 }
+        .onPreferenceChange(SheetTopKey.self) { sheetTop = $0 }
         .onAppear {
             model.start(auth: auth)
             Haptics.prepare()
+            #if DEBUG
+            // `-town-rain`: play the town-pill press headlessly — bubble AND drop —
+            // because there is no tap automation here. Fired on appear rather than on
+            // `pois` landing: signed out, `pois` never lands, and the bubble is worth
+            // recording even when there is nothing to rain.
+            if SJMapView.debugTownRain {
+                DispatchQueue.main.asyncAfter(deadline: .now() + Self.debugRainDelay) {
+                    bubbleNonce += 1
+                    rainTrigger += 1
+                }
+            }
+            #endif
             syncMapDetailHappenings()
             // A spot preselected at mount (deep link, or the DEBUG -map-open flag) frames
             // above the morphed detail shell, exactly as a direct pin tap would.
@@ -763,14 +783,6 @@ struct SJMapView: View {
                 // Kick the autozoom demo only ONCE the POIs exist (they load a few seconds
                 // after launch) — otherwise the merge sweep would run over an empty map.
                 if !pois.isEmpty { startAutozoomIfNeeded() }
-                // `-town-rain`: fire one burst as soon as there is something to rain, so
-                // the drop can be recorded headlessly (there is no tap automation here).
-                // Pair with `-poi-logo-stub` for marks that resolve without the network.
-                if SJMapView.debugTownRain, rainTrigger == 0, !pois.isEmpty {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + Self.debugRainDelay) {
-                        rainTrigger += 1
-                    }
-                }
                 #endif
             }
             .ignoresSafeArea(edges: .bottom)
@@ -816,6 +828,7 @@ struct SJMapView: View {
     /// spells the action out for VoiceOver.
     private var townPill: some View {
         Button {
+            bubbleNonce += 1        // acknowledge the press at the instant of the tap
             flyHome()
         } label: {
             HStack(spacing: 6) {
@@ -833,6 +846,7 @@ struct SJMapView: View {
             // chrome reads as one system. Glass carries its own floating shadow.
             .glassEffect(.regular, in: Capsule())
             .contentShape(Capsule())
+            .townPillBubble(nonce: bubbleNonce)
         }
         .buttonStyle(.plain)
         .animation(Motion.smooth, value: model.townLabel)
