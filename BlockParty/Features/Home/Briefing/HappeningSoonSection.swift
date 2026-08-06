@@ -102,6 +102,13 @@ private struct HappeningSoonEventCard: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// A live Google Places photo for an event with no `image_url`. CLAUDE.md is
+    /// explicit that runtime imagery is the DEFAULT, not a fallback — photography
+    /// is the app's only colour layer and hand-curating it does not scale. The
+    /// card the briefing replaced resolved venue photos this way; a bare
+    /// AsyncImage on image_url alone was a regression.
+    @State private var venuePhoto: FeedCardImageSource?
+
     var body: some View {
         VStack(spacing: 0) {
             if let onOpen {
@@ -125,6 +132,27 @@ private struct HappeningSoonEventCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .blockPartyCard(padding: 0)
+        .task(id: event.id) { await resolveVenuePhoto() }
+    }
+
+    /// The one place this card spends a billed Google call. It runs from `.task`,
+    /// so a card that never appears never costs anything, and GooglePlacesService
+    /// caches and coalesces so several cards sharing a venue share one round-trip.
+    /// A venue that cannot be confidently identified simply keeps the typographic
+    /// treatment — no gray box, no spinner, no retry loop.
+    private func resolveVenuePhoto() async {
+        guard event.imageURL == nil, venuePhoto == nil else { return }
+        venuePhoto = await FeedCardVenuePhoto.resolve(
+            name: event.title, hint: event.location
+        )
+    }
+
+    /// Google ToS: author attributions MUST be displayed wherever the image
+    /// appears. `.placesPhoto` carries them for exactly this reason.
+    private var photoAttribution: String? {
+        guard case .placesPhoto(_, let attribution)? = venuePhoto,
+              !attribution.isEmpty else { return nil }
+        return attribution
     }
 
     private var primaryContent: some View {
@@ -144,7 +172,15 @@ private struct HappeningSoonEventCard: View {
                     Text(clubName)
                         .font(.sans(13))
                         .foregroundStyle(Hue.inkSecondary)
-                        .monospacedDigit()
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                // Required by Google's terms wherever a Places photo is shown.
+                if let photoAttribution {
+                    Text(photoAttribution)
+                        .font(.sans(10))
+                        .foregroundStyle(Hue.inkSecondary)
+                        .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -187,7 +223,11 @@ private struct HappeningSoonEventCard: View {
 
     @ViewBuilder
     private var eventImage: some View {
-        if let imageURL = event.imageURL {
+        if case .placesPhoto(let url, _)? = venuePhoto {
+            // Reuses the feed's downsampling + LRU cache rather than a raw
+            // AsyncImage, so a scrolling carousel does not re-decode full-size.
+            FeedCardURLPhoto(url: url)
+        } else if let imageURL = event.imageURL {
             AsyncImage(url: imageURL) { phase in
                 switch phase {
                 case .empty:
@@ -273,6 +313,13 @@ private struct BriefingCardPressStyle: ButtonStyle {
     var pressedScale: CGFloat = 0.985
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// A live Google Places photo for an event with no `image_url`. CLAUDE.md is
+    /// explicit that runtime imagery is the DEFAULT, not a fallback — photography
+    /// is the app's only colour layer and hand-curating it does not scale. The
+    /// card the briefing replaced resolved venue photos this way; a bare
+    /// AsyncImage on image_url alone was a regression.
+    @State private var venuePhoto: FeedCardImageSource?
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label

@@ -42,6 +42,12 @@ struct HomeView: View {
     @State private var revealed = false
     /// False only during a refresh collapse, so the reset is instant (see refresh).
     @State private var revealAnimated = true
+    /// The payload-backed modules cascade separately, when the briefing actually
+    /// ARRIVES. `revealed` flips in `.onAppear`, long before the RPC returns, so a
+    /// module gated behind `if let payload` was inserted with the reveal already
+    /// true and appeared instantly — only the almanac and utility row ever moved
+    /// on a cold load.
+    @State private var contentRevealed = false
     /// Bumped on each pull-to-refresh so the Almanac re-writes itself in sync with the
     /// spring-back (the first open writes on its own — see AlmanacSection).
     @State private var almanacReplay = 0
@@ -103,9 +109,11 @@ struct HomeView: View {
                 // Collapse instantly, then spring the modules back in.
                 revealAnimated = false
                 revealed = false
+                contentRevealed = false
                 await Task.yield()
                 revealAnimated = true
                 revealed = true
+                contentRevealed = true
                 almanacReplay += 1
             }
             .tint(.clear)
@@ -133,7 +141,16 @@ struct HomeView: View {
         // briefing satisfies this immediately.
         .tabReady(briefing.hasLoaded)
         // Springs in when Today first appears and each time it's returned to.
-        .onAppear { revealed = true }
+        .onAppear {
+            revealed = true
+            // A cache hit can already have content by the time this runs.
+            if briefing.payload != nil { contentRevealed = true }
+        }
+        // Cascade the briefing the moment it lands, whether that is from the disk
+        // cache or the network.
+        .onChange(of: briefing.payload == nil) { _, isEmpty in
+            if !isEmpty { contentRevealed = true }
+        }
         // A name edit in the profile writes Interests.displayName synchronously;
         // pick it up when the genie closes so the greeting stays in sync.
         .onChange(of: profileShown) { _, shown in
@@ -193,7 +210,7 @@ struct HomeView: View {
                 )
                 .padding(.horizontal, 18)
                 .padding(.top, 22)
-                .springReveal(1, revealed: revealed, animated: revealAnimated)
+                .springReveal(1, revealed: contentRevealed, animated: revealAnimated)
             } else if showsSkeletons {
                 HappeningSoonSkeleton()
                     .padding(.horizontal, 18)
@@ -227,7 +244,7 @@ struct HomeView: View {
                 )
                 .padding(.horizontal, 18)
                 .padding(.top, 22)
-                .springReveal(2, revealed: revealed, animated: revealAnimated)
+                .springReveal(2, revealed: contentRevealed, animated: revealAnimated)
             } else if showsSkeletons {
                 DailyTouchSkeleton()
                     .padding(.horizontal, 18)
@@ -239,7 +256,7 @@ struct HomeView: View {
                 SpotlightCard(spotlight: spotlight)
                     .padding(.horizontal, 18)
                     .padding(.top, 22)
-                    .springReveal(3, revealed: revealed, animated: revealAnimated)
+                    .springReveal(3, revealed: contentRevealed, animated: revealAnimated)
             } else if showsSkeletons {
                 SpotlightSkeleton()
                     .padding(.horizontal, 18)
@@ -255,7 +272,7 @@ struct HomeView: View {
                 )
                 .padding(.horizontal, 18)
                 .padding(.top, 34)
-                .springReveal(4, revealed: revealed, animated: revealAnimated)
+                .springReveal(4, revealed: contentRevealed, animated: revealAnimated)
                 .dwell(seconds: 1) {
                     analytics.recordOnce(
                         BriefingEventName.caughtUpReached,
