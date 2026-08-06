@@ -65,12 +65,25 @@ nonisolated enum BriefingDate {
     /// so the string is parsed against `Town.calendar`, never the device's.
     static func parse(_ briefingDate: String) -> Date? {
         let parts = briefingDate.split(separator: "-").compactMap { Int($0) }
-        guard parts.count == 3 else { return nil }
+        guard parts.count == 3,
+              (1...12).contains(parts[1]), (1...31).contains(parts[2]) else { return nil }
+
+        // A Gregorian calendar explicitly, NOT `Town.calendar` — that is
+        // `Calendar.current` with only the timezone replaced, so it keeps the
+        // user's calendar IDENTIFIER. Feeding a Gregorian "YYYY-MM-DD" to a
+        // Buddhist or Japanese calendar yields a date centuries off, or nil.
+        // `DateHelpers.localDate` and `BriefingModel.townToday` both pin Gregorian
+        // for the same reason.
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = Town.timeZone
         var components = DateComponents()
         components.year = parts[0]
         components.month = parts[1]
         components.day = parts[2]
         components.hour = 12          // midday, so no DST edge can roll the date
-        return Town.calendar.date(from: components)
+        // Strict, so "2026-13-45" fails instead of rolling into the next year.
+        return cal.date(from: components).flatMap {
+            cal.component(.day, from: $0) == parts[2] ? $0 : nil
+        }
     }
 }

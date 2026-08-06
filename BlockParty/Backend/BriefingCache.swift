@@ -48,6 +48,22 @@ enum BriefingCache {
         }
     }
 
+    /// Persists a payload the app has changed locally — a cast vote, a new RSVP.
+    ///
+    /// Without this the cache only ever held the last SERVER response, so a vote
+    /// disappeared the moment the model was rebuilt (a tab switch destroys it —
+    /// RootView puts `.id(tab)` on the tab content). The poll would render
+    /// unvoted, and a second vote would be silently discarded server-side by
+    /// `resolution=ignore-duplicates`, leaving the UI showing a vote that never
+    /// landed.
+    static func save(payload: BriefingPayload) {
+        do {
+            save(try SupabaseCoding.encoder.encode(payload))
+        } catch {
+            Log.network("briefing cache encode failed: \(error.localizedDescription)")
+        }
+    }
+
     static func clear() {
         guard let url = fileURL else { return }
         try? FileManager.default.removeItem(at: url)

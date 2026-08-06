@@ -94,6 +94,7 @@ final class AuthStore: ObservableObject, TokenProviding {
         session = nil
         Keychain.clear()
         Interests.clearMirror()   // don't let the next account inherit this user's name/interests/onboarded
+        BriefingCache.clear()     // same reason: the cached briefing holds this user's almanac line, poll vote and RSVPs
         if let token {
             _ = try? await SupabaseHTTP.auth("logout", bearer: token)
         }

@@ -32,7 +32,7 @@ struct SpotlightCard: View {
                 Text("AROUND TOWN")
                     .font(.sansSemibold(11))
                     .tracking(1)
-                    .foregroundStyle(Hue.ink.opacity(0.35))
+                    .foregroundStyle(Hue.inkSecondary)
 
                 Text(spotlight.title)
                     .font(.displaySemi(22))

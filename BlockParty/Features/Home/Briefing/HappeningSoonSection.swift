@@ -58,7 +58,7 @@ struct HappeningSoonSection: View {
             Text("HAPPENING SOON")
                 .font(.sansSemibold(11))
                 .tracking(1)
-                .foregroundStyle(Hue.ink.opacity(0.35))
+                .foregroundStyle(Hue.inkSecondary)
                 .accessibilityAddTraits(.isHeader)
 
             content()
@@ -82,15 +82,10 @@ struct HappeningSoonSection: View {
                 .monospacedDigit()
                 .fixedSize(horizontal: false, vertical: true)
 
-            HStack(spacing: 6) {
-                Text("See Activities")
-                    .font(.sansSemibold(13))
-                Image(systemName: "arrow.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .accessibilityHidden(true)
-            }
-            .foregroundStyle(Hue.ink)
-            .padding(.top, 2)
+            // TODO(jesse): render `fallback.deeplink` as a real control once Today
+            // can switch tabs. Until then there is deliberately NO call to action
+            // here — a row styled like a button that does nothing reads as a broken
+            // screen, which is worse than the copy standing on its own.
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
@@ -122,6 +117,8 @@ private struct HappeningSoonEventCard: View {
                 .accessibilityHint("Opens event details")
             } else {
                 primaryContent
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(openAccessibilityLabel)
             }
 
             actionRow

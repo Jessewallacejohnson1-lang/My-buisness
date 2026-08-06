@@ -20,7 +20,7 @@ import Foundation
 
 // MARK: - Root
 
-nonisolated struct BriefingPayload: Decodable, Equatable {
+nonisolated struct BriefingPayload: Codable, Equatable {
     let briefingDate: String        // "YYYY-MM-DD", town-anchored. Never a Date.
     let tz: String
     let status: BriefingStatus
@@ -36,7 +36,7 @@ nonisolated struct BriefingPayload: Decodable, Equatable {
 
 /// `none` means the routine has not published a briefing for this date. Unknown
 /// values from a newer server decode to `.none` rather than failing the payload.
-nonisolated enum BriefingStatus: String, Decodable {
+nonisolated enum BriefingStatus: String, Codable {
     case published
     case none
 
@@ -48,7 +48,7 @@ nonisolated enum BriefingStatus: String, Decodable {
 
 // MARK: - Modules
 
-nonisolated struct BriefingAlmanac: Decodable, Equatable {
+nonisolated struct BriefingAlmanac: Codable, Equatable {
     /// The caller's personalized line from `almanac_daily`. Nil on a cache miss,
     /// in which case the client falls back to the `daily-almanac` edge function
     /// exactly as it does today.
@@ -63,7 +63,7 @@ nonisolated struct BriefingAlmanac: Decodable, Equatable {
     var isPersonal: Bool { line != nil }
 }
 
-nonisolated struct BriefingWeather: Decodable, Equatable {
+nonisolated struct BriefingWeather: Codable, Equatable {
     let condition: String?
     let tempF: Double?
     let feelsLikeF: Double?
@@ -74,7 +74,7 @@ nonisolated struct BriefingWeather: Decodable, Equatable {
     let observedAt: Date?
 }
 
-nonisolated struct BriefingEvent: Decodable, Equatable, Identifiable {
+nonisolated struct BriefingEvent: Codable, Equatable, Identifiable {
     let rank: Int
     let id: String
     let title: String
@@ -98,15 +98,15 @@ nonisolated struct BriefingEvent: Decodable, Equatable, Identifiable {
     var imageURL: URL? { imageUrl.flatMap(URL.init(string:)) }
 }
 
-nonisolated struct BriefingFallback: Decodable, Equatable {
+nonisolated struct BriefingFallback: Codable, Equatable {
     let kind: String
     let title: String?
     let body: String
     let deeplink: String?
 }
 
-nonisolated struct BriefingTouch: Decodable, Equatable, Identifiable {
-    nonisolated enum Kind: String, Decodable {
+nonisolated struct BriefingTouch: Codable, Equatable, Identifiable {
+    nonisolated enum Kind: String, Codable {
         case poll
         case history
 
@@ -142,7 +142,7 @@ nonisolated struct BriefingTouch: Decodable, Equatable, Identifiable {
     }
 }
 
-nonisolated struct BriefingSpotlight: Decodable, Equatable, Identifiable {
+nonisolated struct BriefingSpotlight: Codable, Equatable, Identifiable {
     let id: String
     let slug: String
     let title: String
@@ -153,7 +153,7 @@ nonisolated struct BriefingSpotlight: Decodable, Equatable, Identifiable {
     var imageURL: URL? { imageUrl.flatMap(URL.init(string:)) }
 }
 
-nonisolated struct BriefingCaughtUp: Decodable, Equatable {
+nonisolated struct BriefingCaughtUp: Codable, Equatable {
     let nextBriefingAt: Date
     let label: String
 }

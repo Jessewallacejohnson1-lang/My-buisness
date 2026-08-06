@@ -61,11 +61,15 @@ struct CaughtUpFooter: View {
     }
 
     private func markReached() {
-        guard !reduceMotion, CaughtUpMemory.shouldCelebrate(briefingDate) else { return }
+        guard CaughtUpMemory.shouldCelebrate(briefingDate) else { return }
         CaughtUpMemory.remember(briefingDate)
+        // A haptic is not motion. Reduce Motion drops the draw-on, but the
+        // acknowledgement — and the once-per-day stamp — still happen, so
+        // turning the setting off later the same day does not re-arm it.
+        Haptics.success()
+        guard !reduceMotion else { return }
         stroke = 0
         withAnimation(.easeOut(duration: 0.4)) { stroke = 1 }
-        Haptics.success()
     }
 }
 

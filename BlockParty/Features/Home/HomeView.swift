@@ -198,6 +198,15 @@ struct HomeView: View {
                 HappeningSoonSkeleton()
                     .padding(.horizontal, 18)
                     .padding(.top, 22)
+            } else if briefing.loadFailed {
+                // A cold start with no connection used to render the header, the
+                // almanac, the utility row, and then nothing at all — no message,
+                // no retry. Silence reads as a broken app.
+                BriefingUnavailableCard {
+                    Task { await briefing.refresh(briefingAPI) }
+                }
+                .padding(.horizontal, 18)
+                .padding(.top, 22)
             }
 
         case .dailyTouch:

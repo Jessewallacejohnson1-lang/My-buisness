@@ -48,7 +48,11 @@ final class BriefingModel: ObservableObject {
             payload = cached
             hasLoaded = true
         }
-        guard needsRefresh else { hasLoaded = true; return }
+        // Always reconcile with the server after showing the cache. A date-only
+        // guard here meant a cached payload for TODAY was never refreshed, so a
+        // vote or RSVP cast in a previous model instance stayed invisible for the
+        // rest of the day. The cache is for instant render, not for skipping the
+        // truth.
         await refresh(api)
     }
 
@@ -92,15 +96,19 @@ final class BriefingModel: ObservableObject {
     @discardableResult
     func vote(_ api: BriefingAPI, optionIndex: Int) async -> Bool {
         guard let current = payload, let touch = current.touch, !touch.hasVoted else { return false }
-        let previous = current
         payload = current.applying(touch: touch.applyingVote(optionIndex))
 
         do {
             try await api.vote(touchId: touch.id, optionIndex: optionIndex)
+            if let payload { BriefingCache.save(payload: payload) }
             return true
         } catch {
             Log.network("touch vote failed: \(error.localizedDescription)")
-            payload = previous
+            // Restore just the touch, from whatever the payload is NOW — a
+            // whole-snapshot restore would revert anything else that landed
+            // during the await.
+            payload = payload?.applying(touch: touch)
+            Haptics.error()
             return false
         }
     }
@@ -111,7 +119,6 @@ final class BriefingModel: ObservableObject {
     @discardableResult
     func setRsvp(_ api: CommunityAPI, event: BriefingEvent, going: Bool) async -> Bool {
         guard let current = payload else { return false }
-        let previous = current
         payload = current.applyingRsvp(eventID: event.id, going: going)
 
         do {
@@ -120,10 +127,12 @@ final class BriefingModel: ObservableObject {
             } else {
                 try await api.unRsvpEvent(event.id)
             }
+            if let payload { BriefingCache.save(payload: payload) }
             return true
         } catch {
             Log.network("briefing rsvp failed: \(error.localizedDescription)")
-            payload = previous
+            payload = payload?.applyingRsvp(eventID: event.id, going: !going)
+            Haptics.error()
             return false
         }
     }
@@ -158,9 +167,13 @@ nonisolated extension BriefingTouch {
     /// A copy with the caller's vote applied. Never mutates — the optimistic
     /// update replaces the value rather than editing it in place.
     func applyingVote(_ index: Int) -> BriefingTouch {
-        guard !hasVoted, choices.indices.contains(index) else { return self }
+        // Also requires voteCounts to cover the index: a short array (contract
+        // violation, or a cache from an older shape) would otherwise leave the
+        // chosen row reading "0%, 0 votes, your choice" while the others shrank.
+        guard !hasVoted, choices.indices.contains(index),
+              voteCounts.indices.contains(index) else { return self }
         var counts = voteCounts
-        if counts.indices.contains(index) { counts[index] += 1 }
+        counts[index] += 1
         return BriefingTouch(
             id: id, kind: kind, prompt: prompt, options: options, body: body,
             voteCounts: counts, totalVotes: totalVotes + 1, myVote: index

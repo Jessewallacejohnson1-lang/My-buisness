@@ -30,7 +30,6 @@ struct DailyTouchCard: View {
         .blockPartyCard(padding: 18)
         .onChange(of: touch.hasVoted) { wasVoted, isVoted in
             guard !wasVoted, isVoted else { return }
-            justVoted = true
             // The tap already fired `.light`. This is the results settling, so it
             // lands after the fill has swept — one beat, not two at once.
             let settle = reduceMotion ? 0 : Self.fillDuration
@@ -74,6 +73,11 @@ struct DailyTouchCard: View {
         } else if let onVote {
             Button {
                 Haptics.light()
+                // Set HERE, not from the parent's `.onChange(of: touch.hasVoted)`.
+                // That fires in the same update pass that inserts the result row,
+                // and SwiftUI guarantees no ordering between a parent onChange and
+                // a new child's onAppear — so the sweep could silently not play.
+                justVoted = true
                 onVote(index)
             } label: {
                 unvotedRow(option)
@@ -139,7 +143,11 @@ private struct BriefingPollResultRow: View {
 
     /// Drives BOTH the bar width and the percentage, so the number counts up in
     /// lockstep with the fill instead of racing it.
-    @State private var progress: Double = 0
+    /// Starts SETTLED. Visibility is never gated on an animation, so a render
+    /// path that does not run `onAppear` — ImageRenderer, which ShareCenter uses,
+    /// and the first frame generally — still shows the real bar and the real
+    /// number rather than an empty bar reading 0%.
+    @State private var progress: Double = 1
     @State private var pop: CGFloat = 1
 
     var body: some View {
@@ -189,10 +197,8 @@ private struct BriefingPollResultRow: View {
         .accessibilityLabel(accessibilityLabel)
         .accessibilityAddTraits(isMyChoice ? .isSelected : [])
         .onAppear {
-            // Rest state FIRST, unconditionally. Visibility is never gated on an
-            // animation — a headless render, or Reduce Motion, must still show the
-            // finished bar and the real number.
-            guard animatesIn else { progress = 1; return }
+            guard animatesIn else { return }
+            // Rewind only when the sweep is actually going to play.
             progress = 0
             withAnimation(.easeOut(duration: DailyTouchCard.fillDuration)) { progress = 1 }
             guard isMyChoice else { return }
