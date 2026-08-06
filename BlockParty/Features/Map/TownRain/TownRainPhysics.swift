@@ -3,9 +3,10 @@
 //  Block Party — the pure, testable model behind the town-rain drop.
 //
 //  Pressing "Saint Joseph" (the town pill) or the recenter control flies the camera
-//  home; while it flies, ONE real local brand mark drops into the screen and bounces
-//  around it — off the side walls and off the map sheet's live top edge, wherever the
-//  user has dragged the sheet to — until it runs out of bounce, settles, and fades.
+//  home; while it flies, a handful of real local brand marks drop into the screen and
+//  bounce around it — off the side walls and off the map sheet's live top edge,
+//  wherever the user has dragged the sheet to — until each runs out of bounce, settles,
+//  and fades.
 //
 //  The MOTION constants were measured off the reference recording rather than chosen:
 //  each sprite was tracked at 60 fps and its flight fitted with least squares
@@ -20,7 +21,8 @@
 //  many at once, always drifted left, never touched a wall and left the screen rather
 //  than settling — so it has nothing to say about any of the following, and each one
 //  carries its own note explaining the call:
-//    • `burstCount` — one mark per press, not a rain.
+//    • `burstCount` — 5 per press, not an open-ended rain (the reference's density,
+//      but a burst with an end).
 //    • `floorInset` — this app's contact surface is its own map sheet.
 //    • `spawnXRange` — entry spread across the middle, not biased to one side.
 //    • the DIRECTION of `driftSpeedRange` (the magnitude is measured).
@@ -84,11 +86,13 @@ enum TownRainPhysics {
     /// Steady-state spawn spacing in the reference: 0.200, 0.200, 0.217, 0.217 s.
     static let spawnInterval: CGFloat = 0.21
 
-    /// Balls per press — ONE. The reference rained many at once, but here each press of
-    /// the town pill drops a single mark that then has the whole screen to bounce
-    /// around in, so the press and the object stay one-to-one. Tapping again replaces
-    /// the ball in flight rather than stacking a second one.
-    static let burstCount = 1
+    /// Marks per press. Five is the reference's own measured density — it had 5–7
+    /// airborne at once — and they arrive at the measured `spawnInterval` stagger
+    /// rather than all together, so the screen fills over about a second instead of
+    /// flashing full. Enough to feel alive; few enough that a closed field where marks
+    /// settle rather than exit does not end up with a row of them piled on the sheet.
+    /// Pressing again replaces the whole burst rather than stacking a second one on top.
+    static let burstCount = 5
 
     /// Speed of the sideways drift. The MAGNITUDE is the reference's (fitted vx was
     /// 207…297 pt/s across all ten tracks) but the DIRECTION is not: every reference

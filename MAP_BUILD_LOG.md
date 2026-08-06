@@ -1542,8 +1542,10 @@ device.
 Feedback after the first pass: more free flow, land on the sheet instead of behind it, a
 press acknowledgement, and one ball at a time. All four:
 
-- **One mark per press** (`burstCount` 14 → 1). Press and object are one-to-one; pressing
-  again replaces the ball in flight rather than stacking another.
+- **A short burst per press** (`burstCount` 14 → 1 → **5**). One was too sparse on the
+  device; 5 is the reference's own measured density (5–7 airborne), arriving at the
+  measured 0.21 s stagger so the screen fills over about a second instead of flashing
+  full. Pressing again replaces the whole burst rather than stacking another on top.
 - **The field is closed.** Side walls at `wallRestitution` 0.62, so the ball returns across
   the screen instead of exiting. It settles once a floor contact falls under `restSpeed`,
   rolls to a stop under `rollingDrag`, and fades over `fadeDuration` — with walls there is
@@ -1570,3 +1572,8 @@ Verified on the simulator: the ball traverses the full width, bounces off both w
 sheet, settles and fades in ~3.5 s; the bubble blooms at the press and is gone in ~0.45 s.
 146 tests green (up from 99 — the wall, settle, fade, floor-tracking and drift-direction
 rules all carry tests), 0 warnings.
+
+Follow-up after device testing: `burstCount` 1 → 5. One mark read as too sparse in the hand;
+five is the density the reference actually had. Nothing else changed — the closed field, the
+sheet-tracking floor, the settle/fade and the bubble all carry over, and the 0.21 s stagger
+that was vestigial at a burst of one is load-bearing again. 147 tests, 0 warnings.

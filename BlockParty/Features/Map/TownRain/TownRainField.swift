@@ -3,14 +3,14 @@
 //  Block Party — the town-rain overlay: real local brand marks drop past the map.
 //
 //  Pressing the "Saint Joseph" town pill (or the recenter control — both call
-//  `flyHome()`) drops ONE of the town's own business logos into the screen. It falls
-//  under the measured gravity and bounces around the field — off the side walls, and
-//  off the map sheet's live top edge — until it settles and fades.
+//  `flyHome()`) drops a handful of the town's own business logos into the screen. They
+//  fall under the measured gravity and bounce around the field — off the side walls,
+//  and off the map sheet's live top edge — until each settles and fades.
 //  `TownRainPhysics` owns every number and every rule; this file is only the display
 //  link and the drawing.
 //
 //  WHY A CANVAS: the field re-renders every frame at up to 120 Hz. One `Canvas` is one
-//  draw pass, and it stays one draw pass if the burst ever grows past a single ball.
+//  draw pass however many marks are in the air; N SwiftUI views would each re-layout.
 //  The driver is held here as `@StateObject` for the same
 //  reason `MapCompass` holds its heading as `@State` — the per-frame publish must not
 //  escape into `SJMapView`'s body, or the map re-renders at 120 Hz with it.

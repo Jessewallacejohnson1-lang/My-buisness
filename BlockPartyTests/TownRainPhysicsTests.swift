@@ -86,10 +86,9 @@ final class TownRainPhysicsTests: XCTestCase {
         XCTAssertTrue(TownRainPhysics.bounceSpinRange.contains(720),
                       "post-bounce tumble must be able to reach the measured ~720°/s")
 
-        // NOT a measurement — a product decision being pinned. The reference rained
-        // many marks; here one press drops one mark, which then has the whole field to
-        // bounce around in.
-        XCTAssertEqual(TownRainPhysics.burstCount, 1)
+        // The COUNT is a product decision being pinned, but the density behind it is
+        // the reference's: 5–7 airborne at once.
+        XCTAssertEqual(TownRainPhysics.burstCount, 5)
     }
 
     // MARK: Free fall — the measured gravity
@@ -409,7 +408,7 @@ final class TownRainPhysicsTests: XCTestCase {
 
     // MARK: The emitter — cadence and determinism
 
-    func testOnePressDropsExactlyOneBall() {
+    func testOnePressDropsExactlyTheBurstAtTheMeasuredStagger() {
         // Arrange
         var emitter = TownRainEmitter(seed: 7, logoCount: 50,
                                       bounds: CGSize(width: 402, height: 874))
@@ -425,10 +424,32 @@ final class TownRainPhysicsTests: XCTestCase {
         }
 
         // Assert
-        XCTAssertEqual(spawnTimes.count, 1, "a press must not stack a second ball")
+        XCTAssertEqual(spawnTimes.count, TownRainPhysics.burstCount,
+                       "a press must drop exactly the burst, and never re-arm")
         XCTAssertEqual(spawnTimes.first ?? -1, 0, accuracy: 0.02,
-                       "the ball must appear on the press, not a beat later")
-        XCTAssertLessThanOrEqual(emitter.balls.count, 1, "only one ball at a time")
+                       "the first mark must appear on the press, not a beat later")
+        for (a, b) in zip(spawnTimes, spawnTimes.dropFirst()) {
+            XCTAssertEqual(b - a, TownRainPhysics.spawnInterval, accuracy: 0.02,
+                           "the stagger must hold the reference's 0.21 s cadence")
+        }
+    }
+
+    func testTheWholeBurstIsAirborneTogether() {
+        // Arrange — the point of a burst is that they share the screen. If the stagger
+        // outran the ball lifetime they would arrive one at a time in a queue.
+        var emitter = TownRainEmitter(seed: 9, logoCount: 50,
+                                      bounds: CGSize(width: 402, height: 874))
+
+        // Act
+        var peak = 0
+        for _ in 0..<1800 {
+            emitter = emitter.advanced(by: fineStep, floorY: 712)
+            peak = max(peak, emitter.balls.count)
+        }
+
+        // Assert
+        XCTAssertEqual(peak, TownRainPhysics.burstCount,
+                       "all \(TownRainPhysics.burstCount) marks must be on screen at once")
     }
 
     func testEmitterIsDeterministicForAGivenSeed() {
