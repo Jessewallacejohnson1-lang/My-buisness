@@ -63,14 +63,18 @@ Untested. Run the Animation Hitches template while scrolling Today top to bottom
 > New in this build: the briefing loads in one request and is saved to your phone,
 > so it opens instantly and still works with no signal.
 >
-> This build records which parts of the briefing get used (opens, votes, RSVPs) to
-> our own database. No third-party analytics, nothing leaves our server, and
-> nobody can see anyone else's activity.
+> Block Party tailors itself to you. Your daily line is written from your own
+> RSVPs and the last week you've had, and what gets recommended — places, events —
+> follows what you've saved, joined and shown interest in. This build also records
+> which parts of the briefing get used, so we can tell what's worth keeping.
+>
+> All of it stays with us: our own database, no third-party analytics, nothing sold
+> or shared, and nobody can see anyone else's activity.
 
-That last paragraph matters: `app_events` is the first per-user tracking in the
-app, and `Log.swift` states the opposite as the app's position. Disclosing it in
-the tester notes is the minimum; a line in a privacy policy is the real fix before
-public release.
+Say it plainly rather than implying the app collects nothing — personalization IS
+the product here, and understating it reads worse than owning it. `Log.swift`
+carries the full inventory of what is used and why; a privacy policy saying the
+same thing is the real fix before public release.
 
 ---
 
