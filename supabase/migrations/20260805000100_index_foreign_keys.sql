@@ -1,8 +1,15 @@
 -- ============================================================================
 -- Cover the unindexed foreign keys
 -- ============================================================================
--- NOT YET APPLIED — safe to run whenever; committed unapplied only so it lands
--- with the migration above rather than out of band.
+-- APPLIED to production (lxdgwhvqjqmqliobwjpi) on 2026-08-05. All ten indexes
+-- confirmed present afterwards, and all ten 0001_unindexed_foreign_keys lints
+-- cleared.
+--
+-- The linter now reports these same indexes under 0005_unused_index. That is
+-- expected and not a reason to drop them: a freshly built index has no usage
+-- statistics until queries actually hit it. Re-check after the app has run for
+-- a while — if `event_rsvps_user_id_idx` and friends are still unused once
+-- there is real traffic, that is a genuine signal.
 --
 -- Flagged by the Supabase performance linter (0001_unindexed_foreign_keys): ten
 -- FK constraints have no covering index. Two costs, both of which bite later

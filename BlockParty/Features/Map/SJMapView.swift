@@ -353,6 +353,16 @@ struct SJMapView: View {
         return nil
     }
 
+    #if DEBUG
+    /// DEBUG-only: `-town-rain` fires one town-rain burst once the POIs land, so the
+    /// drop can be screen-recorded headlessly — there is no tap automation in this
+    /// setup, and the press that normally starts it is a real touch on the town pill.
+    static let debugTownRain = ProcessInfo.processInfo.arguments.contains("-town-rain")
+
+    /// Long enough for the logo prefetch to have filled the cache after `pois` land.
+    private static let debugRainDelay: TimeInterval = 1.2
+    #endif
+
     /// DEBUG-only: `-map-save <spotid>` (repeatable) forces a spot into the Saved
     /// state, and `-map-force-live <spotid>` (repeatable) forces it Live, so those
     /// pin states render headlessly without a real save / live event. No effect in
@@ -384,6 +394,10 @@ struct SJMapView: View {
     /// medium), published by `MapSheet` via `SheetExpansionKey`. Drives the fade-out of
     /// the floating ?/locate controls so they never collide with the rising sheet.
     @State private var sheetExpansion: CGFloat = 0
+
+    /// Bumped by `flyHome()`; every change drops one burst of town-rain. An Int rather
+    /// than a Bool so back-to-back presses each start a fresh burst.
+    @State private var rainTrigger = 0
     /// The map view's own size, measured in the view layer (the SDK's `MapboxMap.size` is
     /// internal). Feeds the label pass's floating-chrome reservation. Not `private`: the
     /// clustering extension reads it.
@@ -466,6 +480,12 @@ struct SJMapView: View {
             mapBottomFade
             topChrome
             floatingControls
+            // Pressing "Saint Joseph" (or recenter) rains the town's own brand marks
+            // past the chrome. Sits UNDER the sheet on purpose: the balls' floor is
+            // the sheet's peek edge, so at peek they bounce on its visible top, and a
+            // raised sheet simply hides them instead of letting them bounce over its
+            // content. Non-interactive, so it never intercepts a map gesture.
+            TownRainField(trigger: rainTrigger, pois: model.pois)
             if mapDetail == nil {
                 MapSheet(
                     events: model.todayEvents,
@@ -743,6 +763,14 @@ struct SJMapView: View {
                 // Kick the autozoom demo only ONCE the POIs exist (they load a few seconds
                 // after launch) — otherwise the merge sweep would run over an empty map.
                 if !pois.isEmpty { startAutozoomIfNeeded() }
+                // `-town-rain`: fire one burst as soon as there is something to rain, so
+                // the drop can be recorded headlessly (there is no tap automation here).
+                // Pair with `-poi-logo-stub` for marks that resolve without the network.
+                if SJMapView.debugTownRain, rainTrigger == 0, !pois.isEmpty {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + Self.debugRainDelay) {
+                        rainTrigger += 1
+                    }
+                }
                 #endif
             }
             .ignoresSafeArea(edges: .bottom)
@@ -983,6 +1011,7 @@ struct SJMapView: View {
     /// the home fly wins. Shared by the tappable town pill and the recenter control.
     private func flyHome() {
         Haptics.light()
+        rainTrigger += 1        // the town's brand marks drop while the camera flies
         liftedCoord = nil
         closeCard()
         let home = { viewport = .camera(center: MapSpots.center, zoom: 13.5) }

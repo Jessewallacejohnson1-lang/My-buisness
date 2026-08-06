@@ -1,9 +1,30 @@
 -- ============================================================================
 -- Close anonymous read access to the social graph + pin is_admin()'s search_path
 -- ============================================================================
--- NOT YET APPLIED — review, then run in the Supabase SQL editor or via
--- `supabase db push`. This changes live authorization on a project with real
--- users, so it is deliberately committed unapplied.
+-- APPLIED to production (lxdgwhvqjqmqliobwjpi) on 2026-08-05. Verified after:
+--
+--   anon, via the REST API with the shipped anon key:
+--     event_rsvps        -> []        (was: rows with user_id + event_id)
+--     club_members       -> []
+--     quest_completions  -> []
+--   authenticated role, same tables:
+--     event_rsvps 2 rows, club_events 14 rows   (unchanged — counts intact)
+--   deliberately-public tables, still anon-readable:
+--     club_events, places, board_items  (unchanged — no collateral damage)
+--   policy count 48 before and after; is_admin now reports search_path=""
+--   Supabase linter 0011_function_search_path_mutable: cleared
+--
+-- Applied with execute_sql rather than the migration tool on purpose: this
+-- project's ledger (supabase_migrations.schema_migrations) holds nine versions
+-- that do not correspond to any file in this directory, so the ledger and these
+-- files are already two separate records. Adding to the ledger would not
+-- reconcile them and could make a future `db push` re-run the seed migrations.
+--
+-- STILL TO SMOKE-TEST BY HAND: sign in as the admin account and confirm the map
+-- "+" button and club/event moderation still appear. is_admin()'s body is
+-- unchanged and auth.jwt() is schema-qualified, so this should be a no-op — but
+-- it is the admin gate, so confirm rather than assume. Rollback if not: the same
+-- function without the `set search_path` line.
 --
 -- ── 1. Anonymous social-graph read ──────────────────────────────────────────
 -- `event_rsvps`, `club_members` and `quest_completions` each carry a policy of
