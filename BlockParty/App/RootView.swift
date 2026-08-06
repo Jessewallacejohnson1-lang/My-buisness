@@ -86,6 +86,17 @@ struct RootView: View {
                 // Preview the static feed-card states full-screen (bypassing the auth
                 // gate) so the component can be verified headlessly.
                 FeedCardGallery()
+            } else if ProcessInfo.processInfo.arguments.contains("-briefing-preview") {
+                // Mount the real Today briefing composition (bypassing the auth
+                // gate) with BriefingModel seeded from a canned payload and no
+                // network, so module order, spacing and every payload state can be
+                // screenshotted. Pair with `-briefing-state <name>`.
+                BriefingHomePreview()
+            } else if ProcessInfo.processInfo.arguments.contains("-briefing-gallery") {
+                // Preview every Today-briefing module state full-screen (bypassing the
+                // auth gate): 3/1/0 featured events, poll unvoted and voted, the
+                // history touch, the spotlight, and the caught-up footer.
+                BriefingGallery()
             } else if ProcessInfo.processInfo.arguments.contains("-town-rain-preview") {
                 // Preview the map's town-rain drop full-screen (bypassing the auth
                 // gate) so its physics can be recorded and measured headlessly — the

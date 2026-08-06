@@ -125,9 +125,20 @@ struct SkeletonGalleryPreview: View {
                     .padding(.horizontal, 18)
                 ActivitiesSkeleton()
 
-                Text("Today card").font(.displaySemi(16)).foregroundStyle(Hue.inkSecondary)
+                // The briefing's cold-start placeholders. `TodayLoadingCard` stood
+                // here until the Today tab became a briefing; it mirrored the old
+                // feed's "Today + count + event rows", which no longer exists.
+                Text("Happening Soon").font(.displaySemi(16)).foregroundStyle(Hue.inkSecondary)
                     .padding(.horizontal, 18)
-                TodayLoadingCard().padding(.horizontal, 18)
+                HappeningSoonSkeleton().padding(.horizontal, 18)
+
+                Text("Daily touch").font(.displaySemi(16)).foregroundStyle(Hue.inkSecondary)
+                    .padding(.horizontal, 18)
+                DailyTouchSkeleton().padding(.horizontal, 18)
+
+                Text("Spotlight").font(.displaySemi(16)).foregroundStyle(Hue.inkSecondary)
+                    .padding(.horizontal, 18)
+                SpotlightSkeleton().padding(.horizontal, 18)
             }
             .padding(.vertical, 24)
         }

@@ -1,0 +1,21 @@
+{
+  "briefing_date": "2026-08-05",
+  "tz": "America/Chicago",
+  "status": "published",
+  "published_at": "2026-08-05T06:00:00-05:00",
+  "almanac": null,
+  "weather": null,
+  "featured": [],
+  "featured_fallback": {
+    "kind": "evergreen",
+    "title": "The Lake Wobegon Trail is open",
+    "body": "Sixty-two paved miles, and the trailhead is four blocks from here.",
+    "deeplink": "activities"
+  },
+  "touch": null,
+  "spotlight": null,
+  "caught_up": {
+    "next_briefing_at": "2026-08-06T06:00:00-05:00",
+    "label": "New briefing at 6 AM"
+  }
+}
