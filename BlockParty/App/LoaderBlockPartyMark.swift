@@ -8,12 +8,24 @@
 //  "almost the icon", which is worse than either being it or not. So the loader
 //  shows `LaunchMark`, which is `AppIcon.png` with its outer margin cropped off.
 //
-//  The icon art (Aug 2026 rebrand, refined Aug 8) is the script "BP" monogram alone, in
-//  ONE accent hue — coral-orange `#FA5A34` on an `ink` tile. It is now generated from
-//  vector (`docs/brand/block-party-mark.svg`) rather than a 3-D render: the confetti, the
-//  gloss, the purple, the party hat and the baked edge sheen are all gone, which is what
-//  lets the mark survive at 40 pt. The hat is still implemented and one flag away — see
-//  `HAT` in `scripts/brand/export.py`.
+//  The icon art (Aug 2026 rebrand, Aug 8 revision) is the script "BP" monogram alone —
+//  the glossy 3-D render, coral on a near-black tile, shipped 1:1 from
+//  `docs/brand/source-render-1254.png`. Jesse's call: the icon must match that artwork
+//  exactly, gloss and bevel included, so it is NOT redrawn or flattened.
+//
+//  `scripts/brand/exact.swift` produces all three assets from that render. It crops to
+//  the tile FACE (the largest centred square inside the tile, measured by
+//  `tile.swift`) and scales to 1024, because an iOS icon must be full-bleed. Do not
+//  ship the source frame directly: it has the black surround and its own rounded
+//  corners baked in. Verify any re-export with `scripts/brand/masksim.swift`, which
+//  applies Apple's 0.2237 corner mask over a light ground — that is where a dark
+//  double-corner or a sliced bezel shows up. As measured, iOS's mask radius is WIDER
+//  than the render's baked rounding, so it cuts safely inside it.
+//
+//  A flat-vector version of the same monogram (traced from this render, plus an
+//  optional party hat) lives at `docs/brand/block-party-mark.svg` and
+//  `scripts/brand/export.py`. It is sharper at 40 pt but is NOT what ships — keep it
+//  in sync if the mark changes, or delete it, but don't confuse the two.
 //
 //  `LaunchMark` is the same art inset by 72/1024 on every side. That inset originally
 //  existed to crop off the old render's edge sheen and baked corner rounding; the flat
@@ -39,15 +51,14 @@ struct BlockPartyMark: View {
     private static let cornerRatio: CGFloat = 0.2237
 
     /// Fraction of the asset's side spanned by the BP lockup — the script letters, the
-    /// part the eye actually sizes (780 px of 880), measured off `LaunchMark.png` itself.
-    /// Callers size the mark through this so the LOCKUP lands at a reference extent,
-    /// rather than the tile doing so.
+    /// part the eye actually sizes (758 px of 880), measured off `LaunchMark.png` itself
+    /// by `scripts/brand/exact.swift`. Callers size the mark through this so the LOCKUP
+    /// lands at a reference extent, rather than the tile doing so.
     ///
-    /// Was 0.8273 while the icon was the 3-D render. The refined mark drops the confetti,
-    /// so the lockup grows to fill the tile it used to share (0.71 -> 0.76 of the 1024
-    /// icon) and this number rises with it. Re-measure with `docs/brand/` whenever the
-    /// icon is re-exported — a stale value silently mis-sizes every loader mark.
-    static let contentFraction: CGFloat = 0.8864
+    /// History: 0.8273 (confetti render) -> 0.8864 (flat vector) -> 0.8614 (this exact
+    /// render). It moves on EVERY re-export, so re-measure and update it every time —
+    /// a stale value silently mis-sizes every loader mark rather than failing loudly.
+    static let contentFraction: CGFloat = 0.8614
 
     var body: some View {
         Image("LaunchMark")
