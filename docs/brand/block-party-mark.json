@@ -1,0 +1,19 @@
+{
+  "contentFraction": 0.8864,
+  "palette": {
+    "tile": "#111111",
+    "accent": "#FA5A34",
+    "hat_body": "#FAFAF7",
+    "hat_strip": "#FA5A34",
+    "pompom": "#FA5A34"
+  },
+  "layout": {
+    "letters_w": 781.0,
+    "stripe_frac": 0.62
+  },
+  "lockup_px_in_launchmark": [
+    780,
+    659
+  ],
+  "inset": 72
+}

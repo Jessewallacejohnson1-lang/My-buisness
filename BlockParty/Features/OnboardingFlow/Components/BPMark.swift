@@ -20,8 +20,9 @@
 //    shipped raster is RGB with no alpha, so it cannot be template-rendered directly.
 //
 //  Sizing follows the launch loader's convention: callers pass the LOCKUP side, not
-//  the tile side — `BlockPartyMark.contentFraction` (0.8273) converts between them.
-//  Sizing by the tile makes the mark read visually smaller than intended.
+//  the tile side — `BlockPartyMark.contentFraction` converts between them. Read that
+//  constant; never hardcode its value here, because it is re-measured on every icon
+//  re-export. Sizing by the tile makes the mark read visually smaller than intended.
 //
 
 import SwiftUI
