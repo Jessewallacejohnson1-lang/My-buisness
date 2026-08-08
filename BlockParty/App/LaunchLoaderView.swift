@@ -67,16 +67,16 @@ private enum Loader {
     /// Measured centre of the reference logo, not the screen centre — it sits a hair
     /// right of and below dead centre.
     static let markCenter = UnitPoint(x: 0.505, y: 0.492)  // frac of screen
-    /// Frac of screen WIDTH for the icon PLATE — sized so the INK inside it matches the
-    /// reference logo's extent.
+    /// Frac of screen WIDTH for the icon TILE — sized so the LOCKUP inside it matches
+    /// the reference logo's extent.
     ///
     /// The reference logo spans 0.252·W (127 px of 504, and the earlier measurement pass
-    /// recorded the same figure). What the eye compares is the ink FRAME, not the white
-    /// plate it sits on, so the box is derived from `inkFraction` rather than set directly:
-    /// the plate is scaled up so the ink inside it lands on 0.252·W (inkFraction 0.7511 ⇒
-    /// plate 0.3355·W). Setting the box directly is what put the ink at 0.225·W — an 11%
-    /// under-size no screenshot shows.
-    static let markSide: CGFloat = 0.252 / BlockPartyMark.inkFraction
+    /// recorded the same figure). What the eye compares is the BP lockup, not the tile
+    /// it sits on, so the box is derived from `contentFraction` rather than set directly:
+    /// the tile is scaled up so the lockup inside it lands on 0.252·W (contentFraction
+    /// 0.8273 ⇒ tile 0.305·W). Setting the box directly is what once put the mark at
+    /// 0.225·W — an 11% under-size no screenshot shows.
+    static let markSide: CGFloat = 0.252 / BlockPartyMark.contentFraction
     static let markScaleStart: Double = 0.61               // starts here, grows to 1
     static let markFullAt: Double = 0.48                   // full scale at 0.48 of the bloom
 

@@ -33,7 +33,7 @@ extension Color {
 /// Block Party palette. One namespace so call sites read `Hue.paper`, `Hue.ink`, etc.
 enum Hue {
     static let ink           = Color(hex: 0x111111)  // primary text, buttons, FABs, active states, pins
-    static let paper         = Color(hex: 0xFAFAF7)  // app background (warm white, matches the icon)
+    static let paper         = Color(hex: 0xFAFAF7)  // app background (warm white)
     static let surface       = Color(hex: 0xFFFFFF)  // cards
     static let inkSecondary  = Color(hex: 0x6E6E6E)  // secondary text, captions, inactive
     static let hairline      = Color(hex: 0xE7E7E4)  // borders, dividers

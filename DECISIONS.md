@@ -160,9 +160,11 @@ Several states are deliberately distinguished by value or weight alone:
   pins · primary CTAs** — and nowhere else. Chrome, body copy, cards, and
   category glyphs stay ink/paper; the accent is not decoration.
 
-  **The hue has not been chosen.** It must not be the retired coral `#FF6B57`.
-  The app icon is pure black-on-white, so the accent is additive to the brand
-  mark rather than derived from it.
+  **The hue has not been chosen.** The July rule was that it must not be the
+  retired coral `#FF6B57`; note that the Aug 2026 app icon (below) now carries a
+  coral-orange + purple lockup, so the accent *could* be derived from the brand
+  mark — whether the logo's orange re-opens that rule is Jesse's call, not a
+  precedent to assume. UI chrome stays monochrome until the hue is decided.
 
   When implementing, fold it into the five state cues that currently rely on
   shape/value workarounds — they exist *because* colour was removed, and an
@@ -190,6 +192,17 @@ Several states are deliberately distinguished by value or weight alone:
   fills the full canvas (mark at 64.6%, centred), output 1024×1024 8-bit RGB
   with no alpha. **If the icon is ever re-exported, export it full-bleed** —
   no rounded corners, no shadow, no transparency.
+
+  **Replaced again 2026-08-07** with the new Block Party logo: the script "BP"
+  monogram wearing a striped party hat, with confetti — coral-orange and purple
+  on a near-black tile. The supplied render was 1254×1254 with the tile floating
+  on pure black; the tile face was measured by luminance (the face vignettes to
+  ~1.5 luma, the void is ~0.1), the largest centred square cropped full-bleed
+  with a 1% edge inset, output 1024×1024 8-bit RGB, no alpha. `LaunchMark`
+  (72/1024 inset crop) and `MarkTemplate` (alpha = artwork coverage) were
+  regenerated from the same pixels, and the sizing constant was re-measured:
+  `inkFraction 0.7511` → `contentFraction 0.8273` (the lockup = letters + hat,
+  confetti excluded so placements don't undersize the letters).
 - `HyggeTests/` has **no target in the Xcode project** (verified — it is inert
   source, never compiled). It is renamed for consistency but wiring it up as a
   real test target remains a separate task.
