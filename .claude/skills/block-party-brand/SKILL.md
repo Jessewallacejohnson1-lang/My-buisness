@@ -19,7 +19,7 @@ at a call site; always reference the token.
 | Token | Hex | Use |
 |---|---|---|
 | `ink` | `#111111` | Primary text, buttons, FABs, active states, pins, today-marker |
-| `paper` | `#FAFAF7` | App background. Warm white — matches the app icon |
+| `paper` | `#FAFAF7` | App background. Warm white |
 | `surface` | `#FFFFFF` | Cards sitting on paper |
 | `inkSecondary` | `#6E6E6E` | Secondary text, captions, inactive tab items |
 | `hairline` | `#E7E7E4` | 1px borders, dividers, card outlines |
@@ -32,8 +32,11 @@ accent colour, hue not yet chosen**, used ONLY where it carries meaning:
 > live events · active filters · selected state · saved pins · primary CTAs
 
 Everything else stays ink on paper. The accent is never decoration, never a
-background wash, never applied to body copy, cards, or category glyphs. It must
-not be the retired coral `#FF6B57`.
+background wash, never applied to body copy, cards, or category glyphs. The
+July rule was that it must not be the retired coral `#FF6B57`; the Aug 2026
+logo (below) now carries a coral-orange + purple lockup, so deriving the accent
+from the mark is a live option — but that is Jesse's call to make explicitly,
+not a precedent to assume.
 
 Until that hue is chosen, build monochrome. If a design seems to need colour
 somewhere outside that list, it needs hierarchy instead — weight, size, value,
@@ -75,6 +78,23 @@ Emphasis inside a sentence is **bold ink**, never a color change.
 One shadow token only, low opacity. Prefer a `hairline` border over a shadow
 when separating a surface from paper; reach for shadow only when something
 genuinely floats (FAB, sheet).
+
+## Logo & app icon (adopted 2026-08-07)
+
+The Block Party logo is the **script "BP" monogram wearing a striped party hat,
+with confetti — coral-orange and purple on a near-black tile**. Jesse picked
+this mark deliberately, knowing it departs from the monochrome UI system: the
+icon is brand CONTENT (like photography and the basemap), not UI chrome. The
+in-app world stays ink-on-paper; the icon is the festive front door.
+
+- Assets (in `BlockParty/Assets.xcassets`): `AppIcon` (1024, full-bleed, no
+  alpha), `LaunchMark` (72/1024 inset crop of the same pixels — the launch
+  loader shows the *actual icon*, a decided question), and `MarkTemplate`
+  (alpha = artwork coverage, for tinted renderings on coloured grounds).
+- `BlockPartyMark.contentFraction` (0.8273) sizes marks by the LOCKUP (letters
+  + hat), not the tile. Re-measure it if the icon is ever re-exported.
+- The wordmark ("Block Party" in Jost) is unchanged and remains the in-app
+  brand face (`BlockPartyLogoBadge`, splash, loading covers).
 
 ## Glyphs & marks
 
