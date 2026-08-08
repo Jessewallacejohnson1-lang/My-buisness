@@ -34,7 +34,7 @@ accent colour, hue not yet chosen**, used ONLY where it carries meaning:
 Everything else stays ink on paper. The accent is never decoration, never a
 background wash, never applied to body copy, cards, or category glyphs. The
 July rule was that it must not be the retired coral `#FF6B57`; the Aug 2026
-logo (below) now carries a coral-orange + purple lockup, so deriving the accent
+logo (below) now carries a coral-orange lockup, so deriving the accent
 from the mark is a live option — but that is Jesse's call to make explicitly,
 not a precedent to assume.
 
@@ -79,20 +79,29 @@ One shadow token only, low opacity. Prefer a `hairline` border over a shadow
 when separating a surface from paper; reach for shadow only when something
 genuinely floats (FAB, sheet).
 
-## Logo & app icon (adopted 2026-08-07)
+## Logo & app icon (re-shipped 2026-08-08)
 
-The Block Party logo is the **script "BP" monogram wearing a striped party hat,
-with confetti — coral-orange and purple on a near-black tile**. Jesse picked
-this mark deliberately, knowing it departs from the monochrome UI system: the
-icon is brand CONTENT (like photography and the basemap), not UI chrome. The
-in-app world stays ink-on-paper; the icon is the festive front door.
+The Block Party icon is Jesse's **glossy 3-D render: the script "BP" monogram
+in coral, embossed on a near-black rounded tile**. No hat, no confetti — those
+belonged to the Aug 7 revision and are retired. The shipped assets are the
+render's OWN pixels (`scripts/brand/exact.swift` crops the tile face out of
+`docs/brand/source-render-1254.png`); never substitute a flat-vector
+interpretation — Jesse's call is the render 1:1, bevel and all. The icon is
+brand CONTENT (like photography and the basemap), not UI chrome: the in-app
+world stays ink-on-paper; the icon is the glossy front door.
 
 - Assets (in `BlockParty/Assets.xcassets`): `AppIcon` (1024, full-bleed, no
   alpha), `LaunchMark` (72/1024 inset crop of the same pixels — the launch
   loader shows the *actual icon*, a decided question), and `MarkTemplate`
-  (alpha = artwork coverage, for tinted renderings on coloured grounds).
-- `BlockPartyMark.contentFraction` (0.8273) sizes marks by the LOCKUP (letters
-  + hat), not the tile. Re-measure it if the icon is ever re-exported.
+  (alpha = per-pixel coral-ness, so the render's antialiased edges survive
+  tinted renderings on coloured grounds).
+- `BlockPartyMark.contentFraction` (0.8614) sizes marks by the LOCKUP (the BP
+  letterforms), not the tile. exact.swift re-measures and prints it on every
+  export — update the constant whenever the icon is re-exported.
+- To re-export: replace `docs/brand/source-render-1254.png`, run
+  `scripts/brand/tile.swift` (locates the tile face), `scripts/brand/exact.swift`
+  (emits all three assets + the measurement), and `scripts/brand/masksim.swift`
+  (checks Apple's corner mask against the render's baked rounding).
 - The wordmark ("Block Party" in Jost) is unchanged and remains the in-app
   brand face (`BlockPartyLogoBadge`, splash, loading covers).
 
