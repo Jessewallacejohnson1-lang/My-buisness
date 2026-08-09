@@ -1,94 +1,101 @@
 //
 //  SpotlightCard.swift
-//  Block Party — one place or local story worth noticing today.
+//  Block Party — one town place or business held steady for the week.
 //
 
 import SwiftUI
 
 struct SpotlightCard: View {
     let spotlight: BriefingSpotlight
+    var weekIdentifier: String? = nil
     var onOpen: (() -> Void)? = nil
 
     var body: some View {
-        if let onOpen {
-            Button {
-                Haptics.light()
-                onOpen()
-            } label: {
-                card
-            }
-            .buttonStyle(SpotlightPressStyle())
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Around town. \(spotlight.title). \(spotlight.blurb)")
-            .accessibilityHint("Opens place details")
-        } else {
-            card
-        }
+        card
     }
 
     private var card: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 9) {
-                Text("AROUND TOWN")
+                Text("This week's spotlight · \(displayWeekIdentifier)")
                     .font(.sansSemibold(11))
-                    .tracking(1)
+                    .tracking(0.7)
                     .foregroundStyle(Hue.inkSecondary)
 
                 Text(spotlight.title)
                     .font(.displaySemi(22))
                     .foregroundStyle(Hue.ink)
-                    .monospacedDigit()
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text(spotlight.blurb)
                     .font(.sans(16))
                     .foregroundStyle(Hue.inkSecondary)
                     .lineSpacing(4)
-                    .monospacedDigit()
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(18)
 
-            if let imageURL = spotlight.imageURL {
-                // The box is established FIRST by a clear spacer, and the image
-                // fills into it as an overlay. Putting `.aspectRatio(_, .fit)` on
-                // the AsyncImage itself does not bound a `scaledToFill` child —
-                // the image grows unbounded and runs off the screen.
-                Color.clear
-                    .frame(maxWidth: .infinity)
-                    .aspectRatio(16.0 / 9.0, contentMode: .fit)
-                    .overlay {
-                        AsyncImage(url: imageURL) { phase in
-                            switch phase {
-                            case .empty:
-                                Hue.fill
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .scaledToFill()
-                            case .failure:
-                                imagePlaceholder
-                            @unknown default:
-                                Hue.fill
-                            }
-                        }
+            // `image_url` is deliberately not used here. Google Places photo names
+            // may live only in the service's in-memory cache; VenuePhoto re-fetches
+            // through the confidence gate and owns the required attribution overlay.
+            Color.clear
+                .frame(maxWidth: .infinity)
+                .aspectRatio(16.0 / 9.0, contentMode: .fit)
+                .overlay {
+                    VenuePhoto(
+                        venueName: spotlight.title,
+                        coordinate: KnownVenues.coordinate(for: spotlight.title),
+                        maxWidth: 1_400
+                    ) {
+                        imagePlaceholder
                     }
-                    .clipped()
-                    .accessibilityHidden(true)
+                }
+                .clipped()
+
+            if let onOpen {
+                Button {
+                    Haptics.light()
+                    onOpen()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "map")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("Open map")
+                            .font(.sansSemibold(15))
+                        Spacer(minLength: 0)
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .foregroundStyle(Hue.ink)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .background(Hue.fill)
+                    .clipShape(
+                        RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
+                    )
+                }
+                .buttonStyle(SpotlightPressStyle())
+                .padding(18)
+                .accessibilityHint("Opens this place in Maps")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .blockPartyCard(padding: 0)
     }
 
+    private var displayWeekIdentifier: String {
+        weekIdentifier ?? SpotlightWeek.identifier(for: Date()) ?? "This week"
+    }
+
     private var imagePlaceholder: some View {
         ZStack {
             Hue.fill
-            Image(systemName: "building.2.fill")
-                .font(.system(size: 26, weight: .medium))
+            Image(systemName: "building.2")
+                .font(.system(size: 26, weight: .regular))
                 .foregroundStyle(Hue.inkSecondary)
         }
+        .accessibilityLabel("Photo unavailable")
     }
 }
 

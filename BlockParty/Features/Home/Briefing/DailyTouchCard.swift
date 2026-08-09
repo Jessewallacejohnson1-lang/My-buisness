@@ -17,7 +17,20 @@ struct DailyTouchCard: View {
     /// would be theatre.
     @State private var justVoted = false
 
+    @ViewBuilder
     var body: some View {
+        #if DEBUG
+        if let fixture = TriviaDebugFixtures.question() {
+            TriviaCard(question: fixture, onAnswer: fixture.hasAnswered ? nil : { _ in })
+        } else {
+            regularTouch
+        }
+        #else
+        regularTouch
+        #endif
+    }
+
+    private var regularTouch: some View {
         Group {
             switch touch.kind {
             case .poll:

@@ -86,6 +86,12 @@ struct RootView: View {
                 // Preview the static feed-card states full-screen (bypassing the auth
                 // gate) so the component can be verified headlessly.
                 FeedCardGallery()
+            } else if ProcessInfo.processInfo.arguments.contains("-foryou-sample")
+                        || ProcessInfo.processInfo.arguments.contains("-foryou-no-tags")
+                        || ProcessInfo.processInfo.arguments.contains("-foryou-empty") {
+                // These flags take precedence over -briefing-preview because For You
+                // is below the fold at order 4 and this simulator cannot scroll.
+                ForYouPreview()
             } else if ProcessInfo.processInfo.arguments.contains("-briefing-preview") {
                 // Mount the real Today briefing composition (bypassing the auth
                 // gate) with BriefingModel seeded from a canned payload and no

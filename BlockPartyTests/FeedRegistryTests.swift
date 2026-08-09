@@ -107,6 +107,23 @@ final class FeedRegistryTests: XCTestCase {
             navigate: { _ in }
         )
     }
+
+    /// Two modules once shipped declaring `order = 6`. The registry's offset
+    /// tie-break resolved it silently in array order, which put Trivia ahead of
+    /// Spotlight and quietly inverted the spec's running order for three phases.
+    /// A duplicate order is unreadable from either module file alone, so pin it.
+    @MainActor
+    func testEveryModuleDeclaresAUniqueOrder() {
+        let orders = FeedRegistry().modules.map(\.order)
+        XCTAssertEqual(orders.count, Set(orders).count,
+                       "duplicate order values let the running order depend on array position")
+    }
+    /// The order values must also be the order the column renders in.
+    @MainActor
+    func testDeclaredOrdersAreAscendingInTheRenderedColumn() {
+        let orders = FeedRegistry().modules.map(\.order)
+        XCTAssertEqual(orders, orders.sorted())
+    }
 }
 
 @MainActor
@@ -161,4 +178,5 @@ private final class ThrowingTestFeedModule: TestFeedModule {
     private func operation() async throws {
         throw ExpectedFailure.load
     }
+
 }

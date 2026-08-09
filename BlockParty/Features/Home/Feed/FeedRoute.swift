@@ -8,6 +8,7 @@ import SwiftUI
 enum FeedRoute: Identifiable, Hashable {
     case feedDiscovery
     case civicTab
+    case editInterests
 
     nonisolated var id: Self { self }
 
@@ -18,6 +19,8 @@ enum FeedRoute: Identifiable, Hashable {
             AnyView(FeedDiscoveryDestination())
         case .civicTab:
             AnyView(CivicTabDestination())
+        case .editInterests:
+            AnyView(FeedInterestEditorDestination())
         }
     }
 }

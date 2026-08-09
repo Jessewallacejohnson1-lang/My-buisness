@@ -1,6 +1,6 @@
 //
 //  SignOffModule.swift
-//  Block Party — mounts CaughtUpFooter unchanged behind FeedModule.
+//  Block Party — closes the finite edition with one plain town-time sentence.
 //
 
 import Combine
@@ -39,11 +39,6 @@ final class SignOffModule: @MainActor FeedModule {
             )
             .padding(.horizontal, 18)
             .padding(.top, 34)
-            .springReveal(
-                4,
-                revealed: ctx.contentRevealed,
-                animated: ctx.revealAnimated
-            )
             .dwell(seconds: 1) {
                 ctx.analytics.recordOnce(
                     BriefingEventName.caughtUpReached,
