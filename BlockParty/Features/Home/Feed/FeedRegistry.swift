@@ -23,6 +23,7 @@ final class FeedRegistry: ObservableObject {
             entries = [
                 AlmanacModule(briefing: sharedBriefing),
                 YourDayModule(briefing: sharedBriefing),
+                TownNotesModule(),
                 TriviaModule(briefing: sharedBriefing),
                 SpotlightModule(briefing: sharedBriefing),
                 SignOffModule(briefing: sharedBriefing),

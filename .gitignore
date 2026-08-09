@@ -37,3 +37,6 @@ graphify-out/
 
 # local sim pin for the onboarding design-match loop
 .bp-sim-udid
+
+# scratch DerivedData used to parallelise agent builds
+.dd-notes/

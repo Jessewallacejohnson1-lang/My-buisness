@@ -1,16 +1,15 @@
 //
 //  AlmanacSection.swift
-//  Block Party — the Daily Almanac: a warm time-of-day greeting (the "Coffee and Claude"
-//  hello) over St. Joe's real day (sun + weather), turned into one low-bar nudge to
-//  step outside. The app's "health" pillar, rendered as PLACE — calm, neighborly,
-//  real data only (never a fake number).
+//  Block Party — the Daily Almanac as the masthead of today's finite edition:
+//  date, greeting + live weather, sun times, an optional civic notice, and one
+//  tailored suggestion. Every fact comes from a real local source.
 //
 //  The card opens on a small uppercase date eyebrow (AlmanacDateEyebrow). That line
 //  used to live in the Today header; it moved down here so the header could shed a
 //  line of chrome without the app losing the date. It is static — it does not type in.
 //
 //  On the FIRST open of each app launch the card writes itself in front of the
-//  neighbor: the greeting types out char-by-char (soft coral caret), then the read
+//  neighbor: the greeting types out char-by-char (ink caret), then the read
 //  writes in word-by-word underneath (see TypewriterText). A pull-to-refresh replays
 //  the write (Home bumps `replay`); a tab-return within the same launch — and Reduce
 //  Motion — just renders, fully written, instantly. The first-open gate is
@@ -20,13 +19,11 @@
 //  Sun + weather come from the shared WeatherService.current() (open-meteo, no
 //  key), whose cache the utility row's weather tile has usually already primed,
 //  so this is normally a cache read — no second network trip (concurrent callers
-//  are coalesced into one fetch). If the fetch never lands we show a calm, number-free
-//  line; if it lands without sun times we drop the clock words. We never invent.
-//  The write snapshots whichever read has resolved when the greeting finishes; a
-//  later AI-line upgrade lands on the next (static) open.
-//
-//  TODO(jesse): point the nudge at a live trail/event from CommunityAPI (getTrails /
-//  getTodayEvents) instead of the fixed Lake Wobegon Trail landmark below.
+//  are coalesced into one fetch). If it fails, the masthead says sun times are
+//  unavailable rather than inventing a reading.
+//  The personalized server line wins when the briefing supplies one. Otherwise a
+//  deterministic fallback generator uses the user's real upcoming RSVPs and a
+//  rotating catalogue built from CommunityAPI plus the app's real local places.
 //
 
 import SwiftUI
@@ -53,25 +50,26 @@ struct AlmanacSection: View {
     var replay: Int = 0
 
     /// The day-line delivered by the briefing payload (`almanac.line`, this user's
-    /// row in `almanac_daily`). When present the card skips its own edge-function
-    /// call — that is what makes the home screen a single round trip.
-    ///
-    /// Nil means the payload had no personal line for this user yet, and the card
-    /// falls back to fetching it exactly as it always has. Weather is deliberately
-    /// NOT injected: `WeatherService` carries a 15-minute cache, which is fresher
-    /// all day than a snapshot taken once at 6 AM.
+    /// row in `almanac_daily`). It arrives with the single briefing round trip and
+    /// always wins. Nil falls through to the local suggestion generator. Weather
+    /// is deliberately NOT injected: `WeatherService` carries a 15-minute Open-Meteo cache, which is
+    /// fresher all day than a snapshot taken once at 6 AM.
     var injectedLine: String?
+
+    /// The RPC's town-anchored date. A local town-clock value is used until the
+    /// payload arrives, so the deterministic fallback never follows device time.
+    var townDate: String?
 
     @EnvironmentObject private var auth: AuthStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var weather: Weather?
-    @State private var aiLine: String?   // this user's AI day-line; nil → template nudge
-    /// True once the AI-line fetch has RESOLVED (even to nil) — lets us tell "still
-    /// loading" apart from "loaded, no line", so the loading skeleton knows when to lift.
-    @State private var lineLoaded = false
-    /// Flips true ~300ms after appear: the skeleton lifts to the fallback if the AI
-    /// line hasn't landed by then (a cache hit usually beats it, and shows directly).
+    @State private var weatherLoaded = false
+    @State private var debugLine: String?
+    @State private var generatedSuggestion: String?
+    @State private var suggestionLoaded = false
+    /// Flips true ~300ms after appear: the skeleton lifts to the fallback if the
+    /// masthead reads have not landed by then (cache hits usually beat it).
     @State private var read300msReady = false
 
     /// The write is a two-stage chain: stage 0 = greeting types, stage 1 = read
@@ -86,10 +84,16 @@ struct AlmanacSection: View {
     /// resolves to a different name can't swap the greeting out from under the cursor.
     @State private var frozenGreeting: AttributedString?
 
-    init(name: String? = nil, replay: Int = 0, injectedLine: String? = nil) {
+    init(
+        name: String? = nil,
+        replay: Int = 0,
+        injectedLine: String? = nil,
+        townDate: String? = nil
+    ) {
         self.name = name
         self.replay = replay
         self.injectedLine = injectedLine
+        self.townDate = townDate
         // First open of the launch writes itself; a tab-return within the launch, or
         // Reduce Motion, renders instantly. Reduce Motion is read HERE (not only in
         // onAppear) so the very first frame is already correct — no flash of the
@@ -116,11 +120,10 @@ struct AlmanacSection: View {
                 // sibling line: pull the last 4pt back.
                 .padding(.bottom, -4)
 
-            // The greeting — a warm, inviting hello with a time-of-day glyph inline to
-            // its left: a sunrise at dawn, the high sun midday, the moon at night (the
-            // town's real part of day — the same one the read speaks in). It types
-            // char-by-char with a soft coral caret on day one; the glyph sits steady.
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
+            // One masthead line: the greeting writes while the live Open-Meteo
+            // condition and temperature sit alongside it in SF Pro. The glyph and
+            // weather stay steady; only the existing greeting reveal types.
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Image(systemName: greetingGlyph.symbol)
                     .font(.system(size: greetingSize - 1, weight: .semibold))
                     .foregroundStyle(greetingGlyph.tint)
@@ -143,9 +146,11 @@ struct AlmanacSection: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
                 .fixedSize(horizontal: false, vertical: true)
+                .layoutPriority(1)
             }
 
-            // The read-of-the-day — writes in word-by-word underneath the greeting.
+            // Sun times, the optional civic notice, and the suggestion write in
+            // word-by-word underneath the greeting as one stable layout snapshot.
             // On a static open we hold a brief skeleton (<=300ms) so a fast cache-hit
             // AI line renders directly instead of flashing the template first.
             if showReadSkeleton {
@@ -169,52 +174,72 @@ struct AlmanacSection: View {
         .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
         .modifier(CardShadow())
-        .task {
-            // Both fetches ride their own caches; the AI line swaps into the read in
-            // place when it lands (same open), else the template fallback stands.
+        .task(id: suggestionTaskID) {
+            // Start with the real in-app catalogue, then let live RSVP/trail/place
+            // reads enrich it. Network failures leave the static real-place pool.
             #if DEBUG
-            if let demo = Self.debugDemoLine { aiLine = demo; lineLoaded = true }
+            debugLine = Self.debugFail ? nil : Self.debugDemoLine
             #endif
-            // The briefing payload already carried this user's line, so the
-            // edge-function call is skipped entirely. Weather still resolves
-            // through its own 15-minute cache.
-            if let injectedLine, !injectedLine.isEmpty {
-                aiLine = injectedLine
-                lineLoaded = true
-                weather = await WeatherService.current()
+
+            async let weatherRequest = WeatherService.current()
+            if hasServerLine {
+                weather = await weatherRequest
+                weatherLoaded = true
+                suggestionLoaded = true
                 return
             }
 
-            async let w = WeatherService.current()
-            async let l = DailyAlmanac.line(auth: auth)
-            weather = await w
-            #if DEBUG
-            if Self.debugDemoLine != nil { return }        // canned line already set
-            if Self.debugFail { lineLoaded = true; return } // force the template fallback
-            #endif
-            aiLine = await l
-            lineLoaded = true
+            let date = resolvedTownDate
+            let userKey = resolvedUserKey
+            generatedSuggestion = Self.makeSuggestion(
+                townDate: date,
+                userKey: userKey,
+                rsvps: [],
+                trails: [],
+                places: []
+            )
+
+            let api = CommunityAPI(auth: auth)
+            async let rsvpRequest = try? api.getMyUpcomingRsvps()
+            async let trailRequest = try? api.getTrails()
+            async let placeRequest = try? api.getPlaces()
+
+            weather = await weatherRequest
+            weatherLoaded = true
+
+            let (rsvps, trails, places) = await (rsvpRequest, trailRequest, placeRequest)
+            if Task.isCancelled { return }
+            generatedSuggestion = Self.makeSuggestion(
+                townDate: date,
+                userKey: userKey,
+                rsvps: rsvps ?? [],
+                trails: trails ?? [],
+                places: places ?? []
+            )
+            suggestionLoaded = true
         }
-        // The payload almost always lands AFTER this card first appears, so at
-        // `.task` time `injectedLine` is still nil and the fetch above runs. Adopt
-        // the line when it arrives instead — `.task` is tied to view identity and
-        // will not re-run for a changed value.
-        .onChange(of: injectedLine) { _, line in
-            guard let line, !line.isEmpty, line != aiLine else { return }
-            aiLine = line
-            lineLoaded = true
+        // The briefing line can arrive after this card first appears. A static
+        // card reads it live; a completed write quietly replaces its snapshot.
+        .onChange(of: injectedLine) { _, _ in
+            refreshFrozenReadIfSettled()
         }
-        // Skeleton grace: lift to the fallback if the AI line hasn't landed in 300ms.
+        // Skeleton grace: lift to honest fallback content after 300ms.
         .task {
             try? await Task.sleep(for: .milliseconds(300))
             read300msReady = true
         }
-        // A slow AI line that lands after the read already settled swaps in silently.
-        // (During a static open the read is live and swaps on its own; this covers the
-        // post-write resting state.)
-        .onChange(of: aiLine) { _, line in
-            guard let line, activeStage == 3 else { return }
-            frozenRead = Almanac.styled(line)
+        .onChange(of: debugLine) { _, _ in
+            refreshFrozenReadIfSettled()
+        }
+        .onChange(of: generatedSuggestion) { _, _ in
+            refreshFrozenReadIfSettled()
+        }
+        .onChange(of: weatherSummary) { _, _ in
+            // A cold Open-Meteo response may miss the greeting's initial frozen
+            // snapshot. Once typing ends, fold it into the same scalable line.
+            if activeStage != 0 && activeStage != Int.max {
+                frozenGreeting = liveGreeting
+            }
         }
         // When the day's data lands, write the real read (fires in the update cycle
         // with fresh state — unlike a detached Task, which would read @State stale).
@@ -253,6 +278,18 @@ struct AlmanacSection: View {
         name ?? Interests.displayName ?? firstNameFromEmail(auth.email)
     }
 
+    private var resolvedTownDate: String {
+        Self.nonEmpty(townDate) ?? Self.townDateFormatter.string(from: Date())
+    }
+
+    private var resolvedUserKey: String {
+        auth.userId ?? auth.email ?? "signed-out"
+    }
+
+    private var suggestionTaskID: String {
+        "\(resolvedTownDate)|\(resolvedUserKey)"
+    }
+
     /// Frozen for the write (so a late name load can't change it mid-type); live for a
     /// static open so it always reflects the current name.
     private var greetingContent: AttributedString {
@@ -264,7 +301,22 @@ struct AlmanacSection: View {
         var a = AttributedString(DailyGreeting.line(name: resolvedName))
         a.font = .display(greetingSize)      // bold hero — was semibold 20
         a.foregroundColor = Hue.ink
+        if let weather {
+            var condition = AttributedString(" · \(weather.label), ")
+            condition.font = .sansMedium(14)
+            condition.foregroundColor = Hue.ink
+            a += condition
+
+            var temperature = AttributedString("\(weather.tempF)°")
+            temperature.font = .monoMedium(14).monospacedDigit()
+            temperature.foregroundColor = Hue.ink
+            a += temperature
+        }
         return a
+    }
+
+    private var weatherSummary: String? {
+        weather.map { "\($0.label)|\($0.tempF)" }
     }
 
     /// The greeting's type size — a warm card hero (up from the old eyebrow-era 20).
@@ -272,8 +324,7 @@ struct AlmanacSection: View {
     private let greetingSize: CGFloat = 24
 
     /// Time-of-day glyph shown inline before the greeting: sunrise → high sun → moon.
-    /// The sun carries the warmth (honey) tint; the moon the calm night (sky) tint —
-    /// the same one the read uses once the sun's down. An honest signal, not decoration.
+    /// Every state stays ink; the symbol communicates the changing time of day.
     private var greetingGlyph: (symbol: String, tint: Color) {
         switch DailyGreeting.part() {
         case .morning:   return ("sunrise.fill",    Hue.ink)
@@ -282,7 +333,7 @@ struct AlmanacSection: View {
         }
     }
 
-    /// Live during a normal open (so the AI line upgrades in place) and while the
+    /// Live during a normal open (so the server line upgrades in place) and while the
     /// read reserves its height; frozen the moment the write reaches it.
     private var readContent: AttributedString {
         if activeStage == Int.max { return liveRead() }   // static open
@@ -290,15 +341,36 @@ struct AlmanacSection: View {
     }
 
     private func liveRead() -> AttributedString {
-        let nudge = Almanac.nudge(for: weather)
-        // `injectedLine` first, and deliberately as a PROP rather than via @State:
-        // the payload lands after this card's `.task` has already run, so routing it
-        // through `aiLine` makes the render depend on state-update ordering that the
-        // write chain can beat. Reading the prop at render time cannot lose that race.
-        if let line = injectedLine ?? aiLine, !line.isEmpty {
-            return Almanac.styled(line)
-        }
-        return Almanac.readBlock(nudge)
+        Almanac.mastheadBlock(
+            sunLine: Almanac.sunLine(for: weather),
+            civicLine: civicLine,
+            suggestion: resolvedSuggestion
+        )
+    }
+
+    private var resolvedSuggestion: String {
+        // The payload prop is read directly so a late RPC update cannot lose a
+        // race with the write chain. DEBUG demo copy follows the same server-line
+        // styling path, then real-data generator, then the honest generic floor.
+        if let line = Self.nonEmpty(injectedLine) { return line }
+        if let line = Self.nonEmpty(debugLine) { return line }
+        if let line = Self.nonEmpty(generatedSuggestion) { return line }
+        return "Take a few minutes for St. Joe today."
+    }
+
+    private var hasServerLine: Bool {
+        Self.nonEmpty(injectedLine) != nil || Self.nonEmpty(debugLine) != nil
+    }
+
+    private var civicLine: String? {
+        AlmanacCivicLine.text(
+            on: Date(),
+            pickupWeekday: GarbageSchedule.defaultWeekday,
+            // TODO(school-closing-source): inject the town's verified closure line
+            // here when a source exists. Nil means this slot simply stays absent.
+            schoolClosing: nil,
+            calendar: Town.calendar
+        )
     }
 
     // MARK: - Write chain
@@ -308,7 +380,9 @@ struct AlmanacSection: View {
     // The greeting types faster (~1.3s) than a cold weather fetch, so the read waits
     // in stage 1 and only writes the REAL read — never the pre-fetch fallback.
 
-    private var readDataArrived: Bool { weather != nil || aiLine != nil }
+    private var readDataArrived: Bool {
+        weatherLoaded && (hasServerLine || suggestionLoaded)
+    }
 
     private var greetingState: TypewriterState {
         if activeStage == Int.max { return .shown }
@@ -325,11 +399,12 @@ struct AlmanacSection: View {
     /// data is already here (otherwise onChange / the timeout will start it).
     private func greetingDone() {
         guard activeStage == 0 else { return }
+        frozenGreeting = liveGreeting
         activeStage = 1
         startRead()
     }
 
-    /// Snapshot the read (freezing out any later AI-line churn) and write it. Gated on
+    /// Snapshot the read (freezing out any later data churn) and write it. Gated on
     /// the data having arrived so we never write the pre-fetch fallback while the real
     /// read is still in flight — `force` (the timeout) writes the calm fallback anyway
     /// if the fetch never lands. Guarded on stage 1 so every caller is safe.
@@ -342,15 +417,20 @@ struct AlmanacSection: View {
     private func readDone() {
         guard activeStage == 2 else { return }
         activeStage = 3
-        // If the AI line landed while the template was writing, swap it in now (silent).
-        if let aiLine { frozenRead = Almanac.styled(aiLine) }
+        // If a server line or RSVP landed mid-write, adopt the newest full masthead.
+        frozenRead = liveRead()
+    }
+
+    private func refreshFrozenReadIfSettled() {
+        guard activeStage == 3 else { return }
+        frozenRead = liveRead()
     }
 
     /// Hold a brief skeleton only on a static (non-writing) open, before the first read
-    /// content resolves. Lifts the moment the AI line lands, the fetch resolves, or 300ms
-    /// passes — so a cache-hit line shows directly and a slow one falls back cleanly.
+    /// content resolves. It lifts when the reads resolve or after 300ms, so cached
+    /// content shows directly and a slow network falls back cleanly.
     private var showReadSkeleton: Bool {
-        activeStage == Int.max && aiLine == nil && !lineLoaded && !read300msReady
+        activeStage == Int.max && !readDataArrived && !read300msReady
     }
 
     private var forceWrite: Bool {
@@ -360,6 +440,86 @@ struct AlmanacSection: View {
         return false
         #endif
     }
+
+    // MARK: - Suggestion inputs
+
+    /// Maps real app/API models into the generator's network-free input types.
+    private static func makeSuggestion(
+        townDate: String,
+        userKey: String,
+        rsvps: [UpcomingEvent],
+        trails: [Trail],
+        places: [POI]
+    ) -> String? {
+        let rsvpInputs = rsvps.map {
+            AlmanacSuggestionGenerator.RSVP(
+                id: $0.id,
+                title: $0.title,
+                eventDate: $0.eventDate,
+                startTime: $0.startTime,
+                location: $0.location
+            )
+        }
+
+        var subjects = MapSpots.all.map {
+            AlmanacSuggestionGenerator.Subject(
+                id: "map:\($0.id)",
+                name: $0.name,
+                kind: subjectKind(for: $0.category)
+            )
+        }
+        subjects += KnownVenues.suggestions.enumerated().map { index, name in
+            .init(id: "venue:\(index):\(name.lowercased())", name: name, kind: .place)
+        }
+        subjects += Places.all.map {
+            .init(id: "editorial:\($0.id)", name: $0.name, kind: .landmark)
+        }
+        subjects += trails.map {
+            .init(id: "trail:\($0.id)", name: $0.title, kind: .trail)
+        }
+        subjects += places.map {
+            .init(
+                id: "poi:\($0.id)",
+                name: $0.name,
+                kind: $0.family == .food ? .food : .business
+            )
+        }
+
+        return AlmanacSuggestionGenerator.suggestion(for: .init(
+            townDate: townDate,
+            userKey: userKey,
+            rsvps: rsvpInputs,
+            subjects: subjects
+        ))
+    }
+
+    private static func subjectKind(
+        for category: SpotCategory
+    ) -> AlmanacSuggestionGenerator.SubjectKind {
+        switch category {
+        case .trail: return .trail
+        case .park: return .park
+        case .coffee: return .food
+        case .fitness, .downtown: return .place
+        case .college, .chapel: return .landmark
+        case .default: return .place
+        }
+    }
+
+    private static func nonEmpty(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static let townDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = Town.timeZone
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
 
     #if DEBUG
     /// `-almanac-demo-line "<text>"` — inject a canned AI line (renders `**bold**`),
@@ -431,16 +591,45 @@ private struct AlmanacReadSkeleton: View {
     }
 }
 
-// MARK: - Nudge generator
+// MARK: - Masthead formatting
 
-/// Turns a real reading into one calm line + supporting line, keyed on the
-/// signals the day actually gives us: daylight left (sunset − now), the weather
-/// label/temp, and the season. Coral (accent) tints the "get out" days; a calm
-/// sky tint carries the rest/indoor days — the color itself is an honest signal.
-///
-/// Lines are AttributedString so numbers can carry a monospaced-digit run inline
-/// (house rule: numbers stay tabular) while the prose is the system font.
+/// Builds the masthead's sun/civic/suggestion rows as attributed SF Pro runs.
+/// Numbers use tabular figures and every row stays monochrome ink-on-paper.
 enum Almanac {
+    /// Sun times always own one logical line. Missing fields are reported rather
+    /// than guessed, while a partial Open-Meteo response still shows what it has.
+    static func sunLine(for weather: Weather?) -> String {
+        switch (weather?.sunrise, weather?.sunset) {
+        case let (sunrise?, sunset?):
+            return "Sunrise \(clock(sunrise)) · sunset \(clock(sunset))"
+        case let (sunrise?, nil):
+            return "Sunrise \(clock(sunrise))"
+        case let (nil, sunset?):
+            return "Sunset \(clock(sunset))"
+        case (nil, nil):
+            return "Sun times unavailable"
+        }
+    }
+
+    /// Lines 3–5 share one attributed block so the existing word-by-word reveal
+    /// reserves its final layout. A missing civic line adds no newline or spacer.
+    static func mastheadBlock(
+        sunLine: String,
+        civicLine: String?,
+        suggestion: String
+    ) -> AttributedString {
+        var out = run(sunLine, .sansMedium(14), Hue.inkSecondary)
+        if let civicLine, !civicLine.isEmpty {
+            out += run("\n", .sans(14), Hue.inkSecondary)
+            out += run(civicLine, .sansMedium(14), Hue.ink)
+        }
+        out += run("\n", .sans(15), Hue.ink)
+        out += styled(suggestion)
+        return out
+    }
+
+    // Legacy nudge model remains source-compatible for rollback previews, but the
+    // production masthead no longer calls it or carries a fixed landmark pointer.
     struct Nudge {
         let icon: String
         let iconTint: Color
@@ -462,7 +651,6 @@ enum Almanac {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = WeatherService.townTZ
         let hour = cal.component(.hour, from: now)
-        let month = cal.component(.month, from: now)
         let timeWord = hour < 12 ? "morning" : (hour < 17 ? "afternoon" : "evening")
         let temp = w.tempF
         let labelLower = w.label.lowercased()
@@ -487,7 +675,7 @@ enum Almanac {
                 line: hero("It's ") + heroNum("\(temp)°") + hero(" out."),
                 detail: body("Cold and \(labelLower) — but a brisk ") + bodyNum("10")
                     + body("-minute loop still counts. Keep it close to home."),
-                pointer: "Try a short stretch of the Lake Wobegon Trail."
+                pointer: nil
             )
         }
 
@@ -515,7 +703,7 @@ enum Almanac {
                         + hero(" minute\(m == 1 ? "" : "s") of daylight left."),
                     detail: body("Catch the last of it — a short walk before ")
                         + bodyNum(clock(sunset)) + body("."),
-                    pointer: trailPointer(month: month)
+                    pointer: nil
                 )
             }
         }
@@ -533,7 +721,7 @@ enum Almanac {
             detail: body("\(article(labelLower)) \(labelLower) ") + bodyNum("\(temp)°")
                 + body(" \(timeWord) — ") + bodyNum("20")
                 + body(" minutes outside can reset the day."),
-            pointer: trailPointer(month: month)
+            pointer: nil
         )
     }
 
@@ -596,12 +784,12 @@ enum Almanac {
         run(s, .system(size: 16, weight: .semibold).monospacedDigit(), Hue.ink)
     }
 
-    /// "h:mm" in the town's timezone → "8:58", "5:47".
+    /// "h:mm a" in the town's timezone → "8:58 PM", "5:47 AM".
     private static let clockFormatter: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US")
         f.timeZone = WeatherService.townTZ
-        f.dateFormat = "h:mm"
+        f.dateFormat = "h:mm a"
         return f
     }()
     private static func clock(_ d: Date) -> String { clockFormatter.string(from: d) }
@@ -611,13 +799,4 @@ enum Almanac {
         "aeiou".contains(word.first ?? " ") ? "An" : "A"
     }
 
-    /// A real St. Joe landmark (the Lake Wobegon Trail — see MapSpots/KnownVenues),
-    /// with a defensible seasonal note. Winter is carried by the cold branch.
-    private static func trailPointer(month: Int) -> String {
-        switch month {
-        case 3, 4, 5:   return "The Lake Wobegon Trail is greening up."
-        case 9, 10, 11: return "The Lake Wobegon Trail is worth it for the color."
-        default:        return "The Lake Wobegon Trail is a good one."
-        }
-    }
 }

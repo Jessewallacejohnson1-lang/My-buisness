@@ -97,6 +97,11 @@ struct RootView: View {
                 // auth gate): 3/1/0 featured events, poll unvoted and voted, the
                 // history touch, the spotlight, and the caught-up footer.
                 BriefingGallery()
+            } else if ProcessInfo.processInfo.arguments.contains("-townnotes-gallery") {
+                // Preview every Town Notes card state full-screen (bypassing the auth
+                // gate). Pair with `-townnotes-gallery-page <1...6>` to bring a
+                // below-the-fold state to the top for headless screenshots.
+                TownNotesGallery()
             } else if ProcessInfo.processInfo.arguments.contains("-town-rain-preview") {
                 // Preview the map's town-rain drop full-screen (bypassing the auth
                 // gate) so its physics can be recorded and measured headlessly — the

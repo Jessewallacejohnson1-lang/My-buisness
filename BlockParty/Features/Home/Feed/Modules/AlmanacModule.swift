@@ -24,7 +24,8 @@ final class AlmanacModule: @MainActor FeedModule {
             AlmanacSection(
                 name: ctx.displayName,
                 replay: ctx.refreshReplay,
-                injectedLine: ctx.briefing.payload?.almanac?.line
+                injectedLine: ctx.briefing.payload?.almanac?.line,
+                townDate: ctx.briefing.payload?.briefingDate
             )
             .environmentObject(ctx.auth)
             .padding(.horizontal, 18)

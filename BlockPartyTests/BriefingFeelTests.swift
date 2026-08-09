@@ -90,7 +90,7 @@ final class BriefingFeelTests: XCTestCase {
     func testModuleOrderIsTheBriefingRunningOrder() {
         let moduleIDs = FeedRegistry().modules.map { $0.id }
         XCTAssertEqual(moduleIDs,
-                       [.almanac, .yourDay, .trivia, .spotlight, .signOff])
+                       [.almanac, .yourDay, .townNotes, .trivia, .spotlight, .signOff])
     }
 
     @MainActor
