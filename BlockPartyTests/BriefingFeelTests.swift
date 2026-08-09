@@ -86,15 +86,19 @@ final class BriefingFeelTests: XCTestCase {
 
     // MARK: - Module order
 
+    @MainActor
     func testModuleOrderIsTheBriefingRunningOrder() {
-        XCTAssertEqual(BriefingModuleID.order,
-                       [.almanac, .utility, .happeningSoon, .dailyTouch, .spotlight, .caughtUp])
+        let moduleIDs = FeedRegistry().modules.map { $0.id }
+        XCTAssertEqual(moduleIDs,
+                       [.almanac, .yourDay, .trivia, .spotlight, .signOff])
     }
 
+    @MainActor
     func testAnUnknownModuleIdDecodesRatherThanFailing() {
-        let id: BriefingModuleID = "someV2Module"
+        let id: FeedModuleID = "someV2Module"
+        let module = FeedRegistry().module(for: id)
         XCTAssertEqual(id.rawValue, "someV2Module")
-        XCTAssertFalse(BriefingModuleID.order.contains(id))
+        XCTAssertNil(module)
     }
 
     // MARK: - Date label

@@ -160,19 +160,19 @@ The current identifiers are:
 
 **There is no migration shim, and one is not possible.** iOS scopes `UserDefaults` to the app container and Keychain items to an access group derived from the bundle id. `Jesse.BlockParty` is therefore a *different app* with an empty container and cannot read anything `Jesse.Hygge` stored. Bridging would need a shared keychain access group declared in **both** builds; the shipped build has none and cannot retroactively gain one. A migration was written, proven unreachable, and removed — do not re-add it. The rename is a clean break: existing installs re-authenticate and re-onboard, accepted at 4 accounts / 2 active, pre-launch. Never introduce new `hygge.*` identifiers.
 
-### Today briefing (`BlockParty/Features/Home/Briefing/`)
+### Today briefing (`BlockParty/Features/Home/Briefing/` + `Feed/`)
 
-Today is a finite editorial briefing, not an infinite feed. `HomeView` keeps `TodayTopBar` fixed above the scroll view and renders one loop over `BriefingModuleID.order`, the source of truth for the screen:
+Today is a finite editorial briefing, not an infinite feed. `HomeView` is a compatibility shell over `FeedView`, which keeps `TodayTopBar` fixed above the scroll view and renders `FeedRegistry.visibleModules` in this order:
 
 ```text
-almanac → utility → happeningSoon → dailyTouch → spotlight → caughtUp
+almanac → yourDay → trivia → spotlight → signOff
 ```
 
-`BriefingModuleID` is string-backed so unknown newer IDs decode safely. Adding a module means adding its ID, adding it to `order`, and adding one case to `HomeView.module(_:)`.
+`FeedModuleID` is string-backed so unknown newer IDs decode safely. `FeedRegistry` owns the only production module array; adding a module means adding its implementation and one registry entry, without editing `FeedView`. Each module owns its phase, visibility, loading/error/empty rendering, spacing, reveal index, and erased view. The utility subsystem remains intact under `Features/Home/Utility/`, but Today does not mount it or hydrate `UtilityPrefsStore`.
 
 `BriefingAPI.today()` sends one authenticated POST to `rest/v1/rpc/get_today_briefing`, passing the St. Joseph timezone. The RPC returns the complete `BriefingPayload`: almanac/weather/touch/spotlight/fallback are degradable, featured may be empty, and `caughtUp` is required so the briefing always ends. `BriefingModel` renders the disk cache first, reconciles with the server, keeps cached content during outages, and applies vote/RSVP changes optimistically with rollback. The utility row is intentionally independent and owns its own loading/cache/realtime.
 
-The old feed still compiles under `BlockParty/Features/Home/Feed/` for regression and rollback. It is not the production Today composition.
+The legacy card feed (`TodayFeedView`, `FeedEventCard`, and related files) still compiles under `BlockParty/Features/Home/Feed/` for regression and rollback. The registry files in that folder are the production Today composition.
 
 ### Feature folders (`BlockParty/Features/`)
 
