@@ -40,7 +40,62 @@ struct ForYouPosting: Identifiable, Hashable {
     let overlapCount: Int
 
     var reason: String {
-        "\(category.label) · because you follow \(matchedInterest.label)"
+        ForYouReason.line(category: category, matchedInterest: matchedInterest)
+    }
+}
+
+/// The one-line "why am I seeing this" above a For You card.
+///
+/// The line has two halves and they must carry DIFFERENT information: the left is
+/// the posting's own subject, the right is why it was chosen. Half the crosswalk
+/// pairs a category with an interest that is written from the same words —
+/// `.sports` ("Sports & fitness") against `sports_leagues` ("Sports & leagues"),
+/// `.families` against `families_kids` verbatim — and rendering both produced
+/// "Sports & fitness · because you follow Sports & leagues", which says one thing
+/// twice and reads like a machine matched two rows.
+///
+/// So: keep both halves when they genuinely differ, and when they would repeat a
+/// word, drop the redundant half rather than pad it. The user's real matched tag
+/// is never the half that gets dropped — the line always names the actual
+/// interest they chose, never a generic "your interests".
+///
+/// Deliberately NOT `nonisolated`: `EventCategory.label` is MainActor-isolated and
+/// the line is only ever built while rendering. The word comparison underneath is
+/// pure and stays `nonisolated` so it can be tested on its own.
+enum ForYouReason {
+    static func line(category: EventCategory, matchedInterest: ForYouInterestTag) -> String {
+        guard !overlaps(category.label, matchedInterest.label) else {
+            return "Because you follow \(matchedInterest.label)"
+        }
+        return "\(category.label) · because you follow \(matchedInterest.label)"
+    }
+
+    /// Do the two labels share a significant word? Compared on loose stems so
+    /// "Music & arts" against "Art & exhibits" counts as a repeat, which it is.
+    nonisolated static func overlaps(_ lhs: String, _ rhs: String) -> Bool {
+        !stems(of: lhs).isDisjoint(with: stems(of: rhs))
+    }
+
+    nonisolated private static let ignoredWords: Set<String> = ["and", "the", "of", "for", "with"]
+
+    nonisolated private static func stems(of label: String) -> Set<String> {
+        let words = label
+            .lowercased()
+            .split(whereSeparator: { !$0.isLetter })
+            .map(String.init)
+
+        return Set(
+            words
+                .filter { $0.count > 2 && !ignoredWords.contains($0) }
+                .map(stem)
+        )
+    }
+
+    /// A deliberately blunt stemmer: one trailing plural "s". It only has to make
+    /// "arts"/"art" and "sports"/"sport" collide inside an 18-label vocabulary.
+    nonisolated private static func stem(_ word: String) -> String {
+        guard word.count > 3, word.hasSuffix("s"), !word.hasSuffix("ss") else { return word }
+        return String(word.dropLast())
     }
 }
 

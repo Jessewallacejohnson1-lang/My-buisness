@@ -31,17 +31,18 @@ final class YourDayModule: @MainActor FeedModule {
         }
     }
 
-    func isVisible(_ ctx: FeedModuleContext) -> Bool { true }
+    func isVisible(_ ctx: FeedModuleContext) -> Bool {
+        #if DEBUG
+        if FeedDebugFocus.isHidden(id) { return false }
+        #endif
+        return true
+    }
 
     func load(_ ctx: FeedModuleContext) async {
         loadState = .loading
 
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-yourday-sample") {
-            events = YourDayLogic.debugEvents(now: Date())
-            loadState = .ready
-            return
-        }
+        if applyDebugStateIfRequested() { return }
         #endif
 
         guard ctx.auth.userId != nil else {
@@ -69,7 +70,9 @@ final class YourDayModule: @MainActor FeedModule {
 
         case .failed:
             return AnyView(
-                YourDayUnavailableCard { Task { await self.load(ctx) } }
+                FeedUnavailableCard(title: FeedStateCopy.yourDayUnavailable) {
+                    Task { await self.load(ctx) }
+                }
                 .padding(.horizontal, 18)
                 .padding(.top, 22)
             )
@@ -78,6 +81,7 @@ final class YourDayModule: @MainActor FeedModule {
             return AnyView(
                 YourDaySection(
                     events: events,
+                    onOpenEvent: { ctx.navigate(.event($0)) },
                     onFindSomething: { ctx.navigate(.feedDiscovery) }
                 )
                 .padding(.horizontal, 18)
@@ -87,26 +91,94 @@ final class YourDayModule: @MainActor FeedModule {
                     revealed: ctx.contentRevealed,
                     animated: ctx.revealAnimated
                 )
+                .modifier(YourDayDebugDetailOpener(events: events, navigate: ctx.navigate))
             )
 
         case .empty:
             // Your Day is the deliberate exception: an empty RSVP list is an
-            // onboarding opportunity, so this module never enters `.empty`.
+            // onboarding opportunity, so this module never enters `.empty` — it
+            // renders its designed empty state from the `.ready` branch instead.
             return AnyView(EmptyView())
         }
     }
 }
 
+#if DEBUG
+private extension YourDayModule {
+    /// `-yourday-sample|-yourday-loading|-yourday-error|-yourday-empty` bypass auth
+    /// and the network so each state can be screenshotted. Production loaders are
+    /// untouched; the fixtures are the same clearly-marked debug events.
+    func applyDebugStateIfRequested() -> Bool {
+        let args = ProcessInfo.processInfo.arguments
+
+        if args.contains("-yourday-loading") {
+            events = []
+            loadState = .loading
+            return true
+        }
+        if args.contains("-yourday-error") {
+            events = []
+            loadState = .failed
+            return true
+        }
+        if args.contains("-yourday-empty") {
+            events = []
+            loadState = .ready
+            return true
+        }
+        if args.contains("-yourday-sample") {
+            events = YourDayLogic.debugEvents(now: Date())
+            loadState = .ready
+            return true
+        }
+        return false
+    }
+}
+#endif
+
+/// `-yourday-open-detail` opens the first upcoming event's detail on appear.
+/// There is no tap automation in this simulator setup, so a screen only reachable
+/// by tapping a card is otherwise unverifiable. No-op without the flag, and the
+/// whole modifier compiles to a pass-through in Release.
+private struct YourDayDebugDetailOpener: ViewModifier {
+    let events: [UpcomingEvent]
+    let navigate: (FeedRoute) -> Void
+
+    func body(content: Content) -> some View {
+        #if DEBUG
+        content.task {
+            let args = ProcessInfo.processInfo.arguments
+            guard let flag = args.firstIndex(of: "-yourday-open-detail") else { return }
+            let offset = (flag + 1 < args.count ? Int(args[flag + 1]) : nil) ?? 0
+            guard events.indices.contains(offset) else { return }
+            try? await Task.sleep(for: .milliseconds(400))
+            navigate(.event(events[offset]))
+        }
+        #else
+        content
+        #endif
+    }
+}
+
+/// The section's heading. Shared with the skeleton so the two are the same object
+/// and the title cannot move when content swaps in.
+private struct YourDayHeading: View {
+    var body: some View {
+        Text("Your day")
+            .font(.displaySemi(24))
+            .foregroundStyle(Hue.ink)
+            .accessibilityAddTraits(.isHeader)
+    }
+}
+
 private struct YourDaySection: View {
     let events: [UpcomingEvent]
+    let onOpenEvent: (UpcomingEvent) -> Void
     let onFindSomething: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Your day")
-                .font(.displaySemi(24))
-                .foregroundStyle(Hue.ink)
-                .accessibilityAddTraits(.isHeader)
+            YourDayHeading()
 
             if events.isEmpty {
                 emptyState
@@ -124,19 +196,23 @@ private struct YourDaySection: View {
                 .foregroundStyle(Hue.ink)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Button("See what's happening →") {
+            // Styling lives inside the label so the press style scales the whole
+            // control rather than the text inside a stationary background.
+            Button {
                 Haptics.light()
                 onFindSomething()
+            } label: {
+                Text("See what’s happening →")
+                    .font(.sansSemibold(15))
+                    .foregroundStyle(Hue.surface)
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 44)
+                    .background(
+                        Hue.ink,
+                        in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
+                    )
             }
-            .font(.sansSemibold(15))
-            .foregroundStyle(Hue.surface)
-            .padding(.horizontal, 16)
-            .frame(minHeight: 44)
-            .background(
-                Hue.ink,
-                in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
-            )
-            .buttonStyle(.plain)
+            .buttonStyle(FeedCardPressStyle())
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18)
@@ -149,7 +225,7 @@ private struct YourDaySection: View {
                 ForEach(YourDayLogic.stripItems(from: events)) { item in
                     switch item {
                     case .event(let event):
-                        YourDayEventCard(event: event)
+                        YourDayEventCard(event: event) { onOpenEvent(event) }
                     case .findSomething:
                         YourDayFindSomethingCard(action: onFindSomething)
                     }
@@ -165,8 +241,20 @@ private struct YourDaySection: View {
 
 private struct YourDayEventCard: View {
     let event: UpcomingEvent
+    let onOpen: () -> Void
 
     var body: some View {
+        // A Button, not a `.gesture` — a whole-card gesture claims the touch on
+        // press-down and out-competes the enclosing ScrollView's pan.
+        Button(action: onOpen) {
+            cardBody
+        }
+        .buttonStyle(FeedCardPressStyle())
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Opens this event")
+    }
+
+    private var cardBody: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(event.title)
                 .font(.displaySemi(20))
@@ -204,11 +292,13 @@ private struct YourDayEventCard: View {
             }
             .padding(.top, 16)
 
-            Text(placeLabel)
-                .font(.sans(13))
-                .foregroundStyle(Hue.inkSecondary)
-                .lineLimit(1)
-                .padding(.top, 5)
+            if let place = YourDayLogic.placeText(for: event) {
+                Text(place)
+                    .font(.sans(13))
+                    .foregroundStyle(Hue.inkSecondary)
+                    .lineLimit(1)
+                    .padding(.top, 5)
+            }
 
             if let going = YourDayLogic.goingLabel(for: event.goingCount) {
                 Text(going)
@@ -228,21 +318,11 @@ private struct YourDayEventCard: View {
             RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
                 .strokeBorder(Hue.hairline, lineWidth: 1)
         }
-        .accessibilityElement(children: .combine)
-    }
-
-    private var placeLabel: String {
-        guard let location = event.location?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !location.isEmpty
-        else { return "Location TBD" }
-        return location
     }
 }
 
 private struct YourDayFindSomethingCard: View {
     let action: () -> Void
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Button {
@@ -277,63 +357,25 @@ private struct YourDayFindSomethingCard: View {
                     .strokeBorder(Hue.hairline, lineWidth: 1)
             }
         }
-        .buttonStyle(YourDayFindPressStyle(reduceMotion: reduceMotion))
+        // This is a whole card inside a scroll view, so it gets the feed's quiet
+        // press — the emphatic 0.88 spring belongs to the "+" button alone.
+        .buttonStyle(FeedCardPressStyle())
         .accessibilityLabel("Find something")
     }
 }
 
-/// Matches `FeedEventCardJoinButton`'s established 0.88 press and compact spring.
-private struct YourDayFindPressStyle: ButtonStyle {
-    let reduceMotion: Bool
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(reduceMotion ? 1 : (configuration.isPressed ? 0.88 : 1))
-            .animation(
-                reduceMotion ? nil : .spring(response: 0.25, dampingFraction: 0.6),
-                value: configuration.isPressed
-            )
-    }
-}
-
+/// The heading is real; only the cards are placeholders. Their widths, heights,
+/// radius and gap are the strip's own (218 × 208, 12pt, `Radius.card`), and the
+/// trailing 170pt block is the Find-something tile, so nothing shifts on swap-in.
 private struct YourDaySkeleton: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
-                .fill(Hue.fill)
-                .frame(width: 104, height: 24)
-
-            HStack(spacing: 12) {
-                skeletonCard
-                skeletonCard
-            }
+        FeedSkeletonSection(spacing: 12) {
+            YourDayHeading()
+        } content: {
+            FeedSkeletonStrip(widths: [218, 218, 170], height: 208)
         }
-        .accessibilityHidden(true)
-    }
-
-    private var skeletonCard: some View {
-        RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-            .fill(Hue.fill)
-            .frame(width: 218, height: 208)
     }
 }
 
-private struct YourDayUnavailableCard: View {
-    let retry: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Your day couldn't load.")
-                .font(.displaySemi(20))
-                .foregroundStyle(Hue.ink)
-
-            Button("Try again", action: retry)
-                .font(.sansSemibold(15))
-                .foregroundStyle(Hue.ink)
-                .buttonStyle(.plain)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(18)
-        .blockPartyCard(padding: nil)
-    }
-}
+// The bespoke "Your day couldn't load." card was replaced by the shared
+// `FeedUnavailableCard`, so the three self-fetching modules fail the same way.

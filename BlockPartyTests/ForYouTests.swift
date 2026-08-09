@@ -143,10 +143,10 @@ final class ForYouTests: XCTestCase {
         )
 
         XCTAssertEqual(posting.matchedInterest.id, "sports_leagues")
-        XCTAssertEqual(
-            posting.reason,
-            "Sports & fitness · because you follow Sports & leagues"
-        )
+        // "Sports & fitness" and "Sports & leagues" are the same words twice, so
+        // the line collapses to its one informative half rather than repeating
+        // itself. It still names the real tag. See ForYouReason.
+        XCTAssertEqual(posting.reason, "Because you follow Sports & leagues")
     }
 
     func testNoInterestTagsShowsSetupStateWithoutLoadingEvents() async {

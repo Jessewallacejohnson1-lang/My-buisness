@@ -7,7 +7,9 @@ import SwiftUI
 
 struct SpotlightCard: View {
     let spotlight: BriefingSpotlight
-    var weekIdentifier: String? = nil
+    /// Human week label from `SpotlightWeekLabel`, e.g. "week of August 3" — not
+    /// the "2026-W32" archive key, which is machine syntax and used to render here.
+    var weekLabel: String? = nil
     var onOpen: (() -> Void)? = nil
 
     var body: some View {
@@ -17,7 +19,7 @@ struct SpotlightCard: View {
     private var card: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 9) {
-                Text("This week's spotlight · \(displayWeekIdentifier)")
+                Text("Spotlight · \(displayWeekLabel)")
                     .font(.sansSemibold(11))
                     .tracking(0.7)
                     .foregroundStyle(Hue.inkSecondary)
@@ -75,7 +77,7 @@ struct SpotlightCard: View {
                         RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
                     )
                 }
-                .buttonStyle(SpotlightPressStyle())
+                .buttonStyle(FeedCardPressStyle())
                 .padding(18)
                 .accessibilityHint("Opens this place in Maps")
             }
@@ -84,8 +86,10 @@ struct SpotlightCard: View {
         .blockPartyCard(padding: 0)
     }
 
-    private var displayWeekIdentifier: String {
-        weekIdentifier ?? SpotlightWeek.identifier(for: Date()) ?? "This week"
+    /// "this week" is the honest fallback when a date could not be parsed: the
+    /// eyebrow must still say the subject is weekly, and it must never guess a date.
+    private var displayWeekLabel: String {
+        weekLabel ?? SpotlightWeekLabel.label(for: Date()) ?? "this week"
     }
 
     private var imagePlaceholder: some View {
@@ -96,19 +100,5 @@ struct SpotlightCard: View {
                 .foregroundStyle(Hue.inkSecondary)
         }
         .accessibilityLabel("Photo unavailable")
-    }
-}
-
-private struct SpotlightPressStyle: ButtonStyle {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(reduceMotion ? 1 : (configuration.isPressed ? 0.985 : 1))
-            .opacity(reduceMotion && configuration.isPressed ? 0.78 : 1)
-            .animation(
-                reduceMotion ? .easeOut(duration: 0.1) : Motion.tilePress,
-                value: configuration.isPressed
-            )
     }
 }

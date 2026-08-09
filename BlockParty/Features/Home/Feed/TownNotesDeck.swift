@@ -31,11 +31,7 @@ struct TownNotesDeck: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("TOWN NOTES")
-                .font(.sansSemibold(11))
-                .tracking(1)
-                .foregroundStyle(Hue.inkSecondary)
-                .accessibilityAddTraits(.isHeader)
+            TownNotesHeading()
 
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(alignment: .top, spacing: 12) {
@@ -73,6 +69,18 @@ struct TownNotesDeck: View {
     }
 }
 
+/// The deck's section heading. Shared with the skeleton so the label is the same
+/// object in both states and cannot move when the stories land.
+struct TownNotesHeading: View {
+    var body: some View {
+        Text("TOWN NOTES")
+            .font(.sansSemibold(11))
+            .tracking(1)
+            .foregroundStyle(Hue.inkSecondary)
+            .accessibilityAddTraits(.isHeader)
+    }
+}
+
 struct TownNotesStoryCard: View {
     let story: NewsStory
     let isExpanded: Bool
@@ -86,7 +94,7 @@ struct TownNotesStoryCard: View {
             Button(action: toggle) {
                 collapsedContent
             }
-            .buttonStyle(TownNotesCardPressStyle())
+            .buttonStyle(FeedCardPressStyle())
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(
                 "\(story.categoryLabel). \(story.headline). \(story.sourceTimeLine)"
@@ -95,23 +103,19 @@ struct TownNotesStoryCard: View {
 
             if isExpanded {
                 expandedContent
-                    .transition(
-                        reduceMotion
-                            ? .opacity
-                            : .opacity.combined(with: .move(edge: .top))
-                    )
+                    .transition(FeedMotion.newsBodyTransition(reduceMotion: reduceMotion))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .blockPartyCard(padding: 0)
     }
 
+    /// The signature interaction of the feed. The card's own height carries the
+    /// spring; the summary fades and rises in a beat later so the two read as one
+    /// gesture with a cause and an effect. Reduce Motion is a plain cross-fade —
+    /// no spring, no offset (see `FeedMotion`).
     private func toggle() {
-        withAnimation(
-            reduceMotion
-                ? .easeOut(duration: 0.18)
-                : Motion.bentoExpand
-        ) {
+        withAnimation(FeedMotion.newsExpand(reduceMotion: reduceMotion)) {
             onToggle()
         }
     }
@@ -193,6 +197,11 @@ struct TownNotesStoryCard: View {
             .lineLimit(1)
     }
 
+    /// The source + time line is deliberately NOT repeated here. It belongs to the
+    /// collapsed card, where it is the only thing telling you who is speaking, and
+    /// it stays put when the card opens rather than moving or duplicating. Printing
+    /// it again under the summary put the same eleven characters on screen twice,
+    /// four lines apart, for no new information.
     private var expandedContent: some View {
         VStack(alignment: .leading, spacing: 14) {
             Divider().overlay(Hue.hairline)
@@ -202,11 +211,6 @@ struct TownNotesStoryCard: View {
                 .foregroundStyle(Hue.ink)
                 .lineSpacing(4)
                 .fixedSize(horizontal: false, vertical: true)
-
-            Text(story.sourceTimeLine)
-                .font(.sans(12))
-                .foregroundStyle(Hue.inkSecondary)
-                .monospacedDigit()
 
             if let sourceURL = story.sourceURL,
                let actionTitle = story.readActionTitle {
@@ -224,7 +228,7 @@ struct TownNotesStoryCard: View {
                         )
                         .blockPartyHairline(radius: Radius.button)
                 }
-                .buttonStyle(TownNotesSecondaryPressStyle())
+                .buttonStyle(FeedCardPressStyle())
                 .accessibilityHint("Opens the original story in the in-app browser")
             }
         }
@@ -262,74 +266,19 @@ struct TownNotesCaughtUpCard: View {
     }
 }
 
+/// The heading is real; only the card is a placeholder, and it is exactly the
+/// 300 × 280 the story card occupies, at the same `Radius.card`, so the deck does
+/// not jump when the stories land.
 struct TownNotesSkeleton: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            SkeletonLine(widthFraction: 0.28, height: 9)
-            SkeletonBlock(cornerRadius: Radius.card)
-                .frame(width: 300, height: 280)
-        }
-        .shimmering()
-        .accessibilityLabel("Loading town notes")
-    }
-}
-
-struct TownNotesUnavailableCard: View {
-    let onRetry: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Town notes didn’t load")
-                .font(.displaySemi(20))
-                .foregroundStyle(Hue.ink)
-
-            Text("Check your connection and try once more.")
-                .font(.sans(15))
-                .foregroundStyle(Hue.inkSecondary)
-
-            Button("Try again", action: onRetry)
-                .font(.sansSemibold(14))
-                .foregroundStyle(Hue.surface)
-                .frame(minHeight: 44)
-                .padding(.horizontal, 20)
-                .background(Hue.ink)
-                .clipShape(
-                    RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
-                )
-                .buttonStyle(TownNotesSecondaryPressStyle())
-                .padding(.top, 4)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(18)
-        .background(Hue.fill)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-    }
-}
-
-private struct TownNotesCardPressStyle: ButtonStyle {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(reduceMotion ? 1 : (configuration.isPressed ? 0.985 : 1))
-            .opacity(reduceMotion && configuration.isPressed ? 0.78 : 1)
-            .animation(
-                reduceMotion ? .easeOut(duration: 0.1) : Motion.tilePress,
-                value: configuration.isPressed
+        FeedSkeletonSection(spacing: 10) {
+            TownNotesHeading()
+        } content: {
+            FeedSkeletonStrip(
+                widths: [300, 300],
+                height: 280,
+                verticalPadding: 8
             )
-    }
-}
-
-private struct TownNotesSecondaryPressStyle: ButtonStyle {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(reduceMotion ? 1 : (configuration.isPressed ? 0.97 : 1))
-            .opacity(configuration.isPressed ? 0.76 : 1)
-            .animation(
-                reduceMotion ? .easeOut(duration: 0.1) : Motion.tilePress,
-                value: configuration.isPressed
-            )
+        }
     }
 }

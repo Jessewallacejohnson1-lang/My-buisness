@@ -9,8 +9,6 @@ struct TriviaCard: View {
     let question: TriviaQuestion
     var onAnswer: ((Int) -> Void)?
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 7) {
@@ -33,8 +31,8 @@ struct TriviaCard: View {
                 }
             }
 
-            if question.hasAnswered {
-                revealSummary
+            if let reveal = TriviaReveal.make(for: question) {
+                revealSummary(reveal)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -61,30 +59,32 @@ struct TriviaCard: View {
             } label: {
                 TriviaAnswerRow(option: option, visualState: visualState)
             }
-            .buttonStyle(TriviaOptionButtonStyle(reduceMotion: reduceMotion))
+            .buttonStyle(FeedCardPressStyle())
             .accessibilityLabel("Answer \(option)")
         } else {
             TriviaAnswerRow(option: option, visualState: visualState)
         }
     }
 
-    private var revealSummary: some View {
+    /// The reveal is immediate and calm — no animation, no transition. It is not
+    /// one of the two moments in this app allowed to perform.
+    private func revealSummary(_ reveal: TriviaReveal) -> some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(answerLine)
+            Text(reveal.answerLine)
                 .font(.sansSemibold(15))
                 .foregroundStyle(Hue.ink)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if let percentage = question.stats?.visibleCorrectAnswerPercentage {
-                Text("\(percentage)% of St. Joe got this right.")
+            if let townLine = reveal.townLine {
+                Text(townLine)
                     .font(.sans(14))
                     .foregroundStyle(Hue.inkSecondary)
                     .monospacedDigit()
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            if let streakCount = question.streakCount, streakCount > 1 {
-                Text("\(streakCount) days in a row")
+            if let streakLine = reveal.streakLine {
+                Text(streakLine)
                     .font(.mono(11))
                     .foregroundStyle(Hue.inkSecondary)
                     .monospacedDigit()
@@ -92,11 +92,6 @@ struct TriviaCard: View {
             }
         }
         .accessibilityElement(children: .combine)
-    }
-
-    private var answerLine: String {
-        if question.isCorrect { return "Correct." }
-        return "Not quite. \(question.options[question.correctIndex]) is the answer."
     }
 }
 
@@ -191,19 +186,5 @@ private struct TriviaAnswerRow: View {
         case .notSelected:
             option
         }
-    }
-}
-
-private struct TriviaOptionButtonStyle: ButtonStyle {
-    let reduceMotion: Bool
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(reduceMotion ? 1 : (configuration.isPressed ? 0.985 : 1))
-            .opacity(reduceMotion && configuration.isPressed ? 0.76 : 1)
-            .animation(
-                reduceMotion ? .easeOut(duration: 0.1) : Motion.tilePress,
-                value: configuration.isPressed
-            )
     }
 }

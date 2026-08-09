@@ -92,6 +92,12 @@ struct RootView: View {
                 // These flags take precedence over -briefing-preview because For You
                 // is below the fold at order 4 and this simulator cannot scroll.
                 ForYouPreview()
+            } else if ProcessInfo.processInfo.arguments.contains("-feed-gallery") {
+                // Every loading / ready / empty / error state of the lower feed
+                // modules (For You, spotlight, trivia, sign-off), which sit below
+                // the fold at orders 4-7 and cannot be scrolled to headlessly.
+                // Pair with `-feed-state <key[,key…]>` to isolate one.
+                FeedStatesGallery()
             } else if ProcessInfo.processInfo.arguments.contains("-briefing-preview") {
                 // Mount the real Today briefing composition (bypassing the auth
                 // gate) with BriefingModel seeded from a canned payload and no

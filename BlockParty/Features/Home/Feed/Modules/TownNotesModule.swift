@@ -60,7 +60,12 @@ final class TownNotesModule: FeedModule {
         sweepMetadata?.line
     }
 
-    func isVisible(_ ctx: FeedModuleContext) -> Bool { true }
+    func isVisible(_ ctx: FeedModuleContext) -> Bool {
+        #if DEBUG
+        if FeedDebugFocus.isHidden(id) { return false }
+        #endif
+        return true
+    }
 
     func load(_ ctx: FeedModuleContext) async {
         #if DEBUG
@@ -112,7 +117,7 @@ final class TownNotesModule: FeedModule {
 
         case .failed:
             return AnyView(
-                TownNotesUnavailableCard {
+                FeedUnavailableCard(title: FeedStateCopy.townNotesUnavailable) {
                     Task { await self.load(ctx) }
                 }
                 .padding(.horizontal, 18)
@@ -157,10 +162,13 @@ private extension TownNotesModule {
     func applyDebugSeedIfRequested() -> Bool {
         let args = ProcessInfo.processInfo.arguments
         let isEmpty = args.contains("-townnotes-empty")
+        let isLoading = args.contains("-townnotes-loading")
+        let isError = args.contains("-townnotes-error")
         let isExpanded = args.contains("-townnotes-expanded")
         let isCaughtUp = args.contains("-townnotes-caughtup")
         let isSample = args.contains("-townnotes-sample")
-        guard isEmpty || isExpanded || isCaughtUp || isSample else { return false }
+        guard isEmpty || isLoading || isError || isExpanded || isCaughtUp || isSample
+        else { return false }
 
         sweepMetadata = nil
         debugInitialExpandedStoryID = nil
@@ -169,6 +177,18 @@ private extension TownNotesModule {
         if isEmpty {
             stories = []
             phase = .empty
+            return true
+        }
+
+        if isLoading {
+            stories = []
+            phase = .loading
+            return true
+        }
+
+        if isError {
+            stories = []
+            phase = .failed
             return true
         }
 

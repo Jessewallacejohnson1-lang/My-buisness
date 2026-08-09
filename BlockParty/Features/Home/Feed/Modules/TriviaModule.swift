@@ -25,13 +25,19 @@ final class TriviaModule: @MainActor FeedModule {
     }
 
     var phase: FeedPhase {
-        if trivia.phase == .ready || briefing.payload?.touch != nil { return .ready }
-        if trivia.phase == .loading { return .loading }
-        if trivia.phase == .failed { return .failed }
-        return .empty
+        TriviaPhaseRule.phase(
+            trivia: trivia.phase,
+            hasTouch: briefing.payload?.touch != nil
+        )
     }
 
-    func isVisible(_ ctx: FeedModuleContext) -> Bool { true }
+    func isVisible(_ ctx: FeedModuleContext) -> Bool {
+        #if DEBUG
+        return !FeedDebugFocus.isHidden(id)
+        #else
+        return true
+        #endif
+    }
 
     func load(_ ctx: FeedModuleContext) async {
         #if DEBUG
@@ -52,7 +58,7 @@ final class TriviaModule: @MainActor FeedModule {
 
                 switch trivia.phase {
                 case .loading:
-                    DailyTouchSkeleton()
+                    TriviaCardSkeleton()
                 case .ready:
                     if let question = trivia.question {
                         TriviaCard(
@@ -63,8 +69,11 @@ final class TriviaModule: @MainActor FeedModule {
                         )
                     }
                 case .failed:
-                    TriviaUnavailableCard { Task { await self.load(ctx) } }
+                    FeedUnavailableCard(title: FeedLowerStateCopy.triviaUnavailable) {
+                        Task { await self.load(ctx) }
+                    }
                 case .empty:
+                    // No question is claimed for today. Render nothing.
                     EmptyView()
                 }
             }
@@ -115,26 +124,6 @@ final class TriviaModule: @MainActor FeedModule {
                 auth: ctx.auth
             )
         }
-    }
-}
-
-private struct TriviaUnavailableCard: View {
-    let retry: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Today’s trivia is unavailable.")
-                .font(.displaySemi(20))
-                .foregroundStyle(Hue.ink)
-
-            Button("Try again", action: retry)
-                .font(.sansSemibold(15))
-                .foregroundStyle(Hue.ink)
-                .frame(minHeight: 44)
-                .buttonStyle(.plain)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .blockPartyCard(padding: 18)
     }
 }
 

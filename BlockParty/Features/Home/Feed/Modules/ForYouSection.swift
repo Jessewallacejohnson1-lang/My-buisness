@@ -15,10 +15,7 @@ struct ForYouSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("For you")
-                .font(.displaySemi(24))
-                .foregroundStyle(Hue.ink)
-                .accessibilityAddTraits(.isHeader)
+            ForYouHeading()
 
             if state == .needsInterests {
                 needsInterests
@@ -199,7 +196,7 @@ private struct ForYouPostingCard: View {
                     .strokeBorder(Hue.hairline, lineWidth: 1)
                 }
         }
-        .buttonStyle(ForYouActionPressStyle(reduceMotion: reduceMotion))
+        .buttonStyle(FeedCardPressStyle())
         .accessibilityLabel(label)
     }
 
@@ -217,52 +214,36 @@ private struct ForYouPostingCard: View {
     }
 }
 
-private struct ForYouActionPressStyle: ButtonStyle {
-    let reduceMotion: Bool
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(reduceMotion ? 1 : (configuration.isPressed ? 0.88 : 1))
-            .animation(
-                reduceMotion
-                    ? nil
-                    : .spring(response: 0.25, dampingFraction: 0.6),
-                value: configuration.isPressed
-            )
+/// The section heading. Shared with the skeleton so the two cannot drift, and so
+/// the heading does not move when the cards land.
+struct ForYouHeading: View {
+    var body: some View {
+        Text("For you")
+            .font(.displaySemi(24))
+            .foregroundStyle(Hue.ink)
+            .accessibilityAddTraits(.isHeader)
     }
 }
 
+/// Matches `ForYouSection`: the real heading, then the same 300×230 cards in the
+/// same horizontal strip, second card peeking past the edge exactly as the live
+/// one does. Scrolling is off — a placeholder is not a control.
 struct ForYouSkeleton: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
-                .fill(Hue.fill)
-                .frame(width: 94, height: 24)
-
-            RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                .fill(Hue.fill)
-                .frame(width: 300, height: 230)
+        FeedSkeletonSection(spacing: 12) {
+            ForYouHeading()
+        } content: {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .top, spacing: 12) {
+                    ForEach(0..<2, id: \.self) { _ in
+                        SkeletonBlock(cornerRadius: Radius.card)
+                            .frame(width: 300, height: 230)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+            .scrollDisabled(true)
+            .scrollClipDisabled()
         }
-        .accessibilityHidden(true)
-    }
-}
-
-struct ForYouUnavailableCard: View {
-    let retry: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("For you couldn't load.")
-                .font(.displaySemi(20))
-                .foregroundStyle(Hue.ink)
-
-            Button("Try again", action: retry)
-                .font(.sansSemibold(15))
-                .foregroundStyle(Hue.ink)
-                .buttonStyle(.plain)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(18)
-        .blockPartyCard(padding: nil)
     }
 }

@@ -135,6 +135,36 @@ final class TriviaModel: ObservableObject {
     }
 }
 
+/// Everything the card says after an answer lands. Optional lines are genuinely
+/// absent, never a placeholder: below ten responses the town line is `nil`, and the
+/// card draws nothing at all rather than a dash, a spinner, or "0%". Real data
+/// only — an inflated or invented number is worse than silence.
+nonisolated struct TriviaReveal: Equatable, Sendable {
+    let answerLine: String
+    let townLine: String?
+    let streakLine: String?
+
+    static func make(for question: TriviaQuestion) -> TriviaReveal? {
+        guard question.hasAnswered else { return nil }
+
+        let answerLine = question.isCorrect
+            ? "Correct."
+            : "Not quite. \(question.options[question.correctIndex]) is the answer."
+
+        let townLine = question.stats?.visibleCorrectAnswerPercentage
+            .map { "\($0)% of St. Joe got this right." }
+
+        let streakCount = question.streakCount ?? 0
+        let streakLine = streakCount > 1 ? "\(streakCount) days in a row" : nil
+
+        return TriviaReveal(
+            answerLine: answerLine,
+            townLine: townLine,
+            streakLine: streakLine
+        )
+    }
+}
+
 /// A deliberately closed neutral palette. SwiftUI resolves these roles to the
 /// shared ink tokens; correctness is encoded separately by symbol and weight.
 nonisolated enum TriviaNeutralForegroundRole: Equatable, Hashable, Sendable {

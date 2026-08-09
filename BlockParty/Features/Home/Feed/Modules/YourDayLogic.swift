@@ -57,6 +57,15 @@ nonisolated enum YourDayLogic {
         count > 0 ? "\(count) going" : nil
     }
 
+    /// PRODUCT RULE: nil, never "Location TBD". A blank location is a fact we do
+    /// not have, and a card that says nothing about place is honest.
+    static func placeText(for event: UpcomingEvent) -> String? {
+        guard let location = event.location?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !location.isEmpty
+        else { return nil }
+        return location
+    }
+
     static func eventStart(for event: UpcomingEvent) -> Date? {
         guard let minutes = minutes(from: event.startTime),
               let day = eventDay(for: event)
@@ -73,7 +82,10 @@ nonisolated enum YourDayLogic {
         for event: UpcomingEvent,
         now: Date
     ) -> YourDaySchedulePresentation {
-        let dateAndTime = "\(dayLabel(for: event, now: now)), \(timeLabel(for: event))"
+        let dateAndTime = joined(
+            day: dayText(for: event, now: now),
+            time: startTimeText(for: event)
+        ) ?? ""
 
         guard let start = eventStart(for: event),
               let countdown = countdownText(eventStart: start, now: now)
@@ -84,8 +96,22 @@ nonisolated enum YourDayLogic {
         return YourDaySchedulePresentation(dateAndTime: dateAndTime, countdown: countdown)
     }
 
-    static func dayLabel(for event: UpcomingEvent, now: Date) -> String {
-        guard let eventDay = eventDay(for: event) else { return event.eventDate }
+    /// Joins whichever schedule parts exist. Nil when neither does — a caller must
+    /// render nothing rather than a comma or a "TBD".
+    static func joined(day: String?, time: String?) -> String? {
+        switch (day, time) {
+        case let (day?, time?): "\(day), \(time)"
+        case let (day?, nil): day
+        case let (nil, time?): time
+        case (nil, nil): nil
+        }
+    }
+
+    /// PRODUCT RULE: nil, never a placeholder. An unparseable date is not a day we
+    /// can name, and leaking the raw `2033-05-18` row value would be worse than
+    /// saying nothing.
+    static func dayText(for event: UpcomingEvent, now: Date) -> String? {
+        guard let eventDay = eventDay(for: event) else { return nil }
 
         let calendar = Town.calendar
         let today = calendar.startOfDay(for: now)
@@ -113,11 +139,13 @@ nonisolated enum YourDayLogic {
         }
     }
 
-    static func timeLabel(for event: UpcomingEvent) -> String {
+    /// The organizer's own words survive when we cannot parse them ("after dark"),
+    /// because that is real data. Only the absence of any time returns nil.
+    static func startTimeText(for event: UpcomingEvent) -> String? {
         guard let start = eventStart(for: event) else {
             let raw = event.startTime?.trimmingCharacters(in: .whitespacesAndNewlines)
             if let raw, !raw.isEmpty { return raw }
-            return "Time TBD"
+            return nil
         }
 
         let formatter = DateFormatter()
@@ -205,7 +233,11 @@ nonisolated enum YourDayLogic {
                 startTime: timeFormatter.string(from: starts[index]),
                 location: locations[index],
                 goingCount: goingCounts[index],
-                createdAt: "debug"
+                createdAt: "debug",
+                // Your Day only ever shows events the neighbour already said yes
+                // to (`getMyUpcomingRsvps` returns `rsvpd: true`), so the fixture
+                // has to say so too or the detail screen's RSVP control lies.
+                rsvpd: true
             )
         }
     }

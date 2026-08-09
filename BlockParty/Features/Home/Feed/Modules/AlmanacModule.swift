@@ -12,11 +12,23 @@ final class AlmanacModule: @MainActor FeedModule {
     let id: FeedModuleID = .almanac
     let order = 1
     let ownsFetch = false
+
+    /// Always `.ready`, and never `.empty`. The masthead's first two lines — the
+    /// date and the greeting — are local truth that needs no fetch, so there is no
+    /// module-level moment where this has nothing to render. The almanac's own
+    /// loading and error states belong to the async READINGS inside
+    /// `AlmanacSection`, which is where the network actually is.
     let phase: FeedPhase = .ready
 
     init(briefing: BriefingModel) {}
 
-    func isVisible(_ ctx: FeedModuleContext) -> Bool { true }
+    func isVisible(_ ctx: FeedModuleContext) -> Bool {
+        #if DEBUG
+        if FeedDebugFocus.isHidden(id) { return false }
+        #endif
+        return true
+    }
+
     func load(_ ctx: FeedModuleContext) async {}
 
     func makeView(_ ctx: FeedModuleContext) -> AnyView {

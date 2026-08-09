@@ -20,13 +20,31 @@ final class SignOffModule: @MainActor FeedModule {
     }
 
     var phase: FeedPhase {
-        briefing.payload == nil ? .empty : .ready
+        SignOffPhaseRule.phase(
+            hasPayload: briefing.payload != nil,
+            loadFailed: briefing.loadFailed
+        )
     }
 
-    func isVisible(_ ctx: FeedModuleContext) -> Bool { true }
+    func isVisible(_ ctx: FeedModuleContext) -> Bool {
+        #if DEBUG
+        return !FeedDebugFocus.isHidden(id)
+        #else
+        return true
+        #endif
+    }
+
     func load(_ ctx: FeedModuleContext) async {}
 
     func makeView(_ ctx: FeedModuleContext) -> AnyView {
+        if phase == .loading {
+            return AnyView(
+                SignOffSkeleton()
+                    .padding(.horizontal, 18)
+                    .padding(.top, 34)
+            )
+        }
+
         guard phase == .ready, let payload = ctx.briefing.payload else {
             return AnyView(EmptyView())
         }

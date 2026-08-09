@@ -71,6 +71,17 @@ struct AlmanacSection: View {
     /// Flips true ~300ms after appear: the skeleton lifts to the fallback if the
     /// masthead reads have not landed by then (cache hits usually beat it).
     @State private var read300msReady = false
+    /// True when Open-Meteo returned nothing at all, so the almanac has no readings
+    /// to print. The greeting and the date still stand — they are local truth — and
+    /// the read area offers a retry instead of inventing a sky.
+    @State private var readingsFailed = false
+    /// Bumped by the retry button; part of `suggestionTaskID`, so changing it
+    /// re-runs the whole masthead read.
+    @State private var retryToken = 0
+    /// True between tapping Try again and the re-read landing. It holds the
+    /// skeleton open for that window — the 300ms grace has long since elapsed by
+    /// then, and a retry that shows nothing looks like a button that does nothing.
+    @State private var isRetrying = false
 
     /// The write is a two-stage chain: stage 0 = greeting types, stage 1 = read
     /// writes. `Int.max` means "no write" (a later open, or Reduce Motion) — every
@@ -149,11 +160,20 @@ struct AlmanacSection: View {
                 .layoutPriority(1)
             }
 
-            // Sun times, the optional civic notice, and the suggestion write in
+            // The readings, the optional civic notice, and the suggestion write in
             // word-by-word underneath the greeting as one stable layout snapshot.
             // On a static open we hold a brief skeleton (<=300ms) so a fast cache-hit
             // AI line renders directly instead of flashing the template first.
-            if showReadSkeleton {
+            //
+            // Three states, in the same order every module in this feed uses them:
+            // error (nothing came back), loading (nothing yet), content. The date
+            // and the greeting are local truth and stay put through all three, so
+            // the card never goes blank.
+            if readingsFailed {
+                FeedUnavailableBody(title: FeedStateCopy.almanacUnavailable) {
+                    retryReadings()
+                }
+            } else if showReadSkeleton {
                 AlmanacReadSkeleton()
             } else {
                 TypewriterText(
@@ -168,6 +188,10 @@ struct AlmanacSection: View {
                 .fixedSize(horizontal: false, vertical: true)
             }
         }
+        .animation(
+            FeedMotion.stateSwap(reduceMotion: reduceMotion),
+            value: readingsFailed
+        )
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18)
         .background(Hue.surface)
@@ -179,6 +203,20 @@ struct AlmanacSection: View {
             // reads enrich it. Network failures leave the static real-place pool.
             #if DEBUG
             debugLine = Self.debugFail ? nil : Self.debugDemoLine
+            if Self.debugReadingsError {
+                weather = nil
+                weatherLoaded = true
+                suggestionLoaded = true
+                readingsFailed = true
+                activeStage = Int.max
+                return
+            }
+            if Self.debugReadingsLoading {
+                // Hold the skeleton open indefinitely (see `showReadSkeleton`) so
+                // its shape can be compared against the real read side by side.
+                activeStage = Int.max
+                return
+            }
             #endif
 
             async let weatherRequest = WeatherService.current()
@@ -186,6 +224,7 @@ struct AlmanacSection: View {
                 weather = await weatherRequest
                 weatherLoaded = true
                 suggestionLoaded = true
+                noteReadingsOutcome()
                 return
             }
 
@@ -206,6 +245,7 @@ struct AlmanacSection: View {
 
             weather = await weatherRequest
             weatherLoaded = true
+            noteReadingsOutcome()
 
             let (rsvps, trails, places) = await (rsvpRequest, trailRequest, placeRequest)
             if Task.isCancelled { return }
@@ -287,7 +327,27 @@ struct AlmanacSection: View {
     }
 
     private var suggestionTaskID: String {
-        "\(resolvedTownDate)|\(resolvedUserKey)"
+        "\(resolvedTownDate)|\(resolvedUserKey)|\(retryToken)"
+    }
+
+    /// Open-Meteo handed back nothing, so there is no condition, no temperature and
+    /// no sun times — the whole read is empty. A partial response is NOT a failure:
+    /// `Almanac.readingsLine` simply prints the fields that arrived.
+    private func noteReadingsOutcome() {
+        let failed = weather == nil
+        readingsFailed = failed
+        isRetrying = false
+        // A failed read has nothing to write, so drop out of the write chain rather
+        // than leaving the typewriter parked waiting for data that isn't coming.
+        if failed { activeStage = Int.max }
+    }
+
+    private func retryReadings() {
+        readingsFailed = false
+        weatherLoaded = false
+        suggestionLoaded = false
+        isRetrying = true
+        retryToken += 1
     }
 
     /// Frozen for the write (so a late name load can't change it mid-type); live for a
@@ -297,21 +357,18 @@ struct AlmanacSection: View {
         return frozenGreeting ?? liveGreeting
     }
 
+    /// COPY: the greeting is a hello and nothing else.
+    ///
+    /// It used to carry the weather too — "Back for another look. · Partly cloudy,
+    /// 83°" — which joined 24pt Jost display type to 14pt SF Pro with a middot and
+    /// read as two unrelated thoughts wearing one line. It also shrank the hero
+    /// (`minimumScaleFactor(0.6)`) every time the condition ran long. The weather
+    /// now sits on the readings line below, where the sun times already live: same
+    /// register, same source (Open-Meteo), same tabular figures.
     private var liveGreeting: AttributedString {
         var a = AttributedString(DailyGreeting.line(name: resolvedName))
         a.font = .display(greetingSize)      // bold hero — was semibold 20
         a.foregroundColor = Hue.ink
-        if let weather {
-            var condition = AttributedString(" · \(weather.label), ")
-            condition.font = .sansMedium(14)
-            condition.foregroundColor = Hue.ink
-            a += condition
-
-            var temperature = AttributedString("\(weather.tempF)°")
-            temperature.font = .monoMedium(14).monospacedDigit()
-            temperature.foregroundColor = Hue.ink
-            a += temperature
-        }
         return a
     }
 
@@ -342,7 +399,7 @@ struct AlmanacSection: View {
 
     private func liveRead() -> AttributedString {
         Almanac.mastheadBlock(
-            sunLine: Almanac.sunLine(for: weather),
+            readingsLine: Almanac.readingsLine(for: weather),
             civicLine: civicLine,
             suggestion: resolvedSuggestion
         )
@@ -430,7 +487,11 @@ struct AlmanacSection: View {
     /// content resolves. It lifts when the reads resolve or after 300ms, so cached
     /// content shows directly and a slow network falls back cleanly.
     private var showReadSkeleton: Bool {
-        activeStage == Int.max && !readDataArrived && !read300msReady
+        #if DEBUG
+        if Self.debugReadingsLoading { return true }
+        #endif
+        if isRetrying { return true }
+        return activeStage == Int.max && !readDataArrived && !read300msReady
     }
 
     private var forceWrite: Bool {
@@ -533,6 +594,14 @@ struct AlmanacSection: View {
     private static var debugFail: Bool {
         ProcessInfo.processInfo.arguments.contains("-almanac-fail")
     }
+    /// `-almanac-error` — force the readings-unavailable state (with its retry).
+    private static var debugReadingsError: Bool {
+        ProcessInfo.processInfo.arguments.contains("-almanac-error")
+    }
+    /// `-almanac-loading` — hold the read skeleton open so its shape can be checked.
+    private static var debugReadingsLoading: Bool {
+        ProcessInfo.processInfo.arguments.contains("-almanac-loading")
+    }
     #endif
 }
 
@@ -572,22 +641,32 @@ private struct AlmanacDateEyebrow: View {
     private static func spoken(_ date: Date) -> String { spokenFormatter.string(from: date) }
 }
 
-/// A calm two-bar placeholder for the read while the day's line loads (<=300ms). Ink-on-
-/// paper `fill` gray, no shimmer — motion is reserved for confirmation, not loading.
+/// The read's placeholder, shaped like the read (<=300ms on a static open).
+///
+/// The block it stands in for is: the readings line (14pt, wraps to two lines at
+/// this width once the weather sits on it), then the suggestion (16pt, two lines).
+/// The bar heights and the 5pt gaps are the real line heights and `lineSpacing`,
+/// and the ragged widths keep it reading as text rather than as a loading bar, so
+/// the swap-in does not move the card. Ink-on-paper `fill` gray, shimmer applied
+/// by `FeedSkeletonSection` at the group root — same as the other two modules.
 private struct AlmanacReadSkeleton: View {
+    private static let readingsLineHeight: CGFloat = 17
+    private static let suggestionLineHeight: CGFloat = 19
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(Hue.fill)
-                .frame(height: 15)
-                .frame(maxWidth: .infinity)
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(Hue.fill)
-                .frame(height: 15)
-                .frame(maxWidth: 210)
+        VStack(alignment: .leading, spacing: 5) {
+            bar(0.98, Self.readingsLineHeight)
+            bar(0.46, Self.readingsLineHeight)
+            bar(0.98, Self.suggestionLineHeight)
+            bar(0.62, Self.suggestionLineHeight)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .shimmering()
         .accessibilityHidden(true)
+    }
+
+    private func bar(_ widthFraction: CGFloat, _ height: CGFloat) -> some View {
+        SkeletonLine(widthFraction: widthFraction, height: height)
     }
 }
 
@@ -596,34 +675,38 @@ private struct AlmanacReadSkeleton: View {
 /// Builds the masthead's sun/civic/suggestion rows as attributed SF Pro runs.
 /// Numbers use tabular figures and every row stays monochrome ink-on-paper.
 enum Almanac {
-    /// Sun times always own one logical line. Missing fields are reported rather
-    /// than guessed, while a partial Open-Meteo response still shows what it has.
-    static func sunLine(for weather: Weather?) -> String {
-        switch (weather?.sunrise, weather?.sunset) {
-        case let (sunrise?, sunset?):
-            return "Sunrise \(clock(sunrise)) · sunset \(clock(sunset))"
-        case let (sunrise?, nil):
-            return "Sunrise \(clock(sunrise))"
-        case let (nil, sunset?):
-            return "Sunset \(clock(sunset))"
-        case (nil, nil):
-            return "Sun times unavailable"
-        }
+    /// The day's readings — condition, temperature, sunrise, sunset — as ONE
+    /// logical line. The weather moved here from the greeting: it is data, and this
+    /// is where the almanac's other data already lives.
+    ///
+    /// Nil when Open-Meteo gave us nothing at all; the masthead shows its retry in
+    /// that case rather than a line that says "unavailable". A PARTIAL response
+    /// still prints whatever fields did arrive — never a guess, never a zero.
+    static func readingsLine(for weather: Weather?) -> String? {
+        var parts: [String] = []
+        if let weather { parts.append("\(weather.label), \(weather.tempF)°") }
+        if let sunrise = weather?.sunrise { parts.append("sunrise \(clock(sunrise))") }
+        if let sunset = weather?.sunset { parts.append("sunset \(clock(sunset))") }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
-    /// Lines 3–5 share one attributed block so the existing word-by-word reveal
-    /// reserves its final layout. A missing civic line adds no newline or spacer.
+    /// The readings, the optional civic notice and the suggestion share one
+    /// attributed block so the existing word-by-word reveal reserves its final
+    /// layout. A missing row adds no newline or spacer.
     static func mastheadBlock(
-        sunLine: String,
+        readingsLine: String?,
         civicLine: String?,
         suggestion: String
     ) -> AttributedString {
-        var out = run(sunLine, .sansMedium(14), Hue.inkSecondary)
-        if let civicLine, !civicLine.isEmpty {
-            out += run("\n", .sans(14), Hue.inkSecondary)
-            out += run(civicLine, .sansMedium(14), Hue.ink)
+        var out = AttributedString("")
+        if let readingsLine, !readingsLine.isEmpty {
+            out += run(readingsLine, .sansMedium(14), Hue.inkSecondary)
+            out += run("\n", .sans(15), Hue.inkSecondary)
         }
-        out += run("\n", .sans(15), Hue.ink)
+        if let civicLine, !civicLine.isEmpty {
+            out += run(civicLine, .sansMedium(14), Hue.ink)
+            out += run("\n", .sans(15), Hue.ink)
+        }
         out += styled(suggestion)
         return out
     }

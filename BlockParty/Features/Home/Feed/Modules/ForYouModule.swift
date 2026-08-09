@@ -65,7 +65,13 @@ final class ForYouModule: FeedModule {
         }
     }
 
-    func isVisible(_ ctx: FeedModuleContext) -> Bool { true }
+    func isVisible(_ ctx: FeedModuleContext) -> Bool {
+        #if DEBUG
+        return !FeedDebugFocus.isHidden(id)
+        #else
+        return true
+        #endif
+    }
 
     func load(_ ctx: FeedModuleContext) async {
         #if DEBUG
@@ -134,9 +140,11 @@ final class ForYouModule: FeedModule {
 
         case .failed:
             AnyView(
-                ForYouUnavailableCard { Task { await self.load(ctx) } }
-                    .padding(.horizontal, 18)
-                    .padding(.top, 22)
+                FeedUnavailableCard(title: FeedLowerStateCopy.forYouUnavailable) {
+                    Task { await self.load(ctx) }
+                }
+                .padding(.horizontal, 18)
+                .padding(.top, 22)
             )
 
         case .ready:

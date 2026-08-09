@@ -21,21 +21,42 @@ final class SpotlightModule: @MainActor FeedModule {
     }
 
     var phase: FeedPhase {
-        if briefing.payload?.spotlight != nil { return .ready }
-        if briefing.payload == nil && !briefing.loadFailed { return .loading }
-        return .empty
+        SpotlightPhaseRule.phase(
+            hasSpotlight: briefing.payload?.spotlight != nil,
+            hasPayload: briefing.payload != nil,
+            loadFailed: briefing.loadFailed
+        )
     }
 
-    func isVisible(_ ctx: FeedModuleContext) -> Bool { true }
+    func isVisible(_ ctx: FeedModuleContext) -> Bool {
+        #if DEBUG
+        return !FeedDebugFocus.isHidden(id)
+        #else
+        return true
+        #endif
+    }
+
     func load(_ ctx: FeedModuleContext) async {}
 
     func makeView(_ ctx: FeedModuleContext) -> AnyView {
         switch phase {
         case .loading:
             return AnyView(
-                SpotlightSkeleton()
+                SpotlightCardSkeleton()
                     .padding(.horizontal, 18)
                     .padding(.top, 22)
+            )
+
+        case .failed:
+            // The spotlight is the last briefing-backed card in the column, so it
+            // carries the cold-start failure for the payload it reads. The sign-off
+            // stays quiet instead of duplicating this — see SignOffModule.
+            return AnyView(
+                FeedUnavailableCard(title: FeedLowerStateCopy.spotlightUnavailable) {
+                    Task { await ctx.briefing.refresh(BriefingAPI(auth: ctx.auth)) }
+                }
+                .padding(.horizontal, 18)
+                .padding(.top, 22)
             )
 
         case .ready:
@@ -54,8 +75,8 @@ final class SpotlightModule: @MainActor FeedModule {
             return AnyView(
                 SpotlightCard(
                     spotlight: spotlight,
-                    weekIdentifier: SpotlightWeek.identifier(
-                        for: ctx.briefing.payload?.briefingDate ?? ""
+                    weekLabel: SpotlightWeekLabel.label(
+                        forBriefingDate: ctx.briefing.payload?.briefingDate ?? ""
                     ),
                     onOpen: openMap
                 )
@@ -68,7 +89,7 @@ final class SpotlightModule: @MainActor FeedModule {
                     )
             )
 
-        case .empty, .failed:
+        case .empty:
             return AnyView(EmptyView())
         }
     }
