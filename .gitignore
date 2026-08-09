@@ -40,3 +40,6 @@ graphify-out/
 
 # scratch DerivedData used to parallelise agent builds
 .dd-notes/
+
+# per-agent scratch DerivedData
+.dd-*/
