@@ -55,8 +55,8 @@ final class BriefingFeelTests: XCTestCase {
         XCTAssertNil(suite.string(forKey: CaughtUpMemory.key))
     }
 
-    /// The key is new on purpose: `hygge.*` and `utility.*` are frozen, and reusing
-    /// one signs people out or drops their tile preferences.
+    /// The key stays separate from the current `bp.*` namespace. Pre-rebrand
+    /// `hygge.*` values are unreachable under the new bundle id, so none are migrated.
     func testTheMemoryKeyIsNamespacedToBriefing() {
         XCTAssertTrue(CaughtUpMemory.key.hasPrefix("briefing."))
     }

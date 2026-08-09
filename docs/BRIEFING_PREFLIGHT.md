@@ -52,7 +52,9 @@ Untested. Run the Animation Hitches template while scrolling Today top to bottom
 - Confirm `BlockParty/Config/MapboxConfig.swift` and `GooglePlacesConfig.swift`
   exist in whichever checkout you archive from. They are gitignored, and a fresh
   worktree will not have them.
-- The bundle id stays `Jesse.Hygge`. Never change it.
+- The bundle id is `Jesse.BlockParty`. Before archiving, verify the new App Store
+  Connect record exists and the Google Places key allows this bundle id; otherwise
+  the build can install while every venue photo remains blank.
 
 ## Tester notes — suggested
 

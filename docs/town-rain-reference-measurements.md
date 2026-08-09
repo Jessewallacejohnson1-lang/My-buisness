@@ -82,7 +82,7 @@ pill, so `-town-rain-preview` (a `RootView` gate) renders the field full-screen 
 burst. Record it and run the *same* tracker over the result:
 
 ```bash
-xcrun simctl launch <udid> Jesse.Hygge -town-rain-preview      # add -poi-logo-stub for offline
+xcrun simctl launch <udid> Jesse.BlockParty -town-rain-preview # add -poi-logo-stub for offline
 xcrun simctl io <udid> recordVideo --codec h264 /tmp/rain.mp4
 /tmp/track /tmp/rain.mp4 60 0.055 0.85 > /tmp/sim.tsv
 python3 scripts/fit_rain.py /tmp/sim.tsv

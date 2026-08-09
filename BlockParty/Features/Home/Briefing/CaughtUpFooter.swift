@@ -87,8 +87,9 @@ private struct CheckmarkPath: Shape {
 
 /// Remembers which briefing day has already been celebrated.
 ///
-/// A new `briefing.*` key, deliberately: the `hygge.*` and `utility.*` keys are
-/// frozen — renaming or reusing one signs people out or drops their tile prefs.
+/// A separate `briefing.*` key, deliberately: persisted app keys now use `bp.*`.
+/// The pre-rebrand `hygge.*` values are unreachable — the new bundle id gives the
+/// app a fresh container — so there is nothing to migrate.
 nonisolated enum CaughtUpMemory {
     static let key = "briefing.caughtUpCelebratedOn"
 

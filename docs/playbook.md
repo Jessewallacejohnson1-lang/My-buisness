@@ -103,7 +103,7 @@ In a new town most screens start empty, so **empty states ARE the product and on
 
 ### Preserve continuity (technical spine)
 
-- **Keep the same bundle identifier and App Store record.** Renaming the display name preserves ratings, reviews, and history; a new bundle ID = a new app and forfeits all of it. **DECIDED: bundle ID stays.**
+- **Superseded 2026-08-09:** the original recommendation was to keep the bundle identifier and App Store record, because a new bundle ID creates a new app and forfeits listing/TestFlight continuity. Jesse accepted that cost after confirming the app is pre-launch and chose a full identifier purge. The bundle id is now `Jesse.BlockParty`; the required new App Store Connect record and Google Places restriction update remain outstanding. `DECISIONS.md` is authoritative.
 - Name changes are allowed but reviewed; expect a temporary **ASO wobble** while the algorithm re-associates. Do keyword work so "Block Party" + descriptive subtitle terms are earned back deliberately.
 - **Phase the rollout** so users can re-associate icon and name; no hard overnight swap.
 
@@ -150,8 +150,8 @@ Facebook saturated Harvard (>50% of undergrads in month one) before opening the 
 
 ### Phase 1 — Rebrand + brand system (now)
 
-1. Rename inside the existing App Store listing; keep the bundle ID; release notes + in-app notice; "formerly Hygge" subtitle ~30 days; respond to reviews. **Gate:** new icon legible and unmistakable at 32px next to competitor icons.
-2. Codify the monochrome system: ink on warm white; three radii max; hairline borders not shadows; geometric display face for headlines + legible sans for body. **Color rule: photography-only color plus the 3-state status palette** (Going/Interested/Can't; open/closed on Map). Coral is gone.
+1. Complete the pre-launch identifier purge: ship `Jesse.BlockParty`, create its App Store Connect record, and add the new bundle id to the Google Places key restriction. Persisted keys are now `bp.*` with no migration path — the new bundle id means a new container, so existing installs re-authenticate and re-onboard. **Gate:** venue photography works under the new identifier and the new icon is unmistakable at 32px.
+2. Maintain the ink-on-warm-white core with the one plum semantic accent for live/active/selected/primary states. Photography, cartography, weather/utility slabs, and the reference-matched onboarding palette are controlled content/system exceptions. The proposed green/amber/red 3-state palette was not adopted; category stays glyph-led.
 3. Rebuild the top three empty states (Today, Activities, Map) as onboarding surfaces: value-named copy, ghost/preview row, one verb-first CTA.
 
 ### Phase 2 — Engagement mechanics (before wide launch)

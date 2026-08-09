@@ -1,132 +1,231 @@
 # AGENTS.md
 
-This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
+This file is the working guide for Codex agents in this repository. Treat the live tree and `CLAUDE.md` as corroborating sources; if either guide disagrees with code, surface the mismatch instead of inventing a path or API.
 
 ## Project
 
-**Hygge** — a native **SwiftUI + Mapbox** iOS app for the real town of **St. Joseph, MN**: one calm place for everything happening in town (a daily timeline, a shared calendar anyone can add to, a live town map, a daily quest). This is a **native port of the Expo / React Native app** that lives in a **separate repo** at `~/Documents/my-business/apps/mobile`.
+**Block Party** is a native SwiftUI + Mapbox iOS app for St. Joseph, Minnesota: a finite daily town briefing, shared activities/calendar, live town map, community profile, and local onboarding. It is the native twin of the Expo/React Native app in `~/Documents/my-business/apps/mobile`.
 
-- **Xcode project:** `Hygge.xcodeproj` · **scheme:** `Hygge` · **bundle id:** `Jesse.Hygge` · **iOS deployment target: 26.5** · Swift 5.
-- **Only SPM dependency:** [`mapbox-maps-ios`](https://github.com/mapbox/mapbox-maps-ios).
-- **Shared backend:** the same Supabase project as the Expo app (`lxdgwhvqjqmqliobwjpi`). The two apps are backend-twins — schema, RLS, and query semantics match `@hygge/core` in the Expo repo. **Keep design tokens and query behavior in sync with that repo** (each Swift source that ports a JS file says so in its header).
+- Xcode project: `BlockParty.xcodeproj`
+- Scheme and module: `BlockParty`
+- Bundle identifier: `Jesse.BlockParty`
+- Deployment target: iOS 26.5
+- Swift: 5
+- Test target: `BlockPartyTests`
+- Only SPM dependency: `mapbox-maps-ios`
+- Shared Supabase project: `lxdgwhvqjqmqliobwjpi`
+
+The native and Expo apps share schema, RLS, and query semantics. Seven Swift comments deliberately reference `@hygge/core`: that is still the real npm package name in `~/Documents/my-business/packages/core/package.json`. Those comments are accurate; do not rename them until the package itself changes.
 
 ### Two-repo rule
-This is the **native iOS / map** codebase. The Expo/React-Native/web product is the other repo. Map, Mapbox, and native-iOS work happen **here**; RN/web work happens **there**. They look nearly identical on the simulator — this app's first tab is **"Today"**, the Expo app's is **"Home"**.
 
-## Build, run, verify
+Mapbox, native iOS, and this app's first tab (**Today**) belong here. React Native/web work belongs in the Expo repo, whose equivalent first tab is called **Home**. Keep backend behavior and shared design/query decisions in sync, but do not edit the other repo as a side effect of native work.
 
-There is **no unit-test suite** (no XCTest target). "Verified" means: **builds clean (0 warnings) + confirmed in the running simulator via screenshots** — the same discipline the `MAP_BUILD_LOG.md` records.
+## Before changing anything
 
-**Prefer XcodeBuildMCP** (`build_run_sim`, `build_sim`, `screenshot`) over raw shell for Apple tooling. Raw fallbacks:
+Run these first:
 
 ```bash
-# Build for the simulator
-xcodebuild -project Hygge.xcodeproj -scheme Hygge -configuration Debug \
+git status --short --branch
+git worktree list
+git branch -a
+```
+
+Parallel sessions routinely leave unrelated WIP. Preserve it. If the current tree is dirty and the requested change would overlap those files, use a clean worktree/branch or ask the user how to handle the entanglement; never sweep someone else's edits into a commit. Worktree paths change often, so use `git worktree list` rather than remembered names. Before XcodeBuildMCP builds, confirm its active checkout with `session_show_defaults`.
+
+## Build, test, run, verify
+
+Run the app-hosted test target with:
+
+```bash
+xcodebuild test -project BlockParty.xcodeproj -scheme BlockParty \
+  -destination 'platform=iOS Simulator,name=iPhone 17' CODE_SIGNING_ALLOWED=NO
+```
+
+For one test/class, append `-only-testing:BlockPartyTests/DateHelpersTests/testAdminGate` or `-only-testing:BlockPartyTests/DateHelpersTests`.
+
+Tests cover date/admin rules, the Today briefing contract/model/feel/live-payload parity, utility providers/preferences/motion/contrast, onboarding persistence, town-timezone formatting, the legacy-key migration, and town-rain physics. Visual fidelity still requires a clean 0-warning build plus simulator screenshots. Scroll, touch arbitration, and map gestures require a real-device check.
+
+Prefer XcodeBuildMCP (`build_run_sim`, `build_sim`, `screenshot`) for Apple tooling. Raw simulator fallback:
+
+```bash
+xcodebuild -project BlockParty.xcodeproj -scheme BlockParty -configuration Debug \
   -destination 'platform=iOS Simulator,name=iPhone 17' build
 
-# Launch on a booted sim (see debug flags below), then screenshot
-xcrun simctl launch <udid> Jesse.Hygge -open-tab map
+xcrun simctl launch <udid> Jesse.BlockParty -open-tab map
 xcrun simctl io <udid> screenshot /tmp/map.png
 ```
 
-**Installing the build you just made (raw tooling) — the DerivedData trap.** This repo has accumulated **several `Hygge-<hash>` DerivedData folders** (multiple worktree checkouts), so `find … -name Hygge.app | head` grabs a **stale** one and you screenshot a days-old binary (symptom: your change is missing, e.g. old theme colors). Resolve the *real* output dir and confirm its timestamp:
+### DerivedData trap
+
+Multiple worktrees produce multiple `BlockParty-<hash>` DerivedData folders. Never locate the app with `find ... -name BlockParty.app | head`; that often installs a stale binary. Resolve the output for the checkout you just built:
 
 ```bash
-DIR=$(xcodebuild -project Hygge.xcodeproj -scheme Hygge -configuration Debug \
+DIR=$(xcodebuild -project BlockParty.xcodeproj -scheme BlockParty -configuration Debug \
   -destination 'platform=iOS Simulator,name=iPhone 17' -showBuildSettings \
   | awk -F' = ' '/ BUILT_PRODUCTS_DIR =/{print $2; exit}')
-xcrun simctl install <udid> "$DIR/Hygge.app"   # install OVER the app — do NOT `uninstall`
+xcrun simctl install <udid> "$DIR/BlockParty.app"
 ```
 
-`simctl uninstall` wipes the app container: the `hygge.onboarded` UserDefaults flag + local mirrors go with it, bouncing a signed-in user back to the onboarding wizard. If that happens, restore with `xcrun simctl spawn <udid> defaults write Jesse.Hygge hygge.onboarded -string 1` and relaunch.
+Install **over** the existing app. `simctl uninstall` destroys the container, including the session, `bp.onboarded.<uid>`, and local mirrors. If recovery is necessary, sign in again and only restore a user-scoped onboarding flag when the remote profile confirms completion:
 
-**DEBUG-only launch arguments** (for headless screenshot verification, no UI driving needed):
-- `-open-tab map|activities|calendar` — start on a given tab (`MainTabsView.initialTab()` in `App/RootView.swift`).
-- `-force-nonadmin` — force the non-admin branch so admin-gated UI (the map "+") can be verified without a second account (`SJMapView.isAdmin`).
-- `-explore-filter events|clubs|trails|parks` — start the Activities ("Explore") tab on a given category chip so each card state can be screenshotted headlessly (`ActivitiesView.initialFilter()`).
-- `-explore-timeframe today|week|month|upcoming` — start the Explore tab with a given event time-frame filter applied (`ActivitiesView.initialTimeFrame()`).
-- `-explore-search-open` — present the frosted-glass search overlay (`ExploreSearchOverlay`) focused-but-empty so its "Popular" guesses can be screenshotted headlessly (`ActivitiesView.initialSearch()`; auto-presented ~0.45 s after appear in `explore`'s `.onAppear`). Pressing search fades the whole screen (tab bar included) into white-tinted glass with one crisp white search pill + minimal icon-less light-grey guesses.
-- `-explore-search <query>` — present the search overlay with a query so the reference-aware guesses (`TownSearch`) render for a screenshot. "Reference" matching (synonym/alias/typo) means the query need not be the exact name: `csb`→Saint Ben's, `coff`/`cofee`→Downtown + Coffee shops, `pint`→Breweries.
-- `-explore-search-committed <query>` — land in the committed state (glass dismissed): the slim crisp search bar in the header holds `<query>` and the filtered results list shows below, for screenshotting the post-commit UI.
-- `-map-sheet places` — open the map's bottom sheet on the Places list (`MapSheet.initialMode()`).
-- `-map-detent peek|medium|full` — open the map's bottom sheet at a given detent so each rest state (and the peek-line ⇄ list cross-fade) can be screenshotted headlessly (`MapSheet.initialDetent()`).
-- `-map-open <spotid>` — preselect a map spot so its detail card renders for a screenshot (`SJMapView.debugSelectedSpot()`; ids are `downtown|saintbens|chapel|wobegon|millstream|saintjohns`).
-- `-map-center <lat>,<lon>` — start the map camera elsewhere so the town pill's reverse-geocoding can be screenshotted over another city (`SJMapView.debugInitialCenter()`).
-- `-map-zoom <z>` — start the map camera at a given zoom for consistent-framing screenshots (`SJMapView.debugInitialZoom()`; default 13.5).
-- `-map-save <spotid>` — (repeatable) force a spot into the **Saved** pin state (category-tint badge + ink `bookmark.fill` corner) without a real save, so the Saved marker renders for a screenshot (`SJMapView.debugSavedIds()`).
-- `-map-force-live <spotid>` — (repeatable) force a spot **Live** (coral badge + pulse + name label) regardless of real events, so the Live marker can be screenshotted headlessly (`SJMapView.debugForceLiveIds()`).
-- `-calendar-face upcoming|grid` — start the Calendar tab on a given face of the Upcoming ⇄ Calendar toggle (`CalendarView.initialFace()`).
-- `-calendar-open <YYYY-MM-DD>` — preselect a calendar day so the selection outline + day sheet render for a screenshot (`CalendarView.applyDebugLaunchState()`).
-- `-calendar-legend` — open the calendar's "Reading the calendar" info sheet (`CalendarView.applyDebugLaunchState()`).
-- `-calendar-compose` — with a day open (`-calendar-open`), auto-present the event composer so its category-picker chip row can be screenshotted headlessly (`DayDetailView.onAppear`).
-- `-open-menu` — unfold the town menu drawer on launch (Home's top-right button; `MainTabsView.debugOpenMenu()`); compose with `-menu-autoclose` to fire the collapse ~1.6s after open (records the close headlessly).
-- `-tap-menu` — fire the menu button's *tap* ~1.2s after Home appears (plays the button bounce + three-dot fade, then opens the drawer), for recording the tap animation; compose with `-slow-tap` to stretch that reaction ~4× so it can be captured frame-by-frame (`Masthead.debugAutoTap` / `slowTap`).
-- `-open-profile` — present the community Profile sheet on launch (now a town-menu destination; `MainTabsView.debugOpenProfile()`). Compose with `-profile-expand` (activity list expanded), `-profile-bottom` (scrolled to the sign-out row), `-profile-edit` (the editor open), or `-profile-edit-interests` (the editor's interest picker open) to screenshot those states (`ProfileView` / `EditProfileView`).
-- `-almanac-write` — force the Almanac's **write** on launch regardless of the first-open gate (and bypassing Reduce Motion), so the greeting-types-then-read-writes reveal can be recorded headlessly (`AlmanacSection` / `AlmanacReveal`). The write now plays on the **first open of each app launch** and on **pull-to-refresh** (Home bumps an `almanacReplay` nonce); the gate is an in-memory per-launch flag (`AlmanacReveal.hasWrittenThisLaunch`), so it resets every launch — there is no persisted day-stamp to poke. To capture the *static* (already-written) path, just relaunch without the flag from a warm process (or add a tab-return): a second appearance in the same launch renders instantly.
+```bash
+xcrun simctl spawn <udid> defaults write Jesse.BlockParty "bp.onboarded.<uid>" -string 1
+```
 
-### First-checkout setup — required or the build fails
-- **`Hygge/Config/MapboxConfig.swift` is gitignored** (it holds the Mapbox token) — a fresh clone must recreate it: `let MAPBOX_ACCESS_TOKEN = "pk...."`. Without it the map is blank / the build won't link the token.
-- **`.impeccable/` build hazard:** the "impeccable" tool drops `.impeccable/hook.cache.json`. If one lands **inside** the `Hygge/` file-system-synchronized group, Xcode copies duplicate `hook.cache.json` into the bundle and the build fails with **"Multiple commands produce …"**. Fix: `find Hygge -type d -name .impeccable -exec rm -rf {} +`. (`.impeccable/` is gitignored.)
+For a physical device, keep DerivedData outside `BlockParty/` so Xcode's file-system-synchronized group cannot absorb build output:
+
+```bash
+DD=/tmp/dd-device
+xcodebuild -project BlockParty.xcodeproj -scheme BlockParty -configuration Debug \
+  -destination 'id=<HARDWARE_UDID>' -derivedDataPath "$DD" \
+  -allowProvisioningUpdates build
+xcrun devicectl device install app --device <COREDEVICE_UUID> \
+  "$DD/Build/Products/Debug-iphoneos/BlockParty.app"
+xcrun devicectl device process launch --device <COREDEVICE_UUID> Jesse.BlockParty
+```
+
+`xcodebuild -destination id=` uses the hardware UDID from `xcrun xctrace list devices`; `devicectl --device` uses the CoreDevice UUID from `xcrun devicectl list devices`. Unlock the device before remote launch. Automatic signing may create/refresh the `Jesse.BlockParty` provisioning profile on the first post-rename build.
+
+### First-checkout requirements
+
+Two gitignored files under `BlockParty/Config/` must exist or the build fails:
+
+- `MapboxConfig.swift`: declares `MAPBOX_ACCESS_TOKEN`.
+- `GooglePlacesConfig.swift`: declares `GOOGLE_PLACES_API_KEY`.
+
+Copy them from an authorized sibling checkout; never commit them. The Google Cloud Places key still needs `Jesse.BlockParty` added to its iOS bundle-id restrictions (outstanding as of 2026-08-09). Until that console action lands, all runtime venue photography under the new bundle id will be blank.
+
+The `.impeccable/` tool cache is another build hazard. If `.impeccable/hook.cache.json` lands inside the file-system-synchronized `BlockParty/` group, Xcode may fail with “Multiple commands produce …”. Remove only those nested caches:
+
+```bash
+find BlockParty -type d -name .impeccable -exec rm -rf {} +
+```
+
+## DEBUG launch arguments
+
+All of these compile out in Release. They exist because this simulator setup has no gesture/scroll automation.
+
+- **Shell/previews:** `-open-tab map|activities|calendar`; `-show-home`; `-show-splash`; `-show-loader`; `-show-loading-cover`; `-show-skeletons`; `-show-map-intro`; `-share-demo`; `-open-speeddial` with optional `-speeddial-loop`.
+- **Today briefing:** `-briefing-preview [-briefing-state sample|one_event|zero_events|voted|none|degraded]`; `-briefing-gallery [-gallery-state <label-fragment>]`; `-header-hairline`.
+- **Legacy feed regression:** `-feed-card-gallery`; `-feed-card-autoplay`; `-today-feed-preview|-today-feed-empty|-today-feed-skeleton`.
+- **Almanac/utility:** `-almanac-write|-almanac-static|-almanac-fail`; `-almanac-part morning|afternoon|evening`; `-almanac-demo-line <text>`; `-utility-row-preview`; `-utility-expand|-utility-customize|-utility-empty`.
+- **Activities:** `-explore-filter events|clubs|trails|parks|saved`; `-explore-timeframe today|week|month|upcoming`; `-explore-search-open`; `-explore-search <query>`; `-explore-search-committed <query>`.
+- **Map browse/camera:** `-map-sheet places`; `-map-detent peek|medium|full`; `-map-open <spotid>`; `-map-open-poi [name-substring|id]`; `-map-detail-expanded` (combine with either open flag); `-map-center <lat>,<lon>`; `-map-zoom <z>`; `-map-bearing <deg>`; `-map-pitch <deg>`; `-map-autozoom`; `-force-nonadmin`.
+- **Map states/rain:** repeatable `-map-save <spotid>` and `-map-force-live <spotid>`; `-town-rain`; `-town-rain-preview`; `-poi-logo-stub`. Civic spot IDs are `downtown|saintbens|chapel|wobegon|millstream|saintjohns`.
+- **Calendar:** `-calendar-face upcoming|grid`; `-calendar-open <YYYY-MM-DD>`; `-calendar-legend`; `-calendar-compose` (combine with an open day); `-calendar-sample`; `-calendar-replay`; `-insights-sample`; `-bento-expand <journaled|visited|written>`; `-bento-autoexpand <journaled|visited|written>`; `-entries-expand`.
+- **Menu/profile:** `-open-menu` with optional `-menu-autoclose`; `-tap-menu` with optional `-slow-tap`; `-open-profile` with `-profile-expand|-profile-bottom|-profile-edit|-profile-edit-interests|-profile-moderation|-profile-autoclose`.
+- **Onboarding:** `-show-onboarding [-onboarding-step name|interests] [-onboarding-filled]`; `-bp-flow [-bp-step <BPStep-case>]`; `-bp-restart`; `-bp-seed-resume <index>`; `-bp-hold`; `-bp-components [-bp-page 0...5]`; `-bp-motion press|progress|badge|typing`.
+- **Backend write:** `-seed-places` invokes the DEBUG place seeder. It mutates backend data; do not treat it as a screenshot-only flag.
+
+Use the targeted preview/gallery flags for states below the fold, then verify actual scrolling and gestures on a device.
 
 ## Architecture
 
-`HyggeApp` (`@main`) registers fonts, sets the Mapbox token, injects `AuthStore.shared`, and renders `RootView`, which is the **auth gate**: `booting` → splash; signed-in → onboarding (first run) or `MainTabsView`; signed-out → `LoginView`. `MainTabsView` is four tabs (`Tab`: home/activities/calendar/map) under a custom frosted `HyggeTabBar`, plus a global "+" composer sheet.
+### App shell and auth
 
-### Backend — hand-rolled, no Supabase SDK (`Hygge/Backend/`)
-The entire backend is written by hand over `URLSession` to match `@hygge/core` 1:1 — there is **no `supabase-swift` dependency**.
+`BlockPartyApp` (`BlockParty/BlockPartyApp.swift`) registers fonts, sets the Mapbox token, installs the PostgREST unauthorized handler, injects `AuthStore.shared`, and optionally runs the DEBUG place seeder.
 
-- **`SupabaseHTTP`** — the low-level client: `auth(...)` hits GoTrue (`/auth/v1`), `rest(...)` hits PostgREST (`/rest/v1`). Both send the public `apikey` + a `Bearer` token; PostgREST calls take a fresh access token and an optional `Prefer` header.
-- **`AuthStore`** (`@MainActor`, singleton `.shared`) — the single auth source: email + password (confirmation ON), **Keychain-persisted `Session`**, and **coalesced token refresh** (GoTrue rotates the refresh token, so concurrent refreshes funnel through one in-flight task; a hard failure clears the session and routes back to Login). Always get tokens via `validAccessToken()`.
-- **`CommunityAPI`** — the domain API (events, RSVPs, clubs, quests, trails), mirroring the Expo `createCommunityApi`. `Admin.isAdmin(email)` gates admin writes (self-approved events). Also owns the per-user "My activity" reads behind the profile (`getMyUpcomingRsvps` · `getMyClubs` · `getMyQuestCount`).
-- **`ProfileAPI`** — the community-profile layer (name · avatar · interests) over **`town_profiles`** (own-row RLS): `getMyProfile()` / `upsert(...)`. **Community identity lives in `town_profiles`, NOT the wellness app's `profiles` table** — the shared Supabase project backs two apps, and `profiles` belongs to the other one. `RootView.hydrateIfNeeded()` mirrors the row into `Interests` (UserDefaults) once per session for offline matching/greetings.
-- **`RealtimeClient`** (`@MainActor`) — a **hand-written Phoenix-channel client** over `URLSessionWebSocketTask` (Supabase Realtime speaks Phoenix `vsn=1.0.0`). Joins `postgres_changes` on `club_events` with the user's JWT (RLS still filters what arrives), heartbeats, pushes a fresh token periodically, and reconnects with capped exponential backoff. See `SupabaseConfig.realtimeURL`.
-- **`SupabaseConfig`** — project URL + **public anon key** (safe to ship; RLS is the real boundary) and the derived `rest/auth/storage/realtime` URLs.
-- Supporting: `Session`, `Storage` (image upload), `Moderation` (Codex edge function), `Reminders`, `Interests`, `TrailServices`, `KnownVenues`, `DateHelpers`, `Models`.
+`RootView` is the gate:
 
-### Features — one folder per screen, `View` + `Model` (`Hygge/Features/`)
-The house pattern is a `SomethingView` paired with a `SomethingModel` (`@MainActor final class … ObservableObject`) that owns state + API calls. Folders: `Home`, `Activities`, `Calendar`, `Add`, `Map`, `Auth`, `Onboarding`, `Place`, `Profile`, `Components`.
+1. launch loader while auth boots/minimum loader time runs;
+2. signed-in users hydrate their own `town_profiles` row, then see the signed-in onboarding if needed or `MainTabsView`;
+3. signed-out first-time users see the 20-screen pre-auth `BPOnboardingFlow`;
+4. returning signed-out users see `LoginView`.
 
-**The Map (`Features/Map/`)** — the most involved feature, and where the realtime pipeline lives:
-- **`SJMapView`** — the Mapbox map on one **static basemap** (`BasemapPalette` — no time/season/weather modulation; the old "Living Basemap" that shifted the palette by time-of-day · season · weather was retired, see `MAP_BUILD_LOG.md`), live pulse, and the Life360-style chrome: a floating top row (filter chip · town pill · compose "+"), floating help + recenter, and the persistent bottom sheet (`MapSheet`). **Pins**: every curated spot always shows a small badge — a solid category-color circle (`SpotCategory.tint`: green parks/trails, honey downtown/coffee/fitness, sky campus) with a white glyph, plus a halo'd name label beside it, matching the Life360/Mobbin reference (small icon + text, never a big bulky badge). `PinDisplay` still resolves state (precedence selected > live > saved > rest) as one enum in one place; live/saved/selected layer an accent (coral fill + pulse, ink bookmark corner, scale bump) on top of the same small badge rather than swapping to a different visual language. Pure SwiftUI overlay (`MapViewAnnotation`) — at six curated spots there's no need for a separate Mapbox collision layer. The town pill reverse-geocodes the map center (`MapModel.updateTown` → `GeocoderService.town`, debounced), so it names whatever town you pan over — "Saint Joseph" at home, the neighboring city when you move. The "+" opens `QuickAddSheet` for admins (`isAdmin`) and the global composer (`onCompose`) for everyone else. A `SpotFilter` chip narrows which pins + Places show.
-- **`MapSheet`** — the always-visible, draggable bottom sheet, ported to Life360's People/Places pattern. **The sheet is the surface**: three detents the grabber snaps between (**peek** ~120pt · **medium** ~50% · **full**, which stops just below the map's floating chrome so the town pill/filter/compose never clip and a band of live map always shows). **Peek is one glanceable line — what's live right now, not a list** (`peekLine`: live coral dot + breathing ring when something's happening, else a calm gray dot; primary/secondary copy off `liveEvents`/`state`); it cross-fades into the list as you pull up (opacity driven by a 0→1 `p` over peek→medium). Snap is momentum-aware (nearest rest height using `predictedEndTranslation`); VoiceOver drives it via `accessibilityAdjustableAction` on the grabber. Three list/detail states, all real data: **Today** (today's happenings, coral dot = live now), **Places** (the curated catalogue + each spot's live-now count), and **spot detail** (blurb, happenings, save-bookmark, Directions) shown when a pin/row is selected — selecting lifts to full. The old pop-up detail card is subsumed here.
-- **`MapModel`** (`@MainActor`) — owns the `RealtimeClient` subscription + today's events. A `club_events` change touching **today** triggers a 300 ms-debounced re-sync (`getTodayEvents()`), so a new happening lights its pin and a deleted/ended one goes quiet **with no refresh**. Handles teardown, background socket-drop + foreground resubscribe, and the **midnight rollover**.
-- **`MapSpots` / `KnownVenues`** — the **curated venue coordinates** (mirrors the Expo `lib/geo.ts`). Never trust a runtime geocoder for a known St. Joe venue — resolve here first; geocoding is only the fallback for unknowns.
-- **`QuickAddSheet`** — admin-only bottom sheet to post an event straight onto the map (title, spot picker, date, time) → inserts an approved `club_events` row → the realtime pipeline lights the pin.
+`MainTabsView` owns four tabs (`home`, `activities`, `calendar`, `map`), the custom `BlockPartyTabBar`, the town-menu/profile presentations, map detail shell, and compose speed dial/sheets.
 
-**Town menu (`Features/Home/TownMenuView.swift` + `Features/Components/CornerDrawer.swift`)** — Home's **top-right button is now a single menu button** (`Masthead.onMenu`); the old `+` composer and search circles were removed and their functions moved *inside* the menu. The button carries a small **vertical three-dot affordance (⋮)** and, on tap, plays a **little scale bounce** while the **dots fade away**, then hands off to the drawer a beat later (`Masthead.tap()`, ported from the reference); the dots restore when the drawer closes (driven by `menuOpen`). Tapping it unfolds the **town menu drawer**, a **corner "genie" reveal ported frame-by-frame from a reference recording** (the reference is a left-anchored avatar→nav drawer; **mirrored here to the top-right**). `MainTabsView.showMenu` → **`CornerDrawerOverlay`** (generic; hosts any content, hands it an animated `close`) wrapping **`TownMenuView`** (avatar+name header → left-aligned rows: Calendar · Activities · Town map · Add an event · Invite a neighbor · Your profile → `Hygge` wordmark pinned at the bottom, echoing the reference's "Genie"). Rows route via `TownMenuAction` → `MainTabsView.handleMenu` (tab switches swap instantly behind the collapsing drawer; sheets/overlays wait out the close via `afterMenuClose`). **Profile is now one of those destinations** — a standard `.sheet(ProfileView())`, no longer the drawer itself.
-  - Motion (`CornerDrawerOverlay`, measured off the reference): a **~56%-width, near-full-height** panel pinned at the top-right corner that starts as a compact card and **unfolds top-down** — its **HEIGHT unfolds** (a growing rounded-rect clip, `startHFrac 0.16`) while a **mild uniform scale** (`0.80→1`, topTrailing anchor ⇒ no distortion) grows it out of the corner; **width stays full** (so left-aligned rows never clip; centred content would). Over a **flat, washed light-grey blur** (`.regularMaterial` + `Hue.canvas` veil — the home recedes). Springs: height `spring(0.52,bounce 0.16)`, scale `spring(0.44,0.14)`, close `spring(0.26,0)` (slow-to-open, fast-to-close); 40pt continuous radius; Reduce Motion → cross-fade. Left-aligned menu content makes the reveal cascade row-by-row, matching the reference. **Verify with a reference-vs-sim frame montage** (record → AVAssetImageGenerator → `comp.swift` two-row REF/HYG contact-sheet at matching progress); DEBUG `-open-menu` + `-menu-autoclose` drive it headlessly.
+### Backend (`BlockParty/Backend/`)
 
-**Profile (`Features/Profile/`)** — reached from the town menu's "Your profile" row (a standard sheet). `ProfileView` shows identity (`ProfileAPI` → `town_profiles`) plus **real** activity via the `CommunityAPI` My-activity reads — no fabricated counts, so an empty state reads "0". `ProfileView(onClose:)` still accepts an injected close (used if presented as an overlay) but defaults to `@Environment(\.dismiss)`. `EditProfileView` writes **server-first** (upload avatar → `ProfileAPI.upsert`) and surfaces a real save failure instead of a false success; it reuses onboarding's `InterestPickerView` with `showsProgress: false` to drop the wizard step-bar.
+There is no Supabase Swift SDK. The app talks to GoTrue, PostgREST, Storage, and Realtime with `URLSession`:
 
-**Share (`Features/Share/`)** — the app-wide **"share reveal"** (ported ~99% from a Duolingo reference recording). Any share calls **`ShareCenter.shared.present(SharePayload(...))`**: a preview card of *exactly what's being shared* springs up over a dimmed backdrop in a dedicated overlay **`UIWindow`** (above the tab bar **and** any `.sheet`), with a Duolingo-style target row (**Messages · Save image · More**). The preview view is also what's rendered to the shared image (`ImageRenderer`) — what you see is what you send. `ShareCenter` (`@MainActor` singleton) owns the window + present/dismiss + the reveal spring (`response 0.58, damping 0.76`; scrim `easeOut 0.40`; **Reduce-Motion cross-fades**, no scale); `ShareRevealView` is the scrim/card/sheet; `ShareTargets` holds the Messages (`MFMessageComposeViewController`), Save-image (`PHPhotoLibrary`, needs `INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription`), and More (`UIActivityViewController`) actions. **Add a new share in one line** via a `SharePayload` factory (`.event(...)`, `.appInvite()`) — preview cards stay **typographic (no drawn art)**. Motion is verified with the sim frame-montage method (spec: `docs/superpowers/specs/2026-07-11-share-reveal-animation-design.md`).
+- `SupabaseHTTP`: low-level auth/REST calls with public `apikey`, bearer token, and optional `Prefer`.
+- `AuthStore`: singleton auth source, Keychain session persistence, coalesced refresh-token rotation, and hard-failure sign-out. Always request a token through `validAccessToken()`.
+- `CommunityAPI`: events, RSVPs, clubs, quests, trails, and profile activity reads, matching the Expo twin's query semantics.
+- `BriefingAPI` / `BriefingPayload`: the Today tab's single-RPC read contract and daily-touch vote write.
+- `ProfileAPI`: community identity in `town_profiles`, not the unrelated wellness app's `profiles` table.
+- `RealtimeClient`: Phoenix-channel client with heartbeats, token pushes, reconnect backoff, and RLS-filtered `postgres_changes`.
+- `SupabaseConfig`: project and derived REST/auth/storage/realtime URLs; the anon key is public by design and RLS is the security boundary.
 
-### Design system (`Hygge/Theme/`) — ported from the Expo app
-- **`HyggeColor`** (`Hue.*`) — warm linen palette: `paper*` surfaces, `ink`/`ink2`/`ink3` text, and **accents with one job each** — `moss` (positive/primary), `sky` (brand/focus), `honey` (warmth), `clay` (warning). Plus a **Map visual system**: `Hue.accent` **coral (#FF6B57)** appears **only** on live indicators + primary/tappable elements; everything else is `surface`/`gray`/`mapInk`.
-- **`HyggeFont`** — the app is the **platform system font** everywhere (SF Pro): the `Font.display/sans/mono/…` helpers all map to `.system(size:weight:)`, so **weight carries the hierarchy** and numbers stay tabular via `.monospacedDigit()`. The **one** custom face is the logo — **Atkinson Hyperlegible Bold** (`Font.logo`), used by `HyggeLogoBadge`. The badge's `.brandBadge()` corner stamp was **removed from every tab** in the Life360 map pass (the map's top-right corner now holds screen chrome); `HyggeLogoBadge` itself is kept but currently unused. `registerHyggeFonts()` registers the bundled Atkinson ttf (the old Spectral / DM Sans / Geist Mono ttf were removed in the coral rebrand — don't reintroduce a bundled UI font). The **coral app icon** (`Assets.xcassets/AppIcon.appiconset`) is the same wordmark, white on `Hue.accent`.
-- **`HyggeMetrics`** — the shadow + metric tokens (e.g. `mapFloatShadow`, `mapSheetShadow`).
+### Persisted identifier migration
 
-Do **not** hardcode hex/spacing that a `Hue`/metric token already covers. The only allowed raw hexes are the map's own: the **base-map cartography colors** in `BasemapPalette` (one static Life360-reference palette — cream ground, sage parks, sky-blue water, neutral-grey roads — `recolorBasemap` applies it to the Mapbox layers once, on style load, no modulation) and the one **map-only green** (`SpotCategory.tint`) for park/trail pin badges — parks read as green on every map (Apple, Google, Life360 included), so pin iconography gets the same cartography carve-out rather than being forced into the coral/ink system. Downtown/coffee/fitness and college/chapel pin tints reuse `Hue.honey600` / `Hue.sky600`. The calendar's **`EventCategory.tint`** palette (`Theme/EventCategory.swift`) is the same sanctioned carve-out: a deliberately multi-color, reference-fidelity set of category hues (a real calendar reads multi-color, and these don't map onto the app's one-job-each accents). It reuses the shared `Color(hex:)` initializer and is documented in that file.
+The current identifiers are:
 
-## Conventions & gotchas
+| Purpose | Current value |
+|---|---|
+| App bundle and log subsystem | `Jesse.BlockParty` |
+| Keychain session account | `bp.session` |
+| Product-namespaced UserDefaults | `bp.*` |
+| Realtime topic | `realtime:bp-<table>` |
 
-- **On-brand bar** (inherited from the Expo app): warm, calm, quiet, neighborly, hyper-local. No badges/streaks/feeds/notification-spam. **Real data only — never seeded/inflated counts.** Voice is a neighbor, not a brand.
-- **Park/venue photos are human-verified — a picture must actually *look good* to a person, not just resolve.** The runtime picker (`GooglePlacesService.bestScenicPhoto`) is geometry-only: it prefers a large landscape frame but **cannot** tell a scenic vista from a photo of a trash barrel, a portrait phone shot (which crops to an ugly middle band), or a dreary off-season snap. So when wiring park/venue imagery, a person must **eyeball the actual chosen photo**. When the Google auto-pick looks poor, **override it** by bundling a hand-picked landscape photo in `Resources/Images` + a `KnownLocalPhoto` entry — Google Places photos may **not** be bundled/persisted per ToS, so bundled overrides come from city/owner-supplied sources (record the source + any permission caveat in the code comment). `scripts/review_park_photos.py` assembles a contact sheet of every park's *live* photo (bundled or Google-resolved) for that review.
-- **Live-glow is for *now*, not "today".** A pin pulses only while an event is happening (`start ≤ now ≤ start + 2h`, `DateHelpers.isLiveNow`). Coral is reserved for live/tappable.
-- **Dates are user-timezone.** Use `DateHelpers.localDate()` / `nowMinutes()` (pinned to `TimeZone.current`); never derive "today" from a UTC ISO string.
-- **Realtime DELETE carries only the primary key.** A DELETE's `old_record` contains just `id` — match deletes by `id` (a full refetch is idempotent). The table is set to `REPLICA IDENTITY FULL` and `club_events` is in the `supabase_realtime` publication (both already applied to the live project; see `MAP_BUILD_LOG.md`).
-- **Admin is an email allowlist**, not a security boundary — `Admin.isAdmin` in `DateHelpers.swift` (self-approved events are an intentional product decision shared with the Expo app). RLS is the real boundary.
-- **`MAP_BUILD_LOG.md`** is the running, chronological record of map work (fixes, the realtime pipeline, the anti-slop pass, applied SQL). Continue it when doing map work; it's the source of truth for what's been verified.
-- **The module defaults to MainActor isolation — mark pure helpers `nonisolated` or they trip the 0-warning bar.** A stateless config/classifier (e.g. `PlaceCategoryMap`) is implicitly MainActor-isolated, so passing one of its methods into a `nonisolated` context — a `contains(where:)` closure, a default-argument value (`func f(x = MapSpots.center)`), a Mapbox/style callback — emits a *"main actor-isolated … cannot be referenced from a nonisolated context"* **warning**. Fix: mark the stateless type or its members `nonisolated` (and any `static let` it reads) so it's callable from any isolation; resolve MainActor defaults *inside* the function body, not in a default argument.
-- **Mapbox v11 `updateGeoJSONSource` does NOT throw — don't wrap it in `try?`.** Some MapboxMaps v11 style calls are non-throwing (`updateGeoJSONSource(withId:geoJSON:)` among them); a `try?`/`try` around a non-throwing call emits a *"no calls to throwing functions occur within 'try'"* **warning** that fails the 0-warning bar. `addSource` / `addLayer` / `addImage` **do** throw (keep `try` + a logged `do/catch`, not a silent `try?`). Check the signature before reaching for `try`.
-- **Multi-session branch = dirty tree; isolate + commit as you go.** Parallel sessions routinely leave this branch carrying large amounts of *uncommitted, interleaved* WIP across many features (the same reason there are several `Hygge-<hash>` DerivedData folders). **`git status` at the START of a task** — if the tree already holds unrelated uncommitted work, isolate the new work in a **git worktree/branch** so it stays cleanly committable, and offer to commit each finished feature rather than letting changes pile up. A feature woven into another session's uncommitted files (adjacent hunks, or an untracked shared file like a new `View`) **can't be committed in isolation** — surface the entanglement and let the user pick scope instead of guessing or sweeping unrelated work into the commit.
-- **Before starting a feature, run `git worktree list` + `git branch -a` — a prior session may already have built it in a sibling worktree.** This repo keeps sibling worktrees (`~/Documents/hygge-poi`, `~/Documents/hygge-verify`), each with its own XcodeBuildMCP profile (`poi`, `verify`) and `.dd` DerivedData. A `git status` of the current tree does **not** reveal them, so scanning only the working tree can miss a near-complete implementation on another branch (a session once re-derived the whole POI-markers feature that `feat/map-poi-markers` had already built). Adopt/merge the existing branch instead of duplicating it, and `session_show_defaults` before any build so you compile the branch you actually edited.
+**There is no migration shim, and one is not possible.** iOS scopes `UserDefaults` to the app container and Keychain items to an access group derived from the bundle id. `Jesse.BlockParty` is therefore a *different app* with an empty container and cannot read anything `Jesse.Hygge` stored. Bridging would need a shared keychain access group declared in **both** builds; the shipped build has none and cannot retroactively gain one. A migration was written, proven unreachable, and removed — do not re-add it. The rename is a clean break: existing installs re-authenticate and re-onboard, accepted at 4 accounts / 2 active, pre-launch. Never introduce new `hygge.*` identifiers.
+
+### Today briefing (`BlockParty/Features/Home/Briefing/`)
+
+Today is a finite editorial briefing, not an infinite feed. `HomeView` keeps `TodayTopBar` fixed above the scroll view and renders one loop over `BriefingModuleID.order`, the source of truth for the screen:
+
+```text
+almanac → utility → happeningSoon → dailyTouch → spotlight → caughtUp
+```
+
+`BriefingModuleID` is string-backed so unknown newer IDs decode safely. Adding a module means adding its ID, adding it to `order`, and adding one case to `HomeView.module(_:)`.
+
+`BriefingAPI.today()` sends one authenticated POST to `rest/v1/rpc/get_today_briefing`, passing the St. Joseph timezone. The RPC returns the complete `BriefingPayload`: almanac/weather/touch/spotlight/fallback are degradable, featured may be empty, and `caughtUp` is required so the briefing always ends. `BriefingModel` renders the disk cache first, reconciles with the server, keeps cached content during outages, and applies vote/RSVP changes optimistically with rollback. The utility row is intentionally independent and owns its own loading/cache/realtime.
+
+The old feed still compiles under `BlockParty/Features/Home/Feed/` for regression and rollback. It is not the production Today composition.
+
+### Feature folders (`BlockParty/Features/`)
+
+Current top-level features are `Activities`, `Add`, `Auth`, `Board`, `Calendar`, `Components`, `Home`, `Map`, `Onboarding`, `OnboardingFlow`, `Place`, `Profile`, and `Share`. The usual house pattern is a SwiftUI view plus a `@MainActor` `ObservableObject` model that owns API state.
+
+### Map (`BlockParty/Features/Map/`)
+
+- `SJMapView` is a SwiftUI Mapbox `Map`, with static `BasemapPalette`, civic and POI SwiftUI view annotations, client-side clustering, town reverse geocoding, compass/recenter/help chrome, admin/non-admin compose routing, and the persistent map sheet.
+- `MapSheet` is an in-tree draggable surface with peek/medium/full detents and Today/Places browse states. Civic/POI detail is lifted into the shared tab-shell presentation. Sheet gesture arbitration and the VoiceOver adjustable action are custom; it is not `presentationDetents`.
+- `MapModel` owns today's events and `RealtimeClient`. A relevant change debounces a full today re-sync; it handles background/foreground lifecycle and midnight rollover.
+- `MapSpots` and `KnownVenues` own trusted St. Joseph coordinates. Resolve known places there before geocoding unknown text.
+- `POILogoCache` reads `places.logo_url`; logo acquisition/upload is an offline script pipeline, not runtime scraping.
+
+The map is SwiftUI `Map(viewport:)` inside `MapReader`, not UIKit `MapView`. Configure gestures with `.gestureOptions`, camera with the `Viewport` binding/viewport animations, frame rate with `.frameRate`, and bounds via `proxy.map.setCameraBounds`. Do not paste UIKit Mapbox recipes into this view.
+
+### Town menu, profile, and share
+
+`TodayTopBar` owns the fixed town title and top-right menu button. `GlassShowcaseOverlay` frosts the app and hosts the content-height `TownMenuView` panel from the top-right; tab routes switch behind the closing overlay while sheets wait until it closes. Profile is a normal sheet and uses real `town_profiles` plus real activity reads—never fabricated counts.
+
+`ShareCenter` presents the app-wide share reveal in its own `UIWindow`, above tabs and sheets. The preview view is also rendered to the shared image. Add new share types through `SharePayload` factories.
+
+## Design system (`BlockParty/Theme/`)
+
+- `BlockPartyColor` / `Hue`: six neutral tokens (`ink`, `paper`, `surface`, `inkSecondary`, `hairline`, `fill`) plus plum/berry `accent` #8E3B6B. The accent is meaning-scoped to live, active, selected/saved, and primary CTA states—never decorative washes or body copy.
+- `BlockPartyFont`: Jost for display/wordmark/headlines and SF Pro for body/UI/data. Use the exact bundled Jost PostScript names; a wrong name silently falls back.
+- `BlockPartyMetrics`: shared radii/shadows, including map float/sheet shadows. `Radius.bento` is intentionally outside the 12/16/20 sequence.
+
+Do not hardcode a hex or spacing value at a view call site when a token or named palette covers it. Controlled raw colours live in role-specific palette/config files: `BlockPartyColor.swift`, `BasemapPalette.swift`, `WeatherBackground.swift`, utility gradient definitions, and `OnboardingFlow/Theme/BPOnboardingPalette.swift`; logo fallback art and the garbage-truck illustration are content exceptions. Do not make the basemap grayscale; that experiment was reverted because landmarks disappeared. Category is carried by glyph, while live/active/selected state may use the accent.
+
+## Conventions and gotchas
+
+- **Brand:** warm, calm, neighborly, hyper-local. No inflated counts, streaks, spam, or fake activity. Real data only.
+- **Photos:** Google Places Photo API is the runtime default. Use `VenuePhoto` and the confidence-gated lookup; `search()` alone is not trusted enough to display a photo. Display `authorAttributions`. Persist place IDs, never Places photo names. Bundle only a human-reviewed, non-Google local override with its source recorded.
+- **Google restriction:** adding `Jesse.BlockParty` to the Places API key restriction is outstanding and blocking for venue photography. Creating the new App Store Connect record is also outstanding; the old listing/TestFlight builds are intentionally orphaned by the bundle-id decision. See `DECISIONS.md`.
+- **Map logos:** generate, review, and upload with `scripts/fetch_place_logos.py`, `logo_montage.py`, and `upload_place_logos.py`; do not turn this into runtime scraping.
+- **Live means now:** use the plum fill/static ring/pulse only during `start <= now <= start + 2h` via `DateHelpers.isLiveNow`, not for every event happening sometime today.
+- **Town dates:** use `DateHelpers.localDate()` / `nowMinutes()` or the explicit `Town.timeZone` as the feature requires. Never derive a local day from a UTC ISO prefix.
+- **Realtime DELETE:** `old_record` may contain only the primary key. Match by ID and re-fetch; do not expect a full deleted row.
+- **Admin:** email allowlist is a UX gate, not security. RLS is the boundary.
+- **Applied migrations:** never edit `supabase/migrations/*` retroactively. Add a new migration. Historical migration contents mean case-insensitive searches for the former name will always have legitimate hits.
+- **Map log:** continue `MAP_BUILD_LOG.md` for map work and record what was actually built/screenshot-verified.
+- **MainActor defaults:** module-wide isolation is enabled. Mark stateless helpers/members `nonisolated`, and resolve actor-isolated defaults inside function bodies rather than default arguments.
+- **Mapbox throws:** `updateGeoJSONSource(withId:geoJSON:)` is non-throwing in Mapbox v11; `addSource`, `addLayer`, `addImage`, and camera-bound calls throw. A stray `try?` around a non-throwing call creates a warning and violates the 0-warning bar.
+- **Timeouts:** `withTaskGroup` drains children and cannot enforce a real deadline against cancellation-ignoring work. Race an unstructured task with a sleeper/continuation and make the operation observe cancellation.
+- **Scrollable cells:** never attach a pan-competing whole-card gesture to a feed/briefing cell. Use `ButtonStyle.isPressed` and `.simultaneousGesture` where appropriate, then verify scrolling on device.
+- **Wrong build:** every worktree uses `Jesse.BlockParty`; installing any build overwrites the same simulator/device app. Confirm checkout, branch, output directory, and XcodeBuildMCP defaults before deciding a change “didn't take.”
+
+## Strategy and history
+
+Read `docs/playbook.md` before design or launch-strategy work. Its original advice to retain the old bundle id was superseded by Jesse's 2026-08-09 pre-launch full-purge decision; `DECISIONS.md` is authoritative for current identifiers and outstanding console work.
+
+`MAP_BUILD_LOG.md`, `REVIEW.md`, and dated files under `docs/superpowers/` are historical records. Do not rewrite old entries to pretend the app was always called Block Party. Correct only claims presented as current/operational facts.
 
 ## graphify
 
-This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
-
-Rules:
-- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
-- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
-- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
-- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+When `graphify-out/graph.json` exists, use `graphify query`, `graphify path`, or `graphify explain` before broad source searching. Prefer `graphify-out/wiki/index.md` for navigation and `GRAPH_REPORT.md` only for broad architecture. After code changes, run `graphify update .`; documentation-only changes do not require an AST graph update.

@@ -389,11 +389,11 @@ DELETE still clears, count renders in mono.
 ## Build hazard logged
 
 The "impeccable" tool drops `.impeccable/hook.cache.json` caches. When one lands
-**inside** the `Hygge/` file-system-synchronized group, Xcode copies duplicate
+**inside** the current `BlockParty/` file-system-synchronized group, Xcode copies duplicate
 `hook.cache.json` files to the bundle and the build fails
 ("Multiple commands produce …"). Removed the stray dirs and added `.impeccable/`
 to `.gitignore`. If a build suddenly fails this way, delete
-`find Hygge -type d -name .impeccable`.
+the nested caches with `find BlockParty -type d -name .impeccable -exec rm -rf {} +`.
 
 ## Final gate (all ✅, screenshot-verified on iPhone 17 sim)
 

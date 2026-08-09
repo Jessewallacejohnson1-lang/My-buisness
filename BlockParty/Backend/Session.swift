@@ -32,7 +32,7 @@ struct Session: Codable, Equatable {
 /// Minimal Keychain blob store, keyed by a string. Tokens belong here, not
 /// UserDefaults.
 enum Keychain {
-    private static let account = "hygge.session"
+    private static let account = "bp.session"
 
     static func save(_ session: Session) {
         guard let data = try? JSONEncoder().encode(session) else { return }

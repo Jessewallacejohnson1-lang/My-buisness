@@ -133,11 +133,12 @@ Bad: "Cozy up with today's events!" / "Your hygge awaits ✨"
 
 1. **Reskin ≠ rebuild.** Changing brand appearance must never change layout,
    information architecture, navigation, or behavior.
-2. **Never change** the bundle identifier `Jesse.Hygge`, the keychain account
-   `hygge.session`, the `hygge.*` UserDefaults keys, or the
-   `realtime:hygge-*` topic. These are persisted/wire-level identifiers —
-   renaming them logs users out or breaks the App Store listing. See
-   `DECISIONS.md` in the repo.
+2. **The identifiers were renamed on 2026-08-09** — bundle id `Jesse.BlockParty`,
+   keychain account `bp.session`, `bp.*` UserDefaults keys, `realtime:bp-*` topic.
+   These are still persisted/wire-level identifiers: **do not rename them again.**
+   Changing the bundle id gives the app a new container and Keychain access group,
+   so every install re-authenticates and re-onboards — a cost that was only
+   acceptable pre-launch at 4 accounts. See `DECISIONS.md`.
 3. `supabase/migrations/*` is applied history. Never edit retroactively.
 4. New color needed? Add a token to `BlockPartyColor.swift`. Do not inline it.
 

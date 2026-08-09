@@ -10,9 +10,8 @@
 //  "killing the app mid-flow resumes at the last screen" — which is only honest if the
 //  answers survive too.
 //
-//  Keys keep the app's `hygge.` prefix. That prefix is pre-rebrand and load-bearing
-//  (see CLAUDE.md: never rename the persisted identifiers); matching it keeps the
-//  namespace in one place instead of starting a second one.
+//  Keys use the app's `bp.` prefix. Pre-rebrand `hygge.*` values are NOT migrated:
+//  the renamed bundle id gives the app a new container, so they are unreachable.
 //
 //  NOTE — the flush itself lands in Phase 3 with the rest of the wiring. Two things it
 //  must respect, both confirmed against the live code:
@@ -102,13 +101,13 @@ final class BPAnswers: ObservableObject {
     // MARK: - Storage
 
     private enum Key: String, CaseIterable {
-        case connection  = "hygge.onboarding.connection"
-        case townLevel   = "hygge.onboarding.townLevel"
-        case motivations = "hygge.onboarding.motivations"
-        case cadence     = "hygge.onboarding.notifyCadence"
-        case founding    = "hygge.onboarding.foundingMember"
-        case landing     = "hygge.onboarding.landingChoice"
-        case resume      = "hygge.onboarding.resumeIndex"
+        case connection  = "bp.onboarding.connection"
+        case townLevel   = "bp.onboarding.townLevel"
+        case motivations = "bp.onboarding.motivations"
+        case cadence     = "bp.onboarding.notifyCadence"
+        case founding    = "bp.onboarding.foundingMember"
+        case landing     = "bp.onboarding.landingChoice"
+        case resume      = "bp.onboarding.resumeIndex"
     }
 
     /// `isLoading` suppresses the `didSet` writes while `load()` populates the

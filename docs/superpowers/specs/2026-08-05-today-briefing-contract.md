@@ -361,8 +361,12 @@ proves a new module can ship without touching a UI file
 `BriefingModel` follows the house pattern — `@MainActor final class … ObservableObject`
 owning state and API calls. Cache-first: persist the last payload to disk, render it
 immediately, refresh in the background. New UserDefaults keys use a `briefing.*`
-prefix. **Never rename or reuse a `hygge.*` or `utility.*` key** — the bundle id
-`Jesse.Hygge`, keychain account `hygge.session`, and those defaults keys are frozen.
+prefix. **Superseded 2026-08-09:** this contract froze the old product-namespaced
+keys, bundle id, and Keychain account. Those are now `Jesse.BlockParty`,
+`bp.session`, and `bp.*`. There is no migration: changing the bundle id gives the
+app a new container and a new Keychain access group, so the old values are
+unreachable by construction and existing installs re-authenticate. The independent
+`briefing.*` and `utility.*` feature namespaces are unaffected.
 
 Dead code this replaces, safe to delete: `TodayFeedView` and its card stack,
 `AroundTownCarousel` (already zero references), `TodayLoadingCard` (already unused),
