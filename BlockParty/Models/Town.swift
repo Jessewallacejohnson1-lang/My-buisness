@@ -44,4 +44,19 @@ nonisolated enum Town {
         cal.timeZone = timeZone
         return cal
     }
+
+    /// What day it is HERE, as the "YYYY-MM-DD" that `club_events.event_date`
+    /// stores. Same shape as `DateHelpers.localDate()` but anchored to the town
+    /// rather than the device, so a neighbour reading this from an airport still
+    /// gets St. Joseph's date.
+    ///
+    /// Formatted from components rather than a `DateFormatter` so it cannot pick
+    /// up a locale's calendar (a non-Gregorian device calendar would otherwise
+    /// produce a year PostgREST does not understand).
+    static func day(_ date: Date) -> String {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = timeZone
+        let c = cal.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
+    }
 }

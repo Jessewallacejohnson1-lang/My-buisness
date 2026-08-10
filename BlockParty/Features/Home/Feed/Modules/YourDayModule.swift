@@ -1,6 +1,11 @@
 //
 //  YourDayModule.swift
-//  Block Party — the signed-in user's next RSVP plans, fetched independently.
+//  Block Party — what is happening in this neighbour's town TODAY, fetched
+//  independently.
+//
+//  Two lanes, both scoped to the town's today: what they personally committed to,
+//  and what the whole town has on the calendar. See `DayItem` for the contract and
+//  `YourDayItems.swift` for the rules.
 //
 
 import Combine
@@ -12,8 +17,14 @@ final class YourDayModule: @MainActor FeedModule {
     let order = 2
     let ownsFetch = true
 
-    @Published private var events: [UpcomingEvent] = []
+    /// Today's rail, in render order. The published contract the rail and the day
+    /// sheet build against.
+    @Published private(set) var items: [DayItem] = []
     @Published private var loadState: LoadState = .loading
+
+    /// The rows behind `items`, for the card that still takes an `UpcomingEvent`.
+    /// Derived, never stored twice — `items` is the single source of truth.
+    private var events: [UpcomingEvent] { items.map(\.event) }
 
     private enum LoadState {
         case loading
@@ -41,18 +52,23 @@ final class YourDayModule: @MainActor FeedModule {
     func load(_ ctx: FeedModuleContext) async {
         loadState = .loading
 
+        // One instant for the whole build, so the day boundary cannot move
+        // between the query and the filtering.
+        let now = ctx.dates.now
+
         #if DEBUG
-        if applyDebugStateIfRequested() { return }
+        if applyDebugStateIfRequested(now: now) { return }
         #endif
 
         guard ctx.auth.userId != nil else {
-            events = []
+            items = []
             loadState = .ready
             return
         }
 
         do {
-            events = try await CommunityAPI(auth: ctx.auth).getMyUpcomingRsvps()
+            let candidates = try await CommunityAPI(auth: ctx.auth).getTownDayCandidates(now: now)
+            items = YourDayLogic.dayItems(from: candidates, now: now)
             loadState = .ready
         } catch {
             loadState = .failed
@@ -108,26 +124,26 @@ private extension YourDayModule {
     /// `-yourday-sample|-yourday-loading|-yourday-error|-yourday-empty` bypass auth
     /// and the network so each state can be screenshotted. Production loaders are
     /// untouched; the fixtures are the same clearly-marked debug events.
-    func applyDebugStateIfRequested() -> Bool {
+    func applyDebugStateIfRequested(now: Date) -> Bool {
         let args = ProcessInfo.processInfo.arguments
 
         if args.contains("-yourday-loading") {
-            events = []
+            items = []
             loadState = .loading
             return true
         }
         if args.contains("-yourday-error") {
-            events = []
+            items = []
             loadState = .failed
             return true
         }
         if args.contains("-yourday-empty") {
-            events = []
+            items = []
             loadState = .ready
             return true
         }
         if args.contains("-yourday-sample") {
-            events = YourDayLogic.debugEvents(now: Date())
+            items = YourDayLogic.debugDayItems(now: now)
             loadState = .ready
             return true
         }
