@@ -130,10 +130,25 @@ struct FeedView: View {
         .tabReady(controller.briefing.hasLoaded)
         .onAppear {
             revealed = true
-            if controller.briefing.payload != nil { contentRevealed = true }
+            if controller.briefing.hasLoaded { contentRevealed = true }
         }
-        .onChange(of: controller.briefing.payload == nil) { _, isEmpty in
-            if !isEmpty { contentRevealed = true }
+        // Gated on the briefing having FINISHED, not on it having SUCCEEDED.
+        //
+        // `contentRevealed` used to key off `payload != nil`. But the modules below
+        // the almanac are `springReveal`'d on it, and springReveal hides with
+        // opacity/scale/offset — all non-layout-affecting. So when the briefing RPC
+        // failed (outage, expired token, or simply `-briefing-preview` without
+        // `-briefing-state`, which makes a live authenticated call), `payload`
+        // stayed nil, the flag never flipped, and Your Day / Town Notes / For You
+        // rendered INVISIBLE WHILE STILL RESERVING THEIR FULL HEIGHT — a column of
+        // blank gaps holding content those modules had successfully fetched on
+        // their own. They own their fetches (`ownsFetch`), so the briefing's fate
+        // was never theirs to share.
+        //
+        // `hasLoaded` is set on both the success and the failure path, so the
+        // self-fetching modules now reveal either way.
+        .onChange(of: controller.briefing.hasLoaded) { _, loaded in
+            if loaded { contentRevealed = true }
         }
         .onChange(of: profileShown) { _, shown in
             guard !shown else { return }

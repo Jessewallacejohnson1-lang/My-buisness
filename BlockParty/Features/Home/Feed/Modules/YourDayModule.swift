@@ -22,7 +22,18 @@ final class YourDayModule: @MainActor FeedModule {
     @Published private(set) var items: [DayItem] = []
     @Published private var loadState: LoadState = .loading
 
-    /// The rows behind `items`, for the card that still takes an `UpcomingEvent`.
+    /// Offered beside a lone commitment. Nil in production until there is a real
+    /// source for "something else on today's calendar" — with one item in the rail
+    /// there is, by definition, nothing left in today's candidates to suggest, so
+    /// a real suggestion has to come from a wider read than `getTownDayCandidates`.
+    /// Never fabricated: an empty suggestion slot is honest, an invented one is not.
+    @Published private(set) var suggestion: DayItem?
+
+    /// Drives the empty card's "N things happening in St. Joe →". Nil drops the
+    /// number rather than inventing one.
+    @Published private(set) var townCount: Int?
+
+    /// The rows behind `items`, for anything that still takes an `UpcomingEvent`.
     /// Derived, never stored twice — `items` is the single source of truth.
     private var events: [UpcomingEvent] { items.map(\.event) }
 
@@ -80,7 +91,7 @@ final class YourDayModule: @MainActor FeedModule {
         case .loading:
             return AnyView(
                 YourDaySkeleton()
-                    .padding(.horizontal, 18)
+                    .padding(.horizontal, YourDayRailMetrics.pageMargin)
                     .padding(.top, 22)
             )
 
@@ -89,18 +100,26 @@ final class YourDayModule: @MainActor FeedModule {
                 FeedUnavailableCard(title: FeedStateCopy.yourDayUnavailable) {
                     Task { await self.load(ctx) }
                 }
-                .padding(.horizontal, 18)
+                .padding(.horizontal, YourDayRailMetrics.pageMargin)
                 .padding(.top, 22)
             )
 
         case .ready:
             return AnyView(
                 YourDaySection(
-                    events: events,
-                    onOpenEvent: { ctx.navigate(.event($0)) },
-                    onFindSomething: { ctx.navigate(.feedDiscovery) }
+                    items: items,
+                    suggestion: suggestion,
+                    townCount: townCount,
+                    // AGENT C SEAM: this closure is where the Day Schedule sheet
+                    // gets presented. It routes to the event detail for now so the
+                    // rail is not dead in this worktree; swap the body for the
+                    // sheet presentation at merge and nothing else has to move.
+                    onOpenDay: { ctx.navigate(.event($0.event)) },
+                    // No compose route exists on `FeedRoute` yet, so "Add to today"
+                    // lands on discovery rather than nowhere. Also a merge seam.
+                    onAdd: { ctx.navigate(.feedDiscovery) },
+                    onExplore: { ctx.navigate(.feedDiscovery) }
                 )
-                .padding(.horizontal, 18)
                 .padding(.top, 22)
                 .springReveal(
                     1,
@@ -124,6 +143,9 @@ private extension YourDayModule {
     /// `-yourday-sample|-yourday-loading|-yourday-error|-yourday-empty` bypass auth
     /// and the network so each state can be screenshotted. Production loaders are
     /// untouched; the fixtures are the same clearly-marked debug events.
+    ///
+    /// `-yourday-count <n>` drives the item-count states the rail's layout actually
+    /// turns on — 0 (empty card), 1 (card + suggestion), 2+ (cards only).
     func applyDebugStateIfRequested(now: Date) -> Bool {
         let args = ProcessInfo.processInfo.arguments
 
@@ -138,16 +160,27 @@ private extension YourDayModule {
             return true
         }
         if args.contains("-yourday-empty") {
-            items = []
-            loadState = .ready
+            applyDebugItems([], now: now)
+            return true
+        }
+        if let count = YourDayRailDebug.requestedCount(args) {
+            applyDebugItems(YourDayRailDebug.items(count: count, now: now), now: now)
             return true
         }
         if args.contains("-yourday-sample") {
-            items = YourDayLogic.debugDayItems(now: now)
-            loadState = .ready
+            applyDebugItems(YourDayLogic.debugDayItems(now: now), now: now)
             return true
         }
         return false
+    }
+
+    /// One place where a debug rail is staged, so the suggestion and the empty
+    /// card's count follow the same rules under every flag.
+    func applyDebugItems(_ debugItems: [DayItem], now: Date) {
+        items = debugItems
+        suggestion = debugItems.count == 1 ? YourDayRailDebug.suggestion(now: now) : nil
+        townCount = debugItems.isEmpty ? YourDayRailDebug.townCount : nil
+        loadState = .ready
     }
 }
 #endif
@@ -180,215 +213,58 @@ private struct YourDayDebugDetailOpener: ViewModifier {
 /// and the title cannot move when content swaps in.
 private struct YourDayHeading: View {
     var body: some View {
-        Text("Your day")
-            .font(.displaySemi(24))
+        Text(YourDayRailCopy.header)
+            .font(.displaySemi(YourDayRailMetrics.headerSize))
             .foregroundStyle(Hue.ink)
             .accessibilityAddTraits(.isHeader)
     }
 }
 
+/// Owns the matched-geometry namespace and hands it to the rail.
+///
+/// AGENT C SEAM: the namespace is declared here only because this worktree has no
+/// parent to inject one. The day sheet needs the SAME namespace for the accent bar
+/// (`dayitem-accent-<id>`) and title (`dayitem-title-<id>`) to fly between rail and
+/// sheet — at merge, lift this `@Namespace` to whichever view presents the sheet and
+/// pass it down through `YourDayRail(namespace:)`, which already takes it as a
+/// parameter.
 private struct YourDaySection: View {
-    let events: [UpcomingEvent]
-    let onOpenEvent: (UpcomingEvent) -> Void
-    let onFindSomething: () -> Void
+    let items: [DayItem]
+    let suggestion: DayItem?
+    let townCount: Int?
+    let onOpenDay: (DayItem) -> Void
+    let onAdd: () -> Void
+    let onExplore: () -> Void
+
+    @Namespace private var namespace
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            YourDayHeading()
-
-            if events.isEmpty {
-                emptyState
-            } else {
-                eventStrip
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var emptyState: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Nothing on your calendar yet.")
-                .font(.displaySemi(22))
-                .foregroundStyle(Hue.ink)
-                .fixedSize(horizontal: false, vertical: true)
-
-            // Styling lives inside the label so the press style scales the whole
-            // control rather than the text inside a stationary background.
-            Button {
-                Haptics.light()
-                onFindSomething()
-            } label: {
-                Text("See what’s happening →")
-                    .font(.sansSemibold(15))
-                    .foregroundStyle(Hue.surface)
-                    .padding(.horizontal, 16)
-                    .frame(minHeight: 44)
-                    .background(
-                        Hue.ink,
-                        in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
-                    )
-            }
-            .buttonStyle(FeedCardPressStyle())
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(18)
-        .blockPartyCard(padding: nil)
-    }
-
-    private var eventStrip: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            LazyHStack(alignment: .top, spacing: 12) {
-                ForEach(YourDayLogic.stripItems(from: events)) { item in
-                    switch item {
-                    case .event(let event):
-                        YourDayEventCard(event: event) { onOpenEvent(event) }
-                    case .findSomething:
-                        YourDayFindSomethingCard(action: onFindSomething)
-                    }
-                }
-            }
-            .scrollTargetLayout()
-            .padding(.vertical, 2)
-        }
-        .scrollTargetBehavior(.viewAligned)
-        .scrollClipDisabled()
-    }
-}
-
-private struct YourDayEventCard: View {
-    let event: UpcomingEvent
-    let onOpen: () -> Void
-
-    var body: some View {
-        // A Button, not a `.gesture` — a whole-card gesture claims the touch on
-        // press-down and out-competes the enclosing ScrollView's pan.
-        Button(action: onOpen) {
-            cardBody
-        }
-        .buttonStyle(FeedCardPressStyle())
-        .accessibilityElement(children: .combine)
-        .accessibilityHint("Opens this event")
-    }
-
-    private var cardBody: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(event.title)
-                .font(.displaySemi(20))
-                .foregroundStyle(Hue.ink)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-
-            TimelineView(.periodic(from: .now, by: 60)) { timeline in
-                let presentation = YourDayLogic.schedulePresentation(
-                    for: event,
-                    now: timeline.date
-                )
-
-                Group {
-                    if let countdown = presentation.countdown {
-                        ViewThatFits(in: .horizontal) {
-                            Text(presentation.label)
-                                .lineLimit(1)
-                                .fixedSize(horizontal: true, vertical: false)
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(presentation.dateAndTime)
-                                Text("— \(countdown)")
-                            }
-                            .lineLimit(1)
-                        }
-                    } else {
-                        Text(presentation.label)
-                            .lineLimit(2)
-                    }
-                }
-                .font(.sansSemibold(13))
-                .foregroundStyle(Hue.ink)
-                .monospacedDigit()
-            }
-            .padding(.top, 16)
-
-            if let place = YourDayLogic.placeText(for: event) {
-                Text(place)
-                    .font(.sans(13))
-                    .foregroundStyle(Hue.inkSecondary)
-                    .lineLimit(1)
-                    .padding(.top, 5)
-            }
-
-            if let going = YourDayLogic.goingLabel(for: event.goingCount) {
-                Text(going)
-                    .font(.sansMedium(12))
-                    .foregroundStyle(Hue.inkSecondary)
-                    .monospacedDigit()
-                    .padding(.top, 10)
-            }
-        }
-        .padding(16)
-        .frame(width: 218, height: 208, alignment: .leading)
-        .background(
-            Hue.surface,
-            in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+        YourDayRail(
+            items: items,
+            suggestion: suggestion,
+            townCount: townCount,
+            namespace: namespace,
+            onOpenDay: onOpenDay,
+            onAdd: onAdd,
+            onExplore: onExplore
         )
-        .overlay {
-            RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                .strokeBorder(Hue.hairline, lineWidth: 1)
-        }
     }
 }
 
-private struct YourDayFindSomethingCard: View {
-    let action: () -> Void
-
-    var body: some View {
-        Button {
-            Haptics.light()
-            action()
-        } label: {
-            VStack(alignment: .leading, spacing: 14) {
-                RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
-                    .fill(Hue.ink)
-                    .frame(width: 44, height: 44)
-                    .overlay {
-                        Image(systemName: "plus")
-                            .font(.system(size: 20, weight: .medium))
-                            .foregroundStyle(Hue.surface)
-                    }
-
-                Spacer(minLength: 0)
-
-                Text("Find something.")
-                    .font(.displaySemi(20))
-                    .foregroundStyle(Hue.ink)
-                    .multilineTextAlignment(.leading)
-            }
-            .padding(16)
-            .frame(width: 170, height: 208, alignment: .topLeading)
-            .background(
-                Hue.fill,
-                in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                    .strokeBorder(Hue.hairline, lineWidth: 1)
-            }
-        }
-        // This is a whole card inside a scroll view, so it gets the feed's quiet
-        // press — the emphatic 0.88 spring belongs to the "+" button alone.
-        .buttonStyle(FeedCardPressStyle())
-        .accessibilityLabel("Find something")
-    }
-}
-
-/// The heading is real; only the cards are placeholders. Their widths, heights,
-/// radius and gap are the strip's own (218 × 208, 12pt, `Radius.card`), and the
-/// trailing 170pt block is the Find-something tile, so nothing shifts on swap-in.
+/// The heading is real; only the cards are placeholders. Their widths, height,
+/// radius and gap are the rail's own (236 × 116, 12pt, 16pt radius), and the
+/// trailing 100pt block is the add tile, so nothing shifts on swap-in.
 private struct YourDaySkeleton: View {
     var body: some View {
-        FeedSkeletonSection(spacing: 12) {
+        FeedSkeletonSection(spacing: YourDayRailMetrics.headerToRail) {
             YourDayHeading()
         } content: {
-            FeedSkeletonStrip(widths: [218, 218, 170], height: 208)
+            FeedSkeletonStrip(
+                widths: [YourDayRailMetrics.cardWidth,
+                         YourDayRailMetrics.cardWidth,
+                         YourDayRailMetrics.addTileWidth],
+                height: YourDayRailMetrics.cardHeight
+            )
         }
     }
 }

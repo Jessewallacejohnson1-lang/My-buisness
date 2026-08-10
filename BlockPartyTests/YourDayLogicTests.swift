@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import SwiftUI
 import XCTest
 @testable import BlockParty
 
@@ -522,5 +523,196 @@ final class YourDayLogicTests: XCTestCase {
         components.minute = minute
         components.second = second
         return try XCTUnwrap(Town.calendar.date(from: components))
+    }
+}
+
+/// The Your Day RAIL's pure layer — copy, spoken text, the category colour map and
+/// the two numbers the 116pt ceiling depends on.
+///
+/// Deliberately appended to this already-registered file rather than added as a new
+/// one: the test target uses an EXPLICIT source list, so a new file is invisible to
+/// `xcodebuild test` until `project.pbxproj` is edited — and `project.pbxproj` is the
+/// likeliest file in the repo to collide with a parallel agent's work.
+final class YourDayRailSpecTests: XCTestCase {
+
+    // MARK: - The count in the section header
+
+    func testCountLabelIsOmittedEntirelyAtZero() {
+        XCTAssertNil(YourDayRailCopy.countLabel(0))
+    }
+
+    func testCountLabelIsSingularForOneAndPluralAbove() {
+        XCTAssertEqual(YourDayRailCopy.countLabel(1), "1 thing")
+        XCTAssertEqual(YourDayRailCopy.countLabel(3), "3 things")
+        XCTAssertEqual(YourDayRailCopy.countLabel(7), "7 things")
+    }
+
+    // MARK: - The empty card never invents a number
+
+    func testEmptyMetaDropsTheNumberWhenTheCountIsUnknown() {
+        XCTAssertEqual(
+            YourDayRailCopy.emptyMeta(townCount: nil),
+            "See what’s happening in St. Joe →"
+        )
+    }
+
+    func testEmptyMetaDropsTheNumberRatherThanSayingZero() {
+        XCTAssertEqual(
+            YourDayRailCopy.emptyMeta(townCount: 0),
+            "See what’s happening in St. Joe →"
+        )
+    }
+
+    func testEmptyMetaCountsRealThings() {
+        XCTAssertEqual(
+            YourDayRailCopy.emptyMeta(townCount: 1),
+            "1 thing happening in St. Joe →"
+        )
+        XCTAssertEqual(
+            YourDayRailCopy.emptyMeta(townCount: 4),
+            "4 things happening in St. Joe →"
+        )
+    }
+
+    // MARK: - One card, one accessibility element
+
+    func testCommittedCardReadsWhenTitleCategoryPlaceAndCompletion() {
+        let item = makeItem(
+            eyebrow: "11 AM",
+            title: "Farmers market",
+            category: .food,
+            location: "Resurrection lot",
+            source: .committed,
+            isComplete: false
+        )
+
+        XCTAssertEqual(
+            YourDayRailAccessibility.label(for: item),
+            "11 AM, Farmers market, Food & drink, Resurrection lot, not completed"
+        )
+    }
+
+    func testWholeTownCardSaysSoOutLoud() {
+        let item = makeItem(source: .wholeTown)
+
+        XCTAssertTrue(
+            YourDayRailAccessibility.label(for: item).contains("on the town calendar"),
+            "A town-calendar item must not be spoken as a personal plan."
+        )
+    }
+
+    func testCommittedCardDoesNotClaimTheTownCalendar() {
+        let item = makeItem(source: .committed)
+
+        XCTAssertFalse(
+            YourDayRailAccessibility.label(for: item).contains("on the town calendar")
+        )
+    }
+
+    func testCompletedCardSaysCompleted() {
+        let item = makeItem(isComplete: true)
+
+        XCTAssertTrue(YourDayRailAccessibility.label(for: item).hasSuffix(", completed"))
+    }
+
+    func testBlankLocationIsSkippedRatherThanSpokenAsAnEmptyGap() {
+        let blank = makeItem(location: "   ")
+        let missing = makeItem(location: nil)
+
+        for label in [
+            YourDayRailAccessibility.label(for: blank),
+            YourDayRailAccessibility.label(for: missing),
+        ] {
+            XCTAssertFalse(label.contains(", ,"))
+            XCTAssertEqual(label, "11 AM, Farmers market, Food & drink, not completed")
+        }
+    }
+
+    func testRailAnnouncesItsCount() {
+        XCTAssertEqual(YourDayRailAccessibility.railLabel(count: 3), "Your day, 3 things")
+        XCTAssertEqual(YourDayRailAccessibility.railLabel(count: 1), "Your day, 1 thing")
+        XCTAssertEqual(
+            YourDayRailAccessibility.railLabel(count: 0),
+            "Your day, nothing planned"
+        )
+    }
+
+    // MARK: - Dynamic Type may not grow the card
+
+    func testTitleGivesUpItsSecondLineBeforeTheCardGivesUpItsCeiling() {
+        XCTAssertEqual(YourDayRailMetrics.titleLineLimit(for: .large), 2)
+        XCTAssertEqual(YourDayRailMetrics.titleLineLimit(for: .xLarge), 2)
+        XCTAssertEqual(YourDayRailMetrics.titleLineLimit(for: .xxLarge), 1)
+        XCTAssertEqual(YourDayRailMetrics.titleLineLimit(for: .accessibility5), 1)
+    }
+
+    func testTheCardCeilingIsTheOneTheRebuildPromised() {
+        // 208 -> 116. If this number moves, the phase's whole point moved with it.
+        XCTAssertEqual(YourDayRailMetrics.cardHeight, 116)
+        XCTAssertEqual(YourDayRailMetrics.cardWidth, 236)
+        XCTAssertEqual(YourDayRailMetrics.addTileWidth, 100)
+    }
+
+    // MARK: - Category colour is a system, not a per-view choice
+
+    func testEveryCategoryResolvesToAGradientAndUncategorisedReadsAsATownEvent() {
+        // Today EVERY live row is `.other`, so this mapping is what the app
+        // actually looks like until categories are backfilled.
+        XCTAssertEqual(CategoryGradient.of(.other), .eventsFestivals)
+        XCTAssertEqual(CategoryGradient.of(.outdoors), .outdoorsTrails)
+        XCTAssertEqual(CategoryGradient.of(.sports), .outdoorsTrails)
+        XCTAssertEqual(CategoryGradient.of(.musicArts), .eventsFestivals)
+        XCTAssertEqual(CategoryGradient.of(.food), .foodDrink)
+        XCTAssertEqual(CategoryGradient.of(.families), .clubsGroups)
+        XCTAssertEqual(CategoryGradient.of(.books), .clubsGroups)
+        XCTAssertEqual(CategoryGradient.of(.games), .clubsGroups)
+        XCTAssertEqual(CategoryGradient.of(.faith), .civicTown)
+        XCTAssertEqual(CategoryGradient.of(.service), .civicTown)
+    }
+
+    func testTheSameCategoryAlwaysResolvesToTheSameTwoStops() {
+        for category in EventCategory.allCases {
+            XCTAssertEqual(
+                CategoryGradient.of(category),
+                CategoryGradient.of(category),
+                "Category colour must be stable — it is a system, not decoration."
+            )
+        }
+    }
+
+    // MARK: - Helper
+
+    private func makeItem(
+        eyebrow: String = "11 AM",
+        title: String = "Farmers market",
+        category: EventCategory = .food,
+        location: String? = nil,
+        source: DayItemSource = .committed,
+        isComplete: Bool = false
+    ) -> DayItem {
+        let start = Date(timeIntervalSince1970: 2_000_000_000)
+        return DayItem(
+            id: "test-\(title)-\(source.rawValue)",
+            title: title,
+            source: source,
+            start: start,
+            end: nil,
+            isAllDay: false,
+            isMultiDay: false,
+            isComplete: isComplete,
+            eyebrow: eyebrow,
+            location: location,
+            goingCount: 0,
+            event: UpcomingEvent(
+                id: "test-event",
+                title: title,
+                eventDate: "2033-05-18",
+                startTime: "11 AM",
+                location: location,
+                goingCount: 0,
+                createdAt: "test",
+                category: category
+            )
+        )
     }
 }
