@@ -36,7 +36,7 @@
 import OSLog
 
 enum Log {
-    private static let subsystem = "Jesse.Hygge"
+    private static let subsystem = "Jesse.BlockParty"
     private static let net  = Logger(subsystem: subsystem, category: "network")
     private static let rt   = Logger(subsystem: subsystem, category: "realtime")
     private static let au   = Logger(subsystem: subsystem, category: "auth")

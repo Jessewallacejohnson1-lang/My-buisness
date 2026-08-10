@@ -121,6 +121,9 @@ struct FeedEventCardJoinButton: View {
     }
 }
 
+/// The `+` press. Its numbers and its Reduce-Motion branch live in `FeedMarkPress`
+/// so the For You cards press with exactly this feel, and so the cross-fade
+/// fallback is the same one the rest of the feed uses.
 private struct FeedCardJoinPressStyle: ButtonStyle {
     let reduceMotion: Bool
     let autoplayPressed: Bool
@@ -128,14 +131,10 @@ private struct FeedCardJoinPressStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         let isPressed = configuration.isPressed || autoplayPressed
 
-        configuration.label
-            .scaleEffect(reduceMotion ? 1 : (isPressed ? 0.88 : 1))
-            .animation(
-                reduceMotion
-                    ? nil
-                    : .spring(response: 0.25, dampingFraction: 0.6),
-                value: isPressed
-            )
+        return configuration.label
+            .scaleEffect(FeedMarkPress.scale(isPressed: isPressed, reduceMotion: reduceMotion))
+            .opacity(FeedMarkPress.opacity(isPressed: isPressed, reduceMotion: reduceMotion))
+            .animation(FeedMarkPress.animation(reduceMotion: reduceMotion), value: isPressed)
     }
 }
 

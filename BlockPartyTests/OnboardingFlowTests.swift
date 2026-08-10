@@ -24,7 +24,7 @@ final class OnboardingFlowTests: XCTestCase {
     /// An isolated suite, wiped before each test.
     ///
     /// `UserDefaults.standard` is NOT usable here: the test host is the real app, whose
-    /// container carries whatever the screenshot-seeding wrote (`hygge.onboarding.*`),
+    /// container carries whatever the screenshot-seeding wrote (`bp.onboarding.*`),
     /// and those are the very keys under test. The first run of this file failed on
     /// exactly that — reading a leftover "moving_here" from a screenshot session.
     private static let suiteName = "blockparty.tests.onboarding"

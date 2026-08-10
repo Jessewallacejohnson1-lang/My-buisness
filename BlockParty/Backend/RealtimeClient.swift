@@ -79,7 +79,7 @@ final class RealtimeClient {
     init(schema: String = "public", table: String, tokenProvider: @escaping () async -> String?) {
         self.schema = schema
         self.table = table
-        self.topic = "realtime:hygge-\(table)"
+        self.topic = "realtime:bp-\(table)"
         self.tokenProvider = tokenProvider
     }
 

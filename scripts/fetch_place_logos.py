@@ -3,7 +3,7 @@
 fetch_place_logos.py — find + normalize brand logos for map POIs.
 
 For each row in Supabase `places`, resolve the business's website (Google Places
-details for real ChIJ* ids, text search for synthetic hygge-stjoe-* ids), then walk
+details for real ChIJ* ids, text search for synthetic stjoe-* ids), then walk
 a candidate ladder on the site itself:
 
     apple-touch-icon → square-ish og:image → largest <link rel=icon> → /favicon.ico
@@ -111,6 +111,8 @@ def resolve_website(place: dict) -> str | None:
                 headers={**headers, "X-Goog-FieldMask": "websiteUri,displayName"},
             )
             return data.get("websiteUri")
+        if not pid.startswith("stjoe-"):
+            return None
         # Synthetic id → text search by name, scoped to town.
         data = http_json(
             "https://places.googleapis.com/v1/places:searchText",

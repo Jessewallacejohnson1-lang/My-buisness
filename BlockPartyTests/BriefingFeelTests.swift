@@ -55,8 +55,8 @@ final class BriefingFeelTests: XCTestCase {
         XCTAssertNil(suite.string(forKey: CaughtUpMemory.key))
     }
 
-    /// The key is new on purpose: `hygge.*` and `utility.*` are frozen, and reusing
-    /// one signs people out or drops their tile preferences.
+    /// The key stays separate from the current `bp.*` namespace. Pre-rebrand
+    /// `hygge.*` values are unreachable under the new bundle id, so none are migrated.
     func testTheMemoryKeyIsNamespacedToBriefing() {
         XCTAssertTrue(CaughtUpMemory.key.hasPrefix("briefing."))
     }
@@ -86,15 +86,19 @@ final class BriefingFeelTests: XCTestCase {
 
     // MARK: - Module order
 
+    @MainActor
     func testModuleOrderIsTheBriefingRunningOrder() {
-        XCTAssertEqual(BriefingModuleID.order,
-                       [.almanac, .utility, .happeningSoon, .dailyTouch, .spotlight, .caughtUp])
+        let moduleIDs = FeedRegistry().modules.map { $0.id }
+        XCTAssertEqual(moduleIDs,
+                       [.almanac, .yourDay, .townNotes, .forYou, .spotlight, .trivia, .signOff])
     }
 
+    @MainActor
     func testAnUnknownModuleIdDecodesRatherThanFailing() {
-        let id: BriefingModuleID = "someV2Module"
+        let id: FeedModuleID = "someV2Module"
+        let module = FeedRegistry().module(for: id)
         XCTAssertEqual(id.rawValue, "someV2Module")
-        XCTAssertFalse(BriefingModuleID.order.contains(id))
+        XCTAssertNil(module)
     }
 
     // MARK: - Date label

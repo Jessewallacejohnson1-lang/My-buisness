@@ -30,7 +30,7 @@ import Foundation
 @MainActor
 enum BPOnboardingCompletion {
 
-    private static let flowDoneKey = "hygge.onboarding.flowDone"
+    private static let flowDoneKey = "bp.onboarding.flowDone"
     private static let defaults = UserDefaults.standard
 
     /// True once the user has either finished S20 or chosen "I already have an account".

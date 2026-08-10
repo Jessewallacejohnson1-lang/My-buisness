@@ -18,7 +18,7 @@
 //  without knowing the spring's duration in advance.
 //
 //  Usage:
-//      xcrun simctl launch <udid> Jesse.Hygge -bp-motion press|progress|badge|typing
+//      xcrun simctl launch <udid> Jesse.BlockParty -bp-motion press|progress|badge|typing
 //      xcrun simctl io <udid> recordVideo --codec h264 out.mov     (Ctrl-C to stop)
 //      swift extract_frames.swift out.mov frames/ 0.0167 f
 //

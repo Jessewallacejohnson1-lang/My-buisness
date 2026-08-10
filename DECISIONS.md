@@ -1,56 +1,81 @@
-# Block Party rebrand — decisions & open questions
+# Block Party rebrand — decisions and outstanding actions
 
-Branch: `rebrand/block-party`, cut from `integration/pre-rebrand`
-(= `main` + almanac-greeting-glyph + st-joe-community-feed + tab-loading-cover).
-
-This file is the one place "hygge" is allowed to survive. Everything below is
-either a deliberate carve-out or an open question for Jesse.
+This is the durable record for the identifier purge and the deliberately retained
+historical/external references. Dated implementation sections below remain as history;
+the 2026-08-09 decision in §1 supersedes their earlier keep-the-identifiers analysis.
 
 ---
 
-## 1. Identifiers deliberately NOT renamed
+## 1. Decided 2026-08-09 — full identifier purge
 
-These are wire-level or persisted identifiers. Renaming them is a behaviour
-change, not a reskin, so they keep the old spelling on purpose.
+The original carve-out treated persisted identifiers as permanently frozen because a
+rename would log out every existing install and erase local state. That analysis was
+incomplete: it never considered a one-time migration that reads the old value, writes
+the new value, then deletes the old value.
 
-| Identifier | Value | Why it stays |
-|---|---|---|
-| Bundle identifier | `Jesse.Hygge` | Changing it creates a **new App Store Connect app** and orphans the existing listing, TestFlight builds, and installs. Also the Google Places API key is restricted to this bundle ID in Cloud Console — changing it silently breaks Places lookups. |
-| Log subsystem | `Jesse.Hygge` | Deliberately mirrors the bundle ID. Kept in sync with it. |
-| Keychain account | `hygge.session` | Renaming logs out **every existing install** on next launch. |
-| UserDefaults keys | `hygge.onboarded`, `hygge.onboarded.<uid>`, `hygge.interests`, `hygge.saved.ids`, `hygge.displayName` | Renaming resets onboarding and loses every user's saved items and interests. |
-| Realtime topic | `realtime:hygge-<table>` | A wire-level channel name shared with the backend and with app instances already in the field. Changing it puts new builds on a different channel from old ones. |
-| Supabase seed data | `hygge_research`, `hygge_curated`, `hygge-stjoe-*` place slugs | **Live rows in the production database**, written by already-applied migrations. No Swift code references them (verified), so they are data-only. Editing the applied migration files would not change the live DB and would falsify migration history. |
+The app is pre-launch. At the decision point the production project had **4 auth
+users, 2 active in the prior 30 days, and 1 town profile**. With such a small surface,
+an explicit migration removes the data-loss risk and the App Store continuity cost is
+known rather than speculative.
 
-**Consequence:** the Phase 1 exit check `grep -ri "hygge"` cannot return empty.
-It should return exactly: this file, the bundle ID / log subsystem, the five
-storage keys, the realtime topic, and `supabase/migrations/*`. Anything else is
-a real miss.
+**Jesse's decision on 2026-08-09: full purge.** The accepted end state is:
 
-### Open question — bundle ID
-Renaming `Jesse.Hygge` → e.g. `Jesse.BlockParty` is possible but it is a
-**new app** to the App Store, not a rename of the existing one. The visible app
-name on the Store is controlled by the App Store Connect listing and
-`CFBundleDisplayName`, both of which now say "Block Party" regardless. Recommend
-leaving the bundle ID alone permanently. **Needs Jesse's call if we ever want the
-identifier itself to read BlockParty.**
+| Identifier | End state |
+|---|---|
+| Bundle identifier | `Jesse.BlockParty` |
+| Log subsystem | `Jesse.BlockParty` |
+| Keychain account | `bp.session` |
+| Product-namespaced UserDefaults | `bp.*` |
+| Realtime topic | `realtime:bp-<table>` |
 
-### Open question — storage keys
-If the app has never shipped outside Jesse's devices, the five storage keys and
-the realtime topic could be renamed freely. Chosen approach assumes there *may*
-be real installs. **Revisit if pre-launch is confirmed.**
+**No migration shim exists, and one is impossible.** The original plan was to preserve
+user data with a read-old → write-new → delete-old migration. That plan was wrong, and
+the reason is worth recording so nobody re-proposes it: iOS scopes `UserDefaults` to the
+app container and Keychain items to an access group derived from the bundle id.
+`Jesse.BlockParty` is therefore a **different app** with an empty container — it cannot
+read anything `Jesse.Hygge` wrote. Bridging would require a shared keychain access group
+declared in **both** builds, and the already-shipped build has none, which cannot be
+fixed retroactively.
+
+A migration was written, proven unreachable, and removed rather than shipped as dead
+code. **Consequence: the rename is a clean break — existing installs re-authenticate and
+re-onboard.** That was accepted because the app is pre-launch: 4 accounts, 2 active in
+30 days, 1 town profile. It would not be acceptable after launch, which is precisely why
+the rename happened now. Realtime topics are ephemeral and need no migration.
+
+### OUTSTANDING console actions
+
+1. **Google Cloud:** add `Jesse.BlockParty` to the Places API key's iOS bundle-id
+   restrictions. Skipping this makes **all venue photography go blank** in the renamed
+   app because runtime Places requests are rejected.
+2. **App Store Connect:** create the new app record for `Jesse.BlockParty`. This bundle
+   change intentionally orphans the old listing and its TestFlight builds; they cannot
+   be transferred to the new identifier.
+
+These are external actions. No repository edit can substitute for either one.
 
 ---
 
-## 2. Untouched by the rebrand
+## 2. Deliberate remaining references
 
-- `supabase/migrations/*.sql` — applied history. Never edited retroactively.
-- The Supabase project (`lxdgwhvqjqmqliobwjpi`) also backs an unrelated
-  "Hygge Health" wellness app. Any find/replace across `supabase/` risks
-  touching another product's config. Left alone.
-- App group IDs, keychain access groups, associated domains, URL schemes —
-  none exist in this project, so nothing to preserve.
-- `DEVELOPMENT_TEAM = 5Z6CXL9QA8` and signing config — unchanged.
+- **The one deliberate application-code carve-out is seven Swift comments that
+  reference `@hygge/core`. Keep them.** That is the live npm
+  package name in the twin Expo repository at
+  `~/Documents/my-business/packages/core/package.json`. The comments describe a real
+  synchronization boundary and stay accurate until that package is renamed.
+- A handful of comments still name `hygge.*` to explain what the keys used to be and
+  why nothing is migrated. Those are explanatory, not live identifiers.
+- **`supabase/migrations/*` is applied history. Never edit it retroactively.** Old
+  identifiers in those files record what actually ran. Consequently,
+  `grep -ri hygge` will always find legitimate migration-history hits even after the
+  application purge is complete; changing those files would falsify history and would
+  not update production anyway.
+- The shared Supabase project (`lxdgwhvqjqmqliobwjpi`) also contains an unrelated
+  retired **Hygge Health** schema. Do not apply a blind repository- or project-wide
+  replacement to another product's data.
+- App groups, keychain access groups, associated domains, and URL schemes do not exist
+  in this project. `DEVELOPMENT_TEAM = 5Z6CXL9QA8` and automatic-signing configuration
+  remain unchanged.
 
 ## 3. `.gitignore` — secret paths repointed
 
@@ -153,33 +178,21 @@ Several states are deliberately distinguished by value or weight alone:
 
 - **Dark mode.** The token set is light-mode only (ink on paper). There is also
   a pre-existing Dark Mode tab-bar contrast bug noted on the map branch.
-- **A single accent colour — DECIDED 2026-07-20, NOT YET IMPLEMENTED.**
-  Phases 1–4 shipped pure monochrome per the original brief ("accent: NONE in
-  phase 1"). Jesse has since decided to introduce **one accent**, scoped to where
-  it carries meaning — **live events · active filters · selected state · saved
-  pins · primary CTAs** — and nowhere else. Chrome, body copy, cards, and
-  category glyphs stay ink/paper; the accent is not decoration.
+- **A single accent colour — IMPLEMENTED.** `Hue.accent` is plum/berry
+  `#8E3B6B`, deliberately distinct from the retired coral and from the basemap's
+  sage/sky terrain. It is meaning-scoped to **live events · active filters ·
+  selected/saved state · primary CTAs**. Body copy, cards, category glyphs, and
+  decorative backgrounds remain ink/paper; the accent is never filler.
 
-  **The hue has not been chosen.** The July rule was that it must not be the
-  retired coral `#FF6B57`; note that the Aug 2026 app icon (below) now carries a
-  coral-orange + purple lockup, so the accent *could* be derived from the brand
-  mark — whether the logo's orange re-opens that rule is Jesse's call, not a
-  precedent to assume. UI chrome stays monochrome until the hue is decided.
-
-  When implementing, fold it into the five state cues that currently rely on
-  shape/value workarounds — they exist *because* colour was removed, and an
-  accent does the job better:
-  - `SJMapView` live pin — the static ink ring (`badge`)
-  - `SJMapView.chromeCircle(active:)` — the ink-fill inversion
-  - `InlineAction` — outlined-vs-filled error/success
-  - `ProfileComponents` `emphasized` — the ink-fill inversion
-  - Saved pin state, still the weakest in the system (§4b)
-
-  Keep the value-step fixes in the two calendars (`CalendarView.numberColor`,
-  `InsightsMiniCalendar`) regardless — those distinguish *has data* from *empty*,
-  which is not a live/active state and should not consume the accent.
-- **App Store listing rename**, marketing assets, screenshots, and the
-  App Store description.
+  Current map liveness uses the accent fill/static ring/pulse, and selected map
+  chrome/tab-shell controls route through the same token. Keep the value-step fixes
+  in `CalendarView.numberColor` and `InsightsMiniCalendar`: those distinguish
+  *has data* from *empty*, not active/selected state, so they should not consume the
+  accent.
+- **App Store distribution work.** The original plan deferred a listing rename. The
+  2026-08-09 bundle-id decision supersedes that plan: a new App Store Connect record is
+  now required and remains outstanding in §1, along with marketing assets, screenshots,
+  and the App Store description.
 - **App icon pixels.** The old 1024×1024 `AppIcon.png` had the "Hygge" wordmark
   baked into the image — the one rebrand artifact a grep could never catch.
   Replaced in Phase 4 (`4a0fd09`).
@@ -203,6 +216,54 @@ Several states are deliberately distinguished by value or weight alone:
   regenerated from the same pixels, and the sizing constant was re-measured:
   `inkFraction 0.7511` → `contentFraction 0.8273` (the lockup = letters + hat,
   confetti excluded so placements don't undersize the letters).
-- `HyggeTests/` has **no target in the Xcode project** (verified — it is inert
-  source, never compiled). It is renamed for consistency but wiring it up as a
-  real test target remains a separate task.
+- **Superseded test note:** at the time of the original rebrand, `HyggeTests/` was
+  inert and had no project target. It has since become the wired `BlockPartyTests`
+  target with active coverage; do not treat the old statement as current setup advice.
+
+---
+
+## 3. Migrations applied 2026-08-09 — and the one deliberately split
+
+Applied to `lxdgwhvqjqmqliobwjpi`, in this order, each verified before the next:
+
+1. `board_items_news` — `image_url` + `fetched_at`, the `board_sweeps` table
+   (authenticated read only, no client write path), and the backfill that
+   published 30 real non-civic staging rows. Town Notes pool is now 41; the 23
+   civic rows stay held back for the Civic tab.
+2. `posting_dismissals` — own-row RLS mirroring `event_saves`. For You's dismiss
+   now persists.
+3. `rename_hygge_place_ids` — 62 synthetic ids `hygge-stjoe-*` -> `stjoe-*`,
+   sources -> `bp_research` / `bp_curated`. 29 Google `ChIJ*` ids untouched, and
+   all 77 `logo_url` values survived (they key off the row uuid, not `place_id`).
+4. `trivia_schema` — `correct_idx`, the widened `kind` check, per-lane unique
+   indexes, `claim_trivia`, `touch_stats` and `trivia_streak`.
+5. `trivia_seed` — 30 questions, all with answers. Today's is claimed.
+6. `briefing_touch_excludes_trivia` — see below.
+7. `spotlight_weeks_archive` — the archive table, `subject_type`, and a backfill
+   of one row per historical ISO week.
+
+### Two authored redefinitions were NOT applied as written
+
+Both `20260809300000_trivia.sql` and `20260809210000_weekly_spotlight_rotation.sql`
+rewrite a whole live function. **Neither authored copy matches what is deployed.**
+
+`get_today_briefing` live has a `touch_tally` lateral join — "one grouped scan,
+not one count per option" — that the authored copy does not. Applying that file
+verbatim would have silently reverted the optimization while looking like a
+feature migration. Instead, `briefing_touch_excludes_trivia` reads whatever is
+actually deployed, rewrites the single predicate it needs
+(`and dt.kind in ('poll','history')`, so a claimed trivia row is never served to
+the poll card), and refuses rather than guesses if that predicate is not found.
+Verified after: patch present, tally preserved, length +45 chars.
+
+`compose_briefing` is **still the daily rotation.** Its rewrite is the half of
+the weekly-spotlight migration that was not applied, for the same reason: it is a
+170-line replacement of a live 4KB function and it has not been diffed against
+what is deployed. Consequence: `spotlight_weeks` exists and is backfilled, but
+nothing writes to it yet and the spotlight still changes daily. The client-side
+week key and the "week of August 3" label are already correct, so this is a
+server-side rotation change only.
+
+**Rule going forward: never apply an authored `create or replace` of a live
+function without diffing it against `pg_get_functiondef` first.** This batch
+produced two that would have regressed live behaviour.

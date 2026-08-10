@@ -153,7 +153,7 @@ extension View {
 final class SavedStore: ObservableObject {
     static let shared = SavedStore()
     @Published private(set) var ids: Set<String>
-    private let key = "hygge.saved.ids"
+    private let key = "bp.saved.ids"
 
     private init() { ids = Set(UserDefaults.standard.stringArray(forKey: key) ?? []) }
 

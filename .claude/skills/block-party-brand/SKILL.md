@@ -9,7 +9,8 @@ Block Party is a neighborhood app for St. Joseph, MN. The visual system is
 **monochrome ink on warm paper**. Photos carry all the color. Nothing else does.
 
 If you are about to add a color, the answer is almost certainly `ink`,
-`inkSecondary`, `hairline`, or `fill`. There is **no accent color**.
+`inkSecondary`, `hairline`, or `fill`. There is exactly **one** accent, it is
+already chosen, and it is meaning-scoped — see below before reaching for it.
 
 ## Tokens — single source of truth
 
@@ -25,22 +26,18 @@ at a call site; always reference the token.
 | `hairline` | `#E7E7E4` | 1px borders, dividers, card outlines |
 | `fill` | `#F1F1EF` | Inert fills: photo-less placeholders, skeletons, disabled |
 
-**Accent: one, pending.** The shipped rebrand (commits through `54806ff`) is pure
-monochrome — that was the original brief. Jesse has since decided to add **one
-accent colour, hue not yet chosen**, used ONLY where it carries meaning:
+**Accent: one, chosen — plum `#8E3B6B`.** Defined as `Hue.accent` in
+`BlockPartyColor.swift` and used ONLY where it carries meaning:
 
 > live events · active filters · selected state · saved pins · primary CTAs
 
 Everything else stays ink on paper. The accent is never decoration, never a
-background wash, never applied to body copy, cards, or category glyphs. The
-July rule was that it must not be the retired coral `#FF6B57`; the Aug 2026
-logo (below) now carries a coral-orange lockup, so deriving the accent
-from the mark is a live option — but that is Jesse's call to make explicitly,
-not a precedent to assume.
+background wash, never applied to body copy, cards, or category glyphs. It is
+deliberately NOT the retired coral `#FF6B57`.
 
-Until that hue is chosen, build monochrome. If a design seems to need colour
-somewhere outside that list, it needs hierarchy instead — weight, size, value,
-or fill-vs-outline.
+The Today feed ships entirely monochrome and does not spend it — whether the
+feed's `+` join button and its "happening now" state should take the accent is
+still Jesse's call, not a precedent to assume.
 
 ### Banned
 - Coral `#FF6B57` and the whole legacy `moss`/`honey`/`clay`/`sky` ramp
@@ -133,11 +130,12 @@ Bad: "Cozy up with today's events!" / "Your hygge awaits ✨"
 
 1. **Reskin ≠ rebuild.** Changing brand appearance must never change layout,
    information architecture, navigation, or behavior.
-2. **Never change** the bundle identifier `Jesse.Hygge`, the keychain account
-   `hygge.session`, the `hygge.*` UserDefaults keys, or the
-   `realtime:hygge-*` topic. These are persisted/wire-level identifiers —
-   renaming them logs users out or breaks the App Store listing. See
-   `DECISIONS.md` in the repo.
+2. **The identifiers were renamed on 2026-08-09** — bundle id `Jesse.BlockParty`,
+   keychain account `bp.session`, `bp.*` UserDefaults keys, `realtime:bp-*` topic.
+   These are still persisted/wire-level identifiers: **do not rename them again.**
+   Changing the bundle id gives the app a new container and Keychain access group,
+   so every install re-authenticates and re-onboards — a cost that was only
+   acceptable pre-launch at 4 accounts. See `DECISIONS.md`.
 3. `supabase/migrations/*` is applied history. Never edit retroactively.
 4. New color needed? Add a token to `BlockPartyColor.swift`. Do not inline it.
 

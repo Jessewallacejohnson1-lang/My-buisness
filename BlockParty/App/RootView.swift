@@ -86,6 +86,18 @@ struct RootView: View {
                 // Preview the static feed-card states full-screen (bypassing the auth
                 // gate) so the component can be verified headlessly.
                 FeedCardGallery()
+            } else if ProcessInfo.processInfo.arguments.contains("-foryou-sample")
+                        || ProcessInfo.processInfo.arguments.contains("-foryou-no-tags")
+                        || ProcessInfo.processInfo.arguments.contains("-foryou-empty") {
+                // These flags take precedence over -briefing-preview because For You
+                // is below the fold at order 4 and this simulator cannot scroll.
+                ForYouPreview()
+            } else if ProcessInfo.processInfo.arguments.contains("-feed-gallery") {
+                // Every loading / ready / empty / error state of the lower feed
+                // modules (For You, spotlight, trivia, sign-off), which sit below
+                // the fold at orders 4-7 and cannot be scrolled to headlessly.
+                // Pair with `-feed-state <key[,key…]>` to isolate one.
+                FeedStatesGallery()
             } else if ProcessInfo.processInfo.arguments.contains("-briefing-preview") {
                 // Mount the real Today briefing composition (bypassing the auth
                 // gate) with BriefingModel seeded from a canned payload and no
@@ -97,6 +109,11 @@ struct RootView: View {
                 // auth gate): 3/1/0 featured events, poll unvoted and voted, the
                 // history touch, the spotlight, and the caught-up footer.
                 BriefingGallery()
+            } else if ProcessInfo.processInfo.arguments.contains("-townnotes-gallery") {
+                // Preview every Town Notes card state full-screen (bypassing the auth
+                // gate). Pair with `-townnotes-gallery-page <1...6>` to bring a
+                // below-the-fold state to the top for headless screenshots.
+                TownNotesGallery()
             } else if ProcessInfo.processInfo.arguments.contains("-town-rain-preview") {
                 // Preview the map's town-rain drop full-screen (bypassing the auth
                 // gate) so its physics can be recorded and measured headlessly — the

@@ -73,13 +73,13 @@ enum Interests {
         return order.map { ($0, groups[$0] ?? []) }
     }()
 
-    private static let interestsKey = "hygge.interests"
-    private static let legacyOnboardedKey = "hygge.onboarded"   // pre-per-user, un-scoped
-    private static let nameKey      = "hygge.displayName"
+    private static let interestsKey = "bp.interests"
+    private static let legacyOnboardedKey = "bp.onboarded"   // pre-per-user, un-scoped
+    private static let nameKey      = "bp.displayName"
 
     /// Onboarded flag is scoped per signed-in user id, so a second account on the
     /// same device is never treated as onboarded just because a prior user was.
-    private static func onboardedKey(_ uid: String) -> String { "hygge.onboarded.\(uid)" }
+    private static func onboardedKey(_ uid: String) -> String { "bp.onboarded.\(uid)" }
 
     static func get() -> [String] { UserDefaults.standard.stringArray(forKey: interestsKey) ?? [] }
     static func set(_ ids: [String]) { UserDefaults.standard.set(ids, forKey: interestsKey) }

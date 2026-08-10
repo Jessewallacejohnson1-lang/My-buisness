@@ -6,7 +6,7 @@
 //  bar texture, typing bubble, selection recipe and check spring can be verified
 //  against the reference frames before any screen work starts.
 //
-//  Headless: `xcrun simctl launch <udid> Jesse.Hygge -bp-components [-bp-page N]`
+//  Headless: `xcrun simctl launch <udid> Jesse.BlockParty -bp-components [-bp-page N]`
 //
 //  PAGINATED ON PURPOSE. This simulator setup has no scroll/gesture automation, so a
 //  single long ScrollView can only ever be screenshotted at its top — everything below
