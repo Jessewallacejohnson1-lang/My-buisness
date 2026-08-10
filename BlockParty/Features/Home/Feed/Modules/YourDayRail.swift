@@ -23,6 +23,14 @@ struct YourDayRail: View {
     /// inventing one.
     let townCount: Int?
     let namespace: Namespace.ID
+    /// Whether the cards hold their half of the matched-geometry pair.
+    ///
+    /// It is withdrawn while the day sheet is open, and under Reduce Motion. Two
+    /// live sources for one id is undefined behaviour in SwiftUI; the morph is an
+    /// insert/remove pair, so exactly one side may claim an id at a time — and the
+    /// side that should visibly fly is the sheet's, because it is drawn above the
+    /// backdrop rather than blurred behind it.
+    var morphs = false
     let onOpenDay: (DayItem) -> Void
     let onAdd: () -> Void
     let onExplore: () -> Void
@@ -69,7 +77,12 @@ struct YourDayRail: View {
             ScrollView(.horizontal) {
                 LazyHStack(spacing: M.cardSpacing) {
                     ForEach(items) { item in
-                        YourDayCard(item: item, namespace: namespace, onOpenDay: onOpenDay)
+                        YourDayCard(
+                            item: item,
+                            namespace: namespace,
+                            morphs: morphs,
+                            onOpenDay: onOpenDay
+                        )
                     }
 
                     if let suggestion, items.count == 1 {

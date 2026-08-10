@@ -20,7 +20,7 @@ import Foundation
 
 nonisolated struct DayScheduleFixture {
     let items: [DayItem]
-    let selectedID: String?
+    let anchor: DayScheduleAnchor
     let dates: any DateProviding
 
     /// 2026-08-10, 09:23 in town time — a Monday morning with the day underway, so
@@ -37,8 +37,11 @@ nonisolated struct DayScheduleFixture {
         return Town.calendar.date(from: components) ?? Date(timeIntervalSince1970: 0)
     }
 
-    /// `-day-sheet-state upcoming|inprogress|completed|empty`. Defaults to the whole
-    /// day with nothing pre-selected.
+    /// `-day-sheet-state upcoming|inprogress|completed|empty|cta`. Defaults to the
+    /// whole day with nothing pre-selected.
+    ///
+    /// `cta` is the rail's ADD TILE opening the day — it rests on the bottom of the
+    /// timeline with the "Add to today" button under it, rather than on a row.
     static func fromArguments(_ arguments: [String] = ProcessInfo.processInfo.arguments)
         -> DayScheduleFixture {
         let now = fixedNow
@@ -48,20 +51,22 @@ nonisolated struct DayScheduleFixture {
         guard let flag = arguments.firstIndex(of: "-day-sheet-state"),
               flag + 1 < arguments.count
         else {
-            return DayScheduleFixture(items: day, selectedID: nil, dates: dates)
+            return DayScheduleFixture(items: day, anchor: .top, dates: dates)
         }
 
         switch arguments[flag + 1] {
         case "upcoming":
-            return DayScheduleFixture(items: day, selectedID: "fixture-trivia", dates: dates)
+            return DayScheduleFixture(items: day, anchor: .item("fixture-trivia"), dates: dates)
         case "inprogress":
-            return DayScheduleFixture(items: day, selectedID: "fixture-story", dates: dates)
+            return DayScheduleFixture(items: day, anchor: .item("fixture-story"), dates: dates)
         case "completed":
-            return DayScheduleFixture(items: day, selectedID: "fixture-walk", dates: dates)
+            return DayScheduleFixture(items: day, anchor: .item("fixture-walk"), dates: dates)
+        case "cta":
+            return DayScheduleFixture(items: day, anchor: .callToAction, dates: dates)
         case "empty":
-            return DayScheduleFixture(items: [], selectedID: nil, dates: dates)
+            return DayScheduleFixture(items: [], anchor: .top, dates: dates)
         default:
-            return DayScheduleFixture(items: day, selectedID: nil, dates: dates)
+            return DayScheduleFixture(items: day, anchor: .top, dates: dates)
         }
     }
 

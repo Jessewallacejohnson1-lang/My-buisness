@@ -33,8 +33,16 @@ struct DayDetailCard: View {
             accentBar
             content
         }
-        .background(DaySchedulePalette.card)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+        // The ground is clipped, the CARD is not. A card-level `.clipShape` looks
+        // identical at rest and costs the whole morph: the accent bar's matched
+        // frame starts at the rail card, far outside these bounds, so the clip ate
+        // every frame of the flight and the bar simply appeared at its destination.
+        // The bar now carries its own rounded leading corners instead (below), and
+        // nothing else here draws outside the card.
+        .background(
+            DaySchedulePalette.card,
+            in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+        )
         .overlay {
             RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
                 .strokeBorder(DaySchedulePalette.rule, lineWidth: 1)
@@ -48,6 +56,18 @@ struct DayDetailCard: View {
         CategoryGradient.of(item.event.category).linear
             .frame(width: DayScheduleMetrics.accentBarWidth)
             .frame(maxHeight: .infinity)
+            // Its own leading corners, so it can be drawn outside the card's ground
+            // while it is in flight and still sit flush in the card at rest. Same
+            // shape the rail card's bar carries, which is what it flies from.
+            .clipShape(
+                UnevenRoundedRectangle(
+                    topLeadingRadius: Radius.card,
+                    bottomLeadingRadius: Radius.card,
+                    bottomTrailingRadius: 0,
+                    topTrailingRadius: 0,
+                    style: .continuous
+                )
+            )
             .modifier(
                 DayMatchedElement(
                     id: DayScheduleSheet.accentID(item.id),

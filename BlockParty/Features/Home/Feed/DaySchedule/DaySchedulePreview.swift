@@ -2,9 +2,14 @@
 //  DaySchedulePreview.swift
 //  Block Party — `-day-sheet-preview`, the day sheet with no auth and no network.
 //
-//  Mounts the REAL `DayScheduleSheet` over a stand-in for the Today tab, so the
-//  frosted backdrop has something to blur and the sheet is framed the way it will
-//  be in the app. Pair with `-day-sheet-state upcoming|inprogress|completed|empty`.
+//  Mounts the REAL `DayScheduleSheet` through the REAL `DayScheduleHost` over a
+//  stand-in for the Today tab, so the frosted backdrop has something to blur and
+//  the card is framed the way it will be in the app. Pair with
+//  `-day-sheet-state upcoming|inprogress|completed|empty|cta`.
+//
+//  There is no rail here, so nothing morphs — this flag photographs the day's
+//  CONTENT. The transition itself needs both halves of the pair and is covered by
+//  `-day-sheet-demo`, which mounts the real feed.
 //
 //  Compiles out entirely in Release.
 //
@@ -14,21 +19,21 @@ import SwiftUI
 
 struct DaySchedulePreview: View {
     @Namespace private var railNamespace
-    @State private var isPresented = true
+    @StateObject private var presentation = DaySchedulePresentation()
     @StateObject private var completion = DayCompletionStore()
 
     private let fixture = DayScheduleFixture.fromArguments()
 
     var body: some View {
         standInForToday
-            .sheet(isPresented: $isPresented) {
-                DayScheduleSheet(
-                    items: fixture.items,
-                    selectedID: fixture.selectedID,
-                    namespace: railNamespace,
-                    dates: fixture.dates,
-                    onDismiss: { isPresented = false },
-                    completion: completion
+            .dayScheduleHost(presentation, namespace: railNamespace, completion: completion)
+            .task {
+                presentation.open(
+                    DayScheduleRequest(
+                        items: fixture.items,
+                        anchor: fixture.anchor,
+                        dates: fixture.dates
+                    )
                 )
             }
     }

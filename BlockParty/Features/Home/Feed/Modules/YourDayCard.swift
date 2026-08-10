@@ -32,6 +32,9 @@ private typealias M = YourDayRailMetrics
 struct YourDayCard: View {
     let item: DayItem
     let namespace: Namespace.ID
+    /// Whether this card holds the accent-bar/title half of the matched pair. See
+    /// `YourDayRail.morphs` — it is withdrawn while the day sheet has them.
+    var morphs = false
     let onOpenDay: (DayItem) -> Void
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -83,7 +86,14 @@ struct YourDayCard: View {
         .fill(CategoryGradient.of(item.event.category).linear)
         .opacity(isWholeTown ? 0.45 : 1)
         .frame(width: M.accentBarWidth)
-        .matchedGeometryEffect(id: "dayitem-accent-\(item.id)", in: namespace)
+        // The id comes from the sheet so there is ONE spelling of the contract.
+        .modifier(
+            DayMatchedElement(
+                id: DayScheduleSheet.accentID(item.id),
+                namespace: namespace,
+                active: morphs
+            )
+        )
     }
 
     private var content: some View {
@@ -123,7 +133,13 @@ struct YourDayCard: View {
             .truncationMode(.tail)
             .multilineTextAlignment(.leading)
             .fixedSize(horizontal: false, vertical: true)
-            .matchedGeometryEffect(id: "dayitem-title-\(item.id)", in: namespace)
+            .modifier(
+                DayMatchedElement(
+                    id: DayScheduleSheet.titleID(item.id),
+                    namespace: namespace,
+                    active: morphs
+                )
+            )
     }
 
     private var meta: some View {

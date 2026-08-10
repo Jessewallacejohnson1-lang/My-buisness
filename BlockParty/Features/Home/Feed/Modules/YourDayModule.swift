@@ -110,14 +110,13 @@ final class YourDayModule: @MainActor FeedModule {
                     items: items,
                     suggestion: suggestion,
                     townCount: townCount,
-                    // AGENT C SEAM: this closure is where the Day Schedule sheet
-                    // gets presented. It routes to the event detail for now so the
-                    // rail is not dead in this worktree; swap the body for the
-                    // sheet presentation at merge and nothing else has to move.
-                    onOpenDay: { ctx.navigate(.event($0.event)) },
-                    // No compose route exists on `FeedRoute` yet, so "Add to today"
-                    // lands on discovery rather than nowhere. Also a merge seam.
-                    onAdd: { ctx.navigate(.feedDiscovery) },
+                    dates: ctx.dates,
+                    // Where a tap lands when no day-sheet host is mounted above
+                    // this feed — the galleries and the module previews. The real
+                    // app always has one (see `MainTabsView`), so these are the
+                    // fallbacks, not the route.
+                    onOpenDayWithoutHost: { ctx.navigate(.event($0.event)) },
+                    onAddWithoutHost: { ctx.navigate(.feedDiscovery) },
                     onExplore: { ctx.navigate(.feedDiscovery) }
                 )
                 .padding(.top, 22)
@@ -161,6 +160,13 @@ private extension YourDayModule {
         }
         if args.contains("-yourday-empty") {
             applyDebugItems([], now: now)
+            return true
+        }
+        // `-day-sheet-demo` drives the whole open → scroll → tick → dismiss
+        // sequence, so it seeds its own rail rather than needing a second flag
+        // alongside it. Four cards: enough day to scroll, few enough to see.
+        if args.contains("-day-sheet-demo") {
+            applyDebugItems(YourDayRailDebug.items(count: 4, now: now), now: now)
             return true
         }
         if let count = YourDayRailDebug.requestedCount(args) {
@@ -220,23 +226,69 @@ private struct YourDayHeading: View {
     }
 }
 
-/// Owns the matched-geometry namespace and hands it to the rail.
+/// Resolves which namespace the rail draws in, and where a tap goes.
 ///
-/// AGENT C SEAM: the namespace is declared here only because this worktree has no
-/// parent to inject one. The day sheet needs the SAME namespace for the accent bar
-/// (`dayitem-accent-<id>`) and title (`dayitem-title-<id>`) to fly between rail and
-/// sheet — at merge, lift this `@Namespace` to whichever view presents the sheet and
-/// pass it down through `YourDayRail(namespace:)`, which already takes it as a
-/// parameter.
+/// The morph needs the rail card and the timeline row to share ONE namespace, and
+/// the only view that is an ancestor of both is `DayScheduleHost` — mounted on
+/// `MainTabsView`, above the tab bar, because a full-height day sheet under a
+/// floating tab bar would have its "Add to today" button covered. So the namespace
+/// and the presenter arrive through the environment. Neither is guaranteed: the
+/// galleries and previews mount this rail with no host above it, and there the
+/// local namespace keeps the code valid and the fallback routes keep it alive.
 private struct YourDaySection: View {
     let items: [DayItem]
     let suggestion: DayItem?
     let townCount: Int?
-    let onOpenDay: (DayItem) -> Void
-    let onAdd: () -> Void
+    let dates: any DateProviding
+    let onOpenDayWithoutHost: (DayItem) -> Void
+    let onAddWithoutHost: () -> Void
     let onExplore: () -> Void
 
-    @Namespace private var namespace
+    @Environment(\.daySchedule) private var host
+    @Environment(\.dayScheduleNamespace) private var hostNamespace
+    @Namespace private var localNamespace
+
+    var body: some View {
+        if let host, let hostNamespace {
+            YourDayHostedRail(
+                host: host,
+                namespace: hostNamespace,
+                items: items,
+                suggestion: suggestion,
+                townCount: townCount,
+                dates: dates,
+                onExplore: onExplore
+            )
+        } else {
+            YourDayRail(
+                items: items,
+                suggestion: suggestion,
+                townCount: townCount,
+                namespace: localNamespace,
+                onOpenDay: onOpenDayWithoutHost,
+                onAdd: onAddWithoutHost,
+                onExplore: onExplore
+            )
+        }
+    }
+}
+
+/// The rail with a day-sheet host above it: a card tap opens the day on that card,
+/// the add tile opens it on the bottom "Add to today" button.
+///
+/// Split out purely so `host` can be an `@ObservedObject` — the rail has to re-read
+/// `isOpen` to hand its half of the matched pair over to the sheet and take it back
+/// on dismissal, and an `@Environment` value does not publish.
+private struct YourDayHostedRail: View {
+    @ObservedObject var host: DaySchedulePresentation
+    let namespace: Namespace.ID
+    let items: [DayItem]
+    let suggestion: DayItem?
+    let townCount: Int?
+    let dates: any DateProviding
+    let onExplore: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         YourDayRail(
@@ -244,10 +296,20 @@ private struct YourDaySection: View {
             suggestion: suggestion,
             townCount: townCount,
             namespace: namespace,
-            onOpenDay: onOpenDay,
-            onAdd: onAdd,
+            morphs: !reduceMotion && !host.isOpen,
+            onOpenDay: { open(.item($0.id)) },
+            onAdd: { open(.callToAction) },
             onExplore: onExplore
         )
+        .modifier(DayScheduleDemoOpener(items: items, open: open))
+    }
+
+    /// One transaction: the sheet arrives, the rail lets go of the matched ids, and
+    /// the accent bar flies out of the tapped card into the timeline row.
+    private func open(_ anchor: DayScheduleAnchor) {
+        withAnimation(reduceMotion ? DayScheduleMotion.reduced : DayScheduleMotion.open) {
+            host.open(DayScheduleRequest(items: items, anchor: anchor, dates: dates))
+        }
     }
 }
 

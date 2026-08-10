@@ -7,21 +7,17 @@
 //  the day's shape visible at a glance and one live orange line showing where it has
 //  got to.
 //
-//  PRESENTATION. This view carries its own `.presentation*` modifiers, so wiring it
-//  up is one line:
+//  PRESENTATION. This is the day's CONTENT only. It carries no `.presentation*`
+//  modifiers, because it is no longer a `.sheet`: `DayScheduleHost` presents it in
+//  the app's own hierarchy and hand-builds the resting detent, the corner radius,
+//  the backdrop, drag-to-dismiss and the modal accessibility container.
 //
-//      .sheet(isPresented: $showsDay) {
-//          DayScheduleSheet(items: module.items, selectedID: tapped,
-//                           namespace: railNS, dates: ctx.dates) { showsDay = false }
-//      }
-//
-//  MATCHED GEOMETRY, HONESTLY. The accent bar and title carry the agreed ids
-//  (`dayitem-accent-<id>` / `dayitem-title-<id>`) in the rail's namespace, so the
-//  pairing is real code and merges cleanly. But SwiftUI does NOT run
-//  `matchedGeometryEffect` across a `.sheet` boundary — a sheet is a separate
-//  presentation hierarchy, and a namespace does not reach into it. The morph
-//  therefore only animates if this view is presented in-hierarchy (a ZStack overlay)
-//  instead of as a sheet. Everything else here is unaffected either way.
+//  MATCHED GEOMETRY, AND WHY THE PRESENTATION CHANGED. The accent bar and title
+//  carry the agreed ids (`dayitem-accent-<id>` / `dayitem-title-<id>`) in the rail's
+//  namespace. SwiftUI does NOT run `matchedGeometryEffect` across a `.sheet`
+//  boundary — a sheet is a separate presentation hierarchy and a namespace does not
+//  reach into it — so the spec's two asks, a `.large` sheet AND the morph, could
+//  not both be had. The owner chose the morph; hence the host.
 //
 //  THE CLOCK is `dates`, never `Date()` — including the now line, which re-reads the
 //  injected provider on every minute boundary. A `FixedDateProvider` therefore pins
@@ -32,7 +28,9 @@ import SwiftUI
 
 struct DayScheduleSheet: View {
     let items: [DayItem]
-    let selectedID: String?
+    /// Where the day comes to rest on open: the tapped row, the bottom CTA (what
+    /// the rail's add tile asks for), or the top.
+    let anchor: DayScheduleAnchor
     let namespace: Namespace.ID
     let dates: any DateProviding
     let onDismiss: () -> Void
@@ -51,14 +49,14 @@ struct DayScheduleSheet: View {
 
     init(
         items: [DayItem],
-        selectedID: String?,
+        anchor: DayScheduleAnchor,
         namespace: Namespace.ID,
         dates: any DateProviding,
         onDismiss: @escaping () -> Void,
         completion: DayCompletionStore? = nil
     ) {
         self.items = items
-        self.selectedID = selectedID
+        self.anchor = anchor
         self.namespace = namespace
         self.dates = dates
         self.onDismiss = onDismiss
@@ -72,23 +70,18 @@ struct DayScheduleSheet: View {
     nonisolated static func accentID(_ itemID: String) -> String { "dayitem-accent-\(itemID)" }
     nonisolated static func titleID(_ itemID: String) -> String { "dayitem-title-\(itemID)" }
 
+    /// The scroll target for `.callToAction` — a hairline at the very end of the
+    /// timeline, so "open on the add button" lands on the bottom of the real day
+    /// rather than on whichever row happens to be last.
+    private static let bottomAnchorID = "dayschedule-bottom"
+
     var body: some View {
         timeline
+            // Opaque now. The frosted layer moved OUT to `DayScheduleHost`, where it
+            // belongs: it is the scrim over the town, not the page under the day.
             .background(DaySchedulePalette.page)
             .safeAreaInset(edge: .top, spacing: 0) { header }
             .safeAreaInset(edge: .bottom, spacing: 0) { callToAction }
-            .presentationDetents([.large])
-            .presentationCornerRadius(DayScheduleMetrics.sheetCornerRadius)
-            .presentationDragIndicator(.hidden)
-            .presentationBackground {
-                // The frosted backdrop: the Today tab reads through the page at the
-                // sheet's top edge instead of being replaced by a flat slab.
-                ZStack {
-                    Rectangle().fill(.ultraThinMaterial)
-                    DaySchedulePalette.page.opacity(0.92)
-                }
-                .ignoresSafeArea()
-            }
             .task { await followTheMinute() }
             .sheet(item: $detailEvent) { FeedEventDetailDestination(event: $0) }
             .sheet(isPresented: $isComposing) { AddView() }
@@ -106,6 +99,10 @@ struct DayScheduleSheet: View {
                     } else {
                         rows
                     }
+
+                    Color.clear
+                        .frame(height: 1)
+                        .id(Self.bottomAnchorID)
                 }
                 .padding(.horizontal, DayScheduleMetrics.pageMargin)
                 .padding(.bottom, 24)
@@ -117,6 +114,14 @@ struct DayScheduleSheet: View {
                 withAnimation(DayScheduleMotion.reduced) { isScrolled = scrolled }
             }
             .task { restPosition(proxy) }
+            .modifier(
+                DayScheduleDemoDriver(
+                    proxy: proxy,
+                    items: items,
+                    completion: completion,
+                    onDismiss: onDismiss
+                )
+            )
         }
     }
 
@@ -278,10 +283,17 @@ struct DayScheduleSheet: View {
     // MARK: - Behaviour
 
     /// The tapped item comes to rest a third of the way down, so the rows before it
-    /// are visible as context rather than scrolled off.
+    /// are visible as context rather than scrolled off. The add tile asks for the
+    /// other end — the day's tail and the "Add to today" button under it.
     private func restPosition(_ proxy: ScrollViewProxy) {
-        guard let selectedID else { return }
-        proxy.scrollTo(selectedID, anchor: DayScheduleMetrics.openAnchor)
+        switch anchor {
+        case .top:
+            break
+        case let .item(id):
+            proxy.scrollTo(id, anchor: DayScheduleMetrics.openAnchor)
+        case .callToAction:
+            proxy.scrollTo(Self.bottomAnchorID, anchor: .bottom)
+        }
     }
 
     /// Re-read the injected clock on every minute boundary. A fixed provider simply

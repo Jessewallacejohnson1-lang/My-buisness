@@ -490,6 +490,223 @@ final class DayScheduleLogicTests: XCTestCase {
     }
 }
 
+// MARK: - Presenting the day in-hierarchy
+//
+// The day sheet stopped being a `.sheet` so the rail-card → timeline-row morph
+// could run at all (a namespace does not cross a presentation boundary). The cost
+// is that drag-to-dismiss, the resting detent and the open anchor are now ours.
+// The gesture itself cannot be automated in this setup; its ARITHMETIC can, and
+// that is where every judgement call actually lives.
+
+final class DayScheduleDragTests: XCTestCase {
+
+    // MARK: The translation curve
+
+    func testDownwardDragFollowsTheFingerExactly() {
+        for pull in [1.0, 40.0, 120.0, 400.0] as [CGFloat] {
+            XCTAssertEqual(
+                DayScheduleDrag.translation(for: pull),
+                pull,
+                "A downward drag is going somewhere; it must not be damped"
+            )
+        }
+    }
+
+    func testUpwardDragIsRubberBandedAndBounded() {
+        let small = DayScheduleDrag.translation(for: -20)
+        let large = DayScheduleDrag.translation(for: -400)
+
+        XCTAssertGreaterThan(small, -20, "An upward pull must give less than it is asked")
+        XCTAssertLessThan(small, 0, "…but it must still give something")
+        XCTAssertGreaterThan(
+            large,
+            -DayScheduleDrag.rubberBandLimit,
+            "However hard it is pulled, the card never passes the rubber-band limit"
+        )
+        XCTAssertLessThan(large, small, "Further pull still yields further travel")
+    }
+
+    func testReduceMotionRemovesTheRubberBandEntirely() {
+        XCTAssertEqual(
+            DayScheduleDrag.translation(for: -200, rubberBands: false),
+            0,
+            "The spec asks for no rubber banding; a stiff top edge is that, honestly"
+        )
+        XCTAssertEqual(
+            DayScheduleDrag.translation(for: 200, rubberBands: false),
+            200,
+            "Dismissal is a function, not motion — the downward drag still works"
+        )
+    }
+
+    // MARK: The dismissal verdict
+
+    func testASlowShortDragDoesNotDismiss() {
+        XCTAssertFalse(
+            DayScheduleDrag.dismisses(translation: 60, velocity: 0, viewportHeight: 812)
+        )
+    }
+
+    func testALongDragDismissesWithNoVelocityAtAll() {
+        XCTAssertTrue(
+            DayScheduleDrag.dismisses(translation: 400, velocity: 0, viewportHeight: 812)
+        )
+    }
+
+    func testAFastFlickDismissesFromShortOfTheDistanceThreshold() {
+        let translation: CGFloat = 60
+        let height: CGFloat = 812
+
+        XCTAssertFalse(
+            DayScheduleDrag.dismisses(translation: translation, velocity: 0, viewportHeight: height),
+            "Sanity: this distance alone is not enough"
+        )
+        XCTAssertTrue(
+            DayScheduleDrag.dismisses(
+                translation: translation,
+                velocity: 2000,
+                viewportHeight: height
+            ),
+            "…but thrown at 2000pt/s it is going, and distance-only would have kept it"
+        )
+    }
+
+    func testAnUpwardFlingNeverDismisses() {
+        XCTAssertFalse(
+            DayScheduleDrag.dismisses(translation: 30, velocity: -3000, viewportHeight: 812)
+        )
+    }
+
+    func testTheThresholdScalesWithTheViewportButNeverBelowItsFloor() {
+        let tall = DayScheduleDrag.dismissDistance(viewportHeight: 1000)
+        let short = DayScheduleDrag.dismissDistance(viewportHeight: 200)
+
+        XCTAssertEqual(tall, 220, accuracy: 0.001)
+        XCTAssertEqual(
+            short,
+            DayScheduleDrag.minimumDismissDistance,
+            "A small viewport falls back to the floor rather than a hair trigger"
+        )
+    }
+}
+
+final class DayScheduleAnchorTests: XCTestCase {
+
+    func testATappedRailCardAnchorsOnItsOwnRow() {
+        XCTAssertEqual(DayScheduleAnchor.item("evt-1").itemID, "evt-1")
+    }
+
+    /// §3: the add tile opens the day on the bottom CTA, not on a row — so it must
+    /// NOT name an item to scroll to.
+    func testTheAddTileAnchorNamesNoRow() {
+        XCTAssertNil(DayScheduleAnchor.callToAction.itemID)
+        XCTAssertNil(DayScheduleAnchor.top.itemID)
+    }
+
+    func testTheFixtureMapsEveryDebugStateToAnAnchor() {
+        func anchor(_ state: String) -> DayScheduleAnchor {
+            DayScheduleFixture.fromArguments(["-day-sheet-state", state]).anchor
+        }
+
+        XCTAssertEqual(anchor("upcoming"), .item("fixture-trivia"))
+        XCTAssertEqual(anchor("inprogress"), .item("fixture-story"))
+        XCTAssertEqual(anchor("completed"), .item("fixture-walk"))
+        XCTAssertEqual(anchor("cta"), .callToAction)
+        XCTAssertEqual(anchor("empty"), .top)
+        XCTAssertEqual(DayScheduleFixture.fromArguments([]).anchor, .top)
+    }
+}
+
+@MainActor
+final class DaySchedulePresentationTests: XCTestCase {
+
+    func testItStartsClosed() {
+        XCTAssertFalse(DaySchedulePresentation().isOpen)
+    }
+
+    func testOpeningCarriesTheDayAndTheAnchor() {
+        let presentation = DaySchedulePresentation()
+        let day = [DayScheduleTestClock.item(startingAt: 9 * 60, going: 2)]
+
+        presentation.open(
+            DayScheduleRequest(
+                items: day,
+                anchor: .item(day[0].id),
+                dates: FixedDateProvider(DayScheduleTestClock.morning)
+            )
+        )
+
+        XCTAssertTrue(presentation.isOpen)
+        XCTAssertEqual(presentation.request?.items.map(\.id), day.map(\.id))
+        XCTAssertEqual(presentation.request?.anchor, .item(day[0].id))
+    }
+
+    /// Re-opening on a different card while open re-anchors rather than stacking a
+    /// second presentation — the failure a `.sheet` used to prevent for us.
+    func testOpeningAgainReplacesTheRequest() {
+        let presentation = DaySchedulePresentation()
+        let dates = FixedDateProvider(DayScheduleTestClock.morning)
+
+        presentation.open(DayScheduleRequest(items: [], anchor: .item("a"), dates: dates))
+        presentation.open(DayScheduleRequest(items: [], anchor: .item("b"), dates: dates))
+
+        XCTAssertEqual(presentation.request?.anchor, .item("b"))
+    }
+
+    func testClosingEmptiesTheRequest() {
+        let presentation = DaySchedulePresentation()
+        presentation.open(
+            DayScheduleRequest(
+                items: [],
+                anchor: .top,
+                dates: FixedDateProvider(DayScheduleTestClock.morning)
+            )
+        )
+
+        presentation.close()
+
+        XCTAssertFalse(presentation.isOpen)
+        XCTAssertNil(presentation.request)
+    }
+}
+
+final class DayScheduleMorphContractTests: XCTestCase {
+
+    /// The rail card and the timeline row must spell the matched ids IDENTICALLY or
+    /// the morph silently does not pair. Both sides now call these two functions,
+    /// which is the only reason that cannot drift.
+    func testTheMatchedIdsAreUniquePerItemAndPerRole() {
+        XCTAssertEqual(DayScheduleSheet.accentID("evt-1"), "dayitem-accent-evt-1")
+        XCTAssertEqual(DayScheduleSheet.titleID("evt-1"), "dayitem-title-evt-1")
+        XCTAssertNotEqual(DayScheduleSheet.accentID("evt-1"), DayScheduleSheet.titleID("evt-1"))
+        XCTAssertNotEqual(DayScheduleSheet.accentID("evt-1"), DayScheduleSheet.accentID("evt-2"))
+    }
+
+    /// Reduce Motion gets the 0.2s cross-fade and nothing springy.
+    func testReduceMotionMotionIsAShortCrossFade() {
+        XCTAssertEqual(DayScheduleMotion.reduced, .easeInOut(duration: 0.2))
+        XCTAssertNotEqual(DayScheduleMotion.open, DayScheduleMotion.reduced)
+    }
+
+    /// The hand-built detent lands where the system `.large` one did — measured off
+    /// a screenshot of the old `.sheet` presentation at 62pt, which is the iPhone
+    /// 17's top safe-area inset, so the host adds nothing to it.
+    func testTheRestingDetentAddsNothingToTheTopSafeArea() {
+        XCTAssertEqual(DayScheduleMetrics.restingTopInset, 0)
+        XCTAssertEqual(DayScheduleMetrics.sheetCornerRadius, 20)
+    }
+
+    /// The close button's 44pt target is carved out of the drag strip, or the two
+    /// compete for the same touch and the × stops working.
+    func testTheDragStripLeavesTheCloseButtonAlone() {
+        XCTAssertGreaterThanOrEqual(
+            DayScheduleMetrics.dragHandleLeading,
+            44,
+            "The 44pt close target must be outside the grab area"
+        )
+    }
+}
+
 /// Fixed-clock helpers. Everything is built for 2026-08-10 in town time so a test
 /// never depends on when it runs.
 private enum DayScheduleTestClock {

@@ -149,6 +149,12 @@ struct RootView: View {
                 // The Phase 4 motion bench: one signature mechanic, alone, driven
                 // programmatically so it can be recorded and measured frame by frame.
                 BPMotionBench(mechanic: mechanic)
+            } else if ProcessInfo.processInfo.arguments.contains("-day-sheet-demo") {
+                // The whole day-sheet TRANSITION, driven programmatically over the
+                // real Today feed: open on a rail card, scroll, tick a checkbox,
+                // dismiss — on a loop. There is no tap or scroll automation here,
+                // so this is the only way the accent-bar morph can be recorded.
+                DayScheduleDemoView()
             } else if ProcessInfo.processInfo.arguments.contains("-day-sheet-preview") {
                 // The Your Day schedule sheet, mounted from fixtures with no auth
                 // and no network. Its only real entry point is a tap on a rail
@@ -335,6 +341,15 @@ struct MainTabsView: View {
     /// The profile, now a menu destination (presented as a standard sheet).
     @State private var showProfileSheet = false
     @Namespace private var cardNS
+    /// The Your Day rail ↔ day sheet morph, and the sheet's own presentation.
+    ///
+    /// Both live HERE rather than in the Today tab because the day sheet is
+    /// presented in-hierarchy (a `.sheet` cannot carry a namespace across its
+    /// boundary, so the morph the spec asks for is impossible through one), and an
+    /// in-hierarchy full-height surface has to be a sibling of the tab bar or the
+    /// tab bar floats over its "Add to today" button. Same lane as the town menu.
+    @Namespace private var dayNS
+    @StateObject private var daySchedule = DaySchedulePresentation()
     /// Direction of the last tab change — whether the incoming screen slides in
     /// from the trailing edge (moving *forward* through the tab order) or the
     /// leading edge (moving back). Set in `select(_:)` right before the animation.
@@ -487,6 +502,10 @@ struct MainTabsView: View {
         }
         // A bubble tap jumps straight into that kind's form, skipping the chooser.
         .sheet(item: $composeKind) { kind in AddFormView(kind: kind) }
+        // The Your Day sheet's own lane, applied LAST so it sits above the tab bar,
+        // the town menu and the speed dial. Injects the namespace and the presenter
+        // the Your Day rail reaches for.
+        .dayScheduleHost(daySchedule, namespace: dayNS)
         #if DEBUG
         .onAppear {
             if ProcessInfo.processInfo.arguments.contains("-share-demo") {
