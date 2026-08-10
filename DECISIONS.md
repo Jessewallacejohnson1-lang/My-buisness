@@ -219,3 +219,51 @@ Several states are deliberately distinguished by value or weight alone:
 - **Superseded test note:** at the time of the original rebrand, `HyggeTests/` was
   inert and had no project target. It has since become the wired `BlockPartyTests`
   target with active coverage; do not treat the old statement as current setup advice.
+
+---
+
+## 3. Migrations applied 2026-08-09 — and the one deliberately split
+
+Applied to `lxdgwhvqjqmqliobwjpi`, in this order, each verified before the next:
+
+1. `board_items_news` — `image_url` + `fetched_at`, the `board_sweeps` table
+   (authenticated read only, no client write path), and the backfill that
+   published 30 real non-civic staging rows. Town Notes pool is now 41; the 23
+   civic rows stay held back for the Civic tab.
+2. `posting_dismissals` — own-row RLS mirroring `event_saves`. For You's dismiss
+   now persists.
+3. `rename_hygge_place_ids` — 62 synthetic ids `hygge-stjoe-*` -> `stjoe-*`,
+   sources -> `bp_research` / `bp_curated`. 29 Google `ChIJ*` ids untouched, and
+   all 77 `logo_url` values survived (they key off the row uuid, not `place_id`).
+4. `trivia_schema` — `correct_idx`, the widened `kind` check, per-lane unique
+   indexes, `claim_trivia`, `touch_stats` and `trivia_streak`.
+5. `trivia_seed` — 30 questions, all with answers. Today's is claimed.
+6. `briefing_touch_excludes_trivia` — see below.
+7. `spotlight_weeks_archive` — the archive table, `subject_type`, and a backfill
+   of one row per historical ISO week.
+
+### Two authored redefinitions were NOT applied as written
+
+Both `20260809300000_trivia.sql` and `20260809210000_weekly_spotlight_rotation.sql`
+rewrite a whole live function. **Neither authored copy matches what is deployed.**
+
+`get_today_briefing` live has a `touch_tally` lateral join — "one grouped scan,
+not one count per option" — that the authored copy does not. Applying that file
+verbatim would have silently reverted the optimization while looking like a
+feature migration. Instead, `briefing_touch_excludes_trivia` reads whatever is
+actually deployed, rewrites the single predicate it needs
+(`and dt.kind in ('poll','history')`, so a claimed trivia row is never served to
+the poll card), and refuses rather than guesses if that predicate is not found.
+Verified after: patch present, tally preserved, length +45 chars.
+
+`compose_briefing` is **still the daily rotation.** Its rewrite is the half of
+the weekly-spotlight migration that was not applied, for the same reason: it is a
+170-line replacement of a live 4KB function and it has not been diffed against
+what is deployed. Consequence: `spotlight_weeks` exists and is backfilled, but
+nothing writes to it yet and the spotlight still changes daily. The client-side
+week key and the "week of August 3" label are already correct, so this is a
+server-side rotation change only.
+
+**Rule going forward: never apply an authored `create or replace` of a live
+function without diffing it against `pg_get_functiondef` first.** This batch
+produced two that would have regressed live behaviour.
