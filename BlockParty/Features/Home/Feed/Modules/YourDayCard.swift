@@ -142,20 +142,30 @@ struct YourDayCard: View {
             )
     }
 
+    /// Absent, not blank: an empty `Text` still claims its line box, so a card with
+    /// no place and no category would hold a 13pt gap where a fact should be.
+    @ViewBuilder
     private var meta: some View {
-        Text(metaText)
-            .font(.sans(M.bodySize))
-            .foregroundStyle(Hue.inkSecondary)
-            .lineLimit(1)
-            .truncationMode(.tail)
+        if !metaText.isEmpty {
+            Text(metaText)
+                .font(.sans(M.bodySize))
+                .foregroundStyle(Hue.inkSecondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
     }
 
     /// The place if we have one, else the category. Never "Location TBD" — a blank
     /// location is a fact we do not have.
+    ///
+    /// `.other` is not a category, it is the absence of one, so it never prints:
+    /// every live row is currently uncategorised, and the fallback was rendering
+    /// the literal word "Other" as the meta line on every card. `DayScheduleLogic`
+    /// already refused to print it for the same reason; the two surfaces now agree.
     private var metaText: String {
         let location = item.location?.trimmingCharacters(in: .whitespacesAndNewlines)
         if let location, !location.isEmpty { return location }
-        return item.event.category.label
+        return item.event.category == .other ? "" : item.event.category.label
     }
 
     private var completedCheck: some View {

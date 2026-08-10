@@ -29,10 +29,15 @@ enum DaySchedulePalette {
     static let muted = Color(hex: 0x707174)
     /// The spine and the in-card divider.
     static let rule = Color(hex: 0xE5E3DB)
-    /// The now line, its dot, and its label. Deliberately the SAME orange as
-    /// `CategoryGradient.eventsFestivals`'s top stop: "right now" and "the town's
-    /// default event colour" are one hue, so the page never carries two oranges.
-    static let now = Color(hex: 0xE67633)
+    /// The now line, its dot, and its label. A DEEPER orange than
+    /// `CategoryGradient.eventsFestivals`'s `#E67633` top stop, for two reasons
+    /// that turned out to be the same reason. Every uncategorised row maps to
+    /// `eventsFestivals`, and today that is every row — so sharing the hue meant
+    /// the one live element on the page wore the same colour as every accent bar
+    /// and stopped meaning "now". And `#E67633` on paper measures 2.87:1, under
+    /// WCAG 1.4.11's 3:1 for a non-text indicator. `#C25A1C` is 3.4:1 and reads as
+    /// the same orange family, so the page still carries one orange story.
+    static let now = Color(hex: 0xC25A1C)
     /// An unchecked completion box.
     static let checkbox = Color(hex: 0xD8D6CE)
 }

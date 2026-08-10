@@ -66,6 +66,10 @@ struct YourDayRail: View {
         }
         .padding(.horizontal, M.pageMargin)
         .accessibilityElement(children: .combine)
+        // The count belongs to the rail, which labels itself with it below. Combining
+        // it into the header too made VoiceOver say "7 things" on the heading and
+        // again on entering the rail.
+        .accessibilityLabel(YourDayRailCopy.header)
         .accessibilityAddTraits(.isHeader)
     }
 

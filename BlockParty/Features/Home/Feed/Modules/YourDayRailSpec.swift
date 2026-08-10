@@ -75,7 +75,10 @@ nonisolated enum YourDayRailMetrics {
     static let tagSize: CGFloat = 11
 
     static let titleTracking: CGFloat = -0.2
-    static let titleLineHeight: CGFloat = 20
+    // The spec's 20pt title line height is not a token because it is not a choice:
+    // SF Pro at 17pt already lays out at ~20.3pt naturally. A `lineSpacing` on top
+    // of that would push a two-line title past the 116pt ceiling, so the value is
+    // met by leaving it alone. (It previously sat here as an unreferenced constant.)
 
     /// Dynamic Type may not grow the card, so the title gives up its second line
     /// before the layout gives up its ceiling.
@@ -133,7 +136,14 @@ nonisolated enum YourDayRailAccessibility {
     /// — with `on the town calendar` inserted before the completion state when the
     /// item is the town's rather than this neighbour's.
     static func label(for item: DayItem) -> String {
-        var parts: [String] = [item.eyebrow, item.title, item.event.category.label]
+        // `.other` is the absence of a category, not one of them. Unconditionally
+        // appending the label made VoiceOver read "11 AM, Farmers Market, Other,
+        // Resurrection lot" on every card, since no live row is categorised yet.
+        var parts: [String] = [item.eyebrow, item.title]
+
+        if item.event.category != .other {
+            parts.append(item.event.category.label)
+        }
 
         if let location = item.location?.trimmingCharacters(in: .whitespacesAndNewlines),
            !location.isEmpty {

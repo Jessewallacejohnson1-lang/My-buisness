@@ -249,6 +249,9 @@ struct DayScheduleSheet: View {
             // A pill, deliberately — the one place in the app that gets one. It is
             // the single primary action on a full-height surface and reads as a
             // floating control rather than as part of the card stack.
+            // U+FF0B FULLWIDTH PLUS, chosen for its optical weight next to 17pt
+            // semibold. VoiceOver reads it aloud as a character, so the button
+            // carries an explicit label below and this glyph is decoration only.
             Text("＋ Add to today")
                 .font(.sansSemibold(17))
                 .foregroundStyle(DaySchedulePalette.card)
@@ -263,6 +266,7 @@ struct DayScheduleSheet: View {
                 )
         }
         .buttonStyle(FeedCardPressStyle())
+        .accessibilityLabel("Add to today")
         .padding(.horizontal, DayScheduleMetrics.ctaMargin)
         .padding(.top, 10)
         .padding(.bottom, 6)
