@@ -97,6 +97,14 @@ final class GooglePlacesService {
     private var confidentPhotoCache: [String: ConfidentPhoto?] = [:]   // "name|lat,lon" → resolved (or checked-nil)
     private var confidentPhotoInFlight: [String: Task<PhotoLookup, Never>] = [:]  // coalesce concurrent callers per key
 
+    /// Google enforces an API key's **iOS application restriction** against this
+    /// header, not against any signed attestation. Omit it and a key restricted to
+    /// iOS bundle ids returns 403 for every request, no matter which ids are listed
+    /// in the console — which is exactly what happened when the key was restricted
+    /// after the Jesse.Hygge -> Jesse.BlockParty rename. Read it from the bundle so
+    /// it can never drift from PRODUCT_BUNDLE_IDENTIFIER again.
+    private static let iosBundleID = Bundle.main.bundleIdentifier ?? ""
+
     private static let base = "https://places.googleapis.com/v1"
     private static let biasRadius = 15_000.0   // ~15 km around town
 
@@ -150,6 +158,7 @@ final class GooglePlacesService {
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue(GOOGLE_PLACES_API_KEY, forHTTPHeaderField: "X-Goog-Api-Key")
+        req.setValue(Self.iosBundleID, forHTTPHeaderField: "X-Ios-Bundle-Identifier")
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
         do {
@@ -186,6 +195,7 @@ final class GooglePlacesService {
 
         var req = URLRequest(url: url)
         req.setValue(GOOGLE_PLACES_API_KEY, forHTTPHeaderField: "X-Goog-Api-Key")
+        req.setValue(Self.iosBundleID, forHTTPHeaderField: "X-Ios-Bundle-Identifier")
         req.setValue("location,displayName,formattedAddress,currentOpeningHours,websiteUri,nationalPhoneNumber,photos.name,photos.widthPx,photos.heightPx,photos.authorAttributions,primaryType,types",
                      forHTTPHeaderField: "X-Goog-FieldMask")
 
@@ -272,6 +282,7 @@ final class GooglePlacesService {
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue(GOOGLE_PLACES_API_KEY, forHTTPHeaderField: "X-Goog-Api-Key")
+        req.setValue(Self.iosBundleID, forHTTPHeaderField: "X-Ios-Bundle-Identifier")
         req.setValue("places.id,places.location,places.displayName,places.primaryType,places.types", forHTTPHeaderField: "X-Goog-FieldMask")
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
@@ -318,6 +329,7 @@ final class GooglePlacesService {
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue(GOOGLE_PLACES_API_KEY, forHTTPHeaderField: "X-Goog-Api-Key")
+        req.setValue(Self.iosBundleID, forHTTPHeaderField: "X-Ios-Bundle-Identifier")
         req.setValue("places.id,places.displayName,places.location,places.primaryType,places.types,places.formattedAddress,places.businessStatus",
                      forHTTPHeaderField: "X-Goog-FieldMask")
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
