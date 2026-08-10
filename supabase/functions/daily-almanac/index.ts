@@ -19,7 +19,9 @@ import { buildAlmanacContext, type AlmanacContext } from "./context.ts"
 import { makeRest, postgrestDataSource } from "./datasource.ts"
 import { pickFormat } from "./variety.ts"
 import { generateLine, extractPlaces } from "./generate.ts"
+import { logFormatDecision } from "./log_decision.ts"
 import { localDateISO } from "./dates.ts"
+import { createClient } from "npm:@supabase/supabase-js@2"
 
 const TZ = "America/Chicago"
 
@@ -37,10 +39,11 @@ Deno.serve(async (req) => {
   try {
     const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY")
     const supaUrl = Deno.env.get("SUPABASE_URL")
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+    const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") ?? "{}")
+    const serviceKey = secretKeys["default"]
     if (!anthropicKey || !supaUrl || !serviceKey) return json({ line: null })
 
-    const userId = userIdFromRequest(req)
+    const userId = await userIdFromRequest(req)
     if (!userId) return json({ line: null })
 
     const now = new Date()
@@ -63,7 +66,8 @@ Deno.serve(async (req) => {
 
     // --- Facts changed (or first line today) → pick a format and (re)generate --
     const yesterdayFormat = context.recent_history.formats[0] ?? null
-    const pick = pickFormat(context, { yesterdayFormat, seed: `${userId}:${today}` })
+    const seed = `${userId}:${today}`
+    const pick = pickFormat(context, { yesterdayFormat, seed })
     console.log(`[almanac] user=${userId} date=${today} format=${pick.format} ` +
       `${cached ? "REGEN" : "first"} qualified=[${pick.qualified.join(",")}]`)
 
@@ -84,6 +88,12 @@ Deno.serve(async (req) => {
 
     const places = extractPlaces(gen.line, context)
     await writeRow(rest, { userId, today, line: gen.line, format: pick.format, places, factsHash })
+    // Control Room · Panel 1 — record what was considered and rejected. Behind
+    // .catch so a logging failure costs a log row, never the user's line.
+    await logFormatDecision({
+      rest, context, pick, userId, seed,
+      line: gen.line, places, wasRegen: Boolean(cached), factsHash,
+    }).catch((e) => console.error("[almanac] decision log failed:", e))
     return json({ line: gen.line, format: pick.format, cached: false })
   } catch {
     return json({ line: null })
@@ -181,17 +191,17 @@ async function writeRow(
   }
 }
 
-/** Decode the caller's user id from the Supabase JWT `sub` claim (already gateway-verified). */
-function userIdFromRequest(req: Request): string | null {
+/** Decode and cryptographically verify the caller's user id from the Supabase JWT `sub` claim. */
+async function userIdFromRequest(req: Request): Promise<string | null> {
   const auth = req.headers.get("Authorization") ?? ""
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : ""
-  const payload = token.split(".")[1]
-  if (!payload) return null
+  if (!token) return null
   try {
-    const b64 = payload.replace(/-/g, "+").replace(/_/g, "/")
-    const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4)
-    const claims = JSON.parse(atob(padded))
-    return typeof claims.sub === "string" ? claims.sub : null
+    const publishableKeys = JSON.parse(Deno.env.get("SUPABASE_PUBLISHABLE_KEYS") ?? "{}")
+    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, publishableKeys["default"])
+    const { data, error } = await supabase.auth.getClaims(token)
+    if (error || !data?.claims?.sub) return null
+    return data.claims.sub
   } catch {
     return null
   }

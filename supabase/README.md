@@ -104,3 +104,11 @@ there. See the "backend twin" foundation in `REVIEW.md`.
 That repo is now dormant (last commit 2026-07-21) and its web app is a different
 product line. Treat **this** repo as the source of truth for the shared Supabase
 project; pull from the Expo repo only to recover history.
+
+## Edge function source (`functions/`)
+
+Deployed edge-function source is mirrored here — `daily-almanac` (the almanac
+writer, which since v9 also logs every decision to `content_decisions` /
+`content_candidates`) and `log-agent-event` (Control Room build log). Deploys
+happen via the Supabase MCP or `supabase functions deploy <name>`; treat these
+files as the source of truth and redeploy from them, never edit only in prod.
