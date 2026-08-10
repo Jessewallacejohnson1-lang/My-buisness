@@ -295,3 +295,275 @@ final class TownNotesFailureStateTests: XCTestCase {
         XCTAssertNil(module.sweepLine)
     }
 }
+
+// MARK: - The day schedule sheet
+//
+// The sheet's rules are almost entirely about ABSENCE: which stat columns get
+// dropped, when the now line is not drawn, when the gutter says nothing. Those are
+// exactly the things a screenshot of a happy fixture will not catch, so they are
+// pinned here.
+
+final class DayScheduleLogicTests: XCTestCase {
+
+    /// 2026-08-10, 09:23 America/Chicago — the fixtures' Monday morning.
+    private var now: Date { DayScheduleTestClock.morning }
+
+    // MARK: Stat columns — suppression is the common path
+
+    func testUpcomingDropsDistanceBecauseThereIsNoDistanceSource() {
+        let item = DayScheduleTestClock.item(startingAt: 18 * 60 + 30, going: 12)
+        let stats = DayScheduleLogic.stats(for: item, state: .upcoming, now: now)
+
+        XCTAssertEqual(stats.map(\.label), ["STARTS", "GOING"])
+        XCTAssertFalse(stats.contains { $0.label == "DISTANCE" },
+                       "Events carry no coordinates, so DISTANCE can never be real")
+    }
+
+    func testUpcomingWithNobodyGoingRendersOneColumn() {
+        let item = DayScheduleTestClock.item(startingAt: 17 * 60 + 30, going: 0)
+        let stats = DayScheduleLogic.stats(for: item, state: .upcoming, now: now)
+
+        XCTAssertEqual(stats.map(\.label), ["STARTS"],
+                       "A zero going-count is a fact about our database, not the town")
+    }
+
+    func testInProgressWithoutAnEndRendersGoingAlone() {
+        let item = DayScheduleTestClock.item(startingAt: 9 * 60, going: 4)
+        let stats = DayScheduleLogic.stats(for: item, state: .inProgress, now: now)
+
+        XCTAssertEqual(stats.map(\.label), ["GOING"],
+                       "ENDS IN needs club_events.end_at, which does not exist yet")
+    }
+
+    func testInProgressWithNoEndAndNobodyGoingRendersNoStatRowAtAll() {
+        let item = DayScheduleTestClock.item(startingAt: 8 * 60 + 30, going: 0)
+
+        XCTAssertTrue(DayScheduleLogic.stats(for: item, state: .inProgress, now: now).isEmpty,
+                      "Zero columns means the caller drops the divider too")
+    }
+
+    func testCompletedShowsWhenItHappenedAndWhoWentButNotADuration() {
+        let item = DayScheduleTestClock.item(startingAt: 7 * 60, going: 6)
+        let stats = DayScheduleLogic.stats(for: item, state: .completed, now: now)
+
+        XCTAssertEqual(stats.map(\.label), ["WENT", "GOING"])
+        XCTAssertEqual(stats.first?.value, "7:00 AM")
+    }
+
+    /// The suppression is data-driven, not a hardcoded "never". When `end_at`
+    /// lands, the two duration columns appear with no other change.
+    func testAStatedEndBringsBackEndsInAndDuration() {
+        let start = DayScheduleTestClock.instant(minutes: 9 * 60)
+        let item = DayScheduleTestClock.item(
+            startingAt: 9 * 60,
+            going: 4,
+            end: start.addingTimeInterval(90 * 60)
+        )
+
+        XCTAssertEqual(
+            DayScheduleLogic.stats(for: item, state: .inProgress, now: now).map(\.label),
+            ["ENDS IN", "GOING"]
+        )
+        XCTAssertEqual(
+            DayScheduleLogic.stats(for: item, state: .completed, now: now).map(\.label),
+            ["WENT", "DURATION", "GOING"]
+        )
+        XCTAssertEqual(DayScheduleLogic.duration(item), "1.5 hr")
+    }
+
+    func testNoStatValueIsEverAPlaceholder() {
+        let items = [
+            DayScheduleTestClock.item(startingAt: 7 * 60, going: 0),
+            DayScheduleTestClock.item(startingAt: 9 * 60, going: 4),
+            DayScheduleTestClock.item(startingAt: 18 * 60, going: 12),
+            DayScheduleTestClock.item(startingAt: 0, going: 0, isAllDay: true),
+        ]
+        let placeholders = ["—", "-", "--", "TBD", "0", "n/a", "N/A", ""]
+
+        for item in items {
+            for state in [DayRowState.upcoming, .inProgress, .completed] {
+                for stat in DayScheduleLogic.stats(for: item, state: state, now: now) {
+                    XCTAssertFalse(placeholders.contains(stat.value),
+                                   "\(stat.label) rendered the placeholder '\(stat.value)'")
+                }
+            }
+        }
+    }
+
+    // MARK: The gutter
+
+    func testGutterSplitsAClockTimeOffItsMeridiem() {
+        let time = DayScheduleLogic.gutterTime(
+            for: DayScheduleTestClock.item(startingAt: 18 * 60 + 30, going: 0)
+        )
+
+        XCTAssertEqual(time?.value, "6:30")
+        XCTAssertEqual(time?.meridiem, "PM")
+        XCTAssertEqual(time?.spoken, "6:30 PM")
+    }
+
+    func testGutterNamesTheShapeOfAnAllDayOrOngoingItem() {
+        let allDay = DayScheduleTestClock.item(startingAt: 0, going: 0, isAllDay: true)
+        let ongoing = DayScheduleTestClock.item(startingAt: 10 * 60, going: 0, isMultiDay: true)
+
+        XCTAssertEqual(DayScheduleLogic.gutterTime(for: allDay)?.value, "all day")
+        XCTAssertNil(DayScheduleLogic.gutterTime(for: allDay)?.meridiem)
+        XCTAssertEqual(DayScheduleLogic.gutterTime(for: ongoing)?.value, "ongoing")
+    }
+
+    /// An unparseable start time is parked at 11:59 PM so it sorts last. That is a
+    /// sort key, not a fact, and the gutter must not print it.
+    func testGutterSaysNothingWhenTheOrganiserNeverGaveATime() {
+        let item = DayScheduleTestClock.item(
+            startingAt: 23 * 60 + 59,
+            going: 0,
+            eyebrow: "Today"
+        )
+
+        XCTAssertNil(DayScheduleLogic.gutterTime(for: item))
+        XCTAssertNil(DayScheduleLogic.went(item), "and WENT cannot invent one either")
+    }
+
+    // MARK: The now line
+
+    func testNowLineIsHiddenBeforeTheDayHasStarted() {
+        let evening = [DayScheduleTestClock.item(startingAt: 18 * 60, going: 0)]
+
+        XCTAssertFalse(DayScheduleLogic.showsNowLine(items: evening, now: now))
+        XCTAssertNil(DayScheduleLogic.nowLineIndex(items: evening, now: now))
+    }
+
+    func testNowLineIsHiddenOnceEverythingHasEnded() {
+        let dawn = [DayScheduleTestClock.item(startingAt: 5 * 60, going: 0)]
+
+        XCTAssertFalse(DayScheduleLogic.showsNowLine(items: dawn, now: now),
+                       "5 AM plus the assumed two hours is over by 9:23")
+    }
+
+    func testNowLineSitsAfterEverythingThatHasAlreadyStarted() {
+        let day = [
+            DayScheduleTestClock.item(startingAt: 7 * 60, going: 0),
+            DayScheduleTestClock.item(startingAt: 9 * 60, going: 0),
+            DayScheduleTestClock.item(startingAt: 17 * 60 + 30, going: 0),
+        ]
+
+        XCTAssertTrue(DayScheduleLogic.showsNowLine(items: day, now: now))
+        XCTAssertEqual(DayScheduleLogic.nowLineIndex(items: day, now: now), 2)
+    }
+
+    func testAnEmptyDayHasNoSpanAndNoNowLine() {
+        XCTAssertNil(DayScheduleLogic.span(of: []))
+        XCTAssertFalse(DayScheduleLogic.showsNowLine(items: [], now: now))
+    }
+
+    // MARK: Copy
+
+    func testHeaderCountsThingsRatherThanAnnouncingAZero() {
+        XCTAssertEqual(DayScheduleLogic.headerCount(0), "Nothing today")
+        XCTAssertEqual(DayScheduleLogic.headerCount(1), "1 thing today")
+        XCTAssertEqual(DayScheduleLogic.headerCount(3), "3 things today")
+    }
+
+    func testHeaderDateAndNowLabelReadInTownTime() {
+        XCTAssertEqual(DayScheduleLogic.headerDate(now), "Monday, August 10")
+        XCTAssertEqual(DayScheduleLogic.nowLabel(now), "now 9:23")
+        XCTAssertEqual(DayScheduleLogic.nowSpoken(now), "Now, 9:23 AM")
+    }
+
+    /// Every live row is `.other`, so printing the category label would put
+    /// "Other · somewhere" under every title in the app.
+    @MainActor
+    func testSubtitleDropsTheUncategorisedFallback() {
+        let uncategorised = DayScheduleTestClock.item(
+            startingAt: 9 * 60,
+            going: 0,
+            category: .other
+        )
+        let categorised = DayScheduleTestClock.item(
+            startingAt: 9 * 60,
+            going: 0,
+            category: .food
+        )
+
+        XCTAssertEqual(DayScheduleLogic.subtitle(for: uncategorised), "Local Blend")
+        XCTAssertEqual(DayScheduleLogic.subtitle(for: categorised), "Food & drink · Local Blend")
+    }
+}
+
+/// Fixed-clock helpers. Everything is built for 2026-08-10 in town time so a test
+/// never depends on when it runs.
+private enum DayScheduleTestClock {
+    static var morning: Date { instant(minutes: 9 * 60 + 23) }
+
+    static func instant(minutes: Int) -> Date {
+        var components = DateComponents()
+        components.calendar = Town.calendar
+        components.timeZone = Town.timeZone
+        components.year = 2026
+        components.month = 8
+        components.day = 10
+        components.hour = minutes / 60
+        components.minute = minutes % 60
+        return Town.calendar.date(from: components) ?? Date(timeIntervalSince1970: 0)
+    }
+
+    static func item(
+        startingAt minutes: Int,
+        going: Int,
+        end: Date? = nil,
+        isAllDay: Bool = false,
+        isMultiDay: Bool = false,
+        category: EventCategory = .other,
+        eyebrow: String? = nil
+    ) -> DayItem {
+        let start = instant(minutes: minutes)
+        let event = UpcomingEvent(
+            id: "test-\(minutes)-\(going)",
+            title: "Patio trivia at Local Blend",
+            eventDate: Town.day(start),
+            startTime: nil,
+            location: "Local Blend",
+            goingCount: going,
+            createdAt: "test",
+            rsvpd: true,
+            category: category,
+            endAt: end,
+            isAllDay: isAllDay
+        )
+
+        return DayItem(
+            id: event.id,
+            title: event.title,
+            source: .committed,
+            start: start,
+            end: end,
+            isAllDay: isAllDay,
+            isMultiDay: isMultiDay,
+            isComplete: false,
+            eyebrow: eyebrow ?? resolvedEyebrow(
+                start: start,
+                isAllDay: isAllDay,
+                isMultiDay: isMultiDay
+            ),
+            location: event.location,
+            goingCount: going,
+            event: event
+        )
+    }
+
+    private static func resolvedEyebrow(
+        start: Date,
+        isAllDay: Bool,
+        isMultiDay: Bool
+    ) -> String {
+        if isAllDay { return "Today · all day" }
+        if isMultiDay { return "Today · ongoing" }
+
+        let formatter = DateFormatter()
+        formatter.calendar = Town.calendar
+        formatter.locale = Locale(identifier: "en_US")
+        formatter.timeZone = Town.timeZone
+        formatter.dateFormat = "h:mm a"
+        return formatter.string(from: start)
+    }
+}

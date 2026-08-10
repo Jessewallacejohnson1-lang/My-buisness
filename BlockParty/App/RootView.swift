@@ -149,6 +149,12 @@ struct RootView: View {
                 // The Phase 4 motion bench: one signature mechanic, alone, driven
                 // programmatically so it can be recorded and measured frame by frame.
                 BPMotionBench(mechanic: mechanic)
+            } else if ProcessInfo.processInfo.arguments.contains("-day-sheet-preview") {
+                // The Your Day schedule sheet, mounted from fixtures with no auth
+                // and no network. Its only real entry point is a tap on a rail
+                // card, which this simulator setup cannot drive. Pair with
+                // `-day-sheet-state upcoming|inprogress|completed|empty`.
+                DaySchedulePreview()
             } else if ProcessInfo.processInfo.arguments.contains("-bp-components") {
                 // The Phase 0 component bench for the 20-screen onboarding rebuild —
                 // every signature mechanic in every state on one scrollable screen,

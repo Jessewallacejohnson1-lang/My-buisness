@@ -11,7 +11,13 @@ import UIKit
 
 extension Color {
     /// Build a Color from a 0xRRGGBB hex literal.
-    init(hex: UInt32, alpha: Double = 1) {
+    ///
+    /// `nonisolated` because the module defaults to MainActor isolation and a
+    /// palette is not main-actor state: `CategoryGradient` and the other pure
+    /// `nonisolated` token tables build their colours here, and an isolated
+    /// initializer would trip the 0-warning bar at every one of those call sites.
+    /// See the MainActor-default gotcha in CLAUDE.md.
+    nonisolated init(hex: UInt32, alpha: Double = 1) {
         let r = Double((hex >> 16) & 0xFF) / 255
         let g = Double((hex >> 8) & 0xFF) / 255
         let b = Double(hex & 0xFF) / 255
