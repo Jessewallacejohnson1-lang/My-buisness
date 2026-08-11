@@ -1,0 +1,25 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": [],
+      "project": []
+    },
+    "apps/mobile": {
+      "entry": [
+        "src/app/**/*.{ts,tsx}",
+        "src/components/ui/**/*.{ts,tsx}",
+        "src/**/*.web.{ts,tsx}",
+        "*.config.{js,ts,mjs}",
+        "src/**/*.check.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx}"
+      ],
+      "ignoreDependencies": [
+        "@expo/ngrok",
+        "expo-updates"
+      ]
+    }
+  }
+}
