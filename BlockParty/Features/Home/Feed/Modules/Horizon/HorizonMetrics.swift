@@ -60,7 +60,9 @@ nonisolated enum HorizonMetrics {
     static let overflowBarWidth: CGFloat = 3
     static let overflowTextSize: CGFloat = 10
 
-    // Midnight hairline
-    static let midnightOpacity: Double = 0.3
+    // Midnight hairline. Spec says 30%, which measured invisible over the
+    // night sky in screenshots — 45% reads as a hairline, still quieter
+    // than the now line. Reported.
+    static let midnightOpacity: Double = 0.45
     static let tomorrowStubOpacity: Double = 0.4
 }

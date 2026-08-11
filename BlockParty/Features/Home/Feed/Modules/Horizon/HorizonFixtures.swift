@@ -25,6 +25,26 @@ nonisolated struct HorizonMock {
     let state: String
     let items: [DayItem]
 
+    /// Non-nil when any `-BPMock*` flag is present. Parsed once; the module
+    /// and the section both read this so they cannot disagree.
+    static let launchOverride: HorizonMock? = {
+        let args = ProcessInfo.processInfo.arguments
+        let flags = ["-BPMockNow", "-BPMockSunTimes", "-BPMockDayState"]
+        guard args.contains(where: flags.contains) else { return nil }
+        return fromArguments(args)
+    }()
+
+    /// `-BPMockNowSpeed <multiplier>` — accelerated mock clock, for
+    /// recording transitions that otherwise need a real sunset.
+    static let timeSpeed: Double? = {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-BPMockNowSpeed"), i + 1 < args.count else { return nil }
+        return Double(args[i + 1])
+    }()
+
+    /// Reference instant for the accelerated clock.
+    static let launchInstant = Date()
+
     static func fromArguments(
         _ arguments: [String] = ProcessInfo.processInfo.arguments
     ) -> HorizonMock {

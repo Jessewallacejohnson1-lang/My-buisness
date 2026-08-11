@@ -33,6 +33,12 @@ final class YourDayModule: @MainActor FeedModule {
     /// number rather than inventing one.
     @Published private(set) var townCount: Int?
 
+    /// Today's solar times for the horizon card, from the same Open-Meteo
+    /// read the almanac uses (WeatherService's 15-minute cache — no new
+    /// network call). Nil falls back to 6:30 AM / 8:30 PM inside SolarSky.
+    @Published private(set) var sunrise: Date?
+    @Published private(set) var sunset: Date?
+
     /// Who says a thing is done. The session store, so the rail and the day sheet
     /// give the same answer and a tick outlives the app.
     private let completion: DayCompletionStore
@@ -87,11 +93,21 @@ final class YourDayModule: @MainActor FeedModule {
             return
         }
 
+        // Solar times ride along concurrently — WeatherService coalesces
+        // with the almanac's in-flight read, so this adds no request.
+        async let weather = WeatherService.current()
+
         do {
             let candidates = try await CommunityAPI(auth: ctx.auth).getTownDayCandidates(now: now)
             items = YourDayLogic.dayItems(from: candidates, now: now)
+            let w = await weather
+            sunrise = w?.sunrise
+            sunset = w?.sunset
             loadState = .ready
         } catch {
+            let w = await weather
+            sunrise = w?.sunrise
+            sunset = w?.sunset
             loadState = .failed
         }
 
@@ -104,10 +120,18 @@ final class YourDayModule: @MainActor FeedModule {
     func makeView(_ ctx: FeedModuleContext) -> AnyView {
         switch phase {
         case .loading:
+            // The horizon card's own loading state: the sky renders live,
+            // stubs and counts become a quiet shimmer. Never a spinner.
             return AnyView(
-                YourDaySkeleton()
-                    .padding(.horizontal, YourDayRailMetrics.pageMargin)
-                    .padding(.top, YourDayRailMetrics.sectionTop)
+                YourDayHorizonSection(
+                    items: [],
+                    sunrise: sunrise,
+                    sunset: sunset,
+                    isLoading: true,
+                    dates: ctx.dates,
+                    onSeeAll: { ctx.navigate(.activities(.happeningToday)) }
+                )
+                .padding(.top, YourDayRailMetrics.sectionTop)
             )
 
         case .failed:
@@ -121,22 +145,14 @@ final class YourDayModule: @MainActor FeedModule {
 
         case .ready:
             return AnyView(
-                YourDaySection(
+                YourDayHorizonSection(
                     items: items,
-                    suggestion: suggestion,
-                    townCount: townCount,
+                    sunrise: sunrise,
+                    sunset: sunset,
                     dates: ctx.dates,
-                    completion: completion,
-                    // Where a CARD tap lands when no day-sheet host is mounted above
-                    // this feed — the galleries and the module previews. The real
-                    // app always has one (see `MainTabsView`), so this is the
-                    // fallback, not the route.
-                    onOpenDayWithoutHost: { ctx.navigate(.event($0.event)) },
-                    // The plus tile and the zero-state card, which are the same
-                    // invitation twice: go and see what the town has posted for
-                    // today. Not host-dependent — a browse is a browse whether or
-                    // not a day sheet could have been opened.
-                    onBrowseToday: { ctx.navigate(.activities(.happeningToday)) }
+                    // See all → today's postings in Activities. The card body
+                    // routes to the day sheet inside the section (host lane).
+                    onSeeAll: { ctx.navigate(.activities(.happeningToday)) }
                 )
                 .padding(.top, YourDayRailMetrics.sectionTop)
                 .springReveal(
@@ -166,6 +182,27 @@ private extension YourDayModule {
     /// turns on — 0 (empty card), 1 (card + suggestion), 2+ (cards only).
     func applyDebugStateIfRequested(now: Date) -> Bool {
         let args = ProcessInfo.processInfo.arguments
+
+        // The horizon card's mock lane: `-BPMockNow` / `-BPMockSunTimes` /
+        // `-BPMockDayState <state>` stage any §7 state with pinned solar
+        // times and no network. The section reads the same override for its
+        // clock, so module and card cannot disagree.
+        if let mock = HorizonMock.launchOverride {
+            sunrise = mock.sunrise
+            sunset = mock.sunset
+            switch mock.state {
+            case "loading":
+                items = []
+                loadState = .loading
+            case "error":
+                items = []
+                loadState = .failed
+            default:
+                items = mock.items
+                loadState = .ready
+            }
+            return true
+        }
 
         if args.contains("-yourday-loading") {
             items = []
@@ -234,147 +271,6 @@ private struct YourDayDebugDetailOpener: ViewModifier {
         #else
         content
         #endif
-    }
-}
-
-/// The section's heading. Shared with the skeleton so the two are the same object
-/// and the title cannot move when content swaps in.
-private struct YourDayHeading: View {
-    var body: some View {
-        Text(YourDayRailCopy.header)
-            .font(.dayDisplaySemi(YourDayRailMetrics.headerSize))
-            .foregroundStyle(Hue.ink)
-            .accessibilityAddTraits(.isHeader)
-    }
-}
-
-/// Resolves which namespace the rail draws in, and where a tap goes.
-///
-/// TWO TAPS, TWO DESTINATIONS, and only one of them cares about the host: a CARD
-/// opens the day sheet ("what you have planned, in more depth"), while the plus
-/// tile and the zero-state card leave for today's postings in Activities. The plus
-/// used to open the sheet scrolled to its bottom CTA; it no longer opens the sheet
-/// at all.
-///
-/// The morph needs the rail card and the timeline row to share ONE namespace, and
-/// the only view that is an ancestor of both is `DayScheduleHost` — mounted on
-/// `MainTabsView`, above the tab bar, because a full-height day sheet under a
-/// floating tab bar would have its "Add to today" button covered. So the namespace
-/// and the presenter arrive through the environment. Neither is guaranteed: the
-/// galleries and previews mount this rail with no host above it, and there the
-/// local namespace keeps the code valid and the fallback routes keep it alive.
-private struct YourDaySection: View {
-    let items: [DayItem]
-    let suggestion: DayItem?
-    let townCount: Int?
-    let dates: any DateProviding
-    /// Observed, not just read: a tick in the day sheet has to dim the rail card
-    /// behind it, and un-dim it when the neighbour changes their mind.
-    @ObservedObject var completion: DayCompletionStore
-    let onOpenDayWithoutHost: (DayItem) -> Void
-    /// The plus tile AND the zero-state card. One closure because they are one
-    /// destination — today's postings — and nothing about it depends on a host.
-    let onBrowseToday: () -> Void
-
-    @Environment(\.daySchedule) private var host
-    @Environment(\.dayScheduleNamespace) private var hostNamespace
-    @Namespace private var localNamespace
-
-    var body: some View {
-        if let host, let hostNamespace {
-            YourDayHostedRail(
-                host: host,
-                namespace: hostNamespace,
-                items: items,
-                suggestion: suggestion,
-                townCount: townCount,
-                dates: dates,
-                isComplete: completion.isComplete,
-                onBrowseToday: onBrowseToday
-            )
-        } else {
-            YourDayRail(
-                items: items,
-                isComplete: completion.isComplete,
-                suggestion: suggestion,
-                townCount: townCount,
-                namespace: localNamespace,
-                onOpenDay: onOpenDayWithoutHost,
-                onAdd: onBrowseToday,
-                onExplore: onBrowseToday
-            )
-        }
-    }
-}
-
-/// The rail with a day-sheet host above it. A card tap opens the day on that card;
-/// the plus tile does not touch the host at all (see the seam below), so this view
-/// only ever opens on an item.
-///
-/// Split out purely so `host` can be an `@ObservedObject` — the rail has to re-read
-/// `isOpen` to hand its half of the matched pair over to the sheet and take it back
-/// on dismissal, and an `@Environment` value does not publish.
-private struct YourDayHostedRail: View {
-    @ObservedObject var host: DaySchedulePresentation
-    let namespace: Namespace.ID
-    let items: [DayItem]
-    let suggestion: DayItem?
-    let townCount: Int?
-    let dates: any DateProviding
-    let isComplete: (DayItem) -> Bool
-    let onBrowseToday: () -> Void
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        YourDayRail(
-            items: items,
-            isComplete: isComplete,
-            suggestion: suggestion,
-            townCount: townCount,
-            namespace: namespace,
-            morphs: !reduceMotion && !host.isOpen,
-            onOpenDay: { open(.item($0.id)) },
-            // THE TWO TAPS LAND IN DIFFERENT PLACES, deliberately. A card opens
-            // the day sheet — what you have planned, in depth. The plus does NOT:
-            // it goes straight to today's postings in Activities, because "add
-            // something" is a question about the town's day, not about yours.
-            //
-            // It used to open the sheet scrolled to its bottom CTA (the original
-            // spec's §3). That put a browse action behind a read surface: you asked
-            // for something to do and got your own empty day first. The sheet's own
-            // sticky "+ Add to today" still opens the composer — that one is a
-            // different question, asked from inside the day.
-            onAdd: onBrowseToday,
-            onExplore: onBrowseToday
-        )
-        .modifier(DayScheduleDemoOpener(items: items, open: open))
-    }
-
-    /// One transaction: the sheet arrives, the rail lets go of the matched ids, and
-    /// the accent bar flies out of the tapped card into the timeline row.
-    private func open(_ anchor: DayScheduleAnchor) {
-        withAnimation(reduceMotion ? DayScheduleMotion.reduced : DayScheduleMotion.open) {
-            host.open(DayScheduleRequest(items: items, anchor: anchor, dates: dates))
-        }
-    }
-}
-
-/// The heading is real; only the cards are placeholders. Their widths, height,
-/// radius and gap are the rail's own (236 × 116, 12pt, 16pt radius), and the
-/// trailing 100pt block is the add tile, so nothing shifts on swap-in.
-private struct YourDaySkeleton: View {
-    var body: some View {
-        FeedSkeletonSection(spacing: YourDayRailMetrics.headerToRail) {
-            YourDayHeading()
-        } content: {
-            FeedSkeletonStrip(
-                widths: [YourDayRailMetrics.cardWidth,
-                         YourDayRailMetrics.cardWidth,
-                         YourDayRailMetrics.addTileWidth],
-                height: YourDayRailMetrics.cardHeight
-            )
-        }
     }
 }
 
