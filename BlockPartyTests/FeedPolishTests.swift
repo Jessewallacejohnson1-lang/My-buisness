@@ -8,6 +8,8 @@
 //  so they cannot regress silently.
 //
 
+import SwiftUI
+import UIKit
 import XCTest
 @testable import BlockParty
 
@@ -731,7 +733,8 @@ private enum DayScheduleTestClock {
         isAllDay: Bool = false,
         isMultiDay: Bool = false,
         category: EventCategory = .other,
-        eyebrow: String? = nil
+        eyebrow: String? = nil,
+        location: String? = "Local Blend"
     ) -> DayItem {
         let start = instant(minutes: minutes)
         let event = UpcomingEvent(
@@ -739,7 +742,7 @@ private enum DayScheduleTestClock {
             title: "Patio trivia at Local Blend",
             eventDate: Town.day(start),
             startTime: nil,
-            location: "Local Blend",
+            location: location,
             goingCount: going,
             createdAt: "test",
             rsvpd: true,
@@ -782,5 +785,296 @@ private enum DayScheduleTestClock {
         formatter.timeZone = Town.timeZone
         formatter.dateFormat = "h:mm a"
         return formatter.string(from: start)
+    }
+}
+
+// MARK: - end_at / all_day are real columns now
+//
+// `club_events.end_at` and `club_events.all_day` exist. EVERY LIVE ROW IS STILL
+// NULL/false, so the interesting half of this is that nothing changed on today's
+// data — the suppression these tests pin is the shipping behaviour, and the paths
+// beside it are the ones that light up the first time an organiser states an end.
+
+final class DayScheduleEndAtTests: XCTestCase {
+
+    private var now: Date { DayScheduleTestClock.morning }
+
+    /// Today's data, unchanged: no stated end, no duration columns, on any state.
+    func testWithNoStatedEndTheDurationColumnsStayAbsent() {
+        let item = DayScheduleTestClock.item(startingAt: 9 * 60, going: 3)
+
+        XCTAssertNil(item.end)
+        XCTAssertNil(DayScheduleLogic.endsIn(item, now: now))
+        XCTAssertNil(DayScheduleLogic.duration(item))
+        XCTAssertFalse(
+            DayScheduleLogic.stats(for: item, state: .inProgress, now: now)
+                .contains { $0.label == "ENDS IN" }
+        )
+        XCTAssertFalse(
+            DayScheduleLogic.stats(for: item, state: .completed, now: now)
+                .contains { $0.label == "DURATION" }
+        )
+    }
+
+    /// And with one, both columns are reachable — no other change required.
+    func testAStatedEndMakesEndsInAndDurationReachable() {
+        let end = DayScheduleTestClock.instant(minutes: 11 * 60)
+        let item = DayScheduleTestClock.item(startingAt: 9 * 60, going: 3, end: end)
+
+        // The clock is 09:23, so 97 minutes remain of a run that is 2 hours long —
+        // ENDS IN counts from NOW and DURATION measures the whole thing.
+        XCTAssertEqual(DayScheduleLogic.endsIn(item, now: now), "in 1 hr")
+        XCTAssertEqual(DayScheduleLogic.duration(item), "2 hr")
+        XCTAssertEqual(
+            DayScheduleLogic.stats(for: item, state: .inProgress, now: now).map(\.label),
+            ["ENDS IN", "GOING"]
+        )
+    }
+
+    /// The gutter reads the clock time off the eyebrow, and the eyebrow may now
+    /// carry a duration after a `·`. Splitting on the LAST space would find "hr".
+    func testGutterStillFindsTheMeridiemWhenTheEyebrowCarriesADuration() {
+        let plain = DayScheduleTestClock.item(
+            startingAt: 18 * 60 + 30, going: 0, eyebrow: "6:30 PM"
+        )
+        let withDuration = DayScheduleTestClock.item(
+            startingAt: 18 * 60 + 30, going: 0, eyebrow: "6:30 PM · 2 hr"
+        )
+
+        for item in [plain, withDuration] {
+            XCTAssertEqual(DayScheduleLogic.gutterTime(for: item)?.value, "6:30")
+            XCTAssertEqual(DayScheduleLogic.gutterTime(for: item)?.meridiem, "PM")
+            XCTAssertEqual(DayScheduleLogic.went(item), "6:30 PM")
+        }
+    }
+
+    /// A duration-bearing eyebrow must not resurrect a time for a row that never
+    /// stated one.
+    func testATimelessEyebrowStaysTimelessWhateverFollowsTheDot() {
+        let item = DayScheduleTestClock.item(
+            startingAt: 23 * 60 + 59, going: 0, eyebrow: "Today · 2 hr"
+        )
+
+        XCTAssertNil(DayScheduleLogic.gutterTime(for: item))
+        XCTAssertNil(DayScheduleLogic.went(item))
+    }
+
+    /// One duration vocabulary. The eyebrow and the DURATION column are the same
+    /// function, so an event cannot say "2 hr" in one and "120 min" in the other.
+    func testTheDurationColumnAndTheEyebrowSpeakTheSameWords() {
+        let start = DayScheduleTestClock.instant(minutes: 9 * 60)
+
+        for minutes in [45, 60, 90, 120, 150] {
+            let item = DayScheduleTestClock.item(
+                startingAt: 9 * 60,
+                going: 0,
+                end: start.addingTimeInterval(Double(minutes) * 60)
+            )
+            XCTAssertEqual(
+                DayScheduleLogic.duration(item),
+                YourDayLogic.durationText(start: start, end: item.end)
+            )
+        }
+    }
+
+    /// An all-day item has no clock time in the gutter whether or not the row also
+    /// stated an end.
+    func testAnAllDayItemNeverShowsAStartTime() {
+        let end = DayScheduleTestClock.instant(minutes: 23 * 60 + 59)
+        let bare = DayScheduleTestClock.item(startingAt: 0, going: 0, isAllDay: true)
+        let ended = DayScheduleTestClock.item(
+            startingAt: 0, going: 0, end: end, isAllDay: true
+        )
+
+        for item in [bare, ended] {
+            XCTAssertEqual(DayScheduleLogic.gutterTime(for: item)?.value, "all day")
+            XCTAssertNil(DayScheduleLogic.gutterTime(for: item)?.meridiem)
+            XCTAssertNil(DayScheduleLogic.went(item), "There is no o'clock to have gone at")
+        }
+    }
+}
+
+// MARK: - One type scale, one grid, one radius
+
+final class DayTypeScaleTests: XCTestCase {
+
+    func testTheScaleIsTheFiveSizesTheTwoSurfacesAgreedOn() {
+        XCTAssertEqual(DayType.sectionHeader, 24)
+        XCTAssertEqual(DayType.pageTitle, 18)
+        XCTAssertEqual(DayType.cardTitle, 17)
+        XCTAssertEqual(DayType.body, 13)
+        XCTAssertEqual(DayType.statLabel, 11)
+    }
+
+    /// The rail used to own its own four numbers. They are now the same objects,
+    /// which is what stops the two surfaces drifting back to seven sizes.
+    func testTheRailReadsItsTypeFromTheSharedScale() {
+        XCTAssertEqual(YourDayRailMetrics.headerSize, DayType.sectionHeader)
+        XCTAssertEqual(YourDayRailMetrics.titleSize, DayType.cardTitle)
+        XCTAssertEqual(YourDayRailMetrics.bodySize, DayType.body)
+        XCTAssertEqual(YourDayRailMetrics.tagSize, DayType.statLabel)
+    }
+
+    /// The matched pair interpolates POSITION. If the two radii disagree it
+    /// interpolates shape as well, and the accent bar's corners grow mid-flight.
+    func testTheRailCardAndTheTimelineCardShareOneRadius() {
+        XCTAssertEqual(DayScheduleMetrics.cardRadius, YourDayRailMetrics.cardRadius)
+    }
+
+    /// Spec, and not up for grabs in a grid pass.
+    func testTheSpecdCardGeometrySurvivedTheGridPass() {
+        XCTAssertEqual(YourDayRailMetrics.cardHeight, 116)
+        XCTAssertEqual(YourDayRailMetrics.accentBarWidth, 6)
+        XCTAssertEqual(DayScheduleMetrics.accentBarWidth, 6)
+    }
+
+    /// One page margin for the rail, the timeline column and the CTA.
+    func testOnePageMarginAcrossTheWholeFeature() {
+        XCTAssertEqual(DayScheduleMetrics.pageMargin, 20)
+        XCTAssertEqual(YourDayRailMetrics.pageMargin, 20)
+        XCTAssertEqual(DayScheduleMetrics.ctaMargin, 20)
+    }
+
+    func testEverySpacingTokenSitsOnTheFourPointGrid() {
+        let grid: [(String, CGFloat)] = [
+            ("rail.contentLeading", YourDayRailMetrics.contentLeading),
+            ("rail.contentTrailing", YourDayRailMetrics.contentTrailing),
+            ("rail.contentVertical", YourDayRailMetrics.contentVertical),
+            ("rail.eyebrowToTitle", YourDayRailMetrics.eyebrowToTitle),
+            ("rail.titleToMeta", YourDayRailMetrics.titleToMeta),
+            ("rail.addGlyphToLabel", YourDayRailMetrics.addGlyphToLabel),
+            ("rail.cardSpacing", YourDayRailMetrics.cardSpacing),
+            ("rail.headerToRail", YourDayRailMetrics.headerToRail),
+            ("rail.pageMargin", YourDayRailMetrics.pageMargin),
+            ("rail.sectionTop", YourDayRailMetrics.sectionTop),
+            ("sheet.pageMargin", DayScheduleMetrics.pageMargin),
+            ("sheet.cardPadding", DayScheduleMetrics.cardPadding),
+            ("sheet.cardInset", DayScheduleMetrics.cardInset),
+            ("sheet.spineInset", DayScheduleMetrics.spineInset),
+            ("sheet.rowSpacing", DayScheduleMetrics.rowSpacing),
+            ("sheet.ctaMargin", DayScheduleMetrics.ctaMargin),
+            ("sheet.ctaScrimFade", DayScheduleMetrics.ctaScrimFade),
+        ]
+
+        for (name, value) in grid {
+            XCTAssertEqual(
+                value.truncatingRemainder(dividingBy: 4), 0,
+                "\(name) is \(value), which is off the 4pt grid"
+            )
+        }
+    }
+}
+
+// MARK: - Tokens: one definition each, and both appearances
+
+@MainActor
+final class DayPaletteTokenTests: XCTestCase {
+
+    private func hex(_ color: Color, _ style: UIUserInterfaceStyle) -> String {
+        let resolved = UIColor(color)
+            .resolvedColor(with: UITraitCollection(userInterfaceStyle: style))
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        resolved.getRed(&r, green: &g, blue: &b, alpha: &a)
+        return String(
+            format: "#%02X%02X%02X",
+            Int((r * 255).rounded()), Int((g * 255).rounded()), Int((b * 255).rounded())
+        )
+    }
+
+    /// #707174 is gone. It duplicated `Hue.inkSecondary`'s ROLE at a worse contrast
+    /// (4.67:1 against 5.10:1), which is drift, not a decision.
+    func testTheSheetNoLongerCarriesItsOwnNeutralRamp() {
+        XCTAssertEqual(hex(DaySchedulePalette.muted, .light), hex(Hue.inkSecondary, .light))
+        XCTAssertEqual(hex(DaySchedulePalette.rule, .light), hex(Hue.hairline, .light))
+        XCTAssertNotEqual(hex(DaySchedulePalette.muted, .light), "#707174")
+        XCTAssertNotEqual(hex(DaySchedulePalette.rule, .light), "#E5E3DB")
+    }
+
+    /// #D8D6CE was written out twice. It is one token now, and the checkbox does
+    /// not use it — an empty control needs 3:1 and that value measured 1.46:1.
+    func testTheStrongBorderIsOneTokenAndTheCheckboxIsNotIt() {
+        XCTAssertEqual(hex(YourDayRailPalette.suggestedBorder, .light), "#D8D6CE")
+        XCTAssertEqual(hex(Hue.edge, .light), "#D8D6CE")
+        XCTAssertNotEqual(hex(DaySchedulePalette.checkbox, .light), "#D8D6CE")
+        XCTAssertEqual(hex(DaySchedulePalette.checkbox, .light), hex(Hue.control, .light))
+    }
+
+    func testEveryNeutralTokenCarriesBothAppearances() {
+        let tokens: [(String, Color)] = [
+            ("ink", Hue.ink), ("paper", Hue.paper), ("surface", Hue.surface),
+            ("inkSecondary", Hue.inkSecondary), ("hairline", Hue.hairline),
+            ("fill", Hue.fill), ("accent", Hue.accent), ("edge", Hue.edge),
+        ]
+
+        for (name, color) in tokens {
+            XCTAssertNotEqual(
+                hex(color, .light), hex(color, .dark),
+                "\(name) renders the same in both appearances — it is not dynamic"
+            )
+        }
+    }
+
+    func testThePageAndTheCardAreTheAgreedDarkValues() {
+        XCTAssertEqual(hex(Hue.paper, .light), "#FAFAF7")
+        XCTAssertEqual(hex(Hue.paper, .dark), "#141412")
+        XCTAssertEqual(hex(Hue.surface, .light), "#FFFFFF")
+        XCTAssertEqual(hex(Hue.surface, .dark), "#1D1D1A")
+        // A card is still a lighter object sitting on the page, not a darker hole.
+        XCTAssertNotEqual(hex(Hue.surface, .dark), hex(Hue.paper, .dark))
+    }
+
+    /// Category colour is an identity. Every gradient steps down in the dark; none
+    /// of them is re-picked, and none of them stays put.
+    func testEveryCategoryGradientHasADarkBranch() {
+        for gradient in CategoryGradient.allCases {
+            let stops = gradient.stops
+            XCTAssertNotEqual(
+                hex(stops.top, .light), hex(stops.top, .dark),
+                "\(gradient.rawValue) top stop does not move in the dark"
+            )
+            XCTAssertNotEqual(
+                hex(stops.bottom, .light), hex(stops.bottom, .dark),
+                "\(gradient.rawValue) bottom stop does not move in the dark"
+            )
+        }
+    }
+
+    /// The map is light cartography in BOTH appearances, so anything drawn on it
+    /// keeps its light value — a civic badge that followed `Hue.ink` into the dark
+    /// would be white on warm paper.
+    func testMarkersOverTheMapDoNotFollowTheSystemAppearance() {
+        XCTAssertEqual(hex(Hue.ink.onLightCanvas, .dark), hex(Hue.ink, .light))
+        XCTAssertEqual(hex(Hue.surface.onLightCanvas, .dark), hex(Hue.surface, .light))
+        XCTAssertEqual(BasemapPalette.land, "#FAFAF7")
+        XCTAssertEqual(BasemapPalette.road, "#FFFFFF")
+    }
+}
+
+// MARK: - Directions, defined once
+
+final class DayDirectionsTests: XCTestCase {
+
+    func testARowWithNoPlaceOffersNoDirections() {
+        for location in [nil, "", "   "] as [String?] {
+            let item = DayScheduleTestClock.item(
+                startingAt: 9 * 60, going: 0, location: location
+            )
+            XCTAssertNil(
+                DayScheduleLogic.directionsURL(for: item),
+                "A blank location must not produce a search for the whole town"
+            )
+        }
+    }
+
+    func testARowWithAPlaceSearchesForItInThisTown() throws {
+        let item = DayScheduleTestClock.item(
+            startingAt: 9 * 60, going: 0, location: "Local Blend"
+        )
+        let url = try XCTUnwrap(DayScheduleLogic.directionsURL(for: item))
+
+        XCTAssertEqual(url.host, "maps.apple.com")
+        let query = try XCTUnwrap(url.query?.removingPercentEncoding)
+        XCTAssertTrue(query.contains("Local Blend"))
+        XCTAssertTrue(query.contains(Town.display))
     }
 }

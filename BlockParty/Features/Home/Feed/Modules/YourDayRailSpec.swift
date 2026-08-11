@@ -24,13 +24,17 @@ nonisolated enum YourDayRailMetrics {
     static let accentBarWidth: CGFloat = 6
 
     /// Card padding. Leading is measured from the accent bar, not the card edge.
-    static let contentLeading: CGFloat = 14
+    /// On the 4pt grid — 14 was not, and it was the same 14 the day sheet's card
+    /// padding used, so both moved to 12 together.
+    static let contentLeading: CGFloat = 12
     static let contentTrailing: CGFloat = 16
-    static let contentVertical: CGFloat = 14
+    static let contentVertical: CGFloat = 12
 
     /// Minimum gaps inside the card. The leftovers become slack, so a one-line
     /// title still pins its eyebrow to the top and its meta to the bottom.
-    static let eyebrowToTitle: CGFloat = 6
+    /// 8 and 4, not 6 and 4: the pair still steps, and both sit on the grid. The
+    /// 4pt reclaimed above pays for the extra 2 here inside the 116pt ceiling.
+    static let eyebrowToTitle: CGFloat = 8
     static let titleToMeta: CGFloat = 4
 
     /// The add tile — narrower than a card because it holds no content, only an
@@ -39,12 +43,16 @@ nonisolated enum YourDayRailMetrics {
     static let addGlyphSide: CGFloat = 40
     static let addGlyphRadius: CGFloat = 12
     static let addGlyphPointSize: CGFloat = 18
-    static let addGlyphToLabel: CGFloat = 10
+    static let addGlyphToLabel: CGFloat = 8
 
     /// The rail itself.
     static let pageMargin: CGFloat = 20
     static let cardSpacing: CGFloat = 12
     static let headerToRail: CGFloat = 16
+    /// The gap above the section in the feed. Was three separate `22`s — one per
+    /// phase branch — which is both off the 4pt grid and three chances to move one
+    /// and not the others.
+    static let sectionTop: CGFloat = 20
 
     /// The completed check, top-trailing.
     static let checkPointSize: CGFloat = 16
@@ -68,11 +76,13 @@ nonisolated enum YourDayRailMetrics {
     /// shared press style.
     static let pressOpacity: Double = 0.78
 
-    /// Type. Four sizes, and deliberately no fifth.
-    static let headerSize: CGFloat = 24
-    static let titleSize: CGFloat = 17
-    static let bodySize: CGFloat = 13
-    static let tagSize: CGFloat = 11
+    /// Type. The rail's four roles, resolved from the ONE scale both Your Day
+    /// surfaces share — see `DayType`. The rail was already right; it is the sheet
+    /// that carried a second set of values for the same roles.
+    static let headerSize: CGFloat = DayType.sectionHeader
+    static let titleSize: CGFloat = DayType.cardTitle
+    static let bodySize: CGFloat = DayType.body
+    static let tagSize: CGFloat = DayType.statLabel
 
     static let titleTracking: CGFloat = -0.2
     // The spec's 20pt title line height is not a token because it is not a choice:
@@ -89,17 +99,19 @@ nonisolated enum YourDayRailMetrics {
 
 // MARK: - Palette
 
-/// Two warm values the neutral ramp does not already carry. Everything else on
-/// the rail resolves to an existing `Hue` token — `ink`, `inkSecondary`,
-/// `surface` — so the rail cannot drift from the rest of the app.
+/// ONE warm value the neutral ramp does not already carry. Everything else on the
+/// rail resolves to an existing `Hue` token — `ink`, `inkSecondary`, `surface`,
+/// `edge` — so the rail cannot drift from the rest of the app.
 nonisolated enum YourDayRailPalette {
     /// The add tile's ground. Warmer and a step darker than `Hue.fill`, so an
     /// empty invitation reads as paper rather than as a disabled control.
-    static let addTileFill = Color(hex: 0xEFEEE8)
+    static let addTileFill = Color(light: 0xEFEEE8, dark: 0x26261F)
 
-    /// The suggested card's dashed edge. Darker than `Hue.hairline` because a
-    /// dash at hairline value disappears.
-    static let suggestedBorder = Color(hex: 0xD8D6CE)
+    /// The suggested card's dashed edge. Darker than `Hue.hairline` because a dash
+    /// at hairline value disappears — which is exactly what `Hue.edge` is for. It
+    /// used to be #D8D6CE written out here AND in the day sheet's palette; one
+    /// token, one place.
+    static let suggestedBorder = Hue.edge
 }
 
 // MARK: - Copy
@@ -136,6 +148,12 @@ nonisolated enum YourDayRailAccessibility {
     /// — with `on the town calendar` inserted before the completion state when the
     /// item is the town's rather than this neighbour's.
     static func label(for item: DayItem) -> String {
+        label(for: item, isComplete: item.isComplete)
+    }
+
+    /// The same sentence, with the completion the STORE resolved rather than the
+    /// one the clock guessed.
+    static func label(for item: DayItem, isComplete: Bool) -> String {
         // `.other` is the absence of a category, not one of them. Unconditionally
         // appending the label made VoiceOver read "11 AM, Farmers Market, Other,
         // Resurrection lot" on every card, since no live row is categorised yet.
@@ -154,7 +172,7 @@ nonisolated enum YourDayRailAccessibility {
             parts.append("on the town calendar")
         }
 
-        parts.append(item.isComplete ? "completed" : "not completed")
+        parts.append(isComplete ? "completed" : "not completed")
         return parts.joined(separator: ", ")
     }
 

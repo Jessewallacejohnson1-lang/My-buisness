@@ -160,7 +160,7 @@ struct CalendarView: View {
                 } label: {
                     Text(f.rawValue)
                         .font(.sansSemibold(14))
-                        .foregroundStyle(on ? .white : Hue.inkSecondary)
+                        .foregroundStyle(on ? Hue.surface : Hue.inkSecondary)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 9)
                         .background {
@@ -442,7 +442,10 @@ private struct DayCell: View {
     // day that has something on it from one that doesn't, so it applies to future
     // days too — not just past ones.
     private var numberColor: Color {
-        if isToday { return .white }
+        // `Hue.surface`, not `.white`: the ground under it is `Hue.ink`, which
+        // inverts in dark mode. A literal white numeral on a near-white disc was
+        // measured unreadable in the dark spot-check.
+        if isToday { return Hue.surface }
         return hasEvents ? Hue.ink : Hue.inkSecondary
     }
 
@@ -571,7 +574,7 @@ private struct CalendarLegendSheet: View {
             legendRow(detailTitle: "Today", detail: "The filled circle is always today.") {
                 Text("6")
                     .font(.system(size: 15, weight: .semibold)).monospacedDigit()
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Hue.surface)
                     .frame(width: 32, height: 32)
                     .background(Circle().fill(Hue.ink))
             }

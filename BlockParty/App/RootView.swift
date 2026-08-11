@@ -425,22 +425,21 @@ struct MainTabsView: View {
                     .zIndex(10)
                 }
             }
-            // This app is light-only BY CONSTRUCTION — every token in BlockPartyColor is a
-            // fixed light hex (paper #FAFAF7, surface #FFFFFF), and the basemap is light-v11
-            // recoloured to a fixed greyscale palette. Nothing here has a dark counterpart.
-            // `.glassEffect` (the tab bar AND the map sheet) is the one appearance-ADAPTIVE
-            // surface in the tree, so under iOS Dark Mode it resolved charcoal while every
-            // colour drawn on it stayed light: the sheet's peek line and the tab labels fell
-            // to ~1:1 contrast — the primary navigation, unreadable.
+            // THE `.environment(\.colorScheme, .light)` THAT USED TO BE HERE IS GONE.
             //
-            // Declared on the container so BOTH glass surfaces resolve the same way; pinning
-            // only the sheet would light it while the tab bar stayed dark, visibly splitting
-            // the one continuous piece this container exists to create.
+            // It existed because the app was light-only BY CONSTRUCTION — every `Hue`
+            // token was a fixed light hex — while `.glassEffect` (the tab bar AND the
+            // map sheet) was the one appearance-ADAPTIVE surface in the tree. Under
+            // iOS Dark Mode the glass resolved charcoal and everything drawn on it
+            // stayed light, so the peek line and the tab labels fell to ~1:1: the
+            // primary navigation, unreadable. Its own comment named the exit — "a full
+            // dark ramp + a dark basemap palette" — and that is what has now been
+            // built: `Hue` carries both appearances, so ink on charcoal glass is
+            // near-white and the contrast runs the right way round.
             //
-            // This states what the app already assumes rather than adding a behaviour. If real
-            // Dark Mode support is ever wanted, removing this line is the START of that work
-            // (a full dark ramp + a dark basemap palette), not the whole of it.
-            .environment(\.colorScheme, .light)
+            // The basemap did NOT get a dark palette, and deliberately: Mapbox renders
+            // light-v11 cartography in both modes, so map INK is pinned to its light
+            // value instead (`Color.onLightCanvas`). See `BlockPartyColor`.
         }
         .onGeometryChange(for: CGFloat.self) { geometry in
             geometry.size.height

@@ -33,6 +33,10 @@ final class YourDayModule: @MainActor FeedModule {
     /// number rather than inventing one.
     @Published private(set) var townCount: Int?
 
+    /// Who says a thing is done. The session store, so the rail and the day sheet
+    /// give the same answer and a tick outlives the app.
+    private let completion: DayCompletionStore
+
     /// The rows behind `items`, for anything that still takes an `UpcomingEvent`.
     /// Derived, never stored twice — `items` is the single source of truth.
     private var events: [UpcomingEvent] { items.map(\.event) }
@@ -43,7 +47,13 @@ final class YourDayModule: @MainActor FeedModule {
         case failed
     }
 
-    init(briefing _: BriefingModel) {}
+    /// Optional-defaulted rather than `= .shared`, because a default argument is
+    /// evaluated in a nonisolated context and `.shared` is main-actor state — the
+    /// CLAUDE.md default-argument gotcha, and the same shape `DayScheduleSheet`
+    /// already uses for this exact dependency.
+    init(briefing _: BriefingModel, completion: DayCompletionStore? = nil) {
+        self.completion = completion ?? .shared
+    }
 
     var phase: FeedPhase {
         switch loadState {
@@ -84,6 +94,11 @@ final class YourDayModule: @MainActor FeedModule {
         } catch {
             loadState = .failed
         }
+
+        // Stored completions, AFTER the rail is ready. Best-effort and separate
+        // from the fetch above: a completions read that fails must not blank a day
+        // we already have, and a day that failed to load has no ids to ask about.
+        await completion.refresh(for: items.map(\.id))
     }
 
     func makeView(_ ctx: FeedModuleContext) -> AnyView {
@@ -92,7 +107,7 @@ final class YourDayModule: @MainActor FeedModule {
             return AnyView(
                 YourDaySkeleton()
                     .padding(.horizontal, YourDayRailMetrics.pageMargin)
-                    .padding(.top, 22)
+                    .padding(.top, YourDayRailMetrics.sectionTop)
             )
 
         case .failed:
@@ -101,7 +116,7 @@ final class YourDayModule: @MainActor FeedModule {
                     Task { await self.load(ctx) }
                 }
                 .padding(.horizontal, YourDayRailMetrics.pageMargin)
-                .padding(.top, 22)
+                .padding(.top, YourDayRailMetrics.sectionTop)
             )
 
         case .ready:
@@ -111,6 +126,7 @@ final class YourDayModule: @MainActor FeedModule {
                     suggestion: suggestion,
                     townCount: townCount,
                     dates: ctx.dates,
+                    completion: completion,
                     // Where a tap lands when no day-sheet host is mounted above
                     // this feed — the galleries and the module previews. The real
                     // app always has one (see `MainTabsView`), so these are the
@@ -119,7 +135,7 @@ final class YourDayModule: @MainActor FeedModule {
                     onAddWithoutHost: { ctx.navigate(.feedDiscovery) },
                     onExplore: { ctx.navigate(.feedDiscovery) }
                 )
-                .padding(.top, 22)
+                .padding(.top, YourDayRailMetrics.sectionTop)
                 .springReveal(
                     1,
                     revealed: ctx.contentRevealed,
@@ -220,7 +236,7 @@ private struct YourDayDebugDetailOpener: ViewModifier {
 private struct YourDayHeading: View {
     var body: some View {
         Text(YourDayRailCopy.header)
-            .font(.displaySemi(YourDayRailMetrics.headerSize))
+            .font(.dayDisplaySemi(YourDayRailMetrics.headerSize))
             .foregroundStyle(Hue.ink)
             .accessibilityAddTraits(.isHeader)
     }
@@ -240,6 +256,9 @@ private struct YourDaySection: View {
     let suggestion: DayItem?
     let townCount: Int?
     let dates: any DateProviding
+    /// Observed, not just read: a tick in the day sheet has to dim the rail card
+    /// behind it, and un-dim it when the neighbour changes their mind.
+    @ObservedObject var completion: DayCompletionStore
     let onOpenDayWithoutHost: (DayItem) -> Void
     let onAddWithoutHost: () -> Void
     let onExplore: () -> Void
@@ -257,11 +276,13 @@ private struct YourDaySection: View {
                 suggestion: suggestion,
                 townCount: townCount,
                 dates: dates,
+                isComplete: completion.isComplete,
                 onExplore: onExplore
             )
         } else {
             YourDayRail(
                 items: items,
+                isComplete: completion.isComplete,
                 suggestion: suggestion,
                 townCount: townCount,
                 namespace: localNamespace,
@@ -286,6 +307,7 @@ private struct YourDayHostedRail: View {
     let suggestion: DayItem?
     let townCount: Int?
     let dates: any DateProviding
+    let isComplete: (DayItem) -> Bool
     let onExplore: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -293,6 +315,7 @@ private struct YourDayHostedRail: View {
     var body: some View {
         YourDayRail(
             items: items,
+            isComplete: isComplete,
             suggestion: suggestion,
             townCount: townCount,
             namespace: namespace,

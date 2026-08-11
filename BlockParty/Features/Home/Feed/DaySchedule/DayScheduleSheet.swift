@@ -128,17 +128,17 @@ struct DayScheduleSheet: View {
     /// The big date scrolls away under the pinned bar, the way a large title does —
     /// so the header can collapse without the content jumping under it.
     private var dateBlock: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 4) {
             Text(DayScheduleLogic.headerDate(now))
-                .font(.display(28))
+                .font(.dayDisplay(DayType.sectionHeader))
                 .foregroundStyle(DaySchedulePalette.ink)
 
             Text(DayScheduleLogic.headerCount(items.count))
-                .font(.sans(15))
+                .font(.sans(DayType.body))
                 .foregroundStyle(DaySchedulePalette.muted)
         }
         .padding(.top, 4)
-        .padding(.bottom, 22)
+        .padding(.bottom, 20)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
     }
@@ -148,13 +148,13 @@ struct DayScheduleSheet: View {
     /// invitation, not a void.
     private var emptyDay: some View {
         Text("Add the first thing and your neighbours will see it here.")
-            .font(.sans(15))
+            .font(.sans(DayType.body))
             .foregroundStyle(DaySchedulePalette.muted)
             .fixedSize(horizontal: false, vertical: true)
     }
 
     private var rows: some View {
-        LazyVStack(alignment: .leading, spacing: 18) {
+        LazyVStack(alignment: .leading, spacing: DayScheduleMetrics.rowSpacing) {
             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                 if index == nowLineIndex {
                     DayNowLine(now: now)
@@ -200,13 +200,13 @@ struct DayScheduleSheet: View {
     // MARK: - Header
 
     private var header: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             Button {
                 Haptics.light()
                 onDismiss()
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(DaySchedulePalette.ink)
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
@@ -215,7 +215,7 @@ struct DayScheduleSheet: View {
             .accessibilityLabel("Close")
 
             Text(DayScheduleLogic.headerDate(now))
-                .font(.sansSemibold(17))
+                .font(.sansSemibold(DayType.cardTitle))
                 .foregroundStyle(DaySchedulePalette.ink)
                 .lineLimit(1)
                 .opacity(isScrolled ? 1 : 0)
@@ -225,9 +225,14 @@ struct DayScheduleSheet: View {
         // The glyph's own left edge lands on the page margin, not the 44pt target's.
         .padding(.leading, 4)
         .padding(.trailing, DayScheduleMetrics.pageMargin)
+        // OPAQUE PAGE COLOUR, NOT `.ultraThinMaterial`. A material does not follow
+        // the page — it follows the system blur recipe — so in dark mode the pinned
+        // bar rendered as a mid-grey slab sitting on the day rather than as the top
+        // of it. The bar's job is to be the page while the page scrolls under it,
+        // and `DaySchedulePalette.page` is the page in both appearances.
         .background {
             Rectangle()
-                .fill(.ultraThinMaterial)
+                .fill(DaySchedulePalette.page)
                 .opacity(isScrolled ? 1 : 0)
                 .overlay(alignment: .bottom) {
                     Rectangle()
@@ -253,7 +258,7 @@ struct DayScheduleSheet: View {
             // semibold. VoiceOver reads it aloud as a character, so the button
             // carries an explicit label below and this glyph is decoration only.
             Text("＋ Add to today")
-                .font(.sansSemibold(17))
+                .font(.sansSemibold(DayType.cardTitle))
                 .foregroundStyle(DaySchedulePalette.card)
                 .frame(maxWidth: .infinity)
                 .frame(height: DayScheduleMetrics.ctaHeight)
@@ -268,19 +273,34 @@ struct DayScheduleSheet: View {
         .buttonStyle(FeedCardPressStyle())
         .accessibilityLabel("Add to today")
         .padding(.horizontal, DayScheduleMetrics.ctaMargin)
-        .padding(.top, 10)
-        .padding(.bottom, 6)
+        .padding(.top, 8)
+        .padding(.bottom, 8)
+        // THE SCRIM FINISHES ABOVE THE PILL, not behind it.
+        //
+        // It used to be a three-stop gradient across the CTA's own inset, which put
+        // full page colour at the gradient's MIDPOINT — measured, about 43pt down
+        // inside the pill. So a row scrolling under the CTA met a hard horizontal
+        // edge level with the button's waist and was guillotined rather than faded.
+        //
+        // Now: solid page behind the whole inset, and the fade is a separate band
+        // sitting directly above it. Stated in points rather than as a fraction
+        // because the inset's height depends on the device's bottom safe area, and
+        // a fraction of an unknown is how the first version went wrong.
         .background {
-            LinearGradient(
-                colors: [
-                    DaySchedulePalette.page.opacity(0),
-                    DaySchedulePalette.page,
-                    DaySchedulePalette.page,
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea(edges: .bottom)
+            DaySchedulePalette.page
+                .ignoresSafeArea(edges: .bottom)
+                .overlay(alignment: .top) {
+                    LinearGradient(
+                        colors: [
+                            DaySchedulePalette.page.opacity(0),
+                            DaySchedulePalette.page,
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: DayScheduleMetrics.ctaScrimFade)
+                    .offset(y: -DayScheduleMetrics.ctaScrimFade)
+                }
         }
     }
 

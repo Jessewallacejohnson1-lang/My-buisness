@@ -31,6 +31,11 @@ private typealias M = YourDayRailMetrics
 
 struct YourDayCard: View {
     let item: DayItem
+    /// Resolved by the completion store, not read off `item`: a tick the neighbour
+    /// stored yesterday beats `DayItem.isComplete`, which is only what the clock
+    /// guesses. Defaulted to the clock so the previews and galleries that mount a
+    /// bare card keep working.
+    var isComplete: Bool
     let namespace: Namespace.ID
     /// Whether this card holds the accent-bar/title half of the matched pair. See
     /// `YourDayRail.morphs` — it is withdrawn while the day sheet has them.
@@ -48,7 +53,9 @@ struct YourDayCard: View {
         Button { onOpenDay(item) } label: { card }
             .buttonStyle(YourDayPressStyle())
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(YourDayRailAccessibility.label(for: item))
+            .accessibilityLabel(
+                YourDayRailAccessibility.label(for: item, isComplete: isComplete)
+            )
             .accessibilityHint("Opens your day")
     }
 
@@ -67,10 +74,10 @@ struct YourDayCard: View {
             x: 0,
             y: M.shadowY
         )
-        .opacity(item.isComplete ? M.completedOpacity : 1)
+        .opacity(isComplete ? M.completedOpacity : 1)
         // Applied over the dim, not inside it: the check is the reason the card
         // receded, so it is the one mark that must not recede with it.
-        .overlay(alignment: .topTrailing) { if item.isComplete { completedCheck } }
+        .overlay(alignment: .topTrailing) { if isComplete { completedCheck } }
     }
 
     /// Rounded on the card's leading corners only, so the bar reads as part of the

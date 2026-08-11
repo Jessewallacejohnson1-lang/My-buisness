@@ -26,25 +26,50 @@ struct DayTimelineRow: View {
     let onToggleComplete: () -> Void
     let onDetails: () -> Void
 
+    @Environment(\.openURL) private var openURL
+
+    /// A past row recedes rather than disappears — the day still happened. The
+    /// 55% stays (owner's call against the audit's 2.12:1 finding); the one thing
+    /// exempted from it is the completion box, which `DayDetailCard` draws over
+    /// its own dim.
+    private var dims: Bool { state == .completed }
+
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
-            gutter
+            // Dimmed here rather than on the whole row, so the card can hold back
+            // its checkbox. Same value, same trigger — the two halves recede
+            // together and the tick does not.
+            gutter.opacity(dims ? YourDayRailMetrics.completedOpacity : 1)
+
             DayDetailCard(
                 item: item,
                 isComplete: isComplete,
                 stats: stats,
                 namespace: namespace,
                 morphs: morphs,
+                dims: dims,
                 onToggleComplete: onToggleComplete,
                 onDetails: onDetails
             )
         }
-        // A past row recedes rather than disappears — the day still happened.
-        .opacity(state == .completed ? 0.55 : 1)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
-        .accessibilityAction(named: isComplete ? "Mark not done" : "Mark done", onToggleComplete)
-        .accessibilityAction(named: "Details", onDetails)
+        // ALL THREE ACTIONS IN ONE BLOCK. `children: .ignore` publishes nothing the
+        // row does not republish, and the row republished only two — so the card's
+        // Directions button was unreachable to a screen reader entirely. Declaring
+        // them together rather than mixing `.accessibilityActions` with a pair of
+        // `.accessibilityAction(named:)` keeps the set and its order unambiguous.
+        //
+        // Directions is GUARDED on the same URL the button is guarded on: a rotor
+        // must never offer an action that does nothing. Both sides read that rule
+        // from `DayScheduleLogic`, so they cannot drift apart.
+        .accessibilityActions {
+            Button(isComplete ? "Mark not done" : "Mark done", action: onToggleComplete)
+            if let url = DayScheduleLogic.directionsURL(for: item) {
+                Button("Directions") { openURL(url) }
+            }
+            Button("Details", action: onDetails)
+        }
     }
 
     // MARK: - The clock scale
@@ -53,20 +78,22 @@ struct DayTimelineRow: View {
         VStack(alignment: .trailing, spacing: 0) {
             if let time = DayScheduleLogic.gutterTime(for: item) {
                 Text(time.value)
-                    .font(.sansSemibold(13))
+                    .font(.sansSemibold(DayType.body))
                     .monospacedDigit()
 
                 if let meridiem = time.meridiem {
                     Text(meridiem)
-                        .font(.sansSemibold(13))
+                        .font(.sansSemibold(DayType.body))
                 }
             }
         }
         .foregroundStyle(DaySchedulePalette.muted)
         .multilineTextAlignment(.trailing)
-        // Nudged down so the numeral's cap height lines up with the eyebrow's,
-        // rather than its ascender lining up with the card's top edge.
-        .padding(.top, 15)
+        // The numeral's cap height lines up with the eyebrow's. It used to take an
+        // optical nudge (15 against a 14pt card padding) because the two ran at
+        // different sizes; on the shared scale they are the same face at the same
+        // 13pt, so the alignment is now just the card's own top padding.
+        .padding(.top, DayScheduleMetrics.cardPadding)
         .frame(width: DayScheduleMetrics.gutterWidth, alignment: .trailing)
         // The gap to the spine, the spine's own hairline, and the gap to the card.
         .padding(

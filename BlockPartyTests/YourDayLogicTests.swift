@@ -716,3 +716,436 @@ final class YourDayRailSpecTests: XCTestCase {
         )
     }
 }
+
+// MARK: - end_at and all_day, now that the columns exist
+//
+// The migration landed; the BACKFILL did not. So the two halves below matter
+// equally: with the fields, the eyebrow and the duration columns light up; without
+// them — which is every live row today — nothing appears that was not there before.
+
+final class YourDayEndAtTests: XCTestCase {
+
+    /// The shipping case. No `end_at`, so the eyebrow is a bare start time and
+    /// nothing invents a length from the two-hour completion assumption.
+    func testWithoutAStatedEndTheEyebrowIsJustTheStartTime() throws {
+        let clock = FixedDateProvider(try townDate(year: 2026, month: 8, day: 10, hour: 9))
+
+        let items = YourDayLogic.dayItems(
+            from: [event(id: "market", date: "2026-08-10", time: "11 AM")],
+            now: clock.now
+        )
+
+        let item = try XCTUnwrap(items.first)
+        XCTAssertEqual(item.eyebrow, "11:00 AM")
+        XCTAssertNil(item.end)
+        XCTAssertFalse(item.eyebrow.contains("·"))
+        XCTAssertFalse(item.eyebrow.contains("hr"))
+    }
+
+    func testAStatedEndPutsTheDurationInTheEyebrow() throws {
+        let clock = FixedDateProvider(try townDate(year: 2026, month: 8, day: 10, hour: 9))
+        let end = try townDate(year: 2026, month: 8, day: 10, hour: 13)
+
+        let items = YourDayLogic.dayItems(
+            from: [event(id: "market", date: "2026-08-10", time: "11 AM", endAt: end)],
+            now: clock.now
+        )
+
+        XCTAssertEqual(try XCTUnwrap(items.first).eyebrow, "11:00 AM · 2 hr")
+    }
+
+    /// The two structural eyebrows say what they are, not how long they run — an
+    /// all-day item's "length" is the day, and a festival's is not today's news.
+    func testTheStructuralEyebrowsNeverGrowADuration() throws {
+        let clock = FixedDateProvider(try townDate(year: 2026, month: 8, day: 10, hour: 9))
+        let endsTonight = try townDate(year: 2026, month: 8, day: 10, hour: 22)
+        let endsTomorrow = try townDate(year: 2026, month: 8, day: 11, hour: 18)
+
+        let allDay = YourDayLogic.dayItems(
+            from: [
+                event(
+                    id: "garage-sale", date: "2026-08-10", time: nil,
+                    isAllDay: true, endAt: endsTonight
+                )
+            ],
+            now: clock.now
+        )
+        XCTAssertEqual(try XCTUnwrap(allDay.first).eyebrow, "Today · all day")
+
+        let ongoing = YourDayLogic.dayItems(
+            from: [
+                event(id: "millstream", date: "2026-08-08", time: "11 AM", endAt: endsTomorrow)
+            ],
+            now: clock.now
+        )
+        XCTAssertEqual(try XCTUnwrap(ongoing.first).eyebrow, "Today · ongoing")
+    }
+
+    /// all_day still sorts first and still shows no clock time, with an end stated.
+    func testAnAllDayItemWithAStatedEndStillSortsFirstAndShowsNoStartTime() throws {
+        let clock = FixedDateProvider(try townDate(year: 2026, month: 8, day: 10, hour: 9))
+        let end = try townDate(year: 2026, month: 8, day: 10, hour: 20)
+
+        let items = YourDayLogic.dayItems(
+            from: [
+                event(id: "early-bird", date: "2026-08-10", time: "6:00 AM"),
+                event(
+                    id: "garage-sale", date: "2026-08-10", time: nil,
+                    isAllDay: true, endAt: end
+                ),
+            ],
+            now: clock.now
+        )
+
+        XCTAssertEqual(items.map(\.id), ["garage-sale", "early-bird"])
+        XCTAssertFalse(try XCTUnwrap(items.first).eyebrow.contains(":"))
+    }
+
+    func testDurationTextRoundsToWholeAndHalfHoursAndRefusesNonsense() throws {
+        let start = try townDate(year: 2026, month: 8, day: 10, hour: 9)
+
+        XCTAssertEqual(
+            YourDayLogic.durationText(start: start, end: start.addingTimeInterval(45 * 60)),
+            "45 min"
+        )
+        XCTAssertEqual(
+            YourDayLogic.durationText(start: start, end: start.addingTimeInterval(60 * 60)),
+            "1 hr"
+        )
+        XCTAssertEqual(
+            YourDayLogic.durationText(start: start, end: start.addingTimeInterval(90 * 60)),
+            "1.5 hr"
+        )
+        XCTAssertNil(
+            YourDayLogic.durationText(start: start, end: nil),
+            "No end_at is no duration — never the assumed two hours"
+        )
+        XCTAssertNil(
+            YourDayLogic.durationText(start: start, end: start),
+            "A zero-length event is bad data, not a 0 min label"
+        )
+        XCTAssertNil(
+            YourDayLogic.durationText(start: start, end: start.addingTimeInterval(-3600))
+        )
+    }
+
+    /// The rule the rebuild asked for, restated at the boundary: a stated end wins
+    /// over the assumed two hours in BOTH directions.
+    func testAStatedEndOverridesTheAssumedTwoHoursInBothDirections() throws {
+        let clock = FixedDateProvider(try townDate(year: 2026, month: 8, day: 10, hour: 14))
+        let earlier = try townDate(year: 2026, month: 8, day: 10, hour: 13)
+        let later = try townDate(year: 2026, month: 8, day: 10, hour: 18)
+
+        // Assumed 2h from 1 PM would still be running at 2 PM; the stated 1 PM end
+        // says it is over.
+        let short = YourDayLogic.dayItems(
+            from: [event(id: "short", date: "2026-08-10", time: "12:30 PM", endAt: earlier)],
+            now: clock.now
+        )
+        XCTAssertTrue(try XCTUnwrap(short.first).isComplete)
+
+        // Assumed 2h from 8 AM would be long over; the stated 6 PM end says not yet.
+        let long = YourDayLogic.dayItems(
+            from: [event(id: "long", date: "2026-08-10", time: "8:00 AM", endAt: later)],
+            now: clock.now
+        )
+        XCTAssertFalse(try XCTUnwrap(long.first).isComplete)
+    }
+
+    // MARK: - Fixtures
+
+    private func event(
+        id: String,
+        date: String,
+        time: String?,
+        isAllDay: Bool = false,
+        endAt: Date? = nil
+    ) -> UpcomingEvent {
+        UpcomingEvent(
+            id: id,
+            title: "Event \(id)",
+            eventDate: date,
+            startTime: time,
+            location: "Downtown",
+            goingCount: 0,
+            createdAt: "2026-08-01T12:00:00Z",
+            endAt: endAt,
+            isAllDay: isAllDay
+        )
+    }
+
+    private func townDate(
+        year: Int, month: Int, day: Int, hour: Int, minute: Int = 0
+    ) throws -> Date {
+        var components = DateComponents()
+        components.calendar = Town.calendar
+        components.timeZone = Town.timeZone
+        components.year = year
+        components.month = month
+        components.day = day
+        components.hour = hour
+        components.minute = minute
+        return try XCTUnwrap(Town.calendar.date(from: components))
+    }
+}
+
+// MARK: - Completion: who wins, and what happens when the write does not land
+
+/// A stand-in for `event_completions`, including one that refuses every write —
+/// the only way to assert the rollback, which is the half of "optimistic" that is
+/// easy to ship broken.
+@MainActor
+private final class FakeCompletions: EventCompletionStoring {
+    var stored: Set<String>
+    var failsWrites = false
+    private(set) var inserted: [String] = []
+    private(set) var deleted: [String] = []
+
+    init(stored: Set<String> = []) { self.stored = stored }
+
+    struct Refused: Error {}
+
+    func completedEventIDs(among ids: [String]) async throws -> Set<String> {
+        if failsWrites { throw Refused() }
+        return stored.intersection(ids)
+    }
+
+    func complete(_ eventId: String) async throws {
+        if failsWrites { throw Refused() }
+        inserted.append(eventId)
+        stored.insert(eventId)
+    }
+
+    func uncomplete(_ eventId: String) async throws {
+        if failsWrites { throw Refused() }
+        deleted.append(eventId)
+        stored.remove(eventId)
+    }
+}
+
+@MainActor
+final class DayCompletionStoreTests: XCTestCase {
+
+    /// The reconcile. `DayItem.isComplete` is only what the clock guesses; a stored
+    /// completion is what the neighbour actually said.
+    func testAStoredCompletionBeatsTheClocksGuess() async {
+        let api = FakeCompletions(stored: ["morning-walk"])
+        let store = DayCompletionStore(api: api)
+        let notYetOver = item(id: "morning-walk", clockSaysComplete: false)
+
+        XCTAssertFalse(store.isComplete(notYetOver), "Nothing read yet")
+
+        await store.refresh(for: ["morning-walk"])
+
+        XCTAssertTrue(store.isComplete(notYetOver))
+    }
+
+    /// And the clock still answers for a row nobody has ticked.
+    func testAnUntickedRowFallsBackToTheClock() async {
+        let store = DayCompletionStore(api: FakeCompletions())
+        await store.refresh(for: ["over", "ahead"])
+
+        XCTAssertTrue(store.isComplete(item(id: "over", clockSaysComplete: true)))
+        XCTAssertFalse(store.isComplete(item(id: "ahead", clockSaysComplete: false)))
+    }
+
+    /// "I un-ticked the thing the clock thinks is over" has to be representable, or
+    /// the box springs back the instant it is cleared.
+    func testUntickingSomethingTheClockCallsDoneSticksForTheSession() {
+        let store = DayCompletionStore(api: FakeCompletions())
+        let over = item(id: "over", clockSaysComplete: true)
+
+        store.setComplete(false, for: over.id)
+
+        XCTAssertFalse(store.isComplete(over))
+    }
+
+    /// A refresh landing after a tap must not overwrite the tap.
+    func testALateRefreshDoesNotUndoWhatTheNeighbourJustDid() async {
+        let api = FakeCompletions(stored: ["supper"])
+        let store = DayCompletionStore(api: api)
+        let supper = item(id: "supper", clockSaysComplete: false)
+
+        store.setComplete(false, for: supper.id)
+        await store.refresh(for: ["supper"])
+
+        XCTAssertFalse(
+            store.isComplete(supper),
+            "The server's older truth must lose to the finger"
+        )
+    }
+
+    func testTickingIsAnInsertAndUntickingIsADelete() async {
+        let api = FakeCompletions()
+        let store = DayCompletionStore(api: api)
+
+        await store.writeThrough(true, for: "trivia", revertingTo: nil)
+        await store.writeThrough(false, for: "trivia", revertingTo: true)
+
+        XCTAssertEqual(api.inserted, ["trivia"])
+        XCTAssertEqual(api.deleted, ["trivia"])
+        XCTAssertTrue(api.stored.isEmpty, "Presence-only: unticking removes the row")
+    }
+
+    /// The flip is synchronous so it lands inside the caller's `withAnimation`.
+    func testTheBoxAnswersTheTapBeforeTheNetworkDoes() {
+        let store = DayCompletionStore(api: FakeCompletions())
+        let trivia = item(id: "trivia", clockSaysComplete: false)
+
+        store.setComplete(true, for: trivia.id)
+
+        XCTAssertTrue(store.isComplete(trivia))
+    }
+
+    func testAFailedWriteRollsTheTickBack() async {
+        let api = FakeCompletions()
+        api.failsWrites = true
+        let store = DayCompletionStore(api: api)
+        let trivia = item(id: "trivia", clockSaysComplete: false)
+
+        let previous = store.override(for: trivia.id)
+        store.setComplete(true, for: trivia.id)
+        XCTAssertTrue(store.isComplete(trivia), "Optimistic")
+
+        await store.writeThrough(true, for: trivia.id, revertingTo: previous)
+
+        XCTAssertFalse(store.isComplete(trivia), "The sheet must not show a tick that did not land")
+        XCTAssertNil(store.override(for: trivia.id), "Rolled back to 'not said', not to false")
+    }
+
+    func testAFailedUntickRollsForwardToDoneAgain() async {
+        let api = FakeCompletions(stored: ["walk"])
+        let store = DayCompletionStore(api: api)
+        let walk = item(id: "walk", clockSaysComplete: false)
+        await store.refresh(for: ["walk"])
+
+        let previous = store.override(for: walk.id)
+        store.setComplete(false, for: walk.id)
+        api.failsWrites = true
+        await store.writeThrough(false, for: walk.id, revertingTo: previous)
+
+        XCTAssertTrue(store.isComplete(walk))
+    }
+
+    /// No API — a preview, a gallery, a screenshot flag — writes nothing and reads
+    /// nothing, and still behaves exactly as the in-memory store always did.
+    func testWithoutAnApiTheStoreIsPurelyLocal() async {
+        let store = DayCompletionStore()
+        let trivia = item(id: "trivia", clockSaysComplete: false)
+
+        await store.refresh(for: ["trivia"])
+        XCTAssertFalse(store.isComplete(trivia))
+
+        store.setComplete(true, for: trivia.id)
+        XCTAssertTrue(store.isComplete(trivia))
+    }
+
+    // MARK: - Surviving a relaunch
+    //
+    // A relaunch is, from this store's point of view, exactly one thing: a BRAND
+    // NEW store with an empty dictionary. Nothing is written to disk on purpose —
+    // the row in `event_completions` is the persistence, and a local mirror would
+    // be a second source of truth to go stale. So "does a tick survive a restart"
+    // decomposes into two decidable questions, both asked below.
+
+    /// One: a fresh store remembers NOTHING by itself. If this ever starts passing
+    /// for the wrong reason — a cache, a UserDefaults mirror — the test below stops
+    /// proving anything.
+    func testAFreshStoreHasNoMemoryOfTheLastOne() {
+        let api = FakeCompletions()
+        let first = DayCompletionStore(api: api)
+        let trivia = item(id: "trivia", clockSaysComplete: false)
+
+        first.setComplete(true, for: trivia.id)
+        XCTAssertTrue(first.isComplete(trivia))
+
+        let afterRelaunch = DayCompletionStore(api: api)
+        XCTAssertFalse(
+            afterRelaunch.isComplete(trivia),
+            "Anything a new store already knows did not come from the server"
+        )
+    }
+
+    /// Two: and the read on the way in puts it back. Together these are the
+    /// restart: tick, throw the store away, build a new one, read, still ticked.
+    func testATickComesBackFromTheServerOnTheNextLaunch() async {
+        let api = FakeCompletions()
+        let trivia = item(id: "trivia", clockSaysComplete: false)
+
+        let beforeQuit = DayCompletionStore(api: api)
+        beforeQuit.setComplete(true, for: trivia.id)
+        await beforeQuit.writeThrough(true, for: trivia.id, revertingTo: nil)
+        XCTAssertEqual(api.stored, ["trivia"], "The tick reached the table")
+
+        let afterRelaunch = DayCompletionStore(api: api)
+        await afterRelaunch.refresh(for: [trivia.id])
+
+        XCTAssertTrue(afterRelaunch.isComplete(trivia))
+    }
+
+    /// And an untick does not come back, because the row is gone.
+    func testAnUntickAlsoSurvivesWhenTheClockAgrees() async {
+        let api = FakeCompletions(stored: ["walk"])
+        let walk = item(id: "walk", clockSaysComplete: false)
+
+        let beforeQuit = DayCompletionStore(api: api)
+        await beforeQuit.refresh(for: [walk.id])
+        beforeQuit.setComplete(false, for: walk.id)
+        await beforeQuit.writeThrough(false, for: walk.id, revertingTo: true)
+
+        let afterRelaunch = DayCompletionStore(api: api)
+        await afterRelaunch.refresh(for: [walk.id])
+
+        XCTAssertFalse(afterRelaunch.isComplete(walk))
+    }
+
+    /// THE DOCUMENTED LIMIT, pinned so nobody "fixes" it by accident. Presence-only
+    /// storage cannot hold "I un-ticked the thing the clock calls done": the untick
+    /// deletes a row that was never there, and after a relaunch the clock's guess
+    /// resumes. A tombstone would need a second migration.
+    func testUntickingAClockCompleteItemDoesNotSurviveARelaunch() async {
+        let api = FakeCompletions()
+        let over = item(id: "over", clockSaysComplete: true)
+
+        let beforeQuit = DayCompletionStore(api: api)
+        beforeQuit.setComplete(false, for: over.id)
+        await beforeQuit.writeThrough(false, for: over.id, revertingTo: nil)
+        XCTAssertFalse(beforeQuit.isComplete(over))
+
+        let afterRelaunch = DayCompletionStore(api: api)
+        await afterRelaunch.refresh(for: [over.id])
+
+        XCTAssertTrue(
+            afterRelaunch.isComplete(over),
+            "Known limitation — if this ever fails, the table gained a tombstone"
+        )
+    }
+
+    // MARK: - Fixture
+
+    private func item(id: String, clockSaysComplete: Bool) -> DayItem {
+        let start = Date(timeIntervalSince1970: 2_000_000_000)
+        return DayItem(
+            id: id,
+            title: "Thing \(id)",
+            source: .committed,
+            start: start,
+            end: nil,
+            isAllDay: false,
+            isMultiDay: false,
+            isComplete: clockSaysComplete,
+            eyebrow: "11 AM",
+            location: nil,
+            goingCount: 0,
+            event: UpcomingEvent(
+                id: id,
+                title: "Thing \(id)",
+                eventDate: "2033-05-18",
+                startTime: "11 AM",
+                location: nil,
+                goingCount: 0,
+                createdAt: "test"
+            )
+        )
+    }
+}

@@ -16,6 +16,10 @@ private typealias M = YourDayRailMetrics
 
 struct YourDayRail: View {
     let items: [DayItem]
+    /// Whether each item is done, resolved by `DayCompletionStore` — a stored
+    /// completion beats the clock's guess, and the rail has to agree with the day
+    /// sheet or a tick would appear to come undone on closing it.
+    var isComplete: (DayItem) -> Bool = { $0.isComplete }
     /// Shown only in the one-item state, and only when there genuinely is another
     /// happening today to offer. Nil is the honest default.
     let suggestion: DayItem?
@@ -50,9 +54,13 @@ struct YourDayRail: View {
     }
 
     private var header: some View {
+        // `.firstTextBaseline`, and it only survives because the Jost side is now
+        // frozen too (`Font.dayDisplaySemi`). While the display face scaled and the
+        // SF count beside it did not, AX5 grew this heading to ~53pt and the shared
+        // baseline dragged the count 40pt down into its descender.
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(YourDayRailCopy.header)
-                .font(.displaySemi(M.headerSize))
+                .font(.dayDisplaySemi(M.headerSize))
                 .foregroundStyle(Hue.ink)
 
             Spacer(minLength: 0)
@@ -83,6 +91,7 @@ struct YourDayRail: View {
                     ForEach(items) { item in
                         YourDayCard(
                             item: item,
+                            isComplete: isComplete(item),
                             namespace: namespace,
                             morphs: morphs,
                             onOpenDay: onOpenDay

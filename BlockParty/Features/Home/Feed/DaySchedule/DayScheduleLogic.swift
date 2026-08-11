@@ -57,10 +57,12 @@ nonisolated enum DayScheduleLogic {
     /// What actually survives today, and why:
     ///   * `DISTANCE` — never. Events carry no coordinates; there is no distance
     ///     source to ask. See `distance(for:)`.
-    ///   * `ENDS IN` — never, until `club_events.end_at` ships. The two-hour
+    ///   * `ENDS IN` / `DURATION` — only when the row STATES an end.
+    ///     `club_events.end_at` now exists, so these are reachable; every live row
+    ///     is still NULL, so in practice they are still absent. The two-hour
     ///     assumption `completionInstant` makes is good enough to grey a card out
-    ///     and nowhere near good enough to print as a number.
-    ///   * `DURATION` — same reason.
+    ///     and nowhere near good enough to print as a number, so it is never
+    ///     borrowed here.
     ///   * `GOING` — only above zero. "0 going" is a fact about our database, not
     ///     about the town.
     ///
@@ -110,16 +112,10 @@ nonisolated enum DayScheduleLogic {
         }
     }
 
+    /// Reuses the eyebrow's duration vocabulary rather than inventing a second one,
+    /// so `11:00 AM · 2 hr` and a `DURATION` column of `2 hr` are the same sentence.
     static func duration(_ item: DayItem) -> String? {
-        guard let end = item.end else { return nil }
-        let minutes = Int((end.timeIntervalSince(item.start) / 60).rounded())
-        guard minutes > 0 else { return nil }
-        guard minutes >= 60 else { return "\(minutes) min" }
-        let hours = Double(minutes) / 60
-        let rounded = (hours * 10).rounded() / 10
-        return rounded == rounded.rounded()
-            ? "\(Int(rounded)) hr"
-            : String(format: "%.1f hr", rounded)
+        YourDayLogic.durationText(start: item.start, end: item.end)
     }
 
     static func going(_ item: DayItem) -> String? {
@@ -135,18 +131,23 @@ nonisolated enum DayScheduleLogic {
     // MARK: - The gutter
 
     /// The left clock scale. Derived from the contract's documented `eyebrow`
-    /// vocabulary — `"6:30 PM"` · `"Today · ongoing"` · `"Today · all day"` ·
-    /// `"Today"` — with the structural flags taking precedence, so nothing here
-    /// re-parses the event row.
+    /// vocabulary — `"6:30 PM"` · `"6:30 PM · 2 hr"` · `"Today · ongoing"` ·
+    /// `"Today · all day"` · `"Today"` — with the structural flags taking
+    /// precedence, so nothing here re-parses the event row.
     ///
     /// Nil for `"Today"`: the organiser never said a time, and 11:59 PM (where the
     /// data layer parks an unparseable one so it sorts last) is a sort key, not a
     /// fact to print.
+    ///
+    /// THE DOT SPLIT IS LOAD-BEARING. Now that `end_at` exists, a timed eyebrow may
+    /// carry a duration after a `·`. Reading the meridiem off the LAST space would
+    /// then find "hr" and the whole gutter column would go silent on exactly the
+    /// rows that know the most about themselves.
     static func gutterTime(for item: DayItem) -> DayGutterTime? {
         if item.isAllDay { return DayGutterTime(value: "all day", meridiem: nil) }
         if item.isMultiDay { return DayGutterTime(value: "ongoing", meridiem: nil) }
 
-        let eyebrow = item.eyebrow.trimmingCharacters(in: .whitespaces)
+        let eyebrow = clockPart(of: item.eyebrow)
         guard let separator = eyebrow.range(of: " ", options: .backwards) else {
             return nil
         }
@@ -160,6 +161,35 @@ nonisolated enum DayScheduleLogic {
             value: String(eyebrow[..<separator.lowerBound]),
             meridiem: meridiem
         )
+    }
+
+    /// The part of an eyebrow before its first ` · ` — the clock time, when there
+    /// is one. `YourDayLogic.eyebrow(for:isMultiDay:)` is the only writer of this
+    /// string and the separator is spelled there.
+    private static func clockPart(of eyebrow: String) -> String {
+        let head = eyebrow.components(separatedBy: YourDayLogic.eyebrowSeparator)[0]
+        return head.trimmingCharacters(in: .whitespaces)
+    }
+
+    // MARK: - Directions
+
+    /// The Maps URL for a row, or nil when the row never named a place.
+    ///
+    /// Lives here rather than on the card because BOTH the card's ghost button and
+    /// the row's VoiceOver action need to know whether there is one: the row has to
+    /// publish a "Directions" action only when the button exists, and two copies of
+    /// this rule would drift into a reader announcing an action that does nothing.
+    ///
+    /// There is no coordinate on an event, so this is a text search against the
+    /// town — good enough to open the right pin, and honest about being a search.
+    static func directionsURL(for item: DayItem) -> URL? {
+        guard let location = item.location?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !location.isEmpty
+        else { return nil }
+
+        var components = URLComponents(string: "http://maps.apple.com/")
+        components?.queryItems = [URLQueryItem(name: "q", value: "\(location), \(Town.display)")]
+        return components?.url
     }
 
     // MARK: - Subtitle

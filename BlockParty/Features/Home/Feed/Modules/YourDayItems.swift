@@ -99,7 +99,7 @@ nonisolated extension YourDayLogic {
             isAllDay: event.isAllDay,
             isMultiDay: isMultiDay,
             isComplete: now >= completionInstant(for: event, span: span),
-            eyebrow: eyebrow(for: event, isMultiDay: isMultiDay),
+            eyebrow: eyebrow(for: event, isMultiDay: isMultiDay, span: span),
             location: placeText(for: event),
             goingCount: event.goingCount,
             event: event
@@ -132,12 +132,52 @@ nonisolated extension YourDayLogic {
         return span.start.addingTimeInterval(assumedEventDuration)
     }
 
+    /// The one separator the eyebrow ever uses. Named because `DayScheduleLogic`
+    /// has to split the clock time back off the line to build the gutter.
+    static var eyebrowSeparator: String { " · " }
+
     /// The line above the title. A multi-day item says it is still running instead
     /// of quoting a start time that was two days ago.
-    static func eyebrow(for event: UpcomingEvent, isMultiDay: Bool) -> String {
+    ///
+    /// A timed item whose row STATES an end carries how long it runs — `11:00 AM ·
+    /// 2 hr`. That clause is reachable now that `club_events.end_at` exists and
+    /// silent on every row that leaves it NULL, which today is all of them: the
+    /// assumed two-hour duration behind `completionInstant` is a guess good enough
+    /// to grey a card out and not good enough to print, so it is never borrowed
+    /// here. `span` is optional so the two structural shapes above can still be
+    /// asked for on their own.
+    static func eyebrow(
+        for event: UpcomingEvent,
+        isMultiDay: Bool,
+        span: (start: Date, end: Date?)? = nil
+    ) -> String {
         if event.isAllDay { return "Today · all day" }
         if isMultiDay { return "Today · ongoing" }
-        return startTimeText(for: event) ?? "Today"
+
+        guard let time = startTimeText(for: event) else { return "Today" }
+        guard let span,
+              let length = durationText(start: span.start, end: span.end)
+        else { return time }
+
+        return time + eyebrowSeparator + length
+    }
+
+    /// `45 min` · `2 hr` · `1.5 hr`, or nil when the row never stated an end.
+    ///
+    /// The ONE duration vocabulary in the feature — the day sheet's `DURATION`
+    /// column reads it too, so an event cannot say "2 hr" in the eyebrow and
+    /// "120 min" in its stats.
+    static func durationText(start: Date, end: Date?) -> String? {
+        guard let end else { return nil }
+        let minutes = Int((end.timeIntervalSince(start) / 60).rounded())
+        guard minutes > 0 else { return nil }
+        guard minutes >= 60 else { return "\(minutes) min" }
+
+        let hours = Double(minutes) / 60
+        let rounded = (hours * 10).rounded() / 10
+        return rounded == rounded.rounded()
+            ? "\(Int(rounded)) hr"
+            : String(format: "%.1f hr", rounded)
     }
 
     // MARK: - Placing a row on the clock

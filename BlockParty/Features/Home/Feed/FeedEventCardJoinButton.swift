@@ -42,7 +42,10 @@ struct FeedEventCardJoinButton: View {
     private var buttonFace: some View {
         ZStack {
             RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
-                .fill(isJoined ? Color.white : Hue.ink)
+                // `Hue.surface`, not a literal white: this pair inverts with the
+                // appearance. An ink ground with a white mark becomes a near-white
+                // ground with a white mark in the dark, and the + disappears.
+                .fill(isJoined ? Hue.surface : Hue.ink)
                 .overlay {
                     RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
                         .strokeBorder(buttonBorder, lineWidth: 1)
@@ -51,7 +54,7 @@ struct FeedEventCardJoinButton: View {
 
             FeedCardPlusMark()
                 .stroke(
-                    Color.white,
+                    Hue.surface,
                     style: StrokeStyle(lineWidth: 2, lineCap: .round)
                 )
                 .frame(width: 20, height: 20)
@@ -86,7 +89,7 @@ struct FeedEventCardJoinButton: View {
 
     private var ringHalo: some View {
         RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
-            .strokeBorder(Color.white, lineWidth: 3.75)
+            .strokeBorder(Hue.surface, lineWidth: 3.75)
     }
 
     private var buttonBorder: Color {

@@ -180,7 +180,7 @@ struct DayDetailView: View {
                             composing = true
                         } label: {
                             Text("Add an event")
-                                .font(.sansSemibold(14)).foregroundStyle(.white)
+                                .font(.sansSemibold(14)).foregroundStyle(Hue.surface)
                                 .padding(.horizontal, 18).padding(.vertical, 10)
                                 .background(Hue.ink,
                                             in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
@@ -447,7 +447,9 @@ private struct TimelineSlotView: View {
             .overlay(
                 Image(systemName: cat.glyph)
                     .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(.white)
+                    // `cat.tint` resolves to `Hue.ink` (category is carried by
+                    // glyph, not hue), so the glyph on it is `Hue.surface`.
+                    .foregroundStyle(Hue.surface)
                     .accessibilityLabel("\(cat.label) event")
             )
             .scaleEffect(revealed || reduceMotion ? 1 : 0.5, anchor: .center)
@@ -472,7 +474,7 @@ private struct TimelineSlotView: View {
                             Circle().fill(Hue.ink)
                             Image(systemName: "checkmark")
                                 .font(.system(size: 12, weight: .bold))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Hue.surface)
                         } else {
                             Circle().stroke(Hue.inkSecondary.opacity(0.5), lineWidth: 1.5)
                         }
@@ -588,7 +590,7 @@ private struct EventDescriptionSheet: View {
                     } label: {
                         Text(event.rsvpd ? "Going" : "Join")
                             .font(.sansSemibold(15))
-                            .foregroundStyle(event.rsvpd ? .white : Hue.ink)
+                            .foregroundStyle(event.rsvpd ? Hue.surface : Hue.ink)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 12)
                             .background(event.rsvpd ? Hue.ink : Hue.surface,

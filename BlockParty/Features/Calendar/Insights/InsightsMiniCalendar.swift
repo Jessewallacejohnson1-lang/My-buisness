@@ -112,7 +112,8 @@ struct InsightsMiniCalendar: View {
         if day == todayDay {
             Text("\(day)")
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.white)
+                // `InsightsPalette.todayFill` is `Hue.ink`, which inverts.
+                .foregroundStyle(Hue.surface)
                 .frame(width: todayCircleDiameter, height: todayCircleDiameter)
                 .background(Circle().fill(InsightsPalette.todayFill))
                 .frame(maxWidth: .infinity, minHeight: cellHeight)
