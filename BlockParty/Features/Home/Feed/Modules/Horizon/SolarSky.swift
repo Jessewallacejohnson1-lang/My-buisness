@@ -143,4 +143,24 @@ nonisolated struct SolarSky: Equatable {
         let start = calendar.startOfDay(for: day)
         return calendar.date(byAdding: .minute, value: minutes, to: start) ?? start
     }
+
+    /// Re-dates a solar time onto `reference`'s town day, keeping its wall
+    /// clock (DST-safe via bySettingHour, the repo's townInstant pattern).
+    ///
+    /// Sun times drift under ~2 min/day here, so re-dating a stale reading
+    /// is honest — it keeps the sky correct when the card stays mounted
+    /// across midnight and the feed hasn't refetched yet. Without this, a
+    /// day-old sunset leaves the card in a permanent night window.
+    static func rebase(
+        _ solarTime: Date?, ontoDayOf reference: Date, calendar: Calendar = Town.calendar
+    ) -> Date? {
+        guard let solarTime else { return nil }
+        let time = calendar.dateComponents([.hour, .minute, .second], from: solarTime)
+        return calendar.date(
+            bySettingHour: time.hour ?? 0,
+            minute: time.minute ?? 0,
+            second: time.second ?? 0,
+            of: calendar.startOfDay(for: reference)
+        )
+    }
 }

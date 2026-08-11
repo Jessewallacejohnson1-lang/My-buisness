@@ -103,6 +103,26 @@ final class SolarSkyTests: XCTestCase {
         XCTAssertEqual(sky.sunrise, townDate(2026, 8, 11, 6, 30))
         XCTAssertEqual(sky.sunset, townDate(2026, 8, 11, 20, 30))
     }
+
+    func testRebaseKeepsTheSkyTruthfulAcrossMidnight() {
+        // The card stays mounted past midnight with yesterday's solar
+        // times. Without re-dating, 10 AM reads as a permanent night
+        // window; with it, the morning is a morning.
+        let staleNow = townDate(2026, 8, 12, 10, 0)
+        let rebasedRise = SolarSky.rebase(sunrise, ontoDayOf: staleNow)
+        let rebasedSet = SolarSky.rebase(sunset, ontoDayOf: staleNow)
+        XCTAssertEqual(rebasedRise, townDate(2026, 8, 12, 6, 13))
+        XCTAssertEqual(rebasedSet, townDate(2026, 8, 12, 21, 2))
+
+        let stale = SolarSky(now: staleNow, sunrise: sunrise, sunset: sunset)
+        XCTAssertEqual(stale.phase, .night, "the failure mode the rebase exists for")
+        let rebased = SolarSky(now: staleNow, sunrise: rebasedRise, sunset: rebasedSet)
+        XCTAssertEqual(rebased.phase, .day)
+
+        // Same-day rebasing is the identity, so applying it uniformly is safe.
+        XCTAssertEqual(SolarSky.rebase(sunrise, ontoDayOf: townDate(2026, 8, 11, 13, 0)), sunrise)
+        XCTAssertNil(SolarSky.rebase(nil, ontoDayOf: staleNow))
+    }
 }
 
 /// Builds a Date from components in the town's timezone.

@@ -29,12 +29,18 @@ struct YourDayHorizonSection: View {
             header
 
             // Recompute every 60 s and on scene activation. The sky moves at
-            // the speed of the actual sky — no ambient animation.
+            // the speed of the actual sky — no ambient animation. Solar
+            // times are re-dated onto now's town day so a session that
+            // stays mounted across midnight keeps a truthful sky (items
+            // refresh on the feed's own cadence; HorizonDay's today guard
+            // already zeroes yesterday's rows out of the counts).
             TimelineView(.periodic(from: .now, by: tickInterval)) { context in
+                let now = resolvedNow(context.date)
+                let sun = resolvedSun()
                 HorizonCard(
-                    now: resolvedNow(context.date),
-                    sunrise: resolvedSun().rise,
-                    sunset: resolvedSun().set,
+                    now: now,
+                    sunrise: SolarSky.rebase(sun.rise, ontoDayOf: now),
+                    sunset: SolarSky.rebase(sun.set, ontoDayOf: now),
                     items: items,
                     isLoading: isLoading,
                     onOpenDay: openDay,
@@ -55,7 +61,6 @@ struct YourDayHorizonSection: View {
             Text(YourDayRailCopy.header)
                 .font(.dayDisplaySemi(M.headerSize))
                 .foregroundStyle(Hue.ink)
-                .accessibilityAddTraits(.isHeader)
 
             Spacer(minLength: 0)
 
@@ -66,6 +71,12 @@ struct YourDayHorizonSection: View {
                     .monospacedDigit()
             }
         }
+        .accessibilityElement(children: .combine)
+        // The counts belong to the card, which announces them itself.
+        // Combining the count into the heading too made VoiceOver say it
+        // twice — same rule the old rail header followed.
+        .accessibilityLabel(YourDayRailCopy.header)
+        .accessibilityAddTraits(.isHeader)
     }
 
     // MARK: Routes

@@ -100,16 +100,17 @@ final class YourDayModule: @MainActor FeedModule {
         do {
             let candidates = try await CommunityAPI(auth: ctx.auth).getTownDayCandidates(now: now)
             items = YourDayLogic.dayItems(from: candidates, now: now)
-            let w = await weather
-            sunrise = w?.sunrise
-            sunset = w?.sunset
             loadState = .ready
         } catch {
-            let w = await weather
-            sunrise = w?.sunrise
-            sunset = w?.sunset
             loadState = .failed
         }
+
+        // Solar times hydrate AFTER readiness: the card opens on its
+        // 6:30/8:30 fallback and cross-fades when the real times land. A
+        // slow Open-Meteo read must never hold the day's content hostage.
+        let w = await weather
+        sunrise = w?.sunrise
+        sunset = w?.sunset
 
         // Stored completions, AFTER the rail is ready. Best-effort and separate
         // from the fetch above: a completions read that fails must not blank a day
