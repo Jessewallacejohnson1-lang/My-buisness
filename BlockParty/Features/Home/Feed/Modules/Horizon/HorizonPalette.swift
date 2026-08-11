@@ -125,12 +125,22 @@ nonisolated struct HorizonRGB: Equatable {
     /// Per-phase stub adjustment: the category colors were picked against a
     /// white map and several collapse against dawn/dusk/night skies.
     /// Lightness/saturation deltas are percentage points on the 0…1 scale.
+    ///
+    /// Deviation from the spec's flat dawn/dusk lift (+18 L), found in the
+    /// screenshot loop: WARM hues lifted +18 land inside the warm bloom's
+    /// own value range and vanish exactly where stubs live (an 8:30 PM
+    /// orange stub inside the sunset bloom). Warm hues darken against the
+    /// bloom instead; cool hues lighten as specced. Night lifts everything —
+    /// the sky is uniformly dark there.
     func adjustedForSky(_ phase: SkyPhase) -> HorizonRGB {
         let (h, s, l) = hsl
         switch phase {
         case .day:
             return self
         case .dawn, .dusk:
+            if s > 0.05, h >= 0.01, h <= 0.17 {  // warm band ≈ 4°…61°
+                return .fromHSL(h: h, s: min(s + 0.05, 1), l: max(l - 0.12, 0))
+            }
             return .fromHSL(h: h, s: max(s - 0.10, 0), l: min(l + 0.18, 1))
         case .night:
             return .fromHSL(h: h, s: max(s - 0.15, 0), l: min(l + 0.32, 1))

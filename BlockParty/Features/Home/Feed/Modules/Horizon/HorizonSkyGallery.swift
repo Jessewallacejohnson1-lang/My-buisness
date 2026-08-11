@@ -26,6 +26,9 @@ struct HorizonSkyGallery: View {
     ]
 
     private let page: Int
+    /// `-horizon-card-gallery` renders the full card (stubs, ticks, labels,
+    /// now line) over the busy fixture; the bare sky flag renders sky only.
+    private let showsFullCard: Bool
 
     init() {
         let args = ProcessInfo.processInfo.arguments
@@ -35,6 +38,7 @@ struct HorizonSkyGallery: View {
         } else {
             page = 1
         }
+        showsFullCard = args.contains("-horizon-card-gallery")
     }
 
     var body: some View {
@@ -72,20 +76,31 @@ struct HorizonSkyGallery: View {
         let sunrise = calendar.date(from: riseComponents)
         let sunset = calendar.date(from: setComponents)
 
-        let sky = SolarSky(now: now, sunrise: sunrise, sunset: sunset)
-        return GeometryReader { geo in
-            HorizonBackdrop(
-                sky: sky,
-                axis: TimeAxis(now: now, sunrise: sunrise, sunset: sunset, width: geo.size.width)
-            )
+        if showsFullCard {
+            return AnyView(HorizonCard(
+                now: now,
+                sunrise: sunrise,
+                sunset: sunset,
+                items: HorizonMock.items(for: "busy", day: calendar.startOfDay(for: now))
+            ))
         }
-        .frame(height: HorizonMetrics.cardHeight)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                .stroke(Hue.hairline, lineWidth: 1)
+
+        let sky = SolarSky(now: now, sunrise: sunrise, sunset: sunset)
+        return AnyView(
+            GeometryReader { geo in
+                HorizonBackdrop(
+                    sky: sky,
+                    axis: TimeAxis(now: now, sunrise: sunrise, sunset: sunset, width: geo.size.width)
+                )
+            }
+            .frame(height: HorizonMetrics.cardHeight)
+            .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+                    .stroke(Hue.hairline, lineWidth: 1)
+            )
+            .modifier(CardShadow())
         )
-        .modifier(CardShadow())
     }
 }
 #endif

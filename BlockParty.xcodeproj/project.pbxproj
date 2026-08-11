@@ -20,6 +20,7 @@
 		4C81E5476FCD47D8D9255B67 /* HorizonPaletteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C80F230CD76D9EE195C14B02 /* HorizonPaletteTests.swift */; };
 		601CE2FFEC4A8CF9FC1EEDB0 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 42A092CAAEC9643A72B2B683 /* Foundation.framework */; };
 		71AF89BE942262B267E9EED5 /* BriefingModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A3955AC9247867FF5BA1693 /* BriefingModelTests.swift */; };
+		729B158B317B49C480E0BAA2 /* HorizonDayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2156DCA9C1C4482E9282DBD /* HorizonDayTests.swift */; };
 		75026A6523E933F77B9D1599 /* TownTimezoneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCE178E8E9CAEDC7860D5827 /* TownTimezoneTests.swift */; };
 		79234E27AF12510D6753B893 /* TownRainPhysicsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFD668B9346E5F64FA381974 /* TownRainPhysicsTests.swift */; };
 		847E1C121AFB0ED4DA1097B3 /* GarbageScheduleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22F2FD6B26B33048FB6F1F3A /* GarbageScheduleTests.swift */; };
@@ -79,6 +80,7 @@
 		CD06A519DEAA1CE7383312F9 /* UtilityCustomizeSheetSeedTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = UtilityCustomizeSheetSeedTests.swift; path = BlockPartyTests/UtilityCustomizeSheetSeedTests.swift; sourceTree = "<group>"; };
 		CD24EB3E8F0A7A2B6F990414 /* YourDayLogicTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = YourDayLogicTests.swift; path = BlockPartyTests/YourDayLogicTests.swift; sourceTree = "<group>"; };
 		CFD668B9346E5F64FA381974 /* TownRainPhysicsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TownRainPhysicsTests.swift; path = BlockPartyTests/TownRainPhysicsTests.swift; sourceTree = "<group>"; };
+		D2156DCA9C1C4482E9282DBD /* HorizonDayTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HorizonDayTests.swift; path = BlockPartyTests/HorizonDayTests.swift; sourceTree = "<group>"; };
 		D9BA99115273BA31F2456961 /* UtilityTileVisualTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = UtilityTileVisualTests.swift; path = BlockPartyTests/UtilityTileVisualTests.swift; sourceTree = "<group>"; };
 		DA1673803CC241000ECD1272 /* BriefingFeelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BriefingFeelTests.swift; path = BlockPartyTests/BriefingFeelTests.swift; sourceTree = "<group>"; };
 		E3724B352D9364BA97D7C955 /* TriviaTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TriviaTests.swift; path = BlockPartyTests/TriviaTests.swift; sourceTree = "<group>"; };
@@ -142,6 +144,7 @@
 				E6DC1AD88815594BD1764E2E /* SolarSkyTests.swift */,
 				941C87F2C3562D52202CD705 /* TimeAxisTests.swift */,
 				C80F230CD76D9EE195C14B02 /* HorizonPaletteTests.swift */,
+				D2156DCA9C1C4482E9282DBD /* HorizonDayTests.swift */,
 			);
 			name = BlockPartyTests;
 			sourceTree = "<group>";
@@ -329,6 +332,7 @@
 				9604D65B53F241B6EA2E1852 /* SolarSkyTests.swift in Sources */,
 				B6C236A36489EE42D5FD978E /* TimeAxisTests.swift in Sources */,
 				4C81E5476FCD47D8D9255B67 /* HorizonPaletteTests.swift in Sources */,
+				729B158B317B49C480E0BAA2 /* HorizonDayTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

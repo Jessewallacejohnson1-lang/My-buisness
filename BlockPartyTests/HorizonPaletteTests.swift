@@ -132,6 +132,16 @@ final class HorizonPaletteTests: XCTestCase {
         XCTAssertEqual(night.l, base.l + 0.32, accuracy: 0.01)
         XCTAssertEqual(night.s, base.s - 0.15, accuracy: 0.01)
 
+        // Warm hues go the other way at dawn/dusk — darker against the
+        // bloom, not lighter into it (screenshot-loop finding).
+        let orange = HorizonRGB(hex: 0xE67633)  // eventsFestivals top, light
+        let duskOrange = orange.adjustedForSky(.dusk).hsl
+        XCTAssertEqual(duskOrange.l, orange.hsl.l - 0.12, accuracy: 0.01)
+        XCTAssertGreaterThan(
+            orange.adjustedForSky(.night).hsl.l, orange.hsl.l,
+            "night still lifts warm hues — the night sky is uniformly dark"
+        )
+
         // The point of the adjustment: adjusted teal must separate from the
         // sky's bottom stop where raw teal collapses.
         let nightSkyBottom = HorizonPalette.nightRamp[2].color
