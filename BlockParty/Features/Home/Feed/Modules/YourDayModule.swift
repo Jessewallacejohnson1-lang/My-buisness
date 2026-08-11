@@ -127,13 +127,16 @@ final class YourDayModule: @MainActor FeedModule {
                     townCount: townCount,
                     dates: ctx.dates,
                     completion: completion,
-                    // Where a tap lands when no day-sheet host is mounted above
+                    // Where a CARD tap lands when no day-sheet host is mounted above
                     // this feed — the galleries and the module previews. The real
-                    // app always has one (see `MainTabsView`), so these are the
-                    // fallbacks, not the route.
+                    // app always has one (see `MainTabsView`), so this is the
+                    // fallback, not the route.
                     onOpenDayWithoutHost: { ctx.navigate(.event($0.event)) },
-                    onAddWithoutHost: { ctx.navigate(.feedDiscovery) },
-                    onExplore: { ctx.navigate(.feedDiscovery) }
+                    // The plus tile and the zero-state card, which are the same
+                    // invitation twice: go and see what the town has posted for
+                    // today. Not host-dependent — a browse is a browse whether or
+                    // not a day sheet could have been opened.
+                    onBrowseToday: { ctx.navigate(.activities(.happeningToday)) }
                 )
                 .padding(.top, YourDayRailMetrics.sectionTop)
                 .springReveal(
@@ -141,7 +144,7 @@ final class YourDayModule: @MainActor FeedModule {
                     revealed: ctx.contentRevealed,
                     animated: ctx.revealAnimated
                 )
-                .modifier(YourDayDebugDetailOpener(events: events, navigate: ctx.navigate))
+                .modifier(YourDayDebugRouteOpener(events: events, navigate: ctx.navigate))
             )
 
         case .empty:
@@ -207,11 +210,17 @@ private extension YourDayModule {
 }
 #endif
 
-/// `-yourday-open-detail` opens the first upcoming event's detail on appear.
-/// There is no tap automation in this simulator setup, so a screen only reachable
-/// by tapping a card is otherwise unverifiable. No-op without the flag, and the
-/// whole modifier compiles to a pass-through in Release.
-private struct YourDayDebugDetailOpener: ViewModifier {
+/// Fires one of the rail's routes on appear. There is no tap automation in this
+/// simulator setup, so a destination only reachable by tapping is otherwise
+/// unverifiable — these drive the REAL routes, through the real navigate closure.
+///
+/// * `-yourday-open-detail [index]` opens an item's detail sheet.
+/// * `-yourday-open-explore` fires the zero-state card's route (pair it with
+///   `-yourday-count 0`), which switches to the Activities tab on today's events.
+///
+/// No-op without a flag, and the whole modifier compiles to a pass-through in
+/// Release.
+private struct YourDayDebugRouteOpener: ViewModifier {
     let events: [UpcomingEvent]
     let navigate: (FeedRoute) -> Void
 
@@ -219,6 +228,15 @@ private struct YourDayDebugDetailOpener: ViewModifier {
         #if DEBUG
         content.task {
             let args = ProcessInfo.processInfo.arguments
+
+            if args.contains("-yourday-open-explore") {
+                // Long enough for the reveal to settle, so the screenshot before it
+                // is the resting zero state rather than a mid-spring frame.
+                try? await Task.sleep(for: .milliseconds(1200))
+                navigate(.activities(.happeningToday))
+                return
+            }
+
             guard let flag = args.firstIndex(of: "-yourday-open-detail") else { return }
             let offset = (flag + 1 < args.count ? Int(args[flag + 1]) : nil) ?? 0
             guard events.indices.contains(offset) else { return }
@@ -244,6 +262,12 @@ private struct YourDayHeading: View {
 
 /// Resolves which namespace the rail draws in, and where a tap goes.
 ///
+/// TWO TAPS, TWO DESTINATIONS, and only one of them cares about the host: a CARD
+/// opens the day sheet ("what you have planned, in more depth"), while the plus
+/// tile and the zero-state card leave for today's postings in Activities. The plus
+/// used to open the sheet scrolled to its bottom CTA; it no longer opens the sheet
+/// at all.
+///
 /// The morph needs the rail card and the timeline row to share ONE namespace, and
 /// the only view that is an ancestor of both is `DayScheduleHost` — mounted on
 /// `MainTabsView`, above the tab bar, because a full-height day sheet under a
@@ -260,8 +284,9 @@ private struct YourDaySection: View {
     /// behind it, and un-dim it when the neighbour changes their mind.
     @ObservedObject var completion: DayCompletionStore
     let onOpenDayWithoutHost: (DayItem) -> Void
-    let onAddWithoutHost: () -> Void
-    let onExplore: () -> Void
+    /// The plus tile AND the zero-state card. One closure because they are one
+    /// destination — today's postings — and nothing about it depends on a host.
+    let onBrowseToday: () -> Void
 
     @Environment(\.daySchedule) private var host
     @Environment(\.dayScheduleNamespace) private var hostNamespace
@@ -277,7 +302,7 @@ private struct YourDaySection: View {
                 townCount: townCount,
                 dates: dates,
                 isComplete: completion.isComplete,
-                onExplore: onExplore
+                onBrowseToday: onBrowseToday
             )
         } else {
             YourDayRail(
@@ -287,15 +312,16 @@ private struct YourDaySection: View {
                 townCount: townCount,
                 namespace: localNamespace,
                 onOpenDay: onOpenDayWithoutHost,
-                onAdd: onAddWithoutHost,
-                onExplore: onExplore
+                onAdd: onBrowseToday,
+                onExplore: onBrowseToday
             )
         }
     }
 }
 
-/// The rail with a day-sheet host above it: a card tap opens the day on that card,
-/// the add tile opens it on the bottom "Add to today" button.
+/// The rail with a day-sheet host above it. A card tap opens the day on that card;
+/// the plus tile does not touch the host at all (see the seam below), so this view
+/// only ever opens on an item.
 ///
 /// Split out purely so `host` can be an `@ObservedObject` — the rail has to re-read
 /// `isOpen` to hand its half of the matched pair over to the sheet and take it back
@@ -308,7 +334,7 @@ private struct YourDayHostedRail: View {
     let townCount: Int?
     let dates: any DateProviding
     let isComplete: (DayItem) -> Bool
-    let onExplore: () -> Void
+    let onBrowseToday: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -321,8 +347,18 @@ private struct YourDayHostedRail: View {
             namespace: namespace,
             morphs: !reduceMotion && !host.isOpen,
             onOpenDay: { open(.item($0.id)) },
-            onAdd: { open(.callToAction) },
-            onExplore: onExplore
+            // THE TWO TAPS LAND IN DIFFERENT PLACES, deliberately. A card opens
+            // the day sheet — what you have planned, in depth. The plus does NOT:
+            // it goes straight to today's postings in Activities, because "add
+            // something" is a question about the town's day, not about yours.
+            //
+            // It used to open the sheet scrolled to its bottom CTA (the original
+            // spec's §3). That put a browse action behind a read surface: you asked
+            // for something to do and got your own empty day first. The sheet's own
+            // sticky "+ Add to today" still opens the composer — that one is a
+            // different question, asked from inside the day.
+            onAdd: onBrowseToday,
+            onExplore: onBrowseToday
         )
         .modifier(DayScheduleDemoOpener(items: items, open: open))
     }

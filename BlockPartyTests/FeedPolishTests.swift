@@ -157,8 +157,63 @@ final class FeedRouteAndCopyTests: XCTestCase {
         XCTAssertNotEqual(walk, supper)
         XCTAssertEqual(walk, FeedRoute.event(sampleEvent(id: "walk")))
         XCTAssertEqual(walk.id, walk)
-        XCTAssertNotEqual(walk, .feedDiscovery)
+        XCTAssertNotEqual(walk, .civicTab)
     }
+
+    // MARK: The Your Day escape hatches — a real screen, not a placeholder
+
+    /// The zero-state card and the add tile both leave the feed, and the shell — not
+    /// the feed — fulfils that route. A nil `destination` is how `FeedView` knows to
+    /// hand it up instead of presenting a sheet, so it is the contract, not a detail.
+    func testActivitiesRouteIsHandedToTheShellRatherThanPresentedAsASheet() {
+        let route = FeedRoute.activities(.happeningToday)
+
+        XCTAssertEqual(route.activitiesRequest, .happeningToday)
+        XCTAssertNil(route.destination, "Tab selection belongs to MainTabsView")
+
+        for sheetRoute in [FeedRoute.civicTab, .editInterests, .event(sampleEvent(id: "walk"))] {
+            XCTAssertNil(sheetRoute.activitiesRequest, "\(sheetRoute) presents itself")
+            XCTAssertNotNil(sheetRoute.destination, "\(sheetRoute) needs a destination")
+        }
+    }
+
+    /// "See what's happening in St. Joe" is today's EVENTS. `.all` renders the
+    /// undated discovery layout, which would silently drop the timeframe.
+    func testTheZeroStateAsksForTodaysEvents() {
+        XCTAssertEqual(ActivitiesRequest.happeningToday.filter, .events)
+        XCTAssertEqual(ActivitiesRequest.happeningToday.timeFrame, .today)
+        XCTAssertEqual(ActivitiesRequest.resting.filter, .all)
+        XCTAssertEqual(ActivitiesRequest.resting.timeFrame, .upcoming)
+    }
+
+    /// An explicit request wins, and nothing at all rests on the discovery layout —
+    /// so a plain tab tap is unchanged by any of this.
+    func testActivitiesOpensOnTheRequestItWasGivenAndRestsWithoutOne() {
+        XCTAssertEqual(ActivitiesRequest.opening(.happeningToday), .happeningToday)
+        XCTAssertEqual(ActivitiesRequest.opening(nil), .resting)
+    }
+
+    #if DEBUG
+    /// The launch arguments and a real navigation resolve through the SAME entry
+    /// point, which is what makes a headless screenshot evidence for the route.
+    func testTheDebugFlagsResolveToTheSameRequestARealNavigationDoes() {
+        XCTAssertEqual(
+            ActivitiesRequest.debugRequested(["-explore-filter", "events", "-explore-timeframe", "today"]),
+            .happeningToday
+        )
+        // Either flag alone still works, the other half resting.
+        XCTAssertEqual(
+            ActivitiesRequest.debugRequested(["-explore-filter", "parks"]),
+            ActivitiesRequest(filter: .parks, timeFrame: .upcoming)
+        )
+        XCTAssertEqual(
+            ActivitiesRequest.debugRequested(["-explore-timeframe", "week"]),
+            ActivitiesRequest(filter: .all, timeFrame: .week)
+        )
+        XCTAssertNil(ActivitiesRequest.debugRequested(["-open-tab", "activities"]))
+        XCTAssertNil(ActivitiesRequest.debugRequested(["-explore-filter", "nonsense"]))
+    }
+    #endif
 
     // MARK: Error copy
 
