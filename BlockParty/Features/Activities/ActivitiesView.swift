@@ -23,8 +23,8 @@ struct ActivitiesView: View {
     /// The viewer's personal saved list — powers the "Saved" tile.
     @ObservedObject private var saved = SavedStore.shared
 
-    @State private var filter: Filter = ActivitiesView.initialFilter()
-    @State private var timeFrame: TimeFrame = ActivitiesView.initialTimeFrame()
+    @State private var filter: Filter
+    @State private var timeFrame: TimeFrame
     @State private var query = ActivitiesView.launchSearch?.query ?? ""
     /// A search session is active — the header shows the slim committed bar and the
     /// results list is filtered (vs. the resting town pill + discovery).
@@ -45,18 +45,16 @@ struct ActivitiesView: View {
     @State private var pendingPlace: Place?
     @State private var pendingPark: Park?
 
-    /// DEBUG-only: `-explore-filter events|clubs|trails|parks|saved` starts on a given
-    /// chip so simulator verification can screenshot each card state headlessly.
-    /// Mirrors the `-open-tab` / `-force-nonadmin` flags. No effect in release builds.
-    private static func initialFilter() -> Filter {
-        #if DEBUG
-        let args = ProcessInfo.processInfo.arguments
-        if let i = args.firstIndex(of: "-explore-filter"), i + 1 < args.count,
-           let f = Filter(rawValue: args[i + 1].capitalized) {
-            return f
-        }
-        #endif
-        return .all
+    /// Opened on a filter + timeframe by whoever navigated here — the Your Day
+    /// rail's zero state asks for today's events. Nil is a plain tab tap, and the
+    /// DEBUG `-explore-filter` / `-explore-timeframe` flags then get their turn;
+    /// `ActivitiesRequest.opening(_:)` owns that whole decision, so a flag and a
+    /// real navigation cannot resolve to different screens.
+    init(onCompose: (() -> Void)? = nil, request: ActivitiesRequest? = nil) {
+        self.onCompose = onCompose
+        let opening = ActivitiesRequest.opening(request)
+        _filter = State(initialValue: opening.filter)
+        _timeFrame = State(initialValue: opening.timeFrame)
     }
 
     /// DEBUG-only: start a search session on launch so its states can be
@@ -84,29 +82,13 @@ struct ActivitiesView: View {
     /// the DEBUG auto-open in `explore`'s `.onAppear`.
     private static let launchSearch: (query: String, present: Bool)? = initialSearch()
 
-    /// DEBUG-only: `-explore-timeframe today|week|month|upcoming` starts on a given
-    /// time frame so each filtered state can be screenshotted headlessly.
-    private static func initialTimeFrame() -> TimeFrame {
-        #if DEBUG
-        let args = ProcessInfo.processInfo.arguments
-        if let i = args.firstIndex(of: "-explore-timeframe"), i + 1 < args.count {
-            switch args[i + 1] {
-            case "today":    return .today
-            case "week":     return .week
-            case "month":    return .month
-            case "upcoming": return .upcoming
-            default: break
-            }
-        }
-        #endif
-        return .upcoming
-    }
-
     @Environment(\.openURL) private var openURL
 
     private var api: CommunityAPI { CommunityAPI(auth: auth) }
 
-    enum Filter: String, CaseIterable {
+    /// `nonisolated` (the module defaults to MainActor): these two are the payload of
+    /// `ActivitiesRequest`, a plain value carried across the app by `FeedRoute`.
+    nonisolated enum Filter: String, CaseIterable {
         case all = "All", events = "Events", clubs = "Clubs", trails = "Trails", parks = "Parks", saved = "Saved"
 
         /// The category tiles shown under the town header (Wolt's icon squares).
@@ -126,7 +108,7 @@ struct ActivitiesView: View {
     }
 
     /// A date window applied to events only (clubs/trails/parks have no date).
-    enum TimeFrame: String, CaseIterable {
+    nonisolated enum TimeFrame: String, CaseIterable {
         case upcoming = "Upcoming", today = "Today", week = "This week", month = "This month"
         var icon: String {
             switch self {

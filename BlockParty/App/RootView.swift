@@ -366,6 +366,13 @@ struct MainTabsView: View {
     @State private var showMenu = false
     /// The profile, now a menu destination (presented as a standard sheet).
     @State private var showProfileSheet = false
+    /// The filter + timeframe the Activities tab should open on, set by a feed route
+    /// that asks for it (the Your Day rail's zero state → today's events).
+    ///
+    /// A ONE-SHOT. The tab content is rebuilt whenever `tab` changes identity, so a
+    /// request left standing would silently re-apply the next time Activities came
+    /// back — hence it is dropped by every other way into that tab.
+    @State private var activitiesRequest: ActivitiesRequest?
     @Namespace private var cardNS
     /// The Your Day rail ↔ day sheet morph, and the sheet's own presentation.
     ///
@@ -406,12 +413,17 @@ struct MainTabsView: View {
                                 onMenu: { showMenu = true },
                                 menuOpen: showMenu,
                                 profileShown: showProfileSheet,
+                                onOpenActivities: openActivities,
                                 expandedPlace: $expandedPlace,
                                 cardNS: cardNS
                             )
                         // No brand badge on these tabs — the top-right corner carries
                         // screen chrome now (the map's compose "+" etc.).
-                        case .activities: ActivitiesView(onCompose: { composing = true })
+                        case .activities:
+                            ActivitiesView(
+                                onCompose: { composing = true },
+                                request: activitiesRequest
+                            )
                         case .calendar:   CalendarView(onCompose: { composing = true })
                         // The map's non-admin "+" opens the speed-dial (admins still get
                         // QuickAddSheet, wired inside SJMapView).
@@ -568,7 +580,7 @@ struct MainTabsView: View {
     private func handleMenu(_ action: TownMenuAction) {
         switch action {
         case .calendar:   tab = .calendar
-        case .activities: tab = .activities
+        case .activities: activitiesRequest = nil; tab = .activities
         case .map:        tab = .map
         case .compose:    afterMenuClose { composing = true }
         case .invite:     afterMenuClose { ShareCenter.shared.present(.appInvite()) }
@@ -599,16 +611,37 @@ struct MainTabsView: View {
         }
     }
 
-    /// Switch tabs with a horizontal page slide. Direction is derived from the tab
-    /// order (`Tab: Int`), so moving right through the bar slides content the way
-    /// your thumb expects. A single spring drives both the content slide and the
-    /// tab-bar pill so they travel together; Reduce Motion swaps it for a short
-    /// crossfade. The haptic lives here (not the button) so it fires once per real
-    /// change — re-tapping the current tab is a no-op.
+    /// A tab-bar tap. The haptic lives here (not the button) so it fires once per
+    /// real change — re-tapping the current tab is a no-op.
     private func select(_ newTab: Tab) {
         guard newTab != tab else { return }
-        slideForward = newTab.rawValue > tab.rawValue
+        // A deliberate tap on the bar is not the feed's one-shot request, so it is
+        // dropped here rather than re-applied when Activities is next rebuilt.
+        activitiesRequest = nil
         Haptics.selection()
+        switchTab(to: newTab)
+    }
+
+    /// Open Activities on a filter + timeframe, asked for by a Today feed route.
+    ///
+    /// It lands as the app's ordinary tab change — the same page slide and tab-bar
+    /// pill the bar gives — rather than as a modal, because tab selection lives here
+    /// and this is the lane the town menu's tab rows already use. No haptic: the card
+    /// that was tapped already fired one on press-down (`YourDayPressStyle`).
+    private func openActivities(_ request: ActivitiesRequest) {
+        activitiesRequest = request
+        // The feed this arrives from only exists on the Today tab, so this is always
+        // a real change of tab.
+        switchTab(to: .activities)
+    }
+
+    /// The tab change itself, with its horizontal page slide. Direction is derived
+    /// from the tab order (`Tab: Int`), so moving right through the bar slides content
+    /// the way your thumb expects. A single spring drives both the content slide and
+    /// the tab-bar pill so they travel together; Reduce Motion swaps it for a short
+    /// crossfade. Shared, so a route-driven change feels exactly like a tapped one.
+    private func switchTab(to newTab: Tab) {
+        slideForward = newTab.rawValue > tab.rawValue
         withAnimation(reduceMotion
             ? .easeInOut(duration: 0.2)
             : .spring(response: 0.44, dampingFraction: 0.86)) {

@@ -109,7 +109,6 @@ final class AppearanceStore: ObservableObject {
         // Read before the first frame: the app must never flash the phone's
         // appearance on launch and then correct itself.
         self.choice = AppearanceChoice.stored(defaults.string(forKey: Self.defaultsKey))
-        NSLog("BPDEBUG store init argv=%@", ProcessInfo.processInfo.arguments)
     }
 }
 
@@ -128,13 +127,11 @@ extension AppearanceStore {
     /// Compiles out of Release entirely.
     func applyDebugLaunchArguments() {
         let arguments = ProcessInfo.processInfo.arguments
-        NSLog("BPDEBUG applyDebugLaunchArguments argv=%@", arguments)
 
         if let flag = arguments.firstIndex(of: "-appearance"),
            arguments.indices.contains(flag + 1),
            let requested = AppearanceChoice(rawValue: arguments[flag + 1]) {
             choice = requested
-            NSLog("BPDEBUG appearance set to %@", requested.rawValue)
         }
 
         guard arguments.contains("-appearance-demo") else { return }
