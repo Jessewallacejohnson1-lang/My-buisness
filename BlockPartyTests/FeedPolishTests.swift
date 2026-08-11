@@ -370,7 +370,7 @@ final class DayScheduleLogicTests: XCTestCase {
             DayScheduleLogic.stats(for: item, state: .completed, now: now).map(\.label),
             ["WENT", "DURATION", "GOING"]
         )
-        XCTAssertEqual(DayScheduleLogic.duration(item), "1.5 hr")
+        XCTAssertEqual(DayScheduleLogic.duration(item), "1 hr 30 min")
     }
 
     func testNoStatValueIsEverAPlaceholder() {
@@ -864,7 +864,7 @@ final class DayScheduleEndAtTests: XCTestCase {
     func testTheDurationColumnAndTheEyebrowSpeakTheSameWords() {
         let start = DayScheduleTestClock.instant(minutes: 9 * 60)
 
-        for minutes in [45, 60, 90, 120, 150] {
+        for minutes in [45, 60, 90, 120, 150, 636] {
             let item = DayScheduleTestClock.item(
                 startingAt: 9 * 60,
                 going: 0,
