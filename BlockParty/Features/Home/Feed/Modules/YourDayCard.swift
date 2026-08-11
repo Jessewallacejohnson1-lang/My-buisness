@@ -289,6 +289,7 @@ struct YourDayAddTile: View {
         }
         .buttonStyle(YourDayPressStyle())
         .accessibilityLabel(YourDayRailCopy.addTile)
+        .accessibilityHint(YourDayRailCopy.browseTodayHint)
     }
 }
 
@@ -348,7 +349,7 @@ struct YourDayEmptyCard: View {
         .accessibilityLabel(
             "\(YourDayRailCopy.emptyTitle) \(YourDayRailCopy.emptyMeta(townCount: townCount))"
         )
-        .accessibilityHint("Opens today in Activities")
+        .accessibilityHint(YourDayRailCopy.browseTodayHint)
     }
 }
 

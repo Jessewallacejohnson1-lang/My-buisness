@@ -28,8 +28,8 @@ import SwiftUI
 
 struct DayScheduleSheet: View {
     let items: [DayItem]
-    /// Where the day comes to rest on open: the tapped row, the bottom CTA (what
-    /// the rail's add tile asks for), or the top.
+    /// Where the day comes to rest on open: the tapped row, the top, or the bottom
+    /// CTA (now only the `-day-sheet-state cta` fixture — see `DayScheduleAnchor`).
     let anchor: DayScheduleAnchor
     let namespace: Namespace.ID
     let dates: any DateProviding

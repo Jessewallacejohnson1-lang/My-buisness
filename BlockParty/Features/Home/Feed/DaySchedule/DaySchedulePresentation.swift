@@ -30,8 +30,15 @@ nonisolated enum DayScheduleAnchor: Hashable {
     case top
     /// The tapped rail card's row, one third down the viewport.
     case item(String)
-    /// The bottom of the day, so the "Add to today" button is what the neighbour
-    /// lands on. This is what the rail's add tile asks for.
+    /// The bottom of the day, so the sheet's own sticky "Add to today" button is
+    /// what the neighbour lands on.
+    ///
+    /// NO PRODUCTION TAP ASKS FOR THIS ANY MORE. The rail's plus tile used to, and
+    /// now leaves for Activities instead. It is kept, not dead: `DayScheduleFixture`
+    /// resolves `-day-sheet-preview -day-sheet-state cta` to it, which is the only
+    /// way to photograph the day resting on its own CTA, and `restPosition(_:)` in
+    /// the sheet still has to handle it. Delete the fixture state before deleting
+    /// this case.
     case callToAction
 
     /// The row the open scroll targets, if the anchor names one.

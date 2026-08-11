@@ -51,6 +51,7 @@ struct YourDayRail: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .modifier(YourDayDebugTapDriver(onAdd: onAdd, onExplore: onExplore))
     }
 
     private var header: some View {
@@ -119,6 +120,46 @@ struct YourDayRail: View {
             .modifier(YourDayRailEndScroller(proxy: proxy, anchorID: Self.addTileID))
         }
         .frame(height: M.cardHeight)
+    }
+}
+
+/// Presses the rail's two browse affordances without a finger.
+///
+/// * `-yourday-open-add`     the plus tile (pair with `-yourday-count 1|3|7`)
+/// * `-yourday-open-explore` the zero-state card (pair with `-yourday-count 0`)
+///
+/// It calls the SAME closures the two buttons' actions are bound to, taken from
+/// this view's own parameters — so what it proves is where those buttons go, not
+/// where a hand-written copy of their route goes. The plus tile in particular is
+/// unreachable by any other means here: it is the last item of a horizontal rail
+/// (`-yourday-rail-end` can photograph it, but there is no tap automation).
+///
+/// No-op without a flag, and a pass-through in Release.
+private struct YourDayDebugTapDriver: ViewModifier {
+    let onAdd: () -> Void
+    let onExplore: () -> Void
+
+    func body(content: Content) -> some View {
+        #if DEBUG
+        content.task {
+            let args = ProcessInfo.processInfo.arguments
+            guard args.contains("-yourday-open-add") || args.contains("-yourday-open-explore")
+            else { return }
+
+            // Long enough for the feed's reveal to settle, so a screenshot taken
+            // before this fires catches the resting rail rather than a spring frame.
+            try? await Task.sleep(for: .milliseconds(1200))
+            guard !Task.isCancelled else { return }
+
+            if args.contains("-yourday-open-add") {
+                onAdd()
+            } else {
+                onExplore()
+            }
+        }
+        #else
+        content
+        #endif
     }
 }
 

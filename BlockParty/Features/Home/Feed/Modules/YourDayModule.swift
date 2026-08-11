@@ -144,7 +144,7 @@ final class YourDayModule: @MainActor FeedModule {
                     revealed: ctx.contentRevealed,
                     animated: ctx.revealAnimated
                 )
-                .modifier(YourDayDebugRouteOpener(events: events, navigate: ctx.navigate))
+                .modifier(YourDayDebugDetailOpener(events: events, navigate: ctx.navigate))
             )
 
         case .empty:
@@ -210,17 +210,14 @@ private extension YourDayModule {
 }
 #endif
 
-/// Fires one of the rail's routes on appear. There is no tap automation in this
-/// simulator setup, so a destination only reachable by tapping is otherwise
-/// unverifiable — these drive the REAL routes, through the real navigate closure.
+/// `-yourday-open-detail` opens the first upcoming event's detail on appear.
+/// There is no tap automation in this simulator setup, so a screen only reachable
+/// by tapping a card is otherwise unverifiable. No-op without the flag, and the
+/// whole modifier compiles to a pass-through in Release.
 ///
-/// * `-yourday-open-detail [index]` opens an item's detail sheet.
-/// * `-yourday-open-explore` fires the zero-state card's route (pair it with
-///   `-yourday-count 0`), which switches to the Activities tab on today's events.
-///
-/// No-op without a flag, and the whole modifier compiles to a pass-through in
-/// Release.
-private struct YourDayDebugRouteOpener: ViewModifier {
+/// The rail's two BROWSE affordances are driven separately, from their own buttons'
+/// closures — see `YourDayDebugTapDriver`.
+private struct YourDayDebugDetailOpener: ViewModifier {
     let events: [UpcomingEvent]
     let navigate: (FeedRoute) -> Void
 
@@ -228,15 +225,6 @@ private struct YourDayDebugRouteOpener: ViewModifier {
         #if DEBUG
         content.task {
             let args = ProcessInfo.processInfo.arguments
-
-            if args.contains("-yourday-open-explore") {
-                // Long enough for the reveal to settle, so the screenshot before it
-                // is the resting zero state rather than a mid-spring frame.
-                try? await Task.sleep(for: .milliseconds(1200))
-                navigate(.activities(.happeningToday))
-                return
-            }
-
             guard let flag = args.firstIndex(of: "-yourday-open-detail") else { return }
             let offset = (flag + 1 < args.count ? Int(args[flag + 1]) : nil) ?? 0
             guard events.indices.contains(offset) else { return }
