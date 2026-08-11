@@ -88,6 +88,12 @@ struct RootView: View {
                 // Preview the tab loading cover full-screen (bypassing the auth gate)
                 // so the rainbow-wave indicator + copy can be verified headlessly.
                 TabLoadingCover()
+            } else if ProcessInfo.processInfo.arguments.contains("-horizon-sky-gallery") {
+                // Preview the Your Day horizon card's sky at the eight spec test
+                // times (bypassing the auth gate) so sky continuity, bloom shape
+                // and the seam can be verified headlessly. Pair with
+                // `-horizon-sky-gallery-page 2` for the afternoon/night half.
+                HorizonSkyGallery()
             } else if ProcessInfo.processInfo.arguments.contains("-feed-card-gallery") {
                 // Preview the static feed-card states full-screen (bypassing the auth
                 // gate) so the component can be verified headlessly.
