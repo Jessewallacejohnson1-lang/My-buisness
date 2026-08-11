@@ -37,7 +37,11 @@ enum EventCategory: String, CaseIterable, Identifiable, Hashable {
     }
 
     /// Short human label — the composer chip + the icon's accessibility text.
-    var label: String {
+    ///
+    /// `nonisolated`: a pure string switch, read by the `nonisolated` Your Day
+    /// accessibility builder. Colour-bearing members stay isolated because they
+    /// read MainActor `Hue` tokens.
+    nonisolated var label: String {
         switch self {
         case .outdoors:  return "Outdoors"
         case .musicArts: return "Music & arts"

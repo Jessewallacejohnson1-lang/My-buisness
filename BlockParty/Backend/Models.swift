@@ -61,7 +61,10 @@ struct TimelineEvent: Identifiable, Hashable {
     var category: EventCategory = .other
 }
 
-struct UpcomingEvent: Identifiable, Hashable {
+/// nonisolated: a plain value carried by `DayItem`, which the pure `nonisolated`
+/// Your Day rules build and compare. Without this its synthesized Hashable is
+/// MainActor-isolated and every nonisolated comparison trips the 0-warning bar.
+nonisolated struct UpcomingEvent: Identifiable, Hashable {
     let id: String
     let title: String
     let eventDate: String
@@ -79,6 +82,14 @@ struct UpcomingEvent: Identifiable, Hashable {
     var clubName: String? = nil
     /// The event category, with legacy/null rows falling back to the neutral icon.
     var category: EventCategory = .other
+    /// When the event ends, parsed from `club_events.end_at`. Nil is the norm
+    /// until that column ships — and it stays legitimate afterwards, because the
+    /// column is nullable. Consumers must degrade to the start instant, never
+    /// invent an end.
+    var endAt: Date? = nil
+    /// `club_events.all_day`. Defaults false, which is also what every row reads
+    /// before the column exists.
+    var isAllDay: Bool = false
 }
 
 struct WeekEvent: Identifiable, Hashable {
@@ -219,6 +230,20 @@ struct RawEvent: Decodable {
     let createdAt: String?
     /// club_events.category (nullable). Absent/legacy rows decode to nil → `.other`.
     let category: String?
+    /// club_events.end_at (`timestamptz NULL`) and club_events.all_day
+    /// (`boolean NOT NULL DEFAULT false`).
+    ///
+    /// BOTH ARE OPTIONAL ON PURPOSE. The migration that adds them is approved but
+    /// **not yet applied**, so `select=*` does not return these keys today and a
+    /// non-optional field here would fail every event decode in the app. Optional
+    /// decoding makes the client correct on both sides of the migration: today
+    /// every row reads `endAt == nil` / `allDay == nil`, and the moment the columns
+    /// land the same code starts honouring them with no further change.
+    ///
+    /// `endAt` stays a raw string like every other timestamp on this shape
+    /// (`createdAt`); `DateHelpers.timestamp(_:)` parses it at the API boundary.
+    let endAt: String?
+    let allDay: Bool?
     let clubs: ClubRef?
 
     struct ClubRef: Decodable { let name: String? }

@@ -32,10 +32,10 @@ enum BasemapPalette {
     // MARK: Ground & natural features
     // Land stays the app's paper so the map reads as continuous with the app, and
     // the two natural features carry real hue — muted, so ink markers still win.
-    static let land     = Hue.paper.hexString   // app background continues into the map
+    static let land     = Hue.paper.onLightCanvas.hexString   // app background continues into the map
     static let green    = "#D9E8C8"             // parks & green space — sage, not vivid
     static let water    = "#A8D8EE"             // water — soft sky; the river must read
-    static let building = Hue.fill.hexString    // built form stays neutral, on token
+    static let building = Hue.fill.onLightCanvas.hexString    // built form stays neutral, on token
 
     // MARK: Road network
     // light-v11 consolidates every road class (motorway → residential) into ONE
@@ -44,7 +44,7 @@ enum BasemapPalette {
     // from Mapbox Streets' richer per-class layer set. So there's one road color, not
     // a fill/casing/motorway hierarchy. Surface white makes roads read as light
     // channels against the paper ground.
-    static let road = Hue.surface.hexString
+    static let road = Hue.surface.onLightCanvas.hexString
 
     // MARK: Labels — shared with the app's own ink ramp (not map-only)
     // Call sites use `Hue.inkSecondary.hexString`; light-v11 keeps its white halos.
@@ -64,7 +64,7 @@ enum BasemapPalette {
         try? map.setLayerProperty(for: "building", property: "fill-outline-color", value: building)
         try? map.setLayerProperty(for: "road-simple", property: "line-color", value: road)
 
-        let labelInk = Hue.inkSecondary.hexString
+        let labelInk = Hue.inkSecondary.onLightCanvas.hexString
         for id in ["road-label-simple", "settlement-major-label", "settlement-minor-label", "settlement-subdivision-label"] {
             try? map.setLayerProperty(for: id, property: "text-color", value: labelInk)
         }

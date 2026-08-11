@@ -1,6 +1,11 @@
 //
 //  YourDayModule.swift
-//  Block Party — the signed-in user's next RSVP plans, fetched independently.
+//  Block Party — what is happening in this neighbour's town TODAY, fetched
+//  independently.
+//
+//  Two lanes, both scoped to the town's today: what they personally committed to,
+//  and what the whole town has on the calendar. See `DayItem` for the contract and
+//  `YourDayItems.swift` for the rules.
 //
 
 import Combine
@@ -12,8 +17,29 @@ final class YourDayModule: @MainActor FeedModule {
     let order = 2
     let ownsFetch = true
 
-    @Published private var events: [UpcomingEvent] = []
+    /// Today's rail, in render order. The published contract the rail and the day
+    /// sheet build against.
+    @Published private(set) var items: [DayItem] = []
     @Published private var loadState: LoadState = .loading
+
+    /// Offered beside a lone commitment. Nil in production until there is a real
+    /// source for "something else on today's calendar" — with one item in the rail
+    /// there is, by definition, nothing left in today's candidates to suggest, so
+    /// a real suggestion has to come from a wider read than `getTownDayCandidates`.
+    /// Never fabricated: an empty suggestion slot is honest, an invented one is not.
+    @Published private(set) var suggestion: DayItem?
+
+    /// Drives the empty card's "N things happening in St. Joe →". Nil drops the
+    /// number rather than inventing one.
+    @Published private(set) var townCount: Int?
+
+    /// Who says a thing is done. The session store, so the rail and the day sheet
+    /// give the same answer and a tick outlives the app.
+    private let completion: DayCompletionStore
+
+    /// The rows behind `items`, for anything that still takes an `UpcomingEvent`.
+    /// Derived, never stored twice — `items` is the single source of truth.
+    private var events: [UpcomingEvent] { items.map(\.event) }
 
     private enum LoadState {
         case loading
@@ -21,7 +47,13 @@ final class YourDayModule: @MainActor FeedModule {
         case failed
     }
 
-    init(briefing _: BriefingModel) {}
+    /// Optional-defaulted rather than `= .shared`, because a default argument is
+    /// evaluated in a nonisolated context and `.shared` is main-actor state — the
+    /// CLAUDE.md default-argument gotcha, and the same shape `DayScheduleSheet`
+    /// already uses for this exact dependency.
+    init(briefing _: BriefingModel, completion: DayCompletionStore? = nil) {
+        self.completion = completion ?? .shared
+    }
 
     var phase: FeedPhase {
         switch loadState {
@@ -41,22 +73,32 @@ final class YourDayModule: @MainActor FeedModule {
     func load(_ ctx: FeedModuleContext) async {
         loadState = .loading
 
+        // One instant for the whole build, so the day boundary cannot move
+        // between the query and the filtering.
+        let now = ctx.dates.now
+
         #if DEBUG
-        if applyDebugStateIfRequested() { return }
+        if applyDebugStateIfRequested(now: now) { return }
         #endif
 
         guard ctx.auth.userId != nil else {
-            events = []
+            items = []
             loadState = .ready
             return
         }
 
         do {
-            events = try await CommunityAPI(auth: ctx.auth).getMyUpcomingRsvps()
+            let candidates = try await CommunityAPI(auth: ctx.auth).getTownDayCandidates(now: now)
+            items = YourDayLogic.dayItems(from: candidates, now: now)
             loadState = .ready
         } catch {
             loadState = .failed
         }
+
+        // Stored completions, AFTER the rail is ready. Best-effort and separate
+        // from the fetch above: a completions read that fails must not blank a day
+        // we already have, and a day that failed to load has no ids to ask about.
+        await completion.refresh(for: items.map(\.id))
     }
 
     func makeView(_ ctx: FeedModuleContext) -> AnyView {
@@ -64,8 +106,8 @@ final class YourDayModule: @MainActor FeedModule {
         case .loading:
             return AnyView(
                 YourDaySkeleton()
-                    .padding(.horizontal, 18)
-                    .padding(.top, 22)
+                    .padding(.horizontal, YourDayRailMetrics.pageMargin)
+                    .padding(.top, YourDayRailMetrics.sectionTop)
             )
 
         case .failed:
@@ -73,19 +115,27 @@ final class YourDayModule: @MainActor FeedModule {
                 FeedUnavailableCard(title: FeedStateCopy.yourDayUnavailable) {
                     Task { await self.load(ctx) }
                 }
-                .padding(.horizontal, 18)
-                .padding(.top, 22)
+                .padding(.horizontal, YourDayRailMetrics.pageMargin)
+                .padding(.top, YourDayRailMetrics.sectionTop)
             )
 
         case .ready:
             return AnyView(
                 YourDaySection(
-                    events: events,
-                    onOpenEvent: { ctx.navigate(.event($0)) },
-                    onFindSomething: { ctx.navigate(.feedDiscovery) }
+                    items: items,
+                    suggestion: suggestion,
+                    townCount: townCount,
+                    dates: ctx.dates,
+                    completion: completion,
+                    // Where a tap lands when no day-sheet host is mounted above
+                    // this feed — the galleries and the module previews. The real
+                    // app always has one (see `MainTabsView`), so these are the
+                    // fallbacks, not the route.
+                    onOpenDayWithoutHost: { ctx.navigate(.event($0.event)) },
+                    onAddWithoutHost: { ctx.navigate(.feedDiscovery) },
+                    onExplore: { ctx.navigate(.feedDiscovery) }
                 )
-                .padding(.horizontal, 18)
-                .padding(.top, 22)
+                .padding(.top, YourDayRailMetrics.sectionTop)
                 .springReveal(
                     1,
                     revealed: ctx.contentRevealed,
@@ -108,30 +158,51 @@ private extension YourDayModule {
     /// `-yourday-sample|-yourday-loading|-yourday-error|-yourday-empty` bypass auth
     /// and the network so each state can be screenshotted. Production loaders are
     /// untouched; the fixtures are the same clearly-marked debug events.
-    func applyDebugStateIfRequested() -> Bool {
+    ///
+    /// `-yourday-count <n>` drives the item-count states the rail's layout actually
+    /// turns on — 0 (empty card), 1 (card + suggestion), 2+ (cards only).
+    func applyDebugStateIfRequested(now: Date) -> Bool {
         let args = ProcessInfo.processInfo.arguments
 
         if args.contains("-yourday-loading") {
-            events = []
+            items = []
             loadState = .loading
             return true
         }
         if args.contains("-yourday-error") {
-            events = []
+            items = []
             loadState = .failed
             return true
         }
         if args.contains("-yourday-empty") {
-            events = []
-            loadState = .ready
+            applyDebugItems([], now: now)
+            return true
+        }
+        // `-day-sheet-demo` drives the whole open → scroll → tick → dismiss
+        // sequence, so it seeds its own rail rather than needing a second flag
+        // alongside it. Four cards: enough day to scroll, few enough to see.
+        if args.contains("-day-sheet-demo") {
+            applyDebugItems(YourDayRailDebug.items(count: 4, now: now), now: now)
+            return true
+        }
+        if let count = YourDayRailDebug.requestedCount(args) {
+            applyDebugItems(YourDayRailDebug.items(count: count, now: now), now: now)
             return true
         }
         if args.contains("-yourday-sample") {
-            events = YourDayLogic.debugEvents(now: Date())
-            loadState = .ready
+            applyDebugItems(YourDayLogic.debugDayItems(now: now), now: now)
             return true
         }
         return false
+    }
+
+    /// One place where a debug rail is staged, so the suggestion and the empty
+    /// card's count follow the same rules under every flag.
+    func applyDebugItems(_ debugItems: [DayItem], now: Date) {
+        items = debugItems
+        suggestion = debugItems.count == 1 ? YourDayRailDebug.suggestion(now: now) : nil
+        townCount = debugItems.isEmpty ? YourDayRailDebug.townCount : nil
+        loadState = .ready
     }
 }
 #endif
@@ -164,215 +235,121 @@ private struct YourDayDebugDetailOpener: ViewModifier {
 /// and the title cannot move when content swaps in.
 private struct YourDayHeading: View {
     var body: some View {
-        Text("Your day")
-            .font(.displaySemi(24))
+        Text(YourDayRailCopy.header)
+            .font(.dayDisplaySemi(YourDayRailMetrics.headerSize))
             .foregroundStyle(Hue.ink)
             .accessibilityAddTraits(.isHeader)
     }
 }
 
+/// Resolves which namespace the rail draws in, and where a tap goes.
+///
+/// The morph needs the rail card and the timeline row to share ONE namespace, and
+/// the only view that is an ancestor of both is `DayScheduleHost` — mounted on
+/// `MainTabsView`, above the tab bar, because a full-height day sheet under a
+/// floating tab bar would have its "Add to today" button covered. So the namespace
+/// and the presenter arrive through the environment. Neither is guaranteed: the
+/// galleries and previews mount this rail with no host above it, and there the
+/// local namespace keeps the code valid and the fallback routes keep it alive.
 private struct YourDaySection: View {
-    let events: [UpcomingEvent]
-    let onOpenEvent: (UpcomingEvent) -> Void
-    let onFindSomething: () -> Void
+    let items: [DayItem]
+    let suggestion: DayItem?
+    let townCount: Int?
+    let dates: any DateProviding
+    /// Observed, not just read: a tick in the day sheet has to dim the rail card
+    /// behind it, and un-dim it when the neighbour changes their mind.
+    @ObservedObject var completion: DayCompletionStore
+    let onOpenDayWithoutHost: (DayItem) -> Void
+    let onAddWithoutHost: () -> Void
+    let onExplore: () -> Void
+
+    @Environment(\.daySchedule) private var host
+    @Environment(\.dayScheduleNamespace) private var hostNamespace
+    @Namespace private var localNamespace
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            YourDayHeading()
-
-            if events.isEmpty {
-                emptyState
-            } else {
-                eventStrip
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var emptyState: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Nothing on your calendar yet.")
-                .font(.displaySemi(22))
-                .foregroundStyle(Hue.ink)
-                .fixedSize(horizontal: false, vertical: true)
-
-            // Styling lives inside the label so the press style scales the whole
-            // control rather than the text inside a stationary background.
-            Button {
-                Haptics.light()
-                onFindSomething()
-            } label: {
-                Text("See what’s happening →")
-                    .font(.sansSemibold(15))
-                    .foregroundStyle(Hue.surface)
-                    .padding(.horizontal, 16)
-                    .frame(minHeight: 44)
-                    .background(
-                        Hue.ink,
-                        in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
-                    )
-            }
-            .buttonStyle(FeedCardPressStyle())
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(18)
-        .blockPartyCard(padding: nil)
-    }
-
-    private var eventStrip: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            LazyHStack(alignment: .top, spacing: 12) {
-                ForEach(YourDayLogic.stripItems(from: events)) { item in
-                    switch item {
-                    case .event(let event):
-                        YourDayEventCard(event: event) { onOpenEvent(event) }
-                    case .findSomething:
-                        YourDayFindSomethingCard(action: onFindSomething)
-                    }
-                }
-            }
-            .scrollTargetLayout()
-            .padding(.vertical, 2)
-        }
-        .scrollTargetBehavior(.viewAligned)
-        .scrollClipDisabled()
-    }
-}
-
-private struct YourDayEventCard: View {
-    let event: UpcomingEvent
-    let onOpen: () -> Void
-
-    var body: some View {
-        // A Button, not a `.gesture` — a whole-card gesture claims the touch on
-        // press-down and out-competes the enclosing ScrollView's pan.
-        Button(action: onOpen) {
-            cardBody
-        }
-        .buttonStyle(FeedCardPressStyle())
-        .accessibilityElement(children: .combine)
-        .accessibilityHint("Opens this event")
-    }
-
-    private var cardBody: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(event.title)
-                .font(.displaySemi(20))
-                .foregroundStyle(Hue.ink)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-
-            TimelineView(.periodic(from: .now, by: 60)) { timeline in
-                let presentation = YourDayLogic.schedulePresentation(
-                    for: event,
-                    now: timeline.date
-                )
-
-                Group {
-                    if let countdown = presentation.countdown {
-                        ViewThatFits(in: .horizontal) {
-                            Text(presentation.label)
-                                .lineLimit(1)
-                                .fixedSize(horizontal: true, vertical: false)
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(presentation.dateAndTime)
-                                Text("— \(countdown)")
-                            }
-                            .lineLimit(1)
-                        }
-                    } else {
-                        Text(presentation.label)
-                            .lineLimit(2)
-                    }
-                }
-                .font(.sansSemibold(13))
-                .foregroundStyle(Hue.ink)
-                .monospacedDigit()
-            }
-            .padding(.top, 16)
-
-            if let place = YourDayLogic.placeText(for: event) {
-                Text(place)
-                    .font(.sans(13))
-                    .foregroundStyle(Hue.inkSecondary)
-                    .lineLimit(1)
-                    .padding(.top, 5)
-            }
-
-            if let going = YourDayLogic.goingLabel(for: event.goingCount) {
-                Text(going)
-                    .font(.sansMedium(12))
-                    .foregroundStyle(Hue.inkSecondary)
-                    .monospacedDigit()
-                    .padding(.top, 10)
-            }
-        }
-        .padding(16)
-        .frame(width: 218, height: 208, alignment: .leading)
-        .background(
-            Hue.surface,
-            in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                .strokeBorder(Hue.hairline, lineWidth: 1)
-        }
-    }
-}
-
-private struct YourDayFindSomethingCard: View {
-    let action: () -> Void
-
-    var body: some View {
-        Button {
-            Haptics.light()
-            action()
-        } label: {
-            VStack(alignment: .leading, spacing: 14) {
-                RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
-                    .fill(Hue.ink)
-                    .frame(width: 44, height: 44)
-                    .overlay {
-                        Image(systemName: "plus")
-                            .font(.system(size: 20, weight: .medium))
-                            .foregroundStyle(Hue.surface)
-                    }
-
-                Spacer(minLength: 0)
-
-                Text("Find something.")
-                    .font(.displaySemi(20))
-                    .foregroundStyle(Hue.ink)
-                    .multilineTextAlignment(.leading)
-            }
-            .padding(16)
-            .frame(width: 170, height: 208, alignment: .topLeading)
-            .background(
-                Hue.fill,
-                in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+        if let host, let hostNamespace {
+            YourDayHostedRail(
+                host: host,
+                namespace: hostNamespace,
+                items: items,
+                suggestion: suggestion,
+                townCount: townCount,
+                dates: dates,
+                isComplete: completion.isComplete,
+                onExplore: onExplore
             )
-            .overlay {
-                RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                    .strokeBorder(Hue.hairline, lineWidth: 1)
-            }
+        } else {
+            YourDayRail(
+                items: items,
+                isComplete: completion.isComplete,
+                suggestion: suggestion,
+                townCount: townCount,
+                namespace: localNamespace,
+                onOpenDay: onOpenDayWithoutHost,
+                onAdd: onAddWithoutHost,
+                onExplore: onExplore
+            )
         }
-        // This is a whole card inside a scroll view, so it gets the feed's quiet
-        // press — the emphatic 0.88 spring belongs to the "+" button alone.
-        .buttonStyle(FeedCardPressStyle())
-        .accessibilityLabel("Find something")
     }
 }
 
-/// The heading is real; only the cards are placeholders. Their widths, heights,
-/// radius and gap are the strip's own (218 × 208, 12pt, `Radius.card`), and the
-/// trailing 170pt block is the Find-something tile, so nothing shifts on swap-in.
+/// The rail with a day-sheet host above it: a card tap opens the day on that card,
+/// the add tile opens it on the bottom "Add to today" button.
+///
+/// Split out purely so `host` can be an `@ObservedObject` — the rail has to re-read
+/// `isOpen` to hand its half of the matched pair over to the sheet and take it back
+/// on dismissal, and an `@Environment` value does not publish.
+private struct YourDayHostedRail: View {
+    @ObservedObject var host: DaySchedulePresentation
+    let namespace: Namespace.ID
+    let items: [DayItem]
+    let suggestion: DayItem?
+    let townCount: Int?
+    let dates: any DateProviding
+    let isComplete: (DayItem) -> Bool
+    let onExplore: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        YourDayRail(
+            items: items,
+            isComplete: isComplete,
+            suggestion: suggestion,
+            townCount: townCount,
+            namespace: namespace,
+            morphs: !reduceMotion && !host.isOpen,
+            onOpenDay: { open(.item($0.id)) },
+            onAdd: { open(.callToAction) },
+            onExplore: onExplore
+        )
+        .modifier(DayScheduleDemoOpener(items: items, open: open))
+    }
+
+    /// One transaction: the sheet arrives, the rail lets go of the matched ids, and
+    /// the accent bar flies out of the tapped card into the timeline row.
+    private func open(_ anchor: DayScheduleAnchor) {
+        withAnimation(reduceMotion ? DayScheduleMotion.reduced : DayScheduleMotion.open) {
+            host.open(DayScheduleRequest(items: items, anchor: anchor, dates: dates))
+        }
+    }
+}
+
+/// The heading is real; only the cards are placeholders. Their widths, height,
+/// radius and gap are the rail's own (236 × 116, 12pt, 16pt radius), and the
+/// trailing 100pt block is the add tile, so nothing shifts on swap-in.
 private struct YourDaySkeleton: View {
     var body: some View {
-        FeedSkeletonSection(spacing: 12) {
+        FeedSkeletonSection(spacing: YourDayRailMetrics.headerToRail) {
             YourDayHeading()
         } content: {
-            FeedSkeletonStrip(widths: [218, 218, 170], height: 208)
+            FeedSkeletonStrip(
+                widths: [YourDayRailMetrics.cardWidth,
+                         YourDayRailMetrics.cardWidth,
+                         YourDayRailMetrics.addTileWidth],
+                height: YourDayRailMetrics.cardHeight
+            )
         }
     }
 }

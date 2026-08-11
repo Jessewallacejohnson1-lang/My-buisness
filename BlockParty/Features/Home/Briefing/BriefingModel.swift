@@ -154,10 +154,7 @@ final class BriefingModel: ObservableObject {
     /// the town, not the device — a user in another timezone still gets St. Joe's
     /// day.
     nonisolated static func townToday(_ now: Date = Date()) -> String {
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = Town.timeZone
-        let c = cal.dateComponents([.year, .month, .day], from: now)
-        return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
+        Town.day(now)
     }
 }
 

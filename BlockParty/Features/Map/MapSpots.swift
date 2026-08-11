@@ -48,13 +48,18 @@ enum SpotCategory {
     var tint: Color {
         switch self {
         case .park, .trail:        return SpotCategory.mapGreen
-        case .downtown, .coffee, .fitness: return Hue.ink
-        case .college, .chapel:    return Hue.ink
-        case .default:             return Hue.ink
+        case .downtown, .coffee, .fitness: return SpotCategory.mapInk
+        case .college, .chapel:    return SpotCategory.mapInk
+        case .default:             return SpotCategory.mapInk
         }
     }
 
-    private static let mapGreen = Hue.ink
+    private static let mapGreen = SpotCategory.mapInk
+
+    /// Pin tints sit on the Mapbox canvas, which is LIGHT cartography in both
+    /// appearances — see `Color.onLightCanvas`. Following the system here would
+    /// paint a white badge onto warm paper.
+    private static let mapInk = Hue.ink.onLightCanvas
 }
 
 struct Spot: Identifiable, Hashable {
