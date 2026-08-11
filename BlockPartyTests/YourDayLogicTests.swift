@@ -801,21 +801,54 @@ final class YourDayEndAtTests: XCTestCase {
         XCTAssertFalse(try XCTUnwrap(items.first).eyebrow.contains(":"))
     }
 
-    func testDurationTextRoundsToWholeAndHalfHoursAndRefusesNonsense() throws {
+    /// The way a person says a length of time. `10.6 hr` shipped to the day sheet's
+    /// DURATION column and nobody says "ten point six hours".
+    func testDurationTextReadsAsHoursAndMinutesNotADecimal() throws {
+        let start = try townDate(year: 2026, month: 8, day: 10, hour: 9)
+
+        func text(minutes: Double) -> String? {
+            YourDayLogic.durationText(start: start, end: start.addingTimeInterval(minutes * 60))
+        }
+
+        // Sub-hour: minutes alone, no leading "0 hr".
+        XCTAssertEqual(text(minutes: 45), "45 min")
+        XCTAssertEqual(text(minutes: 1), "1 min")
+
+        // Exact hours: no trailing "0 min".
+        XCTAssertEqual(text(minutes: 60), "1 hr")
+        XCTAssertEqual(text(minutes: 120), "2 hr")
+
+        // Hours with minutes — both clauses, including the case that started this.
+        XCTAssertEqual(text(minutes: 65), "1 hr 5 min")
+        XCTAssertEqual(text(minutes: 90), "1 hr 30 min")
+        XCTAssertEqual(text(minutes: 636), "10 hr 36 min", "The 10.6 hr that shipped")
+    }
+
+    /// Rounding happens ONCE, to the nearest minute, before anything is worded — so
+    /// a hair under an hour reads `1 hr`, never `0 hr 60 min`.
+    func testDurationTextRoundsToTheNearestMinuteBeforeWordingIt() throws {
         let start = try townDate(year: 2026, month: 8, day: 10, hour: 9)
 
         XCTAssertEqual(
-            YourDayLogic.durationText(start: start, end: start.addingTimeInterval(45 * 60)),
-            "45 min"
-        )
-        XCTAssertEqual(
-            YourDayLogic.durationText(start: start, end: start.addingTimeInterval(60 * 60)),
+            YourDayLogic.durationText(start: start, end: start.addingTimeInterval(59 * 60 + 40)),
             "1 hr"
         )
         XCTAssertEqual(
-            YourDayLogic.durationText(start: start, end: start.addingTimeInterval(90 * 60)),
-            "1.5 hr"
+            YourDayLogic.durationText(start: start, end: start.addingTimeInterval(59 * 60 + 20)),
+            "59 min"
         )
+        XCTAssertEqual(
+            YourDayLogic.durationText(start: start, end: start.addingTimeInterval(119 * 60 + 40)),
+            "2 hr"
+        )
+    }
+
+    /// The suppression path, which is still the COMMON path: every live
+    /// `club_events` row leaves `end_at` NULL. No end is no duration, ever — never
+    /// the assumed two hours, never a zero, never a negative.
+    func testDurationTextRefusesNonsenseAndStaysSilentWithoutAnEnd() throws {
+        let start = try townDate(year: 2026, month: 8, day: 10, hour: 9)
+
         XCTAssertNil(
             YourDayLogic.durationText(start: start, end: nil),
             "No end_at is no duration — never the assumed two hours"
@@ -827,6 +860,49 @@ final class YourDayEndAtTests: XCTestCase {
         XCTAssertNil(
             YourDayLogic.durationText(start: start, end: start.addingTimeInterval(-3600))
         )
+        XCTAssertNil(
+            YourDayLogic.durationText(start: start, end: start.addingTimeInterval(20)),
+            "Twenty seconds rounds to zero minutes, which is not a duration"
+        )
+    }
+
+    /// A NULL `end_at` must leave the eyebrow and the DURATION column exactly as
+    /// they were before the column existed: a bare clock time, and no stat.
+    func testANullEndAtStillProducesNoDurationClauseAnywhere() throws {
+        let clock = FixedDateProvider(try townDate(year: 2026, month: 8, day: 10, hour: 9))
+        let items = YourDayLogic.dayItems(
+            from: [event(id: "no-end", date: "2026-08-10", time: "11:00 AM")],
+            now: clock.now
+        )
+
+        let item = try XCTUnwrap(items.first)
+        XCTAssertEqual(item.eyebrow, "11:00 AM")
+        XCTAssertNil(DayScheduleLogic.duration(item))
+        XCTAssertEqual(
+            DayScheduleLogic.stats(for: item, state: .completed, now: clock.now).map(\.label),
+            ["WENT"],
+            "No end, no DURATION column — and no dash where it would have been"
+        )
+    }
+
+    /// The eyebrow and the stat column are one function, so a long event says the
+    /// same words in both places.
+    func testTheEyebrowCarriesTheSameHoursAndMinutesAsTheDurationColumn() throws {
+        let clock = FixedDateProvider(try townDate(year: 2026, month: 8, day: 10, hour: 9))
+        let end = try townDate(year: 2026, month: 8, day: 10, hour: 21, minute: 36)
+
+        let items = YourDayLogic.dayItems(
+            from: [event(id: "long-day", date: "2026-08-10", time: "11:00 AM", endAt: end)],
+            now: clock.now
+        )
+
+        let item = try XCTUnwrap(items.first)
+        XCTAssertEqual(item.eyebrow, "11:00 AM · 10 hr 36 min")
+        XCTAssertEqual(DayScheduleLogic.duration(item), "10 hr 36 min")
+        // The gutter still finds the meridiem: it splits on the FIRST " · ", so the
+        // duration clause's own spaces never get read as an AM/PM.
+        XCTAssertEqual(DayScheduleLogic.gutterTime(for: item)?.value, "11:00")
+        XCTAssertEqual(DayScheduleLogic.gutterTime(for: item)?.meridiem, "AM")
     }
 
     /// The rule the rebuild asked for, restated at the boundary: a stated end wins

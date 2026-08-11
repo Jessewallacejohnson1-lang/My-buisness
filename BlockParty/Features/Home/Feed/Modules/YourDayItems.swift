@@ -162,22 +162,38 @@ nonisolated extension YourDayLogic {
         return time + eyebrowSeparator + length
     }
 
-    /// `45 min` · `2 hr` · `1.5 hr`, or nil when the row never stated an end.
+    /// `45 min` · `2 hr` · `1 hr 5 min` · `10 hr 36 min`, or nil when the row never
+    /// stated an end.
+    ///
+    /// HOURS AND MINUTES, NOT A DECIMAL. This used to print `10.6 hr`, which is a
+    /// number nobody says out loud — a neighbour reads a clock, not a fraction.
+    /// Whole hours drop the minute clause entirely (`2 hr`, never `2 hr 0 min`) and
+    /// anything under an hour is minutes alone.
+    ///
+    /// Rounded to the nearest whole MINUTE, once, before anything is worded — so
+    /// 59m40s reads `1 hr` rather than `0 hr 60 min`, and the two call sites below
+    /// can never disagree about a boundary.
     ///
     /// The ONE duration vocabulary in the feature — the day sheet's `DURATION`
     /// column reads it too, so an event cannot say "2 hr" in the eyebrow and
     /// "120 min" in its stats.
+    ///
+    /// Nil is the SUPPRESSION path, and it is still the common one: every live
+    /// `club_events` row leaves `end_at` NULL, so most items have no duration to
+    /// state and must render no clause and no column at all.
     static func durationText(start: Date, end: Date?) -> String? {
         guard let end else { return nil }
         let minutes = Int((end.timeIntervalSince(start) / 60).rounded())
         guard minutes > 0 else { return nil }
-        guard minutes >= 60 else { return "\(minutes) min" }
 
-        let hours = Double(minutes) / 60
-        let rounded = (hours * 10).rounded() / 10
-        return rounded == rounded.rounded()
-            ? "\(Int(rounded)) hr"
-            : String(format: "%.1f hr", rounded)
+        let hours = minutes / 60
+        let remainder = minutes % 60
+
+        switch (hours, remainder) {
+        case (0, let minutes):        return "\(minutes) min"
+        case (let hours, 0):          return "\(hours) hr"
+        case (let hours, let minutes): return "\(hours) hr \(minutes) min"
+        }
     }
 
     // MARK: - Placing a row on the clock

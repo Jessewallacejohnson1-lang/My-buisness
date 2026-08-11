@@ -23,6 +23,8 @@
 //
 
 import XCTest
+import SwiftUI   // ColorScheme, for the appearance-switch tests at the bottom
+import UIKit     // UIUserInterfaceStyle, ditto
 @testable import BlockParty
 
 @MainActor
@@ -156,5 +158,107 @@ final class TodayHeaderTests: XCTestCase {
 
         // The bar never grows past its ceiling — the relationship, not just the numbers.
         XCTAssertGreaterThan(TodayHeader.maxHeight, TodayHeader.contentHeight)
+    }
+}
+
+// MARK: - The appearance switch behind the bar's ⋮ button
+
+/// System / Light / Dark, the app's one preference. It lives in the town menu, which
+/// is what this bar's trailing ⋮ opens — so its rules are locked down beside the
+/// bar's, in a file the test target already compiles.
+///
+/// (A NEW file under `BlockPartyTests/` does not run until it is registered in four
+/// places in `project.pbxproj`; that has silently swallowed a suite here before. See
+/// CLAUDE.md.)
+@MainActor
+final class AppearancePreferenceTests: XCTestCase {
+
+    /// A throwaway `UserDefaults` suite per test, so nothing here can touch the
+    /// simulator's real `bp.appearance` and change what a screenshot run sees.
+    private func makeDefaults(_ name: String = #function) throws -> (UserDefaults, String) {
+        let suite = "bp.appearance.tests.\(name).\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        return (defaults, suite)
+    }
+
+    // MARK: The three states
+
+    /// System is NOT Light. `nil` is the absence of a request, which is what lets
+    /// the phone keep deciding — mapping it to `.light` would pin the app light for
+    /// everyone who never opened the menu.
+    func testSystemMapsToNoRequestWhileLightAndDarkAreRequests() {
+        XCTAssertNil(AppearanceChoice.system.colorScheme)
+        XCTAssertEqual(AppearanceChoice.light.colorScheme, .light)
+        XCTAssertEqual(AppearanceChoice.dark.colorScheme, .dark)
+    }
+
+    /// The same distinction in the UIKit spelling used by `ShareCenter`'s own
+    /// window, which the root's `.preferredColorScheme` cannot reach.
+    func testSystemIsUnspecifiedInTheUIKitSpellingToo() {
+        XCTAssertEqual(AppearanceChoice.system.interfaceStyle, .unspecified)
+        XCTAssertEqual(AppearanceChoice.light.interfaceStyle, .light)
+        XCTAssertEqual(AppearanceChoice.dark.interfaceStyle, .dark)
+    }
+
+    func testTheControlOffersExactlyThreeOptionsInMenuOrder() {
+        XCTAssertEqual(AppearanceChoice.allCases, [.system, .light, .dark])
+        XCTAssertEqual(AppearanceChoice.allCases.map(\.label), ["System", "Light", "Dark"])
+    }
+
+    // MARK: Persistence
+
+    /// The `bp.*` namespace is required and a `hygge.*` key must never come back —
+    /// see the rename section of CLAUDE.md.
+    func testTheStoredKeyIsInTheBPNamespace() {
+        XCTAssertEqual(AppearanceStore.defaultsKey, "bp.appearance")
+        XCTAssertFalse(AppearanceStore.defaultsKey.hasPrefix("hygge."))
+    }
+
+    func testDefaultsToSystemWhenNothingHasEverBeenStored() throws {
+        let (defaults, suite) = try makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        XCTAssertEqual(AppearanceStore(defaults: defaults).choice, .system)
+    }
+
+    /// A relaunch, simulated the way `UtilityPrefsStore`'s tests do it: a SECOND
+    /// store built over the same suite, so it reads bytes that were genuinely
+    /// written rather than an in-memory value handed between two references.
+    func testAChoiceSurvivesARelaunch() throws {
+        let (defaults, suite) = try makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let firstLaunch = AppearanceStore(defaults: defaults)
+        firstLaunch.choice = .dark
+
+        XCTAssertEqual(defaults.string(forKey: AppearanceStore.defaultsKey), "dark")
+        XCTAssertEqual(AppearanceStore(defaults: defaults).choice, .dark)
+    }
+
+    /// Including the way back. Choosing System again must WRITE "system", not clear
+    /// the key and leave a stale "dark" behind it.
+    func testChoosingSystemAgainIsPersistedAsSystem() throws {
+        let (defaults, suite) = try makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let store = AppearanceStore(defaults: defaults)
+        store.choice = .dark
+        store.choice = .system
+
+        XCTAssertEqual(defaults.string(forKey: AppearanceStore.defaultsKey), "system")
+        XCTAssertEqual(AppearanceStore(defaults: defaults).choice, .system)
+        XCTAssertNil(AppearanceStore(defaults: defaults).choice.colorScheme)
+    }
+
+    /// Forward compat: a value this build does not know is "follow the phone", not
+    /// a crash and not a guess at what the neighbour meant.
+    func testAnUnreadableStoredValueFallsBackToSystem() throws {
+        let (defaults, suite) = try makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        defaults.set("sepia", forKey: AppearanceStore.defaultsKey)
+
+        XCTAssertEqual(AppearanceStore(defaults: defaults).choice, .system)
+        XCTAssertEqual(AppearanceChoice.stored(nil), .system)
     }
 }

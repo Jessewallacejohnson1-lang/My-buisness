@@ -60,6 +60,12 @@ struct RootView: View {
     /// Flipped true once `loaderMinDuration` has elapsed since launch.
     @State private var minLoaderShown = false
 
+    /// The neighbour's System / Light / Dark choice, set in the town menu. Held
+    /// here because THIS is the root of the presentation `.preferredColorScheme`
+    /// acts on — the request has to be made once, at the top, or a sheet and the
+    /// screen behind it can disagree about what appearance they are in.
+    @StateObject private var appearance = AppearanceStore.shared
+
     var body: some View {
         Group {
             #if DEBUG
@@ -173,6 +179,26 @@ struct RootView: View {
             gate
             #endif
         }
+        // THE APPEARANCE SWITCH, APPLIED ONCE, HERE — on the ROOT of the window's
+        // content, not on `gate` below. `gate` is only the auth branch: every DEBUG
+        // preview root above bypasses it, and a preference attached there would
+        // silently do nothing on exactly the screens used to verify it.
+        //
+        // `.system` resolves to `nil` — no request — so the app keeps following the
+        // phone and keeps following it as the phone changes. `.light` / `.dark` turn
+        // the hosting window's interface style over, which is why every `Hue` token,
+        // every `.glassEffect` surface and every presented sheet move together.
+        //
+        // NOT `.environment(\.colorScheme, …)`: that forces a value into the SwiftUI
+        // tree only, leaving the UIKit-backed materials resolving the device's
+        // appearance underneath the ink drawn on them. It was removed a commit ago
+        // (see the note further down this file) and must not come back.
+        .preferredColorScheme(appearance.choice.colorScheme)
+        #if DEBUG
+        // `-appearance <state>` / `-appearance-demo` — the stand-in for a tap on the
+        // town-menu control, which no automation in this setup can perform.
+        .task { appearance.applyDebugLaunchArguments() }
+        #endif
     }
 
     @ViewBuilder
