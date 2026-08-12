@@ -81,7 +81,7 @@ struct HorizonSkyGallery: View {
                 now: now,
                 sunrise: sunrise,
                 sunset: sunset,
-                items: HorizonMock.items(for: "busy", day: calendar.startOfDay(for: now))
+                items: HorizonMock.items(for: .busy, day: calendar.startOfDay(for: now))
             ))
         }
 

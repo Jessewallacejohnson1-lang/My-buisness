@@ -58,7 +58,14 @@ struct HorizonCard: View {
     var body: some View {
         let sky = SolarSky(now: now, sunrise: sunrise, sunset: sunset)
         let ground = HorizonPalette.groundStyle(for: sky)
-        let counts = countsSource(sky: sky)
+        // Day membership is width-independent, so one HorizonDay serves both
+        // the footer counts and the rail (which lays it out at real width).
+        let day = HorizonDay(
+            items: items,
+            axis: TimeAxis(now: now, sunrise: sunrise, sunset: sunset, width: 1),
+            now: now
+        )
+        let counts = (yours: day.yoursCount, open: day.openCount)
 
         ZStack(alignment: .bottomTrailing) {
             Button(action: onOpenDay) {
@@ -75,7 +82,7 @@ struct HorizonCard: View {
 
             seeAllButton(ground: ground)
         }
-        .background { scene(sky: sky) }
+        .background { scene(sky: sky, day: day) }
         .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
@@ -91,10 +98,9 @@ struct HorizonCard: View {
 
     // MARK: Backdrop + rail (the scene behind the text)
 
-    private func scene(sky: SolarSky) -> some View {
+    private func scene(sky: SolarSky, day: HorizonDay) -> some View {
         GeometryReader { geo in
             let axis = TimeAxis(now: now, sunrise: sunrise, sunset: sunset, width: geo.size.width)
-            let day = HorizonDay(items: items, axis: axis, now: now)
             ZStack(alignment: .topLeading) {
                 HorizonBackdrop(sky: sky, axis: axis)
                 if !isLoading {
@@ -124,14 +130,6 @@ struct HorizonCard: View {
     }
 
     // MARK: Ground content
-
-    private func countsSource(sky: SolarSky) -> (yours: Int, open: Int) {
-        // Counts are whole-day and window-independent, so any valid axis
-        // works; width only affects stub layout, which isn't read here.
-        let axis = TimeAxis(now: now, sunrise: sunrise, sunset: sunset, width: 400)
-        let day = HorizonDay(items: items, axis: axis, now: now)
-        return (day.yoursCount, day.openCount)
-    }
 
     private func groundContent(
         ground: HorizonGroundStyle, counts: (yours: Int, open: Int)

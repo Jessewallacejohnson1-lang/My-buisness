@@ -18,11 +18,20 @@
 #if DEBUG
 import Foundation
 
+/// The §7 states, typed — an unknown `-BPMockDayState` value fails loudly
+/// instead of rendering a plausible empty card that "passes" a screenshot.
+nonisolated enum HorizonDayState: String, CaseIterable {
+    case empty, light, busy, overlap, edge, overflow, swap, midnight
+    case solsticeSummer = "solstice-summer"
+    case solsticeWinter = "solstice-winter"
+    case degenerate, late, zerozero, loading, error
+}
+
 nonisolated struct HorizonMock {
     let now: Date
     let sunrise: Date?
     let sunset: Date?
-    let state: String
+    let state: HorizonDayState
     let items: [DayItem]
 
     /// Non-nil when any `-BPMock*` flag is present. Parsed once; the module
@@ -48,7 +57,14 @@ nonisolated struct HorizonMock {
     static func fromArguments(
         _ arguments: [String] = ProcessInfo.processInfo.arguments
     ) -> HorizonMock {
-        let state = value(after: "-BPMockDayState", in: arguments) ?? "busy"
+        let rawState = value(after: "-BPMockDayState", in: arguments)
+        let state = rawState.map { raw in
+            guard let parsed = HorizonDayState(rawValue: raw) else {
+                assertionFailure("Unknown -BPMockDayState '\(raw)'")
+                return HorizonDayState.busy
+            }
+            return parsed
+        } ?? .busy
 
         var now = value(after: "-BPMockNow", in: arguments)
             .flatMap { ISO8601DateFormatter().date(from: $0) }
@@ -57,7 +73,7 @@ nonisolated struct HorizonMock {
         // State-specific defaults, so a bare `-BPMockDayState midnight` is
         // already coherent without hand-picking a clock time.
         switch state {
-        case "midnight", "swap", "late", "solstice-summer", "solstice-winter", "degenerate":
+        case .midnight, .swap, .late, .solsticeSummer, .solsticeWinter, .degenerate:
             now = now ?? stateDefaultNow(for: state)
             sunTimes = sunTimes ?? stateDefaultSun(for: state)
         default:
@@ -82,7 +98,7 @@ nonisolated struct HorizonMock {
     // MARK: State fixtures (§7)
 
     /// Internal so the galleries can build a state's items on their own day.
-    static func items(for state: String, day: Date) -> [DayItem] {
+    static func items(for state: HorizonDayState, day: Date) -> [DayItem] {
         func yours(_ id: String, _ h: Int, _ m: Int, dayOffset: Int = 0, allDay: Bool = false)
             -> DayItem {
             fixture(id, at: clock(on: day, h, m, dayOffset: dayOffset),
@@ -93,14 +109,14 @@ nonisolated struct HorizonMock {
         }
 
         switch state {
-        case "empty":
+        case .empty:
             return [
                 open("o1", 8, 0), open("o2", 10, 30), open("o3", 12, 0), open("o4", 14, 0),
                 open("o5", 16, 30), open("o6", 18, 0), open("o7", 19, 30),
             ]
-        case "light":
+        case .light:
             return [yours("y1", 17, 30), open("o1", 10, 0), open("o2", 13, 30), open("o3", 18, 15)]
-        case "busy", "solstice-summer", "solstice-winter":
+        case .busy, .solsticeSummer, .solsticeWinter:
             return [
                 yours("y1", 7, 0), yours("y2", 9, 30), yours("y3", 12, 15),
                 yours("y4", 17, 30), yours("y5", 19, 0),
@@ -108,54 +124,52 @@ nonisolated struct HorizonMock {
                 open("o5", 11, 0), open("o6", 12, 0), open("o7", 13, 30), open("o8", 15, 0),
                 open("o9", 16, 45), open("o10", 18, 15), open("o11", 20, 30),
             ]
-        case "overlap":
+        case .overlap:
             return [yours("y1", 14, 0), yours("y2", 14, 10), yours("y3", 14, 20)]
-        case "edge":
+        case .edge:
             return [yours("y1", 6, 18), yours("y2", 20, 52)]
-        case "overflow":
+        case .overflow:
             return [
                 yours("y1", 10, 0), yours("y2", 21, 30), yours("y3", 22, 0),
                 open("o1", 11, 30), open("o2", 15, 30),
             ]
-        case "swap":
+        case .swap:
             return [
                 yours("y1", 9, 0), yours("y2", 22, 15),
                 open("o1", 12, 0), open("o2", 21, 30), open("o3", 23, 0),
             ]
-        case "midnight":
+        case .midnight:
             return [
                 yours("tonight", 22, 30),
                 yours("tomorrow-1", 0, 30, dayOffset: 1),
                 open("tomorrow-2", 2, 0, dayOffset: 1),
             ]
-        case "degenerate":
+        case .degenerate:
             return [yours("y1", 17, 30), open("o1", 10, 0), open("o2", 13, 30)]
-        case "late":
+        case .late:
             return [yours("y1", 9, 0), yours("y2", 17, 0), open("o1", 12, 0), open("o2", 19, 30)]
-        case "zerozero":
-            return []
-        default:
+        case .zerozero, .loading, .error:
             return []
         }
     }
 
-    private static func stateDefaultNow(for state: String) -> Date? {
+    private static func stateDefaultNow(for state: HorizonDayState) -> Date? {
         switch state {
-        case "midnight": townClock(2026, 8, 11, 23, 50)
-        case "swap": townClock(2026, 8, 11, 21, 0)  // sunset 21:02 − 2 min
-        case "late": townClock(2026, 8, 11, 22, 45)
-        case "solstice-summer": townClock(2026, 6, 20, 13, 0)
-        case "solstice-winter": townClock(2026, 12, 21, 12, 0)
-        case "degenerate": townClock(2026, 8, 11, 13, 0)
+        case .midnight: townClock(2026, 8, 11, 23, 50)
+        case .swap: townClock(2026, 8, 11, 21, 0)  // sunset 21:02 − 2 min
+        case .late: townClock(2026, 8, 11, 22, 45)
+        case .solsticeSummer: townClock(2026, 6, 20, 13, 0)
+        case .solsticeWinter: townClock(2026, 12, 21, 12, 0)
+        case .degenerate: townClock(2026, 8, 11, 13, 0)
         default: nil
         }
     }
 
-    private static func stateDefaultSun(for state: String) -> (rise: (Int, Int), set: (Int, Int))? {
+    private static func stateDefaultSun(for state: HorizonDayState) -> (rise: (Int, Int), set: (Int, Int))? {
         switch state {
-        case "solstice-summer": (rise: (5, 26), set: (21, 3))
-        case "solstice-winter": (rise: (7, 48), set: (16, 34))
-        case "degenerate": (rise: (0, 10), set: (23, 50))
+        case .solsticeSummer: (rise: (5, 26), set: (21, 3))
+        case .solsticeWinter: (rise: (7, 48), set: (16, 34))
+        case .degenerate: (rise: (0, 10), set: (23, 50))
         default: nil
         }
     }
@@ -217,9 +231,10 @@ nonisolated struct HorizonMock {
     }
 
     private static func clock(on day: Date, _ hour: Int, _ minute: Int, dayOffset: Int = 0) -> Date {
-        var date = Town.calendar.date(byAdding: .day, value: dayOffset, to: day) ?? day
-        date = Town.calendar.date(byAdding: .hour, value: hour, to: date) ?? date
-        return Town.calendar.date(byAdding: .minute, value: minute, to: date) ?? date
+        // bySettingHour, not byAdding — wall-clock fixture times must stay
+        // wall-clock on DST-change days (the townInstant rule).
+        let date = Town.calendar.date(byAdding: .day, value: dayOffset, to: day) ?? day
+        return Town.calendar.date(bySettingHour: hour, minute: minute, second: 0, of: date) ?? date
     }
 
     private static func townClock(_ y: Int, _ mo: Int, _ d: Int, _ h: Int, _ mi: Int) -> Date {

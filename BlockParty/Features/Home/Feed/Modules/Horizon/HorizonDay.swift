@@ -47,25 +47,23 @@ nonisolated struct HorizonDay: Equatable {
     let earlierCount: Int
     let laterCount: Int
 
-    init(items: [DayItem], axis: TimeAxis, now: Date, calendar: Calendar = Town.calendar) {
-        let todayStart = calendar.startOfDay(for: now)
-        let todayEnd = calendar.date(byAdding: .day, value: 1, to: todayStart) ?? todayStart
+    init(items: [DayItem], axis: TimeAxis, now: Date) {
+        // The town's today has exactly one definition — the same half-open
+        // interval the rail builder uses.
+        let todayInterval = YourDayLogic.todayInterval(now: now)
+        let overlapsToday: (DayItem) -> Bool = { item in
+            item.start < todayInterval.end && (item.end ?? item.start) >= todayInterval.start
+        }
 
         // Defensive future-date guard at the module boundary: an item earns a
         // place only by overlapping the town's today (the shipped Aug-30 bug
         // shape) or by sitting inside the visible window (tomorrow's small
         // hours during the night window). Everything else is dropped whole.
         let admitted = items.filter { item in
-            let spanEnd = item.end ?? item.start
-            let overlapsToday = item.start < todayEnd && spanEnd >= todayStart
-            let insideWindow = axis.fraction(for: item.start) != nil
-            return overlapsToday || insideWindow
+            overlapsToday(item) || axis.fraction(for: item.start) != nil
         }
 
-        let today = admitted.filter { item in
-            let spanEnd = item.end ?? item.start
-            return item.start < todayEnd && spanEnd >= todayStart
-        }
+        let today = admitted.filter(overlapsToday)
         yoursCount = today.filter { $0.source == .committed }.count
         openCount = today.filter { $0.source == .wholeTown }.count
 

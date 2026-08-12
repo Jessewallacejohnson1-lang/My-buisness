@@ -105,17 +105,17 @@ final class YourDayModule: @MainActor FeedModule {
             loadState = .failed
         }
 
-        // Solar times hydrate AFTER readiness: the card opens on its
-        // 6:30/8:30 fallback and cross-fades when the real times land. A
-        // slow Open-Meteo read must never hold the day's content hostage.
-        let w = await weather
-        sunrise = w?.sunrise
-        sunset = w?.sunset
-
         // Stored completions, AFTER the rail is ready. Best-effort and separate
         // from the fetch above: a completions read that fails must not blank a day
         // we already have, and a day that failed to load has no ids to ask about.
+        // Awaited before the weather so a slow Open-Meteo read delays neither.
         await completion.refresh(for: items.map(\.id))
+
+        // Solar times hydrate LAST: the card opens on its 6:30/8:30 fallback
+        // and cross-fades when the real times land.
+        let w = await weather
+        sunrise = w?.sunrise
+        sunset = w?.sunset
     }
 
     func makeView(_ ctx: FeedModuleContext) -> AnyView {
@@ -192,10 +192,10 @@ private extension YourDayModule {
             sunrise = mock.sunrise
             sunset = mock.sunset
             switch mock.state {
-            case "loading":
+            case .loading:
                 items = []
                 loadState = .loading
-            case "error":
+            case .error:
                 items = []
                 loadState = .failed
             default:

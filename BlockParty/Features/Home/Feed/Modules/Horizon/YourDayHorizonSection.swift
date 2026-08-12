@@ -92,8 +92,17 @@ struct YourDayHorizonSection: View {
     private func open(_ anchor: DayScheduleAnchor) {
         guard let host else { return }
         withAnimation(reduceMotion ? DayScheduleMotion.reduced : DayScheduleMotion.open) {
-            host.open(DayScheduleRequest(items: items, anchor: anchor, dates: dates))
+            host.open(DayScheduleRequest(items: items, anchor: anchor, dates: sheetDates))
         }
+    }
+
+    /// The sheet reads the same pinned clock the card renders with — under
+    /// `-BPMockNow` the two surfaces must agree on what time it is.
+    private var sheetDates: any DateProviding {
+        #if DEBUG
+        if let mock = HorizonMock.launchOverride { return FixedDateProvider(mock.now) }
+        #endif
+        return dates
     }
 
     // MARK: Mock plumbing (compiles out of Release)

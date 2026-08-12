@@ -136,10 +136,13 @@ nonisolated struct TimeAxis: Equatable {
     /// 8 labels. Counting actual grid hours honors the ≤ 7 goal the formula
     /// was reaching for, and reproduces both worked examples in the spec.
     var labelInterval: Int {
+        Self.interval(for: clockHours(), calendar: calendar)
+    }
+
+    private static func interval(for hours: [Date], calendar: Calendar) -> Int {
         for interval in [1, 2, 3] {
-            if gridHours(interval: interval).count <= Self.maximumLabels {
-                return interval
-            }
+            let onGrid = hours.count(where: { calendar.component(.hour, from: $0) % interval == 0 })
+            if onGrid <= maximumLabels { return interval }
         }
         return 3
     }
@@ -147,8 +150,10 @@ nonisolated struct TimeAxis: Equatable {
     /// One tick per clock hour across the window. Labeled hours follow the
     /// ladder; any label within 14 pt of a rail edge is dropped.
     func ticks() -> [Tick] {
-        let interval = labelInterval
-        return clockHours().compactMap { date in
+        // One calendar walk serves both the ladder pick and the ticks.
+        let hours = clockHours()
+        let interval = Self.interval(for: hours, calendar: calendar)
+        return hours.compactMap { date in
             guard let tickX = x(for: date) else { return nil }
             let hour = calendar.component(.hour, from: date)
             let onGrid = hour % interval == 0
@@ -191,12 +196,10 @@ nonisolated struct TimeAxis: Equatable {
         return hours
     }
 
-    private func gridHours(interval: Int) -> [Date] {
-        clockHours().filter { calendar.component(.hour, from: $0) % interval == 0 }
-    }
-
     private static func clockDate(hour: Int, on day: Date, calendar: Calendar) -> Date {
+        // bySettingHour, not byAdding — the 6-to-6 fallback must be 6 by the
+        // wall clock even on a DST-change day (the townInstant rule).
         let start = calendar.startOfDay(for: day)
-        return calendar.date(byAdding: .hour, value: hour, to: start) ?? start
+        return calendar.date(bySettingHour: hour, minute: 0, second: 0, of: start) ?? start
     }
 }

@@ -140,8 +140,12 @@ nonisolated struct SolarSky: Equatable {
     }
 
     private static func fallbackDate(minutes: Int, on day: Date, calendar: Calendar) -> Date {
+        // bySettingHour, not byAdding — minutes-past-midnight arithmetic is
+        // an hour off on DST-change days (the townInstant rule).
         let start = calendar.startOfDay(for: day)
-        return calendar.date(byAdding: .minute, value: minutes, to: start) ?? start
+        return calendar.date(
+            bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: start
+        ) ?? start
     }
 
     /// Re-dates a solar time onto `reference`'s town day, keeping its wall

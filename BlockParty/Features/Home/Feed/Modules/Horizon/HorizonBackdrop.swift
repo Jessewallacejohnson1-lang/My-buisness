@@ -71,6 +71,11 @@ struct HorizonBackdrop: View {
         let b = HorizonPalette.bloom(for: sky)
         let rx = width * (0.55 + 0.7 * sky.solarElevation)
         let ry = HorizonMetrics.skyHeight * (0.5 + 0.35 * sky.solarElevation)
+        // While the sun is up the bloom rides the DRAWN ruler, not the raw
+        // solar fraction — identical whenever the window is the real
+        // sunrise→sunset, but in the degenerate 6-to-6 fallback it keeps
+        // the glow aligned with the ticks and the now line.
+        let x = sky.isSunUp ? (axis.fraction(for: sky.now) ?? sky.sunX) : sky.sunX
         return Ellipse()
             .fill(
                 EllipticalGradient(
@@ -83,7 +88,7 @@ struct HorizonBackdrop: View {
                 )
             )
             .frame(width: rx * 2, height: ry * 2)
-            .position(x: sky.sunX * width, y: HorizonMetrics.skyHeight)
+            .position(x: x * width, y: HorizonMetrics.skyHeight)
             .opacity(b.coreOpacity)
             .blendMode(.normal)
     }

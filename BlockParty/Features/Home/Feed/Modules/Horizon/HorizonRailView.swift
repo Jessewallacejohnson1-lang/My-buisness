@@ -16,6 +16,10 @@ import SwiftUI
 /// solar, not scheme-driven, exactly like the map's onLightCanvas rule.
 @MainActor
 enum HorizonStubColor {
+    /// 10 categories × 4 phases — resolved once each, not per stub per tick
+    /// (the UIColor bridge and trait resolution are the expensive part).
+    private static var cache: [String: Color] = [:]
+
     static func rgb(for category: EventCategory) -> HorizonRGB {
         let light = CategoryGradient.of(category).stops.top.onLightCanvas
         var r: CGFloat = 0
@@ -27,7 +31,11 @@ enum HorizonStubColor {
     }
 
     static func color(for category: EventCategory, phase: SkyPhase) -> Color {
-        Color(rgb(for: category).adjustedForSky(phase))
+        let key = "\(category.rawValue)|\(phase)"
+        if let cached = cache[key] { return cached }
+        let resolved = Color(rgb(for: category).adjustedForSky(phase))
+        cache[key] = resolved
+        return resolved
     }
 }
 
