@@ -92,16 +92,27 @@ final class HorizonPaletteTests: XCTestCase {
     }
 
     // MARK: Text contrast — sampled at 5-minute intervals across a day
+    //
+    // Each line is tested against the COMPOSITE at its own y — the fill
+    // with the reflection gradient's residual mixed in — because that is
+    // what the text actually stands on, not the bare fill.
 
     func testTextClearsFourPointFiveToOneAtEverySample() {
         var worst = Double.infinity
         var worstAt = ""
         let dayStart = townDate(2026, 8, 11, 0, 0)
         for minute in stride(from: 0, to: 24 * 60, by: 5) {
-            let moment = dayStart.addingTimeInterval(Double(minute) * 60)
-            let ground = HorizonPalette.groundStyle(for: sky(at: moment))
-            for (name, text) in [("primary", ground.textPrimary), ("secondary", ground.textSecondary)] {
-                let ratio = text.contrastRatio(with: ground.fill)
+            let s = sky(at: dayStart.addingTimeInterval(Double(minute) * 60))
+            let ground = HorizonPalette.groundStyle(for: s)
+            let cases: [(String, HorizonRGB, Double)] = [
+                ("primary", ground.textPrimary,
+                 Double(HorizonMetrics.primaryTextBelowHorizon)),
+                ("secondary", ground.textSecondary,
+                 Double(HorizonMetrics.secondaryTextBelowHorizon)),
+            ]
+            for (name, text, offset) in cases {
+                let backdrop = HorizonPalette.compositeGround(for: s, belowHorizon: offset)
+                let ratio = text.contrastRatio(with: backdrop)
                 if ratio < worst {
                     worst = ratio
                     worstAt = "\(name) at minute \(minute)"

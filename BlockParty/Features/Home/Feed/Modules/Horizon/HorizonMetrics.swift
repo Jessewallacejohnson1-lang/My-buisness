@@ -42,10 +42,20 @@ nonisolated enum HorizonMetrics {
     static let horizonLineHeight: CGFloat = 1
     static let solarDotDiameter: CGFloat = 2.5
     static let solarDotOpacity: Double = 0.85
-    /// The sky's reflection below the horizon: bottom stop at 30% fading to
-    /// clear over 32 pt. The text zone starts below the fade, on solid fill.
-    static let reflectionHeight: CGFloat = 32
-    static let reflectionOpacity: Double = 0.30
+    /// The sky's reflection below the horizon: bottom stop at 45% fading to
+    /// clear over 48 pt — running under the tick zone to the top of the
+    /// copy, so the sky lands on the ground the text stands on rather than
+    /// quitting at the ruler. Text contrast is verified against the
+    /// COMPOSITE at the text's y, not the bare fill (see the palette sweep).
+    static let reflectionHeight: CGFloat = 48
+    static let reflectionOpacity: Double = 0.45
+    /// Distance below the horizon where each copy line's cap height starts,
+    /// at standard type — the y the contrast sweep samples.
+    static let primaryTextBelowHorizon: CGFloat = 22
+    static let secondaryTextBelowHorizon: CGFloat = 44
+    /// Horizontal vignette on the sky region only: the sky deepening away
+    /// from the light. Top stop × 0.55 luminance at this opacity.
+    static let vignetteOpacity: Double = 0.20
 
     // Stubs
     static let yourStubHeight: CGFloat = 22

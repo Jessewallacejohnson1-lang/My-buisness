@@ -84,10 +84,29 @@ struct HorizonBackdrop: View {
             // that curvature is what makes this read as sky.
             bloom(width: width)
 
-            // Layer three — the sun (or moon) disc at "now", the scene's own
+            // Layer three — edge vignette: the sky deepening away from the
+            // light. Restrained on purpose; if a screenshot ever reads as a
+            // photo filter, halve the opacity rather than delete it.
+            edgeVignette
+
+            // Layer four — the sun (or moon) disc at "now", the scene's own
             // marker. The sky stays a pure picture: no text, no UI glyphs.
             nowDisc(width: width)
         }
+    }
+
+    private var edgeVignette: some View {
+        let dark = HorizonPalette.skyStops(for: sky)[0].color.scalingLuminance(by: 0.55)
+        return LinearGradient(
+            stops: [
+                .init(color: Color(dark, opacity: HorizonMetrics.vignetteOpacity), location: 0),
+                .init(color: Color(dark, opacity: 0), location: 0.22),
+                .init(color: Color(dark, opacity: 0), location: 0.78),
+                .init(color: Color(dark, opacity: HorizonMetrics.vignetteOpacity), location: 1),
+            ],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
     }
 
     // MARK: Now disc + light pillar

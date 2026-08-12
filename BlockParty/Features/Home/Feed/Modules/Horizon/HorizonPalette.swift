@@ -278,13 +278,25 @@ nonisolated enum HorizonPalette {
     /// stop so the two regions read as one scene.
     static let paperTarget = HorizonRGB(hex: 0xFAFAF7)
     static let nightTarget = HorizonRGB(hex: 0x0E0B1E)
-    /// Light: keep 60% of the stop's saturation, then 80% toward paper.
-    /// Dark: 78% toward deep night — the spec's ~70% leaves the post-sunset
-    /// dusk fill too light for 4.5:1 secondary text (3.95:1 measured), so
-    /// the mix is tuned within the spec's two hard constraints.
+    /// Light: keep 60% of the stop's saturation, then 68% toward paper —
+    /// the daytime ground keeps a real sky tint instead of reading as a
+    /// gray panel. Dark: 78% toward deep night — the spec's ~70% left the
+    /// post-sunset dusk fill too light for 4.5:1 secondary text (3.95:1
+    /// measured), tuned within the spec's two hard constraints.
     static let lightDesaturation = 0.6
-    static let lightPaperBlend = 0.8
+    static let lightPaperBlend = 0.68
     static let darkNightBlend = 0.78
+
+    /// The effective ground color at a distance below the horizon: the flat
+    /// fill with the reflection gradient's residual mixed in. Text stands
+    /// on THIS, so the contrast sweep samples it rather than the bare fill.
+    static func compositeGround(for sky: SolarSky, belowHorizon offset: Double) -> HorizonRGB {
+        let fill = groundStyle(for: sky).fill
+        let bottom = skyStops(for: sky)[3].color
+        let residual = HorizonMetrics.reflectionOpacity
+            * max(0, 1 - offset / Double(HorizonMetrics.reflectionHeight))
+        return .lerp(fill, bottom, residual)
+    }
 
     static func groundFill(fromSkyBottom bottom: HorizonRGB, isDark: Bool) -> HorizonRGB {
         if isDark { return .lerp(bottom, nightTarget, darkNightBlend) }
@@ -296,10 +308,13 @@ nonisolated enum HorizonPalette {
 
     // Text sets. One warm pair per polarity; the spec's per-phase values
     // differ imperceptibly (ΔE < 1) and its light secondaries fail their own
-    // 4.5:1 bar (#7A756B on #F6F1E9 is 3.9:1), so the light secondary is
-    // darkened to #6B665D (4.85:1 on the worst light ground). Reported.
+    // 4.5:1 bar (#7A756B on #F6F1E9 is 3.9:1). The light secondary has been
+    // darkened twice, both measured: to #6B665D for the original grounds,
+    // then to #625D55 when the reflection deepened (4.35:1 measured against
+    // the pre-sunset composite at the secondary line's y — the addendum's
+    // rule is protect the tint, adjust the ink). Reported.
     static let lightTextPrimary = HorizonRGB(hex: 0x3D3A33)
-    static let lightTextSecondary = HorizonRGB(hex: 0x6B665D)
+    static let lightTextSecondary = HorizonRGB(hex: 0x625D55)
     static let darkTextPrimary = HorizonRGB(hex: 0xEDE9F7)
     static let darkTextSecondary = HorizonRGB(hex: 0xA79FC4)
 
