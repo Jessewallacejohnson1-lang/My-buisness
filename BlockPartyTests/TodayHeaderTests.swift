@@ -159,6 +159,30 @@ final class TodayHeaderTests: XCTestCase {
         // The bar never grows past its ceiling — the relationship, not just the numbers.
         XCTAssertGreaterThan(TodayHeader.maxHeight, TodayHeader.contentHeight)
     }
+
+    // MARK: - Signed-in profile photo
+
+    /// The compact menu control must receive the avatar stored in `town_profiles`.
+    /// Before this regression fix the Today bar never loaded a profile at all and
+    /// always rendered the hard-coded person glyph, even when this field was set.
+    func testHeaderProfileRefreshPublishesTheSavedAvatar() async {
+        let savedAvatar = "https://example.com/avatars/neighbor.jpg"
+        let model = TodayHeaderProfileModel {
+            TownProfile(
+                userId: "neighbor-1",
+                displayName: "Taylor",
+                avatarUrl: savedAvatar,
+                interests: ["trails"],
+                onboardedAt: "2026-08-01T12:00:00Z"
+            )
+        }
+
+        XCTAssertNil(model.avatarUrl)
+
+        await model.refresh()
+
+        XCTAssertEqual(model.avatarUrl, savedAvatar)
+    }
 }
 
 // MARK: - The appearance switch behind the bar's ⋮ button
