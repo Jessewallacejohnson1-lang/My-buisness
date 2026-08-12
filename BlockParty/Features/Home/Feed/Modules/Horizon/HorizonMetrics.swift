@@ -31,11 +31,12 @@ nonisolated enum HorizonMetrics {
     static let hourLabelBaseline: CGFloat = 115
     static let hourLabelSize: CGFloat = 12
 
-    // Ground content
-    static let countsBaseline: CGFloat = 137
-    static let countsSize: CGFloat = 13
-    static let buttonTop: CGFloat = 128
-    static let buttonBottom: CGFloat = 152
+    // Ground content — the two-line copy stack. 118pt of sky + tick zone,
+    // then 17pt semibold primary, 13pt secondary, 8pt bottom: 164 exactly.
+    static let primaryTextSize: CGFloat = 17
+    static let secondaryTextSize: CGFloat = 13
+    static let copyLineSpacing: CGFloat = 2
+    static let copyBottomPadding: CGFloat = 8
 
     // Sky details
     static let horizonLineHeight: CGFloat = 1

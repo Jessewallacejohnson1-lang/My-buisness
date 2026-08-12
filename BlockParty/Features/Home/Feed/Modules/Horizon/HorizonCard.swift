@@ -21,16 +21,30 @@ import SwiftUI
 nonisolated enum HorizonCopy {
     /// The now-marker's cap label on the rail.
     static let now = "Now"
-    static let yoursSuffix = " yours"
-    static let openSuffix = " open"
-    /// A real interpunct with hair spaces.
-    static let separator = "\u{200A}·\u{200A}"
-    static let seeAll = "See all"
     static let nothingPosted = "Nothing posted for today yet."
+    static let nothingPlanned = "Nothing planned yet"
+
+    /// Primary line — the user's own day, plain words, Apple hierarchy.
+    static func primaryLine(yours: Int, open: Int) -> String {
+        if yours == 0 && open == 0 { return nothingPosted }
+        if yours == 0 { return nothingPlanned }
+        return yours == 1 ? "1 plan today" : "\(yours) plans today"
+    }
+
+    /// Secondary line — the town's open postings. Omitted entirely at zero.
+    static func secondaryLine(open: Int) -> String? {
+        guard open > 0 else { return nil }
+        return open == 1 ? "1 more around town" : "\(open) more around town"
+    }
 
     static func cardAccessibilityLabel(yours: Int, open: Int) -> String {
-        "Your day. \(yours) on your plan, \(open) open in town."
+        let primary = primaryLine(yours: yours, open: open)
+        guard let secondary = secondaryLine(open: open) else {
+            return "Your day. \(primary)"
+        }
+        return "Your day. \(primary), \(secondary)."
     }
+    static let seeAll = "See all"
     static let seeAllAccessibilityLabel = "See all of today's postings"
     static let loadingAccessibilityLabel = "Your day, loading"
 }
@@ -44,9 +58,12 @@ struct HorizonCard: View {
     var onOpenDay: () -> Void = {}
     var onSeeAll: () -> Void = {}
 
-    /// Counts and button scale with Dynamic Type; the sky, rail and stubs
+    /// Copy and button scale with Dynamic Type; the sky, rail and stubs
     /// are fixed. The card may exceed its 164 pt target at AX sizes.
-    @ScaledMetric(relativeTo: .footnote) private var textSize: CGFloat = HorizonMetrics.countsSize
+    @ScaledMetric(relativeTo: .body) private var primarySize: CGFloat =
+        HorizonMetrics.primaryTextSize
+    @ScaledMetric(relativeTo: .footnote) private var secondarySize: CGFloat =
+        HorizonMetrics.secondaryTextSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -112,21 +129,27 @@ struct HorizonCard: View {
                 .frame(height: HorizonMetrics.skyHeight + 22)
 
             HStack(alignment: .center, spacing: 12) {
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: HorizonMetrics.copyLineSpacing) {
                     if isLoading {
                         loadingShimmer(ground: ground)
                     } else {
-                        if counts.yours == 0 && counts.open == 0 {
-                            // The one state that gets words: zero of
-                            // everything with zero text reads as broken.
-                            Text(HorizonCopy.nothingPosted)
-                                .font(.sans(textSize))
+                        HStack(spacing: 5) {
+                            Text(HorizonCopy.primaryLine(
+                                yours: counts.yours, open: counts.open))
+                                .font(.sansSemibold(primarySize))
+                                .foregroundStyle(Color(ground.textPrimary))
+                                .monospacedDigit()
+                            // The card must advertise that it opens.
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: secondarySize, weight: .semibold))
                                 .foregroundStyle(Color(ground.textSecondary))
                         }
-                        countsLine(counts)
-                            .font(.sans(textSize))
-                            .foregroundStyle(Color(ground.textPrimary))
-                            .monospacedDigit()
+                        if let secondary = HorizonCopy.secondaryLine(open: counts.open) {
+                            Text(secondary)
+                                .font(.sans(secondarySize))
+                                .foregroundStyle(Color(ground.textSecondary))
+                                .monospacedDigit()
+                        }
                     }
                 }
                 .id(ground.isDark)
@@ -135,26 +158,13 @@ struct HorizonCard: View {
                     reduceMotion ? nil : .easeInOut(duration: 0.25), value: ground.isDark)
 
                 Spacer(minLength: 8)
-
-                // Reserves the see-all pill's footprint inside the card
-                // button's label; the real button overlays this space.
-                seeAllPill(ground: ground).hidden()
             }
             .padding(.horizontal, HorizonMetrics.contentInset)
-            .padding(.bottom, 14)
+            .padding(.bottom, HorizonMetrics.copyBottomPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(minHeight: HorizonMetrics.cardHeight, alignment: .top)
         .contentShape(Rectangle())
-    }
-
-    private func countsLine(_ counts: (yours: Int, open: Int)) -> Text {
-        // Numbers at weight 600, words at 400, same size.
-        let yours = Text("\(counts.yours)").fontWeight(.semibold)
-        let open = Text("\(counts.open)").fontWeight(.semibold)
-        return Text(
-            "\(yours)\(HorizonCopy.yoursSuffix)\(HorizonCopy.separator)\(open)\(HorizonCopy.openSuffix)"
-        )
     }
 
     @ViewBuilder
@@ -196,9 +206,9 @@ struct HorizonCard: View {
         let label = ground.isDark ? HorizonPalette.nightGround : HorizonRGB(hex: 0xFAFAF7)
         return HStack(spacing: 5) {
             Text(HorizonCopy.seeAll)
-                .font(.sansSemibold(textSize))
+                .font(.sansSemibold(secondarySize))
             Image(systemName: "chevron.right")
-                .font(.system(size: textSize * 0.7, weight: .semibold))
+                .font(.system(size: secondarySize * 0.7, weight: .semibold))
         }
         .foregroundStyle(Color(label))
         .padding(.horizontal, 12)
