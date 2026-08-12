@@ -171,7 +171,10 @@ struct HorizonRailView: View {
     /// polarity halo. Clamped, never hidden: before 7a it pins to the
     /// morning edge, after 10p to the evening edge.
     private func nowMarker(width: CGFloat) -> some View {
-        let x = axis.clampedX(for: now)
+        // Tangent-clamp like the solar dots: pinned at an edge, the line and
+        // its halo stay fully visible instead of half-clipped by the card.
+        let haloHalf = (M.nowLineWidth + 2) / 2
+        let x = min(max(axis.clampedX(for: now), haloHalf), width - haloHalf)
         let style = HorizonPalette.nowMarker(for: sky)
         let color = Color(style.color)
         let halo = Color(style.halo)
