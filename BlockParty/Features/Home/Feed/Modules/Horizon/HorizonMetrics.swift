@@ -35,6 +35,10 @@ nonisolated enum HorizonMetrics {
     static let horizonLineHeight: CGFloat = 1
     static let solarDotDiameter: CGFloat = 2.5
     static let solarDotOpacity: Double = 0.85
+    /// The sky's reflection below the horizon: bottom stop at 30% fading to
+    /// clear over 32 pt. The text zone starts below the fade, on solid fill.
+    static let reflectionHeight: CGFloat = 32
+    static let reflectionOpacity: Double = 0.30
 
     // Stubs
     static let yourStubHeight: CGFloat = 22

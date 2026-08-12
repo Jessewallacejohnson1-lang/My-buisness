@@ -33,7 +33,7 @@ struct HorizonBackdrop: View {
                     skyRegion(width: width)
                         .frame(height: HorizonMetrics.skyHeight)
                         .clipped()
-                    Color(HorizonPalette.groundStyle(for: sky).fill)
+                    groundRegion
                 }
 
                 horizonLine
@@ -41,6 +41,27 @@ struct HorizonBackdrop: View {
 
                 solarDots(width: width)
             }
+        }
+    }
+
+    // MARK: Ground — the sky's reflection over a solid tinted fill.
+
+    private var groundRegion: some View {
+        let bottom = HorizonPalette.skyStops(for: sky)[3].color
+        return ZStack(alignment: .top) {
+            Color(HorizonPalette.groundStyle(for: sky).fill)
+            LinearGradient(
+                stops: [
+                    .init(
+                        color: Color(bottom, opacity: HorizonMetrics.reflectionOpacity),
+                        location: 0
+                    ),
+                    .init(color: Color(bottom, opacity: 0), location: 1),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: HorizonMetrics.reflectionHeight)
         }
     }
 

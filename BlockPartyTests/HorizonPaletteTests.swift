@@ -156,9 +156,38 @@ final class HorizonPaletteTests: XCTestCase {
     func testHorizonLineIsBottomStopAtLoweredLuminance() {
         let stops = HorizonPalette.skyStops(for: sky(at: townDate(2026, 8, 11, 13, 0)))
         let line = HorizonPalette.horizonLine(skyStops: stops)
-        XCTAssertEqual(line.opacity, 0.55)
+        // 40% — softened for the continuous-scene redesign, still visible.
+        XCTAssertEqual(line.opacity, 0.40)
         let bottom = stops.last!.color
         XCTAssertEqual(line.color.luminance, bottom.luminance * 0.55, accuracy: 0.01)
+    }
+
+    // MARK: Sky depth — the fade must be unmissable in every phase
+
+    func testDaySkyTopToHorizonLuminanceRangeIsDeepEnough() {
+        for ramp in [
+            HorizonPalette.dayRamp, HorizonPalette.dawnRamp, HorizonPalette.duskRamp,
+        ] {
+            let range = abs(ramp[0].color.luminance - ramp[3].color.luminance)
+            XCTAssertGreaterThanOrEqual(range, 0.25, "near-flat sky ramp")
+        }
+        // Night is dark end to end; a ratio is the honest depth measure there.
+        let night = HorizonPalette.nightRamp
+        XCTAssertGreaterThanOrEqual(
+            night[3].color.contrastRatio(with: night[0].color), 1.6
+        )
+    }
+
+    // MARK: Ground derivation — a tint of the sky, not a foreign panel
+
+    func testGroundFillStaysInTheSkysColorFamily() {
+        // Same hue family: the derived fill's hue must sit within 0.1 of the
+        // sky bottom stop's hue (wrapping), for a saturated stop.
+        let duskBottom = HorizonPalette.duskRamp[3].color
+        let fill = HorizonPalette.groundFill(fromSkyBottom: duskBottom, isDark: false)
+        var delta = abs(fill.hsl.h - duskBottom.hsl.h)
+        delta = min(delta, 1 - delta)
+        XCTAssertLessThan(delta, 0.1)
     }
 
     // MARK: Bloom
@@ -170,7 +199,8 @@ final class HorizonPaletteTests: XCTestCase {
             HorizonPalette.bloom(for: lowSun).coreOpacity,
             HorizonPalette.bloom(for: highSun).coreOpacity
         )
-        XCTAssertEqual(HorizonPalette.bloom(for: highSun).coreOpacity, 0.35, accuracy: 0.01)
+        // Floored at 0.55: the glow must stay visible at arm's length at noon.
+        XCTAssertEqual(HorizonPalette.bloom(for: highSun).coreOpacity, 0.55, accuracy: 0.01)
     }
 
     func testNightBloomGoesCoolNotAbsent() {

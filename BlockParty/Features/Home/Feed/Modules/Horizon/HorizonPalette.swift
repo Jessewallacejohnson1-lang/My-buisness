@@ -180,7 +180,10 @@ nonisolated enum HorizonPalette {
         .init(location: 1.00, color: HorizonRGB(hex: 0xC5CBD4)),
     ]
     static let dayRamp: [HorizonSkyStop] = [
-        .init(location: 0.00, color: HorizonRGB(hex: 0x6E9FD8)),
+        // Top stop deepened from #6E9FD8: the noon card read near-flat once
+        // the bloom washed in, and the redesign wants day at dusk's level of
+        // drama. Top-to-horizon luminance range is now ≥ 0.25 by test.
+        .init(location: 0.00, color: HorizonRGB(hex: 0x4A7CBE)),
         .init(location: 0.60, color: HorizonRGB(hex: 0xA9C4E4)),
         .init(location: 1.00, color: HorizonRGB(hex: 0xD9E2EA)),  // spec #E8EEF2; see header
         .init(location: 1.00, color: HorizonRGB(hex: 0xD9E2EA)),
@@ -239,7 +242,9 @@ nonisolated enum HorizonPalette {
                 core: HorizonRGB(hex: 0xF7E9CE),
                 mid: HorizonRGB(hex: 0xF2A03D),
                 edge: HorizonRGB(hex: 0xE9553A),
-                coreOpacity: max(0.95 - 0.6 * sky.solarElevation, 0),
+                // Floor at 0.55 so the glow stays visible at arm's length at
+                // midday (the old curve bottomed out at 0.35 and vanished).
+                coreOpacity: max(0.95 - 0.4 * sky.solarElevation, 0.55),
                 midLocation: 0.45
             )
         }
@@ -258,21 +263,41 @@ nonisolated enum HorizonPalette {
 
     // MARK: Horizon line
 
-    /// The base gradient's final stop with luminance × 0.55, at 55% opacity.
+    /// The base gradient's final stop with luminance × 0.55, at 40% opacity —
+    /// the ground is now a tint of the sky, so the ruler needs less weight to
+    /// read as an edge (the stubs still stand on it).
     static func horizonLine(skyStops: [HorizonSkyStop]) -> (color: HorizonRGB, opacity: Double) {
         let bottom = skyStops[skyStops.count - 1].color
-        return (bottom.scalingLuminance(by: 0.55), 0.55)
+        return (bottom.scalingLuminance(by: 0.55), 0.40)
     }
 
-    // MARK: Ground
+    // MARK: Ground — a tint of the sky, never a foreign panel.
 
-    // Light-side fills (sun up), keyed by phase midpoint.
-    static let dawnGround = HorizonRGB(hex: 0xF6F1E9)
-    static let dayGround = HorizonRGB(hex: 0xF4F2EC)
-    static let duskGroundPreSunset = HorizonRGB(hex: 0xF3ECE8)
-    // Dark-side fills (sun down).
-    static let duskGroundPostSunset = HorizonRGB(hex: 0x2A2247)
-    static let nightGround = HorizonRGB(hex: 0x221C3A)
+    /// Blend targets. The light side settles toward paper, the dark side
+    /// toward deep night; the fill is always derived from the sky's bottom
+    /// stop so the two regions read as one scene.
+    static let paperTarget = HorizonRGB(hex: 0xFAFAF7)
+    static let nightTarget = HorizonRGB(hex: 0x0E0B1E)
+    /// Light: keep 60% of the stop's saturation, then 80% toward paper.
+    /// Dark: 78% toward deep night — the spec's ~70% leaves the post-sunset
+    /// dusk fill too light for 4.5:1 secondary text (3.95:1 measured), so
+    /// the mix is tuned within the spec's two hard constraints.
+    static let lightDesaturation = 0.6
+    static let lightPaperBlend = 0.8
+    static let darkNightBlend = 0.78
+
+    static func groundFill(fromSkyBottom bottom: HorizonRGB, isDark: Bool) -> HorizonRGB {
+        if isDark { return .lerp(bottom, nightTarget, darkNightBlend) }
+        let (h, s, l) = bottom.hsl
+        let desaturated = HorizonRGB.fromHSL(h: h, s: s * lightDesaturation, l: l)
+        return .lerp(desaturated, paperTarget, lightPaperBlend)
+    }
+
+    /// The dark ground at the night midpoint — the one fill callers may need
+    /// without a SolarSky in hand.
+    static var nightGround: HorizonRGB {
+        groundFill(fromSkyBottom: nightRamp[2].color, isDark: true)
+    }
 
     // Text sets. One warm pair per polarity; the spec's per-phase values
     // differ imperceptibly (ΔE < 1) and its light secondaries fail their own
@@ -283,49 +308,20 @@ nonisolated enum HorizonPalette {
     static let darkTextPrimary = HorizonRGB(hex: 0xEDE9F7)
     static let darkTextSecondary = HorizonRGB(hex: 0xA79FC4)
 
-    private static func lightFill(for phase: SkyPhase) -> HorizonRGB {
-        switch phase {
-        case .dawn: dawnGround
-        case .day: dayGround
-        case .dusk: duskGroundPreSunset
-        case .night: dawnGround  // unreachable while the sun is up
-        }
-    }
-
-    private static func darkFill(for phase: SkyPhase) -> HorizonRGB {
-        switch phase {
-        case .dusk: duskGroundPostSunset
-        case .night: nightGround
-        case .dawn: nightGround  // pre-sunrise dawn holds the night fill
-        case .day: nightGround   // unreachable while the sun is down
-        }
-    }
-
     /// The ground is a step function of solar elevation's sign: light while
     /// the sun is up, dark after. The view renders the step with a short
     /// eased animation, so the fill spends well under 90 s at mid-luminance
-    /// and no sampled minute ever sits there. Within a polarity, fills use
-    /// the same midpoint-keyframe blend as the sky.
+    /// and no sampled minute ever sits there. The fill itself tracks the
+    /// mixed sky's bottom stop, so it drifts with the sky automatically.
     static func groundStyle(for sky: SolarSky) -> HorizonGroundStyle {
         let isDark = !sky.isSunUp
-        let fill = mixedFill(
-            phase: sky.phase, blend: sky.phaseBlend,
-            table: isDark ? darkFill(for:) : lightFill(for:)
-        )
+        let bottom = skyStops(for: sky)[3].color
         return HorizonGroundStyle(
-            fill: fill,
+            fill: groundFill(fromSkyBottom: bottom, isDark: isDark),
             textPrimary: isDark ? darkTextPrimary : lightTextPrimary,
             textSecondary: isDark ? darkTextSecondary : lightTextSecondary,
             isDark: isDark
         )
-    }
-
-    private static func mixedFill(
-        phase: SkyPhase, blend: Double, table: (SkyPhase) -> HorizonRGB
-    ) -> HorizonRGB {
-        blend < 0.5
-            ? .lerp(table(phase.previous), table(phase), blend + 0.5)
-            : .lerp(table(phase), table(phase.next), blend - 0.5)
     }
 
     // MARK: Seam guarantee
