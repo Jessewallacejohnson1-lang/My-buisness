@@ -22,6 +22,8 @@ struct LoginView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     VStack(alignment: .leading, spacing: 6) {
+                        BlockPartyMark(side: 72)
+                            .padding(.bottom, 8)
                         Text("Block Party")
                             .font(.display(44))
                             .foregroundStyle(Hue.ink)

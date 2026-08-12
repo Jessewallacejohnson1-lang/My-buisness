@@ -52,9 +52,12 @@ struct TabLoadingCover: View {
                 background
 
                 if let wordmark {
-                    Text(wordmark)
-                        .font(.logo(22))
-                        .foregroundStyle(.white.opacity(0.92))
+                    HStack(spacing: 9) {
+                        BlockPartyMark(side: 30)
+                        Text(wordmark)
+                            .font(.logo(22))
+                            .foregroundStyle(.white.opacity(0.92))
+                    }
                         .position(x: w / 2, y: h * 0.12)
                         .opacity(textIn ? 1 : 0)
                 }

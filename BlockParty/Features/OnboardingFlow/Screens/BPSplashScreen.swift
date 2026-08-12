@@ -2,11 +2,8 @@
 //  BPSplashScreen.swift
 //  S01 — the splash.
 //
-//  Full-bleed orange, the mark centred in white, the wordmark near the bottom in white.
+//  Full-bleed orange, the exact app mark centred, the wordmark near the bottom in white.
 //  No buttons. Holds ~1.2s, then auto-advances.
-//
-//  The mark is `.tinted(.white)` rather than the plated raster: on a coloured ground the
-//  aperture has to let the orange through, which the shipped RGB raster cannot do.
 //
 //  COPY NOTE — the spec specifies a LOWERCASE "block party" wordmark here and on S02,
 //  mirroring Duolingo's lowercase wordmark. The shipped app wordmark is title-case
@@ -38,7 +35,7 @@ struct BPSplashScreen: View {
                     // Measured off S01: the mascot is centred horizontally to the pixel,
                     // with its centre 12.5pt ABOVE the screen's vertical centre
                     // (413.5 of 852 = 0.485), and stands ~108pt tall.
-                    BPMark(side: 112, style: .tinted(.white))
+                    BPMark(side: 112)
                         .position(x: geo.size.width / 2, y: h * 0.485)
 
                     Text("block party")
