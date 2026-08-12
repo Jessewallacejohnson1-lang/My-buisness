@@ -92,11 +92,13 @@ struct HorizonBackdrop: View {
         let b = HorizonPalette.bloom(for: sky)
         let rx = width * (0.55 + 0.7 * sky.solarElevation)
         let ry = HorizonMetrics.skyHeight * (0.5 + 0.35 * sky.solarElevation)
-        // While the sun is up the bloom rides the DRAWN ruler, not the raw
-        // solar fraction — identical whenever the window is the real
-        // sunrise→sunset, but in the degenerate 6-to-6 fallback it keeps
-        // the glow aligned with the ticks and the now line.
-        let x = sky.isSunUp ? (axis.fraction(for: sky.now) ?? sky.sunX) : sky.sunX
+        // The bloom rides the fixed ruler: the sun's clock position while it
+        // is up (clamped to the edges when it rises before 7a or sets after
+        // 10p), and the nearer solar event's position at night — pre-dawn
+        // glow hugs the morning edge, evening afterglow sits on sunset.
+        let anchor: Date =
+            sky.isSunUp ? sky.now : (sky.now < sky.sunrise ? sky.sunrise : sky.sunset)
+        let x = axis.clampedFraction(for: anchor)
         return Ellipse()
             .fill(
                 EllipticalGradient(
@@ -126,34 +128,26 @@ struct HorizonBackdrop: View {
     // MARK: Sunrise / sunset dots — the rail's bookends.
 
     private func solarDots(width: CGFloat) -> some View {
-        let sunriseToday = axis.kind == .night && axis.end > sky.sunset
-            ? sky.sunrise.addingTimeInterval(24 * 3600)  // night window ends at tomorrow's sunrise
-            : sky.sunrise
-        let sunsetVisible = axis.kind == .night && axis.start < sky.sunrise
-            ? sky.sunset.addingTimeInterval(-24 * 3600)  // pre-dawn window began at yesterday's sunset
-            : sky.sunset
-        return ZStack {
-            dot(at: sunriseToday, color: HorizonPalette.sunriseDot, width: width)
-            dot(at: sunsetVisible, color: HorizonPalette.sunsetDot, width: width)
+        ZStack {
+            dot(at: sky.sunrise, color: HorizonPalette.sunriseDot, width: width)
+            dot(at: sky.sunset, color: HorizonPalette.sunsetDot, width: width)
         }
     }
 
-    @ViewBuilder
     private func dot(at date: Date, color: HorizonRGB, width: CGFloat) -> some View {
-        if let x = axis.x(for: date) {
-            let radius = HorizonMetrics.solarDotDiameter / 2
-            Circle()
-                .fill(Color(color, opacity: HorizonMetrics.solarDotOpacity))
-                .frame(
-                    width: HorizonMetrics.solarDotDiameter,
-                    height: HorizonMetrics.solarDotDiameter
-                )
-                // Tangent to the card edge rather than half-clipped by it —
-                // a bookend has to be visible to bookend anything.
-                .position(
-                    x: min(max(x, radius), width - radius),
-                    y: HorizonMetrics.skyHeight - HorizonMetrics.horizonLineHeight / 2
-                )
-        }
+        let x = axis.clampedX(for: date)
+        let radius = HorizonMetrics.solarDotDiameter / 2
+        return Circle()
+            .fill(Color(color, opacity: HorizonMetrics.solarDotOpacity))
+            .frame(
+                width: HorizonMetrics.solarDotDiameter,
+                height: HorizonMetrics.solarDotDiameter
+            )
+            // Tangent to the card edge rather than half-clipped by it —
+            // a bookend has to be visible to bookend anything.
+            .position(
+                x: min(max(x, radius), width - radius),
+                y: HorizonMetrics.skyHeight - HorizonMetrics.horizonLineHeight / 2
+            )
     }
 }

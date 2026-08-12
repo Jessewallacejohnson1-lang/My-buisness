@@ -10,6 +10,12 @@
 import CoreGraphics
 
 nonisolated enum HorizonMetrics {
+    /// The fixed axis window: 7:00 AM – 10:00 PM town time, the waking day.
+    /// The rail never re-windows; items outside clamp to the overflow
+    /// markers and the sky alone follows the sun.
+    static let axisStartHour = 7
+    static let axisEndHour = 22
+
     /// Card height target (may exceed at accessibility type sizes).
     static let cardHeight: CGFloat = 164
     /// Card top → horizon. The horizon line sits at this y.
@@ -63,10 +69,4 @@ nonisolated enum HorizonMetrics {
     // Overflow marker
     static let overflowBarWidth: CGFloat = 3
     static let overflowTextSize: CGFloat = 10
-
-    // Midnight hairline. Spec says 30%, which measured invisible over the
-    // night sky in screenshots — 45% reads as a hairline, still quieter
-    // than the now line. Reported.
-    static let midnightOpacity: Double = 0.45
-    static let tomorrowStubOpacity: Double = 0.4
 }

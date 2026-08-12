@@ -2,8 +2,9 @@
 //  TimeAxisTests.swift
 //  BlockPartyTests
 //
-//  TimeAxis.x(for:) against known pairs, the midnight crossing, both
-//  solstices' label ladders, and the degenerate-window fallback.
+//  The fixed 7a–10p window: known x pairs, the clamped mapping that pins
+//  out-of-window marks to the edges, the two-hour tick grid with exactly
+//  four labels, and wall-clock edges on DST-change days.
 //
 
 import XCTest
@@ -11,123 +12,69 @@ import XCTest
 
 final class TimeAxisTests: XCTestCase {
     private let width: CGFloat = 400
-    private let sunrise = townDate(2026, 8, 11, 6, 13)
-    private let sunset = townDate(2026, 8, 11, 21, 2)
 
-    // MARK: Windows
+    // MARK: The fixed window
 
-    func testDayWindowRunsExactSunriseToSunset() {
-        let axis = TimeAxis(now: townDate(2026, 8, 11, 13, 0), sunrise: sunrise, sunset: sunset, width: width)
-        XCTAssertEqual(axis.kind, .day)
-        XCTAssertEqual(axis.start, sunrise)
-        XCTAssertEqual(axis.end, sunset)
-        XCTAssertFalse(axis.usedFallbackWindow)
-    }
-
-    func testNightWindowRunsSunsetToNextSunrise() {
-        let axis = TimeAxis(now: townDate(2026, 8, 11, 22, 45), sunrise: sunrise, sunset: sunset, width: width)
-        XCTAssertEqual(axis.kind, .night)
-        XCTAssertEqual(axis.start, sunset)
-        XCTAssertEqual(axis.end, sunrise.addingTimeInterval(24 * 3600))
-    }
-
-    func testPreDawnNightWindowStartsAtYesterdaysSunset() {
-        let axis = TimeAxis(now: townDate(2026, 8, 11, 4, 30), sunrise: sunrise, sunset: sunset, width: width)
-        XCTAssertEqual(axis.kind, .night)
-        XCTAssertEqual(axis.start, sunset.addingTimeInterval(-24 * 3600))
-        XCTAssertEqual(axis.end, sunrise)
+    func testAxisIsSevenToTenAtEveryHourOfTheDay() {
+        for hour in [0, 5, 9, 13, 21, 23] {
+            let axis = TimeAxis(now: townDate(2026, 8, 11, hour, 0), width: width)
+            XCTAssertEqual(axis.start, townDate(2026, 8, 11, 7, 0), "hour \(hour)")
+            XCTAssertEqual(axis.end, townDate(2026, 8, 11, 22, 0), "hour \(hour)")
+        }
     }
 
     // MARK: x(for:)
 
     func testXMapsKnownPairs() {
-        let axis = TimeAxis(now: townDate(2026, 8, 11, 13, 0), sunrise: sunrise, sunset: sunset, width: width)
-        XCTAssertEqual(axis.x(for: sunrise), 0)
-        XCTAssertEqual(axis.x(for: sunset), width)
-        let solarMid = townDate(2026, 8, 11, 13, 37).addingTimeInterval(30)
-        XCTAssertEqual(axis.x(for: solarMid)!, width / 2, accuracy: 0.01)
-        XCTAssertNil(axis.x(for: sunrise.addingTimeInterval(-60)), "before the window")
-        XCTAssertNil(axis.x(for: sunset.addingTimeInterval(60)), "after the window")
+        let axis = TimeAxis(now: townDate(2026, 8, 11, 13, 0), width: width)
+        XCTAssertEqual(axis.x(for: townDate(2026, 8, 11, 7, 0)), 0)
+        XCTAssertEqual(axis.x(for: townDate(2026, 8, 11, 22, 0)), width)
+        XCTAssertEqual(
+            axis.x(for: townDate(2026, 8, 11, 14, 30))!, width / 2, accuracy: 0.01)
+        XCTAssertNil(axis.x(for: townDate(2026, 8, 11, 6, 59)), "before the window")
+        XCTAssertNil(axis.x(for: townDate(2026, 8, 11, 22, 1)), "after the window")
     }
 
-    func testMidnightCrossingMapsTomorrowsSmallHours() {
-        let axis = TimeAxis(now: townDate(2026, 8, 11, 23, 50), sunrise: sunrise, sunset: sunset, width: width)
-        let midnight = townDate(2026, 8, 12, 0, 0)
-        XCTAssertEqual(axis.midnight, midnight)
-        let half12 = axis.x(for: townDate(2026, 8, 12, 0, 30))
-        let two = axis.x(for: townDate(2026, 8, 12, 2, 0))
-        XCTAssertNotNil(half12)
-        XCTAssertNotNil(two)
-        XCTAssertGreaterThan(two!, half12!)
-        XCTAssertGreaterThan(half12!, axis.x(for: midnight)!)
+    func testClampedMappingPinsOutOfWindowMomentsToTheEdges() {
+        let axis = TimeAxis(now: townDate(2026, 8, 11, 5, 45), width: width)
+        XCTAssertEqual(axis.clampedFraction(for: townDate(2026, 8, 11, 5, 45)), 0)
+        XCTAssertEqual(axis.clampedFraction(for: townDate(2026, 8, 11, 23, 30)), 1)
+        XCTAssertEqual(axis.clampedX(for: townDate(2026, 8, 11, 23, 30)), width)
+        XCTAssertEqual(
+            axis.clampedFraction(for: townDate(2026, 8, 11, 14, 30)), 0.5,
+            accuracy: 0.001)
     }
 
-    func testDayWindowHasNoMidnight() {
-        let axis = TimeAxis(now: townDate(2026, 8, 11, 13, 0), sunrise: sunrise, sunset: sunset, width: width)
-        XCTAssertNil(axis.midnight)
+    // MARK: Ticks and labels — exactly four labels, all day
+
+    func testTicksEveryTwoHoursWithLabelsOnTheFourHourGrid() {
+        let axis = TimeAxis(now: townDate(2026, 8, 11, 13, 0), width: width)
+        let ticks = axis.ticks()
+        XCTAssertEqual(ticks.count, 7, "8a 10a 12p 2p 4p 6p 8p")
+        XCTAssertEqual(
+            ticks.filter(\.isLabeled).map(\.label), ["8a", "12p", "4p", "8p"])
     }
 
-    // MARK: Label ladder at the solstices
-
-    func testSummerSolsticeUsesThreeHourLadder() {
-        // 05:26 → 21:03, ~15 h 37 m. 1h grid = 16 hours, 2h = 8 — both over 7.
-        let rise = townDate(2026, 6, 20, 5, 26)
-        let set = townDate(2026, 6, 20, 21, 3)
-        let axis = TimeAxis(now: townDate(2026, 6, 20, 13, 0), sunrise: rise, sunset: set, width: width)
-        XCTAssertFalse(axis.usedFallbackWindow)
-        XCTAssertEqual(axis.labelInterval, 3)
-        let labels = axis.ticks().filter(\.isLabeled).map(\.label)
-        // 21:00 sits 1.3 pt from the trailing edge and is dropped.
-        XCTAssertEqual(labels, ["6a", "9a", "12p", "3p", "6p"])
+    func testTicksNeverMoveAcrossTheDay() {
+        let morning = TimeAxis(now: townDate(2026, 8, 11, 8, 0), width: width)
+        let night = TimeAxis(now: townDate(2026, 8, 11, 23, 30), width: width)
+        XCTAssertEqual(morning.ticks(), night.ticks())
+        XCTAssertEqual(morning.pointsPerHour, night.pointsPerHour)
     }
 
-    func testWinterSolsticeUsesTwoHourLadder() {
-        // 07:48 → 16:34, ~8 h 46 m. 1h grid = 9 hours — over 7.
-        let rise = townDate(2026, 12, 21, 7, 48)
-        let set = townDate(2026, 12, 21, 16, 34)
-        let axis = TimeAxis(now: townDate(2026, 12, 21, 12, 0), sunrise: rise, sunset: set, width: width)
-        XCTAssertFalse(axis.usedFallbackWindow)
-        XCTAssertEqual(axis.labelInterval, 2)
-        let labels = axis.ticks().filter(\.isLabeled).map(\.label)
-        // 8:00 sits 9.1 pt from the leading edge and is dropped.
-        XCTAssertEqual(labels, ["10a", "12p", "2p", "4p"])
-    }
+    // MARK: DST — edges are wall-clock, spans are honest
 
-    func testEveryHourGetsATickEvenWhenUnlabeled() {
-        let rise = townDate(2026, 6, 20, 5, 26)
-        let set = townDate(2026, 6, 20, 21, 3)
-        let axis = TimeAxis(now: townDate(2026, 6, 20, 13, 0), sunrise: rise, sunset: set, width: width)
-        XCTAssertEqual(axis.ticks().count, 16, "every clean clock hour inside the window")
-    }
-
-    // MARK: Degenerate windows
-
-    func testAbsurdlyLongWindowFallsBackToFixedSixToSix() {
-        let rise = townDate(2026, 8, 11, 0, 10)
-        let set = townDate(2026, 8, 11, 23, 50)
-        let axis = TimeAxis(now: townDate(2026, 8, 11, 13, 0), sunrise: rise, sunset: set, width: width)
-        XCTAssertTrue(axis.usedFallbackWindow)
-        XCTAssertEqual(axis.start, townDate(2026, 8, 11, 6, 0))
-        XCTAssertEqual(axis.end, townDate(2026, 8, 11, 18, 0))
-    }
-
-    func testAbsurdlyShortWindowFallsBackToFixedSixToSix() {
-        let rise = townDate(2026, 8, 11, 10, 0)
-        let set = townDate(2026, 8, 11, 13, 0)
-        let axis = TimeAxis(now: townDate(2026, 8, 11, 12, 0), sunrise: rise, sunset: set, width: width)
-        XCTAssertTrue(axis.usedFallbackWindow)
-        XCTAssertEqual(axis.start, townDate(2026, 8, 11, 6, 0))
-        XCTAssertEqual(axis.end, townDate(2026, 8, 11, 18, 0))
-    }
-
-    func testDegenerateFallbackAtNightUsesSixToSixNightWindow() {
-        let rise = townDate(2026, 8, 11, 0, 10)
-        let set = townDate(2026, 8, 11, 23, 50)
-        let axis = TimeAxis(now: townDate(2026, 8, 11, 22, 0), sunrise: rise, sunset: set, width: width)
-        XCTAssertTrue(axis.usedFallbackWindow)
-        XCTAssertEqual(axis.kind, .night)
-        XCTAssertEqual(axis.start, townDate(2026, 8, 11, 18, 0))
-        XCTAssertEqual(axis.end, townDate(2026, 8, 12, 6, 0))
+    func testDSTChangeDaysKeepWallClockEdges() {
+        // Both 2026 transitions happen at 2 AM — before the 7a edge — so the
+        // span stays 15 real hours. The guarantee under test is the
+        // wall-clock edge: a byAdding implementation would land the spring-
+        // forward start at 8 AM; bySettingHour keeps it at 7.
+        for day in [townDate(2026, 3, 8, 12, 0), townDate(2026, 11, 1, 12, 0)] {
+            let axis = TimeAxis(now: day, width: width)
+            XCTAssertEqual(Town.calendar.component(.hour, from: axis.start), 7)
+            XCTAssertEqual(Town.calendar.component(.hour, from: axis.end), 22)
+            XCTAssertEqual(axis.end.timeIntervalSince(axis.start), 15 * 3600)
+        }
     }
 
     // MARK: Label formatting

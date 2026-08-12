@@ -90,7 +90,7 @@ struct HorizonSkyGallery: View {
             GeometryReader { geo in
                 HorizonBackdrop(
                     sky: sky,
-                    axis: TimeAxis(now: now, sunrise: sunrise, sunset: sunset, width: geo.size.width)
+                    axis: TimeAxis(now: now, width: geo.size.width)
                 )
             }
             .frame(height: HorizonMetrics.cardHeight)

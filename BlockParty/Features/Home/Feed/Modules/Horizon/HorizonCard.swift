@@ -3,20 +3,17 @@
 //  BlockParty
 //
 //  The "Your day" horizon card: a small window onto the sky over St. Joe
-//  right now. Sky above, flat ground below, today's agenda rising out of
+//  right now. Sky above, tinted ground below, today's agenda rising out of
 //  the line between them. All text lives below the horizon — that is what
 //  lets the sky run from near-black to noon-bright with no contrast hacks.
 //
-//  Motion contract:
+//  The rail is a FIXED 7a–10p window (see TimeAxis) — the axis never
+//  re-windows, so there is no swap choreography. Motion contract:
 //  · Minute-to-minute color drift cross-fades at 0.8 s.
-//  · The window swap (sunrise/sunset) is ONE 400 ms cross-dissolve — the
-//    whole scene carries `.id(axis.start)`, so stubs, bloom and fill swap
-//    together and nothing ever slides to a new time position.
 //  · Text swaps polarity with a 250 ms dissolve, never a color lerp.
 //  · Reduce Motion: all of it is instant.
 //
 
-import os
 import SwiftUI
 
 /// The card's user-facing strings, one place — wording is provisional by
@@ -50,11 +47,6 @@ struct HorizonCard: View {
     @ScaledMetric(relativeTo: .footnote) private var textSize: CGFloat = HorizonMetrics.countsSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private struct SwapKey: Equatable {
-        let windowStart: Date
-        let isDark: Bool
-    }
-
     var body: some View {
         let sky = SolarSky(now: now, sunrise: sunrise, sunset: sunset)
         let ground = HorizonPalette.groundStyle(for: sky)
@@ -62,7 +54,7 @@ struct HorizonCard: View {
         // the footer counts and the rail (which lays it out at real width).
         let day = HorizonDay(
             items: items,
-            axis: TimeAxis(now: now, sunrise: sunrise, sunset: sunset, width: 1),
+            axis: TimeAxis(now: now, width: 1),
             now: now
         )
         let counts = (yours: day.yoursCount, open: day.openCount)
@@ -90,43 +82,21 @@ struct HorizonCard: View {
         )
         .modifier(CardShadow())
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.8), value: sky)
-        .animation(
-            reduceMotion ? nil : .easeInOut(duration: 0.4),
-            value: SwapKey(windowStart: windowStart(sky: sky), isDark: ground.isDark)
-        )
     }
 
     // MARK: Backdrop + rail (the scene behind the text)
 
     private func scene(sky: SolarSky, day: HorizonDay) -> some View {
         GeometryReader { geo in
-            let axis = TimeAxis(now: now, sunrise: sunrise, sunset: sunset, width: geo.size.width)
+            let axis = TimeAxis(now: now, width: geo.size.width)
             ZStack(alignment: .topLeading) {
                 HorizonBackdrop(sky: sky, axis: axis)
                 if !isLoading {
                     HorizonRailView(sky: sky, axis: axis, day: day, now: now)
                 }
             }
-            // The swap is one moment, not three: new window, new sky phase,
-            // new ground polarity arrive as a single cross-dissolve. A `.id`
-            // change swaps identity, so stub positions never interpolate.
-            .id(axis.start)
-            .transition(.opacity)
-            .onAppear {
-                if axis.usedFallbackWindow {
-                    Logger(subsystem: "Jesse.BlockParty", category: "horizon")
-                        .error("Degenerate solar window — fixed 6-to-6 fallback in force")
-                }
-            }
         }
         .accessibilityHidden(true)
-    }
-
-    private func windowStart(sky: SolarSky) -> Date {
-        // Mirrors TimeAxis's window pick without needing a width.
-        if now >= sky.sunrise && now < sky.sunset { return sky.sunrise }
-        if now < sky.sunrise { return sky.sunset.addingTimeInterval(-24 * 3600) }
-        return sky.sunset
     }
 
     // MARK: Ground content

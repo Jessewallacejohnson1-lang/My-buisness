@@ -3,10 +3,9 @@
 //  BlockParty
 //
 //  The timeline on the horizon: stubs rising out of the line, hour ticks
-//  and labels hanging below it, the now indicator, overflow markers and
-//  the midnight hairline. Stubs are light, not chart bars — four fades
-//  stack to get there (vertical falloff, soft cap, halo, rail-edge
-//  dissolve), and all four matter.
+//  and labels hanging below it, the now indicator and overflow markers.
+//  Stubs are light, not chart bars — four fades stack to get there
+//  (vertical falloff, soft cap, halo, rail-edge dissolve).
 //
 
 import SwiftUI
@@ -55,7 +54,6 @@ struct HorizonRailView: View {
             let width = geo.size.width
             ZStack(alignment: .topLeading) {
                 stubLayer(width: width)
-                midnightHairline
                 nowLine
                 tickLayer(width: width)
                 overflowMarkers(width: width)
@@ -112,7 +110,6 @@ struct HorizonRailView: View {
         baseOpacity: Double, halo: Bool
     ) -> some View {
         let color = HorizonStubColor.color(for: placed.stub.category, phase: sky.phase)
-        let opacity = baseOpacity * (placed.stub.isTomorrow ? M.tomorrowStubOpacity : 1)
         let haloOpacity = contrast == .increased ? 0.35 : M.haloOpacity
 
         ZStack(alignment: .topLeading) {
@@ -122,14 +119,14 @@ struct HorizonRailView: View {
                 stubBody(color: color, width: placed.width * M.haloWidthScale,
                          height: height, radius: radius)
                     .blur(radius: M.haloBlur)
-                    .opacity(haloOpacity * opacity)
+                    .opacity(haloOpacity * baseOpacity)
                     .offset(
                         x: placed.x - placed.width * (M.haloWidthScale - 1) / 2,
                         y: M.skyHeight - height
                     )
             }
             stubBody(color: color, width: placed.width, height: height, radius: radius)
-                .opacity(opacity)
+                .opacity(baseOpacity)
                 .offset(x: placed.x, y: M.skyHeight - height)
         }
     }
@@ -160,49 +157,27 @@ struct HorizonRailView: View {
 
     // MARK: Now indicator
 
-    @ViewBuilder
+    /// Clamped, never hidden: before 7a it pins to the morning edge, after
+    /// 10p to the evening edge — "now" is always answerable.
     private var nowLine: some View {
-        if let x = axis.x(for: now) {
-            let color: Color = sky.phase == .day
-                ? Color.black.opacity(0.3)
-                : Color.white.opacity(0.7)
-            Rectangle()
-                .fill(color)
-                .frame(width: M.nowLineWidth, height: M.nowLineHeight)
-                .mask(
-                    LinearGradient(
-                        stops: [
-                            .init(color: .white, location: 0),
-                            .init(color: .white, location: 0.5),
-                            .init(color: .clear, location: 1),
-                        ],
-                        startPoint: .bottom, endPoint: .top
-                    )
+        let x = axis.clampedX(for: now)
+        let color: Color = sky.phase == .day
+            ? Color.black.opacity(0.3)
+            : Color.white.opacity(0.7)
+        return Rectangle()
+            .fill(color)
+            .frame(width: M.nowLineWidth, height: M.nowLineHeight)
+            .mask(
+                LinearGradient(
+                    stops: [
+                        .init(color: .white, location: 0),
+                        .init(color: .white, location: 0.5),
+                        .init(color: .clear, location: 1),
+                    ],
+                    startPoint: .bottom, endPoint: .top
                 )
-                .offset(x: x - M.nowLineWidth / 2, y: M.skyHeight - M.nowLineHeight)
-        }
-    }
-
-    // MARK: Midnight hairline
-
-    @ViewBuilder
-    private var midnightHairline: some View {
-        if let midnight = axis.midnight, let x = axis.x(for: midnight) {
-            Rectangle()
-                .fill(Color(ground.textSecondary, opacity: M.midnightOpacity))
-                .frame(width: 1, height: M.yourStubHeight)
-                .mask(
-                    LinearGradient(
-                        stops: [
-                            .init(color: .white, location: 0),
-                            .init(color: .white, location: 0.5),
-                            .init(color: .clear, location: 1),
-                        ],
-                        startPoint: .bottom, endPoint: .top
-                    )
-                )
-                .offset(x: x - 0.5, y: M.skyHeight - M.yourStubHeight)
-        }
+            )
+            .offset(x: x - M.nowLineWidth / 2, y: M.skyHeight - M.nowLineHeight)
     }
 
     // MARK: Ticks and labels

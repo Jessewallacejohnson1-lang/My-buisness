@@ -9,10 +9,8 @@
 //  Two count regimes, deliberately different:
 //  · The FOOTER counts always cover the whole town day, midnight to
 //    midnight — all-day items and items outside the window included.
-//  · STUBS exist only inside the active window. In the night window,
-//    tomorrow's small-hours items render at reduced opacity past the
-//    midnight hairline (fixture-proven; the production fetch currently
-//    stops at today — flagged in the build report).
+//  · STUBS exist only inside the fixed 7a–10p window; today's items
+//    outside it clamp to the earlier/later overflow markers.
 //
 
 import CoreGraphics
@@ -24,8 +22,6 @@ nonisolated struct HorizonStub: Equatable, Identifiable {
     let end: Date?
     let isYours: Bool
     let category: EventCategory
-    /// Night window only: starts after the midnight hairline → drawn at 40%.
-    let isTomorrow: Bool
 }
 
 /// A stub after layout: x/width resolved against the axis, overlap insets
@@ -55,23 +51,17 @@ nonisolated struct HorizonDay: Equatable {
             item.start < todayInterval.end && (item.end ?? item.start) >= todayInterval.start
         }
 
-        // Defensive future-date guard at the module boundary: an item earns a
-        // place only by overlapping the town's today (the shipped Aug-30 bug
-        // shape) or by sitting inside the visible window (tomorrow's small
-        // hours during the night window). Everything else is dropped whole.
-        let admitted = items.filter { item in
-            overlapsToday(item) || axis.fraction(for: item.start) != nil
-        }
-
-        let today = admitted.filter(overlapsToday)
+        // Defensive future-date guard at the module boundary: the fixed
+        // window sits inside the town day, so overlapping today is the only
+        // admission test (the shipped Aug-30 bug shape stays excluded).
+        let today = items.filter(overlapsToday)
         yoursCount = today.filter { $0.source == .committed }.count
         openCount = today.filter { $0.source == .wholeTown }.count
 
         // Stubs: timed items whose start sits inside the window. All-day and
         // multi-day-running items live in the counts, not on the rail.
-        let stubEligible = admitted.filter { !$0.isAllDay && !$0.isMultiDay }
-        let midnight = axis.midnight
-        let inWindow = stubEligible
+        let inWindow = today
+            .filter { !$0.isAllDay && !$0.isMultiDay }
             .filter { axis.fraction(for: $0.start) != nil }
             .sorted { $0.start < $1.start }
             .map { item in
@@ -80,8 +70,7 @@ nonisolated struct HorizonDay: Equatable {
                     start: item.start,
                     end: item.end,
                     isYours: item.source == .committed,
-                    category: item.event.category,
-                    isTomorrow: midnight.map { item.start >= $0 } ?? false
+                    category: item.event.category
                 )
             }
 

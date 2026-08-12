@@ -3,7 +3,7 @@
 //  BlockPartyTests
 //
 //  Future-dated item exclusion, lane split, whole-day footer counts,
-//  overflow, the public-lane cap, tomorrow's stubs in the night window,
+//  overflow clamping on the fixed 7a–10p window, the public-lane cap,
 //  and overlap-inset layout.
 //
 
@@ -11,12 +11,10 @@ import XCTest
 @testable import BlockParty
 
 final class HorizonDayTests: XCTestCase {
-    private let sunrise = townDate(2026, 8, 11, 6, 13)
-    private let sunset = townDate(2026, 8, 11, 21, 2)
     private let width: CGFloat = 400
 
     private func dayAxis(at now: Date) -> TimeAxis {
-        TimeAxis(now: now, sunrise: sunrise, sunset: sunset, width: width)
+        TimeAxis(now: now, width: width)
     }
 
     private func item(
@@ -71,7 +69,7 @@ final class HorizonDayTests: XCTestCase {
         let items = [
             item("yours-1", start: townDate(2026, 8, 11, 9, 0)),
             item("yours-allday", start: townDate(2026, 8, 11, 0, 0), allDay: true),
-            item("yours-late", start: townDate(2026, 8, 11, 21, 30)),  // after sunset
+            item("yours-late", start: townDate(2026, 8, 11, 22, 30)),  // after the 10p edge
             item("open-1", start: townDate(2026, 8, 11, 15, 0), source: .wholeTown),
             item("open-2", start: townDate(2026, 8, 11, 17, 0), source: .wholeTown),
         ]
@@ -101,7 +99,7 @@ final class HorizonDayTests: XCTestCase {
         let now = townDate(2026, 8, 11, 13, 0)
         let day = HorizonDay(
             items: [
-                item("early-walk", start: townDate(2026, 8, 11, 5, 45)),  // before 6:13 sunrise
+                item("early-walk", start: townDate(2026, 8, 11, 5, 45)),  // before the 7a edge
                 item("running-festival", start: townDate(2026, 8, 9, 10, 0),
                      end: townDate(2026, 8, 12, 20, 0), multiDay: true),
             ],
@@ -127,25 +125,25 @@ final class HorizonDayTests: XCTestCase {
         XCTAssertTrue(day.publicStubs.contains { $0.id == "open-9" })
     }
 
-    // MARK: The night window and midnight
+    // MARK: Late night — today's events clamp, they never vanish
 
-    func testTomorrowsSmallHoursRenderAsTomorrowStubsWithoutCounting() {
+    func testAfterHoursItemsClampToOverflowAndTomorrowStaysExcluded() {
         let now = townDate(2026, 8, 11, 23, 50)
-        let axis = dayAxis(at: now)
-        XCTAssertEqual(axis.kind, .night)
-        let items = [
-            item("tonight", start: townDate(2026, 8, 11, 22, 30)),
-            item("tomorrow-1", start: townDate(2026, 8, 12, 0, 30)),
-            item("tomorrow-2", start: townDate(2026, 8, 12, 2, 0), source: .wholeTown),
-        ]
-        let day = HorizonDay(items: items, axis: axis, now: now)
-        XCTAssertEqual(day.yourStubs.count, 2)
-        XCTAssertEqual(day.publicStubs.count, 1)
-        XCTAssertFalse(day.yourStubs.first { $0.id == "tonight" }!.isTomorrow)
-        XCTAssertTrue(day.yourStubs.first { $0.id == "tomorrow-1" }!.isTomorrow)
-        XCTAssertTrue(day.publicStubs.first { $0.id == "tomorrow-2" }!.isTomorrow)
-        // Footer counts stay today-only.
+        let day = HorizonDay(
+            items: [
+                item("tonight", start: townDate(2026, 8, 11, 22, 30)),
+                item("tomorrow-1", start: townDate(2026, 8, 12, 0, 30)),
+                item("tomorrow-2", start: townDate(2026, 8, 12, 2, 0), source: .wholeTown),
+            ],
+            axis: dayAxis(at: now), now: now
+        )
+        // 10:30 PM tonight is past the fixed window's 10p edge → the later
+        // marker, not a stub, and never dropped from the counts.
+        XCTAssertTrue(day.yourStubs.isEmpty)
+        XCTAssertEqual(day.laterCount, 1)
         XCTAssertEqual(day.yoursCount, 1)
+        // Tomorrow's small hours are not today's news anywhere.
+        XCTAssertTrue(day.publicStubs.isEmpty)
         XCTAssertEqual(day.openCount, 0)
     }
 
@@ -161,7 +159,7 @@ final class HorizonDayTests: XCTestCase {
         ]
         let stubs = starts.enumerated().map { i, start in
             HorizonStub(id: "s\(i)", start: start, end: nil, isYours: true,
-                        category: .outdoors, isTomorrow: false)
+                        category: .outdoors)
         }
         let placed = HorizonDay.layout(stubs, axis: axis, minWidth: 5)
         XCTAssertEqual(placed.count, 3)
@@ -178,9 +176,9 @@ final class HorizonDayTests: XCTestCase {
         let axis = dayAxis(at: now)
         let start = townDate(2026, 8, 11, 14, 0)
         let timed = HorizonStub(id: "timed", start: start, end: start.addingTimeInterval(2 * 3600),
-                                isYours: true, category: .outdoors, isTomorrow: false)
+                                isYours: true, category: .outdoors)
         let untimed = HorizonStub(id: "untimed", start: townDate(2026, 8, 11, 18, 0), end: nil,
-                                  isYours: true, category: .outdoors, isTomorrow: false)
+                                  isYours: true, category: .outdoors)
         let placed = HorizonDay.layout([timed, untimed], axis: axis, minWidth: 5)
         XCTAssertEqual(placed[0].width, 2 * axis.pointsPerHour, accuracy: 0.01)
         XCTAssertEqual(placed[1].width, 5)
