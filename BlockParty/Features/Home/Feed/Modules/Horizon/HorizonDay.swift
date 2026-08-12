@@ -109,9 +109,15 @@ nonisolated struct HorizonDay: Equatable {
             guard let idealX = axis.x(for: stub.start) else { continue }
             let duration = stub.end.map { $0.timeIntervalSince(stub.start) } ?? 0
             let width = max(minWidth, CGFloat(duration / 3600) * axis.pointsPerHour)
-            let x = idealX < previousRight
+            // Tangent-clamp into the fade-safe zone (the solar dots' rule):
+            // a 7:00 item sat at x=0 and dissolved into the rail-edge fade,
+            // making a 5-plan day count as 4. Visibility beats a ~20 pt
+            // position error at the edges.
+            let inset = HorizonMetrics.railEdgeFade
+            let visible = min(max(idealX, inset), max(axis.width - inset - width, inset))
+            let x = visible < previousRight
                 ? previousRight + HorizonMetrics.overlapInset
-                : idealX
+                : visible
             placed.append(HorizonPlacedStub(stub: stub, x: x, width: width))
             previousRight = x + width
         }

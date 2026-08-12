@@ -171,6 +171,23 @@ final class HorizonDayTests: XCTestCase {
         }
     }
 
+    func testEdgeStubsClampIntoTheVisibleZone() {
+        let now = townDate(2026, 8, 11, 13, 0)
+        let axis = dayAxis(at: now)
+        let early = HorizonStub(
+            id: "seven-sharp", start: townDate(2026, 8, 11, 7, 0), end: nil,
+            isYours: true, category: .outdoors)
+        let late = HorizonStub(
+            id: "ten-sharp", start: townDate(2026, 8, 11, 22, 0), end: nil,
+            isYours: true, category: .outdoors)
+        let placed = HorizonDay.layout([early, late], axis: axis, minWidth: 5)
+        // Neither edge stub may sit inside the 20 pt rail-edge fade, where
+        // it dissolves and a 5-plan day counts as 4.
+        XCTAssertGreaterThanOrEqual(placed[0].x, HorizonMetrics.railEdgeFade)
+        XCTAssertLessThanOrEqual(
+            placed[1].x + placed[1].width, axis.width - HorizonMetrics.railEdgeFade)
+    }
+
     func testStubWidthFollowsDuration() {
         let now = townDate(2026, 8, 11, 13, 0)
         let axis = dayAxis(at: now)
