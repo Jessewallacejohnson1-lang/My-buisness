@@ -65,11 +65,14 @@ struct TownMenuView: View {
             appearanceSwitch
                 .padding(.top, 16)
 
-            // Wordmark sits just below the menu — the panel wraps to its content,
+            // Brand lockup sits just below the menu — the panel wraps to its content,
             // so there's no trailing blank space; it grows down only as rows are added.
-            Text("Block Party")
-                .font(.logo(20))
-                .foregroundStyle(Hue.inkSecondary)
+            HStack(spacing: 9) {
+                BlockPartyMark(side: 30)
+                Text("Block Party")
+                    .font(.logo(20))
+                    .foregroundStyle(Hue.inkSecondary)
+            }
                 .padding(.top, 20)
                 .padding(.bottom, 22)
         }

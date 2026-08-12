@@ -79,7 +79,7 @@ var lx0 = w, ly0 = h, lx1 = -1, ly1 = -1
 for y in 0..<h {
     for x in 0..<w {
         let i = (y * w + x) * 4
-        let R = Int(px[i]), G = Int(px[i + 1]), B = Int(px[i + 2])
+        let R = Int(px[i]), B = Int(px[i + 2])
         // Coral-ness: red lead over blue, ramped so edge pixels get partial alpha.
         let lead = Double(R - B)
         let v = max(0, min(1, (lead - 12) / 45)) * max(0, min(1, (Double(R) - 40) / 60))

@@ -2,9 +2,8 @@
 //  BlockPartyLogoBadge.swift
 //  Block Party — the brand mark
 //
-//  The wordmark set in Jost SemiBold, white on a crisp ink
-//  rectangle (square corners — a printed stamp, not a button). This is the ONE
-//  place the logo face is used; every other surface is the system font.
+//  The exact app mark beside the product name, set on a crisp ink rectangle
+//  (square corners — a printed stamp, not a button).
 //
 //  Mirrors the RN twin's <BlockPartyLogoBadge /> so both apps read identically.
 //
@@ -13,17 +12,20 @@ import SwiftUI
 
 struct BlockPartyLogoBadge: View {
     var body: some View {
-        Text("Block Party")
-            .font(.logo(15))                 // Jost SemiBold
-            .foregroundStyle(.white)
-            .kerning(0.2)
-            .padding(.horizontal, 11)
-            .padding(.vertical, 5)
-            .background(Hue.ink)          // a crisp rectangle, no radius
-            // A light lift so the mark holds over the map / photos without reading heavy.
-            .shadow(color: .black.opacity(0.12), radius: 3, x: 0, y: 2)
-            .accessibilityAddTraits(.isImage)
-            .accessibilityLabel("Block Party")
+        HStack(spacing: 7) {
+            BlockPartyMark(side: 24)
+            Text("Block Party")
+                .font(.logo(15))
+                .foregroundStyle(.white)
+                .kerning(0.2)
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 6)
+        .background(Hue.ink)          // a crisp rectangle, no radius
+        // A light lift so the mark holds over the map / photos without reading heavy.
+        .shadow(color: .black.opacity(0.12), radius: 3, x: 0, y: 2)
+        .accessibilityAddTraits(.isImage)
+        .accessibilityLabel("Block Party")
     }
 }
 
