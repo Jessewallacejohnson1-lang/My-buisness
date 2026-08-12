@@ -107,13 +107,21 @@ final class HorizonPaletteTests: XCTestCase {
             let s = sky(at: dayStart.addingTimeInterval(Double(minute) * 60))
             let ground = HorizonPalette.groundStyle(for: s)
             let vignette = HorizonPalette.skyStops(for: s)[0].color.scalingLuminance(by: 0.55)
-            let cases: [(String, HorizonRGB, Double)] = [
+            // (name, ink, offset below horizon, bar). The label row rides
+            // primary ink — inside the reflection's strongest band the
+            // secondary measured 2.2:1 in the twilight hours (review
+            // finding). The chevron is non-text decoration: 3:1.
+            let cases: [(String, HorizonRGB, Double, Double)] = [
                 ("primary", ground.textPrimary,
-                 Double(HorizonMetrics.primaryTextBelowHorizon)),
+                 Double(HorizonMetrics.primaryTextBelowHorizon), 4.5),
                 ("secondary", ground.textSecondary,
-                 Double(HorizonMetrics.secondaryTextBelowHorizon)),
+                 Double(HorizonMetrics.secondaryTextBelowHorizon), 4.5),
+                ("labels", ground.textPrimary,
+                 Double(HorizonMetrics.hourLabelBelowHorizon), 4.5),
+                ("chevron", ground.textSecondary,
+                 Double(HorizonMetrics.primaryTextBelowHorizon), 3.0),
             ]
-            for (name, text, offset) in cases {
+            for (name, text, offset, bar) in cases {
                 let vignetteResidual = HorizonMetrics.vignetteOpacity
                     * max(0, 1 - offset / Double(HorizonMetrics.reflectionHeight))
                 let backdrop = HorizonRGB.lerp(
@@ -122,28 +130,32 @@ final class HorizonPaletteTests: XCTestCase {
                     vignetteResidual
                 )
                 let ratio = text.contrastRatio(with: backdrop)
-                if ratio < worst {
-                    worst = ratio
-                    worstAt = "\(name) at minute \(minute)"
+                let margin = ratio - bar
+                if margin < worst {
+                    worst = margin
+                    worstAt = "\(name) at minute \(minute) (\(ratio) vs \(bar))"
                 }
-                XCTAssertGreaterThanOrEqual(ratio, 4.5, "\(name) text at minute \(minute): \(ratio)")
+                XCTAssertGreaterThanOrEqual(
+                    ratio, bar, "\(name) text at minute \(minute): \(ratio)")
             }
         }
-        // Keep the measured worst case visible in test logs for the report.
-        print("HorizonPalette worst text contrast: \(worst) (\(worstAt))")
+        // Keep the measured worst margin visible in test logs for the report.
+        print("HorizonPalette thinnest contrast margin: \(worst) at \(worstAt)")
     }
 
     // MARK: Now notch — ≥3:1 against the ground fill in every phase
 
     func testNowNotchClearsThreeToOneAtEveryMinute() {
-        // The notch renders in textPrimary on the ground; the text sweep
-        // already proves ≥4.5:1, but the notch's own bar is 3:1 (non-text).
+        // The notch spans y = 0–6 below the horizon, where the reflection
+        // residual peaks — so it is judged against the COMPOSITE there,
+        // not the bare fill (measured 4.78:1 worst vs the 3:1 bar).
         let dayStart = townDate(2026, 8, 11, 0, 0)
         for minute in stride(from: 0, to: 24 * 60, by: 5) {
-            let ground = HorizonPalette.groundStyle(for: sky(at: dayStart.addingTimeInterval(Double(minute) * 60)))
+            let s = sky(at: dayStart.addingTimeInterval(Double(minute) * 60))
+            let backdrop = HorizonPalette.compositeGround(for: s, belowHorizon: 0)
             XCTAssertGreaterThanOrEqual(
-                ground.textPrimary.contrastRatio(with: ground.fill), 3.0,
-                "notch at minute \(minute)")
+                HorizonPalette.groundStyle(for: s).textPrimary.contrastRatio(with: backdrop),
+                3.0, "notch at minute \(minute)")
         }
     }
 

@@ -310,9 +310,10 @@ nonisolated enum HorizonPalette {
     // differ imperceptibly (ΔE < 1) and its light secondaries fail their own
     // 4.5:1 bar (#7A756B on #F6F1E9 is 3.9:1). The light secondary has been
     // darkened twice, both measured: to #6B665D for the original grounds,
-    // then to #625D55 when the reflection deepened (4.35:1 measured against
-    // the pre-sunset composite at the secondary line's y — the addendum's
-    // rule is protect the tint, adjust the ink). Reported.
+    // then — when the deepened reflection dropped #6B665D to 4.35:1 against
+    // the pre-sunset composite at the secondary line's y — to the shipped
+    // #625D55, which sweeps at 4.55:1 worst (the addendum's rule: protect
+    // the tint, adjust the ink). Reported.
     static let lightTextPrimary = HorizonRGB(hex: 0x3D3A33)
     static let lightTextSecondary = HorizonRGB(hex: 0x625D55)
     static let darkTextPrimary = HorizonRGB(hex: 0xEDE9F7)
