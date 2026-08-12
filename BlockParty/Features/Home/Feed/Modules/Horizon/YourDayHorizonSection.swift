@@ -25,18 +25,20 @@ struct YourDayHorizonSection: View {
     private var M: YourDayRailMetrics.Type { YourDayRailMetrics.self }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: M.headerToRail) {
-            header
-
-            // Recompute every 60 s and on scene activation. The sky moves at
-            // the speed of the actual sky — no ambient animation. Solar
-            // times are re-dated onto now's town day so a session that
-            // stays mounted across midnight keeps a truthful sky (items
-            // refresh on the feed's own cadence; HorizonDay's today guard
-            // already zeroes yesterday's rows out of the counts).
-            TimelineView(.periodic(from: .now, by: tickInterval)) { context in
-                let now = resolvedNow(context.date)
-                let sun = resolvedSun()
+        // Recompute every 60 s and on scene activation. The sky moves at
+        // the speed of the actual sky — no ambient animation. Solar times
+        // are re-dated onto now's town day so a session that stays mounted
+        // across midnight keeps a truthful sky. The HEADER lives inside
+        // the same tick as the card so both count the same today with the
+        // same now — a raw items.count up here once read "See all 3 ›"
+        // over "1 plan today" (review finding: the picture contradicting
+        // the words is the exact defect this card was rebuilt to kill).
+        TimelineView(.periodic(from: .now, by: tickInterval)) { context in
+            let now = resolvedNow(context.date)
+            let sun = resolvedSun()
+            let day = HorizonDay(items: items, axis: TimeAxis(now: now, width: 1), now: now)
+            VStack(alignment: .leading, spacing: M.headerToRail) {
+                header(todayCount: day.yoursCount + day.openCount)
                 HorizonCard(
                     now: now,
                     sunrise: SolarSky.rebase(sun.rise, ontoDayOf: now),
@@ -56,7 +58,7 @@ struct YourDayHorizonSection: View {
     /// text link (App Store section-header pattern — no fill, no border),
     /// which replaced both the old "16 things" count and the card's pill.
     /// The heading keeps its tokens and firstTextBaseline alignment.
-    private var header: some View {
+    private func header(todayCount: Int) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(YourDayRailCopy.header)
                 .font(.dayDisplaySemi(M.headerSize))
@@ -68,19 +70,23 @@ struct YourDayHorizonSection: View {
 
             Spacer(minLength: 0)
 
-            if let link = HorizonCopy.seeAllLink(items.count) {
+            if let link = HorizonCopy.seeAllLink(todayCount) {
                 Button(action: onSeeAll) {
+                    // ≥44 pt hit target the way the deleted pill proved it:
+                    // padding grows the label (and so the button's real hit
+                    // region), then the outer negative padding hands the
+                    // space back so the firstTextBaseline alignment holds.
                     Text(link)
                         .font(.sansMedium(M.bodySize))
                         .foregroundStyle(Hue.inkSecondary)
                         .monospacedDigit()
-                        // ≥44 pt hit target from the shape, not padding, so
-                        // the baseline alignment with the heading holds.
-                        .contentShape(Rectangle().inset(by: -15))
+                        .padding(15)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(FeedCardPressStyle())
+                .padding(-15)
                 .accessibilityLabel(
-                    HorizonCopy.seeAllLinkAccessibilityLabel(items.count))
+                    HorizonCopy.seeAllLinkAccessibilityLabel(todayCount))
             }
         }
     }

@@ -10,8 +10,8 @@
 //  `solarElevation` and `phase`/`phaseBlend`, so the card self-corrects
 //  across the seasons with no hardcoded clock hours anywhere.
 //
-//  A future sun/moon disc layer will read `sunX` and `solarElevation`
-//  directly from this type — that is the seam left for it.
+//  The sun/moon disc reads `solarElevation`/`nightElevation` for its
+//  height and takes its x from TimeAxis — this type owns no x mapping.
 //
 
 import Foundation
@@ -66,10 +66,6 @@ nonisolated struct SolarSky: Equatable {
     let phase: SkyPhase
     /// 0…1 progress through the current phase.
     let phaseBlend: Double
-    /// The sun's 0…1 position along the active rail window. During the day
-    /// window this tracks the sun; at night it anchors to whichever end's
-    /// solar event (sunset behind, sunrise ahead) is nearer in time.
-    let sunX: Double
 
     /// Ground polarity keys off this, not off phase: the ground flips
     /// light ↔ dark exactly at sunrise and sunset.
@@ -79,6 +75,9 @@ nonisolated struct SolarSky: Equatable {
     /// sun rides by day, run over the night (sunset → next sunrise). Zero
     /// while the sun is up. Clock-derived, not lunar astronomy — the disc
     /// marks *now*, so the moon rises after sunset and sets at sunrise.
+    /// The ±24 h shifts are the same approximation the phase boundaries
+    /// use above (sun times drift < 2 min/day; ~1 h on a DST-change night,
+    /// invisible at card scale for a deliberately non-astronomical moon).
     var nightElevation: Double {
         guard !isSunUp else { return 0 }
         let nightStart = now >= sunset ? sunset : sunset.addingTimeInterval(-24 * 3600)
@@ -132,19 +131,6 @@ nonisolated struct SolarSky: Equatable {
             phaseBlend = Self.fraction(of: now, from: duskEnd, to: nightEnd)
         }
 
-        if now >= rise && now < set {
-            sunX = min(max(progress, 0), 1)
-        } else {
-            // Night window runs sunset → next sunrise; anchor the residual
-            // glow at whichever end's event is nearer in time.
-            let sinceSunset = now >= set
-                ? now.timeIntervalSince(set)
-                : now.timeIntervalSince(set.addingTimeInterval(-24 * 3600))
-            let untilSunrise = now < rise
-                ? rise.timeIntervalSince(now)
-                : rise.addingTimeInterval(24 * 3600).timeIntervalSince(now)
-            sunX = sinceSunset <= untilSunrise ? 0 : 1
-        }
     }
 
     private static func fraction(of date: Date, from start: Date, to end: Date) -> Double {

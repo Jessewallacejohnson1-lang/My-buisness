@@ -6,9 +6,10 @@
 //  a perfectly straight horizon line. All curvature in this design lives
 //  in the light (the bloom); the baseline is a time ruler and stays flat.
 //
-//  Sky z-order, bottom → top: base gradient · warm/cool bloom ·
-//  (future sun/moon disc slot) · stubs. Keep it that way — the disc task
-//  drops its layer in between bloom and stubs without restructuring.
+//  Sky z-order, bottom → top: base gradient · warm/cool bloom · edge
+//  vignette · sun/moon disc (+ pillar). The rail's stubs render above all
+//  of it in HorizonCard. The vignette sits under the disc on purpose —
+//  it decides whether the disc reads at the card edges.
 //
 
 import SwiftUI

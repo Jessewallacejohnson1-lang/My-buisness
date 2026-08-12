@@ -177,12 +177,8 @@ struct HorizonRailView: View {
     private func nowNotch(width: CGFloat) -> some View {
         // Tangent at the rail edges, like every other mark on the card.
         let x = min(max(axis.clampedX(for: now), M.notchWidth / 2), width - M.notchWidth / 2)
-        let labelWidth: CGFloat = 40
-        // The overflow markers own their corners; the notch keeps its label
-        // out of their zone (same rule the hour labels follow).
-        let markerZone: CGFloat = 56
-        let labelFits = !(day.earlierCount > 0 && x < markerZone)
-            && !(day.laterCount > 0 && x > width - markerZone)
+        let labelFits = !(day.earlierCount > 0 && x < M.overflowMarkerZone)
+            && !(day.laterCount > 0 && x > width - M.overflowMarkerZone)
 
         return ZStack(alignment: .topLeading) {
             Rectangle()
@@ -192,11 +188,11 @@ struct HorizonRailView: View {
             if labelFits {
                 Text(HorizonCopy.now)
                     .font(.sansSemibold(M.hourLabelSize))
-                    .foregroundStyle(Color(ground.textSecondary))
+                    .foregroundStyle(Color(ground.textPrimary))
                     .fixedSize()
-                    .frame(width: labelWidth)
+                    .frame(width: M.railLabelWidth)
                     .offset(
-                        x: min(max(x - labelWidth / 2, 0), width - labelWidth),
+                        x: min(max(x - M.railLabelWidth / 2, 0), width - M.railLabelWidth),
                         y: M.hourLabelBaseline - M.hourLabelSize
                     )
             }
@@ -208,14 +204,13 @@ struct HorizonRailView: View {
     private func tickLayer(width: CGFloat) -> some View {
         // A label colliding with an overflow marker loses; the marker wins.
         // And the hour nearest the now notch yields to the "now" label.
-        let markerZone: CGFloat = 56
         let dropLeading = day.earlierCount > 0
         let dropTrailing = day.laterCount > 0
         let nowX = axis.clampedX(for: now)
 
         return ForEach(axis.ticks(), id: \.date) { tick in
-            let suppressed = (dropLeading && tick.x < markerZone)
-                || (dropTrailing && tick.x > width - markerZone)
+            let suppressed = (dropLeading && tick.x < M.overflowMarkerZone)
+                || (dropTrailing && tick.x > width - M.overflowMarkerZone)
                 || abs(tick.x - nowX) < M.nowLabelClearance
             let labeled = tick.isLabeled && !suppressed
 
@@ -231,14 +226,21 @@ struct HorizonRailView: View {
                 .offset(x: tick.x - M.tickWidth / 2, y: M.skyHeight)
 
             if labeled, let label = tick.label {
-                // Full-opacity secondary at 12 pt: the four labels are data,
-                // not texture — legible without zooming.
+                // Full-opacity PRIMARY at 12 pt: the label row sits inside
+                // the reflection gradient's strongest band, where secondary
+                // ink measured 2.2:1 in the twilight hours (review finding,
+                // swept in HorizonPaletteTests at the row's real y). The
+                // four labels are data, not texture — they get the ink that
+                // survives their own backdrop.
                 Text(label)
                     .font(.sans(M.hourLabelSize))
-                    .foregroundStyle(Color(ground.textSecondary))
+                    .foregroundStyle(Color(ground.textPrimary))
                     .fixedSize()
-                    .frame(width: 40)
-                    .offset(x: tick.x - 20, y: M.hourLabelBaseline - M.hourLabelSize)
+                    .frame(width: M.railLabelWidth)
+                    .offset(
+                        x: tick.x - M.railLabelWidth / 2,
+                        y: M.hourLabelBaseline - M.hourLabelSize
+                    )
             }
         }
     }
@@ -269,9 +271,11 @@ struct HorizonRailView: View {
             )
             .frame(width: M.overflowBarWidth, height: 14)
 
+        // Primary ink for the same reason as the hour labels: this row
+        // lives inside the reflection band.
         let label = Text("+\(count) \(suffix)")
             .font(.sans(M.overflowTextSize))
-            .foregroundStyle(Color(ground.textSecondary))
+            .foregroundStyle(Color(ground.textPrimary))
             .fixedSize()
 
         return HStack(alignment: .top, spacing: 4) {

@@ -127,11 +127,17 @@ nonisolated struct HorizonMock {
         case .overlap:
             return [yours("y1", 14, 0), yours("y2", 14, 10), yours("y3", 14, 20)]
         case .edge:
-            return [yours("y1", 6, 18), yours("y2", 20, 52)]
+            // Tangent to the FIXED 7a–10p window's edges (the old 6:18 /
+            // 20:52 pair was tangent to the retired solar window).
+            return [yours("y1", 7, 5), yours("y2", 21, 55)]
         case .overflow:
+            // One item off each end of the fixed window, so this state
+            // actually stages both "+N earlier/later" markers (22:00 sharp
+            // is IN-window by the closed-interval rule — it was silently
+            // staging nothing after the axis change).
             return [
-                yours("y1", 10, 0), yours("y2", 21, 30), yours("y3", 22, 0),
-                open("o1", 11, 30), open("o2", 15, 30),
+                yours("y1", 10, 0), yours("y2", 21, 30), yours("y3", 22, 30),
+                open("o1", 6, 30), open("o2", 15, 30),
             ]
         case .swap:
             return [

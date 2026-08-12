@@ -38,13 +38,15 @@ nonisolated enum HorizonCopy {
         return open == 1 ? "1 more around town" : "\(open) more around town"
     }
 
+    /// No "Your day" prefix: the section header is its own VoiceOver
+    /// element and already says it — repeating it here made the swipe
+    /// order read "Your day → Your day, 5 plans…" (review finding).
     static func cardAccessibilityLabel(yours: Int, open: Int) -> String {
         let primary = primaryLine(yours: yours, open: open)
-        guard let secondary = secondaryLine(open: open) else {
-            return "Your day. \(primary)"
-        }
-        return "Your day. \(primary), \(secondary)."
+        guard let secondary = secondaryLine(open: open) else { return primary }
+        return "\(primary), \(secondary)."
     }
+    static let cardAccessibilityHint = "Opens your day schedule"
     /// The section header's trailing link: "See all 16 ›". Nil at zero —
     /// no postings, nothing to link.
     static func seeAllLink(_ count: Int) -> String? {
@@ -97,6 +99,7 @@ struct HorizonCard: View {
                 ? HorizonCopy.loadingAccessibilityLabel
                 : HorizonCopy.cardAccessibilityLabel(yours: counts.yours, open: counts.open)
         )
+        .accessibilityHint(HorizonCopy.cardAccessibilityHint)
         .background { scene(sky: sky, day: day) }
         .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         .overlay(
@@ -131,9 +134,12 @@ struct HorizonCard: View {
         ground: HorizonGroundStyle, counts: (yours: Int, open: Int)
     ) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Sky + the tick/label zone stay clear of text.
+            // Sky + the tick/label zone stay clear of text. Same constant
+            // the contrast sweep samples — nudging one moves both.
             Spacer(minLength: 0)
-                .frame(height: HorizonMetrics.skyHeight + 22)
+                .frame(
+                    height: HorizonMetrics.skyHeight
+                        + HorizonMetrics.primaryTextBelowHorizon)
 
             HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: HorizonMetrics.copyLineSpacing) {

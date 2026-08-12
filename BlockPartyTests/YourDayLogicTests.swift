@@ -745,13 +745,21 @@ final class HorizonCopyTests: XCTestCase {
     }
 
     func testCardAccessibilityLabelMirrorsTheVisibleWording() {
+        // No "Your day" prefix: the section header is its own VoiceOver
+        // element and already says it — the prefix made the swipe order
+        // read "Your day → Your day, 5 plans…" (review finding).
         XCTAssertEqual(
             HorizonCopy.cardAccessibilityLabel(yours: 5, open: 11),
-            "Your day. 5 plans today, 11 more around town."
+            "5 plans today, 11 more around town."
         )
         XCTAssertEqual(
             HorizonCopy.cardAccessibilityLabel(yours: 0, open: 0),
-            "Your day. Nothing posted for today yet."
+            "Nothing posted for today yet."
+        )
+        XCTAssertFalse(
+            HorizonCopy.cardAccessibilityLabel(yours: 3, open: 2)
+                .contains(YourDayRailCopy.header),
+            "the header speaks its own name; the card must not repeat it"
         )
     }
 

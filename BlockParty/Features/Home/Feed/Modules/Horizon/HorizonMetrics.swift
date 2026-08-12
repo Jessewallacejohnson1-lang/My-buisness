@@ -49,10 +49,22 @@ nonisolated enum HorizonMetrics {
     /// COMPOSITE at the text's y, not the bare fill (see the palette sweep).
     static let reflectionHeight: CGFloat = 48
     static let reflectionOpacity: Double = 0.45
-    /// Distance below the horizon where each copy line's cap height starts,
-    /// at standard type — the y the contrast sweep samples.
+    /// Distance below the horizon where each text row's glyphs start, at
+    /// standard type — the y positions the contrast sweep samples. The
+    /// primary offset is the SAME constant the card lays out with; the
+    /// label offset is derived from the label metrics above, so a layout
+    /// nudge moves the sweep with it instead of silently un-measuring it.
     static let primaryTextBelowHorizon: CGFloat = 22
+    /// primary top + 17pt line height + line spacing, at standard type.
     static let secondaryTextBelowHorizon: CGFloat = 44
+    static var hourLabelBelowHorizon: CGFloat {
+        hourLabelBaseline - hourLabelSize - skyHeight
+    }
+    /// Overflow markers own this much of each rail corner; hour and "now"
+    /// labels inside it yield. One constant — the rules must agree.
+    static let overflowMarkerZone: CGFloat = 56
+    /// The fixed frame rail labels centre in.
+    static let railLabelWidth: CGFloat = 40
     /// Horizontal vignette on the sky region only: the sky deepening away
     /// from the light. Top stop × 0.55 luminance at this opacity.
     static let vignetteOpacity: Double = 0.20

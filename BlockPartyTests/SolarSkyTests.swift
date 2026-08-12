@@ -2,8 +2,8 @@
 //  SolarSkyTests.swift
 //  BlockPartyTests
 //
-//  Solar phase boundaries at the eight spec timestamps, elevation shape,
-//  sunX anchoring, and the nil-sun-times fallback.
+//  Solar phase boundaries at the eight spec timestamps, elevation shape
+//  (day and night arcs), and the nil-sun-times fallback.
 //
 
 import XCTest
@@ -78,18 +78,6 @@ final class SolarSkyTests: XCTestCase {
         }
     }
 
-    func testSunXTracksTheSunByDay() {
-        XCTAssertEqual(sky(at: 13, 0).sunX, 407.0 / 889.0, accuracy: 0.001)
-        XCTAssertEqual(SolarSky(now: sunrise, sunrise: sunrise, sunset: sunset).sunX, 0, accuracy: 0.001)
-    }
-
-    func testSunXAnchorsToNearestSolarEventAtNight() {
-        // 22:45 — 103 min past sunset, 448 min to sunrise: anchor at sunset end.
-        XCTAssertEqual(sky(at: 22, 45).sunX, 0)
-        // 04:30 — 448 min past (yesterday's) sunset, 103 min to sunrise: anchor at sunrise end.
-        XCTAssertEqual(sky(at: 4, 30).sunX, 1)
-    }
-
     func testIsSunUpFlipsExactlyAtSunriseAndSunset() {
         XCTAssertFalse(SolarSky(now: sunrise.addingTimeInterval(-1), sunrise: sunrise, sunset: sunset).isSunUp)
         XCTAssertTrue(SolarSky(now: sunrise, sunrise: sunrise, sunset: sunset).isSunUp)
@@ -125,7 +113,6 @@ final class SolarSkyTests: XCTestCase {
     }
 }
 
-/// Builds a Date from components in the town's timezone.
 extension SolarSkyTests {
     /// The moon disc's height: the sun's sin arc run over the night.
     func testNightElevationArcsOverTheNightAndIsZeroByDay() {
@@ -149,6 +136,7 @@ extension SolarSkyTests {
     }
 }
 
+/// Builds a Date from components in the town's timezone.
 func townDate(_ year: Int, _ month: Int, _ day: Int, _ hour: Int, _ minute: Int) -> Date {
     var components = DateComponents()
     components.year = year
