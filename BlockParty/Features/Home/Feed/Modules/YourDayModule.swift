@@ -253,8 +253,8 @@ private extension YourDayModule {
 /// by tapping a card is otherwise unverifiable. No-op without the flag, and the
 /// whole modifier compiles to a pass-through in Release.
 ///
-/// The rail's two BROWSE affordances are driven separately, from their own buttons'
-/// closures — see `YourDayDebugTapDriver`.
+/// The horizon card's two routes are driven separately, from their own
+/// closures — see `HorizonDebugTapDriver`.
 private struct YourDayDebugDetailOpener: ViewModifier {
     let events: [UpcomingEvent]
     let navigate: (FeedRoute) -> Void

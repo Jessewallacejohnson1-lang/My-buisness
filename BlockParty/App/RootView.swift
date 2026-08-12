@@ -636,7 +636,7 @@ struct MainTabsView: View {
     /// It lands as the app's ordinary tab change — the same page slide and tab-bar
     /// pill the bar gives — rather than as a modal, because tab selection lives here
     /// and this is the lane the town menu's tab rows already use. No haptic: the card
-    /// that was tapped already fired one on press-down (`YourDayPressStyle`).
+    /// that was tapped already fired one on press-down (its press style).
     private func openActivities(_ request: ActivitiesRequest) {
         activitiesRequest = request
         // The feed this arrives from only exists on the Today tab, so this is always
