@@ -259,7 +259,7 @@ private struct BarTitle: View {
     @ScaledMetric(relativeTo: .headline) private var size = TodayBarMetric.titleSize
 
     var body: some View {
-        Text(Town.name)
+        Text("Joe Town")
             .font(.sansSemibold(size))
             .foregroundStyle(Hue.ink)
             .lineLimit(1)
