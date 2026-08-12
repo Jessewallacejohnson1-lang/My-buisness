@@ -63,6 +63,25 @@ enum DateHelpers {
         return cal.dateComponents([.day], from: cal.startOfDay(for: da), to: cal.startOfDay(for: db)).day
     }
 
+    /// A Postgres `timestamptz` column (`club_events.end_at`) → `Date`.
+    ///
+    /// PostgREST emits fractional seconds only when the stored value has them, so
+    /// both shapes have to parse or an event silently loses its end time. Returns
+    /// nil for nil/blank/garbage rather than substituting a date — callers treat a
+    /// missing end as "we were not told", never as "ends now".
+    nonisolated static func timestamp(_ s: String?) -> Date? {
+        guard let s = s?.trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty
+        else { return nil }
+
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = fractional.date(from: s) { return date }
+
+        let plain = ISO8601DateFormatter()
+        plain.formatOptions = [.withInternetDateTime]
+        return plain.date(from: s)
+    }
+
     // MARK: Display-time parsing — ported from apps/mobile/src/lib/time.ts.
     // start_time is a free-text display string ("7am", "10 AM", "noon", nil);
     // parse to minutes-from-midnight only for sorting / liveness, never an axis.

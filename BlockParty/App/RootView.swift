@@ -60,6 +60,12 @@ struct RootView: View {
     /// Flipped true once `loaderMinDuration` has elapsed since launch.
     @State private var minLoaderShown = false
 
+    /// The neighbour's System / Light / Dark choice, set in the town menu. Held
+    /// here because THIS is the root of the presentation `.preferredColorScheme`
+    /// acts on — the request has to be made once, at the top, or a sheet and the
+    /// screen behind it can disagree about what appearance they are in.
+    @StateObject private var appearance = AppearanceStore.shared
+
     var body: some View {
         Group {
             #if DEBUG
@@ -82,6 +88,15 @@ struct RootView: View {
                 // Preview the tab loading cover full-screen (bypassing the auth gate)
                 // so the rainbow-wave indicator + copy can be verified headlessly.
                 TabLoadingCover()
+            } else if ProcessInfo.processInfo.arguments.contains("-horizon-sky-gallery")
+                        || ProcessInfo.processInfo.arguments.contains("-horizon-card-gallery") {
+                // Preview the Your Day horizon card at the eight spec test times
+                // (bypassing the auth gate) so sky continuity, bloom shape, the
+                // seam and the rail can be verified headlessly. `-horizon-sky-gallery`
+                // is sky only; `-horizon-card-gallery` adds the busy-fixture rail.
+                // Pair either with `-horizon-sky-gallery-page 2` for the
+                // afternoon/night half.
+                HorizonSkyGallery()
             } else if ProcessInfo.processInfo.arguments.contains("-feed-card-gallery") {
                 // Preview the static feed-card states full-screen (bypassing the auth
                 // gate) so the component can be verified headlessly.
@@ -149,6 +164,18 @@ struct RootView: View {
                 // The Phase 4 motion bench: one signature mechanic, alone, driven
                 // programmatically so it can be recorded and measured frame by frame.
                 BPMotionBench(mechanic: mechanic)
+            } else if ProcessInfo.processInfo.arguments.contains("-day-sheet-demo") {
+                // The whole day-sheet TRANSITION, driven programmatically over the
+                // real Today feed: open on a rail card, scroll, tick a checkbox,
+                // dismiss — on a loop. There is no tap or scroll automation here,
+                // so this is the only way the accent-bar morph can be recorded.
+                DayScheduleDemoView()
+            } else if ProcessInfo.processInfo.arguments.contains("-day-sheet-preview") {
+                // The Your Day schedule sheet, mounted from fixtures with no auth
+                // and no network. Its only real entry point is a tap on a rail
+                // card, which this simulator setup cannot drive. Pair with
+                // `-day-sheet-state upcoming|inprogress|completed|empty`.
+                DaySchedulePreview()
             } else if ProcessInfo.processInfo.arguments.contains("-bp-components") {
                 // The Phase 0 component bench for the 20-screen onboarding rebuild —
                 // every signature mechanic in every state on one scrollable screen,
@@ -161,6 +188,26 @@ struct RootView: View {
             gate
             #endif
         }
+        // THE APPEARANCE SWITCH, APPLIED ONCE, HERE — on the ROOT of the window's
+        // content, not on `gate` below. `gate` is only the auth branch: every DEBUG
+        // preview root above bypasses it, and a preference attached there would
+        // silently do nothing on exactly the screens used to verify it.
+        //
+        // `.system` resolves to `nil` — no request — so the app keeps following the
+        // phone and keeps following it as the phone changes. `.light` / `.dark` turn
+        // the hosting window's interface style over, which is why every `Hue` token,
+        // every `.glassEffect` surface and every presented sheet move together.
+        //
+        // NOT `.environment(\.colorScheme, …)`: that forces a value into the SwiftUI
+        // tree only, leaving the UIKit-backed materials resolving the device's
+        // appearance underneath the ink drawn on them. It was removed a commit ago
+        // (see the note further down this file) and must not come back.
+        .preferredColorScheme(appearance.choice.colorScheme)
+        #if DEBUG
+        // `-appearance <state>` / `-appearance-demo` — the stand-in for a tap on the
+        // town-menu control, which no automation in this setup can perform.
+        .task { appearance.applyDebugLaunchArguments() }
+        #endif
     }
 
     @ViewBuilder
@@ -328,7 +375,23 @@ struct MainTabsView: View {
     @State private var showMenu = false
     /// The profile, now a menu destination (presented as a standard sheet).
     @State private var showProfileSheet = false
+    /// The filter + timeframe the Activities tab should open on, set by a feed route
+    /// that asks for it (the Your Day rail's zero state → today's events).
+    ///
+    /// A ONE-SHOT. The tab content is rebuilt whenever `tab` changes identity, so a
+    /// request left standing would silently re-apply the next time Activities came
+    /// back — hence it is dropped by every other way into that tab.
+    @State private var activitiesRequest: ActivitiesRequest?
     @Namespace private var cardNS
+    /// The Your Day rail ↔ day sheet morph, and the sheet's own presentation.
+    ///
+    /// Both live HERE rather than in the Today tab because the day sheet is
+    /// presented in-hierarchy (a `.sheet` cannot carry a namespace across its
+    /// boundary, so the morph the spec asks for is impossible through one), and an
+    /// in-hierarchy full-height surface has to be a sibling of the tab bar or the
+    /// tab bar floats over its "Add to today" button. Same lane as the town menu.
+    @Namespace private var dayNS
+    @StateObject private var daySchedule = DaySchedulePresentation()
     /// Direction of the last tab change — whether the incoming screen slides in
     /// from the trailing edge (moving *forward* through the tab order) or the
     /// leading edge (moving back). Set in `select(_:)` right before the animation.
@@ -359,12 +422,17 @@ struct MainTabsView: View {
                                 onMenu: { showMenu = true },
                                 menuOpen: showMenu,
                                 profileShown: showProfileSheet,
+                                onOpenActivities: openActivities,
                                 expandedPlace: $expandedPlace,
                                 cardNS: cardNS
                             )
                         // No brand badge on these tabs — the top-right corner carries
                         // screen chrome now (the map's compose "+" etc.).
-                        case .activities: ActivitiesView(onCompose: { composing = true })
+                        case .activities:
+                            ActivitiesView(
+                                onCompose: { composing = true },
+                                request: activitiesRequest
+                            )
                         case .calendar:   CalendarView(onCompose: { composing = true })
                         // The map's non-admin "+" opens the speed-dial (admins still get
                         // QuickAddSheet, wired inside SJMapView).
@@ -404,22 +472,21 @@ struct MainTabsView: View {
                     .zIndex(10)
                 }
             }
-            // This app is light-only BY CONSTRUCTION — every token in BlockPartyColor is a
-            // fixed light hex (paper #FAFAF7, surface #FFFFFF), and the basemap is light-v11
-            // recoloured to a fixed greyscale palette. Nothing here has a dark counterpart.
-            // `.glassEffect` (the tab bar AND the map sheet) is the one appearance-ADAPTIVE
-            // surface in the tree, so under iOS Dark Mode it resolved charcoal while every
-            // colour drawn on it stayed light: the sheet's peek line and the tab labels fell
-            // to ~1:1 contrast — the primary navigation, unreadable.
+            // THE `.environment(\.colorScheme, .light)` THAT USED TO BE HERE IS GONE.
             //
-            // Declared on the container so BOTH glass surfaces resolve the same way; pinning
-            // only the sheet would light it while the tab bar stayed dark, visibly splitting
-            // the one continuous piece this container exists to create.
+            // It existed because the app was light-only BY CONSTRUCTION — every `Hue`
+            // token was a fixed light hex — while `.glassEffect` (the tab bar AND the
+            // map sheet) was the one appearance-ADAPTIVE surface in the tree. Under
+            // iOS Dark Mode the glass resolved charcoal and everything drawn on it
+            // stayed light, so the peek line and the tab labels fell to ~1:1: the
+            // primary navigation, unreadable. Its own comment named the exit — "a full
+            // dark ramp + a dark basemap palette" — and that is what has now been
+            // built: `Hue` carries both appearances, so ink on charcoal glass is
+            // near-white and the contrast runs the right way round.
             //
-            // This states what the app already assumes rather than adding a behaviour. If real
-            // Dark Mode support is ever wanted, removing this line is the START of that work
-            // (a full dark ramp + a dark basemap palette), not the whole of it.
-            .environment(\.colorScheme, .light)
+            // The basemap did NOT get a dark palette, and deliberately: Mapbox renders
+            // light-v11 cartography in both modes, so map INK is pinned to its light
+            // value instead (`Color.onLightCanvas`). See `BlockPartyColor`.
         }
         .onGeometryChange(for: CGFloat.self) { geometry in
             geometry.size.height
@@ -481,6 +548,10 @@ struct MainTabsView: View {
         }
         // A bubble tap jumps straight into that kind's form, skipping the chooser.
         .sheet(item: $composeKind) { kind in AddFormView(kind: kind) }
+        // The Your Day sheet's own lane, applied LAST so it sits above the tab bar,
+        // the town menu and the speed dial. Injects the namespace and the presenter
+        // the Your Day rail reaches for.
+        .dayScheduleHost(daySchedule, namespace: dayNS)
         #if DEBUG
         .onAppear {
             if ProcessInfo.processInfo.arguments.contains("-share-demo") {
@@ -518,7 +589,7 @@ struct MainTabsView: View {
     private func handleMenu(_ action: TownMenuAction) {
         switch action {
         case .calendar:   tab = .calendar
-        case .activities: tab = .activities
+        case .activities: activitiesRequest = nil; tab = .activities
         case .map:        tab = .map
         case .compose:    afterMenuClose { composing = true }
         case .invite:     afterMenuClose { ShareCenter.shared.present(.appInvite()) }
@@ -549,16 +620,37 @@ struct MainTabsView: View {
         }
     }
 
-    /// Switch tabs with a horizontal page slide. Direction is derived from the tab
-    /// order (`Tab: Int`), so moving right through the bar slides content the way
-    /// your thumb expects. A single spring drives both the content slide and the
-    /// tab-bar pill so they travel together; Reduce Motion swaps it for a short
-    /// crossfade. The haptic lives here (not the button) so it fires once per real
-    /// change — re-tapping the current tab is a no-op.
+    /// A tab-bar tap. The haptic lives here (not the button) so it fires once per
+    /// real change — re-tapping the current tab is a no-op.
     private func select(_ newTab: Tab) {
         guard newTab != tab else { return }
-        slideForward = newTab.rawValue > tab.rawValue
+        // A deliberate tap on the bar is not the feed's one-shot request, so it is
+        // dropped here rather than re-applied when Activities is next rebuilt.
+        activitiesRequest = nil
         Haptics.selection()
+        switchTab(to: newTab)
+    }
+
+    /// Open Activities on a filter + timeframe, asked for by a Today feed route.
+    ///
+    /// It lands as the app's ordinary tab change — the same page slide and tab-bar
+    /// pill the bar gives — rather than as a modal, because tab selection lives here
+    /// and this is the lane the town menu's tab rows already use. No haptic: the card
+    /// that was tapped already fired one on press-down (`YourDayPressStyle`).
+    private func openActivities(_ request: ActivitiesRequest) {
+        activitiesRequest = request
+        // The feed this arrives from only exists on the Today tab, so this is always
+        // a real change of tab.
+        switchTab(to: .activities)
+    }
+
+    /// The tab change itself, with its horizontal page slide. Direction is derived
+    /// from the tab order (`Tab: Int`), so moving right through the bar slides content
+    /// the way your thumb expects. A single spring drives both the content slide and
+    /// the tab-bar pill so they travel together; Reduce Motion swaps it for a short
+    /// crossfade. Shared, so a route-driven change feels exactly like a tapped one.
+    private func switchTab(to newTab: Tab) {
+        slideForward = newTab.rawValue > tab.rawValue
         withAnimation(reduceMotion
             ? .easeInOut(duration: 0.2)
             : .spring(response: 0.44, dampingFraction: 0.86)) {

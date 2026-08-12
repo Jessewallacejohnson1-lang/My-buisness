@@ -46,6 +46,24 @@
 
 import SwiftUI
 
+/// The app ramp AS IT RENDERS ON THE MAP.
+///
+/// Mapbox draws LIGHT cartography in both appearances (`BasemapPalette` recolors
+/// light-v11 and nothing about that follows the system), so a marker over it is not
+/// over a dark page in dark mode — it is over the same warm paper it always was.
+/// Following `Hue` into dark would turn a civic badge white-on-white and its glyph
+/// black-on-white, which is the inverse of the value ladder documented above.
+///
+/// Resolved ONCE per token rather than per access: markers re-render at camera
+/// frequency and `resolvedColor(with:)` allocates.
+private enum MapInk {
+    static let ink = Hue.ink.onLightCanvas
+    static let surface = Hue.surface.onLightCanvas
+    static let inkSecondary = Hue.inkSecondary.onLightCanvas
+    static let hairline = Hue.hairline.onLightCanvas
+    static let accent = Hue.accent.onLightCanvas
+}
+
 /// Every colour a map marker needs, named by role.
 ///
 /// Renderers (`MapPinBadge`, `POIBadge`, `POIClusterBubbleView`) ask for a role and
@@ -58,15 +76,15 @@ enum MarkerRole {
     ///
     /// Takes the category for signature parity with the colour system it replaced — a
     /// future skin could differentiate landmarks again without touching a call site.
-    static func civicFill(_ category: SpotCategory) -> Color { Hue.ink }
+    static func civicFill(_ category: SpotCategory) -> Color { MapInk.ink }
 
     /// The glyph inside a civic pin — the value that reads on `civicFill`.
-    static var civicGlyph: Color { Hue.surface }
+    static var civicGlyph: Color { MapInk.surface }
 
     /// Device-local saved accent drawn on a civic pin.
-    static var savedGlyph: Color { Hue.ink }
-    static var savedBadgeFill: Color { Hue.surface }
-    static var savedBadgeStroke: Color { Hue.hairline }
+    static var savedGlyph: Color { MapInk.ink }
+    static var savedBadgeFill: Color { MapInk.surface }
+    static var savedBadgeStroke: Color { MapInk.hairline }
 
     // — POI (food / business) pins —
 
@@ -75,27 +93,27 @@ enum MarkerRole {
     /// See defect 3 in the header — this split is a fix, not decoration. Do not
     /// collapse it back to one value without re-checking a compact-zoom screenshot.
     static func poiFill(_ family: PlaceFamily, expanded: Bool) -> Color {
-        expanded ? Hue.surface : Hue.inkSecondary
+        expanded ? MapInk.surface : MapInk.inkSecondary
     }
 
     /// The glyph inside an expanded POI pin, which sits on a light fill.
-    static var poiGlyph: Color { Hue.ink }
+    static var poiGlyph: Color { MapInk.ink }
 
     /// A selected POI is promoted to the mid ink tier with white content; the soft
     /// halo repeats that ink at lower opacity rather than reintroducing family hue.
-    static func selectedPOIFill(_ family: PlaceFamily) -> Color { Hue.inkSecondary }
+    static func selectedPOIFill(_ family: PlaceFamily) -> Color { MapInk.inkSecondary }
 
     /// A selected POI that carries a BRAND LOGO keeps the light surface fill — a mark
     /// can't sit legibly on mid grey — and the ring + halo + lifted shadow continue to
     /// carry the selection emphasis on their own.
-    static var selectedPOILogoFill: Color { Hue.surface }
-    static func selectedPOIHalo(_ family: PlaceFamily) -> Color { Hue.inkSecondary }
-    static var selectedPOIGlyph: Color { Hue.surface }
+    static var selectedPOILogoFill: Color { MapInk.surface }
+    static func selectedPOIHalo(_ family: PlaceFamily) -> Color { MapInk.inkSecondary }
+    static var selectedPOIGlyph: Color { MapInk.surface }
 
     /// A pin's keyline. A light-filled pin needs a real hairline edge to read against
     /// paper; a dark-filled one takes the white lift that separates it from the map.
     static func pinStroke(isLightFill: Bool) -> Color {
-        isLightFill ? Hue.hairline : Hue.surface
+        isLightFill ? MapInk.hairline : MapInk.surface
     }
 
     // — Live —
@@ -107,39 +125,39 @@ enum MarkerRole {
 
     /// Fill of a live pin. Liveness is carried by the ring + pulse, not by the fill,
     /// so this matches the civic tier rather than introducing a fourth value.
-    static var liveFill: Color { Hue.accent }
+    static var liveFill: Color { MapInk.accent }
 
     /// The expanding halo behind a live pin — the motion half of the live signal.
-    static var liveRing: Color { Hue.accent }
+    static var liveRing: Color { MapInk.accent }
 
     /// A STATIC concentric ring outside a live badge — the half of the live signal that
     /// survives a still frame. See defect 2; do not remove without replacing the cue.
-    static var liveStaticRing: Color { Hue.accent }
+    static var liveStaticRing: Color { MapInk.accent }
 
     // — Clusters —
 
     /// The cluster disc: the mid tier, which is what separates a cluster from the
     /// lighter POI pins it stands for (defect 1).
-    static var clusterFill: Color { Hue.inkSecondary }
+    static var clusterFill: Color { MapInk.inkSecondary }
 
     /// Cluster border. The mid-grey disc is its own edge; a ring on top only muddied
     /// the silhouette, and a tinted one was the periwinkle cast the colour skin fought.
     static func clusterStroke(_ family: PlaceFamily) -> Color { .clear }
 
     /// The count, which sits on the mid-grey disc.
-    static var clusterText: Color { Hue.surface }
+    static var clusterText: Color { MapInk.surface }
 
     /// Depth under an aggregate; darker than an individual pin because the bubble
     /// represents many places and sits at the top of the marker hierarchy.
-    static var clusterShadow: Color { Hue.ink.opacity(0.22) }
+    static var clusterShadow: Color { MapInk.ink.opacity(0.22) }
 
     // — Labels —
 
     /// A pin's name label. Always ink: labels can't carry category meaning without hue,
     /// so the glyph is the only category channel and the text just has to be readable.
-    static func label(base: Color) -> Color { Hue.ink }
+    static func label(base: Color) -> Color { MapInk.ink }
 
     /// The light lift around bare map text, routed here with the ink itself so labels
     /// never choose a raw white at their call site.
-    static var labelHalo: Color { Hue.surface }
+    static var labelHalo: Color { MapInk.surface }
 }

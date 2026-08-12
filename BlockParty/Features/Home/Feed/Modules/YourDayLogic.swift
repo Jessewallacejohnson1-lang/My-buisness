@@ -71,7 +71,23 @@ nonisolated enum YourDayLogic {
               let day = eventDay(for: event)
         else { return nil }
 
-        return Town.calendar.date(byAdding: .minute, value: minutes, to: day)
+        return townInstant(day: day, minutesFromMidnight: minutes)
+    }
+
+    /// A wall-clock time-of-day on a given town day → the actual instant.
+    ///
+    /// `date(bySettingHour:)`, not `date(byAdding: .minute)`: on a DST boundary the
+    /// two disagree. Adding 660 absolute minutes to a spring-forward midnight lands
+    /// at noon, not the 11 AM the organizer typed. Setting the hour asks the
+    /// calendar for that wall-clock time, which is what a poster on a coffee-shop
+    /// door means.
+    static func townInstant(day: Date, minutesFromMidnight: Int) -> Date? {
+        Town.calendar.date(
+            bySettingHour: minutesFromMidnight / 60,
+            minute: minutesFromMidnight % 60,
+            second: 0,
+            of: day
+        )
     }
 
     static func scheduleLabel(for event: UpcomingEvent, now: Date) -> String {
@@ -156,7 +172,9 @@ nonisolated enum YourDayLogic {
         return formatter.string(from: start)
     }
 
-    private static func eventDay(for event: UpcomingEvent) -> Date? {
+    /// Town midnight on the row's `event_date`. Internal rather than private so the
+    /// Your Day item builder shares this one parse — see `YourDayItems.swift`.
+    static func eventDay(for event: UpcomingEvent) -> Date? {
         let parts = event.eventDate.split(separator: "-").compactMap { Int($0) }
         guard parts.count == 3 else { return nil }
 
@@ -169,7 +187,14 @@ nonisolated enum YourDayLogic {
         return Town.calendar.date(from: components)
     }
 
-    private static func minutes(from raw: String?) -> Int? {
+    /// Free-text `club_events.start_time` → minutes from midnight. The live rows
+    /// literally read "11 AM", "noon", "7:00 PM", and sometimes prose we cannot
+    /// parse at all ("after dark"), which returns nil so the caller can fall back
+    /// to the organizer's own words.
+    ///
+    /// Internal rather than private because the Your Day item builder needs the
+    /// same parse — there is exactly ONE free-text time parser in this feature.
+    static func minutes(from raw: String?) -> Int? {
         guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
               !raw.isEmpty
         else { return nil }
@@ -198,48 +223,65 @@ nonisolated enum YourDayLogic {
     }
 
     #if DEBUG
+    /// `-yourday-sample` fixtures. Clearly-marked fake rows covering both lanes and
+    /// all three eyebrow shapes, so the rail's states can be screenshotted without
+    /// auth or a network.
+    ///
+    /// Anchored to the town's day rather than offset from `now`, so the sample
+    /// cannot drift past midnight and empty itself out when the flag is used late
+    /// in the evening.
     @MainActor
     static func debugEvents(now: Date) -> [UpcomingEvent] {
-        let starts = [
-            now.addingTimeInterval(4 * 60 * 60),
-            now.addingTimeInterval(30 * 60 * 60),
-            now.addingTimeInterval(4 * 24 * 60 * 60),
-        ]
-        let titles = [
-            "Patio trivia at Local Blend",
-            "Millstream morning walk",
-            "Community supper downtown",
-        ]
-        let locations = ["Local Blend", "Millstream Park", "Church of Saint Joseph"]
-        let goingCounts = [0, 6, 12]
+        let today = Town.day(now)
+        let startedTwoDaysAgo = Town.day(
+            Town.calendar.date(byAdding: .day, value: -2, to: now) ?? now
+        )
+        let endsTomorrow = Town.calendar.date(byAdding: .day, value: 1, to: now)
 
-        let dateFormatter = DateFormatter()
-        dateFormatter.calendar = Town.calendar
-        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
-        dateFormatter.timeZone = Town.timeZone
-        dateFormatter.dateFormat = "yyyy-MM-dd"
-
-        let timeFormatter = DateFormatter()
-        timeFormatter.calendar = Town.calendar
-        timeFormatter.locale = Locale(identifier: "en_US_POSIX")
-        timeFormatter.timeZone = Town.timeZone
-        timeFormatter.dateFormat = "h:mm a"
-
-        return starts.indices.map { index in
+        return [
             UpcomingEvent(
-                id: "yourday-debug-\(index)",
-                title: titles[index],
-                eventDate: dateFormatter.string(from: starts[index]),
-                startTime: timeFormatter.string(from: starts[index]),
-                location: locations[index],
-                goingCount: goingCounts[index],
+                id: "yourday-debug-allday",
+                title: "Town-wide garage sale",
+                eventDate: today,
+                startTime: nil,
+                location: "All over St. Joe",
+                goingCount: 12,
                 createdAt: "debug",
-                // Your Day only ever shows events the neighbour already said yes
-                // to (`getMyUpcomingRsvps` returns `rsvpd: true`), so the fixture
-                // has to say so too or the detail screen's RSVP control lies.
+                // Not RSVP'd: this is the whole-town lane, and the rail has to
+                // mark it as such rather than let it read as a personal plan.
+                rsvpd: false,
+                isAllDay: true
+            ),
+            UpcomingEvent(
+                id: "yourday-debug-ongoing",
+                title: "Millstream Arts Festival",
+                eventDate: startedTwoDaysAgo,
+                startTime: "11 AM",
+                location: "Millstream Park",
+                goingCount: 6,
+                createdAt: "debug",
+                rsvpd: false,
+                endAt: endsTomorrow
+            ),
+            UpcomingEvent(
+                id: "yourday-debug-committed",
+                title: "Patio trivia at Local Blend",
+                eventDate: today,
+                startTime: "7:00 PM",
+                location: "Local Blend",
+                goingCount: 4,
+                createdAt: "debug",
+                // The committed lane says yes, so the detail screen's RSVP control
+                // tells the truth when the card is opened.
                 rsvpd: true
-            )
-        }
+            ),
+        ]
+    }
+
+    /// The same fixtures, run through the real today/merge/sort rules.
+    @MainActor
+    static func debugDayItems(now: Date) -> [DayItem] {
+        dayItems(from: debugEvents(now: now), now: now)
     }
     #endif
 }

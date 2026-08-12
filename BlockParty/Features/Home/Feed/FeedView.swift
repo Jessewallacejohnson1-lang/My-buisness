@@ -10,6 +10,11 @@ struct FeedView: View {
     var onMenu: (() -> Void)?
     var menuOpen = false
     var profileShown = false
+    /// Where a route that leaves the feed goes. The shell (`MainTabsView`) owns tab
+    /// selection, so it — not this screen — fulfils an Activities route. Nil where
+    /// no shell is mounted above the feed (the DEBUG galleries and module previews),
+    /// and there the route is simply dropped rather than faked with a sheet.
+    var onOpenActivities: ((ActivitiesRequest) -> Void)?
 
     @StateObject private var controller: FeedController
     @State private var name: String?
@@ -24,12 +29,14 @@ struct FeedView: View {
         auth: AuthStore,
         onMenu: (() -> Void)? = nil,
         menuOpen: Bool = false,
-        profileShown: Bool = false
+        profileShown: Bool = false,
+        onOpenActivities: ((ActivitiesRequest) -> Void)? = nil
     ) {
         self.auth = auth
         self.onMenu = onMenu
         self.menuOpen = menuOpen
         self.profileShown = profileShown
+        self.onOpenActivities = onOpenActivities
 
         let briefing = BriefingModel()
         let context = FeedModuleContext(
@@ -46,12 +53,24 @@ struct FeedView: View {
             auth: auth,
             briefing: controller.briefing,
             displayName: name,
-            navigate: { route = $0 },
+            navigate: { navigate($0) },
             revealed: revealed,
             contentRevealed: contentRevealed,
             revealAnimated: revealAnimated,
             refreshReplay: refreshReplay
         )
+    }
+
+    /// One place a module's route is fulfilled. A route that leaves the feed goes up
+    /// to the shell, which owns tab selection; everything else is a sheet over the
+    /// feed. Splitting here — rather than inside a module — keeps every module's one
+    /// way out (`ctx.navigate`) the same.
+    private func navigate(_ route: FeedRoute) {
+        if let request = route.activitiesRequest {
+            onOpenActivities?(request)
+        } else {
+            self.route = route
+        }
     }
 
     private var forcedHairline: Bool {
@@ -106,8 +125,10 @@ struct FeedView: View {
             .tint(.clear)
         }
         .background(Hue.paper)
+        // Only sheet-presenting routes ever reach this binding — `navigate(_:)`
+        // intercepts the ones the shell fulfils, so the optional cannot be nil here.
         .sheet(item: $route) { route in
-            route.destination
+            if let destination = route.destination { destination }
         }
         .task {
             name = Interests.displayName ?? firstNameFromEmail(auth.email)
@@ -130,10 +151,25 @@ struct FeedView: View {
         .tabReady(controller.briefing.hasLoaded)
         .onAppear {
             revealed = true
-            if controller.briefing.payload != nil { contentRevealed = true }
+            if controller.briefing.hasLoaded { contentRevealed = true }
         }
-        .onChange(of: controller.briefing.payload == nil) { _, isEmpty in
-            if !isEmpty { contentRevealed = true }
+        // Gated on the briefing having FINISHED, not on it having SUCCEEDED.
+        //
+        // `contentRevealed` used to key off `payload != nil`. But the modules below
+        // the almanac are `springReveal`'d on it, and springReveal hides with
+        // opacity/scale/offset — all non-layout-affecting. So when the briefing RPC
+        // failed (outage, expired token, or simply `-briefing-preview` without
+        // `-briefing-state`, which makes a live authenticated call), `payload`
+        // stayed nil, the flag never flipped, and Your Day / Town Notes / For You
+        // rendered INVISIBLE WHILE STILL RESERVING THEIR FULL HEIGHT — a column of
+        // blank gaps holding content those modules had successfully fetched on
+        // their own. They own their fetches (`ownsFetch`), so the briefing's fate
+        // was never theirs to share.
+        //
+        // `hasLoaded` is set on both the success and the failure path, so the
+        // self-fetching modules now reveal either way.
+        .onChange(of: controller.briefing.hasLoaded) { _, loaded in
+            if loaded { contentRevealed = true }
         }
         .onChange(of: profileShown) { _, shown in
             guard !shown else { return }

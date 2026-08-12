@@ -343,6 +343,69 @@ struct CommunityAPI {
                                         prefer: "resolution=merge-duplicates,return=minimal")
     }
 
+    // MARK: - Your Day (the Today rail — one day, town time)
+
+    /// How far back an event's `event_date` may sit and still be running today.
+    ///
+    /// A multi-day festival is ONE row whose `event_date` is its first day, so a
+    /// strict `event_date=eq.today` filter would drop it on days two through five.
+    /// The window cannot be expressed as an `end_at` predicate because that column
+    /// is not applied yet, and querying a missing column is a 400 — so the read
+    /// casts a slightly wide net by date and the overlap rule does the real
+    /// filtering client-side. Two weeks is nothing for a town whose entire
+    /// calendar is ~9 rows.
+    private static let dayLookbackDays = 14
+
+    /// Every approved public event that could be running on the TOWN's today,
+    /// each carrying the viewer's own RSVP state so Your Day can tell a personal
+    /// commitment from a whole-town happening.
+    ///
+    /// Deliberately NOT `getMyUpcomingRsvps`. That read means "what is coming up
+    /// for me, today onward" and the profile and almanac depend on that contract;
+    /// Your Day needs the opposite scope — one day, the whole town — so it gets
+    /// its own query rather than bending that one.
+    ///
+    /// `event_saves` is never read here: saving is a bookmark, not a commitment,
+    /// and Your Day is only about what the neighbour is actually part of today.
+    /// Recurring series need no special handling either — each occurrence is its
+    /// own `club_events` row with its own `event_date`, so occurrences that do not
+    /// land today are excluded by the date window itself.
+    func getTownDayCandidates(now: Date) async throws -> [UpcomingEvent] {
+        let t = try await token()
+        let uid = auth.userId
+        let today = Town.day(now)
+        let earliest = Town.day(
+            Town.calendar.date(byAdding: .day, value: -Self.dayLookbackDays, to: now) ?? now
+        )
+
+        let (data, _) = try await SupabaseHTTP.rest("club_events",
+            query: "select=*,clubs(name)&status=eq.approved&kind=eq.event&event_date=gte.\(earliest)&event_date=lte.\(today)\(Self.realOnly)&order=event_date.asc,start_time.asc",
+            accessToken: t)
+        let events: [RawEvent] = try decode(data)
+
+        var counts: [String: Int] = [:]
+        var mine = Set<String>()
+        let ids = events.map(\.id)
+        if !ids.isEmpty {
+            let (rd, _) = try await SupabaseHTTP.rest("event_rsvps",
+                query: "select=event_id,user_id&event_id=in.(\(ids.joined(separator: ",")))", accessToken: t)
+            let rsvps: [RsvpRow] = try decode(rd)
+            for r in rsvps {
+                counts[r.eventId, default: 0] += 1
+                if let uid, r.userId == uid { mine.insert(r.eventId) }
+            }
+        }
+
+        return events.map {
+            UpcomingEvent(id: $0.id, title: $0.title, eventDate: $0.eventDate ?? "",
+                          startTime: $0.startTime, location: $0.location,
+                          goingCount: counts[$0.id] ?? 0, createdAt: $0.createdAt ?? "",
+                          imageUrl: $0.imageUrl, rsvpd: mine.contains($0.id),
+                          clubName: $0.clubs?.name, category: EventCategory.from($0.category),
+                          endAt: DateHelpers.timestamp($0.endAt), isAllDay: $0.allDay ?? false)
+        }
+    }
+
     // MARK: - My activity (profile screen — per-user, real counts only)
 
     /// Upcoming events the signed-in user has RSVP'd to (today onward), soonest

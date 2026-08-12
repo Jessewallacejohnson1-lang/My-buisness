@@ -92,6 +92,12 @@ final class ShareCenter: ObservableObject {
         let window = UIWindow(windowScene: scene)
         window.windowLevel = .alert + 1          // above the tab bar and any .sheet
         window.backgroundColor = .clear
+        // This is a SECOND window, so `RootView`'s `.preferredColorScheme` does not
+        // reach it — the reveal would follow the phone while the app behind it
+        // followed the neighbour's choice. `.unspecified` is the `.system` case, so
+        // the default behaviour is unchanged. Read at creation rather than observed:
+        // the window exists only for the few seconds of one share.
+        window.overrideUserInterfaceStyle = AppearanceStore.shared.choice.interfaceStyle
         let host = UIHostingController(rootView: ShareRevealView())
         host.view.backgroundColor = .clear
         window.rootViewController = host
