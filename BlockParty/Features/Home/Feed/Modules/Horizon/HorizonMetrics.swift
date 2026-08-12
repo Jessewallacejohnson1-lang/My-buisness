@@ -56,6 +56,10 @@ nonisolated enum HorizonMetrics {
     /// Horizontal vignette on the sky region only: the sky deepening away
     /// from the light. Top stop × 0.55 luminance at this opacity.
     static let vignetteOpacity: Double = 0.20
+    /// The card's drop shadow — deliberately deeper than the app-wide 6%
+    /// CardShadow token (same radius/offset geometry): the horizon card is
+    /// the feed's one full-scene object and genuinely floats. Jesse's call.
+    static let cardShadowOpacity: Double = 0.20
 
     // Stubs
     static let yourStubHeight: CGFloat = 22

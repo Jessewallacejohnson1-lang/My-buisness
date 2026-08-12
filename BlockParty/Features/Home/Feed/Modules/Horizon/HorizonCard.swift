@@ -103,7 +103,10 @@ struct HorizonCard: View {
             RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
                 .stroke(Hue.hairline, lineWidth: 1)
         )
-        .modifier(CardShadow())
+        .shadow(
+            color: .black.opacity(HorizonMetrics.cardShadowOpacity),
+            radius: 10, x: 0, y: 4
+        )
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.8), value: sky)
     }
 
