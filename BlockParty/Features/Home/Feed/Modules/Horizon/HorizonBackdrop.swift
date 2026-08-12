@@ -84,7 +84,76 @@ struct HorizonBackdrop: View {
             // that curvature is what makes this read as sky.
             bloom(width: width)
 
-            // (sun/moon disc slot — a later task inserts its layer here)
+            // Layer three — the sun (or moon) disc at "now", the scene's own
+            // marker. The sky stays a pure picture: no text, no UI glyphs.
+            nowDisc(width: width)
+        }
+    }
+
+    // MARK: Now disc + light pillar
+
+    /// A quiet 9pt disc riding the solar arc at now's x — sun by day, moon
+    /// by night (its height is the same sin arc run over the night; clock,
+    /// not astronomy). Hidden when now is outside the 7a–10p window — the
+    /// rail's ruler notch is the only marker then. Never clamped.
+    @ViewBuilder
+    private func nowDisc(width: CGFloat) -> some View {
+        if let fraction = axis.fraction(for: sky.now) {
+            let radius = HorizonMetrics.discDiameter / 2
+            // Tangent to the card edge, like the solar dots — a marker
+            // half-clipped by the corner marks nothing.
+            let x = min(max(CGFloat(fraction) * width, radius + 1), width - radius - 1)
+            let elevation = sky.isSunUp ? sky.solarElevation : sky.nightElevation
+            let y = HorizonMetrics.skyHeight
+                - CGFloat(elevation)
+                * (HorizonMetrics.skyHeight - HorizonMetrics.discTopMargin)
+            let core = sky.isSunUp ? HorizonPalette.sunCore : HorizonPalette.moonCore
+            let pillar = sky.isSunUp ? HorizonRGB(r: 1, g: 1, b: 1) : HorizonPalette.pillarNight
+
+            // The pillar pins the exact x without a hard line: light falling
+            // from the disc, gone by the time it reaches the horizon.
+            let pillarHeight = max(HorizonMetrics.skyHeight - y, 0)
+            if pillarHeight > 0 {
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            stops: [
+                                .init(
+                                    color: Color(pillar, opacity: HorizonMetrics.pillarOpacity),
+                                    location: 0),
+                                .init(color: Color(pillar, opacity: 0), location: 1),
+                            ],
+                            startPoint: .top, endPoint: .bottom
+                        )
+                    )
+                    .frame(width: HorizonMetrics.pillarWidth, height: pillarHeight)
+                    .position(x: x, y: y + pillarHeight / 2)
+            }
+
+            if sky.isSunUp {
+                Circle()
+                    .fill(Color(core))
+                    .frame(
+                        width: HorizonMetrics.discGlowRadius * 2,
+                        height: HorizonMetrics.discGlowRadius * 2
+                    )
+                    .blur(radius: 5)
+                    .opacity(HorizonMetrics.discGlowOpacity)
+                    .position(x: x, y: y)
+            }
+
+            Circle()
+                .fill(Color(core, opacity: sky.isSunUp ? 1 : HorizonMetrics.moonOpacity))
+                .overlay(
+                    Circle().stroke(
+                        Color(HorizonPalette.discRim, opacity: HorizonMetrics.discRimOpacity),
+                        lineWidth: 1
+                    )
+                )
+                .frame(
+                    width: HorizonMetrics.discDiameter, height: HorizonMetrics.discDiameter
+                )
+                .position(x: x, y: y)
         }
     }
 

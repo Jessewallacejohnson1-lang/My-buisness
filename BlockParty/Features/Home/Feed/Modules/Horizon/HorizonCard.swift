@@ -19,8 +19,9 @@ import SwiftUI
 /// The card's user-facing strings, one place — wording is provisional by
 /// design, so changing it is a one-line edit.
 nonisolated enum HorizonCopy {
-    /// The now-marker's cap label on the rail.
-    static let now = "Now"
+    /// The ruler notch's label in the hour-label row — lowercase, one of
+    /// the 8a·12p·4p·8p family.
+    static let now = "now"
     static let nothingPosted = "Nothing posted for today yet."
     static let nothingPlanned = "Nothing planned yet"
 

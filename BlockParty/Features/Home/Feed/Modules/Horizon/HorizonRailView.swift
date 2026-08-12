@@ -54,8 +54,8 @@ struct HorizonRailView: View {
             let width = geo.size.width
             ZStack(alignment: .topLeading) {
                 stubLayer(width: width)
-                nowMarker(width: width)
                 tickLayer(width: width)
+                nowNotch(width: width)
                 overflowMarkers(width: width)
             }
             .frame(width: width, height: geo.size.height, alignment: .topLeading)
@@ -113,6 +113,9 @@ struct HorizonRailView: View {
         baseOpacity: Double, halo: Bool, solid: Bool = false
     ) -> some View {
         let color = HorizonStubColor.color(for: placed.stub.category, phase: sky.phase)
+        // One glance = what's done vs what's left: ended stubs recede.
+        let baseOpacity = baseOpacity
+            * (HorizonDay.isPast(placed.stub, now: now) ? M.pastStubOpacityFactor : 1)
         let haloOpacity = contrast == .increased ? 0.35 : M.haloOpacity
 
         ZStack(alignment: .topLeading) {
@@ -164,43 +167,39 @@ struct HorizonRailView: View {
             )
     }
 
-    // MARK: Now marker — the strongest mark on the card
+    // MARK: Now notch — below the horizon, in the tick family
 
-    /// A solid 2×34 pt line capped with "Now", in whichever polarity clears
-    /// the current sky (HorizonPalette.nowMarker), with a 1 px opposite-
-    /// polarity halo. Clamped, never hidden: before 7a it pins to the
-    /// morning edge, after 10p to the evening edge.
-    private func nowMarker(width: CGFloat) -> some View {
-        // Tangent-clamp like the solar dots: pinned at an edge, the line and
-        // its halo stay fully visible instead of half-clipped by the card.
-        let haloHalf = (M.nowLineWidth + 2) / 2
-        let x = min(max(axis.clampedX(for: now), haloHalf), width - haloHalf)
-        let style = HorizonPalette.nowMarker(for: sky)
-        let color = Color(style.color)
-        let halo = Color(style.halo)
+    /// The below-horizon half of the "now" marker: an emphasized member of
+    /// the tick system (2.5×6 pt, full-strength ink where labeled ticks sit
+    /// at 50%), with a small semibold "now" in the hour-label row. Clamped
+    /// to the rail edges — when the sky's disc hides (now outside 7a–10p),
+    /// this is the only marker, and now must stay answerable.
+    private func nowNotch(width: CGFloat) -> some View {
+        // Tangent at the rail edges, like every other mark on the card.
+        let x = min(max(axis.clampedX(for: now), M.notchWidth / 2), width - M.notchWidth / 2)
         let labelWidth: CGFloat = 40
-        let lineTop = M.skyHeight - M.nowLineHeight
+        // The overflow markers own their corners; the notch keeps its label
+        // out of their zone (same rule the hour labels follow).
+        let markerZone: CGFloat = 56
+        let labelFits = !(day.earlierCount > 0 && x < markerZone)
+            && !(day.laterCount > 0 && x > width - markerZone)
 
         return ZStack(alignment: .topLeading) {
             Rectangle()
-                .fill(halo)
-                .frame(width: M.nowLineWidth + 2, height: M.nowLineHeight + 1)
-                .offset(x: x - (M.nowLineWidth + 2) / 2, y: lineTop - 1)
-            Rectangle()
-                .fill(color)
-                .frame(width: M.nowLineWidth, height: M.nowLineHeight)
-                .offset(x: x - M.nowLineWidth / 2, y: lineTop)
-            Text(HorizonCopy.now)
-                .font(.sansSemibold(M.nowLabelSize))
-                .foregroundStyle(color)
-                .shadow(color: halo, radius: 1)
-                .fixedSize()
-                .frame(width: labelWidth)
-                // The cap label stays inside the card at the clamped edges.
-                .offset(
-                    x: min(max(x - labelWidth / 2, 0), width - labelWidth),
-                    y: lineTop - 15
-                )
+                .fill(Color(ground.textPrimary))
+                .frame(width: M.notchWidth, height: M.notchHeight)
+                .offset(x: x - M.notchWidth / 2, y: M.skyHeight)
+            if labelFits {
+                Text(HorizonCopy.now)
+                    .font(.sansSemibold(M.hourLabelSize))
+                    .foregroundStyle(Color(ground.textSecondary))
+                    .fixedSize()
+                    .frame(width: labelWidth)
+                    .offset(
+                        x: min(max(x - labelWidth / 2, 0), width - labelWidth),
+                        y: M.hourLabelBaseline - M.hourLabelSize
+                    )
+            }
         }
     }
 
@@ -208,13 +207,16 @@ struct HorizonRailView: View {
 
     private func tickLayer(width: CGFloat) -> some View {
         // A label colliding with an overflow marker loses; the marker wins.
+        // And the hour nearest the now notch yields to the "now" label.
         let markerZone: CGFloat = 56
         let dropLeading = day.earlierCount > 0
         let dropTrailing = day.laterCount > 0
+        let nowX = axis.clampedX(for: now)
 
         return ForEach(axis.ticks(), id: \.date) { tick in
             let suppressed = (dropLeading && tick.x < markerZone)
                 || (dropTrailing && tick.x > width - markerZone)
+                || abs(tick.x - nowX) < M.nowLabelClearance
             let labeled = tick.isLabeled && !suppressed
 
             Rectangle()

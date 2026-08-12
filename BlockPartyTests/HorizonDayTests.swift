@@ -188,6 +188,31 @@ final class HorizonDayTests: XCTestCase {
             placed[1].x + placed[1].width, axis.width - HorizonMetrics.railEdgeFade)
     }
 
+    // MARK: Past dimming — a stated end wins, else the assumed two hours
+
+    func testIsPastUsesStatedEndOrTheAssumedTwoHours() {
+        let now = townDate(2026, 8, 11, 13, 0)
+        func stub(_ id: String, start: Date, end: Date? = nil) -> HorizonStub {
+            HorizonStub(id: id, start: start, end: end, isYours: true, category: .outdoors)
+        }
+
+        // No end: past exactly two hours after start, not a minute sooner.
+        XCTAssertTrue(HorizonDay.isPast(
+            stub("over", start: townDate(2026, 8, 11, 10, 0)), now: now))
+        XCTAssertFalse(HorizonDay.isPast(
+            stub("running", start: townDate(2026, 8, 11, 11, 0)), now: now))
+        XCTAssertFalse(HorizonDay.isPast(
+            stub("ahead", start: townDate(2026, 8, 11, 15, 0)), now: now))
+
+        // A stated end overrides the assumption in both directions.
+        XCTAssertTrue(HorizonDay.isPast(
+            stub("short", start: townDate(2026, 8, 11, 12, 30),
+                 end: townDate(2026, 8, 11, 12, 50)), now: now))
+        XCTAssertFalse(HorizonDay.isPast(
+            stub("long", start: townDate(2026, 8, 11, 8, 0),
+                 end: townDate(2026, 8, 11, 18, 0)), now: now))
+    }
+
     func testStubWidthFollowsDuration() {
         let now = townDate(2026, 8, 11, 13, 0)
         let axis = dayAxis(at: now)

@@ -113,30 +113,18 @@ final class HorizonPaletteTests: XCTestCase {
         print("HorizonPalette worst text contrast: \(worst) (\(worstAt))")
     }
 
-    // MARK: Now marker — ≥3:1 against the sky in every phase
+    // MARK: Now notch — ≥3:1 against the ground fill in every phase
 
-    func testNowMarkerClearsThreeToOneAtEveryMinute() {
-        var worst = Double.infinity
+    func testNowNotchClearsThreeToOneAtEveryMinute() {
+        // The notch renders in textPrimary on the ground; the text sweep
+        // already proves ≥4.5:1, but the notch's own bar is 3:1 (non-text).
         let dayStart = townDate(2026, 8, 11, 0, 0)
-        for minute in stride(from: 0, to: 24 * 60, by: 1) {
-            let s = sky(at: dayStart.addingTimeInterval(Double(minute) * 60))
-            let marker = HorizonPalette.nowMarker(for: s)
-            let bottom = HorizonPalette.skyStops(for: s)[3].color
-            let ratio = marker.color.contrastRatio(with: bottom)
-            worst = min(worst, ratio)
-            XCTAssertGreaterThanOrEqual(ratio, 3.0, "now marker at minute \(minute): \(ratio)")
+        for minute in stride(from: 0, to: 24 * 60, by: 5) {
+            let ground = HorizonPalette.groundStyle(for: sky(at: dayStart.addingTimeInterval(Double(minute) * 60)))
+            XCTAssertGreaterThanOrEqual(
+                ground.textPrimary.contrastRatio(with: ground.fill), 3.0,
+                "notch at minute \(minute)")
         }
-        print("HorizonPalette worst now-marker contrast: \(worst)")
-    }
-
-    func testNowMarkerPolarityAtTheSpecsTwoAnchors() {
-        // Noon: ink line, paper halo. Night: paper line, ink halo.
-        let noon = HorizonPalette.nowMarker(for: sky(at: townDate(2026, 8, 11, 13, 0)))
-        XCTAssertEqual(noon.color, HorizonRGB(hex: 0x111111))
-        XCTAssertEqual(noon.halo, HorizonRGB(hex: 0xFAFAF7))
-        let night = HorizonPalette.nowMarker(for: sky(at: townDate(2026, 8, 11, 23, 30)))
-        XCTAssertEqual(night.color, HorizonRGB(hex: 0xFAFAF7))
-        XCTAssertEqual(night.halo, HorizonRGB(hex: 0x111111))
     }
 
     // MARK: adjustedForSky — the teal category in all four phases

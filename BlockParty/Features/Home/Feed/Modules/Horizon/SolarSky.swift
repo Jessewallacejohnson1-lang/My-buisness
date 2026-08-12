@@ -75,6 +75,20 @@ nonisolated struct SolarSky: Equatable {
     /// light ↔ dark exactly at sunrise and sunset.
     var isSunUp: Bool { now >= sunrise && now < sunset }
 
+    /// Normalized moon height while the sun is down: the same sin arc the
+    /// sun rides by day, run over the night (sunset → next sunrise). Zero
+    /// while the sun is up. Clock-derived, not lunar astronomy — the disc
+    /// marks *now*, so the moon rises after sunset and sets at sunrise.
+    var nightElevation: Double {
+        guard !isSunUp else { return 0 }
+        let nightStart = now >= sunset ? sunset : sunset.addingTimeInterval(-24 * 3600)
+        let nightEnd = now >= sunset ? sunrise.addingTimeInterval(24 * 3600) : sunrise
+        let length = nightEnd.timeIntervalSince(nightStart)
+        guard length > 0 else { return 0 }
+        let progress = min(max(now.timeIntervalSince(nightStart) / length, 0), 1)
+        return max(0, sin(.pi * progress))
+    }
+
     init(now: Date, sunrise: Date?, sunset: Date?, calendar: Calendar = Town.calendar) {
         self.now = now
 

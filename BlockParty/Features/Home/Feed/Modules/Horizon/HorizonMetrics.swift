@@ -63,10 +63,26 @@ nonisolated enum HorizonMetrics {
     static let publicLaneCap = 14
     static let overlapInset: CGFloat = 1
 
-    // Now marker — the strongest mark on the card.
-    static let nowLineWidth: CGFloat = 2
-    static let nowLineHeight: CGFloat = 34
-    static let nowLabelSize: CGFloat = 10
+    // Now, in the scene's own language: sun/moon disc + light pillar in the
+    // sky, ink notch below the horizon. No text or UI glyphs above the line.
+    static let discDiameter: CGFloat = 9
+    /// The disc never rises closer than this to the card's top edge.
+    static let discTopMargin: CGFloat = 14
+    static let discRimOpacity: Double = 0.20
+    static let discGlowRadius: CGFloat = 12
+    static let discGlowOpacity: Double = 0.35
+    static let moonOpacity: Double = 0.90
+    static let pillarWidth: CGFloat = 1.5
+    static let pillarOpacity: Double = 0.65
+    static let notchWidth: CGFloat = 2.5
+    static let notchHeight: CGFloat = 6
+    /// Hour labels within this distance of the now notch yield to its label.
+    /// One rail hour is ~24pt at standard width, so the spec's ~24 left an
+    /// exactly-on-the-hour "12p now" collision — 28 clears it. Measured.
+    static let nowLabelClearance: CGFloat = 28
+    /// Ended stubs (stated end, or start + the app-wide assumed two hours)
+    /// drop to this fraction of their normal opacity.
+    static let pastStubOpacityFactor: Double = 0.45
 
     // Overflow marker
     static let overflowBarWidth: CGFloat = 3

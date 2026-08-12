@@ -126,6 +126,29 @@ final class SolarSkyTests: XCTestCase {
 }
 
 /// Builds a Date from components in the town's timezone.
+extension SolarSkyTests {
+    /// The moon disc's height: the sun's sin arc run over the night.
+    func testNightElevationArcsOverTheNightAndIsZeroByDay() {
+        let sunrise = townDate(2026, 8, 11, 6, 13)
+        let sunset = townDate(2026, 8, 11, 21, 2)
+        func sky(_ date: Date) -> SolarSky {
+            SolarSky(now: date, sunrise: sunrise, sunset: sunset)
+        }
+
+        XCTAssertEqual(sky(townDate(2026, 8, 11, 13, 0)).nightElevation, 0, "sun up")
+        // Rising after sunset, peaking mid-night, descending toward sunrise.
+        let early = sky(townDate(2026, 8, 11, 21, 30)).nightElevation
+        let mid = sky(townDate(2026, 8, 12, 1, 38)).nightElevation
+        let fourAM = sky(townDate(2026, 8, 11, 4, 0)).nightElevation
+        let predawn = sky(townDate(2026, 8, 11, 5, 45)).nightElevation
+        XCTAssertGreaterThan(early, 0)
+        XCTAssertGreaterThan(mid, early)
+        XCTAssertEqual(mid, 1, accuracy: 0.01, "solar-midnight peak")
+        XCTAssertGreaterThan(fourAM, predawn, "the moon descends toward sunrise")
+        XCTAssertGreaterThan(predawn, 0, "still up until the sun takes over")
+    }
+}
+
 func townDate(_ year: Int, _ month: Int, _ day: Int, _ hour: Int, _ minute: Int) -> Date {
     var components = DateComponents()
     components.year = year

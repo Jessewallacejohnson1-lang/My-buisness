@@ -98,6 +98,13 @@ nonisolated struct HorizonDay: Equatable {
         laterCount = overflowEligible.filter { $0.start >= axis.end }.count
     }
 
+    /// A stub is past once its stated end — or, when end_at is NULL (every
+    /// live row today), the app-wide assumed two-hour duration — is behind
+    /// now. Same window that ends a map pin's pulse and flips isComplete.
+    static func isPast(_ stub: HorizonStub, now: Date) -> Bool {
+        (stub.end ?? stub.start.addingTimeInterval(2 * 3600)) < now
+    }
+
     /// Lays a lane out left to right. Where two stubs overlap horizontally,
     /// the later one is inset to leave a 1 pt gap so they stay countable.
     static func layout(
