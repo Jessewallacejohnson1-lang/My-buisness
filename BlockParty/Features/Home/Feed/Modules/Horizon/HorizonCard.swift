@@ -19,6 +19,8 @@ import SwiftUI
 /// The card's user-facing strings, one place — wording is provisional by
 /// design, so changing it is a one-line edit.
 nonisolated enum HorizonCopy {
+    /// The now-marker's cap label on the rail.
+    static let now = "Now"
     static let yoursSuffix = " yours"
     static let openSuffix = " open"
     /// A real interpunct with hair spaces.

@@ -28,8 +28,8 @@ nonisolated enum HorizonMetrics {
     static let labeledTickHeight: CGFloat = 6
     static let tickWidth: CGFloat = 1
     /// Hour label baseline, from card top.
-    static let hourLabelBaseline: CGFloat = 113
-    static let hourLabelSize: CGFloat = 10
+    static let hourLabelBaseline: CGFloat = 115
+    static let hourLabelSize: CGFloat = 12
 
     // Ground content
     static let countsBaseline: CGFloat = 137
@@ -53,18 +53,19 @@ nonisolated enum HorizonMetrics {
     static let publicStubMinWidth: CGFloat = 4
     static let yourStubRadius: CGFloat = 2.5
     static let publicStubRadius: CGFloat = 2
-    static let publicStubOpacity: Double = 0.5
+    static let publicStubOpacity: Double = 0.55
     static let stubCapFadeFraction: CGFloat = 0.4
     static let haloWidthScale: CGFloat = 1.6
     static let haloBlur: CGFloat = 3
-    static let haloOpacity: Double = 0.22
+    static let haloOpacity: Double = 0.30
     static let railEdgeFade: CGFloat = 20
     static let publicLaneCap = 14
     static let overlapInset: CGFloat = 1
 
-    // Now line
-    static let nowLineWidth: CGFloat = 1.5
-    static let nowLineHeight: CGFloat = 30
+    // Now marker — the strongest mark on the card.
+    static let nowLineWidth: CGFloat = 2
+    static let nowLineHeight: CGFloat = 34
+    static let nowLabelSize: CGFloat = 10
 
     // Overflow marker
     static let overflowBarWidth: CGFloat = 3

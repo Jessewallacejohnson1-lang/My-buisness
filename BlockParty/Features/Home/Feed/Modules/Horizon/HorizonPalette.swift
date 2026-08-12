@@ -340,8 +340,28 @@ nonisolated enum HorizonPalette {
         return s.deltaL >= 0.12 || s.ratio >= 1.6
     }
 
-    // MARK: Stub dots and now-line
+    // MARK: Stub dots
 
     static let sunriseDot = HorizonRGB(hex: 0xF2A65A)
     static let sunsetDot = HorizonRGB(hex: 0xF2762E)
+
+    // MARK: Now marker
+
+    struct NowMarker: Equatable {
+        let color: HorizonRGB
+        let halo: HorizonRGB
+    }
+
+    /// The strongest mark on the card: ink on a bright sky, paper on a dark
+    /// one, chosen by the sky's bottom-stop luminance so the mark clears
+    /// 3:1 (WCAG non-text) in every phase — swept by test. The halo is the
+    /// opposite polarity, for the mid-luminance skies where 3:1 runs thin.
+    static func nowMarker(for sky: SolarSky) -> NowMarker {
+        let ink = HorizonRGB(hex: 0x111111)
+        let paper = HorizonRGB(hex: 0xFAFAF7)
+        let bottom = skyStops(for: sky)[3].color
+        return bottom.luminance >= 0.2
+            ? NowMarker(color: ink, halo: paper)
+            : NowMarker(color: paper, halo: ink)
+    }
 }

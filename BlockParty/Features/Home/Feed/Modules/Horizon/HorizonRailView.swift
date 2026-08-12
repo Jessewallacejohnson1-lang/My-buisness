@@ -54,7 +54,7 @@ struct HorizonRailView: View {
             let width = geo.size.width
             ZStack(alignment: .topLeading) {
                 stubLayer(width: width)
-                nowLine
+                nowMarker(width: width)
                 tickLayer(width: width)
                 overflowMarkers(width: width)
             }
@@ -79,9 +79,12 @@ struct HorizonRailView: View {
                 stub(placed, height: M.publicStubHeight, radius: M.publicStubRadius,
                      baseOpacity: increased ? 1 : M.publicStubOpacity, halo: false)
             }
+            // Yours-stubs are SOLID — tall countable marks whose count must
+            // match the card's primary line at arm's length. The open lane
+            // keeps its light, faded texture underneath.
             ForEach(yourPlaced) { placed in
                 stub(placed, height: M.yourStubHeight, radius: M.yourStubRadius,
-                     baseOpacity: 1, halo: true)
+                     baseOpacity: 1, halo: true, solid: true)
             }
         }
         // Explicit full-card width: offset children don't grow a ZStack, and
@@ -107,7 +110,7 @@ struct HorizonRailView: View {
     @ViewBuilder
     private func stub(
         _ placed: HorizonPlacedStub, height: CGFloat, radius: CGFloat,
-        baseOpacity: Double, halo: Bool
+        baseOpacity: Double, halo: Bool, solid: Bool = false
     ) -> some View {
         let color = HorizonStubColor.color(for: placed.stub.category, phase: sky.phase)
         let haloOpacity = contrast == .increased ? 0.35 : M.haloOpacity
@@ -117,7 +120,7 @@ struct HorizonRailView: View {
             // instead of sitting on it.
             if halo {
                 stubBody(color: color, width: placed.width * M.haloWidthScale,
-                         height: height, radius: radius)
+                         height: height, radius: radius, solid: solid)
                     .blur(radius: M.haloBlur)
                     .opacity(haloOpacity * baseOpacity)
                     .offset(
@@ -125,59 +128,77 @@ struct HorizonRailView: View {
                         y: M.skyHeight - height
                     )
             }
-            stubBody(color: color, width: placed.width, height: height, radius: radius)
+            stubBody(color: color, width: placed.width, height: height, radius: radius,
+                     solid: solid)
                 .opacity(baseOpacity)
                 .offset(x: placed.x, y: M.skyHeight - height)
         }
     }
 
-    private func stubBody(color: Color, width: CGFloat, height: CGFloat, radius: CGFloat)
-        -> some View {
+    private func stubBody(
+        color: Color, width: CGFloat, height: CGFloat, radius: CGFloat, solid: Bool
+    ) -> some View {
         RoundedRectangle(cornerRadius: radius, style: .continuous)
-            // Fade 1 — brightest where it meets the light.
+            // Fade 1 — brightest where it meets the light. Solid stubs skip
+            // it: a countable mark is one unbroken color.
             .fill(
                 LinearGradient(
-                    colors: [color, color.opacity(0.45)],
+                    colors: solid ? [color, color] : [color, color.opacity(0.45)],
                     startPoint: .bottom, endPoint: .top
                 )
             )
             .frame(width: width, height: height)
-            // Fade 2 — defined bottom, dissolved top. No hard terminating edge.
+            // Fade 2 — defined bottom, dissolved top. Solid stubs keep their
+            // top edge.
             .mask(
                 LinearGradient(
-                    stops: [
-                        .init(color: .white, location: 0),
-                        .init(color: .white, location: 1 - M.stubCapFadeFraction),
-                        .init(color: .clear, location: 1),
-                    ],
+                    stops: solid
+                        ? [.init(color: .white, location: 0), .init(color: .white, location: 1)]
+                        : [
+                            .init(color: .white, location: 0),
+                            .init(color: .white, location: 1 - M.stubCapFadeFraction),
+                            .init(color: .clear, location: 1),
+                        ],
                     startPoint: .bottom, endPoint: .top
                 )
             )
     }
 
-    // MARK: Now indicator
+    // MARK: Now marker — the strongest mark on the card
 
-    /// Clamped, never hidden: before 7a it pins to the morning edge, after
-    /// 10p to the evening edge — "now" is always answerable.
-    private var nowLine: some View {
+    /// A solid 2×34 pt line capped with "Now", in whichever polarity clears
+    /// the current sky (HorizonPalette.nowMarker), with a 1 px opposite-
+    /// polarity halo. Clamped, never hidden: before 7a it pins to the
+    /// morning edge, after 10p to the evening edge.
+    private func nowMarker(width: CGFloat) -> some View {
         let x = axis.clampedX(for: now)
-        let color: Color = sky.phase == .day
-            ? Color.black.opacity(0.3)
-            : Color.white.opacity(0.7)
-        return Rectangle()
-            .fill(color)
-            .frame(width: M.nowLineWidth, height: M.nowLineHeight)
-            .mask(
-                LinearGradient(
-                    stops: [
-                        .init(color: .white, location: 0),
-                        .init(color: .white, location: 0.5),
-                        .init(color: .clear, location: 1),
-                    ],
-                    startPoint: .bottom, endPoint: .top
+        let style = HorizonPalette.nowMarker(for: sky)
+        let color = Color(style.color)
+        let halo = Color(style.halo)
+        let labelWidth: CGFloat = 40
+        let lineTop = M.skyHeight - M.nowLineHeight
+
+        return ZStack(alignment: .topLeading) {
+            Rectangle()
+                .fill(halo)
+                .frame(width: M.nowLineWidth + 2, height: M.nowLineHeight + 1)
+                .offset(x: x - (M.nowLineWidth + 2) / 2, y: lineTop - 1)
+            Rectangle()
+                .fill(color)
+                .frame(width: M.nowLineWidth, height: M.nowLineHeight)
+                .offset(x: x - M.nowLineWidth / 2, y: lineTop)
+            Text(HorizonCopy.now)
+                .font(.sansSemibold(M.nowLabelSize))
+                .foregroundStyle(color)
+                .shadow(color: halo, radius: 1)
+                .fixedSize()
+                .frame(width: labelWidth)
+                // The cap label stays inside the card at the clamped edges.
+                .offset(
+                    x: min(max(x - labelWidth / 2, 0), width - labelWidth),
+                    y: lineTop - 15
                 )
-            )
-            .offset(x: x - M.nowLineWidth / 2, y: M.skyHeight - M.nowLineHeight)
+        }
     }
 
     // MARK: Ticks and labels
@@ -205,9 +226,11 @@ struct HorizonRailView: View {
                 .offset(x: tick.x - M.tickWidth / 2, y: M.skyHeight)
 
             if labeled, let label = tick.label {
+                // Full-opacity secondary at 12 pt: the four labels are data,
+                // not texture — legible without zooming.
                 Text(label)
                     .font(.sans(M.hourLabelSize))
-                    .foregroundStyle(Color(ground.textPrimary, opacity: 0.45))
+                    .foregroundStyle(Color(ground.textSecondary))
                     .fixedSize()
                     .frame(width: 40)
                     .offset(x: tick.x - 20, y: M.hourLabelBaseline - M.hourLabelSize)
