@@ -44,8 +44,15 @@ nonisolated enum HorizonCopy {
         }
         return "Your day. \(primary), \(secondary)."
     }
-    static let seeAll = "See all"
-    static let seeAllAccessibilityLabel = "See all of today's postings"
+    /// The section header's trailing link: "See all 16 ›". Nil at zero —
+    /// no postings, nothing to link.
+    static func seeAllLink(_ count: Int) -> String? {
+        guard count > 0 else { return nil }
+        return "See all \(count) ›"
+    }
+    static func seeAllLinkAccessibilityLabel(_ count: Int) -> String {
+        "See all \(count) of today's postings"
+    }
     static let loadingAccessibilityLabel = "Your day, loading"
 }
 
@@ -56,7 +63,6 @@ struct HorizonCard: View {
     let items: [DayItem]
     var isLoading = false
     var onOpenDay: () -> Void = {}
-    var onSeeAll: () -> Void = {}
 
     /// Copy and button scale with Dynamic Type; the sky, rail and stubs
     /// are fixed. The card may exceed its 164 pt target at AX sizes.
@@ -78,21 +84,18 @@ struct HorizonCard: View {
         )
         let counts = (yours: day.yoursCount, open: day.openCount)
 
-        ZStack(alignment: .bottomTrailing) {
-            Button(action: onOpenDay) {
-                groundContent(ground: ground, counts: counts)
-            }
-            .buttonStyle(FeedCardPressStyle())
-            .disabled(isLoading)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(
-                isLoading
-                    ? HorizonCopy.loadingAccessibilityLabel
-                    : HorizonCopy.cardAccessibilityLabel(yours: counts.yours, open: counts.open)
-            )
-
-            seeAllButton(ground: ground)
+        // The whole card is the single button — one obvious tap, one route.
+        Button(action: onOpenDay) {
+            groundContent(ground: ground, counts: counts)
         }
+        .buttonStyle(FeedCardPressStyle())
+        .disabled(isLoading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            isLoading
+                ? HorizonCopy.loadingAccessibilityLabel
+                : HorizonCopy.cardAccessibilityLabel(yours: counts.yours, open: counts.open)
+        )
         .background { scene(sky: sky, day: day) }
         .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         .overlay(
@@ -178,47 +181,4 @@ struct HorizonCard: View {
             .accessibilityHidden(true)
     }
 
-    // MARK: See all
-
-    private func seeAllButton(ground: HorizonGroundStyle) -> some View {
-        Button(action: onSeeAll) {
-            seeAllPill(ground: ground)
-                // 44 pt hit area from padding, not from growing the pill
-                // (pill is ~25 pt tall; 20 pt above clears the bar).
-                .padding(.leading, 12)
-                .padding(.top, 20)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(FeedCardPressStyle())
-        .disabled(isLoading)
-        .accessibilityLabel(HorizonCopy.seeAllAccessibilityLabel)
-        .padding(.trailing, HorizonMetrics.contentInset)
-        .padding(.bottom, 12)
-        .opacity(isLoading ? 0 : 1)
-    }
-
-    /// The app's primary-button pattern (ink fill, Radius.button rounded
-    /// square — never a pill shape), inverted on dark ground. The colors are
-    /// absolute, not Hue tokens: the card's polarity is solar, not the
-    /// system scheme's.
-    private func seeAllPill(ground: HorizonGroundStyle) -> some View {
-        let fill = ground.isDark ? ground.textPrimary : HorizonRGB(hex: 0x111111)
-        let label = ground.isDark ? HorizonPalette.nightGround : HorizonRGB(hex: 0xFAFAF7)
-        return HStack(spacing: 5) {
-            Text(HorizonCopy.seeAll)
-                .font(.sansSemibold(secondarySize))
-            Image(systemName: "chevron.right")
-                .font(.system(size: secondarySize * 0.7, weight: .semibold))
-        }
-        .foregroundStyle(Color(label))
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
-                .fill(Color(fill))
-        )
-        .id(ground.isDark)
-        .transition(.opacity)
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: ground.isDark)
-    }
 }

@@ -293,11 +293,6 @@ nonisolated enum HorizonPalette {
         return .lerp(desaturated, paperTarget, lightPaperBlend)
     }
 
-    /// The dark ground at the night midpoint — the one fill callers may need
-    /// without a SolarSky in hand.
-    static var nightGround: HorizonRGB {
-        groundFill(fromSkyBottom: nightRamp[2].color, isDark: true)
-    }
 
     // Text sets. One warm pair per polarity; the spec's per-phase values
     // differ imperceptibly (ΔE < 1) and its light secondaries fail their own

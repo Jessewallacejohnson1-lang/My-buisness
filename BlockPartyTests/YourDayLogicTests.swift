@@ -755,6 +755,16 @@ final class HorizonCopyTests: XCTestCase {
         )
     }
 
+    func testSeeAllLinkNamesTheCountAndVanishesAtZero() {
+        XCTAssertEqual(HorizonCopy.seeAllLink(16), "See all 16 ›")
+        XCTAssertEqual(HorizonCopy.seeAllLink(1), "See all 1 ›")
+        XCTAssertNil(HorizonCopy.seeAllLink(0), "no postings, nothing to link")
+        XCTAssertEqual(
+            HorizonCopy.seeAllLinkAccessibilityLabel(16),
+            "See all 16 of today's postings"
+        )
+    }
+
     func testVoiceHasNoExclamationMarksAnywhere() {
         for text in [
             HorizonCopy.primaryLine(yours: 5, open: 11),

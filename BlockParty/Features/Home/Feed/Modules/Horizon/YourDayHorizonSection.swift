@@ -43,8 +43,7 @@ struct YourDayHorizonSection: View {
                     sunset: SolarSky.rebase(sun.set, ontoDayOf: now),
                     items: items,
                     isLoading: isLoading,
-                    onOpenDay: openDay,
-                    onSeeAll: onSeeAll
+                    onOpenDay: openDay
                 )
             }
         }
@@ -53,30 +52,37 @@ struct YourDayHorizonSection: View {
         .modifier(HorizonDebugTapDriver(openDay: openDay, seeAll: onSeeAll))
     }
 
-    /// Same tokens as the rail header it replaces — the heading itself is
-    /// out of scope and must not move (see YourDayRail.header for the
-    /// baseline-alignment history).
+    /// Heading plus the section's one See-all route: a plain "See all 16 ›"
+    /// text link (App Store section-header pattern — no fill, no border),
+    /// which replaced both the old "16 things" count and the card's pill.
+    /// The heading keeps its tokens and firstTextBaseline alignment.
     private var header: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(YourDayRailCopy.header)
                 .font(.dayDisplaySemi(M.headerSize))
                 .foregroundStyle(Hue.ink)
+                // The heading is its own element: the card announces the
+                // counts itself (double-speak history), and the link below
+                // must stay independently tappable for VoiceOver.
+                .accessibilityAddTraits(.isHeader)
 
             Spacer(minLength: 0)
 
-            if let countLabel = YourDayRailCopy.countLabel(items.count) {
-                Text(countLabel)
-                    .font(.sansMedium(M.bodySize))
-                    .foregroundStyle(Hue.inkSecondary)
-                    .monospacedDigit()
+            if let link = HorizonCopy.seeAllLink(items.count) {
+                Button(action: onSeeAll) {
+                    Text(link)
+                        .font(.sansMedium(M.bodySize))
+                        .foregroundStyle(Hue.inkSecondary)
+                        .monospacedDigit()
+                        // ≥44 pt hit target from the shape, not padding, so
+                        // the baseline alignment with the heading holds.
+                        .contentShape(Rectangle().inset(by: -15))
+                }
+                .buttonStyle(FeedCardPressStyle())
+                .accessibilityLabel(
+                    HorizonCopy.seeAllLinkAccessibilityLabel(items.count))
             }
         }
-        .accessibilityElement(children: .combine)
-        // The counts belong to the card, which announces them itself.
-        // Combining the count into the heading too made VoiceOver say it
-        // twice — same rule the old rail header followed.
-        .accessibilityLabel(YourDayRailCopy.header)
-        .accessibilityAddTraits(.isHeader)
     }
 
     // MARK: Routes
