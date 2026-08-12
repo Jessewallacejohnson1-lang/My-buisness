@@ -62,6 +62,23 @@ struct HorizonBackdrop: View {
                 endPoint: .bottom
             )
             .frame(height: HorizonMetrics.reflectionHeight)
+            // The same edge fade the sky carries, continued past the horizon
+            // with the reflection's own 48pt decay — the vignette belongs to
+            // the scene and dissolves before the copy. A full-strength fade
+            // over the text zone measured 3.37:1 for secondary text; this
+            // envelope is swept in the contrast test and passes.
+            edgeVignette
+                .frame(height: HorizonMetrics.reflectionHeight)
+                .mask(
+                    LinearGradient(
+                        stops: [
+                            .init(color: .white, location: 0),
+                            .init(color: .clear, location: 1),
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
         }
     }
 

@@ -93,9 +93,11 @@ final class HorizonPaletteTests: XCTestCase {
 
     // MARK: Text contrast — sampled at 5-minute intervals across a day
     //
-    // Each line is tested against the COMPOSITE at its own y — the fill
-    // with the reflection gradient's residual mixed in — because that is
-    // what the text actually stands on, not the bare fill.
+    // Each line is tested against the COMPOSITE at its own y — the fill,
+    // the reflection gradient's residual, AND the ground-side edge
+    // vignette's residual (which decays on the reflection's 48pt envelope),
+    // taken at the vignette's full horizontal strength as if the glyph sat
+    // at the card edge. Provably safe at any x.
 
     func testTextClearsFourPointFiveToOneAtEverySample() {
         var worst = Double.infinity
@@ -104,6 +106,7 @@ final class HorizonPaletteTests: XCTestCase {
         for minute in stride(from: 0, to: 24 * 60, by: 5) {
             let s = sky(at: dayStart.addingTimeInterval(Double(minute) * 60))
             let ground = HorizonPalette.groundStyle(for: s)
+            let vignette = HorizonPalette.skyStops(for: s)[0].color.scalingLuminance(by: 0.55)
             let cases: [(String, HorizonRGB, Double)] = [
                 ("primary", ground.textPrimary,
                  Double(HorizonMetrics.primaryTextBelowHorizon)),
@@ -111,7 +114,13 @@ final class HorizonPaletteTests: XCTestCase {
                  Double(HorizonMetrics.secondaryTextBelowHorizon)),
             ]
             for (name, text, offset) in cases {
-                let backdrop = HorizonPalette.compositeGround(for: s, belowHorizon: offset)
+                let vignetteResidual = HorizonMetrics.vignetteOpacity
+                    * max(0, 1 - offset / Double(HorizonMetrics.reflectionHeight))
+                let backdrop = HorizonRGB.lerp(
+                    HorizonPalette.compositeGround(for: s, belowHorizon: offset),
+                    vignette,
+                    vignetteResidual
+                )
                 let ratio = text.contrastRatio(with: backdrop)
                 if ratio < worst {
                     worst = ratio
