@@ -90,6 +90,8 @@ struct TodayTopBar: View {
     var menuOpen: Bool = false
     /// Raised by Home once the feed has scrolled past `TodayHeader.scrollThreshold`.
     var showsHairline: Bool = false
+    /// The signed-in neighbor's saved `town_profiles.avatar_url`.
+    var avatarUrl: String?
 
     /// Tapped → dots gone (stays gone while the drawer is open).
     @State private var activated = false
@@ -164,7 +166,7 @@ struct TodayTopBar: View {
             .animation(.easeOut(duration: 0.20), value: showsHairline)
     }
 
-    // MARK: - Menu button (⋮ dots + avatar-style circle)
+    // MARK: - Menu button (⋮ dots + signed-in neighbor avatar)
 
     private var menuButton: some View {
         HStack(spacing: TodayBarMetric.dotGap) {
@@ -186,12 +188,7 @@ struct TodayTopBar: View {
             .accessibilityHidden(true)
 
             Button(action: tap) {
-                Image(systemName: "person")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(Hue.ink)
-                    .frame(width: TodayBarMetric.buttonSide, height: TodayBarMetric.buttonSide)
-                    .background(.ultraThinMaterial, in: Circle())
-                    .overlay(Circle().stroke(Hue.hairline, lineWidth: 1))
+                ProfileAvatar(url: avatarUrl, size: TodayBarMetric.buttonSide)
             }
             .buttonStyle(.plain)
             .scaleEffect(reduceMotion ? 1 : (bounce ? 1.12 : 1))
