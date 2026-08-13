@@ -361,6 +361,14 @@ struct SJMapView: View {
 
     /// Long enough for the logo prefetch to have filled the cache after `pois` land.
     private static let debugRainDelay: TimeInterval = 1.2
+
+    /// DEBUG-only: `-map-compose` presses the top-right "+" shortly after appear —
+    /// the exact action the chrome button fires (admins → QuickAddSheet, non-admins →
+    /// the global composer) — so the compose surface can be screenshotted headlessly.
+    static let debugCompose = ProcessInfo.processInfo.arguments.contains("-map-compose")
+
+    /// A short beat so the tab shell settles before the sheet presents.
+    private static let debugComposeDelay: TimeInterval = 0.6
     #endif
 
     /// DEBUG-only: `-map-save <spotid>` (repeatable) forces a spot into the Saved
@@ -538,6 +546,13 @@ struct SJMapView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + Self.debugRainDelay) {
                     bubbleNonce += 1
                     rainTrigger += 1
+                }
+            }
+            // `-map-compose`: press the top-right "+" headlessly (no tap automation
+            // here) — the same branch composeButton takes, so admin/non-admin holds.
+            if SJMapView.debugCompose {
+                DispatchQueue.main.asyncAfter(deadline: .now() + Self.debugComposeDelay) {
+                    if isAdmin { quickAdding = true } else { onCompose?() }
                 }
             }
             #endif
