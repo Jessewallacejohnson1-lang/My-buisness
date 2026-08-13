@@ -87,8 +87,6 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		EBBFA6F22FF473FB00A2EDB1 /* BlockParty */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = BlockParty;
 			sourceTree = "<group>";
 		};
