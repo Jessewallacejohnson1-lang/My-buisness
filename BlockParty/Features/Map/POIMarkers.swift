@@ -240,13 +240,11 @@ private struct POIBadge: View {
 
 // MARK: - Cluster count bubble (leaf; owns appear / dissolve / count crossfade)
 
-/// A LIGHT disc: a translucent (but NOT appearance-adaptive — see the fill) surface + a
-/// dominant-category tint wash + a thin category ring + a soft shadow for depth, with the
-/// count in map ink. It replaces the old
-/// flat charcoal disc, which read as a heavy black blob dropped on a pale map and shared no
-/// visual language with the pins it stands for. Now a cluster reads as the same family as
-/// the pins inside it — same category palette, same surface ring, same float shadow — just
-/// aggregated.
+/// An INK disc — translucent, but NOT appearance-adaptive (see the fill) — with the count
+/// in white MEDIUM digits and the deepest shadow on the map. What separates it from the
+/// pins it stands for is shape + content + depth, not value: a count-sized disc carrying
+/// a NUMERAL, where a civic pin is a fixed badge carrying a GLYPH and a POI disc stays
+/// light. Every colour resolves through `MarkerRole` — never restyle here.
 ///
 /// Scales up + fades in as members merge (`active`), scales down + fades out when the
 /// cluster dissolves (`active` false — the container keeps it mounted a beat so the split
@@ -257,7 +255,9 @@ struct POIClusterBubbleView: View {
     /// True when at least one absorbed civic landmark has a live happening. Liveness
     /// survives aggregation as a static inset ring, so motion is never its only channel.
     let containsLive: Bool
-    /// Tints the wash + ring, so a bubble hints at what's inside it.
+    /// The dominant member family — a legacy styling hint the role table keeps in its
+    /// signatures (the stroke role resolves CLEAR today); membership flips still
+    /// cross-fade below so a future skin never snaps.
     let family: PlaceFamily
     /// Overlap cap from the clusterer — the disc never draws larger than this, so two
     /// seeds (always > radius apart) can't host bubbles that reach each other.
@@ -298,52 +298,56 @@ struct POIClusterBubbleView: View {
     var body: some View {
         ZStack {
             Circle()
-                // Translucent light fill — the basemap reads faintly through it, so the
+                // Translucent ink fill — the basemap reads faintly through it, so the
                 // bubble sits ON the map rather than punching a hole in it.
                 //
-                // NOT `.regularMaterial`: that is appearance-adaptive, and this app is
-                // light-only by construction (every Hue token is a fixed light hex, the
-                // basemap is light-v11 recoloured to a fixed cream palette, and nothing sets
-                // preferredColorScheme). Under iOS Dark Mode a material would resolve DARK,
-                // putting near-black `mapInk` digits on a near-black disc over a cream map —
-                // the count, which is the bubble's whole payload, would vanish. A fixed
-                // surface fill is scheme-independent, like the charcoal disc it replaces.
-                // 0.95, not 0.90: at 0.90 the POI badges stacked underneath GHOSTED through a
-                // big bubble as a pale disc-inside-a-disc smudge. Still translucent enough to
-                // sit on the map rather than punch a hole in it.
+                // NOT `.regularMaterial`: materials are appearance-adaptive and this app
+                // is light-only by construction (every Hue token resolves through
+                // `onLightCanvas`, the basemap is light-v11 recoloured to a fixed cream
+                // palette, and nothing sets preferredColorScheme) — the fill must not
+                // follow iOS Dark Mode. 0.95, not 0.90: at 0.90 the POI badges stacked
+                // underneath GHOSTED through a big bubble as a disc-inside-a-disc smudge
+                // (on ink they'd ghost light-on-dark; the 0.95 check was re-screenshotted
+                // when the fill went ink).
                 .fill(MarkerRole.clusterFill.opacity(0.95))
-                // Category ring — the bubble's category signal, and what makes it read as
-                // Apple-style cluster chrome. 1.8pt rather than 1.5: a ring is a FIXED width
-                // on a disc whose size varies 22→44pt, so the thinnest-looking bubble is the
-                // smallest one — and a 22pt "2" was measurably QUIETER than a single solid
-                // rest dot beside it. The extra weight lands hardest where it was needed.
+                // The stroke role resolves CLEAR today — the ink disc is its own edge —
+                // but the slot stays so a future skin can restore a ring without touching
+                // this renderer. See `MarkerRole.clusterStroke`.
                 .overlay(Circle().strokeBorder(MarkerRole.clusterStroke(family), lineWidth: 1.8))
                 // A live civic pin is absorbed like every other non-selected marker. Its
                 // static signal moves onto the aggregate instead of surviving as an orphan.
+                // Plum on the ink disc is well under 3:1 — invisible — so a thin surface
+                // seam sits between the disc edge and the ring to give the plum a light
+                // edge to read against. See `MarkerRole.liveRingGap`.
                 .overlay {
                     if containsLive {
+                        Circle()
+                            .strokeBorder(MarkerRole.liveRingGap, lineWidth: 1)
+                            .padding(1)
                         Circle()
                             .strokeBorder(MarkerRole.liveStaticRing, lineWidth: 2)
                             .padding(2)
                     }
                 }
                 // Deeper than the pins' float shadow ON PURPOSE: a bubble stands for many
-                // places, so it must sit ABOVE the individual rest dots around it. With the
-                // pale fill and the pins' lighter shadow it read as the quieter element —
-                // an inverted hierarchy.
-                .shadow(color: MarkerRole.clusterShadow, radius: 5, x: 0, y: 2)
+                // places, so it must sit ABOVE the individual rest dots around it. Uses
+                // `mapFloatShadow`'s soft geometry (blur 8 / y 2) with the deeper cluster
+                // tone — a subtle lift off the light basemap, not a FAB.
+                .shadow(color: MarkerRole.clusterShadow, radius: 8, x: 0, y: 2)
             Text("\(displayCount)")
                 // Scale the digits to the (possibly capped) disc, with an 11pt floor so the
                 // SMALLEST bubble — the most common one at street zoom — stays legible.
-                .font(.system(size: max(11, min(17, diameter * 0.46)), weight: .bold))
+                .font(.system(size: max(11, min(17, diameter * 0.46)), weight: .medium))
                 .monospacedDigit()
-                // Ink, not white — the disc is light now. ~13:1 against the surface fill.
+                // White on the ink disc (~19:1). MEDIUM, not bold, per the polish spec —
+                // the dark disc already carries the emphasis.
                 .foregroundStyle(MarkerRole.clusterText)
                 .contentTransition(.opacity)
         }
-        // The dominant family can flip (amber ⇄ indigo) when membership shifts across a
-        // near-tie, so the wash + ring must CROSS-FADE, not cut. Phase A's whole thesis is
-        // "nothing snaps"; MapPinBadge animates its own tint changes for the same reason.
+        // The dominant family can flip when membership shifts across a near-tie. Nothing
+        // family-driven renders today (the stroke role is clear), but the animation stays
+        // so a future skin that restores it cross-fades rather than cuts — Phase A's
+        // whole thesis is "nothing snaps".
         .animation(Motion.smooth, value: family)
         .animation(Motion.smooth, value: containsLive)
         .frame(width: diameter, height: diameter)

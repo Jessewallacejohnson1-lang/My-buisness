@@ -4,18 +4,27 @@
 //
 //  WHY ROLES AND NOT TOKENS AT THE CALL SITE
 //  The map overhaul (Phases A–C, ported from `feat/map-poi-markers`) encoded almost
-//  everything in HUE: civic category tint, POI family tint, and the live coral. This
-//  app has no accent — six tokens, all greys — so that encoding had to move onto
-//  what monochrome still has: VALUE, SHAPE and MOTION. Routing every marker colour
-//  through one role table is what let that swap happen without touching a single
-//  renderer, and it is what will let the next rebrand happen the same way.
+//  everything in HUE: civic category tint, POI family tint, and the live coral. At the
+//  time this app had no accent — six tokens, all greys (the plum accent arrived later,
+//  meaning-scoped to live) — so that encoding had to move onto what monochrome still
+//  has: VALUE, SHAPE and MOTION. Routing every marker colour through one role table is
+//  what let that swap happen without touching a single renderer, and it is what will
+//  let the next rebrand happen the same way.
 //
 //  THE VALUE LADDER — darkest is most important
 //
 //    1. POI (food / business)  surface / inkSecondary   lightest
-//    2. cluster (many places)  inkSecondary             mid
-//    3. civic (landmark)       ink                      darkest
-//    4. live                   ink + a STATIC ring + the pulse
+//    2. civic (landmark)       ink                      darkest
+//    3. cluster (many places)  ink                      darkest — separated by SHAPE
+//    4. live                   ink + a STATIC plum ring + the pulse
+//
+//  Clusters originally held a mid-grey tier of their own so they could not be confused
+//  with the light POI discs (defect 1 below). They now share the ink tier, and what
+//  separates a cluster is no longer VALUE but SHAPE + CONTENT + DEPTH: a bubble is a
+//  count-sized disc (22–48pt log ramp) carrying a white NUMERAL and the deepest shadow
+//  on the map, where a civic pin is a fixed 28pt badge carrying a white category GLYPH,
+//  and a POI disc stays light. Defect 1 cannot regress because only POIs are light now —
+//  there is no second light disc for them to be confused with.
 //
 //  This also repaired a defect the colour version shipped with: its own comments
 //  recorded that the saturated POI dots "visually OUTRANKED the civic landmarks they
@@ -35,7 +44,8 @@
 //
 //  THREE DEFECTS FOUND BY SCREENSHOT (each invisible in code review — keep them fixed):
 //   1. Clusters and POI pins were both light discs with a hairline ring, so two
-//      different object classes read as one. Clusters took the mid-grey tier.
+//      different object classes read as one. Clusters left the light tier (mid grey
+//      first, ink now), so only POIs are light.
 //   2. Liveness carried by the pulse ALONE vanished in a still frame. Coral had been a
 //      STATIC signal that the pulse merely amplified; `liveStaticRing` restores that,
 //      with the pulse riding on top. Motion must never be the ONLY channel.
@@ -118,10 +128,10 @@ enum MarkerRole {
 
     // — Live —
 
-    // The live cue is the map's first accent target (live events top the brand's
-    // meaning-scoped accent list). It routes through `Hue.accent`, which is a
-    // placeholder equal to ink today — so this is monochrome now and lights up the
-    // moment a brand hue is chosen, with no change here.
+    // The live cue routes through `Hue.accent` — the real brand plum/berry
+    // (#8E3B6B light / #C06A96 dark), the one colour a marker may carry, and only
+    // to mean "happening now" (live events top the brand's meaning-scoped accent
+    // list).
 
     /// Fill of a live pin. Liveness is carried by the ring + pulse, not by the fill,
     /// so this matches the civic tier rather than introducing a fourth value.
@@ -134,22 +144,31 @@ enum MarkerRole {
     /// survives a still frame. See defect 2; do not remove without replacing the cue.
     static var liveStaticRing: Color { MapInk.accent }
 
+    /// The thin surface seam between an ink cluster disc and its inset live ring: plum
+    /// on ink is well under 3:1, so the ring only reads against this light edge. The
+    /// civic pin needs no seam — its live ring draws OUTSIDE the badge, over the light
+    /// map.
+    static var liveRingGap: Color { MapInk.surface }
+
     // — Clusters —
 
-    /// The cluster disc: the mid tier, which is what separates a cluster from the
-    /// lighter POI pins it stands for (defect 1).
-    static var clusterFill: Color { MapInk.inkSecondary }
+    /// The cluster disc: ink, the top tier. Separation from the lighter POI pins it
+    /// stands for (defect 1) is carried by shape + content + depth — the white
+    /// numeral, the 22–48pt size ramp, and the deepest shadow on the map.
+    static var clusterFill: Color { MapInk.ink }
 
-    /// Cluster border. The mid-grey disc is its own edge; a ring on top only muddied
+    /// Cluster border. The ink disc is its own edge; a ring on top only muddied
     /// the silhouette, and a tinted one was the periwinkle cast the colour skin fought.
     static func clusterStroke(_ family: PlaceFamily) -> Color { .clear }
 
-    /// The count, which sits on the mid-grey disc.
+    /// The count: white on the ink disc (~19:1).
     static var clusterText: Color { MapInk.surface }
 
-    /// Depth under an aggregate; darker than an individual pin because the bubble
-    /// represents many places and sits at the top of the marker hierarchy.
-    static var clusterShadow: Color { MapInk.ink.opacity(0.22) }
+    /// Depth under an aggregate; deeper than an individual pin because the bubble
+    /// represents many places and sits at the top of the marker hierarchy. Drawn with
+    /// `mapFloatShadow`'s soft geometry (blur 8 / y 2) at the bubble, with this deeper
+    /// tone lifting the ink disc off the light basemap.
+    static var clusterShadow: Color { MapInk.ink.opacity(0.25) }
 
     // — Labels —
 

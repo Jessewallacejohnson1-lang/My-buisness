@@ -1624,3 +1624,48 @@ warnings** (only the known Xcode 26.5 `appintentsmetadataprocessor` notice — w
 recorded above, 2026-07-23). One environment repair: the Mapbox SPM working copy in
 DerivedData was corrupt after the Aug-12 disk cleanup; `xcodebuild -resolvePackageDependencies`
 restored it, no files deleted.
+
+## 2026-08-13 — Map polish Phase 1: cluster bubbles go ink (plan 2026-08-13-map-tab-ui-polish)
+
+Cluster bubbles restyled per Jesse's Q1 decision — keep the continuous 22–48pt log ramp
+(tiers stay rejected), move the disc to ink:
+
+- **`MonoMarkerPalette.swift`** — `clusterFill` inkSecondary → `ink`; `clusterShadow`
+  deepened 0.22 → 0.25; new `liveRingGap` (surface) role. The value-ladder header is
+  rewritten to the new truth: clusters share the ink tier, and what separates a cluster is
+  SHAPE + CONTENT + DEPTH — a count-sized disc (22–48pt ramp) with a white NUMERAL and the
+  deepest shadow on the map, vs the civic pin's fixed 28pt badge with a white GLYPH. POI
+  discs are now the only light class, so defect 1 (two light discs reading as one class)
+  cannot regress. Two stale comments corrected: the accent is the real plum `#8E3B6B`,
+  not "a placeholder equal to ink".
+- **`POIMarkers.swift`** — numerals stay white but drop bold → **medium** (the dark disc
+  carries the emphasis); the bubble shadow now uses `mapFloatShadow`'s soft geometry
+  (blur 8 / y 2) with the deeper cluster tone rather than the old tight blur-5; the
+  stale "LIGHT disc / count in map ink" doc rewritten. **Live-on-cluster contrast:** plum
+  on ink is well under 3:1 and read as nothing, so a 1pt surface seam now sits between the
+  disc edge and the 2pt plum ring — the ring is clearly legible on the ink disc
+  (`-map-force-live downtown`, which clusters into the big z13 bubble).
+- `POICluster.swift` untouched — ramp, caps and clusterer unchanged.
+
+**Merge/split verdict:** already identity-stable, as believed — `-map-autozoom` frame
+sampling shows leaves gliding, counts crossfading (`contentTransition(.opacity)` double-
+exposure mid-frame is the crossfade, not a defect), and dissolving bubbles fading. No
+pop-in; no animation change made.
+
+**P0 overlap verdict ("61"/"21" in `before-rest.png`):** transient, not a layout/dedup
+defect. Launch sequence captured at t+4s shows every POI rendered solo before the first
+cluster recompute; the overlap window is the ~0.5s glide/fade right after it, where a
+dissolving bubble (kept mounted for its fade by design) stacks under its replacement.
+Three settled captures (rest t+8s, z13 t+10s and t+13s) are all clean, and the at-rest
+overlap guard (bubble diameter capped below the cluster radius) holds. No fix needed.
+
+Screenshots (session scratchpad `p1/`): `p1-clusters-z13.png` (z13 framing — solid ink
+discs, legible white numerals down to the smallest 22pt "2"), `p1-rest.png` (default 13.5),
+`p1-live-cluster.png` (plum live ring + surface seam on the 46 bubble),
+`p1-clusters-z13-dark.png` (dark mode — markers unchanged via `onLightCanvas`, only the
+chrome adapts), plus `az-*` autozoom frames and settled-state crops. The 0.95 translucency
+was re-checked on ink: no badge ghosting through the big bubbles.
+
+**Verified:** iPhone 17 simulator, Debug: **BUILD SUCCEEDED, 0 source warnings** (only the
+known `appintentsmetadataprocessor` notice). Installed over the app from the freshly
+resolved `BUILT_PRODUCTS_DIR`.
