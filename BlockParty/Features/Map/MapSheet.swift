@@ -13,8 +13,9 @@
 //    • today  — today's happenings from MapModel.todayEvents (coral dot = live now)
 //    • places — the curated MapSpots catalogue, with each spot's live count today
 //
-//  Place detail belongs to the morphing global tab shell. This sheet now has one job:
-//  preserve the draggable Today / Places peek and list from the map's browse state.
+//  Place detail belongs to `PinDetailSheet` (this sheet unmounts while it shows).
+//  This sheet has one job: preserve the draggable Today / Places peek and list
+//  from the map's browse state.
 //
 
 import SwiftUI

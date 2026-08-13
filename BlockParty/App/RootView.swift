@@ -301,7 +301,6 @@ struct MainTabsView: View {
         let resolved = startTab ?? MainTabsView.initialTab()
         _tab = State(initialValue: resolved)
         _mapDetail = State(initialValue: MapPlaceDetail.debugInitialDetail())
-        _mapDetailHappenings = State(initialValue: [])
         _showMenu = State(initialValue: resolved == .home && MainTabsView.debugOpenMenu())
         _showProfileSheet = State(initialValue: MainTabsView.debugOpenProfile())
     }
@@ -343,14 +342,11 @@ struct MainTabsView: View {
     }
 
     @State private var expandedPlace: Place?
-    /// The map's one open place, lifted above `SJMapView` so the global tab shell can
-    /// morph into its compact detail. The enum carries the real Spot/POI value rather
-    /// than copying display fields into a second source of truth.
+    /// The map's one open place, lifted above `SJMapView` so the shell can hide
+    /// the tab bar while the pin-detail sheet is up (and clear the selection on a
+    /// tab change). The enum carries the real Spot/POI value rather than copying
+    /// display fields into a second source of truth.
     @State private var mapDetail: MapPlaceDetail?
-    /// Today's real events matched to the selected civic spot by `SJMapView`'s
-    /// `MapModel`. Kept beside the lightweight selection instead of bloating its
-    /// matched-geometry identity with live data.
-    @State private var mapDetailHappenings: [TimelineEvent]
     @State private var composing = false
     /// Readiness of the *current* tab's content, gathered from `TabReadyPreferenceKey`.
     /// Drives the loading cover that hides a not-yet-rendered tab.
@@ -387,8 +383,6 @@ struct MainTabsView: View {
     /// from the trailing edge (moving *forward* through the tab order) or the
     /// leading edge (moving back). Set in `select(_:)` right before the animation.
     @State private var slideForward = true
-    /// Available height for the morphed map detail's relative rich-content cap.
-    @State private var containerHeight: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -430,7 +424,6 @@ struct MainTabsView: View {
                         case .map:
                             SJMapView(
                                 mapDetail: $mapDetail,
-                                mapDetailHappenings: $mapDetailHappenings,
                                 onCompose: { speedDialOpen = true }
                             )
                         }
@@ -453,14 +446,15 @@ struct MainTabsView: View {
                         TabLoadingHost(isReady: activeTabReady, resetKey: AnyHashable(tab))
                     }
 
-                    BlockPartyTabBar(
-                        selection: $tab,
-                        mapDetail: $mapDetail,
-                        mapDetailHappenings: $mapDetailHappenings,
-                        containerHeight: containerHeight,
-                        onSelect: select
-                    )
-                    .zIndex(10)
+                    // The tab bar hides while the map's pin-detail sheet is up —
+                    // that card's floating action bar owns the bottom zone
+                    // (Flighty pattern; map polish Q6). Every other tab, and the
+                    // map at rest, keeps the four buttons.
+                    if !(tab == .map && mapDetail != nil) {
+                        BlockPartyTabBar(selection: $tab, onSelect: select)
+                            .transition(.opacity)
+                            .zIndex(10)
+                    }
                 }
             }
             // THE `.environment(\.colorScheme, .light)` THAT USED TO BE HERE IS GONE.
@@ -487,11 +481,6 @@ struct MainTabsView: View {
         // resting bottom chrome, and collapsing the search restores the chrome
         // exactly because nothing ever moved.
         .ignoresSafeArea(.keyboard)
-        .onGeometryChange(for: CGFloat.self) { geometry in
-            geometry.size.height
-        } action: { newHeight in
-            containerHeight = newHeight
-        }
         .overlay {
             // Place-expansion overlay
             if expandedPlace != nil {
@@ -653,10 +642,7 @@ struct MainTabsView: View {
         withAnimation(reduceMotion
             ? .easeInOut(duration: 0.2)
             : .spring(response: 0.44, dampingFraction: 0.86)) {
-            if newTab != .map {
-                mapDetail = nil
-                mapDetailHappenings = []
-            }
+            if newTab != .map { mapDetail = nil }
             tab = newTab
         }
     }
@@ -674,56 +660,25 @@ struct MainTabsView: View {
     }
 }
 
-/// The global bottom shell. It normally hosts the four tab buttons; while a place is
-/// selected on Map, this SAME persistent Liquid Glass view grows into a compact detail
-/// and swaps the buttons out. Keeping `.glassEffect` outside the conditional content is
-/// the container morph: no second card is inserted over the bar, and the shell never
-/// leaves its topmost navigation lane.
+/// The global bottom shell — the four tab buttons on one persistent Liquid Glass
+/// bar. On the Map tab it hides entirely while a pin's detail sheet is up
+/// (`PinDetailSheet` owns that zone — the old in-bar detail morph is retired,
+/// map polish Q6); every other surface sees it exactly as before.
 struct BlockPartyTabBar: View {
     @Binding var selection: Tab
-    @Binding var mapDetail: MapPlaceDetail?
-    @Binding var mapDetailHappenings: [TimelineEvent]
-    let containerHeight: CGFloat
     /// Tap handler — the parent owns the animated page slide + haptic, so the pill
     /// (driven by `selection`) and the screen slide ride the same spring.
     var onSelect: (Tab) -> Void
-    #if DEBUG
-    @State private var detailExpanded =
-        BlockPartyTabBar.debugExpandedPreselectionRequested()
-    @State private var debugExpandedPreselectionPending =
-        BlockPartyTabBar.debugExpandedPreselectionRequested()
-    #else
-    @State private var detailExpanded = false
-    #endif
     @Namespace private var pill
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.openURL) private var openURL
-    @ObservedObject private var saved = SavedStore.shared
 
     /// Corner radii: outer glass shell vs. the inner sliding highlight.
     static let shellRadius: CGFloat = 26
-    /// Two-line compact-detail baseline + home-indicator band + breathing room.
-    /// `SJMapView` scales it with Dynamic Type before applying its viewport cap.
-    static let detailCameraReserve: CGFloat = 250
-    /// Rich content may use just over half the screen, but never exceed the
-    /// comfortable iPhone 17 ceiling. The compact header and grabber sit outside
-    /// this cap, preserving visible map above the shell on short devices.
-    private static let expandedContentHeightFraction: CGFloat = 0.55
-    private static let expandedContentHeightCeiling: CGFloat = 440
     private let pillRadius: CGFloat  = 18
 
     var body: some View {
-        VStack(spacing: 0) {
-            if let detail = activeDetail {
-                detailPanel(detail)
-                    .transition(contentTransition)
-            } else {
-                HStack(spacing: 4) {
-                    ForEach(Tab.allCases) { tab in
-                        tabButton(tab)
-                    }
-                }
-                .transition(contentTransition)
+        HStack(spacing: 4) {
+            ForEach(Tab.allCases) { tab in
+                tabButton(tab)
             }
         }
         .padding(5)
@@ -735,43 +690,6 @@ struct BlockPartyTabBar: View {
         )
         .padding(.horizontal, 20)
         .padding(.bottom, 4)
-        .animation(reduceMotion ? Motion.smooth : Motion.sheet, value: activeDetail?.id)
-        .animation(reduceMotion ? Motion.smooth : Motion.sheet, value: detailExpanded)
-        .onChange(of: activeDetail?.id, initial: true) { _, id in
-            #if DEBUG
-            // Keep the one-shot request pending while an async `-map-open-poi`
-            // resolves. Once any launch-preselected detail appears, consume it so
-            // later user-selected places retain the normal compact default.
-            if debugExpandedPreselectionPending {
-                if id != nil {
-                    detailExpanded = true
-                    debugExpandedPreselectionPending = false
-                }
-                return
-            }
-            #endif
-            detailExpanded = false
-        }
-    }
-
-    #if DEBUG
-    /// Headless screenshot seam: only the combination of the expansion flag and
-    /// an existing civic/POI preselection route starts the detail rich and tall.
-    /// Release builds compile this entire launch-argument path out.
-    private nonisolated static func debugExpandedPreselectionRequested() -> Bool {
-        let arguments = ProcessInfo.processInfo.arguments
-        return arguments.contains("-map-detail-expanded")
-            && (arguments.contains("-map-open") || arguments.contains("-map-open-poi"))
-    }
-    #endif
-
-    private var activeDetail: MapPlaceDetail? {
-        selection == .map ? mapDetail : nil
-    }
-
-    private var contentTransition: AnyTransition {
-        guard !reduceMotion else { return .opacity }
-        return .opacity.combined(with: .scale(scale: 0.97, anchor: .bottom))
     }
 
     @ViewBuilder
@@ -800,316 +718,5 @@ struct BlockPartyTabBar: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-
-    private func detailPanel(_ detail: MapPlaceDetail) -> some View {
-        let isSaved = saved.isSaved(detail.saveID)
-        let canExpand = hasExpandedContent(detail)
-
-        return VStack(alignment: .leading, spacing: 11) {
-            if canExpand {
-                detailGrabber
-            }
-
-            HStack(alignment: .top, spacing: 12) {
-                if let poi = detail.poi {
-                    POIPanelLogo(poi: poi, diameter: 44)
-                }
-                VStack(alignment: .leading, spacing: 7) {
-                    Text(detail.name)
-                        .font(.display(20))
-                        .foregroundStyle(Hue.ink)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-
-                    HStack(spacing: 6) {
-                        Image(systemName: detail.glyph)
-                            .font(.system(size: 11, weight: .semibold))
-                        Text(detail.badgeLabel)
-                            .font(.mono(11))
-                            .lineLimit(1)
-                    }
-                    .foregroundStyle(Hue.inkSecondary)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
-                    .background(
-                        Hue.fill,
-                        in: RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    )
-                }
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel(detail.groupAccessibilityLabel)
-
-                Spacer(minLength: 4)
-
-                Button {
-                    Haptics.light()
-                    withAnimation(Motion.card) {
-                        mapDetail = nil
-                    }
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Hue.ink)
-                        .frame(width: 36, height: 36)
-                        .background(
-                            Hue.fill,
-                            in: RoundedRectangle(
-                                cornerRadius: Radius.button,
-                                style: .continuous
-                            )
-                        )
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Close place details")
-            }
-
-            HStack(spacing: 10) {
-                Button {
-                    Haptics.light()
-                    if let url = detail.directionsURL { openURL(url) }
-                } label: {
-                    Label("Directions", systemImage: "arrow.triangle.turn.up.right.diamond")
-                        .font(.sansSemibold(15))
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: 44)
-                }
-                .buttonStyle(MapDetailActionStyle(role: .primary))
-                .accessibilityLabel("Directions to \(detail.name)")
-
-                Button {
-                    if isSaved { Haptics.light() } else { Haptics.success() }
-                    saved.toggle(detail.saveID)
-                } label: {
-                    HStack(spacing: 7) {
-                        Image(systemName: "bookmark")
-                            .foregroundStyle(isSaved ? Hue.accent : Hue.ink)
-                        Text("Save")
-                            .foregroundStyle(Hue.ink)
-                    }
-                    .font(.sansSemibold(15))
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: 44)
-                }
-                .buttonStyle(MapDetailActionStyle(role: isSaved ? .selected : .neutral))
-                .accessibilityLabel(
-                    isSaved
-                        ? "Remove \(detail.name) from saved places"
-                        : "Save \(detail.name)"
-                )
-                .accessibilityAddTraits(isSaved ? .isSelected : [])
-            }
-
-            if detailExpanded && canExpand {
-                expandedDetail(detail)
-                    .transition(.opacity)
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 9)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .contain)
-        .onChange(of: canExpand, initial: true) { _, expandable in
-            guard !expandable, detailExpanded else { return }
-            withAnimation(reduceMotion ? Motion.smooth : Motion.sheet) {
-                detailExpanded = false
-            }
-        }
-    }
-
-    private var detailGrabber: some View {
-        Button {
-            setDetailExpanded(!detailExpanded)
-        } label: {
-            VStack(spacing: 3) {
-                Capsule()
-                    .fill(Hue.inkSecondary)
-                    .frame(width: 34, height: 4)
-                Image(systemName: detailExpanded ? "chevron.down" : "chevron.up")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(Hue.inkSecondary)
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 23)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 12)
-                .onEnded { value in
-                    if value.translation.height <= -22 {
-                        setDetailExpanded(true)
-                    } else if value.translation.height >= 22 {
-                        setDetailExpanded(false)
-                    }
-                }
-        )
-        .accessibilityLabel(
-            detailExpanded ? "Collapse place details" : "Expand place details"
-        )
-        .accessibilityValue(detailExpanded ? "Expanded" : "Collapsed")
-        .accessibilityAdjustableAction { direction in
-            switch direction {
-            case .increment:
-                setDetailExpanded(true)
-            case .decrement:
-                setDetailExpanded(false)
-            @unknown default:
-                break
-            }
-        }
-    }
-
-    private func expandedDetail(_ detail: MapPlaceDetail) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Rectangle()
-                    .fill(Hue.hairline)
-                    .frame(height: 1)
-
-                if let spot = detail.spot {
-                    if let blurb = spot.blurb, !blurb.isEmpty {
-                        Text(blurb)
-                            .font(.sans(15))
-                            .foregroundStyle(Hue.inkSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    VenueInfoView(
-                        query: "\(spot.name) St Joseph MN",
-                        palette: .map,
-                        identity: VenueIdentity(
-                            name: spot.name,
-                            coordinate: spot.coordinate
-                        )
-                    )
-
-                    if !mapDetailHappenings.isEmpty {
-                        VStack(spacing: 13) {
-                            ForEach(mapDetailHappenings) { happening in
-                                let isLive = DateHelpers.isLiveNow(happening.startTime)
-                                let time = happening.startTime ?? "all day"
-
-                                HStack(spacing: 8) {
-                                    Circle()
-                                        .fill(isLive ? Hue.accent : Hue.inkSecondary)
-                                        .frame(width: 6, height: 6)
-                                    Text(happening.title)
-                                        .font(.sansMedium(15))
-                                        .foregroundStyle(Hue.ink)
-                                        .lineLimit(1)
-                                    Spacer()
-                                    Text(time)
-                                        .font(.sans(13))
-                                        .foregroundStyle(Hue.inkSecondary)
-                                }
-                                .accessibilityElement(children: .combine)
-                                .accessibilityLabel(
-                                    isLive
-                                        ? "\(happening.title), live now, \(time)"
-                                        : "\(happening.title), \(time)"
-                                )
-                            }
-                        }
-                    }
-                } else if let poi = detail.poi {
-                    if let address = poi.address, !address.isEmpty {
-                        Text(address)
-                            .font(.sans(15))
-                            .foregroundStyle(Hue.inkSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    VenueInfoView(
-                        query: poi.name,
-                        palette: .map,
-                        identity: VenueIdentity(
-                            name: poi.name,
-                            coordinate: poi.coordinate
-                        )
-                    )
-                }
-            }
-            .padding(.horizontal, 2)
-            .padding(.bottom, 8)
-        }
-        .scrollIndicators(.hidden)
-        .frame(maxHeight: expandedContentMaxHeight)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Expanded details for \(detail.name)")
-    }
-
-    private var expandedContentMaxHeight: CGFloat {
-        // Use the ceiling itself as a conservative fallback during the first
-        // measurement pass; once measured, short screens scale down immediately.
-        let availableHeight = containerHeight > 0
-            ? containerHeight
-            : Self.expandedContentHeightCeiling
-        return min(
-            Self.expandedContentHeightCeiling,
-            availableHeight * Self.expandedContentHeightFraction
-        )
-    }
-
-    private func hasExpandedContent(_ detail: MapPlaceDetail) -> Bool {
-        if let spot = detail.spot {
-            return hasText(spot.blurb) || !mapDetailHappenings.isEmpty
-        }
-        if let poi = detail.poi {
-            return hasText(poi.address)
-        }
-        return false
-    }
-
-    private func hasText(_ text: String?) -> Bool {
-        text?.contains { !$0.isWhitespace } == true
-    }
-
-    private func setDetailExpanded(_ expanded: Bool) {
-        guard !expanded || activeDetail.map(hasExpandedContent) == true else { return }
-        guard detailExpanded != expanded else { return }
-        Haptics.light()
-        withAnimation(reduceMotion ? Motion.smooth : Motion.sheet) {
-            detailExpanded = expanded
-        }
-    }
-}
-
-/// Compact square-corner-family action used only inside the morphed map detail.
-/// Directions is always the primary plum CTA; Save takes plum only while active.
-private enum MapDetailActionRole {
-    case primary
-    case selected
-    case neutral
-}
-
-private struct MapDetailActionStyle: ButtonStyle {
-    let role: MapDetailActionRole
-
-    private var foreground: Color {
-        switch role {
-        case .primary:  return Hue.surface
-        case .selected, .neutral: return Hue.ink
-        }
-    }
-
-    private var background: Color {
-        switch role {
-        case .primary:            return Hue.accent
-        case .selected, .neutral: return Hue.fill
-        }
-    }
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .foregroundStyle(foreground)
-            .background(
-                background.opacity(configuration.isPressed ? 0.78 : 1),
-                in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
-                    .stroke(role == .selected ? Hue.accent : .clear, lineWidth: 1.5)
-            }
     }
 }

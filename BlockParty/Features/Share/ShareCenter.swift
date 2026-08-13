@@ -168,6 +168,18 @@ extension SharePayload {
         }
     }
 
+    /// A place off the town map (the pin-detail sheet's share action). `detail`
+    /// is the place's real address or curated blurb — omitted when absent, never
+    /// invented.
+    static func place(name: String, categoryLabel: String, detail: String?) -> SharePayload {
+        var text = "Meet me at \(name)"
+        if let detail, !detail.isEmpty { text += ", \(detail)" }
+        text += ". Shared from Block Party."
+        return SharePayload(title: "Share this place", shareText: text, includesImage: true) {
+            PlaceShareCard(name: name, categoryLabel: categoryLabel, detail: detail)
+        }
+    }
+
     static func appInvite() -> SharePayload {
         SharePayload(
             title: "Share Block Party",

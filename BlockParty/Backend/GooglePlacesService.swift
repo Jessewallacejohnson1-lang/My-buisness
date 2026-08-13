@@ -447,6 +447,28 @@ final class GooglePlacesService {
         }
     }
 
+    /// Place Details for a KNOWN/curated place, gated by the same Locked Rule A
+    /// check as `confidentPhoto` — the pin-detail sheet's OPEN NOW pill must not
+    /// trust a fuzzy first search hit any more than a photo may. Scans the top
+    /// candidates and returns the details of the first that clears the gate; nil
+    /// when nothing clears or the search fails. Both legs are cached (searchCache
+    /// by query, detailsCache by place_id), so a repeat open of the same pin —
+    /// and the VenueInfoView that follows it into full details — re-bills nothing.
+    func confidentDetails(name: String, coordinate: CLLocationCoordinate2D) async -> PlaceDetails? {
+        guard let candidates = await searchResults("\(name) St Joseph MN") else { return nil }
+        for candidate in candidates.prefix(5) {
+            guard RuleA.clears(resolvedName: candidate.name,
+                               resolvedCoordinate: candidate.coordinate,
+                               types: candidate.types,
+                               primaryType: candidate.primaryType,
+                               curatedName: name,
+                               curatedCoordinate: coordinate)
+            else { continue }
+            return await details(placeId: candidate.placeId)
+        }
+        return nil
+    }
+
     // MARK: Shared
 
     private func locationBias() -> [String: Any] {

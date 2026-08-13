@@ -80,6 +80,12 @@ enum MapPlaceDetail: Identifiable, Hashable {
             case .default:  return "Place"
             }
         case .poi(let poi):
+            // The detail sheet's CATEGORY pill wants the specific subtype
+            // ("Coffee Shop"), not the broad family word; fall back to the
+            // family when Google supplied no primaryType.
+            if let t = poi.primaryType, !t.isEmpty {
+                return t.replacingOccurrences(of: "_", with: " ").capitalized
+            }
             return poi.family.label
         }
     }
@@ -106,36 +112,6 @@ enum MapPlaceDetail: Identifiable, Hashable {
         case .spot(let spot): return spot.id
         case .poi(let poi):   return poi.id
         }
-    }
-
-    /// Neither source model currently carries Google price level. Keep the optional
-    /// seam explicit so the badge can add it when real data exists; never synthesize it.
-    var priceLabel: String? { nil }
-
-    var distanceLabel: String? {
-        let origin = CLLocation(
-            latitude: MapSpots.center.latitude,
-            longitude: MapSpots.center.longitude
-        )
-        let destination = CLLocation(
-            latitude: coordinate.latitude,
-            longitude: coordinate.longitude
-        )
-        // Formatting lives in MapDistance (MapSearch.swift) — shared with the
-        // search rows, which measure from the USER's one-shot fix instead.
-        return MapDistance.label(meters: destination.distance(from: origin))
-    }
-
-    var badgeLabel: String {
-        [categoryLabel, distanceLabel, priceLabel]
-            .compactMap { $0 }
-            .joined(separator: " · ")
-    }
-
-    var groupAccessibilityLabel: String {
-        let distance = distanceLabel.map { ", \($0) from downtown" } ?? ""
-        let price = priceLabel.map { ", \($0)" } ?? ""
-        return "\(name). \(categoryLabel)\(distance)\(price)."
     }
 
     var directionsURL: URL? {
@@ -193,11 +169,13 @@ enum SpotFilter: CaseIterable, Hashable {
 // MARK: - Main view
 
 struct SJMapView: View {
-    /// The source of truth lives in MainTabsView so the global tab shell can morph.
+    /// The source of truth lives in MainTabsView so the shell can hide the tab
+    /// bar under the detail sheet and clear the selection on a tab change.
     @Binding var mapDetail: MapPlaceDetail?
-    /// Real happenings for the selected civic spot, projected out of this view's
-    /// `MapModel` for the global tab shell. Always empty for POIs or no selection.
-    @Binding var mapDetailHappenings: [TimelineEvent]
+    /// Real happenings for the selected civic spot, matched from this view's
+    /// `MapModel` and fed to the detail sheet. Always empty for POIs or no
+    /// selection. Local state now — the tab shell no longer renders detail.
+    @State private var mapDetailHappenings: [TimelineEvent] = []
     /// Non-admins tap the bottom-right "+" into the global composer (admins get
     /// the map's own QuickAddSheet). Injected by MainTabsView, like HomeView.
     var onCompose: (() -> Void)? = nil
@@ -211,13 +189,9 @@ struct SJMapView: View {
     // read `model` and drive `viewport`, and Swift `private` is file-scoped.
     @StateObject var model = MapModel()
 
-    /// Latest laid-out map height, so a pin-select can reserve the morphed detail shell
+    /// Latest laid-out map height, so a pin-select can reserve the detail sheet
     /// as camera padding and land the pin above it. Updated off the layout pass.
     @State private var containerH: CGFloat = 0
-    /// The compact detail grows with its two-line title and Dynamic Type. Scale the
-    /// two-line baseline reserve with that content, still bounded in `liftedViewport`.
-    @ScaledMetric(relativeTo: .title3) private var detailCameraReserve =
-        BlockPartyTabBar.detailCameraReserve
     /// The coordinate the camera is currently lifted onto (non-nil while a selection holds
     /// the bottom padding). Used to settle the camera back to no-padding on dismiss so the
     /// map isn't left mis-framed with a half-screen inset once the sheet collapses.
@@ -366,8 +340,8 @@ struct SJMapView: View {
     static let selectedPriority = 10
     static let clusterPriority = 20
 
-    /// DEBUG-only: `-map-open-poi [name-substring | id]` opens a POI's tab-shell
-    /// detail once `places` loads. With no value, it deterministically uses the first
+    /// DEBUG-only: `-map-open-poi [name-substring | id]` opens a POI's detail
+    /// sheet once `places` loads. With no value, it deterministically uses the first
     /// loaded POI so the documented screenshot command stays self-contained.
     private static func debugOpenPOI(in pois: [POI]) -> POI? {
         #if DEBUG
@@ -541,9 +515,25 @@ struct SJMapView: View {
     var body: some View {
         ZStack(alignment: .top) {
             mapLayer
+            // While a pin's detail sheet is up, the map dims slightly — a wash
+            // that keeps the basemap legible (subtle, not modal-dark), matching
+            // Flighty. Plain black, not `Hue.ink`: the canvas is light in both
+            // appearances. Non-interactive, so map taps still dismiss the sheet.
+            if mapDetail != nil {
+                Color.black.opacity(0.12)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
+            }
             mapBottomFade
             topChrome
-            floatingControls
+            // UNMOUNTED (not faded) under the detail sheet: these are glass
+            // circles, and extracted glass ignores an ancestor's `.opacity` —
+            // they would ghost through the card.
+            if mapDetail == nil {
+                floatingControls
+                    .transition(.opacity)
+            }
             // Pressing "Saint Joseph" (or recenter) rains the town's own brand marks
             // past the chrome. Sits UNDER the sheet on purpose: the balls' floor is
             // the sheet's peek edge, so at peek they bounce on its visible top, and a
@@ -567,6 +557,30 @@ struct SJMapView: View {
                 // guarantees detail is the sole bottom element; lifted state restores it.
                 .transition(.identity)
             }
+            // The Flighty-anatomy pin detail sheet (map polish Phase 3). It
+            // supersedes the retired tab-bar glass morph; the tab bar hides
+            // while it is up (MainTabsView), so the card owns the bottom zone.
+            if let detail = mapDetail {
+                PinDetailSheet(
+                    detail: detail,
+                    happenings: mapDetailHappenings,
+                    isLive: detail.spot.map(isLive) ?? false,
+                    distanceLabel: detailDistanceLabel(detail),
+                    height: detailSheetHeight,
+                    onClose: { closeCard() }
+                )
+                // Fresh @State (open-now, drag, full-details) per place — a
+                // civic→POI hand-off must not inherit the previous card's state.
+                .id(detail.id)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                // The card sits on the physical bottom edge; its own bottom
+                // padding floats the action bar above the home indicator.
+                .ignoresSafeArea(edges: .bottom)
+                .transition(reduceMotion
+                    ? .opacity
+                    : .move(edge: .bottom).combined(with: .opacity))
+                .zIndex(2)
+            }
         }
         // Name the container's space so the top chrome can measure its own bottom
         // edge in the same coordinates `chromeRects` reserves in.
@@ -576,7 +590,7 @@ struct SJMapView: View {
         // height-capped to stay clear of the keyboard on its own. Collapsing the
         // search must restore the chrome exactly, so nothing here ever moves.
         .ignoresSafeArea(.keyboard)
-        // Track the map's HEIGHT (a pin-select lifts the pin above the detail shell) and its full
+        // Track the map's HEIGHT (a pin-select lifts the pin above the detail sheet) and its full
         // SIZE (the label pass's chrome reservation — `MapboxMap.size` is internal to the
         // SDK, so measure the view instead). One reader feeds both; written at layout and
         // again only on a real size change (rotation / multitasking), never per frame.
@@ -629,9 +643,15 @@ struct SJMapView: View {
             }
             #endif
             syncMapDetailHappenings()
+            if mapDetail != nil { fetchLocationIfAuthorized() }
             // A spot preselected at mount (deep link, or the DEBUG -map-open flag) frames
-            // above the morphed detail shell, exactly as a direct pin tap would.
-            if let s = selectedSpot { viewport = liftedViewport(s.coordinate, zoom: Self.selectZoom) }
+            // above the detail sheet, exactly as a direct pin tap would. Deferred one
+            // runloop so `containerH` has been measured — the lift is proportional now.
+            if let s = selectedSpot {
+                DispatchQueue.main.async {
+                    viewport = liftedViewport(s.coordinate, zoom: Self.selectZoom)
+                }
+            }
         }
         // Map is "ready" once the data has resolved AND the basemap has painted —
         // otherwise the cover would lift onto a blank grey map. But if the data
@@ -652,13 +672,18 @@ struct SJMapView: View {
         // bottom padding so the map re-settles level instead of staying jammed upward.
         .onChange(of: selectedSpot?.id) { _, id in if id == nil { releaseCameraLift() } }
         .onChange(of: selectedPOI?.id) { _, id in if id == nil { releaseCameraLift() } }
-        .onChange(of: mapDetail?.id) { _, _ in syncMapDetailHappenings() }
+        .onChange(of: mapDetail?.id) { _, id in
+            syncMapDetailHappenings()
+            // The sheet's DISTANCE pill: read an existing fix or take one
+            // silently. Never prompts (see fetchLocationIfAuthorized).
+            if id != nil { fetchLocationIfAuthorized() }
+        }
         .onChange(of: model.todayEvents) { _, _ in syncMapDetailHappenings() }
         .sheet(isPresented: $quickAdding) {
             QuickAddSheet(spots: MapSpots.all)
         }
-        // A tapped POI no longer opens a modal or sheet detail. Its compact content
-        // lives in the one global tab-shell morph shared with civic spots.
+        // A tapped POI or civic pin opens the PinDetailSheet card mounted above —
+        // the one detail presentation shared by both catalogs (Phase 3).
         // The "?" chrome button reopens the map intro any time — full-bleed, so it
         // gets its own cover. `instant` skips the first-run bloom so the reference
         // is readable immediately on every open.
@@ -839,7 +864,7 @@ struct SJMapView: View {
             }
             // Toggling the category filter ticks a selection haptic (spec §10 / §12.5 —
             // the native Menu supplies none we control). If the change hides the selected
-            // spot, drop the stale selection so the tab-shell detail doesn't linger.
+            // spot, drop the stale selection so the detail sheet doesn't linger.
             .onChange(of: filter) { _, _ in
                 Haptics.selection()
                 if let s = selectedSpot, !filteredSpots.contains(where: { $0.id == s.id }) { closeCard() }
@@ -1176,18 +1201,45 @@ struct SJMapView: View {
         mapDetailHappenings = events(at: spot)
     }
 
-    /// A camera viewport centered on `coord` with the compact morphed detail shell
-    /// reserved as bottom padding. This replaces the old half-screen/medium-sheet lift:
-    /// the pin stays comfortably above the actual element that now owns place detail.
+    /// A camera viewport centered on `coord` with the detail sheet's zone reserved
+    /// as bottom padding, so the selected pin lands centered in the visible strip
+    /// of map ABOVE the card rather than hiding behind it. The reserve tracks the
+    /// sheet's own proportional height (the 180 floor covers the first frame,
+    /// before `containerH` is measured).
     private func liftedViewport(_ coord: CLLocationCoordinate2D, zoom: CGFloat) -> Viewport {
         liftedCoord = coord
         var vp = Viewport.camera(center: coord, zoom: zoom)
-        let lift = min(
-            detailCameraReserve,
-            max(160, containerH * 0.36)
-        )
+        let lift = max(180, containerH * PinDetailSheet.heightFraction)
         vp.padding = EdgeInsets(top: 0, leading: 0, bottom: lift, trailing: 0)
         return vp
+    }
+
+    /// The compact detail card's height — `PinDetailSheet.heightFraction` of the
+    /// map (Flighty proportions), with a floor for the pre-measurement frame.
+    private var detailSheetHeight: CGFloat {
+        max(360, (containerH > 0 ? containerH : 720) * PinDetailSheet.heightFraction)
+    }
+
+    /// "0.3 mi" from the user's one-shot fix to the open place — nil without a
+    /// fix, and the sheet's DISTANCE pill simply doesn't render.
+    private func detailDistanceLabel(_ detail: MapPlaceDetail) -> String? {
+        guard let userLocation else { return nil }
+        let pin = CLLocation(latitude: detail.coordinate.latitude,
+                             longitude: detail.coordinate.longitude)
+        return MapDistance.label(meters: pin.distance(from: userLocation))
+    }
+
+    /// Take a location fix for the detail sheet's DISTANCE pill — but only when
+    /// access is ALREADY authorized. It never prompts: the when-in-use ask
+    /// deliberately lives on the first search expansion (Phase 2), so opening a
+    /// pin can't interrupt the moment with a system alert.
+    private func fetchLocationIfAuthorized() {
+        guard userLocation == nil, !locatingUser, LocationPermission.isAuthorized else { return }
+        locatingUser = true
+        Task {
+            userLocation = await UserLocation.oneShot()
+            locatingUser = false
+        }
     }
 
     /// Drop the camera's bottom padding once nothing is selected, settling on the last-lifted
@@ -1241,8 +1293,8 @@ struct SJMapView: View {
     }
 
     /// A Today/Places row tap: fly to the spot (a longer, deliberate 1.0s fly since the
-    /// spot may be off-screen — spec §4 0.9–1.2s band) and open its detail in the
-    /// morphing tab shell, landing the pin above that compact panel.
+    /// spot may be off-screen — spec §4 0.9–1.2s band) and open its detail sheet,
+    /// landing the pin above the card.
     private func focus(_ spot: Spot) {
         Haptics.light()
         let move = { viewport = liftedViewport(spot.coordinate, zoom: Self.selectZoom) }
@@ -1253,7 +1305,8 @@ struct SJMapView: View {
     }
 
     /// A direct pin tap: pop the selection (Motion.select) and, when ENTERING a selection,
-    /// ease-recenter the pin above the detail in the same gesture (spec §12.2). Toggling the
+    /// EASE the camera toward the pin — offset upward so it stays visible above the
+    /// sheet (spec: easeOut, never a fly, for the on-open move). Toggling the
     /// same pin off fires NO haptic and no recenter (spec §2 — deselect is silent).
     private func selectSpot(_ spot: Spot) {
         let entering = selectedSpot?.id != spot.id
@@ -1264,12 +1317,12 @@ struct SJMapView: View {
         guard entering else { return }
         let move = { viewport = liftedViewport(spot.coordinate, zoom: Self.selectZoom) }
         if reduceMotion { move() }              // §11: instant set, no ease, under Reduce Motion
-        else { withViewportAnimation(.easeInOut(duration: 0.45)) { move() } }
+        else { withViewportAnimation(.easeOut(duration: 0.5)) { move() } }
     }
 
     /// Open a tapped food/business POI's detail (resolved from the tapped feature's
     /// `id` property). The enum makes civic/POI mutually exclusive in one assignment,
-    /// then eases the POI above the same compact tab-shell detail.
+    /// then eases the POI above the shared detail sheet (easeOut, matching selectSpot).
     private func selectPOI(id: String) {
         guard let poi = model.pois.first(where: { $0.id == id }) else { return }
         Haptics.light()
@@ -1277,7 +1330,7 @@ struct SJMapView: View {
             mapDetail = .poi(poi)
         }
         let move = { viewport = liftedViewport(poi.coordinate, zoom: Self.selectZoom) }
-        if reduceMotion { move() } else { withViewportAnimation(.easeInOut(duration: 0.45)) { move() } }
+        if reduceMotion { move() } else { withViewportAnimation(.easeOut(duration: 0.5)) { move() } }
     }
 
     /// A tapped cluster eases in (0.4s easeInOut — spec §7) to ~15.5, above the 14.5 awake
@@ -1327,7 +1380,8 @@ struct SJMapView: View {
     }
 
     /// Distance from the user's one-shot fix to a result's pin — nil without a
-    /// fix or for an event with no pin. Same formatter as the detail morph.
+    /// fix or for an event with no pin. Same formatter as the detail sheet's
+    /// DISTANCE pill.
     private func searchDistanceLabel(_ result: MapSearchResult) -> String? {
         guard let userLocation, let coordinate = result.coordinate else { return nil }
         let pin = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)

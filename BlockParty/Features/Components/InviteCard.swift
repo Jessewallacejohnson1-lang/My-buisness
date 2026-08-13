@@ -43,6 +43,44 @@ struct InviteCard: View {
     }
 }
 
+/// The typographic place card rendered + shared by `SharePayload.place(...)` —
+/// the map pin-detail sheet's share action. Same discipline as `InviteCard`:
+/// type only, no drawn art.
+struct PlaceShareCard: View {
+    let name: String
+    let categoryLabel: String
+    let detail: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Meet me at")
+                .font(.mono(12)).tracking(2).foregroundStyle(Hue.inkSecondary)
+            Text(name)
+                .font(.display(30)).foregroundStyle(Hue.ink)
+                .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 6) {
+                row("mappin.and.ellipse", categoryLabel)
+                if let detail, !detail.isEmpty { row("text.alignleft", detail) }
+            }
+            Rectangle().fill(Hue.hairline).frame(height: 1).padding(.top, 2)
+            Text("Find it on the Block Party map of St. Joseph, MN.")
+                .font(.sans(13)).foregroundStyle(Hue.inkSecondary)
+        }
+        .padding(24)
+        .frame(width: 360, alignment: .leading)
+        .background(Hue.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
+    }
+
+    private func row(_ symbol: String, _ text: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: symbol).font(.system(size: 14)).foregroundStyle(Hue.ink)
+            Text(text).font(.sans(15)).foregroundStyle(Hue.ink)
+        }
+    }
+}
+
 /// A tap-to-share "Invite a neighbor" button. Presents the app-wide share
 /// reveal (`ShareCenter`) instead of jumping straight to the OS share sheet.
 struct InviteButton: View {

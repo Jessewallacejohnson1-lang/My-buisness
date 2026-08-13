@@ -267,3 +267,18 @@ server-side rotation change only.
 **Rule going forward: never apply an authored `create or replace` of a live
 function without diffing it against `pg_get_functiondef` first.** This batch
 produced two that would have regressed live behaviour.
+
+---
+
+## 6. Decided 2026-08-13 — map pin-detail sheet (map polish Phase 3)
+
+- **Status-card tint is one token, seeded neutral.** The Flighty-anatomy pin
+  sheet's status card routes its wash through `Hue.statusTint`
+  (`Theme/BlockPartyColor.swift`), currently `= fill` with ink header dot/word.
+  Jesse is crafting a custom orange; when the hex arrives, replacing that single
+  value is the entire swap. Do not guess an orange in the meantime.
+- **The sheet's action bar is a PILL — a deliberate brand exception.** The brand
+  rule stays "buttons are 12pt rounded squares, never pills"; Jesse chose the
+  Flighty-faithful capsule for this one floating bar. It lives behind one
+  constant (`PinDetailSheet.actionBarShape`) with a `.roundedSquare` variant one
+  line away; both variants were screenshotted at the decision.

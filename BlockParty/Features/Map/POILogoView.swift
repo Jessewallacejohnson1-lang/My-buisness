@@ -4,33 +4,13 @@
 //
 //  Renders nothing when the POI has no resolved logo, so every call site keeps its
 //  existing category glyph as the underlying fallback layer and integrating a logo
-//  is a one-line addition (pin badge, selected marker, detail header).
+//  is a one-line addition (pin badge, selected marker).
+//
+//  (The old detail-panel avatar variant left with the tab-bar detail morph —
+//  the pin-detail sheet's anatomy is typographic, no logo slot.)
 //
 
 import SwiftUI
-
-/// Detail-panel variant: contributes NO layout element while unresolved (EmptyView
-/// branch), so the panel's HStack spacing collapses cleanly for logo-less places —
-/// the compact header shows a logo avatar or nothing, never a blank circle.
-struct POIPanelLogo: View {
-    let poi: POI
-    let diameter: CGFloat
-
-    @ObservedObject private var cache = POILogoCache.shared
-
-    var body: some View {
-        if let image = cache.resolvedImage(for: poi) {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFill()
-                .frame(width: diameter, height: diameter)
-                .clipShape(Circle())
-                .overlay(Circle().stroke(Hue.hairline, lineWidth: 1))
-                .transition(.opacity)
-                .accessibilityHidden(true)   // decorative; the name is announced beside it
-        }
-    }
-}
 
 struct POILogoCircle: View {
     let poi: POI

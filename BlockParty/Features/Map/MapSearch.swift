@@ -9,15 +9,15 @@
 //  same keyword match the Today rows use (SJMapView.spot(for:)), passed in as a
 //  closure so the rule cannot fork.
 //
-//  `MapDistance` is the tab's one distance formatter — extracted from
-//  `MapPlaceDetail.distanceLabel` (the detail morph's "350 ft" style) so search
-//  rows and the detail badge cannot drift apart.
+//  `MapDistance` is the tab's one distance formatter ("350 ft" / "1.2 mi"),
+//  shared by the search rows and the pin-detail sheet's DISTANCE pill so the
+//  two cannot drift apart.
 //
 
 import SwiftUI
 import CoreLocation
 
-// MARK: - Distance formatter (shared with MapPlaceDetail)
+// MARK: - Distance formatter (shared with PinDetailSheet)
 
 /// "350 ft" under a tenth of a mile, "1.2 mi" under ten, "12 mi" beyond — and nil
 /// under 30 m, where a distance reads as noise. `nonisolated`: a pure numeric

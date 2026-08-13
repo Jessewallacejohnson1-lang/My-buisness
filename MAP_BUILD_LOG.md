@@ -1742,3 +1742,98 @@ collapsed, pill restored).
 known `appintentsmetadataprocessor` notice); 370/370 tests green. Installed over the app
 from the freshly resolved `BUILT_PRODUCTS_DIR`. Real-device note: the expansion spring +
 keyboard feel and result-row taps still need one on-device pass (no sim gesture automation).
+
+---
+
+## 2026-08-13 — Map polish Phase 3: the Flighty-anatomy pin detail sheet (glass-bar morph retired)
+
+Tapping any pin (civic or POI) now opens a **Flighty-proportioned detail card**
+(`Features/Map/PinDetailSheet.swift`, NEW — ~60% of the map container, corner
+radius `Radius.card`, Liquid Glass) over a subtly dimmed map, and the old
+tab-bar glass morph (`BlockPartyTabBar.detailPanel` / `expandedDetail`) is
+**removed in this same commit** per Jesse's Q6 decision — no dead code path
+left. The tab bar hides while the sheet is up (the card's floating action bar
+owns that zone); every other tab sees the bar unchanged.
+
+**Anatomy (a–g), all real data:**
+- **(a) metadata pills** — CATEGORY (spot category word / POI `primaryType`
+  humanized, e.g. "COFFEE SHOP") · **OPEN NOW** (async: a new
+  `GooglePlacesService.confidentDetails(name:coordinate:)` resolves Place
+  Details **under the same Locked Rule A gate as photos**; the pill renders only
+  when the gate clears AND `openNow == true` — never a placeholder, it fades in
+  without reflowing the header) · **DISTANCE** (`MapDistance` from the user's
+  one-shot fix; absent without a fix. The fix is read only when access is
+  ALREADY authorized — the permission ask stays on Phase 2's search expansion,
+  so opening a pin can never interrupt with a system alert).
+- **(b)** Jost display name; **(c)** grey-caps secondary line — category glyph +
+  street from the POI's real address (first component), else "SAINT JOSEPH".
+- **(e) status card** — background routed through the ONE new token
+  `Hue.statusTint` (seeded NEUTRAL = `fill` wash, ink header; Jesse's custom
+  orange lands as a one-line swap — see DECISIONS.md §6). Header = status dot +
+  word + `sparkles`; then hairline rows, each icon + bold label + one complete
+  sentence (`PinDetailCopy`, pure + tested): Happenings ("Three events here
+  today." — computed from `MapModel`'s real today events; the model holds no
+  week data so no week counts are claimed; row omitted at zero) and Status
+  ("Nothing happening yet today." / live line). **Live:** dot goes plum
+  (meaning-scoped) + "Happening now"; a forced-live state with no resolvable
+  event stays generic ("Something is happening here right now.") rather than
+  inventing a title.
+- **(f) "View full details ›"** low-emphasis row → full-height **system sheet**
+  (`PinFullDetailsView`: blurb/address + `VenueInfoView` + happenings) — system
+  sheet so scroll vs. drag-dismiss arbitration is the OS's, not a hand-rolled
+  gesture (the repo's pan-competition rule).
+- **(g) action bar** — icon-only save (`SavedStore` toggle, bookmark), share
+  (NEW `SharePayload.place(...)` factory → `ShareCenter.shared.present`, with a
+  typographic `PlaceShareCard` following the `.event` pattern), overflow "…"
+  (full details + copy-address for POIs), and ONE filled circular Directions
+  primary (ink circle, `Hue.surface` glyph, opens maps:// as before). Bar
+  silhouette behind ONE constant `PinDetailSheet.actionBarShape` — **PILL ships
+  (Q4, deliberate brand exception, DECISIONS.md §6)**; `.roundedSquare` was
+  built + screenshotted, then flipped back.
+
+**Presentation/motion:** map dims 12% black (basemap stays legible; scrim is
+non-interactive so a map tap still dismisses); camera EASES to the pin
+(`withViewportAnimation(.easeOut 0.5)`, not fly — search/row commits keep their
+Phase 2 fly) with bottom padding tracking the sheet's height fraction so the
+pin lands centered in the strip above the card. Drag-down dismisses (sqrt
+resistance upward; the compact card has no inner scroll, so nothing competes).
+Reduce Motion: no camera ease (instant set), sheet cross-fades.
+
+**Two Liquid Glass gotchas hit and fixed:** (1) glass in a `.background` layer
+gets EXTRACTED for container compositing and drew OVER the card's own text —
+the glass must be applied directly to the content (the tab bar's pattern);
+(2) extracted glass ignores an ancestor's `.opacity`, so the floating chrome
+circles ghosted through the card at opacity 0 — they are now UNMOUNTED while
+detail is up. A glass close button INSIDE the card would union with the card's
+shape in the shared `GlassEffectContainer` and vanish, so close is a solid
+`fill` circle (44pt geometry kept).
+
+**Removed with the morph (no dead code left):** `MapPlaceDetail.priceLabel` /
+`distanceLabel` (downtown-origin) / `badgeLabel` / `groupAccessibilityLabel`,
+`MapDetailActionStyle`/`Role`, `POIPanelLogo`, the tab bar's
+`detailCameraReserve`/expansion machinery, and the `mapDetailHappenings`
+binding plumbing (now `SJMapView` local state). `-map-detail-expanded` now
+opens the full-details presentation (still requires `-map-open`/`-map-open-poi`).
+
+**Tests:** `PinDetailCopyTests` (15 — status word, real-data-only happenings
+sentence, live/quiet sentences incl. the no-title live case, street line,
+complete-sentence/no-exclamation sweep) registered via the xcodeproj gem
+(4 pbxproj entries; the gem first wrote a root-relative path — fixed to
+`BlockPartyTests/…` to match siblings); executed count rose **370 → 385, all
+green**, run on a **non-primary sim** (iPhone 17 Pro Max) per the Phase 2
+container-wipe finding.
+
+**Verified:** iPhone 17 sim, Debug: BUILD SUCCEEDED, **0 source warnings**
+(only the known `appintentsmetadataprocessor` notice); installed over the app
+from the freshly resolved `BUILT_PRODUCTS_DIR`. Screenshots (session scratchpad
+`p3/`): `p3-sheet-poi.png` (The Local Blend: COFFEE SHOP · OPEN NOW · 0.3 MI,
+no wrap, name untruncated, street line, quiet card, pill action bar),
+`p3-sheet-civic.png` (Millstream Park: PARK · OPEN NOW · 0.7 MI, "SAINT
+JOSEPH" line), `p3-sheet-live.png` (`-map-force-live downtown`: plum dot +
+"Happening now" + generic live sentence), `p3-full-details.png` (full-height
+sheet; the venue PHOTO slab is blank — the **pre-existing** Google key
+restriction outstanding in DECISIONS.md, not a regression; hours/website/phone
+resolve), `p3-bar-square.png` (rounded-square variant), `p3-dim.png`
+(before/after composite: dim + eased lifted camera + tab bar swap). Real-device
+note: the drag-dismiss feel and Reduce Motion pass still need one on-device
+check (no sim gesture automation).
