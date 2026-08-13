@@ -1598,3 +1598,29 @@ Second round of device feedback, two changes:
 
 150 tests, 0 warnings. The preview gate now taps in runs of five, 0.9 s apart, so a recording
 actually shows marks accumulating rather than one arriving alone.
+
+## 2026-08-13 — Map polish Phase 0: baseline (plan 2026-08-13-map-tab-ui-polish)
+
+Baseline for the map-tab UI polish pass. Two commits: `e8e13ca` (the parallel session's
+pbxproj churn — an empty `exceptions = ();` Xcode removed — committed alone so phase commits
+stay clean) and `b941411` (DEBUG-only `-map-compose`, which presses the top-right "+" 0.6 s
+after appear — the exact composeButton branch, so admins get QuickAddSheet and non-admins the
+global composer; compiles out of Release).
+
+Four BEFORE screenshots on the iPhone 17 sim (iOS 26.5, `661E32C7`), stored in the session
+scratchpad under `before/`:
+
+- `before-rest.png` — `-open-tab map`: rest chrome, peek sheet, default 13.5 camera.
+- `before-clusters.png` — `-open-tab map -map-zoom 13`: six cluster bubbles (2 · 11 · 3 ·
+  5 · 8 · 46) — zoom 13 is the cluster-framing baseline for the after shots.
+- `before-pin-detail.png` — `-map-open-poi blend -map-detail-expanded`: The Local Blend in
+  the expanded glass-bar morph (the venue-photo region is blank — the outstanding Google
+  key restriction in `DECISIONS.md`, not a regression).
+- `before-compose.png` — `-open-tab map -map-compose`: QuickAddSheet ("Add a happening"),
+  admin branch.
+
+**Verified:** iPhone 17 simulator, scheme `BlockParty`, Debug: **BUILD SUCCEEDED, 0 source
+warnings** (only the known Xcode 26.5 `appintentsmetadataprocessor` notice — workaround
+recorded above, 2026-07-23). One environment repair: the Mapbox SPM working copy in
+DerivedData was corrupt after the Aug-12 disk cleanup; `xcodebuild -resolvePackageDependencies`
+restored it, no files deleted.
