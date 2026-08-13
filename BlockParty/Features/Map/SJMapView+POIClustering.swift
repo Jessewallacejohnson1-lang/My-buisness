@@ -135,16 +135,22 @@ extension SJMapView {
     func chromeRects(mapSize: CGSize) -> [CGRect] {
         let W = mapSize.width, H = mapSize.height
         guard W > 0, H > 0 else { return [] }
-        // Top row: filter chip · town pill · compose "+" — safe area + padding + a 44pt control.
-        let topBand = CGRect(x: 0, y: 0, width: W, height: 118)
+        // Top row: filter chip · town pill · search — safe area + padding + a 44pt
+        // control. While search is ACTIVE the expanded field + results panel occupy
+        // a taller band, measured live off the chrome itself (`searchChromeBottom`,
+        // in the container's named space) so pin labels never draw under it.
+        let topHeight = searchActive ? max(118, searchChromeBottom + 8) : 118
+        let topBand = CGRect(x: 0, y: 0, width: W, height: topHeight)
         // The collapsed sheet (peek) plus the tab bar it rests on.
         let sheetTop = H - (MapSheet.tabBarReserve + MapSheet.peekHeight)
         let bottomBand = CGRect(x: 0, y: sheetTop, width: W, height: max(0, H - sheetTop))
-        // The ? and locate circles, which float above the sheet.
+        // The ?, + and locate circles, which float above the sheet ("+" sits 56pt
+        // above recenter — 44pt circle + the stack's 12pt spacing).
         let controlsY = sheetTop - 96 - 44
         let help = CGRect(x: 16, y: controlsY, width: 44, height: 44)
         let recenter = CGRect(x: W - 60, y: controlsY, width: 44, height: 44)
-        return [topBand, bottomBand, help, recenter]
+        let compose = CGRect(x: W - 60, y: controlsY - 56, width: 44, height: 44)
+        return [topBand, bottomBand, help, recenter, compose]
     }
 
     // MARK: Bubble lifecycle (stable ids → persist / crossfade / fade-out)

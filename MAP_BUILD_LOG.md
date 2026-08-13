@@ -1669,3 +1669,76 @@ was re-checked on ink: no badge ghosting through the big bubbles.
 **Verified:** iPhone 17 simulator, Debug: **BUILD SUCCEEDED, 0 source warnings** (only the
 known `appintentsmetadataprocessor` notice). Installed over the app from the freshly
 resolved `BUILT_PRODUCTS_DIR`.
+
+## 2026-08-13 — Map polish Phase 2: search replaces the top-right "+"; "+" relocates (plan 2026-08-13-map-tab-ui-polish)
+
+The compose slot becomes a real place/event search; the "+" moves to the bottom-right
+control stack, directly above recenter (Q5/Q8 decisions).
+
+- **`SJMapView.swift`** — the top-right chromeCircle is now a magnifier that
+  spring-expands (Motion.card width animation on the SAME glass capsule — a 44pt
+  capsule IS the chromeCircle recipe) into a focused search field with an "X" that
+  collapses + clears. The town pill fades out while search is active and is restored
+  on collapse; the pill itself is untouched (Q8). Result tap / keyboard Search:
+  keyboard down, search collapses, camera FLIES (`withViewportAnimation(.fly(1.0))` +
+  `liftedViewport`, the `focus(_:)` recipe) and the pin OPENS via the same
+  selection+detail path a direct tap takes; events resolve to their spot's pin through
+  the existing `spot(for:)` keyword match (an event with no pin flies home — spot-less
+  fallback, flagged in code). The "+" keeps its admin QuickAddSheet / non-admin
+  composer branch and a11y labels, now mounted above recenter in `floatingControls`.
+- **`MapSearch.swift`** (NEW) — pure client-side matcher over what the map already
+  holds (`MapSpots.all` + `model.pois` + `model.todayEvents`; no network):
+  case/diacritic-insensitive substring with name-prefix matches ranked first, then
+  catalogue order (explicit tiebreak — Swift's sort is not stable). Rows carry the
+  existing glyph pipelines (SpotCategory.filledSymbol / POI.glyph / EventCategory.glyph).
+  `MapSearchResultsPanel`: Button rows (never bare onTapGesture in a ScrollView — the
+  pan-competition rule), content-hugging up to 340pt so it stays clear of the keyboard.
+  Empty state: "Nothing in <town> matches that yet." **`MapDistance`** extracted from
+  `MapPlaceDetail.distanceLabel` — one "350 ft / 1.2 mi" formatter, shared, unit-tested.
+- **`UserLocation.swift`** (NEW) — one-shot `requestLocation()` fix mirroring
+  LocationPermission's delegate-box pattern (deliberate temporary retain cycle, fires
+  once, main-actor confined). The when-in-use ASK lands on the FIRST search expansion;
+  denied/unavailable/failed = nil = distances simply don't render. Result-row distances
+  measure from the user's fix (detail morph still measures from downtown).
+- **`SJMapView+POIClustering.swift`** — `chromeRects` reserves the ACTIVE search band
+  (field + results panel, measured live off the chrome in the container's named
+  coordinate space) so pin labels never draw under search UI, plus the relocated "+"
+  rect above recenter. Recompute hooks on `searchActive`/band height.
+- **`App/RootView.swift`** — `.ignoresSafeArea(.keyboard)` on the tab shell's ROOT
+  ZStack. Without it the keyboard shoved the tab bar up over the map mid-screen (the
+  bottom-aligned ZStack shrinks with the keyboard); a child-level ignore provably did
+  nothing. Now the keyboard slides OVER the resting bottom chrome and collapsing search
+  restores the chrome exactly because nothing ever moved. The map search field is the
+  shell's one inline text field (Activities search + composers are covers/sheets).
+- **DEBUG flags** (mirror `-explore-search`): `-map-search-open`, `-map-search <query>`,
+  `-map-search-committed <query>` (commits the FIRST result — retries briefly while the
+  async POIs land). `-map-compose` unchanged — it fires the same action the relocated
+  button runs.
+- **Tests:** `MapSearchTests` (9 — matcher ranks/diacritics, event→pin resolution,
+  empty-state copy, distance formatter) registered via the xcodeproj gem (4 pbxproj
+  entries); executed count rose 361 → **370, all green**. The gem re-added the empty
+  `exceptions = ()` line that e8e13ca removed — harmless churn, left in.
+
+**⚠️ Environment finding — the documented test command wipes the sim session.** Running
+`xcodebuild test … CODE_SIGNING_ALLOWED=NO` on the booted sim replaces the installed app
+with the unsigned test-host build, which iOS treats as a fresh install: the app container
+AND the Keychain session are gone — the `simctl uninstall` trap through another door.
+The sim is now signed out (recovery = sign in again, per the first-checkout notes).
+Phase 2 verification therefore ran through `-show-home` (auth bypass): POIs and today's
+events still resolved (anon-readable), today genuinely has zero events, so no event row
+could appear in the results screenshots regardless. Run tests on a non-primary sim, or
+re-sign-in after, until this is addressed.
+
+Screenshots (session scratchpad `p2/`): `p2-rest.png` (magnifier top-right, "+" above
+recenter), `p2-search-open.png` (expanded focused field, software keyboard up, town pill
+faded, map + bottom chrome unmoved), `p2-search-results.png` (`-map-search saint`: prefix
+matches first — Saint Ben's 0.3 mi, Saint John's 3.7 mi, then POI matches with their
+glyphs; distances from the simulated downtown fix; no label collisions), `p2-search-empty.png`
+("Nothing in Saint Joseph matches that yet."), `p2-committed.png` (`-map-search-committed
+millstream`: camera flown to Millstream Park, pin open in the tab-shell detail, search
+collapsed, pill restored).
+
+**Verified:** iPhone 17 simulator, Debug: **BUILD SUCCEEDED, 0 source warnings** (only the
+known `appintentsmetadataprocessor` notice); 370/370 tests green. Installed over the app
+from the freshly resolved `BUILT_PRODUCTS_DIR`. Real-device note: the expansion spring +
+keyboard feel and result-row taps still need one on-device pass (no sim gesture automation).

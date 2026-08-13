@@ -479,6 +479,14 @@ struct MainTabsView: View {
             // light-v11 cartography in both modes, so map INK is pinned to its light
             // value instead (`Color.onLightCanvas`). See `BlockPartyColor`.
         }
+        // The map's search field is the shell's ONE inline text field (Activities
+        // search and every composer present in their own cover/sheet). The keyboard
+        // inset must be ignored HERE, on the shell's bottom-aligned root: anywhere
+        // deeper and this ZStack still shrinks with the keyboard, shoving the tab
+        // bar up over the map mid-screen. With it, the keyboard slides OVER the
+        // resting bottom chrome, and collapsing the search restores the chrome
+        // exactly because nothing ever moved.
+        .ignoresSafeArea(.keyboard)
         .onGeometryChange(for: CGFloat.self) { geometry in
             geometry.size.height
         } action: { newHeight in

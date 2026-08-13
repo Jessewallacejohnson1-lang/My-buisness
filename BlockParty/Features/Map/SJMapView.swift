@@ -2,10 +2,11 @@
 //  SJMapView.swift
 //  Block Party — Mapbox map of Saint Joseph, Minnesota.
 //
-//  Life360-style layout: floating top chrome (filter · town pill · compose), one
+//  Life360-style layout: floating top chrome (filter · town pill · search), one
 //  static warm basemap (BasemapPalette — no time/season/weather modulation), a
 //  persistent draggable bottom sheet (MapSheet), and coral reserved for live
-//  indicators + primary/tappable elements.
+//  indicators + primary/tappable elements. The compose "+" lives in the
+//  bottom-right control stack, directly above recenter (map polish Phase 2).
 //
 //  Pins: every curated spot always shows a small badge — a solid category-color
 //  circle (green parks/trails, honey downtown/coffee/fitness, sky campus) with a
@@ -120,18 +121,9 @@ enum MapPlaceDetail: Identifiable, Hashable {
             latitude: coordinate.latitude,
             longitude: coordinate.longitude
         )
-        let meters = destination.distance(from: origin)
-        guard meters >= 30 else { return nil }
-        let miles = meters / 1_609.344
-
-        if miles < 0.1 {
-            let roundedFeet = Int((meters * 3.28084 / 50).rounded()) * 50
-            return "\(max(50, roundedFeet)) ft"
-        }
-        if miles < 10 {
-            return String(format: "%.1f mi", miles)
-        }
-        return "\(Int(miles.rounded())) mi"
+        // Formatting lives in MapDistance (MapSearch.swift) — shared with the
+        // search rows, which measure from the USER's one-shot fix instead.
+        return MapDistance.label(meters: destination.distance(from: origin))
     }
 
     var badgeLabel: String {
@@ -206,8 +198,8 @@ struct SJMapView: View {
     /// Real happenings for the selected civic spot, projected out of this view's
     /// `MapModel` for the global tab shell. Always empty for POIs or no selection.
     @Binding var mapDetailHappenings: [TimelineEvent]
-    /// Non-admins tap the top-right "+" into the global composer (admins get the
-    /// map's own QuickAddSheet). Injected by MainTabsView, like HomeView.
+    /// Non-admins tap the bottom-right "+" into the global composer (admins get
+    /// the map's own QuickAddSheet). Injected by MainTabsView, like HomeView.
     var onCompose: (() -> Void)? = nil
 
     @EnvironmentObject private var auth: AuthStore
@@ -294,6 +286,42 @@ struct SJMapView: View {
     private var selectedPOI: POI? { mapDetail?.poi }
     @State private var filter: SpotFilter = .all
 
+    // MARK: Search state (map polish Phase 2 — the top-right chrome slot)
+
+    /// Whether the magnifier has expanded into the search field. Not `private`:
+    /// `chromeRects` (SJMapView+POIClustering.swift) reads it to reserve the
+    /// expanded band so pin labels never draw under active search UI.
+    @State var searchActive = false
+    /// The top chrome's bottom edge (field + results panel) in the map's own
+    /// coordinate space, measured live. Read by `chromeRects` while search is up.
+    @State var searchChromeBottom: CGFloat = 0
+    @State private var searchQuery = ""
+    @FocusState private var searchFocused: Bool
+    /// One-shot user position for search-row distances. Nil (denied, unavailable,
+    /// fix failed) simply renders no distance — no nagging, no error state.
+    @State private var userLocation: CLLocation?
+    /// Guards concurrent fetches. The permission ask itself lands on the FIRST
+    /// search expansion; iOS shows the system alert only once per install, so
+    /// re-running on a later expansion resolves instantly from the decided status.
+    @State private var locatingUser = false
+
+    /// Names the map container's coordinate space, so the chrome measurement and
+    /// the label pass's reservations agree on an origin.
+    static let mapSpaceName = "SJMapView.container"
+
+    private var trimmedSearchQuery: String {
+        searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Client-side matches over what the map already holds — no network.
+    private var searchResults: [MapSearchResult] {
+        MapSearch.results(query: trimmedSearchQuery,
+                          spots: MapSpots.all,
+                          pois: model.pois,
+                          events: model.todayEvents,
+                          spotFor: { spot(for: $0) })
+    }
+
     // MARK: Client-side POI clustering (replaces the retired POILayer)
     //
     // The 52 POIs are all mounted as view annotations (POIClusterMarker); this state is
@@ -362,13 +390,34 @@ struct SJMapView: View {
     /// Long enough for the logo prefetch to have filled the cache after `pois` land.
     private static let debugRainDelay: TimeInterval = 1.2
 
-    /// DEBUG-only: `-map-compose` presses the top-right "+" shortly after appear —
-    /// the exact action the chrome button fires (admins → QuickAddSheet, non-admins →
-    /// the global composer) — so the compose surface can be screenshotted headlessly.
+    /// DEBUG-only: `-map-compose` presses the "+" (now the bottom-right control
+    /// stack, above recenter) shortly after appear — the exact action the button
+    /// fires (admins → QuickAddSheet, non-admins → the global composer) — so the
+    /// compose surface can be screenshotted headlessly.
     static let debugCompose = ProcessInfo.processInfo.arguments.contains("-map-compose")
 
     /// A short beat so the tab shell settles before the sheet presents.
     private static let debugComposeDelay: TimeInterval = 0.6
+
+    /// DEBUG-only search drivers (mirrors the -explore-search family):
+    /// `-map-search-open` expands the search field on appear (keyboard up);
+    /// `-map-search <query>` also types the query so the results list renders;
+    /// `-map-search-committed <query>` programmatically commits the FIRST result —
+    /// fly + pin open — for headless verification of the result-tap path.
+    static let debugSearchOpen = ProcessInfo.processInfo.arguments.contains("-map-search-open")
+
+    static func debugSearchQuery() -> String? {
+        let a = ProcessInfo.processInfo.arguments
+        guard let i = a.firstIndex(of: "-map-search"), i + 1 < a.count,
+              !a[i + 1].hasPrefix("-") else { return nil }
+        return a[i + 1]
+    }
+
+    static func debugSearchCommitted() -> String? {
+        let a = ProcessInfo.processInfo.arguments
+        guard let i = a.firstIndex(of: "-map-search-committed"), i + 1 < a.count else { return nil }
+        return a[i + 1]
+    }
     #endif
 
     /// DEBUG-only: `-map-save <spotid>` (repeatable) forces a spot into the Saved
@@ -519,6 +568,14 @@ struct SJMapView: View {
                 .transition(.identity)
             }
         }
+        // Name the container's space so the top chrome can measure its own bottom
+        // edge in the same coordinates `chromeRects` reserves in.
+        .coordinateSpace(name: Self.mapSpaceName)
+        // The search field must not shove the map / sheet / chrome upward when the
+        // keyboard rises — the field sits at the TOP, and the results panel is
+        // height-capped to stay clear of the keyboard on its own. Collapsing the
+        // search must restore the chrome exactly, so nothing here ever moves.
+        .ignoresSafeArea(.keyboard)
         // Track the map's HEIGHT (a pin-select lifts the pin above the detail shell) and its full
         // SIZE (the label pass's chrome reservation — `MapboxMap.size` is internal to the
         // SDK, so measure the view instead). One reader feeds both; written at layout and
@@ -548,11 +605,26 @@ struct SJMapView: View {
                     rainTrigger += 1
                 }
             }
-            // `-map-compose`: press the top-right "+" headlessly (no tap automation
-            // here) — the same branch composeButton takes, so admin/non-admin holds.
+            // `-map-compose`: press the "+" headlessly (no tap automation here) —
+            // the same branch composeButton takes, so admin/non-admin holds. The
+            // button now lives in the bottom-right control stack; the action is
+            // unchanged, so this flag still fires the relocated control's path.
             if SJMapView.debugCompose {
                 DispatchQueue.main.asyncAfter(deadline: .now() + Self.debugComposeDelay) {
                     if isAdmin { quickAdding = true } else { onCompose?() }
+                }
+            }
+            // `-map-search…`: drive the search chrome headlessly.
+            if SJMapView.debugSearchOpen || SJMapView.debugSearchQuery() != nil {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                    expandSearch()
+                    if let q = SJMapView.debugSearchQuery() { searchQuery = q }
+                }
+            }
+            if let q = SJMapView.debugSearchCommitted() {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    searchQuery = q
+                    debugCommitSearch(attempts: 8)
                 }
             }
             #endif
@@ -787,6 +859,15 @@ struct SJMapView: View {
             .onChange(of: model.clockTick) { _, _ in
                 recomputeClusters(proxy.map)
             }
+            // The expanded search field + results panel reserve a top band in the
+            // label pass (`chromeRects`) — recompute when the band appears, grows
+            // with results, or collapses, so no label draws under the search UI.
+            .onChange(of: searchActive) { _, _ in
+                recomputeClusters(proxy.map)
+            }
+            .onChange(of: searchChromeBottom) { _, _ in
+                if searchActive { recomputeClusters(proxy.map) }
+            }
             // POIs load async (once) after the style — recompute the layout when they land.
             .onChange(of: model.pois) { _, pois in
                 recomputeClusters(proxy.map)
@@ -809,18 +890,95 @@ struct SJMapView: View {
         BasemapPalette.recolor(map)
     }
 
-    // MARK: Top chrome — filter · town pill · compose (replaces the title header)
+    // MARK: Top chrome — filter · town pill · search (replaces the title header)
 
     private var topChrome: some View {
-        HStack(spacing: 10) {
-            filterMenu
-            Spacer(minLength: 8)
-            townPill
-            Spacer(minLength: 8)
-            composeButton
+        VStack(spacing: 10) {
+            HStack(spacing: 10) {
+                filterMenu
+                // The town pill fades out while search is active (Q8) and is
+                // restored on collapse — the pill itself is untouched at rest.
+                if !searchActive {
+                    Spacer(minLength: 8)
+                    townPill
+                        .transition(.opacity)
+                    Spacer(minLength: 8)
+                }
+                searchControl
+            }
+            if searchActive && !trimmedSearchQuery.isEmpty {
+                MapSearchResultsPanel(
+                    results: searchResults,
+                    emptyText: MapSearch.emptySentence(town: model.townLabel),
+                    distanceFor: { searchDistanceLabel($0) },
+                    onPick: { commitSearchResult($0) }
+                )
+                .transition(.opacity)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
+        .animation(Motion.smooth, value: trimmedSearchQuery.isEmpty)
+        // Measure the chrome's bottom edge (field + results panel) so the label
+        // pass can reserve the whole active-search band — see `chromeRects`.
+        .background(
+            GeometryReader { g in
+                Color.clear
+                    .onAppear { searchChromeBottom = g.frame(in: .named(Self.mapSpaceName)).maxY }
+                    .onChange(of: g.frame(in: .named(Self.mapSpaceName)).maxY) { _, y in
+                        searchChromeBottom = y
+                    }
+            }
+        )
+    }
+
+    /// GOAL A — the top-right chrome slot: a magnifier at rest (the "+" moved to
+    /// the bottom-right control stack), spring-expanding into a glass search field
+    /// on the SAME chrome material, so the circle visibly becomes the field. The
+    /// "X" collapses it back to the icon and clears the query.
+    private var searchControl: some View {
+        HStack(spacing: 6) {
+            Button {
+                expandSearch()
+            } label: {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(Hue.ink)
+                    .frame(width: searchActive ? 30 : 44, height: 44)
+            }
+            .buttonStyle(.plain)
+            .allowsHitTesting(!searchActive)
+            .accessibilityLabel("Search places and events")
+
+            if searchActive {
+                TextField("Search places and events", text: $searchQuery)
+                    .font(.sans(15))
+                    .foregroundStyle(Hue.ink)
+                    .focused($searchFocused)
+                    .submitLabel(.search)
+                    .autocorrectionDisabled()
+                    .onSubmit { commitFirstSearchResult() }
+                    .transition(.opacity)
+
+                Button {
+                    collapseSearch()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 17, weight: .medium))
+                        .foregroundStyle(Hue.inkSecondary)
+                        .frame(width: 34, height: 44)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close search")
+                .transition(.opacity)
+            }
+        }
+        .padding(.leading, searchActive ? 8 : 0)
+        .padding(.trailing, searchActive ? 4 : 0)
+        .frame(maxWidth: searchActive ? .infinity : 44)
+        // A 44pt-high capsule at width 44 IS the chromeCircle recipe — same glass,
+        // same ink icon — so the rest state matches its chrome siblings exactly.
+        .glassEffect(.regular, in: Capsule())
     }
 
     private var filterMenu: some View {
@@ -870,17 +1028,6 @@ struct SJMapView: View {
         .accessibilityAddTraits(.isButton)
     }
 
-    private var composeButton: some View {
-        Button {
-            Haptics.light()
-            if isAdmin { quickAdding = true } else { onCompose?() }
-        } label: {
-            chromeCircle(icon: "plus")
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(isAdmin ? "Add an event" : "Open add menu")
-    }
-
     /// A soft frosted dissolve over the map's bottom band. Every other tab sits over
     /// the calm canvas, but the map is a busy backdrop — without this, map detail
     /// bleeds through the floating glass tab bar and shows in the strip beneath it.
@@ -922,19 +1069,25 @@ struct SJMapView: View {
         .allowsHitTesting(false)
     }
 
-    // MARK: Floating controls — help (bottom-left) + recenter (bottom-right)
+    // MARK: Floating controls — help (bottom-left) + compose/recenter (bottom-right)
 
     private var floatingControls: some View {
         VStack(spacing: 12) {
             Spacer()
-            // Compass rides in its OWN fixed 44pt slot directly above the recenter control, so
-            // it can fade in/out as the map rotates without ever reflowing the help/recenter
-            // row beneath it. Right-aligned to sit over recenter. Hidden (no reflow) at north.
+            // Compass rides in its OWN fixed 44pt slot at the top of the right-hand
+            // column (compass · "+" · recenter), so it can fade in/out as the map
+            // rotates without ever reflowing the controls beneath it. Right-aligned
+            // to sit over the column. Hidden (no reflow) at north.
             HStack {
                 Spacer()
                 MapCompass(heading: compass, reduceMotion: reduceMotion, onReset: resetNorth)
             }
             .frame(height: 44)
+            // The relocated "+" (Q5): directly ABOVE recenter, same 44pt recipe.
+            HStack {
+                Spacer()
+                composeButton
+            }
             HStack(alignment: .bottom) {
                 helpButton
                 Spacer()
@@ -961,6 +1114,21 @@ struct SJMapView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("How the map works")
+    }
+
+    /// The "+" — QuickAddSheet for admins, the global composer for everyone else.
+    /// Relocated from the top-right chrome (now search) to this stack, directly
+    /// above recenter; the same 44pt chromeCircle recipe as its neighbors (the
+    /// glass carries its own floating shadow, so none is added on top).
+    private var composeButton: some View {
+        Button {
+            Haptics.light()
+            if isAdmin { quickAdding = true } else { onCompose?() }
+        } label: {
+            chromeCircle(icon: "plus")
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isAdmin ? "Add an event" : "Open add menu")
     }
 
     private var recenterButton: some View {
@@ -1121,6 +1289,101 @@ struct SJMapView: View {
         let move = { viewport = .camera(center: coord, zoom: 15.5) }
         if reduceMotion { move() } else { withViewportAnimation(.easeInOut(duration: 0.4)) { move() } }
     }
+
+    // MARK: Search actions (map polish Phase 2)
+
+    /// Expand the magnifier into the field: spring width, keyboard up, focused.
+    /// The FIRST expansion is also where the when-in-use permission ask lands.
+    private func expandSearch() {
+        guard !searchActive else { return }
+        Haptics.light()
+        withAnimation(reduceMotion ? Motion.smooth : Motion.card) { searchActive = true }
+        // Focus once the field is mounted — a same-transaction focus can be dropped.
+        DispatchQueue.main.async { searchFocused = true }
+        fetchUserLocationIfNeeded()
+    }
+
+    /// The "X" (and a committed result): collapse back to the icon, clear the
+    /// query, drop the keyboard. The town pill fades back in with the collapse.
+    private func collapseSearch() {
+        searchFocused = false
+        searchQuery = ""
+        withAnimation(reduceMotion ? Motion.smooth : Motion.card) { searchActive = false }
+    }
+
+    /// One-shot: ask for when-in-use access (a real prompt only the very first
+    /// time — see LocationPermission.request) and take a single position fix.
+    /// Denied / unavailable leaves `userLocation` nil and distances just don't
+    /// render; nothing retries in a loop, nothing nags.
+    private func fetchUserLocationIfNeeded() {
+        guard userLocation == nil, !locatingUser else { return }
+        locatingUser = true
+        Task {
+            if await LocationPermission.request() {
+                userLocation = await UserLocation.oneShot()
+            }
+            locatingUser = false
+        }
+    }
+
+    /// Distance from the user's one-shot fix to a result's pin — nil without a
+    /// fix or for an event with no pin. Same formatter as the detail morph.
+    private func searchDistanceLabel(_ result: MapSearchResult) -> String? {
+        guard let userLocation, let coordinate = result.coordinate else { return nil }
+        let pin = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+        return MapDistance.label(meters: pin.distance(from: userLocation))
+    }
+
+    /// A tapped result: keyboard down, search collapsed, camera FLIES to the pin
+    /// and the pin OPENS — the same selection + detail path a direct tap takes.
+    /// Events resolve to their spot's pin.
+    private func commitSearchResult(_ result: MapSearchResult) {
+        collapseSearch()
+        Haptics.light()
+        switch result.target {
+        case .spot(let spot):
+            openFromSearch(.spot(spot), at: spot.coordinate)
+        case .poi(let poi):
+            openFromSearch(.poi(poi), at: poi.coordinate)
+        case .event(_, let pin):
+            if let pin {
+                openFromSearch(.spot(pin), at: pin.coordinate)
+            } else {
+                // Spot-less fallback: an event at an unlisted venue has no pin to
+                // open, so the camera just flies home rather than inventing one.
+                let home = { viewport = .camera(center: MapSpots.center, zoom: 13.5) }
+                if reduceMotion { home() } else { withViewportAnimation(.fly(duration: 1.0)) { home() } }
+            }
+        }
+    }
+
+    /// The keyboard's Search key — commit the top match, if there is one.
+    private func commitFirstSearchResult() {
+        guard let first = searchResults.first else { return }
+        commitSearchResult(first)
+    }
+
+    /// Fly-and-open shared by every committed result — the same 1.0s fly +
+    /// liftedViewport + Motion.card open that `focus(_:)` uses for row taps.
+    private func openFromSearch(_ detail: MapPlaceDetail, at coordinate: CLLocationCoordinate2D) {
+        withAnimation(reduceMotion ? Motion.smooth : Motion.card) { mapDetail = detail }
+        let move = { viewport = liftedViewport(coordinate, zoom: Self.selectZoom) }
+        if reduceMotion { move() } else { withViewportAnimation(.fly(duration: 1.0)) { move() } }
+    }
+
+    #if DEBUG
+    /// `-map-search-committed`: the POIs load async, so keep trying briefly until
+    /// the query yields a result, then commit the first — fly + pin open.
+    private func debugCommitSearch(attempts: Int) {
+        if let first = searchResults.first {
+            commitSearchResult(first)
+        } else if attempts > 0 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                debugCommitSearch(attempts: attempts - 1)
+            }
+        }
+    }
+    #endif
 
     // Client-side POI clustering (recompute trigger, reclustering, bubble lifecycle) and
     // the DEBUG autozoom demo live in SJMapView+POIClustering.swift.
