@@ -20,6 +20,36 @@
 
 import SwiftUI
 
+// MARK: - Copy (pure, tested in MapFilterChipsTests)
+
+/// The sheet's counted sentences — complete plain sentences in the brand voice
+/// (map polish Phase 4): "One" is spelled out, larger counts keep the numeral,
+/// and the noun agrees with the count. `nonisolated` (the module defaults to
+/// MainActor): pure string logic, unit-testable. The map pins' spoken labels
+/// reuse these, so eyes and VoiceOver hear one voice.
+nonisolated enum MapSheetCopy {
+
+    /// "One thing happening today." / "6 things happening today."
+    static func todayCountSentence(_ n: Int) -> String {
+        n == 1 ? "One thing happening today." : "\(n) things happening today."
+    }
+
+    /// "One thing happening now." / "3 things happening now."
+    static func nowCountSentence(_ n: Int) -> String {
+        n == 1 ? "One thing happening now." : "\(n) things happening now."
+    }
+
+    /// The peek line's pull-up invitation, under the counted primary line.
+    static func pullUpSentence(_ n: Int) -> String {
+        n == 1 ? "Pull up to see it." : "Pull up to see them."
+    }
+
+    /// The Places header: "One place in town." / "6 places in town."
+    static func placesCountSentence(_ n: Int) -> String {
+        n == 1 ? "One place in town." : "\(n) places in town."
+    }
+}
+
 /// How far the sheet is pulled up. Three detents; the grabber snaps between them.
 enum SheetDetent: CaseIterable { case peek, medium, full }
 
@@ -409,7 +439,7 @@ struct MapSheet: View {
         .buttonStyle(PeekLineStyle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel(peekA11yLabel)
-        .accessibilityHint(peekIsRetry ? "Retries loading today's happenings" : "Opens the map list")
+        .accessibilityHint(peekIsRetry ? "Retries loading today's happenings." : "Opens the map list.")
     }
 
     /// Today's events that are happening right now.
@@ -421,33 +451,38 @@ struct MapSheet: View {
         switch state { case .offline, .error: return true; default: return false }
     }
 
+    // Peek copy budget: the primary line holds ~26 characters at 16pt semibold
+    // before its lineLimit(1) truncates — every fixed sentence here is written
+    // to fit whole (an event's own title may still ellipsize; that's data).
+
     private var peekPrimary: String {
         switch state {
         case .loading: return "Checking what's on…"
-        case .offline: return "You're offline"
-        case .error:   return "Couldn't load today's happenings"
+        case .offline: return "You're offline."
+        case .error:   return "Something went wrong."
         case .loaded, .empty:
             let live = liveEvents
-            if live.count == 1 { return live[0].title }
-            if live.count > 1  { return "\(live.count) happening now" }
-            if events.isEmpty  { return "Nothing happening yet today" }
-            return "Nothing happening right now"
+            if live.count == 1 { return live[0].title }   // the happening's own name
+            if live.count > 1  { return MapSheetCopy.nowCountSentence(live.count) }
+            if events.isEmpty  { return "Quiet in St. Joe today." }
+            // The count state IS the sentence — "6 things happening today."
+            return MapSheetCopy.todayCountSentence(events.count)
         }
     }
 
     private var peekSecondary: String? {
         switch state {
         case .loading: return nil
-        case .offline, .error: return "Tap to retry"
+        case .offline, .error: return "Tap to try again."
         case .loaded, .empty:
             let live = liveEvents
             if live.count == 1 {
-                if let where0 = live[0].location ?? live[0].clubName { return "Live now · \(where0)" }
-                return "Live now"
+                if let where0 = live[0].location ?? live[0].clubName { return "Live now at \(where0)." }
+                return "Happening right now."
             }
-            if live.count > 1 { return "Happening across town right now" }
-            if events.isEmpty { return "Use + to share the first event" }
-            return "\(events.count) today — pull up to see"
+            if live.count > 1 { return "Happening across town right now." }
+            if events.isEmpty { return "Tap + to share what's happening." }
+            return MapSheetCopy.pullUpSentence(events.count)
         }
     }
 
@@ -503,23 +538,23 @@ struct MapSheet: View {
     private var subtitle: some View {
         switch mode {
         case .places:
-            Text("\(spots.count) places in town")
+            Text(MapSheetCopy.placesCountSentence(spots.count))
                 .font(.sans(13)).foregroundStyle(Hue.inkSecondary)
         case .today:
             switch state {
             case .loading:
-                Text("Loading…").font(.sans(13)).foregroundStyle(Hue.inkSecondary)
+                Text("Checking what's on…").font(.sans(13)).foregroundStyle(Hue.inkSecondary)
             case .loaded, .empty:
                 if events.isEmpty {
-                    Text("Nothing happening yet today").font(.sans(13)).foregroundStyle(Hue.inkSecondary)
+                    Text("Nothing happening yet today.").font(.sans(13)).foregroundStyle(Hue.inkSecondary)
                 } else {
-                    Text("^[\(events.count) happening](inflect: true) today")
+                    Text(MapSheetCopy.todayCountSentence(events.count))
                         .font(.mono(13)).foregroundStyle(Hue.inkSecondary).monospacedDigit()
                 }
             case .offline:
-                retryLabel("Offline — tap to retry", icon: "wifi.slash")
+                retryLabel("You're offline. Tap to try again.", icon: "wifi.slash")
             case .error:
-                retryLabel("Couldn't load today's happenings — tap to retry", icon: "arrow.clockwise")
+                retryLabel("We couldn't load today's happenings. Tap to try again.", icon: "arrow.clockwise")
             }
         }
     }
@@ -619,7 +654,7 @@ struct MapSheet: View {
     private var emptyStateBlock: some View {
         switch state {
         case .offline, .error:
-            emptyState(icon: "wifi.slash", text: "Couldn't load today's happenings.")
+            emptyState(icon: "wifi.slash", text: "We couldn't load today's happenings.")
         default:
             emptyState(icon: "moon.stars",
                        text: "No events or activity posted yet today — but all your local spots are on the map. Tap a pin to explore.")

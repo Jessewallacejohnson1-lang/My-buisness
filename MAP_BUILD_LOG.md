@@ -1837,3 +1837,109 @@ resolve), `p3-bar-square.png` (rounded-square variant), `p3-dim.png`
 (before/after composite: dim + eased lifted camera + tab bar swap). Real-device
 note: the drag-dismiss feel and Reduce Motion pass still need one on-device
 check (no sim gesture automation).
+
+## 2026-08-14 — Map polish Phase 4: filter chips replace the menu; copy voice audit
+
+**Chip row (`MapFilterChips.swift`, NEW).** Five chips under the town pill — All ·
+Food · Parks · Events · Saved — in a horizontal `ScrollView` of plain `Button`s
+(no row-level gestures; the pan-competition rule). 12pt rounded squares
+(`Radius.button`, never capsules); rest = the chrome's Liquid Glass, SELECTED =
+solid ink with a white label, matching the cluster bubbles (`Hue.ink/.surface`
+`.onLightCanvas` — the chips sit on the same light cartography the bubbles do;
+black-ink selection per the approved plan, overriding the accent's "active
+filter" seam). Two rendering findings:
+- The tab shell's `GlassEffectContainer(spacing: 22)` metaball-BRIDGED glass
+  chips sitting 8pt apart into one blob (caught by screenshot). A nested
+  `GlassEffectContainer(spacing: 1)` inside the scroll content re-scopes the
+  blend; a faint full-width field haze remains behind the row (reads as a soft
+  chrome frost band; noted for Jesse).
+- The old top-left `SpotFilter` Menu is GONE — enum, `filterMenu`, and the
+  `chromeCircle(active:)` solid-accent branch (its only user) all removed, with
+  a clear 44pt balancer keeping the town pill screen-centred.
+
+**Filter semantics (`MapFilter`, pure + tested).** Spans BOTH catalogs for the
+first time: Food = POI `family == .food` + the curated `.coffee` category;
+Parks = `.park`/`.trail` (no park POIs exist — the catalog ships food/business
+only); Events = spots that resolve a happening today OR are live right now (the
+same `events(at:)`/`isLive` resolution the pins use, so `-map-force-live`
+drives it); Saved = `SavedStore` across spots AND POIs (`detail.saveID` is what
+the sheet's bookmark toggles). `filteredPOIs` + `filteredSpots` feed the
+annotation mounts AND `recomputeClusters`, so bubbles recount to the filtered
+set (downtown 22 → 13 on Food, verified by screenshot); the label pass and
+solo-assignment fallbacks read the same sets. A chip change (or an unsave while
+Saved is active — `.onChange(of: saved.ids)`) closes a now-hidden open detail
+(`dismissDetailIfFiltered`, both catalogs). Selection is plain `@State` — camera
+moves can't touch it. `chromeRects`' top band now uses the MEASURED chrome
+bottom (`searchChromeBottom`) at rest too, so the reservation grows over the
+chip row exactly (was: fixed 118 unless search was active).
+
+**DEBUG flags.** `-map-filter all|food|parks|events|saved` (mirrors
+`-explore-filter`) starts on a chip. NEW `-anon-data` (AuthStore): with no
+session, reads carry the shipped PUBLIC anon key so the signed-out simulator
+can photograph data-bearing states — RLS allows anon SELECT on `places` /
+`club_events` (verified by curl 2026-08-14); writes stay refused server-side.
+Added because the primary sim's Keychain session is gone since the Phase 2/3
+container wipes; without it no POI/cluster state could be photographed at all.
+Both compile out in Release. (Live `places` count is now 91, not the 52 in
+older notes.)
+
+**Copy voice audit — before → after (Goal B).** Peek discovery: the peek
+primary truncates past ~26 chars at 16pt (the OLD strings already ellipsized:
+"Couldn't load today's happenings" never fit) — every fixed peek sentence is
+now written to fit whole, and the count state moved INTO the primary so the
+audited sentence is the visible line. Counted sentences live in pure
+`MapSheetCopy` (spell "One", keep numerals past one; noun agrees), shared by
+the sheet AND the pins' VoiceOver labels.
+
+| Where | Before | After |
+|---|---|---|
+| Sheet subtitle, Today count | `^[N happening](inflect: true) today` | "6 things happening today." / "One thing happening today." |
+| Peek primary, count state | "Nothing happening right now" | "6 things happening today." (the spec sentence, now the visible line) |
+| Peek secondary, count state | "N today — pull up to see" | "Pull up to see them." / "…see it." |
+| Peek primary, multi-live | "N happening now" | "3 things happening now." (single live keeps the event's own title — data, PASS) |
+| Peek primary, empty | "Nothing happening yet today" | "Quiet in St. Joe today." (peek-width; the long form lives in the subtitle) |
+| Peek secondary, empty | "Use + to share the first event" | "Tap + to share what's happening." (rewritten for the relocated "+") |
+| Peek primary, offline | "You're offline" | "You're offline." |
+| Peek primary, error | "Couldn't load today's happenings" (truncated) | "Something went wrong." |
+| Peek secondary, retry | "Tap to retry" | "Tap to try again." |
+| Peek secondary, 1 live + venue | "Live now · X" | "Live now at X." |
+| Peek secondary, 1 live no venue | "Live now" | "Happening right now." |
+| Peek secondary, multi-live | "Happening across town right now" | + period |
+| Subtitle, Places | "N places in town" | "6 places in town." / "One place in town." |
+| Subtitle, loading | "Loading…" | "Checking what's on…" (matches the peek) |
+| Subtitle, empty | "Nothing happening yet today" | + period |
+| Subtitle, offline | "Offline — tap to retry" | "You're offline. Tap to try again." |
+| Subtitle, error | "Couldn't load today's happenings — tap to retry" | "We couldn't load today's happenings. Tap to try again." |
+| Empty block, offline/error | "Couldn't load today's happenings." | "We couldn't load today's happenings." |
+| Empty block, moon | complete sentences already | PASS |
+| QuickAdd, submit fallback | "Couldn't post this happening. …" | "We couldn't post this happening. …" |
+| QuickAdd, field errors | "Add a title." / "Choose a location." | PASS |
+| Pin VoiceOver label | "X, N happening today, happening now" | "X. 6 things happening today. Happening now." (via MapSheetCopy) |
+| Town pill VoiceOver | "…Tap to return to Saint Joseph" | + period |
+| Peek VoiceOver hints | "Retries loading…" / "Opens the map list" | + periods |
+| PinDetailSheet (all `PinDetailCopy`) | — | PASS (P3, already voice, tested) |
+| Search placeholder / empty state | "Search places and events" / "Nothing in X matches that yet." | PASS |
+| Map intro cover | "See cafés, trails, and gatherings across St. Joe. …" | PASS |
+| PlaceRow "^[N live]" badge · "Now" chip | terse badges | HELD terse — per plan these stay only if Jesse confirms; flagged for review |
+
+**Tests.** `MapFilterChipsTests` (14 — chip titles/raw values, per-chip
+spot+POI membership incl. Events-never-POIs and Saved-both-catalogs, the four
+counted sentences, sentence/no-exclamation sweep) registered via the xcodeproj
+gem (4 pbxproj entries; group-relative path corrected to `BlockPartyTests/…`
+again). Executed count rose **385 → 399, all green**, on the non-primary
+iPhone 17 Pro Max sim.
+
+**Verified.** iPhone 17 sim, Debug: BUILD SUCCEEDED, **0 source warnings**
+(only the accepted `appintentsmetadataprocessor` notice); installed over the
+app from the freshly resolved `BUILT_PRODUCTS_DIR`. Screenshots (session
+scratchpad `p4/`): `p4-chips-all.png` (full row fits under the pill, All in
+ink, clusters 22/21/8/…), `p4-chips-food.png` (Food in ink, only food
+POIs — downtown 22 → 13), `p4-chips-parks.png` (the 2 park/trail spots as one
+"2"), `p4-chips-events.png` (`-map-force-live downtown` — the one live pin,
+plum ring), `p4-chips-saved.png` (`-map-save downtown -map-save millstream` —
+"2"), `p4-peek-count.png` + `p4-sheet-copy.png` (today is truly zero, so the
+peek shows "Quiet in St. Joe today." and the medium sheet "Nothing happening
+yet today."; the count sentence path is unit-tested), `p4-labels-z15.png` (no
+pin label under the chip band), `p4-search-regression.png` (chips fade with
+the pill; results panel unmoved). Real-device note: chip tap feel + the
+filter-closes-detail path need one on-device pass (no sim tap automation).

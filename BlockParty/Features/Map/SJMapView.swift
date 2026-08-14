@@ -2,8 +2,9 @@
 //  SJMapView.swift
 //  Block Party — Mapbox map of Saint Joseph, Minnesota.
 //
-//  Life360-style layout: floating top chrome (filter · town pill · search), one
-//  static warm basemap (BasemapPalette — no time/season/weather modulation), a
+//  Life360-style layout: floating top chrome (town pill · search, with the
+//  filter chip row beneath — MapFilterChips, map polish Phase 4), one static
+//  warm basemap (BasemapPalette — no time/season/weather modulation), a
 //  persistent draggable bottom sheet (MapSheet), and coral reserved for live
 //  indicators + primary/tappable elements. The compose "+" lives in the
 //  bottom-right control stack, directly above recenter (map polish Phase 2).
@@ -140,31 +141,8 @@ enum MapPlaceDetail: Identifiable, Hashable {
     }
 }
 
-// MARK: - Spot filter (top-left chip)
-
-/// The map's category chip. Groups the curated categories into the few buckets a
-/// neighbor actually thinks in; `.all` shows every pin.
-enum SpotFilter: CaseIterable, Hashable {
-    case all, downtown, outdoors, campus
-
-    var title: String {
-        switch self {
-        case .all:      return "Everything"
-        case .downtown: return "Downtown"
-        case .outdoors: return "Parks & trails"
-        case .campus:   return "Campus"
-        }
-    }
-
-    func matches(_ c: SpotCategory) -> Bool {
-        switch self {
-        case .all:      return true
-        case .downtown: return c == .downtown || c == .coffee
-        case .outdoors: return c == .park || c == .trail
-        case .campus:   return c == .college || c == .chapel
-        }
-    }
-}
+// The map's filter (the chip row under the town pill) lives in
+// MapFilterChips.swift — `MapFilter` spans both catalogs (civic spots + POIs).
 
 // MARK: - Main view
 
@@ -258,7 +236,9 @@ struct SJMapView: View {
 
     private var selectedSpot: Spot? { mapDetail?.spot }
     private var selectedPOI: POI? { mapDetail?.poi }
-    @State private var filter: SpotFilter = .all
+    /// The chip row's selection (MapFilterChips). Survives camera moves by
+    /// construction — nothing camera-driven ever writes it.
+    @State private var filter = MapFilter.initial()
 
     // MARK: Search state (map polish Phase 2 — the top-right chrome slot)
 
@@ -298,7 +278,8 @@ struct SJMapView: View {
 
     // MARK: Client-side POI clustering (replaces the retired POILayer)
     //
-    // The 52 POIs are all mounted as view annotations (POIClusterMarker); this state is
+    // The chip-filtered POIs (`filteredPOIs` — all 52 on the All chip) mount as view
+    // annotations (POIClusterMarker); this state is
     // the recomputed layout that drives their merge/split glide. Recomputed on zoom-step
     // changes + at camera idle (never every frame — mirrors how Mapbox only reclusters at
     // zoom steps), off the LIVE projection via proxy.map.point(for:).
@@ -470,7 +451,22 @@ struct SJMapView: View {
     }
 
     /// Not `private`: the shared cluster + label pass consumes this exact filtered set.
-    var filteredSpots: [Spot] { MapSpots.all.filter { filter.matches($0.category) } }
+    /// Events resolves through the same today/live rule the pins use (`events(at:)`
+    /// + `isLive`, DEBUG forces included); Saved reads the shared device-local store.
+    var filteredSpots: [Spot] {
+        MapSpots.all.filter {
+            filter.includesSpot(category: $0.category,
+                                hasEventToday: !events(at: $0).isEmpty || isLive($0),
+                                isSaved: isSavedSpot($0))
+        }
+    }
+
+    /// The POIs the chip row leaves visible — the exact set that mounts as
+    /// annotations AND feeds `recomputeClusters`, so the cluster bubbles recount
+    /// to the filtered map. Not `private`: the clustering extension reads it.
+    var filteredPOIs: [POI] {
+        model.pois.filter { filter.includesPOI(family: $0.family, isSaved: isSavedPOI($0)) }
+    }
 
     /// The one marker clustering must exclude. Selection is mutually exclusive across
     /// catalogs, so one namespaced id fully represents the exception.
@@ -510,6 +506,15 @@ struct SJMapView: View {
         if Self.debugSavedIds().contains(spot.id) { return true }
         #endif
         return saved.isSaved(spot.id)
+    }
+
+    /// Whether the viewer has saved this POI — the same store the detail sheet's
+    /// bookmark toggles (`detail.saveID` is the POI id), same DEBUG force.
+    private func isSavedPOI(_ poi: POI) -> Bool {
+        #if DEBUG
+        if Self.debugSavedIds().contains(poi.id) { return true }
+        #endif
+        return saved.isSaved(poi.id)
     }
 
     var body: some View {
@@ -702,8 +707,9 @@ struct SJMapView: View {
                 // Mapbox POI style layers + their layer taps are retired. Taps live on the
                 // annotation views themselves (SwiftUI overlays sit above the map, so they
                 // resolve before the map-wide closeCard tap): a POI opens its detail, a
-                // cluster zooms in to split.
-                ForEvery(model.pois) { poi in
+                // cluster zooms in to split. Only the chip row's filtered set mounts —
+                // the same set recomputeClusters counts, so pins and bubbles agree.
+                ForEvery(filteredPOIs) { poi in
                     let markerID = ClusterMarkerID.poi(poi.id)
                     let isSelected = selectedClusterMarkerID == markerID
                     MapViewAnnotation(coordinate: poi.coordinate) {
@@ -862,13 +868,21 @@ struct SJMapView: View {
                 // the compass every frame.
                 compass.update(cameraState: $0.cameraState)
             }
-            // Toggling the category filter ticks a selection haptic (spec §10 / §12.5 —
-            // the native Menu supplies none we control). If the change hides the selected
-            // spot, drop the stale selection so the detail sheet doesn't linger.
+            // A chip change ticks a selection haptic. If it hides the place whose
+            // detail is open (civic or POI), the stale selection drops so the sheet
+            // doesn't linger over a pin that's gone.
             .onChange(of: filter) { _, _ in
                 Haptics.selection()
-                if let s = selectedSpot, !filteredSpots.contains(where: { $0.id == s.id }) { closeCard() }
+                dismissDetailIfFiltered()
                 // The filter changes both cluster membership and the shared label pass.
+                recomputeClusters(proxy.map)
+            }
+            // Saving/unsaving changes Saved-chip membership live (the detail
+            // sheet's bookmark is tappable while the chip is active) — recount
+            // and drop a now-hidden detail. A no-op on every other chip.
+            .onChange(of: saved.ids) { _, _ in
+                guard filter == .saved else { return }
+                dismissDetailIfFiltered()
                 recomputeClusters(proxy.map)
             }
             // Selection changes cluster membership immediately: the selected marker is
@@ -884,14 +898,15 @@ struct SJMapView: View {
             .onChange(of: model.clockTick) { _, _ in
                 recomputeClusters(proxy.map)
             }
-            // The expanded search field + results panel reserve a top band in the
-            // label pass (`chromeRects`) — recompute when the band appears, grows
-            // with results, or collapses, so no label draws under the search UI.
+            // The top chrome (chip row at rest; expanded search field + results
+            // panel while active) reserves a measured top band in the label pass
+            // (`chromeRects`) — recompute when it appears, grows, or collapses,
+            // so no pin label draws under chrome.
             .onChange(of: searchActive) { _, _ in
                 recomputeClusters(proxy.map)
             }
             .onChange(of: searchChromeBottom) { _, _ in
-                if searchActive { recomputeClusters(proxy.map) }
+                recomputeClusters(proxy.map)
             }
             // POIs load async (once) after the style — recompute the layout when they land.
             .onChange(of: model.pois) { _, pois in
@@ -915,21 +930,32 @@ struct SJMapView: View {
         BasemapPalette.recolor(map)
     }
 
-    // MARK: Top chrome — filter · town pill · search (replaces the title header)
+    // MARK: Top chrome — town pill · search, with the filter chip row beneath
 
     private var topChrome: some View {
         VStack(spacing: 10) {
             HStack(spacing: 10) {
-                filterMenu
                 // The town pill fades out while search is active (Q8) and is
                 // restored on collapse — the pill itself is untouched at rest.
                 if !searchActive {
+                    // Balances the trailing 44pt search circle so the pill stays
+                    // screen-centered — the slot the retired SpotFilter Menu held
+                    // (the chip row below is its replacement).
+                    Color.clear.frame(width: 44, height: 44)
                     Spacer(minLength: 8)
                     townPill
                         .transition(.opacity)
                     Spacer(minLength: 8)
                 }
                 searchControl
+            }
+            .padding(.horizontal, 16)
+            // The filter chip row (map polish Phase 4), under the pill. It fades
+            // with the pill while search is active, so the results panel lands
+            // directly beneath the field.
+            if !searchActive {
+                MapFilterChips(selection: $filter)
+                    .transition(.opacity)
             }
             if searchActive && !trimmedSearchQuery.isEmpty {
                 MapSearchResultsPanel(
@@ -938,10 +964,10 @@ struct SJMapView: View {
                     distanceFor: { searchDistanceLabel($0) },
                     onPick: { commitSearchResult($0) }
                 )
+                .padding(.horizontal, 16)
                 .transition(.opacity)
             }
         }
-        .padding(.horizontal, 16)
         .padding(.top, 8)
         .animation(Motion.smooth, value: trimmedSearchQuery.isEmpty)
         // Measure the chrome's bottom edge (field + results panel) so the label
@@ -1006,20 +1032,6 @@ struct SJMapView: View {
         .glassEffect(.regular, in: Capsule())
     }
 
-    private var filterMenu: some View {
-        Menu {
-            Picker("Filter", selection: $filter) {
-                ForEach(SpotFilter.allCases, id: \.self) { f in Text(f.title).tag(f) }
-            }
-        } label: {
-            chromeCircle(icon: "slider.horizontal.3", active: filter != .all)
-        }
-        // Strip the default menu/glass control background so only the chrome
-        // circle shows — matches the sibling Button chrome (which use .plain).
-        .buttonStyle(.plain)
-        .accessibilityLabel("Filter places")
-    }
-
     /// The town-name pill. Names whatever town the camera is over (reverse-geocoded);
     /// now TAPPABLE — a quick "take me back to Saint Joseph" that flies home when you've
     /// panned off over a neighboring town. The whole thing is one control, so the label
@@ -1049,7 +1061,7 @@ struct SJMapView: View {
         .buttonStyle(.plain)
         .animation(Motion.smooth, value: model.townLabel)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(model.townLabel). Tap to return to Saint Joseph")
+        .accessibilityLabel("\(model.townLabel). Tap to return to Saint Joseph.")
         .accessibilityAddTraits(.isButton)
     }
 
@@ -1166,29 +1178,17 @@ struct SJMapView: View {
         .accessibilityLabel("Recenter map")
     }
 
-    /// The shared chrome bubble — 44px circle, ink line icon. At rest it's real
-    /// Liquid Glass (the SAME material as the sheet + tab bar, so the map's controls
-    /// read as one system; glass carries its own floating shadow).
-    /// Active INVERTS to a solid ACCENT fill with a white icon — "active filter" is
-    /// one of the brand's meaning-scoped accent seams, and a legible "filter is on"
-    /// signal (a weight step alone isn't): a user who can't see the filter is active
-    /// reads the hidden pins as missing data. A glass tint can't carry that weight,
-    /// so the active state stays solid rather than tinted glass.
-    @ViewBuilder
-    private func chromeCircle(icon: String, active: Bool = false) -> some View {
-        let label = Image(systemName: icon)
-            .font(.system(size: 16, weight: active ? .semibold : .medium))
-            .foregroundStyle(active ? Hue.surface : Hue.ink)
+    /// The shared chrome bubble — 44px circle, ink line icon, real Liquid Glass
+    /// (the SAME material as the sheet + tab bar, so the map's controls read as
+    /// one system; glass carries its own floating shadow). The old solid-accent
+    /// "active filter" variant left with the SpotFilter Menu — an active filter
+    /// now reads off the chip row itself (the ink-filled chip).
+    private func chromeCircle(icon: String) -> some View {
+        Image(systemName: icon)
+            .font(.system(size: 16, weight: .medium))
+            .foregroundStyle(Hue.ink)
             .frame(width: 44, height: 44)
-        if active {
-            label
-                .background(Circle().fill(Hue.accent))
-                .overlay(Circle().stroke(Hue.accent, lineWidth: 1))
-                .mapFloatShadow()
-        } else {
-            label
-                .glassEffect(.regular, in: Circle())
-        }
+            .glassEffect(.regular, in: Circle())
     }
 
     // MARK: Actions
@@ -1449,11 +1449,23 @@ struct SJMapView: View {
         }
     }
 
+    /// A chip change (or an unsave while the Saved chip is active) can hide the
+    /// place whose detail is open — close the card rather than leave it
+    /// describing a pin that is no longer on the map.
+    private func dismissDetailIfFiltered() {
+        if let s = selectedSpot, !filteredSpots.contains(where: { $0.id == s.id }) { closeCard() }
+        if let p = selectedPOI, !filteredPOIs.contains(where: { $0.id == p.id }) { closeCard() }
+    }
+
+    /// Spoken pin summary — the same complete sentences the sheet uses
+    /// (MapSheetCopy), so eyes and ears hear one voice.
     private func accessibilityLabel(for spot: Spot, live: Bool) -> String {
         let n = events(at: spot).count
-        let base = n == 0 ? "\(spot.name), nothing today"
-                          : "\(spot.name), \(n) happening today"
-        return live ? base + ", happening now" : base
+        var parts = ["\(spot.name)."]
+        parts.append(n == 0 ? "Nothing happening yet today."
+                            : MapSheetCopy.todayCountSentence(n))
+        if live { parts.append("Happening now.") }
+        return parts.joined(separator: " ")
     }
 }
 

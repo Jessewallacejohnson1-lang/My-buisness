@@ -117,6 +117,18 @@ final class AuthStore: ObservableObject, TokenProviding {
     /// A guaranteed-fresh access token for API calls. Refreshes if needed.
     func validAccessToken() async throws -> String {
         guard let s = session else {
+            #if DEBUG
+            // `-anon-data`: with NO session, hand back the shipped PUBLIC anon
+            // key so a signed-out simulator can still photograph data-bearing
+            // states (the map's `places` / `club_events` allow anon SELECT under
+            // RLS — verified 2026-08-14). Reads succeed exactly as far as RLS
+            // lets the anon role; any write is refused server-side the same as
+            // it would be for any anonymous caller. Compiles out in release,
+            // no effect without the flag or once a real session exists.
+            if ProcessInfo.processInfo.arguments.contains("-anon-data") {
+                return SupabaseConfig.anonKey
+            }
+            #endif
             throw SupabaseError(message: "Your session ended. Sign in and try again.", status: 401)
         }
         if s.isExpired { try await refresh() }

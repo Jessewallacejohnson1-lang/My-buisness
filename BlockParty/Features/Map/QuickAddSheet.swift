@@ -163,7 +163,7 @@ struct QuickAddSheet: View {
             dismiss()
         } catch {
             Haptics.error()   // spec §10: a failed action → error notification
-            self.error = (error as? SupabaseError)?.message ?? "Couldn't post this happening. Check your connection and try again."
+            self.error = (error as? SupabaseError)?.message ?? "We couldn't post this happening. Check your connection and try again."
         }
     }
 

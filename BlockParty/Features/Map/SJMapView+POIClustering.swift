@@ -45,7 +45,9 @@ extension SJMapView {
     func recomputeClusters(_ map: MapboxMap?) {
         guard let map else { return }
         let zoom = map.cameraState.zoom
-        let pois = model.pois
+        // The chip row's filtered set — the same set SJMapView mounts, so the
+        // bubbles recount to what is actually visible (map polish Phase 4).
+        let pois = filteredPOIs
         let selected = selectedClusterMarkerID
 
         // A selected marker is never counted by an aggregate. Civic landmarks participate
@@ -135,11 +137,13 @@ extension SJMapView {
     func chromeRects(mapSize: CGSize) -> [CGRect] {
         let W = mapSize.width, H = mapSize.height
         guard W > 0, H > 0 else { return [] }
-        // Top row: filter chip · town pill · search — safe area + padding + a 44pt
-        // control. While search is ACTIVE the expanded field + results panel occupy
-        // a taller band, measured live off the chrome itself (`searchChromeBottom`,
-        // in the container's named space) so pin labels never draw under it.
-        let topHeight = searchActive ? max(118, searchChromeBottom + 8) : 118
+        // Top chrome: the pill row plus the filter chip row at rest, or the
+        // expanded search field + results panel while active. Both states are
+        // measured live off the chrome itself (`searchChromeBottom`, the whole
+        // top-chrome VStack's maxY in the container's named space), so pin
+        // labels never draw under whatever the band currently holds. The 118
+        // floor covers the first frames before the measurement lands.
+        let topHeight = max(118, searchChromeBottom + 8)
         let topBand = CGRect(x: 0, y: 0, width: W, height: topHeight)
         // The collapsed sheet (peek) plus the tab bar it rests on.
         let sheetTop = H - (MapSheet.tabBarReserve + MapSheet.peekHeight)
