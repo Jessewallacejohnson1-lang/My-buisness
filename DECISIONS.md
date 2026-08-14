@@ -272,11 +272,16 @@ produced two that would have regressed live behaviour.
 
 ## 6. Decided 2026-08-13 — map pin-detail sheet (map polish Phase 3)
 
-- **Status-card tint is one token, seeded neutral.** The Flighty-anatomy pin
-  sheet's status card routes its wash through `Hue.statusTint`
-  (`Theme/BlockPartyColor.swift`), currently `= fill` with ink header dot/word.
-  Jesse is crafting a custom orange; when the hex arrives, replacing that single
-  value is the entire swap. Do not guess an orange in the meantime.
+- **Status-card tint is one token — RESOLVED 2026-08-14: the BP mark's orange.**
+  The Flighty-anatomy pin sheet's status card routes its wash through
+  `Hue.statusTint` (`Theme/BlockPartyColor.swift`). Jesse's call: use the logo's
+  orange. The mark's lockup samples to `#F78067` (mean of the render's saturated
+  coral pixels); the token holds that hue mixed to a pale wash, `#FDECE8` — the
+  Flighty pale-card treatment in our coral, AA-checked for the card's ink and
+  `inkSecondary` text. Header dot/word stay ink (plum only while live). Note:
+  this is a *derived-from-the-mark* coral, distinct from the retired banned
+  `#FF6B57`; the derivation was Jesse's explicit decision, not a precedent for
+  reviving the coral ramp elsewhere.
 - **The sheet's action bar is a PILL — a deliberate brand exception.** The brand
   rule stays "buttons are 12pt rounded squares, never pills"; Jesse chose the
   Flighty-faithful capsule for this one floating bar. It lives behind one

@@ -125,12 +125,15 @@ nonisolated enum Hue {
     static let control       = Color(hex: 0x8C8A82)
 
     /// The pin-detail sheet's status-card wash — the ONE token that card's
-    /// background routes through, and nothing else. Seeded NEUTRAL (the `fill`
-    /// wash; the card's header dot and status word stay ink) until Jesse supplies
-    /// his custom orange: replacing this single value re-tints the card
-    /// everywhere, no call-site changes. Do NOT guess the orange here — see
-    /// DECISIONS.md (map polish Q3).
-    static let statusTint    = fill
+    /// background routes through, and nothing else. Jesse's call (2026-08-14):
+    /// the BP mark's own orange. The mark's lockup samples to #F78067 (mean of
+    /// the render's coral pixels, `scripts/brand`-style sweep); at full strength
+    /// that overwhelms a card background, so this is that hue mixed to a pale
+    /// wash — the Flighty pale-rose treatment in our coral. Ink text ≈17:1 and
+    /// `inkSecondary` ≈4.5:1 on it, so AA holds. The card's header dot and
+    /// status word stay ink (plum only while live). See DECISIONS.md (map
+    /// polish Q3).
+    static let statusTint    = Color(hex: 0xFDECE8)
 
     /// The one brand accent — meaning-scoped ONLY (live events, active filters,
     /// selected/saved state, primary CTAs), never decoration, body copy, or a
