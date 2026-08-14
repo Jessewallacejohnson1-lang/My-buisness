@@ -900,10 +900,15 @@ struct SJMapView: View {
             }
             // A live civic landmark is absorbed below the threshold, with liveness carried
             // by the cluster ring. Keep that aggregate status current without requiring a pan.
+            // Both changes can also flip Events-chip membership (an event landing, ending,
+            // or expiring past the live window) — drop a detail the chip no longer shows,
+            // exactly as a chip change would, so the card can't linger over a vanished pin.
             .onChange(of: model.todayEvents) { _, _ in
+                dismissDetailIfFiltered()
                 recomputeClusters(proxy.map)
             }
             .onChange(of: model.clockTick) { _, _ in
+                dismissDetailIfFiltered()
                 recomputeClusters(proxy.map)
             }
             // The top chrome (chip row at rest; expanded search field + results
@@ -1427,7 +1432,11 @@ struct SJMapView: View {
 
     /// Fly-and-open shared by every committed result — the same 1.0s fly +
     /// liftedViewport + Motion.card open that `focus(_:)` uses for row taps.
+    /// Search intent wins over the chip row: a chip that hides the committed
+    /// place resets to All FIRST (MapFilter.afterSearchCommit), so the card
+    /// never opens over a map with no pin for it underneath.
     private func openFromSearch(_ detail: MapPlaceDetail, at coordinate: CLLocationCoordinate2D) {
+        filter = filter.afterSearchCommit(showsTarget: filterShowsSearchTarget(detail))
         withAnimation(reduceMotion ? Motion.smooth : Motion.card) { mapDetail = detail }
         let move = { viewport = liftedViewport(coordinate, zoom: Self.selectZoom) }
         if reduceMotion { move() } else { withViewportAnimation(.fly(duration: 1.0)) { move() } }
@@ -1454,6 +1463,16 @@ struct SJMapView: View {
         guard mapDetail != nil else { return }
         withAnimation(reduceMotion ? Motion.smooth : Motion.card) {
             mapDetail = nil
+        }
+    }
+
+    /// Whether the active chip leaves this place on the map — the same
+    /// membership `dismissDetailIfFiltered` checks, asked BEFORE a committed
+    /// search result opens so the filter can yield to the search intent.
+    private func filterShowsSearchTarget(_ detail: MapPlaceDetail) -> Bool {
+        switch detail {
+        case .spot(let spot): return filteredSpots.contains { $0.id == spot.id }
+        case .poi(let poi):   return filteredPOIs.contains { $0.id == poi.id }
         }
     }
 

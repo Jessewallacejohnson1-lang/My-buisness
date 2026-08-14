@@ -16,7 +16,7 @@
 //    1. POI (food / business)  surface / inkSecondary   lightest
 //    2. civic (landmark)       ink                      darkest
 //    3. cluster (many places)  ink                      darkest — separated by SHAPE
-//    4. live                   ink + a STATIC plum ring + the pulse
+//    4. live                   plum fill (the meaning-scoped accent) + a STATIC plum ring + the pulse
 //
 //  Clusters originally held a mid-grey tier of their own so they could not be confused
 //  with the light POI discs (defect 1 below). They now share the ink tier, and what
@@ -133,8 +133,9 @@ enum MarkerRole {
     // to mean "happening now" (live events top the brand's meaning-scoped accent
     // list).
 
-    /// Fill of a live pin. Liveness is carried by the ring + pulse, not by the fill,
-    /// so this matches the civic tier rather than introducing a fourth value.
+    /// Fill of a live pin: the meaning-scoped plum accent — the one hue a marker
+    /// may carry, and only to mean "happening now". The static ring + pulse
+    /// reinforce the same signal around it.
     static var liveFill: Color { MapInk.accent }
 
     /// The expanding halo behind a live pin — the motion half of the live signal.

@@ -76,6 +76,15 @@ nonisolated enum MapFilter: String, CaseIterable, Hashable {
         }
     }
 
+    /// The chip selection after a search result commits — search intent wins:
+    /// a chip that would hide the opened place resets to All (so the target's
+    /// pin is on the map beneath its card); a chip that already shows it stays.
+    /// The caller resolves visibility (the same membership its filtered sets
+    /// hold) and passes the plain fact in, like the predicates above.
+    func afterSearchCommit(showsTarget: Bool) -> MapFilter {
+        showsTarget ? self : .all
+    }
+
     /// DEBUG-only: `-map-filter all|food|parks|events|saved` starts the map on
     /// a chip (mirrors `-explore-filter`) so every filtered state can be
     /// screenshotted headlessly. No effect in release / without the flag.

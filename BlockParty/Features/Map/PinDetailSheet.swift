@@ -181,6 +181,14 @@ struct PinDetailSheet: View {
             PinFullDetailsView(detail: detail, happenings: happenings)
         }
         .accessibilityElement(children: .contain)
+        // VoiceOver treats the card as a modal: swipe order stays inside it
+        // instead of walking the dimmed map behind, and the two-finger-Z
+        // escape dismisses exactly like the close button.
+        .accessibilityAddTraits(.isModal)
+        .accessibilityAction(.escape) {
+            Haptics.light()
+            onClose()
+        }
     }
 
     // MARK: (a–d) Header — pills · name · secondary line · close

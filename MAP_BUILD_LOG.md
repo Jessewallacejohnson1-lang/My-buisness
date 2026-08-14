@@ -2008,3 +2008,47 @@ headlessly** — `drag` is written only by the real DragGesture (no debug flag
 drives an overdrag, and `-map-detent` opens AT a detent without animating),
 so the overdrag + spring-back feel goes on the real-device pass list with the
 detent snap and the pulse cadence.
+
+### Feedback pass + fixes (2026-08-14)
+
+The adversarial Feedback pass over the whole plan diff returned **PASS WITH
+FINDINGS**; the five findings land as one commit.
+
+1. **(HIGH) Search commits bypassed the chip filter.** The matcher searches the
+   UNFILTERED catalogs, and `commitSearchResult` opened the result regardless of
+   the active chip — a filtered-out target opened its card over a map with NO
+   pin under it. Fix: search intent wins. `openFromSearch` (the one path every
+   committed result routes through) now resets the chip to All via the new pure
+   `MapFilter.afterSearchCommit(showsTarget:)` when the target fails the active
+   filter (`filterShowsSearchTarget` — the same membership
+   `dismissDetailIfFiltered` checks). Covered in `MapFilterChipsTests` (2 new
+   tests, existing registered file). Proven headlessly: `-map-filter saved
+   -map-search-committed millstream` lands on the All chip with the Millstream
+   pin AND its card both present.
+2. **(MEDIUM) Events-chip detail lingered past expiry.** The
+   `model.todayEvents` / `model.clockTick` handlers in `mapLayer` recomputed
+   clusters but never dropped a detail the Events chip no longer shows (an
+   event landing/ending/expiring changes chip membership). Both now call
+   `dismissDetailIfFiltered()` first, exactly as a chip change does.
+3. **(MEDIUM) PinDetailSheet a11y escape.** The card now carries
+   `.accessibilityAddTraits(.isModal)` (VoiceOver swipe order stays inside the
+   card instead of walking the dimmed map behind it) and
+   `.accessibilityAction(.escape)` dismissing like the close button, so the
+   two-finger-Z scrub works.
+4. **(MEDIUM, docs) `CLAUDE.md` caught up to shipped code:** pin detail is the
+   Flighty `PinDetailSheet` (tab-shell morph retired), compose "+" bottom-right
+   above recenter, `MapFilterChips` replaces the `SpotFilter` menu; flag
+   registry gains `-map-compose`, `-map-search-open`, `-map-search <q>`,
+   `-map-search-committed <q>`, `-map-filter <chip>`, `-anon-data` (with its
+   RLS security note), and `-map-detail-expanded`'s P3 meaning (starts straight
+   in the full-details presentation).
+5. **(LOW, comment-only) `MonoMarkerPalette.swift`:** the value-ladder header
+   and the `liveFill` doc said the live fill is ink; the code returns the
+   meaning-scoped plum (`MapInk.accent`). Both comments now state the truth.
+
+**Verified.** iPhone 17 sim, Debug: BUILD SUCCEEDED, **0 source warnings**
+(only the accepted `appintentsmetadataprocessor` notice). `xcodebuild test` on
+the non-primary iPhone 17 Pro Max: executed count rose **403 → 405, all
+green**. Fix-1 screenshot (`fixes/fix1-search-filter-reset.png`, session
+scratchpad): All chip selected despite launching on Saved, Millstream Park pin
+on the map beneath its open card.

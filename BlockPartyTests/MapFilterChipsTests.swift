@@ -104,6 +104,24 @@ final class MapFilterChipsTests: XCTestCase {
         XCTAssertFalse(MapFilter.saved.includesPOI(family: .food, isSaved: false))
     }
 
+    // MARK: Search commit vs the active chip — search intent wins
+
+    func testCommittedSearchTargetHiddenByTheChipResetsToAll() {
+        // A chip that would hide the searched place resets so its pin can show
+        // beneath the opened card (e.g. Saved chip, unsaved Millstream target).
+        XCTAssertEqual(MapFilter.saved.afterSearchCommit(showsTarget: false), .all)
+        XCTAssertEqual(MapFilter.events.afterSearchCommit(showsTarget: false), .all)
+        XCTAssertEqual(MapFilter.food.afterSearchCommit(showsTarget: false), .all)
+    }
+
+    func testCommittedSearchTargetStillVisibleKeepsTheChip() {
+        XCTAssertEqual(MapFilter.saved.afterSearchCommit(showsTarget: true), .saved)
+        XCTAssertEqual(MapFilter.parks.afterSearchCommit(showsTarget: true), .parks)
+        // All shows everything, so it never needs to move.
+        XCTAssertEqual(MapFilter.all.afterSearchCommit(showsTarget: true), .all)
+        XCTAssertEqual(MapFilter.all.afterSearchCommit(showsTarget: false), .all)
+    }
+
     // MARK: MapSheetCopy — the counted sentences
 
     func testTodayCountSentenceSpellsOneAndKeepsNumerals() {
