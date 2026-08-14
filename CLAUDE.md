@@ -22,7 +22,7 @@ xcodebuild test -project BlockParty.xcodeproj -scheme BlockParty \
   -destination 'platform=iOS Simulator,name=iPhone 17' CODE_SIGNING_ALLOWED=NO
 ```
 
-A **single** test or class: append `-only-testing:BlockPartyTests/DateHelpersTests/testAdminGate` (or `-only-testing:BlockPartyTests/DateHelpersTests`). Coverage now includes date/admin rules, the Today briefing contract/model/feel/live-payload parity/registry, utility-row providers/preferences/motion/contrast, onboarding-flow persistence, town-timezone formatting, and town-rain physics (155 tests). It is still mostly pure logic: visual map/feed/sheet/animation fidelity requires a clean 0-warning build plus simulator screenshots, and scroll/gesture behavior requires a real-device check.
+A **single** test or class: append `-only-testing:BlockPartyTests/DateHelpersTests/testAdminGate` (or `-only-testing:BlockPartyTests/DateHelpersTests`). Coverage now includes date/admin rules, the Today briefing contract/model/feel/live-payload parity/registry, utility-row providers/preferences/motion/contrast, onboarding-flow persistence, town-timezone formatting, town-rain physics, and the map polish pass (search matching, pin-detail copy, filter-chip semantics, sheet rubber-band math) (405 tests). It is still mostly pure logic: visual map/feed/sheet/animation fidelity requires a clean 0-warning build plus simulator screenshots, and scroll/gesture behavior requires a real-device check.
 
 > **A NEW TEST FILE DOES NOT RUN UNTIL YOU REGISTER IT.** The two targets behave differently, and this has already silently swallowed a passing test suite:
 > - **App target** — `fileSystemSynchronizedGroups`; its Sources phase lists **zero** files. A new `.swift` under `BlockParty/` joins the build automatically.
