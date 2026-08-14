@@ -1943,3 +1943,68 @@ yet today."; the count sentence path is unit-tested), `p4-labels-z15.png` (no
 pin label under the chip band), `p4-search-regression.png` (chips fade with
 the pill; results panel unmoved). Real-device note: chip tap feel + the
 filter-closes-detail path need one on-device pass (no sim tap automation).
+
+## 2026-08-14 — Map polish Phase 5: sheet rubber-banding, selected-pin pulse, haptics audit
+
+The last feel pass of plan `2026-08-13-map-tab-ui-polish` (Feedback pass runs
+separately after this entry).
+
+**Sheet rubber-banding (`MapSheet.swift`).** Dragging past peek/full used to
+hard-clamp (`min(max(…))` — the sheet hit a wall). Now the raw height routes
+through `SheetRubberBand.height(raw:min:max:)` — a pure `nonisolated` curve:
+inside the bounds it passes through 1:1; past either bound the visible travel
+is `give·√overdrag` (give 3 — 25pt of finger reads as ~15pt, 100pt as ~30pt),
+capped at `maxStretch` 32 so a full-arm pull never reaches the floating top
+chrome (full's clearance is ~66pt). Release springs the overshoot home through
+the EXISTING detent spring — `snap` already animates `drag` back to 0 inside
+`withAnimation(Motion.sheet)`, so no new animation path; `resetDrag` (the
+cancelled-gesture path) now wraps its `drag = 0` in the same spring so a
+cancelled overdrag settles instead of popping. All inside the existing single
+arbitrated whole-sheet DragGesture — NO new recognizer. Reduce Motion keeps
+the hard clamp (no bounce). No haptic fires on overdrag or on a spring-back
+that lands on the same detent (`snap` ticks only when the detent CHANGES).
+
+**Selected-pin pulse (`SJMapView.swift` + `MonoMarkerPalette.swift`).** While
+a place's detail sheet is open its marker carries `SelectedPulseRing` —
+PulseRing's recipe but INK via the new `MarkerRole.selectedRing` (plum stays
+meaning-scoped to live), slower and quieter: 2.4s vs live's 1.5s, 0.22 vs
+0.35 peak opacity, 1.9× vs 2.2× travel. Mounted on the selected civic badge
+(`MapPinBadge`, under the static rings) and the selected-POI overlay
+(`POISelectedMarker`, under the halo). Reduce Motion renders a STATIC ink
+ring instead (the live-ring discipline: geometry survives when motion is
+suppressed). And while any selection is active the REST of the map calms
+down: every other pin's name label drops (`showsLabel && !calmed` at both
+mounts) and a non-selected live pin rests its pulse (new `calmed` flag on
+`MapPinBadge`) — its static plum ring stays, so "happening now" survives the
+calm. `PinDisplay` untouched (selection stays the separate Bool by design).
+
+**Haptics audit (no gaps found — no new code).** The Phase-5 checklist all
+routes through the existing `Support/Haptics.swift` helper already: pin
+select = `Haptics.light()` on ENTERING selection only (`selectSpot`,
+`selectPOI`, `focus`, `commitSearchResult`; deselect stays silent per spec
+§2); cluster tap = `Haptics.light()` in `zoomToCluster`; detent snap =
+`Haptics.selection()` in `snap`/`step`/peek-tap, fired only on a real detent
+change; chip change = `Haptics.selection()` (Phase 4); detail-sheet actions
+(save/share/directions/full details) = P3. Engine warmed once via
+`Haptics.prepare()` on map appear; silent no-op in Low Power Mode.
+
+**Tests.** `SheetRubberBandTests` (4 — in-bounds passthrough, √ compression +
+monotonicity, floor symmetry, the cap both directions) registered via the
+xcodeproj gem (4 pbxproj entries; group-relative path corrected to
+`BlockPartyTests/…` again). Executed count rose **399 → 403, all green**, on
+the non-primary iPhone 17 Pro Max sim.
+
+**Verified.** iPhone 17 sim, Debug: BUILD SUCCEEDED, **0 source warnings**
+(only the accepted `appintentsmetadataprocessor` notice); installed over the
+app from the freshly resolved `BUILT_PRODUCTS_DIR` (binary timestamp
+checked). AFTER screenshots (session scratchpad `after/`, framing matches the
+Phase-0 BEFOREs): `after-rest.png` (peek sheet + chips + relocated "+"),
+`after-clusters.png` (zoom 13 settled — 46/11/8/5/3/2 ink bubbles),
+`after-pin-sheet.png` (The Local Blend POI sheet; every other pin's label
+dropped — the calmed state), `after-search.png` ("saint" results panel),
+`after-pin-pulse.png` (mid-ring frame from an 8-frame burst — the ink pulse
+IS capturable in a still). Rubber-band motion evidence: **not producible
+headlessly** — `drag` is written only by the real DragGesture (no debug flag
+drives an overdrag, and `-map-detent` opens AT a detent without animating),
+so the overdrag + spring-back feel goes on the real-device pass list with the
+detent snap and the pulse cadence.

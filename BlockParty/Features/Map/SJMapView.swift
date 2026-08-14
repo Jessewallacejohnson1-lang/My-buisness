@@ -712,6 +712,9 @@ struct SJMapView: View {
                 ForEvery(filteredPOIs) { poi in
                     let markerID = ClusterMarkerID.poi(poi.id)
                     let isSelected = selectedClusterMarkerID == markerID
+                    // While any detail is open, every OTHER pin calms down (its
+                    // label drops) so the selected pin owns the moment (Phase 5).
+                    let calmed = mapDetail != nil && !isSelected
                     MapViewAnnotation(coordinate: poi.coordinate) {
                         POIClusterMarker(
                             poi: poi,
@@ -719,7 +722,8 @@ struct SJMapView: View {
                                 ?? POIAssignment(anchor: poi.coordinate, clustered: false),
                             expanded: model.pinsExpanded,
                             selected: isSelected,
-                            showsLabel: model.pinsExpanded && labelledMarkers.contains(markerID),
+                            showsLabel: model.pinsExpanded && !calmed
+                                && labelledMarkers.contains(markerID),
                             proxy: proxy,
                             onTap: { selectPOI(id: poi.id) }
                         )
@@ -757,6 +761,9 @@ struct SJMapView: View {
                     let spotIsLive = isLive(spot)
                     let markerID = ClusterMarkerID.civic(spot.id)
                     let isSelected = selectedClusterMarkerID == markerID
+                    // While any detail is open, every OTHER pin calms down (label
+                    // drops, live pulse rests — static ring stays) — Phase 5.
+                    let calmed = mapDetail != nil && !isSelected
                     MapViewAnnotation(coordinate: spot.coordinate) {
                         CivicClusterMarker(
                             coordinate: spot.coordinate,
@@ -771,8 +778,9 @@ struct SJMapView: View {
                                     isSaved: isSavedSpot(spot)
                                 ),
                                 selected: isSelected,
+                                calmed: calmed,
                                 expanded: isSelected || model.pinsExpanded,
-                                showsLabel: model.pinsExpanded
+                                showsLabel: model.pinsExpanded && !calmed
                                     && labelledMarkers.contains(markerID),
                                 a11yLabel: accessibilityLabel(for: spot, live: spotIsLive)
                             )
@@ -1500,6 +1508,39 @@ private struct PulseRing: View {
     }
 }
 
+// MARK: - Selected pulse ring (map polish Phase 5)
+//
+// The "you opened this" ring under the detail sheet — PulseRing's recipe, but
+// INK (plum stays live-only), slower and quieter: selection is confirmation,
+// not urgency (2.4s vs live's 1.5s; 0.22 vs 0.35; 1.9× vs 2.2×). Shared by the
+// selected civic badge and the selected-POI overlay. Under Reduce Motion it
+// renders as a STATIC ink ring instead — the live-ring discipline: meaning
+// survives as geometry when motion is suppressed.
+
+private struct SelectedPulseRing: View {
+    let diameter: CGFloat
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pulsing = false
+
+    var body: some View {
+        if reduceMotion {
+            Circle()
+                .stroke(MarkerRole.selectedRing.opacity(0.35), lineWidth: 1.5)
+                .frame(width: diameter + 12, height: diameter + 12)
+        } else {
+            Circle()
+                .fill(MarkerRole.selectedRing.opacity(pulsing ? 0 : 0.22))
+                .frame(width: diameter, height: diameter)
+                .scaleEffect(pulsing ? 1.9 : 1.0)
+                .onAppear {
+                    withAnimation(.linear(duration: 2.4).repeatForever(autoreverses: false)) {
+                        pulsing = true
+                    }
+                }
+        }
+    }
+}
+
 // MARK: - Marker chip (every curated spot; shrinks/expands with zoom)
 //
 // Life360/Mobbin-reference pattern: a small SOLID category-color circle with a
@@ -1516,7 +1557,11 @@ private struct PulseRing: View {
 // live:     coral fill + pulse ring + coral label (live always wins the tint; the
 //           pulse still shows compact — it's the one thing worth keeping glanceable
 //           at any zoom).
-// selected: scale 1.25 (Motion.select), lifted marker shadow, always expanded.
+// selected: scale 1.25 (Motion.select), lifted marker shadow, always expanded, plus
+//           a slow quiet INK pulse ring (SelectedPulseRing) while the detail is open.
+// calmed:   while ANOTHER place's detail is open the rest of the map rests — this
+//           badge keeps its static signals (live ring, saved corner) but stops its
+//           live pulse; its label is withheld at the call site via `showsLabel`.
 // Motion:   wake = opacity 0→1 + scale 0.6→1.0 spring on first appear (Motion.select);
 //           expand/shrink = Motion.card on diameter + icon/label crossfade; select bump =
 //           Motion.select; tint change = Motion.smooth. Reduce Motion drops every
@@ -1526,6 +1571,7 @@ private struct MapPinBadge: View {
     let spot: Spot
     let base: PinDisplay      // rest | saved | live — the coloring (selection ignored)
     let selected: Bool
+    let calmed: Bool          // a DIFFERENT place's detail is open — rest the pulse
     let expanded: Bool        // zoom-driven (or forced by `selected`) — see SJMapView
     let showsLabel: Bool      // granted by the shared cluster-first collision pass
     let a11yLabel: String
@@ -1600,11 +1646,17 @@ private struct MapPinBadge: View {
 
     private var badge: some View {
         ZStack {
-            // Suppressed once selected — the scale bump + always-visible label is
-            // the "you tapped this" cue; a pulsing ring behind it reads as noise.
-            // Kept even compact — the one live signal worth keeping glanceable
-            // zoomed all the way out.
-            if live && !selected { PulseRing(diameter: diameter) }
+            // The selection's own quiet ink pulse (static ring under Reduce
+            // Motion) — drawn first so every static signal sits above it.
+            if selected { SelectedPulseRing(diameter: diameter) }
+
+            // Suppressed once selected — the selected ring above (plus scale +
+            // label) is the "you tapped this" cue; two pulses read as noise. Also
+            // rested while `calmed` (another place's detail is open) so the open
+            // card owns the moment — the static live ring below still carries
+            // "happening now". Kept even compact otherwise — the one live signal
+            // worth keeping glanceable zoomed all the way out.
+            if live && !selected && !calmed { PulseRing(diameter: diameter) }
 
             // STATIC live ring. The pulse alone cannot carry "happening now" for three
             // separate reasons: it is suppressed while selected; Reduce Motion renders it
@@ -1702,6 +1754,10 @@ private struct POISelectedMarker: View {
         // mid grey); ring, halo and lifted shadow keep carrying the selection emphasis.
         let hasLogo = logoCache.resolvedImage(for: poi) != nil
         ZStack {
+            // The selection's quiet ink pulse (static ring under Reduce Motion) —
+            // the same ring the selected civic badge shows, sized to the 34pt badge.
+            SelectedPulseRing(diameter: 34)
+
             // Halo — a soft family-tinted disc that reads as elevation under the marker.
             Circle()
                 .fill(MarkerRole.selectedPOIHalo(poi.family).opacity(0.22))

@@ -50,6 +50,34 @@ nonisolated enum MapSheetCopy {
     }
 }
 
+// MARK: - Rubber-band (pure, tested in SheetRubberBandTests)
+
+/// Overdrag resistance at the sheet's extreme detents (map polish Phase 5).
+/// Inside [min, max] the height tracks the finger 1:1; past either bound the
+/// visible travel compresses to a square root of the raw overdrag — the finger
+/// still means something, but the sheet visibly resists — capped so a full-arm
+/// pull can never stretch the sheet into the floating top chrome. Release
+/// springs it home via the existing detent spring (`snap` animates `drag` back
+/// to 0). `nonisolated` (the module defaults to MainActor): pure geometry.
+nonisolated enum SheetRubberBand {
+    /// √-curve multiplier: 25pt of overdrag reads as ~15pt, 100pt as ~30pt.
+    static let give: CGFloat = 3
+    /// Stretch ceiling. Full's top clearance is ~66pt, so 32 keeps an overshot
+    /// sheet clear of the chrome band above it.
+    static let maxStretch: CGFloat = 32
+
+    static func height(raw: CGFloat, min lower: CGFloat, max upper: CGFloat) -> CGFloat {
+        if raw > upper { return upper + stretch(raw - upper) }
+        if raw < lower { return lower - stretch(lower - raw) }
+        return raw
+    }
+
+    /// The resistance curve itself: √overdrag, scaled, capped.
+    private static func stretch(_ overdrag: CGFloat) -> CGFloat {
+        Swift.min(maxStretch, give * sqrt(overdrag))
+    }
+}
+
 /// How far the sheet is pulled up. Three detents; the grabber snaps between them.
 enum SheetDetent: CaseIterable { case peek, medium, full }
 
@@ -162,8 +190,14 @@ struct MapSheet: View {
             let H = geo.size.height
             let m = metrics(H)
             let resting = restHeight(detent, m)
-            // Drag up → negative translation → taller sheet.
-            let height = min(max(resting - drag, m.peek), m.full)
+            // Drag up → negative translation → taller sheet. Past peek/full the
+            // height keeps a compressed fraction of the overdrag (SheetRubberBand)
+            // so the extremes feel elastic, not walled; releasing springs the
+            // overshoot home. Reduce Motion keeps the hard clamp — no bounce.
+            let raw = resting - drag
+            let height = reduceMotion
+                ? min(max(raw, m.peek), m.full)
+                : SheetRubberBand.height(raw: raw, min: m.peek, max: m.full)
             // 0 at peek → 1 by the time we reach medium: drives the line⇄list fade.
             let p = min(max((height - m.peek) / max(1, m.medium - m.peek), 0), 1)
             // Content frost: 0 at peek (pure glass), ramps to near-opaque by medium so the
@@ -375,7 +409,9 @@ struct MapSheet: View {
     }
 
     private func resetDrag() {
-        drag = 0
+        // A cancelled gesture can leave the sheet stretched past a bound — spring
+        // the overshoot home rather than popping (drag is usually already 0 here).
+        withAnimation(reduceMotion ? Motion.smooth : Motion.sheet) { drag = 0 }
         dragOwner = .undecided
         dragHandoffTranslation = 0
     }

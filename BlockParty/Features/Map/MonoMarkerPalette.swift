@@ -150,6 +150,15 @@ enum MarkerRole {
     /// map.
     static var liveRingGap: Color { MapInk.surface }
 
+    // — Selected —
+
+    /// The slow pulse ring behind THE selected pin while its detail sheet is open
+    /// (map polish Phase 5). Ink, never plum: the accent is meaning-scoped to
+    /// "happening now", and selection is confirmation, not urgency — value carries
+    /// it. Under Reduce Motion the same role draws as a static ring (geometry, not
+    /// motion, carries the meaning — the live-ring discipline, defect 2).
+    static var selectedRing: Color { MapInk.ink }
+
     // — Clusters —
 
     /// The cluster disc: ink, the top tier. Separation from the lighter POI pins it
