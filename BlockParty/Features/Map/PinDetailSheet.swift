@@ -395,6 +395,8 @@ struct PinDetailSheet: View {
             Image(systemName: "sparkles")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(CardInk.inkSecondary)
+                // Decorative — keep "Sparkles" out of the .combine'd line below.
+                .accessibilityHidden(true)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 13)

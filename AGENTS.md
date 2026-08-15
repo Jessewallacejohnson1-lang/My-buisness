@@ -111,7 +111,7 @@ All of these compile out in Release. They exist because this simulator setup has
 - **Legacy feed regression:** `-feed-card-gallery`; `-feed-card-autoplay`; `-today-feed-preview|-today-feed-empty|-today-feed-skeleton`.
 - **Almanac/utility:** `-almanac-write|-almanac-static|-almanac-fail`; `-almanac-part morning|afternoon|evening`; `-almanac-demo-line <text>`; `-utility-row-preview`; `-utility-expand|-utility-customize|-utility-empty`.
 - **Activities:** `-explore-filter events|clubs|trails|parks|saved`; `-explore-timeframe today|week|month|upcoming`; `-explore-search-open`; `-explore-search <query>`; `-explore-search-committed <query>`.
-- **Map browse/camera:** `-map-sheet places`; `-map-detent peek|medium|full`; `-map-open <spotid>`; `-map-open-poi [name-substring|id]`; `-map-detail-expanded` (combine with either open flag); `-map-center <lat>,<lon>`; `-map-zoom <z>`; `-map-bearing <deg>`; `-map-pitch <deg>`; `-map-autozoom`; `-force-nonadmin`.
+- **Map browse/camera:** `-map-sheet places`; `-map-detent peek|medium|full`; `-map-open <spotid>`; `-map-open-poi [name-substring|id]`; `-map-detail-expanded` (combine with either open flag); `-map-center <lat>,<lon>`; `-map-zoom <z>`; `-map-bearing <deg>`; `-map-pitch <deg>`; `-map-autozoom`.
 - **Map states/rain:** repeatable `-map-save <spotid>` and `-map-force-live <spotid>`; `-town-rain`; `-town-rain-preview`; `-poi-logo-stub`. Civic spot IDs are `downtown|saintbens|chapel|wobegon|millstream|saintjohns`.
 - **Calendar:** `-calendar-face upcoming|grid`; `-calendar-open <YYYY-MM-DD>`; `-calendar-legend`; `-calendar-compose` (combine with an open day); `-calendar-sample`; `-calendar-replay`; `-insights-sample`; `-bento-expand <journaled|visited|written>`; `-bento-autoexpand <journaled|visited|written>`; `-entries-expand`.
 - **Menu/profile:** `-open-menu` with optional `-menu-autoclose`; `-tap-menu` with optional `-slow-tap`; `-open-profile` with `-profile-expand|-profile-bottom|-profile-edit|-profile-edit-interests|-profile-moderation|-profile-autoclose`.
@@ -180,7 +180,7 @@ Current top-level features are `Activities`, `Add`, `Auth`, `Board`, `Calendar`,
 
 ### Map (`BlockParty/Features/Map/`)
 
-- `SJMapView` is a SwiftUI Mapbox `Map`, with static `BasemapPalette`, civic and POI SwiftUI view annotations, client-side clustering, town reverse geocoding, compass/recenter/help chrome, admin/non-admin compose routing, and the persistent map sheet.
+- `SJMapView` is a SwiftUI Mapbox `Map`, with static `BasemapPalette`, civic and POI SwiftUI view annotations, client-side clustering, town reverse geocoding, compass/recenter/help chrome, and the persistent map sheet. There is no compose entry on the map (the "+" and `QuickAddSheet` were retired in round 2, 2026-08-14; event creation lives on the Activities/Calendar tabs).
 - `MapSheet` is an in-tree draggable surface with peek/medium/full detents and Today/Places browse states. Civic/POI detail is lifted into the shared tab-shell presentation. Sheet gesture arbitration and the VoiceOver adjustable action are custom; it is not `presentationDetents`.
 - `MapModel` owns today's events and `RealtimeClient`. A relevant change debounces a full today re-sync; it handles background/foreground lifecycle and midnight rollover.
 - `MapSpots` and `KnownVenues` own trusted St. Joseph coordinates. Resolve known places there before geocoding unknown text.

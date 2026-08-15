@@ -524,8 +524,6 @@ struct MainTabsView: View {
                 ComposeSpeedDial(items: speedDialItems,
                                  isOpen: $speedDialOpen,
                                  anchor: .topTrailing,
-                                 chromeDisc: false,
-                                 showsRestingDisc: true,
                                  onSelect: routeSpeedDial)
             }
         }

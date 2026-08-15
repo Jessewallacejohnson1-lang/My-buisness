@@ -394,7 +394,8 @@ struct SJMapView: View {
     @State private var browseDetent = MapSheet.initialDetent()
     /// How far the bottom sheet has grown past its peek (0 = collapsed, 1 = at/above
     /// medium), published by `MapSheet` via `SheetExpansionKey`. Drives the fade-out of
-    /// the floating ?/locate controls so they never collide with the rising sheet.
+    /// the floating compass/recenter controls (bottom-right — the "?" lives in the
+    /// top-left chrome) so they never collide with the rising sheet.
     @State private var sheetExpansion: CGFloat = 0
 
     /// Bumped by `flyHome()`; every change drops one burst of town-rain. An Int rather

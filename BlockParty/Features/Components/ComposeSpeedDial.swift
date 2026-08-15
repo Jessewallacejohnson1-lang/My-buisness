@@ -14,13 +14,11 @@
 //   • each item does a little PUSH-IN on tap (PressableStyle) before it routes.
 //
 //  Hosted at MainTabsView (like the town-menu GlassShowcaseOverlay) so the wash + the
-//  column float above the tab bar. All three surfaces anchor the "+" TOP-RIGHT and
-//  drop the dial DOWN, nearest-item first. Two flavors:
-//   • Explore / Calendar — a coral disc in the top-right corner (it IS the resting
-//     compose FAB, replacing the old bottom ComposeFAB); its screen's own control
-//     (search / info) tucks to its LEFT into a small cluster.
-//   • Map — the native top-right chrome "+" triggers it; the dial is chrome-styled
-//     to match the map's other floating controls.
+//  column float above the tab bar. Both surfaces — Explore and Calendar — anchor the
+//  "+" TOP-RIGHT and drop the dial DOWN, nearest-item first: a coral disc in the
+//  top-right corner (it IS the resting compose FAB, replacing the old bottom
+//  ComposeFAB); its screen's own control (search / info) tucks to its LEFT into a
+//  small cluster. (The Map's "+" was retired in round 2 — no compose entry there.)
 //
 
 import SwiftUI
@@ -46,7 +44,7 @@ struct SpeedDialItem: Identifiable {
 
     /// Context-tailored sets. Same create-kinds everywhere (Event/Club/Trail are our
     /// only postable things) + Invite. Every surface now drops the dial DOWN from a
-    /// top-right "+", so all three are ordered primary-first — "Event" sits directly
+    /// top-right "+", so both are ordered primary-first — "Event" sits directly
     /// under the disc and leads the nearest-item-first cascade.
     static func calendar() -> [SpeedDialItem] { droppingFromTop() }
     static func explore()  -> [SpeedDialItem] { droppingFromTop() }
@@ -66,12 +64,6 @@ struct ComposeSpeedDial: View {
     /// Owned by the host (MainTabsView) so it can also recede the content behind.
     @Binding var isOpen: Bool
     var anchor: SpeedDialAnchor = .bottomTrailing
-    /// Map uses the white 44pt chrome circle (matching its filter / recenter chrome);
-    /// Explore/Calendar use the coral 54pt disc.
-    var chromeDisc: Bool = false
-    /// Explore/Calendar own their resting disc here; the Map's resting "+" is native
-    /// (in SJMapView), so the overlay only draws the ✕ while open.
-    var showsRestingDisc: Bool = true
     var onSelect: (SpeedDialItem) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -83,11 +75,11 @@ struct ComposeSpeedDial: View {
     static let topDiscHeaderClearance: CGFloat = 56
 
     private var isTop: Bool { anchor == .topTrailing }
-    // Map "+" is 44pt white chrome; the coral compose disc is 48pt in the top-right
-    // cluster (was a bulkier 54 when it stood alone at the bottom).
-    private var discSize: CGFloat { chromeDisc ? 44 : (isTop ? 48 : 54) }
+    // The coral compose disc is 48pt in the top-right cluster (was a bulkier 54
+    // when it stood alone at the bottom).
+    private var discSize: CGFloat { isTop ? 48 : 54 }
     private let iconSize: CGFloat = 44
-    private var discTrailing: CGFloat { chromeDisc ? 16 : (isTop ? 16 : 20) }
+    private var discTrailing: CGFloat { isTop ? 16 : 20 }
     // Top-anchored discs sit in the top-right corner; the legacy bottom coral disc
     // cleared the floating tab bar.
     private var discEdge: CGFloat { isTop ? 8 : 96 }
@@ -121,12 +113,9 @@ struct ComposeSpeedDial: View {
             .padding(isTop ? .top : .bottom, colEdge)
             .allowsHitTesting(isOpen)
 
-            // Always in the tree so the + ↔ ✕ rotation persists and animates. On the
-            // Map (no resting disc) it stays hidden + non-interactive until open, so
-            // the native "+" underneath handles the tap, then the ✕ fades/rotates in.
+            // The resting disc IS the compose entry; always in the tree so the
+            // + ↔ ✕ rotation persists and animates.
             disc
-                .opacity(discVisible ? 1 : 0)
-                .allowsHitTesting(discVisible)
                 .padding(.trailing, discTrailing)
                 .padding(isTop ? .top : .bottom, discEdge)
         }
@@ -136,8 +125,6 @@ struct ComposeSpeedDial: View {
         // so its empty area stays tap-through to the screen beneath.
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: zAlignment)
     }
-
-    private var discVisible: Bool { showsRestingDisc || isOpen }
 
     // MARK: Bubble
 
@@ -184,33 +171,17 @@ struct ComposeSpeedDial: View {
 
     // MARK: Disc (the + ↔ ✕ toggle)
 
-    @ViewBuilder
     private var disc: some View {
         Button {
             isOpen ? close() : open()
         } label: {
-            if chromeDisc {
-                // Matches the map's chrome circles (white, hairline, ink glyph).
-                Circle()
-                    .fill(Hue.surface)
-                    .frame(width: discSize, height: discSize)
-                    .overlay(Circle().stroke(Hue.hairline, lineWidth: 1))
-                    .mapFloatShadow()
-                    .overlay(
-                        Image(systemName: "plus")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundStyle(Hue.ink)
-                            .rotationEffect(.degrees(isOpen ? 135 : 0))
-                    )
-            } else {
-                Image(systemName: "plus")
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .rotationEffect(.degrees(isOpen ? 135 : 0))
-                    .frame(width: discSize, height: discSize)
-                    .background(Hue.ink, in: Circle())
-                    .shadow(color: Hue.ink.opacity(0.35), radius: 10, x: 0, y: 5)
-            }
+            Image(systemName: "plus")
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundStyle(.white)
+                .rotationEffect(.degrees(isOpen ? 135 : 0))
+                .frame(width: discSize, height: discSize)
+                .background(Hue.ink, in: Circle())
+                .shadow(color: Hue.ink.opacity(0.35), radius: 10, x: 0, y: 5)
         }
         .buttonStyle(PressableStyle(scale: 0.90, haptic: true))
         .accessibilityLabel(isOpen ? "Close add menu" : "Add to St. Joe")

@@ -14,11 +14,14 @@
 //  grey scale: the cream page becomes #141412 and cards #1D1D1A, so a card still
 //  reads as a lighter object sitting on the page rather than as a hairline box.
 //
-//  THE ONE EXCEPTION IS THE MAP. Mapbox renders LIGHT cartography in both
-//  appearances (`BasemapPalette`), so ink drawn ON the map canvas must stay ink or
-//  a pin badge turns white-on-white. Those call sites resolve their tokens through
-//  `onLightCanvas` below rather than following the system. That is scoping, not an
-//  opt-out: the canvas genuinely did not change.
+//  THE EXCEPTIONS ARE THE TWO FIXED-LIGHT GROUNDS. Mapbox renders LIGHT
+//  cartography in both appearances (`BasemapPalette`), so ink drawn ON the map
+//  canvas must stay ink or a pin badge turns white-on-white; and since round 2
+//  Phase D the pin card's status wash (`statusTint`) is the same pale coral in
+//  both appearances, so its content pins to the light ramp too
+//  (`PinDetailSheet.CardInk`). Those call sites resolve their tokens through
+//  `onLightCanvas` below rather than following the system. That is scoping, not
+//  an opt-out: neither canvas actually changes.
 //
 
 import SwiftUI

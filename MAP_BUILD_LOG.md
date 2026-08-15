@@ -2077,8 +2077,10 @@ Jesse's review, all in `Features/Map/` + the shell wiring.
    Activities/Calendar speed dial + composer. Removed: `composeButton`, the
    `quickAdding` sheet mount, `onCompose` plumbing (SJMapView + the RootView
    call site), the map's speed-dial branch (`speedDialItems` `.map` case,
-   `SpeedDialItem.map()`, the now-constant `chromeDisc`/`showsRestingDisc`
-   args), the `-map-compose` AND `-force-nonadmin` flags (`isAdmin` had no
+   `SpeedDialItem.map()`; the now-constant `chromeDisc`/`showsRestingDisc`
+   args were NOT removed here despite this entry's original claim — they
+   survived until the round-2 feedback fix commit), the `-map-compose` AND
+   `-force-nonadmin` flags (`isAdmin` had no
    other reader in SJMapView), `VenueAutocompleteField.Palette.map`, and
    `MapSpots.pinnableSuggestions` (QuickAdd was the only consumer of each).
    The peek's empty secondary — "Tap + to share what's happening." — now reads
@@ -2346,3 +2348,42 @@ session scratchpad `r2d/`: the full-state sweep (`r2d-<state>.png`, before set
 on head `45dbdf6`), `r2d-pinsheet-poi-quiet.png` + `r2d-dark-pinsheet-poi-quiet.png`
 (the new compact card, both modes), and `r2d-fix-{1..4}-{before,after}.png` per
 fix above.
+
+## 2026-08-15 — Map polish round 2: adversarial feedback fixes (13 raised / 7 confirmed / 6 refuted)
+
+The round-2 adversarial Feedback workflow audited the four phases: **13
+findings raised, 7 confirmed, 6 refuted**. This commit applies exactly the 7
+confirmed items — stale docs/comments purged, dead API removed, one a11y leak
+closed. No behavior change beyond VoiceOver.
+
+1. **`AGENTS.md`** — `-force-nonadmin` dropped from the Map browse/camera flag
+   registry (removed from code in the Phase-A chrome pass); the `SJMapView`
+   bullet no longer claims "admin/non-admin compose routing" — it now states
+   there is no compose entry on the map.
+2. **`ComposeSpeedDial.swift`** — the dead map knobs are now actually gone:
+   the `chromeDisc`/`showsRestingDisc` parameters, the unreachable chrome-disc
+   branch, `discVisible`, and every doc comment describing the deleted map "+"
+   as live. `RootView.swift`'s call site dropped the constant args. (The
+   Phase-A entry above originally claimed `d29138a` removed these args; it did
+   not — that entry is corrected in place, and the removal landed here.)
+3. **`CommunityAPI.swift`** — the `realOnly` guard comment no longer
+   enumerates the deleted QuickAdd (its inserts went through `addEvent`).
+4. **`PinDetailSheet.swift`** — the quiet line's decorative sparkle is
+   `.accessibilityHidden(true)`, so the `.combine`'d VoiceOver line reads
+   "Quiet today." without a trailing "Sparkles". Visual unchanged.
+5. **`CLAUDE.md`** — test count 405 → 409 (Phase D's four `PinDetailCopy`
+   quiet-card tests).
+6. Four stale "?/locate controls" comments (`MapSheet.swift` ×3,
+   `SJMapView.swift` ×1) now describe the current chrome: "?" top-left,
+   compass/recenter bottom-right (the Phase-A move).
+7. **`BlockPartyColor.swift`** header — "THE ONE EXCEPTION IS THE MAP" now
+   names BOTH fixed-light grounds (the Mapbox basemap AND the pin card's
+   `statusTint` wash via `CardInk`), consistent with the `onLightCanvas` doc.
+
+**Verified.** iPhone 17 sim, Debug: BUILD SUCCEEDED, **0 source warnings**
+(only the accepted `appintentsmetadataprocessor` notice; changed files touched
+and recompiled to prove it). `xcodebuild test` on the non-primary iPhone 17
+Pro Max: **409 tests, 0 failures** — count held. Screenshot (session
+scratchpad `fixes/r2-fix4-quietcard.png`, `-open-tab map -map-open-poi blend
+-show-home -anon-data`): The Local Blend's quiet card still renders the
+sparkle — fix 4 is a11y-only.

@@ -42,7 +42,7 @@ struct CommunityAPI {
     }
 
     /// "Real submissions only" guard, appended to every event *display* query.
-    /// Every legitimate insert stamps `submitted_by` (addEvent / addTrail / QuickAdd),
+    /// Every legitimate insert stamps `submitted_by` (addEvent / addTrail),
     /// so a row with a NULL submitter was never created by a person in-app — it's
     /// seed / demo / fabricated content. Filtering it out here means such a row can
     /// never surface again, even if one lands in the shared DB. Trails intentionally

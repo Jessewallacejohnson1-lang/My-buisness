@@ -110,8 +110,8 @@ struct MapSheet: View {
     /// `GlassEffectContainer` entirely — see `MainTabsView`.)
     static let tabBarReserve: CGFloat = 74
     /// Collapsed height — grabber + the single live-now line, resting just above
-    /// the tab bar. The map's floating ?/locate controls
-    /// rest just above this and fade out as the sheet grows.
+    /// the tab bar. The map's floating compass/recenter controls (bottom-right;
+    /// the "?" lives top-left) rest just above this and fade out as the sheet grows.
     static let peekHeight: CGFloat = 96
     /// Breathing room under the last row, above the sheet's bottom edge (the tab bar
     /// sits below the sheet now, so content no longer needs to clear a 56pt gap).
@@ -261,7 +261,7 @@ struct MapSheet: View {
             .padding(.horizontal, 20)                 // match the tab bar's side insets
             .padding(.bottom, Self.tabBarReserve)      // rest 8pt above the tab bar (the reserve includes the seat gap)
             // Publish how far the sheet has grown past peek (0 = collapsed) so the map's
-            // floating ?/locate controls can fade out before the sheet reaches them.
+            // floating compass/recenter controls can fade out before the sheet reaches them.
             .preference(key: SheetExpansionKey.self,
                         value: min(1, max(0, (height - m.peek) / 64)))
             // The sheet's live TOP edge, in the map's own coordinate space. Unlike
@@ -899,8 +899,8 @@ private struct SkeletonRow: View {
 // MARK: - Sheet expansion preference
 
 /// How far `MapSheet` has grown past its peek detent (0 = collapsed, 1 = at/above
-/// medium). Read by `SJMapView` to fade the floating ?/locate controls before the
-/// sheet reaches them, and to keep them out of the way as it expands.
+/// medium). Read by `SJMapView` to fade the floating compass/recenter controls
+/// before the sheet reaches them, and to keep them out of the way as it expands.
 struct SheetExpansionKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
