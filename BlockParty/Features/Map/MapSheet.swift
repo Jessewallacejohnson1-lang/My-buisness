@@ -62,8 +62,10 @@ nonisolated enum MapSheetCopy {
 nonisolated enum SheetRubberBand {
     /// √-curve multiplier: 25pt of overdrag reads as ~15pt, 100pt as ~30pt.
     static let give: CGFloat = 3
-    /// Stretch ceiling. Full's top clearance is ~66pt, so 32 keeps an overshot
-    /// sheet clear of the chrome band above it.
+    /// Stretch ceiling. Full's top clearance is ~102pt (the whole chrome band +
+    /// a seat gap — see `metrics`), so a maximally overshot sheet transiently
+    /// reaches the chip row's lower edge but never the pill row, and springs
+    /// straight back.
     static let maxStretch: CGFloat = 32
 
     static func height(raw: CGFloat, min lower: CGFloat, max upper: CGFloat) -> CGFloat {
@@ -124,9 +126,11 @@ struct MapSheet: View {
     /// Floor of that veil at the PEEK rest state. Was 0, i.e. pure glass — and pure glass over
     /// this basemap bleaches the warm cream ground while transmitting park green, so the
     /// collapsed sheet picked up green blotches whose polygon SHAPES were readable through the
-    /// panel. Deliberately low: enough to flatten that chroma, not enough to stop the peek band
-    /// reading as glass (the same material family as the tab bar below it).
-    static let frostMin: CGFloat = 0.30
+    /// panel. 0.30 was tuned against the round-1 muted greens; Phase B's livelier palette bled
+    /// through it again (shapes readable at the peek — round 2 Phase D screenshot), so it now
+    /// sits at 0.45: enough to flatten the richer chroma, still low enough that the peek band
+    /// reads as glass (the same material family as the tab bar below it).
+    static let frostMin: CGFloat = 0.45
 
     /// The sheet's silhouette: rounded on ALL corners now that it floats free of the
     /// tab bar (the old square bottom existed only to blend into the flush merge).
@@ -277,17 +281,20 @@ struct MapSheet: View {
 
     /// The three rest heights, derived from the container height. peek is fixed
     /// (one line); medium is half-ish; full stops just below the map's floating
-    /// chrome so the town pill / filter / compose stay clear (never half-clipped)
-    /// and a band of the live map is always visible — the sheet doesn't swallow it.
+    /// chrome so the town pill AND the filter chip row stay clear (never
+    /// half-clipped) and a band of the live map is always visible — the sheet
+    /// doesn't swallow it.
     private func metrics(_ H: CGFloat) -> (peek: CGFloat, medium: CGFloat, full: CGFloat) {
         let peek = Self.peekHeight
         let medium = max(peek + 120, H * 0.5)
-        // full is H−140, but `.padding(.bottom, tabBarReserve)` is applied AFTER this
-        // height frame, so the sheet's real top clearance is 140 − tabBarReserve ≈ 66pt
-        // — still clear of the floating chrome (140 tracks the reserve's 8pt seat gap,
-        // preserving the round-1 measured clearance). The H*0.9 arm only binds on
-        // iPad-class heights.
-        let full = max(medium + 80, min(H * 0.9, H - 140))
+        // full is H−176, but `.padding(.bottom, tabBarReserve)` is applied AFTER this
+        // height frame, so the sheet's real top clearance is 176 − tabBarReserve ≈
+        // 102pt — the whole chrome band (8 top pad + 44 pill row + 10 spacing + ~34
+        // chip row ≈ 96pt) plus a seat gap. The old 140 predated the Phase-4 chip
+        // row: its 66pt clearance parked the sheet's top edge MID-CHIP, so the
+        // selected chip's ink peeked out behind the top-left corner radius (round 2
+        // Phase D screenshot). The H*0.9 arm only binds on iPad-class heights.
+        let full = max(medium + 80, min(H * 0.9, H - 176))
         return (peek, medium, full)
     }
 

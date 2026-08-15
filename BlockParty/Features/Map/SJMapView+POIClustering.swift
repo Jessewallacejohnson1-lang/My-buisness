@@ -154,7 +154,15 @@ extension SJMapView {
         // pass under them.
         let controlsY = sheetTop - 96 - 44
         let recenter = CGRect(x: W - 60, y: controlsY, width: 44, height: 44)
-        return [topBand, bottomBand, recenter]
+        // Screen-edge gutters: a label whose text box crosses the physical edge
+        // renders as a name cut mid-word (caught at the campus framing, round 2
+        // Phase D — "CSB Ber / Arts Ce"). Reserving the offscreen halves makes the
+        // pass DENY those labels instead, the same way it denies any collision:
+        // the badge still draws, only the text is withheld — standard map-engine
+        // edge behaviour.
+        let leftGutter = CGRect(x: -W, y: 0, width: W, height: H)
+        let rightGutter = CGRect(x: W, y: 0, width: W, height: H)
+        return [topBand, bottomBand, recenter, leftGutter, rightGutter]
     }
 
     // MARK: Bubble lifecycle (stable ids → persist / crossfade / fade-out)

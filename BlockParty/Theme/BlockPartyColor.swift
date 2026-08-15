@@ -54,9 +54,10 @@ extension Color {
     /// This token as it renders in LIGHT appearance, whatever the device is set to.
     ///
     /// For anything drawn over a ground that does NOT follow the system appearance.
-    /// Exactly one such ground exists: the Mapbox basemap, which is light
-    /// cartography in both modes. A marker over it keeps its light-mode value or it
-    /// disappears.
+    /// Two such grounds exist: the Mapbox basemap (light cartography in both modes)
+    /// and the pin-detail status card's fixed pale `statusTint` wash. Ink over
+    /// either keeps its light-mode value or it disappears (a dark-mode near-white
+    /// `ink` measured ~1.1:1 on the wash — round 2 Phase D).
     var onLightCanvas: Color {
         Color(UIColor(self).resolvedColor(with: UITraitCollection(userInterfaceStyle: .light)))
     }
@@ -129,10 +130,12 @@ nonisolated enum Hue {
     /// the BP mark's own orange. The mark's lockup samples to #F78067 (mean of
     /// the render's coral pixels, `scripts/brand`-style sweep); at full strength
     /// that overwhelms a card background, so this is that hue mixed to a pale
-    /// wash — the Flighty pale-rose treatment in our coral. Ink text ≈17:1 and
-    /// `inkSecondary` ≈4.5:1 on it, so AA holds. The card's header dot and
-    /// status word stay ink (plum only while live). See DECISIONS.md (map
-    /// polish Q3).
+    /// wash — the Flighty pale-rose treatment in our coral. LIGHT ink ≈17:1 and
+    /// light `inkSecondary` ≈4.5:1 on it, so AA holds — but the wash is the same
+    /// pale colour in BOTH appearances, so the card's content pins to the light
+    /// ramp via `onLightCanvas` (`PinDetailSheet.CardInk`; dark ink measured
+    /// ~1.1:1 here). The card's header dot and status word stay ink (plum only
+    /// while live). See DECISIONS.md (map polish Q3).
     static let statusTint    = Color(hex: 0xFDECE8)
 
     /// The one brand accent — meaning-scoped ONLY (live events, active filters,

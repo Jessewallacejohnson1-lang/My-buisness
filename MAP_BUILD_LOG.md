@@ -2252,3 +2252,97 @@ but eyeball the map⇄tab transition on the real device anyway.
 **Known/pre-existing (Phase D candidates):** at full detent the selected
 "All" chip's ink peeks behind the sheet's top-left corner (position identical
 before/after — not introduced here).
+
+## 2026-08-14 — Map polish round 2, Phase D: compact quiet card + flaw-hunt sweep
+
+Plan `2026-08-14-map-polish-round-2.md`, Phase D — Jesse's asks 8 ("remove info
+not relevant to the day/person from the pin window") and 9 ("actively look for
+flaws and fix").
+
+**Part 1 — the compact quiet card (approved interpretation: rows render only on
+real day/person signal).** A QUIET place — no events today, not live — no longer
+shows the boilerplate "Right now / Nothing happening yet today." row block. Its
+status card collapses to ONE quiet line (ink dot + "Quiet today." + the sparkle)
+above the "View full details ›" row; the pill row (OPEN NOW · distance) and the
+rest of the card are untouched. Live/eventful places keep the full round-1 card
+exactly.
+
+- `PinDetailSheet.swift:75` — `PinDetailCopy.isQuiet(isLive:todayCount:)`, the
+  pure rule (today-and-live is the whole signal — the card holds no week data,
+  so none is claimed); `:81` `quietSentence` ("Quiet today." — the status word
+  in sentence form); `:340` `isQuietPlace`; `:386` `quietLine` (the header's
+  exact anatomy, sentence copy).
+- `PinDetailCopyTests.swift` — 4 new tests (quiet rule ×3 + sentence identity)
+  and `quietSentence` joined the brand-voice loop. **Executed count 405 → 409.**
+
+**Part 2 — flaw-hunt sweep.** Every map state screenshotted fresh on head
+`45dbdf6` (light: rest · 5 chips · search open/results/empty · POI + live pin
+sheets · full details civic + POI · 3 detents · clusters z13 · campus 14.5;
+dark: rest · chips · both pin sheets · full detent), then eyeballed per the
+swiftui-design skill + shared craft rules. Found → fixed/deferred:
+
+1. **FIXED — full detent parked the sheet's top edge MID-CHIP** (the plan's
+   known item (a): the selected "All" chip's ink peeked out behind the top-left
+   corner radius in light; in dark every chip's gray top sliver showed above the
+   sheet edge). Root cause: `metrics`' full arm (`H−140` → 66pt top clearance)
+   predates the Phase-4 chip row (chrome band now ≈96pt). `MapSheet.swift:297`
+   — full is now `H−176` (≈102pt clearance: the whole chrome band + a seat
+   gap); `:69` maxStretch comment updated to the new clearance. Verified both
+   modes: all five chips sit fully clear above the full sheet.
+2. **FIXED — dark mode: the status card's text was invisible** (Phase B/C had
+   never been dark-verified; the plan flagged it). `Hue.statusTint` is the same
+   pale coral in BOTH appearances (Jesse's explicit pick), but the card's
+   content used appearance-adaptive tokens — dark `Hue.ink` is near-white
+   #F2F1EC, ~1.1:1 on the wash: header word, row labels and icons vanished
+   (screenshot-caught on the live card). `PinDetailSheet.swift:112` — `CardInk`
+   pins the card's ink/inkSecondary/hairline/accent to the light ramp via
+   `onLightCanvas`, the exact `MapInk` pattern (the wash is the second ground
+   that doesn't follow the system). `BlockPartyColor.swift` docs updated
+   (`onLightCanvas` "exactly one such ground" → two; statusTint's contrast note
+   now states the pinning). Verified: dark live card and dark quiet card fully
+   legible, light unchanged (pinned values ≡ light values).
+3. **FIXED — pin-name labels cut mid-word at the physical screen edges** (campus
+   framing: "CSB Ber / Arts Ce", "T / &" running off the right edge).
+   `SJMapView+POIClustering.swift:163` — two offscreen gutter rects joined
+   `chromeRects`, so the shared label pass DENIES a label whose text box crosses
+   the edge exactly like any collision (badge stays, text withheld — standard
+   map-engine edge behaviour). Verified at the campus framing: edge markers show
+   badge-only; no label is clipped.
+4. **FIXED — Phase B's richer greens read through the peek sheet again** (the
+   plan's known item (b)): park-polygon shapes were readable through the
+   collapsed sheet in light mode, and the mint cast made the sheet read as a
+   different material than the (whiter) tab bar below it. `MapSheet.swift:133`
+   — `frostMin` 0.30 → 0.45 (0.30 was tuned against round-1's muted palette).
+   Verified: peek flat and warm in light, still glassy at the grabber; sheet +
+   bar now read as one family. Dark was already under control (dark glass mutes
+   the green) and is unchanged.
+
+**Judged fine, left alone:** (c) top fade vs status bar — legible in BOTH modes
+(light: dark text on the light paper fade; dark: white text on the dark fade —
+the dark veil over the always-light basemap is what makes it work, and the
+safe-area band above the map blends into the 0.85 fade end with no visible
+seam). The chip row's full-width glass field haze (Phase A's call) reads as
+chrome seating in dark too — consistent, kept. The cluster-bubble ghosting
+through the full sheet's 0.94 frost is sub-threshold. Cluster bubbles may
+overlap a selected pin's ring (draw order cluster > selected is deliberate).
+
+**Deferred (structural, logged not scope-crept):**
+- **Full-details photo box renders blank** — `VenueInfoView.swift:101` gives the
+  AsyncImage's loading AND failure phases the same solid `palette.card`
+  rectangle, so a photo that never lands leaves a permanent empty white 150pt
+  box (screenshot: The Local Blend full details). Fix belongs in
+  `Features/Components/` (outside this phase's Map+Theme boundary): collapse
+  the container on `.failure`, skeleton-tint (`Hue.fill`) while loading.
+- **Civic full details can render near-empty** — "Downtown" (a district, not a
+  Google-resolvable venue) shows name + blurb and a page of void. Needs a
+  content decision (what a civic spot's full page holds when Places has
+  nothing), not a paper cut.
+
+**Verified.** iPhone 17 sim, Debug: BUILD SUCCEEDED, **0 source warnings** (only
+the accepted `appintentsmetadataprocessor` notice); installed over the app from
+the freshly resolved `BUILT_PRODUCTS_DIR`. `xcodebuild test` on the non-primary
+iPhone 17 Pro Max: **409 tests** (see commit for the run). Screenshots in the
+session scratchpad `r2d/`: the full-state sweep (`r2d-<state>.png`, before set
+on head `45dbdf6`), `r2d-pinsheet-poi-quiet.png` + `r2d-dark-pinsheet-poi-quiet.png`
+(the new compact card, both modes), and `r2d-fix-{1..4}-{before,after}.png` per
+fix above.

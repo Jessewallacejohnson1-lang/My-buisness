@@ -11,8 +11,11 @@
 //    (c) grey-caps secondary line — category glyph + street (real address data)
 //        or the town
 //    (d) 44pt circular close, top-right
-//    (e) the status card — wash routed through Hue.statusTint; header dot + word
-//        + sparkle, then hairline-divided rows built from REAL data only
+//    (e) the status card — wash routed through Hue.statusTint (content ink pinned
+//        light, see CardInk); header dot + word + sparkle, then hairline-divided
+//        rows built from REAL data only. A QUIET place (no events today, not
+//        live) collapses the header + rows to ONE quiet line — "Quiet today." —
+//        so no boilerplate row ever renders (round 2, Jesse's relevance call)
 //    (f) a low-emphasis "View full details" row → the full-height rich content
 //        (blurb/address + VenueInfoView + happenings)
 //    (g) the floating action bar — save · share · overflow · a filled circular
@@ -63,6 +66,20 @@ nonisolated enum PinDetailCopy {
         isLive ? "Live now" : "Right now"
     }
 
+    /// Whether a place is QUIET — no real happenings today and not live — which
+    /// collapses the status card to its single quiet line (round 2, Jesse's
+    /// relevance call: rows render only on real day/person signal, so a quiet
+    /// place never shows the boilerplate "Right now / Nothing happening yet
+    /// today." block). Only today's events exist here (no week totals), so
+    /// today-and-live IS the whole signal.
+    static func isQuiet(isLive: Bool, todayCount: Int) -> Bool {
+        !isLive && todayCount == 0
+    }
+
+    /// The compact quiet card's one line — the quiet status word in sentence
+    /// form (brand voice: a complete sentence, no exclamation).
+    static let quietSentence = "Quiet today."
+
     /// The status row's sentence. A live happening is named when one exists;
     /// forced-live states (DEBUG) with no resolvable event stay generic rather
     /// than inventing a title.
@@ -81,6 +98,22 @@ nonisolated enum PinDetailCopy {
         }
         return "Saint Joseph"
     }
+}
+
+// MARK: - Status-card ink (pinned to the light ramp)
+
+/// The status card's wash (`Hue.statusTint`) is a fixed LIGHT pale-coral in both
+/// appearances (Jesse's explicit 2026-08-14 pick), so everything drawn ON it pins
+/// to the light ramp — dark-mode `Hue.ink` is near-white (#F2F1EC) and measured
+/// ~1.1:1 on the wash, an invisible header (caught by dark-mode screenshot, round
+/// 2 Phase D). Same scoping rule as the map canvas (`Color.onLightCanvas`,
+/// `MonoMarkerPalette.MapInk`): the ground doesn't follow the system, so neither
+/// does the ink on it. Resolved once per token, matching `MapInk`.
+private enum CardInk {
+    static let ink = Hue.ink.onLightCanvas
+    static let inkSecondary = Hue.inkSecondary.onLightCanvas
+    static let hairline = Hue.hairline.onLightCanvas
+    static let accent = Hue.accent.onLightCanvas
 }
 
 // MARK: - Sheet
@@ -302,67 +335,25 @@ struct PinDetailSheet: View {
         return rows
     }
 
+    /// The quiet collapse (round 2, Jesse's relevance call): with no real
+    /// day-signal the card drops its header + row block for one calm line.
+    private var isQuietPlace: Bool {
+        PinDetailCopy.isQuiet(isLive: isLive, todayCount: happenings.count)
+    }
+
     private var statusCard: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header: dot + status word + sparkle. The dot goes plum only for
-            // LIVE (the accent's meaning scope); the wash stays statusTint.
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(isLive ? Hue.accent : Hue.ink)
-                    .frame(width: 8, height: 8)
-                Text(PinDetailCopy.statusWord(isLive: isLive, todayCount: happenings.count))
-                    .font(.sansSemibold(15))
-                    .foregroundStyle(Hue.ink)
-                Spacer(minLength: 8)
-                Image(systemName: "sparkles")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Hue.inkSecondary)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 13)
-
-            ForEach(statusRows) { row in
-                cardDivider
-                HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: row.icon)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(Hue.ink)
-                        .frame(width: 18)
-                        .padding(.top, 1)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(row.label)
-                            .font(.sansSemibold(14))
-                            .foregroundStyle(Hue.ink)
-                        Text(row.sentence)
-                            .font(.sans(14).monospacedDigit())
-                            .foregroundStyle(Hue.inkSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+            if isQuietPlace {
+                quietLine
+            } else {
+                statusHeader
+                ForEach(statusRows) { row in
+                    cardDivider
+                    statusRow(row)
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 11)
-                .accessibilityElement(children: .combine)
             }
-
             cardDivider
-            Button {
-                Haptics.light()
-                showingFullDetails = true
-            } label: {
-                HStack(spacing: 4) {
-                    Text("View full details")
-                        .font(.sansMedium(13))
-                    Spacer(minLength: 8)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .semibold))
-                }
-                .foregroundStyle(Hue.inkSecondary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 11)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("View full details for \(detail.name)")
+            fullDetailsRow
         }
         .background(
             Hue.statusTint,
@@ -370,9 +361,92 @@ struct PinDetailSheet: View {
         )
     }
 
+    /// Header: dot + status word + sparkle. The dot goes plum only for
+    /// LIVE (the accent's meaning scope); the wash stays statusTint.
+    private var statusHeader: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(isLive ? CardInk.accent : CardInk.ink)
+                .frame(width: 8, height: 8)
+            Text(PinDetailCopy.statusWord(isLive: isLive, todayCount: happenings.count))
+                .font(.sansSemibold(15))
+                .foregroundStyle(CardInk.ink)
+            Spacer(minLength: 8)
+            Image(systemName: "sparkles")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(CardInk.inkSecondary)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 13)
+    }
+
+    /// The quiet card's single line: the header's exact anatomy (dot · sentence
+    /// · sparkle), with the status word in sentence form. Never live here, so
+    /// the dot stays ink.
+    private var quietLine: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(CardInk.ink)
+                .frame(width: 8, height: 8)
+            Text(PinDetailCopy.quietSentence)
+                .font(.sansSemibold(15))
+                .foregroundStyle(CardInk.ink)
+            Spacer(minLength: 8)
+            Image(systemName: "sparkles")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(CardInk.inkSecondary)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 13)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func statusRow(_ row: StatusRow) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: row.icon)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(CardInk.ink)
+                .frame(width: 18)
+                .padding(.top, 1)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(row.label)
+                    .font(.sansSemibold(14))
+                    .foregroundStyle(CardInk.ink)
+                Text(row.sentence)
+                    .font(.sans(14).monospacedDigit())
+                    .foregroundStyle(CardInk.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var fullDetailsRow: some View {
+        Button {
+            Haptics.light()
+            showingFullDetails = true
+        } label: {
+            HStack(spacing: 4) {
+                Text("View full details")
+                    .font(.sansMedium(13))
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
+            }
+            .foregroundStyle(CardInk.inkSecondary)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("View full details for \(detail.name)")
+    }
+
     private var cardDivider: some View {
         Rectangle()
-            .fill(Hue.hairline)
+            .fill(CardInk.hairline)
             .frame(height: 1)
             .padding(.horizontal, 14)
     }

@@ -4,7 +4,8 @@
 //  map polish Phase 3.
 //
 //  Pure string logic: the status word, the real-data-only happenings sentence,
-//  the live/quiet status sentence, and the secondary street line. The visual
+//  the live/quiet status sentence, the secondary street line, and the round-2
+//  quiet-collapse rule (isQuiet + quietSentence — the compact card). The visual
 //  sheet (pills, dim, drag-dismiss) is verified by simulator screenshots.
 //
 
@@ -74,6 +75,28 @@ final class PinDetailCopyTests: XCTestCase {
         XCTAssertEqual(PinDetailCopy.statusRowLabel(isLive: false), "Right now")
     }
 
+    // MARK: Quiet compact card (round 2 — rows render only on real signal)
+
+    func testQuietWithNoEventsAndNotLive() {
+        XCTAssertTrue(PinDetailCopy.isQuiet(isLive: false, todayCount: 0))
+    }
+
+    func testNotQuietWithEventsToday() {
+        XCTAssertFalse(PinDetailCopy.isQuiet(isLive: false, todayCount: 1))
+        XCTAssertFalse(PinDetailCopy.isQuiet(isLive: false, todayCount: 5))
+    }
+
+    func testNotQuietWhileLiveEvenWithZeroResolvedEvents() {
+        // A DEBUG-forced live state resolves no event — live still wins over quiet.
+        XCTAssertFalse(PinDetailCopy.isQuiet(isLive: true, todayCount: 0))
+    }
+
+    func testQuietSentenceIsTheStatusWordInSentenceForm() {
+        XCTAssertEqual(PinDetailCopy.quietSentence, "Quiet today.")
+        XCTAssertEqual(PinDetailCopy.quietSentence,
+                       PinDetailCopy.statusWord(isLive: false, todayCount: 0) + ".")
+    }
+
     // MARK: Secondary line (street from real address data, else the town)
 
     func testSecondaryLineTakesTheStreetFromAnAddress() {
@@ -103,6 +126,7 @@ final class PinDetailCopyTests: XCTestCase {
             PinDetailCopy.statusSentence(isLive: false, liveTitle: nil),
             PinDetailCopy.statusSentence(isLive: true, liveTitle: "Trivia Night"),
             PinDetailCopy.statusSentence(isLive: true, liveTitle: nil),
+            PinDetailCopy.quietSentence,
         ]
 
         // Assert
