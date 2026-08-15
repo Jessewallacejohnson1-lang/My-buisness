@@ -2198,3 +2198,57 @@ the richer basemap beneath (the pre-existing "park green blooms through
 glass" behaviour, judged correct 2026-07-19 — now a touch more visible).
 Real-device pass: eyeball the greens/tan in sunlight; sim panel saturation
 flatters green.
+
+## 2026-08-14 — Map polish round 2, Phase C: the tab bar attaches identically on all four tabs
+
+**Jesse's ask 6** ("when u switch tabs out of maps u can see they dont attach"),
+reproduced by screenshot: on Today/Activities/Calendar the tab bar is a lone
+floating Liquid Glass capsule, but on the Map tab it read as a completely
+different element — a single tall attached panel — because `MapSheet`'s glass
+sat FLUSH on the bar inside the shared `GlassEffectContainer(spacing: 22)` and
+metaball-merged with it (the deliberate 2026-07-19 "one continuous bottom
+glass" design, `84a5624`). Switching tabs visibly swapped between the two
+reads: two different bars.
+
+**Root cause:** `RootView.swift` — `BlockPartyTabBar` rendered inside the
+shell's `GlassEffectContainer`, adjacent to `MapSheet`'s flush glass
+(`MapSheet.tabBarReserve = 66`, square-bottom `UnevenRoundedRectangle`
+silhouette built to blend into the merge).
+
+**Fix (consistency is the spec — the bar is the one element that must never
+change across tabs):**
+- **`RootView.swift`** — the bar moved OUT of the `GlassEffectContainer`, to a
+  sibling in the outer bottom-aligned ZStack. Its silhouette can no longer
+  fuse with any map glass: one identical capsule on all four tabs, same
+  geometry, same glass, seated the same. The pin-detail hide path
+  (`tab == .map && mapDetail != nil`) moved with it, unchanged.
+- **`MapSheet.swift`** — the sheet becomes its own panel: `sheetShape` is a
+  full `RoundedRectangle(26)` (the square bottom existed only for the merge),
+  `tabBarReserve` 66 → 74 (the bar's 66pt zone + an 8pt seat gap; every
+  derived layout — ⓘ ornament, ?/locate stack, cluster occlusion, town-rain
+  floor — tracks the constant). Full detent 132 → 140 so the sheet's TOP at
+  full stays exactly where round 1 measured it (74 + H−140 = H−66 = the old
+  66 + H−132). The content frost now runs to the sheet's bottom edge (the
+  transparent "tab-bar join" band would just sample raw park green on a
+  detached panel).
+- The bar's footing on the map is the existing Phase-A bottom edge fade — no
+  new material. Its glass still samples the washed map rather than paper;
+  that residual tint is inherent to translucent glass (true of every iOS 26
+  bar) and is the fade's job to keep quiet.
+
+**Verified.** iPhone 17 sim, Debug: BUILD SUCCEEDED, **0 source warnings**
+(only the accepted `appintentsmetadataprocessor` notice); installed over the
+app from the freshly resolved `BUILT_PRODUCTS_DIR`. `xcodebuild test` on the
+non-primary iPhone 17 Pro Max: **405 tests, 0 failures**. Screenshots
+(scratchpad `r2c/`): before/after bottom-300pt crops of all four tabs
+(`r2c-before-*` / `r2c-after-*-bottom.png`) — after set shows one identical
+capsule on all four — plus `r2c-after-map-full.png` (sheet floats 8pt above
+the bar, both fades intact, ⓘ riding above the lifted peek), full-detent and
+pin-detail checks. No debug path can switch tabs mid-run (`-open-tab` is
+launch-time only), and the bar is one persistent view that never remounts on
+a tab change (only content swaps), so there is structurally nothing to jump —
+but eyeball the map⇄tab transition on the real device anyway.
+
+**Known/pre-existing (Phase D candidates):** at full detent the selected
+"All" chip's ink peeks behind the sheet's top-left corner (position identical
+before/after — not introduced here).

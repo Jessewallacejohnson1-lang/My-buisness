@@ -389,11 +389,14 @@ struct MainTabsView: View {
         ZStack(alignment: .bottom) {
             Hue.paper.ignoresSafeArea()
 
-            // The tab content and the tab bar share ONE GlassEffectContainer. On the
-            // Map tab the bottom sheet's Liquid Glass sits flush on top of the tab bar,
-            // so the two glass shapes MERGE into a single continuous piece — the sheet
-            // reads as the tab bar stretching upward. On the other three tabs there's
-            // no adjacent glass, so the tab bar looks and behaves exactly as before.
+            // Tab content only — the tab BAR lives OUTSIDE this GlassEffectContainer,
+            // deliberately. When the two shared one (2026-07-19 "one continuous bottom
+            // glass"), the map sheet's glass metaball-merged with the bar into a single
+            // tall panel on the Map tab ONLY, so switching tabs visibly swapped between
+            // "one attached panel" and "a lone floating capsule" — two different bars
+            // (Jesse's round-2 ask 6). Out here the bar's silhouette can never fuse
+            // with anything: one identical capsule on all four tabs. The map sheet now
+            // rests 8pt above it as its own panel (`MapSheet.tabBarReserve`).
             GlassEffectContainer(spacing: 22) {
                 ZStack(alignment: .bottom) {
                     Group {
@@ -443,16 +446,17 @@ struct MainTabsView: View {
                         TabLoadingHost(isReady: activeTabReady, resetKey: AnyHashable(tab))
                     }
 
-                    // The tab bar hides while the map's pin-detail sheet is up —
-                    // that card's floating action bar owns the bottom zone
-                    // (Flighty pattern; map polish Q6). Every other tab, and the
-                    // map at rest, keeps the four buttons.
-                    if !(tab == .map && mapDetail != nil) {
-                        BlockPartyTabBar(selection: $tab, onSelect: select)
-                            .transition(.opacity)
-                            .zIndex(10)
-                    }
                 }
+            }
+
+            // The tab bar hides while the map's pin-detail sheet is up —
+            // that card's floating action bar owns the bottom zone
+            // (Flighty pattern; map polish Q6). Every other tab, and the
+            // map at rest, keeps the four buttons.
+            if !(tab == .map && mapDetail != nil) {
+                BlockPartyTabBar(selection: $tab, onSelect: select)
+                    .transition(.opacity)
+                    .zIndex(10)
             }
             // THE `.environment(\.colorScheme, .light)` THAT USED TO BE HERE IS GONE.
             //

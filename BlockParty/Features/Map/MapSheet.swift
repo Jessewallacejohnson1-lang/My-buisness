@@ -100,19 +100,22 @@ struct MapSheet: View {
     let onSelectSpot: (Spot) -> Void           // fly camera + select
     let onRetry: () -> Void
 
-    /// Vertical space the unified tab bar occupies at the very bottom. The sheet's
-    /// glass sits flush on top of it; both live in one `GlassEffectContainer` (see
-    /// `MainTabsView`) so they read/merge as a single continuous Liquid Glass shape.
-    static let tabBarReserve: CGFloat = 66
-    /// Collapsed height — grabber + the single live-now line, sized to sit right on
-    /// top of the tab bar (no floating gap). The map's floating ?/locate controls
+    /// Clearance under the sheet: the tab bar's 66pt zone plus an 8pt seat gap.
+    /// The sheet rests just ABOVE the bar as its own rounded panel — it does NOT
+    /// merge with it. (Round 2, ask 6: the old flush merge fused sheet + bar into
+    /// one tall panel on the Map tab only, so the bar read as a different element
+    /// than on the other three tabs. The bar now sits outside the shell's
+    /// `GlassEffectContainer` entirely — see `MainTabsView`.)
+    static let tabBarReserve: CGFloat = 74
+    /// Collapsed height — grabber + the single live-now line, resting just above
+    /// the tab bar. The map's floating ?/locate controls
     /// rest just above this and fade out as the sheet grows.
     static let peekHeight: CGFloat = 96
     /// Breathing room under the last row, above the sheet's bottom edge (the tab bar
     /// sits below the sheet now, so content no longer needs to clear a 56pt gap).
     static let contentBottomInset: CGFloat = 18
-    /// Corner radius of the unified glass — matches `HyggeTabBar`'s shell (26) so the
-    /// sheet reads as the tab bar stretching upward, not a second panel.
+    /// Corner radius — matches `BlockPartyTabBar`'s shell (26) so the two separate
+    /// glass panels read as one family.
     static let glassRadius: CGFloat = 26
     /// Peak opacity of the content frost veil at full expansion. Near-opaque so the
     /// dark map cluster bubbles can't bleed through the body as smudges; not 1.0 so a
@@ -122,14 +125,12 @@ struct MapSheet: View {
     /// this basemap bleaches the warm cream ground while transmitting park green, so the
     /// collapsed sheet picked up green blotches whose polygon SHAPES were readable through the
     /// panel. Deliberately low: enough to flatten that chroma, not enough to stop the peek band
-    /// reading as the same glass as the tab bar it merges into.
+    /// reading as glass (the same material family as the tab bar below it).
     static let frostMin: CGFloat = 0.30
 
-    /// The unified glass silhouette: rounded top (like the tab bar), square bottom so
-    /// it blends straight down into the tab bar it sits on.
-    static let sheetShape = UnevenRoundedRectangle(
-        topLeadingRadius: glassRadius, bottomLeadingRadius: 0,
-        bottomTrailingRadius: 0, topTrailingRadius: glassRadius, style: .continuous)
+    /// The sheet's silhouette: rounded on ALL corners now that it floats free of the
+    /// tab bar (the old square bottom existed only to blend into the flush merge).
+    static let sheetShape = RoundedRectangle(cornerRadius: glassRadius, style: .continuous)
 
     @Binding var mode: SheetMode
     @Binding var detent: SheetDetent
@@ -200,10 +201,11 @@ struct MapSheet: View {
                 : SheetRubberBand.height(raw: raw, min: m.peek, max: m.full)
             // 0 at peek → 1 by the time we reach medium: drives the line⇄list fade.
             let p = min(max((height - m.peek) / max(1, m.medium - m.peek), 0), 1)
-            // Content frost: 0 at peek (pure glass), ramps to near-opaque by medium so the
-            // expanded content reads as a clean frosted surface — the map's dark cluster
+            // Content frost: low at peek (mostly glass), ramps to near-opaque by medium so
+            // the expanded content reads as a clean frosted surface — the map's dark cluster
             // bubbles can't bleed through the empty middle as smudges. Faded out at the
-            // grabber + the tab-bar join (below), so the continuous-glass morph still reads.
+            // grabber only; it runs to the bottom edge now that the sheet is its own
+            // panel (there is no tab-bar join left to keep glassy).
             let frost = Self.frostMin + p * (Self.frostMax - Self.frostMin)
 
             VStack(spacing: 0) {
@@ -229,31 +231,31 @@ struct MapSheet: View {
             .frame(maxWidth: .infinity, alignment: .top)
             .frame(height: height, alignment: .top)
             // Frost veil between the content and the glass. Transparent at the grabber
-            // (top) and the tab-bar join (bottom) so those bands stay glassy and the
-            // continuous morph reads; near-opaque in the body once expanded so content
-            // sits on a clean surface. Whole veil scales with `frost` (0 at peek).
+            // (top) so that band stays glassy; near-opaque in the body once expanded so
+            // content sits on a clean surface. Runs to the BOTTOM edge — the sheet is
+            // its own detached panel now, and a glassy bottom strip would just sample
+            // raw park green through it. Whole veil scales with `frost`.
             .background {
                 LinearGradient(
                     stops: [
                         .init(color: Hue.surface.opacity(0),     location: 0.00),
                         .init(color: Hue.surface.opacity(frost), location: 0.05),
-                        .init(color: Hue.surface.opacity(frost), location: 0.90),
-                        .init(color: Hue.surface.opacity(0),     location: 1.00)
+                        .init(color: Hue.surface.opacity(frost), location: 1.00)
                     ],
                     startPoint: .top, endPoint: .bottom
                 )
             }
             .clipShape(Self.sheetShape)
-            // Real Liquid Glass — the SAME material + radius as BlockPartyTabBar. Both sit
-            // in one GlassEffectContainer (MainTabsView), so the sheet's glass and the
-            // tab bar merge into a single continuous bottom shape.
+            // Real Liquid Glass — the same material + radius family as BlockPartyTabBar,
+            // but its OWN panel: the bar sits outside the shell's GlassEffectContainer
+            // (MainTabsView), so the two never merge (round 2, ask 6).
             .glassEffect(.regular, in: Self.sheetShape)
             // Observe the same vertical gesture across the whole sheet. The active
             // ScrollView remains enabled only while it owns that gesture.
             .simultaneousGesture(sheetDragGesture)
             .frame(maxHeight: .infinity, alignment: .bottom)
             .padding(.horizontal, 20)                 // match the tab bar's side insets
-            .padding(.bottom, Self.tabBarReserve)      // rest flush on top of the tab bar
+            .padding(.bottom, Self.tabBarReserve)      // rest 8pt above the tab bar (the reserve includes the seat gap)
             // Publish how far the sheet has grown past peek (0 = collapsed) so the map's
             // floating ?/locate controls can fade out before the sheet reaches them.
             .preference(key: SheetExpansionKey.self,
@@ -280,11 +282,12 @@ struct MapSheet: View {
     private func metrics(_ H: CGFloat) -> (peek: CGFloat, medium: CGFloat, full: CGFloat) {
         let peek = Self.peekHeight
         let medium = max(peek + 120, H * 0.5)
-        // full is H−132, but `.padding(.bottom, tabBarReserve)` is applied AFTER this
-        // height frame, so the sheet's real top clearance is 132 − tabBarReserve ≈ 66pt
-        // (measured 68) — still clear of the floating chrome. The H*0.9 arm only binds on
-        // iPad-class heights (H > 1320).
-        let full = max(medium + 80, min(H * 0.9, H - 132))
+        // full is H−140, but `.padding(.bottom, tabBarReserve)` is applied AFTER this
+        // height frame, so the sheet's real top clearance is 140 − tabBarReserve ≈ 66pt
+        // — still clear of the floating chrome (140 tracks the reserve's 8pt seat gap,
+        // preserving the round-1 measured clearance). The H*0.9 arm only binds on
+        // iPad-class heights.
+        let full = max(medium + 80, min(H * 0.9, H - 140))
         return (peek, medium, full)
     }
 
