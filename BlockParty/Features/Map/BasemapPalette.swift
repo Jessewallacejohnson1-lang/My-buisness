@@ -4,46 +4,70 @@
 //
 //  THE MAP IS CONTENT, NOT CHROME. The app's UI is monochrome ink-on-paper and
 //  photographs carry the colour; the map is the same kind of thing — a picture of
-//  the town — so its NATURAL features keep their real colours. Parks are green and
-//  water is blue here for the same reason they are on every map ever made: on a
-//  town map those two are the primary landmarks, and they are how you orient.
+//  the town — so its NATURAL features keep their real colours, and they keep them
+//  generously. Round 2 (2026-08-14, Jesse's Subway store-finder reference) widened
+//  this from a muted watercolor to a genuinely colorful town map: lively leaf-green
+//  vegetation wherever green exists, a clear confident blue river, and warm
+//  tan patches over campus/institutional ground — the reference's College-Terrace
+//  read, which here is St. Ben's. Friendly and saturated-but-soft, like a printed
+//  neighborhood map; never neon, never a traffic app.
 //
-//  This replaced a fully grayscale ramp that made land, parks and water sit within
-//  ~6% luminance of each other. It was elegant and it did not work: the Sauk River
-//  and the parks were both faint grey shapes, so the one screen whose BACKGROUND is
-//  the content lost its landmarks.
+//  This palette REPLACED a fully grayscale ramp that made land, parks and water sit
+//  within ~6% luminance of each other. It was elegant and it did not work: the Sauk
+//  River and the parks were both faint grey shapes, so the one screen whose
+//  BACKGROUND is the content lost its landmarks. Do not make the basemap grayscale.
 //
 //  Built form stays neutral on purpose. Buildings and roads take app tokens, so
-//  colour is spent only on the natural features that carry meaning, and ink markers
-//  still dominate everything. Labels share the app's secondary ink and keep
-//  light-v11's white halos. Raw hexes live here only where no Hue token fits —
-//  this file plus BlockPartyColor.swift are the only two allowed to hold them.
+//  colour is spent only on ground that carries meaning, and ink markers still
+//  dominate everything. Labels share the app's secondary ink and keep light-v11's
+//  white halos. Raw hexes live here only where no Hue token fits — this file plus
+//  BlockPartyColor.swift are the only two allowed to hold them.
 //
 //  There is deliberately NO time/season/weather modulation. The base map looks the
 //  same at every hour, by design — one calm base layer. (The old "Living Basemap"
 //  that shifted the palette by time-of-day · season · weather was retired here —
-//  see MAP_BUILD_LOG.md.)
+//  see MAP_BUILD_LOG.md. Its summer·noon·clear anchor preserved the ROUND-1 muted
+//  palette; the values below are the round-2 colorful palette and are now the
+//  regression anchor. If a screenshot ever renders paler than these, the recolor
+//  didn't land — see the race note on `recolor`.)
 //
 
 import Foundation
 import MapboxMaps
 
 enum BasemapPalette {
-    // MARK: Ground & natural features
-    // Land stays the app's paper so the map reads as continuous with the app, and
-    // the two natural features carry real hue — muted, so ink markers still win.
+    // MARK: Ground
+    // Land stays the app's paper so the map reads as continuous with the app.
     static let land     = Hue.paper.onLightCanvas.hexString   // app background continues into the map
-    static let green    = "#D9E8C8"             // parks & green space — sage, not vivid
-    static let water    = "#A8D8EE"             // water — soft sky; the river must read
     static let building = Hue.fill.onLightCanvas.hexString    // built form stays neutral, on token
+
+    // MARK: Vegetation — one leaf-green family, tiered by how "kept" the ground is
+    // Parks are the loudest, lawns lighter, farm fields a whisper — so green coverage
+    // reads everywhere green exists without the whole townscape going monotone.
+    static let park      = "#A9D584"   // parks, gardens, playgrounds — the headline green
+    static let pitch     = "#B9DB8F"   // ball fields / courts — kin to park, one step lighter
+    static let wood      = "#B0D291"   // woods & scrub — softer, slightly muted canopy
+    static let grass     = "#C3DFA2"   // open lawns — light tint of the same family
+    static let farmland  = "#DFEAC5"   // agriculture — big-area soft green, a real tint not a whisper
+    static let cemetery  = "#CBDCB4"   // kept lawn with trees — quiet natural, not park-bright
+
+    // MARK: Warm patches — the reference's campus/institution tan
+    static let campus   = "#F3E3C8"   // school · university · hospital — St. Ben's warm field
+    static let commerce = "#F6E0C4"   // commercial districts — a peach step off campus tan
+    static let sand     = "#F0E3C0"   // beaches / sand — warm natural
+
+    // MARK: Water — clear and confident; the Sauk River must read instantly
+    static let water    = "#7FBFE8"
+    static let riverInk = "#6FB6E2"   // waterway strokes — thin lines render optically lighter,
+                                      // so the line family sits one step deeper than the fill
 
     // MARK: Road network
     // light-v11 consolidates every road class (motorway → residential) into ONE
     // line layer (`road-simple`), differentiated only by width, not color — verified
     // against the style's actual JSON (`GET styles/v1/mapbox/light-v11`), not assumed
     // from Mapbox Streets' richer per-class layer set. So there's one road color, not
-    // a fill/casing/motorway hierarchy. Surface white makes roads read as light
-    // channels against the paper ground.
+    // a fill/casing/motorway hierarchy. Quiet white roads read as light channels and
+    // let the greens/tans carry the scene.
     static let road = Hue.surface.onLightCanvas.hexString
 
     // MARK: Labels — shared with the app's own ink ramp (not map-only)
@@ -54,12 +78,74 @@ enum BasemapPalette {
     static func recolor(_ map: MapboxMap?) {
         guard let map else { return }
         try? map.setLayerProperty(for: "land", property: "background-color", value: land)
-        // Parks / grass / woods (fill layers) — light-v11 only has these two.
-        for id in ["landuse", "national-park"] {
-            try? map.setLayerProperty(for: id, property: "fill-color", value: green)
-        }
+
+        // The `landuse` fill layer carries EVERY ground class in one layer, gated by a
+        // class match + a sizerank-vs-zoom stagger (all verified against the live style
+        // JSON — layer ids and class lists are never guessed, a wrong id fails silently).
+        // Two stock gates fought the colorful read and are re-cut here:
+        //  1. The class match ADMITTED only agriculture/wood/grass/scrub/park/airport/
+        //     glacier/pitch/sand — school, hospital, cemetery and commercial ground were
+        //     filtered out entirely, so no filter widening = no warm campus patch, ever.
+        //     Tilequery ground truth: the CSB campus is one big `school` (college,
+        //     sizerank 1) polygon; St. Joe also carries cemetery/pitch/grass polygons.
+        //  2. The sizerank stagger hid sizerank-14+ polygons (lawns, pitches,
+        //     playgrounds) until ~z16.5 — which is why round 1's green looked sparse at
+        //     town zoom no matter its hue. Dropped: the map lives at z11–15, and vector
+        //     tiles already generalize away what's too small for a given zoom.
+        // Residential keeps its stock step (visible only below z12) but recolors to the
+        // land cream, so the low-zoom town wash warms instead of graying.
+        let classFilter: [Any] = [
+            "all",
+            [">=", ["to-number", ["get", "sizerank"]], 0],
+            [
+                "match", ["get", "class"],
+                ["agriculture", "wood", "grass", "scrub", "park", "pitch", "sand",
+                 "glacier", "airport", "school", "hospital", "cemetery", "commercial_area"], true,
+                "residential", ["step", ["zoom"], true, 12.0, false],
+                false,
+            ],
+        ]
+        let classFill: [Any] = [
+            "match", ["get", "class"],
+            "park", park,
+            "pitch", pitch,
+            ["wood", "scrub"], wood,
+            "grass", grass,
+            "agriculture", farmland,
+            ["school", "hospital"], campus,
+            "commercial_area", commerce,
+            "cemetery", cemetery,
+            "sand", sand,
+            land,   // residential, airport, glacier — melt into the ground
+        ]
+        try? map.setLayerProperty(for: "landuse", property: "filter", value: classFilter)
+        try? map.setLayerProperty(for: "landuse", property: "fill-color", value: classFill)
+
+        // The `national-park` overlay (state forests/parks) ships at 0.2 opacity at
+        // town zoom — a big reason round 1 read pale. Same park green, real presence.
+        try? map.setLayerProperty(for: "national-park", property: "fill-color", value: park)
+        try? map.setLayerProperty(
+            for: "national-park", property: "fill-opacity",
+            value: ["interpolate", ["linear"], ["zoom"], 5.0, 0.0, 6.0, 0.55, 12.0, 0.4]
+        )
+
         try? map.setLayerProperty(for: "water",    property: "fill-color", value: water)
-        try? map.setLayerProperty(for: "waterway", property: "line-color", value: water)
+        try? map.setLayerProperty(for: "waterway", property: "line-color", value: riverInk)
+        // The Sauk is a landmark, and light-v11 draws rivers at under 1pt until deep
+        // street zoom (stock: exponential 1.3, z9 river 0.1 → z20 river 8) — at the
+        // town zooms this map lives at, the river was a hairline that vanished into
+        // the cream. Same curve shape, lifted so the river reads at z11–15 without
+        // going cartoon-wide at z18+. Streams/ditches (the non-river match arm) keep
+        // a thinner profile.
+        try? map.setLayerProperty(
+            for: "waterway", property: "line-width",
+            value: [
+                "interpolate", ["exponential", 1.3], ["zoom"],
+                9.0,  ["match", ["get", "class"], ["canal", "river"], 0.6, 0.2],
+                13.0, ["match", ["get", "class"], ["canal", "river"], 2.2, 1.0],
+                20.0, ["match", ["get", "class"], ["canal", "river"], 10.0, 4.0],
+            ]
+        )
         try? map.setLayerProperty(for: "building", property: "fill-color",         value: building)
         try? map.setLayerProperty(for: "building", property: "fill-outline-color", value: building)
         try? map.setLayerProperty(for: "road-simple", property: "line-color", value: road)

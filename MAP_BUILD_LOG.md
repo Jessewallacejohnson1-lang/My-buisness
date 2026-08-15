@@ -2115,3 +2115,86 @@ the shadow), `r2a-search.png` (expanded field owns the row — the moved "?"
 fades with the pill, results panel clear), `r2a-sheet.png` (fades + dim wash +
 PinDetailSheet coexist; top chrome seated on the fade). Real-device note: the
 "?"'s new reach (top-left, one-handed) is worth a feel check on device.
+
+## 2026-08-14 — Map polish round 2, Phase B: the basemap goes colorful (Jesse's Subway reference)
+
+Plan `2026-08-14-map-polish-round-2.md`, Phase B — `BasemapPalette.swift` only.
+Jesse's ask: a genuinely colorful town map like the Subway store-finder
+reference — lively-but-soft greens with real area coverage, confident blue
+water, warm cream land, warm tan patches over campus/institutional ground —
+not the muted watercolor round 1 shipped. Three screenshot-iterated rounds.
+
+**Why round 1 read pale — two stock light-v11 gates, found in the live style
+JSON (`GET styles/v1/mapbox/light-v11`), not guessed:**
+
+1. **The `landuse` class filter never admitted the warm classes.** The one
+   `landuse` fill layer matches only agriculture/wood/grass/scrub/park/airport/
+   glacier/pitch/sand (+residential below z12) — `school`, `hospital`,
+   `cemetery`, `commercial_area` are filtered out entirely, so recoloring the
+   layer could never produce a campus patch. Tilequery ground truth around St.
+   Joe: the CSB campus is one `school` (college, sizerank 1) polygon, and the
+   town carries cemetery/pitch/grass/park/wood/agriculture polygons.
+2. **The sizerank-vs-zoom stagger hid small green polygons until ~z16.5.**
+   sizerank-14+ ground (lawns, ball fields, playgrounds) needed
+   `sizerank − f(zoom) ≤ 8` with f reaching 6–7 only near z16.5 — so at the
+   z11–15 this map lives at, most vegetation simply wasn't drawn. Plus the
+   `national-park` overlay ships at 0.2 fill-opacity at town zoom.
+
+**What `recolor` does now (all setters best-effort `try?`, idempotent,
+re-applied on `onStyleLoaded` + `onMapLoaded` as before):**
+
+- **`landuse` filter widened** to also admit school/hospital/cemetery/
+  commercial_area; the sizerank stagger is dropped (vector tiles already
+  generalize away what's too small per zoom); residential keeps its stock
+  below-z12 step. `parking`/`industrial` stay excluded on purpose — gray slabs
+  would dirty the warm fields.
+- **`landuse` fill-color is a per-class `match`** (no zoom in the expression,
+  so no top-level-zoom trap): park `#A9D584` · pitch `#B9DB8F` · wood/scrub
+  `#B0D291` · grass `#C3DFA2` · agriculture `#DFEAC5` · school+hospital
+  `#F3E3C8` (the College-Terrace-style warm patch — St. Ben's reads as a warm
+  tan field with its lawns/pitches showing through) · commercial_area
+  `#F6E0C4` · cemetery `#CBDCB4` · sand `#F0E3C0` · fallback = land paper.
+  Stock fill-opacity kept (new classes ride its generic arm to 1.0 by z12).
+- **`national-park`**: park green, opacity lifted to interpolate 5→0, 6→0.55,
+  12→0.4 (was …12→0.2).
+- **Water**: `water` fill `#7FBFE8`; `waterway` line `#6FB6E2` (thin strokes
+  render optically lighter, so the line family sits one step deeper) — plus a
+  **line-width lift** (same exponential-1.3 curve, river/canal 0.6→2.2→10 at
+  z9/13/20; other streams 0.2→1.0→4). Stock drew rivers under 1pt until deep
+  street zoom, so the Sauk was a hairline; it now reads as a clear blue ribbon
+  at town zoom — the file's own "the river must read" mandate, finally true.
+- **Unchanged**: land = `Hue.paper` `#FAFAF7`, buildings = `Hue.fill`, roads =
+  `Hue.surface` white, label ink + white halos, `poi-label` hidden (decided
+  2026-07-20, kept), settlement-label offsets/maxzoom, anti-grayscale rule.
+  The old summer·noon·clear anchor note anchored the ROUND-1 muted values; the
+  file header now anchors the round-2 palette instead.
+
+**Iteration log (screenshots in session scratchpad `r2b/`):** iter1 = per-class
+match + widened filter + first greens (`#AFD68C` park, `#8FC8EA` water) —
+campus tan landed immediately, water still shy, river a hairline. iter2 =
+water `#7FBFE8`, riverInk `#6FB6E2` + width lift, greens one notch livelier
+(park `#A9D584`, wood `#B0D291`, grass `#C3DFA2`) — the Sauk became a real
+ribbon. iter3 = farmland `#E4EDCB`→`#DFEAC5` so fields tint instead of
+whisper; remaining cream quadrants verified to be genuinely unclassified land,
+not un-colored farmland. Final rendered pixels sampled back out of the z13
+screenshot match the palette **byte-exact** (park `#A9D584`, wood `#B0D291`,
+farmland `#DFEAC5`, campus `#F3E3C8`, pond `#7FBFE8`, land `#FAFAF7`).
+
+**Verified.** iPhone 17 sim, Debug: BUILD SUCCEEDED, **0 source warnings**
+(only the accepted `appintentsmetadataprocessor` notice); installed over the
+app from the freshly resolved `BUILT_PRODUCTS_DIR`. `xcodebuild test` on the
+non-primary iPhone 17 Pro Max: **405 tests, 0 failures** (count unchanged —
+the palette is style-side; the `FeedPolishTests` land/road pins still hold).
+Screenshots `r2b-town.png` (default 13.5) · `r2b-z13.png` · `r2b-z15.png` ·
+`r2b-campus.png` (45.5604,-94.3218 @14.5 — the warm-field treatment) ·
+`r2b-clusters.png` (z13 — ink bubbles, incl. the small 22pt "2"s, still pop
+over the richer greens; POI labels + halos legible at z15). Screenshot-loop
+gotcha worth remembering: zsh does NOT word-split an unquoted `$var`, so a
+`simctl launch … $FLAGS` helper passes the whole flag string as ONE argv entry
+and the app silently ignores it — write launch flags out explicitly.
+
+**Known/accepted:** the Liquid Glass sheet + tab bar sample more green from
+the richer basemap beneath (the pre-existing "park green blooms through
+glass" behaviour, judged correct 2026-07-19 — now a touch more visible).
+Real-device pass: eyeball the greens/tan in sunlight; sim panel saturation
+flatters green.
