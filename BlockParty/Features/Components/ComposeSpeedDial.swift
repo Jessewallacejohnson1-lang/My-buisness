@@ -50,7 +50,6 @@ struct SpeedDialItem: Identifiable {
     /// under the disc and leads the nearest-item-first cascade.
     static func calendar() -> [SpeedDialItem] { droppingFromTop() }
     static func explore()  -> [SpeedDialItem] { droppingFromTop() }
-    static func map()      -> [SpeedDialItem] { droppingFromTop() }
 
     private static func droppingFromTop() -> [SpeedDialItem] {
         [ SpeedDialItem(title: "Event",             symbol: "calendar",          primary: true,  action: .compose(.event)),

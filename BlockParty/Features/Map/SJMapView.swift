@@ -2,12 +2,14 @@
 //  SJMapView.swift
 //  Block Party — Mapbox map of Saint Joseph, Minnesota.
 //
-//  Life360-style layout: floating top chrome (town pill · search, with the
-//  filter chip row beneath — MapFilterChips, map polish Phase 4), one static
-//  warm basemap (BasemapPalette — no time/season/weather modulation), a
-//  persistent draggable bottom sheet (MapSheet), and coral reserved for live
-//  indicators + primary/tappable elements. The compose "+" lives in the
-//  bottom-right control stack, directly above recenter (map polish Phase 2).
+//  Life360-style layout: floating top chrome (help "?" top-left · town pill ·
+//  search top-right, with the filter chip row beneath — MapFilterChips, map
+//  polish Phase 4), one static warm basemap (BasemapPalette — no time/season/
+//  weather modulation), a persistent draggable bottom sheet (MapSheet), and
+//  coral reserved for live indicators + primary/tappable elements. Soft paper
+//  edge fades top and bottom seat the chrome (round 2); recenter floats alone
+//  bottom-right. The map has NO compose entry — event creation lives on the
+//  other tabs (round 2, Jesse's call; QuickAddSheet deleted with it).
 //
 //  Pins: every curated spot always shows a small badge — a solid category-color
 //  circle (green parks/trails, honey downtown/coffee/fitness, sky campus) with a
@@ -27,7 +29,9 @@
 
 import SwiftUI
 import UIKit
-import MapboxMaps
+// `@_spi(Restricted)`: the ONE restricted symbol used is `LogoViewOptions.visibility`,
+// which hides the Mapbox wordmark (Jesse's 2026-08-14 call — see ornament notes below).
+@_spi(Restricted) import MapboxMaps
 
 // MARK: - Constants
 
@@ -154,10 +158,6 @@ struct SJMapView: View {
     /// `MapModel` and fed to the detail sheet. Always empty for POIs or no
     /// selection. Local state now — the tab shell no longer renders detail.
     @State private var mapDetailHappenings: [TimelineEvent] = []
-    /// Non-admins tap the bottom-right "+" into the global composer (admins get
-    /// the map's own QuickAddSheet). Injected by MainTabsView, like HomeView.
-    var onCompose: (() -> Void)? = nil
-
     @EnvironmentObject private var auth: AuthStore
     @Environment(\.scenePhase) private var scenePhase
     /// Container-level Reduce Motion (the self-contained pin animations read their own;
@@ -345,15 +345,6 @@ struct SJMapView: View {
     /// Long enough for the logo prefetch to have filled the cache after `pois` land.
     private static let debugRainDelay: TimeInterval = 1.2
 
-    /// DEBUG-only: `-map-compose` presses the "+" (now the bottom-right control
-    /// stack, above recenter) shortly after appear — the exact action the button
-    /// fires (admins → QuickAddSheet, non-admins → the global composer) — so the
-    /// compose surface can be screenshotted headlessly.
-    static let debugCompose = ProcessInfo.processInfo.arguments.contains("-map-compose")
-
-    /// A short beat so the tab shell settles before the sheet presents.
-    private static let debugComposeDelay: TimeInterval = 0.6
-
     /// DEBUG-only search drivers (mirrors the -explore-search family):
     /// `-map-search-open` expands the search field on appear (keyboard up);
     /// `-map-search <query>` also types the query so the results list renders;
@@ -396,7 +387,6 @@ struct SJMapView: View {
         #endif
     }
 
-    @State private var quickAdding = false
     @State private var showingHelp = false
     /// Browse state lives above the conditionally mounted sheet so a place-detail
     /// interlude cannot reset the user's chosen face or detent.
@@ -429,25 +419,26 @@ struct SJMapView: View {
     /// whole map view — the isolation that keeps per-frame rotation at 120 Hz.
     @State private var compass = CompassHeading()
 
-    /// Bottom margin (from the map's bottom edge) for the Mapbox logo + attribution
-    /// button. Mapbox's Terms of Service REQUIRE both to stay visible — they may be
-    /// repositioned but not removed, and the logo may not be restyled (the ⓘ is already
-    /// the smallest-footprint attribution and carries the required telemetry opt-out).
-    /// So "minimize screen space" = tuck them to just an 8pt sliver above the collapsed
-    /// glass (was +40, floating well into the map) — as low as they can sit while still
-    /// resting ABOVE the peek sheet rather than hidden behind it. The expanding sheet
-    /// occludes them (drawn on top); they're clearly visible at the collapsed/peek rest.
+    /// Bottom margin (from the map's bottom edge) for the Mapbox ⓘ attribution
+    /// button — an 8pt sliver above the collapsed glass, as low as it can sit while
+    /// still resting ABOVE the peek sheet rather than hidden behind it (the
+    /// expanding sheet occludes it; it's clearly visible at the collapsed rest,
+    /// tucked under the bottom edge fade). The wordmark LOGO is hidden outright —
+    /// Jesse's explicit 2026-08-14 decision (map polish round 2), superseding the
+    /// earlier "repositioned but not removed" stance: Mapbox's ToS wants the logo
+    /// visible and its `visibility` is an SPI-restricted knob, and Jesse accepted
+    /// that risk (recorded in plans/2026-08-14-map-polish-round-2.md). The ⓘ stays:
+    /// it is legally required attribution and carries the telemetry opt-out.
     private static let ornamentBottomMargin: CGFloat =
         MapSheet.tabBarReserve + MapSheet.peekHeight + 8
 
-    private var isAdmin: Bool {
-        // DEBUG-only: `-force-nonadmin` launch arg forces the non-admin branch so
-        // simulator verification can screenshot the gated map without a second
-        // account. No effect in release builds or without the flag.
-        #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-force-nonadmin") { return false }
-        #endif
-        return Admin.isAdmin(auth.email)
+    /// The hidden-wordmark options (see `ornamentBottomMargin`'s note — Jesse's
+    /// 2026-08-14 call). `visibility` is not part of the public initializer, so
+    /// it's set on a mutable copy.
+    private static var hiddenLogoOptions: LogoViewOptions {
+        var options = LogoViewOptions()
+        options.visibility = .hidden
+        return options
     }
 
     /// Not `private`: the shared cluster + label pass consumes this exact filtered set.
@@ -531,6 +522,7 @@ struct SJMapView: View {
                     .transition(.opacity)
             }
             mapBottomFade
+            mapTopFade
             topChrome
             // UNMOUNTED (not faded) under the detail sheet: these are glass
             // circles, and extracted glass ignores an ancestor's `.opacity` —
@@ -624,15 +616,6 @@ struct SJMapView: View {
                     rainTrigger += 1
                 }
             }
-            // `-map-compose`: press the "+" headlessly (no tap automation here) —
-            // the same branch composeButton takes, so admin/non-admin holds. The
-            // button now lives in the bottom-right control stack; the action is
-            // unchanged, so this flag still fires the relocated control's path.
-            if SJMapView.debugCompose {
-                DispatchQueue.main.asyncAfter(deadline: .now() + Self.debugComposeDelay) {
-                    if isAdmin { quickAdding = true } else { onCompose?() }
-                }
-            }
             // `-map-search…`: drive the search chrome headlessly.
             if SJMapView.debugSearchOpen || SJMapView.debugSearchQuery() != nil {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
@@ -684,9 +667,6 @@ struct SJMapView: View {
             if id != nil { fetchLocationIfAuthorized() }
         }
         .onChange(of: model.todayEvents) { _, _ in syncMapDetailHappenings() }
-        .sheet(isPresented: $quickAdding) {
-            QuickAddSheet(spots: MapSpots.all)
-        }
         // A tapped POI or civic pin opens the PinDetailSheet card mounted above —
         // the one detail presentation shared by both catalogs (Phase 3).
         // The "?" chrome button reopens the map intro any time — full-bleed, so it
@@ -820,11 +800,13 @@ struct SJMapView: View {
                                            simultaneousRotateAndPinchZoomEnabled: true,
                                            pitchEnabled: true,
                                            panDecelerationFactor: 0.998))
-            // Lift the required Mapbox logo + attribution to just above the collapsed
-            // unified glass so they're never clipped into slivers behind the bottom bar.
-            // The scale bar stays hidden (it was never wanted on this civic map). This
-            // is a Map-specific modifier, so it must precede the standard .onChange
-            // modifiers below (those erase the concrete Map type).
+            // Ornaments: wordmark hidden, ⓘ attribution kept and lifted to just above
+            // the collapsed unified glass so it's never clipped into a sliver behind
+            // the bottom bar (Jesse's 2026-08-14 wordmark call — see
+            // `ornamentBottomMargin`'s note). The scale bar stays hidden (it was
+            // never wanted on this civic map). This is a Map-specific modifier, so it
+            // must precede the standard .onChange modifiers below (those erase the
+            // concrete Map type).
             .ornamentOptions(OrnamentOptions(
                 scaleBar: ScaleBarViewOptions(visibility: .hidden),
                 // Suppress the built-in compass: its needle is coral (the monochrome brand
@@ -833,9 +815,7 @@ struct SJMapView: View {
                 // AND pitch). Without this the SDK's default `.adaptive` compass would surface
                 // at top-trailing the moment rotation is enabled.
                 compass: CompassViewOptions(visibility: .hidden),
-                logo: LogoViewOptions(
-                    position: .bottomLeading,
-                    margins: CGPoint(x: 16, y: Self.ornamentBottomMargin)),
+                logo: Self.hiddenLogoOptions,
                 attributionButton: AttributionButtonOptions(
                     position: .bottomTrailing,
                     margins: CGPoint(x: 14, y: Self.ornamentBottomMargin))
@@ -943,18 +923,20 @@ struct SJMapView: View {
         BasemapPalette.recolor(map)
     }
 
-    // MARK: Top chrome — town pill · search, with the filter chip row beneath
+    // MARK: Top chrome — help "?" · town pill · search, with the chip row beneath
 
     private var topChrome: some View {
         VStack(spacing: 10) {
             HStack(spacing: 10) {
-                // The town pill fades out while search is active (Q8) and is
-                // restored on collapse — the pill itself is untouched at rest.
+                // The "?" and town pill fade out while search is active (Q8) and
+                // are restored on collapse — both are untouched at rest.
                 if !searchActive {
-                    // Balances the trailing 44pt search circle so the pill stays
-                    // screen-centered — the slot the retired SpotFilter Menu held
-                    // (the chip row below is its replacement).
-                    Color.clear.frame(width: 44, height: 44)
+                    // The "?" moved up here from the bottom stack (round 2, Jesse):
+                    // it mirrors the trailing 44pt search circle, so it also keeps
+                    // the town pill screen-centered — the slot the retired
+                    // SpotFilter Menu held (a clear balancer since Phase 4).
+                    helpButton
+                        .transition(.opacity)
                     Spacer(minLength: 8)
                     townPill
                         .transition(.opacity)
@@ -996,10 +978,11 @@ struct SJMapView: View {
         )
     }
 
-    /// GOAL A — the top-right chrome slot: a magnifier at rest (the "+" moved to
-    /// the bottom-right control stack), spring-expanding into a glass search field
-    /// on the SAME chrome material, so the circle visibly becomes the field. The
-    /// "X" collapses it back to the icon and clears the query.
+    /// GOAL A — the top-right chrome slot: a magnifier at rest, spring-expanding
+    /// into a glass search field on the SAME chrome material, so the circle
+    /// visibly becomes the field. The "X" collapses it back to the icon and
+    /// clears the query. The "?" and pill fade while it's expanded, so the field
+    /// owns the full row width.
     private var searchControl: some View {
         HStack(spacing: 6) {
             Button {
@@ -1119,35 +1102,52 @@ struct SJMapView: View {
         .allowsHitTesting(false)
     }
 
-    // MARK: Floating controls — help (bottom-left) + compose/recenter (bottom-right)
+    /// The top twin of `mapBottomFade` (round 2, Jesse's edge-fade ask): a soft
+    /// paper wash from the physical top edge dying out through the pill row, so the
+    /// status bar and floating chrome sit on a gently faded edge (Apple Maps /
+    /// Subway store-finder read) instead of raw cartography. Colour only — no
+    /// material: pin labels legitimately pass under this band (it is NOT chrome and
+    /// deliberately joins no `chromeRects`), and a blur would smear them where a
+    /// light wash keeps them readable. `Hue.paper` is dynamic, so dark mode fades
+    /// to the dark page exactly like the bottom band. Non-interactive.
+    private var mapTopFade: some View {
+        LinearGradient(
+            stops: [
+                .init(color: Hue.paper.opacity(0.85), location: 0.0),
+                .init(color: Hue.paper.opacity(0.45), location: 0.4),
+                .init(color: Hue.paper.opacity(0),    location: 1.0),
+            ],
+            startPoint: .top, endPoint: .bottom
+        )
+        .frame(height: 150)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .ignoresSafeArea(edges: .top)
+        .allowsHitTesting(false)
+    }
+
+    // MARK: Floating controls — compass + recenter (bottom-right)
 
     private var floatingControls: some View {
         VStack(spacing: 12) {
             Spacer()
-            // Compass rides in its OWN fixed 44pt slot at the top of the right-hand
-            // column (compass · "+" · recenter), so it can fade in/out as the map
-            // rotates without ever reflowing the controls beneath it. Right-aligned
-            // to sit over the column. Hidden (no reflow) at north.
+            // Compass rides in its OWN fixed 44pt slot above recenter, so it can
+            // fade in/out as the map rotates without ever reflowing the control
+            // beneath it. Right-aligned to sit over the column. Hidden (no
+            // reflow) at north.
             HStack {
                 Spacer()
                 MapCompass(heading: compass, reduceMotion: reduceMotion, onReset: resetNorth)
             }
             .frame(height: 44)
-            // The relocated "+" (Q5): directly ABOVE recenter, same 44pt recipe.
             HStack {
-                Spacer()
-                composeButton
-            }
-            HStack(alignment: .bottom) {
-                helpButton
                 Spacer()
                 recenterButton
             }
         }
         .padding(.horizontal, 16)
-        // Stack ABOVE the map's attribution row (logo + info button, which sit just
-        // above the collapsed glass) so the two never collide; fade + lift out of the
-        // way as the sheet grows so they never collide with it either.
+        // Stack ABOVE the map's ⓘ attribution (which sits just above the collapsed
+        // glass) so the two never collide; fade + lift out of the way as the sheet
+        // grows so they never collide with it either.
         .padding(.bottom, MapSheet.tabBarReserve + MapSheet.peekHeight + 96)
         .offset(y: -sheetExpansion * 10)
         .opacity(Double(1 - min(1, sheetExpansion * 1.3)))
@@ -1155,6 +1155,8 @@ struct SJMapView: View {
         .animation(.easeOut(duration: 0.18), value: sheetExpansion)
     }
 
+    /// The "?" — reopens the map intro. Lives in the top-left chrome slot (round 2,
+    /// Jesse's call), mirroring the top-right search circle.
     private var helpButton: some View {
         Button {
             Haptics.light()
@@ -1164,21 +1166,6 @@ struct SJMapView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("How the map works")
-    }
-
-    /// The "+" — QuickAddSheet for admins, the global composer for everyone else.
-    /// Relocated from the top-right chrome (now search) to this stack, directly
-    /// above recenter; the same 44pt chromeCircle recipe as its neighbors (the
-    /// glass carries its own floating shadow, so none is added on top).
-    private var composeButton: some View {
-        Button {
-            Haptics.light()
-            if isAdmin { quickAdding = true } else { onCompose?() }
-        } label: {
-            chromeCircle(icon: "plus")
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(isAdmin ? "Add an event" : "Open add menu")
     }
 
     private var recenterButton: some View {

@@ -419,13 +419,10 @@ struct MainTabsView: View {
                                 request: activitiesRequest
                             )
                         case .calendar:   CalendarView(onCompose: { composing = true })
-                        // The map's non-admin "+" opens the speed-dial (admins still get
-                        // QuickAddSheet, wired inside SJMapView).
+                        // The map has NO compose entry (round 2, Jesse's call) —
+                        // event creation lives on the other tabs.
                         case .map:
-                            SJMapView(
-                                mapDetail: $mapDetail,
-                                onCompose: { speedDialOpen = true }
-                            )
+                            SJMapView(mapDetail: $mapDetail)
                         }
                     }
                     // Identity keyed on the tab so a switch is an insertion+removal that
@@ -515,16 +512,16 @@ struct MainTabsView: View {
             }
         }
         // The compose "+" speed-dial — a top-right "+" on Explore / Calendar (coral
-        // disc) and the Map (native chrome "+") expands DOWN into context-tailored
-        // create bubbles. Explore/Calendar's disc lives in the overlay (replacing the
-        // old bottom ComposeFAB); the Map keeps its native "+" and the overlay draws ✕.
+        // disc) expands DOWN into context-tailored create bubbles. The disc lives in
+        // the overlay (replacing the old bottom ComposeFAB). The Map no longer
+        // participates (round 2 — its "+" is retired), so the disc always rests here.
         .overlay {
             if !speedDialItems.isEmpty {
                 ComposeSpeedDial(items: speedDialItems,
                                  isOpen: $speedDialOpen,
                                  anchor: .topTrailing,
-                                 chromeDisc: tab == .map,
-                                 showsRestingDisc: tab != .map,
+                                 chromeDisc: false,
+                                 showsRestingDisc: true,
                                  onSelect: routeSpeedDial)
             }
         }
@@ -589,12 +586,12 @@ struct MainTabsView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: action)
     }
 
-    /// Context-tailored bubbles for the current tab's compose "+".
+    /// Context-tailored bubbles for the current tab's compose "+". The map has
+    /// none (round 2 — its "+" is retired), so no dial mounts there.
     private var speedDialItems: [SpeedDialItem] {
         switch tab {
         case .calendar:   return SpeedDialItem.calendar()
         case .activities: return SpeedDialItem.explore()
-        case .map:        return SpeedDialItem.map()
         default:          return []
         }
     }

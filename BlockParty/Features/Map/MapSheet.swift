@@ -517,7 +517,8 @@ struct MapSheet: View {
                 return "Happening right now."
             }
             if live.count > 1 { return "Happening across town right now." }
-            if events.isEmpty { return "Tap + to share what's happening." }
+            // No "+" on the map anymore (round 2) — invite the pull-up instead.
+            if events.isEmpty { return "Pull up to browse places." }
             return MapSheetCopy.pullUpSentence(events.count)
         }
     }

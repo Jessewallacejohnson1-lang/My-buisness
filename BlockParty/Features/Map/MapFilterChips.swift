@@ -162,10 +162,13 @@ struct MapFilterChips: View {
         } label: {
             // Same branch pattern as SJMapView.chromeCircle: glass at rest,
             // a solid fill (glass can't carry a solid ink) when selected.
+            // Deliberately NO shadow on the selected chip (round 2, Jesse):
+            // its glass siblings carry no drop shadow of their own, so a
+            // mapFloatShadow here made the ink chip float off the row — the
+            // solid ink fill on light cartography is separation enough.
             if isSelected {
                 label
                     .background(Self.chipShape.fill(Self.selectedFill))
-                    .mapFloatShadow()
             } else {
                 label
                     .glassEffect(.regular, in: Self.chipShape)

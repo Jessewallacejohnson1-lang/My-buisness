@@ -22,8 +22,6 @@ struct VenueAutocompleteField: View {
         let hairline: Color
         /// Warm composer surfaces (AddFormView).
         static let composer = Palette(fieldBg: Hue.surface, ink: Hue.ink, label: Hue.inkSecondary, hairline: Hue.hairline)
-        /// Cooler map chrome (QuickAddSheet).
-        static let map = Palette(fieldBg: Hue.paper, ink: Hue.ink, label: Hue.inkSecondary, hairline: Hue.hairline)
     }
 
     let label: String

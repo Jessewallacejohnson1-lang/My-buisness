@@ -148,13 +148,13 @@ extension SJMapView {
         // The collapsed sheet (peek) plus the tab bar it rests on.
         let sheetTop = H - (MapSheet.tabBarReserve + MapSheet.peekHeight)
         let bottomBand = CGRect(x: 0, y: sheetTop, width: W, height: max(0, H - sheetTop))
-        // The ?, + and locate circles, which float above the sheet ("+" sits 56pt
-        // above recenter — 44pt circle + the stack's 12pt spacing).
+        // The locate circle, the one control floating above the sheet (round 2: the
+        // "+" is retired and the "?" moved into the measured top band). The edge
+        // FADES deliberately reserve nothing — they are not chrome, and labels may
+        // pass under them.
         let controlsY = sheetTop - 96 - 44
-        let help = CGRect(x: 16, y: controlsY, width: 44, height: 44)
         let recenter = CGRect(x: W - 60, y: controlsY, width: 44, height: 44)
-        let compose = CGRect(x: W - 60, y: controlsY - 56, width: 44, height: 44)
-        return [topBand, bottomBand, help, recenter, compose]
+        return [topBand, bottomBand, recenter]
     }
 
     // MARK: Bubble lifecycle (stable ids → persist / crossfade / fade-out)

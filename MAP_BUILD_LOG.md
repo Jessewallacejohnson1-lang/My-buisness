@@ -2052,3 +2052,66 @@ the non-primary iPhone 17 Pro Max: executed count rose **403 → 405, all
 green**. Fix-1 screenshot (`fixes/fix1-search-filter-reset.png`, session
 scratchpad): All chip selected despite launching on Saved, Millstream Park pin
 on the map beneath its open card.
+
+## 2026-08-14 — Map polish round 2, Phase A: chrome pass (Jesse's review feedback)
+
+Plan `2026-08-14-map-polish-round-2.md`, Phase A — five chrome changes from
+Jesse's review, all in `Features/Map/` + the shell wiring.
+
+1. **Flat chips (`MapFilterChips.swift`).** The selected chip's
+   `.mapFloatShadow()` is gone ("bad shadow that stands out") — the solid ink
+   fill on light cartography is separation enough, and its glass siblings never
+   had a drop shadow. No hairline needed (verified by screenshot). The faint
+   full-width field haze behind the row (the Phase-4 GlassEffectContainer
+   nesting residue flagged for Jesse) now merges into the new top edge fade and
+   reads as intentional chrome seating — left as is.
+2. **Edge fades (`SJMapView.mapTopFade`, NEW).** A `Hue.paper` 0.85→0 gradient
+   from the physical top edge dying out through the pill row (150pt), the top
+   twin of the existing `mapBottomFade` — the Subway/Apple-Maps "chrome floats
+   on a gently faded edge" read. Colour only, NO material: pin labels
+   legitimately pass under it, so a blur would smear them. Non-interactive
+   (`allowsHitTesting(false)`), deliberately NOT in `chromeRects` (it is not
+   chrome), and `Hue.paper` is dynamic so dark mode fades to the dark page.
+3. **The "+" is retired; `QuickAddSheet.swift` DELETED.** Jesse's call (plan
+   approval): the map loses event creation entirely — admins keep the
+   Activities/Calendar speed dial + composer. Removed: `composeButton`, the
+   `quickAdding` sheet mount, `onCompose` plumbing (SJMapView + the RootView
+   call site), the map's speed-dial branch (`speedDialItems` `.map` case,
+   `SpeedDialItem.map()`, the now-constant `chromeDisc`/`showsRestingDisc`
+   args), the `-map-compose` AND `-force-nonadmin` flags (`isAdmin` had no
+   other reader in SJMapView), `VenueAutocompleteField.Palette.map`, and
+   `MapSpots.pinnableSuggestions` (QuickAdd was the only consumer of each).
+   The peek's empty secondary — "Tap + to share what's happening." — now reads
+   "Pull up to browse places." (the "+" it pointed at no longer exists). The
+   app target is fileSystemSynchronized, so the deletion needed no pbxproj
+   edit; grep confirms no test references.
+4. **"?" to top-left (`topChrome`).** `helpButton` moved from the bottom stack
+   into the pill row's leading slot — the 44pt clear balancer that was already
+   mirroring the search circle IS the slot, so the pill stays screen-centred
+   with zero new geometry. It fades with the pill while search is active (the
+   expanded field owns the full row). The bottom-right stack is now compass +
+   recenter alone; `chromeRects` drops the help/compose rects (the top band
+   already measures the whole chrome VStack via `searchChromeBottom`).
+5. **Mapbox wordmark hidden, ⓘ kept (`ornamentOptions`).** Jesse's explicit
+   2026-08-14 pick, ToS risk accepted and recorded in the plan — supersedes the
+   old "repositioned but not removed" stance (doc comment updated in place).
+   `LogoViewOptions.visibility` is `@_spi(Restricted)`, so SJMapView now does
+   `@_spi(Restricted) import MapboxMaps` and builds `hiddenLogoOptions` on a
+   mutable copy. The ⓘ attribution stays at bottomTrailing on the same
+   `ornamentBottomMargin`, resting tidy above the peek under the bottom fade.
+
+**CLAUDE.md** flag registry: `-map-compose` + `-force-nonadmin` removed, "Map
+search and compose" → "Map search"; SJMapView bullet rewritten ("?" top-left,
+edge fades, NO compose entry, wordmark hidden); QuickAddSheet bullet deleted.
+
+**Verified.** iPhone 17 sim, Debug: BUILD SUCCEEDED, **0 source warnings**
+(only the accepted `appintentsmetadataprocessor` notice); installed over the
+app from the freshly resolved `BUILT_PRODUCTS_DIR`. `xcodebuild test` on the
+non-primary iPhone 17 Pro Max: all green (see commit). Screenshots (session
+scratchpad `r2a/`): `r2a-rest.png` ("?" top-left mirroring search, flat chips,
+top+bottom fades, recenter alone bottom-right, NO wordmark, ⓘ above the peek,
+new empty-peek copy), `r2a-chips-food.png` (selected ink chip crisp without
+the shadow), `r2a-search.png` (expanded field owns the row — the moved "?"
+fades with the pill, results panel clear), `r2a-sheet.png` (fades + dim wash +
+PinDetailSheet coexist; top chrome seated on the fade). Real-device note: the
+"?"'s new reach (top-left, one-handed) is worth a feel check on device.
