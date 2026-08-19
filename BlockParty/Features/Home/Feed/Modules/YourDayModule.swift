@@ -292,7 +292,7 @@ private extension YourDayModule {
         lifecycleObservers.append(nc.addObserver(
             forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 guard let self, self.realtime != nil else { return }
                 self.realtime?.start()
                 self.scheduleMidnightRollover()
@@ -302,7 +302,7 @@ private extension YourDayModule {
         lifecycleObservers.append(nc.addObserver(
             forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.stopLive() }
+            Task { @MainActor [weak self] in self?.stopLive() }
         })
     }
 }
