@@ -32,8 +32,11 @@ at a call site; always reference the token.
 > live events · active filters · selected state · saved pins · primary CTAs
 
 Everything else stays ink on paper. The accent is never decoration, never a
-background wash, never applied to body copy, cards, or category glyphs. It is
-deliberately NOT the retired coral `#FF6B57`.
+background wash, never applied to body copy, cards, or category glyphs. The
+July rule was that it must not be the retired coral `#FF6B57`; the Aug 2026
+logo (below) now carries a coral-orange lockup, so deriving the accent
+from the mark is a live option — but that is Jesse's call to make explicitly,
+not a precedent to assume.
 
 The Today feed ships entirely monochrome and does not spend it — whether the
 feed's `+` join button and its "happening now" state should take the accent is
