@@ -10,6 +10,7 @@
 
 import Combine
 import SwiftUI
+import UIKit
 
 @MainActor
 final class YourDayModule: @MainActor FeedModule {
@@ -42,6 +43,21 @@ final class YourDayModule: @MainActor FeedModule {
     /// Who says a thing is done. The session store, so the rail and the day sheet
     /// give the same answer and a tick outlives the app.
     private let completion: DayCompletionStore
+
+    // MARK: Live updates (mirrors MapModel's realtime pipeline)
+
+    /// One socket on `club_events`, so a new posting's stub rises out of the
+    /// horizon without a feed reload. Created on the first authenticated load.
+    /// The module lives as long as the Home tab; if the tab tree is ever torn
+    /// down without a signed-out load, the socket lingers until the server
+    /// drops it — the same view-driven-stop ceiling MapModel accepts.
+    private var realtime: RealtimeClient?
+    private var resyncTask: Task<Void, Never>?
+    private var midnightTask: Task<Void, Never>?
+    private var lifecycleObservers: [NSObjectProtocol] = []
+    /// The context of the last real load, so a realtime ping or the midnight
+    /// rollover can re-run the same fetch against the same injected clock.
+    private var lastContext: FeedModuleContext?
 
     /// The rows behind `items`, for anything that still takes an `UpcomingEvent`.
     /// Derived, never stored twice — `items` is the single source of truth.
@@ -88,6 +104,7 @@ final class YourDayModule: @MainActor FeedModule {
         #endif
 
         guard ctx.auth.userId != nil else {
+            stopLive()
             items = []
             loadState = .ready
             return
@@ -104,6 +121,11 @@ final class YourDayModule: @MainActor FeedModule {
         } catch {
             loadState = .failed
         }
+
+        // Armed on the failure path too: the next realtime change quietly
+        // recovers a rail the initial fetch could not deliver.
+        lastContext = ctx
+        startLive(ctx)
 
         // Stored completions, AFTER the rail is ready. Best-effort and separate
         // from the fetch above: a completions read that fails must not blank a day
@@ -170,6 +192,118 @@ final class YourDayModule: @MainActor FeedModule {
             // renders its designed empty state from the `.ready` branch instead.
             return AnyView(EmptyView())
         }
+    }
+}
+
+// MARK: - Live updates
+
+private extension YourDayModule {
+    func startLive(_ ctx: FeedModuleContext) {
+        if realtime == nil {
+            let auth = ctx.auth
+            let client = RealtimeClient(table: "club_events") {
+                try? await auth.validAccessToken()
+            }
+            client.onChange = { [weak self] change in self?.handle(change) }
+            realtime = client
+        }
+        realtime?.start()          // idempotent — a repeat load can't stack sockets
+        scheduleMidnightRollover()
+        installLifecycleObserversOnce()
+    }
+
+    func stopLive() {
+        realtime?.stop()
+        resyncTask?.cancel(); resyncTask = nil
+        midnightTask?.cancel(); midnightTask = nil
+    }
+
+    func handle(_ change: RealtimeClient.Change) {
+        guard let ctx = lastContext,
+              YourDayLogic.changeIsRelevant(
+                  change,
+                  shownIDs: Set(items.map(\.id)),
+                  now: ctx.dates.now
+              ) else { return }
+        scheduleResync()
+    }
+
+    /// Debounce a burst of changes (e.g. a weekly-repeat insert loop) into one
+    /// fetch — same 300 ms as MapModel.
+    func scheduleResync() {
+        resyncTask?.cancel()
+        resyncTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            guard !Task.isCancelled else { return }
+            await self?.resync()
+        }
+    }
+
+    /// A quiet reload: no `.loading` shimmer, and a failure keeps the rail we
+    /// already have — stale-but-useful beats a flash or an error card.
+    func resync() async {
+        guard let ctx = lastContext, ctx.auth.userId != nil else { return }
+        let now = ctx.dates.now
+        do {
+            let candidates = try await CommunityAPI(auth: ctx.auth).getTownDayCandidates(now: now)
+            items = YourDayLogic.dayItems(from: candidates, now: now)
+            loadState = .ready
+        } catch {
+            return
+        }
+        await completion.refresh(for: items.map(\.id))
+        // Solar times only move at the midnight rollover; on ordinary event
+        // pings WeatherService's 15-minute cache makes this read free.
+        if let w = await WeatherService.current() {
+            sunrise = w.sunrise
+            sunset = w.sunset
+        }
+    }
+
+    /// A "today" module changes meaning at midnight — same shape as
+    /// MapModel.scheduleMidnightRollover, but on TOWN time (the rail's day;
+    /// see YourDayItems.swift's header for why not the device timezone).
+    func scheduleMidnightRollover() {
+        midnightTask?.cancel()
+        guard let ctx = lastContext else { return }
+        let now = ctx.dates.now
+        // 00:00:01 — a hair past town midnight so Town.day(now) has flipped.
+        guard let next = Town.calendar.nextDate(
+            after: now,
+            matching: DateComponents(hour: 0, minute: 0, second: 1),
+            matchingPolicy: .nextTime
+        ) else { return }
+        let seconds = max(1, next.timeIntervalSince(now))
+        midnightTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+            guard !Task.isCancelled, let self else { return }
+            await self.resync()
+            self.scheduleMidnightRollover()          // arm the next day
+        }
+    }
+
+    /// The socket is dropped on background (battery) and rebuilt on foreground
+    /// with a re-sync, because Realtime never replays what was missed while
+    /// away. Notification-based because a feed module has no scenePhase of its
+    /// own; the observers live as long as the module (the Home tab's lifetime).
+    func installLifecycleObserversOnce() {
+        guard lifecycleObservers.isEmpty else { return }
+        let nc = NotificationCenter.default
+        lifecycleObservers.append(nc.addObserver(
+            forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.realtime != nil else { return }
+                self.realtime?.start()
+                self.scheduleMidnightRollover()
+                self.scheduleResync()
+            }
+        })
+        lifecycleObservers.append(nc.addObserver(
+            forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.stopLive() }
+        })
     }
 }
 

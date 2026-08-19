@@ -221,6 +221,43 @@ nonisolated extension YourDayLogic {
         return (start, event.endAt)
     }
 
+    // MARK: - Realtime relevance
+
+    /// Should a `club_events` change re-sync the rail? Mirrors `MapModel.handle`'s
+    /// test, widened from `event_date == today` to the same
+    /// `[today − lookback, today]` town-time window `getTownDayCandidates` reads —
+    /// a multi-day row dated days ago can still overlap today.
+    ///
+    /// Status is deliberately NOT checked: the UPDATE that approves a pending
+    /// event must count, and an irrelevant insert only costs one idempotent
+    /// (debounced) refetch. A DELETE's `old_record` carries only the primary key,
+    /// so deletes match by shown id.
+    static func changeIsRelevant(
+        _ change: RealtimeClient.Change,
+        shownIDs: Set<String>,
+        now: Date
+    ) -> Bool {
+        let today = Town.day(now)
+        let earliest = Town.day(
+            Town.calendar.date(byAdding: .day, value: -CommunityAPI.dayLookbackDays, to: now) ?? now
+        )
+        // "YYYY-MM-DD" compares correctly as a string.
+        func inWindow(_ row: RealtimeClient.Change.Row?) -> Bool {
+            guard let row else { return false }
+            if let kind = row.kind, kind != "event" { return false }
+            guard let date = row.eventDate else { return false }
+            return date >= earliest && date <= today
+        }
+        func shown(_ id: String?) -> Bool {
+            id.map(shownIDs.contains) ?? false
+        }
+        switch change.kind {
+        case .insert: return inWindow(change.new)
+        case .update: return inWindow(change.new) || shown(change.new?.id ?? change.old?.id)
+        case .delete: return shown(change.old?.id)
+        }
+    }
+
     // MARK: - Ordering
 
     /// All-day first, then start ascending, then by id so the order is stable for
