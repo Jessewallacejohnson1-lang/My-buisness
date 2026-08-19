@@ -717,6 +717,76 @@ final class YourDayRailSpecTests: XCTestCase {
     }
 }
 
+// MARK: - Horizon card copy: plain words, Apple hierarchy
+//
+// Appended to this registered file for the same pbxproj reason as
+// YourDayRailSpecTests above.
+
+final class HorizonCopyTests: XCTestCase {
+    func testPrimaryLineCountsPlansInPlainWords() {
+        XCTAssertEqual(HorizonCopy.primaryLine(yours: 5, open: 11), "5 plans today")
+        XCTAssertEqual(HorizonCopy.primaryLine(yours: 1, open: 0), "1 plan today")
+    }
+
+    func testZeroYoursWithOpenReadsNothingPlannedYet() {
+        XCTAssertEqual(HorizonCopy.primaryLine(yours: 0, open: 11), "Nothing planned yet")
+    }
+
+    func testBothZeroKeepsTheNothingPostedLineAlone() {
+        XCTAssertEqual(
+            HorizonCopy.primaryLine(yours: 0, open: 0), "Nothing posted for today yet.")
+        XCTAssertNil(HorizonCopy.secondaryLine(open: 0))
+    }
+
+    func testSecondaryLineCountsTheTownAndVanishesAtZero() {
+        XCTAssertEqual(HorizonCopy.secondaryLine(open: 11), "11 more around town")
+        XCTAssertEqual(HorizonCopy.secondaryLine(open: 1), "1 more around town")
+        XCTAssertNil(HorizonCopy.secondaryLine(open: 0))
+    }
+
+    func testCardAccessibilityLabelMirrorsTheVisibleWording() {
+        // No "Your day" prefix: the section header is its own VoiceOver
+        // element and already says it — the prefix made the swipe order
+        // read "Your day → Your day, 5 plans…" (review finding).
+        XCTAssertEqual(
+            HorizonCopy.cardAccessibilityLabel(yours: 5, open: 11),
+            "5 plans today, 11 more around town."
+        )
+        XCTAssertEqual(
+            HorizonCopy.cardAccessibilityLabel(yours: 0, open: 0),
+            "Nothing posted for today yet."
+        )
+        XCTAssertFalse(
+            HorizonCopy.cardAccessibilityLabel(yours: 3, open: 2)
+                .contains(YourDayRailCopy.header),
+            "the header speaks its own name; the card must not repeat it"
+        )
+    }
+
+    func testSeeAllLinkNamesTheCountAndVanishesAtZero() {
+        XCTAssertEqual(HorizonCopy.seeAllLink(16), "See all 16 ›")
+        XCTAssertEqual(HorizonCopy.seeAllLink(1), "See all 1 ›")
+        XCTAssertNil(HorizonCopy.seeAllLink(0), "no postings, nothing to link")
+        XCTAssertEqual(
+            HorizonCopy.seeAllLinkAccessibilityLabel(16),
+            "See all 16 of today's postings"
+        )
+    }
+
+    func testVoiceHasNoExclamationMarksAnywhere() {
+        for text in [
+            HorizonCopy.primaryLine(yours: 5, open: 11),
+            HorizonCopy.primaryLine(yours: 0, open: 11),
+            HorizonCopy.primaryLine(yours: 0, open: 0),
+            HorizonCopy.secondaryLine(open: 11) ?? "",
+            HorizonCopy.cardAccessibilityLabel(yours: 3, open: 2),
+        ] {
+            XCTAssertFalse(text.contains("!"))
+            XCTAssertFalse(text.lowercased().contains("hygge"))
+        }
+    }
+}
+
 // MARK: - end_at and all_day, now that the columns exist
 //
 // The migration landed; the BACKFILL did not. So the two halves below matter

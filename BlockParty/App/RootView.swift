@@ -88,6 +88,15 @@ struct RootView: View {
                 // Preview the tab loading cover full-screen (bypassing the auth gate)
                 // so the rainbow-wave indicator + copy can be verified headlessly.
                 TabLoadingCover()
+            } else if ProcessInfo.processInfo.arguments.contains("-horizon-sky-gallery")
+                        || ProcessInfo.processInfo.arguments.contains("-horizon-card-gallery") {
+                // Preview the Your Day horizon card at the eight spec test times
+                // (bypassing the auth gate) so sky continuity, bloom shape, the
+                // seam and the rail can be verified headlessly. `-horizon-sky-gallery`
+                // is sky only; `-horizon-card-gallery` adds the busy-fixture rail.
+                // Pair either with `-horizon-sky-gallery-page 2` for the
+                // afternoon/night half.
+                HorizonSkyGallery()
             } else if ProcessInfo.processInfo.arguments.contains("-feed-card-gallery") {
                 // Preview the static feed-card states full-screen (bypassing the auth
                 // gate) so the component can be verified headlessly.
@@ -402,8 +411,8 @@ struct MainTabsView: View {
                     Group {
                         switch tab {
                         case .home:
-                            // Home carries the brand in its own `TodayTopBar` — the drawn block
-                            // glyph beside the town name — so a second badge would be redundant.
+                            // Home carries the exact app mark in its own `TodayTopBar`, beside
+                            // the town name, so a second badge would be redundant.
                             // Home is the one tab without it.
                             HomeView(
                                 onCompose: { composing = true },
@@ -623,7 +632,7 @@ struct MainTabsView: View {
     /// It lands as the app's ordinary tab change — the same page slide and tab-bar
     /// pill the bar gives — rather than as a modal, because tab selection lives here
     /// and this is the lane the town menu's tab rows already use. No haptic: the card
-    /// that was tapped already fired one on press-down (`YourDayPressStyle`).
+    /// that was tapped already fired one on press-down (its press style).
     private func openActivities(_ request: ActivitiesRequest) {
         activitiesRequest = request
         // The feed this arrives from only exists on the Today tab, so this is always

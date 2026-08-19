@@ -216,6 +216,16 @@ Several states are deliberately distinguished by value or weight alone:
   regenerated from the same pixels, and the sizing constant was re-measured:
   `inkFraction 0.7511` → `contentFraction 0.8273` (the lockup = letters + hat,
   confetti excluded so placements don't undersize the letters).
+
+  **Replaced again 2026-08-12** with Jesse's supplied geometric lowercase `bp`:
+  coral-orange glossy letters on a near-black glass tile. The original 1254×1254 RGB
+  PNG is preserved byte-for-byte as `docs/brand/source-render-1254.png`. The measured
+  tile bbox is `(81,56) 1087×1132`; the largest centered 1087px face crop starts at
+  `(81,78)` and is high-quality-resampled to the required opaque 1024px app icon.
+  `LaunchMark` and `MarkTemplate` were regenerated from those same pixels, the Apple
+  0.2237-corner mask simulation passed, and `contentFraction` is now `0.8591` (756px
+  of the 880px launch asset). Live brand surfaces use the exact full-colour raster—no
+  tinted or redrawn substitutes—so its gloss, bevel, texture, and spacing stay intact.
 - **Superseded test note:** at the time of the original rebrand, `HyggeTests/` was
   inert and had no project target. It has since become the wired `BlockPartyTests`
   target with active coverage; do not treat the old statement as current setup advice.

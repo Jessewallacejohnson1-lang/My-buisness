@@ -190,7 +190,7 @@ The map is SwiftUI `Map(viewport:)` inside `MapReader`, not UIKit `MapView`. Con
 
 ### Town menu, profile, and share
 
-`TodayTopBar` owns the fixed town title and top-right menu button. `GlassShowcaseOverlay` frosts the app and hosts the content-height `TownMenuView` panel from the top-right; tab routes switch behind the closing overlay while sheets wait until it closes. Profile is a normal sheet and uses real `town_profiles` plus real activity reads—never fabricated counts.
+`TodayTopBar` owns the exact full-colour app mark, fixed town title, and top-right menu button. `GlassShowcaseOverlay` frosts the app and hosts the content-height `TownMenuView` panel from the top-right; tab routes switch behind the closing overlay while sheets wait until it closes. Profile is a normal sheet and uses real `town_profiles` plus real activity reads—never fabricated counts.
 
 `ShareCenter` presents the app-wide share reveal in its own `UIWindow`, above tabs and sheets. The preview view is also rendered to the shared image. Add new share types through `SharePayload` factories.
 
@@ -198,6 +198,7 @@ The map is SwiftUI `Map(viewport:)` inside `MapReader`, not UIKit `MapView`. Con
 
 - `BlockPartyColor` / `Hue`: six neutral tokens (`ink`, `paper`, `surface`, `inkSecondary`, `hairline`, `fill`) plus plum/berry `accent` #8E3B6B. The accent is meaning-scoped to live, active, selected/saved, and primary CTA states—never decorative washes or body copy.
 - `BlockPartyFont`: Jost for display/wordmark/headlines and SF Pro for body/UI/data. Use the exact bundled Jost PostScript names; a wrong name silently falls back.
+- Brand mark: the lossless master is `docs/brand/source-render-1254.png`; `scripts/brand/exact.swift` derives the 1024px opaque app icon and in-app assets. Live surfaces use the exact glossy lowercase `bp` raster—never tint, trace, redraw, or substitute the retired hollow-square/script-BP variants.
 - `BlockPartyMetrics`: shared radii/shadows, including map float/sheet shadows. `Radius.bento` is intentionally outside the 12/16/20 sequence.
 
 Do not hardcode a hex or spacing value at a view call site when a token or named palette covers it. Controlled raw colours live in role-specific palette/config files: `BlockPartyColor.swift`, `BasemapPalette.swift`, `WeatherBackground.swift`, utility gradient definitions, and `OnboardingFlow/Theme/BPOnboardingPalette.swift`; logo fallback art and the garbage-truck illustration are content exceptions. Do not make the basemap grayscale; that experiment was reverted because landmarks disappeared. Category is carried by glyph, while live/active/selected state may use the accent.

@@ -1,7 +1,7 @@
 //
 //  AppInviteCard.swift
-//  Block Party — the preview card for "SHARE BLOCK PARTY" (app invite). Typographic only,
-//  matching InviteCard's language — no illustration (house rule).
+//  Block Party — the preview card for "SHARE BLOCK PARTY" (app invite). The canonical
+//  app mark is the only image; the rest stays typographic, with no illustration.
 //
 
 import SwiftUI
@@ -18,8 +18,11 @@ struct AppInviteCard: View {
                 .font(.sans(15)).foregroundStyle(Hue.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             Rectangle().fill(Hue.hairline).frame(height: 1).padding(.top, 2)
-            Text("Block Party")
-                .font(.logo(20)).foregroundStyle(Hue.ink)
+            HStack(spacing: 9) {
+                BlockPartyMark(side: 30)
+                Text("Block Party")
+                    .font(.logo(20)).foregroundStyle(Hue.ink)
+            }
         }
         .padding(24)
         .frame(width: 360, alignment: .leading)

@@ -17,7 +17,7 @@
 //  I have NOT invented a skyline. A city's silhouette is a civic mark; drawing a
 //  plausible one from imagination would put a fabricated identity on a real town's app.
 //  `BPBuildingBlockArt` therefore renders the composition — the orange rounded shape at
-//  the right size and position, with the Block Party mark knocked out of it — so the
+//  the right size and position, with the exact Block Party app mark over it — so the
 //  rest of the screen can be verified 1:1 now. Swapping the silhouette in later is a
 //  one-view change confined to this file.
 //  ───────────────────────────────────────────────────────────────────────────────────
@@ -95,9 +95,9 @@ struct BPBuildingBlockScreen: View {
 
 /// The interstitial's illustration.
 ///
-/// PLACEHOLDER COMPOSITION — see the file header. The orange rounded shape and the
-/// white knockout are real and positioned; the knockout is currently the Block Party
-/// mark standing in for the Joetown skyline silhouette, which has no source asset.
+/// PLACEHOLDER COMPOSITION — see the file header. The orange rounded shape is real and
+/// positioned; the exact Block Party app mark stands in for the Joetown skyline
+/// silhouette, which has no source asset.
 struct BPBuildingBlockArt: View {
     var body: some View {
         GeometryReader { geo in
@@ -105,7 +105,7 @@ struct BPBuildingBlockArt: View {
             RoundedRectangle(cornerRadius: s * 0.24, style: BP.Metric.cornerStyle)
                 .fill(BP.orange)
                 .overlay {
-                    BPMark(side: s * 0.46, style: .tinted(.white))
+                    BPMark(side: s * 0.46)
                 }
         }
         .accessibilityElement(children: .ignore)

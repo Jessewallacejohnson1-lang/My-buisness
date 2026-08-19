@@ -40,8 +40,10 @@ nonisolated struct DayScheduleFixture {
     /// `-day-sheet-state upcoming|inprogress|completed|empty|cta`. Defaults to the
     /// whole day with nothing pre-selected.
     ///
-    /// `cta` is the rail's ADD TILE opening the day — it rests on the bottom of the
-    /// timeline with the "Add to today" button under it, rather than on a row.
+    /// `cta` rests the day on the bottom of the timeline, with its own sticky "Add
+    /// to today" button under it, rather than on a row. It used to be what the
+    /// rail's plus tile opened; that tile now leaves for Activities, so this fixture
+    /// is the ONLY way to reach that resting position — which is why it stays.
     static func fromArguments(_ arguments: [String] = ProcessInfo.processInfo.arguments)
         -> DayScheduleFixture {
         let now = fixedNow

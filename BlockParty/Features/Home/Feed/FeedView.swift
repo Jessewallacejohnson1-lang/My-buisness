@@ -4,6 +4,33 @@
 //
 
 import SwiftUI
+import Combine
+
+/// The Today chrome needs only the signed-in neighbor's avatar, not the profile
+/// screen's activity lists. Keeping this loader narrow avoids fetching RSVPs, clubs,
+/// and quests just to paint a 38pt button, while still sharing `ProfileAPI` as the
+/// source of truth.
+@MainActor
+final class TodayHeaderProfileModel: ObservableObject {
+    @Published private(set) var avatarUrl: String?
+
+    private let loadProfile: () async throws -> TownProfile?
+
+    init(loadProfile: @escaping () async throws -> TownProfile?) {
+        self.loadProfile = loadProfile
+    }
+
+    convenience init(auth: AuthStore) {
+        self.init { try await ProfileAPI(auth: auth).getMyProfile() }
+    }
+
+    /// A failed refresh keeps the last good photo instead of making the header flash
+    /// back to its placeholder during a transient network outage.
+    func refresh() async {
+        guard let profile = try? await loadProfile() else { return }
+        avatarUrl = profile.avatarUrl
+    }
+}
 
 struct FeedView: View {
     let auth: AuthStore
@@ -17,6 +44,7 @@ struct FeedView: View {
     var onOpenActivities: ((ActivitiesRequest) -> Void)?
 
     @StateObject private var controller: FeedController
+    @StateObject private var headerProfile: TodayHeaderProfileModel
     @State private var name: String?
     @State private var route: FeedRoute?
     @State private var revealed = false
@@ -46,6 +74,7 @@ struct FeedView: View {
             navigate: { _ in }
         )
         _controller = StateObject(wrappedValue: FeedController(context: context))
+        _headerProfile = StateObject(wrappedValue: TodayHeaderProfileModel(auth: auth))
     }
 
     private var context: FeedModuleContext {
@@ -86,7 +115,8 @@ struct FeedView: View {
             TodayTopBar(
                 onMenu: onMenu,
                 menuOpen: menuOpen,
-                showsHairline: showsHairline || forcedHairline
+                showsHairline: showsHairline || forcedHairline,
+                avatarUrl: headerProfile.avatarUrl
             )
 
             ScrollView(showsIndicators: false) {
@@ -131,9 +161,11 @@ struct FeedView: View {
             if let destination = route.destination { destination }
         }
         .task {
+            async let profileRefresh: Void = headerProfile.refresh()
             name = Interests.displayName ?? firstNameFromEmail(auth.email)
             controller.updateContext(context)
             await controller.load()
+            await profileRefresh
 
             if let payload = controller.briefing.payload, payload.status == .published {
                 context.analytics.recordOnce(
@@ -175,6 +207,7 @@ struct FeedView: View {
             guard !shown else { return }
             name = Interests.displayName ?? firstNameFromEmail(auth.email)
             controller.updateContext(context)
+            Task { await headerProfile.refresh() }
         }
     }
 }

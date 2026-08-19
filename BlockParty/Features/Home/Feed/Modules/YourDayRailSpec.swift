@@ -121,6 +121,11 @@ nonisolated enum YourDayRailCopy {
     static let addTile = "Add to today"
     static let suggested = "SUGGESTED"
 
+    /// Said by BOTH browse affordances — the plus tile and the zero-state card —
+    /// because they now go to the same place. "Add to today" alone would promise a
+    /// composer; what the tile actually opens is the town's postings for today.
+    static let browseTodayHint = "Opens today in Activities"
+
     static let emptyTitle = "Nothing planned today."
     static let emptyMetaFallback = "See what’s happening in St. Joe →"
 

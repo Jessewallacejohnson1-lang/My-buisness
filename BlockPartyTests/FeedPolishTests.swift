@@ -193,6 +193,35 @@ final class FeedRouteAndCopyTests: XCTestCase {
         XCTAssertEqual(ActivitiesRequest.opening(nil), .resting)
     }
 
+    /// The rail's two taps must NOT converge. A card asks the day-sheet host to open
+    /// on its own row; the plus tile leaves the tab for today's postings and never
+    /// touches the host. `.callToAction` — what the plus used to ask for — survives
+    /// only for the sheet's own `-day-sheet-state cta` fixture.
+    func testACardAsksTheDaySheetForItsRowWhileTheAnchorTheAddTileUsedToAskForIsFixtureOnly() {
+        let cardAnchor = DayScheduleAnchor.item("fixture-walk")
+        XCTAssertEqual(cardAnchor.itemID, "fixture-walk")
+        XCTAssertNotEqual(cardAnchor, .callToAction)
+
+        // The plus tile's destination is a feed route, not a day-sheet anchor — the
+        // two are not even the same kind of thing any more.
+        XCTAssertEqual(
+            FeedRoute.activities(.happeningToday).activitiesRequest,
+            .happeningToday
+        )
+
+        // Still reachable, so removing the case would break a documented flag.
+        XCTAssertEqual(
+            DayScheduleFixture.fromArguments(["-day-sheet-state", "cta"]).anchor,
+            .callToAction
+        )
+    }
+
+    /// Both browse affordances promise the same destination out loud. "Add to today"
+    /// alone would read as a composer, which is not where the tile goes.
+    func testBothBrowseAffordancesAnnounceTheSameDestination() {
+        XCTAssertEqual(YourDayRailCopy.browseTodayHint, "Opens today in Activities")
+    }
+
     #if DEBUG
     /// The launch arguments and a real navigation resolve through the SAME entry
     /// point, which is what makes a headless screenshot evidence for the route.

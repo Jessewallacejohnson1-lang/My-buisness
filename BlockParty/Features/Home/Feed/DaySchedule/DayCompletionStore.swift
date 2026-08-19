@@ -64,6 +64,9 @@ final class DayCompletionStore: DayCompletionStoring {
         let fixtureFlags = [
             "-yourday-sample", "-yourday-loading", "-yourday-error", "-yourday-empty",
             "-yourday-count", "-day-sheet-preview", "-day-sheet-demo",
+            // The horizon card's mock lane stages fixture ids too — a tick
+            // under any of these must never reach the live table.
+            "-BPMockDayState", "-BPMockNow", "-BPMockSunTimes",
         ]
         let args = ProcessInfo.processInfo.arguments
         if fixtureFlags.contains(where: args.contains) { return nil }
