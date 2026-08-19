@@ -45,9 +45,10 @@ the rename happened now. Realtime topics are ephemeral and need no migration.
 
 ### OUTSTANDING console actions
 
-1. **Google Cloud:** add `Jesse.BlockParty` to the Places API key's iOS bundle-id
-   restrictions. Skipping this makes **all venue photography go blank** in the renamed
-   app because runtime Places requests are rejected.
+1. ~~**Google Cloud:** add `Jesse.BlockParty` to the Places API key's iOS bundle-id
+   restrictions.~~ **DONE — verified 2026-08-19**: a Places request with
+   `X-Ios-Bundle-Identifier: Jesse.BlockParty` succeeds and a bogus bundle id is
+   rejected 403, so the key is restricted and the new bundle is allowlisted.
 2. **App Store Connect:** create the new app record for `Jesse.BlockParty`. This bundle
    change intentionally orphans the old listing and its TestFlight builds; they cannot
    be transferred to the new identifier.
