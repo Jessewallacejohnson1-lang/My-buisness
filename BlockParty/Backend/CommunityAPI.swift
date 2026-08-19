@@ -354,7 +354,10 @@ struct CommunityAPI {
     /// casts a slightly wide net by date and the overlap rule does the real
     /// filtering client-side. Two weeks is nothing for a town whose entire
     /// calendar is ~9 rows.
-    private static let dayLookbackDays = 14
+    /// Internal (not private) and nonisolated: `YourDayLogic.changeIsRelevant`
+    /// filters realtime changes against the same window this query casts, and
+    /// two copies of this number would drift.
+    nonisolated static let dayLookbackDays = 14
 
     /// Every approved public event that could be running on the TOWN's today,
     /// each carrying the viewer's own RSVP state so Your Day can tell a personal
