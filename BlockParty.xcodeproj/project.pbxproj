@@ -100,9 +100,22 @@
 		FCE178E8E9CAEDC7860D5827 /* TownTimezoneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TownTimezoneTests.swift; path = BlockPartyTests/TownTimezoneTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		7C79C482F8A34E9F90AD1C30 /* Exceptions for "BlockParty" folder in "BlockParty" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = EBBFA6EF2FF473FB00A2EDB1 /* BlockParty */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		EBBFA6F22FF473FB00A2EDB1 /* BlockParty */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				7C79C482F8A34E9F90AD1C30 /* Exceptions for "BlockParty" folder in "BlockParty" target */,
+			);
 			path = BlockParty;
 			sourceTree = "<group>";
 		};
@@ -532,14 +545,14 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 5Z6CXL9QA8;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = BlockParty/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Block Party";
 				INFOPLIST_KEY_NSCalendarsWriteOnlyAccessUsageDescription = "Block Party adds St. Joseph events to your Apple Calendar when you tap Add.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Block Party uses your location to show what's happening close by in St. Joseph.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Block Party saves the share card to your Photos when you tap Save image.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -568,14 +581,14 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 5Z6CXL9QA8;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = BlockParty/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Block Party";
 				INFOPLIST_KEY_NSCalendarsWriteOnlyAccessUsageDescription = "Block Party adds St. Joseph events to your Apple Calendar when you tap Add.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Block Party uses your location to show what's happening close by in St. Joseph.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Block Party saves the share card to your Photos when you tap Save image.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (

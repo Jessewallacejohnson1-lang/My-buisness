@@ -25,7 +25,9 @@ struct BlockPartyApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
+            LaunchHost {
+                RootView()
+            }
                 .environmentObject(auth)
                 .task { await auth.restore() }
                 .task { await PlaceSeeder.seedIfRequested() }   // DEBUG: -seed-places one-time POI seed

@@ -48,18 +48,6 @@ struct RootView: View {
     @State private var debugIntroDismissed = false
     #endif
 
-    /// The launch loader plays for at least this long so it's actually seen (boot often
-    /// resolves in <200ms).
-    ///
-    /// Derived from the bloom rather than hardcoded: hold just long enough for the
-    /// animation to land, plus a beat to read as landed, and then hand off — the 0.4s
-    /// cross-fade below supplies the rest of the dwell. The old flat 1.4s dated from
-    /// the looping loader, where there was always a next bloom to show; against a
-    /// one-shot it left ~0.4s of dead still frame on every cold start.
-    private let loaderMinDuration: Double = LaunchLoaderView.bloomCompletesAt + 0.30
-    /// Flipped true once `loaderMinDuration` has elapsed since launch.
-    @State private var minLoaderShown = false
-
     /// The neighbour's System / Light / Dark choice, set in the town menu. Held
     /// here because THIS is the root of the presentation `.preferredColorScheme`
     /// acts on — the request has to be made once, at the top, or a sheet and the
@@ -212,37 +200,24 @@ struct RootView: View {
 
     @ViewBuilder
     private var gate: some View {
-        // The launch loader plays while the app boots — "coming into the app", the same
-        // slot Pinterest fills — and for a short minimum beyond so it's actually seen,
-        // then cross-fades to the authed shell / login once auth resolves.
-        ZStack {
-            if auth.booting || !minLoaderShown {
-                LaunchLoaderView()
-                    .transition(.opacity)
-            } else if auth.isSignedIn {
-                authedRoot
-                    .task(id: auth.userId) { await hydrateIfNeeded() }
-                    .transition(.opacity)
-            } else if !bpFlowDone {
-                // PRE-AUTH onboarding (Jesse's gate decision, 2026-07-24): the 20-screen
-                // flow runs before there is an account, exactly as the reference does.
-                // Answers buffer locally and flush on the first successful sign-in.
-                // Both exits mark the flow done, so it is never replayed.
-                BPOnboardingFlow(
-                    onFinish: { bpFlowDone = true },
-                    onSignIn: { bpFlowDone = true }
-                )
-                .transition(.opacity)
-            } else {
-                LoginView()
-                    .transition(.opacity)
-            }
-        }
-        .animation(.easeInOut(duration: 0.4), value: auth.booting)
-        .animation(.easeInOut(duration: 0.4), value: minLoaderShown)
-        .task {
-            try? await Task.sleep(for: .seconds(loaderMinDuration))
-            minLoaderShown = true
+        // LaunchHost owns the splash as an overlay, so this real destination is
+        // constructed and laid out underneath it from the first app frame. Session
+        // restoration can replace the hidden destination while the splash is opaque;
+        // the launch handoff itself never waits on that network-capable task.
+        if auth.isSignedIn {
+            authedRoot
+                .task(id: auth.userId) { await hydrateIfNeeded() }
+        } else if !bpFlowDone {
+            // PRE-AUTH onboarding (Jesse's gate decision, 2026-07-24): the 20-screen
+            // flow runs before there is an account, exactly as the reference does.
+            // Answers buffer locally and flush on the first successful sign-in.
+            // Both exits mark the flow done, so it is never replayed.
+            BPOnboardingFlow(
+                onFinish: { bpFlowDone = true },
+                onSignIn: { bpFlowDone = true }
+            )
+        } else {
+            LoginView()
         }
     }
 
