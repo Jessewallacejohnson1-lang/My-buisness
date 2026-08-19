@@ -88,15 +88,16 @@ struct LaunchHost<Content: View>: View {
 
     var body: some View {
         ZStack {
+            // Plain state-driven animation, NOT `phaseAnimator(_:trigger:)`: a
+            // trigger-based phase animator cycles through its phases and settles
+            // back on the FIRST one, so the root ended at opacity 0 — a black app
+            // forever after the splash left (found on the 2026-08-19 integration
+            // pass). These booleans flip once per launch and must rest flipped.
             content
                 .allowsHitTesting(!splashVisible || skipsSplash)
-                .phaseAnimator([false, true], trigger: exitStarted) { root, revealed in
-                    root
-                        .opacity(skipsSplash || revealed ? 1 : 0)
-                        .scaleEffect(reduceMotion || skipsSplash || revealed ? 1 : 0.98)
-                } animation: { revealed in
-                    revealed ? .easeOut(duration: exitSeconds) : nil
-                }
+                .opacity(skipsSplash || exitStarted ? 1 : 0)
+                .scaleEffect(reduceMotion || skipsSplash || exitStarted ? 1 : 0.98)
+                .animation(.easeOut(duration: exitSeconds), value: exitStarted)
 
             if splashVisible && !skipsSplash {
                 SplashView(
@@ -159,11 +160,8 @@ struct SplashView: View {
     var body: some View {
         ZStack {
             SplashLayout.background
-                .phaseAnimator([false, true], trigger: exitStarted) { background, exiting in
-                    background.opacity(exiting ? 0 : 1)
-                } animation: { exiting in
-                    exiting ? .easeOut(duration: exitSeconds) : nil
-                }
+                .opacity(exitStarted ? 0 : 1)
+                .animation(.easeOut(duration: exitSeconds), value: exitStarted)
 
             GeometryReader { geometry in
                 let size = geometry.size
@@ -180,22 +178,13 @@ struct SplashView: View {
                         .interpolation(.high)
                         .scaledToFit()
                         .frame(width: settledMarkSide, height: settledMarkSide)
-                        .phaseAnimator([false, true], trigger: settleMark) { mark, settled in
-                            mark.scaleEffect(reduceMotion || settled
-                                ? 1
-                                : SplashLayout.markInitialScale)
-                        } animation: { settled in
-                            settled
-                                ? .spring(response: 0.5, dampingFraction: 0.8)
-                                : nil
-                        }
-                        .phaseAnimator([false, true], trigger: exitStarted) { mark, exiting in
-                            mark
-                                .opacity(exiting ? 0 : 1)
-                                .scaleEffect(reduceMotion || !exiting ? 1 : 1.08)
-                        } animation: { exiting in
-                            exiting ? .easeOut(duration: exitSeconds) : nil
-                        }
+                        .scaleEffect(reduceMotion || settleMark
+                            ? 1
+                            : SplashLayout.markInitialScale)
+                        .animation(.spring(response: 0.5, dampingFraction: 0.8), value: settleMark)
+                        .opacity(exitStarted ? 0 : 1)
+                        .scaleEffect(reduceMotion || !exitStarted ? 1 : 1.08)
+                        .animation(.easeOut(duration: exitSeconds), value: exitStarted)
                         .position(
                             x: size.width / 2,
                             y: size.height * SplashLayout.markCenterYRatio
@@ -205,16 +194,10 @@ struct SplashView: View {
                     // to the requested rising copy in place. This avoids a one-frame
                     // blink while the animated wordmark still moves 8 pt and fades in.
                     wordmark(width: wordmarkWidth)
-                        .phaseAnimator([false, true], trigger: revealWordmark) { text, handedOff in
-                            text.opacity(reduceMotion || !handedOff ? 1 : 0)
-                        } animation: { handedOff in
-                            handedOff ? .easeOut(duration: 0.32) : nil
-                        }
-                        .phaseAnimator([false, true], trigger: exitStarted) { text, exiting in
-                            text.opacity(exiting ? 0 : 1)
-                        } animation: { exiting in
-                            exiting ? .easeOut(duration: exitSeconds) : nil
-                        }
+                        .opacity(reduceMotion || !revealWordmark ? 1 : 0)
+                        .animation(.easeOut(duration: 0.32), value: revealWordmark)
+                        .opacity(exitStarted ? 0 : 1)
+                        .animation(.easeOut(duration: exitSeconds), value: exitStarted)
                         .position(
                             x: size.width / 2,
                             y: wordmarkCenterY(screenHeight: size.height, width: wordmarkWidth)
@@ -222,18 +205,11 @@ struct SplashView: View {
 
                     if !reduceMotion {
                         wordmark(width: wordmarkWidth)
-                            .phaseAnimator([false, true], trigger: revealWordmark) { text, revealed in
-                                text
-                                    .opacity(revealed ? 1 : 0)
-                                    .offset(y: revealed ? 0 : 8)
-                            } animation: { revealed in
-                                revealed ? .easeOut(duration: 0.32) : nil
-                            }
-                            .phaseAnimator([false, true], trigger: exitStarted) { text, exiting in
-                                text.opacity(exiting ? 0 : 1)
-                            } animation: { exiting in
-                                exiting ? .easeOut(duration: exitSeconds) : nil
-                            }
+                            .opacity(revealWordmark ? 1 : 0)
+                            .offset(y: revealWordmark ? 0 : 8)
+                            .animation(.easeOut(duration: 0.32), value: revealWordmark)
+                            .opacity(exitStarted ? 0 : 1)
+                            .animation(.easeOut(duration: exitSeconds), value: exitStarted)
                             .position(
                                 x: size.width / 2,
                                 y: wordmarkCenterY(screenHeight: size.height, width: wordmarkWidth)
