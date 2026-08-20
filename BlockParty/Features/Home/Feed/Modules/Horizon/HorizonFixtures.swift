@@ -131,10 +131,9 @@ nonisolated struct HorizonMock {
             // 20:52 pair was tangent to the retired solar window).
             return [yours("y1", 7, 5), yours("y2", 21, 55)]
         case .overflow:
-            // One item off each end of the fixed window, so this state
-            // actually stages both "+N earlier/later" markers (22:00 sharp
-            // is IN-window by the closed-interval rule — it was silently
-            // staging nothing after the axis change).
+            // One item off each end of the old fixed 7a–10p window — now
+            // they simply sit far out on the tape (the overflow markers
+            // retired with the scrubbable strip; scrub to reach them).
             return [
                 yours("y1", 10, 0), yours("y2", 21, 30), yours("y3", 22, 30),
                 open("o1", 6, 30), open("o2", 15, 30),

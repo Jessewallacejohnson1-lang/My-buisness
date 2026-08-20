@@ -2,57 +2,71 @@
 //  TimeAxisTests.swift
 //  BlockPartyTests
 //
-//  The fixed 7a–10p window: known x pairs, the clamped mapping that pins
-//  out-of-window marks to the edges, the two-hour tick grid with exactly
-//  four labels, and wall-clock edges on DST-change days.
+//  The whole-day tape: fixed 12-hours-across-the-card density, strip-local
+//  x, the centering offset that pins any moment under the marker, full-day
+//  ticks labeled on the four-hour grid, and wall-clock ticks with honest
+//  spans on DST-change days.
 //
 
 import XCTest
 @testable import BlockParty
 
 final class TimeAxisTests: XCTestCase {
-    private let width: CGFloat = 400
+    private let width: CGFloat = 360  // 12 h window → 30 pt/hour
 
-    // MARK: The fixed window
+    // MARK: The day
 
-    func testAxisIsSevenToTenAtEveryHourOfTheDay() {
+    func testTapeCoversTheWholeTownDayAtEveryHour() {
         for hour in [0, 5, 9, 13, 21, 23] {
             let axis = TimeAxis(now: townDate(2026, 8, 11, hour, 0), width: width)
-            XCTAssertEqual(axis.start, townDate(2026, 8, 11, 7, 0), "hour \(hour)")
-            XCTAssertEqual(axis.end, townDate(2026, 8, 11, 22, 0), "hour \(hour)")
+            XCTAssertEqual(axis.dayStart, townDate(2026, 8, 11, 0, 0), "hour \(hour)")
+            XCTAssertEqual(axis.dayEnd, townDate(2026, 8, 12, 0, 0), "hour \(hour)")
         }
     }
 
-    // MARK: x(for:)
+    // MARK: Density and mapping
 
-    func testXMapsKnownPairs() {
+    func testDensityIsTwelveVisibleHours() {
         let axis = TimeAxis(now: townDate(2026, 8, 11, 13, 0), width: width)
-        XCTAssertEqual(axis.x(for: townDate(2026, 8, 11, 7, 0)), 0)
-        XCTAssertEqual(axis.x(for: townDate(2026, 8, 11, 22, 0)), width)
-        XCTAssertEqual(
-            axis.x(for: townDate(2026, 8, 11, 14, 30))!, width / 2, accuracy: 0.01)
-        XCTAssertNil(axis.x(for: townDate(2026, 8, 11, 6, 59)), "before the window")
-        XCTAssertNil(axis.x(for: townDate(2026, 8, 11, 22, 1)), "after the window")
+        XCTAssertEqual(axis.pointsPerHour, 30)
+        XCTAssertEqual(axis.x(for: townDate(2026, 8, 11, 0, 0)), 0)
+        XCTAssertEqual(axis.x(for: townDate(2026, 8, 11, 12, 0)), width, accuracy: 0.01)
+        XCTAssertEqual(axis.x(for: townDate(2026, 8, 12, 0, 0)), 2 * width, accuracy: 0.01)
     }
 
-    func testClampedMappingPinsOutOfWindowMomentsToTheEdges() {
-        let axis = TimeAxis(now: townDate(2026, 8, 11, 5, 45), width: width)
-        XCTAssertEqual(axis.clampedFraction(for: townDate(2026, 8, 11, 5, 45)), 0)
-        XCTAssertEqual(axis.clampedFraction(for: townDate(2026, 8, 11, 23, 30)), 1)
-        XCTAssertEqual(axis.clampedX(for: townDate(2026, 8, 11, 23, 30)), width)
-        XCTAssertEqual(
-            axis.clampedFraction(for: townDate(2026, 8, 11, 14, 30)), 0.5,
-            accuracy: 0.001)
+    func testStripOffsetCentersAnyMomentUnderTheMarker() {
+        let axis = TimeAxis(now: townDate(2026, 8, 11, 13, 0), width: width)
+        for date in [
+            townDate(2026, 8, 11, 0, 0),
+            townDate(2026, 8, 11, 9, 30),
+            townDate(2026, 8, 11, 14, 7),
+            townDate(2026, 8, 12, 0, 0),
+        ] {
+            let offset = axis.stripOffset(centering: date)
+            XCTAssertEqual(
+                offset + axis.x(for: date), width / 2, accuracy: 0.001,
+                "\(date) must land exactly under the centered marker")
+        }
     }
 
-    // MARK: Ticks and labels — exactly four labels, all day
+    func testRestingCreepMovesTheStripLeftHalfAPointPerMinute() {
+        let axis = TimeAxis(now: townDate(2026, 8, 11, 13, 0), width: width)
+        let atOne = axis.stripOffset(centering: townDate(2026, 8, 11, 13, 0))
+        let atTwo = axis.stripOffset(centering: townDate(2026, 8, 11, 13, 1))
+        XCTAssertEqual(atOne - atTwo, 0.5, accuracy: 0.001)
+    }
 
-    func testTicksEveryTwoHoursWithLabelsOnTheFourHourGrid() {
+    // MARK: Ticks and labels
+
+    func testTicksEveryTwoHoursLabeledOnTheFourHourGrid() {
         let axis = TimeAxis(now: townDate(2026, 8, 11, 13, 0), width: width)
         let ticks = axis.ticks()
-        XCTAssertEqual(ticks.count, 7, "8a 10a 12p 2p 4p 6p 8p")
+        XCTAssertEqual(ticks.count, 13, "12a 2a … 10p plus the closing 12a")
         XCTAssertEqual(
-            ticks.filter(\.isLabeled).map(\.label), ["8a", "12p", "4p", "8p"])
+            ticks.filter(\.isLabeled).map(\.label),
+            ["12a", "4a", "8a", "12p", "4p", "8p", "12a"])
+        XCTAssertEqual(ticks.first?.x, 0)
+        XCTAssertEqual(ticks.last!.x, 2 * width, accuracy: 0.01)
     }
 
     func testTicksNeverMoveAcrossTheDay() {
@@ -62,18 +76,26 @@ final class TimeAxisTests: XCTestCase {
         XCTAssertEqual(morning.pointsPerHour, night.pointsPerHour)
     }
 
-    // MARK: DST — edges are wall-clock, spans are honest
+    // MARK: DST — ticks are wall-clock, spans are honest
 
-    func testDSTChangeDaysKeepWallClockEdges() {
-        // Both 2026 transitions happen at 2 AM — before the 7a edge — so the
-        // span stays 15 real hours. The guarantee under test is the
-        // wall-clock edge: a byAdding implementation would land the spring-
-        // forward start at 8 AM; bySettingHour keeps it at 7.
-        for day in [townDate(2026, 3, 8, 12, 0), townDate(2026, 11, 1, 12, 0)] {
-            let axis = TimeAxis(now: day, width: width)
-            XCTAssertEqual(Town.calendar.component(.hour, from: axis.start), 7)
-            XCTAssertEqual(Town.calendar.component(.hour, from: axis.end), 22)
-            XCTAssertEqual(axis.end.timeIntervalSince(axis.start), 15 * 3600)
+    func testDSTChangeDaysKeepWallClockTicksAndHonestSpans() {
+        // Spring forward (2026-03-08, 2 AM skipped): the town day is 23
+        // real hours, and a wall-clock 8 AM sits 7 real hours from
+        // midnight — a byAdding implementation would land it at 8.
+        let spring = TimeAxis(now: townDate(2026, 3, 8, 12, 0), width: width)
+        XCTAssertEqual(spring.dayEnd.timeIntervalSince(spring.dayStart), 23 * 3600)
+        let springEight = spring.ticks().first { $0.label == "8a" }
+        XCTAssertNotNil(springEight)
+        XCTAssertEqual(springEight!.x, 7 * spring.pointsPerHour, accuracy: 0.01)
+
+        // Fall back (2026-11-01, 1 AM repeats): 25 real hours, and every
+        // tick still lands on a wall-clock hour.
+        let fall = TimeAxis(now: townDate(2026, 11, 1, 12, 0), width: width)
+        XCTAssertEqual(fall.dayEnd.timeIntervalSince(fall.dayStart), 25 * 3600)
+        for tick in fall.ticks() {
+            XCTAssertEqual(
+                Town.calendar.component(.minute, from: tick.date), 0,
+                "\(tick.date) is not a wall-clock hour")
         }
     }
 

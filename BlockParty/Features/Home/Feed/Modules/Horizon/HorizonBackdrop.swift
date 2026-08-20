@@ -11,6 +11,10 @@
 //  of it in HorizonCard. The vignette sits under the disc on purpose —
 //  it decides whether the disc reads at the card edges.
 //
+//  Under the tape model the marker (disc + pillar) is ALWAYS horizontally
+//  centered; the strip (solar dots here, ticks/stubs in the rail) slides
+//  beneath it by `stripOffset`.
+//
 
 import SwiftUI
 
@@ -25,6 +29,8 @@ extension Color {
 struct HorizonBackdrop: View {
     let sky: SolarSky
     let axis: TimeAxis
+    let stripOffset: CGFloat
+    var isScrubbing = false
 
     var body: some View {
         GeometryReader { geo in
@@ -40,7 +46,7 @@ struct HorizonBackdrop: View {
                 horizonLine
                     .offset(y: HorizonMetrics.skyHeight - HorizonMetrics.horizonLineHeight)
 
-                solarDots(width: width)
+                solarDots
             }
         }
     }
@@ -107,9 +113,10 @@ struct HorizonBackdrop: View {
             // photo filter, halve the opacity rather than delete it.
             edgeVignette
 
-            // Layer four — the sun (or moon) disc at "now", the scene's own
-            // marker. The sky stays a pure picture: no text, no UI glyphs.
-            nowDisc(width: width)
+            // Layer four — the sun (or moon) disc: the card's permanently
+            // centered marker. The sky stays a pure picture: no text, no
+            // UI glyphs.
+            marker(width: width)
         }
     }
 
@@ -127,29 +134,28 @@ struct HorizonBackdrop: View {
         )
     }
 
-    // MARK: Now disc + light pillar
+    // MARK: The marker — disc + light pillar, always centered
 
-    /// A quiet 9pt disc riding the solar arc at now's x — sun by day, moon
-    /// by night (its height is the same sin arc run over the night; clock,
-    /// not astronomy). Hidden when now is outside the 7a–10p window — the
-    /// rail's ruler notch is the only marker then. Never clamped.
-    @ViewBuilder
-    private func nowDisc(width: CGFloat) -> some View {
-        if let fraction = axis.fraction(for: sky.now) {
-            let radius = HorizonMetrics.discDiameter / 2
-            // Tangent to the card edge, like the solar dots — a marker
-            // half-clipped by the corner marks nothing.
-            let x = min(max(CGFloat(fraction) * width, radius + 1), width - radius - 1)
-            let elevation = sky.isSunUp ? sky.solarElevation : sky.nightElevation
-            let y = HorizonMetrics.skyHeight
-                - CGFloat(elevation)
-                * (HorizonMetrics.skyHeight - HorizonMetrics.discTopMargin)
-            let core = sky.isSunUp ? HorizonPalette.sunCore : HorizonPalette.moonCore
-            let pillar = sky.isSunUp ? HorizonRGB(r: 1, g: 1, b: 1) : HorizonPalette.pillarNight
+    /// The sun-lollipop's sky half: a quiet 9pt disc at the card's center
+    /// x — sun by day, moon by night — over a light pillar falling to the
+    /// horizon. Its height stays f(now) in Phase 1 (re-lighting from
+    /// scrubTime is Phase 2). While scrubbing it grows into the "lens"
+    /// state: ×1.12 with a soft glow halo.
+    private func marker(width: CGFloat) -> some View {
+        let lens: CGFloat = isScrubbing ? HorizonMetrics.discLensScale : 1
+        let x = width / 2
+        let elevation = sky.isSunUp ? sky.solarElevation : sky.nightElevation
+        let y = HorizonMetrics.skyHeight
+            - CGFloat(elevation)
+            * (HorizonMetrics.skyHeight - HorizonMetrics.discTopMargin)
+        let core = sky.isSunUp ? HorizonPalette.sunCore : HorizonPalette.moonCore
+        let pillar = sky.isSunUp ? HorizonRGB(r: 1, g: 1, b: 1) : HorizonPalette.pillarNight
+        let pillarHeight = max(HorizonMetrics.skyHeight - y, 0)
 
-            // The pillar pins the exact x without a hard line: light falling
-            // from the disc, gone by the time it reaches the horizon.
-            let pillarHeight = max(HorizonMetrics.skyHeight - y, 0)
+        return ZStack(alignment: .topLeading) {
+            // The pillar pins the exact x without a hard line: light
+            // falling from the disc, gone by the time it reaches the
+            // horizon.
             if pillarHeight > 0 {
                 Rectangle()
                     .fill(
@@ -167,15 +173,20 @@ struct HorizonBackdrop: View {
                     .position(x: x, y: y + pillarHeight / 2)
             }
 
-            if sky.isSunUp {
+            // The glow: the sun's own halo at rest, and the lens halo for
+            // either disc while scrubbing.
+            if sky.isSunUp || isScrubbing {
                 Circle()
                     .fill(Color(core))
                     .frame(
-                        width: HorizonMetrics.discGlowRadius * 2,
-                        height: HorizonMetrics.discGlowRadius * 2
+                        width: HorizonMetrics.discGlowRadius * 2 * lens,
+                        height: HorizonMetrics.discGlowRadius * 2 * lens
                     )
                     .blur(radius: 5)
-                    .opacity(HorizonMetrics.discGlowOpacity)
+                    .opacity(
+                        isScrubbing
+                            ? HorizonMetrics.lensGlowOpacity
+                            : HorizonMetrics.discGlowOpacity)
                     .position(x: x, y: y)
             }
 
@@ -188,23 +199,37 @@ struct HorizonBackdrop: View {
                     )
                 )
                 .frame(
-                    width: HorizonMetrics.discDiameter, height: HorizonMetrics.discDiameter
+                    width: HorizonMetrics.discDiameter * lens,
+                    height: HorizonMetrics.discDiameter * lens
                 )
                 .position(x: x, y: y)
         }
+        // Scoped tightly to the marker so the strip's own transactions
+        // (drag 1:1, exit glide) never inherit this spring.
+        .animation(
+            .spring(
+                response: HorizonMetrics.liftResponse,
+                dampingFraction: HorizonMetrics.liftDamping),
+            value: isScrubbing)
     }
 
     private func bloom(width: CGFloat) -> some View {
         let b = HorizonPalette.bloom(for: sky)
         let rx = width * (0.55 + 0.7 * sky.solarElevation)
         let ry = HorizonMetrics.skyHeight * (0.5 + 0.35 * sky.solarElevation)
-        // The bloom rides the fixed ruler: the sun's clock position while it
-        // is up (clamped to the edges when it rises before 7a or sets after
-        // 10p), and the nearer solar event's position at night — pre-dawn
-        // glow hugs the morning edge, evening afterglow sits on sunset.
-        let anchor: Date =
-            sky.isSunUp ? sky.now : (sky.now < sky.sunrise ? sky.sunrise : sky.sunset)
-        let x = axis.clampedFraction(for: anchor)
+        // The bloom anchors to the MARKER while the sun is up — the sun at
+        // now sits under the marker by definition. At night it hugs the
+        // nearer solar event's position on the strip, clamped to the card
+        // edges so pre-dawn glow still hugs the morning edge and evening
+        // afterglow sits on sunset.
+        let anchorX: CGFloat = sky.isSunUp
+            ? width / 2
+            : min(
+                max(
+                    stripOffset
+                        + axis.x(for: sky.now < sky.sunrise ? sky.sunrise : sky.sunset),
+                    0),
+                width)
         return Ellipse()
             .fill(
                 EllipticalGradient(
@@ -217,7 +242,7 @@ struct HorizonBackdrop: View {
                 )
             )
             .frame(width: rx * 2, height: ry * 2)
-            .position(x: x * width, y: HorizonMetrics.skyHeight)
+            .position(x: anchorX, y: HorizonMetrics.skyHeight)
             .opacity(b.coreOpacity)
             .blendMode(.normal)
     }
@@ -231,28 +256,27 @@ struct HorizonBackdrop: View {
             .frame(height: HorizonMetrics.horizonLineHeight)
     }
 
-    // MARK: Sunrise / sunset dots — the rail's bookends.
+    // MARK: Sunrise / sunset dots — exact solar times ON the strip.
 
-    private func solarDots(width: CGFloat) -> some View {
+    /// They keep their exact solar positions and slide with the strip —
+    /// off-card they simply clip at the card edge (the old bookend clamp
+    /// retired with the fixed window).
+    private var solarDots: some View {
         ZStack {
-            dot(at: sky.sunrise, color: HorizonPalette.sunriseDot, width: width)
-            dot(at: sky.sunset, color: HorizonPalette.sunsetDot, width: width)
+            dot(at: sky.sunrise, color: HorizonPalette.sunriseDot)
+            dot(at: sky.sunset, color: HorizonPalette.sunsetDot)
         }
     }
 
-    private func dot(at date: Date, color: HorizonRGB, width: CGFloat) -> some View {
-        let x = axis.clampedX(for: date)
-        let radius = HorizonMetrics.solarDotDiameter / 2
-        return Circle()
+    private func dot(at date: Date, color: HorizonRGB) -> some View {
+        Circle()
             .fill(Color(color, opacity: HorizonMetrics.solarDotOpacity))
             .frame(
                 width: HorizonMetrics.solarDotDiameter,
                 height: HorizonMetrics.solarDotDiameter
             )
-            // Tangent to the card edge rather than half-clipped by it —
-            // a bookend has to be visible to bookend anything.
             .position(
-                x: min(max(x, radius), width - radius),
+                x: stripOffset + axis.x(for: date),
                 y: HorizonMetrics.skyHeight - HorizonMetrics.horizonLineHeight / 2
             )
     }

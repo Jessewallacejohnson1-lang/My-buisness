@@ -2,15 +2,16 @@
 //  HorizonDay.swift
 //  BlockParty
 //
-//  Maps the day's DayItems onto the horizon rail: which items become stubs
-//  in which lane, which spill into the overflow markers, and what the
-//  footer counts say. Pure — the view layer only draws what this decides.
+//  Maps the day's DayItems onto the horizon strip: which items become
+//  stubs in which lane and what the footer counts say. Pure — the view
+//  layer only draws what this decides.
 //
-//  Two count regimes, deliberately different:
+//  Two regimes, deliberately different:
 //  · The FOOTER counts always cover the whole town day, midnight to
-//    midnight — all-day items and items outside the window included.
-//  · STUBS exist only inside the fixed 7a–10p window; today's items
-//    outside it clamp to the earlier/later overflow markers.
+//    midnight — all-day and multi-day-running items included.
+//  · STUBS are today's timed items. The strip is a whole-day tape, so
+//    every one of them has a place on it; only all-day and multi-day
+//    items live in the counts without a mark.
 //
 
 import CoreGraphics
@@ -36,33 +37,31 @@ nonisolated struct HorizonPlacedStub: Equatable, Identifiable {
 nonisolated struct HorizonDay: Equatable {
     let yourStubs: [HorizonStub]
     let publicStubs: [HorizonStub]
-    /// Whole-day counts, midnight to midnight. Never narrowed to the window.
+    /// Whole-day counts, midnight to midnight.
     let yoursCount: Int
     let openCount: Int
-    /// Today's timed items whose start falls outside the active window.
-    let earlierCount: Int
-    let laterCount: Int
 
-    init(items: [DayItem], axis: TimeAxis, now: Date) {
+    init(items: [DayItem], now: Date) {
         // The town's today has exactly one definition — the same half-open
-        // interval the rail builder uses.
+        // interval the tape's day bounds use.
         let todayInterval = YourDayLogic.todayInterval(now: now)
         let overlapsToday: (DayItem) -> Bool = { item in
             item.start < todayInterval.end && (item.end ?? item.start) >= todayInterval.start
         }
 
-        // Defensive future-date guard at the module boundary: the fixed
-        // window sits inside the town day, so overlapping today is the only
-        // admission test (the shipped Aug-30 bug shape stays excluded).
+        // Defensive future-date guard at the module boundary: overlapping
+        // today is the only admission test (the shipped Aug-30 bug shape
+        // stays excluded).
         let today = items.filter(overlapsToday)
         yoursCount = today.filter { $0.source == .committed }.count
         openCount = today.filter { $0.source == .wholeTown }.count
 
-        // Stubs: timed items whose start sits inside the window. All-day and
-        // multi-day-running items live in the counts, not on the rail.
-        let inWindow = today
+        // Stubs: today's timed items. The tape covers the whole day, so
+        // there is no window filter and no overflow — off-screen items are
+        // reached by scrubbing. All-day and multi-day-running items live
+        // in the counts, not on the rail.
+        let timed = today
             .filter { !$0.isAllDay && !$0.isMultiDay }
-            .filter { axis.fraction(for: $0.start) != nil }
             .sorted { $0.start < $1.start }
             .map { item in
                 HorizonStub(
@@ -74,10 +73,10 @@ nonisolated struct HorizonDay: Equatable {
                 )
             }
 
-        yourStubs = inWindow.filter(\.isYours)
+        yourStubs = timed.filter(\.isYours)
 
         // Public lane caps at 14; keep the 14 nearest to now.
-        let publicLane = inWindow.filter { !$0.isYours }
+        let publicLane = timed.filter { !$0.isYours }
         if publicLane.count > HorizonMetrics.publicLaneCap {
             let nearest = publicLane
                 .sorted { abs($0.start.timeIntervalSince(now)) < abs($1.start.timeIntervalSince(now)) }
@@ -87,15 +86,6 @@ nonisolated struct HorizonDay: Equatable {
         } else {
             publicStubs = publicLane
         }
-
-        // Overflow: today's timed items that missed the window. A festival
-        // already running since an earlier day is not "earlier today" — only
-        // items that start today count toward the markers.
-        let overflowEligible = today.filter {
-            !$0.isAllDay && !$0.isMultiDay && axis.fraction(for: $0.start) == nil
-        }
-        earlierCount = overflowEligible.filter { $0.start < axis.start }.count
-        laterCount = overflowEligible.filter { $0.start >= axis.end }.count
     }
 
     /// A stub is past once its stated end — or, when end_at is NULL (every
@@ -105,26 +95,22 @@ nonisolated struct HorizonDay: Equatable {
         (stub.end ?? stub.start.addingTimeInterval(2 * 3600)) < now
     }
 
-    /// Lays a lane out left to right. Where two stubs overlap horizontally,
-    /// the later one is inset to leave a 1 pt gap so they stay countable.
+    /// Lays a lane out left to right in STRIP coordinates. Where two stubs
+    /// overlap horizontally, the later one is inset to leave a 1 pt gap so
+    /// they stay countable. No edge clamping — on a sliding tape a stub's
+    /// position is its time; the card's edge fade and clip do the trimming.
     static func layout(
         _ stubs: [HorizonStub], axis: TimeAxis, minWidth: CGFloat
     ) -> [HorizonPlacedStub] {
         var placed: [HorizonPlacedStub] = []
         var previousRight: CGFloat = -.greatestFiniteMagnitude
         for stub in stubs {
-            guard let idealX = axis.x(for: stub.start) else { continue }
+            let idealX = axis.x(for: stub.start)
             let duration = stub.end.map { $0.timeIntervalSince(stub.start) } ?? 0
             let width = max(minWidth, CGFloat(duration / 3600) * axis.pointsPerHour)
-            // Tangent-clamp into the fade-safe zone (the solar dots' rule):
-            // a 7:00 item sat at x=0 and dissolved into the rail-edge fade,
-            // making a 5-plan day count as 4. Visibility beats a ~20 pt
-            // position error at the edges.
-            let inset = HorizonMetrics.railEdgeFade
-            let visible = min(max(idealX, inset), max(axis.width - inset - width, inset))
-            let x = visible < previousRight
+            let x = idealX < previousRight
                 ? previousRight + HorizonMetrics.overlapInset
-                : visible
+                : idealX
             placed.append(HorizonPlacedStub(stub: stub, x: x, width: width))
             previousRight = x + width
         }
