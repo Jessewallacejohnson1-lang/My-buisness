@@ -414,9 +414,8 @@ struct MainTabsView: View {
                     Group {
                         switch tab {
                         case .home:
-                            // Home carries the exact app mark in its own `TodayTopBar`, beside
-                            // the town name, so a second badge would be redundant.
-                            // Home is the one tab without it.
+                            // Home carries the Joetown wordmark and mascot in its own
+                            // `TodayTopBar`, so a second brand badge would be redundant.
                             HomeView(
                                 onCompose: { composing = true },
                                 onMenu: { showMenu = true },

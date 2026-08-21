@@ -1,6 +1,6 @@
 //
 //  TodayTopBar.swift
-//  Block Party — Today's fixed top bar: block glyph · town name · the one menu button.
+//  Block Party — Today's fixed top bar: Joetown lockup · the one menu button.
 //
 //  Replaces `Masthead`, the 34pt wordmark + date line that used to scroll away with
 //  the content. This bar is chrome: it is present immediately (no spring entrance),
@@ -61,18 +61,18 @@ nonisolated enum TodayHeader {
 /// The bar's fixed geometry, in one place. `nonisolated` for the same reason as
 /// `TodayHeader`: these are constants, not state.
 private nonisolated enum TodayBarMetric {
-    /// Leading / trailing screen inset for both controls.
+    /// Trailing screen inset for the one control.
     static let inset: CGFloat = 16
-    static let glyphSide: CGFloat = 28
     /// The menu button's circle — deliberately 38, not 36.
     static let buttonSide: CGFloat = 38
     static let dotSide: CGFloat = 4
     static let dotSpacing: CGFloat = 3
     /// Dots → button. Verbatim from `Masthead`.
     static let dotGap: CGFloat = 9
-    /// Smallest breathing room between the title and either control.
+    /// Smallest breathing room between the lockup and the menu control.
     static let controlGap: CGFloat = 12
-    static let titleSize: CGFloat = 17
+    static let lockupWidth: CGFloat = 184
+    static let lockupHeight: CGFloat = 44
     static let hairlineWidth: CGFloat = 0.5
 
     /// Full width of the trailing control (dots + gap + button).
@@ -80,7 +80,7 @@ private nonisolated enum TodayBarMetric {
 
     /// Horizontal room reserved on BOTH sides of the title, so the name stays centered
     /// on screen while still truncating before it can reach either control.
-    static let titleInset: CGFloat = inset + max(glyphSide, menuWidth) + controlGap
+    static let titleInset: CGFloat = inset + menuWidth + controlGap
 }
 
 struct TodayTopBar: View {
@@ -126,31 +126,28 @@ struct TodayTopBar: View {
 
     // MARK: - Layers
 
-    /// The town name, on its own full-width layer so it is centered ON SCREEN rather
-    /// than in the gap left between the two controls.
-    ///
-    /// The cap is applied HERE, to `BarTitle` as a whole, and not inside it. A
-    /// `@ScaledMetric` resolves against the environment its view is handed, so a
-    /// `.dynamicTypeSize` written further down — on the `Text` — would clamp a size
-    /// that had already been computed at the app's full setting. Capping the child
-    /// from outside is what actually stops the title growing.
+    /// The approved wordmark and mascot, on a full-width layer so it stays centered
+    /// ON SCREEN rather than in the gap left beside the menu control.
     private var title: some View {
-        BarTitle()
-            // Scales up to accessibilityMedium and then holds — past that the name
-            // would push the bar beyond `TodayHeader.maxHeight`. `.accessibility1` IS
-            // accessibilityMedium: `DynamicTypeSize` numbers the five accessibility
-            // steps, where `ContentSizeCategory` names them.
-            .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+        Image("JoetownHeader")
+            .resizable()
+            .renderingMode(.original)
+            .interpolation(.high)
+            .scaledToFit()
+            .frame(
+                maxWidth: TodayBarMetric.lockupWidth,
+                maxHeight: TodayBarMetric.lockupHeight
+            )
             .padding(.horizontal, TodayBarMetric.titleInset)
             .frame(maxWidth: .infinity)
+            .accessibilityLabel("Joetown")
     }
 
-    /// The two controls, above the title layer.
+    /// The menu control, above the title layer. The leading side intentionally stays
+    /// empty now that the old bP glyph has been retired from this screen.
     private var controls: some View {
         HStack(spacing: 0) {
-            BlockPartyGlyph(side: TodayBarMetric.glyphSide)
-                .accessibilityHidden(true)
-            Spacer(minLength: TodayBarMetric.controlGap)
+            Spacer(minLength: 0)
             menuButton
         }
         .padding(.horizontal, TodayBarMetric.inset)
@@ -235,31 +232,5 @@ struct TodayTopBar: View {
         #else
         return 1
         #endif
-    }
-}
-
-/// The bar's centered town name.
-///
-/// A separate view purely so the Dynamic Type cap works. `@ScaledMetric` resolves
-/// against the environment the view is CREATED with, so the cap has to be applied by
-/// the parent (`TodayTopBar.title`) rather than to the `Text` inside — otherwise the
-/// size is computed at the app's full setting and the clamp arrives too late, letting
-/// the title keep growing past `TodayHeader.maxHeight`.
-private struct BarTitle: View {
-    /// The title's point size, scaled off the `.headline` ramp.
-    ///
-    /// `Font.sansSemibold(_:)` is a FIXED `.system(size:weight:)` — all of
-    /// `BlockPartyFont` is fixed-point — so the title would otherwise ignore Dynamic
-    /// Type entirely. This re-attaches it to the ramp while keeping the brand helper.
-    /// 17 is `.headline`'s own size at the default setting, so the resting appearance
-    /// is unchanged.
-    @ScaledMetric(relativeTo: .headline) private var size = TodayBarMetric.titleSize
-
-    var body: some View {
-        Text("Joe Town")
-            .font(.sansSemibold(size))
-            .foregroundStyle(Hue.ink)
-            .lineLimit(1)
-            .truncationMode(.tail)
     }
 }
