@@ -4,10 +4,13 @@
 //
 //  The "Your day" section body: the untouched section heading over the
 //  horizon card. Owns the two routes — card body → the day schedule sheet,
-//  See all → today's postings in Activities — and the once-a-minute clock
-//  that keeps the sky honest.
+//  See all → today's postings in Activities — the once-a-minute clock
+//  that keeps the sky honest, and the scrub session's storage (the card
+//  drives it; only enter/exit ever escapes to the feed, through
+//  HorizonScrubHost below).
 //
 
+import Combine
 import SwiftUI
 
 struct YourDayHorizonSection: View {
@@ -21,6 +24,11 @@ struct YourDayHorizonSection: View {
 
     @Environment(\.daySchedule) private var host
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// The live scrub session. Per-frame scrubTime updates re-render only
+    /// this section's subtree (header + card) — the feed only ever hears
+    /// enter/exit, via HorizonScrubHost.
+    @State private var scrub: ScrubSession?
 
     private var M: YourDayRailMetrics.Type { YourDayRailMetrics.self }
 
@@ -36,7 +44,7 @@ struct YourDayHorizonSection: View {
         TimelineView(.periodic(from: .now, by: tickInterval)) { context in
             let now = resolvedNow(context.date)
             let sun = resolvedSun()
-            let day = HorizonDay(items: items, axis: TimeAxis(now: now, width: 1), now: now)
+            let day = HorizonDay(items: items, now: now)
             VStack(alignment: .leading, spacing: M.headerToRail) {
                 header(todayCount: day.yoursCount + day.openCount)
                 HorizonCard(
@@ -44,6 +52,7 @@ struct YourDayHorizonSection: View {
                     sunrise: SolarSky.rebase(sun.rise, ontoDayOf: now),
                     sunset: SolarSky.rebase(sun.set, ontoDayOf: now),
                     items: items,
+                    scrub: $scrub,
                     isLoading: isLoading,
                     onOpenDay: openDay
                 )
@@ -174,5 +183,90 @@ private struct HorizonDebugTapDriver: ViewModifier {
         #else
         content
         #endif
+    }
+}
+
+// MARK: - The feed seam
+
+/// The feed-level half of the scrub interaction. The card raises it when a
+/// scrub session begins (lifted frame + exit hook) and lowers it on exit;
+/// FeedView reads it for the scrim and the scroll lock, and the scrim's
+/// tap calls back down through `exitTapped`. Only this enter/exit state
+/// ever leaves the card's subtree — per-frame scrubTime stays put (the
+/// perf gate's isolation rule).
+@MainActor
+final class HorizonScrubHost: ObservableObject {
+    struct Lift: Equatable {
+        /// Global-space frame of the LIFTED (scaled) card.
+        let frame: CGRect
+        let cornerRadius: CGFloat
+    }
+
+    @Published private(set) var lift: Lift?
+    /// Deliberately not published — assigning the hook must not re-render
+    /// the feed.
+    private var onExitTap: (() -> Void)?
+
+    func raise(_ lift: Lift, onExitTap: @escaping () -> Void) {
+        if self.lift != lift { self.lift = lift }
+        self.onExitTap = onExitTap
+    }
+
+    func lower() {
+        guard lift != nil else { return }
+        lift = nil
+        onExitTap = nil
+    }
+
+    func exitTapped() { onExitTap?() }
+}
+
+extension EnvironmentValues {
+    /// Injected by FeedView. Nil in galleries and previews — the card
+    /// still scrubs there, nothing above it dims or locks (the
+    /// `\.daySchedule` nil-host pattern).
+    @Entry var horizonScrub: HorizonScrubHost?
+}
+
+/// Black 25% over everything except the lifted card: ONE even-odd shape
+/// whose cutout tracks the card's frame, so the card itself never
+/// re-mounts — gesture continuity and the live TimelineView clock come
+/// free (approved decision 5, mechanism i). A tap anywhere on the dimmed
+/// region ends the scrub; taps inside the cutout fall through to the live
+/// card beneath.
+struct HorizonScrubScrim: View {
+    let lift: HorizonScrubHost.Lift
+    let onTap: () -> Void
+
+    var body: some View {
+        GeometryReader { geo in
+            let origin = geo.frame(in: .global).origin
+            let cutout = lift.frame.offsetBy(dx: -origin.x, dy: -origin.y)
+            let shape = CutoutShape(cutout: cutout, radius: lift.cornerRadius)
+            shape
+                .fill(
+                    Color.black.opacity(HorizonMetrics.scrimOpacity),
+                    style: FillStyle(eoFill: true))
+                .contentShape(shape, eoFill: true)
+                .onTapGesture(perform: onTap)
+        }
+        // The scrim is a pointer shortcut, not the accessible way out (the
+        // day-sheet backdrop's rule).
+        .accessibilityHidden(true)
+    }
+
+    private struct CutoutShape: Shape {
+        let cutout: CGRect
+        let radius: CGFloat
+
+        func path(in rect: CGRect) -> Path {
+            var path = Path()
+            path.addRect(rect)
+            path.addRoundedRect(
+                in: cutout,
+                cornerSize: CGSize(width: radius, height: radius),
+                style: .continuous)
+            return path
+        }
     }
 }

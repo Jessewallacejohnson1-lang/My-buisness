@@ -10,11 +10,11 @@
 import CoreGraphics
 
 nonisolated enum HorizonMetrics {
-    /// The fixed axis window: 7:00 AM – 10:00 PM town time, the waking day.
-    /// The rail never re-windows; items outside clamp to the overflow
-    /// markers and the sky alone follows the sun.
-    static let axisStartHour = 7
-    static let axisEndHour = 22
+    /// The strip is a whole-day tape at fixed density: 12 hours visible
+    /// across the card's inner width (~30 pt/hour, so a minute is ~0.5 pt
+    /// and the ±8 min event magnet is a feelable ~4 pt). Approved
+    /// decision 1.
+    static let visibleHours: CGFloat = 12
 
     /// Card height target (may exceed at accessibility type sizes).
     static let cardHeight: CGFloat = 164
@@ -60,18 +60,11 @@ nonisolated enum HorizonMetrics {
     static var hourLabelBelowHorizon: CGFloat {
         hourLabelBaseline - hourLabelSize - skyHeight
     }
-    /// Overflow markers own this much of each rail corner; hour and "now"
-    /// labels inside it yield. One constant — the rules must agree.
-    static let overflowMarkerZone: CGFloat = 56
     /// The fixed frame rail labels centre in.
     static let railLabelWidth: CGFloat = 40
     /// Horizontal vignette on the sky region only: the sky deepening away
     /// from the light. Top stop × 0.55 luminance at this opacity.
     static let vignetteOpacity: Double = 0.20
-    /// The card's drop shadow — deliberately deeper than the app-wide 6%
-    /// CardShadow token (same radius/offset geometry): the horizon card is
-    /// the feed's one full-scene object and genuinely floats. Jesse's call.
-    static let cardShadowOpacity: Double = 0.20
 
     // Stubs
     static let yourStubHeight: CGFloat = 22
@@ -102,15 +95,39 @@ nonisolated enum HorizonMetrics {
     static let pillarOpacity: Double = 0.65
     static let notchWidth: CGFloat = 2.5
     static let notchHeight: CGFloat = 6
-    /// Hour labels within this distance of the now notch yield to its label.
-    /// One rail hour is ~24pt at standard width, so the spec's ~24 left an
-    /// exactly-on-the-hour "12p now" collision — 28 clears it. Measured.
+    /// Hour labels within this distance of the now notch yield to its
+    /// label. At the tape's ~30 pt/hour density the labeled four-hour grid
+    /// sits 120 pt apart, so 28 clears every collision. Measured.
     static let nowLabelClearance: CGFloat = 28
     /// Ended stubs (stated end, or start + the app-wide assumed two hours)
     /// drop to this fraction of their normal opacity.
     static let pastStubOpacityFactor: Double = 0.45
 
-    // Overflow marker
-    static let overflowBarWidth: CGFloat = 3
-    static let overflowTextSize: CGFloat = 10
+    // The scrub lift — every number verbatim from the approved spec.
+    static let pickupHoldSeconds: Double = 0.25
+    static let liftScale: CGFloat = 1.06
+    static let liftResponse: Double = 0.32
+    static let liftDamping: Double = 0.72
+    /// Resting shadow drops from the old 20% to the spec's 8% (flagged at
+    /// the Phase 1 gate — the 20% was itself a recorded call).
+    static let restShadowOpacity: Double = 0.08
+    static let restShadowRadius: CGFloat = 10
+    static let restShadowY: CGFloat = 4
+    static let liftShadowOpacity: Double = 0.28
+    static let liftShadowRadius: CGFloat = 32
+    static let liftShadowY: CGFloat = 14
+    static let scrimOpacity: Double = 0.25
+    static let scrimFadeSeconds: Double = 0.22
+    /// The floating time pill sits this far above the sun disc — in the
+    /// UNCLIPPED lifted layer, because near midday it overflows the card.
+    static let pillGapAboveDisc: CGFloat = 34
+    static let pillTextSize: CGFloat = 13
+    /// Provisional Phase 1 pill chrome (white text on this black).
+    static let pillBackgroundOpacity: Double = 0.55
+    /// The sun disc's "lens" state while scrubbing.
+    static let discLensScale: CGFloat = 1.12
+    static let lensGlowOpacity: Double = 0.5
+    static let magnetEaseSeconds: Double = 0.18
+    static let glideResponse: Double = 0.55
+    static let glideDamping: Double = 0.86
 }

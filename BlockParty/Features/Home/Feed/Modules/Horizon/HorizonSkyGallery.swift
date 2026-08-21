@@ -81,16 +81,19 @@ struct HorizonSkyGallery: View {
                 now: now,
                 sunrise: sunrise,
                 sunset: sunset,
-                items: HorizonMock.items(for: .busy, day: calendar.startOfDay(for: now))
+                items: HorizonMock.items(for: .busy, day: calendar.startOfDay(for: now)),
+                scrub: .constant(nil)
             ))
         }
 
         let sky = SolarSky(now: now, sunrise: sunrise, sunset: sunset)
         return AnyView(
             GeometryReader { geo in
+                let axis = TimeAxis(now: now, width: geo.size.width)
                 HorizonBackdrop(
                     sky: sky,
-                    axis: TimeAxis(now: now, width: geo.size.width)
+                    axis: axis,
+                    stripOffset: axis.stripOffset(centering: now)
                 )
             }
             .frame(height: HorizonMetrics.cardHeight)

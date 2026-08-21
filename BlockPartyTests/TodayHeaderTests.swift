@@ -160,6 +160,62 @@ final class TodayHeaderTests: XCTestCase {
         XCTAssertGreaterThan(TodayHeader.maxHeight, TodayHeader.contentHeight)
     }
 
+    // MARK: - Joetown brand lockup
+
+    /// The approved Today chrome leaves the upper-left lane quiet; the old full-colour
+    /// Block Party app tile must not return there now that Joetown owns the masthead.
+    func testBrandLockupLeavesTheLeadingHeaderAreaBlank() throws {
+        let bitmap = try renderedHeaderBitmap()
+
+        let colouredPixelCount = bitmap.countPixels(
+            xFraction: 0.00..<0.18,
+            yFraction: 0.00..<1.00,
+            where: isBrandColour
+        )
+
+        XCTAssertLessThan(
+            colouredPixelCount,
+            20,
+            "The Today header must not render the old coral bP glyph at leading"
+        )
+    }
+
+    /// A black `Text("Joe Town")` can satisfy the semantic title but cannot satisfy
+    /// the approved artwork. Rendering the real header and looking for the lockup's
+    /// high-chroma cyan/orange pixels catches a regression back to that plain title.
+    func testBrandLockupPaintsCyanAndOrangeAtScreenCenter() throws {
+        let bitmap = try renderedHeaderBitmap()
+
+        let colouredPixelCount = bitmap.countPixels(
+            xFraction: 0.18..<0.82,
+            yFraction: 0.00..<1.00,
+            where: isBrandColour
+        )
+
+        XCTAssertGreaterThan(
+            colouredPixelCount,
+            200,
+            "The centered Today title must render the cyan/orange Joetown artwork"
+        )
+    }
+
+    private func renderedHeaderBitmap() throws -> HeaderBitmap {
+        let renderer = ImageRenderer(
+            content: TodayTopBar()
+                .frame(width: 390, height: TodayHeader.maxHeight)
+                .background(Hue.paper)
+        )
+        renderer.scale = 2
+        return try HeaderBitmap(cgImage: XCTUnwrap(renderer.cgImage))
+    }
+
+    private func isBrandColour(red: UInt8, green: UInt8, blue: UInt8, alpha: UInt8) -> Bool {
+        guard alpha > 200 else { return false }
+        let high = max(red, green, blue)
+        let low = min(red, green, blue)
+        return high > 110 && high - low > 55
+    }
+
     // MARK: - Signed-in profile photo
 
     /// The compact menu control must receive the avatar stored in `town_profiles`.
@@ -183,6 +239,65 @@ final class TodayHeaderTests: XCTestCase {
 
         XCTAssertEqual(model.avatarUrl, savedAvatar)
     }
+}
+
+private struct HeaderBitmap {
+    let width: Int
+    let height: Int
+    private let rgba: [UInt8]
+
+    init(cgImage: CGImage) throws {
+        let pixelWidth = cgImage.width
+        let pixelHeight = cgImage.height
+
+        var bytes = [UInt8](repeating: 0, count: pixelWidth * pixelHeight * 4)
+        let rendered = bytes.withUnsafeMutableBytes { storage -> Bool in
+            guard let context = CGContext(
+                data: storage.baseAddress,
+                width: pixelWidth,
+                height: pixelHeight,
+                bitsPerComponent: 8,
+                bytesPerRow: pixelWidth * 4,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else { return false }
+            context.draw(
+                cgImage,
+                in: CGRect(x: 0, y: 0, width: pixelWidth, height: pixelHeight)
+            )
+            return true
+        }
+        guard rendered else { throw HeaderBitmapError.contextCreationFailed }
+        width = pixelWidth
+        height = pixelHeight
+        rgba = bytes
+    }
+
+    func countPixels(
+        xFraction: Range<Double>,
+        yFraction: Range<Double>,
+        where predicate: (_ red: UInt8, _ green: UInt8, _ blue: UInt8, _ alpha: UInt8) -> Bool
+    ) -> Int {
+        let xStart = max(0, Int(Double(width) * xFraction.lowerBound))
+        let xEnd = min(width, Int(Double(width) * xFraction.upperBound))
+        let yStart = max(0, Int(Double(height) * yFraction.lowerBound))
+        let yEnd = min(height, Int(Double(height) * yFraction.upperBound))
+
+        var count = 0
+        for y in yStart..<yEnd {
+            for x in xStart..<xEnd {
+                let offset = (y * width + x) * 4
+                if predicate(rgba[offset], rgba[offset + 1], rgba[offset + 2], rgba[offset + 3]) {
+                    count += 1
+                }
+            }
+        }
+        return count
+    }
+}
+
+private enum HeaderBitmapError: Error {
+    case contextCreationFailed
 }
 
 // MARK: - The appearance switch behind the bar's ⋮ button

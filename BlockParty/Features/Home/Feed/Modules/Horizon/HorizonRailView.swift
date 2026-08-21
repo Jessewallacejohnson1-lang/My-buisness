@@ -3,9 +3,11 @@
 //  BlockParty
 //
 //  The timeline on the horizon: stubs rising out of the line, hour ticks
-//  and labels hanging below it, the now indicator and overflow markers.
-//  Stubs are light, not chart bars — four fades stack to get there
-//  (vertical falloff, soft cap, halo, rail-edge dissolve).
+//  and labels hanging below it, and the now notch — all laid out ONCE in
+//  strip coordinates and slid together by `stripOffset` (now centered at
+//  rest, scrubTime under the marker while scrubbing). Stubs are light,
+//  not chart bars — four fades stack to get there (vertical falloff, soft
+//  cap, halo, rail-edge dissolve).
 //
 
 import SwiftUI
@@ -43,6 +45,7 @@ struct HorizonRailView: View {
     let axis: TimeAxis
     let day: HorizonDay
     let now: Date
+    let stripOffset: CGFloat
 
     @Environment(\.colorSchemeContrast) private var contrast
 
@@ -54,9 +57,14 @@ struct HorizonRailView: View {
             let width = geo.size.width
             ZStack(alignment: .topLeading) {
                 stubLayer(width: width)
-                tickLayer(width: width)
-                nowNotch(width: width)
-                overflowMarkers(width: width)
+                // Ticks, labels and the now notch share one sliding
+                // container so the whole below-horizon ruler moves as one
+                // piece with the stubs above it.
+                ZStack(alignment: .topLeading) {
+                    tickLayer()
+                    nowNotch()
+                }
+                .offset(x: stripOffset)
             }
             .frame(width: width, height: geo.size.height, alignment: .topLeading)
         }
@@ -87,13 +95,17 @@ struct HorizonRailView: View {
                      baseOpacity: 1, halo: true, solid: true)
             }
         }
+        // The strip slides INSIDE the fixed frame + fade, so an edge item
+        // melts into the card exactly where the card ends, wherever the
+        // tape happens to sit.
+        .offset(x: stripOffset)
         // Explicit full-card width: offset children don't grow a ZStack, and
         // an intrinsically-sized layer here would clip the rail to a few
         // points (the whole skyline vanished the first time around).
         .frame(width: width, height: M.skyHeight, alignment: .topLeading)
         .clipped()
         // Fade 4 — the whole layer dissolves over the outermost 20 pt, so a
-        // sunrise-edge item melts into the card instead of clipping.
+        // card-edge item melts into the card instead of clipping.
         .mask(
             LinearGradient(
                 stops: [
@@ -167,52 +179,42 @@ struct HorizonRailView: View {
             )
     }
 
-    // MARK: Now notch — below the horizon, in the tick family
+    // MARK: Now notch — a strip mark at now, in the tick family
 
     /// The below-horizon half of the "now" marker: an emphasized member of
-    /// the tick system (2.5×6 pt, full-strength ink where labeled ticks sit
-    /// at 50%), with a small semibold "now" in the hour-label row. Clamped
-    /// to the rail edges — when the sky's disc hides (now outside 7a–10p),
-    /// this is the only marker, and now must stay answerable.
-    private func nowNotch(width: CGFloat) -> some View {
-        // Tangent at the rail edges, like every other mark on the card.
-        let x = min(max(axis.clampedX(for: now), M.notchWidth / 2), width - M.notchWidth / 2)
-        let labelFits = !(day.earlierCount > 0 && x < M.overflowMarkerZone)
-            && !(day.laterCount > 0 && x > width - M.overflowMarkerZone)
-
+    /// the tick system (2.5×6 pt, full-strength ink where labeled ticks
+    /// sit at 50%), with a small semibold "now" in the hour-label row. A
+    /// STRIP element: centered under the lollipop at rest (now is under
+    /// the marker by definition) and sliding with the tape while
+    /// scrubbing, so now stays answerable mid-scrub.
+    private func nowNotch() -> some View {
+        let x = axis.x(for: now)
         return ZStack(alignment: .topLeading) {
             Rectangle()
                 .fill(Color(ground.textPrimary))
                 .frame(width: M.notchWidth, height: M.notchHeight)
                 .offset(x: x - M.notchWidth / 2, y: M.skyHeight)
-            if labelFits {
-                Text(HorizonCopy.now)
-                    .font(.sansSemibold(M.hourLabelSize))
-                    .foregroundStyle(Color(ground.textPrimary))
-                    .fixedSize()
-                    .frame(width: M.railLabelWidth)
-                    .offset(
-                        x: min(max(x - M.railLabelWidth / 2, 0), width - M.railLabelWidth),
-                        y: M.hourLabelBaseline - M.hourLabelSize
-                    )
-            }
+            Text(HorizonCopy.now)
+                .font(.sansSemibold(M.hourLabelSize))
+                .foregroundStyle(Color(ground.textPrimary))
+                .fixedSize()
+                .frame(width: M.railLabelWidth)
+                .offset(
+                    x: x - M.railLabelWidth / 2,
+                    y: M.hourLabelBaseline - M.hourLabelSize
+                )
         }
     }
 
     // MARK: Ticks and labels
 
-    private func tickLayer(width: CGFloat) -> some View {
-        // A label colliding with an overflow marker loses; the marker wins.
-        // And the hour nearest the now notch yields to the "now" label.
-        let dropLeading = day.earlierCount > 0
-        let dropTrailing = day.laterCount > 0
-        let nowX = axis.clampedX(for: now)
+    private func tickLayer() -> some View {
+        // The hour label nearest the now notch yields to the "now" label —
+        // both live on the strip, so the clearance is strip-relative.
+        let nowX = axis.x(for: now)
 
         return ForEach(axis.ticks(), id: \.date) { tick in
-            let suppressed = (dropLeading && tick.x < M.overflowMarkerZone)
-                || (dropTrailing && tick.x > width - M.overflowMarkerZone)
-                || abs(tick.x - nowX) < M.nowLabelClearance
-            let labeled = tick.isLabeled && !suppressed
+            let labeled = tick.isLabeled && abs(tick.x - nowX) >= M.nowLabelClearance
 
             Rectangle()
                 .fill(Color(
@@ -230,7 +232,7 @@ struct HorizonRailView: View {
                 // the reflection gradient's strongest band, where secondary
                 // ink measured 2.2:1 in the twilight hours (review finding,
                 // swept in HorizonPaletteTests at the row's real y). The
-                // four labels are data, not texture — they get the ink that
+                // labels are data, not texture — they get the ink that
                 // survives their own backdrop.
                 Text(label)
                     .font(.sans(M.hourLabelSize))
@@ -243,51 +245,5 @@ struct HorizonRailView: View {
                     )
             }
         }
-    }
-
-    // MARK: Overflow markers
-
-    @ViewBuilder
-    private func overflowMarkers(width: CGFloat) -> some View {
-        if day.earlierCount > 0 {
-            overflowMarker(count: day.earlierCount, suffix: "earlier", leading: true, width: width)
-        }
-        if day.laterCount > 0 {
-            overflowMarker(count: day.laterCount, suffix: "later", leading: false, width: width)
-        }
-    }
-
-    private func overflowMarker(count: Int, suffix: String, leading: Bool, width: CGFloat)
-        -> some View {
-        let bar = Rectangle()
-            .fill(
-                LinearGradient(
-                    colors: [
-                        Color(ground.textSecondary, opacity: 0.4),
-                        Color(ground.textSecondary, opacity: 0),
-                    ],
-                    startPoint: .top, endPoint: .bottom
-                )
-            )
-            .frame(width: M.overflowBarWidth, height: 14)
-
-        // Primary ink for the same reason as the hour labels: this row
-        // lives inside the reflection band.
-        let label = Text("+\(count) \(suffix)")
-            .font(.sans(M.overflowTextSize))
-            .foregroundStyle(Color(ground.textPrimary))
-            .fixedSize()
-
-        return HStack(alignment: .top, spacing: 4) {
-            if leading {
-                bar
-                label.padding(.top, 2)
-            } else {
-                label.padding(.top, 2)
-                bar
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: leading ? .topLeading : .topTrailing)
-        .offset(y: M.skyHeight + 2)
     }
 }

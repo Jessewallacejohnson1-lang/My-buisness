@@ -52,6 +52,10 @@ struct FeedView: View {
     @State private var contentRevealed = false
     @State private var refreshReplay = 0
     @State private var showsHairline = false
+    /// The scrub interaction's feed-level half: the horizon card raises it
+    /// with the lifted frame while a scrub session is live; the scrim and
+    /// the scroll lock below read it. Only enter/exit crosses this seam.
+    @StateObject private var scrubHost = HorizonScrubHost()
 
     init(
         auth: AuthStore,
@@ -153,8 +157,26 @@ struct FeedView: View {
                 refreshReplay += 1
             }
             .tint(.clear)
+            // Horizontal strip drags must never fight the vertical pan —
+            // the feed's scroll sleeps for exactly as long as the card is
+            // lifted (the ffcb384 rule, second half).
+            .scrollDisabled(scrubHost.lift != nil)
         }
         .background(Hue.paper)
+        .environment(\.horizonScrub, scrubHost)
+        // The scrub scrim: black 25% over EVERYTHING (top bar included)
+        // except the lifted card, which shows through the cutout. Mounted
+        // here because a scroll child cannot z-escape the ScrollView.
+        .overlay {
+            if let lift = scrubHost.lift {
+                HorizonScrubScrim(lift: lift, onTap: { scrubHost.exitTapped() })
+                    .ignoresSafeArea()
+                    .transition(.opacity)
+            }
+        }
+        .animation(
+            .easeOut(duration: HorizonMetrics.scrimFadeSeconds),
+            value: scrubHost.lift == nil)
         // Only sheet-presenting routes ever reach this binding — `navigate(_:)`
         // intercepts the ones the shell fulfils, so the optional cannot be nil here.
         .sheet(item: $route) { route in
