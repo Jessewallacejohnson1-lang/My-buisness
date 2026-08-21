@@ -760,15 +760,21 @@ extension HorizonCard {
             dragEnded()  // the magnet lands it; the bubble names it
             try? await Task.sleep(for: .seconds(1.0))
         }
-        // A gap: "Nothing at this hour" (bubble off), then past the last
-        // event: "That's the day".
+        // A genuine mid-day gap — 2:30 PM sits in the busy fixture's one
+        // event-free hour, > 8 min from every stub, so the bubble drops
+        // and the line reads "Nothing at this hour". Hold long enough to
+        // read it (gate finding: the old last+35min beat was already
+        // past-last and rendered "That's the day" instead).
+        await demoDrag(
+            toTime: scrubModel.dayStart.addingTimeInterval(14.5 * 3600), over: 1.0)
+        dragEnded()
+        try? await Task.sleep(for: .seconds(1.4))
+        // Then past the last event: "That's the day".
         if let last = magnetTimes.max() {
-            await demoDrag(toTime: last.addingTimeInterval(35 * 60), over: 0.8)
-            try? await Task.sleep(for: .seconds(0.8))
             await demoDrag(
-                toTime: min(last.addingTimeInterval(90 * 60), scrubModel.dayEnd), over: 0.8)
+                toTime: min(last.addingTimeInterval(35 * 60), scrubModel.dayEnd), over: 1.0)
             dragEnded()
-            try? await Task.sleep(for: .seconds(0.8))
+            try? await Task.sleep(for: .seconds(1.2))
         }
     }
 
