@@ -31,6 +31,10 @@ nonisolated struct ScrubSession: Equatable {
     var dragOwner: ScrubDragOwner?
     /// The rigid day-bound thud fires once per contact with a bound.
     var hasThuddedThisContact = false
+    /// True through the exit rewind: the lift/scrim/pill have settled but
+    /// scrubTime is still animating home, and it must keep driving the
+    /// sky (the time-lapse) with the minute-drift ease still suppressed.
+    var isEnding = false
 }
 
 nonisolated struct ScrubModel: Equatable {

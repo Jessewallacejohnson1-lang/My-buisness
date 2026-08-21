@@ -8,6 +8,7 @@
 //
 
 import CoreGraphics
+import Foundation
 
 nonisolated enum HorizonMetrics {
     /// The strip is a whole-day tape at fixed density: 12 hours visible
@@ -124,10 +125,61 @@ nonisolated enum HorizonMetrics {
     static let pillTextSize: CGFloat = 13
     /// Provisional Phase 1 pill chrome (white text on this black).
     static let pillBackgroundOpacity: Double = 0.55
+    /// The pill's rendered height at its fixed 13 pt type (15.5 pt line
+    /// + 2×5 padding) — the bubble-avoidance math reads this.
+    static let pillEstimatedHeight: CGFloat = 26
     /// The sun disc's "lens" state while scrubbing.
     static let discLensScale: CGFloat = 1.12
     static let lensGlowOpacity: Double = 0.5
     static let magnetEaseSeconds: Double = 0.18
     static let glideResponse: Double = 0.55
     static let glideDamping: Double = 0.86
+
+    // Phase 2 — scrubTime drives the world.
+    /// The resting minute-drift ease (the strip's 0.5 pt/min creep and the
+    /// sky's minute color drift ride it; off for the whole scrub session).
+    static let restDriftSeconds: Double = 0.8
+    /// Stub wake: within ±15 min of the marker a stub rises to full
+    /// presence — 0.5→1.0 opacity, scaleY 1.15, spring 0.25/0.6 (spec).
+    static let stubWakeWindow: TimeInterval = 15 * 60
+    static let stubWakeScaleY: CGFloat = 1.15
+    static let stubWakeResponse: Double = 0.25
+    static let stubWakeDamping: Double = 0.6
+    /// A woken stub's halo brightens from `haloOpacity` to this.
+    static let stubWakeHaloOpacity: Double = 0.5
+    /// Event line + event bubble: pure in-place crossfade, only when the
+    /// string actually changes (spec 0.16 s easeInOut).
+    static let eventLineFadeSeconds: Double = 0.16
+    /// The on-an-event bubble (Jesse's gate spec): a capsule filled with
+    /// the event's stub color, white text (brand ink when white fails
+    /// contrast on a light fill), with a small tail pointing down at the
+    /// stub, floating just above the stub's tip. The time pill yields
+    /// upward while the bubble is present (`pillBubbleGap`).
+    static let bubbleTextSize: CGFloat = 11
+    static let bubbleHorizontalPadding: CGFloat = 9
+    /// Fixed body height so the pill-avoidance math needs no measuring
+    /// (the 11 pt label never scales — rail type is fixed, like ticks).
+    static let bubbleBodyHeight: CGFloat = 21
+    static let bubbleTailWidth: CGFloat = 10
+    static let bubbleTailHeight: CGFloat = 5
+    static let bubbleGapAboveStub: CGFloat = 1
+    static let bubbleMaxWidth: CGFloat = 200
+    /// Minimum clearance between the pill's bottom and the bubble's top.
+    static let pillBubbleGap: CGFloat = 4
+    /// The bar white bubble text must clear on its tint before the ink
+    /// fallback takes over (small-text WCAG).
+    static let bubbleInkContrastBar: Double = 4.5
+    /// Top edge of the bubble's body over a stub of the given lane — the
+    /// same number the card's pill uses to yield, so the two views cannot
+    /// disagree about the clearance.
+    static func bubbleBodyTop(overYoursStub: Bool) -> CGFloat {
+        skyHeight
+            - (overYoursStub ? yourStubHeight : publicStubHeight)
+            - bubbleGapAboveStub - bubbleTailHeight - bubbleBodyHeight
+    }
+    /// The pill's digit roll (contentTransition(.numericText())).
+    static let pillDigitRollSeconds: Double = 0.15
+    /// Reduce Motion exits crossfade the card to the now-state instead of
+    /// gliding the strip (plan's accessibility rule).
+    static let reduceMotionExitFadeSeconds: Double = 0.25
 }

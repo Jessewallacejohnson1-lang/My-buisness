@@ -12,31 +12,37 @@
 
 import SwiftUI
 
-/// Category → stub color, adjusted per sky phase. Resolves the light-trait
-/// value of the existing CategoryGradient palette — the card's colors are
-/// solar, not scheme-driven, exactly like the map's onLightCanvas rule.
+/// Category → stub color, adjusted CONTINUOUSLY for the sky (approved
+/// decision 7 — the old 4-phase step popped at phase edges under a
+/// scrub). Resolves the light-trait value of the existing CategoryGradient
+/// palette — the card's colors are solar, not scheme-driven, exactly like
+/// the map's onLightCanvas rule.
 @MainActor
 enum HorizonStubColor {
-    /// 10 categories × 4 phases — resolved once each, not per stub per tick
-    /// (the UIColor bridge and trait resolution are the expensive part).
-    private static var cache: [String: Color] = [:]
+    /// The UIColor bridge + trait resolution stay the expensive part, and
+    /// they don't vary with the sky — cache the BASE per category and do
+    /// the (cheap, pure) continuous adjustment per frame.
+    private static var baseCache: [EventCategory: HorizonRGB] = [:]
 
     static func rgb(for category: EventCategory) -> HorizonRGB {
+        if let cached = baseCache[category] { return cached }
         let light = CategoryGradient.of(category).stops.top.onLightCanvas
         var r: CGFloat = 0
         var g: CGFloat = 0
         var b: CGFloat = 0
         var a: CGFloat = 0
         UIColor(light).getRed(&r, green: &g, blue: &b, alpha: &a)
-        return HorizonRGB(r: r, g: g, b: b)
+        let resolved = HorizonRGB(r: r, g: g, b: b)
+        baseCache[category] = resolved
+        return resolved
     }
 
-    static func color(for category: EventCategory, phase: SkyPhase) -> Color {
-        let key = "\(category.rawValue)|\(phase)"
-        if let cached = cache[key] { return cached }
-        let resolved = Color(rgb(for: category).adjustedForSky(phase))
-        cache[key] = resolved
-        return resolved
+    static func adjustedRGB(for category: EventCategory, sky: SolarSky) -> HorizonRGB {
+        rgb(for: category).adjustedForSky(phase: sky.phase, blend: sky.phaseBlend)
+    }
+
+    static func color(for category: EventCategory, sky: SolarSky) -> Color {
+        Color(adjustedRGB(for: category, sky: sky))
     }
 }
 
@@ -46,6 +52,12 @@ struct HorizonRailView: View {
     let day: HorizonDay
     let now: Date
     let stripOffset: CGFloat
+    /// A scrub session is live (including the exit rewind) — stubs wake
+    /// within ±15 min of the marker.
+    var isScrubbing = false
+    /// The session is ACTIVE (not the rewind) — the on-an-event bubble
+    /// shows only here.
+    var showsBubble = false
 
     @Environment(\.colorSchemeContrast) private var contrast
 
@@ -65,9 +77,59 @@ struct HorizonRailView: View {
                     nowNotch()
                 }
                 .offset(x: stripOffset)
+                eventBubble(width: width)
             }
             .frame(width: width, height: geo.size.height, alignment: .topLeading)
         }
+    }
+
+    // MARK: The on-an-event bubble
+
+    /// Jesse's gate addition: when the scrub is ON an event (the magnet's
+    /// own ±8-min space), a capsule filled with that event's live stub
+    /// color names it — white text, small tail pointing down at the stub,
+    /// floating just above the stub's tip under the centered marker.
+    /// White ink falls back to the brand ink when the tint is too light
+    /// to carry it (night-lifted pastels; flagged). Crossfades in/out and
+    /// between neighboring events, in place. The time pill yields upward
+    /// while this is present (HorizonCard reads the same geometry).
+    @ViewBuilder
+    private func eventBubble(width: CGFloat) -> some View {
+        let item = showsBubble ? day.onEventItem(at: sky.now) : nil
+        ZStack(alignment: .topLeading) {
+            if let item {
+                let tint = HorizonStubColor.adjustedRGB(for: item.event.category, sky: sky)
+                let white = HorizonRGB(r: 1, g: 1, b: 1)
+                let ink: Color = white.contrastRatio(with: tint) >= M.bubbleInkContrastBar
+                    ? .white : Hue.ink
+                let isYours = item.source == .committed
+                let totalHeight = M.bubbleBodyHeight + M.bubbleTailHeight
+                VStack(spacing: 0) {
+                    Text(item.title)
+                        .font(.sansSemibold(M.bubbleTextSize))
+                        .foregroundStyle(ink)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .padding(.horizontal, M.bubbleHorizontalPadding)
+                        .frame(height: M.bubbleBodyHeight)
+                        .frame(maxWidth: M.bubbleMaxWidth)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .background(Capsule(style: .continuous).fill(Color(tint)))
+                    BubbleTail()
+                        .fill(Color(tint))
+                        .frame(width: M.bubbleTailWidth, height: M.bubbleTailHeight)
+                }
+                // On an event the stub sits within ~4 pt of the card's
+                // center, so the bubble stays comfortably on-card.
+                .position(
+                    x: stripOffset + axis.x(for: item.start),
+                    y: M.bubbleBodyTop(overYoursStub: isYours) + totalHeight / 2)
+                .id(item.id)
+                .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: M.eventLineFadeSeconds), value: item?.id)
+        .allowsHitTesting(false)
     }
 
     // MARK: Stubs
@@ -124,11 +186,20 @@ struct HorizonRailView: View {
         _ placed: HorizonPlacedStub, height: CGFloat, radius: CGFloat,
         baseOpacity: Double, halo: Bool, solid: Bool = false
     ) -> some View {
-        let color = HorizonStubColor.color(for: placed.stub.category, phase: sky.phase)
-        // One glance = what's done vs what's left: ended stubs recede.
-        let baseOpacity = baseOpacity
+        let color = HorizonStubColor.color(for: placed.stub.category, sky: sky)
+        // The wake (spec): within ±15 min of the marker a stub rises to
+        // full presence — the whole tape stays 1:1 while the stub under
+        // the finger springs alive, then settles back as you pass.
+        let awake = isScrubbing
+            && abs(placed.stub.start.timeIntervalSince(sky.now)) <= M.stubWakeWindow
+        // One glance = what's done vs what's left: ended stubs recede
+        // (unless woken — presence wins while the marker is on it).
+        let restingOpacity = baseOpacity
             * (HorizonDay.isPast(placed.stub, now: now) ? M.pastStubOpacityFactor : 1)
-        let haloOpacity = contrast == .increased ? 0.35 : M.haloOpacity
+        let opacity = awake ? 1 : restingOpacity
+        let restingHalo = contrast == .increased ? 0.35 : M.haloOpacity
+        let haloOpacity = awake ? M.stubWakeHaloOpacity : restingHalo
+        let scaleY: CGFloat = awake ? M.stubWakeScaleY : 1
 
         ZStack(alignment: .topLeading) {
             // Fade 3 — the halo, what makes a stub glow against the sky
@@ -137,7 +208,8 @@ struct HorizonRailView: View {
                 stubBody(color: color, width: placed.width * M.haloWidthScale,
                          height: height, radius: radius, solid: solid)
                     .blur(radius: M.haloBlur)
-                    .opacity(haloOpacity * baseOpacity)
+                    .opacity(haloOpacity * opacity)
+                    .scaleEffect(x: 1, y: scaleY, anchor: .bottom)
                     .offset(
                         x: placed.x - placed.width * (M.haloWidthScale - 1) / 2,
                         y: M.skyHeight - height
@@ -145,9 +217,13 @@ struct HorizonRailView: View {
             }
             stubBody(color: color, width: placed.width, height: height, radius: radius,
                      solid: solid)
-                .opacity(baseOpacity)
+                .opacity(opacity)
+                .scaleEffect(x: 1, y: scaleY, anchor: .bottom)
                 .offset(x: placed.x, y: M.skyHeight - height)
         }
+        .animation(
+            .spring(response: M.stubWakeResponse, dampingFraction: M.stubWakeDamping),
+            value: awake)
     }
 
     private func stubBody(
@@ -177,6 +253,19 @@ struct HorizonRailView: View {
                     startPoint: .bottom, endPoint: .top
                 )
             )
+    }
+
+    /// The bubble's down-pointing tail: a small triangle, apex centered on
+    /// the anchored stub's x.
+    private struct BubbleTail: Shape {
+        func path(in rect: CGRect) -> Path {
+            var path = Path()
+            path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
+            path.closeSubpath()
+            return path
+        }
     }
 
     // MARK: Now notch — a strip mark at now, in the tick family

@@ -137,19 +137,24 @@ struct HorizonBackdrop: View {
     // MARK: The marker — disc + light pillar, always centered
 
     /// The sun-lollipop's sky half: a quiet 9pt disc at the card's center
-    /// x — sun by day, moon by night — over a light pillar falling to the
-    /// horizon. Its height stays f(now) in Phase 1 (re-lighting from
-    /// scrubTime is Phase 2). While scrubbing it grows into the "lens"
-    /// state: ×1.12 with a soft glow halo.
+    /// x — sun by day, moon by night, crossfading on the same 20-min
+    /// polarity window the ground uses (a scrub across sunset must never
+    /// pop the disc) — over a light pillar falling to the horizon. While
+    /// scrubbing it grows into the "lens" state: ×1.12 with a soft glow
+    /// halo. Both elevation arcs hit zero at the solar instants, so the
+    /// height is continuous across the swap by construction.
     private func marker(width: CGFloat) -> some View {
         let lens: CGFloat = isScrubbing ? HorizonMetrics.discLensScale : 1
         let x = width / 2
+        let darkness = HorizonPalette.groundDarkness(for: sky)
         let elevation = sky.isSunUp ? sky.solarElevation : sky.nightElevation
         let y = HorizonMetrics.skyHeight
             - CGFloat(elevation)
             * (HorizonMetrics.skyHeight - HorizonMetrics.discTopMargin)
-        let core = sky.isSunUp ? HorizonPalette.sunCore : HorizonPalette.moonCore
-        let pillar = sky.isSunUp ? HorizonRGB(r: 1, g: 1, b: 1) : HorizonPalette.pillarNight
+        let core = HorizonRGB.lerp(HorizonPalette.sunCore, HorizonPalette.moonCore, darkness)
+        let pillar = HorizonRGB.lerp(
+            HorizonRGB(r: 1, g: 1, b: 1), HorizonPalette.pillarNight, darkness)
+        let restGlowOpacity = HorizonMetrics.discGlowOpacity * (1 - darkness)
         let pillarHeight = max(HorizonMetrics.skyHeight - y, 0)
 
         return ZStack(alignment: .topLeading) {
@@ -173,9 +178,10 @@ struct HorizonBackdrop: View {
                     .position(x: x, y: y + pillarHeight / 2)
             }
 
-            // The glow: the sun's own halo at rest, and the lens halo for
-            // either disc while scrubbing.
-            if sky.isSunUp || isScrubbing {
+            // The glow: the sun's own halo at rest (fading out with the
+            // polarity window), and the lens halo for either disc while
+            // scrubbing.
+            if restGlowOpacity > 0.005 || isScrubbing {
                 Circle()
                     .fill(Color(core))
                     .frame(
@@ -186,12 +192,12 @@ struct HorizonBackdrop: View {
                     .opacity(
                         isScrubbing
                             ? HorizonMetrics.lensGlowOpacity
-                            : HorizonMetrics.discGlowOpacity)
+                            : restGlowOpacity)
                     .position(x: x, y: y)
             }
 
             Circle()
-                .fill(Color(core, opacity: sky.isSunUp ? 1 : HorizonMetrics.moonOpacity))
+                .fill(Color(core, opacity: 1 - (1 - HorizonMetrics.moonOpacity) * darkness))
                 .overlay(
                     Circle().stroke(
                         Color(HorizonPalette.discRim, opacity: HorizonMetrics.discRimOpacity),
