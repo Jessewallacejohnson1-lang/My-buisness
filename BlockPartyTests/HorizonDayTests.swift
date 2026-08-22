@@ -331,6 +331,25 @@ final class HorizonDayTests: XCTestCase {
         }
     }
 
+    func testDenseFixtureClustersThreeStubsAcrossLanesInsideThirtyMinutes() {
+        // The Phase 4 tester's event-dense hour: three timed stubs, both
+        // lanes represented (the bubble's yield height differs per lane),
+        // whole cluster inside 30 minutes, ids stable across launches.
+        let now = townDate(2026, 8, 11, 13, 0)
+        let day = Town.calendar.startOfDay(for: now)
+        let items = HorizonMock.items(for: .dense, day: day)
+        XCTAssertEqual(items.map(\.id), ["y1", "o1", "y2"])
+
+        let horizon = HorizonDay(items: items, now: now)
+        XCTAssertEqual(horizon.yoursCount, 2)
+        XCTAssertEqual(horizon.openCount, 1)
+        let starts = horizon.markedItems.map(\.start)
+        XCTAssertEqual(starts.count, 3)
+        XCTAssertLessThanOrEqual(
+            starts.max()!.timeIntervalSince(starts.min()!), 30 * 60,
+            "the dense cluster must fit inside 30 minutes")
+    }
+
     func testStubWidthFollowsDuration() {
         let now = townDate(2026, 8, 11, 13, 0)
         let axis = dayAxis(at: now)

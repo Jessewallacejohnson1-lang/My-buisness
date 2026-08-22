@@ -21,7 +21,7 @@ import Foundation
 /// The §7 states, typed — an unknown `-BPMockDayState` value fails loudly
 /// instead of rendering a plausible empty card that "passes" a screenshot.
 nonisolated enum HorizonDayState: String, CaseIterable {
-    case empty, light, busy, overlap, edge, overflow, swap, midnight
+    case empty, light, busy, overlap, edge, overflow, swap, midnight, dense
     case solsticeSummer = "solstice-summer"
     case solsticeWinter = "solstice-winter"
     case degenerate, late, zerozero, loading, error
@@ -126,6 +126,12 @@ nonisolated struct HorizonMock {
             ]
         case .overlap:
             return [yours("y1", 14, 0), yours("y2", 14, 10), yours("y3", 14, 20)]
+        case .dense:
+            // The Phase 4 tester's event-dense hour: three stubs inside 30
+            // minutes, ACROSS both lanes (overlap is the all-yours cousin) —
+            // overlapping ±8-min magnet windows, back-to-back bubbles, and
+            // the pill's yours/public yield heights all in one cluster.
+            return [yours("y1", 17, 0), open("o1", 17, 10), yours("y2", 17, 25)]
         case .edge:
             // Tangent to the FIXED 7a–10p window's edges (the old 6:18 /
             // 20:52 pair was tangent to the retired solar window).

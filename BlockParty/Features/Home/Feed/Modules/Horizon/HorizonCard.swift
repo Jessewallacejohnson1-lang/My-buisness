@@ -65,6 +65,20 @@ nonisolated enum HorizonCopy {
         return "\(primary), \(secondary)."
     }
     static let cardAccessibilityHint = "Opens your day schedule"
+    /// The hint while a scrub session is live — the resting hint promises
+    /// a tap that deliberately goes quiet mid-session (review finding),
+    /// and the way out is the escape gesture.
+    static let scrubbingAccessibilityHint =
+        "Swipe up or down to move through the day. Scrub with two fingers to finish."
+    /// The adjustable trait's spoken value while a scrub session is live:
+    /// the marker's time, then the nearest event so a swipe up/down lands
+    /// somewhere meaningful. Empty days speak the time alone.
+    static func scrubAccessibilityValue(
+        time: String, nearestTitle: String?, nearestTime: String?
+    ) -> String {
+        guard let nearestTitle, let nearestTime else { return time }
+        return "\(time). Nearest: \(nearestTitle) at \(nearestTime)"
+    }
     /// The section header's trailing link: "See all 16 ›". Nil at zero —
     /// no postings, nothing to link.
     static func seeAllLink(_ count: Int) -> String? {
@@ -175,13 +189,43 @@ struct HorizonCard: View {
         // finger.
         .simultaneousGesture(pickupGesture)
         .simultaneousGesture(resumeDragGesture)
+        // A session cannot outlive its own town day. When the live minute
+        // tick crosses midnight mid-scrub, yesterday's scrubTime has no
+        // place on the new day's tape: the strip content swaps under the
+        // finger, the sky pins to the new table's clamped midnight column
+        // while the pill still reads yesterday evening, and the drag
+        // bounds shift a full day (reproduced under `-BPMockNowSpeed`).
+        // End the session the Reduce Motion way — crossfade home to the
+        // new day's resting state; no glide exists across two tapes.
+        .onChange(of: scrubModel.dayStart) { _, _ in
+            guard scrub != nil else { return }
+            host?.lower()
+            withAnimation(
+                .easeInOut(duration: HorizonMetrics.reduceMotionExitFadeSeconds)
+            ) {
+                sceneEpoch += 1
+                scrub = nil
+            }
+        }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { cardWidth = $0 }
+        // If the card leaves the hierarchy mid-session (a refresh hides
+        // the module, the shell swaps the feed out), the session's @State
+        // dies with it — but the host would keep the scrim + scroll lock
+        // up with no card behind the cutout (review finding). Lower the
+        // feed's half on the way out. The feed column is a plain VStack,
+        // so this fires only on true removal, never on scroll recycling.
+        .onDisappear {
+            if scrub != nil { host?.lower() }
+        }
         #if DEBUG
         // Keyed on isLoading: the loading and ready cards are the same view
         // type in the module's AnyView switch, so their identity — and a
         // bare .task — carries across the flip with the LOADING value's
         // stale captures. Re-keying restarts the driver on the ready card.
-        .task(id: isLoading) { await runScrubDemoIfRequested() }
+        .task(id: isLoading) {
+            await runScrubDemoIfRequested()
+            await runA11yDemoIfRequested(day: day)
+        }
         #endif
     }
 
@@ -214,7 +258,33 @@ struct HorizonCard: View {
                 ? HorizonCopy.loadingAccessibilityLabel
                 : HorizonCopy.cardAccessibilityLabel(yours: counts.yours, open: counts.open)
         )
-        .accessibilityHint(HorizonCopy.cardAccessibilityHint)
+        .accessibilityHint(
+            isActive
+                ? HorizonCopy.scrubbingAccessibilityHint
+                : HorizonCopy.cardAccessibilityHint)
+        // While a session is live the world outside the card is dimmed,
+        // blurred and scroll-locked — modal in every sense — so VoiceOver
+        // focus must not wander onto (and activate) controls behind the
+        // scrim (review finding). The trait lifts with the session.
+        .accessibilityAddTraits(isActive ? .isModal : [])
+        // VoiceOver's scrub (plan's accessibility rule): the card is
+        // .adjustable — swipe up/down steps the marker ±30 min through the
+        // SAME session the finger drives (first step begins it: lift,
+        // scrim, scroll lock and all), and the value announces the time
+        // plus the nearest event after every step. The two-finger scrub
+        // (escape) is the accessible way out — the scrim shortcut is
+        // deliberately hidden from VoiceOver.
+        .accessibilityValue(accessibilityScrubValue(day: day))
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment: accessibilityStep(up: true)
+            case .decrement: accessibilityStep(up: false)
+            @unknown default: break
+            }
+        }
+        .accessibilityAction(.escape) {
+            if isActive { exitScrub() }
+        }
         .background { scene(at: time, sky: sky, day: day) }
         .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         .overlay(
@@ -530,8 +600,52 @@ struct HorizonCard: View {
     }
 
     private func beginScrub() {
+        // The Button is disabled while loading, but the pickup gesture
+        // rides the outer stack — without this guard a long press on the
+        // shimmer card would lift and lock an empty scrub (review
+        // finding). One guard here covers every entry path.
+        guard !isLoading else { return }
         ScrubHaptics.pickup()
         scrub = ScrubSession(scrubTime: now, dragBase: now, dragOwner: .pickup)
+    }
+
+    // MARK: Scrub — VoiceOver's adjustable lane
+
+    /// What VoiceOver speaks after each adjustment. Empty at rest so the
+    /// existing label + hint read exactly as before the trait landed.
+    private func accessibilityScrubValue(day: HorizonDay) -> String {
+        guard let session = scrub, !session.isEnding else { return "" }
+        let nearest = day.markedItems.min {
+            abs($0.start.timeIntervalSince(session.scrubTime))
+                < abs($1.start.timeIntervalSince(session.scrubTime))
+        }
+        return HorizonCopy.scrubAccessibilityValue(
+            time: Self.pillFormatter.string(from: session.scrubTime),
+            nearestTitle: nearest?.title,
+            nearestTime: nearest.map { Self.eventLineTime(for: $0.start) })
+    }
+
+    /// One adjustable step. No drag ownership — there is no finger — and
+    /// no rubber band: the step clamps at either midnight (ScrubModel).
+    /// Steps during the exit rewind are dropped rather than racing its
+    /// completion (which nils the session).
+    private func accessibilityStep(up: Bool) {
+        guard !isLoading, scrub?.isEnding != true else { return }
+        var session: ScrubSession
+        if let live = scrub {
+            session = live
+        } else {
+            // The first step is the pickup — same haptic, same lift.
+            ScrubHaptics.prepareAll()
+            ScrubHaptics.pickup()
+            session = ScrubSession(scrubTime: now, dragBase: nil, dragOwner: nil)
+        }
+        session.scrubTime = scrubModel.steppedTime(from: session.scrubTime, up: up)
+        withAnimation(
+            reduceMotion ? nil : .easeOut(duration: HorizonMetrics.magnetEaseSeconds)
+        ) {
+            scrub = session
+        }
     }
 
     private func dragChanged(translation: CGFloat, claiming owner: ScrubDragOwner) {
@@ -638,6 +752,16 @@ struct HorizonCard: View {
                     .onChange(of: geo.frame(in: .global)) { _, frame in
                         publishLift(frame)
                     }
+                    // The frame goes still once the lift settles, so the
+                    // stored exit hook would keep the render-time `now` it
+                    // captured — a session held for minutes would rewind
+                    // to a stale now, then jump on landing (review
+                    // finding). Re-publish on each minute tick: the Lift
+                    // value dedupes, so only the closure refreshes and
+                    // the feed never re-renders for it.
+                    .onChange(of: now) { _, _ in
+                        publishLift(geo.frame(in: .global))
+                    }
             }
             .allowsHitTesting(false)
         }
@@ -717,6 +841,38 @@ extension HorizonCard {
         try? await Task.sleep(for: .seconds(0.8))
         print("ScrubDemo: end \(script)")
         exitScrub()
+    }
+
+    /// `-horizon-a11y-demo` drives the VoiceOver adjustable lane through
+    /// its own functions — the sim cannot run VoiceOver for a recording,
+    /// so this is the honest substitute: the visual result of each ±30 min
+    /// step is on camera, and every step prints the exact string
+    /// `accessibilityValue` would have VoiceOver speak. Ends via the
+    /// escape action's own exit path.
+    fileprivate func runA11yDemoIfRequested(day: HorizonDay) async {
+        guard ProcessInfo.processInfo.arguments.contains("-horizon-a11y-demo"),
+              !isLoading
+        else { return }
+        try? await Task.sleep(for: .seconds(1.2))
+        for _ in 0..<40 where cardWidth <= 0 {
+            try? await Task.sleep(for: .milliseconds(200))
+        }
+        guard scrub == nil, !Task.isCancelled else { return }
+        print("A11yDemo: begin")
+        for _ in 0..<5 {
+            accessibilityStep(up: true)
+            print("A11yDemo: value \"\(accessibilityScrubValue(day: day))\"")
+            try? await Task.sleep(for: .seconds(0.9))
+        }
+        for _ in 0..<2 {
+            accessibilityStep(up: false)
+            print("A11yDemo: value \"\(accessibilityScrubValue(day: day))\"")
+            try? await Task.sleep(for: .seconds(0.9))
+        }
+        try? await Task.sleep(for: .seconds(0.8))
+        print("A11yDemo: escape")
+        if isActive { exitScrub() }
+        print("A11yDemo: end")
     }
 
     /// The Phase 1 beat sheet: 1:1 drag, rubber band + thud, the magnet.

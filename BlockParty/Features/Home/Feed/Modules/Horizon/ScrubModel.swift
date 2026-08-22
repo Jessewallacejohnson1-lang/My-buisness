@@ -42,6 +42,9 @@ nonisolated struct ScrubModel: Equatable {
     static let rubberBandResistance = 0.35
     /// Spec: magnetic stubs capture within ±8 minutes on release.
     static let magnetWindow: TimeInterval = 8 * 60
+    /// VoiceOver's adjustable step (plan's accessibility rule: increment/
+    /// decrement move the marker 30 minutes).
+    static let adjustableStep: TimeInterval = 30 * 60
 
     let dayStart: Date
     let dayEnd: Date
@@ -85,6 +88,14 @@ nonisolated struct ScrubModel: Equatable {
         eventTimes
             .min { abs($0.timeIntervalSince(time)) < abs($1.timeIntervalSince(time)) }
             .flatMap { abs($0.timeIntervalSince(time)) <= magnetWindow ? $0 : nil }
+    }
+
+    /// One VoiceOver adjustment: ±30 minutes, hard-clamped to the day —
+    /// the adjustable action never rubber-bands (there is no finger to
+    /// resist), it just stops at either midnight.
+    func steppedTime(from time: Date, up: Bool) -> Date {
+        let raw = time.addingTimeInterval(up ? Self.adjustableStep : -Self.adjustableStep)
+        return min(max(raw, dayStart), dayEnd)
     }
 
     /// Where the strip settles on finger lift: a magnet event, else back
