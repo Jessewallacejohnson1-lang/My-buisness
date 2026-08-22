@@ -861,6 +861,29 @@ final class HorizonCopyTests: XCTestCase {
         )
     }
 
+    func testScrubAccessibilityValueSpeaksTimeThenNearestEvent() {
+        XCTAssertEqual(
+            HorizonCopy.scrubAccessibilityValue(
+                time: "2:30 PM", nearestTitle: "Farmers market", nearestTime: "3 PM"),
+            "2:30 PM. Nearest: Farmers market at 3 PM")
+        // An empty day speaks the time alone.
+        XCTAssertEqual(
+            HorizonCopy.scrubAccessibilityValue(
+                time: "2:30 PM", nearestTitle: nil, nearestTime: nil),
+            "2:30 PM")
+    }
+
+    func testScrubbingHintReplacesTheDoorThatWentQuiet() {
+        // Mid-session the card's tap deliberately does nothing, so the
+        // resting hint's promise ("Opens your day schedule") must not
+        // stand while scrubbing — the live hint teaches the steps and
+        // the escape way out instead.
+        XCTAssertNotEqual(
+            HorizonCopy.scrubbingAccessibilityHint, HorizonCopy.cardAccessibilityHint)
+        XCTAssertTrue(HorizonCopy.scrubbingAccessibilityHint.contains("two fingers"))
+        XCTAssertFalse(HorizonCopy.scrubbingAccessibilityHint.contains("!"))
+    }
+
     func testVoiceHasNoExclamationMarksAnywhere() {
         for text in [
             HorizonCopy.primaryLine(yours: 5, open: 11),

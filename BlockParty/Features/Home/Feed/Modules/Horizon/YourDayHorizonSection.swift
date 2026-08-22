@@ -228,12 +228,15 @@ extension EnvironmentValues {
     @Entry var horizonScrub: HorizonScrubHost?
 }
 
-/// Black 25% over everything except the lifted card: ONE even-odd shape
-/// whose cutout tracks the card's frame, so the card itself never
-/// re-mounts — gesture continuity and the live TimelineView clock come
-/// free (approved decision 5, mechanism i). A tap anywhere on the dimmed
-/// region ends the scrub; taps inside the cutout fall through to the live
-/// card beneath.
+/// A light blur + black 25% over everything except the lifted card: ONE
+/// even-odd shape whose cutout tracks the card's frame, so the card
+/// itself never re-mounts — gesture continuity and the live TimelineView
+/// clock come free (approved decision 5, mechanism i; blur added by
+/// Jesse's mid-Phase-3 spec: the world outside the card softens while it
+/// dims). The blur is `.ultraThinMaterial` — the lightest system
+/// material, never a hand-rolled backdrop filter. A tap anywhere on the
+/// dimmed region ends the scrub; taps inside the cutout fall through to
+/// the live card beneath.
 struct HorizonScrubScrim: View {
     let lift: HorizonScrubHost.Lift
     let onTap: () -> Void
@@ -243,12 +246,13 @@ struct HorizonScrubScrim: View {
             let origin = geo.frame(in: .global).origin
             let cutout = lift.frame.offsetBy(dx: -origin.x, dy: -origin.y)
             let shape = CutoutShape(cutout: cutout, radius: lift.cornerRadius)
-            shape
-                .fill(
-                    Color.black.opacity(HorizonMetrics.scrimOpacity),
-                    style: FillStyle(eoFill: true))
-                .contentShape(shape, eoFill: true)
-                .onTapGesture(perform: onTap)
+            ZStack {
+                Rectangle().fill(.ultraThinMaterial)
+                Color.black.opacity(HorizonMetrics.scrimOpacity)
+            }
+            .mask(shape.fill(style: FillStyle(eoFill: true)))
+            .contentShape(shape, eoFill: true)
+            .onTapGesture(perform: onTap)
         }
         // The scrim is a pointer shortcut, not the accessible way out (the
         // day-sheet backdrop's rule).

@@ -213,6 +213,143 @@ final class HorizonDayTests: XCTestCase {
                  end: townDate(2026, 8, 11, 18, 0)), now: now))
     }
 
+    // MARK: The scrub's event line + on-an-event bubble
+
+    func testScrubLineNamesTheHoursEventNearestFirst() {
+        let now = townDate(2026, 8, 11, 13, 0)
+        let day = HorizonDay(
+            items: [
+                item("early", start: townDate(2026, 8, 11, 15, 0)),
+                item("late", start: townDate(2026, 8, 11, 15, 40), source: .wholeTown),
+                item("evening", start: townDate(2026, 8, 11, 19, 0)),
+            ],
+            now: now
+        )
+        // Dense hour: nearest to the scrub position wins.
+        XCTAssertEqual(
+            day.scrubLine(at: townDate(2026, 8, 11, 15, 10)),
+            .event(day.markedItems[0]))
+        XCTAssertEqual(
+            day.scrubLine(at: townDate(2026, 8, 11, 15, 35)),
+            .event(day.markedItems[1]))
+        // A gap hour between events reads quiet.
+        XCTAssertEqual(day.scrubLine(at: townDate(2026, 8, 11, 17, 30)), .quietHour)
+        // Landing exactly on a start is "at".
+        XCTAssertEqual(
+            day.scrubLine(at: townDate(2026, 8, 11, 19, 0)),
+            .event(day.markedItems[2]))
+        // Past the last event, the day is done.
+        XCTAssertEqual(day.scrubLine(at: townDate(2026, 8, 11, 21, 30)), .dayDone)
+        // Before the first, quiet — not done.
+        XCTAssertEqual(day.scrubLine(at: townDate(2026, 8, 11, 8, 0)), .quietHour)
+    }
+
+    func testScrubLineStaysRestingOnADayWithNothingTimed() {
+        let now = townDate(2026, 8, 11, 13, 0)
+        XCTAssertEqual(
+            HorizonDay(items: [], now: now).scrubLine(at: now), .resting)
+        // All-day items count but never mark the strip — still resting.
+        let allDay = HorizonDay(
+            items: [item("sale", start: townDate(2026, 8, 11, 0, 0), allDay: true)],
+            now: now)
+        XCTAssertEqual(allDay.scrubLine(at: now), .resting)
+    }
+
+    func testScrubLineBehavesAtMidnightAdjacentTimes() {
+        let now = townDate(2026, 8, 11, 23, 50)
+        let day = HorizonDay(
+            items: [item("tonight", start: townDate(2026, 8, 11, 23, 30))],
+            now: now
+        )
+        // Inside the 11 PM hour the event is named…
+        XCTAssertEqual(
+            day.scrubLine(at: townDate(2026, 8, 11, 23, 45)),
+            .event(day.markedItems[0]))
+        // …the 10 PM hour before it is quiet, not done…
+        XCTAssertEqual(day.scrubLine(at: townDate(2026, 8, 11, 22, 59)), .quietHour)
+        // …and one minute before next midnight it is past the last start
+        // but still in the event's hour, so it stays named.
+        XCTAssertEqual(
+            day.scrubLine(at: townDate(2026, 8, 11, 23, 59)),
+            .event(day.markedItems[0]))
+    }
+
+    func testOnEventItemUsesTheMagnetsEightMinuteWindow() {
+        let now = townDate(2026, 8, 11, 13, 0)
+        let day = HorizonDay(
+            items: [
+                item("target", start: townDate(2026, 8, 11, 15, 0)),
+                item("neighbor", start: townDate(2026, 8, 11, 15, 12)),
+            ],
+            now: now
+        )
+        // Exactly 8 minutes out is ON (the magnet's own inclusive window).
+        XCTAssertEqual(
+            day.onEventItem(at: townDate(2026, 8, 11, 14, 52))?.id, "target")
+        // Nine minutes out is not.
+        XCTAssertNil(day.onEventItem(at: townDate(2026, 8, 11, 14, 51)))
+        // Dense: the nearest of two wins.
+        XCTAssertEqual(
+            day.onEventItem(at: townDate(2026, 8, 11, 15, 7))?.id, "neighbor")
+        // Empty day: never on anything.
+        XCTAssertNil(HorizonDay(items: [], now: now).onEventItem(at: now))
+    }
+
+    func testMarkedItemsMatchTheDrawnStubsThroughThePublicCap() {
+        let now = townDate(2026, 8, 11, 13, 0)
+        let items = (0..<20).map { i in
+            item("open-\(i)", start: townDate(2026, 8, 11, 7, 0).addingTimeInterval(Double(i) * 2400),
+                 source: .wholeTown)
+        }
+        let day = HorizonDay(items: items, now: now)
+        // The magnet/line/bubble set is exactly the drawn set: a capped-out
+        // stub can't be "on" anything it doesn't show.
+        XCTAssertEqual(
+            Set(day.markedItems.map(\.id)),
+            Set(day.publicStubs.map(\.id)).union(day.yourStubs.map(\.id)))
+        XCTAssertEqual(day.markedItems.count, 14)
+        // And it stays start-sorted for the line's past-last rule.
+        XCTAssertEqual(
+            day.markedItems.map(\.start),
+            day.markedItems.map(\.start).sorted())
+    }
+
+    // MARK: Fixture titles — gate recordings leave the review loop
+
+    func testFixtureTitlesReadAsRealStJoeEvents() {
+        // A literal "o11" on camera reads as a bug (Phase 2 gate
+        // carry-forward): every §7 fixture item must carry a humanized
+        // title, never its id, and the DayItem and its embedded event
+        // must agree — the bubble reads one, the day sheet the other.
+        let day = Town.calendar.startOfDay(for: townDate(2026, 8, 11, 13, 0))
+        for state in HorizonDayState.allCases {
+            for item in HorizonMock.items(for: state, day: day) {
+                XCTAssertNotEqual(item.title, item.id, "\(state) leaks an id as a title")
+                XCTAssertGreaterThan(item.title.count, 3, "\(state): '\(item.title)'")
+                XCTAssertEqual(item.title, item.event.title)
+            }
+        }
+    }
+
+    func testDenseFixtureClustersThreeStubsAcrossLanesInsideThirtyMinutes() {
+        // The Phase 4 tester's event-dense hour: three timed stubs, both
+        // lanes represented (the bubble's yield height differs per lane),
+        // whole cluster inside 30 minutes, ids stable across launches.
+        let now = townDate(2026, 8, 11, 13, 0)
+        let day = Town.calendar.startOfDay(for: now)
+        let items = HorizonMock.items(for: .dense, day: day)
+        XCTAssertEqual(items.map(\.id), ["y1", "o1", "y2"])
+
+        let horizon = HorizonDay(items: items, now: now)
+        XCTAssertEqual(horizon.yoursCount, 2)
+        XCTAssertEqual(horizon.openCount, 1)
+        let starts = horizon.markedItems.map(\.start)
+        XCTAssertEqual(starts.count, 3)
+        XCTAssertLessThanOrEqual(
+            starts.max()!.timeIntervalSince(starts.min()!), 30 * 60,
+            "the dense cluster must fit inside 30 minutes")
+    }
+
     func testStubWidthFollowsDuration() {
         let now = townDate(2026, 8, 11, 13, 0)
         let axis = dayAxis(at: now)

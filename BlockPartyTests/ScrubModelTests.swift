@@ -111,6 +111,23 @@ final class ScrubModelTests: XCTestCase {
             near)
     }
 
+    // MARK: VoiceOver's adjustable step
+
+    func testSteppedTimeMovesThirtyMinutesEachWay() {
+        let m = model()
+        XCTAssertEqual(m.steppedTime(from: noon, up: true), townDate(2026, 8, 11, 12, 30))
+        XCTAssertEqual(m.steppedTime(from: noon, up: false), townDate(2026, 8, 11, 11, 30))
+    }
+
+    func testSteppedTimeClampsAtBothMidnightsWithoutRubberBanding() {
+        // No finger, no rubber band: the adjustable action just stops.
+        let m = model()
+        XCTAssertEqual(m.steppedTime(from: townDate(2026, 8, 11, 23, 45), up: true), m.dayEnd)
+        XCTAssertEqual(m.steppedTime(from: m.dayEnd, up: true), m.dayEnd)
+        XCTAssertEqual(m.steppedTime(from: townDate(2026, 8, 11, 0, 10), up: false), m.dayStart)
+        XCTAssertEqual(m.steppedTime(from: m.dayStart, up: false), m.dayStart)
+    }
+
     // MARK: Release
 
     func testReleaseSnapsOverscrollBackToTheBound() {

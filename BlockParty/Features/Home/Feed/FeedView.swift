@@ -115,7 +115,10 @@ struct FeedView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        #if DEBUG
+        let _ = FeedRenderLog.enabled ? Self._printChanges() : ()
+        #endif
+        return VStack(spacing: 0) {
             TodayTopBar(
                 onMenu: onMenu,
                 menuOpen: menuOpen,
@@ -206,6 +209,9 @@ struct FeedView: View {
         .onAppear {
             revealed = true
             if controller.briefing.hasLoaded { contentRevealed = true }
+            #if DEBUG
+            if FrameGapLog.enabled { FrameGapLog.shared.start() }
+            #endif
         }
         // Gated on the briefing having FINISHED, not on it having SUCCEEDED.
         //
@@ -243,10 +249,68 @@ private struct FeedModuleColumn: View {
     let context: FeedModuleContext
 
     var body: some View {
-        VStack(spacing: 0) {
+        #if DEBUG
+        let _ = FeedRenderLog.enabled ? Self._printChanges() : ()
+        #endif
+        return VStack(spacing: 0) {
             ForEach(registry.visibleModules(in: context), id: \.id) { module in
                 module.makeView(context)
             }
         }
     }
 }
+
+#if DEBUG
+/// `-feed-render-log`: prints every body re-evaluation of the feed's
+/// layers (`Self._printChanges`) so the scrub's isolation contract — the
+/// perf gate's "per-frame updates never leave the card's subtree; only
+/// enter/exit crosses the seam" — is verifiable on a console capture
+/// instead of asserted from memory. Compiled out of Release.
+nonisolated enum FeedRenderLog {
+    static let enabled = ProcessInfo.processInfo.arguments.contains("-feed-render-log")
+}
+
+/// `-frame-gap-log`: counts dropped display frames — CADisplayLink
+/// callback gaps beyond 1.5× the nominal refresh interval — during a
+/// scrub. This is the simulator substitute for Instruments' Animation
+/// Hitches instrument, which refuses the simulator platform outright
+/// ("Hitches is not supported on this platform"); it sees main-thread /
+/// runloop stalls, not GPU-side commit hitches, so the true hitch +
+/// ProMotion check stays a device pass. Compiled out of Release.
+@MainActor
+final class FrameGapLog {
+    static let shared = FrameGapLog()
+    static var enabled: Bool {
+        ProcessInfo.processInfo.arguments.contains("-frame-gap-log")
+    }
+
+    private var link: CADisplayLink?
+    private var last: CFTimeInterval = 0
+    private var frames = 0
+    private var dropped = 0
+    private var worstMs = 0.0
+
+    func start() {
+        guard link == nil else { return }
+        let l = CADisplayLink(target: self, selector: #selector(tick))
+        l.add(to: .main, forMode: .common)
+        link = l
+    }
+
+    @objc private func tick(_ l: CADisplayLink) {
+        defer { last = l.timestamp }
+        guard last > 0 else { return }
+        let gapMs = (l.timestamp - last) * 1000
+        let budgetMs = l.duration * 1000 * 1.5
+        frames += 1
+        worstMs = max(worstMs, gapMs)
+        if gapMs > budgetMs {
+            dropped += 1
+            print("FrameGapLog: DROP gap=\(Int(gapMs))ms budget=\(Int(budgetMs))ms")
+        }
+        if frames % 300 == 0 {
+            print("FrameGapLog: \(frames) frames, \(dropped) drops, worst \(Int(worstMs))ms")
+        }
+    }
+}
+#endif

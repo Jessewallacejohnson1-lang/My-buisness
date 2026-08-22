@@ -40,6 +40,11 @@ nonisolated struct HorizonDay: Equatable {
     /// Whole-day counts, midnight to midnight.
     let yoursCount: Int
     let openCount: Int
+    /// The items whose stubs are actually ON the rail (both lanes, after
+    /// the public cap), start-sorted and kept whole — the scrub's magnet,
+    /// event line and bubble all read THIS one set, so "on an event" means
+    /// the same thing everywhere and never points at an undrawn stub.
+    let markedItems: [DayItem]
 
     init(items: [DayItem], now: Date) {
         // The town's today has exactly one definition — the same half-open
@@ -60,9 +65,10 @@ nonisolated struct HorizonDay: Equatable {
         // there is no window filter and no overflow — off-screen items are
         // reached by scrubbing. All-day and multi-day-running items live
         // in the counts, not on the rail.
-        let timed = today
+        let timedItems = today
             .filter { !$0.isAllDay && !$0.isMultiDay }
             .sorted { $0.start < $1.start }
+        let timed = timedItems
             .map { item in
                 HorizonStub(
                     id: item.id,
@@ -86,6 +92,9 @@ nonisolated struct HorizonDay: Equatable {
         } else {
             publicStubs = publicLane
         }
+
+        let drawn = Set(yourStubs.map(\.id)).union(publicStubs.map(\.id))
+        markedItems = timedItems.filter { drawn.contains($0.id) }
     }
 
     /// A stub is past once its stated end — or, when end_at is NULL (every
@@ -93,6 +102,47 @@ nonisolated struct HorizonDay: Equatable {
     /// now. Same window that ends a map pin's pulse and flips isComplete.
     static func isPast(_ stub: HorizonStub, now: Date) -> Bool {
         (stub.end ?? stub.start.addingTimeInterval(2 * 3600)) < now
+    }
+
+    // MARK: The scrub's bottom line + on-an-event bubble
+
+    /// What the card's bottom line shows for a scrub position (spec):
+    /// the event at/next-after scrubTime when its clock hour holds one,
+    /// "Nothing at this hour" through a gap, "That's the day" past the
+    /// last event, and the resting copy on a day with nothing timed.
+    enum ScrubLine: Equatable {
+        case event(DayItem)
+        case quietHour
+        case dayDone
+        case resting
+    }
+
+    func scrubLine(at time: Date, calendar: Calendar = Town.calendar) -> ScrubLine {
+        guard let last = markedItems.last else { return .resting }
+        if let hour = calendar.dateInterval(of: .hour, for: time) {
+            // Half-open on purpose (DateInterval.contains is closed): a
+            // 3:00 event belongs to the 3 o'clock hour alone.
+            let inHour = markedItems.filter { $0.start >= hour.start && $0.start < hour.end }
+            // Dense hours pick the nearest — the magnet lands the marker
+            // exactly on a start, so "at" wins ties naturally.
+            if let nearest = inHour.min(by: {
+                abs($0.start.timeIntervalSince(time)) < abs($1.start.timeIntervalSince(time))
+            }) {
+                return .event(nearest)
+            }
+        }
+        return time > last.start ? .dayDone : .quietHour
+    }
+
+    /// The item the scrub is ON — deliberately the magnet's own ±8-min
+    /// condition space, so the bubble appears exactly where a release
+    /// would land the marker on the event.
+    func onEventItem(at time: Date) -> DayItem? {
+        markedItems
+            .min { abs($0.start.timeIntervalSince(time)) < abs($1.start.timeIntervalSince(time)) }
+            .flatMap {
+                abs($0.start.timeIntervalSince(time)) <= ScrubModel.magnetWindow ? $0 : nil
+            }
     }
 
     /// Lays a lane out left to right in STRIP coordinates. Where two stubs
