@@ -71,12 +71,18 @@ struct HorizonRailView: View {
                 stubLayer(width: width)
                 // Ticks, labels and the now notch share one sliding
                 // container so the whole below-horizon ruler moves as one
-                // piece with the stubs above it.
+                // piece with the stubs above it — and the same edge fade
+                // the stubs get, so an hour label leaving the card melts
+                // out instead of hard-clipping mid-glyph at the rounded
+                // edge (Phase 1 gate carry-forward).
                 ZStack(alignment: .topLeading) {
                     tickLayer()
                     nowNotch()
                 }
                 .offset(x: stripOffset)
+                .frame(width: width, height: geo.size.height, alignment: .topLeading)
+                .clipped()
+                .mask(railEdgeMask(width: width))
                 eventBubble(width: width)
             }
             .frame(width: width, height: geo.size.height, alignment: .topLeading)
@@ -168,16 +174,21 @@ struct HorizonRailView: View {
         .clipped()
         // Fade 4 — the whole layer dissolves over the outermost 20 pt, so a
         // card-edge item melts into the card instead of clipping.
-        .mask(
-            LinearGradient(
-                stops: [
-                    .init(color: .clear, location: 0),
-                    .init(color: .white, location: M.railEdgeFade / max(width, 1)),
-                    .init(color: .white, location: 1 - M.railEdgeFade / max(width, 1)),
-                    .init(color: .clear, location: 1),
-                ],
-                startPoint: .leading, endPoint: .trailing
-            )
+        .mask(railEdgeMask(width: width))
+    }
+
+    /// The card-edge dissolve every sliding strip layer wears — stubs and
+    /// the tick/label ruler must melt out at the same 20 pt, or one would
+    /// clip where the other fades.
+    private func railEdgeMask(width: CGFloat) -> LinearGradient {
+        LinearGradient(
+            stops: [
+                .init(color: .clear, location: 0),
+                .init(color: .white, location: M.railEdgeFade / max(width, 1)),
+                .init(color: .white, location: 1 - M.railEdgeFade / max(width, 1)),
+                .init(color: .clear, location: 1),
+            ],
+            startPoint: .leading, endPoint: .trailing
         )
     }
 

@@ -142,6 +142,11 @@ struct HorizonCard: View {
     }
 
     var body: some View {
+        #if DEBUG
+        // Positive control for `-feed-render-log`: THIS view re-evaluates
+        // per scrub frame; the feed layers above it must not.
+        let _ = FeedRenderLog.enabled ? Self._printChanges() : ()
+        #endif
         let day = HorizonDay(items: items, now: now)
         let counts = (yours: day.yoursCount, open: day.openCount)
 
@@ -392,7 +397,12 @@ struct HorizonCard: View {
                 let discY = HorizonMetrics.skyHeight
                     - CGFloat(elevation)
                     * (HorizonMetrics.skyHeight - HorizonMetrics.discTopMargin)
-                let restingY = discY - HorizonMetrics.pillGapAboveDisc
+                // Clamped fully on-card: the scrim's cutout is the card
+                // frame, so a pill above the card top would be blurred +
+                // dimmed with the rest of the world (the midday finding).
+                let restingY = max(
+                    discY - HorizonMetrics.pillGapAboveDisc,
+                    HorizonMetrics.pillMinCenterY)
                 let yieldY = HorizonMetrics.bubbleBodyTop(
                     overYoursStub: bubbleItem?.source == .committed)
                     - HorizonMetrics.pillBubbleGap
@@ -660,7 +670,7 @@ extension HorizonCard {
     /// (the HorizonDebugTapDriver pattern), so this is how pickup, 1:1
     /// drag, the rubber band, the magnet, the bubble and the exit rewind
     /// get onto a recording. `-horizon-scrub-demo-script tour|sunset|
-    /// fullday|events|empty` picks the beat sheet (default: tour). It
+    /// fullday|events|empty|stress` picks the beat sheet (default: tour). It
     /// cannot prove real gesture arbitration against the feed's pan —
     /// that stays a device check.
     fileprivate func runScrubDemoIfRequested() async {
@@ -680,6 +690,9 @@ extension HorizonCard {
         }
         guard scrub == nil, cardWidth > 0, !Task.isCancelled else { return }
 
+        // Markers so a `-frame-gap-log` capture can split launch-churn
+        // drops from scrub-session drops on the shared console timeline.
+        print("ScrubDemo: begin \(script)")
         beginScrub()
         // Synthetic finger-lift so the beats below claim as resume drags.
         scrub?.dragOwner = nil
@@ -694,12 +707,15 @@ extension HorizonCard {
             await runEventsScript()
         case "empty":
             await runEmptyScript()
+        case "stress":
+            await runStressScript()
         default:
             await runTourScript()
         }
 
         // …and out: the tap off the card — the rewind through the skies.
         try? await Task.sleep(for: .seconds(0.8))
+        print("ScrubDemo: end \(script)")
         exitScrub()
     }
 
@@ -776,6 +792,20 @@ extension HorizonCard {
             dragEnded()
             try? await Task.sleep(for: .seconds(1.2))
         }
+    }
+
+    /// The perf gate's beat sheet: 11+ s of CONTINUOUS edge-to-edge
+    /// sweeps — the most aggressive drive the strip can see — for the
+    /// Instruments Animation Hitches run (plan: zero hitches over a
+    /// 10-second aggressive scrub).
+    fileprivate func runStressScript() async {
+        await demoDrag(toTime: scrubModel.dayStart, over: 1.0)
+        for _ in 0..<3 {
+            await demoDrag(toTime: scrubModel.dayEnd, over: 1.7)
+            await demoDrag(toTime: scrubModel.dayStart, over: 1.7)
+        }
+        dragEnded()
+        try? await Task.sleep(for: .seconds(0.4))
     }
 
     /// Empty day: the sky, pill and haptics all scrub; the bottom line

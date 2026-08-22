@@ -38,6 +38,12 @@ struct HorizonBackdrop: View {
             ZStack(alignment: .topLeading) {
                 VStack(spacing: 0) {
                     skyRegion(width: width)
+                        // Perf gate: flatten the whole sky stack (base
+                        // gradient · bloom ellipse · vignette · disc glow
+                        // blur) into one Metal-composited layer, so a
+                        // per-frame scrub redraws one texture instead of
+                        // re-compositing four gradient layers.
+                        .drawingGroup()
                         .frame(height: HorizonMetrics.skyHeight)
                         .clipped()
                     groundRegion

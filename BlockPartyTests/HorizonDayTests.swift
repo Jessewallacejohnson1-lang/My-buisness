@@ -314,6 +314,23 @@ final class HorizonDayTests: XCTestCase {
             day.markedItems.map(\.start).sorted())
     }
 
+    // MARK: Fixture titles — gate recordings leave the review loop
+
+    func testFixtureTitlesReadAsRealStJoeEvents() {
+        // A literal "o11" on camera reads as a bug (Phase 2 gate
+        // carry-forward): every §7 fixture item must carry a humanized
+        // title, never its id, and the DayItem and its embedded event
+        // must agree — the bubble reads one, the day sheet the other.
+        let day = Town.calendar.startOfDay(for: townDate(2026, 8, 11, 13, 0))
+        for state in HorizonDayState.allCases {
+            for item in HorizonMock.items(for: state, day: day) {
+                XCTAssertNotEqual(item.title, item.id, "\(state) leaks an id as a title")
+                XCTAssertGreaterThan(item.title.count, 3, "\(state): '\(item.title)'")
+                XCTAssertEqual(item.title, item.event.title)
+            }
+        }
+    }
+
     func testStubWidthFollowsDuration() {
         let now = townDate(2026, 8, 11, 13, 0)
         let axis = dayAxis(at: now)

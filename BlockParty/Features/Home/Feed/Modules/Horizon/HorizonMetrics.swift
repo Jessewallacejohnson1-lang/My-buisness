@@ -120,10 +120,24 @@ nonisolated enum HorizonMetrics {
     static let scrimOpacity: Double = 0.25
     static let scrimFadeSeconds: Double = 0.22
     /// The floating time pill sits this far above the sun disc — in the
-    /// UNCLIPPED lifted layer, because near midday it overflows the card.
+    /// UNCLIPPED lifted layer (its removal transition needs it), but its
+    /// position is clamped fully ON-card (`pillMinCenterY`).
     static let pillGapAboveDisc: CGFloat = 34
+    /// The pill never rises above this center-y: near midday the disc
+    /// tops out ~14 pt from the card's top edge and the unclamped pill
+    /// used to overflow the frame — where the scrim (now blurred + dimmed)
+    /// dimmed it. The pill must live inside the cutout that keeps the
+    /// card sharp, so at high sun it holds here and passes in front of
+    /// the disc; the pillar below and the lens glow around it keep the
+    /// marker column readable (Phase 3 carry-forward design fix).
+    static var pillMinCenterY: CGFloat { pillTopInset + pillEstimatedHeight / 2 }
+    static let pillTopInset: CGFloat = 6
     static let pillTextSize: CGFloat = 13
-    /// Provisional Phase 1 pill chrome (white text on this black).
+    /// The pill chrome, finalized (Phase 3): the iOS scrubber-readout
+    /// treatment — white monospaced digits on a soft black capsule. A
+    /// material was rejected because no vibrant text survives BOTH the
+    /// near-black night sky and the noon-bright one; plain black at this
+    /// opacity does.
     static let pillBackgroundOpacity: Double = 0.55
     /// The pill's rendered height at its fixed 13 pt type (15.5 pt line
     /// + 2×5 padding) — the bubble-avoidance math reads this.

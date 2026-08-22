@@ -185,6 +185,36 @@ nonisolated struct HorizonMock {
         .outdoors, .musicArts, .food, .families, .faith, .games, .sports, .books, .service,
     ]
 
+    /// Plausible St. Joe titles per fixture id — gate recordings get
+    /// shared outside the review loop, and a literal "o11" on camera
+    /// reads as a bug (Phase 2 gate carry-forward). The IDS stay the
+    /// stable keys: the deterministic category spread, the demo scripts
+    /// and the day-sheet fixtures all hash or reference the id, never the
+    /// title. Titles are picked to fit each id's derived category and to
+    /// stay time-of-day neutral, because the same id mounts at different
+    /// hours across the §7 states.
+    private static let titles: [String: String] = [
+        "y1": "Food shelf shift",
+        "y2": "Wobegon Trail walk",
+        "y3": "Community choir",
+        "y4": "Food truck rally",
+        "y5": "Family bingo night",
+        "o1": "Book club at the Blend",
+        "o2": "Highway cleanup",
+        "o3": "Bird walk",
+        "o4": "Watercolor workshop",
+        "o5": "Farmers market",
+        "o6": "Library story time",
+        "o7": "Choir rehearsal",
+        "o8": "Cribbage at the Legion",
+        "o9": "Youth soccer practice",
+        "o10": "Live music at Bad Habit",
+        "o11": "Pie social",
+        "tonight": "Stargazing meetup",
+        "tomorrow-1": "Sunrise fun run",
+        "tomorrow-2": "Open mic sign-up",
+    ]
+
     private static func fixture(
         _ id: String, at start: Date, source: DayItemSource, allDay: Bool = false
     ) -> DayItem {
@@ -193,9 +223,10 @@ nonisolated struct HorizonMock {
         // must be reproducible run to run).
         let stableHash = id.unicodeScalars.reduce(0) { $0 &+ Int($1.value) }
         let category = categories[stableHash % categories.count]
+        let title = titles[id] ?? id
         return DayItem(
             id: id,
-            title: id,
+            title: title,
             source: source,
             start: start,
             end: nil,
@@ -207,7 +238,7 @@ nonisolated struct HorizonMock {
             goingCount: 0,
             event: UpcomingEvent(
                 id: id,
-                title: id,
+                title: title,
                 eventDate: Town.day(start),
                 startTime: nil,
                 location: nil,
