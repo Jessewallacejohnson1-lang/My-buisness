@@ -2,7 +2,7 @@
 
 Phase 0 research for the Today-tab social feed. Source: **Mobbin MCP** (real iOS
 screens, cited per row). One recommendation per pattern, concrete values, filtered
-through `block-party-brand` (monochrome ink-on-paper, no accent yet, no raw hex).
+through `DESIGN.md` (monochrome ink-on-paper, no accent yet, no raw hex).
 
 **Read this with the spec open.** Where the spec and the references agree, I just
 confirm the spec value. Where they diverge, the recommendation says so, and the

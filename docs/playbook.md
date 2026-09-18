@@ -1,7 +1,7 @@
 # "Steal This": A Prioritized Playbook for Block Party
 
-Read this before design or launch-strategy work. The `block-party-brand` skill
-governs *how* things look; this file governs *what to build and in what order*,
+Read this before design or launch-strategy work. `DESIGN.md` governs *how*
+things look; this file governs *what to build and in what order*,
 and *why* — the competitive precedents behind the decisions.
 
 ---
