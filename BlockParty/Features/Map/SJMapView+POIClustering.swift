@@ -1,6 +1,6 @@
 //
 //  SJMapView+POIClustering.swift
-//  Hygge — the client-side POI clustering that SJMapView drives: the recompute trigger,
+//  Block Party — the client-side POI clustering that SJMapView drives: the recompute trigger,
 //  the recompute itself, the bubble appear/dissolve lifecycle, and the DEBUG autozoom
 //  demo. Split out of SJMapView.swift to keep that file cohesive; the @State it reads
 //  (markerAssignments / renderedClusters / lastClusterZoom / viewport …) lives on the main

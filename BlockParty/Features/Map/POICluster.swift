@@ -1,6 +1,6 @@
 //
 //  POICluster.swift
-//  Hygge — the client-side, deterministic clusterer that replaces Mapbox's built-in
+//  Block Party — the client-side, deterministic clusterer that replaces Mapbox's built-in
 //  GeoJSON clustering for the town's POIs and curated civic landmarks.
 //
 //  Why client-side: Mapbox's GeoJSON clustering SNAPS pins between the clustered and

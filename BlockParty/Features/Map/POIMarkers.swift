@@ -1,6 +1,6 @@
 //
 //  POIMarkers.swift
-//  Hygge — the SwiftUI view-annotation markers that replace the retired POILayer's
+//  Block Party — the SwiftUI view-annotation markers that replace the retired POILayer's
 //  Mapbox style layers. Two leaf views, each owning its OWN animation state so a camera
 //  callback writing sibling @State on the map container can never cancel an in-flight
 //  spring (the same isolation PulseRing uses in SJMapView):
