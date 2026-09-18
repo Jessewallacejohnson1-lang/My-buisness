@@ -48,9 +48,9 @@ happenings are `ink` and empty days `inkSecondary`; `InlineAction` success is fi
 and error is outlined; live map pins carry a static ring.
 
 **Allowed raw hexes** — only two files: `BlockPartyColor.swift` itself, and
-`Features/Map/BasemapPalette.swift`, whose grayscale cartography ramp (land `#FAFAF7`,
-parks `#EFEFEC`, water `#E4E4E0`, building `#F1F1EF`, roads `#FFFFFF`) must stay
-separable by value now that hue is gone.
+`Features/Map/BasemapPalette.swift`, whose cartography ramp is **deliberately
+colourful** (see Map below). The basemap is the one place in the app where hue
+survives the monochrome system, because the map is content rather than chrome.
 
 ## Typography
 
@@ -90,6 +90,87 @@ From `BlockPartyMetrics.swift`.
 ## Iconography
 
 SF Symbols, small and quiet (`.font(.system(size: 12–13, weight: .medium))`), always `Hue.ink` or `Hue.inkSecondary` — **meaning is carried by the glyph, not by a tint.** Category, POI family, and pin type all read by glyph now. Square-framed marks are preferred where there's a choice, and the block mark (`building.2.fill`) is the brand glyph; it replaces decorative lifestyle iconography. Photo-less states use a `fill` placeholder with a square-frame mark — never an emoji, never a coloured illustration.
+
+## Logo & app icon
+
+The icon is **the wave figure** (Aug 25, 2026 revision): a painted black figure,
+arms raised, inside three concentric yellow broadcast arcs on warm paper. It ships
+1:1 from `docs/brand/source-logo-1024.png` — the painted render exactly, brushstroke
+texture and all, never redrawn, flattened or reinterpreted as a vector. The earlier
+coral "bp" tile render is retired, and with it the tile-crop pipeline in
+`scripts/brand/tile.swift` / `exact.swift`, which does not apply to full-bleed art.
+
+The icon is brand **content**, like photography and the basemap — not UI chrome. The
+in-app world stays ink on paper; the icon is the glossy front door.
+
+- Assets in `BlockParty/Assets.xcassets`: `AppIcon` (1024, full-bleed, no alpha),
+  `LaunchMark` (the same art inset 36/1024 on every side — a 72 inset clips the
+  artwork, whose top edge sits 40px from the frame), and `MarkTemplate` (per-pixel
+  alpha, so antialiased edges survive tinted renderings).
+- `LoaderBlockPartyMark.contentFraction` (0.9727) is the one number that moves when
+  the icon is re-exported; the squircle clip is the iOS corner ratio, so the loader
+  mark reads as the icon does on the home screen.
+- **The paper ground stays on the loader mark.** The loader shows the actual icon,
+  background and all. Do not cut the figure out of its paper — decided, not an
+  oversight.
+- The wordmark ("Block Party" in Jost) is the in-app brand face —
+  `BlockPartyLogoBadge`, splash, loading covers.
+
+## Voice
+
+Warm neighbour with block-party energy. Short sentences, plain words, written like
+you're talking to someone you actually know from the street.
+
+- The house phrase is **"on the block"** — "Everything happening on the block.",
+  "Quiet on the block". Time-of-day plus first name is the greeting register.
+- **No cozy-Danish references anywhere** — no "hygge", no candles, no
+  blankets/wool/fireplace imagery. That brand is retired.
+- Don't over-exclaim. Warmth comes from specificity, not punctuation.
+
+Good: "Three things happening today." / "Nobody's signed up yet — be first."
+Bad: "Cozy up with today's events!" / "Your hygge awaits ✨"
+
+## Map
+
+**The basemap is colourful, and that is deliberate** — the one exception to the
+monochrome rule alongside photography. The map is a picture of the town, so its
+natural features keep real colour. Values live in `BasemapPalette.swift`
+(`mapbox/light-v11`, recoloured once on style load via `recolor(_:)`).
+
+- Greens carry the headline: parks `#A9D584`, pitches `#B9DB8F`, woods `#B0D291`,
+  lawns `#C3DFA2`, farmland `#DFEAC5`, cemetery `#CBDCB4`. Water is `#7FBFE8`, with
+  waterway strokes a shade darker (`#6FB6E2`) because thin lines render optically
+  lighter. Campus, commerce and sand take warm tans.
+- **Built form stays neutral and on-token:** land is `Hue.paper`, buildings
+  `Hue.fill`, roads `Hue.surface`. Colour is spent only on features that carry
+  meaning. `light-v11` consolidates every road class into one `road-simple` layer
+  differentiated by width, not colour — there is no road hierarchy to style.
+- **Do not make the basemap grayscale.** It was, briefly, and it failed: land, parks
+  and water sat within ~6% luminance, so the river and the parks became
+  indistinguishable grey shapes on the one screen whose background *is* the content.
+  Reverted deliberately.
+- **Markers stay monochrome** and route through `MonoMarkerPalette`, a role table
+  (POI / cluster / civic / live) encoding importance as a value ladder — POI
+  lightest, civic darkest — plus shape and motion. Never add hue at a marker call
+  site; change the role table.
+- POI rendering is SwiftUI view annotations (`POICluster`, `POIMarkers`,
+  `SJMapView+POIClustering`). The Mapbox symbol-layer `POILayer` is retired.
+- Live is a **static ink ring** plus the pulse. The ring is what survives Reduce
+  Motion and selection, where the pulse is suppressed or invisible.
+- Map controls are `Hue.surface` with hairline borders; active inverts to ink fill.
+
+## Strategy source
+
+`docs/playbook.md` ("Steal This") is the competitive playbook behind these
+decisions — Partiful/Linear/Notion for the visual system, Front Porch
+Forum/Nextdoor for community mechanics, Instagram/Airbnb/Twitter for rebrand
+execution. It explains *why* the system is monochrome, why buttons are squares
+rather than pills, and why empty states are treated as onboarding.
+
+**Where the playbook conflicts with this file, this file wins.** One live conflict:
+the playbook recommends a three-state status palette (green/amber/red for
+Going/Interested/Can't), which the Bans below rule out. That is an open decision
+for Jesse, not a licence to ship coloured status chips.
 
 ## Bans (this project)
 
