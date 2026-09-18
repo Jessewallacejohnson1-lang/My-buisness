@@ -115,7 +115,7 @@ struct HorizonCard: View {
     let sunrise: Date?
     let sunset: Date?
     let items: [DayItem]
-    /// The live scrub session, owned by YourDayHorizonSection. Nil at
+    /// The live scrub session, owned by the card's host screen. Nil at
     /// rest. Galleries pass `.constant(nil)`.
     @Binding var scrub: ScrubSession?
     var isLoading = false

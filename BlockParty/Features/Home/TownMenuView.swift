@@ -16,7 +16,7 @@
 import SwiftUI
 
 /// What a menu row does. The host (MainTabsView) closes the drawer then routes.
-enum TownMenuAction { case calendar, activities, map, compose, invite, profile }
+enum TownMenuAction { case map, compose, invite, profile }
 
 struct TownMenuView: View {
     /// Collapse the drawer (wired by the overlay).
@@ -42,8 +42,6 @@ struct TownMenuView: View {
     }
 
     private let rows: [Row] = [
-        Row(icon: "calendar",           title: "Calendar",        action: .calendar),
-        Row(icon: "square.grid.2x2",    title: "Activities",      action: .activities),
         Row(icon: "map",                title: "Town map",        action: .map),
         Row(icon: "plus.circle",        title: "Add an event",    action: .compose),
         Row(icon: "person.badge.plus",  title: "Invite a neighbor", action: .invite),

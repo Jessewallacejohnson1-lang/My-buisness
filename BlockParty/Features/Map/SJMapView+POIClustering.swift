@@ -145,8 +145,9 @@ extension SJMapView {
         // floor covers the first frames before the measurement lands.
         let topHeight = max(118, searchChromeBottom + 8)
         let topBand = CGRect(x: 0, y: 0, width: W, height: topHeight)
-        // The collapsed sheet (peek) plus the tab bar it rests on.
-        let sheetTop = H - (MapSheet.tabBarReserve + MapSheet.peekHeight)
+        // The collapsed sheet (peek) plus whatever bar the host reserves beneath it
+        // (`bottomBarInset` — 0 when the map is presented and owns the bottom edge).
+        let sheetTop = H - (bottomBarInset + MapSheet.peekHeight)
         let bottomBand = CGRect(x: 0, y: sheetTop, width: W, height: max(0, H - sheetTop))
         // The locate circle, the one control floating above the sheet (round 2: the
         // "+" is retired and the "?" moved into the measured top band). The edge

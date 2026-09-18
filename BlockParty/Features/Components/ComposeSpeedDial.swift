@@ -46,10 +46,7 @@ struct SpeedDialItem: Identifiable {
     /// only postable things) + Invite. Every surface now drops the dial DOWN from a
     /// top-right "+", so both are ordered primary-first — "Event" sits directly
     /// under the disc and leads the nearest-item-first cascade.
-    static func calendar() -> [SpeedDialItem] { droppingFromTop() }
-    static func explore()  -> [SpeedDialItem] { droppingFromTop() }
-
-    private static func droppingFromTop() -> [SpeedDialItem] {
+    static func droppingFromTop() -> [SpeedDialItem] {
         [ SpeedDialItem(title: "Event",             symbol: "calendar",          primary: true,  action: .compose(.event)),
           SpeedDialItem(title: "Club",              symbol: "person.2",          primary: false, action: .compose(.club)),
           SpeedDialItem(title: "Trail",             symbol: "figure.walk",       primary: false, action: .compose(.trail)),

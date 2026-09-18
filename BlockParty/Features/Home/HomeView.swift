@@ -14,10 +14,13 @@ struct HomeView: View {
     var onMenu: (() -> Void)?
     var menuOpen = false
     var profileShown = false
-    /// A feed route that leaves the Today tab — passed straight through to the shell,
-    /// which owns tab selection. Nil in the DEBUG briefing preview, which mounts this
-    /// screen with no tab shell above it.
-    var onOpenActivities: ((ActivitiesRequest) -> Void)?
+    /// The Today top bar's map button — passed straight through to the shell, which
+    /// owns the map presentation. A no-op in the DEBUG briefing preview, which mounts
+    /// this screen with no shell above it.
+    ///
+    /// Declared HERE, where `onOpenActivities` used to sit: `RootView` calls the
+    /// memberwise init positionally, and Swift requires declaration order.
+    var onOpenMap: () -> Void = {}
     @Binding var expandedPlace: Place?
     var cardNS: Namespace.ID
 
@@ -26,10 +29,8 @@ struct HomeView: View {
     var body: some View {
         FeedView(
             auth: auth,
-            onMenu: onMenu,
-            menuOpen: menuOpen,
-            profileShown: profileShown,
-            onOpenActivities: onOpenActivities
+            onOpenMap: onOpenMap,
+            profileShown: profileShown
         )
     }
 }

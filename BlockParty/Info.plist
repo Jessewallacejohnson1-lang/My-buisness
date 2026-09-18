@@ -20,8 +20,6 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
-	<string>Block Party adds St. Joseph events to your Apple Calendar when you tap Add.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Block Party uses your location to show what's happening close by in St. Joseph.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>

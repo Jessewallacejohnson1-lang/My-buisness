@@ -141,6 +141,14 @@ nonisolated enum Hue {
     /// while live). See DECISIONS.md (map polish Q3).
     static let statusTint    = Color(hex: 0xFDECE8)
 
+    /// The Today bar's map disc — a pale, transparent wash of the app icon's
+    /// broadcast-arc yellow (#F2B800, sampled from the painted 1024 master) at 46% — pale
+    /// enough to stay a wash, saturated enough for the disc's white specular to read as
+    /// GLOSS rather than as a smudge on cream. Jesse's
+    /// call (2026-09-18) for the one control left in that bar. It is a scoped surface
+    /// tint, NOT the pending UI accent decision, and nothing else routes through it.
+    static let mapWash       = Color(hex: 0xF2B800, alpha: 0.46)
+
     /// The one brand accent — meaning-scoped ONLY (live events, active filters,
     /// selected/saved state, primary CTAs), never decoration, body copy, or a
     /// background wash. Plum/berry: distinct from the retired coral ramp AND from the

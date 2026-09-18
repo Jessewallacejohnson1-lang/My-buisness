@@ -5,8 +5,11 @@
 //  SwiftUI's `Animation` is opaque: a spring's response and damping have no
 //  runtime accessors, so "the poll pops on Motion.select" is NOT testable and is
 //  verified by screen recording instead (same limitation UtilityRowMotionTests
-//  documents). What IS testable: that the motion tokens the spec names exist, the
-//  numeric timings, and the once-per-day rule behind the caught-up celebration.
+//  documents). What IS testable: that the motion tokens the spec names exist and
+//  the numeric timings.
+//
+//  The caught-up celebration and the poll-fill timing left with the Today
+//  strip-down (`CaughtUpFooter`, `DailyTouchCard`); their tests went with them.
 //
 
 import XCTest
@@ -14,58 +17,7 @@ import XCTest
 
 final class BriefingFeelTests: XCTestCase {
 
-    private var suite: UserDefaults!
-    private let suiteName = "briefing.feel.tests"
-
-    override func setUp() {
-        super.setUp()
-        UserDefaults.standard.removePersistentDomain(forName: suiteName)
-        suite = UserDefaults(suiteName: suiteName)
-    }
-
-    override func tearDown() {
-        UserDefaults.standard.removePersistentDomain(forName: suiteName)
-        suite = nil
-        super.tearDown()
-    }
-
-    // MARK: - Once per day, not once per launch
-
-    func testFirstArrivalOnADayCelebrates() {
-        XCTAssertTrue(CaughtUpMemory.shouldCelebrate("2026-08-05", store: suite))
-    }
-
-    func testSecondArrivalOnTheSameDayDoesNot() {
-        CaughtUpMemory.remember("2026-08-05", store: suite)
-        XCTAssertFalse(CaughtUpMemory.shouldCelebrate("2026-08-05", store: suite),
-                       "reaching the bottom again the same day must stay quiet")
-    }
-
-    func testANewBriefingDayCelebratesAgain() {
-        CaughtUpMemory.remember("2026-08-05", store: suite)
-        XCTAssertTrue(CaughtUpMemory.shouldCelebrate("2026-08-06", store: suite),
-                      "a new briefing earns a new draw-on")
-    }
-
-    /// The footer renders before a payload exists, so an empty date must not burn
-    /// the day's celebration.
-    func testAnEmptyDateNeverCelebratesAndNeverStamps() {
-        XCTAssertFalse(CaughtUpMemory.shouldCelebrate("", store: suite))
-        CaughtUpMemory.remember("", store: suite)
-        XCTAssertNil(suite.string(forKey: CaughtUpMemory.key))
-    }
-
-    /// The key stays separate from the current `bp.*` namespace. Pre-rebrand
-    /// `hygge.*` values are unreachable under the new bundle id, so none are migrated.
-    func testTheMemoryKeyIsNamespacedToBriefing() {
-        XCTAssertTrue(CaughtUpMemory.key.hasPrefix("briefing."))
-    }
-
     // MARK: - Timings the spec names
-
-    func testPollFillDurationMatchesTheSpec() {
-        XCTAssertEqual(DailyTouchCard.fillDuration, 0.30, accuracy: 0.0001)
-    }
 
     /// Token identity, not token values — see the file comment.
     @MainActor
@@ -86,13 +38,17 @@ final class BriefingFeelTests: XCTestCase {
 
     // MARK: - Module order
 
+    /// The Today surface was stripped back to chrome: the registry ships EMPTY and
+    /// the feed renders nothing. This is the guard that an accidental re-add gets
+    /// noticed — and the line to update, deliberately, when modules come back.
     @MainActor
-    func testModuleOrderIsTheBriefingRunningOrder() {
-        let moduleIDs = FeedRegistry().modules.map { $0.id }
-        XCTAssertEqual(moduleIDs,
-                       [.almanac, .yourDay, .townNotes, .forYou, .spotlight, .trivia, .signOff])
+    func testTheRegistryShipsWithNoModules() {
+        XCTAssertTrue(FeedRegistry().modules.isEmpty,
+                      "Today renders nothing until a module is registered again")
     }
 
+    /// The registry still answers a lookup rather than trapping — the property that
+    /// let an id from a newer build decode and be skipped.
     @MainActor
     func testAnUnknownModuleIdDecodesRatherThanFailing() {
         let id: FeedModuleID = "someV2Module"

@@ -160,54 +160,21 @@ final class FeedRouteAndCopyTests: XCTestCase {
         XCTAssertNotEqual(walk, .civicTab)
     }
 
-    // MARK: The Your Day escape hatches — a real screen, not a placeholder
-
-    /// The zero-state card and the add tile both leave the feed, and the shell — not
-    /// the feed — fulfils that route. A nil `destination` is how `FeedView` knows to
-    /// hand it up instead of presenting a sheet, so it is the contract, not a detail.
-    func testActivitiesRouteIsHandedToTheShellRatherThanPresentedAsASheet() {
-        let route = FeedRoute.activities(.happeningToday)
-
-        XCTAssertEqual(route.activitiesRequest, .happeningToday)
-        XCTAssertNil(route.destination, "Tab selection belongs to MainTabsView")
-
-        for sheetRoute in [FeedRoute.civicTab, .editInterests, .event(sampleEvent(id: "walk"))] {
-            XCTAssertNil(sheetRoute.activitiesRequest, "\(sheetRoute) presents itself")
-            XCTAssertNotNil(sheetRoute.destination, "\(sheetRoute) needs a destination")
+    /// Every surviving route presents its own sheet — there is no longer a route the
+    /// shell fulfils, so a nil `destination` would be a bug rather than a contract.
+    func testEverySurvivingRoutePresentsItsOwnSheet() {
+        for route in [FeedRoute.civicTab, .editInterests, .event(sampleEvent(id: "walk"))] {
+            XCTAssertNotNil(route.destination, "\(route) needs a destination")
         }
     }
 
-    /// "See what's happening in St. Joe" is today's EVENTS. `.all` renders the
-    /// undated discovery layout, which would silently drop the timeframe.
-    func testTheZeroStateAsksForTodaysEvents() {
-        XCTAssertEqual(ActivitiesRequest.happeningToday.filter, .events)
-        XCTAssertEqual(ActivitiesRequest.happeningToday.timeFrame, .today)
-        XCTAssertEqual(ActivitiesRequest.resting.filter, .all)
-        XCTAssertEqual(ActivitiesRequest.resting.timeFrame, .upcoming)
-    }
-
-    /// An explicit request wins, and nothing at all rests on the discovery layout —
-    /// so a plain tab tap is unchanged by any of this.
-    func testActivitiesOpensOnTheRequestItWasGivenAndRestsWithoutOne() {
-        XCTAssertEqual(ActivitiesRequest.opening(.happeningToday), .happeningToday)
-        XCTAssertEqual(ActivitiesRequest.opening(nil), .resting)
-    }
-
-    /// The rail's two taps must NOT converge. A card asks the day-sheet host to open
-    /// on its own row; the plus tile leaves the tab for today's postings and never
-    /// touches the host. `.callToAction` — what the plus used to ask for — survives
-    /// only for the sheet's own `-day-sheet-state cta` fixture.
+    /// A card asks the day-sheet host to open on its own row. `.callToAction` — what
+    /// the retired plus tile used to ask for — survives only for the sheet's own
+    /// `-day-sheet-state cta` fixture.
     func testACardAsksTheDaySheetForItsRowWhileTheAnchorTheAddTileUsedToAskForIsFixtureOnly() {
         let cardAnchor = DayScheduleAnchor.item("fixture-walk")
         XCTAssertEqual(cardAnchor.itemID, "fixture-walk")
         XCTAssertNotEqual(cardAnchor, .callToAction)
-
-        // The plus tile's destination is a feed route, not a day-sheet anchor — the
-        // two are not even the same kind of thing any more.
-        XCTAssertEqual(
-            FeedRoute.activities(.happeningToday).activitiesRequest,
-            .happeningToday
-        )
 
         // Still reachable, so removing the case would break a documented flag.
         XCTAssertEqual(
@@ -221,28 +188,6 @@ final class FeedRouteAndCopyTests: XCTestCase {
     func testBothBrowseAffordancesAnnounceTheSameDestination() {
         XCTAssertEqual(YourDayRailCopy.browseTodayHint, "Opens today in Activities")
     }
-
-    #if DEBUG
-    /// The launch arguments and a real navigation resolve through the SAME entry
-    /// point, which is what makes a headless screenshot evidence for the route.
-    func testTheDebugFlagsResolveToTheSameRequestARealNavigationDoes() {
-        XCTAssertEqual(
-            ActivitiesRequest.debugRequested(["-explore-filter", "events", "-explore-timeframe", "today"]),
-            .happeningToday
-        )
-        // Either flag alone still works, the other half resting.
-        XCTAssertEqual(
-            ActivitiesRequest.debugRequested(["-explore-filter", "parks"]),
-            ActivitiesRequest(filter: .parks, timeFrame: .upcoming)
-        )
-        XCTAssertEqual(
-            ActivitiesRequest.debugRequested(["-explore-timeframe", "week"]),
-            ActivitiesRequest(filter: .all, timeFrame: .week)
-        )
-        XCTAssertNil(ActivitiesRequest.debugRequested(["-open-tab", "activities"]))
-        XCTAssertNil(ActivitiesRequest.debugRequested(["-explore-filter", "nonsense"]))
-    }
-    #endif
 
     // MARK: Error copy
 
@@ -266,55 +211,6 @@ final class FeedRouteAndCopyTests: XCTestCase {
         XCTAssertEqual(FeedStateCopy.retryMessage, "Check your connection and try again.")
     }
 
-    // MARK: The almanac's readings line (the weather moved off the greeting)
-
-    func testReadingsLineCarriesTheWeatherAlongsideTheSunTimes() throws {
-        let line = try XCTUnwrap(
-            Almanac.readingsLine(for: weather(sunrise: sunTime(hour: 6), sunset: sunTime(hour: 20)))
-        )
-
-        XCTAssertTrue(line.hasPrefix("Clear, 70°"), line)
-        XCTAssertTrue(line.contains("· sunrise "), line)
-        XCTAssertTrue(line.contains("· sunset "), line)
-    }
-
-    func testReadingsLinePrintsOnlyTheFieldsThatArrived() throws {
-        let partial = try XCTUnwrap(
-            Almanac.readingsLine(for: weather(sunrise: sunTime(hour: 6), sunset: nil))
-        )
-
-        XCTAssertTrue(partial.contains("sunrise"))
-        XCTAssertFalse(partial.contains("sunset"))
-        XCTAssertNil(
-            Almanac.readingsLine(for: nil),
-            "No reading at all is the error state's job, not a line saying 'unavailable'"
-        )
-    }
-
-    func testMastheadBlockSkipsAnAbsentReadingWithoutLeavingABlankLine() {
-        let withoutReadings = String(
-            Almanac.mastheadBlock(
-                readingsLine: nil,
-                civicLine: nil,
-                suggestion: "Take the long way home."
-            ).characters
-        )
-
-        XCTAssertEqual(withoutReadings, "Take the long way home.")
-
-        let full = String(
-            Almanac.mastheadBlock(
-                readingsLine: "Clear, 70°",
-                civicLine: "Recycling week — bins out Wednesday night",
-                suggestion: "Take the long way home."
-            ).characters
-        )
-        XCTAssertEqual(
-            full,
-            "Clear, 70°\nRecycling week — bins out Wednesday night\nTake the long way home."
-        )
-    }
-
     private func sampleEvent(id: String) -> UpcomingEvent {
         UpcomingEvent(
             id: id,
@@ -327,59 +223,6 @@ final class FeedRouteAndCopyTests: XCTestCase {
         )
     }
 
-    private func sunTime(hour: Int) -> Date {
-        var components = DateComponents()
-        components.year = 2033
-        components.month = 5
-        components.day = 18
-        components.hour = hour
-        components.minute = 11
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = WeatherService.townTZ
-        return calendar.date(from: components) ?? Date(timeIntervalSince1970: 0)
-    }
-
-    private func weather(sunrise: Date?, sunset: Date?) -> Weather {
-        Weather(
-            tempF: 70,
-            feelsLikeF: 70,
-            highF: 78,
-            lowF: 60,
-            label: "Clear",
-            state: .clearDay,
-            windGustMph: nil,
-            precipProbNext2h: nil,
-            precipPeakTime: nil,
-            aqi: nil,
-            sunrise: sunrise,
-            sunset: sunset
-        )
-    }
-}
-
-@MainActor
-final class TownNotesFailureStateTests: XCTestCase {
-    private struct LoaderFailure: Error {}
-
-    func testAFailedStoriesReadEntersTheSharedErrorState() async {
-        let module = TownNotesModule(
-            storiesLoader: { _, _ in throw LoaderFailure() },
-            sweepLoader: { _, _ in nil }
-        )
-
-        await module.load(
-            FeedModuleContext(
-                auth: AuthStore(),
-                briefing: BriefingModel(),
-                displayName: "Jesse",
-                navigate: { _ in }
-            )
-        )
-
-        XCTAssertEqual(module.phase, .failed)
-        XCTAssertTrue(module.stories.isEmpty)
-        XCTAssertNil(module.sweepLine)
-    }
 }
 
 // MARK: - The day schedule sheet

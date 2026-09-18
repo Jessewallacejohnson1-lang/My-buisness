@@ -102,22 +102,30 @@ struct MapSheet: View {
     let onSelectSpot: (Spot) -> Void           // fly camera + select
     let onRetry: () -> Void
 
-    /// Clearance under the sheet: the tab bar's 66pt zone plus an 8pt seat gap.
-    /// The sheet rests just ABOVE the bar as its own rounded panel — it does NOT
-    /// merge with it. (Round 2, ask 6: the old flush merge fused sheet + bar into
-    /// one tall panel on the Map tab only, so the bar read as a different element
-    /// than on the other three tabs. The bar now sits outside the shell's
-    /// `GlassEffectContainer` entirely — see `MainTabsView`.)
+    /// Clearance under the sheet, reserved for a bar the HOST draws beneath the map.
+    /// 0 — the default, and what the presented map passes — seats the sheet on the
+    /// map's own bottom edge. `SJMapView.bottomBarInset` is where this comes from.
+    var bottomBarInset: CGFloat = 0
+
+    /// The clearance a TAB BAR needs: its 66pt zone plus an 8pt seat gap. Not the
+    /// default any more — the map is presented full-screen rather than tabbed, so
+    /// nothing is under it — but kept as the documented value a host that puts the
+    /// map back over a bottom bar passes as `bottomBarInset`. (Round 2, ask 6: the
+    /// sheet rests just ABOVE such a bar as its own rounded panel, it does NOT merge
+    /// with it — the old flush merge fused sheet + bar into one tall panel on the Map
+    /// tab only, so the bar read as a different element than on the other tabs.)
     static let tabBarReserve: CGFloat = 74
-    /// Collapsed height — grabber + the single live-now line, resting just above
-    /// the tab bar. The map's floating compass/recenter controls (bottom-right;
-    /// the "?" lives top-left) rest just above this and fade out as the sheet grows.
-    static let peekHeight: CGFloat = 96
-    /// Breathing room under the last row, above the sheet's bottom edge (the tab bar
-    /// sits below the sheet now, so content no longer needs to clear a 56pt gap).
+    /// Collapsed height — grabber + the single live-now line, resting on the map's
+    /// bottom edge (plus `bottomBarInset`, if the host reserves one). The map's
+    /// floating compass/recenter controls (bottom-right; the "?" and the close "X"
+    /// live top-left) rest just above this and fade out as the sheet grows.
+    nonisolated static let peekHeight: CGFloat = 96
+    /// Breathing room under the last row, above the sheet's bottom edge (nothing is
+    /// merged into the sheet any more, so content no longer needs to clear a 56pt gap).
     static let contentBottomInset: CGFloat = 18
-    /// Corner radius — matches `BlockPartyTabBar`'s shell (26) so the two separate
-    /// glass panels read as one family.
+    /// Corner radius for this panel's glass. The tab bar went full CAPSULE on
+    /// 2026-09-18, which a sheet this tall cannot copy without reading as a lozenge,
+    /// so the family resemblance is now the material and the rim, not the radius.
     static let glassRadius: CGFloat = 26
     /// Peak opacity of the content frost veil at full expansion. Near-opaque so the
     /// dark map cluster bubbles can't bleed through the body as smudges; not 1.0 so a
@@ -259,7 +267,7 @@ struct MapSheet: View {
             .simultaneousGesture(sheetDragGesture)
             .frame(maxHeight: .infinity, alignment: .bottom)
             .padding(.horizontal, 20)                 // match the tab bar's side insets
-            .padding(.bottom, Self.tabBarReserve)      // rest 8pt above the tab bar (the reserve includes the seat gap)
+            .padding(.bottom, bottomBarInset)          // 0 presented; a host's bar reserve already includes its seat gap
             // Publish how far the sheet has grown past peek (0 = collapsed) so the map's
             // floating compass/recenter controls can fade out before the sheet reaches them.
             .preference(key: SheetExpansionKey.self,
@@ -270,7 +278,7 @@ struct MapSheet: View {
             // rain uses it as its floor, so a mark lands on the sheet wherever the user
             // has dragged it to.
             .preference(key: SheetTopKey.self,
-                        value: max(0, H - height - Self.tabBarReserve))
+                        value: max(0, H - height - bottomBarInset))
             .onChange(of: H, initial: true) { _, h in containerH = h }
         }
         .animation(reduceMotion ? Motion.smooth : Motion.sheet, value: detent)
@@ -287,10 +295,11 @@ struct MapSheet: View {
     private func metrics(_ H: CGFloat) -> (peek: CGFloat, medium: CGFloat, full: CGFloat) {
         let peek = Self.peekHeight
         let medium = max(peek + 120, H * 0.5)
-        // full is H−176, but `.padding(.bottom, tabBarReserve)` is applied AFTER this
-        // height frame, so the sheet's real top clearance is 176 − tabBarReserve ≈
-        // 102pt — the whole chrome band (8 top pad + 44 pill row + 10 spacing + ~34
-        // chip row ≈ 96pt) plus a seat gap. The old 140 predated the Phase-4 chip
+        // full is H−176, but `.padding(.bottom, bottomBarInset)` is applied AFTER
+        // this height frame, so the sheet's real top clearance is 176 − bottomBarInset:
+        // 176pt presented, ≈102pt over a tab bar. Either way it clears the whole chrome
+        // band (8 top pad + 44 pill row + 10 spacing + ~34 chip row ≈ 96pt) plus a seat
+        // gap; presented it simply clears more. The old 140 predated the Phase-4 chip
         // row: its 66pt clearance parked the sheet's top edge MID-CHIP, so the
         // selected chip's ink peeked out behind the top-left corner radius (round 2
         // Phase D screenshot). The H*0.9 arm only binds on iPad-class heights.

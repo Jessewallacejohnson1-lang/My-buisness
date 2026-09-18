@@ -60,3 +60,27 @@ struct OnboardingTopBar: View {
         }
     }
 }
+
+/// The full-width ink CTA. It was the wizard's shared pill; the interest picker
+/// outlived the wizard (Edit Profile presents it), so the button moved here with
+/// the rest of that screen's chrome when the onboarding flow was deleted on
+/// 2026-09-18.
+struct ContinueButton: View {
+    let title: String
+    var enabled: Bool = true
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.sansSemibold(17))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .background(enabled ? Hue.ink : Hue.ink.opacity(0.4),
+                            in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: enabled)
+    }
+}

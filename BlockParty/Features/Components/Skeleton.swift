@@ -121,10 +121,6 @@ struct SkeletonGalleryPreview: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
-                Text("Activities").font(.displaySemi(16)).foregroundStyle(Hue.inkSecondary)
-                    .padding(.horizontal, 18)
-                ActivitiesSkeleton()
-
                 // The briefing's cold-start placeholders. `TodayLoadingCard` stood
                 // here until the Today tab became a briefing; it mirrored the old
                 // feed's "Today + count + event rows", which no longer exists.

@@ -129,10 +129,13 @@ struct MapFilterChips: View {
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            // The tab shell wraps everything in GlassEffectContainer(spacing: 22),
-            // whose field blend BRIDGES glass shapes sitting 8pt apart — the chips
-            // fused into one blob (caught by screenshot). A nested tight container
-            // re-scopes the blend so each chip keeps its own silhouette.
+            // A tight container of the row's own, so the chips' glass never blends
+            // chip-to-chip. It was added because the tab shell wrapped the map in
+            // GlassEffectContainer(spacing: 22), whose field blend BRIDGES glass
+            // shapes sitting 8pt apart and fused the chips into one blob (caught by
+            // screenshot). The map is presented outside that container now, so there
+            // is nothing left to counteract — but spacing 1 is what pins each chip to
+            // its own silhouette regardless of who hosts the row, so it stays.
             GlassEffectContainer(spacing: 1) {
                 HStack(spacing: 8) {
                     ForEach(MapFilter.allCases, id: \.self) { filter in

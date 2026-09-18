@@ -21,7 +21,7 @@ nonisolated enum ScrubDragOwner: Equatable {
     case pickup, resume
 }
 
-/// One live scrub, owned as `@State` by YourDayHorizonSection. Nil at
+/// One live scrub, owned as `@State` by whatever screen mounts the card. Nil at
 /// rest.
 nonisolated struct ScrubSession: Equatable {
     /// The strip time under the centered marker — THE scalar (spec law).

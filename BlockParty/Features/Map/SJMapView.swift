@@ -2,8 +2,13 @@
 //  SJMapView.swift
 //  Block Party — Mapbox map of Saint Joseph, Minnesota.
 //
-//  Life360-style layout: floating top chrome (help "?" top-left · town pill ·
-//  search top-right, with the filter chip row beneath — MapFilterChips, map
+//  Presented, not tabbed: the map is a full-screen destination opened from Today,
+//  so it carries its own exit (the close "X" leading in the top chrome, wired to
+//  `onClose`) and its own selected-pin state. Nothing sits under it by default —
+//  `bottomBarInset` is the one knob a host uses to reserve room for a bottom bar.
+//
+//  Life360-style layout: floating top chrome (close "X" + help "?" top-left · town
+//  pill · search top-right, with the filter chip row beneath — MapFilterChips, map
 //  polish Phase 4), one static warm basemap (BasemapPalette — no time/season/
 //  weather modulation), a persistent draggable bottom sheet (MapSheet), and
 //  coral reserved for live indicators + primary/tappable elements. Soft paper
@@ -42,8 +47,8 @@ private let MAP_STYLE_URL = "mapbox://styles/mapbox/light-v11"
 
 // MARK: - Shared place selection
 
-/// The map's single selected-place value, owned by `MainTabsView` and carried into
-/// both this map and the global bottom shell. Each case stores the source model itself,
+/// The map's single selected-place value, owned by `SJMapView` itself. Each case
+/// stores the source model itself,
 /// so marker selection, camera framing, labels, directions, and save state cannot drift
 /// across duplicated view models.
 enum MapPlaceDetail: Identifiable, Hashable {
@@ -151,9 +156,26 @@ enum MapPlaceDetail: Identifiable, Hashable {
 // MARK: - Main view
 
 struct SJMapView: View {
-    /// The source of truth lives in MainTabsView so the shell can hide the tab
-    /// bar under the detail sheet and clear the selection on a tab change.
-    @Binding var mapDetail: MapPlaceDetail?
+    /// Leaves the map. The map is a PRESENTED destination now (full-screen cover
+    /// from Today), not a tab, so it has to carry its own exit — the tab bar that
+    /// used to be the only way out is gone. Optional: a host that draws its own
+    /// dismissal chrome passes nil and the close circle is not rendered.
+    var onClose: (() -> Void)?
+
+    /// Height reserved along the map's bottom edge for a bar the HOST draws under
+    /// it. 0 — the default, and the presented case — means the map owns the edge
+    /// all the way down. Pass `MapSheet.tabBarReserve` to seat it above a tab bar
+    /// again. Every piece of bottom geometry reads this one value: the sheet's
+    /// peek rest (`MapSheet`), the Mapbox ⓘ ornament, the floating controls, the
+    /// pin-label collision band (`chromeRects`) and the town rain's resting floor.
+    var bottomBarInset: CGFloat = 0
+
+    /// The selected place. Owned HERE. It used to live in `MainTabsView` purely so
+    /// the tab shell could hide the bar under the detail card and clear it on a tab
+    /// change; presented full-screen there is no shell to tell, so the presenting
+    /// host carries nothing. Seeded from the DEBUG `-map-open <spotid>` flag (nil
+    /// in release, and nil without the flag).
+    @State private var mapDetail: MapPlaceDetail? = MapPlaceDetail.debugInitialDetail()
     /// Real happenings for the selected civic spot, matched from this view's
     /// `MapModel` and fed to the detail sheet. Always empty for POIs or no
     /// selection. Local state now — the tab shell no longer renders detail.
@@ -421,7 +443,8 @@ struct SJMapView: View {
     @State private var compass = CompassHeading()
 
     /// Bottom margin (from the map's bottom edge) for the Mapbox ⓘ attribution
-    /// button — an 8pt sliver above the collapsed glass, as low as it can sit while
+    /// button — an 8pt sliver above the collapsed glass (which itself rests on
+    /// `bottomBarInset`), as low as it can sit while
     /// still resting ABOVE the peek sheet rather than hidden behind it (the
     /// expanding sheet occludes it; it's clearly visible at the collapsed rest,
     /// tucked under the bottom edge fade). The wordmark LOGO is hidden outright —
@@ -430,8 +453,9 @@ struct SJMapView: View {
     /// visible and its `visibility` is an SPI-restricted knob, and Jesse accepted
     /// that risk (recorded in plans/2026-08-14-map-polish-round-2.md). The ⓘ stays:
     /// it is legally required attribution and carries the telemetry opt-out.
-    private static let ornamentBottomMargin: CGFloat =
-        MapSheet.tabBarReserve + MapSheet.peekHeight + 8
+    private var ornamentBottomMargin: CGFloat {
+        bottomBarInset + MapSheet.peekHeight + 8
+    }
 
     /// The hidden-wordmark options (see `ornamentBottomMargin`'s note — Jesse's
     /// 2026-08-14 call). `visibility` is not part of the public initializer, so
@@ -537,7 +561,10 @@ struct SJMapView: View {
             // the sheet's peek edge, so at peek they bounce on its visible top, and a
             // raised sheet simply hides them instead of letting them bounce over its
             // content. Non-interactive, so it never intercepts a map gesture.
-            TownRainField(trigger: rainTrigger, pois: model.pois, floorY: sheetTop)
+            TownRainField(trigger: rainTrigger,
+                          pois: model.pois,
+                          floorY: sheetTop,
+                          restingFloorInset: bottomBarInset + MapSheet.peekHeight)
             if mapDetail == nil {
                 MapSheet(
                     events: model.todayEvents,
@@ -547,6 +574,7 @@ struct SJMapView: View {
                     spotFor: { spot(for: $0) },
                     onSelectSpot: { focus($0) },
                     onRetry: { model.retry() },
+                    bottomBarInset: bottomBarInset,
                     mode: $browseMode,
                     detent: $browseDetent
                 )
@@ -556,8 +584,9 @@ struct SJMapView: View {
                 .transition(.identity)
             }
             // The Flighty-anatomy pin detail sheet (map polish Phase 3). It
-            // supersedes the retired tab-bar glass morph; the tab bar hides
-            // while it is up (MainTabsView), so the card owns the bottom zone.
+            // supersedes the retired tab-bar glass morph; nothing else claims the
+            // bottom zone while it is up (the browse sheet unmounts below, and the
+            // map is presented now — there is no tab bar left to hide).
             if let detail = mapDetail {
                 PinDetailSheet(
                     detail: detail,
@@ -819,7 +848,7 @@ struct SJMapView: View {
                 logo: Self.hiddenLogoOptions,
                 attributionButton: AttributionButtonOptions(
                     position: .bottomTrailing,
-                    margins: CGPoint(x: 14, y: Self.ornamentBottomMargin))
+                    margins: CGPoint(x: 14, y: ornamentBottomMargin))
             ))
             // ProMotion: let the renderer run up to 120 Hz (floor 80) so rotate/tilt/pan
             // inertia is buttery on 120 Hz devices. `preferred: 120` targets the ceiling;
@@ -924,14 +953,23 @@ struct SJMapView: View {
         BasemapPalette.recolor(map)
     }
 
-    // MARK: Top chrome — help "?" · town pill · search, with the chip row beneath
+    // MARK: Top chrome — close · help "?" · town pill · search, chip row beneath
 
     private var topChrome: some View {
         VStack(spacing: 10) {
             HStack(spacing: 10) {
-                // The "?" and town pill fade out while search is active (Q8) and
-                // are restored on collapse — both are untouched at rest.
+                // The close "X", the "?" and the town pill fade out while search is
+                // active (Q8) and are restored on collapse — all untouched at rest.
+                // Leaving the map mid-search is still one tap away: the field's own
+                // "X" collapses the search and brings this row straight back.
                 if !searchActive {
+                    // The map is presented, so its exit lives in the chrome: the X
+                    // takes the leading edge (the full-screen-cover convention) and
+                    // the "?" follows it.
+                    if onClose != nil {
+                        closeButton
+                            .transition(.opacity)
+                    }
                     // The "?" moved up here from the bottom stack (round 2, Jesse):
                     // it mirrors the trailing 44pt search circle, so it also keeps
                     // the town pill screen-centered — the slot the retired
@@ -942,6 +980,15 @@ struct SJMapView: View {
                     townPill
                         .transition(.opacity)
                     Spacer(minLength: 8)
+                    // The X's counterweight. The row balances by pairing — "?" against
+                    // search — and a fourth control on the leading side alone would drag
+                    // the pill 27pt off screen centre. An empty 44pt slot keeps the pill
+                    // centred without inventing a fifth control; it never eats a tap.
+                    if onClose != nil {
+                        Color.clear
+                            .frame(width: 44, height: 44)
+                            .allowsHitTesting(false)
+                    }
                 }
                 searchControl
             }
@@ -1149,7 +1196,7 @@ struct SJMapView: View {
         // Stack ABOVE the map's ⓘ attribution (which sits just above the collapsed
         // glass) so the two never collide; fade + lift out of the way as the sheet
         // grows so they never collide with it either.
-        .padding(.bottom, MapSheet.tabBarReserve + MapSheet.peekHeight + 96)
+        .padding(.bottom, bottomBarInset + MapSheet.peekHeight + 96)
         .offset(y: -sheetExpansion * 10)
         .opacity(Double(1 - min(1, sheetExpansion * 1.3)))
         .allowsHitTesting(sheetExpansion < 0.12)
@@ -1167,6 +1214,21 @@ struct SJMapView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("How the map works")
+    }
+
+    /// The "X" — leaves the map entirely. Rendered only when the presenting host
+    /// supplied `onClose`. A circle (not the brand's square button) on purpose: it
+    /// is a chrome control INSIDE the map surface, so it belongs to the
+    /// `chromeCircle` family the "?", search and recenter already form.
+    private var closeButton: some View {
+        Button {
+            Haptics.light()
+            onClose?()
+        } label: {
+            chromeCircle(icon: "xmark")
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Close the map")
     }
 
     private var recenterButton: some View {

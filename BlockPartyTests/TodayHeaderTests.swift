@@ -152,18 +152,20 @@ final class TodayHeaderTests: XCTestCase {
     func testBarGeometryConstants() {
         // Arrange / Act / Assert — a guard so a later tweak to the bar is deliberate
         // rather than an accidental drift back toward the old scrolling masthead.
-        XCTAssertEqual(TodayHeader.contentHeight, 44)
-        XCTAssertEqual(TodayHeader.maxHeight, 52)
+        // Grown on 2026-09-18 with the larger, glossier map disc (50pt). The guard
+        // stays a guard — it just guards the new numbers.
+        XCTAssertEqual(TodayHeader.contentHeight, 58)
+        XCTAssertEqual(TodayHeader.maxHeight, 66)
         XCTAssertEqual(TodayHeader.scrollThreshold, 8)
 
         // The bar never grows past its ceiling — the relationship, not just the numbers.
         XCTAssertGreaterThan(TodayHeader.maxHeight, TodayHeader.contentHeight)
     }
 
-    // MARK: - Joetown brand lockup
+    // MARK: - The bar carries no artwork
 
     /// The approved Today chrome leaves the upper-left lane quiet; the old full-colour
-    /// Block Party app tile must not return there now that Joetown owns the masthead.
+    /// Block Party app tile must not return there.
     func testBrandLockupLeavesTheLeadingHeaderAreaBlank() throws {
         let bitmap = try renderedHeaderBitmap()
 
@@ -180,10 +182,10 @@ final class TodayHeaderTests: XCTestCase {
         )
     }
 
-    /// A black `Text("Joe Town")` can satisfy the semantic title but cannot satisfy
-    /// the approved artwork. Rendering the real header and looking for the lockup's
-    /// high-chroma cyan/orange pixels catches a regression back to that plain title.
-    func testBrandLockupPaintsCyanAndOrangeAtScreenCenter() throws {
+    /// The Joetown wordmark was removed from this bar. It used to paint several
+    /// hundred high-chroma cyan/orange pixels across the centre, so counting them is
+    /// how a silent re-add of the lockup — or of any other artwork — gets caught.
+    func testTheCentreOfTheBarCarriesNoWordmark() throws {
         let bitmap = try renderedHeaderBitmap()
 
         let colouredPixelCount = bitmap.countPixels(
@@ -192,10 +194,10 @@ final class TodayHeaderTests: XCTestCase {
             where: isBrandColour
         )
 
-        XCTAssertGreaterThan(
+        XCTAssertLessThan(
             colouredPixelCount,
-            200,
-            "The centered Today title must render the cyan/orange Joetown artwork"
+            20,
+            "The Today bar is chrome only — no wordmark, no mascot, no artwork"
         )
     }
 

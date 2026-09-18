@@ -5,6 +5,11 @@
 //  Adding a module means adding its implementation and one entry to the literal
 //  below. FeedView remains generic and does not change.
 //
+//  The catalog is deliberately EMPTY: the Today surface was stripped back to
+//  chrome so it can be rebuilt module by module. The registry, the protocol and
+//  FeedView's column renderer all still work — a module added to `defaultModules`
+//  renders with no other edit.
+//
 
 import Combine
 
@@ -15,21 +20,9 @@ final class FeedRegistry: ObservableObject {
     private var moduleObservations: [AnyCancellable] = []
 
     init(briefing: BriefingModel? = nil, modules: [any FeedModule]? = nil) {
-        let entries: [any FeedModule]
-        if let modules {
-            entries = modules
-        } else {
-            let sharedBriefing = briefing ?? BriefingModel()
-            entries = [
-                AlmanacModule(briefing: sharedBriefing),
-                YourDayModule(briefing: sharedBriefing),
-                TownNotesModule(),
-                ForYouModule(),
-                SpotlightModule(briefing: sharedBriefing),
-                TriviaModule(briefing: sharedBriefing),
-                SignOffModule(briefing: sharedBriefing),
-            ]
-        }
+        // Adding a module back means one entry in this literal and nothing else —
+        // `briefing` is the shared model those entries are handed.
+        let entries: [any FeedModule] = modules ?? []
 
         // The offset tie-break makes equal-order modules deterministic and stable.
         self.modules = entries.enumerated().sorted { lhs, rhs in

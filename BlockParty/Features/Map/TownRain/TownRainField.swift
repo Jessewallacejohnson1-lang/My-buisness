@@ -34,6 +34,10 @@ struct TownRainField: View {
     /// The map sheet's live top edge — the surface a ball lands on. `.infinity` before
     /// the sheet has published, which the driver reads as "use the resting floor".
     var floorY: CGFloat = .infinity
+    /// That resting floor: how far above the field's bottom the sheet sits at peek,
+    /// INCLUDING any bar the host reserves under the map. Only in play for the frames
+    /// before `floorY` lands; the default assumes the map owns its bottom edge.
+    var restingFloorInset: CGFloat = TownRainPhysics.floorInset
 
     @StateObject private var driver = TownRainDriver()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -52,7 +56,9 @@ struct TownRainField: View {
             .accessibilityHidden(true)
             .onChange(of: trigger) { _, _ in
                 guard !reduceMotion else { return }          // §11: nothing falls
-                driver.drop(bounds: geo.size, logos: resolvedLogos())
+                driver.drop(bounds: geo.size,
+                            logos: resolvedLogos(),
+                            floorInset: restingFloorInset)
             }
             // The floor follows the sheet frame by frame, so dragging the sheet under a
             // ball in flight changes where it lands — and a ball already resting on it
@@ -163,12 +169,14 @@ final class TownRainDriver: NSObject, ObservableObject {
     /// One press: add a mark to the field, keeping anything still bouncing from an
     /// earlier press. The field is rebuilt only when it is empty (or the view resized),
     /// so pressing again mid-flight adds to it instead of wiping it.
-    func drop(bounds: CGSize, logos: [UIImage]) {
+    func drop(bounds: CGSize,
+              logos: [UIImage],
+              floorInset: CGFloat) {
         guard bounds.width > 0, bounds.height > 0, !logos.isEmpty else { return }
         self.logos = logos
         if emitter == nil || emitter?.isFinished == true || fieldBounds != bounds {
             seed &+= 1
-            emitter = TownRainEmitter(seed: seed, bounds: bounds)
+            emitter = TownRainEmitter(seed: seed, bounds: bounds, floorInset: floorInset)
             fieldBounds = bounds
             lastTimestamp = 0
         }

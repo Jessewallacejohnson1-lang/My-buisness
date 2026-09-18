@@ -23,7 +23,8 @@
 //  carries its own note explaining the call:
 //    • one mark per press, accumulating — the reference rained on its own clock; here
 //      the finger is the clock, so its spawn cadence does not apply at all.
-//    • `floorInset` — this app's contact surface is its own map sheet.
+//    • `floorInset` — this app's contact surface is its own map sheet (and only as a
+//      fallback: the live floor is the sheet's published top edge).
 //    • `spawnXRange` — entry spread across the middle, not biased to one side.
 //    • the DIRECTION of `driftSpeedRange` (the magnitude is measured).
 //    • `wallRestitution`, `restSpeed`, `rollingDrag`, `fadeDuration` — the whole
@@ -118,9 +119,11 @@ enum TownRainPhysics {
     static let bounceSpinRange: ClosedRange<CGFloat> = 550...750
 
     /// Fallback floor, used only before the sheet has published its live top edge: the
-    /// sheet at rest on peek. Normally the floor IS the sheet's current top, so a ball
-    /// lands on the sheet wherever the user has dragged it to.
-    static let floorInset: CGFloat = MapSheet.tabBarReserve + MapSheet.peekHeight
+    /// sheet at rest on peek, on the map's own bottom edge. Normally the floor IS the
+    /// sheet's current top, so a ball lands on the sheet wherever the user has dragged
+    /// it to. A host that reserves a bar under the map adds its inset on top of this
+    /// and passes the sum as `TownRainField.restingFloorInset`.
+    static let floorInset: CGFloat = MapSheet.peekHeight
 
     // --- The following four are CHOSEN, not measured: the reference's sprites left
     // stage left and never touched a wall, so it has nothing to say about any of them.
@@ -259,10 +262,10 @@ struct TownRainEmitter: Equatable {
     private var rng: SplitMix64
     private var nextID = 0
 
-    init(seed: UInt64, bounds: CGSize) {
+    init(seed: UInt64, bounds: CGSize, floorInset: CGFloat = TownRainPhysics.floorInset) {
         self.bounds = bounds
         self.restingFloorY = max(bounds.height * 0.4,
-                                 bounds.height - TownRainPhysics.floorInset)
+                                 bounds.height - floorInset)
         self.rng = SplitMix64(seed: seed)
     }
 

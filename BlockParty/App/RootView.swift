@@ -5,45 +5,61 @@
 
 import SwiftUI
 
+/// The four destinations, in bar order (2026-09-18). `Int`-backed because the page
+/// slide derives its direction from the order: moving right through the bar slides
+/// the content the way a thumb expects.
 enum Tab: Int, CaseIterable, Identifiable {
-    case home, activities, calendar, map
+    /// The town feed — everything happening on the block, for everyone.
+    case town
+    /// The neighbour's own paper: the town feed crossed with what they follow.
+    case daily
+    /// The town's business network — the owners' side of Main Street.
+    case business
+    /// Their own profile.
+    case you
+
     var id: Int { rawValue }
 
     var title: String {
         switch self {
-        case .home:       return "Today"
-        case .activities: return "Activities"
-        case .calendar:   return "Calendar"
-        case .map:        return "Map"
+        case .town:     return "Town"
+        case .daily:    return "Daily"
+        case .business: return "Business"
+        case .you:      return "You"
         }
     }
 
+    /// The resting glyph. Outline at rest, filled while selected (`selectedSymbol`),
+    /// so the active tab reads by WEIGHT rather than by a second colour.
     var symbol: String {
         switch self {
-        case .home:       return "house"
-        case .activities: return "square.grid.2x2"
-        case .calendar:   return "calendar"
-        case .map:        return "map"
+        case .town:     return "house"
+        case .daily:    return "newspaper"
+        case .business: return "briefcase"
+        case .you:      return "person"
+        }
+    }
+
+    var selectedSymbol: String { symbol + ".fill" }
+
+    /// One line on what the slot is for — shown by the placeholder screens, so an
+    /// unbuilt tab reads as reserved rather than broken.
+    var promise: String {
+        switch self {
+        case .town:     return "Everything happening on the block."
+        case .daily:    return "Your paper — the town, filtered to what you follow."
+        case .business: return "The town's business network — owners, hours, hiring, who's open."
+        case .you:      return "Your profile."
         }
     }
 }
 
 struct RootView: View {
     @EnvironmentObject private var auth: AuthStore
-    /// Set by the wizard's onDone (or a remote onboarded stamp) for the *current*
-    /// session only. Onboarding-need is otherwise derived per-user from Interests,
-    /// so signing out and into a different account re-evaluates from scratch.
-    @State private var onboardingDone = false
     /// The user id we've already hydrated for. Reset-on-identity-change guard so a
     /// second account on the same device gets its own profile pulled (not the first
     /// account's leftover mirror).
     @State private var hydratedUserId: String?
-    /// Whether the 20-screen pre-auth onboarding has been completed (or skipped via
-    /// "I already have an account"). Seeded from the persisted flag so a relaunch mid-way
-    /// through the signed-out state doesn't replay a finished flow.
-    @State private var bpFlowDone = BPOnboardingCompletion.flowDone
-    /// The tab S19 asked for, applied once after the answers flush.
-    @State private var bpLandingTab: Tab?
     #if DEBUG
     @State private var debugIntroDismissed = false
     #endif
@@ -57,17 +73,14 @@ struct RootView: View {
     var body: some View {
         Group {
             #if DEBUG
-            // `-show-splash` / `-show-map-intro` force a first-run screen on stage
-            // so it can be verified headlessly in the simulator. No effect in
-            // release or without the flag. The intro's button falls through to the
-            // gate, so "Explore the map" is live here too (not a dead preview).
+            // `-show-map-intro` forces the map's first-run explainer on stage so it
+            // can be verified headlessly in the simulator. No effect in release or
+            // without the flag.
             if ProcessInfo.processInfo.arguments.contains("-show-home") {
                 // A deterministic Home route for simulator verification. The Home
                 // preview loader supplies local data, so this bypasses auth and
                 // onboarding without changing either production flow.
                 MainTabsView()
-            } else if ProcessInfo.processInfo.arguments.contains("-show-splash") {
-                SplashView()
             } else if ProcessInfo.processInfo.arguments.contains("-show-loader") {
                 // Preview the Pinterest-style launch loader full-screen (bypassing the
                 // auth gate) so its looping bloom can be recorded/screenshotted headlessly.
@@ -89,34 +102,12 @@ struct RootView: View {
                 // Preview the static feed-card states full-screen (bypassing the auth
                 // gate) so the component can be verified headlessly.
                 FeedCardGallery()
-            } else if ProcessInfo.processInfo.arguments.contains("-foryou-sample")
-                        || ProcessInfo.processInfo.arguments.contains("-foryou-no-tags")
-                        || ProcessInfo.processInfo.arguments.contains("-foryou-empty") {
-                // These flags take precedence over -briefing-preview because For You
-                // is below the fold at order 4 and this simulator cannot scroll.
-                ForYouPreview()
-            } else if ProcessInfo.processInfo.arguments.contains("-feed-gallery") {
-                // Every loading / ready / empty / error state of the lower feed
-                // modules (For You, spotlight, trivia, sign-off), which sit below
-                // the fold at orders 4-7 and cannot be scrolled to headlessly.
-                // Pair with `-feed-state <key[,key…]>` to isolate one.
-                FeedStatesGallery()
             } else if ProcessInfo.processInfo.arguments.contains("-briefing-preview") {
                 // Mount the real Today briefing composition (bypassing the auth
                 // gate) with BriefingModel seeded from a canned payload and no
                 // network, so module order, spacing and every payload state can be
                 // screenshotted. Pair with `-briefing-state <name>`.
                 BriefingHomePreview()
-            } else if ProcessInfo.processInfo.arguments.contains("-briefing-gallery") {
-                // Preview every Today-briefing module state full-screen (bypassing the
-                // auth gate): 3/1/0 featured events, poll unvoted and voted, the
-                // history touch, the spotlight, and the caught-up footer.
-                BriefingGallery()
-            } else if ProcessInfo.processInfo.arguments.contains("-townnotes-gallery") {
-                // Preview every Town Notes card state full-screen (bypassing the auth
-                // gate). Pair with `-townnotes-gallery-page <1...6>` to bring a
-                // below-the-fold state to the top for headless screenshots.
-                TownNotesGallery()
             } else if ProcessInfo.processInfo.arguments.contains("-town-rain-preview") {
                 // Preview the map's town-rain drop full-screen (bypassing the auth
                 // gate) so its physics can be recorded and measured headlessly — the
@@ -139,19 +130,6 @@ struct RootView: View {
             } else if ProcessInfo.processInfo.arguments.contains("-show-map-intro"),
                       !debugIntroDismissed {
                 MapIntroView { debugIntroDismissed = true }
-            } else if ProcessInfo.processInfo.arguments.contains("-show-onboarding") {
-                // Render the onboarding wizard directly (bypassing the auth gate)
-                // so any step can be screenshotted headlessly via -onboarding-step.
-                OnboardingView { debugIntroDismissed = true }
-            } else if ProcessInfo.processInfo.arguments.contains("-bp-flow") {
-                // The 20-screen onboarding rebuild, bypassing the auth gate. Jump to any
-                // step with `-bp-step <case>` — this sim setup has no gesture automation,
-                // so every screen needs a flag to be reachable headlessly.
-                BPOnboardingFlow()
-            } else if let mechanic = BPMotionMechanic.fromArguments() {
-                // The Phase 4 motion bench: one signature mechanic, alone, driven
-                // programmatically so it can be recorded and measured frame by frame.
-                BPMotionBench(mechanic: mechanic)
             } else if ProcessInfo.processInfo.arguments.contains("-day-sheet-demo") {
                 // The whole day-sheet TRANSITION, driven programmatically over the
                 // real Today feed: open on a rail card, scroll, tick a checkbox,
@@ -164,11 +142,6 @@ struct RootView: View {
                 // card, which this simulator setup cannot drive. Pair with
                 // `-day-sheet-state upcoming|inprogress|completed|empty`.
                 DaySchedulePreview()
-            } else if ProcessInfo.processInfo.arguments.contains("-bp-components") {
-                // The Phase 0 component bench for the 20-screen onboarding rebuild —
-                // every signature mechanic in every state on one scrollable screen,
-                // for diffing against refs/onboarding/duolingo/.
-                BPComponentDemoView()
             } else {
                 gate
             }
@@ -198,50 +171,35 @@ struct RootView: View {
         #endif
     }
 
+    /// Whether a session is REQUIRED to reach the app. False since 2026-09-18
+    /// (Jesse: "remove the sign-in process for now"), so the gate hands straight to
+    /// the tabs with or without one.
+    ///
+    /// A switch rather than a deletion, because "for now" is the whole point:
+    /// `LoginView`, `AuthStore`, the keychain session and every authed API path are
+    /// untouched and still work — flip this back to `true` and sign-in returns
+    /// exactly as it was. What signing out now does is drop the session and leave you
+    /// in the app, not bounce you to a login screen.
+    ///
+    /// Signed OUT, the app is honest about it rather than broken: authed reads fail
+    /// and their screens land in their own empty/failed states (the feed's briefing
+    /// sets `hasLoaded` on the failure path too, so the column still reveals), and
+    /// `hydrateIfNeeded` returns immediately with no `userId`. Nothing force-unwraps
+    /// a session.
+    private static let requiresSignIn = false
+
     @ViewBuilder
     private var gate: some View {
-        // LaunchHost owns the splash as an overlay, so this real destination is
-        // constructed and laid out underneath it from the first app frame. Session
-        // restoration can replace the hidden destination while the splash is opaque;
-        // the launch handoff itself never waits on that network-capable task.
-        if auth.isSignedIn {
-            authedRoot
+        // One state while sign-in is off; two when it is back on. The pre-auth
+        // 20-screen flow and the signed-in onboarding wizard were both deleted on
+        // 2026-09-18, along with the launch splash, so nothing sits in front of the
+        // tabs at all — cold launch lands on Town.
+        if auth.isSignedIn || !Self.requiresSignIn {
+            MainTabsView()
                 .task(id: auth.userId) { await hydrateIfNeeded() }
-        } else if !bpFlowDone {
-            // PRE-AUTH onboarding (Jesse's gate decision, 2026-07-24): the 20-screen
-            // flow runs before there is an account, exactly as the reference does.
-            // Answers buffer locally and flush on the first successful sign-in.
-            // Both exits mark the flow done, so it is never replayed.
-            BPOnboardingFlow(
-                onFinish: { bpFlowDone = true },
-                onSignIn: { bpFlowDone = true }
-            )
         } else {
             LoginView()
         }
-    }
-
-    @ViewBuilder private var authedRoot: some View {
-        if needsOnboarding {
-            OnboardingView { markOnboarded() }
-        } else {
-            MainTabsView(startTab: bpLandingTab)
-        }
-    }
-
-    /// Per-user onboarding gate: the current user's own local flag (or a completed
-    /// session), never a previous account's.
-    private var needsOnboarding: Bool {
-        guard let uid = auth.userId else { return false }
-        if onboardingDone { return false }
-        return !Interests.isOnboarded(uid: uid)
-    }
-
-    private func markOnboarded() {
-        if let uid = auth.userId { Interests.setOnboarded(uid: uid) }
-        // The map-intro finale is gone from the wizard, so there is no map promise to
-        // keep. S19 now owns where the user lands, via `bpLandingTab`.
-        onboardingDone = true
     }
 
     /// Pull the community profile once per *user*: mirror interests/name locally (so
@@ -252,24 +210,11 @@ struct RootView: View {
         guard let uid = auth.userId else { hydratedUserId = nil; return }   // signed out → allow re-hydrate on next sign-in
         guard hydratedUserId != uid else { return }
         hydratedUserId = uid
-        onboardingDone = false   // new identity → re-derive from this user's own state
-
-        // Flush the pre-auth onboarding answers now that an identity exists. Read the
-        // landing choice BEFORE the flush, because a successful flush clears the buffer.
-        // A failed flush keeps the buffer and retries on the next launch, so twenty
-        // screens of answers are never lost to a bad moment on the network.
-        let buffered = BPAnswers()
-        bpLandingTab = BPOnboardingCompletion.landingTab(buffered)
-        await BPOnboardingCompletion.flushIfNeeded(buffered)
 
         let fetched = try? await ProfileAPI(auth: .shared).getMyProfile()
         guard let profile = fetched ?? nil else { return }
         if !profile.interests.isEmpty { Interests.set(profile.interests) }
         if let n = profile.displayName, !n.isEmpty { Interests.displayName = n }
-        if profile.onboardedAt != nil {
-            Interests.setOnboarded(uid: uid)
-            onboardingDone = true   // @State change → re-render into MainTabs
-        }
     }
 }
 
@@ -284,12 +229,24 @@ struct MainTabsView: View {
         self.startTab = startTab
         let resolved = startTab ?? MainTabsView.initialTab()
         _tab = State(initialValue: resolved)
-        _mapDetail = State(initialValue: MapPlaceDetail.debugInitialDetail())
-        _showMenu = State(initialValue: resolved == .home && MainTabsView.debugOpenMenu())
+        _showMap = State(initialValue: MainTabsView.debugOpenMap())
+        _showMenu = State(initialValue: resolved == .town && MainTabsView.debugOpenMenu())
         _showProfileSheet = State(initialValue: MainTabsView.debugOpenProfile())
     }
 
-    /// DEBUG-only: `-open-tab map|activities|calendar` launch argument selects
+    /// DEBUG-only: `-open-map` raises the map cover on launch. It replaces the old
+    /// `-open-tab map`, which died with the map's tab: the map is a presented cover
+    /// now, so a tab argument can no longer reach it. Screenshot automation needs
+    /// SOME way in, and tapping the Today button is not available headlessly.
+    private static func debugOpenMap() -> Bool {
+        #if DEBUG
+        return ProcessInfo.processInfo.arguments.contains("-open-map")
+        #else
+        return false
+        #endif
+    }
+
+    /// DEBUG-only: `-open-tab block|daily|shops|you` launch argument selects
     /// the starting tab, so simulator verification can screenshot any tab
     /// without UI driving. No effect in release builds or without the flag.
     private static func initialTab() -> Tab {
@@ -297,14 +254,15 @@ struct MainTabsView: View {
         let args = ProcessInfo.processInfo.arguments
         if let i = args.firstIndex(of: "-open-tab"), i + 1 < args.count {
             switch args[i + 1] {
-            case "map":        return .map
-            case "activities": return .activities
-            case "calendar":   return .calendar
-            default:           break
+            case "town":     return .town
+            case "daily":    return .daily
+            case "business": return .business
+            case "you":      return .you
+            default:         break
             }
         }
         #endif
-        return .home
+        return .town
     }
 
     /// DEBUG-only: `-open-menu` unfolds the town menu on launch; `-open-profile`
@@ -326,11 +284,10 @@ struct MainTabsView: View {
     }
 
     @State private var expandedPlace: Place?
-    /// The map's one open place, lifted above `SJMapView` so the shell can hide
-    /// the tab bar while the pin-detail sheet is up (and clear the selection on a
-    /// tab change). The enum carries the real Spot/POI value rather than copying
-    /// display fields into a second source of truth.
-    @State private var mapDetail: MapPlaceDetail?
+    /// The map, presented full-screen from the Today tab's top-right button
+    /// rather than living in the bar. Its selected-pin state belongs to
+    /// `SJMapView` itself now — the shell has no tab bar to hide under it.
+    @State private var showMap = false
     @State private var composing = false
     /// Readiness of the *current* tab's content, gathered from `TabReadyPreferenceKey`.
     /// Drives the loading cover that hides a not-yet-rendered tab.
@@ -346,13 +303,6 @@ struct MainTabsView: View {
     @State private var showMenu = false
     /// The profile, now a menu destination (presented as a standard sheet).
     @State private var showProfileSheet = false
-    /// The filter + timeframe the Activities tab should open on, set by a feed route
-    /// that asks for it (the Your Day rail's zero state → today's events).
-    ///
-    /// A ONE-SHOT. The tab content is rebuilt whenever `tab` changes identity, so a
-    /// request left standing would silently re-apply the next time Activities came
-    /// back — hence it is dropped by every other way into that tab.
-    @State private var activitiesRequest: ActivitiesRequest?
     @Namespace private var cardNS
     /// The Your Day rail ↔ day sheet morph, and the sheet's own presentation.
     ///
@@ -379,36 +329,28 @@ struct MainTabsView: View {
             // tall panel on the Map tab ONLY, so switching tabs visibly swapped between
             // "one attached panel" and "a lone floating capsule" — two different bars
             // (Jesse's round-2 ask 6). Out here the bar's silhouette can never fuse
-            // with anything: one identical capsule on all four tabs. The map sheet now
-            // rests 8pt above it as its own panel (`MapSheet.tabBarReserve`).
+            // with anything: one identical capsule on every tab.
             GlassEffectContainer(spacing: 22) {
                 ZStack(alignment: .bottom) {
                     Group {
                         switch tab {
-                        case .home:
-                            // Home carries the Joetown wordmark and mascot in its own
-                            // `TodayTopBar`, so a second brand badge would be redundant.
+                        case .town:
                             HomeView(
                                 onCompose: { composing = true },
                                 onMenu: { showMenu = true },
                                 menuOpen: showMenu,
                                 profileShown: showProfileSheet,
-                                onOpenActivities: openActivities,
+                                onOpenMap: { showMap = true },
                                 expandedPlace: $expandedPlace,
                                 cardNS: cardNS
                             )
-                        // No brand badge on these tabs — the top-right corner carries
-                        // screen chrome now (the map's compose "+" etc.).
-                        case .activities:
-                            ActivitiesView(
-                                onCompose: { composing = true },
-                                request: activitiesRequest
-                            )
-                        case .calendar:   CalendarView(onCompose: { composing = true })
-                        // The map has NO compose entry (round 2, Jesse's call) —
-                        // event creation lives on the other tabs.
-                        case .map:
-                            SJMapView(mapDetail: $mapDetail)
+                        // Daily and Business are named, reserved slots: the bar and
+                        // its motion are built, the screens behind them are not yet.
+                        case .daily:    BlankTab(tab: .daily)
+                        case .business: BlankTab(tab: .business)
+                        // Profile is a real screen, mounted WITHOUT its sheet chrome —
+                        // a tab has no "close", so the X is suppressed here.
+                        case .you:      ProfileView(showsClose: false)
                         }
                     }
                     // Identity keyed on the tab so a switch is an insertion+removal that
@@ -432,15 +374,9 @@ struct MainTabsView: View {
                 }
             }
 
-            // The tab bar hides while the map's pin-detail sheet is up —
-            // that card's floating action bar owns the bottom zone
-            // (Flighty pattern; map polish Q6). Every other tab, and the
-            // map at rest, keeps the four buttons.
-            if !(tab == .map && mapDetail != nil) {
-                BlockPartyTabBar(selection: $tab, onSelect: select)
-                    .transition(.opacity)
-                    .zIndex(10)
-            }
+            BlockPartyTabBar(selection: $tab, onSelect: select)
+                .transition(.opacity)
+                .zIndex(10)
             // THE `.environment(\.colorScheme, .light)` THAT USED TO BE HERE IS GONE.
             //
             // It existed because the app was light-only BY CONSTRUCTION — every `Hue`
@@ -457,14 +393,6 @@ struct MainTabsView: View {
             // light-v11 cartography in both modes, so map INK is pinned to its light
             // value instead (`Color.onLightCanvas`). See `BlockPartyColor`.
         }
-        // The map's search field is the shell's ONE inline text field (Activities
-        // search and every composer present in their own cover/sheet). The keyboard
-        // inset must be ignored HERE, on the shell's bottom-aligned root: anywhere
-        // deeper and this ZStack still shrinks with the keyboard, shoving the tab
-        // bar up over the map mid-screen. With it, the keyboard slides OVER the
-        // resting bottom chrome, and collapsing the search restores the chrome
-        // exactly because nothing ever moved.
-        .ignoresSafeArea(.keyboard)
         .overlay {
             // Place-expansion overlay
             if expandedPlace != nil {
@@ -518,12 +446,24 @@ struct MainTabsView: View {
         }
         // A bubble tap jumps straight into that kind's form, skipping the chooser.
         .sheet(item: $composeKind) { kind in AddFormView(kind: kind) }
+        // The map is a destination now, not a tab. Full-screen cover rather than a
+        // sheet: the map owns its own bottom sheet, and two stacked drag surfaces
+        // fight each other for the same gesture.
+        .fullScreenCover(isPresented: $showMap) {
+            SJMapView(onClose: { showMap = false })
+        }
         // The Your Day sheet's own lane, applied LAST so it sits above the tab bar,
         // the town menu and the speed dial. Injects the namespace and the presenter
         // the Your Day rail reaches for.
         .dayScheduleHost(daySchedule, namespace: dayNS)
         #if DEBUG
         .onAppear {
+            // `-tab-cycle` walks the bar end to end on a loop so the pill travel, the
+            // symbol swap and the page slide can be recorded headlessly — there is no
+            // tap automation in this setup, and motion is the whole point of the bar.
+            if ProcessInfo.processInfo.arguments.contains("-tab-cycle") {
+                cycleTabs(from: 1)
+            }
             if ProcessInfo.processInfo.arguments.contains("-share-demo") {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
                     ShareCenter.shared.present(.event(title: "Farmers Market",
@@ -553,14 +493,25 @@ struct MainTabsView: View {
         #endif
     }
 
+    #if DEBUG
+    /// Walks forward through the bar, one tab every 1.4s, wrapping at the end. Each
+    /// step goes through `switchTab`, so what gets recorded is the real transition,
+    /// not a preview of it.
+    private func cycleTabs(from index: Int) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+            let all = Tab.allCases
+            switchTab(to: all[index % all.count])
+            cycleTabs(from: index + 1)
+        }
+    }
+    #endif
+
     /// Route a town-menu tap. The drawer is already collapsing; tab switches swap
     /// instantly behind it (no competing page slide), while sheets/overlays wait
     /// for the collapse to finish so two presentations don't fight.
     private func handleMenu(_ action: TownMenuAction) {
         switch action {
-        case .calendar:   tab = .calendar
-        case .activities: activitiesRequest = nil; tab = .activities
-        case .map:        tab = .map
+        case .map:        afterMenuClose { showMap = true }
         case .compose:    afterMenuClose { composing = true }
         case .invite:     afterMenuClose { ShareCenter.shared.present(.appInvite()) }
         case .profile:    afterMenuClose { showProfileSheet = true }
@@ -574,11 +525,9 @@ struct MainTabsView: View {
     /// Context-tailored bubbles for the current tab's compose "+". The map has
     /// none (round 2 — its "+" is retired), so no dial mounts there.
     private var speedDialItems: [SpeedDialItem] {
-        switch tab {
-        case .calendar:   return SpeedDialItem.calendar()
-        case .activities: return SpeedDialItem.explore()
-        default:          return []
-        }
+        // Both tabs that carried bubbles were gutted. The dial stays wired so a
+        // rebuilt tab can hand it items again; today nothing mounts it.
+        []
     }
 
     /// Route a bubble tap: create-kinds open a kind-scoped composer, Invite fires the
@@ -594,24 +543,8 @@ struct MainTabsView: View {
     /// real change — re-tapping the current tab is a no-op.
     private func select(_ newTab: Tab) {
         guard newTab != tab else { return }
-        // A deliberate tap on the bar is not the feed's one-shot request, so it is
-        // dropped here rather than re-applied when Activities is next rebuilt.
-        activitiesRequest = nil
         Haptics.selection()
         switchTab(to: newTab)
-    }
-
-    /// Open Activities on a filter + timeframe, asked for by a Today feed route.
-    ///
-    /// It lands as the app's ordinary tab change — the same page slide and tab-bar
-    /// pill the bar gives — rather than as a modal, because tab selection lives here
-    /// and this is the lane the town menu's tab rows already use. No haptic: the card
-    /// that was tapped already fired one on press-down (its press style).
-    private func openActivities(_ request: ActivitiesRequest) {
-        activitiesRequest = request
-        // The feed this arrives from only exists on the Today tab, so this is always
-        // a real change of tab.
-        switchTab(to: .activities)
     }
 
     /// The tab change itself, with its horizontal page slide. Direction is derived
@@ -624,7 +557,6 @@ struct MainTabsView: View {
         withAnimation(reduceMotion
             ? .easeInOut(duration: 0.2)
             : .spring(response: 0.44, dampingFraction: 0.86)) {
-            if newTab != .map { mapDetail = nil }
             tab = newTab
         }
     }
@@ -642,10 +574,9 @@ struct MainTabsView: View {
     }
 }
 
-/// The global bottom shell — the four tab buttons on one persistent Liquid Glass
-/// bar. On the Map tab it hides entirely while a pin's detail sheet is up
-/// (`PinDetailSheet` owns that zone — the old in-bar detail morph is retired,
-/// map polish Q6); every other surface sees it exactly as before.
+/// The global bottom shell — the surviving tab buttons on one persistent Liquid
+/// Glass bar. It mounts on every tab now: the map left the bar for a button on
+/// Today, so there is no longer a surface that needs to hide it.
 struct BlockPartyTabBar: View {
     @Binding var selection: Tab
     /// Tap handler — the parent owns the animated page slide + haptic, so the pill
@@ -653,9 +584,15 @@ struct BlockPartyTabBar: View {
     var onSelect: (Tab) -> Void
     @Namespace private var pill
 
-    /// Corner radii: outer glass shell vs. the inner sliding highlight.
-    static let shellRadius: CGFloat = 26
-    private let pillRadius: CGFloat  = 18
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    // Corner radii: the outer glass shell and the inner sliding highlight are both
+    // CAPSULES — fully rounded, the way the reference bar is. A capsule inside a
+    // capsule keeps the highlight concentric with the shell at every position, which
+    // a fixed radius cannot do once the pill reaches either end.
+
+    private let iconSize: CGFloat = 20
+    private let iconLane: CGFloat = 23
 
     var body: some View {
         HStack(spacing: 4) {
@@ -666,10 +603,7 @@ struct BlockPartyTabBar: View {
         .padding(5)
         // Real Liquid Glass (iOS 26): genuinely translucent and refractive, with
         // its own specular rim and floating shadow — no faked frost or white wash.
-        .glassEffect(
-            .regular,
-            in: RoundedRectangle(cornerRadius: Self.shellRadius, style: .continuous)
-        )
+        .glassEffect(.regular, in: Capsule(style: .continuous))
         .padding(.horizontal, 20)
         .padding(.bottom, 4)
     }
@@ -681,24 +615,77 @@ struct BlockPartyTabBar: View {
             onSelect(tab)
         } label: {
             VStack(spacing: 4) {
-                Image(systemName: tab.symbol)
-                    .font(.system(size: 18, weight: selected ? .semibold : .medium))
-                    .frame(height: 22)
+                // Outline → filled on selection. `contentTransition` makes that a
+                // symbol REPLACE (the glyph re-draws in place) rather than a
+                // cross-fade between two images, and the bounce is the little
+                // acknowledgement the tap deserves. Both are dropped under Reduce
+                // Motion, where the fill swap alone still carries the state.
+                Image(systemName: selected ? tab.selectedSymbol : tab.symbol)
+                    .font(.system(size: iconSize, weight: selected ? .semibold : .medium))
+                    .frame(height: iconLane)
+                    .contentTransition(.symbolEffect(.replace))
+                    // The swap gets its OWN short curve instead of inheriting the page
+                    // spring (0.44s). Stretched over that spring, `.replace` held the
+                    // outgoing glyph half-faded for ~150ms — the icon read as missing
+                    // mid-travel while the pill slid out from under it. 0.22s snappy
+                    // lands the new glyph before the pill arrives, which is the order
+                    // the eye wants: the destination lights up, then the pill catches up.
+                    .animation(.snappy(duration: 0.22), value: selected)
+                    .symbolEffect(.bounce, options: .speed(1.6), value: reduceMotion ? false : selected)
                 Text(tab.title)
-                    .font(.sansMedium(11))
+                    .font(selected ? .sansSemibold(12) : .sansMedium(12))
             }
             .foregroundStyle(selected ? Hue.ink : Hue.inkSecondary)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 9)
             .background {
                 if selected {
-                    RoundedRectangle(cornerRadius: pillRadius, style: .continuous)
+                    Capsule(style: .continuous)
                         .fill(Hue.fill)
                         .matchedGeometryEffect(id: "pill", in: pill)
                 }
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TabPressStyle(reduceMotion: reduceMotion))
+        .accessibilityLabel(tab.title)
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+    }
+}
+
+/// The press reaction for a tab button: a small, fast scale-down that springs back.
+/// Separate from `PressableStyle` because a tab must not dim — the label has to stay
+/// legible while the finger is down, since the pill is already moving underneath it.
+private struct TabPressStyle: ButtonStyle {
+    let reduceMotion: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(reduceMotion ? 1 : (configuration.isPressed ? 0.92 : 1))
+            .animation(.spring(response: 0.26, dampingFraction: 0.7), value: configuration.isPressed)
+    }
+}
+
+/// What a reserved tab shows until its screen is built: the slot's name and the one
+/// line describing what will live there. Deliberately quiet — a named, empty room
+/// reads as reserved, where a bare screen reads as broken.
+private struct BlankTab: View {
+    let tab: Tab
+
+    var body: some View {
+        ZStack {
+            Hue.paper.ignoresSafeArea()
+            VStack(spacing: 8) {
+                Text(tab.title)
+                    .font(.display(22))
+                    .foregroundStyle(Hue.ink)
+                Text(tab.promise)
+                    .font(.sans(14))
+                    .foregroundStyle(Hue.inkSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 44)
+            }
+            .accessibilityElement(children: .combine)
+        }
     }
 }

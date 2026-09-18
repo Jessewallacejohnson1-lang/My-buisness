@@ -4,7 +4,9 @@ This file is the working guide for Codex agents in this repository. Treat the li
 
 ## Project
 
-**Block Party** is a native SwiftUI + Mapbox iOS app for St. Joseph, Minnesota: a finite daily town briefing, shared activities/calendar, live town map, community profile, and local onboarding. It is the native twin of the Expo/React Native app in `~/Documents/my-business/apps/mobile`.
+**Block Party** is a native SwiftUI + Mapbox iOS app for St. Joseph, Minnesota: a Today tab, a live town map, and a community profile. Onboarding and the launch splash were deleted on 2026-09-18. It is the native twin of the Expo/React Native app in `~/Documents/my-business/apps/mobile`.
+
+**The app is mid-rebuild.** The 2026-09-17 strip-down emptied the Today feed, deleted the Activities and Calendar features (their tab slots stay, rendering a blank placeholder), and moved the map off the tab bar into a full-screen cover opened from Today. `docs/GUTTING-LEDGER.md` records what was removed and how to recover it; open it when you are asked what happened to a surface, not as background reading. If this guide still describes something you cannot find in the tree, assume the strip-down took it and say so.
 
 - Xcode project: `BlockParty.xcodeproj`
 - Scheme and module: `BlockParty`
@@ -44,7 +46,7 @@ xcodebuild test -project BlockParty.xcodeproj -scheme BlockParty \
 
 For one test/class, append `-only-testing:BlockPartyTests/DateHelpersTests/testAdminGate` or `-only-testing:BlockPartyTests/DateHelpersTests`.
 
-Tests cover date/admin rules, the Today briefing contract/model/feel/live-payload parity, utility providers/preferences/motion/contrast, onboarding persistence, town-timezone formatting, the legacy-key migration, and town-rain physics. Visual fidelity still requires a clean 0-warning build plus simulator screenshots. Scroll, touch arbitration, and map gestures require a real-device check.
+427 tests (down from 437 when onboarding and the splash were deleted on 2026-09-18) cover date/admin rules, the Today briefing contract/model/feel/live-payload parity/registry, utility providers/preferences/motion/contrast, the horizon/solar/scrub layer, Your Day's realtime relevance filter, town-timezone formatting, the map polish pass, and town-rain physics. Several of those suites now exercise **unmounted** code — the horizon, Your Day, trivia and utility layers outlived the surfaces that used to mount them, and the tests are what proves they still work. Keep them green; do not delete a suite because its screen is gone. Visual fidelity still requires a clean 0-warning build plus simulator screenshots. Scroll, touch arbitration, and map gestures require a real-device check.
 
 Prefer XcodeBuildMCP (`build_run_sim`, `build_sim`, `screenshot`) for Apple tooling. Raw simulator fallback:
 
@@ -52,7 +54,7 @@ Prefer XcodeBuildMCP (`build_run_sim`, `build_sim`, `screenshot`) for Apple tool
 xcodebuild -project BlockParty.xcodeproj -scheme BlockParty -configuration Debug \
   -destination 'platform=iOS Simulator,name=iPhone 17' build
 
-xcrun simctl launch <udid> Jesse.BlockParty -open-tab map
+xcrun simctl launch <udid> Jesse.BlockParty -open-map
 xcrun simctl io <udid> screenshot /tmp/map.png
 ```
 
@@ -67,11 +69,7 @@ DIR=$(xcodebuild -project BlockParty.xcodeproj -scheme BlockParty -configuration
 xcrun simctl install <udid> "$DIR/BlockParty.app"
 ```
 
-Install **over** the existing app. `simctl uninstall` destroys the container, including the session, `bp.onboarded.<uid>`, and local mirrors. If recovery is necessary, sign in again and only restore a user-scoped onboarding flag when the remote profile confirms completion:
-
-```bash
-xcrun simctl spawn <udid> defaults write Jesse.BlockParty "bp.onboarded.<uid>" -string 1
-```
+Install **over** the existing app. `simctl uninstall` destroys the container, including the session and the local profile/interest mirrors, so the next launch is signed out. Nothing else needs restoring: the `bp.onboarded.<uid>` flag stopped gating anything when onboarding was deleted on 2026-09-18.
 
 For a physical device, keep DerivedData outside `BlockParty/` so Xcode's file-system-synchronized group cannot absorb build output:
 
@@ -104,18 +102,17 @@ find BlockParty -type d -name .impeccable -exec rm -rf {} +
 
 ## DEBUG launch arguments
 
-All of these compile out in Release. They exist because this simulator setup has no gesture/scroll automation.
+All of these compile out in Release. They exist because this simulator setup has no gesture/scroll automation. The 2026-09-17 strip-down took a large block of flags down with the views they staged; `docs/debug-flags.md` is the full catalogue and has been pruned to match. If a flag below does nothing, check the source before assuming it is broken — it may have been deleted.
 
-- **Shell/previews:** `-open-tab map|activities|calendar`; `-show-home`; `-show-splash`; `-show-loader`; `-show-loading-cover`; `-show-skeletons`; `-show-map-intro`; `-share-demo`; `-open-speeddial` with optional `-speeddial-loop`.
-- **Today briefing:** `-briefing-preview [-briefing-state sample|one_event|zero_events|voted|none|degraded]`; `-briefing-gallery [-gallery-state <label-fragment>]`; `-header-hairline`.
+- **Shell/previews:** `-open-tab town|daily|business|you` (the map is no longer a tab, so `-open-tab map` is dead); `-tab-cycle` walks the bar end to end every 1.4s so the pill travel and page slide can be recorded; `-open-map` raises the map cover on launch and is now the only headless way in; `-show-home`; `-show-loader`; `-show-loading-cover`; `-show-skeletons`; `-show-map-intro`; `-share-demo`; `-open-speeddial` with optional `-speeddial-loop`.
+- **Today:** `-briefing-preview [-briefing-state sample|one_event|zero_events|voted|none|degraded]` — the payload still loads, but with the registry empty this now renders the top bar over an empty feed; `-header-hairline`. `-briefing-gallery` / `-gallery-state` died with the module galleries.
 - **Legacy feed regression:** `-feed-card-gallery`; `-feed-card-autoplay`; `-today-feed-preview|-today-feed-empty|-today-feed-skeleton`.
-- **Almanac/utility:** `-almanac-write|-almanac-static|-almanac-fail`; `-almanac-part morning|afternoon|evening`; `-almanac-demo-line <text>`; `-utility-row-preview`; `-utility-expand|-utility-customize|-utility-empty`.
-- **Activities:** `-explore-filter events|clubs|trails|parks|saved`; `-explore-timeframe today|week|month|upcoming`; `-explore-search-open`; `-explore-search <query>`; `-explore-search-committed <query>`.
-- **Map browse/camera:** `-map-sheet places`; `-map-detent peek|medium|full`; `-map-open <spotid>`; `-map-open-poi [name-substring|id]`; `-map-detail-expanded` (combine with either open flag); `-map-center <lat>,<lon>`; `-map-zoom <z>`; `-map-bearing <deg>`; `-map-pitch <deg>`; `-map-autozoom`.
+- **Parked layers (unmounted, flag-only):** `-horizon-sky-gallery` and `-horizon-card-gallery`, each with `-horizon-sky-gallery-page 2`, are the only entry into the Horizon layer now that the Your Day card is gone; `-utility-row-preview` and `-utility-expand|-utility-customize|-utility-empty` likewise for the parked utility row. The almanac flags (`-almanac-*`) are dead — that view was deleted.
+- **Map browse/camera:** `-map-sheet places`; `-map-detent peek|medium|full`; `-map-open <spotid>`; `-map-open-poi [name-substring|id]`; `-map-detail-expanded` (combine with either open flag); `-map-filter all|food|parks|events|saved`; `-map-center <lat>,<lon>`; `-map-zoom <z>`; `-map-bearing <deg>`; `-map-pitch <deg>`; `-map-autozoom`.
 - **Map states/rain:** repeatable `-map-save <spotid>` and `-map-force-live <spotid>`; `-town-rain`; `-town-rain-preview`; `-poi-logo-stub`. Civic spot IDs are `downtown|saintbens|chapel|wobegon|millstream|saintjohns`.
-- **Calendar:** `-calendar-face upcoming|grid`; `-calendar-open <YYYY-MM-DD>`; `-calendar-legend`; `-calendar-compose` (combine with an open day); `-calendar-sample`; `-calendar-replay`; `-insights-sample`; `-bento-expand <journaled|visited|written>`; `-bento-autoexpand <journaled|visited|written>`; `-entries-expand`.
-- **Menu/profile:** `-open-menu` with optional `-menu-autoclose`; `-tap-menu` with optional `-slow-tap`; `-open-profile` with `-profile-expand|-profile-bottom|-profile-edit|-profile-edit-interests|-profile-moderation|-profile-autoclose`.
-- **Onboarding:** `-show-onboarding [-onboarding-step name|interests] [-onboarding-filled]`; `-bp-flow [-bp-step <BPStep-case>]`; `-bp-restart`; `-bp-seed-resume <index>`; `-bp-hold`; `-bp-components [-bp-page 0...5]`; `-bp-motion press|progress|badge|typing`.
+- **Day sheet:** `-day-sheet-preview [-day-sheet-state upcoming|inprogress|completed|empty|cta]`; `-day-sheet-hold`; `-day-sheet-demo`. Flags are now the only way in — the rail that used to open the sheet is deleted.
+- **Menu/profile:** `-open-menu` with optional `-menu-autoclose` — the ONLY way in since the avatar was removed on 2026-09-18; `-open-profile` with `-profile-expand|-profile-bottom|-profile-edit|-profile-edit-interests|-profile-moderation|-profile-autoclose`.
+- **Onboarding:** gone. The flow, the wizard, and every `-show-onboarding` / `-bp-*` flag were deleted on 2026-09-18.
 - **Backend write:** `-seed-places` invokes the DEBUG place seeder. It mutates backend data; do not treat it as a screenshot-only flag.
 
 Use the targeted preview/gallery flags for states below the fold, then verify actual scrolling and gestures on a device.
@@ -128,12 +125,16 @@ Use the targeted preview/gallery flags for states below the fold, then verify ac
 
 `RootView` is the gate:
 
-1. launch loader while auth boots/minimum loader time runs;
-2. signed-in users hydrate their own `town_profiles` row, then see the signed-in onboarding if needed or `MainTabsView`;
-3. signed-out first-time users see the 20-screen pre-auth `BPOnboardingFlow`;
-4. returning signed-out users see `LoginView`.
+1. signed-in users get `MainTabsView` immediately, hydrating their own `town_profiles` row in a background task;
+2. signed-out users get `LoginView`.
 
-`MainTabsView` owns four tabs (`home`, `activities`, `calendar`, `map`), the custom `BlockPartyTabBar`, the town-menu/profile presentations, map detail shell, and compose speed dial/sheets.
+There is no third state: no splash, no launch loader gate, no onboarding. The storyboard's paper-coloured frame zero is the only thing before the app.
+
+`MainTabsView` owns four tabs (`town`, `daily`, `business`, `you`), the custom `BlockPartyTabBar`, the town-menu presentation, the full-screen map cover, and compose speed dial/sheets.
+
+`Tab.map` was deleted on 2026-09-17; `home`/`activities`/`calendar` were re-cut into the four above on 2026-09-18. **Town** (`house`) = the town feed (`HomeView`); its top bar carries the one map control — a 50pt glossy `Hue.mapWash` disc with the hand-drawn `MapPinGlyph`, deliberately NOT a `.glassEffect` surface (glass absorbed the highlight and refracted the glyph — measured). **Daily** (`newspaper`) = the neighbour's own paper. **Business** (`briefcase`) = the town's business network, the owners' side of Main Street. **You** = `ProfileView(showsClose: false)`. Daily and Business render `BlankTab` — the slot's name plus its promise line — deliberately: the bar is built, those screens are not. Do not remove the cases or the bar buttons.
+
+The bar itself: a Liquid Glass CAPSULE with a `matchedGeometryEffect` capsule pill. The pill and the page slide share one spring (0.44/0.86) so they travel together; the icon's outline→filled swap runs on its OWN 0.22s snappy curve, because inheriting the page spring left the outgoing glyph half-faded mid-travel and the icon read as missing. Reduce Motion drops the bounce and the press scale and crossfades the page.
 
 ### Backend (`BlockParty/Backend/`)
 
@@ -162,26 +163,29 @@ The current identifiers are:
 
 ### Today briefing (`BlockParty/Features/Home/Briefing/` + `Feed/`)
 
-Today is a finite editorial briefing, not an infinite feed. `HomeView` is a compatibility shell over `FeedView`, which keeps `TodayTopBar` fixed above the scroll view and renders `FeedRegistry.visibleModules` in this order:
+**Today renders nothing below its top bar, on purpose.** The 2026-09-17 strip-down deleted all seven feed modules — almanac, Your Day, town notes, For You, spotlight, trivia, sign-off — and their views (`AlmanacSection`, `DailyGreeting`, `SpotlightCard`, `TriviaCard`, `DailyTouchCard`, `CaughtUpFooter`, `HappeningSoonSection`, `TownNotesDeck`, `ForYouSection`, and the galleries that staged them). `HomeView` is still a compatibility shell over `FeedView`, and `FeedView` still keeps `TodayTopBar` fixed above the scroll view; the column beneath is empty.
 
-```text
-almanac → yourDay → trivia → spotlight → signOff
-```
+The composition machinery is deliberately untouched. `FeedRegistry` still owns the only production module array — now an empty literal, with a comment saying why — and `FeedRegistry.visibleModules`, the module protocol, and the erased-view renderer all still work. Adding a module back is its implementation plus one registry entry, with no edit to `FeedView`. `FeedModuleID` is still string-backed so unknown newer IDs decode safely, and it keeps `.almanac`, `.yourDay`, `.trivia`, `.spotlight`, `.signOff` as stable names. Each module still owns its phase, visibility, loading/error/empty rendering, spacing, reveal index, and erased view.
 
-`FeedModuleID` is string-backed so unknown newer IDs decode safely. `FeedRegistry` owns the only production module array; adding a module means adding its implementation and one registry entry, without editing `FeedView`. Each module owns its phase, visibility, loading/error/empty rendering, spacing, reveal index, and erased view. The utility subsystem remains intact under `Features/Home/Utility/`, but Today does not mount it or hydrate `UtilityPrefsStore`.
+Routes changed shape: **every `FeedRoute` case now presents its own sheet.** The old nil-`destination` case that `FeedView` handed up to `MainTabsView` for a tab change went out with the Activities tab. The survivors are `.civicTab`, `.editInterests`, and `.event(UpcomingEvent)`.
 
-`BriefingAPI.today()` sends one authenticated POST to `rest/v1/rpc/get_today_briefing`, passing the St. Joseph timezone. The RPC returns the complete `BriefingPayload`: almanac/weather/touch/spotlight/fallback are degradable, featured may be empty, and `caughtUp` is required so the briefing always ends. `BriefingModel` renders the disk cache first, reconciles with the server, keeps cached content during outages, and applies vote/RSVP changes optimistically with rollback. The utility row is intentionally independent and owns its own loading/cache/realtime.
+`BriefingAPI.today()` still sends one authenticated POST to `rest/v1/rpc/get_today_briefing`, passing the St. Joseph timezone, and `FeedController` still constructs and loads `BriefingModel`. The RPC still returns the complete `BriefingPayload`: almanac/weather/touch/spotlight/fallback are degradable, featured may be empty, and `caughtUp` is required so the briefing always ends. `BriefingModel` renders the disk cache first, reconciles with the server, keeps cached content during outages, and applies vote/RSVP changes optimistically with rollback. The data arrives; nothing is mounted to draw it. Leave the contract in place — a rebuilt module should find its payload already loading.
 
-The legacy card feed (`TodayFeedView`, `FeedEventCard`, and related files) still compiles under `BlockParty/Features/Home/Feed/` for regression and rollback. The registry files in that folder are the production Today composition.
+The utility subsystem moved out of Today earlier and now sits, verbatim and still tested, under `BlockParty/Features/Civic/Parked/Utility/`, waiting on the unbuilt Civic tab. It is unreferenced on purpose; read `Features/Civic/Parked/README.md` before touching it, and note that `user_utility_prefs` still holds live per-user configuration a rebuild must re-hydrate.
+
+The legacy card feed (`TodayFeedView`, `FeedEventCard`, and related files) still compiles under `BlockParty/Features/Home/Feed/` for regression and rollback.
 
 ### Feature folders (`BlockParty/Features/`)
 
-Current top-level features are `Activities`, `Add`, `Auth`, `Board`, `Calendar`, `Components`, `Home`, `Map`, `Onboarding`, `OnboardingFlow`, `Place`, `Profile`, and `Share`. The usual house pattern is a SwiftUI view plus a `@MainActor` `ObservableObject` model that owns API state.
+Current top-level features are `Add`, `Auth`, `Board`, `Civic`, `Components`, `Home`, `Map`, `Onboarding`, `Place`, `Profile`, and `Share`. `OnboardingFlow/` was deleted on 2026-09-18; `Onboarding/` keeps only `MapIntroView` (map help), `InterestPickerView` + cards (Edit Profile), and `OnboardingChrome`. The usual house pattern is a SwiftUI view plus a `@MainActor` `ObservableObject` model that owns API state.
+
+`Activities/` (11 files) and `Calendar/` (10 files) were deleted on 2026-09-17, along with `Backend/CalendarExport.swift` and `Components/ActivityTile.swift`. `Civic/` holds the unbuilt Civic destination stub plus `Civic/Parked/` — code kept intact for a screen that does not exist yet. Nothing under `Parked/` is dead code; treat its README as binding.
 
 ### Map (`BlockParty/Features/Map/`)
 
-- `SJMapView` is a SwiftUI Mapbox `Map`, with static `BasemapPalette`, civic and POI SwiftUI view annotations, client-side clustering, town reverse geocoding, compass/recenter/help chrome, and the persistent map sheet. There is no compose entry on the map (the "+" and `QuickAddSheet` were retired in round 2, 2026-08-14; event creation lives on the Activities/Calendar tabs).
-- `MapSheet` is an in-tree draggable surface with peek/medium/full detents and Today/Places browse states. Civic/POI detail is lifted into the shared tab-shell presentation. Sheet gesture arbitration and the VoiceOver adjustable action are custom; it is not `presentationDetents`.
+- The map is **presented, not tabbed**, since 2026-09-17. Its signature is `SJMapView(onClose: (() -> Void)? = nil, bottomBarInset: CGFloat = 0)`, raised as a `.fullScreenCover` from Today's top-bar map button. It carries its own close "X" leading in the top chrome and owns `mapDetail` as internal `@State`; the shell no longer holds the selected pin. `MapSheet.tabBarReserve` (74) still exists but is **no longer the default** — it is the value a host passes as `bottomBarInset` when the map sits over a bottom bar, and nothing does today.
+- `SJMapView` is a SwiftUI Mapbox `Map`, with static `BasemapPalette`, civic and POI SwiftUI view annotations, client-side clustering, town reverse geocoding, close/help/compass/recenter chrome, and the persistent map sheet. There is no compose entry on the map (the "+" and `QuickAddSheet` were retired in round 2, 2026-08-14); event creation is the shell's `ComposeSpeedDial` and the town menu's Compose row.
+- `MapSheet` is an in-tree draggable surface with peek/medium/full detents and Today/Places browse states. Civic/POI detail opens `PinDetailSheet` over the dimmed map, inside the map's own hierarchy. Sheet gesture arbitration and the VoiceOver adjustable action are custom; it is not `presentationDetents`.
 - `MapModel` owns today's events and `RealtimeClient`. A relevant change debounces a full today re-sync; it handles background/foreground lifecycle and midnight rollover.
 - `MapSpots` and `KnownVenues` own trusted St. Joseph coordinates. Resolve known places there before geocoding unknown text.
 - `POILogoCache` reads `places.logo_url`; logo acquisition/upload is an offline script pipeline, not runtime scraping.
@@ -190,7 +194,7 @@ The map is SwiftUI `Map(viewport:)` inside `MapReader`, not UIKit `MapView`. Con
 
 ### Town menu, profile, and share
 
-`TodayTopBar` owns the exact full-colour app mark, fixed town title, and top-right menu button. `GlassShowcaseOverlay` frosts the app and hosts the content-height `TownMenuView` panel from the top-right; tab routes switch behind the closing overlay while sheets wait until it closes. Profile is a normal sheet and uses real `town_profiles` plus real activity reads—never fabricated counts.
+`TodayTopBar` is chrome with an empty leading side and two trailing controls: a map button — a `Radius.button` (12) rounded square under `.glassEffect(.regular, in:)` with the SF Symbol `map`, 38×38 of glass inside a 44pt tap target, labelled "Open the town map" — and the profile avatar, which still opens the town menu. The JoeTown wordmark lockup was retired on 2026-09-17, and the centring math it needed went with it. The map button only reports its tap; the shell owns the cover. `GlassShowcaseOverlay` frosts the app and hosts the content-height `TownMenuView` panel from the top-right; tab routes switch behind the closing overlay while sheets wait until it closes. Profile is a normal sheet and uses real `town_profiles` plus real activity reads—never fabricated counts.
 
 `ShareCenter` presents the app-wide share reveal in its own `UIWindow`, above tabs and sheets. The preview view is also rendered to the shared image. Add new share types through `SharePayload` factories.
 
@@ -199,9 +203,9 @@ The map is SwiftUI `Map(viewport:)` inside `MapReader`, not UIKit `MapView`. Con
 - `BlockPartyColor` / `Hue`: six neutral tokens (`ink`, `paper`, `surface`, `inkSecondary`, `hairline`, `fill`) plus plum/berry `accent` #8E3B6B. The accent is meaning-scoped to live, active, selected/saved, and primary CTA states—never decorative washes or body copy.
 - `BlockPartyFont`: Jost for display/wordmark/headlines and SF Pro for body/UI/data. Use the exact bundled Jost PostScript names; a wrong name silently falls back.
 - Brand mark: the lossless master is `docs/brand/source-render-1254.png`; `scripts/brand/exact.swift` derives the 1024px opaque app icon and in-app assets. Live surfaces use the exact glossy lowercase `bp` raster—never tint, trace, redraw, or substitute the retired hollow-square/script-BP variants.
-- `BlockPartyMetrics`: shared radii/shadows, including map float/sheet shadows. `Radius.bento` is intentionally outside the 12/16/20 sequence.
+- `BlockPartyMetrics`: shared radii/shadows, including map float/sheet shadows. `Radius.bento` is intentionally outside the 12/16/20 sequence. It was sized to keep the Calendar Insights boxes and the Today utility tiles identical; Calendar is deleted and the tiles are parked, so `Radius.bento` and `Motion.bentoExpand`/`tilePress` have one consumer left. Keep them — they are the spec the parked tiles rebuild against.
 
-Do not hardcode a hex or spacing value at a view call site when a token or named palette covers it. Controlled raw colours live in role-specific palette/config files: `BlockPartyColor.swift`, `BasemapPalette.swift`, `WeatherBackground.swift`, utility gradient definitions, and `OnboardingFlow/Theme/BPOnboardingPalette.swift`; logo fallback art and the garbage-truck illustration are content exceptions. Do not make the basemap grayscale; that experiment was reverted because landmarks disappeared. Category is carried by glyph, while live/active/selected state may use the accent.
+Do not hardcode a hex or spacing value at a view call site when a token or named palette covers it. Controlled raw colours live in role-specific palette/config files: `BlockPartyColor.swift`, `BasemapPalette.swift`, `WeatherBackground.swift`, and utility gradient definitions; logo fallback art and the garbage-truck illustration are content exceptions. Do not make the basemap grayscale; that experiment was reverted because landmarks disappeared. Category is carried by glyph, while live/active/selected state may use the accent.
 
 ## Conventions and gotchas
 

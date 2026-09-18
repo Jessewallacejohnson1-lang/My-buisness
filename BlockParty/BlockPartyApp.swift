@@ -25,9 +25,10 @@ struct BlockPartyApp: App {
 
     var body: some Scene {
         WindowGroup {
-            LaunchHost {
-                RootView()
-            }
+            // No launch splash since 2026-09-18 (Jesse's call): the window shows the
+            // real destination on the first frame, and session restore swaps Login
+            // for the tabs underneath it.
+            RootView()
                 .environmentObject(auth)
                 .task { await auth.restore() }
                 .task { await PlaceSeeder.seedIfRequested() }   // DEBUG: -seed-places one-time POI seed

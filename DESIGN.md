@@ -2,6 +2,15 @@
 
 Visual system for Block Party, captured from `BlockParty/Theme/` (`BlockPartyColor.swift`, `BlockPartyFont.swift`, `BlockPartyMetrics.swift`) and the shipped screens. Source of truth is the Swift tokens; this document mirrors them for design work. When they drift, the code wins — update this file.
 
+## Working mode
+
+Screens here get built in passes, with Jesse directing. A UI request is a step in that direction, not a brief for a finished screen.
+
+- **Build what was asked, at the scope it was asked.** Do not extend a request into a complete, polished design because the current state looks unfinished.
+- **Loose ends are intentional.** A placeholder, a stubbed action, a half-wired state, or a screen with one working path is often the deliberate stopping point — "we'll make it work later" is a real plan, not an oversight to repair.
+- **Improving the process is welcome; improving the design past the ask is not.** Cleaner structure, reused tokens, fewer files, a faster path to seeing it on device — all good. Inventing layout, states, or polish that was not requested is not.
+- **When the instruction and "what a finished screen would need" disagree, follow the instruction.** Name the gap in a line, then stop. Unrequested UI is UI that gets deleted and remade.
+
 ## Theme
 
 **Ink on paper, monochrome (July 2026 rebrand).** White cards lift off a warm near-white page; near-black ink carries text, buttons, active states and pins. **There is no accent colour** — photographs carry all the colour in the app, and that contrast against monochrome chrome is the point of the system. The earlier coral accent, the warm-linen surfaces, and the green buttons are all retired; do not reintroduce any of them. Warmth comes from the paper tone and the copy.
