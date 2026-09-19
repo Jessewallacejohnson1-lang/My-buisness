@@ -125,10 +125,10 @@ Use the targeted preview/gallery flags for states below the fold, then verify ac
 
 `RootView` is the gate:
 
-1. signed-in users get `MainTabsView` immediately, hydrating their own `town_profiles` row in a background task;
-2. signed-out users get `LoginView`.
+1. everyone gets `MainTabsView` immediately — **sign-in is off** since 2026-09-18 (`RootView.requiresSignIn = false`), so `LoginView` is unreachable;
+2. a signed-in user additionally hydrates their own `town_profiles` row in a background task.
 
-There is no third state: no splash, no launch loader gate, no onboarding. The storyboard's paper-coloured frame zero is the only thing before the app.
+There is no splash, no launch loader gate, and no onboarding. The storyboard's paper-coloured frame zero is the only thing before the app. The auth stack itself is intact and restorable — flip `requiresSignIn` back to `true`. While it is off, signed-out screens show their own empty states and the profile's Sign out row is hidden.
 
 `MainTabsView` owns four tabs (`town`, `daily`, `business`, `you`), the custom `BlockPartyTabBar`, the town-menu presentation, the full-screen map cover, and compose speed dial/sheets.
 

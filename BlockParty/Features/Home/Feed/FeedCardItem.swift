@@ -51,6 +51,15 @@ struct FeedCardActionState: Equatable {
         isSaved = item.isSaved
     }
 
+    /// The counts on their own, for cards that are not built from a `FeedCardItem`
+    /// (the Daily feed's postings). The stored properties are `private(set)`, so
+    /// there is no synthesised memberwise init to lean on.
+    init(likeCount: Int, isLiked: Bool, isSaved: Bool) {
+        self.likeCount = likeCount
+        self.isLiked = isLiked
+        self.isSaved = isSaved
+    }
+
     @discardableResult
     mutating func toggleLike() -> Bool {
         isLiked.toggle()

@@ -50,10 +50,12 @@ historical artifacts and are **not** a current alternate, fallback, or export pa
 ## Rules that still hold
 
 - Export the icon **full-bleed**: no alpha. iOS applies its own squircle mask.
-- The icon is brand **content**, like photography and the map basemap. Its own
-  yellow is allowed wherever the canonical mark appears; it does not change
-  `Hue.accent`.
+- The icon is brand **content**, like photography and the map basemap — and since
+  2026-09-18 its yellow is also the app's **accent**: `#F2B800`, sampled from the
+  master here, lives in `BlockPartyColor.swift` as `Hue.brandYellowHex`. Every UI
+  yellow derives from it.
 - Use the exact full-colour mark on every live brand surface. Do not tint, trace,
   redraw, or substitute a flat-vector interpretation.
-- Whether the mark's yellow becomes the app's **UI accent token** is a separate,
-  still-open decision. Shipping this icon does not decide it.
+- **That question is now closed** (Jesse, 2026-09-18): the mark's yellow IS the UI
+  accent, used for small accents only — the Today bar's map disc today. White is the
+  app's ground. Re-sample from this master if the artwork is ever re-exported.

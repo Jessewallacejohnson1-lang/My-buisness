@@ -124,6 +124,10 @@ struct RootView: View {
                 // Preview the real Today feed pipeline and its empty/loading variants
                 // full-screen, without auth or onboarding.
                 TodayFeedPreview()
+            } else if ProcessInfo.processInfo.arguments.contains("-daily-feed-preview") {
+                // The Daily social feed over fixtures, without auth or network, so
+                // both card shapes and the ranked order can be screenshotted.
+                DailyFeedPreview()
             } else if ProcessInfo.processInfo.arguments.contains("-show-skeletons") {
                 // Preview the per-tab shimmer skeletons (bypassing the auth gate).
                 SkeletonGalleryPreview()

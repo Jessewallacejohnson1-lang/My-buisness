@@ -87,7 +87,14 @@ struct ProfileView: View {
                 featureCards.springReveal(1, revealed: revealed)
                 aroundTown.springReveal(2, revealed: revealed)
                 settingsGroup.springReveal(3, revealed: revealed)
-                signOutButton.springReveal(4, revealed: revealed).id("bottom")
+                // Hidden when there is no session to end. Sign-in is switched off
+                // (`RootView.requiresSignIn`), so for most people this screen is now
+                // reached without ever having signed in, and a "Sign out" button that
+                // can only clear something that was never set reads as a broken
+                // control. It comes back with the gate.
+                if AuthStore.shared.isSignedIn {
+                    signOutButton.springReveal(4, revealed: revealed).id("bottom")
+                }
                 // Clears the floating tab bar when this screen IS a tab; a sheet
                 // has no bar under it and only needs breathing room.
                 Color.clear.frame(height: showsClose ? 40 : 112)

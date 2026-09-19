@@ -47,6 +47,9 @@ struct FeedView: View {
     @State private var contentRevealed = false
     @State private var refreshReplay = 0
     @State private var showsHairline = false
+    /// The clock the social feed ranks against. Bumped on pull-to-refresh so a
+    /// stale ordering cannot outlive the gesture that asked for a new one.
+    @State private var feedClock = Date()
 
     init(
         auth: AuthStore,
@@ -113,6 +116,12 @@ struct FeedView: View {
                         context: context
                     )
 
+                    // The social feed. Below the module column rather than instead
+                    // of it: the registry is empty today, but a module that lands
+                    // later is town-wide chrome (weather, the almanac) and belongs
+                    // above the stream, not buried in it.
+                    DailyFeedColumn(items: DailyView.currentItems, now: feedClock)
+
                     Color.clear.frame(height: 96)
                 }
                 .tint(Hue.ink)
@@ -128,6 +137,8 @@ struct FeedView: View {
                 if controller.briefing.needsRefresh {
                     await controller.refreshBriefing()
                 }
+
+                feedClock = Date()
 
                 revealAnimated = false
                 revealed = false

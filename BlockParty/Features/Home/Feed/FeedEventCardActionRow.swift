@@ -5,7 +5,18 @@
 
 import SwiftUI
 
+/// Which controls a card's action row offers.
+///
+/// A posting is somebody talking, so it takes a reaction and a reply. An event is
+/// a fact about the town — there is nothing to agree or disagree with, so it only
+/// offers the two verbs that do something for you later: keep it, or pass it on.
+enum FeedActionKind {
+    case posting
+    case event
+}
+
 struct FeedEventCardActionRow: View {
+    var kind: FeedActionKind = .posting
     @Binding var state: FeedCardActionState
     let reduceMotion: Bool
     let autoplayStep: Int
@@ -14,61 +25,65 @@ struct FeedEventCardActionRow: View {
     let onComment: () -> Void
     let onShare: (() -> Void)?
 
-    @State private var heartScale: CGFloat = 1
+    @State private var thumbScale: CGFloat = 1
     @State private var bookmarkOffset: CGFloat = 0
-    @State private var heartGeneration = 0
+    @State private var thumbGeneration = 0
     @State private var bookmarkGeneration = 0
 
     var body: some View {
+        // Share sits alone past the spacer, hard against the trailing edge. It is the
+        // only control here that leaves the app, so it does not belong in the same
+        // cluster as the three that act on the card in place.
         HStack(spacing: 0) {
             HStack(spacing: 12) {
-                likeControl
-                iconButton("bubble.right", action: onComment)
-                    .accessibilityLabel("Comment")
-                iconButton("square.and.arrow.up") { onShare?() }
-                    .accessibilityLabel("Share")
+                if kind == .posting {
+                    thumbControl
+                    iconButton("bubble.right", action: onComment)
+                        .accessibilityLabel("Comment")
+                }
+                saveButton
             }
 
             Spacer(minLength: 12)
 
-            saveButton
+            shareButton
         }
         .frame(height: 44)
         .onChange(of: autoplayStep) { _, step in
             switch step {
-            case 1, 4: performLikeTap()
+            case 1, 4: if kind == .posting { performThumbTap() }
             case 3: performSaveTap()
             default: break
             }
         }
     }
 
-    private var likeControl: some View {
+    private var thumbControl: some View {
         HStack(spacing: 5) {
-            Button(action: performLikeTap) {
+            Button(action: performThumbTap) {
                 ZStack {
-                    actionIcon("heart", active: false)
+                    actionIcon("hand.thumbsup", active: false)
                         .opacity(state.isLiked ? 0 : 1)
-                    actionIcon("heart.fill", active: true)
+                    actionIcon("hand.thumbsup.fill", active: true)
                         .opacity(state.isLiked ? 1 : 0)
                 }
-                .scaleEffect(reduceMotion ? 1 : heartScale)
+                .scaleEffect(reduceMotion ? 1 : thumbScale)
                 .frame(width: 44, height: 44)
                 .contentShape(actionShape)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Like, \(state.likeCount) likes")
-            .accessibilityValue(state.isLiked ? "Liked" : "Not liked")
+            .accessibilityLabel("Thumbs up, \(state.likeCount) thumbs up")
+            .accessibilityValue(state.isLiked ? "Given" : "Not given")
             .accessibilityAddTraits(state.isLiked ? .isSelected : [])
 
             if state.likeCount > 0 {
-                likeCount
+                thumbCount
             }
         }
     }
 
     @ViewBuilder
-    private var likeCount: some View {
+    private var thumbCount: some View {
         if reduceMotion {
             countText.contentTransition(.opacity)
         } else {
@@ -107,6 +122,11 @@ struct FeedEventCardActionRow: View {
         .accessibilityAddTraits(state.isSaved ? .isSelected : [])
     }
 
+    private var shareButton: some View {
+        iconButton("square.and.arrow.up") { onShare?() }
+            .accessibilityLabel("Share")
+    }
+
     private func iconButton(_ symbol: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             actionIcon(symbol, active: false)
@@ -128,9 +148,9 @@ struct FeedEventCardActionRow: View {
         RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
     }
 
-    private func performLikeTap() {
-        heartGeneration += 1
-        let generation = heartGeneration
+    private func performThumbTap() {
+        thumbGeneration += 1
+        let generation = thumbGeneration
 
         if reduceMotion {
             withAnimation(.easeInOut(duration: 0.15)) {
@@ -139,14 +159,14 @@ struct FeedEventCardActionRow: View {
         } else {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
                 _ = state.toggleLike()
-                heartScale = 1.3
+                thumbScale = 1.3
             }
 
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(150))
-                guard generation == heartGeneration else { return }
+                guard generation == thumbGeneration else { return }
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
-                    heartScale = 1
+                    thumbScale = 1
                 }
             }
         }

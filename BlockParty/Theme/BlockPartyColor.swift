@@ -141,13 +141,23 @@ nonisolated enum Hue {
     /// while live). See DECISIONS.md (map polish Q3).
     static let statusTint    = Color(hex: 0xFDECE8)
 
-    /// The Today bar's map disc — a pale, transparent wash of the app icon's
-    /// broadcast-arc yellow (#F2B800, sampled from the painted 1024 master) at 46% — pale
-    /// enough to stay a wash, saturated enough for the disc's white specular to read as
-    /// GLOSS rather than as a smudge on cream. Jesse's
+    /// **The brand yellow.** The exact hue of the app icon's broadcast arcs, sampled
+    /// from the painted 1024 master (`docs/brand/source-logo-1024.png`): the modal
+    /// pixel value across the arc mass, not an eyeballed approximation. This is the
+    /// app's ONE accent (Jesse, 2026-09-18) and every yellow in the UI derives from
+    /// it — never a second yellow, never a call-site hex.
+    ///
+    /// Accents are small by rule: the Today bar's map disc today, and whatever else
+    /// Jesse scopes in later. The app's ground stays white/paper.
+    nonisolated static let brandYellowHex: UInt32 = 0xF2B800
+
+    /// The Today bar's map disc: `brandYellowHex` at 68%. Same yellow as the logo,
+    /// carried at partial opacity — the disc is a flat translucent surface, not a
+    /// shaded ball, so the material underneath does part of the work and the hue is
+    /// read through it. Alpha is the only thing that differs from the mark. Jesse's
     /// call (2026-09-18) for the one control left in that bar. It is a scoped surface
     /// tint, NOT the pending UI accent decision, and nothing else routes through it.
-    static let mapWash       = Color(hex: 0xF2B800, alpha: 0.46)
+    static let mapWash       = Color(hex: brandYellowHex, alpha: 0.68)
 
     /// The one brand accent — meaning-scoped ONLY (live events, active filters,
     /// selected/saved state, primary CTAs), never decoration, body copy, or a

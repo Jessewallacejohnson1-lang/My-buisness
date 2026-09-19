@@ -15,6 +15,10 @@ struct FeedEventCard: View {
     let onLoadComments: (() async throws -> [EventComment])?
     let onComment: ((String) async throws -> EventComment)?
     let onShare: (() -> Void)?
+    /// Which action controls this card offers. Defaults to `.posting` so the Town
+    /// pipeline and the DEBUG galleries keep the row they were built against; the
+    /// Daily feed passes `.event`, which drops thumbs-up and comments.
+    let actionKind: FeedActionKind
     let debugAutoplay: Bool
 
     /// Horizontal room the overlapping join block needs, so the ToS attribution
@@ -43,6 +47,7 @@ struct FeedEventCard: View {
         onLoadComments: (() async throws -> [EventComment])? = nil,
         onComment: ((String) async throws -> EventComment)? = nil,
         onShare: (() -> Void)? = nil,
+        actionKind: FeedActionKind = .posting,
         debugAutoplay: Bool = false
     ) {
         self.item = item
@@ -53,6 +58,7 @@ struct FeedEventCard: View {
         self.onLoadComments = onLoadComments
         self.onComment = onComment
         self.onShare = onShare
+        self.actionKind = actionKind
         self.debugAutoplay = debugAutoplay
         _actionState = State(initialValue: FeedCardActionState(item: item))
         let initialJoinState = FeedCardJoinState(item: item)
@@ -181,7 +187,7 @@ struct FeedEventCard: View {
         .frame(maxWidth: .infinity)
         .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         .overlay {
-            Image(systemName: "heart.fill")
+            Image(systemName: "hand.thumbsup.fill")
                 .font(.system(size: 84, weight: .bold))
                 .symbolRenderingMode(.monochrome)
                 .foregroundStyle(.white)
@@ -208,16 +214,23 @@ struct FeedEventCard: View {
                 }
             }
             .padding(16)
-            .padding(.trailing, Self.joinBlockClearance)
+            .padding(.trailing, offersJoin ? Self.joinBlockClearance : 0)
         }
         .overlay(alignment: .bottomTrailing) {
-            joinBlock
-                .offset(y: 22)
+            if offersJoin {
+                joinBlock
+                    .offset(y: 22)
+            }
         }
         .contentShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
-        .simultaneousGesture(TapGesture(count: 2).onEnded(performImageLike))
+        // Only where there IS a thumbs-up control to mirror. On an event card the
+        // gesture would set state nothing on screen can undo.
+        .simultaneousGesture(TapGesture(count: 2).onEnded {
+            guard actionKind == .posting else { return }
+            performImageLike()
+        })
         // Reserve the lower half of the overlapping join block before the social row.
-        .padding(.bottom, 22)
+        .padding(.bottom, offersJoin ? 22 : 0)
     }
 
     @ViewBuilder
@@ -360,6 +373,7 @@ struct FeedEventCard: View {
 
     private var actionRow: some View {
         FeedEventCardActionRow(
+            kind: actionKind,
             state: $actionState,
             reduceMotion: motionIsReduced,
             autoplayStep: autoplayStep,
@@ -373,6 +387,10 @@ struct FeedEventCard: View {
     private var motionIsReduced: Bool {
         accessibilityReduceMotion
     }
+
+    /// The overlapping "+" RSVP. Present on a posting card, absent on an event in
+    /// the Daily feed, where the only two verbs are save and share.
+    private var offersJoin: Bool { actionKind == .posting }
 
     private func performJoinTap() {
         let joined = joinState.toggleJoin()

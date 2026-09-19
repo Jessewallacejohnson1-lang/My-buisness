@@ -11,9 +11,31 @@ Screens here get built in passes, with Jesse directing. A UI request is a step i
 - **Improving the process is welcome; improving the design past the ask is not.** Cleaner structure, reused tokens, fewer files, a faster path to seeing it on device — all good. Inventing layout, states, or polish that was not requested is not.
 - **When the instruction and "what a finished screen would need" disagree, follow the instruction.** Name the gap in a line, then stop. Unrequested UI is UI that gets deleted and remade.
 
+## Colour direction (Jesse, 2026-09-18)
+
+**Two colours define the app: white, and the logo's yellow.**
+
+1. **White is the ground.** `Hue.surface` #FFFFFF for cards, `Hue.paper` #FAFAF7 for
+   the page. The app reads as white; everything else sits on it.
+2. **Yellow is the accent, and it is the app icon's yellow — `#F2B800`.** Sampled from
+   the painted 1024 master (`docs/brand/source-logo-1024.png`), the modal value across
+   the broadcast arcs. It lives in `BlockPartyColor.swift` as `Hue.brandYellowHex`, and
+   **every yellow in the UI derives from it.** There is no second yellow, and no yellow
+   hex at a call site.
+
+**Accents are small by rule.** Today the yellow marks exactly one control: the Today
+bar's map disc (`Hue.mapWash` — the brand yellow at 68%, the same hue carried at
+partial opacity so the disc stays translucent over what is behind it). It is not a
+background wash, not body copy, not a card, not a category colour. More yellow is
+Jesse's call to scope, not an agent's to spread.
+
+The plum `Hue.accent` (#8E3B6B) still ships where it already carries meaning — live
+events, active filters, selected/saved map state — and stays until Jesse says
+otherwise. The brand accent going forward is the yellow.
+
 ## Theme
 
-**Ink on paper, monochrome (July 2026 rebrand).** White cards lift off a warm near-white page; near-black ink carries text, buttons, active states and pins. **There is no accent colour** — photographs carry all the colour in the app, and that contrast against monochrome chrome is the point of the system. The earlier coral accent, the warm-linen surfaces, and the green buttons are all retired; do not reintroduce any of them. Warmth comes from the paper tone and the copy.
+**Ink on paper (July 2026 rebrand), now white-and-yellow at the top level.** White cards lift off a warm near-white page; near-black ink carries text, buttons, active states and pins. **The only accent is the brand yellow, scoped small** (see Colour direction above) — photographs otherwise carry all the colour in the app, and that contrast against near-monochrome chrome is the point of the system. The earlier coral accent, the warm-linen surfaces, and the green buttons are all retired; do not reintroduce any of them. Warmth comes from the paper tone and the copy.
 
 If a design seems to need an accent, it needs hierarchy instead — weight, size, value, or fill-vs-outline.
 
@@ -31,6 +53,8 @@ All values are sRGB hex from `Hue` (`BlockPartyColor.swift`). Six tokens, and no
 | `Hue.inkSecondary` | `#6E6E6E` | Secondary text, captions, inactive states |
 | `Hue.hairline` | `#E7E7E4` | Borders, dividers |
 | `Hue.fill` | `#F1F1EF` | Inert fills — placeholders, skeletons, disabled |
+| `Hue.brandYellowHex` | `#F2B800` | **The accent**, sampled from the app icon's arcs. Tints derive from it |
+| `Hue.mapWash` | `#F2B800` @ 68% | The Today bar's map disc — the one accent surface today |
 
 > Note the surface/page swap in the rebrand: `Hue.paper` used to mean "white card" and
 > `Hue.canvas` meant "page background". `Hue.paper` **is** the page background now, and

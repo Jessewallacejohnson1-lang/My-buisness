@@ -133,15 +133,15 @@ struct TodayTopBar: View {
         let side = TodayBarMetric.mapSide
         return Button(action: onOpenMap) {
             ZStack {
-                // NOT `.glassEffect`. Measured, twice: a Liquid Glass surface pulls
-                // what sits near it into its own layer, so the highlight flattened to
-                // a 2/255 difference and the pin came back refracted into a ghost.
-                // Glass is the right material for a bar or a sheet, where the point is
-                // what shows THROUGH; this control's point is the gloss ON it, which
-                // needs ordinary compositing to survive.
+                // Mostly flat, and genuinely see-through: a thin material with the
+                // wash on top, not a shaded ball. The earlier version modelled a
+                // sphere — specular, sub-equator shade, bounce light — and read as a
+                // plastic badge stuck on the page. Glass in the reference is a
+                // SURFACE: flat, transparent, with one soft sheen and a rim to catch
+                // the edge. That is all that survives here.
                 Circle().fill(.ultraThinMaterial)
                 Circle().fill(Hue.mapWash)
-                gloss
+                sheen
                 MapPinGlyph(size: TodayBarMetric.mapGlyphSize)
                     .foregroundStyle(Hue.ink)
             }
@@ -149,66 +149,33 @@ struct TodayTopBar: View {
             .contentShape(Circle())
         }
         .buttonStyle(MapDiscPressStyle())
-        .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
-        .shadow(color: .black.opacity(0.16), radius: 11, y: 6)
+        // One soft, close shadow — enough to lift the disc off the paper, not enough
+        // to make it hover.
+        .shadow(color: .black.opacity(0.09), radius: 5, y: 2)
         .accessibilityLabel("Open the town map")
     }
 
-    /// Sheen, shade, specular, crescent, bounce light, rim — the six layers that turn
-    /// a flat tinted circle into something that looks wet. All clipped to the disc, so
-    /// the button keeps one silhouette however bright the highlight runs.
-    private var gloss: some View {
-        let side = TodayBarMetric.mapSide
-        return ZStack {
-            // The sheen: the whole upper half lifted, falling off before the middle.
+    /// The only two light layers left: a faint sheen across the top third and a rim
+    /// that is brighter where the light lands. Roughly 80% flat — enough curvature to
+    /// read as glass, not enough to read as a ball.
+    private var sheen: some View {
+        ZStack {
             Circle()
                 .fill(
                     LinearGradient(
-                        colors: [.white.opacity(0.38), .white.opacity(0.05), .clear],
+                        colors: [.white.opacity(0.22), .white.opacity(0.03), .clear],
                         startPoint: .top,
                         endPoint: .center
                     )
                 )
-            // The shade under the equator. THIS is what makes the disc read as a ball
-            // rather than a flat circle with a white smudge on it: a surface is convex
-            // because its value ramps top to bottom, and a specular only lands as a
-            // highlight if there is something darker for it to be brighter THAN.
-            Circle()
-                .fill(
-                    LinearGradient(
-                        colors: [.clear, Hue.ink.opacity(0.16)],
-                        startPoint: .center,
-                        endPoint: .bottom
-                    )
-                )
-            // The specular hit, up and left of centre.
-            Ellipse()
-                .fill(.white.opacity(0.8))
-                .frame(width: side * 0.42, height: side * 0.17)
-                .blur(radius: side * 0.028)
-                .offset(x: -side * 0.08, y: -side * 0.25)
-            // The crescent just inside the top-left rim — the second half of a glass
-            // highlight, where the surface curves away from the light.
-            Circle()
-                .inset(by: 1.5)
-                .trim(from: 0.56, to: 0.88)
-                .stroke(.white.opacity(0.6), style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
-                .blur(radius: 0.7)
-            // Bounce light along the bottom rim. Without it a glossy ball reads as a dome.
-            Ellipse()
-                .fill(.white.opacity(0.34))
-                .frame(width: side * 0.46, height: side * 0.16)
-                .blur(radius: side * 0.075)
-                .offset(y: side * 0.31)
-            // Rim light: bright where the light lands, almost gone underneath.
             Circle()
                 .strokeBorder(
                     LinearGradient(
-                        colors: [.white.opacity(0.9), .white.opacity(0.2), .white.opacity(0.03)],
+                        colors: [.white.opacity(0.45), .white.opacity(0.12), .white.opacity(0.03)],
                         startPoint: .top,
                         endPoint: .bottom
                     ),
-                    lineWidth: 1
+                    lineWidth: 0.8
                 )
         }
         .clipShape(Circle())
@@ -226,31 +193,39 @@ struct TodayTopBar: View {
     }
 }
 
-/// The map mark: a place pin, drawn.
+/// The map mark: a place pin, drawn as an OUTLINE with a solid centre.
 ///
-/// Not the SF Symbol `map`. That glyph is a hard-cornered folded sheet, and inside a
-/// circle inside a rounded bar it read as three silhouettes fighting — a rectangle
-/// where every other edge is a curve. A pin is all curve, it is the one mark every
-/// map app has trained people to read, and it says "a place in town" rather than
-/// "a document". Geometry is specified in a 24-point box and scaled, so the mark
-/// keeps its proportions at any size.
+/// Not the SF Symbol `map` — that glyph is a hard-cornered folded sheet, and a
+/// rectangle inside a circle inside a rounded bar was three silhouettes fighting.
+/// Not the solid teardrop either (Jesse, 2026-09-18): filled, the mark sat as a heavy
+/// black blot on a pale disc. Outlined, it reads as a ring with a dot at the middle —
+/// lighter on the yellow, and the shape people already know as "a place".
 ///
-/// The head is cut out rather than drawn as a separate ring: one even-odd filled
-/// path means the hole is always concentric and can never drift from the shell at a
-/// fractional scale.
+/// Geometry is specified in a 24-point box and scaled, so the mark keeps its
+/// proportions and its stroke ratio at any size.
 struct MapPinGlyph: View {
     var size: CGFloat = 24
 
     /// The design box every coordinate is expressed in.
     private static let box: CGFloat = 24
+    /// Stroke weight in box units. Scaled with everything else, so the outline never
+    /// goes spindly at 20pt or clubby at 40.
+    private static let stroke: CGFloat = 2.1
 
     var body: some View {
-        MapPinShape()
-            .fill(style: FillStyle(eoFill: true))
-            .frame(width: Self.box, height: Self.box)
-            .scaleEffect(size / Self.box)
-            .frame(width: size, height: size)
-            .accessibilityHidden(true)
+        ZStack {
+            MapPinShape()
+                .stroke(style: StrokeStyle(lineWidth: Self.stroke, lineJoin: .round))
+            // The centre. Solid, and sized against the outline rather than the box, so
+            // the ring keeps its breathing room at every scale.
+            Circle()
+                .frame(width: 5.1, height: 5.1)
+                .offset(y: -1.6)
+        }
+        .frame(width: Self.box, height: Self.box)
+        .scaleEffect(size / Self.box)
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
     }
 }
 
@@ -264,15 +239,12 @@ struct MapPinShape: Shape {
 
         var path = Path()
         // Tip, up the left flank, over the crown, down the right flank, back to tip.
-        path.move(to: pt(12, 21.8))
-        path.addCurve(to: pt(5.4, 9.4), control1: pt(9.1, 17.6), control2: pt(5.4, 13.4))
-        path.addCurve(to: pt(12, 2.8), control1: pt(5.4, 5.8), control2: pt(8.3, 2.8))
-        path.addCurve(to: pt(18.6, 9.4), control1: pt(15.7, 2.8), control2: pt(18.6, 5.8))
-        path.addCurve(to: pt(12, 21.8), control1: pt(18.6, 13.4), control2: pt(14.9, 17.6))
+        path.move(to: pt(12, 21.2))
+        path.addCurve(to: pt(5.6, 9.6), control1: pt(9.2, 17.3), control2: pt(5.6, 13.4))
+        path.addCurve(to: pt(12, 3.2), control1: pt(5.6, 6.1), control2: pt(8.5, 3.2))
+        path.addCurve(to: pt(18.4, 9.6), control1: pt(15.5, 3.2), control2: pt(18.4, 6.1))
+        path.addCurve(to: pt(12, 21.2), control1: pt(18.4, 13.4), control2: pt(14.8, 17.3))
         path.closeSubpath()
-
-        // The hole. Even-odd, so this subpath subtracts from the shell above.
-        path.addEllipse(in: CGRect(x: 9.3 * s, y: 6.7 * s, width: 5.4 * s, height: 5.4 * s))
         return path
     }
 }
