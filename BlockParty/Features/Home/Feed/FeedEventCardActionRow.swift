@@ -7,9 +7,10 @@ import SwiftUI
 
 /// Which controls a card's action row offers.
 ///
-/// A posting is somebody talking, so it takes a reaction and a reply. An event is
-/// a fact about the town — there is nothing to agree or disagree with, so it only
-/// offers the two verbs that do something for you later: keep it, or pass it on.
+/// Both kinds take a heart: a heart is not agreement, it is "this is good, I want
+/// more of it", which is as true of an event as of a neighbour's photo (Jesse,
+/// 2026-09-19). What still separates them is the reply — a posting is somebody
+/// talking, so it takes comments; an event is a fact about the town, so it does not.
 enum FeedActionKind {
     case posting
     case event
@@ -25,9 +26,9 @@ struct FeedEventCardActionRow: View {
     let onComment: () -> Void
     let onShare: (() -> Void)?
 
-    @State private var thumbScale: CGFloat = 1
+    @State private var heartScale: CGFloat = 1
     @State private var bookmarkOffset: CGFloat = 0
-    @State private var thumbGeneration = 0
+    @State private var heartGeneration = 0
     @State private var bookmarkGeneration = 0
 
     var body: some View {
@@ -36,8 +37,8 @@ struct FeedEventCardActionRow: View {
         // cluster as the three that act on the card in place.
         HStack(spacing: 0) {
             HStack(spacing: 12) {
+                heartControl
                 if kind == .posting {
-                    thumbControl
                     iconButton("bubble.right", action: onComment)
                         .accessibilityLabel("Comment")
                 }
@@ -51,39 +52,39 @@ struct FeedEventCardActionRow: View {
         .frame(height: 44)
         .onChange(of: autoplayStep) { _, step in
             switch step {
-            case 1, 4: if kind == .posting { performThumbTap() }
+            case 1, 4: performHeartTap()
             case 3: performSaveTap()
             default: break
             }
         }
     }
 
-    private var thumbControl: some View {
+    private var heartControl: some View {
         HStack(spacing: 5) {
-            Button(action: performThumbTap) {
+            Button(action: performHeartTap) {
                 ZStack {
-                    actionIcon("hand.thumbsup", active: false)
+                    actionIcon("heart", active: false)
                         .opacity(state.isLiked ? 0 : 1)
-                    actionIcon("hand.thumbsup.fill", active: true)
+                    actionIcon("heart.fill", active: true)
                         .opacity(state.isLiked ? 1 : 0)
                 }
-                .scaleEffect(reduceMotion ? 1 : thumbScale)
+                .scaleEffect(reduceMotion ? 1 : heartScale)
                 .frame(width: 44, height: 44)
                 .contentShape(actionShape)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Thumbs up, \(state.likeCount) thumbs up")
-            .accessibilityValue(state.isLiked ? "Given" : "Not given")
+            .accessibilityLabel("Like, \(state.likeCount) likes")
+            .accessibilityValue(state.isLiked ? "Liked" : "Not liked")
             .accessibilityAddTraits(state.isLiked ? .isSelected : [])
 
             if state.likeCount > 0 {
-                thumbCount
+                heartCount
             }
         }
     }
 
     @ViewBuilder
-    private var thumbCount: some View {
+    private var heartCount: some View {
         if reduceMotion {
             countText.contentTransition(.opacity)
         } else {
@@ -148,9 +149,9 @@ struct FeedEventCardActionRow: View {
         RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
     }
 
-    private func performThumbTap() {
-        thumbGeneration += 1
-        let generation = thumbGeneration
+    private func performHeartTap() {
+        heartGeneration += 1
+        let generation = heartGeneration
 
         if reduceMotion {
             withAnimation(.easeInOut(duration: 0.15)) {
@@ -159,14 +160,14 @@ struct FeedEventCardActionRow: View {
         } else {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
                 _ = state.toggleLike()
-                thumbScale = 1.3
+                heartScale = 1.3
             }
 
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(150))
-                guard generation == thumbGeneration else { return }
+                guard generation == heartGeneration else { return }
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
-                    thumbScale = 1
+                    heartScale = 1
                 }
             }
         }

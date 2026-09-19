@@ -51,7 +51,11 @@ struct PostingCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
+                .padding(.horizontal, DailyFeedMetric.contentInset)
 
+            // The photo is the one thing that runs to both screen edges. Everything
+            // else on the card keeps `contentInset` so the copy is not reading off
+            // the bezel (Jesse, 2026-09-19).
             imageSection
                 .padding(.top, 10)
 
@@ -66,12 +70,15 @@ struct PostingCard: View {
                 onShare: onShare
             )
             .padding(.top, 2)
+            .padding(.horizontal, DailyFeedMetric.contentInset)
 
             caption
+                .padding(.horizontal, DailyFeedMetric.contentInset)
 
             if posting.commentCount > 0 {
                 commentsLink
                     .padding(.top, 4)
+                    .padding(.horizontal, DailyFeedMetric.contentInset)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -127,9 +134,11 @@ struct PostingCard: View {
         imageContent
             .aspectRatio(4.0 / 5.0, contentMode: .fit)
             .frame(maxWidth: .infinity)
-            .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+            // Square, not `Radius.card`: a rounded corner that meets the screen edge
+            // reads as a rendering mistake rather than as a card.
+            .clipped()
             .overlay {
-                Image(systemName: "hand.thumbsup.fill")
+                Image(systemName: "heart.fill")
                     .font(.system(size: 84, weight: .bold))
                     .symbolRenderingMode(.monochrome)
                     .foregroundStyle(.white)
@@ -137,7 +146,7 @@ struct PostingCard: View {
                     .opacity(burstOpacity)
                     .accessibilityHidden(true)
             }
-            .contentShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+            .contentShape(Rectangle())
             .simultaneousGesture(TapGesture(count: 2).onEnded(performImageLike))
     }
 
@@ -194,9 +203,9 @@ struct PostingCard: View {
 
     private var motionIsReduced: Bool { accessibilityReduceMotion }
 
-    /// Double-tap the photo to give a thumbs-up. Idempotent — a second double-tap
-    /// re-plays the burst without taking the thumb back, because an accidental
-    /// un-like is a worse outcome than an accidental repeat.
+    /// Double-tap the photo to like it. Idempotent — a second double-tap re-plays
+    /// the burst without taking the heart back, because an accidental un-like is a
+    /// worse outcome than an accidental repeat.
     private func performImageLike() {
         burstGeneration += 1
         let generation = burstGeneration

@@ -75,9 +75,11 @@ struct FeedEventCard: View {
 
             socialRow
                 .padding(.top, 10)
+                .padding(.horizontal, DailyFeedMetric.contentInset)
 
             actionRow
                 .padding(.top, 12)
+                .padding(.horizontal, DailyFeedMetric.contentInset)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
@@ -185,9 +187,11 @@ struct FeedEventCard: View {
         }
         .aspectRatio(5.0 / 4.0, contentMode: .fit)
         .frame(maxWidth: .infinity)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+        // Square, not `Radius.card`: the hero runs to both screen edges now, and a
+        // rounded corner meeting the bezel reads as a rendering mistake.
+        .clipped()
         .overlay {
-            Image(systemName: "hand.thumbsup.fill")
+            Image(systemName: "heart.fill")
                 .font(.system(size: 84, weight: .bold))
                 .symbolRenderingMode(.monochrome)
                 .foregroundStyle(.white)
@@ -197,7 +201,10 @@ struct FeedEventCard: View {
         }
         .overlay(alignment: .topLeading) {
             chipRow
-                .padding(12)
+                // Matches `DailyFeedMetric.contentInset` so the chip lines up with the
+                // copy below it now that the hero runs to the screen edge; 12 left it
+                // sitting a notch outside everything else.
+                .padding(DailyFeedMetric.contentInset)
         }
         .overlay(alignment: .bottom) {
             // Copy and the ToS credit share ONE bottom-aligned row, so the copy's
@@ -222,7 +229,7 @@ struct FeedEventCard: View {
                     .offset(y: 22)
             }
         }
-        .contentShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+        .contentShape(Rectangle())
         // Only where there IS a thumbs-up control to mirror. On an event card the
         // gesture would set state nothing on screen can undo.
         .simultaneousGesture(TapGesture(count: 2).onEnded {

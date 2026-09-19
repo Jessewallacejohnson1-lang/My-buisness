@@ -10,6 +10,18 @@
 
 import SwiftUI
 
+/// Feed geometry the cards and the column have to agree on.
+///
+/// `nonisolated` because these are constants, not main-actor state — the module
+/// defaults to MainActor isolation and an isolated enum here would trip the
+/// zero-warning bar at every call site.
+nonisolated enum DailyFeedMetric {
+    /// The inset for a card's TEXT and controls. The media is deliberately not
+    /// inset: photos run to both screen edges (Jesse, 2026-09-19), and the copy
+    /// under them keeps this margin so it is not reading off the bezel.
+    static let contentInset: CGFloat = 16
+}
+
 struct DailyFeedColumn: View {
     /// Everything available to show, in any order. `DailyRanker` decides the rest.
     var items: [DailyFeedItem]
@@ -32,6 +44,7 @@ struct DailyFeedColumn: View {
             if ranked.isEmpty {
                 DailyFeedEmptyState()
                     .padding(.top, 72)
+                    .padding(.horizontal, DailyFeedMetric.contentInset)
             } else {
                 ForEach(Array(ranked.enumerated()), id: \.element.id) { index, item in
                     card(for: item)
@@ -44,7 +57,8 @@ struct DailyFeedColumn: View {
                 }
             }
         }
-        .padding(.horizontal, 16)
+        // NO horizontal inset: the cards' media runs edge to edge. Each card insets
+        // its own copy and controls by `DailyFeedMetric.contentInset`.
         .padding(.top, 12)
     }
 
