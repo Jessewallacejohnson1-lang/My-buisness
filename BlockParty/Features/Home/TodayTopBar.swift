@@ -29,15 +29,9 @@ import SwiftUI
 /// here would trip the zero-warning bar. See the CLAUDE.md MainActor-default-argument
 /// gotcha.
 nonisolated enum TodayHeader {
-    /// The bar's content height at rest, sitting below the safe-area top inset.
+    /// The bar's height, below the safe-area top inset. **Constant, and it must
+    /// stay constant** — see the note on `chromeProgress`.
     static let contentHeight: CGFloat = 58
-    /// The ceiling the bar never passes, even at the largest permitted Dynamic Type.
-    static let maxHeight: CGFloat = 66
-    /// What the bar collapses to once the feed has scrolled: a bare strip under the
-    /// status bar, holding the scroll edge effect's soft wash off the content (the
-    /// bar itself has no fill). Not zero — content sliding under a bare status bar
-    /// is how a feed starts looking broken.
-    static let collapsedHeight: CGFloat = 8
     /// How far the feed travels before the wordmark and the map disc are fully gone.
     /// Short on purpose: this chrome belongs to the top of the feed, and the first
     /// card should own the screen as soon as you commit to scrolling.
@@ -47,17 +41,23 @@ nonisolated enum TodayHeader {
     ///
     /// Clamped at both ends, so a rubber-band pull past the top (negative offset)
     /// cannot over-brighten the chrome and a long scroll cannot drive it past gone.
+    ///
+    /// **Nothing that changes the bar's HEIGHT may be derived from this.** The bar
+    /// is a `safeAreaBar` on the feed's own scroll, so its height IS that scroll's
+    /// top content inset, and the offset this is computed from is measured against
+    /// that inset. Height-from-progress therefore closes a loop: height → inset →
+    /// offset → progress → height. It does not degrade gracefully; it rings.
+    ///
+    /// It shipped that way for one commit (d1fcf40) and the feed would not scroll at
+    /// all — measured with `-feed-scroll-sweep -scroll-log`, the offset ping-ponged
+    /// between -0.1 and 1.0 with 1420 direction reversals in 1422 samples. Pinning
+    /// the height took the same trace to 241 samples, 0 reversals, a clean 0 → 200.
+    /// Fade, lift, dim, blur — all fine. Height, insets and content size are not.
     static func chromeProgress(contentOffsetY: CGFloat) -> Double {
         let travelled = min(max(contentOffsetY, 0), chromeFadeDistance)
         return Double(travelled / chromeFadeDistance)
     }
 
-    /// The bar's height for a given progress — `contentHeight` at rest, collapsing
-    /// to `collapsedHeight` as the chrome leaves, so the feed reclaims the strip
-    /// instead of scrolling under an empty bar.
-    static func barHeight(chromeProgress: Double) -> CGFloat {
-        contentHeight - (contentHeight - collapsedHeight) * CGFloat(chromeProgress)
-    }
 
     /// Today's date as an uppercase eyebrow — "SATURDAY, AUGUST 1".
     ///
@@ -97,8 +97,8 @@ struct TodayTopBar: View {
     /// this bar only reports the tap.
     var onOpenMap: () -> Void = {}
     /// 0 at the top of the feed, 1 once the chrome has scrolled away. Drives the
-    /// fade, the small lift and the bar's collapse together, off one number, so
-    /// they cannot disagree mid-scroll.
+    /// fade and the small lift together, off one number, so they cannot disagree
+    /// mid-scroll. It never touches the bar's height.
     var chromeProgress: Double = 0
 
     var body: some View {
@@ -108,10 +108,13 @@ struct TodayTopBar: View {
             // movement rather than two.
             .opacity(1 - chromeProgress)
             .offset(y: -8 * chromeProgress)
-        .frame(height: min(TodayHeader.barHeight(chromeProgress: chromeProgress),
-                           TodayHeader.maxHeight))
+        // FIXED height. The bar used to collapse to an 8pt strip as the chrome left,
+        // which was fine while it lived above the scroll — as a `safeAreaBar` it is
+        // the scroll's top inset, and a height that follows the scroll offset makes
+        // the offset follow the height right back. See `TodayHeader.chromeProgress`.
+        .frame(height: TodayHeader.contentHeight)
         .frame(maxWidth: .infinity)
-        // Clipped so the lifting chrome is cut off by the collapsing bar rather than
+        // Clipped so the lifting chrome is cut off at the bar's edge rather than
         // spilling over the first card.
         .clipped()
         // NO fill. The bar is a safe-area inset over the feed's own scroll, so what

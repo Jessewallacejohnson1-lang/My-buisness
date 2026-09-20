@@ -109,6 +109,19 @@ struct FeedView: View {
 
     /// DEBUG-only: `-feed-scrolled` starts the feed partway down, so the top edge
     /// effect has content under it to blur.
+    /// DEBUG-only: `-feed-scrolled-y <pt>` picks where the jump lands, so a state
+    /// INSIDE the fade band can be held still and watched.
+    static var forcedScrollY: CGFloat {
+        #if DEBUG
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-feed-scrolled-y"), i + 1 < args.count,
+           let y = Double(args[i + 1]) {
+            return CGFloat(y)
+        }
+        #endif
+        return 420
+    }
+
     private var forcedScroll: Bool {
         #if DEBUG
         return ProcessInfo.processInfo.arguments.contains("-feed-scrolled")
@@ -147,6 +160,11 @@ struct FeedView: View {
             geometry.contentOffset.y + geometry.contentInsets.top
         } action: { _, offset in
             scrollOffset = offset
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("-scroll-log") {
+                print("SCROLLLOG offset=\(offset) progress=\(chromeProgress)")
+            }
+            #endif
         }
         // The bar rides ON the scroll, not above it: as a top safe-area inset the
         // feed's content passes UNDERNEATH it, which is the whole point — an
@@ -200,7 +218,17 @@ struct FeedView: View {
         }
         .tabReady(controller.briefing.hasLoaded)
         .onAppear {
-            if forcedScroll { feedPosition.scrollTo(y: 420) }
+            if forcedScroll { feedPosition.scrollTo(y: Self.forcedScrollY) }
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("-feed-scroll-sweep") {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(600))
+                    withAnimation(.linear(duration: 4)) {
+                        feedPosition.scrollTo(y: 200)
+                    }
+                }
+            }
+            #endif
             revealed = true
             if controller.briefing.hasLoaded { contentRevealed = true }
             #if DEBUG

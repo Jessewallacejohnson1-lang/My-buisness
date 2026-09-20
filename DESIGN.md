@@ -127,6 +127,12 @@ the rest: content sliding under the status bar is blurred and washed toward the 
 instead of being covered by a white lid (Jesse, 2026-09-19, matching Instagram's
 feed). `safeAreaInset` does **not** get that effect — only a bar does.
 
+Because it is a bar, **its height is the scroll's top inset**, so nothing about its
+height may be derived from the scroll position. The chrome leaves by fading and
+lifting; the bar itself stays 58pt. A version that collapsed the bar as you scrolled
+shipped for one commit and the feed would not scroll at all — the offset rang between
+-0.1 and 1.0 instead of advancing.
+
 The map disc's glyph is traced 1:1 off Jesse's reference: a nearly round head, a
 concentric ring, and flanks that hold the head's width most of the way down before
 turning into a soft point (`MapPinShape`). Straight tangent flanks were tried first

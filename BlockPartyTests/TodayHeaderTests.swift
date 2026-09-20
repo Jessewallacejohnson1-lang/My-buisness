@@ -115,12 +115,11 @@ final class TodayHeaderTests: XCTestCase {
         // Grown on 2026-09-18 with the larger map disc (50pt). The guard stays a
         // guard — it just guards the new numbers.
         XCTAssertEqual(TodayHeader.contentHeight, 58)
-        XCTAssertEqual(TodayHeader.maxHeight, 66)
-        XCTAssertEqual(TodayHeader.collapsedHeight, 8)
         XCTAssertEqual(TodayHeader.chromeFadeDistance, 44)
 
-        // The bar never grows past its ceiling — the relationship, not just the numbers.
-        XCTAssertGreaterThan(TodayHeader.maxHeight, TodayHeader.contentHeight)
+        // The bar clears the 50pt map disc it carries. `maxHeight` and
+        // `collapsedHeight` are gone with the collapse itself (2026-09-19).
+        XCTAssertGreaterThan(TodayHeader.contentHeight, 50)
     }
 
     // MARK: - The chrome leaves as the feed scrolls
@@ -137,20 +136,21 @@ final class TodayHeaderTests: XCTestCase {
         XCTAssertEqual(TodayHeader.chromeProgress(contentOffsetY: 900), 1)
     }
 
-    /// The bar collapses with the chrome rather than leaving an empty strip, and it
-    /// never collapses to nothing — content sliding under a bare status bar is how a
-    /// feed starts looking broken.
-    func testBarCollapsesWithTheChromeButKeepsItsStatusBarStrip() {
-        XCTAssertEqual(TodayHeader.barHeight(chromeProgress: 0), TodayHeader.contentHeight)
-        XCTAssertEqual(TodayHeader.barHeight(chromeProgress: 1), TodayHeader.collapsedHeight)
+    /// The bar's height is a CONSTANT, and this is the guard on that.
+    ///
+    /// `TodayHeader` deliberately exposes no height-from-progress function any more.
+    /// The bar is a `safeAreaBar` on the feed's scroll, so its height is that
+    /// scroll's top inset, and `chromeProgress` is computed from an offset measured
+    /// against that inset — a collapsing bar therefore rang instead of settling
+    /// (1420 direction reversals in 1422 samples; the feed would not scroll at all).
+    /// If a height is ever derived from scroll again, it has to be driven by
+    /// something the scroll does not read back.
+    func testTheBarsHeightDoesNotFollowTheScroll() {
+        XCTAssertEqual(TodayHeader.contentHeight, 58)
 
-        // Monotonic in between: no step, no bounce, or the bar would judder mid-scroll.
-        var previous = TodayHeader.barHeight(chromeProgress: 0)
-        for step in 1...10 {
-            let height = TodayHeader.barHeight(chromeProgress: Double(step) / 10)
-            XCTAssertLessThan(height, previous)
-            previous = height
-        }
+        // The chrome still leaves — it just does it without resizing the bar.
+        XCTAssertEqual(TodayHeader.chromeProgress(contentOffsetY: 0), 0)
+        XCTAssertEqual(TodayHeader.chromeProgress(contentOffsetY: 44), 1)
     }
 
     // MARK: - What the bar carries
@@ -203,7 +203,7 @@ final class TodayHeaderTests: XCTestCase {
     private func renderedHeaderBitmap() throws -> HeaderBitmap {
         let renderer = ImageRenderer(
             content: TodayTopBar()
-                .frame(width: 390, height: TodayHeader.maxHeight)
+                .frame(width: 390, height: TodayHeader.contentHeight)
                 .background(Hue.paper)
         )
         renderer.scale = 2
