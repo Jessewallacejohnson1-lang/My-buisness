@@ -17,11 +17,18 @@ Screens here get built in passes, with Jesse directing. A UI request is a step i
 
 1. **White is the ground.** `Hue.surface` #FFFFFF for cards, `Hue.paper` #FAFAF7 for
    the page. The app reads as white; everything else sits on it.
-2. **Yellow is the accent, and it is the app icon's yellow — `#F2B800`.** Sampled from
-   the painted 1024 master (`docs/brand/source-logo-1024.png`), the modal value across
-   the broadcast arcs. It lives in `BlockPartyColor.swift` as `Hue.brandYellowHex`, and
-   **every yellow in the UI derives from it.** There is no second yellow, and no yellow
-   hex at a call site.
+2. **Yellow is the accent, and it is the logo's yellow — `#FCE804`.** Sampled from the
+   master (`docs/brand/source-logo-1254.png`), the modal value across the field. It
+   lives in `BlockPartyColor.swift` as `Hue.brandYellowHex`, and **every yellow in the
+   UI derives from it.** There is no second yellow, and no yellow hex at a call site.
+   Re-sampled on 2026-09-19 when the logo changed (it was `#F2B800`, off the retired
+   wave-figure icon): the rule is the artwork's yellow, so the token follows the
+   artwork.
+
+**One red, and it is state, not chrome.** `Hue.heart` #FF3040 fills a heart you have
+tapped, and nothing else — never a border, never a background, never an error colour.
+A heart that stays ink reads as a shape; a heart that turns red reads as something you
+did, which is the control's whole job.
 
 **Accents are small by rule.** Today the yellow marks exactly one control: the Today
 bar's map disc (`Hue.mapWash` — the brand yellow at 68%, the same hue carried at
@@ -53,8 +60,9 @@ All values are sRGB hex from `Hue` (`BlockPartyColor.swift`). Six tokens, and no
 | `Hue.inkSecondary` | `#6E6E6E` | Secondary text, captions, inactive states |
 | `Hue.hairline` | `#E7E7E4` | Borders, dividers |
 | `Hue.fill` | `#F1F1EF` | Inert fills — placeholders, skeletons, disabled |
-| `Hue.brandYellowHex` | `#F2B800` | **The accent**, sampled from the app icon's arcs. Tints derive from it |
-| `Hue.mapWash` | `#F2B800` @ 68% | The Today bar's map disc — the one accent surface today |
+| `Hue.brandYellowHex` | `#FCE804` | **The accent**, sampled from the logo's field. Tints derive from it |
+| `Hue.mapWash` | `#FCE804` @ 68% | The Today bar's map disc — the one accent surface today |
+| `Hue.heart` | `#FF3040` | A liked heart, and nothing else. State, not chrome |
 
 > Note the surface/page swap in the rebrand: `Hue.paper` used to mean "white card" and
 > `Hue.canvas` meant "page background". `Hue.paper` **is** the page background now, and
@@ -111,34 +119,56 @@ From `BlockPartyMetrics.swift`.
 - **Ease-out, no bounce/elastic** for transitions.
 - **Reduce Motion is mandatory:** every reveal/animation must degrade to a crossfade or instant appearance under the system setting (the ShareCenter reveal is the reference implementation). Reveals enhance already-visible content — never gate visibility on an animation that won't fire in a headless render.
 
+## The top of the screen
+
+The Today bar carries no fill. It is a **top `safeAreaBar` on the feed's own scroll**,
+so the feed passes underneath it, and `.scrollEdgeEffectStyle(.soft, for: .top)` does
+the rest: content sliding under the status bar is blurred and washed toward the page
+instead of being covered by a white lid (Jesse, 2026-09-19, matching Instagram's
+feed). `safeAreaInset` does **not** get that effect — only a bar does.
+
+The map disc's glyph is traced 1:1 off Jesse's reference: a nearly round head, a
+concentric ring, and flanks that hold the head's width most of the way down before
+turning into a soft point (`MapPinShape`). Straight tangent flanks were tried first
+and read visibly pointier than the reference — that shape's proportions are measured,
+not eyeballed, and the numbers are in the source.
+
 ## Iconography
 
 SF Symbols, small and quiet (`.font(.system(size: 12–13, weight: .medium))`), always `Hue.ink` or `Hue.inkSecondary` — **meaning is carried by the glyph, not by a tint.** Category, POI family, and pin type all read by glyph now. Square-framed marks are preferred where there's a choice, and the block mark (`building.2.fill`) is the brand glyph; it replaces decorative lifestyle iconography. Photo-less states use a `fill` placeholder with a square-frame mark — never an emoji, never a coloured illustration.
 
 ## Logo & app icon
 
-The icon is **the wave figure** (Aug 25, 2026 revision): a painted black figure,
-arms raised, inside three concentric yellow broadcast arcs on warm paper. It ships
-1:1 from `docs/brand/source-logo-1024.png` — the painted render exactly, brushstroke
-texture and all, never redrawn, flattened or reinterpreted as a vector. The earlier
-coral "bp" tile render is retired, and with it the tile-crop pipeline in
-`scripts/brand/tile.swift` / `exact.swift`, which does not apply to full-bleed art.
+The icon is **the wordmark lockup** (Sep 19, 2026 revision): black "BlockParty." on a
+yellow field, shipped 1:1 from `docs/brand/source-logo-1254.png`. It replaced the Aug
+25 wave figure — a painted figure inside broadcast arcs — which Jesse cut on
+2026-09-19 ("remove that logo with a person, totally delete it"); that master and the
+coral "bp" render before it are gone from the repo, along with the dead `MarkTemplate`
+and `LaunchWordmark` imagesets.
+
+Unlike the painted renders, this art is **flat two-colour**, so it can be separated:
+`scripts/brand/wordmark.py` resolves every pixel to an ink-coverage value and writes
+the icon, the launch crop, and the letterforms-on-alpha from that one measurement.
 
 The icon is brand **content**, like photography and the basemap — not UI chrome. The
-in-app world stays ink on paper; the icon is the glossy front door.
+in-app world stays ink on paper; the icon is the front door.
 
 - Assets in `BlockParty/Assets.xcassets`: `AppIcon` (1024, full-bleed, no alpha),
-  `LaunchMark` (the same art inset 36/1024 on every side — a 72 inset clips the
-  artwork, whose top edge sits 40px from the frame), and `MarkTemplate` (per-pixel
-  alpha, so antialiased edges survive tinted renderings).
-- `LoaderBlockPartyMark.contentFraction` (0.9727) is the one number that moves when
+  `LaunchMark` (the same art inset 36/1024 on every side), and `Wordmark` (the tight
+  crop of the letterforms, black on alpha, **template-rendered** so it takes `Hue.ink`).
+- **Two views, two meanings.** `BlockPartyMark` is *the app icon* — field and all,
+  squircle-clipped, for the launch loader, invite cards, and anywhere the home-screen
+  icon is what is meant. `BlockPartyWordmark` is *the logo on our own page* — ink
+  letterforms, no tile — and it is what the Today bar carries.
+- `LoaderBlockPartyMark.contentFraction` (0.9014) is the one number that moves when
   the icon is re-exported; the squircle clip is the iOS corner ratio, so the loader
   mark reads as the icon does on the home screen.
-- **The paper ground stays on the loader mark.** The loader shows the actual icon,
-  background and all. Do not cut the figure out of its paper — decided, not an
-  oversight.
-- The wordmark ("Block Party" in Jost) is the in-app brand face —
-  `BlockPartyLogoBadge`, splash, loading covers.
+- **The yellow field stays on the loader mark.** The loader shows the actual icon,
+  background and all — decided, not an oversight. The header is the other case: there
+  the logo belongs *to the page*, so it is the alpha wordmark in ink.
+- Jost set as "Block Party" is now only a *typographic* stand-in, where the logo art
+  is not what is wanted (`BlockPartyLogoBadge`, loading covers). Where the logo itself
+  is meant, ship `BlockPartyWordmark` — the art, not a face imitating it.
 
 ## Voice
 

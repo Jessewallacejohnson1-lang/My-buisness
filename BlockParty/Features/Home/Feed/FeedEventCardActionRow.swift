@@ -65,7 +65,14 @@ struct FeedEventCardActionRow: View {
                 ZStack {
                     actionIcon("heart", active: false)
                         .opacity(state.isLiked ? 0 : 1)
-                    actionIcon("heart.fill", active: true)
+                    // Red only when it is yours. The outline stays ink, so the row
+                    // reads as one family until you act on it.
+                    //
+                    // The colour is passed IN rather than applied to the returned
+                    // view: `actionIcon` sets `foregroundStyle` itself, closer to the
+                    // Image, and the inner style wins. Wrapping it from outside
+                    // silently did nothing (caught on the recording — no red).
+                    actionIcon("heart.fill", active: true, tint: Hue.heart)
                         .opacity(state.isLiked ? 1 : 0)
                 }
                 .scaleEffect(reduceMotion ? 1 : heartScale)
@@ -137,12 +144,16 @@ struct FeedEventCardActionRow: View {
         .buttonStyle(.plain)
     }
 
-    private func actionIcon(_ symbol: String, active: Bool) -> some View {
+    /// One icon in the row. `tint` overrides the ink ramp for the one control that
+    /// carries colour — the liked heart — and must be passed here rather than layered
+    /// on the result, because this `foregroundStyle` sits closer to the Image and
+    /// would win.
+    private func actionIcon(_ symbol: String, active: Bool, tint: Color? = nil) -> some View {
         // SF Symbols does not expose a 1.75pt stroke; regular approximates the spec.
         Image(systemName: symbol)
             .font(.system(size: 22, weight: .regular))
             .symbolRenderingMode(.monochrome)
-            .foregroundStyle(Hue.ink.opacity(active ? 1 : 0.45))
+            .foregroundStyle(tint ?? Hue.ink.opacity(active ? 1 : 0.45))
     }
 
     private var actionShape: RoundedRectangle {

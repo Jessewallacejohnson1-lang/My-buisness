@@ -31,12 +31,34 @@ import SwiftUI
 nonisolated enum TodayHeader {
     /// How far the content must travel before the bar grows its bottom hairline.
     static let scrollThreshold: CGFloat = 8
-    /// The bar's content height, sitting below the safe-area top inset. Grown from
-    /// 44 on 2026-09-18 to carry the larger map disc without pinning it against the
-    /// status bar and the hairline at once.
+    /// The bar's content height at rest, sitting below the safe-area top inset.
     static let contentHeight: CGFloat = 58
     /// The ceiling the bar never passes, even at the largest permitted Dynamic Type.
     static let maxHeight: CGFloat = 66
+    /// What the bar collapses to once the feed has scrolled: a plain paper strip
+    /// under the status bar, carrying the hairline. Not zero — content sliding
+    /// under a bare status bar is how a feed starts looking broken.
+    static let collapsedHeight: CGFloat = 8
+    /// How far the feed travels before the wordmark and the map disc are fully gone.
+    /// Short on purpose: this chrome belongs to the top of the feed, and the first
+    /// card should own the screen as soon as you commit to scrolling.
+    static let chromeFadeDistance: CGFloat = 44
+
+    /// How far out of the way the bar's chrome is: 0 at rest, 1 once it has gone.
+    ///
+    /// Clamped at both ends, so a rubber-band pull past the top (negative offset)
+    /// cannot over-brighten the chrome and a long scroll cannot drive it past gone.
+    static func chromeProgress(contentOffsetY: CGFloat) -> Double {
+        let travelled = min(max(contentOffsetY, 0), chromeFadeDistance)
+        return Double(travelled / chromeFadeDistance)
+    }
+
+    /// The bar's height for a given progress — `contentHeight` at rest, collapsing
+    /// to `collapsedHeight` as the chrome leaves, so the feed reclaims the strip
+    /// instead of scrolling under an empty bar.
+    static func barHeight(chromeProgress: Double) -> CGFloat {
+        contentHeight - (contentHeight - collapsedHeight) * CGFloat(chromeProgress)
+    }
 
     /// Today's date as an uppercase eyebrow — "SATURDAY, AUGUST 1".
     ///
@@ -78,6 +100,10 @@ private nonisolated enum TodayBarMetric {
     static let mapSide: CGFloat = 50
     /// The glyph's square, inside the disc.
     static let mapGlyphSize: CGFloat = 24
+    /// The centred wordmark's height. Small on purpose: at 18 the lockup runs 88pt
+    /// wide, which is a logo in a feed header rather than a banner — the disc beside
+    /// it is still the thing you press.
+    static let wordmarkHeight: CGFloat = 18
 }
 
 struct TodayTopBar: View {
@@ -86,34 +112,68 @@ struct TodayTopBar: View {
     var onOpenMap: () -> Void = {}
     /// Raised by Home once the feed has scrolled past `TodayHeader.scrollThreshold`.
     var showsHairline: Bool = false
+    /// 0 at the top of the feed, 1 once the chrome has scrolled away. Drives the
+    /// fade, the small lift and the bar's collapse together, off one number, so
+    /// they cannot disagree mid-scroll.
+    var chromeProgress: Double = 0
 
     var body: some View {
         controls
-        // Clamped rather than fixed: 44 at rest, growing only as far as 52 if a large
-        // Dynamic Type setting needs it. `fixedSize` hands the frame an unspecified
-        // height so it resolves against the content instead of being stretched by the
-        // enclosing VStack.
-        .frame(maxWidth: .infinity,
-               minHeight: TodayHeader.contentHeight,
-               maxHeight: TodayHeader.maxHeight)
-        .fixedSize(horizontal: false, vertical: true)
-        // The app canvas, carried up through the status bar. No fill, no material,
-        // no shadow — the bar is not a separate surface.
-        .background(Hue.paper.ignoresSafeArea(edges: .top))
+            // The chrome leaves by fading and lifting slightly — the feed is arriving
+            // from below, so the header stepping up out of its way reads as one
+            // movement rather than two.
+            .opacity(1 - chromeProgress)
+            .offset(y: -8 * chromeProgress)
+        .frame(height: min(TodayHeader.barHeight(chromeProgress: chromeProgress),
+                           TodayHeader.maxHeight))
+        .frame(maxWidth: .infinity)
+        // Clipped so the lifting chrome is cut off by the collapsing bar rather than
+        // spilling over the first card.
+        .clipped()
+        // NO fill. The bar is a safe-area inset over the feed's own scroll, so what
+        // sits behind it is the content itself, blurred and washed toward the page by
+        // the scroll edge effect (`scrollEdgeEffectStyle(.soft)` in `FeedView`). A
+        // paper fill here is exactly the white lid Jesse asked to be rid of.
         .overlay(alignment: .bottom) { hairline }
     }
 
     // MARK: - Layers
 
-    /// The one trailing control. The leading side intentionally stays empty now that
-    /// the bP glyph, the Joetown wordmark, and the profile avatar have all left this
-    /// screen.
+    /// The mark centred, the map disc trailing — the shape Instagram's feed header
+    /// has trained everyone to read. Both belong to the top of the feed and both
+    /// leave together.
+    ///
+    /// The mark is CENTRED against the bar, not laid out between the other controls:
+    /// in an `HStack` it would sit wherever the trailing button's width left it, and
+    /// drift every time that button changed size. A centred overlay is fixed to the
+    /// screen's midline, which is where the eye looks for a logo.
+    ///
+    /// It is the real artwork (`BlockPartyWordmark` → the `Wordmark` raster), not the
+    /// Jost wordmark it replaced (Jesse, 2026-09-19).
     private var controls: some View {
         HStack(spacing: 0) {
             Spacer(minLength: 0)
             mapButton
         }
         .padding(.horizontal, TodayBarMetric.inset)
+        .overlay {
+            brandMark
+                .accessibilityAddTraits(.isHeader)
+                // Decorative-adjacent: it names the app, it does not act, so it must
+                // not sit in the tap path of the disc beside it.
+                .allowsHitTesting(false)
+        }
+    }
+
+    /// The logo's letterforms on the page, in ink, with no tile behind them.
+    ///
+    /// The square tile that used to sit here was a workaround: the painted icon had
+    /// no alpha, so an unclipped mark drew its own warmer paper as a visible square.
+    /// The Sep 19 logo is flat two-colour art, so `wordmark.py` could resolve the
+    /// yellow field into alpha and the lockup now sits directly on the bar.
+    private var brandMark: some View {
+        BlockPartyWordmark(height: TodayBarMetric.wordmarkHeight)
+            .foregroundStyle(Hue.ink)
     }
 
     /// A TRUE circle, deliberately — the one exception to this system's 12pt rounded
@@ -206,45 +266,98 @@ struct TodayTopBar: View {
 struct MapPinGlyph: View {
     var size: CGFloat = 24
 
-    /// The design box every coordinate is expressed in.
-    private static let box: CGFloat = 24
-    /// Stroke weight in box units. Scaled with everything else, so the outline never
-    /// goes spindly at 20pt or clubby at 40.
-    private static let stroke: CGFloat = 2.1
-
     var body: some View {
-        ZStack {
-            MapPinShape()
-                .stroke(style: StrokeStyle(lineWidth: Self.stroke, lineJoin: .round))
-            // The centre. Solid, and sized against the outline rather than the box, so
-            // the ring keeps its breathing room at every scale.
-            Circle()
-                .frame(width: 5.1, height: 5.1)
-                .offset(y: -1.6)
-        }
-        .frame(width: Self.box, height: Self.box)
-        .scaleEffect(size / Self.box)
-        .frame(width: size, height: size)
-        .accessibilityHidden(true)
+        MapPinShape()
+            .stroke(style: StrokeStyle(
+                lineWidth: size * MapPinShape.strokeFraction,
+                lineCap: .round,
+                lineJoin: .round
+            ))
+            .frame(width: size, height: size)
+            .accessibilityHidden(true)
     }
 }
 
-/// The teardrop, built from cubics rather than arcs: an arc's sweep direction flips
-/// with the coordinate system and is easy to get backwards, while four curves render
-/// identically everywhere and can be tuned point by point.
+/// The location pin, traced 1:1 off the reference Jesse supplied (2026-09-19): a
+/// nearly round head that tapers to a soft point, with a concentric ring inside.
+///
+/// Every proportion here was MEASURED off that reference rather than eyeballed —
+/// its glyph is 32 × 35 px with a 3 px stroke, which gives a centreline head radius
+/// of 14.5, a tip 17 px below the head's centre (1.172 r), and an inner ring at 5.5
+/// (0.379 r).
+///
+/// The flanks are CURVES, not tangent lines. The first attempt ran straight lines
+/// from the tip to where they touch the head, which is the geometrically obvious
+/// pin — and it came out visibly pointier than the reference, because the reference
+/// (like Lucide's `map-pin`, the same family of drawing) carries the head's fullness
+/// most of the way down before turning in. Measured against the reference's own
+/// silhouette, the straight version was ~2 px narrow at 90% of the way down.
+///
+/// Both the outline and the ring are subpaths of ONE shape, so a single stroke
+/// renders them at identical weight — which is what the reference does.
 struct MapPinShape: Shape {
+    /// Tip depth below the head's centre, in head radii.
+    private static let tipDistance: CGFloat = 1.172
+    /// Stroke weight, in head radii.
+    private static let stroke: CGFloat = 0.207
+    /// The inner ring's radius, in head radii.
+    private static let ring: CGFloat = 0.379
+
+    /// The flank's control points, in head radii from the head's centre, taken from
+    /// the reference's curvature and scaled to `tipDistance`. The first holds the
+    /// head's width as the curve leaves the equator; the second is where it turns in.
+    private static let flankHold: CGFloat = 0.496
+    private static let flankTurnX: CGFloat = 0.308
+    private static let flankTurnY: CGFloat = 1.012
+
+    /// Total extent in head radii, stroke included.
+    private static let width = 2 + stroke
+    private static let height = 1 + tipDistance + stroke
+
+    /// Stroke weight as a fraction of the glyph's SQUARE box, for the caller — the
+    /// glyph is taller than it is wide, so height is what binds.
+    static let strokeFraction: CGFloat = stroke / height
+
     func path(in rect: CGRect) -> Path {
-        let s = min(rect.width, rect.height) / 24
-        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: x * s, y: y * s) }
+        let r = min(rect.width / Self.width, rect.height / Self.height)
+        let centre = CGPoint(
+            x: rect.midX,
+            y: rect.midY - Self.height * r / 2 + (1 + Self.stroke / 2) * r
+        )
+        func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(x: centre.x + x * r, y: centre.y + y * r)
+        }
 
         var path = Path()
-        // Tip, up the left flank, over the crown, down the right flank, back to tip.
-        path.move(to: pt(12, 21.2))
-        path.addCurve(to: pt(5.6, 9.6), control1: pt(9.2, 17.3), control2: pt(5.6, 13.4))
-        path.addCurve(to: pt(12, 3.2), control1: pt(5.6, 6.1), control2: pt(8.5, 3.2))
-        path.addCurve(to: pt(18.4, 9.6), control1: pt(15.5, 3.2), control2: pt(18.4, 6.1))
-        path.addCurve(to: pt(12, 21.2), control1: pt(18.4, 13.4), control2: pt(14.8, 17.3))
+        // The head: the top half of the circle, left equator over the crown to right.
+        path.move(to: point(-1, 0))
+        path.addArc(
+            center: centre,
+            radius: r,
+            startAngle: .degrees(180),
+            endAngle: .degrees(360),
+            clockwise: false
+        )
+        // Down the right flank and back up the left, meeting at the tip. The join
+        // there is rounded by the stroke, which is how the reference ends too.
+        path.addCurve(
+            to: point(0, Self.tipDistance),
+            control1: point(1, Self.flankHold),
+            control2: point(Self.flankTurnX, Self.flankTurnY)
+        )
+        path.addCurve(
+            to: point(-1, 0),
+            control1: point(-Self.flankTurnX, Self.flankTurnY),
+            control2: point(-1, Self.flankHold)
+        )
         path.closeSubpath()
+
+        path.addEllipse(in: CGRect(
+            x: centre.x - Self.ring * r,
+            y: centre.y - Self.ring * r,
+            width: Self.ring * 2 * r,
+            height: Self.ring * 2 * r
+        ))
         return path
     }
 }

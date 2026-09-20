@@ -227,6 +227,28 @@ Several states are deliberately distinguished by value or weight alone:
   0.2237-corner mask simulation passed, and `contentFraction` is now `0.8591` (756px
   of the 880px launch asset). Live brand surfaces use the exact full-colour raster—no
   tinted or redrawn substitutes—so its gloss, bevel, texture, and spacing stay intact.
+  **Replaced again 2026-08-25** with the wave figure: a painted black figure, arms
+  raised, inside three concentric yellow broadcast arcs on warm paper, shipped 1:1
+  from the painted render (`contentFraction 0.9727`, and the `LaunchMark` inset moved
+  72 → 36 because 72 clipped the art). This entry is written after the fact; that
+  revision shipped without one.
+
+  **Replaced again 2026-09-19** with the current wordmark lockup: black
+  `BlockParty.` on a yellow field. Jesse cut the wave figure outright ("remove that
+  logo with a person, totally delete it"), so its master was deleted rather than
+  retired in place, along with the coral-era `source-render-1254.png`,
+  `block-party-mark.svg`/`.json`, and the unreferenced `MarkTemplate` /
+  `LaunchWordmark` imagesets. The new art is flat two-colour, so the export changed
+  shape: `scripts/brand/wordmark.py` resolves every master pixel to an ink-coverage
+  value and writes all three assets from it — `AppIcon` (1024², opaque),
+  `LaunchMark` (the 36/1024 inset crop, 880²), and, new, `Wordmark` (the letterforms
+  tight-cropped with the field resolved into alpha, template-rendered). That alpha
+  export is what let the Today bar stop shipping the logo as a square tile.
+  `contentFraction` is now `0.9014` (1051 px of the 1166 px crop) and
+  `BlockPartyWordmark.aspect` is `4.8657`. **The accent yellow was re-sampled with
+  the art**: `Hue.brandYellowHex` `#F2B800` → `#FCE804`, the modal pixel of the
+  field. The rule did not change — the accent is the logo's yellow — the logo did.
+
 - **Superseded test note:** at the time of the original rebrand, `HyggeTests/` was
   inert and had no project target. It has since become the wired `BlockPartyTests`
   target with active coverage; do not treat the old statement as current setup advice.

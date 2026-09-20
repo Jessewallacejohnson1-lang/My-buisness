@@ -36,7 +36,7 @@ struct FeedSignals: Hashable {
     var isFollowed: Bool = false
     /// Mutual — they follow you back. A stronger tie than a one-way follow.
     var isFriend: Bool = false
-    /// How many of the people YOU follow have given this a thumbs-up.
+    /// How many of the people YOU follow have hearted this.
     var followedLikerCount: Int = 0
     /// How many people you follow in total, for the ratio.
     var followedCount: Int = 0

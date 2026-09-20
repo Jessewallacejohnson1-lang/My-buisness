@@ -17,7 +17,7 @@ struct FeedEventCard: View {
     let onShare: (() -> Void)?
     /// Which action controls this card offers. Defaults to `.posting` so the Town
     /// pipeline and the DEBUG galleries keep the row they were built against; the
-    /// Daily feed passes `.event`, which drops thumbs-up and comments.
+    /// Daily feed passes `.event`, which drops comments but keeps the heart.
     let actionKind: FeedActionKind
     let debugAutoplay: Bool
 
@@ -187,9 +187,9 @@ struct FeedEventCard: View {
         }
         .aspectRatio(5.0 / 4.0, contentMode: .fit)
         .frame(maxWidth: .infinity)
-        // Square, not `Radius.card`: the hero runs to both screen edges now, and a
-        // rounded corner meeting the bezel reads as a rendering mistake.
-        .clipped()
+        // A small corner, not `Radius.card`: the media runs to both screen edges, so
+        // a card-sized radius would read as a tile that had slipped off the page.
+        .clipShape(RoundedRectangle(cornerRadius: DailyFeedMetric.mediaRadius, style: .continuous))
         .overlay {
             Image(systemName: "heart.fill")
                 .font(.system(size: 84, weight: .bold))
@@ -230,12 +230,10 @@ struct FeedEventCard: View {
             }
         }
         .contentShape(Rectangle())
-        // Only where there IS a thumbs-up control to mirror. On an event card the
-        // gesture would set state nothing on screen can undo.
-        .simultaneousGesture(TapGesture(count: 2).onEnded {
-            guard actionKind == .posting else { return }
-            performImageLike()
-        })
+        // Both kinds now carry a heart in the row below, so the double-tap always
+        // has a control to mirror — and something on screen you can undo it with.
+        // (It was posting-only while events had no heart.)
+        .simultaneousGesture(TapGesture(count: 2).onEnded(performImageLike))
         // Reserve the lower half of the overlapping join block before the social row.
         .padding(.bottom, offersJoin ? 22 : 0)
     }

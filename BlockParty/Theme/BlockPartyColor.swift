@@ -141,15 +141,27 @@ nonisolated enum Hue {
     /// while live). See DECISIONS.md (map polish Q3).
     static let statusTint    = Color(hex: 0xFDECE8)
 
-    /// **The brand yellow.** The exact hue of the app icon's broadcast arcs, sampled
-    /// from the painted 1024 master (`docs/brand/source-logo-1024.png`): the modal
-    /// pixel value across the arc mass, not an eyeballed approximation. This is the
-    /// app's ONE accent (Jesse, 2026-09-18) and every yellow in the UI derives from
-    /// it — never a second yellow, never a call-site hex.
+    /// The like state, and nothing else. A heart that stays ink reads as a shape;
+    /// a heart that turns red reads as something you did — which is the whole job of
+    /// this control (Jesse, 2026-09-19). Same value in both appearances: it is a
+    /// small filled glyph, not text, so it does not need the dark ramp's lift.
+    ///
+    /// This is the one red in the app. It is state, not chrome: never a border, never
+    /// a background, never an error colour.
+    static let heart         = Color(hex: 0xFF3040)
+
+    /// **The brand yellow.** The logo's field colour, sampled from the master
+    /// (`docs/brand/source-logo-1254.png`): the modal pixel across the field, not an
+    /// eyeballed approximation. This is the app's ONE accent (Jesse, 2026-09-18) and
+    /// every yellow in the UI derives from it — never a second yellow, never a
+    /// call-site hex.
+    ///
+    /// Re-sampled 2026-09-19 for the wordmark logo: 0xF2B800 (the retired
+    /// wave-figure icon's arcs) → 0xFCE804. The rule did not change, the artwork did.
     ///
     /// Accents are small by rule: the Today bar's map disc today, and whatever else
     /// Jesse scopes in later. The app's ground stays white/paper.
-    nonisolated static let brandYellowHex: UInt32 = 0xF2B800
+    nonisolated static let brandYellowHex: UInt32 = 0xFCE804
 
     /// The Today bar's map disc: `brandYellowHex` at 68%. Same yellow as the logo,
     /// carried at partial opacity — the disc is a flat translucent surface, not a

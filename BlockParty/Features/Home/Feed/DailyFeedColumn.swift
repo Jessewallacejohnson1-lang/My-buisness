@@ -20,6 +20,11 @@ nonisolated enum DailyFeedMetric {
     /// inset: photos run to both screen edges (Jesse, 2026-09-19), and the copy
     /// under them keeps this margin so it is not reading off the bezel.
     static let contentInset: CGFloat = 16
+
+    /// The media's corner. Small on purpose (Jesse, 2026-09-19): enough to take the
+    /// hard point off a photo that runs to both screen edges, not enough to read as
+    /// a floating card — the picture still belongs to the screen, not to a tile.
+    static let mediaRadius: CGFloat = 8
 }
 
 struct DailyFeedColumn: View {

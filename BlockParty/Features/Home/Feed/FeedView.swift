@@ -46,7 +46,13 @@ struct FeedView: View {
     @State private var revealAnimated = true
     @State private var contentRevealed = false
     @State private var refreshReplay = 0
-    @State private var showsHairline = false
+    /// How far the feed has scrolled from rest, in points. One number: the hairline,
+    /// the chrome fade and the bar's collapse are all derived from it.
+    @State private var scrollOffset: CGFloat = 0
+    /// Drives the DEBUG `-feed-scrolled` jump. There is no scroll automation in this
+    /// setup, so without it the scrolled state — where the top glass fade actually
+    /// does anything — cannot be screenshotted at all.
+    @State private var feedPosition = ScrollPosition()
     /// The clock the social feed ranks against. Bumped on pull-to-refresh so a
     /// stale ordering cannot outlive the gesture that asked for a new one.
     @State private var feedClock = Date()
@@ -98,59 +104,91 @@ struct FeedView: View {
         #endif
     }
 
+    /// DEBUG-only: `-header-collapsed` pins the bar to its scrolled-away state. There
+    /// is no scroll automation in this setup, so without it the collapsed header
+    /// cannot be screenshotted at all.
+    private var forcedCollapse: Bool {
+        #if DEBUG
+        return ProcessInfo.processInfo.arguments.contains("-header-collapsed")
+        #else
+        return false
+        #endif
+    }
+
+    /// DEBUG-only: `-feed-scrolled` starts the feed partway down, so the top edge
+    /// effect has content under it to blur.
+    private var forcedScroll: Bool {
+        #if DEBUG
+        return ProcessInfo.processInfo.arguments.contains("-feed-scrolled")
+        #else
+        return false
+        #endif
+    }
+
+    private var chromeProgress: Double {
+        forcedCollapse ? 1 : TodayHeader.chromeProgress(contentOffsetY: scrollOffset)
+    }
+
     var body: some View {
         #if DEBUG
         let _ = FeedRenderLog.enabled ? Self._printChanges() : ()
         #endif
-        return VStack(spacing: 0) {
+        return ScrollView(showsIndicators: false) {
+            VStack(spacing: 0) {
+                FeedModuleColumn(
+                    registry: controller.registry,
+                    briefing: controller.briefing,
+                    context: context
+                )
+
+                // The social feed. Below the module column rather than instead
+                // of it: the registry is empty today, but a module that lands
+                // later is town-wide chrome (weather, the almanac) and belongs
+                // above the stream, not buried in it.
+                DailyFeedColumn(items: DailyView.currentItems, now: feedClock)
+
+                Color.clear.frame(height: 96)
+            }
+            .tint(Hue.ink)
+        }
+        .onScrollGeometryChange(for: CGFloat.self) { geometry in
+            geometry.contentOffset.y + geometry.contentInsets.top
+        } action: { _, offset in
+            scrollOffset = offset
+        }
+        // The bar rides ON the scroll, not above it: as a top safe-area inset the
+        // feed's content passes UNDERNEATH it, which is the whole point — an
+        // opaque strip has nothing to blur and reads as a white lid.
+        .safeAreaBar(edge: .top, spacing: 0) {
             TodayTopBar(
                 onOpenMap: onOpenMap,
-                showsHairline: showsHairline || forcedHairline
+                showsHairline: TodayHeader.showsHairline(contentOffsetY: scrollOffset)
+                    || forcedHairline,
+                chromeProgress: chromeProgress
             )
-
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 0) {
-                    FeedModuleColumn(
-                        registry: controller.registry,
-                        briefing: controller.briefing,
-                        context: context
-                    )
-
-                    // The social feed. Below the module column rather than instead
-                    // of it: the registry is empty today, but a module that lands
-                    // later is town-wide chrome (weather, the almanac) and belongs
-                    // above the stream, not buried in it.
-                    DailyFeedColumn(items: DailyView.currentItems, now: feedClock)
-
-                    Color.clear.frame(height: 96)
-                }
-                .tint(Hue.ink)
-            }
-            .onScrollGeometryChange(for: Bool.self) { geometry in
-                TodayHeader.showsHairline(
-                    contentOffsetY: geometry.contentOffset.y + geometry.contentInsets.top
-                )
-            } action: { _, shows in
-                showsHairline = shows
-            }
-            .refreshable {
-                if controller.briefing.needsRefresh {
-                    await controller.refreshBriefing()
-                }
-
-                feedClock = Date()
-
-                revealAnimated = false
-                revealed = false
-                contentRevealed = false
-                await Task.yield()
-                revealAnimated = true
-                revealed = true
-                contentRevealed = true
-                refreshReplay += 1
-            }
-            .tint(.clear)
         }
+        // The glass fade at the top of the screen (Jesse, 2026-09-19, matching
+        // Instagram's feed): content sliding under the status bar is blurred and
+        // washed toward the page instead of being covered by a white bar.
+        .scrollEdgeEffectStyle(.soft, for: .top)
+        .scrollPosition($feedPosition)
+        .refreshable {
+            if controller.briefing.needsRefresh {
+                await controller.refreshBriefing()
+            }
+
+            feedClock = Date()
+
+            revealAnimated = false
+            revealed = false
+            contentRevealed = false
+            await Task.yield()
+            revealAnimated = true
+            revealed = true
+            contentRevealed = true
+            refreshReplay += 1
+        }
+        .tint(.clear)
         .background(Hue.paper)
         .sheet(item: $route) { route in
             if let destination = route.destination { destination }
@@ -175,6 +213,7 @@ struct FeedView: View {
         }
         .tabReady(controller.briefing.hasLoaded)
         .onAppear {
+            if forcedScroll { feedPosition.scrollTo(y: 420) }
             revealed = true
             if controller.briefing.hasLoaded { contentRevealed = true }
             #if DEBUG

@@ -134,9 +134,9 @@ struct PostingCard: View {
         imageContent
             .aspectRatio(4.0 / 5.0, contentMode: .fit)
             .frame(maxWidth: .infinity)
-            // Square, not `Radius.card`: a rounded corner that meets the screen edge
-            // reads as a rendering mistake rather than as a card.
-            .clipped()
+            // A small corner, not `Radius.card`: the media runs to both screen edges, so
+            // a card-sized radius would read as a tile that had slipped off the page.
+            .clipShape(RoundedRectangle(cornerRadius: DailyFeedMetric.mediaRadius, style: .continuous))
             .overlay {
                 Image(systemName: "heart.fill")
                     .font(.system(size: 84, weight: .bold))

@@ -152,20 +152,53 @@ final class TodayHeaderTests: XCTestCase {
     func testBarGeometryConstants() {
         // Arrange / Act / Assert — a guard so a later tweak to the bar is deliberate
         // rather than an accidental drift back toward the old scrolling masthead.
-        // Grown on 2026-09-18 with the larger, glossier map disc (50pt). The guard
-        // stays a guard — it just guards the new numbers.
+        // Grown on 2026-09-18 with the larger map disc (50pt). The guard stays a
+        // guard — it just guards the new numbers.
         XCTAssertEqual(TodayHeader.contentHeight, 58)
         XCTAssertEqual(TodayHeader.maxHeight, 66)
+        XCTAssertEqual(TodayHeader.collapsedHeight, 8)
+        XCTAssertEqual(TodayHeader.chromeFadeDistance, 44)
         XCTAssertEqual(TodayHeader.scrollThreshold, 8)
 
         // The bar never grows past its ceiling — the relationship, not just the numbers.
         XCTAssertGreaterThan(TodayHeader.maxHeight, TodayHeader.contentHeight)
     }
 
-    // MARK: - The bar carries no artwork
+    // MARK: - The chrome leaves as the feed scrolls
 
-    /// The approved Today chrome leaves the upper-left lane quiet; the old full-colour
-    /// Block Party app tile must not return there.
+    /// At rest the wordmark and the map disc are fully present; by the fade distance
+    /// they are gone. Clamped at both ends — a rubber-band pull past the top must not
+    /// over-brighten the chrome, and a long scroll must not drive it past gone.
+    func testChromeProgressRunsFromRestToGoneAndClampsBothEnds() {
+        XCTAssertEqual(TodayHeader.chromeProgress(contentOffsetY: 0), 0)
+        XCTAssertEqual(TodayHeader.chromeProgress(contentOffsetY: -80), 0,
+                       "a pull past the top is not negative scroll for this purpose")
+        XCTAssertEqual(TodayHeader.chromeProgress(contentOffsetY: 22), 0.5, accuracy: 0.001)
+        XCTAssertEqual(TodayHeader.chromeProgress(contentOffsetY: TodayHeader.chromeFadeDistance), 1)
+        XCTAssertEqual(TodayHeader.chromeProgress(contentOffsetY: 900), 1)
+    }
+
+    /// The bar collapses with the chrome rather than leaving an empty strip, and it
+    /// never collapses to nothing — content sliding under a bare status bar is how a
+    /// feed starts looking broken.
+    func testBarCollapsesWithTheChromeButKeepsItsStatusBarStrip() {
+        XCTAssertEqual(TodayHeader.barHeight(chromeProgress: 0), TodayHeader.contentHeight)
+        XCTAssertEqual(TodayHeader.barHeight(chromeProgress: 1), TodayHeader.collapsedHeight)
+
+        // Monotonic in between: no step, no bounce, or the bar would judder mid-scroll.
+        var previous = TodayHeader.barHeight(chromeProgress: 0)
+        for step in 1...10 {
+            let height = TodayHeader.barHeight(chromeProgress: Double(step) / 10)
+            XCTAssertLessThan(height, previous)
+            previous = height
+        }
+    }
+
+    // MARK: - What the bar carries
+
+    /// The leading lane stays quiet. The old coral bP glyph lived there, and the
+    /// current header deliberately puts nothing on that side — the mark is centred
+    /// and the map disc is trailing.
     func testBrandLockupLeavesTheLeadingHeaderAreaBlank() throws {
         let bitmap = try renderedHeaderBitmap()
 
@@ -182,22 +215,29 @@ final class TodayHeaderTests: XCTestCase {
         )
     }
 
-    /// The Joetown wordmark was removed from this bar. It used to paint several
-    /// hundred high-chroma cyan/orange pixels across the centre, so counting them is
-    /// how a silent re-add of the lockup — or of any other artwork — gets caught.
-    func testTheCentreOfTheBarCarriesNoWordmark() throws {
+    /// INVERTED on 2026-09-19. This used to assert the centre was empty, from the
+    /// round where the Joetown lockup had just been torn out. The header now carries
+    /// the real brand mark there on purpose (Jesse: "the actual logo, not just a
+    /// font"), so the guard is that the mark is PRESENT — a silent revert to a bare
+    /// or text-only centre is what would now be the regression.
+    ///
+    /// Counted as INK, not as the mark's yellow: since 2026-09-19 the header carries
+    /// `BlockPartyWordmark`, the letterforms lifted off their yellow field and tinted
+    /// `Hue.ink`, so the yellow is no longer on this part of the screen at all. A
+    /// missing asset or a bare centre still fails — paper is not ink.
+    func testTheCentreOfTheBarCarriesTheBrandMark() throws {
         let bitmap = try renderedHeaderBitmap()
 
-        let colouredPixelCount = bitmap.countPixels(
+        let inkPixelCount = bitmap.countPixels(
             xFraction: 0.18..<0.82,
             yFraction: 0.00..<1.00,
-            where: isBrandColour
+            where: isInk
         )
 
-        XCTAssertLessThan(
-            colouredPixelCount,
-            20,
-            "The Today bar is chrome only — no wordmark, no mascot, no artwork"
+        XCTAssertGreaterThan(
+            inkPixelCount,
+            400,
+            "The centred Block Party wordmark must render in the Today bar"
         )
     }
 
@@ -209,6 +249,10 @@ final class TodayHeaderTests: XCTestCase {
         )
         renderer.scale = 2
         return try HeaderBitmap(cgImage: XCTUnwrap(renderer.cgImage))
+    }
+
+    private func isInk(red: UInt8, green: UInt8, blue: UInt8, alpha: UInt8) -> Bool {
+        alpha > 200 && max(red, green, blue) < 90
     }
 
     private func isBrandColour(red: UInt8, green: UInt8, blue: UInt8, alpha: UInt8) -> Bool {
