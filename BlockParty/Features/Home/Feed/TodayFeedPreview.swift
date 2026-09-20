@@ -19,7 +19,7 @@ struct TodayFeedPreview: View {
     private static func sections(emptyToday: Bool) -> [FeedCardSection] {
         let today = DateHelpers.localDate()
         let source = postings.filter { !emptyToday || $0.eventDate != today }
-        let deduped = dedupeRecurring(source)
+        let deduped = townSurfacing(dedupeRecurring(source))
         assert(deduped.filter { $0.posting.title == "Friday Trail Walk" }.count == 1)
         assert(deduped.first { $0.posting.title == "Friday Trail Walk" }?.recurrence?.hasPrefix("WEEKLY") == true)
         return FeedSectioning.sections(for: deduped).map {

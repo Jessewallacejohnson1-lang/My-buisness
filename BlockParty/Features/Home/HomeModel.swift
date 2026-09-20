@@ -34,7 +34,7 @@ final class HomeModel: ObservableObject {
     private var feedLoadGeneration = 0
 
     var feedSections: [FeedCardSection] {
-        FeedSectioning.sections(for: dedupeRecurring(feedPostings))
+        FeedSectioning.sections(for: townSurfacing(dedupeRecurring(feedPostings)))
             .map {
                 $0.mapped(
                     goingPreviews: feedGoingPreviews,

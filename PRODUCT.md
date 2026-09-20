@@ -32,7 +32,8 @@ Warm, calm, quiet, neighborly, hyper-local. **The voice is a neighbor, not a bra
 2. **Live-glow is for *now*, not "today".** Coral pulse is reserved for events actually happening (`start ≤ now ≤ start + 2h`). Coral is for live + tappable, nothing decorative.
 3. **Weight carries hierarchy.** The UI is the platform system font everywhere (one custom face: the logo). Size and weight do the work; numbers stay tabular.
 4. **Warm restraint.** One soft shadow, hairline borders, generous calm spacing. Quiet by default so the few warm/coral moments land.
-5. **Backend-twin parity.** Behavior, tokens, and query semantics track the Expo/RN twin and `@hygge/core` 1:1; divergence is a bug, not a feature.
+5. **Town is one-time news, never a standing calendar.** The Town feed carries a posting on the day it is posted and again in the week running up to the event, through the event day — nothing in the long quiet middle, and nothing after the event. A *recurring* series is announced once and never repeats on Town: a Saturday yoga club is news the day it is created, then it belongs to the calendar and the map. An event announced two months out must not occupy the feed for two months, and the same club must never appear week after week. Enforced by `townSurfacing` in `Features/Home/Feed/FeedSurfacing.swift`.
+6. **Backend-twin parity.** Behavior, tokens, and query semantics track the Expo/RN twin and `@hygge/core` 1:1; divergence is a bug, not a feature.
 
 ## Accessibility & Inclusion
 

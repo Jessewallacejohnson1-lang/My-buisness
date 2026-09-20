@@ -1,6 +1,11 @@
 import Foundation
 
-typealias FeedRecurringPosting = (posting: FeedPosting, recurrence: String?)
+/// A feed posting plus what the pipeline worked out about it: the cadence label
+/// when it belongs to a series, and `debut` — the moment the thing was first
+/// announced to town. For a series that is the EARLIEST row in the group, not
+/// the surviving occurrence's own `createdAt`, so adding next Saturday to a
+/// standing club does not re-announce the club (see `townSurfacing`).
+typealias FeedRecurringPosting = (posting: FeedPosting, recurrence: String?, debut: Date)
 
 /// Collapses title-matched recurring postings to the nearest upcoming event.
 /// Groups without a recognized, consistent cadence remain individual postings.
@@ -27,7 +32,7 @@ func dedupeRecurring(
         guard let group = groups[key] else { return [] }
         let sorted = group.sorted(by: eventOrder)
         guard let recurrence = recurrenceLabel(for: sorted.map(\.posting)) else {
-            return sorted.map { ($0.posting, nil) }
+            return sorted.map { ($0.posting, nil, $0.posting.createdAt) }
         }
 
         let nearest = sorted.first { entry in
@@ -36,7 +41,8 @@ func dedupeRecurring(
             else { return false }
             return offset >= 0
         } ?? sorted[0]
-        return [(nearest.posting, recurrence)]
+        let debut = sorted.map(\.posting.createdAt).min() ?? nearest.posting.createdAt
+        return [(nearest.posting, recurrence, debut)]
     }
 }
 

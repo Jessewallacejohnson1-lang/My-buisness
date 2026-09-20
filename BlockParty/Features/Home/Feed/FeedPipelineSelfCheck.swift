@@ -6,6 +6,7 @@ import Foundation
 enum FeedPipelineSelfCheck {
     static func run() {
         recurrenceChecks()
+        surfacingChecks()
         sectioningChecks()
         mappingChecks()
     }
@@ -38,13 +39,39 @@ enum FeedPipelineSelfCheck {
         assert(result.first(where: { $0.posting.id == "single" })?.recurrence == nil)
     }
 
+    /// Town carries a posting on its debut day and in the week before the event —
+    /// never in the long quiet middle, and never again for a standing series.
+    private static func surfacingChecks() {
+        let announced = dedupeRecurring(
+            [posting("fair", title: "Street Fair", date: "2026-11-14", postedOn: "2026-09-19")],
+            today: "2026-09-19"
+        )
+        assert(townSurfacing(announced, today: "2026-09-19").count == 1)   // debut
+        assert(townSurfacing(announced, today: "2026-10-15").isEmpty)      // quiet middle
+        assert(townSurfacing(announced, today: "2026-11-07").count == 1)   // week of
+        assert(townSurfacing(announced, today: "2026-11-14").count == 1)   // day of
+        assert(townSurfacing(announced, today: "2026-11-15").isEmpty)      // over
+
+        let yoga = dedupeRecurring(
+            [
+                posting("yoga-1", title: "Yoga Club", date: "2026-09-26", postedOn: "2026-09-19"),
+                posting("yoga-2", title: "Yoga Club", date: "2026-10-03", postedOn: "2026-09-19"),
+                posting("yoga-3", title: "Yoga Club", date: "2026-10-10", postedOn: "2026-09-19")
+            ],
+            today: "2026-09-19"
+        )
+        assert(townSurfacing(yoga, today: "2026-09-19").count == 1)        // announced once
+        assert(townSurfacing(yoga, today: "2026-09-26").isEmpty)           // no weekly repeat
+    }
+
     private static func sectioningChecks() {
+        let debut = Date(timeIntervalSinceReferenceDate: 0)
         let postings: [FeedRecurringPosting] = [
-            (posting("today", title: "Today", date: "2026-07-21", time: "6pm"), nil),
-            (posting("day-one", title: "Tomorrow", date: "2026-07-22", time: "8pm"), nil),
-            (posting("day-seven", title: "Boundary", date: "2026-07-28", time: "7am"), nil),
-            (posting("day-eight", title: "Later", date: "2026-07-29"), nil),
-            (posting("undated", title: "Someday", date: nil), nil)
+            (posting("today", title: "Today", date: "2026-07-21", time: "6pm"), nil, debut),
+            (posting("day-one", title: "Tomorrow", date: "2026-07-22", time: "8pm"), nil, debut),
+            (posting("day-seven", title: "Boundary", date: "2026-07-28", time: "7am"), nil, debut),
+            (posting("day-eight", title: "Later", date: "2026-07-29"), nil, debut),
+            (posting("undated", title: "Someday", date: nil), nil, debut)
         ]
 
         let sections = FeedSectioning.sections(for: postings, today: "2026-07-21")
@@ -159,7 +186,8 @@ enum FeedPipelineSelfCheck {
         time: String? = nil,
         location: String? = nil,
         imageURL: String? = nil,
-        going: Int = 2
+        going: Int = 2,
+        postedOn: String? = nil
     ) -> FeedPosting {
         FeedPosting(
             id: id,
@@ -168,7 +196,7 @@ enum FeedPipelineSelfCheck {
             startTime: time,
             location: location,
             imageUrl: imageURL,
-            createdAt: Date(timeIntervalSinceReferenceDate: 0),
+            createdAt: postedOn.flatMap(localNoon) ?? Date(timeIntervalSinceReferenceDate: 0),
             posterName: "Neighbor",
             posterAvatar: nil,
             posterTarget: FollowTarget(type: .profile, id: "poster"),
@@ -180,6 +208,19 @@ enum FeedPipelineSelfCheck {
             following: false,
             rsvpd: false
         )
+    }
+
+    /// Local noon on a YYYY-MM-DD day — midday so no timezone shift rolls the
+    /// date into a neighbouring day.
+    private static func localNoon(_ ymd: String) -> Date? {
+        let parts = ymd.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3 else { return nil }
+        var components = DateComponents()
+        components.year = parts[0]
+        components.month = parts[1]
+        components.day = parts[2]
+        components.hour = 12
+        return Calendar.current.date(from: components)
     }
 }
 #endif
