@@ -15,9 +15,9 @@
 //     Row formatters. The old `Masthead.dateLine` used a bare `DateFormatter` with
 //     no timezone and no locale pin, so it printed the phone's day in the phone's
 //     language. The replacement must not.
-//  2. The bar cross-fades in a bottom hairline once content scrolls past 8pt. The
+//  2. The chrome fades and the bar collapses off ONE scroll number, and the
 //     interesting input is the NEGATIVE one: a rubber-banded overscroll (pull to
-//     refresh) must not flash a hairline on the way down.
+//     refresh) must not drive either past its rest state.
 //
 //  Reference weekdays (2026): Aug 1 = Sat, Jan 15 = Thu, Jan 16 = Fri, Nov 3 = Tue.
 //
@@ -107,46 +107,6 @@ final class TodayHeaderTests: XCTestCase {
         XCTAssertFalse(eyebrow.contains("NOVEMBER 03"), "The day must not be zero-padded")
     }
 
-    // MARK: - Hairline threshold
-
-    func testHairlineHiddenAtRest() {
-        // Arrange / Act — the feed sitting at the top, untouched.
-        let shows = TodayHeader.showsHairline(contentOffsetY: 0)
-
-        // Assert — a bar over unscrolled content is a bar with nothing beneath it.
-        XCTAssertFalse(shows)
-    }
-
-    func testHairlineHiddenExactlyAtThreshold() {
-        // Arrange / Act — exactly at the 8pt trigger.
-        let shows = TodayHeader.showsHairline(contentOffsetY: TodayHeader.scrollThreshold)
-
-        // Assert — strictly GREATER than, so the boundary itself is still hidden.
-        XCTAssertFalse(shows, "The threshold is exclusive: > 8, not >= 8")
-    }
-
-    func testHairlineShownPastThreshold() {
-        // Arrange / Act — a hair past the trigger, and deep into the feed.
-        let justPast = TodayHeader.showsHairline(contentOffsetY: 8.5)
-        let farDown = TodayHeader.showsHairline(contentOffsetY: 200)
-
-        // Assert
-        XCTAssertTrue(justPast)
-        XCTAssertTrue(farDown)
-    }
-
-    func testHairlineHiddenWhenRubberBandedPastTop() {
-        // Arrange / Act — an overscroll bounce (pull to refresh) drives the offset
-        // NEGATIVE. Comparing |offset| instead of offset would flash a hairline
-        // partway down every pull.
-        let bounce = TodayHeader.showsHairline(contentOffsetY: -60)
-        let smallBounce = TodayHeader.showsHairline(contentOffsetY: -8.5)
-
-        // Assert
-        XCTAssertFalse(bounce, "A rubber-banded overscroll must not raise the hairline")
-        XCTAssertFalse(smallBounce)
-    }
-
     // MARK: - Geometry constants
 
     func testBarGeometryConstants() {
@@ -158,7 +118,6 @@ final class TodayHeaderTests: XCTestCase {
         XCTAssertEqual(TodayHeader.maxHeight, 66)
         XCTAssertEqual(TodayHeader.collapsedHeight, 8)
         XCTAssertEqual(TodayHeader.chromeFadeDistance, 44)
-        XCTAssertEqual(TodayHeader.scrollThreshold, 8)
 
         // The bar never grows past its ceiling — the relationship, not just the numbers.
         XCTAssertGreaterThan(TodayHeader.maxHeight, TodayHeader.contentHeight)

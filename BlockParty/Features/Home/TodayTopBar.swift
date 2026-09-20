@@ -4,8 +4,8 @@
 //
 //  Replaces `Masthead`, the 34pt wordmark + date line that used to scroll away with
 //  the content. This bar is chrome: it is present immediately (no spring entrance),
-//  it never scrolls, and it cross-fades a hairline in once the feed moves beneath
-//  it.
+//  it never scrolls, and it carries no rule of its own — the scroll edge effect
+//  under it is what separates the bar from the feed.
 //
 //  The Joetown lockup was retired on 2026-09-17; the profile avatar — the ⋮-lineage
 //  button that opened the town menu — was retired on 2026-09-18 (Jesse's call). What
@@ -21,23 +21,22 @@
 
 import SwiftUI
 
-/// The Today bar's pure, testable pieces: its geometry, the uppercase date eyebrow,
-/// and the scroll threshold that raises the bar's hairline.
+/// The Today bar's pure, testable pieces: its geometry and the uppercase date
+/// eyebrow.
 ///
 /// `nonisolated` because the constants are read from `nonisolated` contexts (and from
 /// the test target) — the module defaults to MainActor isolation, so an isolated enum
 /// here would trip the zero-warning bar. See the CLAUDE.md MainActor-default-argument
 /// gotcha.
 nonisolated enum TodayHeader {
-    /// How far the content must travel before the bar grows its bottom hairline.
-    static let scrollThreshold: CGFloat = 8
     /// The bar's content height at rest, sitting below the safe-area top inset.
     static let contentHeight: CGFloat = 58
     /// The ceiling the bar never passes, even at the largest permitted Dynamic Type.
     static let maxHeight: CGFloat = 66
-    /// What the bar collapses to once the feed has scrolled: a plain paper strip
-    /// under the status bar, carrying the hairline. Not zero — content sliding
-    /// under a bare status bar is how a feed starts looking broken.
+    /// What the bar collapses to once the feed has scrolled: a bare strip under the
+    /// status bar, holding the scroll edge effect's soft wash off the content (the
+    /// bar itself has no fill). Not zero — content sliding under a bare status bar
+    /// is how a feed starts looking broken.
     static let collapsedHeight: CGFloat = 8
     /// How far the feed travels before the wordmark and the map disc are fully gone.
     /// Short on purpose: this chrome belongs to the top of the feed, and the first
@@ -74,17 +73,6 @@ nonisolated enum TodayHeader {
         formatter.dateFormat = "EEEE, MMMM d"
         return formatter.string(from: date).uppercased(with: formatter.locale)
     }
-
-    /// Whether the bar shows its bottom hairline at a given scroll position.
-    ///
-    /// `contentOffsetY` is the distance scrolled FROM REST: **positive = scrolled
-    /// down, 0 = at rest, negative = rubber-banded past the top** (a pull to refresh).
-    /// The comparison is therefore signed and strictly greater-than — comparing a
-    /// magnitude would flash a hairline partway down every pull, and `>=` would raise
-    /// it while the content is still flush against the bar.
-    static func showsHairline(contentOffsetY: CGFloat) -> Bool {
-        contentOffsetY > scrollThreshold
-    }
 }
 
 /// The bar's fixed geometry, in one place. `nonisolated` for the same reason as
@@ -92,26 +80,22 @@ nonisolated enum TodayHeader {
 private nonisolated enum TodayBarMetric {
     /// Trailing screen inset for the control row.
     static let inset: CGFloat = 16
-    static let hairlineWidth: CGFloat = 0.5
-
     /// The map button's disc. It is the ONLY control in this bar, so it is sized
     /// like one: 50 clears the 44pt HIG target on its own, with no grow-and-hand-back
     /// padding, and reads as an object rather than as a small icon in a corner.
     static let mapSide: CGFloat = 50
     /// The glyph's square, inside the disc.
     static let mapGlyphSize: CGFloat = 24
-    /// The centred wordmark's height. Small on purpose: at 18 the lockup runs 88pt
-    /// wide, which is a logo in a feed header rather than a banner — the disc beside
-    /// it is still the thing you press.
-    static let wordmarkHeight: CGFloat = 18
+    /// The centred wordmark's height. 31 runs the lockup 151pt wide — 18 → 24 → 31
+    /// over three passes on 2026-09-19, Jesse each time. It still clears the 50pt
+    /// disc beside it, with the bar's 58pt content height as the hard ceiling.
+    static let wordmarkHeight: CGFloat = 31
 }
 
 struct TodayTopBar: View {
     /// The trailing map button → the town map. The shell owns the presentation;
     /// this bar only reports the tap.
     var onOpenMap: () -> Void = {}
-    /// Raised by Home once the feed has scrolled past `TodayHeader.scrollThreshold`.
-    var showsHairline: Bool = false
     /// 0 at the top of the feed, 1 once the chrome has scrolled away. Drives the
     /// fade, the small lift and the bar's collapse together, off one number, so
     /// they cannot disagree mid-scroll.
@@ -134,7 +118,6 @@ struct TodayTopBar: View {
         // sits behind it is the content itself, blurred and washed toward the page by
         // the scroll edge effect (`scrollEdgeEffectStyle(.soft)` in `FeedView`). A
         // paper fill here is exactly the white lid Jesse asked to be rid of.
-        .overlay(alignment: .bottom) { hairline }
     }
 
     // MARK: - Layers
@@ -241,28 +224,18 @@ struct TodayTopBar: View {
         .clipShape(Circle())
         .allowsHitTesting(false)
     }
-
-    /// A 0.5pt rule on the bar's bottom edge — hidden at rest, cross-faded in once
-    /// there is content passing underneath.
-    private var hairline: some View {
-        Rectangle()
-            .fill(Hue.hairline)
-            .frame(height: TodayBarMetric.hairlineWidth)
-            .opacity(showsHairline ? 1 : 0)
-            .animation(.easeOut(duration: 0.20), value: showsHairline)
-    }
 }
 
-/// The map mark: a place pin, drawn as an OUTLINE with a solid centre.
+/// The map mark: a place pin, drawn as an OUTLINE with a ring at its centre.
 ///
 /// Not the SF Symbol `map` — that glyph is a hard-cornered folded sheet, and a
 /// rectangle inside a circle inside a rounded bar was three silhouettes fighting.
 /// Not the solid teardrop either (Jesse, 2026-09-18): filled, the mark sat as a heavy
-/// black blot on a pale disc. Outlined, it reads as a ring with a dot at the middle —
-/// lighter on the yellow, and the shape people already know as "a place".
+/// black blot on a pale disc. Outlined, it is lighter on the yellow and still the
+/// shape people already know as "a place".
 ///
-/// Geometry is specified in a 24-point box and scaled, so the mark keeps its
-/// proportions and its stroke ratio at any size.
+/// Proportions live in `MapPinShape`, in head radii, so the mark keeps its shape and
+/// its stroke ratio at any size.
 struct MapPinGlyph: View {
     var size: CGFloat = 24
 

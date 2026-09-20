@@ -46,8 +46,8 @@ struct FeedView: View {
     @State private var revealAnimated = true
     @State private var contentRevealed = false
     @State private var refreshReplay = 0
-    /// How far the feed has scrolled from rest, in points. One number: the hairline,
-    /// the chrome fade and the bar's collapse are all derived from it.
+    /// How far the feed has scrolled from rest, in points. One number: the chrome
+    /// fade and the bar's collapse are both derived from it.
     @State private var scrollOffset: CGFloat = 0
     /// Drives the DEBUG `-feed-scrolled` jump. There is no scroll automation in this
     /// setup, so without it the scrolled state — where the top glass fade actually
@@ -96,17 +96,9 @@ struct FeedView: View {
         self.route = route
     }
 
-    private var forcedHairline: Bool {
-        #if DEBUG
-        return ProcessInfo.processInfo.arguments.contains("-header-hairline")
-        #else
-        return false
-        #endif
-    }
-
-    /// DEBUG-only: `-header-collapsed` pins the bar to its scrolled-away state. There
-    /// is no scroll automation in this setup, so without it the collapsed header
-    /// cannot be screenshotted at all.
+    /// DEBUG-only: `-header-collapsed` pins the bar to its scrolled-away state.
+    /// There is no scroll automation in this setup, so without it the collapsed
+    /// header cannot be screenshotted at all.
     private var forcedCollapse: Bool {
         #if DEBUG
         return ProcessInfo.processInfo.arguments.contains("-header-collapsed")
@@ -160,12 +152,7 @@ struct FeedView: View {
         // feed's content passes UNDERNEATH it, which is the whole point — an
         // opaque strip has nothing to blur and reads as a white lid.
         .safeAreaBar(edge: .top, spacing: 0) {
-            TodayTopBar(
-                onOpenMap: onOpenMap,
-                showsHairline: TodayHeader.showsHairline(contentOffsetY: scrollOffset)
-                    || forcedHairline,
-                chromeProgress: chromeProgress
-            )
+            TodayTopBar(onOpenMap: onOpenMap, chromeProgress: chromeProgress)
         }
         // The glass fade at the top of the screen (Jesse, 2026-09-19, matching
         // Instagram's feed): content sliding under the status bar is blurred and
