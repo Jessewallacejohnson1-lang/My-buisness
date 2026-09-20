@@ -131,7 +131,7 @@ struct PlaceCard: View {
                         .lineLimit(2)
                     Spacer(minLength: 0)
                     Image(systemName: placeSymbol(place))
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.sansMedium(12))
                         .foregroundStyle(Hue.ink)
                 }
                 Text(place.tagline)
@@ -225,7 +225,7 @@ struct PlaceExpandedCard: View {
                             }
                         } label: {
                             HStack(spacing: 8) {
-                                Image(systemName: "map").font(.system(size: 13, weight: .semibold))
+                                Image(systemName: "map").font(.sansSemibold(13))
                                 Text("Open in Maps").font(.sansSemibold(14))
                             }
                             .foregroundStyle(Hue.ink)
@@ -254,7 +254,7 @@ struct PlaceExpandedCard: View {
         .overlay(alignment: .topTrailing) {
             Button(action: onClose) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.sansSemibold(13))
                     .foregroundStyle(Hue.ink)
                     .frame(width: 34, height: 34)
                     .background(.ultraThinMaterial, in: Circle())

@@ -136,13 +136,13 @@ struct VenueInfoView: View {
                 if !d.hours.isEmpty { withAnimation(.easeInOut(duration: 0.2)) { showHours.toggle() } }
             } label: {
                 HStack(spacing: 10) {
-                    Image(systemName: "clock").font(.system(size: 14, weight: .medium))
+                    Image(systemName: "clock").font(.sansMedium(14))
                         .foregroundStyle(palette.sub).frame(width: 18)
                     Text(statusText(d)).font(.sansMedium(14)).foregroundStyle(statusColor(d))
                     Spacer()
                     if !d.hours.isEmpty {
                         Image(systemName: showHours ? "chevron.up" : "chevron.down")
-                            .font(.system(size: 11, weight: .semibold)).foregroundStyle(palette.sub)
+                            .font(.sansSemibold(11)).foregroundStyle(palette.sub)
                     }
                 }
                 .padding(.horizontal, 14).padding(.vertical, 12)
@@ -166,11 +166,11 @@ struct VenueInfoView: View {
     private func actionRow(icon: String, text: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 10) {
-                Image(systemName: icon).font(.system(size: 14, weight: .medium))
+                Image(systemName: icon).font(.sansMedium(14))
                     .foregroundStyle(Hue.ink).frame(width: 18)
                 Text(text).font(.sansMedium(14)).foregroundStyle(palette.ink).lineLimit(1)
                 Spacer()
-                Image(systemName: "arrow.up.right").font(.system(size: 11, weight: .semibold))
+                Image(systemName: "arrow.up.right").font(.sansSemibold(11))
                     .foregroundStyle(palette.sub)
             }
             .padding(.horizontal, 14).padding(.vertical, 12)

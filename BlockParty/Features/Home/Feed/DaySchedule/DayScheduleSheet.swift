@@ -130,7 +130,7 @@ struct DayScheduleSheet: View {
     private var dateBlock: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(DayScheduleLogic.headerDate(now))
-                .font(.dayDisplay(DayType.sectionHeader))
+                .font(.display(DayType.sectionHeader))
                 .foregroundStyle(DaySchedulePalette.ink)
 
             Text(DayScheduleLogic.headerCount(items.count))
@@ -206,7 +206,7 @@ struct DayScheduleSheet: View {
                 onDismiss()
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.sansSemibold(16))
                     .foregroundStyle(DaySchedulePalette.ink)
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())

@@ -36,7 +36,7 @@ struct InlineAction: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 17, weight: .semibold))
+                .font(.sansSemibold(17))
                 .foregroundStyle(Hue.ink)
                 .frame(width: 46, height: 46)
                 .background(Hue.fill)
@@ -112,7 +112,7 @@ struct InlineAction: View {
                 // Outlined, not filled — see moduleFill. Ink on surface, with the
                 // border supplying the edge the fill no longer does.
                 Image(systemName: "exclamationmark")
-                    .font(.system(size: 18, weight: .bold))
+                    .font(.sansBold(18))
                     .foregroundStyle(Hue.ink)
                     .transition(.blurFade)
             }
@@ -235,7 +235,7 @@ private struct SuccessDisc: View {
                 .mask(Circle())
             }
             Image(systemName: "checkmark")
-                .font(.system(size: 18, weight: .bold))
+                .font(.sansBold(18))
                 .foregroundStyle(.white)
                 .scaleEffect(checkIn ? 1 : 0.4)
                 .opacity(checkIn ? 1 : 0)

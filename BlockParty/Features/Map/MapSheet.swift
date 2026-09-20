@@ -551,14 +551,14 @@ struct MapSheet: View {
     private var peekAccessory: some View {
         if peekIsRetry {
             Image(systemName: "arrow.clockwise")
-                .font(.system(size: 15, weight: .semibold))
+                .font(.sansSemibold(15))
                 .foregroundStyle(Hue.ink)
                 .frame(width: 30, height: 30)
                 .background(Hue.fill, in: Circle())
         } else {
             // A quiet "pull up" affordance — a soft chevron that hints there's more.
             Image(systemName: "chevron.up")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.sansSemibold(13))
                 .foregroundStyle(Hue.inkSecondary)
                 .frame(width: 30, height: 30)
                 .background(Hue.paper, in: Circle())
@@ -618,7 +618,7 @@ struct MapSheet: View {
     private func retryLabel(_ text: String, icon: String) -> some View {
         Button(action: onRetry) {
             HStack(spacing: 5) {
-                Image(systemName: icon).font(.system(size: 11, weight: .medium))
+                Image(systemName: icon).font(.sansMedium(11))
                 Text(text)
             }
             .font(.sans(13)).foregroundStyle(Hue.ink)
@@ -754,7 +754,7 @@ struct MapSheet: View {
 
     private func emptyState(icon: String, text: String) -> some View {
         VStack(spacing: 10) {
-            Image(systemName: icon).font(.system(size: 26, weight: .light)).foregroundStyle(Hue.inkSecondary)
+            Image(systemName: icon).font(.sansLight(26)).foregroundStyle(Hue.inkSecondary)
             Text(text).font(.sans(14)).foregroundStyle(Hue.inkSecondary)
                 .multilineTextAlignment(.center)
         }
@@ -823,7 +823,7 @@ private struct TodayEventRow: View {
             ZStack {
                 Circle().fill(live ? Hue.fill : Hue.paper).frame(width: 38, height: 38)
                 Image(systemName: live ? "dot.radiowaves.left.and.right" : "clock")
-                    .font(.system(size: 15, weight: .medium))
+                    .font(.sansMedium(15))
                     .foregroundStyle(live ? Hue.accent : Hue.inkSecondary)
             }
             VStack(alignment: .leading, spacing: 2) {
@@ -874,7 +874,7 @@ private struct PlaceRow: View {
                     .padding(.horizontal, 8).padding(.vertical, 3)
                     .background(Hue.fill, in: Capsule())
             }
-            Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Hue.inkSecondary)
+            Image(systemName: "chevron.right").font(.sansSemibold(12)).foregroundStyle(Hue.inkSecondary)
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
@@ -884,7 +884,7 @@ private struct PlaceRow: View {
         ZStack {
             Circle().fill(liveCount > 0 ? Hue.fill : Hue.paper).frame(width: 38, height: 38)
             Image(systemName: spot.category.symbol)
-                .font(.system(size: 16, weight: .medium))
+                .font(.sansMedium(16))
                 .foregroundStyle(liveCount > 0 ? Hue.ink : Hue.inkSecondary)
         }
     }

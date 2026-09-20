@@ -129,7 +129,7 @@ struct DayDetailCard: View {
                         .monospacedDigit()
 
                     Text(item.title)
-                        .font(.dayDisplay(DayType.pageTitle))
+                        .font(.display(DayType.pageTitle))
                         .foregroundStyle(DaySchedulePalette.ink)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
@@ -244,7 +244,7 @@ private struct DayCompletionBox: View {
                     }
 
                 Image(systemName: "checkmark")
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.sansBold(14))
                     .foregroundStyle(DaySchedulePalette.card)
                     .opacity(isComplete ? 1 : 0)
                     .scaleEffect(isComplete ? 1 : 0.6)

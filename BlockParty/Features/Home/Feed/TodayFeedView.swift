@@ -143,7 +143,7 @@ struct TodayFeedView: View {
 
             Button { onCompose?() } label: {
                 Image(systemName: "plus")
-                    .font(.system(size: 15, weight: .regular))
+                    .font(.sans(15))
                     .foregroundStyle(Hue.ink.opacity(0.35))
                     .frame(width: 28, height: 28)
                     .overlay {

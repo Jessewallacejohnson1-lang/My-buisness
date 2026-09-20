@@ -1037,7 +1037,7 @@ struct SJMapView: View {
                 expandSearch()
             } label: {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 16, weight: .medium))
+                    .font(.sansMedium(16))
                     .foregroundStyle(Hue.ink)
                     .frame(width: searchActive ? 30 : 44, height: 44)
             }
@@ -1059,7 +1059,7 @@ struct SJMapView: View {
                     collapseSearch()
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 17, weight: .medium))
+                        .font(.sansMedium(17))
                         .foregroundStyle(Hue.inkSecondary)
                         .frame(width: 34, height: 44)
                 }
@@ -1087,7 +1087,7 @@ struct SJMapView: View {
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "mappin.circle.fill")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.sansSemibold(13))
                     .foregroundStyle(Hue.ink)
                 Text(model.townLabel)
                     .font(.sansSemibold(15))
@@ -1248,7 +1248,7 @@ struct SJMapView: View {
     /// now reads off the chip row itself (the ink-filled chip).
     private func chromeCircle(icon: String) -> some View {
         Image(systemName: icon)
-            .font(.system(size: 16, weight: .medium))
+            .font(.sansMedium(16))
             .foregroundStyle(Hue.ink)
             .frame(width: 44, height: 44)
             .glassEffect(.regular, in: Circle())
@@ -1753,13 +1753,13 @@ private struct MapPinBadge: View {
                 .overlay(Circle().stroke(MarkerRole.pinStroke(isLightFill: false), lineWidth: 1.5))
 
             Image(systemName: spot.category.filledSymbol)
-                .font(.system(size: Self.iconSize, weight: .semibold))
+                .font(.glyph(Self.iconSize, weight: .semibold))
                 .foregroundStyle(MarkerRole.civicGlyph)
                 .opacity(expanded ? 1 : 0)   // too cramped on a 14pt compact dot
 
             if saved {
                 Image(systemName: "bookmark.fill")
-                    .font(.system(size: 7, weight: .bold))
+                    .font(.glyph(7, weight: .bold))
                     .foregroundStyle(MarkerRole.savedGlyph)
                     .frame(width: 12, height: 12)
                     .background(Circle().fill(MarkerRole.savedBadgeFill))
@@ -1844,7 +1844,7 @@ private struct POISelectedMarker: View {
                 .mapMarkerShadow(selected: true)
 
             Image(systemName: poi.glyph)
-                .font(.system(size: 15, weight: .semibold))
+                .font(.sansSemibold(15))
                 .foregroundStyle(MarkerRole.selectedPOIGlyph)
 
             POILogoCircle(poi: poi, diameter: 31)

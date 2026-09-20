@@ -70,7 +70,7 @@ struct ProfileAvatar: View {
         ZStack {
             Hue.surface
             Image(systemName: "person.fill")
-                .font(.system(size: size * 0.42))
+                .font(.glyph(size * 0.42))
                 .foregroundStyle(Hue.inkSecondary.opacity(0.5))
         }
     }
@@ -145,7 +145,7 @@ struct ProfileRow: View {
     private var rowContent: some View {
         HStack(spacing: 13) {
             Image(systemName: icon)
-                .font(.system(size: 16, weight: .semibold))
+                .font(.sansSemibold(16))
                 .foregroundStyle(destructive ? Hue.ink : iconTint)
                 .frame(width: 26)
             VStack(alignment: .leading, spacing: 2) {
@@ -178,11 +178,11 @@ struct ProfileRow: View {
             EmptyView()
         case .chevron:
             Image(systemName: "chevron.right")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.sansSemibold(13))
                 .foregroundStyle(Hue.inkSecondary.opacity(0.7))
         case .expand(let open):
             Image(systemName: "chevron.down")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.sansSemibold(13))
                 .foregroundStyle(Hue.inkSecondary.opacity(0.7))
                 .rotationEffect(.degrees(open ? 0 : -90))
         }
@@ -224,7 +224,7 @@ struct FeatureFace: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Image(systemName: icon)
-                .font(.system(size: 19, weight: .semibold))
+                .font(.sansSemibold(19))
                 .foregroundStyle(emphasized ? Hue.surface : Hue.ink)
                 .frame(width: 42, height: 42)
                 .background((emphasized ? Hue.ink : Hue.fill).opacity(0.9), in: Circle())

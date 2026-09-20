@@ -159,7 +159,7 @@ struct ComposeSpeedDial: View {
 
     private func iconCircle(_ item: SpeedDialItem) -> some View {
         Image(systemName: item.symbol)
-            .font(.system(size: 19, weight: .semibold))
+            .font(.sansSemibold(19))
             .foregroundStyle(item.primary ? .white : Hue.ink)
             .frame(width: iconSize, height: iconSize)
             .background(item.primary ? Hue.ink : Hue.fill, in: Circle())
@@ -173,7 +173,7 @@ struct ComposeSpeedDial: View {
             isOpen ? close() : open()
         } label: {
             Image(systemName: "plus")
-                .font(.system(size: 22, weight: .semibold))
+                .font(.sansSemibold(22))
                 .foregroundStyle(.white)
                 .rotationEffect(.degrees(isOpen ? 135 : 0))
                 .frame(width: discSize, height: discSize)

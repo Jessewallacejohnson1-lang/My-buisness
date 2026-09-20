@@ -342,7 +342,7 @@ private struct TeardropPin: View {
             )
 
             Image(systemName: icon)
-                .font(.system(size: 17, weight: .semibold))
+                .font(.sansSemibold(17))
                 .foregroundStyle(live ? .white : Hue.ink)
         }
         .frame(width: 48, height: 58, alignment: .center)

@@ -56,7 +56,7 @@ struct AddView: View {
     private func kindRow(_ kind: Kind) -> some View {
         HStack(spacing: 14) {
             Image(systemName: kind.symbol)
-                .font(.system(size: 18, weight: .medium))
+                .font(.sansMedium(18))
                 .foregroundStyle(Hue.ink)
                 .frame(width: 46, height: 46)
                 .background(Hue.fill)
@@ -71,7 +71,7 @@ struct AddView: View {
             }
             Spacer()
             Image(systemName: "chevron.right")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.sansSemibold(13))
                 .foregroundStyle(Hue.inkSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

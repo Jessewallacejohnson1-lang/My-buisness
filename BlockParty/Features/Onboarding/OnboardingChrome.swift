@@ -12,7 +12,7 @@ struct OnboardingBackButton: View {
     var body: some View {
         Button(action: { Haptics.selection(); action() }) {
             Image(systemName: "chevron.left")
-                .font(.system(size: 17, weight: .semibold))
+                .font(.sansSemibold(17))
                 .foregroundStyle(Hue.ink)
                 .frame(width: 44, height: 44)
                 .background(Hue.surface, in: Circle())

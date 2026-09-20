@@ -144,7 +144,7 @@ struct ProfileView: View {
             Spacer()
             Button { Haptics.selection(); editing = true } label: {
                 HStack(spacing: 6) {
-                    Image(systemName: "pencil").font(.system(size: 13, weight: .semibold))
+                    Image(systemName: "pencil").font(.sansSemibold(13))
                     Text("Edit profile").font(.sansSemibold(15))
                 }
                 .foregroundStyle(Hue.ink)
@@ -165,7 +165,7 @@ struct ProfileView: View {
     private func circleButton(_ symbol: String, action: @escaping () -> Void) -> some View {
         Button { Haptics.light(); action() } label: {
             Image(systemName: symbol)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.sansSemibold(14))
                 .foregroundStyle(Hue.ink)
                 .frame(width: 38, height: 38)
                 .background(.ultraThinMaterial, in: Circle())
@@ -183,7 +183,7 @@ struct ProfileView: View {
                 ZStack(alignment: .bottomTrailing) {
                     ProfileAvatar(url: model.avatarUrl, size: 104)
                     Image(systemName: "pencil")
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.sansBold(12))
                         .foregroundStyle(.white)
                         .frame(width: 30, height: 30)
                         .background(Hue.ink, in: Circle())
@@ -203,7 +203,7 @@ struct ProfileView: View {
                     .minimumScaleFactor(0.8)
 
                 HStack(spacing: 5) {
-                    Image(systemName: "mappin.and.ellipse").font(.system(size: 11, weight: .semibold))
+                    Image(systemName: "mappin.and.ellipse").font(.sansSemibold(11))
                     Text(subLine).font(.sans(13))
                 }
                 .foregroundStyle(Hue.inkSecondary)
@@ -230,7 +230,7 @@ struct ProfileView: View {
 
     private var organizerBadge: some View {
         HStack(spacing: 5) {
-            Image(systemName: "checkmark.seal.fill").font(.system(size: 11, weight: .bold))
+            Image(systemName: "checkmark.seal.fill").font(.sansBold(11))
             Text("Town organizer").font(.sansSemibold(12))
         }
         .foregroundStyle(Hue.ink)
@@ -352,7 +352,7 @@ struct ProfileView: View {
 
     private func clubItem(_ c: ClubView) -> some View {
         HStack(spacing: 11) {
-            Image(systemName: "person.2.fill").font(.system(size: 12)).foregroundStyle(Hue.ink).frame(width: 16)
+            Image(systemName: "person.2.fill").font(.sans(12)).foregroundStyle(Hue.ink).frame(width: 16)
             VStack(alignment: .leading, spacing: 2) {
                 Text(c.name).font(.sansMedium(14)).foregroundStyle(Hue.ink).lineLimit(1)
                 if let sched = c.schedule, !sched.isEmpty {
@@ -396,7 +396,7 @@ struct ProfileView: View {
     private var signOutButton: some View {
         Button { Haptics.light(); confirmSignOut = true } label: {
             HStack(spacing: 8) {
-                Image(systemName: "rectangle.portrait.and.arrow.right").font(.system(size: 15, weight: .semibold))
+                Image(systemName: "rectangle.portrait.and.arrow.right").font(.sansSemibold(15))
                 Text("Sign out").font(.sansSemibold(16))
             }
             .foregroundStyle(Hue.ink)
@@ -438,7 +438,7 @@ struct AboutBlockPartySheet: View {
                 Spacer()
                 Button { dismiss() } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 14, weight: .semibold)).foregroundStyle(Hue.ink)
+                        .font(.sansSemibold(14)).foregroundStyle(Hue.ink)
                         .frame(width: 34, height: 34).background(Hue.fill, in: Circle())
                 }
                 .buttonStyle(.plain)

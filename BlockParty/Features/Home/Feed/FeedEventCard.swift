@@ -192,7 +192,7 @@ struct FeedEventCard: View {
         .clipShape(RoundedRectangle(cornerRadius: DailyFeedMetric.mediaRadius, style: .continuous))
         .overlay {
             Image(systemName: "heart.fill")
-                .font(.system(size: 84, weight: .bold))
+                .font(.glyph(84, weight: .bold))
                 .symbolRenderingMode(.monochrome)
                 .foregroundStyle(.white)
                 .scaleEffect(motionIsReduced ? 1 : burstScale)

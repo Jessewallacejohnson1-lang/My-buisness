@@ -146,7 +146,7 @@ struct EditProfileView: View {
                 ZStack {
                     Hue.surface
                     VStack(spacing: 8) {
-                        Image(systemName: "camera.fill").font(.system(size: 24)).foregroundStyle(Hue.ink)
+                        Image(systemName: "camera.fill").font(.sans(24)).foregroundStyle(Hue.ink)
                         Text("Add photo").font(.sansMedium(13)).foregroundStyle(Hue.inkSecondary)
                     }
                 }
@@ -159,7 +159,7 @@ struct EditProfileView: View {
         .shadow(color: .black.opacity(0.14), radius: 14, y: 6)
         .overlay(alignment: .bottomTrailing) {
             Image(systemName: "camera.fill")
-                .font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
+                .font(.sansBold(12)).foregroundStyle(.white)
                 .frame(width: 34, height: 34)
                 .background(Hue.ink, in: Circle())
                 .overlay(Circle().stroke(.white, lineWidth: 2))
@@ -195,7 +195,7 @@ struct EditProfileView: View {
             }
             Button { Haptics.selection(); showInterests = true } label: {
                 HStack(spacing: 8) {
-                    Image(systemName: "slider.horizontal.3").font(.system(size: 14, weight: .semibold))
+                    Image(systemName: "slider.horizontal.3").font(.sansSemibold(14))
                     Text(interests.isEmpty ? "Choose interests" : "Edit interests · \(interests.count)")
                         .font(.sansSemibold(15))
                 }

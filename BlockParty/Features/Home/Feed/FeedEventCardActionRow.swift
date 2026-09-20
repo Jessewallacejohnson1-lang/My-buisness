@@ -151,7 +151,7 @@ struct FeedEventCardActionRow: View {
     private func actionIcon(_ symbol: String, active: Bool, tint: Color? = nil) -> some View {
         // SF Symbols does not expose a 1.75pt stroke; regular approximates the spec.
         Image(systemName: symbol)
-            .font(.system(size: 22, weight: .regular))
+            .font(.sans(22))
             .symbolRenderingMode(.monochrome)
             .foregroundStyle(tint ?? Hue.ink.opacity(active ? 1 : 0.45))
     }

@@ -45,7 +45,7 @@ struct InterestCard: View {
             // Calm tinted fallback (no gradient slop) until a photo is present.
             Rectangle().fill(Hue.fill)
                 .overlay(Image(systemName: "photo")
-                    .font(.system(size: 22)).foregroundStyle(Hue.inkSecondary))
+                    .font(.sans(22)).foregroundStyle(Hue.inkSecondary))
         }
     }
 
@@ -72,7 +72,7 @@ struct InterestCard: View {
                 .frame(width: 26, height: 26)
             if selected {
                 Image(systemName: "checkmark")
-                    .font(.system(size: 13, weight: .bold))
+                    .font(.sansBold(13))
                     .foregroundStyle(.white)
             }
         }

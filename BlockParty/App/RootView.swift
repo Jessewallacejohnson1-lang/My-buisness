@@ -625,7 +625,7 @@ struct BlockPartyTabBar: View {
                 // acknowledgement the tap deserves. Both are dropped under Reduce
                 // Motion, where the fill swap alone still carries the state.
                 Image(systemName: selected ? tab.selectedSymbol : tab.symbol)
-                    .font(.system(size: iconSize, weight: selected ? .semibold : .medium))
+                    .font(.glyph(iconSize, weight: selected ? .semibold : .medium))
                     .frame(height: iconLane)
                     .contentTransition(.symbolEffect(.replace))
                     // The swap gets its OWN short curve instead of inheriting the page

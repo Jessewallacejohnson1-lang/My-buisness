@@ -106,7 +106,7 @@ struct TownMenuView: View {
         } label: {
             HStack(spacing: 15) {
                 Image(systemName: row.icon)
-                    .font(.system(size: 19, weight: .medium))
+                    .font(.sansMedium(19))
                     .foregroundStyle(Hue.ink)
                     .frame(width: 26, alignment: .leading)
                 Text(row.title)

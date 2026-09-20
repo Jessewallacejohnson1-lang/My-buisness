@@ -251,7 +251,7 @@ struct PinDetailSheet: View {
                 onClose()
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.sansSemibold(15))
                     .foregroundStyle(Hue.ink)
                     .frame(width: 44, height: 44)
                     .background(Circle().fill(Hue.fill))
@@ -296,7 +296,7 @@ struct PinDetailSheet: View {
     private var secondaryLine: some View {
         HStack(spacing: 6) {
             Image(systemName: detail.glyph)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.sansSemibold(11))
             Text(PinDetailCopy.secondaryLine(address: detail.poi?.address).uppercased())
                 .font(.mono(11))
                 .tracking(1.2)
@@ -373,7 +373,7 @@ struct PinDetailSheet: View {
                 .foregroundStyle(CardInk.ink)
             Spacer(minLength: 8)
             Image(systemName: "sparkles")
-                .font(.system(size: 12, weight: .medium))
+                .font(.sansMedium(12))
                 .foregroundStyle(CardInk.inkSecondary)
         }
         .padding(.horizontal, 14)
@@ -393,7 +393,7 @@ struct PinDetailSheet: View {
                 .foregroundStyle(CardInk.ink)
             Spacer(minLength: 8)
             Image(systemName: "sparkles")
-                .font(.system(size: 12, weight: .medium))
+                .font(.sansMedium(12))
                 .foregroundStyle(CardInk.inkSecondary)
                 // Decorative — keep "Sparkles" out of the .combine'd line below.
                 .accessibilityHidden(true)
@@ -406,7 +406,7 @@ struct PinDetailSheet: View {
     private func statusRow(_ row: StatusRow) -> some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: row.icon)
-                .font(.system(size: 13, weight: .medium))
+                .font(.sansMedium(13))
                 .foregroundStyle(CardInk.ink)
                 .frame(width: 18)
                 .padding(.top, 1)
@@ -435,7 +435,7 @@ struct PinDetailSheet: View {
                     .font(.sansMedium(13))
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.sansSemibold(11))
             }
             .foregroundStyle(CardInk.inkSecondary)
             .padding(.horizontal, 14)
@@ -509,7 +509,7 @@ struct PinDetailSheet: View {
                 if let url = detail.directionsURL { openURL(url) }
             } label: {
                 Image(systemName: "arrow.triangle.turn.up.right.diamond.fill")
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.sansSemibold(18))
                     .foregroundStyle(Hue.surface)
                     .frame(width: 48, height: 48)
                     .background(Circle().fill(Hue.ink))
@@ -526,7 +526,7 @@ struct PinDetailSheet: View {
 
     private func barIcon(_ symbol: String, tint: Color = Hue.ink) -> some View {
         Image(systemName: symbol)
-            .font(.system(size: 17, weight: .medium))
+            .font(.sansMedium(17))
             .foregroundStyle(tint)
             .frame(width: 44, height: 44)
             .contentShape(Rectangle())
@@ -589,7 +589,7 @@ struct PinFullDetailsView: View {
                             .fixedSize(horizontal: false, vertical: true)
                         HStack(spacing: 6) {
                             Image(systemName: detail.glyph)
-                                .font(.system(size: 11, weight: .semibold))
+                                .font(.sansSemibold(11))
                             Text(detail.categoryLabel.uppercased())
                                 .font(.mono(11))
                                 .tracking(1.2)
@@ -601,7 +601,7 @@ struct PinFullDetailsView: View {
                         dismiss()
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(.sansSemibold(13))
                             .foregroundStyle(Hue.ink)
                             .frame(width: 36, height: 36)
                             .background(Circle().fill(Hue.fill))

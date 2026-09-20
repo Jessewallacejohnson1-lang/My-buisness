@@ -38,7 +38,7 @@ struct ShareTargetRow: View {
         Button(action: action) {
             VStack(spacing: 8) {
                 Image(systemName: symbol)
-                    .font(.system(size: 22, weight: .semibold))
+                    .font(.sansSemibold(22))
                     .foregroundStyle(tint)
                     .frame(width: 60, height: 60)
                     .background(bg, in: Circle())
