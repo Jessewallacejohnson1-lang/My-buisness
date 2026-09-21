@@ -2,6 +2,20 @@
 //  FeedEventCard.swift
 //  Block Party — reusable static visual for a normalized feed event.
 //
+//  Instagram's layout, Apple News's type (Jesse, 2026-09-19). The host — the
+//  business, parish or neighbour putting the event on — sits in a row ABOVE the
+//  photograph, the way a poster's name does on Instagram; the headline is set OVER
+//  the photograph, ranged left off its bottom-left corner.
+//
+//  The card has no container of its own: no fill, no border, no shadow. The only
+//  edge on screen is the PICTURE's: it is inset by `contentInset` like everything
+//  else on the card and carries a real corner, so an event reads as a cut card sunk
+//  into the page rather than a photo running off both bezels (Jesse, 2026-09-19 —
+//  postings still run edge to edge, which is what now tells the two kinds apart).
+//
+//  The headline face is the SYSTEM face (`.sansBold`), not the display face: Apple
+//  News sets its headlines in SF, and that is the reference Jesse gave.
+//
 
 import SwiftUI
 import UIKit
@@ -9,69 +23,73 @@ import UIKit
 struct FeedEventCard: View {
     let item: FeedCardItem
     let comments: [EventComment]
-    let onJoin: ((Bool) -> Void)?
     let onLike: ((Bool) -> Void)?
     let onSave: ((Bool) -> Void)?
     let onLoadComments: (() async throws -> [EventComment])?
     let onComment: ((String) async throws -> EventComment)?
     let onShare: (() -> Void)?
+    /// Which action controls this card offers. Defaults to `.posting` so the Town
+    /// pipeline and the DEBUG galleries keep the row they were built against; the
+    /// Daily feed passes `.event`, which drops comments but keeps the heart.
+    let actionKind: FeedActionKind
     let debugAutoplay: Bool
 
-    /// Horizontal room the overlapping join block needs, so the ToS attribution
-    /// caption stays fully legible beside it.
-    private static let joinBlockClearance: CGFloat = 44
+    /// The photo's shape. Apple News runs its lead image at roughly 3:2; this card
+    /// used to be 5:4, which is most of a phone screen per event.
+    private static let mediaAspect: CGFloat = 3.0 / 2.0
+
+    /// The host avatar. An avatar beside a name is a mark at a size the row is drawn
+    /// around, not text, so it does not scale.
+    private static let hostAvatarSide: CGFloat = 32
 
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @State private var resolvedVenuePhoto: ResolvedVenuePhoto?
     @State private var venuePhotoDecoded = false
     @State private var actionState: FeedCardActionState
-    @State private var joinState: FeedCardJoinState
     @State private var commentState: FeedCommentState
-    @State private var showsCurrentUserAvatar: Bool
     @State private var commentsPresented = false
-    @State private var burstScale: CGFloat = 0
-    @State private var burstOpacity: Double = 0
-    @State private var burstGeneration = 0
+    @State private var likeBurst = FeedLikeBurst()
     @State private var autoplayStep = 0
-    @State private var autoplayJoinPressed = false
+
     init(
         item: FeedCardItem,
         comments: [EventComment] = [],
-        onJoin: ((Bool) -> Void)? = nil,
         onLike: ((Bool) -> Void)? = nil,
         onSave: ((Bool) -> Void)? = nil,
         onLoadComments: (() async throws -> [EventComment])? = nil,
         onComment: ((String) async throws -> EventComment)? = nil,
         onShare: (() -> Void)? = nil,
+        actionKind: FeedActionKind = .posting,
         debugAutoplay: Bool = false
     ) {
         self.item = item
         self.comments = comments
-        self.onJoin = onJoin
         self.onLike = onLike
         self.onSave = onSave
         self.onLoadComments = onLoadComments
         self.onComment = onComment
         self.onShare = onShare
+        self.actionKind = actionKind
         self.debugAutoplay = debugAutoplay
         _actionState = State(initialValue: FeedCardActionState(item: item))
-        let initialJoinState = FeedCardJoinState(item: item)
-        _joinState = State(initialValue: initialJoinState)
         _commentState = State(initialValue: FeedCommentState(comments: comments))
-        _showsCurrentUserAvatar = State(
-            initialValue: initialJoinState.hasCurrentUserAvatar
-        )
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            hostRow
+                .padding(.horizontal, DailyFeedMetric.contentInset)
+
             imageSection
+                .padding(.top, item.hostName.isEmpty ? 0 : 10)
 
             socialRow
                 .padding(.top, 10)
+                .padding(.horizontal, DailyFeedMetric.contentInset)
 
             actionRow
-                .padding(.top, 12)
+                .padding(.top, 2)
+                .padding(.horizontal, DailyFeedMetric.contentInset)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
@@ -84,12 +102,41 @@ struct FeedEventCard: View {
         }
         .onChange(of: item) { _, updatedItem in
             actionState.sync(with: updatedItem)
-            joinState.sync(with: updatedItem)
-            showsCurrentUserAvatar = updatedItem.isJoined
         }
         .task(id: item.image) { await resolveVenuePhoto() }
         .task { await runDebugAutoplay() }
     }
+
+    // MARK: - Host
+
+    /// Who is putting this on, above the photograph. A missing host draws nothing
+    /// rather than a placeholder — the headline is still the card.
+    @ViewBuilder
+    private var hostRow: some View {
+        if !item.hostName.isEmpty {
+            HStack(spacing: 10) {
+                hostAvatar
+
+                Text(item.hostName)
+                    .font(.sansSemibold(14))
+                    .foregroundStyle(Hue.ink)
+                    .lineLimit(1)
+
+                Spacer(minLength: 8)
+            }
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    private var hostAvatar: some View {
+        FeedAuthorAvatar(
+            url: item.hostAvatar,
+            name: item.hostName,
+            side: Self.hostAvatarSide
+        )
+    }
+
+    // MARK: - Image
 
     /// A resolved venue photo, tagged with the lookup that produced it — so a card
     /// whose item changed under it can tell "already resolved" from "someone else's
@@ -109,11 +156,11 @@ struct FeedEventCard: View {
         return resolved.image
     }
 
-    /// What the card's TYPOGRAPHY, scrim, and join treatment reflect. A resolved venue
-    /// photo only counts once its bitmap has actually decoded (`venuePhotoDecoded`), so
-    /// the card never sits in the half-state the 0.25 s ease was meant to prevent:
-    /// small type + meta line + a scrim gradient over an undownloaded flat-ink frame.
-    /// Every non-`venueLookup` source is already final and shows immediately.
+    /// What the card's TYPOGRAPHY and scrim reflect. A resolved venue photo only
+    /// counts once its bitmap has actually decoded (`venuePhotoDecoded`), so the card
+    /// never sits in the half-state the 0.25 s ease was meant to prevent: a scrim
+    /// gradient over an undownloaded flat-ink frame. Every non-`venueLookup` source
+    /// is already final and shows immediately.
     private var displayImage: FeedCardImageSource {
         guard case .venueLookup = item.image else { return item.image }
         guard venuePhotoDecoded, let resolved = resolvedVenuePhoto, resolved.lookup == item.image
@@ -177,47 +224,39 @@ struct FeedEventCard: View {
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
-        .aspectRatio(5.0 / 4.0, contentMode: .fit)
+        .aspectRatio(Self.mediaAspect, contentMode: .fit)
         .frame(maxWidth: .infinity)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
-        .overlay {
-            Image(systemName: "heart.fill")
-                .font(.system(size: 84, weight: .bold))
-                .symbolRenderingMode(.monochrome)
-                .foregroundStyle(.white)
-                .scaleEffect(motionIsReduced ? 1 : burstScale)
-                .opacity(burstOpacity)
-                .accessibilityHidden(true)
-        }
-        .overlay(alignment: .topLeading) {
-            chipRow
-                .padding(12)
-        }
+        // INSIDE the clip — the picture's own edge is what takes the heart away.
+        .feedCardLikeBurst(likeBurst, reduceMotion: motionIsReduced)
+        .clipShape(RoundedRectangle(cornerRadius: DailyFeedMetric.mediaRadius, style: .continuous))
         .overlay(alignment: .bottom) {
             // Copy and the ToS credit share ONE bottom-aligned row, so the copy's
             // available width is derived from the credit's measured width instead of a
             // hard-coded inset. They used to be two independent bottom overlays whose
             // fixed insets guaranteed they overlapped ("Karry Rood" landing on the meta
-            // line). Trailing room is reserved for the join block, which overlaps the
-            // card's lower-right corner.
+            // line).
             HStack(alignment: .bottom, spacing: 8) {
                 imageCopy
-                if !creditNames.isEmpty {
+                if creditNames.isEmpty {
+                    // Without this the HStack shrinks to its content and the overlay
+                    // CENTRES it — a short headline ("Farmers Market") floated to the
+                    // middle of the photograph. The copy is ranged left off the
+                    // picture's bottom-left corner, always.
+                    Spacer(minLength: 0)
+                } else {
                     Spacer(minLength: 8)
                     PhotoCredit(names: creditNames)
                 }
             }
             .padding(16)
-            .padding(.trailing, Self.joinBlockClearance)
         }
-        .overlay(alignment: .bottomTrailing) {
-            joinBlock
-                .offset(y: 22)
-        }
-        .contentShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
-        .simultaneousGesture(TapGesture(count: 2).onEnded(performImageLike))
-        // Reserve the lower half of the overlapping join block before the social row.
-        .padding(.bottom, 22)
+        .overlay(alignment: .topLeading) { dateBanner }
+        .contentShape(Rectangle())
+        // Both kinds carry a heart in the row below, so the double-tap always has a
+        // control to mirror — and something on screen you can undo it with.
+        .simultaneousGesture(
+            SpatialTapGesture(count: 2).onEnded { performImageLike(at: $0.location) }
+        )
     }
 
     @ViewBuilder
@@ -230,78 +269,92 @@ struct FeedEventCard: View {
         }
     }
 
-    private var chipRow: some View {
-        HStack(spacing: 8) {
-            if !item.dateChip.isEmpty {
-                chip(item.dateChip)
-            }
-            if let recurrence = item.recurrence {
-                chip(recurrence)
-            }
+    // MARK: - Date banner
+
+    /// When it is, floating at the top of the picture (Jesse, 2026-09-20).
+    ///
+    /// The app's one accent, `Hue.brandYellowHex`, at full strength — not the 68%
+    /// wash the map disc carries, because this sits on a photograph and a translucent
+    /// yellow would take its hue from whatever happened to be behind it. Ink on
+    /// yellow, which is the logo's own pairing.
+    ///
+    /// It hugs its text rather than running the full width: DESIGN.md scopes yellow
+    /// to small accents, and a full-bleed yellow strip would make the accent the
+    /// loudest thing in the feed. Same reason it carries no shadow — the card is
+    /// meant to sit IN the page, so nothing on it gets lifted off the picture.
+    @ViewBuilder
+    private var dateBanner: some View {
+        if !item.dateChip.isEmpty {
+            Text(item.dateChip.uppercased())
+                .font(.sansBold(12))
+                .tracking(0.6)
+                .foregroundStyle(Hue.ink)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color(hex: Hue.brandYellowHex))
+                )
+                .padding(12)
+                .accessibilityLabel(item.dateChip)
         }
     }
 
-    private func chip(_ label: String) -> some View {
-        Text(label)
-            .font(.sansSemibold(11))
-            .tracking(0.8)
-            .foregroundStyle(.primary)
-            .lineLimit(1)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(
-                .ultraThinMaterial,
-                in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
-            )
-    }
+    // MARK: - Copy over the photograph
 
-    @ViewBuilder
     private var imageCopy: some View {
-        switch displayImage {
-        case .venueLookup, .fallback:
+        VStack(alignment: .leading, spacing: 4) {
             Text(item.title)
-                .font(.display(32))
-                .foregroundStyle(.white)
+                // 28, the `.title` step. 22 measured ~20% smaller than the Apple News
+                // reference relative to card width, and the token scale has nothing
+                // between the two (`nearestTextStyle` snaps 24–31 to `.title`).
+                .font(.sansBold(28))
+                // Apple sets its headlines tight, and the bigger the size the more it
+                // needs it — a lead-story size at default tracking reads loose.
+                .tracking(-0.6)
+                // A two-line headline at this size sits ~1.21em apart by default,
+                // which reads airy next to the reference's ~1.1em. Negative spacing
+                // is how this codebase has always tightened a heading.
                 .lineSpacing(-2)
+                .foregroundStyle(.white)
+                .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
-        case .eventPhoto, .placesPhoto:
-            VStack(alignment: .leading, spacing: 2) {
-                Text(item.title)
-                    .font(.display(22))
-                    .foregroundStyle(.white)
-                    .fixedSize(horizontal: false, vertical: true)
 
-                Text(item.metaLine)
+            if !metaSummary.isEmpty {
+                Text(metaSummary)
                     .font(.sans(13))
                     .foregroundStyle(.white.opacity(0.85))
                     .lineLimit(1)
             }
-            .feedCardPhotoTypeShadow()
         }
+        .feedCardPhotoTypeShadow()
     }
 
-    private var joinBlock: some View {
-        FeedEventCardJoinButton(
-            isJoined: joinState.isJoined,
-            isFallback: displayImage.isFallback,
-            reduceMotion: motionIsReduced,
-            autoplayPressed: autoplayJoinPressed,
-            onToggle: performJoinTap
-        )
+    /// Date, recurrence and time/place as one line — what used to be a chip floating
+    /// in the photograph's top corner plus a meta line under the title.
+    private var metaSummary: String {
+        // No `dateChip` — the date is the banner at the top of the picture now
+        // (Jesse, 2026-09-20), and printing it twice on one photograph read as a
+        // mistake rather than as emphasis.
+        [item.recurrence, item.metaLine]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+            .joined(separator: " · ")
     }
+
+    // MARK: - Social
 
     private var socialRow: some View {
         HStack(spacing: 8) {
-            if showsCurrentUserAvatar || !item.goingAvatars.isEmpty {
+            if !item.goingAvatars.isEmpty {
                 FeedCardFacepile(
                     neighborAvatars: item.goingAvatars,
-                    goingCount: joinState.goingCount,
-                    includesCurrentUser: showsCurrentUserAvatar,
+                    goingCount: item.goingCount,
                     reduceMotion: motionIsReduced
                 )
             }
 
-            goingSummaryText
+            Text(item.goingSummary)
                 .font(.sans(13))
                 .foregroundStyle(Hue.inkSecondary)
                 .lineLimit(1)
@@ -310,56 +363,9 @@ struct FeedEventCard: View {
         .frame(minHeight: 24)
     }
 
-    @ViewBuilder
-    private var goingSummaryText: some View {
-        if let summary = numericGoingSummary {
-            HStack(spacing: 0) {
-                Text(summary.prefix)
-                animatedGoingCount(summary.count)
-                Text(summary.suffix)
-            }
-            .accessibilityElement(children: .combine)
-        } else if joinState.goingCount == item.goingCount {
-            Text(item.goingSummary)
-        } else {
-            HStack(spacing: 0) {
-                animatedGoingCount(joinState.goingCount)
-                Text(joinState.goingCount == 1 ? " neighbor is going" : " neighbors are going")
-            }
-            .accessibilityElement(children: .combine)
-        }
-    }
-
-    private var numericGoingSummary: (prefix: String, count: Int, suffix: String)? {
-        guard let range = item.goingSummary.range(
-            of: #"[0-9]+"#,
-            options: .regularExpression
-        ), let initialCount = Int(item.goingSummary[range]) else {
-            return nil
-        }
-
-        let delta = joinState.goingCount - item.goingCount
-        return (
-            String(item.goingSummary[..<range.lowerBound]),
-            max(0, initialCount + delta),
-            String(item.goingSummary[range.upperBound...])
-        )
-    }
-
-    private func animatedGoingCount(_ count: Int) -> some View {
-        Text("\(count)")
-            .monospacedDigit()
-            .contentTransition(motionIsReduced ? .opacity : .numericText())
-            .animation(
-                motionIsReduced
-                    ? .easeInOut(duration: 0.15)
-                    : .easeOut(duration: 0.35),
-                value: count
-            )
-    }
-
     private var actionRow: some View {
         FeedEventCardActionRow(
+            kind: actionKind,
             state: $actionState,
             reduceMotion: motionIsReduced,
             autoplayStep: autoplayStep,
@@ -374,74 +380,18 @@ struct FeedEventCard: View {
         accessibilityReduceMotion
     }
 
-    private func performJoinTap() {
-        let joined = joinState.toggleJoin()
-
-        if motionIsReduced {
-            showsCurrentUserAvatar = joined
-        } else {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) {
-                showsCurrentUserAvatar = joined
-            }
-        }
-
-        if joined {
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
-        } else {
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        }
-
-        // Phase 4: onJoin → schedule/cancel 1h reminder
-        onJoin?(joined)
-    }
-
-    private func performImageLike() {
-        burstGeneration += 1
-        let generation = burstGeneration
+    private func performImageLike(at point: CGPoint?) {
         let changed = !actionState.isLiked
 
-        if motionIsReduced {
-            burstScale = 1
-            withAnimation(.easeInOut(duration: 0.15)) {
-                _ = actionState.like()
-                burstOpacity = 1
-            }
-        } else {
-            burstScale = 0
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.55)) {
-                _ = actionState.like()
-                burstScale = 1.15
-                burstOpacity = 1
-            }
+        withAnimation(motionIsReduced ? .easeInOut(duration: 0.15) : Motion.snappy) {
+            _ = actionState.like()
         }
+        likeBurst.fire(at: point)
 
         if changed { onLike?(true) }
-
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(150))
-            guard generation == burstGeneration else { return }
-
-            if !motionIsReduced {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.55)) {
-                    burstScale = 1
-                }
-            }
-
-            try? await Task.sleep(for: .milliseconds(500))
-            guard generation == burstGeneration else { return }
-            withAnimation(
-                .linear(duration: motionIsReduced ? 0.15 : 0.2)
-            ) {
-                burstOpacity = 0
-            }
-
-            try? await Task.sleep(for: .milliseconds(200))
-            guard generation == burstGeneration else { return }
-            burstScale = 0
-        }
     }
 
-    /// DEBUG-only gallery driver: like → image burst → save → unlike → join → leave.
+    /// DEBUG-only gallery driver: like → image burst → save → unlike.
     private func runDebugAutoplay() async {
         #if DEBUG
         guard debugAutoplay, autoplayStep == 0 else { return }
@@ -453,7 +403,7 @@ struct FeedEventCard: View {
         try? await Task.sleep(for: .milliseconds(1_200))
         guard !Task.isCancelled else { return }
         autoplayStep = 2
-        performImageLike()
+        performImageLike(at: nil)
 
         try? await Task.sleep(for: .milliseconds(1_800))
         guard !Task.isCancelled else { return }
@@ -462,28 +412,6 @@ struct FeedEventCard: View {
         try? await Task.sleep(for: .milliseconds(1_400))
         guard !Task.isCancelled else { return }
         autoplayStep = 4
-
-        try? await Task.sleep(for: .milliseconds(1_500))
-        guard !Task.isCancelled else { return }
-        autoplayStep = 5
-        autoplayJoinPressed = true
-
-        try? await Task.sleep(for: .milliseconds(250))
-        guard !Task.isCancelled else { return }
-        autoplayJoinPressed = false
-        autoplayStep = 6
-        performJoinTap()
-
-        try? await Task.sleep(for: .milliseconds(1_500))
-        guard !Task.isCancelled else { return }
-        autoplayStep = 7
-        autoplayJoinPressed = true
-
-        try? await Task.sleep(for: .milliseconds(250))
-        guard !Task.isCancelled else { return }
-        autoplayJoinPressed = false
-        autoplayStep = 8
-        performJoinTap()
         #endif
     }
 }

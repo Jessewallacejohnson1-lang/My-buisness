@@ -42,7 +42,7 @@ struct FeedCommentSheet: View {
 
             Button { dismiss() } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.sansSemibold(14))
                     .foregroundStyle(Hue.ink)
                     .frame(width: 44, height: 44)
                     .background(Hue.fill, in: buttonShape)
@@ -158,7 +158,7 @@ struct FeedCommentSheet: View {
 
                 Button(action: send) {
                     Image(systemName: "arrow.up")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.sansSemibold(16))
                         .foregroundStyle(.white)
                         .frame(width: 44, height: 44)
                         .background(

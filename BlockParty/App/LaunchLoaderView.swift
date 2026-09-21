@@ -245,7 +245,7 @@ struct LaunchLoaderView: View {
 
     private func symbol(_ name: String, side: CGFloat) -> some View {
         Image(systemName: name)
-            .font(.system(size: side, weight: .regular))
+            .font(.glyph(side, weight: .regular))
             .foregroundStyle(Hue.ink)
             .frame(width: side, height: side)
     }

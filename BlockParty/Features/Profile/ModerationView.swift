@@ -159,7 +159,7 @@ struct ModerationView: View {
 
     private func emptyState(icon: String, title: String, detail: String) -> some View {
         VStack(spacing: 10) {
-            Image(systemName: icon).font(.system(size: 30, weight: .light)).foregroundStyle(Hue.inkSecondary)
+            Image(systemName: icon).font(.sansLight(30)).foregroundStyle(Hue.inkSecondary)
             Text(title).font(.sansSemibold(16)).foregroundStyle(Hue.ink)
             Text(detail).font(.sans(14)).foregroundStyle(Hue.inkSecondary).multilineTextAlignment(.center)
         }

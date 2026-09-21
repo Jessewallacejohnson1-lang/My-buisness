@@ -143,7 +143,7 @@ struct AddFormView: View {
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: cat.glyph)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.sansSemibold(12))
                     .foregroundStyle(selected ? .white : cat.tint)
                 Text(cat.label)
                     .font(.sansMedium(13))
@@ -193,7 +193,7 @@ struct AddFormView: View {
                         .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
                 } else {
                     VStack(spacing: 8) {
-                        Image(systemName: "photo.badge.plus").font(.system(size: 26, weight: .light))
+                        Image(systemName: "photo.badge.plus").font(.sansLight(26))
                         Text("Add a photo (optional)").font(.sans(13))
                     }
                     .foregroundStyle(Hue.inkSecondary)

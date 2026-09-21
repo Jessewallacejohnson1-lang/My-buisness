@@ -36,7 +36,7 @@ struct TypewriterText: View {
     /// A beat before the first unit lands (lets the card's spring settle first).
     var startDelay: Double = 0
     var showsCaret: Bool = false
-    var caretFont: Font = .system(size: 20, weight: .semibold)
+    var caretFont: Font = .glyph(20, weight: .semibold)
     var onFinished: (() -> Void)? = nil
 
     @State private var revealed: Int = 0

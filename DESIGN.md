@@ -11,9 +11,53 @@ Screens here get built in passes, with Jesse directing. A UI request is a step i
 - **Improving the process is welcome; improving the design past the ask is not.** Cleaner structure, reused tokens, fewer files, a faster path to seeing it on device — all good. Inventing layout, states, or polish that was not requested is not.
 - **When the instruction and "what a finished screen would need" disagree, follow the instruction.** Name the gap in a line, then stop. Unrequested UI is UI that gets deleted and remade.
 
+## Colour direction (Jesse, 2026-09-18)
+
+**Two colours define the app: white, and the logo's yellow.**
+
+1. **White is the ground.** `Hue.surface` #FFFFFF for cards, `Hue.paper` #FAFAF7 for
+   the page. The app reads as white; everything else sits on it.
+2. **Yellow is the accent, and it is the logo's yellow — `#FCE804`.** Sampled from the
+   master (`docs/brand/source-logo-1254.png`), the modal value across the field. It
+   lives in `BlockPartyColor.swift` as `Hue.brandYellowHex`, and **every yellow in the
+   UI derives from it.** There is no second yellow, and no yellow hex at a call site.
+   Re-sampled on 2026-09-19 when the logo changed (it was `#F2B800`, off the retired
+   wave-figure icon): the rule is the artwork's yellow, so the token follows the
+   artwork.
+
+**One red, and it is state, not chrome.** `Hue.heart` #FF3040 fills a heart you have
+tapped, and nothing else — never a border, never a background, never an error colour.
+A heart that stays ink reads as a shape; a heart that turns red reads as something you
+did, which is the control's whole job.
+
+**Accents are small by rule.** The yellow marks exactly TWO controls, both circular,
+both under 50pt:
+
+- the Today bar's map disc (`Hue.mapWash` — the brand yellow at 68%, the same hue
+  carried at partial opacity so the disc stays translucent over what is behind it);
+- the tab bar's Create disc (`Hue.createDisc` — the same yellow at FULL strength,
+  because a centre button that let the glass capsule through reads as a hole rather
+  than as an object). Jesse's call, 2026-09-20, copying an Alta reference whose centre
+  button is solid black.
+
+It is not a background wash, not body copy, not a card, not a category colour. Two is
+the boundary; a third is a conversation, and more yellow is Jesse's call to scope, not
+an agent's to spread.
+
+**What sits ON the yellow is not a free choice.** #FCE804 has a relative luminance of
+0.784 — nearly as bright as paper. White on it measures **1.26:1** and the dark ramp's
+`Hue.ink` **1.11:1**; only the light ink clears, at **15.0:1**. So the Create disc's
+plus is `Hue.onCreateDisc`, pinned to the light ramp the way the map canvas's ink is,
+and the reference's white-on-black plus could not be copied. `CreateDiscContrastTests`
+pins all four of those numbers.
+
+The plum `Hue.accent` (#8E3B6B) still ships where it already carries meaning — live
+events, active filters, selected/saved map state — and stays until Jesse says
+otherwise. The brand accent going forward is the yellow.
+
 ## Theme
 
-**Ink on paper, monochrome (July 2026 rebrand).** White cards lift off a warm near-white page; near-black ink carries text, buttons, active states and pins. **There is no accent colour** — photographs carry all the colour in the app, and that contrast against monochrome chrome is the point of the system. The earlier coral accent, the warm-linen surfaces, and the green buttons are all retired; do not reintroduce any of them. Warmth comes from the paper tone and the copy.
+**Ink on paper (July 2026 rebrand), now white-and-yellow at the top level.** White cards lift off a warm near-white page; near-black ink carries text, buttons, active states and pins. **The only accent is the brand yellow, scoped small** (see Colour direction above) — photographs otherwise carry all the colour in the app, and that contrast against near-monochrome chrome is the point of the system. The earlier coral accent, the warm-linen surfaces, and the green buttons are all retired; do not reintroduce any of them. Warmth comes from the paper tone and the copy.
 
 If a design seems to need an accent, it needs hierarchy instead — weight, size, value, or fill-vs-outline.
 
@@ -31,6 +75,11 @@ All values are sRGB hex from `Hue` (`BlockPartyColor.swift`). Six tokens, and no
 | `Hue.inkSecondary` | `#6E6E6E` | Secondary text, captions, inactive states |
 | `Hue.hairline` | `#E7E7E4` | Borders, dividers |
 | `Hue.fill` | `#F1F1EF` | Inert fills — placeholders, skeletons, disabled |
+| `Hue.brandYellowHex` | `#FCE804` | **The accent**, sampled from the logo's field. Tints derive from it |
+| `Hue.mapWash` | `#FCE804` @ 68% | The Today bar's map disc — translucent, scoped to that one control |
+| `Hue.createDisc` | `#FCE804` | The tab bar's Create disc — the same yellow, solid |
+| `Hue.onCreateDisc` | `#111111` | Ink ON the Create disc, pinned to the light ramp (the disc is a fixed canvas) |
+| `Hue.heart` | `#FF3040` | A liked heart, and nothing else. State, not chrome |
 
 > Note the surface/page swap in the rebrand: `Hue.paper` used to mean "white card" and
 > `Hue.canvas` meant "page background". `Hue.paper` **is** the page background now, and
@@ -67,7 +116,9 @@ survives the monochrome system, because the map is content rather than chrome.
 - **Numbers are always tabular** (`.monospacedDigit()` at the call site). This is a house rule — times, temps, counts.
 - Small labels/eyebrows use `Font.mono(11)` with `.tracking(1.5)` in `Hue.inkSecondary` (e.g. `ALMANAC`, `TODAY IN ST. JOE`). This tracked-mono micro-label is an established in-app pattern, not the banned generic eyebrow.
 - **Jost is a variable font and its PostScript names are inconsistent upstream** — `Jost-Regular`, but `JostRoman-Medium` / `JostRoman-SemiBold` / `JostRoman-Bold`. Use them exactly; a wrong name falls back to the system font **silently**, with no error.
-- `Font.logo` is `JostRoman-SemiBold`. Fixed size — a logo never scales with Dynamic Type. `AtkinsonHyperlegible-Bold.ttf` is still bundled but no longer referenced.
+- **Text takes a role, never a raw point size.** `BlockPartyFont` is the ONLY file in the app allowed to name a size, because the two ways of naming one behave oppositely: `Font.system(size:)` is frozen and never grows, while `Font.custom(_:size:)` grows with no ceiling. Mixing them is what broke text scaling app-wide — at AX5 a 22pt Jost title reached ~55pt and truncated mid-word while the 13pt SF body beside it did not move at all. Every helper now scales against a shared text style, so the two faces move together. `TypographyScalingGuardTests` fails the build if a raw size appears anywhere else, and separately proves at render time that body text actually grows at AX5.
+- **The SF helpers snap to the nearest system step** (caption2 11, caption 12, footnote 13, subheadline 15, callout 16, body 17, title3 20, title2 22, title 28, largeTitle 34), because SwiftUI has no `system(size:relativeTo:)` — so `Font.sans(14)` renders at 15. Jost keeps its exact size and uses the step only as its growth rate. Ties round up: this file serves the user who asked for larger text.
+- **Three things do not scale, and each says why in its own doc comment.** `Font.logo` is `JostRoman-SemiBold` at a fixed size — a logo is a mark, not text. `Font.glyph(_:weight:)` is for ARTWORK: a symbol centred in a fixed-diameter map marker, the double-tap heart burst over a photo, a placeholder inside a circular avatar, the tab bar icons. Text reaching for `glyph` is a bug. Anything using it owes the reader an alternative — `accessibilityHidden` if decorative, a label if it carries meaning, `.accessibilityShowsLargeContentViewer()` on map chrome. `AtkinsonHyperlegible-Bold.ttf` is still bundled but no longer referenced.
 - Do not add a third family.
 
 ## Layout, radii & elevation
@@ -87,34 +138,62 @@ From `BlockPartyMetrics.swift`.
 - **Ease-out, no bounce/elastic** for transitions.
 - **Reduce Motion is mandatory:** every reveal/animation must degrade to a crossfade or instant appearance under the system setting (the ShareCenter reveal is the reference implementation). Reveals enhance already-visible content — never gate visibility on an animation that won't fire in a headless render.
 
+## The top of the screen
+
+The Today bar carries no fill. It is a **top `safeAreaBar` on the feed's own scroll**,
+so the feed passes underneath it, and `.scrollEdgeEffectStyle(.soft, for: .top)` does
+the rest: content sliding under the status bar is blurred and washed toward the page
+instead of being covered by a white lid (Jesse, 2026-09-19, matching Instagram's
+feed). `safeAreaInset` does **not** get that effect — only a bar does.
+
+Because it is a bar, **its height is the scroll's top inset**, so nothing about its
+height may be derived from the scroll position. The chrome leaves by fading and
+lifting; the bar itself stays 58pt. A version that collapsed the bar as you scrolled
+shipped for one commit and the feed would not scroll at all — the offset rang between
+-0.1 and 1.0 instead of advancing.
+
+The map disc's glyph is traced 1:1 off Jesse's reference: a nearly round head, a
+concentric ring, and flanks that hold the head's width most of the way down before
+turning into a soft point (`MapPinShape`). Straight tangent flanks were tried first
+and read visibly pointier than the reference — that shape's proportions are measured,
+not eyeballed, and the numbers are in the source.
+
 ## Iconography
 
 SF Symbols, small and quiet (`.font(.system(size: 12–13, weight: .medium))`), always `Hue.ink` or `Hue.inkSecondary` — **meaning is carried by the glyph, not by a tint.** Category, POI family, and pin type all read by glyph now. Square-framed marks are preferred where there's a choice, and the block mark (`building.2.fill`) is the brand glyph; it replaces decorative lifestyle iconography. Photo-less states use a `fill` placeholder with a square-frame mark — never an emoji, never a coloured illustration.
 
 ## Logo & app icon
 
-The icon is **the wave figure** (Aug 25, 2026 revision): a painted black figure,
-arms raised, inside three concentric yellow broadcast arcs on warm paper. It ships
-1:1 from `docs/brand/source-logo-1024.png` — the painted render exactly, brushstroke
-texture and all, never redrawn, flattened or reinterpreted as a vector. The earlier
-coral "bp" tile render is retired, and with it the tile-crop pipeline in
-`scripts/brand/tile.swift` / `exact.swift`, which does not apply to full-bleed art.
+The icon is **the wordmark lockup** (Sep 19, 2026 revision): black "BlockParty." on a
+yellow field, shipped 1:1 from `docs/brand/source-logo-1254.png`. It replaced the Aug
+25 wave figure — a painted figure inside broadcast arcs — which Jesse cut on
+2026-09-19 ("remove that logo with a person, totally delete it"); that master and the
+coral "bp" render before it are gone from the repo, along with the dead `MarkTemplate`
+and `LaunchWordmark` imagesets.
+
+Unlike the painted renders, this art is **flat two-colour**, so it can be separated:
+`scripts/brand/wordmark.py` resolves every pixel to an ink-coverage value and writes
+the icon, the launch crop, and the letterforms-on-alpha from that one measurement.
 
 The icon is brand **content**, like photography and the basemap — not UI chrome. The
-in-app world stays ink on paper; the icon is the glossy front door.
+in-app world stays ink on paper; the icon is the front door.
 
 - Assets in `BlockParty/Assets.xcassets`: `AppIcon` (1024, full-bleed, no alpha),
-  `LaunchMark` (the same art inset 36/1024 on every side — a 72 inset clips the
-  artwork, whose top edge sits 40px from the frame), and `MarkTemplate` (per-pixel
-  alpha, so antialiased edges survive tinted renderings).
-- `LoaderBlockPartyMark.contentFraction` (0.9727) is the one number that moves when
+  `LaunchMark` (the same art inset 36/1024 on every side), and `Wordmark` (the tight
+  crop of the letterforms, black on alpha, **template-rendered** so it takes `Hue.ink`).
+- **Two views, two meanings.** `BlockPartyMark` is *the app icon* — field and all,
+  squircle-clipped, for the launch loader, invite cards, and anywhere the home-screen
+  icon is what is meant. `BlockPartyWordmark` is *the logo on our own page* — ink
+  letterforms, no tile — and it is what the Today bar carries.
+- `LoaderBlockPartyMark.contentFraction` (0.9014) is the one number that moves when
   the icon is re-exported; the squircle clip is the iOS corner ratio, so the loader
   mark reads as the icon does on the home screen.
-- **The paper ground stays on the loader mark.** The loader shows the actual icon,
-  background and all. Do not cut the figure out of its paper — decided, not an
-  oversight.
-- The wordmark ("Block Party" in Jost) is the in-app brand face —
-  `BlockPartyLogoBadge`, splash, loading covers.
+- **The yellow field stays on the loader mark.** The loader shows the actual icon,
+  background and all — decided, not an oversight. The header is the other case: there
+  the logo belongs *to the page*, so it is the alpha wordmark in ink.
+- Jost set as "Block Party" is now only a *typographic* stand-in, where the logo art
+  is not what is wanted (`BlockPartyLogoBadge`, loading covers). Where the logo itself
+  is meant, ship `BlockPartyWordmark` — the art, not a face imitating it.
 
 ## Voice
 
@@ -179,3 +258,4 @@ for Jesse, not a licence to ship coloured status chips.
 - No fabricated counts or seeded demo data in any surface.
 - No AI-drawn mascots/illustrations as final art (real photos or vector UI only).
 - No decorative gradient text, no side-stripe accent borders, no nested cards.
+- No spinner where content is loading, and no blank screen — placeholder shapes in the content's own layout (`Features/Components/Skeleton.swift`; rule in CLAUDE.md). `ProgressView` is only the busy state of a control already tapped.

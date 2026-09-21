@@ -27,27 +27,15 @@ nonisolated enum DayType {
     static let statLabel: CGFloat = 11
 }
 
-// MARK: - Containment: Jost may not outrun SF
+// MARK: - Jost and SF now scale together
 
-extension Font {
-    /// Jost Bold, FROZEN — and this is CONTAINMENT, not an accessibility fix.
-    ///
-    /// `Font.system(size:)` is a fixed point size and does not scale with Dynamic
-    /// Type; `Font.custom(_:size:)` DOES. Every SF helper in `BlockPartyFont` is the
-    /// former and every Jost helper is the latter, so at AX5 the display face grows
-    /// ~2.4× while the body face beside it does not move at all. Measured on this
-    /// surface: the sheet's 22pt Jost title ballooned to ~55pt inside a 208pt column
-    /// and truncated MID-WORD, and the rail's 24pt header hit ~53pt, which dragged
-    /// the `.firstTextBaseline`-aligned count 40pt down into the descender.
-    ///
-    /// Freezing Jost puts the two faces back in step. It does NOT make Your Day
-    /// legible at AX5 — nothing here grows — and it is deliberately scoped to this
-    /// feature: converting `BlockPartyFont`'s SF helpers to scaling metrics is the
-    /// real fix, it touches every screen in the app, and it is filed separately.
-    static func dayDisplay(_ size: CGFloat) -> Font { .custom(Face.displayBold, fixedSize: size) }
-
-    /// Jost SemiBold, frozen. See `dayDisplay(_:)`.
-    static func dayDisplaySemi(_ size: CGFloat) -> Font {
-        .custom(Face.displaySemi, fixedSize: size)
-    }
-}
+//  This file used to freeze Jost here, because `Font.custom(_:size:)` scaled and
+//  `Font.system(size:)` did not, so the display face outran the body face beside
+//  it — measured on this surface: a 22pt Jost title reached ~55pt inside a 208pt
+//  column and truncated mid-word, and the 24pt rail header hit ~53pt, dragging a
+//  `.firstTextBaseline`-aligned count 40pt into the descender.
+//
+//  That containment is gone because the cause is gone. `BlockPartyFont` now scales
+//  BOTH faces against a shared text style, so `Font.display(_:)` is what this
+//  surface wants and the local `dayDisplay` freeze would only re-break it — it
+//  would hold Your Day still while the rest of the app grew.

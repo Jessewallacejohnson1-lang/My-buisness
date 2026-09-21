@@ -1,17 +1,26 @@
 //
 //  TodayTopBar.swift
-//  Block Party — Today's fixed top bar: one map button, nothing else.
+//  Block Party — Today's fixed top bar: a search mark leading, the wordmark centred,
+//  the map disc and a notifications bell trailing.
 //
 //  Replaces `Masthead`, the 34pt wordmark + date line that used to scroll away with
 //  the content. This bar is chrome: it is present immediately (no spring entrance),
-//  it never scrolls, and it cross-fades a hairline in once the feed moves beneath
-//  it.
+//  it never scrolls, it never fades (locked to the top of the screen at every scroll
+//  position — Jesse, 2026-09-21), and it carries no rule of its own — the scroll edge
+//  effect under it is what separates the bar from the feed.
 //
 //  The Joetown lockup was retired on 2026-09-17; the profile avatar — the ⋮-lineage
-//  button that opened the town menu — was retired on 2026-09-18 (Jesse's call). What
-//  is left is a single trailing control: a translucent yellow disc carrying the map
-//  glyph, sitting where the avatar used to. The bar reports the tap; the shell owns
-//  the map presentation.
+//  button that opened the town menu — was retired on 2026-09-18 (Jesse's call). For
+//  two days the bar carried exactly one control, the yellow map disc, sitting where
+//  the avatar used to.
+//
+//  On 2026-09-20 it gained two more, traced off an Alta reference (Jesse): a search
+//  mark on the leading edge, and a notifications bell on the trailing edge — which
+//  is the slot the map disc used to hold, so the disc slid left to make room. The
+//  bar reports every tap; the shell owns every presentation.
+//
+//  The two new marks are BARE INK, not discs. That is what the reference does, and
+//  it is also the only thing the width budget allows — see `controls`.
 //
 //  NOTE: with the avatar gone, nothing in this bar opens `TownMenuView` any more.
 //  The menu plumbing (`onMenu` / `showMenu` / `GlassShowcaseOverlay`) is still wired
@@ -21,22 +30,29 @@
 
 import SwiftUI
 
-/// The Today bar's pure, testable pieces: its geometry, the uppercase date eyebrow,
-/// and the scroll threshold that raises the bar's hairline.
+/// The Today bar's pure, testable pieces: its geometry and the uppercase date
+/// eyebrow.
 ///
 /// `nonisolated` because the constants are read from `nonisolated` contexts (and from
 /// the test target) — the module defaults to MainActor isolation, so an isolated enum
 /// here would trip the zero-warning bar. See the CLAUDE.md MainActor-default-argument
 /// gotcha.
 nonisolated enum TodayHeader {
-    /// How far the content must travel before the bar grows its bottom hairline.
-    static let scrollThreshold: CGFloat = 8
-    /// The bar's content height, sitting below the safe-area top inset. Grown from
-    /// 44 on 2026-09-18 to carry the larger map disc without pinning it against the
-    /// status bar and the hairline at once.
+    /// The bar's height, below the safe-area top inset. **Constant, and it must
+    /// stay constant.**
+    ///
+    /// **Nothing that changes the bar's HEIGHT may be derived from the scroll.** The
+    /// bar is a `safeAreaBar` on the feed's own scroll, so its height IS that
+    /// scroll's top content inset, and any offset read back off that scroll is
+    /// measured against the same inset. Height-from-scroll therefore closes a loop:
+    /// height → inset → offset → height. It does not degrade gracefully; it rings.
+    ///
+    /// It shipped that way for one commit (d1fcf40) and the feed would not scroll at
+    /// all — measured with `-feed-scroll-sweep -scroll-log`, the offset ping-ponged
+    /// between -0.1 and 1.0 with 1420 direction reversals in 1422 samples. Pinning
+    /// the height took the same trace to 241 samples, 0 reversals, a clean 0 → 200.
+    /// Dim, blur, tint off the scroll freely. Height, insets and content size never.
     static let contentHeight: CGFloat = 58
-    /// The ceiling the bar never passes, even at the largest permitted Dynamic Type.
-    static let maxHeight: CGFloat = 66
 
     /// Today's date as an uppercase eyebrow — "SATURDAY, AUGUST 1".
     ///
@@ -52,68 +68,171 @@ nonisolated enum TodayHeader {
         formatter.dateFormat = "EEEE, MMMM d"
         return formatter.string(from: date).uppercased(with: formatter.locale)
     }
-
-    /// Whether the bar shows its bottom hairline at a given scroll position.
-    ///
-    /// `contentOffsetY` is the distance scrolled FROM REST: **positive = scrolled
-    /// down, 0 = at rest, negative = rubber-banded past the top** (a pull to refresh).
-    /// The comparison is therefore signed and strictly greater-than — comparing a
-    /// magnitude would flash a hairline partway down every pull, and `>=` would raise
-    /// it while the content is still flush against the bar.
-    static func showsHairline(contentOffsetY: CGFloat) -> Bool {
-        contentOffsetY > scrollThreshold
-    }
 }
 
 /// The bar's fixed geometry, in one place. `nonisolated` for the same reason as
 /// `TodayHeader`: these are constants, not state.
 private nonisolated enum TodayBarMetric {
-    /// Trailing screen inset for the control row.
+    /// The OPTICAL screen inset — where the drawn ink of the outermost control
+    /// lands. The row itself is padded by `rowInset`; the difference is the
+    /// invisible overhang of the bare glyphs' 44pt touch boxes.
     static let inset: CGFloat = 16
-    static let hairlineWidth: CGFloat = 0.5
-
-    /// The map button's disc. It is the ONLY control in this bar, so it is sized
-    /// like one: 50 clears the 44pt HIG target on its own, with no grow-and-hand-back
-    /// padding, and reads as an object rather than as a small icon in a corner.
+    /// The map button's disc. Unchanged at 50 — it is still the only control in this
+    /// bar that is an OBJECT rather than a mark, and shrinking it to match its new
+    /// neighbours would have made three marks where the reference has one button.
     static let mapSide: CGFloat = 50
+    /// A bare glyph's touch box. The marks themselves are ~20pt, well under the 44pt
+    /// HIG target, so each one is centred in a box that meets it. The box is
+    /// invisible, which is why the ROW is inset less than the ink appears to be.
+    static let glyphTap: CGFloat = 44
+    /// The search mark and the bell, at their measured reference sizes
+    /// (19.82pt square and 20.69pt tall — see `refs/chrome/REFERENCE-SPEC.md`).
+    static let searchGlyphSize: CGFloat = 20
+    static let bellGlyphSize: CGFloat = 21
+    /// The row's real padding: `inset` minus the touch box's overhang past the ink,
+    /// so a 20pt mark in a 44pt box draws its edge on the 16pt line.
+    static let rowInset: CGFloat = inset - (glyphTap - searchGlyphSize) / 2
+    /// Between the map disc and the bell's touch box. The bell's ink sits 11.5pt
+    /// inside its box, so the gap READS as ~19pt — which is what keeps the two
+    /// trailing controls from looking like one clump.
+    static let controlGap: CGFloat = 8
     /// The glyph's square, inside the disc.
     static let mapGlyphSize: CGFloat = 24
+    /// The centred wordmark's height. 31 runs the lockup 151pt wide — 18 → 24 → 31
+    /// over three passes on 2026-09-19, Jesse each time. It still clears the 50pt
+    /// disc beside it, with the bar's 58pt content height as the hard ceiling.
+    static let wordmarkHeight: CGFloat = 31
 }
 
 struct TodayTopBar: View {
-    /// The trailing map button → the town map. The shell owns the presentation;
-    /// this bar only reports the tap.
+    /// The leading search mark. Like every control here, the bar only reports the
+    /// tap — the shell owns what opens.
+    var onOpenSearch: () -> Void = {}
+    /// The map button → the town map. No longer the trailing control: it slid left
+    /// to make room for the bell, and now sits between the mark and the bar's edge.
     var onOpenMap: () -> Void = {}
-    /// Raised by Home once the feed has scrolled past `TodayHeader.scrollThreshold`.
-    var showsHairline: Bool = false
+    /// The trailing bell → notifications.
+    var onOpenNotifications: () -> Void = {}
 
     var body: some View {
+        // LOCKED. The bar used to fade out and lift 8pt over the first 44pt of
+        // scroll, taking the wordmark and all three controls with it (Jesse,
+        // 2026-09-21: keep it). It is now present at every scroll position, which
+        // also settles the tap bug the fade created — invisible controls that still
+        // took touches — by leaving nothing invisible.
+        //
+        // What separates the bar from the feed is unchanged: it has no fill, and the
+        // content passing underneath it is blurred and washed toward the page by
+        // `FeedView`'s `.scrollEdgeEffectStyle(.soft, for: .top)`.
         controls
-        // Clamped rather than fixed: 44 at rest, growing only as far as 52 if a large
-        // Dynamic Type setting needs it. `fixedSize` hands the frame an unspecified
-        // height so it resolves against the content instead of being stretched by the
-        // enclosing VStack.
-        .frame(maxWidth: .infinity,
-               minHeight: TodayHeader.contentHeight,
-               maxHeight: TodayHeader.maxHeight)
-        .fixedSize(horizontal: false, vertical: true)
-        // The app canvas, carried up through the status bar. No fill, no material,
-        // no shadow — the bar is not a separate surface.
-        .background(Hue.paper.ignoresSafeArea(edges: .top))
-        .overlay(alignment: .bottom) { hairline }
+        // FIXED height. The bar used to collapse to an 8pt strip as the chrome left,
+        // which was fine while it lived above the scroll — as a `safeAreaBar` it is
+        // the scroll's top inset, and a height that follows the scroll offset makes
+        // the offset follow the height right back. See `TodayHeader.contentHeight`.
+        .frame(height: TodayHeader.contentHeight)
+        .frame(maxWidth: .infinity)
+        // NO fill. The bar is a safe-area inset over the feed's own scroll, so what
+        // sits behind it is the content itself, blurred and washed toward the page by
+        // the scroll edge effect (`scrollEdgeEffectStyle(.soft)` in `FeedView`). A
+        // paper fill here is exactly the white lid Jesse asked to be rid of.
     }
 
     // MARK: - Layers
 
-    /// The one trailing control. The leading side intentionally stays empty now that
-    /// the bP glyph, the Joetown wordmark, and the profile avatar have all left this
-    /// screen.
+    /// The mark centred, controls either side — the shape Instagram's feed header
+    /// has trained everyone to read. All of it belongs to the top of the feed and
+    /// all of it leaves together.
+    ///
+    /// The mark is CENTRED against the bar, not laid out between the other controls:
+    /// in an `HStack` it would sit wherever the trailing button's width left it, and
+    /// drift every time that button changed size. A centred overlay is fixed to the
+    /// screen's midline, which is where the eye looks for a logo.
+    ///
+    /// It is the real artwork (`BlockPartyWordmark` → the `Wordmark` raster), not the
+    /// Jost wordmark it replaced (Jesse, 2026-09-19).
+    /// Three controls now, and the centred mark still has to clear them.
+    ///
+    /// The lockup is 150.8pt wide (`BlockPartyWordmark.aspect` 4.8657 × 31), so it
+    /// claims 75.4pt either side of the midline. The trailing side consumes
+    /// `rowInset 4 + glyphTap 44 + controlGap 8 + mapSide 50` = 106pt, which leaves
+    /// `W/2 − 181.4`: **+6.1pt at 375, +15.1 at 393, +38.6 at 440**. Break-even is
+    /// 362.8pt, below every iPhone that runs this OS. The leading side takes 48pt
+    /// and is never the binding constraint.
+    ///
+    /// This is why the two new marks are BARE INK and not discs like the map's. A
+    /// second 50pt disc trailing pushes the lane to 112pt and the clearance to
+    /// **−11.9pt at 375 and −2.9pt at 393** — the mark and the control overlap on
+    /// most phones. The reference draws its top-bar marks bare too, so fidelity and
+    /// arithmetic agree here. (A disc LEADING would also trip
+    /// `TodayHeaderTests.testBrandLockupLeavesTheLeadingHeaderAreaBlank`, which
+    /// allows under 20 saturated pixels in the leading 18% of the bar against the
+    /// roughly 7,800 a yellow disc puts there.)
     private var controls: some View {
         HStack(spacing: 0) {
+            searchButton
             Spacer(minLength: 0)
             mapButton
+            Spacer(minLength: 0).frame(width: TodayBarMetric.controlGap)
+            bellButton
         }
-        .padding(.horizontal, TodayBarMetric.inset)
+        .padding(.horizontal, TodayBarMetric.rowInset)
+        .overlay {
+            brandMark
+                .accessibilityAddTraits(.isHeader)
+                // Decorative-adjacent: it names the app, it does not act, so it must
+                // not sit in the tap path of the controls beside it.
+                .allowsHitTesting(false)
+        }
+    }
+
+    /// A bare traced mark in a 44pt touch box. Shared by the search glyph and the
+    /// bell, because the only thing that differs between them is the glyph and the
+    /// label — and two near-identical button bodies is how the two drift apart.
+    @ViewBuilder
+    private func glyphButton<Glyph: View>(
+        label: String,
+        hint: String,
+        action: @escaping () -> Void,
+        @ViewBuilder glyph: () -> Glyph
+    ) -> some View {
+        Button(action: action) {
+            glyph()
+                .foregroundStyle(Hue.ink)
+                .frame(width: TodayBarMetric.glyphTap, height: TodayBarMetric.glyphTap)
+                .contentShape(Rectangle())
+        }
+        // The same pop the app's other bare controls use. The map disc beside it
+        // takes its press from the glass itself; a 20pt mark has no surface to do
+        // that with, so it gets the hand-rolled scale.
+        .buttonStyle(PressableStyle(scale: 0.88, haptic: true))
+        .accessibilityLabel(label)
+        .accessibilityHint(hint)
+        // Frozen chrome owes the reader another way in — the mark never grows with
+        // Dynamic Type, so a long press has to enlarge it.
+        .accessibilityShowsLargeContentViewer { Text(label) }
+    }
+
+    private var searchButton: some View {
+        glyphButton(label: "Search", hint: "Find places and happenings around town", action: onOpenSearch) {
+            MagnifierGlyph(size: TodayBarMetric.searchGlyphSize)
+        }
+    }
+
+    private var bellButton: some View {
+        glyphButton(label: "Notifications", hint: "What you have missed", action: onOpenNotifications) {
+            BellGlyph(size: TodayBarMetric.bellGlyphSize)
+        }
+    }
+
+    /// The logo's letterforms on the page, in ink, with no tile behind them.
+    ///
+    /// The square tile that used to sit here was a workaround: the painted icon had
+    /// no alpha, so an unclipped mark drew its own warmer paper as a visible square.
+    /// The Sep 19 logo is flat two-colour art, so `wordmark.py` could resolve the
+    /// yellow field into alpha and the lockup now sits directly on the bar.
+    private var brandMark: some View {
+        BlockPartyWordmark(height: TodayBarMetric.wordmarkHeight)
+            .foregroundStyle(Hue.ink)
     }
 
     /// A TRUE circle, deliberately — the one exception to this system's 12pt rounded
@@ -122,170 +241,142 @@ struct TodayTopBar: View {
     /// than a change of layout.
     private static let mapShape = Circle()
 
-    /// The glossy yellow map disc, top right — the bar's only control.
+    /// The yellow map disc, on real Liquid Glass. It sits inboard of the bell rather
+    /// than on the bar's trailing edge, and it is still 50pt — still the one OBJECT
+    /// among three marks.
     ///
-    /// The gloss is built in three layers over the glass, not faked with one white
-    /// fill: a specular cap across the top third, a rim that is bright where the
-    /// light lands and almost gone at the bottom, and two shadows (one tight and
-    /// close for contact, one wide and soft for lift). That is what separates a
-    /// glossy object from a flat tinted circle.
+    /// The three hand-built layers this used to carry (a thin material, the wash on
+    /// top, a painted sheen and rim, plus a drop shadow) were an imitation of glass
+    /// drawn with gradients. `.glassEffect` is the real material — the same one the
+    /// tab bar and the map's own chrome circles run on — so the disc now refracts
+    /// what is behind it, lights its own rim, and carries its own floating shadow.
+    /// The brand yellow survives as the material's TINT rather than as a fill over
+    /// it, which is what keeps it the same disc rather than a new colour.
+    ///
+    /// `.interactive()` is the press reaction: the system's own glass response,
+    /// which replaced `MapDiscPressStyle`'s hand-rolled squash and honours Reduce
+    /// Motion without being told. `.plain` is required with it — the default button
+    /// style would dim the label under the glass, and a grey flash reads as the
+    /// control failing rather than as a press.
     private var mapButton: some View {
         let side = TodayBarMetric.mapSide
         return Button(action: onOpenMap) {
-            ZStack {
-                // NOT `.glassEffect`. Measured, twice: a Liquid Glass surface pulls
-                // what sits near it into its own layer, so the highlight flattened to
-                // a 2/255 difference and the pin came back refracted into a ghost.
-                // Glass is the right material for a bar or a sheet, where the point is
-                // what shows THROUGH; this control's point is the gloss ON it, which
-                // needs ordinary compositing to survive.
-                Circle().fill(.ultraThinMaterial)
-                Circle().fill(Hue.mapWash)
-                gloss
-                MapPinGlyph(size: TodayBarMetric.mapGlyphSize)
-                    .foregroundStyle(Hue.ink)
-            }
-            .frame(width: side, height: side)
-            .contentShape(Circle())
+            MapPinGlyph(size: TodayBarMetric.mapGlyphSize)
+                .foregroundStyle(Hue.ink)
+                .frame(width: side, height: side)
+                .glassEffect(.regular.tint(Hue.mapWash).interactive(), in: Self.mapShape)
+                .contentShape(Self.mapShape)
         }
-        .buttonStyle(MapDiscPressStyle())
-        .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
-        .shadow(color: .black.opacity(0.16), radius: 11, y: 6)
+        .buttonStyle(.plain)
         .accessibilityLabel("Open the town map")
-    }
-
-    /// Sheen, shade, specular, crescent, bounce light, rim — the six layers that turn
-    /// a flat tinted circle into something that looks wet. All clipped to the disc, so
-    /// the button keeps one silhouette however bright the highlight runs.
-    private var gloss: some View {
-        let side = TodayBarMetric.mapSide
-        return ZStack {
-            // The sheen: the whole upper half lifted, falling off before the middle.
-            Circle()
-                .fill(
-                    LinearGradient(
-                        colors: [.white.opacity(0.38), .white.opacity(0.05), .clear],
-                        startPoint: .top,
-                        endPoint: .center
-                    )
-                )
-            // The shade under the equator. THIS is what makes the disc read as a ball
-            // rather than a flat circle with a white smudge on it: a surface is convex
-            // because its value ramps top to bottom, and a specular only lands as a
-            // highlight if there is something darker for it to be brighter THAN.
-            Circle()
-                .fill(
-                    LinearGradient(
-                        colors: [.clear, Hue.ink.opacity(0.16)],
-                        startPoint: .center,
-                        endPoint: .bottom
-                    )
-                )
-            // The specular hit, up and left of centre.
-            Ellipse()
-                .fill(.white.opacity(0.8))
-                .frame(width: side * 0.42, height: side * 0.17)
-                .blur(radius: side * 0.028)
-                .offset(x: -side * 0.08, y: -side * 0.25)
-            // The crescent just inside the top-left rim — the second half of a glass
-            // highlight, where the surface curves away from the light.
-            Circle()
-                .inset(by: 1.5)
-                .trim(from: 0.56, to: 0.88)
-                .stroke(.white.opacity(0.6), style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
-                .blur(radius: 0.7)
-            // Bounce light along the bottom rim. Without it a glossy ball reads as a dome.
-            Ellipse()
-                .fill(.white.opacity(0.34))
-                .frame(width: side * 0.46, height: side * 0.16)
-                .blur(radius: side * 0.075)
-                .offset(y: side * 0.31)
-            // Rim light: bright where the light lands, almost gone underneath.
-            Circle()
-                .strokeBorder(
-                    LinearGradient(
-                        colors: [.white.opacity(0.9), .white.opacity(0.2), .white.opacity(0.03)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    ),
-                    lineWidth: 1
-                )
-        }
-        .clipShape(Circle())
-        .allowsHitTesting(false)
-    }
-
-    /// A 0.5pt rule on the bar's bottom edge — hidden at rest, cross-faded in once
-    /// there is content passing underneath.
-    private var hairline: some View {
-        Rectangle()
-            .fill(Hue.hairline)
-            .frame(height: TodayBarMetric.hairlineWidth)
-            .opacity(showsHairline ? 1 : 0)
-            .animation(.easeOut(duration: 0.20), value: showsHairline)
     }
 }
 
-/// The map mark: a place pin, drawn.
+/// The map mark: a place pin, drawn as an OUTLINE with a ring at its centre.
 ///
-/// Not the SF Symbol `map`. That glyph is a hard-cornered folded sheet, and inside a
-/// circle inside a rounded bar it read as three silhouettes fighting — a rectangle
-/// where every other edge is a curve. A pin is all curve, it is the one mark every
-/// map app has trained people to read, and it says "a place in town" rather than
-/// "a document". Geometry is specified in a 24-point box and scaled, so the mark
-/// keeps its proportions at any size.
+/// Not the SF Symbol `map` — that glyph is a hard-cornered folded sheet, and a
+/// rectangle inside a circle inside a rounded bar was three silhouettes fighting.
+/// Not the solid teardrop either (Jesse, 2026-09-18): filled, the mark sat as a heavy
+/// black blot on a pale disc. Outlined, it is lighter on the yellow and still the
+/// shape people already know as "a place".
 ///
-/// The head is cut out rather than drawn as a separate ring: one even-odd filled
-/// path means the hole is always concentric and can never drift from the shell at a
-/// fractional scale.
+/// Proportions live in `MapPinShape`, in head radii, so the mark keeps its shape and
+/// its stroke ratio at any size.
 struct MapPinGlyph: View {
     var size: CGFloat = 24
 
-    /// The design box every coordinate is expressed in.
-    private static let box: CGFloat = 24
-
     var body: some View {
         MapPinShape()
-            .fill(style: FillStyle(eoFill: true))
-            .frame(width: Self.box, height: Self.box)
-            .scaleEffect(size / Self.box)
+            .stroke(style: StrokeStyle(
+                lineWidth: size * MapPinShape.strokeFraction,
+                lineCap: .round,
+                lineJoin: .round
+            ))
             .frame(width: size, height: size)
             .accessibilityHidden(true)
     }
 }
 
-/// The teardrop, built from cubics rather than arcs: an arc's sweep direction flips
-/// with the coordinate system and is easy to get backwards, while four curves render
-/// identically everywhere and can be tuned point by point.
+/// The location pin, traced 1:1 off the reference Jesse supplied (2026-09-19): a
+/// nearly round head that tapers to a soft point, with a concentric ring inside.
+///
+/// Every proportion here was MEASURED off that reference rather than eyeballed —
+/// its glyph is 32 × 35 px with a 3 px stroke, which gives a centreline head radius
+/// of 14.5, a tip 17 px below the head's centre (1.172 r), and an inner ring at 5.5
+/// (0.379 r).
+///
+/// The flanks are CURVES, not tangent lines. The first attempt ran straight lines
+/// from the tip to where they touch the head, which is the geometrically obvious
+/// pin — and it came out visibly pointier than the reference, because the reference
+/// (like Lucide's `map-pin`, the same family of drawing) carries the head's fullness
+/// most of the way down before turning in. Measured against the reference's own
+/// silhouette, the straight version was ~2 px narrow at 90% of the way down.
+///
+/// Both the outline and the ring are subpaths of ONE shape, so a single stroke
+/// renders them at identical weight — which is what the reference does.
 struct MapPinShape: Shape {
+    /// Tip depth below the head's centre, in head radii.
+    private static let tipDistance: CGFloat = 1.172
+    /// Stroke weight, in head radii.
+    private static let stroke: CGFloat = 0.207
+    /// The inner ring's radius, in head radii.
+    private static let ring: CGFloat = 0.379
+
+    /// The flank's control points, in head radii from the head's centre, taken from
+    /// the reference's curvature and scaled to `tipDistance`. The first holds the
+    /// head's width as the curve leaves the equator; the second is where it turns in.
+    private static let flankHold: CGFloat = 0.496
+    private static let flankTurnX: CGFloat = 0.308
+    private static let flankTurnY: CGFloat = 1.012
+
+    /// Total extent in head radii, stroke included.
+    private static let width = 2 + stroke
+    private static let height = 1 + tipDistance + stroke
+
+    /// Stroke weight as a fraction of the glyph's SQUARE box, for the caller — the
+    /// glyph is taller than it is wide, so height is what binds.
+    static let strokeFraction: CGFloat = stroke / height
+
     func path(in rect: CGRect) -> Path {
-        let s = min(rect.width, rect.height) / 24
-        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: x * s, y: y * s) }
+        let r = min(rect.width / Self.width, rect.height / Self.height)
+        let centre = CGPoint(
+            x: rect.midX,
+            y: rect.midY - Self.height * r / 2 + (1 + Self.stroke / 2) * r
+        )
+        func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(x: centre.x + x * r, y: centre.y + y * r)
+        }
 
         var path = Path()
-        // Tip, up the left flank, over the crown, down the right flank, back to tip.
-        path.move(to: pt(12, 21.8))
-        path.addCurve(to: pt(5.4, 9.4), control1: pt(9.1, 17.6), control2: pt(5.4, 13.4))
-        path.addCurve(to: pt(12, 2.8), control1: pt(5.4, 5.8), control2: pt(8.3, 2.8))
-        path.addCurve(to: pt(18.6, 9.4), control1: pt(15.7, 2.8), control2: pt(18.6, 5.8))
-        path.addCurve(to: pt(12, 21.8), control1: pt(18.6, 13.4), control2: pt(14.9, 17.6))
+        // The head: the top half of the circle, left equator over the crown to right.
+        path.move(to: point(-1, 0))
+        path.addArc(
+            center: centre,
+            radius: r,
+            startAngle: .degrees(180),
+            endAngle: .degrees(360),
+            clockwise: false
+        )
+        // Down the right flank and back up the left, meeting at the tip. The join
+        // there is rounded by the stroke, which is how the reference ends too.
+        path.addCurve(
+            to: point(0, Self.tipDistance),
+            control1: point(1, Self.flankHold),
+            control2: point(Self.flankTurnX, Self.flankTurnY)
+        )
+        path.addCurve(
+            to: point(-1, 0),
+            control1: point(-Self.flankTurnX, Self.flankTurnY),
+            control2: point(-1, Self.flankHold)
+        )
         path.closeSubpath()
 
-        // The hole. Even-odd, so this subpath subtracts from the shell above.
-        path.addEllipse(in: CGRect(x: 9.3 * s, y: 6.7 * s, width: 5.4 * s, height: 5.4 * s))
+        path.addEllipse(in: CGRect(
+            x: centre.x - Self.ring * r,
+            y: centre.y - Self.ring * r,
+            width: Self.ring * 2 * r,
+            height: Self.ring * 2 * r
+        ))
         return path
-    }
-}
-
-/// The disc's press reaction: a quick squash that springs back, with the gloss
-/// riding along. No dim — the yellow is the button's identity and a grey flash
-/// would read as the control failing rather than as a press.
-private struct MapDiscPressStyle: ButtonStyle {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(reduceMotion ? 1 : (configuration.isPressed ? 0.90 : 1))
-            .animation(.spring(response: 0.28, dampingFraction: 0.62), value: configuration.isPressed)
     }
 }

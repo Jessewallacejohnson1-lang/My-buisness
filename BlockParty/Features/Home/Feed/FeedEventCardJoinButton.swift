@@ -65,7 +65,7 @@ struct FeedEventCardJoinButton: View {
                 .animation(morphAnimation, value: isJoined)
 
             Image(systemName: "checkmark")
-                .font(.system(size: 18, weight: .semibold))
+                .font(.sansSemibold(18))
                 .symbolRenderingMode(.monochrome)
                 .foregroundStyle(Hue.ink)
                 .opacity(isJoined ? 1 : 0)

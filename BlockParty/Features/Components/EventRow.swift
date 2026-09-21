@@ -33,7 +33,7 @@ struct EventRow: View {
                 if let loc = event.location, !loc.isEmpty {
                     HStack(spacing: 4) {
                         Image(systemName: "mappin.and.ellipse")
-                            .font(.system(size: 11))
+                            .font(.sans(11))
                         Text(loc).font(.sans(13))
                     }
                     .foregroundStyle(Hue.inkSecondary)
@@ -67,7 +67,7 @@ struct EventRow: View {
                 if date != nil {
                     Button(action: toggleReminder) {
                         Image(systemName: reminderOn ? "bell.fill" : "bell")
-                            .font(.system(size: 13, weight: .medium))
+                            .font(.sansMedium(13))
                             .foregroundStyle(reminderOn ? Hue.ink : Hue.inkSecondary)
                             .symbolEffect(.bounce, value: reminderOn)
                     }

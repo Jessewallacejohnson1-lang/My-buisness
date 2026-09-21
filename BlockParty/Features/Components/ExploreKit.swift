@@ -177,7 +177,7 @@ struct SaveBookmarkButton: View {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.62)) { store.toggle(id) }
         } label: {
             Image(systemName: saved ? "bookmark.fill" : "bookmark")
-                .font(.system(size: 15, weight: .semibold))
+                .font(.sansSemibold(15))
                 .foregroundStyle(saved ? Hue.ink : Hue.ink)
                 .symbolEffect(.bounce, value: saved)
                 .frame(width: 38, height: 38)
@@ -210,7 +210,7 @@ func exploreMetaRow(_ items: [MetaItem]) -> some View {
             }
             HStack(spacing: 4) {
                 if let ic = m.icon {
-                    Image(systemName: ic).font(.system(size: 11, weight: .semibold))
+                    Image(systemName: ic).font(.sansSemibold(11))
                 }
                 Text(m.text).font(.monoMedium(12)).monospacedDigit()
             }
@@ -225,7 +225,7 @@ func exploreMetaRow(_ items: [MetaItem]) -> some View {
 @ViewBuilder
 func exploreCircleIcon(_ system: String, filled: Bool = false) -> some View {
     Image(systemName: system)
-        .font(.system(size: 15, weight: .semibold))
+        .font(.sansSemibold(15))
         .foregroundStyle(filled ? .white : Hue.ink)
         .frame(width: 40, height: 40)
         .background(filled ? Hue.ink : Hue.surface)
@@ -244,7 +244,7 @@ struct ExploreBlankPhoto: View {
         ZStack {
             Hue.fill
             Image(systemName: "square.on.square")
-                .font(.system(size: 28, weight: .medium))
+                .font(.sansMedium(28))
                 .foregroundStyle(Hue.inkSecondary)
         }
     }

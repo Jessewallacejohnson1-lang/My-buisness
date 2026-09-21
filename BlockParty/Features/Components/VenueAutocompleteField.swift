@@ -76,7 +76,7 @@ struct VenueAutocompleteField: View {
                 Button { pick(s.name) } label: {
                     HStack(spacing: 10) {
                         Image(systemName: s.isCurated ? "mappin.circle.fill" : "magnifyingglass")
-                            .font(.system(size: 14, weight: .medium))
+                            .font(.sansMedium(14))
                             .foregroundStyle(s.isCurated ? palette.ink : palette.label)
                             .frame(width: 18)
                         VStack(alignment: .leading, spacing: 1) {

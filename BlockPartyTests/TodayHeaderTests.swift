@@ -15,9 +15,9 @@
 //     Row formatters. The old `Masthead.dateLine` used a bare `DateFormatter` with
 //     no timezone and no locale pin, so it printed the phone's day in the phone's
 //     language. The replacement must not.
-//  2. The bar cross-fades in a bottom hairline once content scrolls past 8pt. The
+//  2. The chrome fades and the bar collapses off ONE scroll number, and the
 //     interesting input is the NEGATIVE one: a rubber-banded overscroll (pull to
-//     refresh) must not flash a hairline on the way down.
+//     refresh) must not drive either past its rest state.
 //
 //  Reference weekdays (2026): Aug 1 = Sat, Jan 15 = Thu, Jan 16 = Fri, Nov 3 = Tue.
 //
@@ -107,65 +107,40 @@ final class TodayHeaderTests: XCTestCase {
         XCTAssertFalse(eyebrow.contains("NOVEMBER 03"), "The day must not be zero-padded")
     }
 
-    // MARK: - Hairline threshold
-
-    func testHairlineHiddenAtRest() {
-        // Arrange / Act — the feed sitting at the top, untouched.
-        let shows = TodayHeader.showsHairline(contentOffsetY: 0)
-
-        // Assert — a bar over unscrolled content is a bar with nothing beneath it.
-        XCTAssertFalse(shows)
-    }
-
-    func testHairlineHiddenExactlyAtThreshold() {
-        // Arrange / Act — exactly at the 8pt trigger.
-        let shows = TodayHeader.showsHairline(contentOffsetY: TodayHeader.scrollThreshold)
-
-        // Assert — strictly GREATER than, so the boundary itself is still hidden.
-        XCTAssertFalse(shows, "The threshold is exclusive: > 8, not >= 8")
-    }
-
-    func testHairlineShownPastThreshold() {
-        // Arrange / Act — a hair past the trigger, and deep into the feed.
-        let justPast = TodayHeader.showsHairline(contentOffsetY: 8.5)
-        let farDown = TodayHeader.showsHairline(contentOffsetY: 200)
-
-        // Assert
-        XCTAssertTrue(justPast)
-        XCTAssertTrue(farDown)
-    }
-
-    func testHairlineHiddenWhenRubberBandedPastTop() {
-        // Arrange / Act — an overscroll bounce (pull to refresh) drives the offset
-        // NEGATIVE. Comparing |offset| instead of offset would flash a hairline
-        // partway down every pull.
-        let bounce = TodayHeader.showsHairline(contentOffsetY: -60)
-        let smallBounce = TodayHeader.showsHairline(contentOffsetY: -8.5)
-
-        // Assert
-        XCTAssertFalse(bounce, "A rubber-banded overscroll must not raise the hairline")
-        XCTAssertFalse(smallBounce)
-    }
-
     // MARK: - Geometry constants
 
     func testBarGeometryConstants() {
         // Arrange / Act / Assert — a guard so a later tweak to the bar is deliberate
         // rather than an accidental drift back toward the old scrolling masthead.
-        // Grown on 2026-09-18 with the larger, glossier map disc (50pt). The guard
-        // stays a guard — it just guards the new numbers.
+        // Grown on 2026-09-18 with the larger map disc (50pt). The guard stays a
+        // guard — it just guards the new numbers.
         XCTAssertEqual(TodayHeader.contentHeight, 58)
-        XCTAssertEqual(TodayHeader.maxHeight, 66)
-        XCTAssertEqual(TodayHeader.scrollThreshold, 8)
 
-        // The bar never grows past its ceiling — the relationship, not just the numbers.
-        XCTAssertGreaterThan(TodayHeader.maxHeight, TodayHeader.contentHeight)
+        // The bar clears the 50pt map disc it carries. `maxHeight` and
+        // `collapsedHeight` are gone with the collapse itself (2026-09-19).
+        XCTAssertGreaterThan(TodayHeader.contentHeight, 50)
     }
 
-    // MARK: - The bar carries no artwork
+    // MARK: - The bar is locked to the top
 
-    /// The approved Today chrome leaves the upper-left lane quiet; the old full-colour
-    /// Block Party app tile must not return there.
+    /// The bar's height is a CONSTANT, and this is the guard on that.
+    ///
+    /// `TodayHeader` deliberately exposes nothing derived from the scroll at all now
+    /// — the fade went with the lock (2026-09-21) and no height function preceded
+    /// it. The bar is a `safeAreaBar` on the feed's scroll, so its height IS that
+    /// scroll's top inset: anything read back off that scroll and fed to the height
+    /// rang instead of settling (1420 direction reversals in 1422 samples; the feed
+    /// would not scroll at all). If a height is ever derived from scroll again, it
+    /// has to be driven by something the scroll does not read back.
+    func testTheBarsHeightDoesNotFollowTheScroll() {
+        XCTAssertEqual(TodayHeader.contentHeight, 58)
+    }
+
+    // MARK: - What the bar carries
+
+    /// The leading lane stays quiet. The old coral bP glyph lived there, and the
+    /// current header deliberately puts nothing on that side — the mark is centred
+    /// and the map disc is trailing.
     func testBrandLockupLeavesTheLeadingHeaderAreaBlank() throws {
         let bitmap = try renderedHeaderBitmap()
 
@@ -182,33 +157,44 @@ final class TodayHeaderTests: XCTestCase {
         )
     }
 
-    /// The Joetown wordmark was removed from this bar. It used to paint several
-    /// hundred high-chroma cyan/orange pixels across the centre, so counting them is
-    /// how a silent re-add of the lockup — or of any other artwork — gets caught.
-    func testTheCentreOfTheBarCarriesNoWordmark() throws {
+    /// INVERTED on 2026-09-19. This used to assert the centre was empty, from the
+    /// round where the Joetown lockup had just been torn out. The header now carries
+    /// the real brand mark there on purpose (Jesse: "the actual logo, not just a
+    /// font"), so the guard is that the mark is PRESENT — a silent revert to a bare
+    /// or text-only centre is what would now be the regression.
+    ///
+    /// Counted as INK, not as the mark's yellow: since 2026-09-19 the header carries
+    /// `BlockPartyWordmark`, the letterforms lifted off their yellow field and tinted
+    /// `Hue.ink`, so the yellow is no longer on this part of the screen at all. A
+    /// missing asset or a bare centre still fails — paper is not ink.
+    func testTheCentreOfTheBarCarriesTheBrandMark() throws {
         let bitmap = try renderedHeaderBitmap()
 
-        let colouredPixelCount = bitmap.countPixels(
+        let inkPixelCount = bitmap.countPixels(
             xFraction: 0.18..<0.82,
             yFraction: 0.00..<1.00,
-            where: isBrandColour
+            where: isInk
         )
 
-        XCTAssertLessThan(
-            colouredPixelCount,
-            20,
-            "The Today bar is chrome only — no wordmark, no mascot, no artwork"
+        XCTAssertGreaterThan(
+            inkPixelCount,
+            400,
+            "The centred Block Party wordmark must render in the Today bar"
         )
     }
 
     private func renderedHeaderBitmap() throws -> HeaderBitmap {
         let renderer = ImageRenderer(
             content: TodayTopBar()
-                .frame(width: 390, height: TodayHeader.maxHeight)
+                .frame(width: 390, height: TodayHeader.contentHeight)
                 .background(Hue.paper)
         )
         renderer.scale = 2
         return try HeaderBitmap(cgImage: XCTUnwrap(renderer.cgImage))
+    }
+
+    private func isInk(red: UInt8, green: UInt8, blue: UInt8, alpha: UInt8) -> Bool {
+        alpha > 200 && max(red, green, blue) < 90
     }
 
     private func isBrandColour(red: UInt8, green: UInt8, blue: UInt8, alpha: UInt8) -> Bool {

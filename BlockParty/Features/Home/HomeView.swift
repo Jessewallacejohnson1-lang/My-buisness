@@ -21,6 +21,11 @@ struct HomeView: View {
     /// Declared HERE, where `onOpenActivities` used to sit: `RootView` calls the
     /// memberwise init positionally, and Swift requires declaration order.
     var onOpenMap: () -> Void = {}
+    /// The bar's other two controls, added 2026-09-20 alongside the map. Declared
+    /// AFTER `onOpenMap` for the same reason it sits where it does: `RootView` uses
+    /// the memberwise init, which is positional.
+    var onOpenSearch: () -> Void = {}
+    var onOpenNotifications: () -> Void = {}
     @Binding var expandedPlace: Place?
     var cardNS: Namespace.ID
 
@@ -29,7 +34,9 @@ struct HomeView: View {
     var body: some View {
         FeedView(
             auth: auth,
+            onOpenSearch: onOpenSearch,
             onOpenMap: onOpenMap,
+            onOpenNotifications: onOpenNotifications,
             profileShown: profileShown
         )
     }

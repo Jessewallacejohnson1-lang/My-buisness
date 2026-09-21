@@ -143,7 +143,7 @@ struct MiniTilePreview: View {
             LinearGradient(colors: descriptor.gradient.map { Color(hex: $0) },
                            startPoint: .topLeading, endPoint: .bottomTrailing)
             Image(systemName: descriptor.symbol)
-                .font(.system(size: 15, weight: .semibold))
+                .font(.sansSemibold(15))
                 .foregroundStyle(.white)
         }
         .frame(width: 52, height: 40)

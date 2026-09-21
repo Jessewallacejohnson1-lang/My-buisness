@@ -197,7 +197,7 @@ struct MapSearchResultsPanel: View {
             ZStack {
                 Circle().fill(Hue.ink)
                 Image(systemName: result.glyph)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.sansSemibold(12))
                     .foregroundStyle(Hue.surface)
             }
             .frame(width: 28, height: 28)

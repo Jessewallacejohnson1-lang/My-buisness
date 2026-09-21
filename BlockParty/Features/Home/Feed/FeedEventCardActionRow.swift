@@ -5,7 +5,21 @@
 
 import SwiftUI
 
+/// Which controls a card's action row offers.
+///
+/// Both kinds take a heart: a heart is not agreement, it is "this is good, I want
+/// more of it", which is as true of an event as of a neighbour's photo (Jesse,
+/// 2026-09-19). What still separates them is the reply — a posting is somebody
+/// talking, so it takes comments; an event is a fact about the town, so it does not.
+enum FeedActionKind {
+    case posting
+    case event
+}
+
 struct FeedEventCardActionRow: View {
+    var kind: FeedActionKind = .posting
+    /// Shown beside the comment glyph, the way Instagram shows it. 0 hides it.
+    var commentCount: Int = 0
     @Binding var state: FeedCardActionState
     let reduceMotion: Bool
     let autoplayStep: Int
@@ -19,41 +33,68 @@ struct FeedEventCardActionRow: View {
     @State private var heartGeneration = 0
     @State private var bookmarkGeneration = 0
 
+    /// Instagram's feed action row, measured off a capture (Jesse, 2026-09-20):
+    /// a 24pt glyph, its count right beside it, and 16pt of air between one control
+    /// and the next. The 28pt-wide target plus `groupSpacing` is what adds up to
+    /// that 16 — the glyph does not fill its box.
+    private enum Metric {
+        static let glyph: CGFloat = 24
+        static let tapWidth: CGFloat = 28
+        static let groupSpacing: CGFloat = 12
+        static let countGap: CGFloat = 6
+        static let rowHeight: CGFloat = 44
+    }
+
     var body: some View {
+        // Instagram's split: everything that acts on the post sits leading, in one
+        // cluster with its counts; the bookmark — the only control that files this
+        // away somewhere else — sits alone at the trailing edge.
         HStack(spacing: 0) {
-            HStack(spacing: 12) {
-                likeControl
-                iconButton("bubble.right", action: onComment)
-                    .accessibilityLabel("Comment")
-                iconButton("square.and.arrow.up") { onShare?() }
-                    .accessibilityLabel("Share")
+            HStack(spacing: Metric.groupSpacing) {
+                heartControl
+                if kind == .posting {
+                    countedControl(
+                        "bubble.right",
+                        count: commentCount,
+                        label: "Comment",
+                        action: onComment
+                    )
+                }
+                shareButton
             }
 
             Spacer(minLength: 12)
 
             saveButton
         }
-        .frame(height: 44)
+        .frame(height: Metric.rowHeight)
         .onChange(of: autoplayStep) { _, step in
             switch step {
-            case 1, 4: performLikeTap()
+            case 1, 4: performHeartTap()
             case 3: performSaveTap()
             default: break
             }
         }
     }
 
-    private var likeControl: some View {
-        HStack(spacing: 5) {
-            Button(action: performLikeTap) {
+    private var heartControl: some View {
+        HStack(spacing: Metric.countGap) {
+            Button(action: performHeartTap) {
                 ZStack {
                     actionIcon("heart", active: false)
                         .opacity(state.isLiked ? 0 : 1)
-                    actionIcon("heart.fill", active: true)
+                    // Red only when it is yours. The outline stays ink, so the row
+                    // reads as one family until you act on it.
+                    //
+                    // The colour is passed IN rather than applied to the returned
+                    // view: `actionIcon` sets `foregroundStyle` itself, closer to the
+                    // Image, and the inner style wins. Wrapping it from outside
+                    // silently did nothing (caught on the recording — no red).
+                    actionIcon("heart.fill", active: true, tint: Hue.heart)
                         .opacity(state.isLiked ? 1 : 0)
                 }
                 .scaleEffect(reduceMotion ? 1 : heartScale)
-                .frame(width: 44, height: 44)
+                .frame(width: Metric.tapWidth, height: Metric.rowHeight)
                 .contentShape(actionShape)
             }
             .buttonStyle(.plain)
@@ -62,22 +103,22 @@ struct FeedEventCardActionRow: View {
             .accessibilityAddTraits(state.isLiked ? .isSelected : [])
 
             if state.likeCount > 0 {
-                likeCount
+                heartCount
             }
         }
     }
 
     @ViewBuilder
-    private var likeCount: some View {
+    private var heartCount: some View {
         if reduceMotion {
-            countText.contentTransition(.opacity)
+            countText(state.likeCount).contentTransition(.opacity)
         } else {
-            countText.contentTransition(.numericText())
+            countText(state.likeCount).contentTransition(.numericText())
         }
     }
 
-    private var countText: some View {
-        Text("\(state.likeCount)")
+    private func countText(_ value: Int) -> some View {
+        Text("\(value)")
             .font(.mono(13))
             .monospacedDigit()
             .foregroundStyle(Hue.ink.opacity(0.45))
@@ -99,7 +140,7 @@ struct FeedEventCardActionRow: View {
                     .opacity(state.isSaved ? 1 : 0)
             }
             .offset(y: reduceMotion ? 0 : bookmarkOffset)
-            .frame(width: 44, height: 44)
+            .frame(width: Metric.tapWidth, height: Metric.rowHeight)
             .contentShape(actionShape)
         }
         .buttonStyle(.plain)
@@ -107,28 +148,55 @@ struct FeedEventCardActionRow: View {
         .accessibilityAddTraits(state.isSaved ? .isSelected : [])
     }
 
+    private var shareButton: some View {
+        iconButton("square.and.arrow.up") { onShare?() }
+            .accessibilityLabel("Share")
+    }
+
+    /// A glyph with its count beside it, Instagram's pairing. The count is not part
+    /// of the button: tapping a number by accident is how you un-like a post.
+    private func countedControl(
+        _ symbol: String,
+        count: Int,
+        label: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        HStack(spacing: Metric.countGap) {
+            iconButton(symbol, action: action)
+                .accessibilityLabel(count > 0 ? "\(label), \(count)" : label)
+
+            if count > 0 {
+                countText(count)
+            }
+        }
+    }
+
     private func iconButton(_ symbol: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             actionIcon(symbol, active: false)
-                .frame(width: 44, height: 44)
+                .frame(width: Metric.tapWidth, height: Metric.rowHeight)
                 .contentShape(actionShape)
         }
         .buttonStyle(.plain)
     }
 
-    private func actionIcon(_ symbol: String, active: Bool) -> some View {
+    /// One icon in the row. `tint` overrides the ink ramp for the one control that
+    /// carries colour — the liked heart — and must be passed here rather than layered
+    /// on the result, because this `foregroundStyle` sits closer to the Image and
+    /// would win.
+    private func actionIcon(_ symbol: String, active: Bool, tint: Color? = nil) -> some View {
         // SF Symbols does not expose a 1.75pt stroke; regular approximates the spec.
         Image(systemName: symbol)
-            .font(.system(size: 22, weight: .regular))
+            .font(.sans(Metric.glyph))
             .symbolRenderingMode(.monochrome)
-            .foregroundStyle(Hue.ink.opacity(active ? 1 : 0.45))
+            .foregroundStyle(tint ?? Hue.ink.opacity(active ? 1 : 0.45))
     }
 
     private var actionShape: RoundedRectangle {
         RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
     }
 
-    private func performLikeTap() {
+    private func performHeartTap() {
         heartGeneration += 1
         let generation = heartGeneration
 

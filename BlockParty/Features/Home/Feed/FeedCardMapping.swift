@@ -28,6 +28,8 @@ extension FeedCardItem {
                 title: posting.title
             ),
             recurrence: recurrence,
+            hostName: posting.posterName,
+            hostAvatar: Self.nonempty(posting.posterAvatar).flatMap(URL.init(string:)),
             goingCount: posting.goingCount,
             goingAvatars: Array(goingPreview?.avatars.prefix(3) ?? []),
             goingSummary: Self.goingSummary(

@@ -20,7 +20,6 @@ struct FeedCardGallery: View {
                     )
                 }
             }
-            .padding(.horizontal, 16)
             .padding(.vertical, 28)
         }
         .background(Hue.paper.ignoresSafeArea())
@@ -58,6 +57,8 @@ struct FeedCardGallery: View {
                 metaLine: "6 PM · Memorial Park",
                 image: .eventPhoto(memorialPark),
                 recurrence: nil,
+                hostName: "St. Joseph Parks & Rec",
+                hostAvatar: memorialPark,
                 goingCount: 4,
                 goingAvatars: [memorialPark, localBlend, farmersMarket],
                 goingSummary: "Sam and 3 others are going",
@@ -73,6 +74,8 @@ struct FeedCardGallery: View {
                 metaLine: "7 PM · Rivers Bend Park",
                 image: .placesPhoto(riversBend, attribution: "Photo: Jane D."),
                 recurrence: nil,
+                hostName: "Rivers Bend Neighbours",
+                hostAvatar: nil,
                 goingCount: 3,
                 goingAvatars: [riversBend],
                 goingSummary: "Maya and 2 others are going",
@@ -88,6 +91,8 @@ struct FeedCardGallery: View {
                 metaLine: "10 AM · College Avenue",
                 image: .fallback,
                 recurrence: nil,
+                hostName: "St. Joe Public Library",
+                hostAvatar: localBlend,
                 goingCount: 2,
                 goingAvatars: [localBlend],
                 goingSummary: "Alex and 1 other are going",

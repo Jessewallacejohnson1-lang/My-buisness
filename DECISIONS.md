@@ -227,6 +227,28 @@ Several states are deliberately distinguished by value or weight alone:
   0.2237-corner mask simulation passed, and `contentFraction` is now `0.8591` (756px
   of the 880px launch asset). Live brand surfaces use the exact full-colour raster—no
   tinted or redrawn substitutes—so its gloss, bevel, texture, and spacing stay intact.
+  **Replaced again 2026-08-25** with the wave figure: a painted black figure, arms
+  raised, inside three concentric yellow broadcast arcs on warm paper, shipped 1:1
+  from the painted render (`contentFraction 0.9727`, and the `LaunchMark` inset moved
+  72 → 36 because 72 clipped the art). This entry is written after the fact; that
+  revision shipped without one.
+
+  **Replaced again 2026-09-19** with the current wordmark lockup: black
+  `BlockParty.` on a yellow field. Jesse cut the wave figure outright ("remove that
+  logo with a person, totally delete it"), so its master was deleted rather than
+  retired in place, along with the coral-era `source-render-1254.png`,
+  `block-party-mark.svg`/`.json`, and the unreferenced `MarkTemplate` /
+  `LaunchWordmark` imagesets. The new art is flat two-colour, so the export changed
+  shape: `scripts/brand/wordmark.py` resolves every master pixel to an ink-coverage
+  value and writes all three assets from it — `AppIcon` (1024², opaque),
+  `LaunchMark` (the 36/1024 inset crop, 880²), and, new, `Wordmark` (the letterforms
+  tight-cropped with the field resolved into alpha, template-rendered). That alpha
+  export is what let the Today bar stop shipping the logo as a square tile.
+  `contentFraction` is now `0.9014` (1051 px of the 1166 px crop) and
+  `BlockPartyWordmark.aspect` is `4.8657`. **The accent yellow was re-sampled with
+  the art**: `Hue.brandYellowHex` `#F2B800` → `#FCE804`, the modal pixel of the
+  field. The rule did not change — the accent is the logo's yellow — the logo did.
+
 - **Superseded test note:** at the time of the original rebrand, `HyggeTests/` was
   inert and had no project target. It has since become the wired `BlockPartyTests`
   target with active coverage; do not treat the old statement as current setup advice.
@@ -298,3 +320,66 @@ produced two that would have regressed live behaviour.
   Flighty-faithful capsule for this one floating bar. It lives behind one
   constant (`PinDetailSheet.actionBarShape`) with a `.roundedSquare` variant one
   line away; both variants were screenshotted at the decision.
+
+---
+
+## Decided 2026-09-20 — the Alta nav-chrome pass
+
+Jesse supplied a Mobbin frame of the **Alta** iOS app and asked for three things: the
+magnifying glass copied 1:1 into the top-left corner, the map button slid left with a
+notifications bell taking its place, and a larger yellow "Create" circle in the centre
+of the tab bar, "exactly like the reference except it is BP yellow".
+
+The frame was pulled at native resolution and scanned rather than eyeballed. Every
+measurement, the scanners, and the raw frame live in **`refs/chrome/`**.
+
+### What the reference actually showed, against the brief
+
+Three differences, all measured, all of which changed what got built:
+
+1. **The bell carries no red dot.** A colour census over the mark returns only black,
+   white and antialias neighbours, in both available frames. A 1:1 copy therefore has
+   no badge — and the app has no notifications feature to badge honestly, which is the
+   "fabricated counts" DESIGN.md already bans. **Built without the dot.**
+2. **Alta's top bar has no magnifier at all** — its top-left mark is a calendar, and
+   the magnifier is the fourth *tab-bar* slot. "Copy it 1:1" can only mean the drawing;
+   the placement and the size were fresh calls either way.
+3. **Neither mark is an SF Symbol**, and not by a weight either. `magnifyingglass` has
+   no inner reflection arc and is 50% heavier relative to its lens (0.264 vs 0.176);
+   `bell` has a crown nub Alta lacks and a skirt that flares continuously where Alta's
+   wall is dead vertical. Both fail the silhouette test the `MapPinShape` comment
+   already applies, so both are **drawn in-house**, in the same ratio-space idiom.
+
+### The two places the reference could not be followed
+
+- **The plus is ink, not white.** #FCE804 has a relative luminance of 0.784. White on
+  it measures **1.26:1**; the dark ramp's `Hue.ink` measures **1.11:1**; only the light
+  ink clears, at **15.0:1**. Swapping black for yellow forces the glyph to invert.
+  `CreateDiscContrastTests` pins this, both counterfactuals included.
+- **The bell is a bare mark, not a disc.** Geometry, not taste: the 150.8pt lockup
+  claims 75.4pt either side of the midline, and a second 50pt disc trailing takes the
+  clearance to **−11.9pt at 375 and −2.9pt at 393**. Bare glyphs run **+6.1 / +15.1**.
+  The reference draws its top-bar marks bare too, so fidelity and arithmetic agreed.
+
+### Structural calls
+
+- **Create is not a fifth `Tab` case.** `Tab` is `Int`-backed and its rawValue is what
+  picks the page-slide direction; a case with no screen would corrupt that silently.
+  `BlockPartyTabBar` writes its five children out longhand instead.
+- **The tab bar's height did not change.** The 40pt disc is centred on the 23pt icon
+  lane and allowed to overflow it — which is what the reference does, and what keeps
+  all five labels on one baseline and the ratchet's bar geometry where it was.
+- **Search and the bell open a reserved screen, not a dead tap.** Neither feature
+  exists. `ReservedScreen` is the same call `BlankTab` already makes for the unbuilt
+  tabs: a named, empty room reads as reserved where a dead control reads as broken. It
+  is scaffolding with a half-life — when the real screens land, its last caller goes.
+
+### Left open, deliberately
+
+- **Glyph weight.** `MapPinGlyph` draws 2.088pt of ink; the two new marks draw ~1.38pt
+  at reference size. All three now sit in the same 58pt bar. Shipped at true 1:1 so the
+  decision gets made on a screenshot; the three ways out and their arithmetic are at
+  the foot of `refs/chrome/REFERENCE-SPEC.md`.
+- **The map disc in Dark Mode** renders `Hue.ink` over `Hue.mapWash` on dark glass at
+  roughly **2.19:1**. Pre-existing, not introduced here — but the crisp new bell beside
+  it now makes the muddiness obvious, so it wants its own pass.

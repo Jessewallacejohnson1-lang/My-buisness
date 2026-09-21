@@ -37,7 +37,7 @@ struct InviteCard: View {
 
     private func row(_ symbol: String, _ text: String, mono: Bool) -> some View {
         HStack(spacing: 8) {
-            Image(systemName: symbol).font(.system(size: 14)).foregroundStyle(Hue.ink)
+            Image(systemName: symbol).font(.sans(14)).foregroundStyle(Hue.ink)
             Text(text).font(mono ? .monoMedium(15) : .sans(15)).foregroundStyle(Hue.ink)
         }
     }
@@ -75,7 +75,7 @@ struct PlaceShareCard: View {
 
     private func row(_ symbol: String, _ text: String) -> some View {
         HStack(spacing: 8) {
-            Image(systemName: symbol).font(.system(size: 14)).foregroundStyle(Hue.ink)
+            Image(systemName: symbol).font(.sans(14)).foregroundStyle(Hue.ink)
             Text(text).font(.sans(15)).foregroundStyle(Hue.ink)
         }
     }
@@ -94,7 +94,7 @@ struct InviteButton: View {
             ShareCenter.shared.present(.event(title: title, dateLabel: dateLabel, time: time, location: location))
         } label: {
             HStack(spacing: 6) {
-                Image(systemName: "square.and.arrow.up").font(.system(size: 12, weight: .semibold))
+                Image(systemName: "square.and.arrow.up").font(.sansSemibold(12))
                 Text("Invite a neighbor").font(.sansSemibold(13))
             }
             .foregroundStyle(Hue.ink)

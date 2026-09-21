@@ -120,7 +120,7 @@ struct BoardView: View {
             Button { link = SafariLink(url: url) } label: {
                 HStack(spacing: 3) {
                     Text("via \(item.sourceName)")
-                    Image(systemName: "arrow.up.right").font(.system(size: 10, weight: .semibold))
+                    Image(systemName: "arrow.up.right").font(.sansSemibold(10))
                 }
                 .font(.sansMedium(12))
                 .foregroundStyle(Hue.ink)

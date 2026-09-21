@@ -49,7 +49,7 @@ struct ShareRevealView: View {
             HStack {
                 Button { center.dismiss() } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.sansSemibold(15))
                         .foregroundStyle(Hue.inkSecondary)
                 }
                 .buttonStyle(PressableStyle(scale: 0.9, haptic: true))

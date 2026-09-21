@@ -249,10 +249,10 @@ struct UtilityCustomizeTile: View {
     private var surface: some View {
         VStack(spacing: 6) {
             Image(systemName: "plus")
-                .font(.system(size: 22, weight: .semibold))
+                .font(.sansSemibold(22))
                 .foregroundStyle(.white)
             Text(label)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.sansSemibold(13))
                 .foregroundStyle(.white.opacity(UtilityTileMetrics.textOpacity))
         }
         .frame(width: UtilityTileMetrics.width, height: UtilityTileMetrics.compactH)
@@ -262,7 +262,7 @@ struct UtilityCustomizeTile: View {
                                startPoint: .topLeading, endPoint: .bottomTrailing)
                 // Same ink watermark as a data tile — the row reads as one family.
                 Image(systemName: "plus")
-                    .font(.system(size: UtilityTileMetrics.watermarkSize))
+                    .font(.glyph(UtilityTileMetrics.watermarkSize))
                     .foregroundStyle(Hue.ink)
                     .opacity(UtilityTileMetrics.watermarkAlpha)
                     .offset(x: UtilityTileMetrics.watermarkBleed, y: UtilityTileMetrics.watermarkBleed)

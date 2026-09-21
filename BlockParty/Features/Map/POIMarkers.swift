@@ -202,7 +202,7 @@ private struct POIBadge: View {
                 .overlay(Circle().stroke(MarkerRole.pinStroke(isLightFill: expanded), lineWidth: 1.5))
                 .mapFloatShadow()
             Image(systemName: poi.glyph)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.glyph(12, weight: .semibold))
                 .foregroundStyle(MarkerRole.poiGlyph)
                 .opacity(expanded ? 1 : 0)   // too cramped on the compact dot
             // Brand logo covers the glyph when resolved; inset so the hairline keyline
@@ -337,7 +337,7 @@ struct POIClusterBubbleView: View {
             Text("\(displayCount)")
                 // Scale the digits to the (possibly capped) disc, with an 11pt floor so the
                 // SMALLEST bubble — the most common one at street zoom — stays legible.
-                .font(.system(size: max(11, min(17, diameter * 0.46)), weight: .medium))
+                .font(.glyph(max(11, min(17, diameter * 0.46)), weight: .medium))
                 .monospacedDigit()
                 // White on the ink disc (~19:1). MEDIUM, not bold, per the polish spec —
                 // the dark disc already carries the emphasis.

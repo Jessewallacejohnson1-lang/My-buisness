@@ -34,9 +34,11 @@ final class TodayHeaderProfileModel: ObservableObject {
 
 struct FeedView: View {
     let auth: AuthStore
-    /// The top bar's map button. The shell owns the presentation; the feed only
-    /// forwards the tap.
+    /// The top bar's three controls. The shell owns every presentation; the feed
+    /// only forwards the taps.
+    var onOpenSearch: () -> Void = {}
     var onOpenMap: () -> Void = {}
+    var onOpenNotifications: () -> Void = {}
     var profileShown = false
 
     @StateObject private var controller: FeedController
@@ -46,15 +48,25 @@ struct FeedView: View {
     @State private var revealAnimated = true
     @State private var contentRevealed = false
     @State private var refreshReplay = 0
-    @State private var showsHairline = false
+    /// Drives the DEBUG `-feed-scrolled` jump. There is no scroll automation in this
+    /// setup, so without it the scrolled state — where the top glass fade actually
+    /// does anything — cannot be screenshotted at all.
+    @State private var feedPosition = ScrollPosition()
+    /// The clock the social feed ranks against. Bumped on pull-to-refresh so a
+    /// stale ordering cannot outlive the gesture that asked for a new one.
+    @State private var feedClock = Date()
 
     init(
         auth: AuthStore,
+        onOpenSearch: @escaping () -> Void = {},
         onOpenMap: @escaping () -> Void = {},
+        onOpenNotifications: @escaping () -> Void = {},
         profileShown: Bool = false
     ) {
         self.auth = auth
+        self.onOpenSearch = onOpenSearch
         self.onOpenMap = onOpenMap
+        self.onOpenNotifications = onOpenNotifications
         self.profileShown = profileShown
 
         let briefing = BriefingModel()
@@ -87,9 +99,24 @@ struct FeedView: View {
         self.route = route
     }
 
-    private var forcedHairline: Bool {
+    /// DEBUG-only: `-feed-scrolled` starts the feed partway down, so the top edge
+    /// effect has content under it to blur.
+    /// DEBUG-only: `-feed-scrolled-y <pt>` picks where the jump lands, so a state
+    /// INSIDE the fade band can be held still and watched.
+    static var forcedScrollY: CGFloat {
         #if DEBUG
-        return ProcessInfo.processInfo.arguments.contains("-header-hairline")
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-feed-scrolled-y"), i + 1 < args.count,
+           let y = Double(args[i + 1]) {
+            return CGFloat(y)
+        }
+        #endif
+        return 420
+    }
+
+    private var forcedScroll: Bool {
+        #if DEBUG
+        return ProcessInfo.processInfo.arguments.contains("-feed-scrolled")
         #else
         return false
         #endif
@@ -99,47 +126,79 @@ struct FeedView: View {
         #if DEBUG
         let _ = FeedRenderLog.enabled ? Self._printChanges() : ()
         #endif
-        return VStack(spacing: 0) {
-            TodayTopBar(
-                onOpenMap: onOpenMap,
-                showsHairline: showsHairline || forcedHairline
-            )
-
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 0) {
-                    FeedModuleColumn(
-                        registry: controller.registry,
-                        briefing: controller.briefing,
-                        context: context
-                    )
-
-                    Color.clear.frame(height: 96)
-                }
-                .tint(Hue.ink)
-            }
-            .onScrollGeometryChange(for: Bool.self) { geometry in
-                TodayHeader.showsHairline(
-                    contentOffsetY: geometry.contentOffset.y + geometry.contentInsets.top
+        return ScrollView(showsIndicators: false) {
+            VStack(spacing: 0) {
+                FeedModuleColumn(
+                    registry: controller.registry,
+                    briefing: controller.briefing,
+                    context: context
                 )
-            } action: { _, shows in
-                showsHairline = shows
-            }
-            .refreshable {
-                if controller.briefing.needsRefresh {
-                    await controller.refreshBriefing()
-                }
 
-                revealAnimated = false
-                revealed = false
-                contentRevealed = false
-                await Task.yield()
-                revealAnimated = true
-                revealed = true
-                contentRevealed = true
-                refreshReplay += 1
+                // The social feed. Below the module column rather than instead
+                // of it: the registry is empty today, but a module that lands
+                // later is town-wide chrome (weather, the almanac) and belongs
+                // above the stream, not buried in it.
+                DailyFeedColumn(items: DailyView.currentItems, now: feedClock)
+
+                Color.clear.frame(height: 96)
             }
-            .tint(.clear)
+            .tint(Hue.ink)
         }
+        // DEBUG-only now that nothing in the UI is driven by the scroll offset: the
+        // bar is locked and no longer fades. `-feed-scroll-sweep -scroll-log` is
+        // still the trace that catches a ringing scroll (see `TodayHeader
+        // .contentHeight`), so the sampler survives for that — and only that.
+        //
+        // Note the offset expression: `contentOffset.y` rests at `-contentInsets
+        // .top`, so the `+ geometry.contentInsets.top` term is what makes 0 mean
+        // "at rest".
+        #if DEBUG
+        .onScrollGeometryChange(for: CGFloat.self) { geometry in
+            geometry.contentOffset.y + geometry.contentInsets.top
+        } action: { _, offset in
+            if ProcessInfo.processInfo.arguments.contains("-scroll-log") {
+                print("SCROLLLOG offset=\(offset)")
+            }
+        }
+        #endif
+        // The bar rides ON the scroll, not above it: as a top safe-area inset the
+        // feed's content passes UNDERNEATH it, which is the whole point — an
+        // opaque strip has nothing to blur and reads as a white lid.
+        .safeAreaBar(edge: .top, spacing: 0) {
+            TodayTopBar(onOpenSearch: onOpenSearch,
+                        onOpenMap: onOpenMap,
+                        onOpenNotifications: onOpenNotifications)
+        }
+        // The glass fade at the top of the screen (Jesse, 2026-09-19, matching
+        // Instagram's feed): content sliding under the status bar is blurred and
+        // washed toward the page instead of being covered by a white bar.
+        //
+        // `.hard`, not `.soft`, since the bar was locked (2026-09-21). While the
+        // chrome faded away over the first 44pt of scroll, nothing of ours was left
+        // in this band to collide with — `.soft` passed the card action row through
+        // legibly and it did not matter. Locked, it did: a ghost heart sat under the
+        // search mark and a ghost bookmark under the bell. `.hard` blurs the same
+        // content far enough to read as material rather than as icons. One word to
+        // put back if the softer wash is worth the ghosting.
+        .scrollEdgeEffectStyle(.hard, for: .top)
+        .scrollPosition($feedPosition)
+        .refreshable {
+            if controller.briefing.needsRefresh {
+                await controller.refreshBriefing()
+            }
+
+            feedClock = Date()
+
+            revealAnimated = false
+            revealed = false
+            contentRevealed = false
+            await Task.yield()
+            revealAnimated = true
+            revealed = true
+            contentRevealed = true
+            refreshReplay += 1
+        }
+        .tint(.clear)
         .background(Hue.paper)
         .sheet(item: $route) { route in
             if let destination = route.destination { destination }
@@ -164,6 +223,17 @@ struct FeedView: View {
         }
         .tabReady(controller.briefing.hasLoaded)
         .onAppear {
+            if forcedScroll { feedPosition.scrollTo(y: Self.forcedScrollY) }
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("-feed-scroll-sweep") {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(600))
+                    withAnimation(.linear(duration: 4)) {
+                        feedPosition.scrollTo(y: 200)
+                    }
+                }
+            }
+            #endif
             revealed = true
             if controller.briefing.hasLoaded { contentRevealed = true }
             #if DEBUG

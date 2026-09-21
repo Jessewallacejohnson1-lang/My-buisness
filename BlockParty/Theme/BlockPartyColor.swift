@@ -141,13 +141,64 @@ nonisolated enum Hue {
     /// while live). See DECISIONS.md (map polish Q3).
     static let statusTint    = Color(hex: 0xFDECE8)
 
-    /// The Today bar's map disc — a pale, transparent wash of the app icon's
-    /// broadcast-arc yellow (#F2B800, sampled from the painted 1024 master) at 46% — pale
-    /// enough to stay a wash, saturated enough for the disc's white specular to read as
-    /// GLOSS rather than as a smudge on cream. Jesse's
+    /// The like state, and nothing else. A heart that stays ink reads as a shape;
+    /// a heart that turns red reads as something you did — which is the whole job of
+    /// this control (Jesse, 2026-09-19). Same value in both appearances: it is a
+    /// small filled glyph, not text, so it does not need the dark ramp's lift.
+    ///
+    /// This is the one red in the app. It is state, not chrome: never a border, never
+    /// a background, never an error colour.
+    static let heart         = Color(hex: 0xFF3040)
+
+    /// **The brand yellow.** The logo's field colour, sampled from the master
+    /// (`docs/brand/source-logo-1254.png`): the modal pixel across the field, not an
+    /// eyeballed approximation. This is the app's ONE accent (Jesse, 2026-09-18) and
+    /// every yellow in the UI derives from it — never a second yellow, never a
+    /// call-site hex.
+    ///
+    /// Re-sampled 2026-09-19 for the wordmark logo: 0xF2B800 (the retired
+    /// wave-figure icon's arcs) → 0xFCE804. The rule did not change, the artwork did.
+    ///
+    /// Accents are small by rule: the Today bar's map disc today, and whatever else
+    /// Jesse scopes in later. The app's ground stays white/paper.
+    nonisolated static let brandYellowHex: UInt32 = 0xFCE804
+
+    /// The Today bar's map disc: `brandYellowHex` at 68%. Same yellow as the logo,
+    /// carried at partial opacity — the disc is a flat translucent surface, not a
+    /// shaded ball, so the material underneath does part of the work and the hue is
+    /// read through it. Alpha is the only thing that differs from the mark. Jesse's
     /// call (2026-09-18) for the one control left in that bar. It is a scoped surface
     /// tint, NOT the pending UI accent decision, and nothing else routes through it.
-    static let mapWash       = Color(hex: 0xF2B800, alpha: 0.46)
+    static let mapWash       = Color(hex: brandYellowHex, alpha: 0.68)
+
+    /// The tab bar's Create disc: the brand yellow at FULL strength, and the second
+    /// yellow surface in the app (Jesse, 2026-09-20). Not `mapWash` — that token is
+    /// the map disc's translucent surface tint, deliberately scoped, and a centre
+    /// button that let the glass capsule through would read as a hole rather than as
+    /// an object. The reference's centre button is a solid disc; this is that disc in
+    /// our colour.
+    ///
+    /// DESIGN.md's "accents are small by rule" still holds and this is the boundary:
+    /// two controls, both circular, both under 50pt. A third is a conversation.
+    static let createDisc    = Color(hex: brandYellowHex)
+
+    /// Ink drawn ON `createDisc`, pinned to the LIGHT ramp.
+    ///
+    /// The disc is the same yellow in both appearances, so it is a fixed canvas in
+    /// exactly the sense `Color.onLightCanvas` exists for. Following the system here
+    /// would put the dark ramp's near-white `ink` (#F2F1EC) on #FCE804 at **1.11:1**
+    /// — the plus would vanish in Dark Mode. The light ink measures **15.0:1** on it.
+    ///
+    /// The reference draws a WHITE plus on a black disc. White on this yellow is
+    /// 1.26:1, so the inversion is forced by the colour swap, not a style choice.
+    ///
+    /// Written as the hex rather than `ink.onLightCanvas`, which is what the map's
+    /// fixed-canvas tokens use: `Hue` is `nonisolated` and `onLightCanvas` is a
+    /// MainActor-isolated property, so routing through it here is a warning, and
+    /// this file holds the zero-warning bar. `CreateDiscContrastTests` pins the two
+    /// together so the restated value cannot drift from `ink`'s light column.
+    nonisolated static let onCreateDiscHex: UInt32 = 0x111111
+    static let onCreateDisc  = Color(hex: onCreateDiscHex)
 
     /// The one brand accent — meaning-scoped ONLY (live events, active filters,
     /// selected/saved state, primary CTAs), never decoration, body copy, or a

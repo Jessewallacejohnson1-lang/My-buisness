@@ -95,7 +95,7 @@ struct PlaceDetailView: View {
                 Button { openInMaps(addr) } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "map")
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(.sansSemibold(14))
                         Text("Open in Maps")
                             .font(.sansSemibold(15))
                     }
@@ -121,7 +121,7 @@ struct PlaceDetailView: View {
     private var closeButton: some View {
         Button { dismiss() } label: {
             Image(systemName: "xmark")
-                .font(.system(size: 14, weight: .semibold))
+                .font(.sansSemibold(14))
                 .foregroundStyle(Hue.ink)
                 .frame(width: 36, height: 36)
                 .background(.ultraThinMaterial, in: Circle())

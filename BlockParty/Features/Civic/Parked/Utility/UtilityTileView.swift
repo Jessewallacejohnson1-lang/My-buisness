@@ -197,7 +197,7 @@ struct UtilityTileView: View {
     /// the provider's live one, so the texture doesn't shuffle when a value changes.
     private var watermark: some View {
         Image(systemName: descriptor.symbol)
-            .font(.system(size: UtilityTileMetrics.watermarkSize))
+            .font(.glyph(UtilityTileMetrics.watermarkSize))
             // Painted THROUGH `watermarkColorHex`, not from `Hue.ink` directly: the
             // constant's promise (the measured surface and the painted one cannot
             // drift) is only true if the render actually reads it.
@@ -218,7 +218,7 @@ struct UtilityTileView: View {
             valueView
             if let secondary = displaySecondary {
                 Text(secondary)
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.sansMedium(12))
                     .foregroundStyle(.white.opacity(UtilityTileMetrics.textOpacity))
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -242,10 +242,10 @@ struct UtilityTileView: View {
                 .frame(width: 84, height: 26)
                 .shimmering()
         case .failed:
-            Text("—").font(.system(size: 30, weight: .bold)).foregroundStyle(.white)
+            Text("—").font(.sansBold(30)).foregroundStyle(.white)
         case .loaded(let value):
             Text(value.content.primary)
-                .font(.system(size: 28, weight: .bold))
+                .font(.sansBold(28))
                 .foregroundStyle(.white)
                 .minimumScaleFactor(0.5)
                 .lineLimit(1)
@@ -264,14 +264,14 @@ struct UtilityTileView: View {
             ForEach(content?.expanded ?? []) { row in
                 HStack(spacing: 6) {
                     if let symbol = row.symbol {
-                        Image(systemName: symbol).font(.system(size: 11)).frame(width: 15)
+                        Image(systemName: symbol).font(.sans(11)).frame(width: 15)
                     }
                     Text(row.label)
-                        .font(.system(size: 11)).foregroundStyle(.white.opacity(UtilityTileMetrics.textOpacity))
+                        .font(.sans(11)).foregroundStyle(.white.opacity(UtilityTileMetrics.textOpacity))
                         .lineLimit(1)
                     Spacer(minLength: 4)
                     Text(row.value)
-                        .font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
+                        .font(.sansSemibold(12)).foregroundStyle(.white)
                         .lineLimit(1).minimumScaleFactor(0.7)
                 }
             }
@@ -289,14 +289,14 @@ struct UtilityTileView: View {
     private var labelRow: some View {
         HStack(spacing: 5) {
             if let symbol = symbolName {
-                Image(systemName: symbol).font(.system(size: 13, weight: .semibold))
+                Image(systemName: symbol).font(.sansSemibold(13))
             }
             Text(descriptor.displayName)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.sansSemibold(13))
                 .lineLimit(1)
             if content?.badge == .warning {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.sansSemibold(12))
             }
             Spacer(minLength: 0)
         }
