@@ -1,6 +1,12 @@
+import { createClient } from "npm:@supabase/supabase-js@2"
 // Supabase Edge Function: moderate a community post with Claude (text + image).
 // Deploy: supabase functions deploy moderate-post
 // Secret: supabase secrets set ANTHROPIC_API_KEY=...
+//
+// The caller's JWT is verified here as well as by `verify_jwt`: this function
+// spends Anthropic credits per call, so an unauthenticated request must not
+// reach the model. That check was added to the deployed copy and never landed
+// in this repo until 2026-09-21 — the repo's version had no auth at all.
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -21,6 +27,18 @@ Deno.serve(async (req) => {
 
   const key = Deno.env.get('ANTHROPIC_API_KEY')
   if (!key) return json({ ok: false, reason: 'Moderation unavailable.' }, 503)
+
+  const auth = req.headers.get('Authorization') ?? ''
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : ''
+  if (!token) return json({ ok: false, reason: 'Unauthorized.' }, 401)
+  try {
+    const publishableKeys = JSON.parse(Deno.env.get('SUPABASE_PUBLISHABLE_KEYS') ?? '{}')
+    const supabase = createClient(Deno.env.get('SUPABASE_URL')!, publishableKeys['default'])
+    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token)
+    if (claimsError || !claimsData?.claims?.sub) return json({ ok: false, reason: 'Unauthorized.' }, 401)
+  } catch {
+    return json({ ok: false, reason: 'Unauthorized.' }, 401)
+  }
 
   let body: any
   try { body = await req.json() } catch { return json({ ok: false, reason: 'Bad request.' }, 400) }
