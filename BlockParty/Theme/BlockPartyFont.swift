@@ -2,10 +2,12 @@
 //  BlockPartyFont.swift
 //  Block Party — design tokens (typography)
 //
-//  Two-face system: Jost is the display, headline, and wordmark face; SF Pro stays
-//  the body, UI, and data face through the system helpers. Atkinson Hyperlegible
-//  Bold remains bundled but is no longer referenced. Numbers keep tabular figures
-//  by pairing the mono helpers with `.monospacedDigit()` at the call site.
+//  Jost is the display, headline, and wordmark face; SF Pro stays the body, UI, and
+//  data face through the system helpers; SF Pro Rounded Heavy is scoped to the one
+//  role that earned it, the event headline over a photograph (`roundedDisplay`).
+//  Atkinson Hyperlegible Bold remains bundled but is no longer referenced. Numbers
+//  keep tabular figures by pairing the mono helpers with `.monospacedDigit()` at the
+//  call site.
 //
 //  EVERY helper here scales with Dynamic Type except the three that say, in their
 //  own doc comment, why they must not. That is the whole point of this file, and
@@ -95,6 +97,22 @@ extension Font {
     /// Jost SemiBold at an exact size, scaling against the nearest text style.
     static func displaySemi(_ size: CGFloat, relativeTo style: TextStyle? = nil) -> Font {
         .custom(Face.displaySemi, size: size, relativeTo: style ?? nearestTextStyle(to: size))
+    }
+
+    /// Event headline face — SF Pro Rounded at Heavy.
+    ///
+    /// The third face in a file whose header says there are two, so it is scoped on
+    /// purpose: the headline that sits ON an event photograph, and the same headline
+    /// on the event's detail page. Jost is a Futura-style geometric with a
+    /// single-storey `a` and thin joins; at a lead-story size over a picture it reads
+    /// light and loses to the image behind it. Rounded Heavy is the opposite trade —
+    /// large x-height, closed apertures, soft terminals — which is what holds white
+    /// type on a photograph.
+    ///
+    /// It is a system face, so there is no file to bundle, no licence to carry, and
+    /// it inherits Dynamic Type from the text style like every other helper here.
+    static func roundedDisplay(_ size: CGFloat, relativeTo style: TextStyle? = nil) -> Font {
+        .system(style ?? nearestTextStyle(to: size), design: .rounded).weight(.heavy)
     }
 
     // MARK: - UI / body — system
