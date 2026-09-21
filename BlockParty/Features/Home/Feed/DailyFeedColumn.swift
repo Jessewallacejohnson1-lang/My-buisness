@@ -16,15 +16,20 @@ import SwiftUI
 /// defaults to MainActor isolation and an isolated enum here would trip the
 /// zero-warning bar at every call site.
 nonisolated enum DailyFeedMetric {
-    /// The inset for a card's TEXT and controls. The media is deliberately not
-    /// inset: photos run to both screen edges (Jesse, 2026-09-19), and the copy
-    /// under them keeps this margin so it is not reading off the bezel.
+    /// The inset for a card's copy and controls — and, on an EVENT, for the picture
+    /// too. A posting's photo is the one thing that still runs to both screen edges
+    /// (Jesse, 2026-09-20: Instagram's feed, which is what a posting is).
     static let contentInset: CGFloat = 16
 
-    /// The media's corner. Small on purpose (Jesse, 2026-09-19): enough to take the
-    /// hard point off a photo that runs to both screen edges, not enough to read as
-    /// a floating card — the picture still belongs to the screen, not to a tile.
+    /// A POSTING's corner. Small on purpose: a photo that runs to both screen edges
+    /// can only take the hard point off — a card-sized radius on it would read as a
+    /// tile that had slipped off the page.
     static let mediaRadius: CGFloat = 8
+
+    /// An EVENT's corner. Its picture is inset by `contentInset`, so it is a cut card
+    /// with two real edges of its own and wants a real radius to match.
+    static let cutMediaRadius: CGFloat = 12
+
 }
 
 struct DailyFeedColumn: View {

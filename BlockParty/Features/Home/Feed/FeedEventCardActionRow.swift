@@ -18,6 +18,8 @@ enum FeedActionKind {
 
 struct FeedEventCardActionRow: View {
     var kind: FeedActionKind = .posting
+    /// Shown beside the comment glyph, the way Instagram shows it. 0 hides it.
+    var commentCount: Int = 0
     @Binding var state: FeedCardActionState
     let reduceMotion: Bool
     let autoplayStep: Int
@@ -31,25 +33,41 @@ struct FeedEventCardActionRow: View {
     @State private var heartGeneration = 0
     @State private var bookmarkGeneration = 0
 
+    /// Instagram's feed action row, measured off a capture (Jesse, 2026-09-20):
+    /// a 24pt glyph, its count right beside it, and 16pt of air between one control
+    /// and the next. The 28pt-wide target plus `groupSpacing` is what adds up to
+    /// that 16 — the glyph does not fill its box.
+    private enum Metric {
+        static let glyph: CGFloat = 24
+        static let tapWidth: CGFloat = 28
+        static let groupSpacing: CGFloat = 12
+        static let countGap: CGFloat = 6
+        static let rowHeight: CGFloat = 44
+    }
+
     var body: some View {
-        // Share sits alone past the spacer, hard against the trailing edge. It is the
-        // only control here that leaves the app, so it does not belong in the same
-        // cluster as the three that act on the card in place.
+        // Instagram's split: everything that acts on the post sits leading, in one
+        // cluster with its counts; the bookmark — the only control that files this
+        // away somewhere else — sits alone at the trailing edge.
         HStack(spacing: 0) {
-            HStack(spacing: 12) {
+            HStack(spacing: Metric.groupSpacing) {
                 heartControl
                 if kind == .posting {
-                    iconButton("bubble.right", action: onComment)
-                        .accessibilityLabel("Comment")
+                    countedControl(
+                        "bubble.right",
+                        count: commentCount,
+                        label: "Comment",
+                        action: onComment
+                    )
                 }
-                saveButton
+                shareButton
             }
 
             Spacer(minLength: 12)
 
-            shareButton
+            saveButton
         }
-        .frame(height: 44)
+        .frame(height: Metric.rowHeight)
         .onChange(of: autoplayStep) { _, step in
             switch step {
             case 1, 4: performHeartTap()
@@ -60,7 +78,7 @@ struct FeedEventCardActionRow: View {
     }
 
     private var heartControl: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: Metric.countGap) {
             Button(action: performHeartTap) {
                 ZStack {
                     actionIcon("heart", active: false)
@@ -76,7 +94,7 @@ struct FeedEventCardActionRow: View {
                         .opacity(state.isLiked ? 1 : 0)
                 }
                 .scaleEffect(reduceMotion ? 1 : heartScale)
-                .frame(width: 44, height: 44)
+                .frame(width: Metric.tapWidth, height: Metric.rowHeight)
                 .contentShape(actionShape)
             }
             .buttonStyle(.plain)
@@ -93,14 +111,14 @@ struct FeedEventCardActionRow: View {
     @ViewBuilder
     private var heartCount: some View {
         if reduceMotion {
-            countText.contentTransition(.opacity)
+            countText(state.likeCount).contentTransition(.opacity)
         } else {
-            countText.contentTransition(.numericText())
+            countText(state.likeCount).contentTransition(.numericText())
         }
     }
 
-    private var countText: some View {
-        Text("\(state.likeCount)")
+    private func countText(_ value: Int) -> some View {
+        Text("\(value)")
             .font(.mono(13))
             .monospacedDigit()
             .foregroundStyle(Hue.ink.opacity(0.45))
@@ -122,7 +140,7 @@ struct FeedEventCardActionRow: View {
                     .opacity(state.isSaved ? 1 : 0)
             }
             .offset(y: reduceMotion ? 0 : bookmarkOffset)
-            .frame(width: 44, height: 44)
+            .frame(width: Metric.tapWidth, height: Metric.rowHeight)
             .contentShape(actionShape)
         }
         .buttonStyle(.plain)
@@ -135,10 +153,28 @@ struct FeedEventCardActionRow: View {
             .accessibilityLabel("Share")
     }
 
+    /// A glyph with its count beside it, Instagram's pairing. The count is not part
+    /// of the button: tapping a number by accident is how you un-like a post.
+    private func countedControl(
+        _ symbol: String,
+        count: Int,
+        label: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        HStack(spacing: Metric.countGap) {
+            iconButton(symbol, action: action)
+                .accessibilityLabel(count > 0 ? "\(label), \(count)" : label)
+
+            if count > 0 {
+                countText(count)
+            }
+        }
+    }
+
     private func iconButton(_ symbol: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             actionIcon(symbol, active: false)
-                .frame(width: 44, height: 44)
+                .frame(width: Metric.tapWidth, height: Metric.rowHeight)
                 .contentShape(actionShape)
         }
         .buttonStyle(.plain)
@@ -151,7 +187,7 @@ struct FeedEventCardActionRow: View {
     private func actionIcon(_ symbol: String, active: Bool, tint: Color? = nil) -> some View {
         // SF Symbols does not expose a 1.75pt stroke; regular approximates the spec.
         Image(systemName: symbol)
-            .font(.sans(22))
+            .font(.sans(Metric.glyph))
             .symbolRenderingMode(.monochrome)
             .foregroundStyle(tint ?? Hue.ink.opacity(active ? 1 : 0.45))
     }

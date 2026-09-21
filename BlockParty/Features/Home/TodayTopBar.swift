@@ -1,17 +1,26 @@
 //
 //  TodayTopBar.swift
-//  Block Party — Today's fixed top bar: one map button, nothing else.
+//  Block Party — Today's fixed top bar: a search mark leading, the wordmark centred,
+//  the map disc and a notifications bell trailing.
 //
 //  Replaces `Masthead`, the 34pt wordmark + date line that used to scroll away with
 //  the content. This bar is chrome: it is present immediately (no spring entrance),
-//  it never scrolls, and it carries no rule of its own — the scroll edge effect
-//  under it is what separates the bar from the feed.
+//  it never scrolls, it never fades (locked to the top of the screen at every scroll
+//  position — Jesse, 2026-09-21), and it carries no rule of its own — the scroll edge
+//  effect under it is what separates the bar from the feed.
 //
 //  The Joetown lockup was retired on 2026-09-17; the profile avatar — the ⋮-lineage
-//  button that opened the town menu — was retired on 2026-09-18 (Jesse's call). What
-//  is left is a single trailing control: a translucent yellow disc carrying the map
-//  glyph, sitting where the avatar used to. The bar reports the tap; the shell owns
-//  the map presentation.
+//  button that opened the town menu — was retired on 2026-09-18 (Jesse's call). For
+//  two days the bar carried exactly one control, the yellow map disc, sitting where
+//  the avatar used to.
+//
+//  On 2026-09-20 it gained two more, traced off an Alta reference (Jesse): a search
+//  mark on the leading edge, and a notifications bell on the trailing edge — which
+//  is the slot the map disc used to hold, so the disc slid left to make room. The
+//  bar reports every tap; the shell owns every presentation.
+//
+//  The two new marks are BARE INK, not discs. That is what the reference does, and
+//  it is also the only thing the width budget allows — see `controls`.
 //
 //  NOTE: with the avatar gone, nothing in this bar opens `TownMenuView` any more.
 //  The menu plumbing (`onMenu` / `showMenu` / `GlassShowcaseOverlay`) is still wired
@@ -30,34 +39,20 @@ import SwiftUI
 /// gotcha.
 nonisolated enum TodayHeader {
     /// The bar's height, below the safe-area top inset. **Constant, and it must
-    /// stay constant** — see the note on `chromeProgress`.
-    static let contentHeight: CGFloat = 58
-    /// How far the feed travels before the wordmark and the map disc are fully gone.
-    /// Short on purpose: this chrome belongs to the top of the feed, and the first
-    /// card should own the screen as soon as you commit to scrolling.
-    static let chromeFadeDistance: CGFloat = 44
-
-    /// How far out of the way the bar's chrome is: 0 at rest, 1 once it has gone.
+    /// stay constant.**
     ///
-    /// Clamped at both ends, so a rubber-band pull past the top (negative offset)
-    /// cannot over-brighten the chrome and a long scroll cannot drive it past gone.
-    ///
-    /// **Nothing that changes the bar's HEIGHT may be derived from this.** The bar
-    /// is a `safeAreaBar` on the feed's own scroll, so its height IS that scroll's
-    /// top content inset, and the offset this is computed from is measured against
-    /// that inset. Height-from-progress therefore closes a loop: height → inset →
-    /// offset → progress → height. It does not degrade gracefully; it rings.
+    /// **Nothing that changes the bar's HEIGHT may be derived from the scroll.** The
+    /// bar is a `safeAreaBar` on the feed's own scroll, so its height IS that
+    /// scroll's top content inset, and any offset read back off that scroll is
+    /// measured against the same inset. Height-from-scroll therefore closes a loop:
+    /// height → inset → offset → height. It does not degrade gracefully; it rings.
     ///
     /// It shipped that way for one commit (d1fcf40) and the feed would not scroll at
     /// all — measured with `-feed-scroll-sweep -scroll-log`, the offset ping-ponged
     /// between -0.1 and 1.0 with 1420 direction reversals in 1422 samples. Pinning
     /// the height took the same trace to 241 samples, 0 reversals, a clean 0 → 200.
-    /// Fade, lift, dim, blur — all fine. Height, insets and content size are not.
-    static func chromeProgress(contentOffsetY: CGFloat) -> Double {
-        let travelled = min(max(contentOffsetY, 0), chromeFadeDistance)
-        return Double(travelled / chromeFadeDistance)
-    }
-
+    /// Dim, blur, tint off the scroll freely. Height, insets and content size never.
+    static let contentHeight: CGFloat = 58
 
     /// Today's date as an uppercase eyebrow — "SATURDAY, AUGUST 1".
     ///
@@ -78,12 +73,29 @@ nonisolated enum TodayHeader {
 /// The bar's fixed geometry, in one place. `nonisolated` for the same reason as
 /// `TodayHeader`: these are constants, not state.
 private nonisolated enum TodayBarMetric {
-    /// Trailing screen inset for the control row.
+    /// The OPTICAL screen inset — where the drawn ink of the outermost control
+    /// lands. The row itself is padded by `rowInset`; the difference is the
+    /// invisible overhang of the bare glyphs' 44pt touch boxes.
     static let inset: CGFloat = 16
-    /// The map button's disc. It is the ONLY control in this bar, so it is sized
-    /// like one: 50 clears the 44pt HIG target on its own, with no grow-and-hand-back
-    /// padding, and reads as an object rather than as a small icon in a corner.
+    /// The map button's disc. Unchanged at 50 — it is still the only control in this
+    /// bar that is an OBJECT rather than a mark, and shrinking it to match its new
+    /// neighbours would have made three marks where the reference has one button.
     static let mapSide: CGFloat = 50
+    /// A bare glyph's touch box. The marks themselves are ~20pt, well under the 44pt
+    /// HIG target, so each one is centred in a box that meets it. The box is
+    /// invisible, which is why the ROW is inset less than the ink appears to be.
+    static let glyphTap: CGFloat = 44
+    /// The search mark and the bell, at their measured reference sizes
+    /// (19.82pt square and 20.69pt tall — see `refs/chrome/REFERENCE-SPEC.md`).
+    static let searchGlyphSize: CGFloat = 20
+    static let bellGlyphSize: CGFloat = 21
+    /// The row's real padding: `inset` minus the touch box's overhang past the ink,
+    /// so a 20pt mark in a 44pt box draws its edge on the 16pt line.
+    static let rowInset: CGFloat = inset - (glyphTap - searchGlyphSize) / 2
+    /// Between the map disc and the bell's touch box. The bell's ink sits 11.5pt
+    /// inside its box, so the gap READS as ~19pt — which is what keeps the two
+    /// trailing controls from looking like one clump.
+    static let controlGap: CGFloat = 8
     /// The glyph's square, inside the disc.
     static let mapGlyphSize: CGFloat = 24
     /// The centred wordmark's height. 31 runs the lockup 151pt wide — 18 → 24 → 31
@@ -93,30 +105,32 @@ private nonisolated enum TodayBarMetric {
 }
 
 struct TodayTopBar: View {
-    /// The trailing map button → the town map. The shell owns the presentation;
-    /// this bar only reports the tap.
+    /// The leading search mark. Like every control here, the bar only reports the
+    /// tap — the shell owns what opens.
+    var onOpenSearch: () -> Void = {}
+    /// The map button → the town map. No longer the trailing control: it slid left
+    /// to make room for the bell, and now sits between the mark and the bar's edge.
     var onOpenMap: () -> Void = {}
-    /// 0 at the top of the feed, 1 once the chrome has scrolled away. Drives the
-    /// fade and the small lift together, off one number, so they cannot disagree
-    /// mid-scroll. It never touches the bar's height.
-    var chromeProgress: Double = 0
+    /// The trailing bell → notifications.
+    var onOpenNotifications: () -> Void = {}
 
     var body: some View {
+        // LOCKED. The bar used to fade out and lift 8pt over the first 44pt of
+        // scroll, taking the wordmark and all three controls with it (Jesse,
+        // 2026-09-21: keep it). It is now present at every scroll position, which
+        // also settles the tap bug the fade created — invisible controls that still
+        // took touches — by leaving nothing invisible.
+        //
+        // What separates the bar from the feed is unchanged: it has no fill, and the
+        // content passing underneath it is blurred and washed toward the page by
+        // `FeedView`'s `.scrollEdgeEffectStyle(.soft, for: .top)`.
         controls
-            // The chrome leaves by fading and lifting slightly — the feed is arriving
-            // from below, so the header stepping up out of its way reads as one
-            // movement rather than two.
-            .opacity(1 - chromeProgress)
-            .offset(y: -8 * chromeProgress)
         // FIXED height. The bar used to collapse to an 8pt strip as the chrome left,
         // which was fine while it lived above the scroll — as a `safeAreaBar` it is
         // the scroll's top inset, and a height that follows the scroll offset makes
-        // the offset follow the height right back. See `TodayHeader.chromeProgress`.
+        // the offset follow the height right back. See `TodayHeader.contentHeight`.
         .frame(height: TodayHeader.contentHeight)
         .frame(maxWidth: .infinity)
-        // Clipped so the lifting chrome is cut off at the bar's edge rather than
-        // spilling over the first card.
-        .clipped()
         // NO fill. The bar is a safe-area inset over the feed's own scroll, so what
         // sits behind it is the content itself, blurred and washed toward the page by
         // the scroll edge effect (`scrollEdgeEffectStyle(.soft)` in `FeedView`). A
@@ -125,9 +139,9 @@ struct TodayTopBar: View {
 
     // MARK: - Layers
 
-    /// The mark centred, the map disc trailing — the shape Instagram's feed header
-    /// has trained everyone to read. Both belong to the top of the feed and both
-    /// leave together.
+    /// The mark centred, controls either side — the shape Instagram's feed header
+    /// has trained everyone to read. All of it belongs to the top of the feed and
+    /// all of it leaves together.
     ///
     /// The mark is CENTRED against the bar, not laid out between the other controls:
     /// in an `HStack` it would sit wherever the trailing button's width left it, and
@@ -136,18 +150,77 @@ struct TodayTopBar: View {
     ///
     /// It is the real artwork (`BlockPartyWordmark` → the `Wordmark` raster), not the
     /// Jost wordmark it replaced (Jesse, 2026-09-19).
+    /// Three controls now, and the centred mark still has to clear them.
+    ///
+    /// The lockup is 150.8pt wide (`BlockPartyWordmark.aspect` 4.8657 × 31), so it
+    /// claims 75.4pt either side of the midline. The trailing side consumes
+    /// `rowInset 4 + glyphTap 44 + controlGap 8 + mapSide 50` = 106pt, which leaves
+    /// `W/2 − 181.4`: **+6.1pt at 375, +15.1 at 393, +38.6 at 440**. Break-even is
+    /// 362.8pt, below every iPhone that runs this OS. The leading side takes 48pt
+    /// and is never the binding constraint.
+    ///
+    /// This is why the two new marks are BARE INK and not discs like the map's. A
+    /// second 50pt disc trailing pushes the lane to 112pt and the clearance to
+    /// **−11.9pt at 375 and −2.9pt at 393** — the mark and the control overlap on
+    /// most phones. The reference draws its top-bar marks bare too, so fidelity and
+    /// arithmetic agree here. (A disc LEADING would also trip
+    /// `TodayHeaderTests.testBrandLockupLeavesTheLeadingHeaderAreaBlank`, which
+    /// allows under 20 saturated pixels in the leading 18% of the bar against the
+    /// roughly 7,800 a yellow disc puts there.)
     private var controls: some View {
         HStack(spacing: 0) {
+            searchButton
             Spacer(minLength: 0)
             mapButton
+            Spacer(minLength: 0).frame(width: TodayBarMetric.controlGap)
+            bellButton
         }
-        .padding(.horizontal, TodayBarMetric.inset)
+        .padding(.horizontal, TodayBarMetric.rowInset)
         .overlay {
             brandMark
                 .accessibilityAddTraits(.isHeader)
                 // Decorative-adjacent: it names the app, it does not act, so it must
-                // not sit in the tap path of the disc beside it.
+                // not sit in the tap path of the controls beside it.
                 .allowsHitTesting(false)
+        }
+    }
+
+    /// A bare traced mark in a 44pt touch box. Shared by the search glyph and the
+    /// bell, because the only thing that differs between them is the glyph and the
+    /// label — and two near-identical button bodies is how the two drift apart.
+    @ViewBuilder
+    private func glyphButton<Glyph: View>(
+        label: String,
+        hint: String,
+        action: @escaping () -> Void,
+        @ViewBuilder glyph: () -> Glyph
+    ) -> some View {
+        Button(action: action) {
+            glyph()
+                .foregroundStyle(Hue.ink)
+                .frame(width: TodayBarMetric.glyphTap, height: TodayBarMetric.glyphTap)
+                .contentShape(Rectangle())
+        }
+        // The same pop the app's other bare controls use. The map disc beside it
+        // takes its press from the glass itself; a 20pt mark has no surface to do
+        // that with, so it gets the hand-rolled scale.
+        .buttonStyle(PressableStyle(scale: 0.88, haptic: true))
+        .accessibilityLabel(label)
+        .accessibilityHint(hint)
+        // Frozen chrome owes the reader another way in — the mark never grows with
+        // Dynamic Type, so a long press has to enlarge it.
+        .accessibilityShowsLargeContentViewer { Text(label) }
+    }
+
+    private var searchButton: some View {
+        glyphButton(label: "Search", hint: "Find places and happenings around town", action: onOpenSearch) {
+            MagnifierGlyph(size: TodayBarMetric.searchGlyphSize)
+        }
+    }
+
+    private var bellButton: some View {
+        glyphButton(label: "Notifications", hint: "What you have missed", action: onOpenNotifications) {
+            BellGlyph(size: TodayBarMetric.bellGlyphSize)
         }
     }
 
@@ -168,64 +241,34 @@ struct TodayTopBar: View {
     /// than a change of layout.
     private static let mapShape = Circle()
 
-    /// The glossy yellow map disc, top right — the bar's only control.
+    /// The yellow map disc, on real Liquid Glass. It sits inboard of the bell rather
+    /// than on the bar's trailing edge, and it is still 50pt — still the one OBJECT
+    /// among three marks.
     ///
-    /// The gloss is built in three layers over the glass, not faked with one white
-    /// fill: a specular cap across the top third, a rim that is bright where the
-    /// light lands and almost gone at the bottom, and two shadows (one tight and
-    /// close for contact, one wide and soft for lift). That is what separates a
-    /// glossy object from a flat tinted circle.
+    /// The three hand-built layers this used to carry (a thin material, the wash on
+    /// top, a painted sheen and rim, plus a drop shadow) were an imitation of glass
+    /// drawn with gradients. `.glassEffect` is the real material — the same one the
+    /// tab bar and the map's own chrome circles run on — so the disc now refracts
+    /// what is behind it, lights its own rim, and carries its own floating shadow.
+    /// The brand yellow survives as the material's TINT rather than as a fill over
+    /// it, which is what keeps it the same disc rather than a new colour.
+    ///
+    /// `.interactive()` is the press reaction: the system's own glass response,
+    /// which replaced `MapDiscPressStyle`'s hand-rolled squash and honours Reduce
+    /// Motion without being told. `.plain` is required with it — the default button
+    /// style would dim the label under the glass, and a grey flash reads as the
+    /// control failing rather than as a press.
     private var mapButton: some View {
         let side = TodayBarMetric.mapSide
         return Button(action: onOpenMap) {
-            ZStack {
-                // Mostly flat, and genuinely see-through: a thin material with the
-                // wash on top, not a shaded ball. The earlier version modelled a
-                // sphere — specular, sub-equator shade, bounce light — and read as a
-                // plastic badge stuck on the page. Glass in the reference is a
-                // SURFACE: flat, transparent, with one soft sheen and a rim to catch
-                // the edge. That is all that survives here.
-                Circle().fill(.ultraThinMaterial)
-                Circle().fill(Hue.mapWash)
-                sheen
-                MapPinGlyph(size: TodayBarMetric.mapGlyphSize)
-                    .foregroundStyle(Hue.ink)
-            }
-            .frame(width: side, height: side)
-            .contentShape(Circle())
+            MapPinGlyph(size: TodayBarMetric.mapGlyphSize)
+                .foregroundStyle(Hue.ink)
+                .frame(width: side, height: side)
+                .glassEffect(.regular.tint(Hue.mapWash).interactive(), in: Self.mapShape)
+                .contentShape(Self.mapShape)
         }
-        .buttonStyle(MapDiscPressStyle())
-        // One soft, close shadow — enough to lift the disc off the paper, not enough
-        // to make it hover.
-        .shadow(color: .black.opacity(0.09), radius: 5, y: 2)
+        .buttonStyle(.plain)
         .accessibilityLabel("Open the town map")
-    }
-
-    /// The only two light layers left: a faint sheen across the top third and a rim
-    /// that is brighter where the light lands. Roughly 80% flat — enough curvature to
-    /// read as glass, not enough to read as a ball.
-    private var sheen: some View {
-        ZStack {
-            Circle()
-                .fill(
-                    LinearGradient(
-                        colors: [.white.opacity(0.22), .white.opacity(0.03), .clear],
-                        startPoint: .top,
-                        endPoint: .center
-                    )
-                )
-            Circle()
-                .strokeBorder(
-                    LinearGradient(
-                        colors: [.white.opacity(0.45), .white.opacity(0.12), .white.opacity(0.03)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    ),
-                    lineWidth: 0.8
-                )
-        }
-        .clipShape(Circle())
-        .allowsHitTesting(false)
     }
 }
 
@@ -335,18 +378,5 @@ struct MapPinShape: Shape {
             height: Self.ring * 2 * r
         ))
         return path
-    }
-}
-
-/// The disc's press reaction: a quick squash that springs back, with the gloss
-/// riding along. No dim — the yellow is the button's identity and a grey flash
-/// would read as the control failing rather than as a press.
-private struct MapDiscPressStyle: ButtonStyle {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(reduceMotion ? 1 : (configuration.isPressed ? 0.90 : 1))
-            .animation(.spring(response: 0.28, dampingFraction: 0.62), value: configuration.isPressed)
     }
 }

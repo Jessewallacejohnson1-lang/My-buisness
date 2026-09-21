@@ -34,9 +34,11 @@ final class TodayHeaderProfileModel: ObservableObject {
 
 struct FeedView: View {
     let auth: AuthStore
-    /// The top bar's map button. The shell owns the presentation; the feed only
-    /// forwards the tap.
+    /// The top bar's three controls. The shell owns every presentation; the feed
+    /// only forwards the taps.
+    var onOpenSearch: () -> Void = {}
     var onOpenMap: () -> Void = {}
+    var onOpenNotifications: () -> Void = {}
     var profileShown = false
 
     @StateObject private var controller: FeedController
@@ -46,9 +48,6 @@ struct FeedView: View {
     @State private var revealAnimated = true
     @State private var contentRevealed = false
     @State private var refreshReplay = 0
-    /// How far the feed has scrolled from rest, in points. One number: the chrome
-    /// fade and the bar's collapse are both derived from it.
-    @State private var scrollOffset: CGFloat = 0
     /// Drives the DEBUG `-feed-scrolled` jump. There is no scroll automation in this
     /// setup, so without it the scrolled state — where the top glass fade actually
     /// does anything — cannot be screenshotted at all.
@@ -59,11 +58,15 @@ struct FeedView: View {
 
     init(
         auth: AuthStore,
+        onOpenSearch: @escaping () -> Void = {},
         onOpenMap: @escaping () -> Void = {},
+        onOpenNotifications: @escaping () -> Void = {},
         profileShown: Bool = false
     ) {
         self.auth = auth
+        self.onOpenSearch = onOpenSearch
         self.onOpenMap = onOpenMap
+        self.onOpenNotifications = onOpenNotifications
         self.profileShown = profileShown
 
         let briefing = BriefingModel()
@@ -96,17 +99,6 @@ struct FeedView: View {
         self.route = route
     }
 
-    /// DEBUG-only: `-header-collapsed` pins the bar to its scrolled-away state.
-    /// There is no scroll automation in this setup, so without it the collapsed
-    /// header cannot be screenshotted at all.
-    private var forcedCollapse: Bool {
-        #if DEBUG
-        return ProcessInfo.processInfo.arguments.contains("-header-collapsed")
-        #else
-        return false
-        #endif
-    }
-
     /// DEBUG-only: `-feed-scrolled` starts the feed partway down, so the top edge
     /// effect has content under it to blur.
     /// DEBUG-only: `-feed-scrolled-y <pt>` picks where the jump lands, so a state
@@ -128,10 +120,6 @@ struct FeedView: View {
         #else
         return false
         #endif
-    }
-
-    private var chromeProgress: Double {
-        forcedCollapse ? 1 : TodayHeader.chromeProgress(contentOffsetY: scrollOffset)
     }
 
     var body: some View {
@@ -156,26 +144,43 @@ struct FeedView: View {
             }
             .tint(Hue.ink)
         }
+        // DEBUG-only now that nothing in the UI is driven by the scroll offset: the
+        // bar is locked and no longer fades. `-feed-scroll-sweep -scroll-log` is
+        // still the trace that catches a ringing scroll (see `TodayHeader
+        // .contentHeight`), so the sampler survives for that — and only that.
+        //
+        // Note the offset expression: `contentOffset.y` rests at `-contentInsets
+        // .top`, so the `+ geometry.contentInsets.top` term is what makes 0 mean
+        // "at rest".
+        #if DEBUG
         .onScrollGeometryChange(for: CGFloat.self) { geometry in
             geometry.contentOffset.y + geometry.contentInsets.top
         } action: { _, offset in
-            scrollOffset = offset
-            #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("-scroll-log") {
-                print("SCROLLLOG offset=\(offset) progress=\(chromeProgress)")
+                print("SCROLLLOG offset=\(offset)")
             }
-            #endif
         }
+        #endif
         // The bar rides ON the scroll, not above it: as a top safe-area inset the
         // feed's content passes UNDERNEATH it, which is the whole point — an
         // opaque strip has nothing to blur and reads as a white lid.
         .safeAreaBar(edge: .top, spacing: 0) {
-            TodayTopBar(onOpenMap: onOpenMap, chromeProgress: chromeProgress)
+            TodayTopBar(onOpenSearch: onOpenSearch,
+                        onOpenMap: onOpenMap,
+                        onOpenNotifications: onOpenNotifications)
         }
         // The glass fade at the top of the screen (Jesse, 2026-09-19, matching
         // Instagram's feed): content sliding under the status bar is blurred and
         // washed toward the page instead of being covered by a white bar.
-        .scrollEdgeEffectStyle(.soft, for: .top)
+        //
+        // `.hard`, not `.soft`, since the bar was locked (2026-09-21). While the
+        // chrome faded away over the first 44pt of scroll, nothing of ours was left
+        // in this band to collide with — `.soft` passed the card action row through
+        // legibly and it did not matter. Locked, it did: a ghost heart sat under the
+        // search mark and a ghost bookmark under the bell. `.hard` blurs the same
+        // content far enough to read as material rather than as icons. One word to
+        // put back if the softer wash is worth the ghosting.
+        .scrollEdgeEffectStyle(.hard, for: .top)
         .scrollPosition($feedPosition)
         .refreshable {
             if controller.briefing.needsRefresh {

@@ -146,19 +146,35 @@ private actor FeedCardImageLoader {
 /// The last of the contrast is carried by `feedCardPhotoTypeShadow()` on the copy
 /// itself, which is cheaper visually than blanketing the photograph.
 struct FeedCardPhotoScrim: View {
-    /// Height of the image this scrim sits on; the scrim covers its bottom `coverage`.
+    /// Height of the image this scrim sits on; the scrim covers `coverage` of it.
     let imageHeight: CGFloat
+    /// Which edge the copy sits against. `.top` is the posting header floating over
+    /// the photograph; it is a shorter, lighter ramp than the title's, because it
+    /// carries one line of chrome rather than a headline.
+    var edge: VerticalEdge = .bottom
 
     private static let coverage: CGFloat = 0.58
+    private static let topCoverage: CGFloat = 0.3
     private static let stops: [Gradient.Stop] = [
         .init(color: .black.opacity(0), location: 0),
         .init(color: .black.opacity(0.18), location: 0.45),
         .init(color: .black.opacity(0.68), location: 1),
     ]
+    private static let topStops: [Gradient.Stop] = [
+        .init(color: .black.opacity(0.45), location: 0),
+        .init(color: .black.opacity(0.14), location: 0.55),
+        .init(color: .black.opacity(0), location: 1),
+    ]
 
     var body: some View {
-        LinearGradient(stops: Self.stops, startPoint: .top, endPoint: .bottom)
-            .frame(height: imageHeight * Self.coverage)
+        switch edge {
+        case .bottom:
+            LinearGradient(stops: Self.stops, startPoint: .top, endPoint: .bottom)
+                .frame(height: imageHeight * Self.coverage)
+        case .top:
+            LinearGradient(stops: Self.topStops, startPoint: .top, endPoint: .bottom)
+                .frame(height: imageHeight * Self.topCoverage)
+        }
     }
 }
 

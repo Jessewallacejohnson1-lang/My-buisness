@@ -74,12 +74,32 @@ final class DynamicTypeAuditTests: XCTestCase {
     /// at the same count slips through. Fingerprints churn on fixture copy, which
     /// would make the gate cry wolf; move to them if this ever masks a real one.
     static let knownIssueCounts: [String: Int] = [
-        "town@AX3": 4,            "town@AX5": 4,
-        "town-menu@AX3": 6,       "town-menu@AX5": 5,
-        "town-scrolled@AX3": 2,   "town-scrolled@AX5": 1,
-        "you@AX3": 3,             "you@AX5": 3,
-        "you-profile@AX3": 3,     "you-profile@AX5": 3,
-        // daily and business are clean at both sizes, and stay that way.
+        // Ratcheted down 2026-09-20: the posting header wraps its author name at
+        // accessibility sizes and drops the age, so the name no longer clips.
+        //
+        // Ratcheted down AGAIN later the same day, after the tab bar gained its
+        // Create disc. The mechanism is the bar's HEIGHT, not the disc: the five
+        // labels picked up `.lineLimit(1).minimumScaleFactor(0.85)`, so at AX5 the
+        // bar stops growing to two and three lines of text and stops overlapping the
+        // content above it. That is why the surfaces that improved are the ones with
+        // something sitting just above the bar — `you`, `you-profile` and the
+        // scrolled feed — and why `town-scrolled` went clean at BOTH sizes.
+        //
+        // Measured over two consecutive COMPLETE runs (14/14 surfaces, nothing else
+        // driving a simulator), which is the bar this file sets. Two earlier runs
+        // disagreed and were both contended — one reported a phantom finding on
+        // `daily` and `business` that neither clean run reproduces. If you are
+        // re-measuring, run the audit alone.
+        //
+        // Caveat for whoever reads this next: the tree these were measured on also
+        // carried in-flight feed-card work. If that work is reverted, expect these to
+        // go back UP — read the element list before assuming a regression.
+        "town@AX3": 3,            "town@AX5": 3,
+        "town-menu@AX3": 4,       "town-menu@AX5": 4,
+        "you@AX3": 3,             "you@AX5": 1,
+        "you-profile@AX3": 3,
+        // Clean at both sizes and staying that way: daily, business, town-scrolled,
+        // and you-profile@AX5. An entry absent from this map must report zero.
     ]
 
     func testEverySurfaceHoldsItsLayoutAtAccessibilityTextSizes() throws {
@@ -168,9 +188,17 @@ final class DynamicTypeAuditTests: XCTestCase {
     private func isFrozenByDesign(_ issue: XCUIAccessibilityAuditIssue) -> Bool {
         guard let label = issue.element?.label else { return false }
 
-        // The tab bar. Four fixed destinations in a bar with a fixed height; a
-        // grown tab bar eats the screen the content needs.
-        if ["Town", "Daily", "Business", "You"].contains(label) { return true }
+        // The tab bar. Four fixed destinations plus the Create disc, in a bar with a
+        // fixed height; a grown tab bar eats the screen the content needs. Every one
+        // of these labels carries `.minimumScaleFactor` and a large-content viewer,
+        // so the text still responds to the setting — it just does it inside the bar
+        // instead of by making the bar taller.
+        //
+        // NOTE this matches by LABEL, app-wide, not by position in the bar. "Create"
+        // is the fifth word it will suppress anywhere it appears, so a future CTA in
+        // the composer must not be labelled exactly "Create". The four that were
+        // already here have the same weakness.
+        if ["Town", "Daily", "Business", "You", "Create"].contains(label) { return true }
 
         // The wordmark. A logo is a mark, not text — it holds its proportions
         // against the artwork beside it at every content size.

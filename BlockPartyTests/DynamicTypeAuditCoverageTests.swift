@@ -42,6 +42,8 @@ final class DynamicTypeAuditCoverageTests: XCTestCase {
         // than this ledger has entries.
 
         "RootView.swift:$showMap": .notYetAudited(reason: "The full-screen map. Needs a launch flag; its own text is mostly frozen map-marker chrome, so the payoff is the search and filter row, not the map."),
+        "RootView.swift:$showSearch": .notYetAudited(reason: "The Today bar's search mark. A reserved screen today — one title and one line of centred copy, which is the shape this audit is least likely to find anything in. Worth opening the moment it holds a field and a results list."),
+        "RootView.swift:$showNotifications": .notYetAudited(reason: "The Today bar's bell. Reserved screen, same shape as search above. A real notification list is user-generated text of any length, so it moves to high priority the day it has rows."),
         "RootView.swift:$composing": .notYetAudited(reason: "Compose speed dial. Needs a launch flag."),
         "RootView.swift:$composeKind": .notYetAudited(reason: "Add form. A form at AX5 is exactly where truncation hurts — high priority once a launch flag exists."),
         "AddView.swift:$selected": .notYetAudited(reason: "Add-kind picker, reached from compose."),

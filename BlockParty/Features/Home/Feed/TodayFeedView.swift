@@ -9,7 +9,6 @@ struct TodayFeedView: View {
     var onLoadComments: ((String) async throws -> [EventComment])?
     var onComment: ((String, String) async throws -> EventComment)?
     var onShare: ((FeedCardItem) -> Void)?
-    var onJoin: ((String, Bool) -> Void)?
     var onSave: ((String, Bool) -> Void)?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -73,7 +72,6 @@ struct TodayFeedView: View {
                 let entranceIndex = entranceIndex(for: item.id)
                 FeedEventCard(
                     item: item,
-                    onJoin: { joined in onJoin?(item.id, joined) },
                     onLike: { liked in onLike?(item.id, liked) },
                     onSave: { saved in onSave?(item.id, saved) },
                     onLoadComments: commentLoader(for: item.id),

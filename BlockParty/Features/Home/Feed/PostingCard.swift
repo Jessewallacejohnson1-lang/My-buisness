@@ -17,17 +17,21 @@ struct PostingCard: View {
     var onLike: ((Bool) -> Void)?
     var onSave: ((Bool) -> Void)?
     var onShare: (() -> Void)?
+    var onFollow: ((Bool) -> Void)?
     var onLoadComments: (() async throws -> [EventComment])?
     var onComment: ((String) async throws -> EventComment)?
 
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var actionState: FeedCardActionState
+    /// Local so the button leaves the moment it is tapped. The feed's copy of the
+    /// posting catches up on the next refresh; waiting for it would leave a button
+    /// sitting there that you have already used.
+    @State private var isFollowing: Bool
     @State private var commentState: FeedCommentState
     @State private var commentsPresented = false
     @State private var captionExpanded = false
-    @State private var burstScale: CGFloat = 0
-    @State private var burstOpacity: Double = 0
-    @State private var burstGeneration = 0
+    @State private var likeBurst = FeedLikeBurst()
 
     init(
         posting: PostingItem,
@@ -35,6 +39,7 @@ struct PostingCard: View {
         onLike: ((Bool) -> Void)? = nil,
         onSave: ((Bool) -> Void)? = nil,
         onShare: (() -> Void)? = nil,
+        onFollow: ((Bool) -> Void)? = nil,
         onLoadComments: (() async throws -> [EventComment])? = nil,
         onComment: ((String) async throws -> EventComment)? = nil
     ) {
@@ -42,25 +47,25 @@ struct PostingCard: View {
         self.onLike = onLike
         self.onSave = onSave
         self.onShare = onShare
+        self.onFollow = onFollow
         self.onLoadComments = onLoadComments
         self.onComment = onComment
         _actionState = State(initialValue: FeedCardActionState(posting: posting))
+        _isFollowing = State(initialValue: posting.signals.isFollowed)
         _commentState = State(initialValue: FeedCommentState(comments: comments))
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            header
-                .padding(.horizontal, DailyFeedMetric.contentInset)
-
-            // The photo is the one thing that runs to both screen edges. Everything
-            // else on the card keeps `contentInset` so the copy is not reading off
-            // the bezel (Jesse, 2026-09-19).
+            // The photo is the one thing that runs to both screen edges, and the
+            // author rides ON it rather than above it (Jesse, 2026-09-20 — the
+            // Reels header). Everything below keeps `contentInset` so the copy is
+            // not reading off the bezel.
             imageSection
-                .padding(.top, 10)
 
             FeedEventCardActionRow(
                 kind: .posting,
+                commentCount: posting.commentCount,
                 state: $actionState,
                 reduceMotion: motionIsReduced,
                 autoplayStep: 0,
@@ -74,12 +79,6 @@ struct PostingCard: View {
 
             caption
                 .padding(.horizontal, DailyFeedMetric.contentInset)
-
-            if posting.commentCount > 0 {
-                commentsLink
-                    .padding(.top, 4)
-                    .padding(.horizontal, DailyFeedMetric.contentInset)
-            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
@@ -95,59 +94,124 @@ struct PostingCard: View {
 
     // MARK: - Header
 
-    private var header: some View {
-        HStack(spacing: 10) {
-            avatar
+    /// Instagram's header, measured off a capture (Jesse, 2026-09-20): a 32pt round
+    /// avatar, 8pt of air, the name at 13pt semibold with the age trailing it in the
+    /// same line, and the follow control at the far edge.
+    private enum Metric {
+        static let avatarSide: CGFloat = 32
+        static let avatarGap: CGFloat = 8
+        static let followHeight: CGFloat = 30
+        static let followInset: CGFloat = 12
+        static let followRadius: CGFloat = 8
+        /// The header's inset from the photo's own edges. Tighter than the card's
+        /// `contentInset`, the way a floating header always is — it is sitting on
+        /// the picture, not in the column.
+        static let overlayInset: CGFloat = 12
+    }
 
-            Text(posting.authorName)
-                .font(.sansSemibold(14))
-                .foregroundStyle(Hue.ink)
-                .lineLimit(1)
+    private var header: some View {
+        HStack(spacing: 0) {
+            HStack(spacing: Metric.avatarGap) {
+                avatar
+
+                Text(posting.authorName)
+                    .font(.sansSemibold(13))
+                    .foregroundStyle(.white)
+                    // One line is the Instagram header; at accessibility sizes a
+                    // name that long has nowhere to go but a second line, and a
+                    // clipped name is worse than a taller header.
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+
+                // The age rides with the name rather than holding the trailing edge —
+                // that edge is the follow button's now. At accessibility sizes there
+                // is no room for both on one line, and the name is the one that has
+                // to survive, so the age drops out rather than clipping the header
+                // (caught by the Dynamic Type audit at AX3).
+                if !dynamicTypeSize.isAccessibilitySize {
+                    Text("· " + Self.relativeLabel(for: posting.createdAt))
+                        .font(.sans(13))
+                        .foregroundStyle(.white.opacity(0.75))
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .layoutPriority(-1)
+                }
+            }
+            .accessibilityElement(children: .combine)
 
             Spacer(minLength: 8)
 
-            Text(Self.relativeLabel(for: posting.createdAt))
-                .font(.sans(13))
-                .foregroundStyle(Hue.inkSecondary)
-                .monospacedDigit()
+            if !isFollowing {
+                followButton
+            }
         }
-        .accessibilityElement(children: .combine)
+        // The scrim does most of the work; this catches a bright patch landing
+        // under a letterform, same as the event card's title.
+        .feedCardPhotoTypeShadow()
     }
 
-    @ViewBuilder
     private var avatar: some View {
-        // A square-framed mark on an inert fill, never an emoji and never a coloured
-        // illustration — the brand's photo-less rule.
-        if let url = posting.authorAvatar {
-            FeedCardURLPhoto(url: url)
-                .frame(width: 32, height: 32)
-                .clipShape(Circle())
-        } else {
-            BlockPartyGlyph(side: 32)
-                .frame(width: 32, height: 32)
+        FeedAuthorAvatar(
+            url: posting.authorAvatar,
+            name: posting.authorName,
+            side: Metric.avatarSide
+        )
+    }
+
+    /// Only here while you are not following. Following is the end of this button's
+    /// job — an "Following" state would just be a second thing to tap by accident,
+    /// and unfollowing belongs on the profile, not in the middle of a feed.
+    private var followButton: some View {
+        Button {
+            withAnimation(motionIsReduced ? nil : Motion.snappy) { isFollowing = true }
+            onFollow?(true)
+        } label: {
+            Text("Follow")
+                .font(.sansSemibold(13))
+                .foregroundStyle(.white)
+                .padding(.horizontal, Metric.followInset)
+                .frame(height: Metric.followHeight)
+                .contentShape(Rectangle())
+                .background(
+                    RoundedRectangle(cornerRadius: Metric.followRadius, style: .continuous)
+                        .strokeBorder(.white.opacity(0.85), lineWidth: 1)
+                )
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Follow \(posting.authorName)")
     }
 
     // MARK: - Image
 
+    /// Instagram's feed frame, edge to edge: a 4:5 portrait at the full screen width
+    /// (Jesse, 2026-09-20). A posting is somebody's camera roll and is the BIG card —
+    /// an event is the small, inset, cut one.
     private var imageSection: some View {
         imageContent
             .aspectRatio(4.0 / 5.0, contentMode: .fit)
             .frame(maxWidth: .infinity)
-            // A small corner, not `Radius.card`: the media runs to both screen edges, so
-            // a card-sized radius would read as a tile that had slipped off the page.
+            .overlay(alignment: .top) {
+                GeometryReader { proxy in
+                    FeedCardPhotoScrim(imageHeight: proxy.size.height, edge: .top)
+                        .frame(width: proxy.size.width)
+                        .allowsHitTesting(false)
+                }
+            }
+            // INSIDE the clip: the heart's exit is this edge cutting it off, and
+            // being under the header overlay means it slides beneath the avatar row
+            // on its way out rather than colliding with the Follow button.
+            .feedCardLikeBurst(likeBurst, reduceMotion: motionIsReduced)
             .clipShape(RoundedRectangle(cornerRadius: DailyFeedMetric.mediaRadius, style: .continuous))
-            .overlay {
-                Image(systemName: "heart.fill")
-                    .font(.glyph(84, weight: .bold))
-                    .symbolRenderingMode(.monochrome)
-                    .foregroundStyle(.white)
-                    .scaleEffect(motionIsReduced ? 1 : burstScale)
-                    .opacity(burstOpacity)
-                    .accessibilityHidden(true)
+            .overlay(alignment: .top) {
+                header
+                    .padding(.horizontal, Metric.overlayInset)
+                    .padding(.top, Metric.overlayInset)
             }
             .contentShape(Rectangle())
-            .simultaneousGesture(TapGesture(count: 2).onEnded(performImageLike))
+            // Spatial, not a plain `TapGesture`: the heart has to land under the
+            // finger, which means knowing where the finger was.
+            .simultaneousGesture(
+                SpatialTapGesture(count: 2).onEnded { performImageLike(at: $0.location) }
+            )
     }
 
     @ViewBuilder
@@ -190,15 +254,6 @@ struct PostingCard: View {
         }
     }
 
-    private var commentsLink: some View {
-        Button { commentsPresented = true } label: {
-            Text(posting.commentCount == 1 ? "View 1 note" : "View all \(posting.commentCount) notes")
-                .font(.sans(13))
-                .foregroundStyle(Hue.inkSecondary)
-        }
-        .buttonStyle(.plain)
-    }
-
     // MARK: - Behaviour
 
     private var motionIsReduced: Bool { accessibilityReduceMotion }
@@ -206,48 +261,15 @@ struct PostingCard: View {
     /// Double-tap the photo to like it. Idempotent — a second double-tap re-plays
     /// the burst without taking the heart back, because an accidental un-like is a
     /// worse outcome than an accidental repeat.
-    private func performImageLike() {
-        burstGeneration += 1
-        let generation = burstGeneration
+    private func performImageLike(at point: CGPoint?) {
         let changed = !actionState.isLiked
 
-        if motionIsReduced {
-            burstScale = 1
-            withAnimation(.easeInOut(duration: 0.15)) {
-                _ = actionState.like()
-                burstOpacity = 1
-            }
-        } else {
-            burstScale = 0
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.55)) {
-                _ = actionState.like()
-                burstScale = 1.15
-                burstOpacity = 1
-            }
+        withAnimation(motionIsReduced ? .easeInOut(duration: 0.15) : Motion.snappy) {
+            _ = actionState.like()
         }
+        likeBurst.fire(at: point)
 
         if changed { onLike?(true) }
-
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(150))
-            guard generation == burstGeneration else { return }
-
-            if !motionIsReduced {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.55)) {
-                    burstScale = 1
-                }
-            }
-
-            try? await Task.sleep(for: .milliseconds(500))
-            guard generation == burstGeneration else { return }
-            withAnimation(.linear(duration: motionIsReduced ? 0.15 : 0.2)) {
-                burstOpacity = 0
-            }
-
-            try? await Task.sleep(for: .milliseconds(200))
-            guard generation == burstGeneration else { return }
-            burstScale = 0
-        }
     }
 
     /// "now" / "4h" / "3d" / "2w". Deliberately not `RelativeDateTimeFormatter`,

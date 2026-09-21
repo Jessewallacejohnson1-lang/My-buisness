@@ -12,6 +12,11 @@ struct FeedCardItem: Identifiable, Hashable {
     let metaLine: String
     let image: FeedCardImageSource
     let recurrence: String?
+    /// Who is putting the event on — a business, a parish, a neighbour. The card's
+    /// attribution line, sitting where a publisher's wordmark sits on an Apple News
+    /// card. Empty means the source is unknown and the line is simply not drawn.
+    var hostName: String = ""
+    var hostAvatar: URL? = nil
     let goingCount: Int
     let goingAvatars: [URL]
     let goingSummary: String
@@ -86,32 +91,6 @@ struct FeedCardActionState: Equatable {
         likeCount = item.likeCount
         isLiked = item.isLiked
         isSaved = item.isSaved
-    }
-}
-
-struct FeedCardJoinState: Equatable {
-    private(set) var goingCount: Int
-    private(set) var isJoined: Bool
-    private(set) var hasCurrentUserAvatar: Bool
-
-    init(item: FeedCardItem) {
-        goingCount = item.goingCount
-        isJoined = item.isJoined
-        hasCurrentUserAvatar = item.isJoined
-    }
-
-    @discardableResult
-    mutating func toggleJoin() -> Bool {
-        isJoined.toggle()
-        goingCount = max(0, goingCount + (isJoined ? 1 : -1))
-        hasCurrentUserAvatar = isJoined
-        return isJoined
-    }
-
-    mutating func sync(with item: FeedCardItem) {
-        goingCount = item.goingCount
-        isJoined = item.isJoined
-        hasCurrentUserAvatar = item.isJoined
     }
 }
 

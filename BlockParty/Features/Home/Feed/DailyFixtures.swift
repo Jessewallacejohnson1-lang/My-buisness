@@ -110,36 +110,42 @@ enum DailyFixtures {
         [
             event(
                 id: "e1", title: "Music in Millstream Park",
+                host: "St. Joseph Parks & Rec", hostAvatar: true,
                 chip: "TONIGHT", meta: "7pm · Millstream Park",
                 photo: true, hoursUntil: 6, postedHoursAgo: 8, going: 41,
                 followed: true, friend: false, followedLikers: 12, now: now
             ),
             event(
                 id: "e2", title: "Farmers Market",
+                host: "Resurrection Lutheran", hostAvatar: true,
                 chip: "SAT", meta: "8am · Resurrection Lutheran",
                 photo: true, hoursUntil: 40, postedHoursAgo: 30, going: 128,
                 followed: true, friend: false, followedLikers: 6, now: now
             ),
             event(
                 id: "e3", title: "Trail cleanup morning",
+                host: "Wobegon Trail Association", hostAvatar: false,
                 chip: "SUN", meta: "9am · Lake Wobegon Trailhead",
                 photo: false, hoursUntil: 64, postedHoursAgo: 52, going: 12,
                 followed: false, friend: false, followedLikers: 0, now: now
             ),
             event(
                 id: "e4", title: "Abbey organ recital",
+                host: "Saint John's Abbey", hostAvatar: true,
                 chip: "NEXT MONTH", meta: "4pm · Saint John's Abbey",
                 photo: true, hoursUntil: 24 * 27, postedHoursAgo: 96, going: 63,
                 followed: true, friend: false, followedLikers: 4, now: now
             ),
             event(
                 id: "e5", title: "City Council — regular meeting",
+                host: "City of St. Joseph", hostAvatar: false,
                 chip: "TUE", meta: "6pm · City Hall",
                 photo: false, hoursUntil: 20, postedHoursAgo: 12, going: 3,
                 followed: false, friend: false, followedLikers: 0, now: now
             ),
             event(
                 id: "e6", title: "Saint Ben's spring choral concert",
+                host: "College of Saint Benedict", hostAvatar: true,
                 chip: "FINISHED", meta: "7pm · Sacred Heart Chapel",
                 photo: true, hoursUntil: -30, postedHoursAgo: 120, going: 210,
                 followed: true, friend: true, followedLikers: 20, now: now
@@ -176,7 +182,8 @@ enum DailyFixtures {
     }
 
     private static func event(
-        id: String, title: String, chip: String, meta: String, photo: Bool,
+        id: String, title: String, host: String, hostAvatar: Bool,
+        chip: String, meta: String, photo: Bool,
         hoursUntil: Double, postedHoursAgo: Double, going: Int,
         followed: Bool, friend: Bool, followedLikers: Int, now: Date
     ) -> DailyFeedItem {
@@ -187,6 +194,8 @@ enum DailyFixtures {
             metaLine: meta,
             image: photo ? Self.photoURL(id) : .fallback,
             recurrence: nil,
+            hostName: host,
+            hostAvatar: hostAvatar ? Self.avatarURL(id) : nil,
             goingCount: going,
             goingAvatars: [],
             goingSummary: going == 1 ? "1 neighbor is going" : "\(going) neighbors are going",

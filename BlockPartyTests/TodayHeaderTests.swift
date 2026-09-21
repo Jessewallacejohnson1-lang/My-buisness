@@ -115,42 +115,25 @@ final class TodayHeaderTests: XCTestCase {
         // Grown on 2026-09-18 with the larger map disc (50pt). The guard stays a
         // guard — it just guards the new numbers.
         XCTAssertEqual(TodayHeader.contentHeight, 58)
-        XCTAssertEqual(TodayHeader.chromeFadeDistance, 44)
 
         // The bar clears the 50pt map disc it carries. `maxHeight` and
         // `collapsedHeight` are gone with the collapse itself (2026-09-19).
         XCTAssertGreaterThan(TodayHeader.contentHeight, 50)
     }
 
-    // MARK: - The chrome leaves as the feed scrolls
-
-    /// At rest the wordmark and the map disc are fully present; by the fade distance
-    /// they are gone. Clamped at both ends — a rubber-band pull past the top must not
-    /// over-brighten the chrome, and a long scroll must not drive it past gone.
-    func testChromeProgressRunsFromRestToGoneAndClampsBothEnds() {
-        XCTAssertEqual(TodayHeader.chromeProgress(contentOffsetY: 0), 0)
-        XCTAssertEqual(TodayHeader.chromeProgress(contentOffsetY: -80), 0,
-                       "a pull past the top is not negative scroll for this purpose")
-        XCTAssertEqual(TodayHeader.chromeProgress(contentOffsetY: 22), 0.5, accuracy: 0.001)
-        XCTAssertEqual(TodayHeader.chromeProgress(contentOffsetY: TodayHeader.chromeFadeDistance), 1)
-        XCTAssertEqual(TodayHeader.chromeProgress(contentOffsetY: 900), 1)
-    }
+    // MARK: - The bar is locked to the top
 
     /// The bar's height is a CONSTANT, and this is the guard on that.
     ///
-    /// `TodayHeader` deliberately exposes no height-from-progress function any more.
-    /// The bar is a `safeAreaBar` on the feed's scroll, so its height is that
-    /// scroll's top inset, and `chromeProgress` is computed from an offset measured
-    /// against that inset — a collapsing bar therefore rang instead of settling
-    /// (1420 direction reversals in 1422 samples; the feed would not scroll at all).
-    /// If a height is ever derived from scroll again, it has to be driven by
-    /// something the scroll does not read back.
+    /// `TodayHeader` deliberately exposes nothing derived from the scroll at all now
+    /// — the fade went with the lock (2026-09-21) and no height function preceded
+    /// it. The bar is a `safeAreaBar` on the feed's scroll, so its height IS that
+    /// scroll's top inset: anything read back off that scroll and fed to the height
+    /// rang instead of settling (1420 direction reversals in 1422 samples; the feed
+    /// would not scroll at all). If a height is ever derived from scroll again, it
+    /// has to be driven by something the scroll does not read back.
     func testTheBarsHeightDoesNotFollowTheScroll() {
         XCTAssertEqual(TodayHeader.contentHeight, 58)
-
-        // The chrome still leaves — it just does it without resizing the bar.
-        XCTAssertEqual(TodayHeader.chromeProgress(contentOffsetY: 0), 0)
-        XCTAssertEqual(TodayHeader.chromeProgress(contentOffsetY: 44), 1)
     }
 
     // MARK: - What the bar carries

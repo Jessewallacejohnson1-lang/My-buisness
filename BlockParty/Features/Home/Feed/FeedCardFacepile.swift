@@ -1,6 +1,10 @@
 //
 //  FeedCardFacepile.swift
-//  Block Party — max-three neighbor avatars, overflow, and current-user pop.
+//  Block Party — max-three neighbor avatars and the overflow badge.
+//
+//  The current-user slot and its spring-in went with the card's "+" RSVP control on
+//  2026-09-19 (Jesse): with nothing on the card to join from, there was no moment for
+//  your own face to pop into the pile.
 //
 
 import SwiftUI
@@ -8,7 +12,6 @@ import SwiftUI
 struct FeedCardFacepile: View {
     let neighborAvatars: [URL]
     let goingCount: Int
-    let includesCurrentUser: Bool
     let reduceMotion: Bool
 
     private let placeholderInitials = ["A", "M", "S"]
@@ -17,12 +20,7 @@ struct FeedCardFacepile: View {
         HStack(spacing: -8) {
             ForEach(slots) { slot in
                 avatar(for: slot)
-                    .zIndex(slot.isCurrentUser ? 10 : Double(slot.order))
-                    .transition(
-                        slot.isCurrentUser
-                            ? currentUserTransition
-                            : .identity
-                    )
+                    .zIndex(Double(slot.order))
             }
 
             if overflowCount > 0 {
@@ -30,12 +28,6 @@ struct FeedCardFacepile: View {
                     .zIndex(20)
             }
         }
-        .animation(
-            reduceMotion
-                ? nil
-                : .spring(response: 0.35, dampingFraction: 0.6),
-            value: includesCurrentUser
-        )
         .accessibilityHidden(true)
     }
 
@@ -44,34 +36,14 @@ struct FeedCardFacepile: View {
         guard visibleCount > 0 else { return [] }
 
         var result: [Slot] = []
-        if includesCurrentUser {
-            result.append(
-                Slot(id: .currentUser, order: 0, url: nil, isCurrentUser: true)
-            )
-        }
-
         for (index, url) in neighborAvatars.enumerated()
         where result.count < visibleCount {
-            result.append(
-                Slot(
-                    id: .neighbor(index),
-                    order: result.count,
-                    url: url,
-                    isCurrentUser: false
-                )
-            )
+            result.append(Slot(id: .neighbor(index), order: result.count, url: url))
         }
 
         while result.count < visibleCount {
             let index = result.count
-            result.append(
-                Slot(
-                    id: .placeholder(index),
-                    order: index,
-                    url: nil,
-                    isCurrentUser: false
-                )
-            )
+            result.append(Slot(id: .placeholder(index), order: index, url: nil))
         }
 
         return result
@@ -100,13 +72,9 @@ struct FeedCardFacepile: View {
 
     private func avatar(for slot: Slot) -> some View {
         ZStack {
-            Circle().fill(slot.isCurrentUser ? Hue.ink : Hue.fill)
+            Circle().fill(Hue.fill)
 
-            if slot.isCurrentUser {
-                Text("Y")
-                    .font(.sansSemibold(10))
-                    .foregroundStyle(.white)
-            } else if let url = slot.url {
+            if let url = slot.url {
                 FeedCardURLPhoto(url: url)
                     .frame(width: 24, height: 24)
                     .clipShape(Circle())
@@ -121,17 +89,11 @@ struct FeedCardFacepile: View {
         .overlay(Circle().strokeBorder(Hue.paper, lineWidth: 1.5))
     }
 
-    private var currentUserTransition: AnyTransition {
-        reduceMotion
-            ? .identity
-            : .scale(scale: 0.75, anchor: .center).combined(with: .opacity)
-    }
 }
 
 private extension FeedCardFacepile {
     struct Slot: Identifiable {
         enum ID: Hashable {
-            case currentUser
             case neighbor(Int)
             case placeholder(Int)
         }
@@ -139,6 +101,38 @@ private extension FeedCardFacepile {
         let id: ID
         let order: Int
         let url: URL?
-        let isCurrentUser: Bool
+    }
+}
+
+/// A feed author's profile picture: the poster of a posting, the host of an event.
+///
+/// Always a circle (Jesse, 2026-09-19). The photo-less case is their initial on an
+/// inert fill, matching the facepile's placeholder above — NOT `BlockPartyGlyph`,
+/// which is the app icon on a rounded square, and whose wide wordmark lockup loses
+/// its ends when clipped into a circle.
+struct FeedAuthorAvatar: View {
+    let url: URL?
+    let name: String
+    var side: CGFloat = 32
+
+    var body: some View {
+        ZStack {
+            Circle().fill(Hue.fill)
+
+            if let url {
+                FeedCardURLPhoto(url: url)
+                    .frame(width: side, height: side)
+            } else {
+                Text(initial)
+                    .font(.sansSemibold(14))
+                    .foregroundStyle(Hue.ink)
+            }
+        }
+        .frame(width: side, height: side)
+        .clipShape(Circle())
+    }
+
+    private var initial: String {
+        name.first.map { String($0).uppercased() } ?? ""
     }
 }

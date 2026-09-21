@@ -287,11 +287,30 @@ struct MainTabsView: View {
         #endif
     }
 
+    /// DEBUG-only: raise a sheet on launch by flag name. `-open-search` and
+    /// `-open-notifications` are the Today bar's two new marks, whose only real
+    /// trigger is a tap — and there is no tap automation in this setup, so without a
+    /// flag those screens cannot be screenshotted OR added to the accessibility
+    /// audit's walk. Generic because the pattern above had already been copy-pasted
+    /// three times. No effect in release or without the flag.
+    private static func debugOpen(_ flag: String) -> Bool {
+        #if DEBUG
+        return ProcessInfo.processInfo.arguments.contains(flag)
+        #else
+        return false
+        #endif
+    }
+
     @State private var expandedPlace: Place?
     /// The map, presented full-screen from the Today tab's top-right button
     /// rather than living in the bar. Its selected-pin state belongs to
     /// `SJMapView` itself now — the shell has no tab bar to hide under it.
     @State private var showMap = false
+    /// The Today bar's two new controls, added 2026-09-20. Both open a reserved
+    /// screen for now — the marks shipped ahead of what sits behind them, and a
+    /// named empty room is the same call `BlankTab` makes for the unbuilt tabs.
+    @State private var showSearch = MainTabsView.debugOpen("-open-search")
+    @State private var showNotifications = MainTabsView.debugOpen("-open-notifications")
     @State private var composing = false
     /// Readiness of the *current* tab's content, gathered from `TabReadyPreferenceKey`.
     /// Drives the loading cover that hides a not-yet-rendered tab.
@@ -345,6 +364,8 @@ struct MainTabsView: View {
                                 menuOpen: showMenu,
                                 profileShown: showProfileSheet,
                                 onOpenMap: { showMap = true },
+                                onOpenSearch: { showSearch = true },
+                                onOpenNotifications: { showNotifications = true },
                                 expandedPlace: $expandedPlace,
                                 cardNS: cardNS
                             )
@@ -378,7 +399,7 @@ struct MainTabsView: View {
                 }
             }
 
-            BlockPartyTabBar(selection: $tab, onSelect: select)
+            BlockPartyTabBar(selection: $tab, onSelect: select, onCreate: { composing = true })
                 .transition(.opacity)
                 .zIndex(10)
             // THE `.environment(\.colorScheme, .light)` THAT USED TO BE HERE IS GONE.
@@ -444,6 +465,10 @@ struct MainTabsView: View {
         }
         // Profile is now a menu destination — a standard sheet.
         .sheet(isPresented: $showProfileSheet) { ProfileView() }
+        // The Today bar's search mark and bell. Reserved screens until the real ones
+        // land; see `ReservedScreen`.
+        .sheet(isPresented: $showSearch) { ReservedScreen.search }
+        .sheet(isPresented: $showNotifications) { ReservedScreen.notifications }
         // Global compose sheet — triggered by "Add an event" anywhere in the app
         .sheet(isPresented: $composing) {
             AddView()
@@ -586,6 +611,10 @@ struct BlockPartyTabBar: View {
     /// Tap handler — the parent owns the animated page slide + haptic, so the pill
     /// (driven by `selection`) and the screen slide ride the same spring.
     var onSelect: (Tab) -> Void
+    /// The centre Create disc. It is NOT a destination, so it does not go through
+    /// `onSelect` and it never takes the pill — it raises the composer and the bar
+    /// stays exactly where it was.
+    var onCreate: () -> Void = {}
     @Namespace private var pill
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -597,12 +626,33 @@ struct BlockPartyTabBar: View {
 
     private let iconSize: CGFloat = 20
     private let iconLane: CGFloat = 23
+    /// The Create disc, 40pt — the reference's centre button measures 40.3pt
+    /// (`refs/chrome/REFERENCE-SPEC.md`). Larger than the 20pt tab glyphs beside it,
+    /// which is the whole point of the shape.
+    private let discSide: CGFloat = 40
+    /// The Create column's fixed width: the disc plus 10pt of air each side. Fixed,
+    /// not `maxWidth: .infinity`, so the four destinations still divide the rest
+    /// evenly and the disc stays on the screen's midline.
+    private let createSlot: CGFloat = 60
 
+    /// Five slots, written out rather than looped, because only FOUR of them are
+    /// destinations. Create is an action: it raises the composer, it has no selected
+    /// state, and it must never take the `pill`.
+    ///
+    /// It is emphatically NOT a fifth `case` in `Tab`. `Tab` is `Int`-backed and its
+    /// rawValue is what `switchTab(to:)` subtracts to decide which way the page
+    /// slides; `allCases` drives the content `switch`, `initialTab()`, the `-open-tab`
+    /// launch argument and `BlankTab`. A case that has no screen would have to be
+    /// special-cased in every one of those, and the one it would silently corrupt is
+    /// the slide direction — Business would start animating as though it were two
+    /// steps from Town instead of one.
     var body: some View {
         HStack(spacing: 4) {
-            ForEach(Tab.allCases) { tab in
-                tabButton(tab)
-            }
+            tabButton(.town)
+            tabButton(.daily)
+            createButton
+            tabButton(.business)
+            tabButton(.you)
         }
         .padding(5)
         // Real Liquid Glass (iOS 26): genuinely translucent and refractive, with
@@ -638,6 +688,15 @@ struct BlockPartyTabBar: View {
                     .symbolEffect(.bounce, options: .speed(1.6), value: reduceMotion ? false : selected)
                 Text(tab.title)
                     .font(selected ? .sansSemibold(12) : .sansMedium(12))
+                    // Five slots divide the bar where four used to: at 393pt a slot
+                    // goes 82.8 → 66.8, and "Business" is the widest word at 52.9.
+                    // It still fits at the default size, but it began wrapping a
+                    // couple of Dynamic Type steps earlier than before. One line
+                    // with a floor holds the bar's HEIGHT steady instead, which is
+                    // the same trade the frozen glyphs already make — a tab bar that
+                    // grows eats the screen the content needs.
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
             }
             .foregroundStyle(selected ? Hue.ink : Hue.inkSecondary)
             .frame(maxWidth: .infinity)
@@ -654,6 +713,84 @@ struct BlockPartyTabBar: View {
         .buttonStyle(TabPressStyle(reduceMotion: reduceMotion))
         .accessibilityLabel(tab.title)
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+        // Frozen chrome owes the reader another way in: the glyph never grows, so a
+        // long press has to enlarge it. Apple's requirement for a custom bar, and
+        // until now the app had zero call sites of it.
+        .accessibilityShowsLargeContentViewer {
+            Label(tab.title, systemImage: selected ? tab.selectedSymbol : tab.symbol)
+        }
+    }
+
+    /// The centre Create disc: a solid brand-yellow circle carrying an ink plus, with
+    /// the word underneath so it reads in the same row of labels as its neighbours.
+    ///
+    /// The disc is **centred on the 23pt icon lane and allowed to overflow it**,
+    /// rather than sitting in a taller column of its own. That is what the reference
+    /// does — its disc centre and its glyph-row centre land within 0.3pt of each
+    /// other — and it is also what keeps every label on one line and the bar's height
+    /// unchanged at 70pt. A column sized to the disc instead would have pushed the
+    /// bar to 84pt and moved the pill off the row it belongs to.
+    ///
+    /// The 9pt vertical padding absorbs the overflow almost exactly: the disc clears
+    /// the column's own top edge by 0.5pt and the glass capsule's rim by 5.5pt.
+    private var createButton: some View {
+        Button(action: onCreate) {
+            VStack(spacing: 4) {
+                ZStack {
+                    Circle().fill(Hue.createDisc)
+                    CreatePlusGlyph(discSide: discSide)
+                        .foregroundStyle(Hue.onCreateDisc)
+                }
+                .frame(width: discSide, height: discSide)
+                .frame(height: iconLane)       // lays out as a tab glyph; draws bigger
+                Text("Create")
+                    .font(.sansMedium(12))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            }
+            .foregroundStyle(Hue.ink)
+            .frame(width: createSlot)
+            .padding(.vertical, 9)
+            .contentShape(Rectangle())
+        }
+        // The existing control press style, which already fires the light tick on the
+        // press-DOWN edge. Not `TabPressStyle` — that one exists because a tab must
+        // not dim while its pill slides underneath, and there is no pill here. Not
+        // `Haptics.selection()` either: nothing was selected, something is opening.
+        .buttonStyle(PressableStyle(scale: 0.92, haptic: true))
+        .accessibilityLabel("Create")
+        .accessibilityHint("Post an event, club, or update")
+        .accessibilityShowsLargeContentViewer {
+            Label("Create", systemImage: "plus")
+        }
+    }
+}
+
+/// The Create disc's plus, measured off the reference rather than taken from SF.
+///
+/// Two ratios of the disc and nothing else: an arm span of 0.391 (15.8pt on the
+/// reference's 40.3pt disc) at a stroke of 0.046 (1.86pt), with **butt** caps. SF
+/// `plus` is round-capped and a different proportion, which at this size reads as a
+/// softer, smaller mark — the same silhouette test `MapPinShape` applies.
+///
+/// Two crossed rectangles, not a `Shape`: there is no curve here to get wrong, and a
+/// stroked path would have to fight its own line caps to come out square.
+private struct CreatePlusGlyph: View {
+    /// The disc's diameter. Both the span and the weight are ratios of it, so the
+    /// mark holds its proportions if the disc is ever resized.
+    let discSide: CGFloat
+
+    private static let spanFraction: CGFloat = 0.391
+    private static let strokeFraction: CGFloat = 0.0462
+
+    var body: some View {
+        let span = discSide * Self.spanFraction
+        let weight = discSide * Self.strokeFraction
+        ZStack {
+            Rectangle().frame(width: span, height: weight)
+            Rectangle().frame(width: weight, height: span)
+        }
+        .accessibilityHidden(true)
     }
 }
 

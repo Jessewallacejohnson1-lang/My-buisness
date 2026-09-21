@@ -43,3 +43,6 @@ graphify-out/
 
 # per-agent scratch DerivedData
 .dd-*/
+
+# Serena MCP project cache — local tool state, never commit
+.serena/

@@ -30,11 +30,26 @@ tapped, and nothing else — never a border, never a background, never an error 
 A heart that stays ink reads as a shape; a heart that turns red reads as something you
 did, which is the control's whole job.
 
-**Accents are small by rule.** Today the yellow marks exactly one control: the Today
-bar's map disc (`Hue.mapWash` — the brand yellow at 68%, the same hue carried at
-partial opacity so the disc stays translucent over what is behind it). It is not a
-background wash, not body copy, not a card, not a category colour. More yellow is
-Jesse's call to scope, not an agent's to spread.
+**Accents are small by rule.** The yellow marks exactly TWO controls, both circular,
+both under 50pt:
+
+- the Today bar's map disc (`Hue.mapWash` — the brand yellow at 68%, the same hue
+  carried at partial opacity so the disc stays translucent over what is behind it);
+- the tab bar's Create disc (`Hue.createDisc` — the same yellow at FULL strength,
+  because a centre button that let the glass capsule through reads as a hole rather
+  than as an object). Jesse's call, 2026-09-20, copying an Alta reference whose centre
+  button is solid black.
+
+It is not a background wash, not body copy, not a card, not a category colour. Two is
+the boundary; a third is a conversation, and more yellow is Jesse's call to scope, not
+an agent's to spread.
+
+**What sits ON the yellow is not a free choice.** #FCE804 has a relative luminance of
+0.784 — nearly as bright as paper. White on it measures **1.26:1** and the dark ramp's
+`Hue.ink` **1.11:1**; only the light ink clears, at **15.0:1**. So the Create disc's
+plus is `Hue.onCreateDisc`, pinned to the light ramp the way the map canvas's ink is,
+and the reference's white-on-black plus could not be copied. `CreateDiscContrastTests`
+pins all four of those numbers.
 
 The plum `Hue.accent` (#8E3B6B) still ships where it already carries meaning — live
 events, active filters, selected/saved map state — and stays until Jesse says
@@ -61,7 +76,9 @@ All values are sRGB hex from `Hue` (`BlockPartyColor.swift`). Six tokens, and no
 | `Hue.hairline` | `#E7E7E4` | Borders, dividers |
 | `Hue.fill` | `#F1F1EF` | Inert fills — placeholders, skeletons, disabled |
 | `Hue.brandYellowHex` | `#FCE804` | **The accent**, sampled from the logo's field. Tints derive from it |
-| `Hue.mapWash` | `#FCE804` @ 68% | The Today bar's map disc — the one accent surface today |
+| `Hue.mapWash` | `#FCE804` @ 68% | The Today bar's map disc — translucent, scoped to that one control |
+| `Hue.createDisc` | `#FCE804` | The tab bar's Create disc — the same yellow, solid |
+| `Hue.onCreateDisc` | `#111111` | Ink ON the Create disc, pinned to the light ramp (the disc is a fixed canvas) |
 | `Hue.heart` | `#FF3040` | A liked heart, and nothing else. State, not chrome |
 
 > Note the surface/page swap in the rebrand: `Hue.paper` used to mean "white card" and
@@ -241,3 +258,4 @@ for Jesse, not a licence to ship coloured status chips.
 - No fabricated counts or seeded demo data in any surface.
 - No AI-drawn mascots/illustrations as final art (real photos or vector UI only).
 - No decorative gradient text, no side-stripe accent borders, no nested cards.
+- No spinner where content is loading, and no blank screen — placeholder shapes in the content's own layout (`Features/Components/Skeleton.swift`; rule in CLAUDE.md). `ProgressView` is only the busy state of a control already tapped.
