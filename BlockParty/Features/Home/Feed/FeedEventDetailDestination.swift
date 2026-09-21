@@ -77,7 +77,7 @@ struct FeedEventDetailDestination: View {
     private var facts: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(event.title)
-                .font(.roundedDisplay(28))
+                .font(.eventDisplay(28))
                 .foregroundStyle(Hue.ink)
                 .fixedSize(horizontal: false, vertical: true)
 

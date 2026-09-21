@@ -308,7 +308,7 @@ struct FeedEventCard: View {
                 // 28, the `.title` step. 22 measured ~20% smaller than the Apple News
                 // reference relative to card width, and the token scale has nothing
                 // between the two (`nearestTextStyle` snaps 24–31 to `.title`).
-                .font(.roundedDisplay(28))
+                .font(.eventDisplay(28))
                 // Apple sets its headlines tight, and the bigger the size the more it
                 // needs it — a lead-story size at default tracking reads loose.
                 .tracking(-0.6)

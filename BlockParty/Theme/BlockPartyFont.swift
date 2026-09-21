@@ -3,11 +3,10 @@
 //  Block Party — design tokens (typography)
 //
 //  Jost is the display, headline, and wordmark face; SF Pro stays the body, UI, and
-//  data face through the system helpers; SF Pro Rounded Heavy is scoped to the one
-//  role that earned it, the event headline over a photograph (`roundedDisplay`).
-//  Atkinson Hyperlegible Bold remains bundled but is no longer referenced. Numbers
-//  keep tabular figures by pairing the mono helpers with `.monospacedDigit()` at the
-//  call site.
+//  data face through the system helpers; Inter Display ExtraBold is scoped to the one
+//  role that earned it, the event headline (`eventDisplay`). Atkinson Hyperlegible
+//  Bold remains bundled but is no longer referenced. Numbers keep tabular figures by
+//  pairing the mono helpers with `.monospacedDigit()` at the call site.
 //
 //  EVERY helper here scales with Dynamic Type except the three that say, in their
 //  own doc comment, why they must not. That is the whole point of this file, and
@@ -35,6 +34,9 @@ enum Face {
     static let displaySemi    = "JostRoman-SemiBold"
     static let displayBold    = "JostRoman-Bold"
     static let logo           = "JostRoman-SemiBold"
+
+    /// Inter Display ExtraBold — the event headline, and nothing else.
+    static let eventHeadline  = "InterDisplay-ExtraBold"
 }
 
 /// Register every bundled .ttf so its PostScript name resolves. Idempotent.
@@ -99,25 +101,21 @@ extension Font {
         .custom(Face.displaySemi, size: size, relativeTo: style ?? nearestTextStyle(to: size))
     }
 
-    /// Event headline face — SF Pro Rounded at Heavy.
+    /// Event headline face — Inter Display ExtraBold.
     ///
     /// The third face in a file whose header says there are two, so it is scoped on
     /// purpose: the headline that sits ON an event photograph, and the same headline
     /// on the event's detail page. Both were lighter than the job — SF Pro Bold on the
     /// card, Jost SemiBold on the detail page — and a headline over a photograph needs
-    /// weight before it needs personality. Heavy at a large x-height with closed
-    /// apertures is what holds white type against a picture.
+    /// weight before it needs personality.
     ///
-    /// It is a system face, so there is no file to bundle, no licence to carry, and
-    /// it inherits Dynamic Type from the text style like every other helper here.
+    /// `Display` here is the optical size, not a description. Inter ships a separate
+    /// cut for large sizes — tighter spacing, shorter apertures — and a 28pt headline
+    /// is squarely in its range; the text cut would set this loose.
     ///
-    /// Not a match for the reference this was chosen from. That reference is a
-    /// geometric sans in the Circular mould — taller x-height, shorter ascenders,
-    /// a diagonally cut `t`, flat-cut terminals rather than rounded ones. Rounded
-    /// Heavy is the free approximation, and switching to the real thing means
-    /// bundling a licensed file and changing the one line below.
-    static func roundedDisplay(_ size: CGFloat, relativeTo style: TextStyle? = nil) -> Font {
-        .system(style ?? nearestTextStyle(to: size), design: .rounded).weight(.heavy)
+    /// SIL Open Font License, shipped beside the file as `Inter-OFL.txt`, same as Jost.
+    static func eventDisplay(_ size: CGFloat, relativeTo style: TextStyle? = nil) -> Font {
+        .custom(Face.eventHeadline, size: size, relativeTo: style ?? nearestTextStyle(to: size))
     }
 
     // MARK: - UI / body — system
