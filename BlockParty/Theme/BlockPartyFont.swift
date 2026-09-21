@@ -103,14 +103,19 @@ extension Font {
     ///
     /// The third face in a file whose header says there are two, so it is scoped on
     /// purpose: the headline that sits ON an event photograph, and the same headline
-    /// on the event's detail page. Jost is a Futura-style geometric with a
-    /// single-storey `a` and thin joins; at a lead-story size over a picture it reads
-    /// light and loses to the image behind it. Rounded Heavy is the opposite trade —
-    /// large x-height, closed apertures, soft terminals — which is what holds white
-    /// type on a photograph.
+    /// on the event's detail page. Both were lighter than the job — SF Pro Bold on the
+    /// card, Jost SemiBold on the detail page — and a headline over a photograph needs
+    /// weight before it needs personality. Heavy at a large x-height with closed
+    /// apertures is what holds white type against a picture.
     ///
     /// It is a system face, so there is no file to bundle, no licence to carry, and
     /// it inherits Dynamic Type from the text style like every other helper here.
+    ///
+    /// Not a match for the reference this was chosen from. That reference is a
+    /// geometric sans in the Circular mould — taller x-height, shorter ascenders,
+    /// a diagonally cut `t`, flat-cut terminals rather than rounded ones. Rounded
+    /// Heavy is the free approximation, and switching to the real thing means
+    /// bundling a licensed file and changing the one line below.
     static func roundedDisplay(_ size: CGFloat, relativeTo style: TextStyle? = nil) -> Font {
         .system(style ?? nearestTextStyle(to: size), design: .rounded).weight(.heavy)
     }
