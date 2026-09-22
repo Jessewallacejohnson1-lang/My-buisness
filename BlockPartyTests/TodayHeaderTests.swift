@@ -121,7 +121,38 @@ final class TodayHeaderTests: XCTestCase {
         XCTAssertGreaterThan(TodayHeader.contentHeight, 50)
     }
 
-    // MARK: - The bar is locked to the top
+    // MARK: - The chrome leaves on a downward scroll and comes back on an upward one
+
+    /// The rule Jesse asked for, in one function: down hides, up shows, wherever
+    /// you are in the feed. This is the part a distance-keyed fade could not do —
+    /// it could only bring the bar back by scrolling all the way home.
+    func testScrollingDownHidesTheChromeAndScrollingUpBringsItBack() {
+        // Down, well past the threshold, deep in the feed.
+        XCTAssertTrue(TodayHeader.chromeHidden(wasHidden: false, previousOffset: 300, offset: 360))
+        // Up again, without going anywhere near the top.
+        XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: true, previousOffset: 360, offset: 300))
+    }
+
+    /// The top always shows the bar, including through a rubber-band pull past it —
+    /// a bounce must not read as "scrolling down" and take the chrome with it.
+    func testTheChromeIsAlwaysHomeAtTheTopOfTheFeed() {
+        XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: true, previousOffset: 40, offset: 0))
+        XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: true, previousOffset: 0, offset: -80),
+                       "a rubber-band pull past the top is not a downward scroll")
+        XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: false, previousOffset: 0, offset: 20),
+                       "the first 24pt belong to the top of the feed")
+    }
+
+    /// Movement under the threshold holds whatever the bar was doing. Without this
+    /// the bar flickers: a finger resting on the glass and the last millimetres of
+    /// inertia both deliver a stream of sub-point deltas in both directions.
+    func testTinyMovementsDoNotFlipTheChrome() {
+        XCTAssertTrue(TodayHeader.chromeHidden(wasHidden: true, previousOffset: 300, offset: 302))
+        XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: false, previousOffset: 300, offset: 298))
+        XCTAssertTrue(TodayHeader.chromeHidden(wasHidden: true, previousOffset: 300, offset: 300))
+    }
+
+    // MARK: - The bar's height still does not follow the scroll
 
     /// The bar's height is a CONSTANT, and this is the guard on that.
     ///

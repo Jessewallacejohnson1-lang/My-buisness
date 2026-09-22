@@ -114,6 +114,22 @@ struct FeedView: View {
         return 420
     }
 
+    /// Is the top bar off the screen right now? Driven by scroll DIRECTION —
+    /// `TodayHeader.chromeHidden` holds the rule — and written only when it flips,
+    /// so a scroll does not invalidate this view on every frame.
+    @State private var chromeHidden = false
+
+    /// DEBUG-only: `-header-collapsed` pins the bar to its scrolled-away state.
+    /// There is no scroll automation in this setup, so without it that state cannot
+    /// be screenshotted at all.
+    private var forcedCollapse: Bool {
+        #if DEBUG
+        return ProcessInfo.processInfo.arguments.contains("-header-collapsed")
+        #else
+        return false
+        #endif
+    }
+
     private var forcedScroll: Bool {
         #if DEBUG
         return ProcessInfo.processInfo.arguments.contains("-feed-scrolled")
@@ -144,43 +160,51 @@ struct FeedView: View {
             }
             .tint(Hue.ink)
         }
-        // DEBUG-only now that nothing in the UI is driven by the scroll offset: the
-        // bar is locked and no longer fades. `-feed-scroll-sweep -scroll-log` is
-        // still the trace that catches a ringing scroll (see `TodayHeader
-        // .contentHeight`), so the sampler survives for that — and only that.
+        // The top bar's come-and-go, off the scroll's DIRECTION. The old value this
+        // hands back IS the previous offset, so the rule needs nothing stored: the
+        // only state kept is the answer, and it is written only when it changes.
         //
         // Note the offset expression: `contentOffset.y` rests at `-contentInsets
         // .top`, so the `+ geometry.contentInsets.top` term is what makes 0 mean
-        // "at rest".
-        #if DEBUG
+        // "at rest" — drop it and the bar leaves on the wrong schedule, silently.
+        //
+        // NOTHING here may touch the bar's HEIGHT: this bar is the scroll's own top
+        // inset, so height-from-scroll closes a loop that rings rather than settling
+        // (see `TodayHeader.contentHeight`). Opacity and offset are free.
         .onScrollGeometryChange(for: CGFloat.self) { geometry in
             geometry.contentOffset.y + geometry.contentInsets.top
-        } action: { _, offset in
+        } action: { previousOffset, offset in
+            let hidden = TodayHeader.chromeHidden(wasHidden: chromeHidden,
+                                                  previousOffset: previousOffset,
+                                                  offset: offset)
+            if hidden != chromeHidden { chromeHidden = hidden }
+            #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("-scroll-log") {
-                print("SCROLLLOG offset=\(offset)")
+                print("SCROLLLOG offset=\(offset) hidden=\(hidden)")
             }
+            #endif
         }
-        #endif
         // The bar rides ON the scroll, not above it: as a top safe-area inset the
         // feed's content passes UNDERNEATH it, which is the whole point — an
         // opaque strip has nothing to blur and reads as a white lid.
         .safeAreaBar(edge: .top, spacing: 0) {
             TodayTopBar(onOpenSearch: onOpenSearch,
                         onOpenMap: onOpenMap,
-                        onOpenNotifications: onOpenNotifications)
+                        onOpenNotifications: onOpenNotifications,
+                        chromeHidden: forcedCollapse || chromeHidden)
         }
         // The glass fade at the top of the screen (Jesse, 2026-09-19, matching
         // Instagram's feed): content sliding under the status bar is blurred and
         // washed toward the page instead of being covered by a white bar.
         //
-        // `.hard`, not `.soft`, since the bar was locked (2026-09-21). While the
-        // chrome faded away over the first 44pt of scroll, nothing of ours was left
-        // in this band to collide with — `.soft` passed the card action row through
-        // legibly and it did not matter. Locked, it did: a ghost heart sat under the
-        // search mark and a ghost bookmark under the bell. `.hard` blurs the same
-        // content far enough to read as material rather than as icons. One word to
-        // put back if the softer wash is worth the ghosting.
-        .scrollEdgeEffectStyle(.hard, for: .top)
+        // `.soft`, restored 2026-09-21. It went to `.hard` for the few hours the bar
+        // was locked in place, because a bar that never leaves shares this band with
+        // the feed and `.soft` passed the card action row through legibly — a ghost
+        // heart under the search mark. Now that the chrome leaves on a downward
+        // scroll, the band is the feed's again and the gradient is the point: a
+        // wash, not a cut, and no hairline anywhere (Jesse: "no clean cut white
+        // line, a fade gradient like Instagram").
+        .scrollEdgeEffectStyle(.soft, for: .top)
         .scrollPosition($feedPosition)
         .refreshable {
             if controller.briefing.needsRefresh {
