@@ -121,6 +121,25 @@ struct SkeletonGalleryPreview: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
+                // The four MOUNTED skeletons — these are what a user actually sees
+                // while a screen fetches, and they are the reason `ProgressView` no
+                // longer stands in for content anywhere.
+                Text("Comments").font(.displaySemi(16)).foregroundStyle(Hue.inkSecondary)
+                    .padding(.horizontal, 18)
+                CommentListSkeleton().padding(.horizontal, 18)
+                Text("Review queue").font(.displaySemi(16)).foregroundStyle(Hue.inkSecondary)
+                    .padding(.horizontal, 18)
+                ModerationQueueSkeleton().padding(.horizontal, 18)
+                Text("Town board").font(.displaySemi(16)).foregroundStyle(Hue.inkSecondary)
+                    .padding(.horizontal, 18)
+                BoardSkeleton().padding(.horizontal, 18)
+                Text("Edit profile").font(.displaySemi(16)).foregroundStyle(Hue.inkSecondary)
+                    .padding(.horizontal, 18)
+                EditProfileSkeleton()
+                    .frame(height: 620)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+                    .padding(.horizontal, 18)
+
                 // The briefing's cold-start placeholders. `TodayLoadingCard` stood
                 // here until the Today tab became a briefing; it mirrored the old
                 // feed's "Today + count + event rows", which no longer exists.

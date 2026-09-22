@@ -245,7 +245,6 @@ struct FeedView: View {
                 )
             }
         }
-        .tabReady(controller.briefing.hasLoaded)
         .onAppear {
             if forcedScroll { feedPosition.scrollTo(y: Self.forcedScrollY) }
             #if DEBUG
@@ -302,6 +301,12 @@ private struct FeedModuleColumn: View {
         #if DEBUG
         let _ = FeedRenderLog.enabled ? Self._printChanges() : ()
         #endif
+        // The registry is EMPTY today, so this column renders nothing and the Town
+        // tab has no wait to stand in for — which is why no skeleton is mounted here.
+        // Whoever ships the first briefing module gates it on `briefing.hasLoaded` and
+        // renders `HappeningSoonSkeleton` / `DailyTouchSkeleton` / `SpotlightSkeleton`
+        // (BriefingSkeletons.swift) underneath. They are written and screenshotted via
+        // `-show-skeletons`; they have simply never had a live caller.
         return VStack(spacing: 0) {
             ForEach(registry.visibleModules(in: context), id: \.id) { module in
                 module.makeView(context)

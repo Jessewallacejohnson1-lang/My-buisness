@@ -67,7 +67,7 @@ struct ModerationView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
                     if model.loading && pendingCount == 0 {
-                        ProgressView().tint(Hue.inkSecondary).frame(maxWidth: .infinity).padding(.top, 60)
+                        ModerationQueueSkeleton()
                     } else if model.failed {
                         emptyState(icon: "wifi.slash", title: "Couldn't load the queue",
                                    detail: "Check your connection, then pull to refresh.")
@@ -164,5 +164,40 @@ struct ModerationView: View {
             Text(detail).font(.sans(14)).foregroundStyle(Hue.inkSecondary).multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity).padding(.top, 60).padding(.horizontal, 24)
+    }
+}
+
+/// Review cards under the real section label. Two is the shape of a typical queue;
+/// an emptier one collapses to "All caught up" the moment the fetch lands, which is
+/// a swap the skeleton cannot avoid and should not fake.
+struct ModerationQueueSkeleton: View {
+    var body: some View {
+        FeedSkeletonSection(spacing: 14) {
+            Text("Events & trails")
+                .font(.mono(11)).tracking(1.5).foregroundStyle(Hue.inkSecondary)
+                .padding(.leading, 4).padding(.top, 4)
+        } content: {
+            VStack(spacing: 14) {
+                ForEach(0..<2, id: \.self) { _ in card }
+            }
+        }
+    }
+
+    /// Title, subtitle, two detail lines and the Approve/Reject pair, at the real
+    /// card's padding — so the queue resolves without the list shifting under it.
+    private var card: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SkeletonLine(widthFraction: 0.58, height: 15)
+            SkeletonLine(widthFraction: 0.86, height: 12)
+            SkeletonLine(widthFraction: 1.0, height: 13)
+            SkeletonLine(widthFraction: 0.44, height: 13)
+            HStack(spacing: 10) {
+                SkeletonBlock(cornerRadius: Radius.button).frame(height: 38)
+                SkeletonBlock(cornerRadius: Radius.button).frame(height: 38)
+            }
+            .padding(.top, 2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .blockPartyCard(padding: 16)
     }
 }

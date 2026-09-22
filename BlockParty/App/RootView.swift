@@ -81,14 +81,6 @@ struct RootView: View {
                 // preview loader supplies local data, so this bypasses auth and
                 // onboarding without changing either production flow.
                 MainTabsView()
-            } else if ProcessInfo.processInfo.arguments.contains("-show-loader") {
-                // Preview the Pinterest-style launch loader full-screen (bypassing the
-                // auth gate) so its looping bloom can be recorded/screenshotted headlessly.
-                LaunchLoaderView()
-            } else if ProcessInfo.processInfo.arguments.contains("-show-loading-cover") {
-                // Preview the tab loading cover full-screen (bypassing the auth gate)
-                // so the rainbow-wave indicator + copy can be verified headlessly.
-                TabLoadingCover()
             } else if ProcessInfo.processInfo.arguments.contains("-horizon-sky-gallery")
                         || ProcessInfo.processInfo.arguments.contains("-horizon-card-gallery") {
                 // Preview the Your Day horizon card at the eight spec test times
@@ -312,9 +304,6 @@ struct MainTabsView: View {
     @State private var showSearch = MainTabsView.debugOpen("-open-search")
     @State private var showNotifications = MainTabsView.debugOpen("-open-notifications")
     @State private var composing = false
-    /// Readiness of the *current* tab's content, gathered from `TabReadyPreferenceKey`.
-    /// Drives the loading cover that hides a not-yet-rendered tab.
-    @State private var activeTabReady = false
     /// The compose "+" speed-dial (Explore / Calendar). Owned here so the wash can
     /// recede the tab content and float above the tab bar.
     @State private var speedDialOpen = false
@@ -388,13 +377,11 @@ struct MainTabsView: View {
                     // "home recedes"); tab bar stays put and is dimmed by the wash.
                     .scaleEffect(reduceMotion ? 1 : (speedDialOpen ? 0.97 : 1))
                     .animation(.spring(response: 0.34, dampingFraction: 0.72), value: speedDialOpen)
-                    // Cover a not-yet-loaded tab with the rainbow-wave loading screen until
-                    // its content reports ready. Sits above the content but below the tab
-                    // bar (a later ZStack sibling), so switching tabs stays possible.
-                    .onPreferenceChange(TabReadyPreferenceKey.self) { activeTabReady = $0 }
-                    .overlay {
-                        TabLoadingHost(isReady: activeTabReady, resetKey: AnyHashable(tab))
-                    }
+                    // NO LOADING COVER. A tab that is still fetching renders its own
+                    // skeleton in its own layout (Features/Components/Skeleton.swift);
+                    // nothing is ever hidden behind a full-screen cover. The dark
+                    // rainbow-wave cover that used to sit here was deleted 2026-09-21 —
+                    // it had begun covering content that was already on screen.
 
                 }
             }

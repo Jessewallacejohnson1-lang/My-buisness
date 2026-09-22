@@ -671,13 +671,6 @@ struct SJMapView: View {
                 }
             }
         }
-        // Map is "ready" once the data has resolved AND the basemap has painted —
-        // otherwise the cover would lift onto a blank grey map. But if the data
-        // errored/went offline, lift immediately (show that surface; don't wait for
-        // tiles that also won't load). `styleLoaded` also flips on a style-load error
-        // below, and `TabLoadingHost` has a hard timeout, so the cover can't hang.
-        .tabReady(model.state != .loading
-                  && (model.styleLoaded || model.state == .error || model.state == .offline))
         .onDisappear { model.stop() }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
@@ -860,7 +853,6 @@ struct SJMapView: View {
                 // POILayer.install is GONE — Phase A retired the Mapbox clustered layer for
                 // client-side clustering, so the POIs mount as view annotations instead.
                 recomputeClusters(proxy.map)   // POIs may still be loading — pois-change reclusters
-                model.markStyleLoaded()
             }
             // Re-apply once the map reports fully loaded. `onStyleLoaded` alone was a ONE-SHOT
             // application and it intermittently lost the race: a launch would occasionally
@@ -870,10 +862,6 @@ struct SJMapView: View {
             // `recolor` is pure `setLayerProperty` calls, so a second application is
             // idempotent and costs nothing when the first one already landed.
             .onMapLoaded { _ in BasemapPalette.recolor(proxy.map) }
-            // If the basemap can't load (offline first run, bad token), treat the map
-            // as "painted" so the loading cover lifts to reveal the map's own state
-            // rather than hanging on a screen that will never finish.
-            .onMapLoadingError { _ in model.markStyleLoaded() }
             // Name whatever town the map is panned over, shrink/expand pins to fit the
             // zoom (both debounced in the model — never the view's @State here), and
             // recluster on zoom steps / at idle so merges + splits glide.
