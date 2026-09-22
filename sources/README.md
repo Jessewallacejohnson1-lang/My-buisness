@@ -12,9 +12,10 @@ written only by a runner. Sync is one-way, md → DB, at the start of every run 
 If you are about to write a timestamp, a hash, or an error message into a file in this
 folder: stop. That belongs in the database.
 
-The decisions behind every rule here live in [`docs/adr/`](../docs/adr/). ADRs are immutable;
-when a decision changes, a new ADR supersedes the old one, and the old one is never edited
-(ADR-005).
+The decisions behind every rule here live in [`docs/adr/registry/`](../docs/adr/registry/),
+named `ADR-NNN-kebab-slug.md` and numbered 001–009 in their own series, separate from the
+app's ADRs in `docs/adr/`. ADRs are immutable; when a decision changes, a new ADR supersedes
+the old one, and the old one is never edited (ADR-005).
 
 ---
 

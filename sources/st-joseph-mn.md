@@ -113,6 +113,24 @@ Notes: Two locations, St. Joseph and St. Cloud — anything pulled from here nee
 checking for which one it refers to before it becomes a St. Joe posting. No events page
 found; the site is flavors and hours, so this is a low-frequency source.
 
+## Flour & Flower Bakery
+```yaml
+id: flour-and-flower
+status: proposed
+category: bakery
+partner: true
+added_by: agent:claude
+sources:
+  - url: TODO
+    kind: website
+    method: fetch
+    trust: official
+```
+Notes: Partner bakery. **`url: TODO` on purpose** — no URL was confirmed on 2026-09-22,
+and a guessed one would point the runner at a stranger's site under the bakery's name
+(ADR-007). Confirm the real page (site, or Instagram/Facebook if that is where they
+actually post) before this is activated; an active entry may not carry a TODO url.
+
 # School
 
 ## Kennedy Community School

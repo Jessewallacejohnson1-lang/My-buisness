@@ -1,0 +1,23 @@
+#!/bin/sh
+# Validate every sources/*.md: yaml parses, ids unique, required keys, enums valid.
+# Exit non-zero on any error. Run after every registry edit (ADR-007).
+#
+# Thin wrapper on purpose: the parser and the rules live in the source-registry
+# skill, so this repo has one copy of them, not two that can drift apart.
+# Override the skill location with SOURCE_REGISTRY_SKILL=/path/to/source-registry.
+set -eu
+
+for dir in \
+    "${SOURCE_REGISTRY_SKILL:-}" \
+    "$HOME"/.claude/skills/source-registry \
+    "$HOME"/.claude/skills/*/*/source-registry
+do
+    if [ -f "$dir/scripts/validate.py" ]; then
+        exec python3 "$dir/scripts/validate.py" \
+            "$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+    fi
+done
+
+echo "sources/validate: source-registry skill not found." >&2
+echo "Set SOURCE_REGISTRY_SKILL to the skill folder and try again." >&2
+exit 2
