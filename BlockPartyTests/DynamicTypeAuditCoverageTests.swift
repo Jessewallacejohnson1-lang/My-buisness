@@ -35,7 +35,13 @@ final class DynamicTypeAuditCoverageTests: XCTestCase {
     /// Every `.sheet` / `.fullScreenCover` in the app, keyed `File.swift:$binding`
     /// — stable when lines move, and loud when a binding is renamed.
     static let ledger: [String: Coverage] = [
-        "RootView.swift:$showProfileSheet": .audited(surface: "you-profile"),
+        // Was `.audited(surface: "you-profile")` until 2026-09-22, when the walk was
+        // scoped to developed pages (Jesse). `ProfileView` is a real screen but is
+        // still moving, and its unfinished states — "No plans yet", "a neighbor",
+        // "Around town" — were what the auditor kept reporting. It goes back to
+        // `.audited` the day the page is finished; the surface is parked in
+        // `DynamicTypeAuditTests.notDevelopedYet`, ready to move one line.
+        "RootView.swift:$showProfileSheet": .notYetAudited(reason: "The You tab's profile. Not a developed page yet — see DynamicTypeAuditTests.notDevelopedYet. High priority the day it settles: a profile is user-generated text of any length."),
 
         // The town menu is audited through `-open-menu`; it is not a sheet, so it
         // has no key here — it is listed to explain why the walk has more surfaces

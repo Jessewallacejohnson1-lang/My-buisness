@@ -383,3 +383,67 @@ Three differences, all measured, all of which changed what got built:
 - **The map disc in Dark Mode** renders `Hue.ink` over `Hue.mapWash` on dark glass at
   roughly **2.19:1**. Pre-existing, not introduced here — but the crisp new bell beside
   it now makes the muddiness obvious, so it wants its own pass.
+
+## Decided 2026-09-21 — loading is a skeleton, and the loading screen is gone
+
+The rule had been written down in `DESIGN.md` and `AGENTS.md` for months and was not
+true in the app. Two things contradicted it: a dark full-screen cover, and five spinners
+standing in for content. Both are now gone.
+
+### The cover was covering finished screens
+
+`TabLoadingCover` — a dark field, wordmark, rainbow-wave indicator and rotating facts —
+was hung over any tab whose content had not reported ready within 3s, and held for at
+least half a second once shown. The readiness signal came from a SwiftUI preference,
+`TabReadyPreferenceKey`, published by three tabs.
+
+The Town tab's signal was `controller.briefing.hasLoaded`. But the briefing module
+registry is empty (`modules ?? []`), so the briefing renders nothing, and what the tab
+actually shows is `DailyFeedColumn(items: DailyView.currentItems)` — static local data,
+no fetch, an empty array in Release. So the tab reached its final visual state on the
+first frame and then, on a slow network, had a dark screen dropped over it three seconds
+later. The cover was not hiding a half-built screen; it was hiding a finished one.
+
+That is not a tuning problem. A cover is a promise that something better is coming, and
+on the one tab that showed it most, nothing was. Deleted: `TabLoadingCover`,
+`TabLoadingHost`, `RainbowWaveIndicator`, `TabReadiness.swift`, all three `.tabReady(…)`
+call sites, and `MapModel.styleLoaded` / `markStyleLoaded()` with the map's
+`.onMapLoadingError` hook, which existed only to lift the cover when tiles failed.
+
+`LaunchLoaderView` and `GarbageTruckIcon` went in the same pass — reachable only by
+`-show-loader` since the launch splash was removed on 2026-09-18. `LoaderBlockPartyMark.swift`
+did NOT go: it defines `BlockPartyMark`, which five live surfaces use. It moved to
+`Features/Components/BlockPartyMark.swift` so its name stops referring to a deleted screen.
+
+### The map gets nothing
+
+A map has no content shape to stand in for — a skeleton of a map is a drawing of a map.
+Mapbox paints its own basemap as tiles arrive, and `SJMapView` already owns its error and
+offline surfaces. So the map tab shows the map, painting.
+
+### Five spinners became skeletons
+
+`BoardView`, `ModerationView`, `FeedCommentSheet`, `FeedInterestEditorDestination`, and
+the `AsyncImage` `.empty` case in `ProfileAvatar`. Each renders placeholder shapes in its
+own real layout, so content resolves in place. Where a heading was already known before
+the fetch — the board's three section titles, the review queue's section label, the
+editor's screen title — it renders for real; only the unknown shapes stand in. That is
+what `FeedSkeletonSection` was built for, and this is its first live use.
+
+`ProgressView` keeps exactly one job: the busy state of a control the user already
+tapped. `LoginView`, `AddFormView`, `EditProfileView`, `InlineAction`.
+
+### Why a test and not a note
+
+The debt list in `AGENTS.md` named all five of these spinners and sat unactioned long
+enough that new screens copied the pattern from them. A written rule that is not enforced
+decays into a description of what the code used to aspire to. `LoadingGuardTests` scans
+the source: it fails on `ProgressView` outside those four files, and on any return of the
+cover or its readiness plumbing.
+
+### Left open, deliberately
+
+`BriefingSkeletons.swift` stays written and unmounted. The briefing registry is empty, so
+mounting them would mean inventing a wait that does not exist. `SkeletonGalleryPreview`
+remains their only caller; `FeedModuleColumn` carries a comment pointing the first
+briefing module at them.

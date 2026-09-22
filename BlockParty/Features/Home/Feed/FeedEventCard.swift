@@ -43,6 +43,10 @@ struct FeedEventCard: View {
     private static let hostAvatarSide: CGFloat = 32
 
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    /// Read so the card's one-line labels can take a second line at accessibility
+    /// sizes. The same trade `PostingCard`'s header already makes: a clipped line is
+    /// worse than a taller card.
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var resolvedVenuePhoto: ResolvedVenuePhoto?
     @State private var venuePhotoDecoded = false
     @State private var actionState: FeedCardActionState
@@ -120,7 +124,7 @@ struct FeedEventCard: View {
                 Text(item.hostName)
                     .font(.sansSemibold(14))
                     .foregroundStyle(Hue.ink)
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
 
                 Spacer(minLength: 8)
             }
@@ -308,10 +312,11 @@ struct FeedEventCard: View {
                 // 28, the `.title` step. 22 measured ~20% smaller than the Apple News
                 // reference relative to card width, and the token scale has nothing
                 // between the two (`nearestTextStyle` snaps 24–31 to `.title`).
-                .font(.sansBold(28))
-                // Apple sets its headlines tight, and the bigger the size the more it
-                // needs it — a lead-story size at default tracking reads loose.
-                .tracking(-0.6)
+                .font(.eventDisplay(28))
+                // No `.tracking` here any more. It used to pull a system face in to
+                // where Apple sets its headlines; this face carries the sheet's own
+                // spacing, tuned so a set line matches the drawing, and tightening it
+                // again would just double-count that.
                 // A two-line headline at this size sits ~1.21em apart by default,
                 // which reads airy next to the reference's ~1.1em. Negative spacing
                 // is how this codebase has always tightened a heading.
@@ -324,7 +329,13 @@ struct FeedEventCard: View {
                 Text(metaSummary)
                     .font(.sans(13))
                     .foregroundStyle(.white.opacity(0.85))
-                    .lineLimit(1)
+                    // Unbounded at accessibility sizes, not two lines: measured
+                    // 2026-09-22, "7pm · Millstream Park" still clipped at two, and
+                    // it was the LAST finding left on Town at both AX3 and AX5. A
+                    // meta line that runs to three lines covers a little more of the
+                    // photograph; a clipped one loses the time and the place.
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .feedCardPhotoTypeShadow()
@@ -357,7 +368,7 @@ struct FeedEventCard: View {
             Text(item.goingSummary)
                 .font(.sans(13))
                 .foregroundStyle(Hue.inkSecondary)
-                .lineLimit(1)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                 .layoutPriority(1)
         }
         .frame(minHeight: 24)

@@ -61,7 +61,7 @@ struct FeedCommentSheet: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     if isLoading && commentState.comments.isEmpty {
-                        loadingState
+                        CommentListSkeleton()
                     } else if commentState.comments.isEmpty {
                         emptyState
                     } else {
@@ -85,25 +85,6 @@ struct FeedCommentSheet: View {
                 }
             }
         }
-    }
-
-    private var loadingState: some View {
-        HStack(spacing: 10) {
-            if reduceMotion {
-                RoundedRectangle(cornerRadius: 2, style: .continuous)
-                    .fill(Hue.ink)
-                    .frame(width: 12, height: 12)
-            } else {
-                ProgressView()
-                    .controlSize(.small)
-                    .tint(Hue.ink)
-            }
-            Text("Loading comments")
-                .font(.sans(15))
-                .foregroundStyle(Hue.inkSecondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 24)
     }
 
     private var emptyState: some View {
@@ -219,5 +200,27 @@ struct FeedCommentSheet: View {
             Log.network("FeedCommentSheet.load: \(error)")
         }
         isLoading = false
+    }
+}
+
+/// Three comment-shaped placeholders in `commentRow`'s own layout — name line, two
+/// body lines, the same 5pt inner and 12pt outer rhythm — so the list resolves in
+/// place. Reduce Motion is handled by `.shimmering()` itself, which is why the
+/// hand-rolled square that used to stand in for the spinner is gone.
+struct CommentListSkeleton: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(0..<3, id: \.self) { _ in
+                VStack(alignment: .leading, spacing: 5) {
+                    SkeletonLine(widthFraction: 0.26, height: 12)
+                    SkeletonLine(widthFraction: 0.94, height: 14)
+                    SkeletonLine(widthFraction: 0.52, height: 14)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 12)
+            }
+        }
+        .shimmering()
+        .accessibilityLabel("Loading comments")
     }
 }

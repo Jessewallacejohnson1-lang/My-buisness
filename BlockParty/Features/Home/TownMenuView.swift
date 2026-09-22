@@ -19,6 +19,9 @@ import SwiftUI
 enum TownMenuAction { case map, compose, invite, profile }
 
 struct TownMenuView: View {
+    /// So the neighbour's name can take a second line rather than clip at
+    /// accessibility sizes.
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// Collapse the drawer (wired by the overlay).
     var onClose: () -> Void
     /// A row was tapped — the host closes the drawer and performs the action.
@@ -89,7 +92,7 @@ struct TownMenuView: View {
                 Text(name)
                     .font(.displaySemi(19))
                     .foregroundStyle(Hue.ink)
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                 Text("Saint Joseph, MN")
                     .font(.sans(13))
                     .foregroundStyle(Hue.inkSecondary)

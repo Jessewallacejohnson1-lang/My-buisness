@@ -50,9 +50,7 @@ struct BoardView: View {
                     } else if model.loaded {
                         emptyState
                     } else {
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                            .padding(.top, 60)
+                        BoardSkeleton()
                     }
                 }
                 .padding(18)
@@ -147,5 +145,47 @@ struct BoardView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .blockPartyCard(padding: 18)
+    }
+}
+
+/// The board's three sections standing in with card-shaped placeholders in `row`'s
+/// own layout. The headings render for REAL: they are known before the fetch, so
+/// standing in for them would be both a lie and a layout jump on swap-in.
+///
+/// Top-level (not a member of `BoardView`) so `SkeletonGalleryPreview` can render it
+/// — the gallery is how these get looked at without waiting on a slow network.
+struct BoardSkeleton: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            section("Today", rows: 2)
+            section("This week", rows: 2)
+            section("Around town", rows: 1)
+        }
+    }
+
+    private func section(_ title: String, rows: Int) -> some View {
+        FeedSkeletonSection(spacing: 12) {
+            Text(title)
+                .font(.displaySemi(20))
+                .foregroundStyle(Hue.ink)
+        } content: {
+            VStack(spacing: 12) {
+                ForEach(0..<rows, id: \.self) { _ in row }
+            }
+        }
+    }
+
+    /// Title, two blurb lines, the "via" attribution — the same card, so the real
+    /// rows land on top of their own silhouette.
+    private var row: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            SkeletonLine(widthFraction: 0.66, height: 15)
+            SkeletonLine(widthFraction: 1.0, height: 13)
+            SkeletonLine(widthFraction: 0.48, height: 13)
+            SkeletonLine(widthFraction: 0.3, height: 11)
+                .padding(.top, 2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .blockPartyCard(padding: 14)
     }
 }

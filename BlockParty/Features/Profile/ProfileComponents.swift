@@ -51,7 +51,9 @@ struct ProfileAvatar: View {
                 AsyncImage(url: u) { phase in
                     switch phase {
                     case .success(let img): img.resizable().scaledToFill()
-                    case .empty: ZStack { Hue.surface; ProgressView().tint(Hue.ink) }
+                    // An image well is content: it gets its own shape, not a spinner.
+                    // The parent already clips to a circle, so the block is square.
+                    case .empty: SkeletonBlock(cornerRadius: 0).shimmering()
                     default: blank
                     }
                 }

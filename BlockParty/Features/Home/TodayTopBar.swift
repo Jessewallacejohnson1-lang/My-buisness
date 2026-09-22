@@ -5,9 +5,10 @@
 //
 //  Replaces `Masthead`, the 34pt wordmark + date line that used to scroll away with
 //  the content. This bar is chrome: it is present immediately (no spring entrance),
-//  it never scrolls, it never fades (locked to the top of the screen at every scroll
-//  position — Jesse, 2026-09-21), and it carries no rule of its own — the scroll edge
-//  effect under it is what separates the bar from the feed.
+//  it does not scroll with the content, it LEAVES on a downward scroll and returns
+//  on an upward one (Jesse, 2026-09-21, naming Instagram), and it carries no rule of
+//  its own — the soft scroll edge effect under it is what separates the bar from the
+//  feed, a gradient rather than a cut.
 //
 //  The Joetown lockup was retired on 2026-09-17; the profile avatar — the ⋮-lineage
 //  button that opened the town menu — was retired on 2026-09-18 (Jesse's call). For
@@ -53,6 +54,36 @@ nonisolated enum TodayHeader {
     /// the height took the same trace to 241 samples, 0 reversals, a clean 0 → 200.
     /// Dim, blur, tint off the scroll freely. Height, insets and content size never.
     static let contentHeight: CGFloat = 58
+
+    /// How far down the feed must be before a downward swipe may take the chrome
+    /// away. Short on purpose: the bar belongs to the top of the feed, and one
+    /// deliberate swipe should clear it.
+    static let hideAfter: CGFloat = 24
+
+    /// The smallest movement that counts as a direction. Under this, a finger
+    /// resting on the glass and the last millimetres of inertia would flip the bar
+    /// back and forth — the jitter every direction-driven header has to answer.
+    static let directionThreshold: CGFloat = 4
+
+    /// Instagram's rule, and NOT the fade band this bar carried until 2026-09-21:
+    /// the chrome leaves when you scroll DOWN and comes back the moment you scroll
+    /// UP, wherever you happen to be in the feed. A band keyed to absolute offset
+    /// can only return the bar by scrolling all the way home, which is the part
+    /// Jesse did not want.
+    ///
+    /// Pure and total, so the whole behaviour is testable without a scroll view:
+    /// the only inputs are where the scroll was, where it is, and what the bar was
+    /// doing. `previousOffset` comes free from `onScrollGeometryChange`'s old
+    /// value, so nothing has to be stored to compute it.
+    static func chromeHidden(wasHidden: Bool, previousOffset: CGFloat, offset: CGFloat) -> Bool {
+        // Home, and anywhere a rubber-band pull takes you above it, always shows
+        // the bar — there is nothing below to read yet.
+        guard offset > hideAfter else { return false }
+        let travelled = offset - previousOffset
+        if travelled > directionThreshold { return true }
+        if travelled < -directionThreshold { return false }
+        return wasHidden
+    }
 
     /// Today's date as an uppercase eyebrow — "SATURDAY, AUGUST 1".
     ///
@@ -113,24 +144,50 @@ struct TodayTopBar: View {
     var onOpenMap: () -> Void = {}
     /// The trailing bell → notifications.
     var onOpenNotifications: () -> Void = {}
+    /// True once a downward scroll has sent the chrome off the top of the screen;
+    /// false the moment the feed is scrolled back up. `FeedView` owns the state,
+    /// `TodayHeader.chromeHidden` owns the rule.
+    var chromeHidden: Bool = false
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        // LOCKED. The bar used to fade out and lift 8pt over the first 44pt of
-        // scroll, taking the wordmark and all three controls with it (Jesse,
-        // 2026-09-21: keep it). It is now present at every scroll position, which
-        // also settles the tap bug the fade created — invisible controls that still
-        // took touches — by leaving nothing invisible.
+        // The chrome LEAVES THE SCREEN on a downward scroll and comes straight back
+        // on an upward one (Jesse, 2026-09-21, naming Instagram).
         //
-        // What separates the bar from the feed is unchanged: it has no fill, and the
-        // content passing underneath it is blurred and washed toward the page by
-        // `FeedView`'s `.scrollEdgeEffectStyle(.soft, for: .top)`.
-        controls
-        // FIXED height. The bar used to collapse to an 8pt strip as the chrome left,
-        // which was fine while it lived above the scroll — as a `safeAreaBar` it is
-        // the scroll's top inset, and a height that follows the scroll offset makes
-        // the offset follow the height right back. See `TodayHeader.contentHeight`.
+        // It is REMOVED, not faded in place, and that is not a style choice. The map
+        // disc runs on `.glassEffect`, and a Liquid Glass surface composites outside
+        // the view's own layer: measured on 2026-09-21, an ancestor `.opacity(0)`
+        // left the disc drawn at full strength, and `.clipped()` did not cut it
+        // either — the wordmark, the search mark and the bell all vanished correctly
+        // while a solid yellow disc sat on top of the wifi and battery icons. Taking
+        // the view out of the hierarchy is what actually takes the glass with it.
+        //
+        // The transition is therefore what animates: a slide up combined with a
+        // fade, on a spring. Under Reduce Motion it is the crossfade alone, which is
+        // the same trade the rest of the app's chrome makes.
+        //
+        // The bar's HEIGHT never moves — the frame below holds 58 whether or not
+        // anything is inside it. See `TodayHeader.contentHeight` for why a height
+        // derived from this scroll rings instead of settling. The band the chrome
+        // leaves behind is not empty: this bar has no fill, so what shows through is
+        // the feed, blurred and washed toward the page by `FeedView`'s
+        // `.scrollEdgeEffectStyle(.soft, for: .top)` — a gradient, not a cut.
+        ZStack {
+            if !chromeHidden {
+                controls
+                    .transition(.offset(y: -TodayHeader.contentHeight).combined(with: .opacity))
+            }
+        }
+        .animation(reduceMotion ? .easeOut(duration: 0.18)
+                                : .spring(response: 0.34, dampingFraction: 0.9),
+                   value: chromeHidden)
         .frame(height: TodayHeader.contentHeight)
         .frame(maxWidth: .infinity)
+        // Cut at the bar's own edge, so a mid-flight slide is trimmed rather than
+        // drawn over the status bar. (It does not bind the glass — see above — which
+        // is why the disc has to leave the hierarchy rather than be hidden.)
+        .clipped()
         // NO fill. The bar is a safe-area inset over the feed's own scroll, so what
         // sits behind it is the content itself, blurred and washed toward the page by
         // the scroll edge effect (`scrollEdgeEffectStyle(.soft)` in `FeedView`). A
@@ -183,6 +240,11 @@ struct TodayTopBar: View {
                 // not sit in the tap path of the controls beside it.
                 .allowsHitTesting(false)
         }
+        // Chrome that has left the screen must stop TAKING TAPS. The first version
+        // of the fade did not, and an invisible map disc swallowed touches at the
+        // top of a scrolled feed. VoiceOver gets the same treatment: gone is gone.
+        .allowsHitTesting(!chromeHidden)
+        .accessibilityHidden(chromeHidden)
     }
 
     /// A bare traced mark in a 44pt touch box. Shared by the search glyph and the

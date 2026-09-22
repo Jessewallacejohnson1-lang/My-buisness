@@ -41,7 +41,6 @@ struct DailyView: View {
             }
             .refreshable { now = Date() }
         }
-        .tabReady(true)
     }
 }
 
