@@ -241,7 +241,7 @@ struct PostingCard: View {
             Text(posting.caption)
                 .font(.sans(15))
                 .foregroundStyle(Hue.ink)
-                .lineLimit(captionExpanded ? nil : 2)
+                .lineLimit(captionExpanded || dynamicTypeSize.isAccessibilitySize ? nil : 2)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 2)
                 .contentShape(Rectangle())

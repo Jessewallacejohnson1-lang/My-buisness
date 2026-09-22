@@ -43,6 +43,10 @@ struct FeedEventCard: View {
     private static let hostAvatarSide: CGFloat = 32
 
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    /// Read so the card's one-line labels can take a second line at accessibility
+    /// sizes. The same trade `PostingCard`'s header already makes: a clipped line is
+    /// worse than a taller card.
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var resolvedVenuePhoto: ResolvedVenuePhoto?
     @State private var venuePhotoDecoded = false
     @State private var actionState: FeedCardActionState
@@ -120,7 +124,7 @@ struct FeedEventCard: View {
                 Text(item.hostName)
                     .font(.sansSemibold(14))
                     .foregroundStyle(Hue.ink)
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
 
                 Spacer(minLength: 8)
             }
@@ -325,7 +329,13 @@ struct FeedEventCard: View {
                 Text(metaSummary)
                     .font(.sans(13))
                     .foregroundStyle(.white.opacity(0.85))
-                    .lineLimit(1)
+                    // Unbounded at accessibility sizes, not two lines: measured
+                    // 2026-09-22, "7pm · Millstream Park" still clipped at two, and
+                    // it was the LAST finding left on Town at both AX3 and AX5. A
+                    // meta line that runs to three lines covers a little more of the
+                    // photograph; a clipped one loses the time and the place.
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .feedCardPhotoTypeShadow()
@@ -358,7 +368,7 @@ struct FeedEventCard: View {
             Text(item.goingSummary)
                 .font(.sans(13))
                 .foregroundStyle(Hue.inkSecondary)
-                .lineLimit(1)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                 .layoutPriority(1)
         }
         .frame(minHeight: 24)

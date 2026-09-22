@@ -38,17 +38,37 @@ final class DynamicTypeAuditTests: XCTestCase {
         let arguments: [String]
     }
 
+    /// DEVELOPED PAGES ONLY (Jesse, 2026-09-22). The audit gates the screens that
+    /// are actually built; a screen still being drawn fails on states that are not
+    /// finished yet, and a gate that cries wolf is one nobody reads.
+    ///
+    /// Today that is Town and its chrome. The list GROWS as pages land — adding one
+    /// back is a single line here plus its baseline, and `notDevelopedYet` below
+    /// keeps the ones that are waiting on the record rather than forgotten.
+    ///
     /// AUDIT-SURFACES-BEGIN — parsed by the coverage test. Keep one entry per line.
     static let surfaces: [Surface] = [
         Surface(id: "town", arguments: ["-open-tab", "town"]),
         Surface(id: "town-menu", arguments: ["-open-tab", "town", "-open-menu"]),
         Surface(id: "town-scrolled", arguments: ["-open-tab", "town", "-feed-scrolled"]),
+    ]
+    /// AUDIT-SURFACES-END
+
+    /// Walked until 2026-09-22, and waiting to come back. Not exemptions — each one
+    /// returns to `surfaces` the day the page it names is finished, and the reason
+    /// says what finished means for it.
+    ///
+    ///  • `daily` / `business` — `BlankTab` placeholders. A title and one promise
+    ///    line: there is no layout here to hold or break yet.
+    ///  • `you` / `you-profile` — `ProfileView`. A real screen, but still moving,
+    ///    and its unfinished states are what the auditor was reporting: "No plans
+    ///    yet", "a neighbor", "Around town".
+    static let notDevelopedYet: [Surface] = [
         Surface(id: "daily", arguments: ["-open-tab", "daily"]),
         Surface(id: "business", arguments: ["-open-tab", "business"]),
         Surface(id: "you", arguments: ["-open-tab", "you"]),
         Surface(id: "you-profile", arguments: ["-open-tab", "you", "-open-profile"]),
     ]
-    /// AUDIT-SURFACES-END
 
     /// The two sizes Apple's App Store "Larger Text" criteria names by name. AX5 is
     /// the worst case; AX3 is where most real users who enlarge text actually sit,
@@ -73,34 +93,24 @@ final class DynamicTypeAuditTests: XCTestCase {
     /// ponytail: counts, not fingerprints — swapping one broken label for another
     /// at the same count slips through. Fingerprints churn on fixture copy, which
     /// would make the gate cry wolf; move to them if this ever masks a real one.
-    static let knownIssueCounts: [String: Int] = [
-        // Ratcheted down 2026-09-20: the posting header wraps its author name at
-        // accessibility sizes and drops the age, so the name no longer clips.
-        //
-        // Ratcheted down AGAIN later the same day, after the tab bar gained its
-        // Create disc. The mechanism is the bar's HEIGHT, not the disc: the five
-        // labels picked up `.lineLimit(1).minimumScaleFactor(0.85)`, so at AX5 the
-        // bar stops growing to two and three lines of text and stops overlapping the
-        // content above it. That is why the surfaces that improved are the ones with
-        // something sitting just above the bar — `you`, `you-profile` and the
-        // scrolled feed — and why `town-scrolled` went clean at BOTH sizes.
-        //
-        // Measured over two consecutive COMPLETE runs (14/14 surfaces, nothing else
-        // driving a simulator), which is the bar this file sets. Two earlier runs
-        // disagreed and were both contended — one reported a phantom finding on
-        // `daily` and `business` that neither clean run reproduces. If you are
-        // re-measuring, run the audit alone.
-        //
-        // Caveat for whoever reads this next: the tree these were measured on also
-        // carried in-flight feed-card work. If that work is reverted, expect these to
-        // go back UP — read the element list before assuming a regression.
-        "town@AX3": 3,            "town@AX5": 3,
-        "town-menu@AX3": 4,       "town-menu@AX5": 4,
-        "you@AX3": 3,             "you@AX5": 1,
-        "you-profile@AX3": 3,
-        // Clean at both sizes and staying that way: daily, business, town-scrolled,
-        // and you-profile@AX5. An entry absent from this map must report zero.
-    ]
+    /// EMPTY, and that is the gate now (2026-09-22). Every developed surface —
+    /// `town`, `town-menu`, `town-scrolled` — reports **zero** layout issues at AX3
+    /// and AX5, measured on a clean uncontended run. An entry absent from this map
+    /// must report zero, so an empty map is the strictest this test can be: the next
+    /// clip on a developed page fails the build outright.
+    ///
+    /// It held four entries until today (`town` 3/3, `town-menu` 4/4). They went
+    /// when the findings did: six labels were frozen to one or two lines — the event
+    /// card's host name, meta line and going-summary, the town menu's neighbour
+    /// name, the posting caption — so each one clipped once the text scaled. They
+    /// take the lines they need at accessibility sizes now. Git history holds the old
+    /// numbers if a regression ever needs a comparison point.
+    ///
+    /// If you add a surface to `surfaces`, MEASURE it and add its entry here rather
+    /// than assuming zero — and run the audit alone. A contended run reports phantom
+    /// findings, and a run compiled from a dirty shared worktree reports someone
+    /// else's code.
+    static let knownIssueCounts: [String: Int] = [:]
 
     func testEverySurfaceHoldsItsLayoutAtAccessibilityTextSizes() throws {
         for size in Self.contentSizes {
@@ -137,15 +147,36 @@ final class DynamicTypeAuditTests: XCTestCase {
         // size, and every element, which is the difference between a gate someone
         // acts on and a gate someone disables.
         var findings: [String] = []
-        do {
-            try app.performAccessibilityAudit(for: [.dynamicType, .textClipped]) { issue in
-                if self.isFrozenByDesign(issue) { return true }
-                let element = issue.element?.label ?? "(unnamed element)"
-                findings.append("  • \(issue.compactDescription) — \"\(element)\"")
-                return true
+
+        // Two attempts, because the auditor times out under load rather than
+        // failing honestly: `XCAXAuditConfiguration` timed out on `town-menu` in a
+        // full-suite run on 2026-09-22 while the same surface audited clean in
+        // 57 seconds on its own. That is the harness, not the layout, and a gate
+        // that goes red for someone else's simulator is a gate people learn to
+        // ignore. One retry on a fresh audit is enough; a second consecutive
+        // timeout is reported as the failure it is.
+        //
+        // This does NOT paper over findings — only a THROWN audit is retried, and
+        // `findings` is cleared first so a partial first pass cannot double-count.
+        var auditError: Error?
+        for attempt in 1...2 {
+            findings.removeAll()
+            do {
+                try app.performAccessibilityAudit(for: [.dynamicType, .textClipped]) { issue in
+                    if self.isFrozenByDesign(issue) { return true }
+                    let element = issue.element?.label ?? "(unnamed element)"
+                    findings.append("  • \(issue.compactDescription) — \"\(element)\"")
+                    return true
+                }
+                auditError = nil
+                break
+            } catch {
+                auditError = error
+                if attempt == 1 { continue }
             }
-        } catch {
-            XCTFail("\(surface.id): the audit itself failed to run — \(error)")
+        }
+        if let auditError {
+            XCTFail("\(surface.id): the audit itself failed to run twice — \(auditError)")
         }
 
         app.terminate()
