@@ -46,3 +46,6 @@ graphify-out/
 
 # Serena MCP project cache — local tool state, never commit
 .serena/
+
+# Source-registry dry-run output (ADR-009): fetched snapshots + reports, never committed.
+.runs/
