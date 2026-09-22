@@ -309,9 +309,10 @@ struct FeedEventCard: View {
                 // reference relative to card width, and the token scale has nothing
                 // between the two (`nearestTextStyle` snaps 24–31 to `.title`).
                 .font(.eventDisplay(28))
-                // Apple sets its headlines tight, and the bigger the size the more it
-                // needs it — a lead-story size at default tracking reads loose.
-                .tracking(-0.6)
+                // No `.tracking` here any more. It used to pull a system face in to
+                // where Apple sets its headlines; this face carries the sheet's own
+                // spacing, tuned so a set line matches the drawing, and tightening it
+                // again would just double-count that.
                 // A two-line headline at this size sits ~1.21em apart by default,
                 // which reads airy next to the reference's ~1.1em. Negative spacing
                 // is how this codebase has always tightened a heading.

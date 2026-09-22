@@ -3,9 +3,9 @@
 //  Block Party — design tokens (typography)
 //
 //  Jost is the display, headline, and wordmark face; SF Pro stays the body, UI, and
-//  data face through the system helpers; Inter Display ExtraBold is scoped to the one
-//  role that earned it, the event headline (`eventDisplay`). Atkinson Hyperlegible
-//  Bold remains bundled but is no longer referenced. Numbers keep tabular figures by
+//  data face through the system helpers; BP Event Heading is scoped to the one role
+//  it was drawn for, the event headline (`eventDisplay`). Atkinson Hyperlegible Bold
+//  remains bundled but is no longer referenced. Numbers keep tabular figures by
 //  pairing the mono helpers with `.monospacedDigit()` at the call site.
 //
 //  EVERY helper here scales with Dynamic Type except the three that say, in their
@@ -35,8 +35,8 @@ enum Face {
     static let displayBold    = "JostRoman-Bold"
     static let logo           = "JostRoman-SemiBold"
 
-    /// Inter Display ExtraBold — the event headline, and nothing else.
-    static let eventHeadline  = "InterDisplay-ExtraBold"
+    /// BP Event Heading — the event headline, and nothing else.
+    static let eventHeadline  = "BPEventHeading-Regular"
 }
 
 /// Register every bundled .ttf so its PostScript name resolves. Idempotent.
@@ -101,19 +101,21 @@ extension Font {
         .custom(Face.displaySemi, size: size, relativeTo: style ?? nearestTextStyle(to: size))
     }
 
-    /// Event headline face — Inter Display ExtraBold.
+    /// Event headline face — BP Event Heading, the app's own.
     ///
     /// The third face in a file whose header says there are two, so it is scoped on
     /// purpose: the headline that sits ON an event photograph, and the same headline
-    /// on the event's detail page. Both were lighter than the job — SF Pro Bold on the
-    /// card, Jost SemiBold on the detail page — and a headline over a photograph needs
-    /// weight before it needs personality.
+    /// on the event's detail page. Neither of the faces already here was right for it
+    /// — SF Pro Bold and Jost SemiBold both read light over a picture — and neither
+    /// was a released typeface the reference could be matched to. Measured, the
+    /// reference runs about 15% wider per letter than any grotesque on hand, so this
+    /// one is drawn rather than licensed.
     ///
-    /// `Display` here is the optical size, not a description. Inter ships a separate
-    /// cut for large sizes — tighter spacing, shorter apertures — and a 28pt headline
-    /// is squarely in its range; the text cut would set this loose.
-    ///
-    /// SIL Open Font License, shipped beside the file as `Inter-OFL.txt`, same as Jost.
+    /// It is built from `scripts/event-font/alphabet-sheet.png`; that folder's README
+    /// is how to rebuild it and, more usefully, what it still lacks. The short version
+    /// for anyone reading a crash or a screenshot: accented characters are NOT in the
+    /// font, so a title containing one falls back to the system face for that
+    /// character alone.
     static func eventDisplay(_ size: CGFloat, relativeTo style: TextStyle? = nil) -> Font {
         .custom(Face.eventHeadline, size: size, relativeTo: style ?? nearestTextStyle(to: size))
     }
