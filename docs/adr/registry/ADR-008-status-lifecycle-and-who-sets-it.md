@@ -1,6 +1,10 @@
 # ADR-008 — Status lifecycle, and who is allowed to set it
 
-**Status:** Accepted
+**Status:** Accepted; the blanket "only Jesse sets `active`, one entry at a time" rule
+is narrowed by [ADR-010](ADR-010-completeness-is-the-goal.md). Jesse still sets every
+`active`, and agents still may not — but entries that publish nothing (`listed`, see
+[ADR-011](ADR-011-tiers-and-cadences.md)) are promoted in batches by category. The
+status values, the never-delete rule and `added_by` below stand unchanged.
 **Date:** 2026-09-22
 
 ## Context

@@ -12,8 +12,33 @@ written only by a runner. Sync is one-way, md → DB, at the start of every run 
 If you are about to write a timestamp, a hash, or an error message into a file in this
 folder: stop. That belongs in the database.
 
+---
+
+## The rule (ADR-010)
+
+**Completeness is the goal, not convenience.** The target is *every* business,
+institution and public-benefit place in the town — churches, parks, trails, the library,
+the food shelf and city services included, not businesses alone. Not the ones with good
+websites. Not the ones we happen to know. A place with no website and no social media is
+still a place a neighbour needs, and its absence from this registry is a **defect**, not
+a limitation. A hard-to-reach place gets a harder method, never a quiet omission.
+
+**Coverage is measured against an external count of what exists**, never against what we
+have already collected. The question is not how many entries we have; it is how many
+places exist that we do not have.
+
+**Freshness is part of correctness.** A stale entry is a wrong entry. Every entry carries
+a cadence (ADR-011) and a last-verified date, and one past its cadence is reported as
+stale rather than served silently as current.
+
+**The whitelist still holds.** The daily routine reads only this registry and does not
+crawl (ADR-001). Discovery makes the whitelist bigger; it does not make it open.
+
+Two thirds of St. Joseph has no website — measured, 23 of 69 named places. That third is
+not the town. Closing the rest is outreach, not scraping.
+
 The decisions behind every rule here live in [`docs/adr/registry/`](../docs/adr/registry/),
-named `ADR-NNN-kebab-slug.md` and numbered 001–009 in their own series, separate from the
+named `ADR-NNN-kebab-slug.md` and numbered 001–011 in their own series, separate from the
 app's ADRs in `docs/adr/`. ADRs are immutable; when a decision changes, a new ADR supersedes
 the old one, and the old one is never edited (ADR-005).
 
@@ -74,6 +99,7 @@ what keeps an entry written in 2026 readable in 2030.
 | `category` | no | Freeform bucket — `restaurant`, `cidery`, `bakery`, `gov`, etc. Not an enum; used for grouping, not logic. |
 | `partner` | no | `true` when the business is a Block Party partner. Absent means not a partner. |
 | `added_by` | no | `jesse` or `agent:<name>` (e.g. `agent:claude`). Says who proposed the entry (ADR-008). |
+| `tier` | no (defaults to `listed`) | What the entry is *for*, and how often it is checked. See [tier values](#tier-adr-011). |
 | `sources` | yes | List of places to look. At least one. |
 
 ### Source fields (`sources[]`)
@@ -120,6 +146,25 @@ what keeps an entry written in 2026 readable in 2030.
 
 **Never delete an entry.** Set `status: retired` and say why in `Notes:`. A deleted entry takes
 its history with it; a retired one explains itself two years later (ADR-008).
+
+### `tier` (ADR-011)
+
+`status` says whether the runner may read an entry. `tier` says what it is for. They are
+independent — a `listed` entry can be `proposed`, `active`, `paused` or `retired`.
+
+| Value | What it is | Publishes | How it is promoted | Cadence |
+| --- | --- | --- | --- | --- |
+| `watched` | A real URL whose content changes — events, hours, announcements | yes | per entry, by Jesse | every run |
+| `listed` | The place exists: name, location, category. Nothing to fetch | no | **batch, by category** | re-verified quarterly |
+| `submitted` | No web presence; the owner tells Block Party directly | yes | per entry, by Jesse | when something arrives |
+
+`listed` is what makes batch approval safe: it is *defined* by publishing nothing, which
+is the exact property ADR-008 was protecting. The worst case for a bad `listed` entry is
+a wrong pin on a map — visible, and cheap to fix.
+
+An entry moving from `listed` to `watched` crosses the publishing line, so it needs
+per-entry review even if it was originally batch-approved. Discovery flags those; it does
+not re-tier on its own.
 
 ---
 

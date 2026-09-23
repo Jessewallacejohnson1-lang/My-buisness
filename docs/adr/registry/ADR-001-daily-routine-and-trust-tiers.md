@@ -1,6 +1,9 @@
 # ADR-001 — The daily routine reads a whitelist, and trust decides what publishes
 
-**Status:** Accepted
+**Status:** Accepted; the "adding entries is deliberate human work" consequence is
+superseded by [ADR-010](ADR-010-completeness-is-the-goal.md), which makes completeness
+the goal and automates discovery. The whitelist principle, the trust tiers, the
+evergreen pool and the Places `place_id` restriction below all stand unchanged.
 **Date:** 2026-09-22
 
 ## Context

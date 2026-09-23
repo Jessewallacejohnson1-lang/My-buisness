@@ -9,6 +9,17 @@ First draft of the St. Joseph registry, 2026-09-22.
 Every entry is `status: proposed` — an agent may not set `active` (ADR-008). Jesse
 flips the ones worth watching. Nothing here is fetched until he does.
 
+Each entry also carries a `tier` (ADR-011): `watched` has a URL whose content changes and
+is read every run; `listed` just says the place exists and is re-verified quarterly;
+`submitted` has no web presence and waits on the owner. Tier decides how promotion works
+— `watched` and `submitted` are approved one at a time, `listed` in batches by category
+(ADR-010), because a `listed` entry publishes nothing.
+
+This seed set is 10 `watched` to 1 `listed`, which is backwards and only because these
+are the thirteen places that were easy to find. Two thirds of St. Joseph has no website
+at all, so once discovery runs, `listed` should outnumber `watched` roughly five to one.
+If it does not, the registry is still only describing the convenient town (ADR-010).
+
 Every URL below was requested and returned 200 on 2026-09-22 before being written
 down. Nothing is guessed. Where a real URL could not be confirmed the entry carries
 `url: TODO` instead, which is what keeps this file from scraping a stranger's site
@@ -28,6 +39,7 @@ next entry's name.
 ```yaml
 id: krewe
 status: proposed
+tier: watched
 category: restaurant
 added_by: agent:claude
 sources:
@@ -48,6 +60,7 @@ both are listed. Named in the skill's own examples, so treat it as a flagship en
 ```yaml
 id: local-blend
 status: proposed
+tier: watched
 category: coffee
 added_by: agent:claude
 sources:
@@ -69,6 +82,7 @@ the user-agent, not an outage.
 ```yaml
 id: bad-habit-brewing
 status: proposed
+tier: watched
 category: brewery
 added_by: agent:claude
 sources:
@@ -86,6 +100,7 @@ without re-testing, and re-check occasionally in case they add a certificate.
 ```yaml
 id: milk-and-honey-ciders
 status: proposed
+tier: watched
 category: cidery
 added_by: agent:claude
 sources:
@@ -101,6 +116,7 @@ event series, so the events page is the right source rather than the homepage.
 ```yaml
 id: jupiter-moon
 status: proposed
+tier: listed
 category: dessert
 added_by: agent:claude
 sources:
@@ -117,6 +133,7 @@ found; the site is flavors and hours, so this is a low-frequency source.
 ```yaml
 id: flour-and-flower
 status: proposed
+tier: submitted
 category: bakery
 partner: true
 added_by: agent:claude
@@ -137,6 +154,7 @@ actually post) before this is activated; an active entry may not carry a TODO ur
 ```yaml
 id: kennedy-community-school
 status: proposed
+tier: watched
 category: school
 added_by: agent:claude
 sources:
@@ -163,6 +181,7 @@ because it ignores robots; the runner reads it and refuses. Do not switch these 
 ```yaml
 id: csb
 status: proposed
+tier: watched
 category: college
 added_by: agent:claude
 sources:
@@ -186,6 +205,7 @@ confirmed by the 2026-09-22 dry-run.
 ```yaml
 id: city-of-st-joseph
 status: proposed
+tier: watched
 category: gov
 added_by: agent:claude
 sources:
@@ -204,6 +224,7 @@ search or the results are St. Joseph, Missouri (ADR-006).
 ```yaml
 id: joetown
 status: proposed
+tier: watched
 category: town
 added_by: agent:claude
 sources:
@@ -231,6 +252,7 @@ and `fetch` is allowed. Checked 2026-09-22 — re-check if a run ever reports a 
 ```yaml
 id: st-joseph-farmers-market
 status: proposed
+tier: watched
 category: market
 added_by: agent:claude
 seasonal: true
@@ -254,6 +276,7 @@ not breakage; `status: paused` is the right call over winter rather than chasing
 ```yaml
 id: millstream-arts-festival
 status: proposed
+tier: watched
 category: festival
 added_by: agent:claude
 seasonal: true
@@ -272,6 +295,7 @@ is the expected result, not a fault.
 ```yaml
 id: individual-vendors
 status: proposed
+tier: submitted
 category: vendors
 added_by: agent:claude
 sources:
