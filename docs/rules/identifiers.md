@@ -3,7 +3,7 @@
 The live values. Everything here is a fact about the running app, not a preference —
 check it before you type an identifier from memory.
 
-- **Bundle id and logging subsystem:** `Jesse.BlockParty`. `[prose]` Every worktree builds this same id, so installing any checkout overwrites the same simulator app.
+- **Bundle id and logging subsystem:** `Jesse.BlockParty`. `[prose]`
 - **Xcode project** `BlockParty.xcodeproj` · **scheme** `BlockParty` · **iOS deployment target 26.5** · Swift 5. `[prose]`
 - **Shared Supabase project id:** `lxdgwhvqjqmqliobwjpi` — the same project the Expo app uses, and the same one the Android port calls. `[prose]`
 

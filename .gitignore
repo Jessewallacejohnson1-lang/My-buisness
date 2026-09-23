@@ -46,3 +46,6 @@ graphify-out/
 
 # Serena MCP project cache — local tool state, never commit
 .serena/
+
+# Python bytecode cache
+__pycache__/

@@ -72,13 +72,9 @@ A change is not done until all four are true. Say which ones you ran.
 
 ## Hard rules that no machine can check
 
-The trigger table below routes you to everything a hook or a test already catches. These
-three are caught by nobody, and they are the ones that get broken.
+The trigger table routes you to the rest. These sit here because they apply before you
+have matched any row.
 
-- **A green build is not evidence that a change landed.** `[prose]` SwiftUI accepts
-  modifiers that do nothing and nothing fails; three such no-ops shipped looking "subtle"
-  before anyone measured them. Build → install over → launch with a debug flag →
-  screenshot → **count actual pixels** in the region you changed.
 - **New files go in the folder their feature already owns.** `[prose]`
   `BlockParty/Features/<Feature>/`, one folder per screen, a `SomethingView` paired with a
   `SomethingModel`. Do not invent a new top-level folder, and never leave a file at the
@@ -87,7 +83,7 @@ three are caught by nobody, and they are the ones that get broken.
   hyper-local. No badges/streaks/feeds/notification-spam. **Real data only — never
   seeded/inflated counts.** Voice is a neighbor, not a brand.
 
-**Three rules in this block, and nothing checks any of them.** Keeping that number down is the ongoing
+**Two rules in this block, and nothing checks either of them.** Keeping that number down is the ongoing
 work of this system — a rule nobody can check is a rule that gets broken.
 
 ## Before you act, read the one file that covers it
@@ -97,7 +93,7 @@ work of this system — a rule nobody can check is a rule that gets broken.
 | build, test, install, or run on a device | `docs/rules/build.md` |
 | touch a colour, size, spacing, font, skeleton, or venue photo | `docs/rules/design.md` |
 | add a file, change a screen, or work on a feature's shape | `docs/rules/architecture.md` |
-| write an animation, async code, a scroll view, or a date calculation | `docs/rules/swift-traps.md` |
+| write an animation, async code, a scroll view, a date calculation, or a helper the compiler might isolate | `docs/rules/swift-traps.md` |
 | commit, branch, push, or open a worktree | `docs/rules/git-worktrees.md` |
 | work on the map, its pins, or its realtime feed | `docs/rules/map.md` |
 | need a bundle id, a key, a project id, or a config file | `docs/rules/identifiers.md` |
