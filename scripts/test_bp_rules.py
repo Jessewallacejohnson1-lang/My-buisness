@@ -1,3 +1,5 @@
+import contextlib
+import io
 import tempfile
 import unittest
 from pathlib import Path
@@ -35,26 +37,25 @@ class CheckTests(unittest.TestCase):
 
     def test_check_passes_when_in_sync(self):
         with tempfile.TemporaryDirectory() as tmp:
-            repo = Path(tmp)
-            (repo / "rules" / "router").mkdir(parents=True)
-            (repo / "rules" / "claude").mkdir(parents=True)
-            (repo / "rules" / "router" / "10-a.md").write_text("router body\n", encoding="utf-8")
-            (repo / "rules" / "claude" / "10-a.md").write_text("shim body\n", encoding="utf-8")
-            bp_rules.cmd_build(repo)
-            self.assertEqual(bp_rules.cmd_check(repo), 0)
+            repo = self._repo(tmp, "")
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                bp_rules.cmd_build(repo)
+            with contextlib.redirect_stdout(buf):
+                self.assertEqual(bp_rules.cmd_check(repo), 0)
 
     def test_check_fails_on_a_hand_edit(self):
         with tempfile.TemporaryDirectory() as tmp:
             repo = self._repo(tmp, "hand-edited, not composed\n")
-            self.assertEqual(bp_rules.cmd_check(repo), 1)
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                code = bp_rules.cmd_check(repo)
+            self.assertEqual(code, 1)
 
 
 class UnmigratedRepoTests(unittest.TestCase):
     def test_check_on_a_repo_without_rules_exits_2_with_a_message(self):
         with tempfile.TemporaryDirectory() as tmp:
-            import contextlib
-            import io
-
             buf = io.StringIO()
             with contextlib.redirect_stdout(buf):
                 code = bp_rules.main(["check", "--repo", tmp])
