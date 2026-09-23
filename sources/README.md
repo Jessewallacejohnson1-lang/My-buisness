@@ -187,6 +187,10 @@ not re-tier on its own.
   (ADR-009).
 - **Run `sources/validate` after every edit.** It is instant, and it is the only thing between
   a typo and a broken 6am run.
+- **Measure coverage with `sources/discover`, not by counting entries.** ADR-010 measures
+  against an external roster — OpenStreetMap plus the local directories — so the number
+  that matters is how many places exist that the registry does not have. Discovery writes
+  `proposed` entries only and never promotes or edits anything.
 
 ---
 
