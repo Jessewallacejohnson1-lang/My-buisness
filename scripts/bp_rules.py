@@ -53,6 +53,53 @@ def cmd_build(repo: Path) -> int:
     return 0
 
 
+TRIGGER_ROW = re.compile(r"^\|[^|\n]+\|\s*`(docs/rules/[^`]+\.md)`\s*\|", re.M)
+
+
+def check_sizes(repo: Path) -> int:
+    failures = 0
+    total = 0
+    for name, limit in (("AGENTS.md", ROUTER_MAX), ("CLAUDE.md", SHIM_MAX)):
+        path = repo / name
+        size = len(path.read_bytes()) if path.exists() else 0
+        total += size
+        if size > limit:
+            failures += 1
+            print(
+                f"::error::{name} is {size} B, over its {limit} B cap. "
+                f"Move a section into docs/rules/ and add a trigger-table row for it."
+            )
+    if total > COMBINED_MAX:
+        failures += 1
+        print(f"::error::router + shim is {total} B, over the {COMBINED_MAX} B always-on cap.")
+    return failures
+
+
+def check_triggers(repo: Path) -> int:
+    agents = repo / "AGENTS.md"
+    if not agents.exists():
+        print("::error::AGENTS.md is missing — run: python3 scripts/bp_rules.py build")
+        return 1
+    referenced = set(TRIGGER_ROW.findall(agents.read_text(encoding="utf-8")))
+    leaf_dir = repo / "docs" / "rules"
+    leaves = {
+        str(p.relative_to(repo)).replace("\\", "/")
+        for p in leaf_dir.glob("*.md")
+        if p.name != "HARVEST-LEDGER.md"
+    }
+    failures = 0
+    for missing in sorted(referenced - leaves):
+        failures += 1
+        print(f"::error::the trigger table points at {missing}, which does not exist")
+    for orphan in sorted(leaves - referenced):
+        failures += 1
+        print(
+            f"::error::{orphan} is not reachable from the trigger table — "
+            f"no agent will ever be told to read it"
+        )
+    return failures
+
+
 def cmd_check(repo: Path) -> int:
     failures = 0
     for name, want in generate(repo).items():
@@ -72,6 +119,8 @@ def cmd_check(repo: Path) -> int:
                     tofile=f"{name} (composed from rules/)",
                 )
             )
+    failures += check_sizes(repo)
+    failures += check_triggers(repo)
     return 1 if failures else 0
 
 

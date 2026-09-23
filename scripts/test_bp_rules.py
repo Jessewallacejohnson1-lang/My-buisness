@@ -63,5 +63,57 @@ class UnmigratedRepoTests(unittest.TestCase):
             self.assertIn("has not been", buf.getvalue())
 
 
+class TriggerTableTests(unittest.TestCase):
+    ROWS = (
+        "| About to… | Read first |\n"
+        "| --- | --- |\n"
+        "| build or test | `docs/rules/build.md` |\n"
+    )
+
+    def _repo(self, tmp: str, rows: str, leaves: list[str]) -> Path:
+        repo = Path(tmp)
+        (repo / "docs" / "rules").mkdir(parents=True)
+        for leaf in leaves:
+            (repo / "docs" / "rules" / leaf).write_text("leaf\n", encoding="utf-8")
+        (repo / "AGENTS.md").write_text(rows, encoding="utf-8")
+        return repo
+
+    def test_passes_when_every_row_resolves_and_every_leaf_is_referenced(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo(tmp, self.ROWS, ["build.md"])
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                result = bp_rules.check_triggers(repo)
+            self.assertEqual(result, 0)
+
+    def test_fails_when_a_row_points_at_a_missing_leaf(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo(tmp, self.ROWS, [])
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                result = bp_rules.check_triggers(repo)
+            self.assertEqual(result, 1)
+
+    def test_fails_when_a_leaf_is_unreachable_from_the_table(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo(tmp, self.ROWS, ["build.md", "orphan.md"])
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                result = bp_rules.check_triggers(repo)
+            self.assertEqual(result, 1)
+
+
+class SizeTests(unittest.TestCase):
+    def test_fails_when_the_router_is_over_cap(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            (repo / "AGENTS.md").write_text("x" * (bp_rules.ROUTER_MAX + 1), encoding="utf-8")
+            (repo / "CLAUDE.md").write_text("y\n", encoding="utf-8")
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                result = bp_rules.check_sizes(repo)
+            self.assertGreaterEqual(result, 1)
+
+
 if __name__ == "__main__":
     unittest.main()
