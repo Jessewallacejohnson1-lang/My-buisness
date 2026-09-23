@@ -53,6 +53,20 @@ OSM_KEYS = ["shop", "amenity", "office", "craft", "tourism", "healthcare",
             "leisure", "club", "historic"]
 NEAR_DUPLICATE = 0.87        # SequenceMatcher ratio; above this we ASK, never merge
 
+# ADR-013: places and events are separate things. Directory pages list both in one grid,
+# so names that read like an occurrence are ROUTED to an events draft, never dropped — a
+# place misfiled as an event is still a missing place (ADR-010), and only a human can
+# settle "Woodfired Wednesdays".
+EVENTISH = re.compile(
+    r"\b(fest|festival|crawl|rocks|rocktoberfest|series|celebration|parade|"
+    r"mondays|tuesdays|wednesdays|thursdays|fridays|saturdays|sundays|"
+    r"days|nights|market day|reunion|fundraiser|benefit|tournament|expo|fair)\b",
+    re.I)
+
+
+def looks_like_event(name):
+    return bool(EVENTISH.search(name))
+
 TOWNS = {
     "st-joseph-mn": {
         # South, west, north, east. Covers the city plus the immediate fringe, because
@@ -61,17 +75,28 @@ TOWNS = {
         # Floor for the silent-empty guard. Measured 202-204 elements on 2026-09-23,
         # so half that is comfortably below real data and well above a broken mirror.
         "osm_min_elements": 100,
+        # Pairs confirmed DISTINCT by a human, so the duplicate report stops asking.
+        # Recurring false positives train people to skim the report, which is how a real
+        # duplicate gets waved through.
+        "known_distinct": [
+            # Jesse, 2026-09-23: "sju for mens, cbs is womens" — two colleges, two
+            # athletics programmes, and they must never be merged.
+            ("csb athletic activities", "sju athletic activities"),
+        ],
         "directories": [
             {"id": "joetown", "url": "https://www.joetown.org/explore"},
         ],
         # Known robots refusals. Listed so they show up as work rather than vanishing.
         # The fix for a robots block is search_snippet, never a workaround (ADR-001).
+        # stjosephmn.gov/9/Business is NOT here: it is fetchable (ADR-012) and was
+        # checked — it holds bid opportunities, permits and zoning, no business list.
+        # A fetchable page with nothing on it is not a roster source.
         "agent_only": [
-            {"id": "city-business", "url": "https://www.stjosephmn.gov/9/Business",
-             "why": "stjosephmn.gov disallows robots (ADR-001)"},
             {"id": "chamber", "url": "https://stjosephchamber.com/member-directory/",
-             "why": "stjosephchamber.com disallows robots; ~35 members in 22 categories, "
-                    "Minnesota chamber confirmed by Jesse 2026-09-23"},
+             "why": "server returns 403 to any non-browser client, so robots.txt cannot "
+                    "even be read and Python reads that as disallow-all (ADR-012). NOT a "
+                    "robots rule — do not retry with a browser user-agent. ~35 members in "
+                    "22 categories; Minnesota chamber confirmed by Jesse 2026-09-23"},
         ],
     }
 }
@@ -190,8 +215,11 @@ TAGS = re.compile(r"<[^>]+>")
 
 def collect_directory(url):
     """Anchor text on a directory page is almost always the business name."""
-    raw = fetch(url)
-    html_text = raw.decode("utf-8", "replace") if isinstance(raw, bytes) else str(raw)
+    # fetch() returns (status, decoded_text) — NOT bytes. Unpacking it as one value and
+    # calling str() on the tuple parsed the tuple's repr, which is why anchor text came
+    # back carrying the two-character sequence backslash-n and produced entries named
+    # "\n \n \n". The junk filter below stays as hygiene, but this was the cause.
+    _status, html_text = fetch(url)
     host = urlparse(url).netloc
     out, seen = [], set()
     for href, anchor in LINK.findall(html_text):
@@ -241,10 +269,11 @@ def merge(records):
     return list(by_key.values())
 
 
-def near_duplicates(roster):
+def near_duplicates(roster, known_distinct=()):
     """Report pairs a human should look at. Never merged automatically."""
     out, keys = [], [r["key"] for r in roster]
     toks = [set(k.split()) for k in keys]
+    settled = {frozenset((match_key(a), match_key(b))) for a, b in known_distinct}
     for i in range(len(keys)):
         for j in range(i + 1, len(keys)):
             a, b = keys[i], keys[j]
@@ -253,9 +282,13 @@ def near_duplicates(roster):
             # place written two ways, but NOT always ("Memorial Park" is not "Park"),
             # so it is reported and never merged. Needs 2+ shared words to be worth
             # raising at all.
+            if frozenset((a, b)) in settled:
+                continue
             if toks[i] and toks[j] and toks[i] != toks[j] and \
                (toks[i] < toks[j] or toks[j] < toks[i]) and min(len(toks[i]), len(toks[j])) >= 2:
                 out.append((1.0, roster[i]["name"], roster[j]["name"]))
+                continue
+            if frozenset((a, b)) in settled:
                 continue
             if abs(len(a) - len(b)) > 12:
                 continue
@@ -302,7 +335,14 @@ def main():
 
     root = find_root(args.root)
     entries, _ = load(root)
-    have = {match_key(e["_name"]) for e in entries} | {match_key(e.get("id", "").replace("-", " ")) for e in entries}
+    have = {match_key(e["_name"]) for e in entries}
+    have |= {match_key(e.get("id", "").replace("-", " ")) for e in entries}
+    # `aka:` is how a human settles "same place, different name" permanently. No rule can
+    # know that Kennedy Elementary and Kennedy Community School are one school, so the
+    # entry says so and discovery stops re-proposing it every month (ADR-007: additive).
+    for e in entries:
+        for alias in (e.get("aka") or []):
+            have.add(match_key(alias))
 
     records, notes = [], []
     try:
@@ -324,17 +364,26 @@ def main():
 
     roster = merge(records)
     missing = [r for r in roster if r["key"] not in have]
-    dupes = near_duplicates(roster)
+    events = [r for r in missing if looks_like_event(r["name"])]
+    places = [r for r in missing if not looks_like_event(r["name"])]
+    dupes = near_duplicates(roster, town.get("known_distinct", ()))
 
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     out_dir = Path(root) / ".runs" / f"discover-{stamp}"
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "roster.json").write_text(json.dumps(roster, indent=1, ensure_ascii=False))
     (out_dir / "proposed.md").write_text(
-        "\n\n".join(entry_md(r) for r in sorted(missing, key=lambda r: r["name"])))
+        "\n\n".join(entry_md(r) for r in sorted(places, key=lambda r: r["name"])))
+    (out_dir / "events.md").write_text(
+        "# Looks like an EVENT, not a place (ADR-013)\n\n"
+        "Routed here rather than dropped. The test is a heuristic and it is wrong in both\n"
+        "directions — move anything that is really a place back into the town file.\n\n"
+        + "\n".join(f"- {r['name']}  ({', '.join(r['sources'])})"
+                    for r in sorted(events, key=lambda r: r["name"])))
 
     print(f"[discover] {'  '.join(notes)}")
-    print(f"roster {len(roster)} | registry {len(entries)} | MISSING {len(missing)}")
+    print(f"roster {len(roster)} | registry {len(entries)} | MISSING {len(missing)}"
+          f"  ({len(places)} places, {len(events)} look like events)")
     coverage = 100 * (len(roster) - len(missing)) / max(len(roster), 1)
     print(f"coverage {coverage:.0f}% of the roster is in the registry")
     for a in town.get("agent_only", []):
@@ -343,7 +392,9 @@ def main():
         print(f"  {len(dupes)} possible duplicate pair(s) — NOT merged, settle by hand:")
         for ratio, a, b in dupes[:15]:
             print(f"    {ratio}  {a!r} ~ {b!r}")
-    print(f"draft entries: {out_dir / 'proposed.md'}")
+    print(f"draft places: {out_dir / 'proposed.md'}")
+    if events:
+        print(f"likely events: {out_dir / 'events.md'} — {len(events)}, review by hand")
 
 
 if __name__ == "__main__":

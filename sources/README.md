@@ -38,7 +38,7 @@ Two thirds of St. Joseph has no website — measured, 23 of 69 named places. Tha
 not the town. Closing the rest is outreach, not scraping.
 
 The decisions behind every rule here live in [`docs/adr/registry/`](../docs/adr/registry/),
-named `ADR-NNN-kebab-slug.md` and numbered 001–011 in their own series, separate from the
+named `ADR-NNN-kebab-slug.md` and numbered 001–013 in their own series, separate from the
 app's ADRs in `docs/adr/`. ADRs are immutable; when a decision changes, a new ADR supersedes
 the old one, and the old one is never edited (ADR-005).
 
@@ -100,6 +100,8 @@ what keeps an entry written in 2026 readable in 2030.
 | `partner` | no | `true` when the business is a Block Party partner. Absent means not a partner. |
 | `added_by` | no | `jesse` or `agent:<name>` (e.g. `agent:claude`). Says who proposed the entry (ADR-008). |
 | `tier` | no (defaults to `listed`) | What the entry is *for*, and how often it is checked. See [tier values](#tier-adr-011). |
+| `aka` | no | Other names this place is known by. Discovery treats them as already held, so the same place stops being proposed under a second name every month. This is how a human settles "Kennedy Elementary is Kennedy Community School" permanently — no rule can work that out. |
+| `entity` | no (defaults to `place`) | What kind of thing this is. The registry lists **places**; events live in their own table and are what a place's sources produce (ADR-013). |
 | `sources` | yes | List of places to look. At least one. |
 
 ### Source fields (`sources[]`)
@@ -176,10 +178,17 @@ not re-tier on its own.
 - **Always append `MN` to St. Joseph searches.** Any web search for a St. Joseph source
   includes "MN"; without it, results are St. Joseph, Missouri and St. Joseph, Michigan
   (ADR-006).
-- **`stjosephmn.gov` and `joetownmn.com` block robots.** Their `robots.txt` disallows
-  automated fetching, so both use `method: search_snippet` and are never fetched directly.
-  If another site starts returning a robots refusal, switch that source to `search_snippet`
-  rather than working around the block (ADR-001, ADR-009).
+- **Robots claims are measured, not asserted (ADR-012).** Before an entry is set to
+  `search_snippet` because "the site blocks robots", read the robots rule and record it.
+  `stjosephmn.gov` was marked blocked for weeks and is not — its robots.txt blocks
+  `/admin`, `/search`, `/map` and `/currentevents`, and nothing else. That mistake cost
+  the registry the city's calendar feeds until 2026-09-23. `joetownmn.com` does block and
+  stays `search_snippet`. `stjosephchamber.com` returns **403 to any non-browser client**,
+  so robots.txt cannot even be read — that is a server refusing us, not a robots rule, and
+  retrying with a browser user-agent to get past it is forbidden.
+- **Prefer a feed to a page (ADR-012).** Where a site publishes iCal or RSS, that is the
+  source. An HTML page that renders its content in JavaScript is not a source at all — the
+  snapshot will be filter chrome. Find the feed, or fall back to `search_snippet`.
 - **One file per town**, named `sources/<town>-mn.md` (ADR-006).
 - **Registry lives at the repo root**, in this folder. The Android repo and the waitlist repo
   link here instead of keeping their own copies (ADR-004).

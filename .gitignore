@@ -49,3 +49,7 @@ graphify-out/
 
 # Source-registry dry-run output (ADR-009): fetched snapshots + reports, never committed.
 .runs/
+
+# Python bytecode from the registry scripts
+__pycache__/
+*.pyc

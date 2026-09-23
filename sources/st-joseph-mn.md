@@ -155,6 +155,8 @@ actually post) before this is activated; an active entry may not carry a TODO ur
 id: kennedy-community-school
 status: proposed
 tier: watched
+aka:
+  - Kennedy Elementary
 category: school
 added_by: agent:claude
 sources:
@@ -209,16 +211,37 @@ tier: watched
 category: gov
 added_by: agent:claude
 sources:
-  - url: https://www.stjosephmn.gov/calendar.aspx
-    kind: gov
-    method: search_snippet
+  - url: https://www.stjosephmn.gov/common/modules/iCalendar/iCalendar.aspx?catID=25&feed=calendar
+    kind: ical
+    method: fetch
+    trust: official
+  - url: https://www.stjosephmn.gov/RSSFeed.aspx?ModID=58&CID=All-calendar.xml
+    kind: rss
+    method: fetch
+    trust: official
+  - url: https://www.stjosephmn.gov/common/modules/iCalendar/iCalendar.aspx?catID=14&feed=calendar
+    kind: ical
+    method: fetch
     trust: official
 ```
 Notes: Council meetings, public notices, city-run events like Rocktoberfest.
-`method: search_snippet` is **mandatory, not a preference** — stjosephmn.gov's
-robots.txt disallows automated fetching, so an agent answers with a site-restricted web
-search instead of the runner fetching it (ADR-001, ADR-009). Always append "MN" to that
-search or the results are St. Joseph, Missouri (ADR-006).
+
+**This entry was `search_snippet` on `calendar.aspx` until 2026-09-23, on the belief that
+stjosephmn.gov disallows robots. It does not** — see ADR-012. Its robots.txt blocks
+`/admin`, `/search`, `/map` and `/currentevents`, and nothing else; `calendar.aspx` is
+allowed and returns HTTP 200. The page itself is still the wrong source, because the
+event list is rendered client-side and the HTML is chrome only, which is exactly the
+"near-empty shell" case the runner warns about.
+
+The feeds are the right source and are what CivicEngage publishes for this:
+`catID=25` is **Community Events** — the neighbour-facing calendar, 6 events on the day
+it was wired. The RSS calendar feed carries Rocktoberfest and the school reunion.
+`catID=14` is the City calendar, 175 entries, mostly council and board meetings and
+office holidays — real, but civic rather than social, so it is listed last. `catID=24`
+exists and is empty; it is deliberately not listed.
+
+Always append "MN" to any web search about this source or the results are St. Joseph,
+Missouri (ADR-006).
 
 ## JoeTown
 ```yaml
