@@ -109,9 +109,6 @@ them is background reading, and none is optional once its row matches.
 
 | You need | Read |
 |---|---|
-| Build, test, run, install, device builds, first-checkout setup | `docs/rules/build.md` |
-| Architecture: shell, tabs, auth, backend, Today | `docs/rules/architecture.md` |
-| Swift and SwiftUI traps, and the trap list | `docs/rules/swift-traps.md` |
 | The ~80 DEBUG launch arguments | `docs/debug-flags.md` |
 | What was deleted in the strip-down, and how to get it back | `docs/GUTTING-LEDGER.md` |
 | Outstanding console work, and why a past exception was made | `DECISIONS.md` |
