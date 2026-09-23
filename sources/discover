@@ -2,25 +2,8 @@
 # Build the town roster from OpenStreetMap and the local directories, and report what
 # the registry is missing (ADR-010). Writes `proposed` entries only; promotes nothing.
 #
-# Thin wrapper on purpose, same as `sources/validate`: the collectors live in the
-# source-registry skill so this repo has one copy of them, not two that drift.
-# Override the skill location with SOURCE_REGISTRY_SKILL=/path/to/source-registry.
-#
-# The Overpass result is cached for 7 days under .runs/cache/ — pass --refresh to
-# re-fetch. Overpass is donated infrastructure; the full query costs it over a minute.
+# The Overpass result is cached 7 days under .runs/cache/ — pass --refresh to re-fetch.
+# Overpass is donated infrastructure; the full query costs it over a minute.
 set -eu
-
-for dir in \
-    "${SOURCE_REGISTRY_SKILL:-}" \
-    "$HOME"/.claude/skills/source-registry \
-    "$HOME"/.claude/skills/*/*/source-registry
-do
-    if [ -f "$dir/scripts/discover.py" ]; then
-        exec python3 "$dir/scripts/discover.py" \
-            --root "$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)" "$@"
-    fi
-done
-
-echo "sources/discover: source-registry skill not found." >&2
-echo "Set SOURCE_REGISTRY_SKILL to the skill folder and try again." >&2
-exit 2
+here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+exec python3 "$here/scripts/discover.py" --root "$(dirname -- "$here")" "$@"

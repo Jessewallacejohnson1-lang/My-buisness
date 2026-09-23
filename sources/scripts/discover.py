@@ -1,0 +1,350 @@
+#!/usr/bin/env python3
+"""
+discover.py — build the town roster, and report what the registry is missing.
+
+ADR-010 makes completeness the goal and says coverage is measured against an external
+count of what exists, never against what we already hold. This is that external count.
+
+It reads four kinds of source and merges them into one roster:
+
+  * OpenStreetMap, via the Overpass API — the only machine-readable full-coverage list.
+  * Local directory pages (joetown.org/explore, the chamber member directory) — curated,
+    and better than OSM at knowing which places are actually trading.
+  * Pages that disallow robots — reported as agent tasks, never fetched (ADR-001).
+  * The registry itself, to subtract what we already have.
+
+It writes `proposed` entries ONLY, and never touches an existing entry. Per ADR-008 an
+agent may not set `active`; per ADR-010 Jesse promotes `listed` entries in batches.
+
+Dedupe is deliberately timid. Names that normalise to exactly the same string are merged.
+Anything merely SIMILAR is reported as a possible duplicate for a human to settle and is
+NOT merged — a wrongly merged pair silently deletes a business from the town, which is
+the one failure mode this whole script exists to prevent.
+
+Attribution: OpenStreetMap data is ODbL. Any surface built on this roster owes
+"© OpenStreetMap contributors". The `source` field on every record carries provenance so
+OSM-derived rows stay identifiable.
+"""
+
+import argparse, html, json, re, sys, unicodedata
+from datetime import datetime, timezone
+from difflib import SequenceMatcher
+from pathlib import Path
+from urllib.parse import urlparse
+import urllib.request
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from registry import find_root, load
+from run import fetch, UA
+
+# Overpass is a free, donated, frequently-overloaded service. 504s are routine and mean
+# "busy", not "broken", so try the mirrors in turn before giving up.
+# kumi first because it is the one that reliably answers this query; overpass-api.de
+# 504s under load most afternoons. overpass.osm.ch is DELIBERATELY ABSENT: on
+# 2026-09-23 it returned HTTP 200 with zero elements in 0.6s for a bbox the other
+# mirrors answer with 200+. A mirror that returns a confident empty answer is worse
+# than one that errors, because an empty roster reads as "nothing is missing".
+OVERPASS_MIRRORS = [
+    "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass-api.de/api/interpreter",
+]
+# Everything that could be useful to a neighbour, not just businesses (ADR-010).
+OSM_KEYS = ["shop", "amenity", "office", "craft", "tourism", "healthcare",
+            "leisure", "club", "historic"]
+NEAR_DUPLICATE = 0.87        # SequenceMatcher ratio; above this we ASK, never merge
+
+TOWNS = {
+    "st-joseph-mn": {
+        # South, west, north, east. Covers the city plus the immediate fringe, because
+        # Milk & Honey is out on County Road 51 and still very much St. Joe.
+        "bbox": (45.540, -94.360, 45.590, -94.280),
+        # Floor for the silent-empty guard. Measured 202-204 elements on 2026-09-23,
+        # so half that is comfortably below real data and well above a broken mirror.
+        "osm_min_elements": 100,
+        "directories": [
+            {"id": "joetown", "url": "https://www.joetown.org/explore"},
+        ],
+        # Known robots refusals. Listed so they show up as work rather than vanishing.
+        # The fix for a robots block is search_snippet, never a workaround (ADR-001).
+        "agent_only": [
+            {"id": "city-business", "url": "https://www.stjosephmn.gov/9/Business",
+             "why": "stjosephmn.gov disallows robots (ADR-001)"},
+            {"id": "chamber", "url": "https://stjosephchamber.com/member-directory/",
+             "why": "stjosephchamber.com disallows robots; ~35 members in 22 categories, "
+                    "Minnesota chamber confirmed by Jesse 2026-09-23"},
+        ],
+    }
+}
+
+# Link-farm and infrastructure hosts that appear on every page and are never a business.
+NOISE_HOSTS = ("squarespace", "sqspcdn", "typekit", "googleapis", "gstatic",
+               "fonts.", "facebook.com/sharer", "twitter.com/intent", "youtube.com",
+               "instagram.com/p/", "cdn.", "w3.org", "schema.org")
+
+
+def norm(name):
+    """Fold a business name to a comparison key. Aggressive on purpose."""
+    s = unicodedata.normalize("NFKD", html.unescape(str(name)))
+    s = s.encode("ascii", "ignore").decode().lower().replace("&", " and ")
+    # "Saint Joseph Meat Market" and "St. Joseph Meat Market" are one butcher. This is
+    # the town's name, so it appears in a lot of business names and is worth folding.
+    s = re.sub(r"\bsaint\b", "st", s)
+    # Apostrophes are DELETED, not spaced. A curly one is dropped by the ascii fold
+    # above while a straight one would survive to become a space, so "Sal's" and
+    # "Sal’s" normalised to different keys and the same bar appeared twice.
+    s = s.replace("\u2019", "").replace("'", "")
+    s = re.sub(r"[^a-z0-9 ]", " ", s)
+    # "and" goes with the articles: "Flour & Flower" becomes "flour and flower" while
+    # "Flower + Flour" becomes "flower flour", and that single connector token was
+    # enough to propose the same bakery twice. Connectors are not identity.
+    s = re.sub(r"\b(the|a|an|and)\b", " ", s)
+    s = re.sub(r"\b(llc|inc|co|company|corp|ltd|the)\b", " ", s)
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def match_key(name):
+    """Merge key: the normalised words, SORTED.
+
+    Word order is not identity. joetown.org lists "Flower + Flour Bakery" and the
+    registry calls the same shop "Flour & Flower Bakery"; on a plain normalised string
+    those are different places and the bakery gets proposed a second time. Comparing
+    the token SET catches the swap. Token-set identity is still a strong claim — every
+    word has to be present — so this stays on the safe side of merging.
+    """
+    return " ".join(sorted(norm(name).split()))
+
+
+def osm_category(tags):
+    for k in OSM_KEYS:
+        if k in tags:
+            return f"{k}={tags[k]}"
+    return None
+
+
+def collect_osm(bbox, min_elements, cache=None, max_age_days=7, refresh=False):
+    s, w, n, e = bbox
+    # ONE key-regex pass, not one query per key. Nine separate nwr statements timed
+    # every mirror out; this returns the same features in a single traversal.
+    query = (f'[out:json][timeout:60];'
+             f'nwr[~"^({"|".join(OSM_KEYS)})$"~"."]({s},{w},{n},{e});'
+             f'out tags center;')
+    # Overpass is donated infrastructure and this query takes over a minute. Cache it:
+    # the roster is a monthly job, and a town's shops do not turn over in an afternoon.
+    if cache and not refresh and cache.exists():
+        age = (datetime.now(timezone.utc).timestamp() - cache.stat().st_mtime) / 86400
+        if age < max_age_days:
+            data = json.loads(cache.read_text())
+            print(f"[discover] osm: using cache, {age:.1f}d old (--refresh to re-fetch)")
+            return _osm_records(data, min_elements, "cache")
+
+    last = None
+    for endpoint in OVERPASS_MIRRORS:
+        req = urllib.request.Request(
+            endpoint, data=urllib.parse.urlencode({"data": query}).encode(),
+            headers={"User-Agent": UA})
+        try:
+            with urllib.request.urlopen(req, timeout=120) as r:
+                data = json.load(r)
+            break
+        except Exception as ex:
+            last = f"{urlparse(endpoint).netloc}: {ex}"
+    else:
+        raise RuntimeError(f"all Overpass mirrors failed (last: {last})")
+
+    recs = _osm_records(data, min_elements, urlparse(endpoint).netloc)
+    if cache:
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        cache.write_text(json.dumps(data))
+    return recs
+
+
+def _osm_records(data, min_elements, where):
+    if len(data.get("elements", [])) < min_elements:
+        # A confident empty answer is the dangerous failure: it makes MISSING smaller
+        # and the registry look more complete than it is, which is the one thing
+        # ADR-010 measures. Treat "implausibly few" as an outage, not as truth.
+        raise RuntimeError(
+            f"only {len(data.get('elements', []))} elements from "
+            f"{where} (expected >= {min_elements}) — treating as an "
+            f"outage rather than an empty town")
+    out = []
+    for el in data.get("elements", []):
+        tags = el.get("tags", {})
+        name = tags.get("name")
+        if not name:
+            continue                       # unnamed features are geometry, not places
+        out.append({
+            "name": name,
+            "category": osm_category(tags),
+            "website": tags.get("website") or tags.get("contact:website"),
+            "lat": el.get("lat") or (el.get("center") or {}).get("lat"),
+            "lon": el.get("lon") or (el.get("center") or {}).get("lon"),
+            "source": "osm",
+        })
+    return out
+
+
+LINK = re.compile(r'<a\b[^>]*href="(https?://[^"]+)"[^>]*>(.*?)</a>', re.S | re.I)
+TAGS = re.compile(r"<[^>]+>")
+
+
+def collect_directory(url):
+    """Anchor text on a directory page is almost always the business name."""
+    raw = fetch(url)
+    html_text = raw.decode("utf-8", "replace") if isinstance(raw, bytes) else str(raw)
+    host = urlparse(url).netloc
+    out, seen = [], set()
+    for href, anchor in LINK.findall(html_text):
+        if any(h in href for h in NOISE_HOSTS) or host in href:
+            continue
+        name = html.unescape(TAGS.sub(" ", anchor))
+        # joetown.org embeds JSON in places, so some anchor text arrives with the
+        # two-character sequence backslash-n rather than a real newline. Those must go
+        # BEFORE the "has real letters" test below, or the n's count as letters and
+        # entries named "\n \n \n \n" sail through it — which is exactly what happened.
+        name = re.sub(r"\\+[nrt]", " ", name)
+        name = re.sub(r"\s+", " ", name).strip()
+        # Anchor text that is only whitespace, or the literal characters "\n", survives
+        # tag-stripping and became three entries named "\n \n \n". Require real letters.
+        if len(re.sub(r"[^A-Za-z0-9]", "", name)) < 3 or len(name) > 60:
+            continue
+        if name.lower() in ("read more", "learn more", "website", "click here", "home"):
+            continue
+        key = norm(name)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append({"name": name, "category": None, "website": href,
+                    "lat": None, "lon": None, "source": urlparse(url).netloc})
+    return out
+
+
+def merge(records):
+    """Exact normalised-name matches collapse. Nothing else does."""
+    by_key = {}
+    for r in records:
+        k = match_key(r["name"])
+        if not k:
+            continue
+        if k in by_key:
+            cur = by_key[k]
+            cur["sources"] = sorted(set(cur["sources"] + [r["source"]]))
+            for f in ("category", "website", "lat", "lon"):
+                if cur.get(f) is None:
+                    cur[f] = r.get(f)
+        else:
+            r = dict(r)
+            r["sources"] = [r.pop("source")]
+            r["key"] = k
+            r["display_key"] = norm(r["name"])
+            by_key[k] = r
+    return list(by_key.values())
+
+
+def near_duplicates(roster):
+    """Report pairs a human should look at. Never merged automatically."""
+    out, keys = [], [r["key"] for r in roster]
+    toks = [set(k.split()) for k in keys]
+    for i in range(len(keys)):
+        for j in range(i + 1, len(keys)):
+            a, b = keys[i], keys[j]
+            # A strict subset is the shape of "Sal's Bar" against "Sal's Bar and Grill",
+            # or "The Wandering Cow" against "Wandering Cow Ice Cream" — usually one
+            # place written two ways, but NOT always ("Memorial Park" is not "Park"),
+            # so it is reported and never merged. Needs 2+ shared words to be worth
+            # raising at all.
+            if toks[i] and toks[j] and toks[i] != toks[j] and \
+               (toks[i] < toks[j] or toks[j] < toks[i]) and min(len(toks[i]), len(toks[j])) >= 2:
+                out.append((1.0, roster[i]["name"], roster[j]["name"]))
+                continue
+            if abs(len(a) - len(b)) > 12:
+                continue
+            ratio = SequenceMatcher(None, a, b).ratio()
+            if ratio >= NEAR_DUPLICATE:
+                out.append((round(ratio, 3), roster[i]["name"], roster[j]["name"]))
+    return sorted(out, reverse=True)
+
+
+def entry_md(rec):
+    slug = re.sub(r"[^a-z0-9]+", "-", rec["key"]).strip("-")[:40]
+    url = rec.get("website") or "TODO"
+    method = "fetch" if url != "TODO" else "submission"
+    lines = [f"## {rec['name']}", "```yaml", f"id: {slug}", "status: proposed",
+             "tier: listed"]
+    if rec.get("category"):
+        lines.append(f"category: {rec['category']}")
+    lines += ["added_by: agent:discover", "sources:",
+              f"  - url: {url}", "    kind: website", f"    method: {method}",
+              "    trust: official", "```"]
+    prov = ", ".join(rec["sources"])
+    geo = (f" Mapped at {rec['lat']:.5f}, {rec['lon']:.5f}."
+           if rec.get("lat") and rec.get("lon") else "")
+    todo = ("" if url != "TODO" else
+            " No URL was found, so this is `submission`: it waits on the owner rather "
+            "than guessing an address (ADR-007).")
+    lines.append(f"Notes: Proposed by discovery on {datetime.now(timezone.utc):%Y-%m-%d} "
+                 f"from {prov}.{geo}{todo} Unreviewed — tier `listed`, so it publishes "
+                 f"nothing until promoted.")
+    return "\n".join(lines)
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--town", default="st-joseph-mn")
+    ap.add_argument("--root", default=".")
+    ap.add_argument("--refresh", action="store_true",
+                    help="ignore the cached Overpass result and re-fetch")
+    args = ap.parse_args()
+
+    town = TOWNS.get(args.town)
+    if not town:
+        sys.exit(f"no discovery config for town {args.town!r}")
+
+    root = find_root(args.root)
+    entries, _ = load(root)
+    have = {match_key(e["_name"]) for e in entries} | {match_key(e.get("id", "").replace("-", " ")) for e in entries}
+
+    records, notes = [], []
+    try:
+        osm = collect_osm(town["bbox"], town.get("osm_min_elements", 1),
+                          cache=Path(root) / ".runs" / "cache" / f"osm-{args.town}.json",
+                          refresh=args.refresh)
+        records += osm
+        notes.append(f"osm: {len(osm)} named")
+    except Exception as ex:
+        notes.append(f"osm: FAILED ({ex})")
+
+    for d in town["directories"]:
+        try:
+            got = collect_directory(d["url"])
+            records += got
+            notes.append(f"{d['id']}: {len(got)}")
+        except Exception as ex:
+            notes.append(f"{d['id']}: FAILED ({ex})")
+
+    roster = merge(records)
+    missing = [r for r in roster if r["key"] not in have]
+    dupes = near_duplicates(roster)
+
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    out_dir = Path(root) / ".runs" / f"discover-{stamp}"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "roster.json").write_text(json.dumps(roster, indent=1, ensure_ascii=False))
+    (out_dir / "proposed.md").write_text(
+        "\n\n".join(entry_md(r) for r in sorted(missing, key=lambda r: r["name"])))
+
+    print(f"[discover] {'  '.join(notes)}")
+    print(f"roster {len(roster)} | registry {len(entries)} | MISSING {len(missing)}")
+    coverage = 100 * (len(roster) - len(missing)) / max(len(roster), 1)
+    print(f"coverage {coverage:.0f}% of the roster is in the registry")
+    for a in town.get("agent_only", []):
+        print(f"  AGENT   {a['id']}: {a['url']} — {a['why']}")
+    if dupes:
+        print(f"  {len(dupes)} possible duplicate pair(s) — NOT merged, settle by hand:")
+        for ratio, a, b in dupes[:15]:
+            print(f"    {ratio}  {a!r} ~ {b!r}")
+    print(f"draft entries: {out_dir / 'proposed.md'}")
+
+
+if __name__ == "__main__":
+    main()
