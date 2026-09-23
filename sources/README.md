@@ -38,7 +38,7 @@ Two thirds of St. Joseph has no website — measured, 23 of 69 named places. Tha
 not the town. Closing the rest is outreach, not scraping.
 
 The decisions behind every rule here live in [`docs/adr/registry/`](../docs/adr/registry/),
-named `ADR-NNN-kebab-slug.md` and numbered 001–013 in their own series, separate from the
+named `ADR-NNN-kebab-slug.md` and numbered 001–014 in their own series, separate from the
 app's ADRs in `docs/adr/`. ADRs are immutable; when a decision changes, a new ADR supersedes
 the old one, and the old one is never edited (ADR-005).
 
@@ -186,6 +186,16 @@ not re-tier on its own.
   stays `search_snippet`. `stjosephchamber.com` returns **403 to any non-browser client**,
   so robots.txt cannot even be read — that is a server refusing us, not a robots rule, and
   retrying with a browser user-agent to get past it is forbidden.
+- **A 403 usually means "slow down", not "go away" (ADR-014).** `stjosephchamber.com` was
+  written off as blocking us and is not: it serves our honest bot user-agent HTTP 200 and
+  **403s a Chrome user-agent**, which is an anti-scraper rule, not a wall. Its robots.txt
+  has no `Disallow` at all — it asks only for `Crawl-delay: 10`, and every 403 we saw was
+  it asking us to slow down while we ignored that. Obey `Crawl-delay`, count reading
+  robots.txt as a request, back off and retry on a 403, and only then call a source
+  blocked. Impersonating a browser stays forbidden and is also the approach that fails.
+- **Getting in is not the same as being able to read it.** The chamber page renders its
+  member list client-side; the members are on the 22 category pages. Access and
+  readability are two problems and both need solving before a source counts.
 - **Prefer a feed to a page (ADR-012).** Where a site publishes iCal or RSS, that is the
   source. An HTML page that renders its content in JavaScript is not a source at all — the
   snapshot will be filter chrome. Find the feed, or fall back to `search_snippet`.

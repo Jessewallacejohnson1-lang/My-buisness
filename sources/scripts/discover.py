@@ -26,7 +26,8 @@ Attribution: OpenStreetMap data is ODbL. Any surface built on this roster owes
 OSM-derived rows stay identifiable.
 """
 
-import argparse, html, json, re, sys, unicodedata
+import argparse, html, json, re, sys, time, unicodedata
+import urllib.error
 from datetime import datetime, timezone
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -85,19 +86,22 @@ TOWNS = {
         ],
         "directories": [
             {"id": "joetown", "url": "https://www.joetown.org/explore"},
+            # Readable after all (ADR-014). It was written off as blocking us because
+            # RobotFileParser read robots.txt with urllib's default user-agent, got a
+            # throttling 403, and turned that into disallow-all. Its robots.txt actually
+            # permits everyone and asks for Crawl-delay: 10, which the fetcher now obeys.
+            {"id": "chamber", "url": "https://stjosephchamber.com/member-directory/",
+             "collector": "chamber"},
         ],
         # Known robots refusals. Listed so they show up as work rather than vanishing.
         # The fix for a robots block is search_snippet, never a workaround (ADR-001).
         # stjosephmn.gov/9/Business is NOT here: it is fetchable (ADR-012) and was
         # checked — it holds bid opportunities, permits and zoning, no business list.
         # A fetchable page with nothing on it is not a roster source.
-        "agent_only": [
-            {"id": "chamber", "url": "https://stjosephchamber.com/member-directory/",
-             "why": "server returns 403 to any non-browser client, so robots.txt cannot "
-                    "even be read and Python reads that as disallow-all (ADR-012). NOT a "
-                    "robots rule — do not retry with a browser user-agent. ~35 members in "
-                    "22 categories; Minnesota chamber confirmed by Jesse 2026-09-23"},
-        ],
+        # Nothing is agent-only for this town any more. stjosephmn.gov is fetchable
+        # (ADR-012) and its /9/Business page holds permits and zoning, not a business
+        # list; the chamber is fetchable too (ADR-014).
+        "agent_only": [],
     }
 }
 
@@ -206,6 +210,81 @@ def _osm_records(data, min_elements, where):
             "lon": el.get("lon") or (el.get("center") or {}).get("lon"),
             "source": "osm",
         })
+    return out
+
+
+CHAMBER_CATEGORY = re.compile(r'href="(https://stjosephchamber\.com/member/category/[^"]+/)"')
+CHAMBER_MEMBER = re.compile(
+    r'href="(https://stjosephchamber\.com/member/(?!category/)[^"/]+/)"[^>]*>(.*?)</a>', re.S)
+
+
+def fetch_patiently(url, tries=4, base_wait=30):
+    """fetch() with backoff on 403.
+
+    stjosephchamber.com answers 200 when approached at its stated pace and 403 when it
+    decides you are going too fast — the same URL, minutes apart. A 403 here is a
+    "slow down", not a "go away": its robots.txt has no Disallow at all. So back off
+    and try again rather than recording the source as blocked, which is the mistake
+    that hid this directory for two days.
+    """
+    last = None
+    for attempt in range(tries):
+        try:
+            return fetch(url)
+        except urllib.error.HTTPError as ex:
+            if ex.code != 403:
+                raise
+            last = ex
+            if attempt < tries - 1:
+                wait = base_wait * (attempt + 1)
+                print(f"[discover] 403 from {urlparse(url).netloc}, waiting {wait}s "
+                      f"(attempt {attempt + 2}/{tries})")
+                time.sleep(wait)
+    raise last
+
+
+def collect_chamber(url, cache=None, max_age_days=30, refresh=False):
+    """Two levels: the directory lists categories, each category lists its members.
+
+    The directory page itself carries only category names and counts — the member list
+    is rendered client-side, so fetching the one page yields nothing. The category pages
+    DO carry their members in the HTML, so this walks them. 22 categories at the
+    Crawl-delay: 10 the site asks for is about four minutes; it is a monthly job.
+    """
+    # 22 category pages at Crawl-delay 10, plus backoff when the host pushes back, is
+    # minutes not seconds. Cache it for a month: chamber membership moves slowly and this
+    # is a monthly job. --refresh forces the walk.
+    if cache and not refresh and cache.exists():
+        age = (datetime.now(timezone.utc).timestamp() - cache.stat().st_mtime) / 86400
+        if age < max_age_days:
+            print(f"[discover] chamber: using cache, {age:.1f}d old (--refresh to re-walk)")
+            return json.loads(cache.read_text())
+
+    _status, index = fetch_patiently(url)
+    cats = sorted(set(CHAMBER_CATEGORY.findall(index)))
+    print(f"[discover] chamber: walking {len(cats)} categories at the site's stated pace")
+    out, seen = [], set()
+    for cat in cats:
+        slug = cat.rstrip("/").rsplit("/", 1)[-1]
+        try:
+            _st, page = fetch_patiently(cat)
+        except Exception as ex:
+            print(f"[discover] chamber category {slug}: {ex}")
+            continue
+        for href, anchor in CHAMBER_MEMBER.findall(page):
+            name = re.sub(r"\s+", " ", TAGS.sub(" ", html.unescape(anchor))).strip()
+            if len(re.sub(r"[^A-Za-z0-9]", "", name)) < 3 or len(name) > 60:
+                continue
+            k = norm(name)
+            if not k or k in seen:
+                continue
+            seen.add(k)
+            out.append({"name": name, "category": slug, "website": None,
+                        "lat": None, "lon": None, "source": "stjosephchamber.com"})
+        print(f"[discover]   {slug}: {len(out)} members so far", flush=True)
+    if cache:
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        cache.write_text(json.dumps(out))
     return out
 
 
@@ -356,7 +435,11 @@ def main():
 
     for d in town["directories"]:
         try:
-            got = collect_directory(d["url"])
+            got = (collect_chamber(d["url"],
+                                   cache=Path(root) / ".runs" / "cache" / "chamber.json",
+                                   refresh=args.refresh)
+                   if d.get("collector") == "chamber"
+                   else collect_directory(d["url"]))
             records += got
             notes.append(f"{d['id']}: {len(got)}")
         except Exception as ex:

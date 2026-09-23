@@ -25,6 +25,9 @@ from registry import find_root, load, validate, is_todo
 UA = "BlockPartyBot/1.0 (+https://blockpartystjoe.com)"
 MAX_BYTES = 2_000_000
 TIMEOUT = 20
+# Applied when robots.txt cannot be read, so an unknown host is crawled gently rather
+# than at full speed. Matches the delay stjosephchamber.com asks for when it answers.
+UNKNOWN_ROBOTS_DELAY = 10.0
 NOW = datetime.now(timezone.utc)
 
 
@@ -38,24 +41,82 @@ def to_text(raw):
     return "\n".join(ln for ln in lines if ln)
 
 
-_robots = {}
+_robots = {}          # host -> RobotFileParser or None (None = no restrictions known)
+_crawl_delay = {}     # host -> seconds requested by robots.txt
+_last_hit = {}        # host -> monotonic time of the last request, for crawl-delay
+
+
+def _load_robots(base):
+    """Read robots.txt with OUR user-agent, and follow RFC 9309 on failure.
+
+    RobotFileParser.read() uses urllib's default user-agent, which some WAFs reject —
+    and it turns any 401/403 into disallow_all. stjosephchamber.com was written off as
+    blocking us on exactly that path: its robots.txt says `User-agent: *` with a
+    Crawl-delay and NO Disallow, and its pages serve us HTTP 200 all day. The 403s were
+    throttling, because we were ignoring the crawl delay it asked for.
+
+    RFC 9309 s2.3.1: 4xx means no robots.txt exists, and a crawler may access the site;
+    5xx and network failures mean unknown, and we stay out. That is the rule here.
+    """
+    rp = urllib.robotparser.RobotFileParser()
+    req = urllib.request.Request(base + "/robots.txt", headers={"User-Agent": UA})
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
+            text = r.read(MAX_BYTES).decode("utf-8", "replace")
+    except urllib.error.HTTPError as e:
+        if 400 <= e.code < 500:
+            # No robots.txt to obey (RFC 9309) — but a host that refuses its own
+            # robots.txt is usually throttling, not welcoming. Default to the polite
+            # delay rather than zero: stjosephchamber.com serves robots.txt sometimes
+            # and 403s it other times, and the 403s are what happen when we go too fast.
+            return None, UNKNOWN_ROBOTS_DELAY
+        rp.disallow_all = True      # 5xx: server is unwell, do not crawl it
+        return rp, 0.0
+    except Exception:
+        rp.disallow_all = True      # unreachable: unknown, so stay out
+        return rp, 0.0
+    rp.parse(text.splitlines())
+    delay = 0.0
+    for line in text.splitlines():
+        if line.lower().startswith("crawl-delay:"):
+            try:
+                delay = max(delay, float(line.split(":", 1)[1].strip()))
+            except ValueError:
+                pass
+    return rp, delay
+
+
 def robots_ok(url):
     p = urlparse(url)
     base = f"{p.scheme}://{p.netloc}"
     if base not in _robots:
-        rp = urllib.robotparser.RobotFileParser(base + "/robots.txt")
-        try:
-            rp.read()
-        except Exception:
-            rp = None  # unreachable robots.txt -> treat as allowed
-        _robots[base] = rp
+        _robots[base], _crawl_delay[base] = _load_robots(base)
+        # Reading robots.txt IS a request. Without counting it, the first real fetch
+        # lands milliseconds later and a crawl-delay host answers 403 — which is what
+        # made stjosephchamber.com look like it was blocking us.
+        _last_hit[p.netloc] = time.monotonic()
     rp = _robots[base]
     return rp is None or rp.can_fetch(UA, url)
+
+
+def _respect_crawl_delay(url):
+    """Sleep out whatever robots.txt asked for. It is the one thing it asked for."""
+    host = urlparse(url).netloc
+    delay = _crawl_delay.get(f"{urlparse(url).scheme}://{host}", 0.0)
+    if delay <= 0:
+        return
+    last = _last_hit.get(host)
+    if last is not None:
+        wait = delay - (time.monotonic() - last)
+        if wait > 0:
+            time.sleep(wait)
+    _last_hit[host] = time.monotonic()
 
 
 def fetch(url):
     if not robots_ok(url):
         raise RuntimeError("robots.txt disallows -> switch method to search_snippet")
+    _respect_crawl_delay(url)
     req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "text/html,*/*"})
     with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
         body = r.read(MAX_BYTES + 1)

@@ -4,6 +4,11 @@
 **Date:** 2026-09-23
 **Corrects:** a factual claim in [ADR-001](ADR-001-daily-routine-and-trust-tiers.md).
 That ADR's decisions stand; one of the facts it rested on was wrong.
+**Partly superseded by [ADR-014](ADR-014-a-403-is-slow-down-not-go-away.md):** the rule
+below that a 403 on `robots.txt` means the server refuses us, and that such an entry
+stays `search_snippet`, is wrong. A 403 from a crawl-delayed host means slow down.
+Everything else here — measure robots claims, prefer feeds, a client-rendered page is
+not a source, and never impersonate a browser — stands.
 
 ## Context
 
