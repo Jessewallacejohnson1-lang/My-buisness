@@ -82,16 +82,12 @@ def check_triggers(repo: Path) -> int:
         return 1
     referenced = set(TRIGGER_ROW.findall(agents.read_text(encoding="utf-8")))
     leaf_dir = repo / "docs" / "rules"
-    leaves = {
-        str(p.relative_to(repo)).replace("\\", "/")
-        for p in leaf_dir.glob("*.md")
-        if p.name != "HARVEST-LEDGER.md"
-    }
+    leaves = {str(p.relative_to(repo)).replace("\\", "/") for p in leaf_dir.glob("*.md")}
     failures = 0
     for missing in sorted(referenced - leaves):
         failures += 1
         print(f"::error::the trigger table points at {missing}, which does not exist")
-    for orphan in sorted(leaves - referenced):
+    for orphan in sorted(leaves - referenced - {"docs/rules/HARVEST-LEDGER.md"}):
         failures += 1
         print(
             f"::error::{orphan} is not reachable from the trigger table — "

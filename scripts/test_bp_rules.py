@@ -102,6 +102,29 @@ class TriggerTableTests(unittest.TestCase):
                 result = bp_rules.check_triggers(repo)
             self.assertEqual(result, 1)
 
+    def test_harvest_ledger_not_reported_as_orphan_and_not_falsely_missing(self):
+        # Case (a): HARVEST-LEDGER.md exists but is not in trigger table -> not reported as orphan
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo(tmp, self.ROWS, ["build.md", "HARVEST-LEDGER.md"])
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                result = bp_rules.check_triggers(repo)
+            self.assertEqual(result, 0)
+
+        # Case (b): trigger table references HARVEST-LEDGER.md and file exists -> not falsely missing
+        with tempfile.TemporaryDirectory() as tmp:
+            rows_with_ledger = (
+                "| About to… | Read first |\n"
+                "| --- | --- |\n"
+                "| build or test | `docs/rules/build.md` |\n"
+                "| ledger | `docs/rules/HARVEST-LEDGER.md` |\n"
+            )
+            repo = self._repo(tmp, rows_with_ledger, ["build.md", "HARVEST-LEDGER.md"])
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                result = bp_rules.check_triggers(repo)
+            self.assertEqual(result, 0)
+
 
 class SizeTests(unittest.TestCase):
     def test_fails_when_the_router_is_over_cap(self):
