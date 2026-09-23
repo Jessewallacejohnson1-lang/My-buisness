@@ -218,8 +218,12 @@ CHAMBER_MEMBER = re.compile(
     r'href="(https://stjosephchamber\.com/member/(?!category/)[^"/]+/)"[^>]*>(.*?)</a>', re.S)
 
 
-def fetch_patiently(url, tries=4, base_wait=30):
+def fetch_patiently(url, tries=2, base_wait=30):
     """fetch() with backoff on 403.
+
+    Two tries, not four. When this host decides to throttle it applies a cooldown far
+    longer than any backoff we would sit through, so extra retries add load to a small
+    chamber's server and change nothing. Give up early and let the next run pick it up.
 
     stjosephchamber.com answers 200 when approached at its stated pace and 403 when it
     decides you are going too fast — the same URL, minutes apart. A 403 here is a
@@ -243,7 +247,8 @@ def fetch_patiently(url, tries=4, base_wait=30):
     raise last
 
 
-def collect_chamber(url, cache=None, max_age_days=30, refresh=False):
+def collect_chamber(url, cache=None, max_age_days=30, refresh=False,
+                    budget_seconds=600):
     """Two levels: the directory lists categories, each category lists its members.
 
     The directory page itself carries only category names and counts — the member list
@@ -260,12 +265,21 @@ def collect_chamber(url, cache=None, max_age_days=30, refresh=False):
             print(f"[discover] chamber: using cache, {age:.1f}d old (--refresh to re-walk)")
             return json.loads(cache.read_text())
 
+    deadline = time.monotonic() + budget_seconds
     _status, index = fetch_patiently(url)
     cats = sorted(set(CHAMBER_CATEGORY.findall(index)))
-    print(f"[discover] chamber: walking {len(cats)} categories at the site's stated pace")
+    print(f"[discover] chamber: walking {len(cats)} categories at the site's stated pace",
+          flush=True)
     out, seen = [], set()
     for cat in cats:
         slug = cat.rstrip("/").rsplit("/", 1)[-1]
+        if time.monotonic() > deadline:
+            # Partial beats nothing, and beats grinding. A run that sat in backoff for
+            # 14 minutes without finishing one category is the site telling us to come
+            # back later, not a problem to push through.
+            print(f"[discover] chamber: {budget_seconds}s budget spent, stopping with "
+                  f"{len(out)} members — rerun later for the rest", flush=True)
+            break
         try:
             _st, page = fetch_patiently(cat)
         except Exception as ex:
@@ -282,7 +296,9 @@ def collect_chamber(url, cache=None, max_age_days=30, refresh=False):
             out.append({"name": name, "category": slug, "website": None,
                         "lat": None, "lon": None, "source": "stjosephchamber.com"})
         print(f"[discover]   {slug}: {len(out)} members so far", flush=True)
-    if cache:
+    # Only cache a COMPLETE walk. Caching a partial one for a month would freeze the
+    # roster at whatever the throttle happened to allow that afternoon.
+    if cache and out and time.monotonic() <= deadline:
         cache.parent.mkdir(parents=True, exist_ok=True)
         cache.write_text(json.dumps(out))
     return out
