@@ -79,6 +79,15 @@ TOWNS = {
         # Pairs confirmed DISTINCT by a human, so the duplicate report stops asking.
         # Recurring false positives train people to skim the report, which is how a real
         # duplicate gets waved through.
+        # Confirmed SAME place under different names. First entry of each group is the
+        # name that survives; the rest fold into it. This is the roster-side twin of an
+        # entry's `aka:` — `aka` settles a roster name against the registry, this settles
+        # two roster names against each other, before either becomes an entry.
+        "aliases": [
+            ["The Wandering Cow", "Wandering Cow Ice Cream"],
+            ["Sal's Bar and Grill", "Sal's Bar", "Sals Bar and Grill"],
+            ["Flour & Flower Bakery", "Flour & Flower", "Flower + Flour Bakery"],
+        ],
         "known_distinct": [
             # Jesse, 2026-09-23: "sju for mens, cbs is womens" — two colleges, two
             # athletics programmes, and they must never be merged.
@@ -352,11 +361,25 @@ def collect_directory(url):
     return out
 
 
-def merge(records):
+def build_alias_map(groups):
+    """alias key -> canonical (key, display name). Empty when a town declares none."""
+    out = {}
+    for group in groups or ():
+        canon = group[0]
+        for name in group:
+            out[match_key(name)] = (match_key(canon), canon)
+    return out
+
+
+def merge(records, aliases=None):
     """Exact normalised-name matches collapse. Nothing else does."""
+    aliases = aliases or {}
     by_key = {}
     for r in records:
         k = match_key(r["name"])
+        if k in aliases:
+            k, canon_name = aliases[k]
+            r = dict(r, name=canon_name)   # one place, one name
         if not k:
             continue
         if k in by_key:
@@ -471,7 +494,8 @@ def main():
         except Exception as ex:
             notes.append(f"{d['id']}: FAILED ({ex})")
 
-    roster = merge(records)
+    alias_map = build_alias_map(town.get("aliases"))
+    roster = merge(records, alias_map)
     missing = [r for r in roster if r["key"] not in have]
     events = [r for r in missing if looks_like_event(r["name"])]
     places = [r for r in missing if not looks_like_event(r["name"])]
