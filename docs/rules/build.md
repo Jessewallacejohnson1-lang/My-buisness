@@ -16,11 +16,11 @@ xcodebuild test -project BlockParty.xcodeproj -scheme BlockParty \
 
 A **single** test or class: append `-only-testing:BlockPartyTests/DateHelpersTests/testAdminGate` (or `-only-testing:BlockPartyTests/DateHelpersTests`). Coverage now includes date/admin rules, the Today briefing contract/model/feel/live-payload parity/registry, utility-row providers/preferences/motion/contrast, town-timezone formatting, town-rain physics, the map polish pass (search matching, pin-detail copy, filter-chip semantics, sheet rubber-band math), the horizon layer (solar model, palette, day building, scrub math), and Your Day's realtime relevance filter. **The count is one per `func test` in `BlockPartyTests/` — read it, do not quote a number from here.** It moves under you in this repo: parallel sessions add suites to the same tree, so a figure written down is stale within the day. What matters is the invariant: the executed count must RISE when you add a test (see the registration trap below) and must not fall unless you deleted one on purpose. The horizon, Your Day, trivia and utility suites now test **unmounted** code — they are the proof those parked layers still work, so keep them green rather than deleting them with the surfaces they used to back. It is still mostly pure logic: visual map/feed/sheet/animation fidelity requires a clean 0-warning build plus simulator screenshots, and scroll/gesture behavior requires a real-device check.
 
-> **A NEW TEST FILE DOES NOT RUN UNTIL YOU REGISTER IT.** `[test]` The two targets behave differently, and this has already silently swallowed a passing test suite:
-> - **App target** — `fileSystemSynchronizedGroups`; its Sources phase lists **zero** files. A new `.swift` under `BlockParty/` joins the build automatically.
-> - **Test target** — an **explicit source list**. A new file under `BlockPartyTests/` is invisible to `xcodebuild test` until it is added to `project.pbxproj` (4 entries: `PBXBuildFile`, `PBXFileReference`, the group's `children`, and the `PBXSourcesBuildPhase` `files` list).
->
-> Symptom: the suite passes, the total test count never rises, and your new tests never executed. **Always check that the executed-test count increased.** `[test]` Register via the `xcodeproj` Ruby gem or the Xcode GUI rather than hand-editing the pbxproj.
+- **A new test file does not run until it is registered.** `[test]` The test targets
+  carry an explicit source list; a file under `BlockPartyTests/` or `BlockPartyUITests/`
+  is invisible to `xcodebuild test` until 4 `project.pbxproj` entries exist.
+  `TestRegistrationGuardTests` fails the suite in both directions. Register with the
+  `xcodeproj` gem or the Xcode GUI, never by hand, then confirm the executed count rose.
 
 Raw shell tooling (a session with XcodeBuildMCP should prefer it — see `CLAUDE.md`):
 
