@@ -7,8 +7,8 @@
 //  the content. This bar is chrome: it is present immediately (no spring entrance),
 //  it does not scroll with the content, it LEAVES on a downward scroll and returns
 //  on an upward one (Jesse, 2026-09-21, naming Instagram), and it carries no rule of
-//  its own — the soft scroll edge effect under it is what separates the bar from the
-//  feed, a gradient rather than a cut.
+//  its own — its paper backdrop fades to clear below the row, so the bar separates
+//  from the feed with a gradient rather than a cut.
 //
 //  The Joetown lockup was retired on 2026-09-17; the profile avatar — the ⋮-lineage
 //  button that opened the town menu — was retired on 2026-09-18 (Jesse's call). For
@@ -190,10 +190,9 @@ struct TodayTopBar: View {
         //
         // The bar's HEIGHT never moves — the frame below holds 58 whether or not
         // anything is inside it. See `TodayHeader.contentHeight` for why a height
-        // derived from this scroll rings instead of settling. The band the chrome
-        // leaves behind is not empty: with the backdrop gone too, what shows through
-        // is the feed, blurred and washed toward the page by `FeedView`'s
-        // `.scrollEdgeEffectStyle(.soft, for: .top)` — a gradient, not a cut.
+        // derived from this scroll rings instead of settling. With the backdrop gone
+        // too, the band the chrome leaves behind shows the feed itself, unblurred;
+        // only the status band above it keeps paper (`FeedView`'s status strip).
         ZStack {
             if !chromeHidden {
                 controls

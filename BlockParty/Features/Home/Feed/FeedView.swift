@@ -165,8 +165,9 @@ struct FeedView: View {
             .tint(Hue.ink)
         }
         // The top bar's come-and-go, off the scroll's DIRECTION. The old value this
-        // hands back IS the previous offset, so the rule needs nothing stored: the
-        // only state kept is the answer, and it is written only when it changes.
+        // hands back is the previous offset; the one other thing stored is
+        // `chromeAnchor`, where the current direction started, so slow drags add
+        // up. Both it and the answer are written only when they change.
         //
         // Note the offset expression: `contentOffset.y` rests at `-contentInsets
         // .top`, so the `+ geometry.contentInsets.top` term is what makes 0 mean
@@ -198,27 +199,33 @@ struct FeedView: View {
         // (recorded 2026-09-24). `.safeAreaInset` opts out of that adaptation, and
         // the bar now brings its own paper-to-clear backdrop instead, so the logo
         // sits on paper mid-feed; when the bar leaves, the backdrop leaves with it
-        // and the soft edge below takes over. Height stays the constant 58pt.
+        // and only the status strip below stays. Height stays the constant 58pt.
         .safeAreaInset(edge: .top, spacing: 0) {
             TodayTopBar(onOpenSearch: onOpenSearch,
                         onOpenMap: onOpenMap,
                         onOpenNotifications: onOpenNotifications,
                         chromeHidden: forcedCollapse || chromeHidden)
         }
-        // The glass fade at the top of the screen (Jesse, 2026-09-19, matching
-        // Instagram's feed): content sliding under the status bar is blurred and
-        // washed toward the page instead of being covered by a white bar. It is
-        // what the band shows while the bar is away; while the bar is showing, the
-        // bar's own paper backdrop (`TodayTopBar.backdrop`) covers it.
+        // An always-on paper strip behind the status bar, exactly the top safe area
+        // and nothing below it (Jesse, Gate 2, 2026-09-24: like Instagram's). With
+        // the bar away, the dark clock and battery otherwise sat straight on dark
+        // photos: under `.safeAreaInset` the soft scroll edge effect draws nothing,
+        // so it was deleted rather than left as dead code. With the bar showing,
+        // the strip is paper under the bar's own paper backdrop, so nothing changes.
         //
-        // `.soft`, restored 2026-09-21. It went to `.hard` for the few hours the bar
-        // was locked in place, because a bar that never leaves shares this band with
-        // the feed and `.soft` passed the card action row through legibly — a ghost
-        // heart under the search mark. Now that the chrome leaves on a downward
-        // scroll, the band is the feed's again and the gradient is the point: a
-        // wash, not a cut, and no hairline anywhere (Jesse: "no clean cut white
-        // line, a fade gradient like Instagram").
-        .scrollEdgeEffectStyle(.soft, for: .top)
+        // A zero-height view at the safe area's top edge, with the paper as its
+        // BACKGROUND ignoring the top safe area: the flexible background grows up
+        // to the screen edge, which is the status band's height. (Paper on a fixed
+        // frame would be shifted, not grown — the backdrop's first bug.) Applied
+        // AFTER `.safeAreaInset`, so its safe area is the status band alone, not the
+        // band plus the 58pt bar. It takes no taps and changes no inset or height.
+        .overlay(alignment: .top) {
+            Color.clear
+                .frame(height: 0)
+                .background(Hue.paper.ignoresSafeArea(edges: .top))
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
         .scrollPosition($feedPosition)
         .refreshable {
             if controller.briefing.needsRefresh {
