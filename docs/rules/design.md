@@ -21,12 +21,15 @@ Do **not** hardcode hex/spacing at view call sites when a token or named palette
   or ignore live code), so that pre-processing was removed entirely rather than patched a
   fourth time. The trade: a colour or font call formatted across several lines, e.g.
   `Color(\n    red: 0.1, green: 0.2, blue: 0.3\n)`, is **not** caught by this hook — write
-  it on one line if you want the guard to see it. A frozen font size is still caught
-  regardless of formatting, because `TypographyScalingGuardTests` runs on compiled Swift
-  at build time, not on raw edit text, so multi-line `.system(size:)` still fails the
-  build even though the hook missed it at edit time. There is no equivalent build-time
-  catch for a multi-line hardcoded colour — that is a real residual gap, not a theoretical
-  one; a reviewer still has to catch it by eye.
+  it on one line if you want the guard to see it. `TypographyScalingGuardTests` is not a
+  backstop for that blind spot — it has the same one. It scans committed source the same
+  way the hook scans edit text: one physical line at a time, checking each line for the
+  literal substring `.system(size:` (`BlockPartyTests/TypographyScalingGuardTests.swift`).
+  A frozen font written on one line is caught by both. A font call broken between the open
+  paren and `size:`, e.g. `Font.system(\n    size: 17\n)`, is caught by **neither** — same
+  as the multi-line hardcoded colour above, there is no build-time catch for it. So a call
+  split across lines, colour or font, is caught by nothing automatic — a human eye has to
+  catch it.
 
 ## Strategy playbook — `docs/playbook.md`
 
