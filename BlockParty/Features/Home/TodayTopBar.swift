@@ -60,10 +60,29 @@ nonisolated enum TodayHeader {
     /// deliberate swipe should clear it.
     static let hideAfter: CGFloat = 24
 
-    /// The smallest movement that counts as a direction. Under this, a finger
-    /// resting on the glass and the last millimetres of inertia would flip the bar
-    /// back and forth — the jitter every direction-driven header has to answer.
-    static let directionThreshold: CGFloat = 4
+    /// How far the scroll must travel in ONE direction, accumulated since that
+    /// direction started, before the bar flips. Under this, a finger resting on
+    /// the glass and the last millimetres of inertia would flip the bar back and
+    /// forth — the jitter every direction-driven header has to answer.
+    ///
+    /// Accumulated, not per frame: this was a 4pt per-frame threshold until
+    /// 2026-09-24, and a slow drag (1–3pt a frame, deceleration tails included)
+    /// never passed it, so the bar ignored slow drags entirely (taste.md: chrome
+    /// follows the finger at any speed). 12pt is suggested by a peer session's
+    /// measurement; tune on device.
+    static let flipDistance: CGFloat = 12
+
+    /// Where the current scroll direction started. Moves to the previous offset
+    /// only when the direction REVERSES, so a slow drag keeps one anchor and its
+    /// travel adds up. At or above home it follows the offset, so the first run
+    /// down from the top is measured from where it actually starts.
+    static func directionAnchor(anchor: CGFloat, previousOffset: CGFloat, offset: CGFloat) -> CGFloat {
+        guard offset > hideAfter else { return offset }
+        let step = offset - previousOffset
+        let run = previousOffset - anchor
+        if step != 0, run != 0, (step > 0) != (run > 0) { return previousOffset }
+        return anchor
+    }
 
     /// Instagram's rule, and NOT the fade band this bar carried until 2026-09-21:
     /// the chrome leaves when you scroll DOWN and comes back the moment you scroll
@@ -72,16 +91,15 @@ nonisolated enum TodayHeader {
     /// Jesse did not want.
     ///
     /// Pure and total, so the whole behaviour is testable without a scroll view:
-    /// the only inputs are where the scroll was, where it is, and what the bar was
-    /// doing. `previousOffset` comes free from `onScrollGeometryChange`'s old
-    /// value, so nothing has to be stored to compute it.
-    static func chromeHidden(wasHidden: Bool, previousOffset: CGFloat, offset: CGFloat) -> Bool {
+    /// the only inputs are where the current direction started (`anchor`, from
+    /// `directionAnchor`), where the scroll is, and what the bar was doing.
+    static func chromeHidden(wasHidden: Bool, anchor: CGFloat, offset: CGFloat) -> Bool {
         // Home, and anywhere a rubber-band pull takes you above it, always shows
         // the bar — there is nothing below to read yet.
         guard offset > hideAfter else { return false }
-        let travelled = offset - previousOffset
-        if travelled > directionThreshold { return true }
-        if travelled < -directionThreshold { return false }
+        let travelled = offset - anchor
+        if travelled >= flipDistance { return true }
+        if travelled <= -flipDistance { return false }
         return wasHidden
     }
 

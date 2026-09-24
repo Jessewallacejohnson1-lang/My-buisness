@@ -128,28 +128,67 @@ final class TodayHeaderTests: XCTestCase {
     /// it could only bring the bar back by scrolling all the way home.
     func testScrollingDownHidesTheChromeAndScrollingUpBringsItBack() {
         // Down, well past the threshold, deep in the feed.
-        XCTAssertTrue(TodayHeader.chromeHidden(wasHidden: false, previousOffset: 300, offset: 360))
+        XCTAssertTrue(TodayHeader.chromeHidden(wasHidden: false, anchor: 300, offset: 360))
         // Up again, without going anywhere near the top.
-        XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: true, previousOffset: 360, offset: 300))
+        XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: true, anchor: 360, offset: 300))
     }
 
     /// The top always shows the bar, including through a rubber-band pull past it —
     /// a bounce must not read as "scrolling down" and take the chrome with it.
     func testTheChromeIsAlwaysHomeAtTheTopOfTheFeed() {
-        XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: true, previousOffset: 40, offset: 0))
-        XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: true, previousOffset: 0, offset: -80),
+        XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: true, anchor: 40, offset: 0))
+        XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: true, anchor: 0, offset: -80),
                        "a rubber-band pull past the top is not a downward scroll")
-        XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: false, previousOffset: 0, offset: 20),
+        XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: false, anchor: 0, offset: 20),
                        "the first 24pt belong to the top of the feed")
     }
 
-    /// Movement under the threshold holds whatever the bar was doing. Without this
+    /// Travel under `flipDistance` holds whatever the bar was doing. Without this
     /// the bar flickers: a finger resting on the glass and the last millimetres of
     /// inertia both deliver a stream of sub-point deltas in both directions.
     func testTinyMovementsDoNotFlipTheChrome() {
-        XCTAssertTrue(TodayHeader.chromeHidden(wasHidden: true, previousOffset: 300, offset: 302))
-        XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: false, previousOffset: 300, offset: 298))
-        XCTAssertTrue(TodayHeader.chromeHidden(wasHidden: true, previousOffset: 300, offset: 300))
+        XCTAssertTrue(TodayHeader.chromeHidden(wasHidden: true, anchor: 300, offset: 302))
+        XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: false, anchor: 300, offset: 298))
+        XCTAssertTrue(TodayHeader.chromeHidden(wasHidden: true, anchor: 300, offset: 300))
+    }
+
+    // MARK: - Any speed: slow drags count, jitter does not (taste.md, 2026-09-24)
+
+    /// Feeds a run of scroll offsets through the rule exactly as `FeedView` does,
+    /// frame by frame, and returns whether the bar is hidden after each frame.
+    private func drive(_ offsets: [CGFloat], startHidden: Bool) -> [Bool] {
+        var hidden = startHidden
+        var previous = offsets[0]
+        var anchor = offsets[0]
+        var states: [Bool] = []
+        for offset in offsets.dropFirst() {
+            anchor = TodayHeader.directionAnchor(anchor: anchor, previousOffset: previous, offset: offset)
+            hidden = TodayHeader.chromeHidden(wasHidden: hidden, anchor: anchor, offset: offset)
+            previous = offset
+            states.append(hidden)
+        }
+        return states
+    }
+
+    /// A slow drag moves 1–3pt a frame. Measured per frame, none of those steps
+    /// ever passed the threshold, so a slow drag never took the bar away.
+    func testSlowDragAccumulatesToHide() {
+        let down = stride(from: CGFloat(300), through: 400, by: 2).map { $0 }
+        XCTAssertEqual(drive(down, startHidden: false).last, true,
+                       "50 frames of 2pt down must hide the bar")
+    }
+
+    func testSlowDragAccumulatesToShow() {
+        let up = stride(from: CGFloat(400), through: 300, by: -2).map { $0 }
+        XCTAssertEqual(drive(up, startHidden: true).last, false,
+                       "50 frames of 2pt up must bring the bar back")
+    }
+
+    /// A finger resting on the glass: ±3pt forever, never a direction.
+    func testJitterUnderThresholdDoesNotFlip() {
+        let jitter = (0..<60).map { CGFloat(300 + ($0 % 2 == 0 ? 0 : 3)) }
+        XCTAssertFalse(drive(jitter, startHidden: false).contains(true), "jitter must not hide the bar")
+        XCTAssertFalse(drive(jitter, startHidden: true).contains(false), "jitter must not show the bar")
     }
 
     // MARK: - The bar's height still does not follow the scroll

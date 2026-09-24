@@ -118,6 +118,10 @@ struct FeedView: View {
     /// `TodayHeader.chromeHidden` holds the rule — and written only when it flips,
     /// so a scroll does not invalidate this view on every frame.
     @State private var chromeHidden = false
+    /// Where the current scroll direction started (`TodayHeader.directionAnchor`).
+    /// Written only when the direction reverses, or at home, where it tracks the
+    /// offset — never touches the bar's height.
+    @State private var chromeAnchor: CGFloat = 0
 
     /// DEBUG-only: `-header-collapsed` pins the bar to its scrolled-away state.
     /// There is no scroll automation in this setup, so without it that state cannot
@@ -174,9 +178,13 @@ struct FeedView: View {
         .onScrollGeometryChange(for: CGFloat.self) { geometry in
             geometry.contentOffset.y + geometry.contentInsets.top
         } action: { previousOffset, offset in
+            let anchor = TodayHeader.directionAnchor(anchor: chromeAnchor,
+                                                     previousOffset: previousOffset,
+                                                     offset: offset)
             let hidden = TodayHeader.chromeHidden(wasHidden: chromeHidden,
-                                                  previousOffset: previousOffset,
+                                                  anchor: anchor,
                                                   offset: offset)
+            if anchor != chromeAnchor { chromeAnchor = anchor }
             if hidden != chromeHidden { chromeHidden = hidden }
             #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("-scroll-log") {
