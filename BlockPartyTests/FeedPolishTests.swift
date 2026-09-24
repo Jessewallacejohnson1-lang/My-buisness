@@ -1066,3 +1066,19 @@ final class FeedWhenLineTests: XCTestCase {
         XCTAssertNil(timeOnly.whereLine)
     }
 }
+
+// MARK: - The action row's short counts
+
+final class FeedShortCountTests: XCTestCase {
+
+    func testCountsReadTheWayInstagramPrintsThem() {
+        let cases: [(Int, String)] = [
+            (0, "0"), (999, "999"), (3_778, "3,778"), (9_999, "9,999"),
+            (10_000, "10K"), (12_480, "12.4K"), (220_000, "220K"),
+            (999_999, "999.9K"), (1_250_000, "1.2M"), (3_000_000, "3M"),
+        ]
+        for (value, expected) in cases {
+            XCTAssertEqual(FeedEventCardActionRow.shortCount(value), expected, "\(value)")
+        }
+    }
+}
