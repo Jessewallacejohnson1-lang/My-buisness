@@ -16,6 +16,11 @@ xcodebuild test -project BlockParty.xcodeproj -scheme BlockParty \
 
 A **single** test or class: append `-only-testing:BlockPartyTests/DateHelpersTests/testAdminGate` (or `-only-testing:BlockPartyTests/DateHelpersTests`). Coverage now includes date/admin rules, the Today briefing contract/model/feel/live-payload parity/registry, utility-row providers/preferences/motion/contrast, town-timezone formatting, town-rain physics, the map polish pass (search matching, pin-detail copy, filter-chip semantics, sheet rubber-band math), the horizon layer (solar model, palette, day building, scrub math), and Your Day's realtime relevance filter. **The count is one per `func test` in `BlockPartyTests/` — read it, do not quote a number from here.** It moves under you in this repo: parallel sessions add suites to the same tree, so a figure written down is stale within the day. What matters is the invariant: the executed count must RISE when you add a test (see the registration trap below) and must not fall unless you deleted one on purpose. The horizon, Your Day, trivia and utility suites now test **unmounted** code — they are the proof those parked layers still work, so keep them green rather than deleting them with the surfaces they used to back. It is still mostly pure logic: visual map/feed/sheet/animation fidelity requires a clean 0-warning build plus simulator screenshots, and scroll/gesture behavior requires a real-device check.
 
+- **Run tests on a non-primary simulator.** `[hook]` `xcodebuild test …
+  CODE_SIGNING_ALLOWED=NO` replaces the installed app with the unsigned test host and
+  wipes that sim's container — the signed-in session and local mirrors go with it (it
+  signed the primary sim out twice on 2026-08-13/14). The reserved screenshot device is
+  named in `.claude/guard-config.json`; `sim-guard.sh` refuses a test run aimed at it.
 - **A new test file does not run until it is registered.** `[test]` The test targets
   carry an explicit source list; a file under `BlockPartyTests/` or `BlockPartyUITests/`
   is invisible to `xcodebuild test` until 4 `project.pbxproj` entries exist.

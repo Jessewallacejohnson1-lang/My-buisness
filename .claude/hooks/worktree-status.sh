@@ -18,6 +18,13 @@ cd "${CLAUDE_PROJECT_DIR:-$PWD}" 2>/dev/null || exit 0
 command -v git >/dev/null 2>&1 || exit 0
 git rev-parse --git-dir >/dev/null 2>&1 || exit 0
 
+# Record the branch this session started on, so git-guard.sh can notice a commit
+# landing somewhere else. Parallel sessions move worktrees between branches.
+session_branch_file="$(git rev-parse --git-path bp-session-branch 2>/dev/null)"
+if [ -n "${session_branch_file:-}" ]; then
+    git branch --show-current > "$session_branch_file" 2>/dev/null || true
+fi
+
 notes=""
 
 # 1. Behind the remote. Deliberately does NOT fetch — a network call at session
