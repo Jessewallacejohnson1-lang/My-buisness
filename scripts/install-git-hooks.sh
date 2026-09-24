@@ -3,24 +3,51 @@
 # Installs the pre-commit hook into THIS checkout. Git hooks are per-clone and
 # are not committed, so every worktree needs this run once.
 #
-# NOTE: this deliberately does NOT use `git rev-parse --git-path hooks`. On a
-# machine where core.hooksPath is set globally (this one has a machine-wide
-# gitleaks secret scanner installed that way), --git-path follows that
-# override and resolves to the GLOBAL hooks directory shared by every repo on
-# the machine — writing there would silently replace that scanner for every
-# other project. That global hook already anticipates this: it chains to
-# "$(git rev-parse --git-dir)/hooks/pre-commit" if one exists, specifically so
-# a repo can add its own hook without touching the global one. We install at
-# that exact path so the chain finds us. `--git-dir` also does the right thing
-# in a worktree (.git there is a file, not a directory) and in a plain clone
-# (where it is just .git), so one path works everywhere.
+# Which directory git actually reads for hooks depends on core.hooksPath:
+#
+#   - core.hooksPath IS set (this machine has one globally, for a shared
+#     gitleaks secret scanner): git runs ONLY that directory and nothing else.
+#     Writing there would silently replace the scanner for every repo on the
+#     machine, so we don't. Instead we rely on the fact that the scanner
+#     itself chains to "$(git rev-parse --git-dir)/hooks/pre-commit" when one
+#     exists (see its own comment to that effect) — so that is the one path
+#     it will actually reach, and that's where we install.
+#
+#   - core.hooksPath is NOT set (the normal case, most machines): git resolves
+#     hooks to the COMMON dir, shared across all worktrees of a repo — hooks
+#     are git's one per-repo-not-per-worktree file. `--git-dir` here would be
+#     the worktree-PRIVATE dir, which git never looks at for hooks in this
+#     case, so a hook installed there would be silently ignored while this
+#     script prints "installed" — worse than not installing anything.
+#
+# So we branch on whether the override is set, rather than assuming one path
+# works everywhere.
 set -euo pipefail
 
-hooks_dir="$(git rev-parse --git-dir)/hooks"
+if git config --get core.hooksPath >/dev/null 2>&1; then
+    hooks_dir="$(git rev-parse --git-dir)/hooks"
+else
+    hooks_dir="$(git rev-parse --git-common-dir)/hooks"
+fi
 mkdir -p "$hooks_dir"
 
-cat > "$hooks_dir/pre-commit" <<'HOOK'
+target="$hooks_dir/pre-commit"
+
+# Refuse to clobber a hook we didn't install. The common dir in particular
+# can already be live with hooks belonging to other tooling; overwriting one
+# silently would be exactly the failure mode this script exists to avoid.
+# Re-running this installer over its OWN previous output must still succeed,
+# which is what the marker line is for.
+if [ -e "$target" ] && ! grep -q '# bp-rules-managed-hook' "$target" 2>/dev/null; then
+    echo "refusing to overwrite an existing pre-commit hook at $target" >&2
+    echo "It was not installed by this script. Back it up and re-run, or merge" >&2
+    echo "the bp_rules check into it by hand." >&2
+    exit 1
+fi
+
+cat > "$target" <<'HOOK'
 #!/bin/bash
+# bp-rules-managed-hook
 # Refuses a commit whose AGENTS.md or CLAUDE.md does not match rules/.
 # Bypassable with --no-verify; CI checks the same thing and is not.
 set -uo pipefail
@@ -34,5 +61,5 @@ if ! python3 "$repo/scripts/bp_rules.py" check --repo "$repo"; then
 fi
 HOOK
 
-chmod +x "$hooks_dir/pre-commit"
-echo "installed $hooks_dir/pre-commit"
+chmod +x "$target"
+echo "installed $target"
