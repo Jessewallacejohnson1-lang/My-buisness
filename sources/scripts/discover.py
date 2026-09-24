@@ -266,7 +266,17 @@ def collect_chamber(url, cache=None, max_age_days=30, refresh=False,
             return json.loads(cache.read_text())
 
     deadline = time.monotonic() + budget_seconds
-    _status, index = fetch_patiently(url)
+    # Our IP is BLOCKED by this host — earned on 2026-09-23 by ignoring its
+    # Crawl-delay while iterating parser code against the live site, and still in
+    # force a day later. Direct fetching is therefore not the route any more:
+    # `harvest_chamber.py --harvest` pulls the pages through Firecrawl and writes the
+    # cache this function reads. Fail with that instruction rather than hammering a
+    # host that has already said no.
+    raise RuntimeError(
+        "chamber cache missing or stale, and this IP is blocked by stjosephchamber.com. "
+        "Run: python3 sources/scripts/harvest_chamber.py --root . --harvest --parse")
+
+    _status, index = fetch_patiently(url)  # unreachable; kept for when the block lifts
     cats = sorted(set(CHAMBER_CATEGORY.findall(index)))
     print(f"[discover] chamber: walking {len(cats)} categories at the site's stated pace",
           flush=True)
