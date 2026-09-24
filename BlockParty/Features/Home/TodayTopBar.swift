@@ -43,7 +43,7 @@ nonisolated enum TodayHeader {
     /// stay constant.**
     ///
     /// **Nothing that changes the bar's HEIGHT may be derived from the scroll.** The
-    /// bar is a `safeAreaBar` on the feed's own scroll, so its height IS that
+    /// bar is a `safeAreaInset` on the feed's own scroll, so its height IS that
     /// scroll's top content inset, and any offset read back off that scroll is
     /// measured against the same inset. Height-from-scroll therefore closes a loop:
     /// height → inset → offset → height. It does not degrade gracefully; it rings.

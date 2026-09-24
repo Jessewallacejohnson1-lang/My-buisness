@@ -184,12 +184,14 @@ struct FeedView: View {
             }
             #endif
         }
-        // The bar rides ON the scroll, not above it: as a top safe-area inset the
-        // feed's content passes UNDERNEATH it. While the bar is showing it carries
-        // its own paper-to-clear backdrop (2026-09-24), so the logo sits on paper
-        // mid-feed; when it leaves, the backdrop leaves with it and the soft edge
-        // below takes over.
-        .safeAreaBar(edge: .top, spacing: 0) {
+        // A plain safe-area INSET, not `.safeAreaBar`: the feed's content still
+        // passes underneath it, but `.safeAreaBar` let iOS adapt the bar to what was
+        // behind it and flip it dark over photos — white logo and marks, dark paper
+        // (recorded 2026-09-24). `.safeAreaInset` opts out of that adaptation, and
+        // the bar now brings its own paper-to-clear backdrop instead, so the logo
+        // sits on paper mid-feed; when the bar leaves, the backdrop leaves with it
+        // and the soft edge below takes over. Height stays the constant 58pt.
+        .safeAreaInset(edge: .top, spacing: 0) {
             TodayTopBar(onOpenSearch: onOpenSearch,
                         onOpenMap: onOpenMap,
                         onOpenNotifications: onOpenNotifications,
@@ -209,11 +211,6 @@ struct FeedView: View {
         // wash, not a cut, and no hairline anywhere (Jesse: "no clean cut white
         // line, a fade gradient like Instagram").
         .scrollEdgeEffectStyle(.soft, for: .top)
-        // PROBE (2026-09-24) of the scheme flip: mid-feed the bar's ink, status bar
-        // and paper backdrop all rendered dark over photos. Hide the edge effect
-        // while the bar (and its backdrop) is showing; the soft fade stays for
-        // while the bar is away. If the flip survives this, it goes to Jesse (Q4).
-        .scrollEdgeEffectHidden(!(forcedCollapse || chromeHidden), for: .top)
         .scrollPosition($feedPosition)
         .refreshable {
             if controller.briefing.needsRefresh {

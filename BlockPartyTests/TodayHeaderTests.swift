@@ -158,7 +158,7 @@ final class TodayHeaderTests: XCTestCase {
     ///
     /// `TodayHeader` deliberately exposes nothing derived from the scroll at all now
     /// — the fade went with the lock (2026-09-21) and no height function preceded
-    /// it. The bar is a `safeAreaBar` on the feed's scroll, so its height IS that
+    /// it. The bar is a `safeAreaInset` on the feed's scroll, so its height IS that
     /// scroll's top inset: anything read back off that scroll and fed to the height
     /// rang instead of settling (1420 direction reversals in 1422 samples; the feed
     /// would not scroll at all). If a height is ever derived from scroll again, it
