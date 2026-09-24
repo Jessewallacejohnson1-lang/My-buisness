@@ -54,7 +54,7 @@ struct FeedEventCardActionRow: View {
                 heartControl
                 if kind == .posting {
                     countedControl(
-                        "bubble.right",
+                        .comment,
                         count: commentCount,
                         label: "Comment",
                         action: onComment
@@ -81,7 +81,7 @@ struct FeedEventCardActionRow: View {
         HStack(spacing: Metric.countGap) {
             Button(action: performHeartTap) {
                 ZStack {
-                    actionIcon("heart", active: false)
+                    glyphIcon(.heart)
                         .opacity(state.isLiked ? 0 : 1)
                     // Red only when it is yours. The outline stays ink, so the row
                     // reads as one family until you act on it.
@@ -90,7 +90,7 @@ struct FeedEventCardActionRow: View {
                     // view: `actionIcon` sets `foregroundStyle` itself, closer to the
                     // Image, and the inner style wins. Wrapping it from outside
                     // silently did nothing (caught on the recording — no red).
-                    actionIcon("heart.fill", active: true, tint: Hue.heart)
+                    glyphIcon(.heart, filled: true, tint: Hue.heart)
                         .opacity(state.isLiked ? 1 : 0)
                 }
                 .scaleEffect(reduceMotion ? 1 : heartScale)
@@ -118,10 +118,10 @@ struct FeedEventCardActionRow: View {
     }
 
     private func countText(_ value: Int) -> some View {
-        Text("\(value)")
-            .font(.mono(13))
+        Text(Self.shortCount(value))
+            .font(.sansMedium(14))
             .monospacedDigit()
-            .foregroundStyle(Hue.ink.opacity(0.45))
+            .foregroundStyle(Hue.ink)
             .animation(
                 reduceMotion
                     ? .easeInOut(duration: 0.15)
@@ -134,9 +134,9 @@ struct FeedEventCardActionRow: View {
     private var saveButton: some View {
         Button(action: performSaveTap) {
             ZStack {
-                actionIcon("bookmark", active: false)
+                actionIcon("bookmark")
                     .opacity(state.isSaved ? 0 : 1)
-                actionIcon("bookmark.fill", active: true)
+                actionIcon("bookmark.fill")
                     .opacity(state.isSaved ? 1 : 0)
             }
             .offset(y: reduceMotion ? 0 : bookmarkOffset)
@@ -149,20 +149,21 @@ struct FeedEventCardActionRow: View {
     }
 
     private var shareButton: some View {
-        iconButton("square.and.arrow.up") { onShare?() }
+        // Instagram's send. Still the share sheet, so still labelled "Share".
+        iconButton(.send) { onShare?() }
             .accessibilityLabel("Share")
     }
 
     /// A glyph with its count beside it, Instagram's pairing. The count is not part
     /// of the button: tapping a number by accident is how you un-like a post.
     private func countedControl(
-        _ symbol: String,
+        _ glyph: FeedActionGlyph,
         count: Int,
         label: String,
         action: @escaping () -> Void
     ) -> some View {
         HStack(spacing: Metric.countGap) {
-            iconButton(symbol, action: action)
+            iconButton(glyph, action: action)
                 .accessibilityLabel(count > 0 ? "\(label), \(count)" : label)
 
             if count > 0 {
@@ -171,9 +172,9 @@ struct FeedEventCardActionRow: View {
         }
     }
 
-    private func iconButton(_ symbol: String, action: @escaping () -> Void) -> some View {
+    private func iconButton(_ glyph: FeedActionGlyph, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            actionIcon(symbol, active: false)
+            glyphIcon(glyph)
                 .frame(width: Metric.tapWidth, height: Metric.rowHeight)
                 .contentShape(actionShape)
         }
@@ -184,12 +185,43 @@ struct FeedEventCardActionRow: View {
     /// carries colour — the liked heart — and must be passed here rather than layered
     /// on the result, because this `foregroundStyle` sits closer to the Image and
     /// would win.
-    private func actionIcon(_ symbol: String, active: Bool, tint: Color? = nil) -> some View {
+    private func actionIcon(_ symbol: String, tint: Color? = nil) -> some View {
         // SF Symbols does not expose a 1.75pt stroke; regular approximates the spec.
         Image(systemName: symbol)
             .font(.sans(Metric.glyph))
             .symbolRenderingMode(.monochrome)
-            .foregroundStyle(tint ?? Hue.ink.opacity(active ? 1 : 0.45))
+            // Solid ink, the way Instagram draws its row (Jesse, 2026-09-24). The
+            // liked heart is the only control with a colour of its own.
+            .foregroundStyle(tint ?? Hue.ink)
+    }
+
+    /// The drawn heart, comment and send marks (`FeedActionGlyphs`), in the same
+    /// solid ink as `actionIcon` and under the same `tint` rule.
+    private func glyphIcon(
+        _ glyph: FeedActionGlyph,
+        filled: Bool = false,
+        tint: Color? = nil
+    ) -> some View {
+        FeedActionGlyphView(glyph: glyph, size: Metric.glyph, filled: filled)
+            .foregroundStyle(tint ?? Hue.ink)
+    }
+
+    /// Instagram's counts: in full with a comma under 10,000 ("3,778"), then "12.4K",
+    /// then "1.2M", with a trailing ".0" dropped ("220K"). VoiceOver gets the full
+    /// number from the button's label, not this.
+    static func shortCount(_ value: Int) -> String {
+        func short(_ scaled: Double, _ suffix: String) -> String {
+            let tenths = (scaled * 10).rounded(.down) / 10
+            let text = tenths == tenths.rounded(.down)
+                ? String(Int(tenths))
+                : String(format: "%.1f", tenths)
+            return text + suffix
+        }
+        switch value {
+        case ..<10_000: return value.formatted(.number.locale(Locale(identifier: "en_US")))
+        case ..<1_000_000: return short(Double(value) / 1_000, "K")
+        default: return short(Double(value) / 1_000_000, "M")
+        }
     }
 
     private var actionShape: RoundedRectangle {

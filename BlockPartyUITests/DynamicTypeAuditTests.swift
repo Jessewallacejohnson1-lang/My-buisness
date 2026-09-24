@@ -112,7 +112,37 @@ final class DynamicTypeAuditTests: XCTestCase {
     /// else's code.
     static let knownIssueCounts: [String: Int] = [:]
 
+    /// SHIP-TIME ONLY (Jesse, 2026-09-22). This walk is a pre-ship gate, not a
+    /// per-change one: it costs about a minute a surface, it is only trustworthy on
+    /// an uncontended simulator, and running it on every change re-proved fixes that
+    /// were already confirmed. It lives in `docs/SHIP-CHECKLIST.md` now, with the
+    /// command and the pass condition, and it skips itself everywhere else —
+    /// including CI, deliberately.
+    ///
+    /// The scaling half of the problem is still guarded continuously:
+    /// `TypographyScalingGuardTests` and `DynamicTypeAuditCoverageTests` are unit
+    /// tests that need no simulator and keep running on every change. What is
+    /// deferred is only the expensive part — launching the app and asking iOS what
+    /// clips.
+    ///
+    /// `TEST_RUNNER_` is the prefix Xcode strips before passing a variable into the
+    /// UI test runner's process, and it must be set as an ENVIRONMENT variable in
+    /// front of `xcodebuild`. Passed after `xcodebuild` as a build setting it never
+    /// reaches the runner and the test skips (measured both ways, 2026-09-22).
     func testEverySurfaceHoldsItsLayoutAtAccessibilityTextSizes() throws {
+        try XCTSkipUnless(
+            ProcessInfo.processInfo.environment["BP_SHIP_AUDIT"] == "1",
+            """
+            Ship gate, skipped by default. Run it in the pre-ship pass, with the \
+            variable in FRONT of xcodebuild:
+            TEST_RUNNER_BP_SHIP_AUDIT=1 xcodebuild test -project BlockParty.xcodeproj \
+            -scheme BlockParty -destination \
+            'platform=iOS Simulator,name=<an installed iPhone sim>' \
+            -only-testing:BlockPartyUITests CODE_SIGNING_ALLOWED=NO  —  see \
+            docs/SHIP-CHECKLIST.md.
+            """
+        )
+
         for size in Self.contentSizes {
             for surface in Self.surfaces {
                 XCTContext.runActivity(named: "\(surface.id) @ \(size.name)") { _ in

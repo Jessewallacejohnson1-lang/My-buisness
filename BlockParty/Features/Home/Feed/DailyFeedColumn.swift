@@ -21,14 +21,10 @@ nonisolated enum DailyFeedMetric {
     /// (Jesse, 2026-09-20: Instagram's feed, which is what a posting is).
     static let contentInset: CGFloat = 16
 
-    /// A POSTING's corner. Small on purpose: a photo that runs to both screen edges
-    /// can only take the hard point off — a card-sized radius on it would read as a
-    /// tile that had slipped off the page.
-    static let mediaRadius: CGFloat = 8
-
-    /// An EVENT's corner. Its picture is inset by `contentInset`, so it is a cut card
-    /// with two real edges of its own and wants a real radius to match.
-    static let cutMediaRadius: CGFloat = 12
+    /// The corner on every Town feed card's picture — postings and events alike.
+    /// Square on purpose (Jesse, 2026-09-24: straight-edged cards). Still applied as
+    /// a clip because the like-burst heart exits through this edge.
+    static let mediaRadius: CGFloat = 0
 
 }
 

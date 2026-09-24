@@ -228,7 +228,10 @@ struct FeedEventCard: View {
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
-        .aspectRatio(Self.mediaAspect, contentMode: .fit)
+        // Square at accessibility sizes: the headline, when and where lines are set
+        // over the picture, and at AX5 they outgrew a 3:2 frame and ran up over the
+        // host row (measured 2026-09-24).
+        .aspectRatio(dynamicTypeSize.isAccessibilitySize ? 1 : Self.mediaAspect, contentMode: .fit)
         .frame(maxWidth: .infinity)
         // INSIDE the clip — the picture's own edge is what takes the heart away.
         .feedCardLikeBurst(likeBurst, reduceMotion: motionIsReduced)
@@ -254,7 +257,6 @@ struct FeedEventCard: View {
             }
             .padding(16)
         }
-        .overlay(alignment: .topLeading) { dateBanner }
         .contentShape(Rectangle())
         // Both kinds carry a heart in the row below, so the double-tap always has a
         // control to mirror — and something on screen you can undo it with.
@@ -270,37 +272,6 @@ struct FeedEventCard: View {
             FeedCardURLPhoto(url: url, onReady: markVenuePhotoDecoded)
         case .venueLookup, .fallback:
             Rectangle().fill(Hue.ink)
-        }
-    }
-
-    // MARK: - Date banner
-
-    /// When it is, floating at the top of the picture (Jesse, 2026-09-20).
-    ///
-    /// The app's one accent, `Hue.brandYellowHex`, at full strength — not the 68%
-    /// wash the map disc carries, because this sits on a photograph and a translucent
-    /// yellow would take its hue from whatever happened to be behind it. Ink on
-    /// yellow, which is the logo's own pairing.
-    ///
-    /// It hugs its text rather than running the full width: DESIGN.md scopes yellow
-    /// to small accents, and a full-bleed yellow strip would make the accent the
-    /// loudest thing in the feed. Same reason it carries no shadow — the card is
-    /// meant to sit IN the page, so nothing on it gets lifted off the picture.
-    @ViewBuilder
-    private var dateBanner: some View {
-        if !item.dateChip.isEmpty {
-            Text(item.dateChip.uppercased())
-                .font(.sansBold(12))
-                .tracking(0.6)
-                .foregroundStyle(Hue.ink)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color(hex: Hue.brandYellowHex))
-                )
-                .padding(12)
-                .accessibilityLabel(item.dateChip)
         }
     }
 
@@ -325,29 +296,39 @@ struct FeedEventCard: View {
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if !metaSummary.isEmpty {
-                Text(metaSummary)
-                    .font(.sans(13))
-                    .foregroundStyle(.white.opacity(0.85))
-                    // Unbounded at accessibility sizes, not two lines: measured
-                    // 2026-09-22, "7pm · Millstream Park" still clipped at two, and
-                    // it was the LAST finding left on Town at both AX3 and AX5. A
-                    // meta line that runs to three lines covers a little more of the
-                    // photograph; a clipped one loses the time and the place.
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
-                    .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 2) {
+                if let when = item.whenLine {
+                    // The second thing you read, so it gets weight and full white,
+                    // not a colour (the yellow banner lost its place to the photo).
+                    // Never truncated: this is the part people need.
+                    Text(when.text)
+                        .font(.sansSemibold(15))
+                        .foregroundStyle(.white)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityLabel(when.spoken)
+                }
+
+                if !metaSummary.isEmpty {
+                    Text(metaSummary)
+                        .font(.sans(13))
+                        .foregroundStyle(.white.opacity(0.85))
+                        // Unbounded at accessibility sizes, not two lines: measured
+                        // 2026-09-22, "7pm · Millstream Park" still clipped at two, and
+                        // it was the LAST finding left on Town at both AX3 and AX5. A
+                        // meta line that runs to three lines covers a little more of the
+                        // photograph; a clipped one loses the place.
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
         .feedCardPhotoTypeShadow()
     }
 
-    /// Date, recurrence and time/place as one line — what used to be a chip floating
-    /// in the photograph's top corner plus a meta line under the title.
+    /// Recurrence and place, under the when line. Date and time have their own line
+    /// now, which replaced the yellow date banner (Jesse, 2026-09-24).
     private var metaSummary: String {
-        // No `dateChip` — the date is the banner at the top of the picture now
-        // (Jesse, 2026-09-20), and printing it twice on one photograph read as a
-        // mistake rather than as emphasis.
-        [item.recurrence, item.metaLine]
+        [item.recurrence, item.whereLine]
             .compactMap { $0 }
             .filter { !$0.isEmpty }
             .joined(separator: " · ")
