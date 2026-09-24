@@ -72,6 +72,14 @@ A change is not done until all four are true. Say which ones you ran.
    - anything deleted, parked, or recovered from the strip-down → `docs/GUTTING-LEDGER.md`
    - a correction from Jesse → `MEMORY.md`
 
+**Not part of done: the end-of-production checks.** `[prose]` `docs/SHIP-CHECKLIST.md` holds
+the checks that run once, before the App Store build, instead of on every change — the
+Dynamic Type / text-size layout walk is the first of them (Jesse, 2026-09-22), and it skips
+itself unless `TEST_RUNNER_BP_SHIP_AUDIT=1` is passed. **Do not re-verify anything listed
+there as confirmed.** That file's *Confirmed* table names the date and the evidence;
+re-running a confirmed check is the redundancy it exists to stop. Something that belongs at
+the end of production goes into that file, not into this section.
+
 ## Hard rules that no machine can check
 
 The trigger table routes you to the rest. This one sits here because it applies before you
@@ -115,6 +123,7 @@ them is background reading, and none is optional once its row matches.
 | Parked-but-tested code (utility row, horizon) | `BlockParty/Features/Civic/Parked/README.md` |
 | The pre-commit hook that catches a drifted `AGENTS.md`/`CLAUDE.md` — not installed by default, one run per checkout | `docs/rules/git-worktrees.md` |
 | A proposal to promote rules mined from the historical logs — 28 KB, awaiting Jesse's approval | `docs/rules/HARVEST-LEDGER.md` |
+| Checks that run once at the end of production, and what is already confirmed | `docs/SHIP-CHECKLIST.md` |
 
 `MAP_BUILD_LOG.md`, `REVIEW.md` and the dated files under `docs/superpowers/` are
 historical records. `[prose]` Do not rewrite old entries to pretend the app was always
