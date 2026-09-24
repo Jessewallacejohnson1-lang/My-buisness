@@ -331,7 +331,21 @@ struct MainTabsView: View {
     @State private var slideForward = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// One stack over the whole shell, so a pushed event page covers the tab bar
+    /// and the edge swipe brings the town back under the finger. The shell draws
+    /// its own chrome, so the system bar is hidden with `.toolbar(.hidden)` —
+    /// never `navigationBarBackButtonHidden`, which kills the swipe back.
     var body: some View {
+        NavigationStack {
+            shell
+                .toolbar(.hidden, for: .navigationBar)
+                .navigationDestination(for: FeedCardItem.self) { item in
+                    FeedEventDetailDestination(item: item)
+                }
+        }
+    }
+
+    private var shell: some View {
         ZStack(alignment: .bottom) {
             Hue.paper.ignoresSafeArea()
 
