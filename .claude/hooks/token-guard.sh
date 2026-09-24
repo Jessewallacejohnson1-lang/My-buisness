@@ -25,21 +25,38 @@
 #     colon) — the API itself never scales with Dynamic Type, so gating on a
 #     numeric literal only catches the laziest violation.
 #   - The colour check covers every common constructor shape (red:, hue:,
-#     white:, the explicit-.sRGB form, and a quoted hex literal).
+#     white:, the explicit-.sRGB form, #colorLiteral, and a quoted hex literal).
 #
-# tokenFiles/testExemptPrefixes match on PATH SUFFIX/PREFIX, not basename —
-# a decoy file that merely shares a name with the real token layer (or sits
-# outside BlockPartyTests/BlockPartyUITests) must not inherit the exemption.
-# BlockPartyTests/BlockPartyUITests are exempt because the rules themselves
-# document literal colour values pinned on purpose there (CreateDiscContrastTests).
+# Flattening the WHOLE body before matching means a `//` comment that names
+# the banned API (explaining why nearby code avoids it) can merge with the
+# unrelated code on the next line and forge a real call shape. So `//` line
+# comments are stripped line-by-line BEFORE flattening — a line containing
+# "://" is left untouched instead, so a URL inside a string literal is not
+# truncated. This can let a violation hidden inside a comment-like construct
+# through undetected; that is the accepted trade, because a guard that
+# blocks legitimate work (a comment mentioning the API) gets switched off,
+# and then it protects nothing.
+#
+# tokenFiles/testExemptPrefixes match on PATH SUFFIX/PREFIX, anchored on a
+# "/" boundary (or an exact match), not basename and not a bare string
+# suffix — "EvilBlockParty/Theme/BlockPartyColor.swift" must NOT inherit the
+# token layer's exemption just because it ends in the same characters.
+# "Vendor/BlockParty/Theme/BlockPartyColor.swift" legitimately nests the real
+# token layer at a real boundary and does keep it. BlockPartyTests/
+# BlockPartyUITests are exempt because the rules themselves document literal
+# colour values pinned on purpose there (CreateDiscContrastTests).
 #
 set -u
 
 payload=$(cat)
 path=$(printf '%s' "$payload" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
 body=$(printf '%s' "$payload" | jq -r '[.tool_input.content? // "", .tool_input.new_string? // "", (.tool_input.edits[]?.new_string // "")] | join("\n")' 2>/dev/null)
+# Strip `//` line comments before flattening, so a comment cannot merge with
+# the next line's code into a forged call shape. Lines containing "://" are
+# left untouched so a URL literal isn't truncated.
+stripped=$(printf '%s\n' "$body" | awk '/:\/\// { print; next } { sub(/\/\/.*/, ""); print }')
 # Flatten to one line so a multi-line call still matches a single-line regex.
-flat=$(printf '%s' "$body" | tr -s '[:space:]' ' ')
+flat=$(printf '%s' "$stripped" | tr -s '[:space:]' ' ')
 
 case "$path" in
     *.swift) ;;
@@ -61,12 +78,13 @@ fi
 base=$(basename "$path")
 
 # tokenFiles holds path SUFFIXES (e.g. BlockParty/Theme/BlockPartyColor.swift).
-# A suffix match, not a basename match, so a same-named decoy elsewhere in
-# the tree does not inherit the token layer's exemption.
+# Anchored on a "/" boundary (or an exact match) — a bare string suffix would
+# let "EvilBlockParty/Theme/BlockPartyColor.swift" inherit the exemption just
+# because it ends in the same characters.
 while IFS= read -r suffix; do
     [ -z "$suffix" ] && continue
     case "$path" in
-        *"$suffix") exit 0 ;;
+        "$suffix"|*"/$suffix") exit 0 ;;
     esac
 done <<< "$token_files"
 
@@ -92,7 +110,7 @@ deny() {
     exit 0
 }
 
-if printf '%s' "$flat" | grep -Eq 'Color\([[:space:]]*\.sRGB[[:space:]]*,|Color\([[:space:]]*red[[:space:]]*:|Color\([[:space:]]*hue[[:space:]]*:|UIColor\([[:space:]]*red[[:space:]]*:|UIColor\([[:space:]]*white[[:space:]]*:|#[0-9A-Fa-f]{6}"'; then
+if printf '%s' "$flat" | grep -Eq 'Color\([[:space:]]*\.sRGB[[:space:]]*,|Color\([[:space:]]*red[[:space:]]*:|Color\([[:space:]]*hue[[:space:]]*:|UIColor\([[:space:]]*red[[:space:]]*:|UIColor\([[:space:]]*white[[:space:]]*:|#[0-9A-Fa-f]{6}"|#colorLiteral\('; then
     deny "Hardcoded colour in $base. Colour comes from Hue.* in BlockParty/Theme/BlockPartyColor.swift — add the token there if it is genuinely new. Set BP_GUARD_OFF=1 to override, and say why."
 fi
 

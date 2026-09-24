@@ -45,6 +45,24 @@ expect "BlockPartyColor.swift OUTSIDE BlockParty/Theme/ does not inherit the exe
 expect "CreateDiscContrastTests pins a literal on purpose — exempt" \
   '{"tool_input":{"file_path":"BlockPartyTests/CreateDiscContrastTests.swift","content":"let onCreateDiscHex = Color(red: 0.05, green: 0.05, blue: 0.05)"}}' allow
 
+# --- fix round 2: flattening false-denied a comment naming the banned API,
+# and the tokenFiles suffix match had no "/" boundary ---
+
+expect "comment naming .system( merged with the next line's real code — no violation" \
+  '{"tool_input":{"file_path":"BlockParty/Features/Town/TownView.swift","content":"// migrated away from .system(\n    size: computedValue)"}}' allow
+expect "comment naming Color( merged with the next line's real code — no violation" \
+  '{"tool_input":{"file_path":"BlockParty/Features/Town/TownView.swift","content":"// legacy code used to call Color(\n    red: someToken, other: 1)"}}' allow
+expect "multi-line Color( red: ... ) call still denied (no regression)" \
+  '{"tool_input":{"file_path":"BlockParty/Features/Town/TownView.swift","content":"Color(\n    red: 0.1, green: 0.2, blue: 0.3\n)"}}' deny
+expect "a URL line does not swallow a real violation on another line" \
+  '{"tool_input":{"file_path":"BlockParty/Features/Town/TownView.swift","content":"let u = \"https://example.com/x\"\nlet c = Color(red: 0.1, green: 0.2, blue: 0.3)"}}' deny
+expect "EvilBlockParty/Theme/BlockPartyColor.swift does not inherit the exemption (unanchored suffix)" \
+  '{"tool_input":{"file_path":"EvilBlockParty/Theme/BlockPartyColor.swift","content":"let c = Color(red: 0.1, green: 0.2, blue: 0.3)"}}' deny
+expect "Vendor/BlockParty/Theme/BlockPartyColor.swift is a real nested copy — exempt" \
+  '{"tool_input":{"file_path":"Vendor/BlockParty/Theme/BlockPartyColor.swift","content":"let c = Color(red: 0.1, green: 0.2, blue: 0.3)"}}' allow
+expect "#colorLiteral is a hardcoded colour too" \
+  '{"tool_input":{"file_path":"BlockParty/Features/Town/TownView.swift","content":"let c = #colorLiteral(red: 1, green: 0, blue: 0, alpha: 1)"}}' deny
+
 mv .claude/guard-config.json .claude/guard-config.json.bak
 expect "malformed config fails OPEN" \
   '{"tool_input":{"file_path":"BlockParty/Features/Town/TownView.swift","content":".font(.system(size: 17))"}}' allow
