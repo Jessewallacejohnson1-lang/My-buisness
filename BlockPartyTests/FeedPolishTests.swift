@@ -1005,3 +1005,64 @@ final class DayDirectionsTests: XCTestCase {
         XCTAssertTrue(query.contains(Town.display))
     }
 }
+
+// MARK: - The event card's when line
+
+final class FeedWhenLineTests: XCTestCase {
+
+    /// Wednesday, Sep 24 2026, 10:00 in a fixed zone, so the relative words don't
+    /// depend on when or where the test runs.
+    private let calendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Chicago")!
+        return calendar
+    }()
+    private var now: Date {
+        calendar.date(from: DateComponents(year: 2026, month: 9, day: 24, hour: 10))!
+    }
+
+    private func line(_ date: String?, _ time: String?, fallback: String = "") -> FeedWhenLine? {
+        FeedWhenLine(eventDate: date, startTime: time, fallbackDate: fallback, now: now, calendar: calendar)
+    }
+
+    func testCloseDatesReadAsWords() {
+        XCTAssertEqual(line("2026-09-24", "11 AM")?.text, "Today · 11 AM")
+        XCTAssertEqual(line("2026-09-24", "7pm")?.text, "Tonight · 7 PM")
+        XCTAssertEqual(line("2026-09-24", nil)?.text, "Today")
+        XCTAssertEqual(line("2026-09-25", "noon")?.text, "Tomorrow · Noon")
+    }
+
+    func testLaterDatesReadAsAWeekdayDate() {
+        let later = line("2026-10-02", "7:30 PM")
+        XCTAssertEqual(later?.text, "Fri, Oct 2 · 7:30 PM")
+        XCTAssertEqual(later?.spoken, "Friday, October 2 at 7:30 PM")
+    }
+
+    func testDatesMoreThanSixMonthsOutCarryTheYear() {
+        XCTAssertEqual(line("2027-06-05", nil)?.text, "Sat, Jun 5, 2027")
+    }
+
+    func testAnUnreadableTimeIsShownAsWrittenNotDropped() {
+        let vague = line("2026-10-02", "around 6")
+        XCTAssertEqual(vague?.text, "Fri, Oct 2 · around 6")
+        XCTAssertEqual(vague?.spoken, "Friday, October 2, around 6")
+    }
+
+    func testMissingHalvesDropCleanly() {
+        XCTAssertEqual(line(nil, "7 PM")?.text, "7 PM")
+        XCTAssertEqual(line(nil, nil, fallback: "FRI JUL 24")?.text, "Fri Jul 24")
+        XCTAssertNil(line(nil, "  "))
+        XCTAssertNil(line("not-a-date", nil))
+    }
+
+    func testTheWhereLineNeverRepeatsTheTime() {
+        let timeOnly = FeedCardItem(
+            id: "t", title: "T", dateChip: "", metaLine: "7 PM",
+            image: .fallback, recurrence: nil,
+            goingCount: 0, goingAvatars: [], goingSummary: "",
+            likeCount: 0, isLiked: false, isSaved: false, isJoined: false,
+            startTime: "7 PM"
+        )
+        XCTAssertNil(timeOnly.whereLine)
+    }
+}
