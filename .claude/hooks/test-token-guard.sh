@@ -28,6 +28,23 @@ expect "a non-Swift file" \
 expect "ordinary Swift with no violation" \
   '{"tool_input":{"file_path":"BlockParty/Features/Town/TownView.swift","content":"let n = 3"}}' allow
 
+# --- fix round 1: findings from the reviewer's pass on the brief's detection ---
+
+expect "explicit-colour-space Color(.sRGB, red: ...) constructor" \
+  '{"tool_input":{"file_path":"BlockParty/Features/Town/TownView.swift","content":"let c = Color(.sRGB, red: 0.1, green: 0.2, blue: 0.3)"}}' deny
+expect "UIColor(white:alpha:) constructor" \
+  '{"tool_input":{"file_path":"BlockParty/Features/Town/TownView.swift","content":"let c = UIColor(white: 0.5, alpha: 1.0)"}}' deny
+expect "multi-line Color( red: ... ) call" \
+  '{"tool_input":{"file_path":"BlockParty/Features/Town/TownView.swift","content":"Color(\n    red: 0.1, green: 0.2, blue: 0.3\n)"}}' deny
+expect "space before the colon: Font.system(size : 17)" \
+  '{"tool_input":{"file_path":"BlockParty/Features/Town/TownView.swift","content":"Font.system(size : 17)"}}' deny
+expect "a constant, not a literal: .system(size: someConstant)" \
+  '{"tool_input":{"file_path":"BlockParty/Features/Town/TownView.swift","content":".font(.system(size: someConstant))"}}' deny
+expect "BlockPartyColor.swift OUTSIDE BlockParty/Theme/ does not inherit the exemption" \
+  '{"tool_input":{"file_path":"BlockParty/Features/Rogue/BlockPartyColor.swift","content":"let c = Color(red: 0.1, green: 0.2, blue: 0.3)"}}' deny
+expect "CreateDiscContrastTests pins a literal on purpose — exempt" \
+  '{"tool_input":{"file_path":"BlockPartyTests/CreateDiscContrastTests.swift","content":"let onCreateDiscHex = Color(red: 0.05, green: 0.05, blue: 0.05)"}}' allow
+
 mv .claude/guard-config.json .claude/guard-config.json.bak
 expect "malformed config fails OPEN" \
   '{"tool_input":{"file_path":"BlockParty/Features/Town/TownView.swift","content":".font(.system(size: 17))"}}' allow
