@@ -54,7 +54,7 @@ struct FeedEventCardActionRow: View {
                 heartControl
                 if kind == .posting {
                     countedControl(
-                        "message",
+                        .comment,
                         count: commentCount,
                         label: "Comment",
                         action: onComment
@@ -81,7 +81,7 @@ struct FeedEventCardActionRow: View {
         HStack(spacing: Metric.countGap) {
             Button(action: performHeartTap) {
                 ZStack {
-                    actionIcon("heart")
+                    glyphIcon(.heart)
                         .opacity(state.isLiked ? 0 : 1)
                     // Red only when it is yours. The outline stays ink, so the row
                     // reads as one family until you act on it.
@@ -90,7 +90,7 @@ struct FeedEventCardActionRow: View {
                     // view: `actionIcon` sets `foregroundStyle` itself, closer to the
                     // Image, and the inner style wins. Wrapping it from outside
                     // silently did nothing (caught on the recording — no red).
-                    actionIcon("heart.fill", tint: Hue.heart)
+                    glyphIcon(.heart, filled: true, tint: Hue.heart)
                         .opacity(state.isLiked ? 1 : 0)
                 }
                 .scaleEffect(reduceMotion ? 1 : heartScale)
@@ -150,20 +150,20 @@ struct FeedEventCardActionRow: View {
 
     private var shareButton: some View {
         // Instagram's send. Still the share sheet, so still labelled "Share".
-        iconButton("paperplane") { onShare?() }
+        iconButton(.send) { onShare?() }
             .accessibilityLabel("Share")
     }
 
     /// A glyph with its count beside it, Instagram's pairing. The count is not part
     /// of the button: tapping a number by accident is how you un-like a post.
     private func countedControl(
-        _ symbol: String,
+        _ glyph: FeedActionGlyph,
         count: Int,
         label: String,
         action: @escaping () -> Void
     ) -> some View {
         HStack(spacing: Metric.countGap) {
-            iconButton(symbol, action: action)
+            iconButton(glyph, action: action)
                 .accessibilityLabel(count > 0 ? "\(label), \(count)" : label)
 
             if count > 0 {
@@ -172,9 +172,9 @@ struct FeedEventCardActionRow: View {
         }
     }
 
-    private func iconButton(_ symbol: String, action: @escaping () -> Void) -> some View {
+    private func iconButton(_ glyph: FeedActionGlyph, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            actionIcon(symbol)
+            glyphIcon(glyph)
                 .frame(width: Metric.tapWidth, height: Metric.rowHeight)
                 .contentShape(actionShape)
         }
@@ -192,6 +192,17 @@ struct FeedEventCardActionRow: View {
             .symbolRenderingMode(.monochrome)
             // Solid ink, the way Instagram draws its row (Jesse, 2026-09-24). The
             // liked heart is the only control with a colour of its own.
+            .foregroundStyle(tint ?? Hue.ink)
+    }
+
+    /// The drawn heart, comment and send marks (`FeedActionGlyphs`), in the same
+    /// solid ink as `actionIcon` and under the same `tint` rule.
+    private func glyphIcon(
+        _ glyph: FeedActionGlyph,
+        filled: Bool = false,
+        tint: Color? = nil
+    ) -> some View {
+        FeedActionGlyphView(glyph: glyph, size: Metric.glyph, filled: filled)
             .foregroundStyle(tint ?? Hue.ink)
     }
 
