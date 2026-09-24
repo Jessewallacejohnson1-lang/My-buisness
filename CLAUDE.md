@@ -32,8 +32,6 @@ then this file.** Surface the mismatch rather than inventing a path or an API ar
   "<concept>"` return a scoped subgraph far smaller than `GRAPH_REPORT.md` or raw grep;
   `graphify-out/wiki/index.md` is for broad navigation and `GRAPH_REPORT.md` only for a
   whole-architecture review. Run `graphify update .` after modifying code.
-- **Do not read or write another agent's config** (`.codex/`, `.gemini/`, `.copilot/`,
-  `.aider*`) as part of a task here. `[prose]`
 
 **This file is generated.** `[ci]` Edit `rules/claude/*.md`, then
 `python3 scripts/bp_rules.py build`. Project rules go in `rules/router/` or a leaf, never

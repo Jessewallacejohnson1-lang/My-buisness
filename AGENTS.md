@@ -59,8 +59,10 @@ A change is not done until all four are true. Say which ones you ran.
 
 1. **It builds clean on the simulator** — no new warnings. `[prose]` The repo holds a
    0-warning bar; nothing enforces it but you.
-2. **Tests pass** `[ci]` — `BlockPartyTests`, on a **non-primary** simulator `[hook]`, and
-   the **executed count rose** if you added a test `[test]`. Commands: `docs/rules/build.md`.
+2. **Tests pass** `[ci]` — `BlockPartyTests`, on a **non-primary** simulator `[hook]`, with
+   a new test file **registered** `[test]` so it actually runs. That check is on
+   registration, not a count — confirm by hand that the **executed count rose**. Commands:
+   `docs/rules/build.md`.
 3. **You screenshotted it** `[prose]` — launch on the sim with the right debug flag,
    capture, and show Jesse the actual screen. For a visual change, count pixels in the
    region you touched.
@@ -78,9 +80,12 @@ have matched any row.
 - **On-brand bar** (inherited from the Expo app) `[prose]`: warm, calm, quiet, neighborly,
   hyper-local. No badges/streaks/feeds/notification-spam. **Real data only — never
   seeded/inflated counts.** Voice is a neighbor, not a brand.
+- **Do not read or write another agent's config** (`.codex/`, `.gemini/`, `.copilot/`,
+  `.aider*`) as part of a task here. `[prose]` This applies to every agent that reads this
+  router, not just Claude Code.
 
-**One rule in this block, and nothing checks it.** Keeping that number down is the ongoing
-work of this system — a rule nobody can check is a rule that gets broken.
+**Two rules in this block, and nothing checks either.** Keeping that number down is the
+ongoing work of this system — a rule nobody can check is a rule that gets broken.
 
 ## Before you act, read the one file that covers it
 
@@ -108,6 +113,8 @@ them is background reading, and none is optional once its row matches.
 | Map work, chronologically | `MAP_BUILD_LOG.md` |
 | Product and launch strategy | `docs/playbook.md` |
 | Parked-but-tested code (utility row, horizon) | `BlockParty/Features/Civic/Parked/README.md` |
+| The pre-commit hook that catches a drifted `AGENTS.md`/`CLAUDE.md` — not installed by default, one run per checkout | `docs/rules/git-worktrees.md` |
+| A proposal to promote rules mined from the historical logs — 28 KB, awaiting Jesse's approval | `docs/rules/HARVEST-LEDGER.md` |
 
 `MAP_BUILD_LOG.md`, `REVIEW.md` and the dated files under `docs/superpowers/` are
 historical records. `[prose]` Do not rewrite old entries to pretend the app was always

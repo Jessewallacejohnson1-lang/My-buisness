@@ -29,7 +29,10 @@ Do **not** hardcode hex/spacing at view call sites when a token or named palette
   paren and `size:`, e.g. `Font.system(\n    size: 17\n)`, is caught by **neither** — same
   as the multi-line hardcoded colour above, there is no build-time catch for it. So a call
   split across lines, colour or font, is caught by nothing automatic — a human eye has to
-  catch it.
+  catch it. The hook is also only registered for `Edit`/`Write`/`MultiEdit`, so a Swift
+  file changed through `Bash` (a heredoc, `sed -i`) is not seen at all;
+  `TypographyScalingGuardTests` backstops the font half of that gap at build time, but the
+  colour half has no backstop, frozen or not.
 
 ## Strategy playbook — `docs/playbook.md`
 
