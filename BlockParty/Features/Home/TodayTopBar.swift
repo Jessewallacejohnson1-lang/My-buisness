@@ -207,18 +207,22 @@ struct TodayTopBar: View {
     }
 
     /// Full paper behind the status bar and the 58pt row, then paper-to-clear over
-    /// `backdropFade`. It slides by its OWN height (`.move(edge: .top)`, measured
-    /// after the safe-area extension), not the controls' 58pt, so no strip of paper
-    /// is left behind mid-flight. Taps pass through to the feed underneath.
+    /// `backdropFade`. It slides by its own layout height (`.move(edge: .top)`,
+    /// 58 + fade; the status-band paper is drawn outside that frame) and fades on
+    /// the same spring as the controls. Taps pass through to the feed underneath.
     private var backdrop: some View {
         VStack(spacing: 0) {
-            Hue.paper
+            // The safe-area extension goes on a FLEXIBLE paper behind the row's
+            // fixed 58pt, so it grows upward from the row. On a fixed-height box it
+            // shifted the box up into the status band instead, leaving the logo row
+            // on bare feed (eyes pass, 2026-09-24).
+            Color.clear
+                .frame(height: TodayHeader.contentHeight)
+                .background(Hue.paper.ignoresSafeArea(edges: .top))
             LinearGradient(colors: [Hue.paper, Hue.paper.opacity(0)],
                            startPoint: .top, endPoint: .bottom)
                 .frame(height: TodayBarMetric.backdropFade)
         }
-        .frame(height: TodayHeader.contentHeight + TodayBarMetric.backdropFade)
-        .ignoresSafeArea(edges: .top)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
         // Same shape as the controls' transition, so the two land on the same frame.

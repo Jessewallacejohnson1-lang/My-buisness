@@ -209,6 +209,11 @@ struct FeedView: View {
         // wash, not a cut, and no hairline anywhere (Jesse: "no clean cut white
         // line, a fade gradient like Instagram").
         .scrollEdgeEffectStyle(.soft, for: .top)
+        // PROBE (2026-09-24) of the scheme flip: mid-feed the bar's ink, status bar
+        // and paper backdrop all rendered dark over photos. Hide the edge effect
+        // while the bar (and its backdrop) is showing; the soft fade stays for
+        // while the bar is away. If the flip survives this, it goes to Jesse (Q4).
+        .scrollEdgeEffectHidden(!(forcedCollapse || chromeHidden), for: .top)
         .scrollPosition($feedPosition)
         .refreshable {
             if controller.briefing.needsRefresh {
