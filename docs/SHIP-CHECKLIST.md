@@ -111,6 +111,29 @@ command or without a pass condition is a reminder, not a check, and reminders ro
   outstanding case: onboarding screen 13 reads "30+ St. Joe happenings a month".
 - **Re-run if:** the public estimate changes, or seeded content is regenerated.
 
+### Dark mode pass
+
+- **What it proves:** every screen reads in dark mode. That means no ink-on-charcoal text,
+  no light-only colour left in a view, and no white card stranded on a dark page.
+  Deferred out of the daily loop by Jesse on 2026-09-24; see `MEMORY.md`.
+- **Command:** launch each shipped surface in dark mode with the app's own appearance
+  flag. The simulator's system appearance is not enough, because the in-app choice
+  overrides it:
+
+  ```bash
+  S=<simulator udid>
+  for args in "-open-tab town" "-open-tab daily" "-open-tab business" "-open-tab you" "-open-map"; do
+    xcrun simctl terminate $S Jesse.BlockParty
+    xcrun simctl launch $S Jesse.BlockParty -appearance dark $args
+    sleep 4
+    xcrun simctl io $S screenshot "dark-${args// /_}.png"
+  done
+  ```
+
+- **Pass looks like:** every screenshot has legible text and icons, and no surface is
+  still drawn in its light colours. Put each one next to its light twin.
+- **Re-run if:** a `Hue` token changes, or a view adds a colour that isn't a `Hue` token.
+
 ---
 
 ## Confirmed — do not recheck

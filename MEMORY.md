@@ -11,6 +11,13 @@ an old file, an old comment, or an old screenshot still sitting in the repo.
 
 ## How to work with Jesse
 
+- 2026-09-24 — Skip Dynamic Type / accessibility text-size checks (AX3, AX5, `content_size`
+  screenshots, layout fixes for big text) until Jesse says to pick them back up. Check
+  the default text size only. `TypographyScalingGuardTests` stays; it's a build guard,
+  not a manual pass.
+- 2026-09-24 — Skip dark-mode checks too (dark screenshots, dark-only colour fixes) until
+  Jesse says to pick them back up. Verify in light mode only. Deferred, not dropped: keep
+  using `Hue` tokens so dark mode still works when it comes back.
 - 2026-09-22 — Checks that belong at the end of production do not run on every change.
   They live in `docs/SHIP-CHECKLIST.md`, which is meant to grow. The Dynamic Type /
   text-size layout audit is the first one moved there.
