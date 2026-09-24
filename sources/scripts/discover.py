@@ -514,6 +514,16 @@ def main():
         + "\n".join(f"- {r['name']}  ({', '.join(r['sources'])})"
                     for r in sorted(events, key=lambda r: r["name"])))
 
+    # A stable path beside the timestamped run, so the newest lists are findable without
+    # knowing today's timestamp. The dated folders stay as the history.
+    latest = Path(root) / ".runs" / "latest"
+    try:
+        if latest.is_symlink() or latest.exists():
+            latest.unlink()
+        latest.symlink_to(out_dir, target_is_directory=True)
+    except OSError:
+        pass
+
     print(f"[discover] {'  '.join(notes)}")
     print(f"roster {len(roster)} | registry {len(entries)} | MISSING {len(missing)}"
           f"  ({len(places)} places, {len(events)} look like events)")
