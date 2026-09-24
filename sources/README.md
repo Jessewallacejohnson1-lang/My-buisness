@@ -38,7 +38,7 @@ Two thirds of St. Joseph has no website — measured, 23 of 69 named places. Tha
 not the town. Closing the rest is outreach, not scraping.
 
 The decisions behind every rule here live in [`docs/adr/registry/`](../docs/adr/registry/),
-named `ADR-NNN-kebab-slug.md` and numbered 001–014 in their own series, separate from the
+named `ADR-NNN-kebab-slug.md` and numbered 001–015 in their own series, separate from the
 app's ADRs in `docs/adr/`. ADRs are immutable; when a decision changes, a new ADR supersedes
 the old one, and the old one is never edited (ADR-005).
 
@@ -109,7 +109,7 @@ what keeps an entry written in 2026 readable in 2030.
 
 | Field | Required | Meaning |
 | --- | --- | --- |
-| `url` | yes | The URL to read, or the literal `TODO` when it is not known yet. **Never invent a URL** — a guessed URL scrapes a stranger's site under a local business's name (ADR-007). An `active` entry may not carry a `TODO` url. |
+| `url` | yes | The URL to read, or the literal `TODO` when it is not known yet. **Never invent a URL** — a guessed URL scrapes a stranger's site under a local business's name (ADR-007). An `active` entry may not carry a `TODO` url **when its `method` is `fetch` or `api`** — those mean "go and read this", and there is nothing at TODO to read. A `submission` source may carry `TODO` at any status: it is never read, and two thirds of this town has no website (ADR-015). |
 | `method` | yes | How this source is read. See [allowed values](#allowed-values). |
 | `kind` | no | What kind of thing the URL is. |
 | `trust` | no | How much one mention from this source is worth. |

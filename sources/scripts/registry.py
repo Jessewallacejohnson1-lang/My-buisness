@@ -119,8 +119,15 @@ def validate(entries):
                 errs.append(f"{where} source[{i}]: url required")
             elif not is_todo(url) and not str(url).startswith(("http://", "https://")):
                 errs.append(f"{where} source[{i}]: url must be http(s) or TODO")
-            elif is_todo(url) and e.get("status") == "active":
-                errs.append(f"{where} source[{i}]: active entry cannot have TODO url")
+            elif (is_todo(url) and e.get("status") == "active"
+                  and s.get("method") in ("fetch", "api")):
+                # Narrowed 2026-09-24 (ADR-015). The rule exists so nothing goes live
+                # that the runner will try to READ and fail on. A `submission` source is
+                # never read — `url: TODO` is its correct and honest encoding, and two
+                # thirds of St. Joseph has no website (ADR-010). Blanket-refusing it kept
+                # most of the town out of a registry whose whole goal is completeness.
+                errs.append(f"{where} source[{i}]: active entry cannot have TODO url "
+                            f"with method {s.get('method')!r} — nothing to read there")
             if not s.get("method"):
                 errs.append(f"{where} source[{i}]: method required")
             for key in ("method", "trust", "kind"):

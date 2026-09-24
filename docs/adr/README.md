@@ -5,6 +5,6 @@ numbered in the order written. ADRs are immutable: when a decision changes, a ne
 supersedes the old one and the old one is never edited.
 
 **Source-registry ADRs live in [`registry/`](registry/) and carry their own numbering**
-(`ADR-001`–`ADR-014`), separate from the app ADRs in this folder. They cover the
+(`ADR-001`–`ADR-015`), separate from the app ADRs in this folder. They cover the
 `sources/` registry — what it holds, who may edit it, and how runs behave. `registry/PARKED.md`
 lists what the registry deliberately does not decide.
