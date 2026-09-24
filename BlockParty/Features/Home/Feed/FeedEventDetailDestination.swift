@@ -1,6 +1,6 @@
 //
 //  FeedEventDetailDestination.swift
-//  Block Party — the single event behind a Your Day card.
+//  Block Party — the single event behind a Town or Your Day card.
 //
 //  "Tapping any upcoming item opens that item's detail" was in the spec with no
 //  screen to open, so Today's plans were inert. This is that screen, and it is
@@ -20,33 +20,33 @@ import Combine
 import SwiftUI
 
 struct FeedEventDetailDestination: View {
-    let event: UpcomingEvent
+    let item: FeedCardItem
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var model: FeedEventDetailModel
 
-    init(event: UpcomingEvent, auth: AuthStore? = nil) {
-        self.event = event
-        _model = StateObject(wrappedValue: FeedEventDetailModel(event: event, auth: auth))
+    init(item: FeedCardItem, auth: AuthStore? = nil) {
+        self.item = item
+        _model = StateObject(wrappedValue: FeedEventDetailModel(item: item, auth: auth))
     }
 
+    /// No stack of its own: Town pushes this onto the shell's stack, and a sheet
+    /// (Your Day) shows it bare.
     var body: some View {
-        NavigationStack {
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 0) {
-                    hero
-                    facts
-                }
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 0) {
+                hero
+                facts
             }
-            .background(Hue.paper.ignoresSafeArea())
-            .navigationTitle("Your day")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
-                        .foregroundStyle(Hue.ink)
-                }
+        }
+        .background(Hue.paper.ignoresSafeArea())
+        .navigationTitle("Your day")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Done") { dismiss() }
+                    .foregroundStyle(Hue.ink)
             }
         }
     }
@@ -60,8 +60,8 @@ struct FeedEventDetailDestination: View {
                 .frame(height: 220)
                 .clipped()
                 .accessibilityHidden(true)
-        } else if let venue = YourDayLogic.placeText(for: event) {
-            VenuePhoto(venueName: venue, hint: event.title, maxWidth: 1200) {
+        } else if case .venueLookup(let venue, let hint) = item.image {
+            VenuePhoto(venueName: venue, hint: hint, maxWidth: 1200) {
                 // No confident match: draw nothing at all. A grey box would be a
                 // placeholder standing in for a photograph that does not exist.
                 EmptyView()
@@ -76,20 +76,21 @@ struct FeedEventDetailDestination: View {
 
     private var facts: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(event.title)
+            Text(item.title)
                 .font(.eventDisplay(28))
                 .foregroundStyle(Hue.ink)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if let schedule = scheduleText {
-                Text(schedule)
+            if let when = item.whenLine {
+                Text(when.text)
                     .font(.sansSemibold(15))
                     .foregroundStyle(Hue.ink)
                     .monospacedDigit()
                     .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel(when.spoken)
             }
 
-            if let place = YourDayLogic.placeText(for: event) {
+            if let place = item.whereLine {
                 Text(place)
                     .font(.sans(15))
                     .foregroundStyle(Hue.inkSecondary)
@@ -108,12 +109,6 @@ struct FeedEventDetailDestination: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20)
-    }
-
-    private var scheduleText: String? {
-        let day = YourDayLogic.dayText(for: event, now: Date())
-        let time = YourDayLogic.startTimeText(for: event)
-        return YourDayLogic.joined(day: day, time: time)
     }
 
     private var rsvpRow: some View {
@@ -156,12 +151,16 @@ final class FeedEventDetailModel: ObservableObject {
     private let auth: AuthStore
     private var inFlight: Task<Void, Never>?
 
-    init(event: UpcomingEvent, auth: AuthStore? = nil) {
-        self.eventID = event.id
+    init(item: FeedCardItem, auth: AuthStore? = nil) {
+        self.eventID = item.id
         self.auth = auth ?? .shared
-        self.isGoing = event.rsvpd
-        self.goingCount = event.goingCount
-        self.organizerImageURL = event.imageUrl.flatMap(URL.init(string:))
+        self.isGoing = item.isJoined
+        self.goingCount = item.goingCount
+        if case .eventPhoto(let url) = item.image {
+            self.organizerImageURL = url
+        } else {
+            self.organizerImageURL = nil
+        }
     }
 
     func toggleGoing() {

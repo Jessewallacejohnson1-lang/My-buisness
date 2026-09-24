@@ -26,7 +26,7 @@ enum FeedRoute: Identifiable, Hashable {
         case .editInterests:
             AnyView(FeedInterestEditorDestination())
         case .event(let event):
-            AnyView(FeedEventDetailDestination(event: event))
+            AnyView(FeedEventDetailDestination(item: FeedCardItem(event)))
         }
     }
 }

@@ -83,7 +83,7 @@ struct DayScheduleSheet: View {
             .safeAreaInset(edge: .top, spacing: 0) { header }
             .safeAreaInset(edge: .bottom, spacing: 0) { callToAction }
             .task { await followTheMinute() }
-            .sheet(item: $detailEvent) { FeedEventDetailDestination(event: $0) }
+            .sheet(item: $detailEvent) { FeedEventDetailDestination(item: FeedCardItem($0)) }
             .sheet(isPresented: $isComposing) { AddView() }
     }
 
