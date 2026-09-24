@@ -5,8 +5,30 @@ to what they were before this file existed, and they stay that way until Jesse a
 verdicts below. This is a proposal, not a migration: no line has been copied into a rules
 leaf, no line has been archived, and nothing has been deleted.
 
-`scripts/harvest_candidates.py` extracted the rows — every bolded bullet lead in the three
-logs, which is the shape a durable rule is written in here. The script decides nothing. Each
+**This is not a complete harvest of the three logs' rules.** It is a complete harvest of what
+one regex — a **bolded lead at the head of a bullet**, `^\s*[-*]\s+\*\*([^*]{8,120})\*\*` — can
+see on a single line. Eight known blind spots, each verified against the sources:
+
+1. **A literal `*` anywhere inside the lead** kills the match at any length, because the class
+   is `[^*]`. `DECISIONS.md:69` — *"**`supabase/migrations/*` is applied history. Never edit it
+   retroactively.**"* — is a **live, actionable rule that is not a row below**. Recorded here so
+   it is not lost.
+2. **A bold lead that wraps across a line break** is invisible to a single-line pattern (example
+   in `DECISIONS.md`: the "seven Swift comments that reference `@hygge/core` — keep them" rule;
+   that one is already carried by `architecture.md`/`identifiers.md`, so nothing was lost).
+3. **Bold in mid-sentence rather than at the bullet head** — where much of the real rule text
+   actually sits (e.g. the anti-grayscale and hidden-`poi-label` clauses inside `MAP_BUILD_LOG.md:2168`).
+4. **Unbolded sub-bullets and continuation lines** under a matched bullet (e.g. `MAP_BUILD_LOG.md:725`).
+5. **Running prose under a heading**, with no bullet at all.
+6. **Fenced code and SQL blocks** — applied migrations, style expressions, launch-arg recipes.
+7. **Headings** — which is why all 16 `REVIEW.md` rows lead with the identical word `CONFIRMED`.
+8. **Leads under 8 or over 120 characters** (e.g. `- **Water**:` at `MAP_BUILD_LOG.md:2162`).
+
+The extractor was left exactly as specified rather than widened, so this ledger mirrors its row
+set precisely. A second pass, if wanted, starts from the list above.
+
+`scripts/harvest_candidates.py` extracted the rows — every bolded bullet lead the pattern above
+can see. The script decides nothing. Each
 `Verdict` and `Destination` below was assigned by reading the bullet and checking the claim
 against the current source.
 
