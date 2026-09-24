@@ -18,10 +18,15 @@
 //  `children` entry — what "Add Files…" produces even with "Add to targets"
 //  left unchecked) without ever being added to a target's Sources build phase.
 //  That file satisfies `path = <dir>/<file>;`, compiles no differently to the
-//  eye, and still never runs. So this guard also requires the `<file> in
-//  Sources` comment token to appear at least twice — once on the PBXBuildFile
-//  definition line, once in the PBXSourcesBuildPhase `files` list — which is
-//  only true once the file is actually wired into a target's build phase.
+//  eye, and still never runs. So this guard also requires the delimited
+//  `/* <file> in Sources */` comment token to appear at least twice — once on
+//  the PBXBuildFile definition line, once in the PBXSourcesBuildPhase `files`
+//  list — which is only true once the file is actually wired into a target's
+//  build phase. The delimiters matter: a bare `<file> in Sources` substring
+//  match would also fire on an unrelated, fully-registered file whose name is
+//  a suffix of `<file>` (e.g. `FooTests.swift` inside `MyFooTests.swift`),
+//  letting an unregistered or half-registered short name silently borrow the
+//  longer file's two matches and pass.
 //
 //  Assumes both test directories are flat (no subfolders). `contentsOfDirectory`
 //  does not recurse and the path/Sources regexes below do not match a `/` inside
@@ -67,7 +72,7 @@ final class TestRegistrationGuardTests: XCTestCase {
     /// PBXSourcesBuildPhase files-list entry — i.e. it is actually compiled
     /// into a target, not merely referenced by the project.
     private static func isInSourcesBuildPhase(_ file: String, pbxproj: String) -> Bool {
-        occurrenceCount(of: "\(file) in Sources", in: pbxproj) >= 2
+        occurrenceCount(of: "/* \(file) in Sources */", in: pbxproj) >= 2
     }
 
     func testEveryTestFileOnDiskIsRegistered() throws {
