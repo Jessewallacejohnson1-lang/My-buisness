@@ -14,6 +14,19 @@ Do **not** hardcode hex/spacing at view call sites when a token or named palette
   role from `BlockPartyFont.swift`, the only file permitted to name a size; radii come
   from `BlockPartyMetrics`. `.claude/hooks/token-guard.sh` refuses the edit and
   `TypographyScalingGuardTests` fails the build. Do not add yourself to either allowlist.
+  **The hook only catches a violation written on one physical line.** It matches the raw
+  edit text line by line, with no comment stripping and no joining of multi-line calls —
+  three rounds of trying to strip comments and collapse multi-line calls before matching
+  each opened a real bypass (a string literal or a raw string could make the guard delete
+  or ignore live code), so that pre-processing was removed entirely rather than patched a
+  fourth time. The trade: a colour or font call formatted across several lines, e.g.
+  `Color(\n    red: 0.1, green: 0.2, blue: 0.3\n)`, is **not** caught by this hook — write
+  it on one line if you want the guard to see it. A frozen font size is still caught
+  regardless of formatting, because `TypographyScalingGuardTests` runs on compiled Swift
+  at build time, not on raw edit text, so multi-line `.system(size:)` still fails the
+  build even though the hook missed it at edit time. There is no equivalent build-time
+  catch for a multi-line hardcoded colour — that is a real residual gap, not a theoretical
+  one; a reviewer still has to catch it by eye.
 
 ## Strategy playbook — `docs/playbook.md`
 

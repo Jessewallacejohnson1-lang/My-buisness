@@ -16,38 +16,23 @@
 # new_string, not in .tool_input.new_string — join every edit's new_string too,
 # or a MultiEdit that introduces a violation sails through unchecked.
 #
-# Detection matches the CALL SHAPE, not the literal formatting:
-#   - grep -Eq matches per physical line, so a multi-line constructor call
-#     (ordinary Swift style for 3-4 argument calls) is flattened to one line
-#     first — newlines/whitespace runs collapse to single spaces.
-#   - The font check bans Font.system(size:)/Font.custom(...,size:) whatever
-#     the argument is (a literal, a constant, extra whitespace before the
-#     colon) — the API itself never scales with Dynamic Type, so gating on a
-#     numeric literal only catches the laziest violation.
-#   - The colour check covers every common constructor shape (red:, hue:,
-#     white:, the explicit-.sRGB form, #colorLiteral, and a quoted hex literal).
+# Matches PER PHYSICAL LINE against the body exactly as it arrives — NO
+# comment stripping, NO flattening, NO pre-processing of any kind. Three
+# earlier rounds tried stripping comments and collapsing multi-line calls
+# before matching, and each fix opened a new bypass (an ordinary string
+# literal swallowing real code, a raw string defeating quote-counting, a
+# block comment merging two lines into a forged call) — that pre-processing
+# was trying to be a Swift lexer written in awk/sed, which is not solvable
+# in this shape, and every round made the failure surface bigger, not
+# smaller. Deleting nothing before matching means nothing can be hidden from
+# the regex. The cost: a colour or font call split across multiple lines is
+# NOT caught by this hook — see docs/rules/design.md for that limitation in
+# plain words. A single-line comment that merely mentions the banned API
+# will still deny; that is a known, minor, escapable false positive
+# (BP_GUARD_OFF=1) accepted from the very first review.
 #
-# Flattening the WHOLE body before matching means a comment that names the
-# banned API (explaining why nearby code avoids it) can merge with the
-# unrelated code on the next line and forge a real call shape. So comments
-# are stripped BEFORE flattening — but a naive "does the line contain //"
-# check is wrong: a `//` inside a string literal (e.g. "a//b") is not a
-# comment, and stripping from it would hide LIVE code, which is a real
-# bypass, not the accepted trade below. So `//` is only treated as a comment
-# start when an EVEN number of unescaped double quotes precede it on that
-# line (i.e. it sits outside a string); scanned left to right so a URL
-# string followed by a real trailing comment on the same line still has its
-# comment portion stripped. `/*...*/` block comments get the same treatment
-# after flattening, once the whole body is one line, with a non-greedy-
-# emulating pattern so two separate block comments on one line don't swallow
-# the real code between them.
-#
-# This can still let a violation hidden entirely inside a comment go
-# undetected — that IS the accepted trade, because a guard that blocks
-# legitimate work (a comment mentioning the API) gets switched off, and then
-# it protects nothing. What it must never do is hide LIVE code because of an
-# unrelated string on the same line; the quote-counting exists to prevent
-# exactly that.
+# The colour/font regexes themselves are unchanged from the last round and
+# are not the subject of this rewrite — only the pre-processing was removed.
 #
 # tokenFiles/testExemptPrefixes match on PATH SUFFIX/PREFIX, anchored on a
 # "/" boundary (or an exact match), not basename and not a bare string
@@ -63,32 +48,6 @@ set -u
 payload=$(cat)
 path=$(printf '%s' "$payload" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
 body=$(printf '%s' "$payload" | jq -r '[.tool_input.content? // "", .tool_input.new_string? // "", (.tool_input.edits[]?.new_string // "")] | join("\n")' 2>/dev/null)
-# Strip `//` line comments before flattening — but only where an EVEN count
-# of unescaped double quotes precedes the `//`, i.e. it is outside a string
-# literal, not inside one (see header comment).
-stripped=$(printf '%s\n' "$body" | awk '{
-    line=$0; n=length(line); q=0; cs=0; i=1
-    while (i<=n) {
-        c=substr(line,i,1)
-        if (c=="\\") { i+=2; continue }
-        if (c=="\"") { q++; i++; continue }
-        if (c=="/" && substr(line,i,2)=="//") {
-            if (q%2==0) { cs=i; break }
-            i+=2; continue
-        }
-        i++
-    }
-    if (cs>0) line=substr(line,1,cs-1)
-    print line
-}')
-# Flatten to one line so a multi-line call still matches a single-line regex.
-flat=$(printf '%s' "$stripped" | tr -s '[:space:]' ' ')
-# Strip /*...*/ block-comment spans from the now-flat text (the multi-line
-# case falls out for free once it's one line). Non-greedy-emulating pattern
-# so two separate block comments on one line do not swallow the code between
-# them: /\*[^*]*\*+([^/*][^*]*\*+)*/ stops at the first run of *'s that is
-# immediately followed by /, rather than the last one.
-flat=$(printf '%s' "$flat" | sed -E 's#/\*[^*]*\*+([^/*][^*]*\*+)*/##g')
 
 case "$path" in
     *.swift) ;;
@@ -109,10 +68,6 @@ fi
 
 base=$(basename "$path")
 
-# tokenFiles holds path SUFFIXES (e.g. BlockParty/Theme/BlockPartyColor.swift).
-# Anchored on a "/" boundary (or an exact match) — a bare string suffix would
-# let "EvilBlockParty/Theme/BlockPartyColor.swift" inherit the exemption just
-# because it ends in the same characters.
 while IFS= read -r suffix; do
     [ -z "$suffix" ] && continue
     case "$path" in
@@ -120,9 +75,6 @@ while IFS= read -r suffix; do
     esac
 done <<< "$token_files"
 
-# testExemptPrefixes: directories whose whole job is pinning literal values
-# on purpose (see docs/rules/design.md on CreateDiscContrastTests). Matches
-# a leading prefix (relative path) or a "/prefix" segment (absolute path).
 test_prefixes=$(jq -r '.testExemptPrefixes[]?' "$config" 2>/dev/null)
 while IFS= read -r prefix; do
     [ -z "$prefix" ] && continue
@@ -142,11 +94,11 @@ deny() {
     exit 0
 }
 
-if printf '%s' "$flat" | grep -Eq 'Color\([[:space:]]*\.sRGB[[:space:]]*,|Color\([[:space:]]*red[[:space:]]*:|Color\([[:space:]]*hue[[:space:]]*:|UIColor\([[:space:]]*red[[:space:]]*:|UIColor\([[:space:]]*white[[:space:]]*:|#[0-9A-Fa-f]{6}"|#colorLiteral\('; then
+if printf '%s' "$body" | grep -Eq 'Color\([[:space:]]*\.sRGB[[:space:]]*,|Color\([[:space:]]*red[[:space:]]*:|Color\([[:space:]]*hue[[:space:]]*:|UIColor\([[:space:]]*red[[:space:]]*:|UIColor\([[:space:]]*white[[:space:]]*:|#[0-9A-Fa-f]{6}"|#colorLiteral\('; then
     deny "Hardcoded colour in $base. Colour comes from Hue.* in BlockParty/Theme/BlockPartyColor.swift — add the token there if it is genuinely new. Set BP_GUARD_OFF=1 to override, and say why."
 fi
 
-if printf '%s' "$flat" | grep -Eq '\.system\([[:space:]]*size[[:space:]]*:|Font\.custom\([^)]*size[[:space:]]*:'; then
+if printf '%s' "$body" | grep -Eq '\.system\([[:space:]]*size[[:space:]]*:|Font\.custom\([^)]*size[[:space:]]*:'; then
     deny "Frozen font size in $base. Font.system(size:) never scales with Dynamic Type regardless of the argument; text takes a ROLE from BlockPartyFont.swift, which is the only file allowed to name a size. TypographyScalingGuardTests fails the build on this anyway. Set BP_GUARD_OFF=1 to override, and say why."
 fi
 
