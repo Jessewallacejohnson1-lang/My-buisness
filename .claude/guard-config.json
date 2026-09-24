@@ -1,0 +1,8 @@
+{
+  "screenshotSimulator": "iPhone Air",
+  "tokenFiles": [
+    "BlockPartyColor.swift",
+    "BlockPartyFont.swift",
+    "BlockPartyMetrics.swift"
+  ]
+}

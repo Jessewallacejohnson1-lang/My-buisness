@@ -9,6 +9,11 @@ venue photograph.
 - **`BlockPartyMetrics`** — four radii `[prose]` (`Radius.button` 12 — a rounded square, **never a pill** — with exactly ONE recorded exception: `PinDetailSheet`'s floating action bar is a Flighty-faithful capsule behind the `actionBarShape` constant, per DECISIONS.md §6 — do not "fix" it · `tile` 16 · `card` 20 · `bento` 22, deliberately outside the 12/16/20 scale for the large gradient slabs. `bento` was sized so the Calendar Insights boxes and the Today utility tiles stayed equal — one object at two sizes. Calendar was deleted on 2026-09-17 and the utility tiles are parked under `Features/Civic/Parked/`, so `bento` and `Motion.bentoExpand`/`tilePress` now have exactly one consumer left. **Keep both**: they are the spec the parked tiles are rebuilt against, and the "one object at two sizes" rule applies again the moment a second slab surface exists), one neutral `CardShadow` (black @ 6%), plus the map shadows (`mapFloatShadow`, `mapSheetShadow`).
 
 Do **not** hardcode hex/spacing at view call sites when a token or named palette covers it. `[hook]` `[prose]` Raw colours are centralized by role: `BlockParty/Theme/BlockPartyColor.swift` (brand tokens), `BasemapPalette.swift` (sage parks/blue water cartography), `WeatherBackground.swift`, and utility gradient definitions; logo fallback art and the garbage-truck illustration are content-specific exceptions. **Do not make the basemap grayscale.** `[prose]` That experiment failed because the river and parks disappeared into the land. `SpotCategory.tint`, `PlaceFamily.tint`, and `EventCategory.tint` resolve to `Hue.ink`: category is carried by glyph, while live/active/selected state may use `Hue.accent`.
+- **Never hardcode a colour or a font size at a call site.** `[hook]` `[test]`
+  Colour comes from `Hue.*` in `BlockParty/Theme/BlockPartyColor.swift`; type takes a
+  role from `BlockPartyFont.swift`, the only file permitted to name a size; radii come
+  from `BlockPartyMetrics`. `.claude/hooks/token-guard.sh` refuses the edit and
+  `TypographyScalingGuardTests` fails the build. Do not add yourself to either allowlist.
 
 ## Strategy playbook — `docs/playbook.md`
 
