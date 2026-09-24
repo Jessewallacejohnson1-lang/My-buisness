@@ -68,10 +68,15 @@ expect "a Swift raw string literal no longer defeats detection" \
 expect "ACCEPTED GAP: a colour call split across physical lines is not caught" \
   '{"tool_input":{"file_path":"BlockParty/Features/Town/TownView.swift","content":"Color(\n    red: 0.1, green: 0.2, blue: 0.3\n)"}}' allow
 
+# Trap so a Ctrl-C between the two `mv` calls can't leave guard-config.json
+# missing — that would fail token-guard.sh open, silently, for every later
+# session in this repo, which is exactly the failure this branch prevents.
+trap 'mv -f .claude/guard-config.json.bak .claude/guard-config.json 2>/dev/null' EXIT INT TERM
 mv .claude/guard-config.json .claude/guard-config.json.bak
-expect "malformed config fails OPEN" \
+expect "missing config fails OPEN" \
   '{"tool_input":{"file_path":"BlockParty/Features/Town/TownView.swift","content":".font(.system(size: 17))"}}' allow
 mv .claude/guard-config.json.bak .claude/guard-config.json
+trap - EXIT INT TERM
 
 BP_GUARD_OFF=1 expect "BP_GUARD_OFF=1 lets it through" \
   '{"tool_input":{"file_path":"BlockParty/Features/Town/TownView.swift","content":".font(.system(size: 17))"}}' allow
