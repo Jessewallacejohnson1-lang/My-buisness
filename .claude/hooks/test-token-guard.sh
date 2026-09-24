@@ -63,6 +63,21 @@ expect "Vendor/BlockParty/Theme/BlockPartyColor.swift is a real nested copy — 
 expect "#colorLiteral is a hardcoded colour too" \
   '{"tool_input":{"file_path":"BlockParty/Features/Town/TownView.swift","content":"let c = #colorLiteral(red: 1, green: 0, blue: 0, alpha: 1)"}}' deny
 
+# --- fix round 3: the round-2 "://" special case let a // inside an
+# unrelated string literal eat real code after it on the same line, and
+# block comments got no treatment at all ---
+
+expect "// inside a string literal must not eat the real violation after it" \
+  '{"tool_input":{"file_path":"BlockParty/Features/Town/TownView.swift","content":"let s = \"a//b\"; let c = Color(red: 0.1, green: 0.2, blue: 0.3)"}}' deny
+expect "a URL string sharing a line with a real violation is still caught" \
+  '{"tool_input":{"file_path":"BlockParty/Features/Town/TownView.swift","content":"let u = \"https://example.com/x\"; let c = Color(red: 0.1, green: 0.2, blue: 0.3)"}}' deny
+expect "a real comment containing a URL and banned-shape text is still just a comment" \
+  '{"tool_input":{"file_path":"BlockParty/Features/Town/TownView.swift","content":"// see https://x.com, also Color(red: 1, green: 0, blue: 0)"}}' allow
+expect "block comment merges .system( with the next line's real code — no violation" \
+  '{"tool_input":{"file_path":"BlockParty/Features/Town/TownView.swift","content":"/* migrated away from .system(\n    size: computedValue) */"}}' allow
+expect "a real violation between two block comments on one line (proves non-greedy)" \
+  '{"tool_input":{"file_path":"BlockParty/Features/Town/TownView.swift","content":"/* a */ Color(red: 0.1, green: 0.2, blue: 0.3) /* b */"}}' deny
+
 mv .claude/guard-config.json .claude/guard-config.json.bak
 expect "malformed config fails OPEN" \
   '{"tool_input":{"file_path":"BlockParty/Features/Town/TownView.swift","content":".font(.system(size: 17))"}}' allow

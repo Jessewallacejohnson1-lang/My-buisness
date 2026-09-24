@@ -27,15 +27,27 @@
 #   - The colour check covers every common constructor shape (red:, hue:,
 #     white:, the explicit-.sRGB form, #colorLiteral, and a quoted hex literal).
 #
-# Flattening the WHOLE body before matching means a `//` comment that names
-# the banned API (explaining why nearby code avoids it) can merge with the
-# unrelated code on the next line and forge a real call shape. So `//` line
-# comments are stripped line-by-line BEFORE flattening — a line containing
-# "://" is left untouched instead, so a URL inside a string literal is not
-# truncated. This can let a violation hidden inside a comment-like construct
-# through undetected; that is the accepted trade, because a guard that
-# blocks legitimate work (a comment mentioning the API) gets switched off,
-# and then it protects nothing.
+# Flattening the WHOLE body before matching means a comment that names the
+# banned API (explaining why nearby code avoids it) can merge with the
+# unrelated code on the next line and forge a real call shape. So comments
+# are stripped BEFORE flattening — but a naive "does the line contain //"
+# check is wrong: a `//` inside a string literal (e.g. "a//b") is not a
+# comment, and stripping from it would hide LIVE code, which is a real
+# bypass, not the accepted trade below. So `//` is only treated as a comment
+# start when an EVEN number of unescaped double quotes precede it on that
+# line (i.e. it sits outside a string); scanned left to right so a URL
+# string followed by a real trailing comment on the same line still has its
+# comment portion stripped. `/*...*/` block comments get the same treatment
+# after flattening, once the whole body is one line, with a non-greedy-
+# emulating pattern so two separate block comments on one line don't swallow
+# the real code between them.
+#
+# This can still let a violation hidden entirely inside a comment go
+# undetected — that IS the accepted trade, because a guard that blocks
+# legitimate work (a comment mentioning the API) gets switched off, and then
+# it protects nothing. What it must never do is hide LIVE code because of an
+# unrelated string on the same line; the quote-counting exists to prevent
+# exactly that.
 #
 # tokenFiles/testExemptPrefixes match on PATH SUFFIX/PREFIX, anchored on a
 # "/" boundary (or an exact match), not basename and not a bare string
@@ -51,12 +63,32 @@ set -u
 payload=$(cat)
 path=$(printf '%s' "$payload" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
 body=$(printf '%s' "$payload" | jq -r '[.tool_input.content? // "", .tool_input.new_string? // "", (.tool_input.edits[]?.new_string // "")] | join("\n")' 2>/dev/null)
-# Strip `//` line comments before flattening, so a comment cannot merge with
-# the next line's code into a forged call shape. Lines containing "://" are
-# left untouched so a URL literal isn't truncated.
-stripped=$(printf '%s\n' "$body" | awk '/:\/\// { print; next } { sub(/\/\/.*/, ""); print }')
+# Strip `//` line comments before flattening — but only where an EVEN count
+# of unescaped double quotes precedes the `//`, i.e. it is outside a string
+# literal, not inside one (see header comment).
+stripped=$(printf '%s\n' "$body" | awk '{
+    line=$0; n=length(line); q=0; cs=0; i=1
+    while (i<=n) {
+        c=substr(line,i,1)
+        if (c=="\\") { i+=2; continue }
+        if (c=="\"") { q++; i++; continue }
+        if (c=="/" && substr(line,i,2)=="//") {
+            if (q%2==0) { cs=i; break }
+            i+=2; continue
+        }
+        i++
+    }
+    if (cs>0) line=substr(line,1,cs-1)
+    print line
+}')
 # Flatten to one line so a multi-line call still matches a single-line regex.
 flat=$(printf '%s' "$stripped" | tr -s '[:space:]' ' ')
+# Strip /*...*/ block-comment spans from the now-flat text (the multi-line
+# case falls out for free once it's one line). Non-greedy-emulating pattern
+# so two separate block comments on one line do not swallow the code between
+# them: /\*[^*]*\*+([^/*][^*]*\*+)*/ stops at the first run of *'s that is
+# immediately followed by /, rather than the last one.
+flat=$(printf '%s' "$flat" | sed -E 's#/\*[^*]*\*+([^/*][^*]*\*+)*/##g')
 
 case "$path" in
     *.swift) ;;
