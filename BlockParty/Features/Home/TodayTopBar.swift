@@ -7,8 +7,8 @@
 //  the content. This bar is chrome: it is present immediately (no spring entrance),
 //  it does not scroll with the content, it LEAVES on a downward scroll and returns
 //  on an upward one (Jesse, 2026-09-21, naming Instagram), and it carries no rule of
-//  its own — the soft scroll edge effect under it is what separates the bar from the
-//  feed, a gradient rather than a cut.
+//  its own — its paper backdrop fades to clear below the row, so the bar separates
+//  from the feed with a gradient rather than a cut.
 //
 //  The Joetown lockup was retired on 2026-09-17; the profile avatar — the ⋮-lineage
 //  button that opened the town menu — was retired on 2026-09-18 (Jesse's call). For
@@ -43,7 +43,7 @@ nonisolated enum TodayHeader {
     /// stay constant.**
     ///
     /// **Nothing that changes the bar's HEIGHT may be derived from the scroll.** The
-    /// bar is a `safeAreaBar` on the feed's own scroll, so its height IS that
+    /// bar is a `safeAreaInset` on the feed's own scroll, so its height IS that
     /// scroll's top content inset, and any offset read back off that scroll is
     /// measured against the same inset. Height-from-scroll therefore closes a loop:
     /// height → inset → offset → height. It does not degrade gracefully; it rings.
@@ -60,10 +60,29 @@ nonisolated enum TodayHeader {
     /// deliberate swipe should clear it.
     static let hideAfter: CGFloat = 24
 
-    /// The smallest movement that counts as a direction. Under this, a finger
-    /// resting on the glass and the last millimetres of inertia would flip the bar
-    /// back and forth — the jitter every direction-driven header has to answer.
-    static let directionThreshold: CGFloat = 4
+    /// How far the scroll must travel in ONE direction, accumulated since that
+    /// direction started, before the bar flips. Under this, a finger resting on
+    /// the glass and the last millimetres of inertia would flip the bar back and
+    /// forth — the jitter every direction-driven header has to answer.
+    ///
+    /// Accumulated, not per frame: this was a 4pt per-frame threshold until
+    /// 2026-09-24, and a slow drag (1–3pt a frame, deceleration tails included)
+    /// never passed it, so the bar ignored slow drags entirely (taste.md: chrome
+    /// follows the finger at any speed). 12pt is suggested by a peer session's
+    /// measurement; tune on device.
+    static let flipDistance: CGFloat = 12
+
+    /// Where the current scroll direction started. Moves to the previous offset
+    /// only when the direction REVERSES, so a slow drag keeps one anchor and its
+    /// travel adds up. At or above home it follows the offset, so the first run
+    /// down from the top is measured from where it actually starts.
+    static func directionAnchor(anchor: CGFloat, previousOffset: CGFloat, offset: CGFloat) -> CGFloat {
+        guard offset > hideAfter else { return offset }
+        let step = offset - previousOffset
+        let run = previousOffset - anchor
+        if step != 0, run != 0, (step > 0) != (run > 0) { return previousOffset }
+        return anchor
+    }
 
     /// Instagram's rule, and NOT the fade band this bar carried until 2026-09-21:
     /// the chrome leaves when you scroll DOWN and comes back the moment you scroll
@@ -72,16 +91,15 @@ nonisolated enum TodayHeader {
     /// Jesse did not want.
     ///
     /// Pure and total, so the whole behaviour is testable without a scroll view:
-    /// the only inputs are where the scroll was, where it is, and what the bar was
-    /// doing. `previousOffset` comes free from `onScrollGeometryChange`'s old
-    /// value, so nothing has to be stored to compute it.
-    static func chromeHidden(wasHidden: Bool, previousOffset: CGFloat, offset: CGFloat) -> Bool {
+    /// the only inputs are where the current direction started (`anchor`, from
+    /// `directionAnchor`), where the scroll is, and what the bar was doing.
+    static func chromeHidden(wasHidden: Bool, anchor: CGFloat, offset: CGFloat) -> Bool {
         // Home, and anywhere a rubber-band pull takes you above it, always shows
         // the bar — there is nothing below to read yet.
         guard offset > hideAfter else { return false }
-        let travelled = offset - previousOffset
-        if travelled > directionThreshold { return true }
-        if travelled < -directionThreshold { return false }
+        let travelled = offset - anchor
+        if travelled >= flipDistance { return true }
+        if travelled <= -flipDistance { return false }
         return wasHidden
     }
 
@@ -133,6 +151,10 @@ private nonisolated enum TodayBarMetric {
     /// over three passes on 2026-09-19, Jesse each time. It still clears the 50pt
     /// disc beside it, with the bar's 58pt content height as the hard ceiling.
     static let wordmarkHeight: CGFloat = 31
+    /// How far below the controls the paper backdrop fades to clear. GUESSED
+    /// (2026-09-24), pending an Instagram screen recording in `references/` —
+    /// taste.md says sizes come from a Reference, and there is none yet.
+    static let backdropFade: CGFloat = 16
 }
 
 struct TodayTopBar: View {
@@ -155,43 +177,73 @@ struct TodayTopBar: View {
         // The chrome LEAVES THE SCREEN on a downward scroll and comes straight back
         // on an upward one (Jesse, 2026-09-21, naming Instagram).
         //
-        // It is REMOVED, not faded in place, and that is not a style choice. The map
-        // disc runs on `.glassEffect`, and a Liquid Glass surface composites outside
-        // the view's own layer: measured on 2026-09-21, an ancestor `.opacity(0)`
-        // left the disc drawn at full strength, and `.clipped()` did not cut it
-        // either — the wordmark, the search mark and the bell all vanished correctly
-        // while a solid yellow disc sat on top of the wifi and battery icons. Taking
-        // the view out of the hierarchy is what actually takes the glass with it.
+        // It is REMOVED from the hierarchy rather than faded in place. That began as
+        // a workaround: until 2026-09-24 the map disc was Liquid Glass, which
+        // composites outside the view's own layer, so an ancestor `.opacity(0)` and
+        // `.clipped()` both left it drawn over the status bar. The disc is a plain
+        // solid view now, so every control fades, slides and clips together; removal
+        // stays because gone chrome should not be in the hierarchy at all.
         //
-        // The transition is therefore what animates: a slide up combined with a
-        // fade, on a spring. Under Reduce Motion it is the crossfade alone, which is
-        // the same trade the rest of the app's chrome makes.
+        // The transition is what animates: a slide up combined with a fade, on a
+        // spring. Under Reduce Motion it is the crossfade alone, which is the same
+        // trade the rest of the app's chrome makes.
         //
         // The bar's HEIGHT never moves — the frame below holds 58 whether or not
         // anything is inside it. See `TodayHeader.contentHeight` for why a height
-        // derived from this scroll rings instead of settling. The band the chrome
-        // leaves behind is not empty: this bar has no fill, so what shows through is
-        // the feed, blurred and washed toward the page by `FeedView`'s
-        // `.scrollEdgeEffectStyle(.soft, for: .top)` — a gradient, not a cut.
+        // derived from this scroll rings instead of settling. With the backdrop gone
+        // too, the band the chrome leaves behind shows the feed itself, unblurred;
+        // only the status band above it keeps paper (`FeedView`'s status strip).
         ZStack {
             if !chromeHidden {
                 controls
                     .transition(.offset(y: -TodayHeader.contentHeight).combined(with: .opacity))
             }
         }
-        .animation(reduceMotion ? .easeOut(duration: 0.18)
-                                : .spring(response: 0.34, dampingFraction: 0.9),
-                   value: chromeHidden)
         .frame(height: TodayHeader.contentHeight)
         .frame(maxWidth: .infinity)
         // Cut at the bar's own edge, so a mid-flight slide is trimmed rather than
-        // drawn over the status bar. (It does not bind the glass — see above — which
-        // is why the disc has to leave the hierarchy rather than be hidden.)
+        // drawn over the status bar.
         .clipped()
-        // NO fill. The bar is a safe-area inset over the feed's own scroll, so what
-        // sits behind it is the content itself, blurred and washed toward the page by
-        // the scroll edge effect (`scrollEdgeEffectStyle(.soft)` in `FeedView`). A
-        // paper fill here is exactly the white lid Jesse asked to be rid of.
+        // The paper backdrop, OUTSIDE that clip because it has to reach up behind
+        // the status bar and down past the row. It arrives and leaves with the
+        // controls (one animation drives both), so mid-feed the logo, icons and
+        // status bar come back on paper instead of over a photo (Jesse, 2026-09-24,
+        // Q2 A). At the top of the feed it is paper on paper, so nothing changes
+        // there. Not the white lid of 2026-09-19: it fades to clear below the row,
+        // and it is gone whenever the bar is.
+        .background(alignment: .top) {
+            ZStack {
+                if !chromeHidden {
+                    backdrop
+                }
+            }
+        }
+        .animation(reduceMotion ? .easeOut(duration: 0.18)
+                                : .spring(response: 0.34, dampingFraction: 0.9),
+                   value: chromeHidden)
+    }
+
+    /// Full paper behind the status bar and the 58pt row, then paper-to-clear over
+    /// `backdropFade`. It slides by its own layout height (`.move(edge: .top)`,
+    /// 58 + fade; the status-band paper is drawn outside that frame) and fades on
+    /// the same spring as the controls. Taps pass through to the feed underneath.
+    private var backdrop: some View {
+        VStack(spacing: 0) {
+            // The safe-area extension goes on a FLEXIBLE paper behind the row's
+            // fixed 58pt, so it grows upward from the row. On a fixed-height box it
+            // shifted the box up into the status band instead, leaving the logo row
+            // on bare feed (eyes pass, 2026-09-24).
+            Color.clear
+                .frame(height: TodayHeader.contentHeight)
+                .background(Hue.paper.ignoresSafeArea(edges: .top))
+            LinearGradient(colors: [Hue.paper, Hue.paper.opacity(0)],
+                           startPoint: .top, endPoint: .bottom)
+                .frame(height: TodayBarMetric.backdropFade)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+        // Same shape as the controls' transition, so the two land on the same frame.
+        .transition(.move(edge: .top).combined(with: .opacity))
     }
 
     // MARK: - Layers
@@ -264,8 +316,7 @@ struct TodayTopBar: View {
                 .contentShape(Rectangle())
         }
         // The same pop the app's other bare controls use. The map disc beside it
-        // takes its press from the glass itself; a 20pt mark has no surface to do
-        // that with, so it gets the hand-rolled scale.
+        // runs the same style at the Create disc's 0.92, without the tick.
         .buttonStyle(PressableStyle(scale: 0.88, haptic: true))
         .accessibilityLabel(label)
         .accessibilityHint(hint)
@@ -303,33 +354,30 @@ struct TodayTopBar: View {
     /// than a change of layout.
     private static let mapShape = Circle()
 
-    /// The yellow map disc, on real Liquid Glass. It sits inboard of the bell rather
-    /// than on the bar's trailing edge, and it is still 50pt — still the one OBJECT
-    /// among three marks.
+    /// The yellow map disc: a SOLID circle in the exact brand yellow, the same fill
+    /// and ink as the tab bar's Create disc. It sits inboard of the bell rather than
+    /// on the bar's trailing edge, and it is still 50pt — still the one OBJECT among
+    /// three marks.
     ///
-    /// The three hand-built layers this used to carry (a thin material, the wash on
-    /// top, a painted sheen and rim, plus a drop shadow) were an imitation of glass
-    /// drawn with gradients. `.glassEffect` is the real material — the same one the
-    /// tab bar and the map's own chrome circles run on — so the disc now refracts
-    /// what is behind it, lights its own rim, and carries its own floating shadow.
-    /// The brand yellow survives as the material's TINT rather than as a fill over
-    /// it, which is what keeps it the same disc rather than a new colour.
+    /// It was Liquid Glass tinted with the yellow at 68% until 2026-09-24. Two
+    /// things killed it (Jesse, Q1 A): a tint is not the brand yellow (it went
+    /// mustard over photos, and taste.md says exactly `#FCE804`, never a tint), and
+    /// glass composites outside the view's own layer, so it arrived and left out of
+    /// step with the rest of the bar. A plain view fades, slides and clips with its
+    /// neighbours. `TodayHeaderTests.testMapDiscIsExactBrandYellow` guards the colour.
     ///
-    /// `.interactive()` is the press reaction: the system's own glass response,
-    /// which replaced `MapDiscPressStyle`'s hand-rolled squash and honours Reduce
-    /// Motion without being told. `.plain` is required with it — the default button
-    /// style would dim the label under the glass, and a grey flash reads as the
-    /// control failing rather than as a press.
+    /// The press is the Create disc's squish (`RootView.createButton`), without the
+    /// haptic: opening the map is not a commit (Jesse, Q4 A).
     private var mapButton: some View {
         let side = TodayBarMetric.mapSide
         return Button(action: onOpenMap) {
             MapPinGlyph(size: TodayBarMetric.mapGlyphSize)
-                .foregroundStyle(Hue.ink)
+                .foregroundStyle(Hue.onCreateDisc)
                 .frame(width: side, height: side)
-                .glassEffect(.regular.tint(Hue.mapWash).interactive(), in: Self.mapShape)
+                .background(Self.mapShape.fill(Hue.createDisc))
                 .contentShape(Self.mapShape)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableStyle(scale: 0.92, haptic: false))
         .accessibilityLabel("Open the town map")
     }
 }

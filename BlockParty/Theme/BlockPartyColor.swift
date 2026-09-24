@@ -159,27 +159,21 @@ nonisolated enum Hue {
     /// Re-sampled 2026-09-19 for the wordmark logo: 0xF2B800 (the retired
     /// wave-figure icon's arcs) → 0xFCE804. The rule did not change, the artwork did.
     ///
-    /// Accents are small by rule: the Today bar's map disc today, and whatever else
-    /// Jesse scopes in later. The app's ground stays white/paper.
+    /// Accents are small by rule: the Today bar's map disc and the tab bar's Create
+    /// disc today, and whatever else Jesse scopes in later. The app's ground stays
+    /// white/paper.
     nonisolated static let brandYellowHex: UInt32 = 0xFCE804
 
-    /// The Today bar's map disc: `brandYellowHex` at 68%. Same yellow as the logo,
-    /// carried at partial opacity — the disc is a flat translucent surface, not a
-    /// shaded ball, so the material underneath does part of the work and the hue is
-    /// read through it. Alpha is the only thing that differs from the mark. Jesse's
-    /// call (2026-09-18) for the one control left in that bar. It is a scoped surface
-    /// tint, NOT the pending UI accent decision, and nothing else routes through it.
-    static let mapWash       = Color(hex: brandYellowHex, alpha: 0.68)
-
-    /// The tab bar's Create disc: the brand yellow at FULL strength, and the second
-    /// yellow surface in the app (Jesse, 2026-09-20). Not `mapWash` — that token is
-    /// the map disc's translucent surface tint, deliberately scoped, and a centre
-    /// button that let the glass capsule through would read as a hole rather than as
-    /// an object. The reference's centre button is a solid disc; this is that disc in
-    /// our colour.
+    /// The brand yellow at FULL strength, as a solid disc: the tab bar's Create
+    /// disc (Jesse, 2026-09-20) and, since 2026-09-24, the Today bar's map disc
+    /// too. A centre button that let the glass capsule through would read as a hole
+    /// rather than as an object; the reference's centre button is a solid disc, and
+    /// this is that disc in our colour. The map disc used to be glass tinted with
+    /// the yellow at 68% (`mapWash`, deleted 2026-09-24): a tint is not the brand
+    /// yellow, and it went mustard over photos.
     ///
     /// DESIGN.md's "accents are small by rule" still holds and this is the boundary:
-    /// two controls, both circular, both under 50pt. A third is a conversation.
+    /// two controls, both circular, both 50pt or under. A third is a conversation.
     static let createDisc    = Color(hex: brandYellowHex)
 
     /// Ink drawn ON `createDisc`, pinned to the LIGHT ramp.
