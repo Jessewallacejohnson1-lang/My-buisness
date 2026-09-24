@@ -1,0 +1,7 @@
+#!/bin/sh
+# Look for iCal, RSS, event pages and Facebook links on every site the registry knows.
+# Writes a report (.runs/calendars.json), never registry entries — promoting a place to
+# `tier: watched` crosses the publishing line and stays a per-entry decision (ADR-011).
+set -eu
+here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+exec python3 "$here/scripts/find_calendars.py" --root "$(dirname -- "$here")" "$@"
