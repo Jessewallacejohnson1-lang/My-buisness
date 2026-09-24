@@ -44,8 +44,12 @@ an old file, an old comment, or an old screenshot still sitting in the repo.
   or progress-ring framing is dead code from the Hygge/Korina era. Delete it, never
   extend it, and flag it if you find it.
 - Names Hygge, Hygge Health, Korina, and Grove are all retired. The product is Block Party.
-- Four tabs: Today, Activities (discover new things — clubs, trails), Calendar
-  (personalized — what the user signed up for or reserved), Map.
+- 2026-09-24 — Four tabs: **Town** (the town feed, for everyone), **Daily** (the
+  neighbour's own paper: town feed crossed with what they follow), **Business** (the
+  owners' side of Main Street), **You** (profile). **Supersedes** Today / Activities /
+  Calendar / Map (re-cut 2026-09-18). The map is not a tab: it opens full-screen from
+  the yellow disc in the Town top bar. The "Today tab" and "Map tab" sections below
+  describe what now lives in Town and in that full-screen map.
 - Rollout is town by town. St. Joseph first, then St. Cloud, Sauk Rapids, Cold Spring,
   Waite Park. Nothing in the shared UI, copy, or icon may be St. Joe–specific.
 - App Store target is spring 2027. The months before that are networking and local
