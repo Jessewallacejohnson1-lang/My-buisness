@@ -185,8 +185,10 @@ struct FeedView: View {
             #endif
         }
         // The bar rides ON the scroll, not above it: as a top safe-area inset the
-        // feed's content passes UNDERNEATH it, which is the whole point — an
-        // opaque strip has nothing to blur and reads as a white lid.
+        // feed's content passes UNDERNEATH it. While the bar is showing it carries
+        // its own paper-to-clear backdrop (2026-09-24), so the logo sits on paper
+        // mid-feed; when it leaves, the backdrop leaves with it and the soft edge
+        // below takes over.
         .safeAreaBar(edge: .top, spacing: 0) {
             TodayTopBar(onOpenSearch: onOpenSearch,
                         onOpenMap: onOpenMap,
@@ -195,7 +197,9 @@ struct FeedView: View {
         }
         // The glass fade at the top of the screen (Jesse, 2026-09-19, matching
         // Instagram's feed): content sliding under the status bar is blurred and
-        // washed toward the page instead of being covered by a white bar.
+        // washed toward the page instead of being covered by a white bar. It is
+        // what the band shows while the bar is away; while the bar is showing, the
+        // bar's own paper backdrop (`TodayTopBar.backdrop`) covers it.
         //
         // `.soft`, restored 2026-09-21. It went to `.hard` for the few hours the bar
         // was locked in place, because a bar that never leaves shares this band with

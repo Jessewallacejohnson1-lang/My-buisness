@@ -133,6 +133,10 @@ private nonisolated enum TodayBarMetric {
     /// over three passes on 2026-09-19, Jesse each time. It still clears the 50pt
     /// disc beside it, with the bar's 58pt content height as the hard ceiling.
     static let wordmarkHeight: CGFloat = 31
+    /// How far below the controls the paper backdrop fades to clear. GUESSED
+    /// (2026-09-24), pending an Instagram screen recording in `references/` —
+    /// taste.md says sizes come from a Reference, and there is none yet.
+    static let backdropFade: CGFloat = 16
 }
 
 struct TodayTopBar: View {
@@ -169,8 +173,8 @@ struct TodayTopBar: View {
         // The bar's HEIGHT never moves — the frame below holds 58 whether or not
         // anything is inside it. See `TodayHeader.contentHeight` for why a height
         // derived from this scroll rings instead of settling. The band the chrome
-        // leaves behind is not empty: this bar has no fill, so what shows through is
-        // the feed, blurred and washed toward the page by `FeedView`'s
+        // leaves behind is not empty: with the backdrop gone too, what shows through
+        // is the feed, blurred and washed toward the page by `FeedView`'s
         // `.scrollEdgeEffectStyle(.soft, for: .top)` — a gradient, not a cut.
         ZStack {
             if !chromeHidden {
@@ -178,18 +182,47 @@ struct TodayTopBar: View {
                     .transition(.offset(y: -TodayHeader.contentHeight).combined(with: .opacity))
             }
         }
-        .animation(reduceMotion ? .easeOut(duration: 0.18)
-                                : .spring(response: 0.34, dampingFraction: 0.9),
-                   value: chromeHidden)
         .frame(height: TodayHeader.contentHeight)
         .frame(maxWidth: .infinity)
         // Cut at the bar's own edge, so a mid-flight slide is trimmed rather than
         // drawn over the status bar.
         .clipped()
-        // NO fill. The bar is a safe-area inset over the feed's own scroll, so what
-        // sits behind it is the content itself, blurred and washed toward the page by
-        // the scroll edge effect (`scrollEdgeEffectStyle(.soft)` in `FeedView`). A
-        // paper fill here is exactly the white lid Jesse asked to be rid of.
+        // The paper backdrop, OUTSIDE that clip because it has to reach up behind
+        // the status bar and down past the row. It arrives and leaves with the
+        // controls (one animation drives both), so mid-feed the logo, icons and
+        // status bar come back on paper instead of over a photo (Jesse, 2026-09-24,
+        // Q2 A). At the top of the feed it is paper on paper, so nothing changes
+        // there. Not the white lid of 2026-09-19: it fades to clear below the row,
+        // and it is gone whenever the bar is.
+        .background(alignment: .top) {
+            ZStack {
+                if !chromeHidden {
+                    backdrop
+                }
+            }
+        }
+        .animation(reduceMotion ? .easeOut(duration: 0.18)
+                                : .spring(response: 0.34, dampingFraction: 0.9),
+                   value: chromeHidden)
+    }
+
+    /// Full paper behind the status bar and the 58pt row, then paper-to-clear over
+    /// `backdropFade`. It slides by its OWN height (`.move(edge: .top)`, measured
+    /// after the safe-area extension), not the controls' 58pt, so no strip of paper
+    /// is left behind mid-flight. Taps pass through to the feed underneath.
+    private var backdrop: some View {
+        VStack(spacing: 0) {
+            Hue.paper
+            LinearGradient(colors: [Hue.paper, Hue.paper.opacity(0)],
+                           startPoint: .top, endPoint: .bottom)
+                .frame(height: TodayBarMetric.backdropFade)
+        }
+        .frame(height: TodayHeader.contentHeight + TodayBarMetric.backdropFade)
+        .ignoresSafeArea(edges: .top)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+        // Same shape as the controls' transition, so the two land on the same frame.
+        .transition(.move(edge: .top).combined(with: .opacity))
     }
 
     // MARK: - Layers
