@@ -214,6 +214,31 @@ final class TodayHeaderTests: XCTestCase {
         )
     }
 
+    /// The map disc is EXACTLY the brand yellow, `#FCE804` (taste.md, 2026-09-24:
+    /// never a near-yellow, never a tint). It used to be Liquid Glass tinted with
+    /// the yellow at 68%, which read as mustard over photos. A tint or a second
+    /// yellow coming back fails here.
+    ///
+    /// The disc sits `rowInset 4 + glyphTap 44 + controlGap 8` in from the trailing
+    /// edge and is 50pt wide, so on a 390pt bar its centre is (309, 29). The ring
+    /// sampled is 19pt out: clear of the ~12pt pin and of the rim's antialiasing.
+    func testMapDiscIsExactBrandYellow() throws {
+        let bitmap = try renderedHeaderBitmap()
+        let scale = 2.0
+        let centre = (x: 309.0, y: Double(TodayHeader.contentHeight) / 2)
+
+        for step in 0..<8 {
+            let angle = Double(step) * .pi / 4
+            let x = Int((centre.x + 19 * cos(angle)) * scale)
+            let y = Int((centre.y + 19 * sin(angle)) * scale)
+            let (r, g, b, a) = bitmap.pixel(x: x, y: y)
+            XCTAssertEqual(a, 255, "disc must be opaque at (\(x), \(y))")
+            XCTAssertLessThanOrEqual(abs(Int(r) - 0xFC), 2, "red off at (\(x), \(y)): \(r)")
+            XCTAssertLessThanOrEqual(abs(Int(g) - 0xE8), 2, "green off at (\(x), \(y)): \(g)")
+            XCTAssertLessThanOrEqual(abs(Int(b) - 0x04), 2, "blue off at (\(x), \(y)): \(b)")
+        }
+    }
+
     private func renderedHeaderBitmap() throws -> HeaderBitmap {
         let renderer = ImageRenderer(
             content: TodayTopBar()
@@ -290,6 +315,11 @@ private struct HeaderBitmap {
         width = pixelWidth
         height = pixelHeight
         rgba = bytes
+    }
+
+    func pixel(x: Int, y: Int) -> (UInt8, UInt8, UInt8, UInt8) {
+        let offset = (y * width + x) * 4
+        return (rgba[offset], rgba[offset + 1], rgba[offset + 2], rgba[offset + 3])
     }
 
     func countPixels(

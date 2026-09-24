@@ -155,17 +155,16 @@ struct TodayTopBar: View {
         // The chrome LEAVES THE SCREEN on a downward scroll and comes straight back
         // on an upward one (Jesse, 2026-09-21, naming Instagram).
         //
-        // It is REMOVED, not faded in place, and that is not a style choice. The map
-        // disc runs on `.glassEffect`, and a Liquid Glass surface composites outside
-        // the view's own layer: measured on 2026-09-21, an ancestor `.opacity(0)`
-        // left the disc drawn at full strength, and `.clipped()` did not cut it
-        // either — the wordmark, the search mark and the bell all vanished correctly
-        // while a solid yellow disc sat on top of the wifi and battery icons. Taking
-        // the view out of the hierarchy is what actually takes the glass with it.
+        // It is REMOVED from the hierarchy rather than faded in place. That began as
+        // a workaround: until 2026-09-24 the map disc was Liquid Glass, which
+        // composites outside the view's own layer, so an ancestor `.opacity(0)` and
+        // `.clipped()` both left it drawn over the status bar. The disc is a plain
+        // solid view now, so every control fades, slides and clips together; removal
+        // stays because gone chrome should not be in the hierarchy at all.
         //
-        // The transition is therefore what animates: a slide up combined with a
-        // fade, on a spring. Under Reduce Motion it is the crossfade alone, which is
-        // the same trade the rest of the app's chrome makes.
+        // The transition is what animates: a slide up combined with a fade, on a
+        // spring. Under Reduce Motion it is the crossfade alone, which is the same
+        // trade the rest of the app's chrome makes.
         //
         // The bar's HEIGHT never moves — the frame below holds 58 whether or not
         // anything is inside it. See `TodayHeader.contentHeight` for why a height
@@ -185,8 +184,7 @@ struct TodayTopBar: View {
         .frame(height: TodayHeader.contentHeight)
         .frame(maxWidth: .infinity)
         // Cut at the bar's own edge, so a mid-flight slide is trimmed rather than
-        // drawn over the status bar. (It does not bind the glass — see above — which
-        // is why the disc has to leave the hierarchy rather than be hidden.)
+        // drawn over the status bar.
         .clipped()
         // NO fill. The bar is a safe-area inset over the feed's own scroll, so what
         // sits behind it is the content itself, blurred and washed toward the page by
@@ -264,8 +262,7 @@ struct TodayTopBar: View {
                 .contentShape(Rectangle())
         }
         // The same pop the app's other bare controls use. The map disc beside it
-        // takes its press from the glass itself; a 20pt mark has no surface to do
-        // that with, so it gets the hand-rolled scale.
+        // runs the same style at the Create disc's 0.92, without the tick.
         .buttonStyle(PressableStyle(scale: 0.88, haptic: true))
         .accessibilityLabel(label)
         .accessibilityHint(hint)
@@ -303,33 +300,30 @@ struct TodayTopBar: View {
     /// than a change of layout.
     private static let mapShape = Circle()
 
-    /// The yellow map disc, on real Liquid Glass. It sits inboard of the bell rather
-    /// than on the bar's trailing edge, and it is still 50pt — still the one OBJECT
-    /// among three marks.
+    /// The yellow map disc: a SOLID circle in the exact brand yellow, the same fill
+    /// and ink as the tab bar's Create disc. It sits inboard of the bell rather than
+    /// on the bar's trailing edge, and it is still 50pt — still the one OBJECT among
+    /// three marks.
     ///
-    /// The three hand-built layers this used to carry (a thin material, the wash on
-    /// top, a painted sheen and rim, plus a drop shadow) were an imitation of glass
-    /// drawn with gradients. `.glassEffect` is the real material — the same one the
-    /// tab bar and the map's own chrome circles run on — so the disc now refracts
-    /// what is behind it, lights its own rim, and carries its own floating shadow.
-    /// The brand yellow survives as the material's TINT rather than as a fill over
-    /// it, which is what keeps it the same disc rather than a new colour.
+    /// It was Liquid Glass tinted with the yellow at 68% until 2026-09-24. Two
+    /// things killed it (Jesse, Q1 A): a tint is not the brand yellow (it went
+    /// mustard over photos, and taste.md says exactly `#FCE804`, never a tint), and
+    /// glass composites outside the view's own layer, so it arrived and left out of
+    /// step with the rest of the bar. A plain view fades, slides and clips with its
+    /// neighbours. `TodayHeaderTests.testMapDiscIsExactBrandYellow` guards the colour.
     ///
-    /// `.interactive()` is the press reaction: the system's own glass response,
-    /// which replaced `MapDiscPressStyle`'s hand-rolled squash and honours Reduce
-    /// Motion without being told. `.plain` is required with it — the default button
-    /// style would dim the label under the glass, and a grey flash reads as the
-    /// control failing rather than as a press.
+    /// The press is the Create disc's squish (`RootView.createButton`), without the
+    /// haptic: opening the map is not a commit (Jesse, Q4 A).
     private var mapButton: some View {
         let side = TodayBarMetric.mapSide
         return Button(action: onOpenMap) {
             MapPinGlyph(size: TodayBarMetric.mapGlyphSize)
-                .foregroundStyle(Hue.ink)
+                .foregroundStyle(Hue.onCreateDisc)
                 .frame(width: side, height: side)
-                .glassEffect(.regular.tint(Hue.mapWash).interactive(), in: Self.mapShape)
+                .background(Self.mapShape.fill(Hue.createDisc))
                 .contentShape(Self.mapShape)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableStyle(scale: 0.92, haptic: false))
         .accessibilityLabel("Open the town map")
     }
 }
