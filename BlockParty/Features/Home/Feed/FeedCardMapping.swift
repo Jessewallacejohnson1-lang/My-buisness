@@ -46,6 +46,38 @@ extension FeedCardItem {
         )
     }
 
+    /// A Your Day event as a card item, so Town and Your Day open the one event
+    /// page. Same image cascade as a posting (`imageSource`), so an event without
+    /// its own photo still falls back to a venue lookup.
+    init(_ event: UpcomingEvent) {
+        let time = Self.nonempty(event.startTime)
+        let location = Self.nonempty(event.location)
+
+        self.init(
+            id: event.id,
+            title: event.title,
+            dateChip: Self.dateChip(from: event.eventDate),
+            metaLine: [time, location].compactMap { $0 }.joined(separator: " · "),
+            image: Self.imageSource(
+                imageUrl: event.imageUrl,
+                location: location,
+                title: event.title
+            ),
+            recurrence: nil,
+            hostName: Self.nonempty(event.clubName) ?? "",
+            goingCount: event.goingCount,
+            goingAvatars: [],
+            goingSummary: Self.goingSummary(for: event.goingCount, names: []),
+            likeCount: 0,
+            isLiked: false,
+            isSaved: false,
+            isJoined: event.rsvpd,
+            eventDate: event.eventDate,
+            startTime: time,
+            location: location
+        )
+    }
+
     private static func nonempty(_ value: String?) -> String? {
         guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
               !trimmed.isEmpty
