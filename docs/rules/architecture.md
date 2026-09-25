@@ -74,8 +74,7 @@ seeder, and mounts `RootView` directly.
 ### The tab bar
 
 `MainTabsView` owns **four** tabs (`Tab`: town/daily/business/you), the custom
-`BlockPartyTabBar`, the full-screen map cover, town-menu presentation, and the compose speed
-dial. **Town** (`house`) is the town feed, **Daily** (`newspaper`) is the personalised paper
+`BlockPartyTabBar`, the full-screen map cover, and town-menu presentation. **Town** (`house`) is the town feed, **Daily** (`newspaper`) is the personalised paper
 (town feed ∩ what the neighbour follows), **Business** (`briefcase`) is the owners' side of
 Main Street — not a shopfront directory — and **You** mounts `ProfileView(showsClose: false)`,
 since a tab has no close.
@@ -83,17 +82,13 @@ since a tab has no close.
 - **Daily and Business render `BlankTab` deliberately** — the slot's name plus its one-line
   promise — because the bar and its motion are built and the screens are not. **Do not "fix"
   that by deleting the cases.** `[prose]`
-- **The Create disc is emphatically NOT a fifth `case` in `Tab`.** `[prose]` `Tab` is
-  `Int`-backed and `switchTab(to:)` subtracts rawValues to pick the page-slide direction,
-  while `allCases` drives the content `switch`, `initialTab()`, `-open-tab` and `BlankTab`.
-  A case with no screen would need special-casing in all of them, and the one it would
-  corrupt **silently** is the slide direction. So `BlockPartyTabBar` writes its five children
-  out longhand instead of looping `allCases`, and Create never takes the `pill`.
-- **The bar's height did not change** when the disc arrived: it is centred on the 23pt icon
-  lane and allowed to overflow, absorbed by the 9pt vertical padding. Labels carry
-  `.lineLimit(1).minimumScaleFactor(0.85)` to hold that height instead of wrapping.
-- **Do not label a composer CTA exactly `"Create"`** `[test]` — `"Create"` is on the
-  `isFrozenByDesign` list in `DynamicTypeAuditTests`, which matches by label app-wide.
+- **The bar is four equal slots built from `Tab.allCases`** `[test]`, pinned by
+  `TabBarTests`. The centre Create disc was removed on 2026-09-24 when posting was paused,
+  so **there is no compose entry anywhere in the app** — not in the bar, not on the map, not
+  in the town menu. Do not add one back without Jesse saying posting is on again.
+- **Every tab carries `.accessibilityShowsLargeContentViewer()`** `[prose]` — the long-press
+  enlargement that frozen chrome owes the reader. Labels keep
+  `.lineLimit(1).minimumScaleFactor(0.85)` so the bar's height holds instead of wrapping.
 - **The map is not a tab.** `SJMapView` is presented as a `.fullScreenCover` from the Town
   top bar's map button, so it carries its own close and owns its own state.
 
@@ -202,13 +197,12 @@ out in the row — an `HStack` would park it wherever the trailing button's widt
   overhang of those touch boxes.
 - **The map button is a true circle, 50×50** — the one deliberate exception to this system's
   12pt rounded squares, and big enough to clear the 44pt target on its own.
-- **It is not a `.glassEffect` surface, and that is measured rather than stylistic**
-  `[prose]`: a Liquid Glass surface composites what sits near it into its own layer, which
-  flattened the highlight to a 2/255 difference and re-rendered the glyph as a refracted
-  ghost. The disc is `ultraThinMaterial` + `Hue.mapWash` + a two-layer `sheen` + the glyph,
-  stacked with ordinary compositing. It is deliberately **mostly flat** — roughly a 9/255
-  top-to-bottom ramp. Jesse's call is a flat translucent surface with a little glass in it,
-  not a ball.
+- **The map disc is a solid `Hue.brandDisc` circle, exactly #FCE804, carrying
+  `Hue.onBrandDisc` ink — no glass, no material, no tint** (2026-09-24). `[test]`
+  `TodayHeaderTests.testMapDiscIsExactBrandYellow` pixel-samples the colour. The translucent
+  `mapWash` disc before it went mustard over photographs, and a Liquid Glass surface
+  composites outside its own view's layer, so it arrived and left out of step with the rest
+  of the bar.
 - **The bar's glyphs are drawn in-house** (`MapPinGlyph`, and `MagnifierGlyph` / `BellGlyph`
   in `Features/Home/BarGlyphs.swift`) because the SF equivalents are different silhouettes,
   not the same shape at another weight. `MapPinGlyph` is a pin outline and a concentric ring
@@ -218,8 +212,9 @@ out in the row — an `HStack` would park it wherever the trailing button's widt
 ### Other surfaces
 
 - **Town menu** (`TownMenuView` + `GlassShowcaseOverlay`) — still wired, still **UNREACHABLE
-  in the UI**; the avatar was its only entry point. What the drawer alone still reaches is
-  the appearance switch. DEBUG `-open-menu` raises it; re-attaching is a one-line `onMenu`
+  in the UI**; the avatar was its only entry point, and its "Add an event" row went on
+  2026-09-24 with posting, leaving three actions (`TownMenuAction`: map, invite, profile).
+  What the drawer alone still reaches is the appearance switch. DEBUG `-open-menu` raises it; re-attaching is a one-line `onMenu`
   hook wherever its next entry point lands.
 - **Profile** (`Features/Profile/`) — the **You** tab, and still presentable as a sheet.
   `ProfileView` shows identity plus **real** activity via the My-activity reads — **no

@@ -28,8 +28,7 @@ import SwiftUI
 
 struct DayScheduleSheet: View {
     let items: [DayItem]
-    /// Where the day comes to rest on open: the tapped row, the top, or the bottom
-    /// CTA (now only the `-day-sheet-state cta` fixture — see `DayScheduleAnchor`).
+    /// Where the day comes to rest on open: the tapped row, or the top.
     let anchor: DayScheduleAnchor
     let namespace: Namespace.ID
     let dates: any DateProviding
@@ -45,7 +44,6 @@ struct DayScheduleSheet: View {
     @State private var now: Date
     @State private var isScrolled = false
     @State private var detailEvent: UpcomingEvent?
-    @State private var isComposing = false
 
     init(
         items: [DayItem],
@@ -70,21 +68,14 @@ struct DayScheduleSheet: View {
     nonisolated static func accentID(_ itemID: String) -> String { "dayitem-accent-\(itemID)" }
     nonisolated static func titleID(_ itemID: String) -> String { "dayitem-title-\(itemID)" }
 
-    /// The scroll target for `.callToAction` — a hairline at the very end of the
-    /// timeline, so "open on the add button" lands on the bottom of the real day
-    /// rather than on whichever row happens to be last.
-    private static let bottomAnchorID = "dayschedule-bottom"
-
     var body: some View {
         timeline
             // Opaque now. The frosted layer moved OUT to `DayScheduleHost`, where it
             // belongs: it is the scrim over the town, not the page under the day.
             .background(DaySchedulePalette.page)
             .safeAreaInset(edge: .top, spacing: 0) { header }
-            .safeAreaInset(edge: .bottom, spacing: 0) { callToAction }
             .task { await followTheMinute() }
             .sheet(item: $detailEvent) { FeedEventDetailDestination(event: $0) }
-            .sheet(isPresented: $isComposing) { AddView() }
     }
 
     // MARK: - The timeline
@@ -99,11 +90,10 @@ struct DayScheduleSheet: View {
                     } else {
                         rows
                     }
-
-                    Color.clear
-                        .frame(height: 1)
-                        .id(Self.bottomAnchorID)
                 }
+                // The page spans the card whatever the day holds. Without this an
+                // empty day sized the scroll, and so the page, to its one line of text.
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, DayScheduleMetrics.pageMargin)
                 .padding(.bottom, 24)
             }
@@ -143,11 +133,10 @@ struct DayScheduleSheet: View {
         .accessibilityAddTraits(.isHeader)
     }
 
-    /// A day with nothing on it still has a page to fill. One line, pointing at the
-    /// button already at the bottom of the screen — an empty screen is an
-    /// invitation, not a void.
+    /// A day with nothing on it still has a page to fill: one quiet line, so the
+    /// screen reads as empty on purpose rather than broken.
     private var emptyDay: some View {
-        Text("Add the first thing and your neighbours will see it here.")
+        Text("Nothing on your day yet.")
             .font(.sans(DayType.body))
             .foregroundStyle(DaySchedulePalette.muted)
             .fixedSize(horizontal: false, vertical: true)
@@ -244,79 +233,16 @@ struct DayScheduleSheet: View {
         }
     }
 
-    // MARK: - Sticky CTA
-
-    private var callToAction: some View {
-        Button {
-            Haptics.light()
-            isComposing = true
-        } label: {
-            // A pill, deliberately — the one place in the app that gets one. It is
-            // the single primary action on a full-height surface and reads as a
-            // floating control rather than as part of the card stack.
-            // U+FF0B FULLWIDTH PLUS, chosen for its optical weight next to 17pt
-            // semibold. VoiceOver reads it aloud as a character, so the button
-            // carries an explicit label below and this glyph is decoration only.
-            Text("＋ Add to today")
-                .font(.sansSemibold(DayType.cardTitle))
-                .foregroundStyle(DaySchedulePalette.card)
-                .frame(maxWidth: .infinity)
-                .frame(height: DayScheduleMetrics.ctaHeight)
-                .background(
-                    DaySchedulePalette.ink,
-                    in: RoundedRectangle(
-                        cornerRadius: DayScheduleMetrics.ctaRadius,
-                        style: .continuous
-                    )
-                )
-        }
-        .buttonStyle(FeedCardPressStyle())
-        .accessibilityLabel("Add to today")
-        .padding(.horizontal, DayScheduleMetrics.ctaMargin)
-        .padding(.top, 8)
-        .padding(.bottom, 8)
-        // THE SCRIM FINISHES ABOVE THE PILL, not behind it.
-        //
-        // It used to be a three-stop gradient across the CTA's own inset, which put
-        // full page colour at the gradient's MIDPOINT — measured, about 43pt down
-        // inside the pill. So a row scrolling under the CTA met a hard horizontal
-        // edge level with the button's waist and was guillotined rather than faded.
-        //
-        // Now: solid page behind the whole inset, and the fade is a separate band
-        // sitting directly above it. Stated in points rather than as a fraction
-        // because the inset's height depends on the device's bottom safe area, and
-        // a fraction of an unknown is how the first version went wrong.
-        .background {
-            DaySchedulePalette.page
-                .ignoresSafeArea(edges: .bottom)
-                .overlay(alignment: .top) {
-                    LinearGradient(
-                        colors: [
-                            DaySchedulePalette.page.opacity(0),
-                            DaySchedulePalette.page,
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(height: DayScheduleMetrics.ctaScrimFade)
-                    .offset(y: -DayScheduleMetrics.ctaScrimFade)
-                }
-        }
-    }
-
     // MARK: - Behaviour
 
     /// The tapped item comes to rest a third of the way down, so the rows before it
-    /// are visible as context rather than scrolled off. The add tile asks for the
-    /// other end — the day's tail and the "Add to today" button under it.
+    /// are visible as context rather than scrolled off.
     private func restPosition(_ proxy: ScrollViewProxy) {
         switch anchor {
         case .top:
             break
         case let .item(id):
             proxy.scrollTo(id, anchor: DayScheduleMetrics.openAnchor)
-        case .callToAction:
-            proxy.scrollTo(Self.bottomAnchorID, anchor: .bottom)
         }
     }
 

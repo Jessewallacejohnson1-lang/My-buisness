@@ -27,7 +27,6 @@ final class LoadingGuardTests: XCTestCase {
     /// card, a feed section, an image well — never gets one.
     private static let spinnerAllowlist: Set<String> = [
         "Features/Auth/LoginView.swift",          // sign-in button, mid-request
-        "Features/Add/AddFormView.swift",         // submit button, mid-post
         "Features/Profile/EditProfileView.swift", // save button, mid-save
         "Features/Components/InlineAction.swift", // the shared inline button itself
     ]

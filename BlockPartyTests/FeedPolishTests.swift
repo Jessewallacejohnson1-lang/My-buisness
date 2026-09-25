@@ -168,21 +168,6 @@ final class FeedRouteAndCopyTests: XCTestCase {
         }
     }
 
-    /// A card asks the day-sheet host to open on its own row. `.callToAction` — what
-    /// the retired plus tile used to ask for — survives only for the sheet's own
-    /// `-day-sheet-state cta` fixture.
-    func testACardAsksTheDaySheetForItsRowWhileTheAnchorTheAddTileUsedToAskForIsFixtureOnly() {
-        let cardAnchor = DayScheduleAnchor.item("fixture-walk")
-        XCTAssertEqual(cardAnchor.itemID, "fixture-walk")
-        XCTAssertNotEqual(cardAnchor, .callToAction)
-
-        // Still reachable, so removing the case would break a documented flag.
-        XCTAssertEqual(
-            DayScheduleFixture.fromArguments(["-day-sheet-state", "cta"]).anchor,
-            .callToAction
-        )
-    }
-
     /// Both browse affordances promise the same destination out loud. "Add to today"
     /// alone would read as a composer, which is not where the tile goes.
     func testBothBrowseAffordancesAnnounceTheSameDestination() {
@@ -525,10 +510,8 @@ final class DayScheduleAnchorTests: XCTestCase {
         XCTAssertEqual(DayScheduleAnchor.item("evt-1").itemID, "evt-1")
     }
 
-    /// §3: the add tile opens the day on the bottom CTA, not on a row — so it must
-    /// NOT name an item to scroll to.
-    func testTheAddTileAnchorNamesNoRow() {
-        XCTAssertNil(DayScheduleAnchor.callToAction.itemID)
+    /// The top of the day is not a row, so it must NOT name an item to scroll to.
+    func testTheTopAnchorNamesNoRow() {
         XCTAssertNil(DayScheduleAnchor.top.itemID)
     }
 
@@ -540,9 +523,68 @@ final class DayScheduleAnchorTests: XCTestCase {
         XCTAssertEqual(anchor("upcoming"), .item("fixture-trivia"))
         XCTAssertEqual(anchor("inprogress"), .item("fixture-story"))
         XCTAssertEqual(anchor("completed"), .item("fixture-walk"))
-        XCTAssertEqual(anchor("cta"), .callToAction)
         XCTAssertEqual(anchor("empty"), .top)
         XCTAssertEqual(DayScheduleFixture.fromArguments([]).anchor, .top)
+    }
+}
+
+/// The day sheet's page must span the whole card. On 2026-09-24 the "Add to today"
+/// button went, and it had been the only full-width child: the page shrank to a
+/// centred strip the width of its text. Rendered, because only layout shows it.
+@MainActor
+final class DayScheduleSheetWidthTests: XCTestCase {
+
+    private struct Host: View {
+        let items: [DayItem]
+        @Namespace private var ns
+
+        var body: some View {
+            DayScheduleSheet(
+                items: items,
+                anchor: .top,
+                namespace: ns,
+                dates: FixedDateProvider(DayScheduleFixture.fixedNow),
+                onDismiss: {}
+            )
+        }
+    }
+
+    /// RGBA of the pixel at (x, y) in a rendered view, 1x scale.
+    private func pixel(_ image: CGImage, x: Int, y: Int) -> (UInt8, UInt8, UInt8) {
+        var rgba = [UInt8](repeating: 0, count: 4)
+        let context = CGContext(
+            data: &rgba, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        )!
+        context.draw(image, in: CGRect(x: -x, y: y - image.height + 1,
+                                       width: image.width, height: image.height))
+        return (rgba[0], rgba[1], rgba[2])
+    }
+
+    private func assertPageReachesBothEdges(_ items: [DayItem], file: StaticString = #filePath, line: UInt = #line) throws {
+        let width: CGFloat = 393, height: CGFloat = 800
+        let renderer = ImageRenderer(
+            content: Host(items: items)
+                .frame(width: width, height: height)
+                .environment(\.colorScheme, .light)
+        )
+        renderer.scale = 1
+        let image = try XCTUnwrap(renderer.cgImage, file: file, line: line)
+        for x in [1, Int(width) - 2] {
+            let (r, g, b) = pixel(image, x: x, y: Int(height) / 2)
+            XCTAssertEqual([r, g, b], [0xFA, 0xFA, 0xF7],
+                           "The page colour does not reach x = \(x); the sheet's page is narrower than its card.",
+                           file: file, line: line)
+        }
+    }
+
+    func testTheEmptyDaysPageSpansTheCard() throws {
+        try assertPageReachesBothEdges([])
+    }
+
+    func testADayWithRowsKeepsItsPageFullWidth() throws {
+        try assertPageReachesBothEdges(DayScheduleFixture.items(now: DayScheduleFixture.fixedNow))
     }
 }
 
@@ -855,11 +897,10 @@ final class DayTypeScaleTests: XCTestCase {
         XCTAssertEqual(DayScheduleMetrics.accentBarWidth, 6)
     }
 
-    /// One page margin for the rail, the timeline column and the CTA.
+    /// One page margin for the rail and the timeline column.
     func testOnePageMarginAcrossTheWholeFeature() {
         XCTAssertEqual(DayScheduleMetrics.pageMargin, 20)
         XCTAssertEqual(YourDayRailMetrics.pageMargin, 20)
-        XCTAssertEqual(DayScheduleMetrics.ctaMargin, 20)
     }
 
     func testEverySpacingTokenSitsOnTheFourPointGrid() {
@@ -879,8 +920,6 @@ final class DayTypeScaleTests: XCTestCase {
             ("sheet.cardInset", DayScheduleMetrics.cardInset),
             ("sheet.spineInset", DayScheduleMetrics.spineInset),
             ("sheet.rowSpacing", DayScheduleMetrics.rowSpacing),
-            ("sheet.ctaMargin", DayScheduleMetrics.ctaMargin),
-            ("sheet.ctaScrimFade", DayScheduleMetrics.ctaScrimFade),
         ]
 
         for (name, value) in grid {

@@ -9,7 +9,7 @@
 //
 //  WHERE IT MOUNTS. On `MainTabsView`, not on the Today tab, because the custom tab
 //  bar is a sibling of the tab content and would otherwise float on top of a
-//  full-height sheet and cover its "Add to today" button. This is the same lane the
+//  full-height sheet and cover its bottom rows. This is the same lane the
 //  town menu's `GlassShowcaseOverlay` uses.
 //
 //  WHAT HAD TO BE HAND-BUILT, now that the system is not doing it:

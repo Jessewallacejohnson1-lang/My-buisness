@@ -38,18 +38,19 @@ build time, and the colour half has no backstop. A human eye is the only check f
   - **`heart`** #FF3040 — a liked heart and nothing else: state, not chrome. Pass it *into*
     `actionIcon(_:active:tint:)`, which sets `foregroundStyle` closer to the `Image`; an
     outer style silently loses.
-  - **`brandYellowHex`** #FCE804 — the app's accent, taken from the logo's yellow field,
-    with two scoped surfaces built from it: `mapWash` (68%, the Today bar's map disc) and
-    `createDisc` (full strength, the tab bar's centre Create button — solid, because a
-    centre button that lets the glass capsule through reads as a hole rather than an object).
+  - **`brandYellowHex`** #FCE804 — the app's accent, taken from the logo's yellow field.
+    **`brandDisc`** is that yellow at full strength, solid, for exactly **one control: the
+    Town bar's map disc** (renamed from `createDisc` on 2026-09-24 when the tab bar's Create
+    disc was removed). `mapWash`, the 68% translucent version that disc used to use, is still
+    declared but no longer drawn — it went mustard over photographs.
   - The rule is **white ground + small yellow accents, every yellow derived from
     `brandYellowHex`** — never a second yellow, never a call-site hex. These are scoped
-    surface tints, not second accents, and **two circular controls under 50pt is the agreed
-    boundary**. The retired coral and `moss`/`sky`/`honey`/`clay` ramps stay deleted.
+    surface tints, not second accents. The retired coral and `moss`/`sky`/`honey`/`clay`
+    ramps stay deleted.
   - **What sits ON the yellow is not a free choice.** `[test]` #FCE804 has luminance 0.784,
     so white measures 1.26:1 and the dark ramp's `ink` 1.11:1 — only the light ink clears,
-    at 15.0:1. Hence **`onCreateDisc`**, pinned to the light ramp. `CreateDiscContrastTests`
-    pins all four numbers and pins `onCreateDiscHex` to `ink`'s light column.
+    at 15.0:1. Hence **`onBrandDisc`**, pinned to the light ramp. `BrandDiscContrastTests`
+    pins all four numbers and pins `onBrandDiscHex` to `ink`'s light column.
   - Chrome stays predominantly ink-on-paper; photographs, cartography and weather/utility
     slabs carry their own controlled colour.
 - **`BlockPartyFont`** — **text takes a role, never a raw point size.** `[hook]` `[test]`
@@ -126,9 +127,10 @@ and `DECISIONS.md` win wherever they disagree.
   - **Don't flash** — if the data is already cached, render it directly rather than showing a
     skeleton for one frame.
 - **`ProgressView` has exactly one legitimate use: an action already tapped, in flight,
-  inside the control that started it.** `[test]` `LoginView`, `AddFormView`,
-  `EditProfileView` and `InlineAction` are the entire allowlist in `LoadingGuardTests` —
-  there is no content shape to stand in for there. Content — a screen, a list, a card, a feed
+  inside the control that started it.** `[test]` `LoginView`, `EditProfileView` and
+  `InlineAction` are the entire allowlist in `LoadingGuardTests` — there is no content shape
+  to stand in for there. (`AddFormView` was a fourth until 2026-09-24, when posting was
+  paused and the compose screens were deleted.) Content — a screen, a list, a card, a feed
   section, an image well — never gets a spinner.
 - **There is no full-screen loading cover, and no tab-readiness plumbing.** `[prose]` It was
   deleted on 2026-09-21 because it had begun covering content that was already on screen: a
