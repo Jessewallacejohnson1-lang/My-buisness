@@ -5,7 +5,7 @@
 //  This setup has NO simulator scroll or tap automation (CLAUDE.md), so the one
 //  thing the in-hierarchy rewrite exists to produce — the accent bar morphing out
 //  of a rail card and back into it — is unrecordable by hand. The house answer to
-//  exactly this problem is already in the codebase: `-speeddial-loop`, `-bp-motion`
+//  exactly this problem is already in the codebase: `-tab-cycle`, `-bp-motion`
 //  and `-menu-autoclose` all drive a motion sequence programmatically so it can be
 //  filmed. This is the same thing for the day.
 //

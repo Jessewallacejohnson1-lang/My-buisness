@@ -168,21 +168,6 @@ final class FeedRouteAndCopyTests: XCTestCase {
         }
     }
 
-    /// A card asks the day-sheet host to open on its own row. `.callToAction` — what
-    /// the retired plus tile used to ask for — survives only for the sheet's own
-    /// `-day-sheet-state cta` fixture.
-    func testACardAsksTheDaySheetForItsRowWhileTheAnchorTheAddTileUsedToAskForIsFixtureOnly() {
-        let cardAnchor = DayScheduleAnchor.item("fixture-walk")
-        XCTAssertEqual(cardAnchor.itemID, "fixture-walk")
-        XCTAssertNotEqual(cardAnchor, .callToAction)
-
-        // Still reachable, so removing the case would break a documented flag.
-        XCTAssertEqual(
-            DayScheduleFixture.fromArguments(["-day-sheet-state", "cta"]).anchor,
-            .callToAction
-        )
-    }
-
     /// Both browse affordances promise the same destination out loud. "Add to today"
     /// alone would read as a composer, which is not where the tile goes.
     func testBothBrowseAffordancesAnnounceTheSameDestination() {
@@ -525,10 +510,8 @@ final class DayScheduleAnchorTests: XCTestCase {
         XCTAssertEqual(DayScheduleAnchor.item("evt-1").itemID, "evt-1")
     }
 
-    /// §3: the add tile opens the day on the bottom CTA, not on a row — so it must
-    /// NOT name an item to scroll to.
-    func testTheAddTileAnchorNamesNoRow() {
-        XCTAssertNil(DayScheduleAnchor.callToAction.itemID)
+    /// The top of the day is not a row, so it must NOT name an item to scroll to.
+    func testTheTopAnchorNamesNoRow() {
         XCTAssertNil(DayScheduleAnchor.top.itemID)
     }
 
@@ -540,7 +523,6 @@ final class DayScheduleAnchorTests: XCTestCase {
         XCTAssertEqual(anchor("upcoming"), .item("fixture-trivia"))
         XCTAssertEqual(anchor("inprogress"), .item("fixture-story"))
         XCTAssertEqual(anchor("completed"), .item("fixture-walk"))
-        XCTAssertEqual(anchor("cta"), .callToAction)
         XCTAssertEqual(anchor("empty"), .top)
         XCTAssertEqual(DayScheduleFixture.fromArguments([]).anchor, .top)
     }
@@ -855,11 +837,10 @@ final class DayTypeScaleTests: XCTestCase {
         XCTAssertEqual(DayScheduleMetrics.accentBarWidth, 6)
     }
 
-    /// One page margin for the rail, the timeline column and the CTA.
+    /// One page margin for the rail and the timeline column.
     func testOnePageMarginAcrossTheWholeFeature() {
         XCTAssertEqual(DayScheduleMetrics.pageMargin, 20)
         XCTAssertEqual(YourDayRailMetrics.pageMargin, 20)
-        XCTAssertEqual(DayScheduleMetrics.ctaMargin, 20)
     }
 
     func testEverySpacingTokenSitsOnTheFourPointGrid() {
@@ -879,8 +860,6 @@ final class DayTypeScaleTests: XCTestCase {
             ("sheet.cardInset", DayScheduleMetrics.cardInset),
             ("sheet.spineInset", DayScheduleMetrics.spineInset),
             ("sheet.rowSpacing", DayScheduleMetrics.rowSpacing),
-            ("sheet.ctaMargin", DayScheduleMetrics.ctaMargin),
-            ("sheet.ctaScrimFade", DayScheduleMetrics.ctaScrimFade),
         ]
 
         for (name, value) in grid {

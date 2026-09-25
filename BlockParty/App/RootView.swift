@@ -214,7 +214,7 @@ struct RootView: View {
     }
 }
 
-/// The authed shell: four tabs + global "+" composer sheet.
+/// The authed shell: the four tabs and the sheets and covers they open.
 struct MainTabsView: View {
     /// A one-shot starting tab (e.g. land on Map straight after onboarding). nil →
     /// the usual default (Today, or a DEBUG `-open-tab` override).
@@ -303,13 +303,6 @@ struct MainTabsView: View {
     /// named empty room is the same call `BlankTab` makes for the unbuilt tabs.
     @State private var showSearch = MainTabsView.debugOpen("-open-search")
     @State private var showNotifications = MainTabsView.debugOpen("-open-notifications")
-    @State private var composing = false
-    /// The compose "+" speed-dial (Explore / Calendar). Owned here so the wash can
-    /// recede the tab content and float above the tab bar.
-    @State private var speedDialOpen = false
-    /// A bubble tap that routes straight into a kind-scoped composer (skips the
-    /// AddView chooser).
-    @State private var composeKind: AddKind?
     /// The town menu — a corner "genie" drawer out of Home's top-right button.
     /// Owned here (not in HomeView) so it renders above the tab bar.
     @State private var showMenu = false
@@ -322,7 +315,7 @@ struct MainTabsView: View {
     /// presented in-hierarchy (a `.sheet` cannot carry a namespace across its
     /// boundary, so the morph the spec asks for is impossible through one), and an
     /// in-hierarchy full-height surface has to be a sibling of the tab bar or the
-    /// tab bar floats over its "Add to today" button. Same lane as the town menu.
+    /// tab bar floats over its bottom rows. Same lane as the town menu.
     @Namespace private var dayNS
     @StateObject private var daySchedule = DaySchedulePresentation()
     /// Direction of the last tab change — whether the incoming screen slides in
@@ -348,7 +341,6 @@ struct MainTabsView: View {
                         switch tab {
                         case .town:
                             HomeView(
-                                onCompose: { composing = true },
                                 onMenu: { showMenu = true },
                                 menuOpen: showMenu,
                                 profileShown: showProfileSheet,
@@ -373,10 +365,6 @@ struct MainTabsView: View {
                     // swipe to the new tab rather than a flat swap.
                     .id(tab)
                     .transition(pageTransition)
-                    // The speed-dial recedes the content behind its wash (the reference's
-                    // "home recedes"); tab bar stays put and is dimmed by the wash.
-                    .scaleEffect(reduceMotion ? 1 : (speedDialOpen ? 0.97 : 1))
-                    .animation(.spring(response: 0.34, dampingFraction: 0.72), value: speedDialOpen)
                     // NO LOADING COVER. A tab that is still fetching renders its own
                     // skeleton in its own layout (Features/Components/Skeleton.swift);
                     // nothing is ever hidden behind a full-screen cover. The dark
@@ -438,39 +426,21 @@ struct MainTabsView: View {
                 }
             }
         }
-        // The compose "+" speed-dial — a top-right "+" on Explore / Calendar (coral
-        // disc) expands DOWN into context-tailored create bubbles. The disc lives in
-        // the overlay (replacing the old bottom ComposeFAB). The Map no longer
-        // participates (round 2 — its "+" is retired), so the disc always rests here.
-        .overlay {
-            if !speedDialItems.isEmpty {
-                ComposeSpeedDial(items: speedDialItems,
-                                 isOpen: $speedDialOpen,
-                                 anchor: .topTrailing,
-                                 onSelect: routeSpeedDial)
-            }
-        }
         // Profile is now a menu destination — a standard sheet.
         .sheet(isPresented: $showProfileSheet) { ProfileView() }
         // The Today bar's search mark and bell. Reserved screens until the real ones
         // land; see `ReservedScreen`.
         .sheet(isPresented: $showSearch) { ReservedScreen.search }
         .sheet(isPresented: $showNotifications) { ReservedScreen.notifications }
-        // Global compose sheet — triggered by "Add an event" anywhere in the app
-        .sheet(isPresented: $composing) {
-            AddView()
-        }
-        // A bubble tap jumps straight into that kind's form, skipping the chooser.
-        .sheet(item: $composeKind) { kind in AddFormView(kind: kind) }
         // The map is a destination now, not a tab. Full-screen cover rather than a
         // sheet: the map owns its own bottom sheet, and two stacked drag surfaces
         // fight each other for the same gesture.
         .fullScreenCover(isPresented: $showMap) {
             SJMapView(onClose: { showMap = false })
         }
-        // The Your Day sheet's own lane, applied LAST so it sits above the tab bar,
-        // the town menu and the speed dial. Injects the namespace and the presenter
-        // the Your Day rail reaches for.
+        // The Your Day sheet's own lane, applied LAST so it sits above the tab bar
+        // and the town menu. Injects the namespace and the presenter the Your Day
+        // rail reaches for.
         .dayScheduleHost(daySchedule, namespace: dayNS)
         #if DEBUG
         .onAppear {
@@ -487,23 +457,6 @@ struct MainTabsView: View {
                                                       time: "9:00 AM",
                                                       location: "College Ave"))
                 }
-            }
-            // `-open-speeddial` unfolds the compose speed-dial on launch (pair with
-            // `-open-tab activities|calendar`) so the reveal can be recorded headlessly.
-            // `-speeddial-loop` repeats open↔close a few times so a single long
-            // recording is sure to capture a clean transition regardless of boot time.
-            if ProcessInfo.processInfo.arguments.contains("-open-speeddial") {
-                let loop = ProcessInfo.processInfo.arguments.contains("-speeddial-loop")
-                func openIt() { withAnimation(.spring(response: 0.34, dampingFraction: 0.72)) { speedDialOpen = true } }
-                func closeIt() { withAnimation(.spring(response: 0.26, dampingFraction: 0.92)) { speedDialOpen = false } }
-                func cycle(_ n: Int) {
-                    guard n > 0 else { return }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { openIt() }
-                    guard loop else { return }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { closeIt() }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.7) { cycle(n - 1) }
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { cycle(loop ? 4 : 1) }
             }
         }
         #endif
@@ -528,7 +481,6 @@ struct MainTabsView: View {
     private func handleMenu(_ action: TownMenuAction) {
         switch action {
         case .map:        afterMenuClose { showMap = true }
-        case .compose:    afterMenuClose { composing = true }
         case .invite:     afterMenuClose { ShareCenter.shared.present(.appInvite()) }
         case .profile:    afterMenuClose { showProfileSheet = true }
         }
@@ -536,23 +488,6 @@ struct MainTabsView: View {
 
     private func afterMenuClose(_ action: @escaping () -> Void) {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: action)
-    }
-
-    /// Context-tailored bubbles for the current tab's compose "+". The map has
-    /// none (round 2 — its "+" is retired), so no dial mounts there.
-    private var speedDialItems: [SpeedDialItem] {
-        // Both tabs that carried bubbles were gutted. The dial stays wired so a
-        // rebuilt tab can hand it items again; today nothing mounts it.
-        []
-    }
-
-    /// Route a bubble tap: create-kinds open a kind-scoped composer, Invite fires the
-    /// app-invite reveal.
-    private func routeSpeedDial(_ item: SpeedDialItem) {
-        switch item.action {
-        case .compose(let kind): composeKind = kind
-        case .invite:            ShareCenter.shared.present(.appInvite())
-        }
     }
 
     /// A tab-bar tap. The haptic lives here (not the button) so it fires once per

@@ -10,7 +10,6 @@
 import SwiftUI
 
 struct HomeView: View {
-    var onCompose: (() -> Void)?
     var onMenu: (() -> Void)?
     var menuOpen = false
     var profileShown = false

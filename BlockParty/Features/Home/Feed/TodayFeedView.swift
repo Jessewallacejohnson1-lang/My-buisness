@@ -4,7 +4,6 @@ struct TodayFeedView: View {
     let sections: [FeedCardSection]
     var isLoading = false
     var isRefreshing = false
-    var onCompose: (() -> Void)?
     var onLike: ((String, Bool) -> Void)?
     var onLoadComments: ((String) async throws -> [EventComment])?
     var onComment: ((String, String) async throws -> EventComment)?
@@ -138,20 +137,6 @@ struct TodayFeedView: View {
                 .foregroundStyle(Hue.inkSecondary)
 
             Spacer()
-
-            Button { onCompose?() } label: {
-                Image(systemName: "plus")
-                    .font(.sans(15))
-                    .foregroundStyle(Hue.ink.opacity(0.35))
-                    .frame(width: 28, height: 28)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(Hue.hairline, lineWidth: 1)
-                    }
-                    .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Add an event")
         }
         .frame(minHeight: 44)
     }
