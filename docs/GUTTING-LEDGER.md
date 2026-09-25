@@ -202,7 +202,7 @@ throwing it away. This round removes the rest.
 | 1 test + 8 assertions | `testAlmanacFallsBackToTheTownLineWhenPersonalIsMissing` and the almanac asserts in the payload/parity/model tests |
 | `almanac` key in 6 fixtures + `BriefingSample` | canned payloads |
 | `almanac-checks` CI job | ran the prompt-sync and variety checks |
-| `supabase/functions/daily-almanac/` | 18 files |
+| `supabase/functions/daily-almanac/` | 18 files, and the deployed function itself — deleted from the live project the same day (via Composio's `SUPABASE_DELETE_FUNCTION`; the Supabase MCP server has no delete operation). Only `moderate-post` and `log-agent-event` remain. |
 | `almanac_daily`, `town_almanac` tables | dropped |
 | `daily_briefings.almanac_md` column | dropped |
 | `town_almanac_line(date)` | dropped |
