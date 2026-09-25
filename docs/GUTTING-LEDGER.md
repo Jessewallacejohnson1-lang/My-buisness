@@ -158,6 +158,29 @@ glyph, on the stated reasoning that "a calendar reads deliberately multi-color."
 
 ---
 
+## Round 2 — 2026-09-24: Create removed, posting paused
+
+**What went:** the tab bar's centre Create disc (`createButton`, `CreatePlusGlyph`,
+`onCreate`) and every way into a composer — `Features/Add/AddView.swift`,
+`AddFormView.swift`, `AddModel.swift` (with `AddKind`),
+`Features/Components/ComposeSpeedDial.swift`, `Features/Components/VenueAutocompleteField.swift`,
+the shell's compose state, sheets and speed-dial overlay, the town menu's "Add an event" row,
+`HomeView.onCompose`, `TodayFeedView.onCompose` and its plus, the day sheet's "Add to today"
+button (`.callToAction`, the `cta` fixture state, `ctaHeight` / `ctaRadius` / `ctaMargin` /
+`ctaScrimFade`), `YourDayRailCopy.addTile`, and the `-open-speeddial` / `-speeddial-loop` flags.
+
+**Why:** Jesse paused posting. A Create button with nothing honest behind it is a dead end,
+and the bar reads better as four even slots.
+
+**What replaced it:** nothing, on purpose. The bar is four slots from `Tab.allCases` again.
+The yellow disc token lives on as `Hue.brandDisc` for the Town bar's map disc. The back-end
+write paths the composer used are still in `Backend/`, unused (listed in `DECISIONS.md`).
+
+**Recover:** `git show fd25875:<path>` for any file above (`fd25875` is the last commit with
+all of it), or `git checkout fd25875 -- <path>` to restore it. App files need no pbxproj edit.
+
+---
+
 ## Recovering something from a round
 
 1. Find the commit that removed it: `git log --oneline --diff-filter=D -- <path>`
