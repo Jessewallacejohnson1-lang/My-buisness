@@ -1,0 +1,12 @@
+{
+  "screenshotSimulator": "iPhone Air",
+  "tokenFiles": [
+    "BlockParty/Theme/BlockPartyColor.swift",
+    "BlockParty/Theme/BlockPartyFont.swift",
+    "BlockParty/Theme/BlockPartyMetrics.swift"
+  ],
+  "testExemptPrefixes": [
+    "BlockPartyTests/",
+    "BlockPartyUITests/"
+  ]
+}

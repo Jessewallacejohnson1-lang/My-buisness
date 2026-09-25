@@ -140,3 +140,21 @@ jobs:
       - name: Variety and format rules
         working-directory: supabase/functions/daily-almanac
         run: node --experimental-strip-types verify.mts
+
+  rules:
+    name: Instruction files in sync
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # AGENTS.md and CLAUDE.md are generated from rules/. This re-composes them
+      # and fails on any difference, so a hand-edit cannot reach a branch even
+      # when the pre-commit hook is bypassed with --no-verify.
+      - name: Check generated instruction files
+        run: python3 scripts/bp_rules.py check
+
+      - name: Generator unit tests
+        working-directory: scripts
+        run: python3 -m unittest test_bp_rules -v
