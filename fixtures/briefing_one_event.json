@@ -3,12 +3,6 @@
   "tz": "America/Chicago",
   "status": "published",
   "published_at": "2026-08-05T06:00:00-05:00",
-  "almanac": {
-    "line": "Ninety-one today, Jesse, and the first real one of the month. Kolbe's lot is already shaded by four. You said yes to the Millstream thing Saturday — that's still on.",
-    "format": "field_note",
-    "source": "personal",
-    "town_line": "Warm and still. Sunset comes ninety seconds earlier than it did a week ago."
-  },
   "weather": {
     "condition": "clear",
     "temp_f": 91,

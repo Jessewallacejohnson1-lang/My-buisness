@@ -68,32 +68,25 @@ deliberately not changed here, since a baseline records reality rather than impr
 
 ## functions/ — edge function source
 
-`functions/daily-almanac/` and `functions/moderate-post/` are the source for the
-two Edge Functions this app calls at runtime (`BlockParty/Backend/DailyAlmanac.swift`
-and `Moderation.swift`). Both are deployed and ACTIVE on the live project.
+`functions/moderate-post/` is the source for the Edge Function this app calls at
+runtime (`BlockParty/Backend/Moderation.swift`). It is deployed and ACTIVE on the live
+project.
 
-They previously existed **only** in the Expo repo (`my-business` @ `community-rebuild`),
-a branch with no shared git history with this one — so the source for two live
-production functions sat outside the repo that depends on them. Copied here on
-2026-08-04, verified byte-identical to the deployed versions (`daily-almanac` v5,
-`moderate-post` v6) before committing.
-
-```bash
-supabase functions deploy daily-almanac --project-ref lxdgwhvqjqmqliobwjpi
-supabase secrets set ANTHROPIC_API_KEY=...     # both functions need it
-```
-
-`daily-almanac` ships its own checks — run them before any deploy:
+It previously existed **only** in the Expo repo (`my-business` @ `community-rebuild`),
+a branch with no shared git history with this one — so the source for a live production
+function sat outside the repo that depends on it. Copied here on 2026-08-04, verified
+byte-identical to the deployed version (`moderate-post` v6) before committing.
 
 ```bash
-cd supabase/functions/daily-almanac
-node --experimental-strip-types prompt-sync.check.mts   # embedded prompt vs prompts/almanac.md
-node --experimental-strip-types verify.mts              # format spread + no-repeat rules
+supabase functions deploy moderate-post --project-ref lxdgwhvqjqmqliobwjpi
+supabase secrets set ANTHROPIC_API_KEY=...
 ```
 
-The prompt lives twice on purpose: readable in `prompts/almanac.md`, base64-embedded
-in `index.ts` (Deno deploy ships no side files). `prompt-sync.check.mts` is what stops
-those two drifting — it is not optional.
+**`daily-almanac` was deleted on 2026-09-25**, from this repo and from the live project,
+when Jesse removed the almanac entirely. Its decision logging to `content_decisions` /
+`content_candidates` went with it — that logging had been dormant since the app stopped
+calling the function in August. The content it had produced is archived in
+`docs/ST-JOSEPH-ALMANAC-ARCHIVE.md`.
 
 ## Two-repo note
 
@@ -107,8 +100,7 @@ project; pull from the Expo repo only to recover history.
 
 ## Edge function source (`functions/`)
 
-Deployed edge-function source is mirrored here — `daily-almanac` (the almanac
-writer, which since v9 also logs every decision to `content_decisions` /
-`content_candidates`) and `log-agent-event` (Control Room build log). Deploys
+Deployed edge-function source is mirrored here — `moderate-post` and
+`log-agent-event` (Control Room build log). Deploys
 happen via the Supabase MCP or `supabase functions deploy <name>`; treat these
 files as the source of truth and redeploy from them, never edit only in prod.

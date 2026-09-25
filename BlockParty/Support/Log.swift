@@ -12,8 +12,6 @@
 //  SCOPE: those guarantees are about THIS FILE, not about the app. Block Party does
 //  use a neighbour's own activity, and deliberately:
 //
-//    · `almanac_daily` — the daily line is written per user, from their RSVPs and
-//      their last seven days, by the daily-almanac edge function.
 //    · place + event recommendations — what gets surfaced is tailored to the
 //      person, from their interests, saves and RSVPs (`Interests`, `town_profiles`,
 //      `event_rsvps` / `event_saves` / `event_likes`, `town_follows`).

@@ -24,7 +24,7 @@ Warm, calm, quiet, neighborly, hyper-local. **The voice is a neighbor, not a bra
 - **No infinite feed dopamine loop.** Where a social feed exists (the Today remake), it is deliberate and calm, not endless-scroll optimized.
 - **No fabricated or inflated numbers — ever.** Real data only. An empty state reads "0", never a seeded or demo count. Reads are filtered to real, submitted content.
 - **Not a "brand."** No marketing gloss, no mascots or AI-drawn artwork as final art, no hero-metric SaaS template, no gradient-text shouting.
-- **Not gamified wellness.** The daily almanac is the "health" pillar rendered as *place* (real sun + weather → one honest nudge), never a fake goal ring or step count.
+- **Not gamified wellness.** Where the app touches daily rhythm it is rendered as *place* (real sun + weather → one honest nudge), never a fake goal ring or step count. (The daily almanac, the original expression of this, was removed on 2026-09-25.)
 
 ## Design Principles
 
@@ -52,8 +52,6 @@ describes the empty shell that remains. Build to this section when a module retu
 - The feed **hard-stops at "all caught up" for the day**. That stop is the point; do not add
   infinite scroll behind it.
 - The coloured utility tile row (weather, garbage, road) is removed. It stole attention.
-- The almanac card stays at the top, but it must be tailored to the user's RSVP'd events and
-  feel alive. It was too static and kept recommending the Lake Wobegon Trail.
 - News: five stories. Tapping the card opens a summary; a separate tap opens the exact source
   story. **The focused reader is the signature interaction** — the card grows out of its own
   position, backdrop dims and blurs, card sits vertically centred, swipe sideways between

@@ -12,7 +12,7 @@ and it has shipped that way before.
 ## Must check on a real device
 
 1. **Scrolling.** Open Today and drag from the MIDDLE of the poll card, not the
-   header. If the screen only scrolls over the almanac, a pan-competing gesture
+   header. If the screen only scrolls over part of the feed, a pan-competing gesture
    got attached to a scrollable cell and the briefing is broken. The poll rows use
    `ButtonStyle.isPressed` and should be fine — this is the check that proves it.
 2. **Vote once.** Tap an option. The bar should sweep left→right over ~0.3s with

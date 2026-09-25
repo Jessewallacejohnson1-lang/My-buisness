@@ -8,7 +8,7 @@
 //  AQI. A failed fetch degrades to the last cached reading or to nil, so callers
 //  show a matched gradient or an empty state, never a fake number.
 //
-//  Read by AlmanacSection, DailyGreeting, WeatherTileProvider, and DailyAlmanac;
+//  Read by DailyGreeting and WeatherTileProvider;
 //  concurrent callers are coalesced into one fetch behind a 15-minute cache.
 //
 
@@ -28,7 +28,7 @@ struct Weather {
     let precipPeakTime: Date?    // time of that peak — powers "Rain 60% by 3 PM"
     let aqi: Int?                // US AQI (air-quality endpoint); nil if that best-effort call fails
     let sunrise: Date?           // today's sunrise, read in the town's timezone; nil if unavailable
-    let sunset: Date?            // today's sunset, ditto — powers the Daily Almanac nudge
+    let sunset: Date?            // today's sunset, ditto
 }
 
 // MARK: - Service (open-meteo, St. Joseph, MN)
@@ -44,14 +44,14 @@ enum WeatherService {
 
     /// The town's timezone. Open-Meteo is pinned to it (see the URL), so the
     /// sunrise/sunset strings come back as Chicago wall-clock with no offset —
-    /// parse and display in this zone so the Almanac always speaks in St. Joe time.
+    /// parse and display in this zone so the app always speaks in St. Joe time.
     static let townTZ = TimeZone(identifier: "America/Chicago") ?? .current
 
     private static var inFlight: Task<Weather?, Never>?
 
     static func current() async -> Weather? {
         if let c = cached, Date().timeIntervalSince(c.at) < ttl { return c.weather }
-        // Coalesce concurrent callers (weather tile + almanac + hero) into ONE
+        // Coalesce concurrent callers (weather tile + hero) into ONE
         // fetch, instead of a cache stampede of duplicate open-meteo calls.
         if let inFlight { return await inFlight.value }
         let task = Task<Weather?, Never> { await fetchWeather() }
@@ -138,7 +138,7 @@ enum WeatherService {
     }
 
     /// Parse Open-Meteo's offset-less local ISO ("2026-07-05T20:58") into an
-    /// absolute Date, read in the town's timezone. nil is fine — the Almanac
+    /// absolute Date, read in the town's timezone. nil is fine — the caller
     /// degrades to a number-free nudge rather than inventing a time.
     private static let localTimeParser: DateFormatter = {
         let f = DateFormatter()

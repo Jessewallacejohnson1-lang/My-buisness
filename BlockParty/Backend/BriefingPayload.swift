@@ -25,7 +25,6 @@ nonisolated struct BriefingPayload: Codable, Equatable {
     let tz: String
     let status: BriefingStatus
     let publishedAt: Date?
-    let almanac: BriefingAlmanac?
     let weather: BriefingWeather?
     let featured: [BriefingEvent]
     let featuredFallback: BriefingFallback?
@@ -47,21 +46,6 @@ nonisolated enum BriefingStatus: String, Codable {
 }
 
 // MARK: - Modules
-
-nonisolated struct BriefingAlmanac: Codable, Equatable {
-    /// The caller's personalized line from `almanac_daily`. Nil on a cache miss,
-    /// in which case the client falls back to the `daily-almanac` edge function
-    /// exactly as it does today.
-    let line: String?
-    let format: String?
-    let source: String?
-    /// Town-wide copy from `daily_briefings.almanac_md`. Always present.
-    let townLine: String
-
-    /// What to render right now: the personal line if it arrived, else the town's.
-    var displayLine: String { line ?? townLine }
-    var isPersonal: Bool { line != nil }
-}
 
 nonisolated struct BriefingWeather: Codable, Equatable {
     let condition: String?

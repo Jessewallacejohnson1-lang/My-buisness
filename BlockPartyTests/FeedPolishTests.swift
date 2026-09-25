@@ -1,7 +1,7 @@
 //
 //  FeedPolishTests.swift
 //  BlockPartyTests — the Today feed's Reduce Motion contract, its "no placeholder
-//  values" product rule, the almanac readings line, and the event-detail route.
+//  values" product rule and the event-detail route.
 //
 //  These are the parts of the polish pass that are decidable without a screenshot.
 //  Layout and feel are verified in the simulator; the rules below are verified here
@@ -178,7 +178,6 @@ final class FeedRouteAndCopyTests: XCTestCase {
 
     func testEveryFeedErrorTitleIsCalmSentenceCaseHouseVoice() {
         let titles = [
-            FeedStateCopy.almanacUnavailable,
             FeedStateCopy.yourDayUnavailable,
             FeedStateCopy.townNotesUnavailable,
         ]

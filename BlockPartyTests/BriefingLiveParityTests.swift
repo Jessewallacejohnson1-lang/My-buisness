@@ -8,7 +8,7 @@
 //  drifts from the contract fails here rather than as a blank Today tab.
 //
 //  Note what real Postgres output carries that the fixtures do not: key order is
-//  arbitrary, `weather` is null, `almanac.line` is null with source "town", and
+//  arbitrary, `weather` is null, and
 //  `published_at` has SIX fractional digits.
 //
 
@@ -19,7 +19,7 @@ final class BriefingLiveParityTests: XCTestCase {
 
     /// Captured from production, unedited.
     private static let livePayload = #"""
-    {"tz": "America/Chicago", "touch": {"id": "c33d8db0-bdae-4e0b-80ca-86a74c4846c6", "body": null, "kind": "poll", "prompt": "How do you take your sweet corn?", "my_vote": null, "options": ["Butter and salt, done", "Butter, salt, pepper", "Straight off the cob, dry", "Cut off, in a bowl"], "total_votes": 0, "vote_counts": [0, 0, 0, 0]}, "status": "published", "almanac": {"line": null, "format": null, "source": "town", "town_line": "Early August, and the evenings pull back a little earlier each night."}, "weather": null, "featured": [{"id": "46fa2aea-181e-404a-b1ce-a8b0b0ec3b80", "rank": 1, "liked": false, "rsvpd": false, "saved": false, "title": "St. Joseph Farmers Market", "category": "other", "location": "Lake Wobegon Trailhead, County Rd 2, St. Joseph", "club_name": null, "image_url": null, "event_date": "2026-08-07", "like_count": 0, "start_time": "3 PM", "going_count": 0, "comment_count": 0, "going_avatars": []}], "caught_up": {"label": "New briefing at 6 AM", "next_briefing_at": "2026-08-06T11:00:00+00:00"}, "spotlight": {"id": "8aba6e16-84c7-49d1-9b65-161425860254", "slug": "downtown", "blurb": "A few walkable blocks of Minnesota Street: locally-owned coffee, a deli, a brewery taproom, and storefronts where the person behind the counter tends to know your order.", "title": "Downtown", "place_id": null, "image_url": null}, "published_at": "2026-08-05T22:25:29.979108+00:00", "briefing_date": "2026-08-05", "featured_fallback": null}
+    {"tz": "America/Chicago", "touch": {"id": "c33d8db0-bdae-4e0b-80ca-86a74c4846c6", "body": null, "kind": "poll", "prompt": "How do you take your sweet corn?", "my_vote": null, "options": ["Butter and salt, done", "Butter, salt, pepper", "Straight off the cob, dry", "Cut off, in a bowl"], "total_votes": 0, "vote_counts": [0, 0, 0, 0]}, "status": "published", "weather": null, "featured": [{"id": "46fa2aea-181e-404a-b1ce-a8b0b0ec3b80", "rank": 1, "liked": false, "rsvpd": false, "saved": false, "title": "St. Joseph Farmers Market", "category": "other", "location": "Lake Wobegon Trailhead, County Rd 2, St. Joseph", "club_name": null, "image_url": null, "event_date": "2026-08-07", "like_count": 0, "start_time": "3 PM", "going_count": 0, "comment_count": 0, "going_avatars": []}], "caught_up": {"label": "New briefing at 6 AM", "next_briefing_at": "2026-08-06T11:00:00+00:00"}, "spotlight": {"id": "8aba6e16-84c7-49d1-9b65-161425860254", "slug": "downtown", "blurb": "A few walkable blocks of Minnesota Street: locally-owned coffee, a deli, a brewery taproom, and storefronts where the person behind the counter tends to know your order.", "title": "Downtown", "place_id": null, "image_url": null}, "published_at": "2026-08-05T22:25:29.979108+00:00", "briefing_date": "2026-08-05", "featured_fallback": null}
     """#
 
     private func decodeLive() throws -> BriefingPayload {
@@ -44,12 +44,6 @@ final class BriefingLiveParityTests: XCTestCase {
         // Weather genuinely absent — the routine composed this day without a
         // snapshot, and the briefing still has to render.
         XCTAssertNil(p.weather)
-
-        // No personal almanac row for the caller, so the town line carries it.
-        let almanac = try XCTUnwrap(p.almanac)
-        XCTAssertNil(almanac.line)
-        XCTAssertFalse(almanac.isPersonal)
-        XCTAssertEqual(almanac.displayLine, almanac.townLine)
 
         XCTAssertEqual(p.featured.count, 1)
         let event = try XCTUnwrap(p.featured.first)

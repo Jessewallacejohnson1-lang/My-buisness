@@ -4,7 +4,7 @@
 //
 //  The 34pt wordmark + date line that used to scroll away with the content
 //  (`Masthead`) becomes a fixed 44pt bar — block glyph leading, town name centered,
-//  the existing menu button trailing — and today's date moves into the almanac card
+//  the existing menu button trailing — and today's date moved into the feed
 //  as a small uppercase eyebrow.
 //
 //  Two things in that rework are pure logic and therefore testable, and both have a
@@ -75,7 +75,7 @@ final class TodayHeaderTests: XCTestCase {
         //
         // A zone AHEAD of Central is what discriminates: at 23:30 Central the Berlin
         // phone has already rolled over to the next calendar day, so a formatter that
-        // leaks the device zone prints tomorrow's date on today's almanac card.
+        // leaks the device zone prints tomorrow's date on today's feed.
         let saved = NSTimeZone.default
         defer { NSTimeZone.default = saved }
         NSTimeZone.default = TimeZone(identifier: "Europe/Berlin")!

@@ -28,7 +28,7 @@ final class BriefingFeelTests: XCTestCase {
     }
 
     /// The briefing continues the Today entrance rather than introducing a second,
-    /// near-identical one. If these drift, the modules and the almanac card stop
+    /// near-identical one. If these drift, the modules stop
     /// moving together.
     func testTheBriefingReusesTheTodayEntranceTiming() {
         XCTAssertEqual(RevealTiming.stagger, 0.05, accuracy: 0.0001)

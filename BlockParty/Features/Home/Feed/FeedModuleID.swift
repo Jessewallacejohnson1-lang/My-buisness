@@ -29,7 +29,6 @@ nonisolated struct FeedModuleID: RawRepresentable, Hashable, Codable,
         try container.encode(rawValue)
     }
 
-    static let almanac: FeedModuleID = "almanac"
     static let yourDay: FeedModuleID = "yourDay"
     static let trivia: FeedModuleID = "trivia"
     static let spotlight: FeedModuleID = "spotlight"
@@ -40,7 +39,7 @@ nonisolated struct FeedModuleID: RawRepresentable, Hashable, Codable,
 
 nonisolated enum BriefingDate {
     /// "WEDNESDAY, AUGUST 5" for a payload's `briefing_date`, via the app's
-    /// single date-string definition so the footer and almanac cannot disagree.
+    /// single date-string definition so the footer and the modules cannot disagree.
     static func eyebrow(for briefingDate: String) -> String? {
         guard let date = parse(briefingDate) else { return nil }
         return TodayHeader.eyebrow(for: date)

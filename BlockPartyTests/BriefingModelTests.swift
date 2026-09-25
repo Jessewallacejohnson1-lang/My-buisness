@@ -79,7 +79,6 @@ final class BriefingModelTests: XCTestCase {
 
         XCTAssertEqual(updated.touch?.myVote, 0)
         XCTAssertEqual(updated.featured, original.featured)
-        XCTAssertEqual(updated.almanac, original.almanac)
         XCTAssertEqual(updated.spotlight, original.spotlight)
         XCTAssertEqual(updated.caughtUp, original.caughtUp)
         XCTAssertEqual(updated.briefingDate, original.briefingDate)

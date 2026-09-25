@@ -112,7 +112,6 @@ final class BriefingPayloadTests: XCTestCase {
         let p = try load("briefing_none")
         XCTAssertEqual(p.status, .none)
         XCTAssertTrue(p.isUnavailable)
-        XCTAssertNil(p.almanac)
         XCTAssertNil(p.weather)
         XCTAssertNil(p.touch)
         XCTAssertNil(p.spotlight)
@@ -123,7 +122,6 @@ final class BriefingPayloadTests: XCTestCase {
     func testDegradedStateStillRendersACaughtUpFooter() throws {
         let p = try load("briefing_degraded")
         XCTAssertEqual(p.status, .published)
-        XCTAssertNil(p.almanac)
         XCTAssertNotNil(p.featuredFallback)
         XCTAssertFalse(p.caughtUp.label.isEmpty)
     }
@@ -139,15 +137,6 @@ final class BriefingPayloadTests: XCTestCase {
         XCTAssertEqual(touch.share(at: 0), 0)
         XCTAssertEqual(touch.share(at: 5), 0, "out-of-range index must not trap")
         XCTAssertEqual(touch.count(at: 5), 0)
-    }
-
-    func testAlmanacFallsBackToTheTownLineWhenPersonalIsMissing() throws {
-        let json = #"""
-        {"line":null,"format":null,"source":"town","town_line":"Town copy."}
-        """#
-        let a = try SupabaseCoding.decoder.decode(BriefingAlmanac.self, from: Data(json.utf8))
-        XCTAssertEqual(a.displayLine, "Town copy.")
-        XCTAssertFalse(a.isPersonal)
     }
 
     /// Postgres emits microsecond precision (6 fractional digits). The shared

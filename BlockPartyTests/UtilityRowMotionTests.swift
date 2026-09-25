@@ -8,8 +8,9 @@
 //
 //  1. The first-appearance cascade must run ONCE PER APP SESSION. A row that plays
 //     its stagger from `.onAppear` replays it on every tab switch back to Today and
-//     on every scroll-back — the same trap `AlmanacReveal.hasWrittenThisLaunch`
-//     already solves for the almanac's write. The latch, not the animation, is the
+//     on every scroll-back — the same trap a once-per-launch latch solves. (The
+//     almanac's `AlmanacReveal` was the original example; it was deleted on
+//     2026-09-25.) The latch, not the animation, is the
 //     testable part.
 //  2. The bento radius is currently a hardcoded 22 in `UtilityTileMetrics` carrying
 //     a "deliberate match" comment. A comment cannot fail a build; an assertion can.

@@ -23,10 +23,12 @@ is re-composed against a fresher calendar on the morning it goes live.
 
 The town line comes from `evergreen_pool` (15 written, true town facts), rotated
 deterministically by date — no AI call, no outbound request. The line each
-neighbour actually reads is still their personalized one from `almanac_daily`,
-generated per user by the daily-almanac edge function.
+neighbour reads. **The almanac was removed entirely on 2026-09-25** — app card,
+`almanac_daily`, `town_almanac`, the `almanac_md` column, `town_almanac_line()` and
+the `daily-almanac` edge function. Its content is archived in
+`docs/ST-JOSEPH-ALMANAC-ARCHIVE.md`.
 
-Weather is left null. The utility row and the almanac card both fetch live
+Weather is left null. The utility row fetches live
 weather through WeatherService's 15-minute cache, which is fresher all day than
 a snapshot taken once at 6 AM.
 
@@ -37,7 +39,7 @@ a snapshot taken once at 6 AM.
 | Function | Role | Callable by |
 |---|---|---|
 | `briefings_pending(p_from, p_days)` | Which dates still need work. Returns `missing` or `draft` rows only. | `service_role` |
-| `compose_briefing(p_date, p_almanac_md, p_weather, …)` | Featured picker, touch picker, spotlight rotation, fallback copy. Idempotent. | `service_role` |
+| `compose_briefing(p_date, p_weather, …)` | Featured picker, touch picker, spotlight rotation, fallback copy. Idempotent. | `service_role` |
 | `publish_briefing(p_date)` | Flips `draft` → `published`. Refuses a day with no touch **and** no featured content. | `service_role` |
 | `pick_touch(p_date)` / `season_of(p_date)` | Season-aware touch selection. | `service_role` |
 
@@ -108,7 +110,7 @@ a person wrote it.
 - **Never publish a day with nothing in it.** `publish_briefing` already refuses,
   and the client renders `status: "none"` calmly. An empty published briefing is
   worse than no briefing.
-- **Never write `almanac_md` you cannot stand behind.** The routine draws it from
+- ~~**Never write `almanac_md` you cannot stand behind.**~~ Removed 2026-09-25. The routine drew it from
   `evergreen_pool`, whose lines are already verified true. If you add rows there,
   hold them to the same bar — it is town-wide copy with no per-day review.
 
@@ -133,7 +135,7 @@ select jsonb_pretty(public.get_today_briefing(null, 'America/Chicago'));
 
 ## Re-running a day by hand
 
-`compose_briefing` is idempotent. Re-running refreshes the almanac copy and
+`compose_briefing` is idempotent. Re-running refreshes the weather and
 re-picks featured events, but **keeps** the touch and spotlight already claimed for
 that date, so a manual re-run does not burn extra bank. To force a different touch,
 clear it first:

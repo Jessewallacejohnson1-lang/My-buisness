@@ -181,6 +181,57 @@ all of it), or `git checkout fd25875 -- <path>` to restore it. App files need no
 
 ---
 
+## Round 3 — 2026-09-25 — the almanac, completely
+
+Direction from Jesse: *"literally remove it completely cause it has no purpose."*
+
+Round 1 deleted the almanac **card**. Its entire back end was left running for a week: a
+deployed edge function, two tables, a column, a helper, a section of the briefing RPC, a CI
+job, and twenty tests. The app was still downloading an almanac on every Town open and
+throwing it away. This round removes the rest.
+
+### Removed
+
+| Thing | Where |
+| --- | --- |
+| `DailyAlmanac.swift` | the edge-function client, zero callers since 2026-08-09 |
+| `BriefingAlmanac` + `BriefingPayload.almanac` | the payload type and its field |
+| `DwellTracker.swift` | unreferenced; existed to measure almanac reads |
+| `BriefingAnalytics.almanacDwell` | the event it reported to, zero callers |
+| `FeedModuleID.almanac`, `FeedStateCopy.almanacUnavailable` | ids and copy for a deleted card |
+| 1 test + 8 assertions | `testAlmanacFallsBackToTheTownLineWhenPersonalIsMissing` and the almanac asserts in the payload/parity/model tests |
+| `almanac` key in 6 fixtures + `BriefingSample` | canned payloads |
+| `almanac-checks` CI job | ran the prompt-sync and variety checks |
+| `supabase/functions/daily-almanac/` | 18 files |
+| `almanac_daily`, `town_almanac` tables | dropped |
+| `daily_briefings.almanac_md` column | dropped |
+| `town_almanac_line(date)` | dropped |
+| `compose_briefing`'s `p_almanac_md` argument | new 5-arg signature; old 6-arg dropped |
+| the `almanac` section of `get_today_briefing` | the RPC no longer returns it |
+
+### Deliberately kept
+
+- **`evergreen_pool`** — `town_almanac_line()` read from it, but it is the feed's own
+  fallback pool and has nothing to do with the almanac.
+- **The briefing pipeline** — `daily_briefings`, `compose_briefing`, `publish_briefing`,
+  `run_briefing_reconcile` and the hourly cron all still run. They carry featured events,
+  weather, the touch card and "all caught up"; only the almanac parts were cut.
+- **The parked utility row's comments** (`Features/Civic/Parked/`) still name
+  `AlmanacReveal`. That folder is kept intact as a unit, so they were not edited — the
+  Parked README explains it.
+
+### Not recoverable
+
+The town facts and the generated lines lived only in the database. They were exported to
+**`docs/ST-JOSEPH-ALMANAC-ARCHIVE.md`** before the drop — 15 distinct facts and 13
+generated lines. That file is now the only copy.
+
+**Recover:** `git checkout 291ca50 -- <path>` for any deleted file above (291ca50 is the last
+commit with all of it). The database side needs the migration reversed by hand; there is no
+down-migration, and the data is gone regardless.
+
+---
+
 ## Recovering something from a round
 
 1. Find the commit that removed it: `git log --oneline --diff-filter=D -- <path>`
