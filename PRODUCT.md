@@ -16,7 +16,7 @@ This is the **native SwiftUI + Mapbox iOS port** of an Expo/React-Native twin ap
 
 ## Brand Personality
 
-Warm, calm, quiet, neighborly, hyper-local. **The voice is a neighbor, not a brand** — plain, honest, unhurried. Three words: *warm, honest, unhurried.* The interface should evoke the feeling of a well-kept community bulletin board in a coffee shop, not a product dashboard. Coral warmth carries the few things that matter (live, tappable); everything else recedes into calm white and charcoal.
+Warm, calm, quiet, neighborly, hyper-local. **The voice is a neighbor, not a brand** — plain, honest, unhurried. Three words: *warm, honest, unhurried.* The interface should evoke the feeling of a well-kept community bulletin board in a coffee shop, not a product dashboard. One meaning-scoped accent carries the few things that matter (live, tappable); everything else recedes into calm white and charcoal. **The accent's actual value lives in `docs/rules/design.md`, not here** — the coral this file used to name was retired.
 
 ## Anti-references
 
@@ -29,9 +29,9 @@ Warm, calm, quiet, neighborly, hyper-local. **The voice is a neighbor, not a bra
 ## Design Principles
 
 1. **Real data only.** Never seed, inflate, or invent a count. If it isn't true, it isn't shown.
-2. **Live-glow is for *now*, not "today".** Coral pulse is reserved for events actually happening (`start ≤ now ≤ start + 2h`). Coral is for live + tappable, nothing decorative.
+2. **Live-glow is for *now*, not "today".** The accent pulse is reserved for events actually happening (`start ≤ now ≤ start + 2h`). The accent is for live + tappable, nothing decorative.
 3. **Weight carries hierarchy.** The UI is the platform system font everywhere (one custom face: the logo). Size and weight do the work; numbers stay tabular.
-4. **Warm restraint.** One soft shadow, hairline borders, generous calm spacing. Quiet by default so the few warm/coral moments land.
+4. **Warm restraint.** One soft shadow, hairline borders, generous calm spacing. Quiet by default so the few accent moments land.
 5. **Backend-twin parity.** Behavior, tokens, and query semantics track the Expo/RN twin and `@hygge/core` 1:1; divergence is a bug, not a feature.
 
 ## Accessibility & Inclusion
@@ -41,4 +41,29 @@ Target **WCAG AA** for text contrast (the charcoal `ink` ramp is verified on whi
 - **Dynamic Type** — an all-ages town app; UI text should scale with the system font-size setting (the logo is the one intentional fixed-size exception).
 - **VoiceOver** — interactive elements (event rows, buttons, map pins/sheet) carry meaningful labels.
 - **Reduce Motion** — honor the system setting for the spring-reveal cascades; degrade to a crossfade or instant appearance (the ShareCenter reveal already models this).
-- **High-contrast legibility** — the warm coral-on-white system must stay readable in bright outdoor light; contrast is a hard requirement, not a preference.
+- **High-contrast legibility** — the accent-on-white system must stay readable in bright outdoor light; contrast is a hard requirement, not a preference.
+
+## The Town feed — intended shape
+
+**Intent, not current state.** The 2026-09-17 strip-down deleted every module below;
+`docs/GUTTING-LEDGER.md` says how to get each one back and `docs/rules/architecture.md`
+describes the empty shell that remains. Build to this section when a module returns.
+
+- The feed **hard-stops at "all caught up" for the day**. That stop is the point; do not add
+  infinite scroll behind it.
+- The coloured utility tile row (weather, garbage, road) is removed. It stole attention.
+- The almanac card stays at the top, but it must be tailored to the user's RSVP'd events and
+  feel alive. It was too static and kept recommending the Lake Wobegon Trail.
+- News: five stories. Tapping the card opens a summary; a separate tap opens the exact source
+  story. **The focused reader is the signature interaction** — the card grows out of its own
+  position, backdrop dims and blurs, card sits vertically centred, swipe sideways between
+  stories, drag down to dismiss.
+- Module 4 is not "this or that". It surfaces new postings matching the categories a user
+  signed up for and has not joined yet.
+- **"Your day" shows strictly today's events.** A future RSVP appearing there is a bug.
+- The "Your day" horizon card is a sky above a horizon line that doubles as the timeline
+  baseline; all text sits below the line. The ground below is a flat fill that shifts with
+  time of day and flips at sunset — **never** the sky gradient. The rail is solar-anchored:
+  exact sunrise to exact sunset, no rounding, so its width changes with the season.
+- Civic content lives in its own tab, not in the feed. No time-of-day reordering.
+- The feed must be genuinely useful and habit-forming **without being manipulative**.

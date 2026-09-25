@@ -19,3 +19,25 @@ basemap, or the realtime pipeline behind it.
 - **The map is the SwiftUI `Map`, NOT the UIKit `MapView` — reach camera/gestures/frame-rate through modifiers, not a view object.** `[prose]` `SJMapView` renders `Map(viewport: $viewport)` inside a `MapReader { proxy in }` (`proxy.map` is the `MapboxMap`). So the UIKit recipes (`mapView.gestures.options`, `camera.ease(...)`, `mapView.preferredFrameRateRange`, a `UIRotationGestureRecognizer` wrapper) do NOT apply — translate them: gestures are `.gestureOptions(GestureOptions(rotateEnabled:pitchEnabled:simultaneousRotateAndPinchZoomEnabled:panDecelerationFactor:focalPoint:))`; the camera is the `@State var viewport: Viewport` binding animated with `withViewportAnimation(.easeOut/.fly/.easeInOut(duration:))`; ProMotion is `.frameRate(range: 80...120, preferred: 120)`; the pitch clamp is `proxy.map.setCameraBounds(CameraBoundsOptions(maxPitch:minPitch:))` (throws — `do/catch`) applied in `.onStyleLoaded`. There is **no public access to the underlying `UIGestureRecognizer`s**, so a per-degree rotation threshold isn't exposed — rely on the SDK's built-in rotate arbitration (`simultaneousRotateAndPinchZoomEnabled`). And because every pin/cluster/label is a `MapViewAnnotation`, they stay **screen-upright under rotation for free**, and the label de-confliction pass re-runs on camera-settle off the LIVE projection (`map.point(for:)`), so it tolerates any bearing/pitch — the "keep north-up" caution was defensive, not a hard dependency.
 - **Don't re-enable the built-in Mapbox compass — it's off-brand and not configurable.** `[prose]` Its coral needle does not match the plum system, its fade is hard-coded, and its tap resets bearing only. It is suppressed in `OrnamentOptions`; **`MapCompass`** is the replacement and resets bearing plus pitch. Its per-frame `CompassHeading` is held by `SJMapView` as `@State`, not `@StateObject`, so only the observing compass rerenders at camera frequency.
 - **`MAP_BUILD_LOG.md`** `[prose]` is the running, chronological record of map work (fixes, the realtime pipeline, the anti-slop pass, applied SQL). Continue it when doing map work; it's the source of truth for what's been verified.
+
+## Direction — Jesse's calls
+
+These are product direction rather than built behaviour; the sections above are what
+currently renders. Where they disagree, the code wins and the mismatch is worth raising.
+
+- Keep the existing light Mapbox style. **Do not switch to satellite imagery.** `[prose]`
+- Pins have exactly two visual states: **rest** (6pt low-contrast dot, no label) and **awake**
+  (full marker plus label) for live, selected, or saved pins. Labels render only past a zoom
+  threshold.
+- Categories come from Google Places (`primaryType` / `types`), mapped to a family and stored
+  in Supabase next to `place_id`. One shared colour per category group (the business group is
+  blue); glyphs differ per place.
+- **Cluster merge and split must feel Apple-level smooth.** Cluster bubbles are black, not
+  grey.
+- 2026-09-17 — a pin tap opens **`PinDetailSheet`**, the Flighty-anatomy card over a dimmed
+  map. **Supersedes** "the bottom sheet is an extension of the four-icon glass tab bar, pulled
+  up", and the tab-shell glass morph with it — the map is no longer a tab, so it has no tab bar
+  to extend. The draggable `MapSheet` is still the surface the card rises from; what died is
+  the morph, not the sheet.
+- References: Snapchat Map and Life360 for interaction, Apple Maps for glyph markers, gestures
+  and green tone, Flighty's airport detail sheet for the overlay and its plain-language text.

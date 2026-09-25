@@ -5,78 +5,251 @@ belongs.
 
 ## Project
 
-**Block Party** — a native **SwiftUI + Mapbox** iOS app for the real town of **St. Joseph, MN**: a Today tab, a live town map, and a community profile. Onboarding and the launch splash were deleted on 2026-09-18. This is a **native port of the Expo / React Native app** that lives in a **separate repo** at `~/Documents/my-business/apps/mobile`.
+**Block Party** — a native **SwiftUI + Mapbox** iOS app for the real town of **St. Joseph,
+MN**. It is a **native port of the Expo / React Native app** in a separate repo at
+`~/Documents/my-business/apps/mobile`.
 
-> **The app is mid-rebuild.** The **2026-09-17 strip-down** emptied Today (all seven feed modules gone), gutted the Activities and Calendar tabs to reserved blank slots, and moved the map off the tab bar onto a button in Today's top bar. Parts of these rule files describe surfaces that no longer render. **`docs/GUTTING-LEDGER.md`** is the record of what went, why, and how to recover it — open it when something is missing, not as background.
+> **The app is mid-rebuild.** The 2026-09-17 strip-down emptied Today, gutted two tabs to
+> reserved blank slots, and moved the map off the tab bar. Parts of these rule files describe
+> surfaces that no longer render. **`docs/GUTTING-LEDGER.md`** is the record of what went,
+> why, and how to recover it — open it when something is missing, not as background.
 
 - **Project, scheme, bundle id and deployment target:** `docs/rules/identifiers.md`.
 - **Only SPM dependency:** [`mapbox-maps-ios`](https://github.com/mapbox/mapbox-maps-ios).
-- **Shared backend:** the same Supabase project as the Expo app (id in `docs/rules/identifiers.md`). The two apps are backend-twins — schema, RLS, and query semantics match `@hygge/core` in the Expo repo. **Keep design tokens and query behavior in sync with that repo** `[prose]` (each Swift source that ports a JS file says so in its header).
+- **Shared backend:** the same Supabase project as the Expo app. The two apps are
+  backend-twins — schema, RLS and query semantics match `@hygge/core` in the Expo repo.
+  **Keep design tokens and query behaviour in sync with that repo** `[prose]`; each Swift
+  source that ports a JS file says so in its header.
 
 ### Three-repo rule
-This is the **native iOS / map** codebase, and it is the **spec** the other two are ported from. Map, Mapbox, and native-iOS work happens **here**.
 
-- **Expo / React-Native / web** — `~/Documents/my-business`. RN/web work happens **there**. The two look nearly identical on the simulator: this app's first tab is **"Today"**, the Expo app's is **"Home"**.
-- **Android (Kotlin / Jetpack Compose)** — `~/Documents/block-party-android`. Port target. Scaffold only as of 2026-08-27 (6 files).
+This is the **native iOS / map** codebase, and it is the **spec** the other two are ported
+from. Map, Mapbox and native-iOS work happens **here**.
+
+- **Expo / React-Native / web** — `~/Documents/my-business`. RN and web work happens there.
+  The two look nearly identical on the simulator; this app's first tab is **Town**, the Expo
+  app's is **Home**.
+- **Android (Kotlin / Jetpack Compose)** — `~/Documents/block-party-android`. Port target.
 
 ### Android port rule — do it without being asked
 
-**After changing any SwiftUI screen in this repo, port the change to the Android repo in the same session.** `[prose]` Do not wait for a request, and do not ask whether the port is wanted; it is. Treat an un-ported iOS change as unfinished work.
+**After changing any SwiftUI screen in this repo, port the change to the Android repo in the
+same session.** `[prose]` Do not wait for a request and do not ask whether the port is
+wanted; it is. Treat an un-ported iOS change as unfinished work, and report the port in the
+same summary as the iOS change: which screen, which Kotlin files, and whether the
+side-by-side screenshot check was run.
 
-Before writing Kotlin, read `~/Documents/block-party-android/CLAUDE.md` — it holds the stack, the Swift→Kotlin translation rules (spring-curve conversion, `matchedGeometryEffect` → `SharedTransitionLayout`, blur → Haze), and the screenshot verify loop. Follow it rather than improvising a translation.
+Before writing Kotlin, read `~/Documents/block-party-android/CLAUDE.md` — it holds the stack,
+the Swift→Kotlin translation rules (spring-curve conversion, `matchedGeometryEffect` →
+`SharedTransitionLayout`, blur → Haze) and the screenshot verify loop. Follow it rather than
+improvising a translation.
 
-Two things that are never ported:
-- **Server-side logic.** `[prose]` Both apps call the same Supabase project and the same edge functions. Kotlin calls them; it never re-implements them.
-- **Screens that are mid-rebuild.** `[prose]` A surface being actively gutted or rebuilt (see `docs/GUTTING-LEDGER.md`) is ported once it settles, not on every intermediate commit. Note the skip in your summary so it is visible rather than silent. *(Delete this bullet to make the rule unconditional.)*
-
-Report the port in the same summary as the iOS change: which screen, which Kotlin files, and whether the side-by-side screenshot check was run.
+Two things are never ported:
+- **Server-side logic.** `[prose]` Both apps call the same Supabase project and the same edge
+  functions. Kotlin calls them; it never re-implements them.
+- **Screens that are mid-rebuild.** `[prose]` A surface being actively gutted or rebuilt is
+  ported once it settles, not on every intermediate commit. Note the skip in your summary so
+  it is visible rather than silent. *(Delete this bullet to make the rule unconditional.)*
 
 ## The shell
 
-`BlockPartyApp` (`@main`) registers fonts, sets the Mapbox token, installs the unauthorized-response handler, injects `AuthStore.shared`, optionally runs the DEBUG place seeder, and mounts `RootView` directly. **There is no splash any more** (Jesse's call, 2026-09-18): `App/SplashView.swift` (`LaunchHost` + `SplashView` + its timing/layout tables) was deleted, and `LaunchScreen.storyboard` was stripped to bare `Hue.paper` with no mark and no wordmark, so frame zero and the app's first real frame are the same colour and the hand-off is invisible. The target still uses a **checked-in `BlockParty/Info.plist`**, not `GENERATE_INFOPLIST_FILE`, with a file-system-synchronized **membership exception** so the plist isn't also copied as a bundle resource. **Sign-in is switched OFF** (Jesse, 2026-09-18, "for now"): `RootView.requiresSignIn = false`, so the gate hands straight to `MainTabsView` with or without a session, and `LoginView` is never reached. It is a switch, not a deletion — `LoginView`, `AuthStore`, the keychain session and every authed API path are untouched; flip it back to `true` and sign-in returns as it was. Signed out the app is honest rather than broken: authed reads fail into their own empty states, `hydrateIfNeeded` returns immediately with no `userId`, the profile tab reads "Add your name" with zeroed counts, and its **Sign out** row is hidden (there is no session to end). Nothing sits in front of the tabs at all — the pre-auth 20-screen `BPOnboardingFlow` and the signed-in `OnboardingView` wizard were both deleted the same day. `MainTabsView` owns **four** tabs (`Tab`: town/daily/business/you — re-cut on 2026-09-18 from home/activities/calendar), the custom `BlockPartyTabBar`, the full-screen map cover, town-menu presentation, and compose speed dial/sheets. **Town** (`house`) is the town feed (`HomeView`), **Daily** (`newspaper`) is the personalised paper (town feed ∩ what the neighbour follows), **Business** (`briefcase`) is the town's business network — the owners' side of Main Street, not a shopfront directory — and **You** mounts the real `ProfileView` with `showsClose: false`, since a tab has no close and its sheet "X" is suppressed. Daily and Business render `BlankTab`: the slot's name plus its one-line promise, deliberately, because the bar and its motion are built and the screens are not. Do not "fix" that by deleting the cases. `[prose]` **A fifth slot sits between Daily and Business — the Create disc** (2026-09-20, off the same Alta reference): a solid `Hue.createDisc` circle, 40pt against the 20pt tab glyphs, with "Create" beneath it, raising the existing `composing` sheet. **It is emphatically NOT a fifth `case` in `Tab`.** `[prose]` `Tab` is `Int`-backed and `switchTab(to:)` subtracts rawValues to pick the page-slide direction, while `allCases` drives the content `switch`, `initialTab()`, `-open-tab` and `BlankTab` — a case with no screen would need special-casing in all of them, and the one it would corrupt silently is the slide direction (Business would animate as if two steps from Town). So `BlockPartyTabBar` now writes its five children out longhand instead of looping `allCases`, and Create never takes the `pill`. **The bar's height did not change**: the disc is centred on the 23pt icon lane and allowed to overflow it, which is what the reference does (its disc centre and glyph-row centre land 0.3pt apart) and what keeps all five labels on one baseline. The 9pt vertical padding absorbs the overflow — the disc clears the glass capsule's rim by 5.5pt. Five slots divide the bar where four did, so a slot goes 82.8 → 66.8pt at 393; the labels gained `.lineLimit(1).minimumScaleFactor(0.85)` to hold the bar's height instead of wrapping, and `"Create"` joined the `isFrozenByDesign` list in `DynamicTypeAuditTests` (which matches by label app-wide, so do not label a composer CTA exactly "Create"). Every slot, including the four tabs, finally got the `.accessibilityShowsLargeContentViewer()` that frozen chrome owes the reader — there were zero call sites of it in the app before this. **The map is no longer a tab**: `Tab.map` is gone and `SJMapView` is presented as a `.fullScreenCover` from Today's top-bar map button, so it carries its own close "X" and owns its own `mapDetail` state instead of borrowing the shell's.
+`BlockPartyApp` (`@main`) registers fonts, sets the Mapbox token, installs the
+unauthorized-response handler, injects `AuthStore.shared`, optionally runs the DEBUG place
+seeder, and mounts `RootView` directly.
+
+- **There is no splash** (Jesse, 2026-09-18). `LaunchScreen.storyboard` is bare `Hue.paper`
+  with no mark, so frame zero and the app's first real frame are the same colour and the
+  hand-off is invisible.
+- **Sign-in is switched OFF** (Jesse, 2026-09-18, "for now"): `RootView.requiresSignIn =
+  false`, so the gate hands straight to `MainTabsView` with or without a session. **It is a
+  switch, not a deletion** `[prose]` — `LoginView`, `AuthStore`, the keychain session and
+  every authed API path are untouched; flip it back to `true` and sign-in returns as it was.
+  Signed out, the app is honest rather than broken: authed reads fail into their own empty
+  states, the profile tab reads "Add your name" with zeroed counts, and its **Sign out** row
+  is hidden.
+- **The target uses a checked-in `BlockParty/Info.plist`**, not `GENERATE_INFOPLIST_FILE`,
+  with a file-system-synchronized **membership exception** so the plist isn't also copied as
+  a bundle resource. `[prose]`
+
+### The tab bar
+
+`MainTabsView` owns **four** tabs (`Tab`: town/daily/business/you), the custom
+`BlockPartyTabBar`, the full-screen map cover, town-menu presentation, and the compose speed
+dial. **Town** (`house`) is the town feed, **Daily** (`newspaper`) is the personalised paper
+(town feed ∩ what the neighbour follows), **Business** (`briefcase`) is the owners' side of
+Main Street — not a shopfront directory — and **You** mounts `ProfileView(showsClose: false)`,
+since a tab has no close.
+
+- **Daily and Business render `BlankTab` deliberately** — the slot's name plus its one-line
+  promise — because the bar and its motion are built and the screens are not. **Do not "fix"
+  that by deleting the cases.** `[prose]`
+- **The Create disc is emphatically NOT a fifth `case` in `Tab`.** `[prose]` `Tab` is
+  `Int`-backed and `switchTab(to:)` subtracts rawValues to pick the page-slide direction,
+  while `allCases` drives the content `switch`, `initialTab()`, `-open-tab` and `BlankTab`.
+  A case with no screen would need special-casing in all of them, and the one it would
+  corrupt **silently** is the slide direction. So `BlockPartyTabBar` writes its five children
+  out longhand instead of looping `allCases`, and Create never takes the `pill`.
+- **The bar's height did not change** when the disc arrived: it is centred on the 23pt icon
+  lane and allowed to overflow, absorbed by the 9pt vertical padding. Labels carry
+  `.lineLimit(1).minimumScaleFactor(0.85)` to hold that height instead of wrapping.
+- **Do not label a composer CTA exactly `"Create"`** `[test]` — `"Create"` is on the
+  `isFrozenByDesign` list in `DynamicTypeAuditTests`, which matches by label app-wide.
+- **The map is not a tab.** `SJMapView` is presented as a `.fullScreenCover` from the Town
+  top bar's map button, so it carries its own close and owns its own state.
 
 ### Backend — hand-rolled, no Supabase SDK (`BlockParty/Backend/`)
-The entire backend is written by hand over `URLSession` to match `@hygge/core` 1:1 — there is **no `supabase-swift` dependency**. `[prose]`
 
-- **`SupabaseHTTP`** — the low-level client: `auth(...)` hits GoTrue (`/auth/v1`), `rest(...)` hits PostgREST (`/rest/v1`). Both send the public `apikey` + a `Bearer` token; PostgREST calls take a fresh access token and an optional `Prefer` header.
-- **`AuthStore`** (`@MainActor`, singleton `.shared`) — the single auth source: email + password (confirmation ON), **Keychain-persisted `Session`**, and **coalesced token refresh** (GoTrue rotates the refresh token, so concurrent refreshes funnel through one in-flight task; a hard failure clears the session and routes back to Login). Always get tokens via `validAccessToken()`.
-- **`CommunityAPI`** — the domain API (events, RSVPs, clubs, quests, trails), mirroring the Expo `createCommunityApi`. `Admin.isAdmin(email)` gates admin writes (self-approved events). Also owns the per-user "My activity" reads behind the profile (`getMyUpcomingRsvps` · `getMyClubs` · `getMyQuestCount`).
-- **`ProfileAPI`** — the community-profile layer (name · avatar · interests) over **`town_profiles`** (own-row RLS): `getMyProfile()` / `upsert(...)`. **Community identity lives in `town_profiles`, NOT the wellness app's `profiles` table** — the shared Supabase project backs two apps, and `profiles` belongs to the other one. `RootView.hydrateIfNeeded()` mirrors the row into `Interests` (UserDefaults) once per session for offline matching/greetings.
-- **`RealtimeClient`** (`@MainActor`) — a **hand-written Phoenix-channel client** over `URLSessionWebSocketTask` (Supabase Realtime speaks Phoenix `vsn=1.0.0`). Joins `postgres_changes` on `club_events` with the user's JWT (RLS still filters what arrives), heartbeats, pushes a fresh token periodically, and reconnects with capped exponential backoff. **One production subscriber** since the 2026-09-17 strip-down: `MapModel` (today's pins). `YourDayModule` was the second and owned its own client the same way; the module is gone but its pure relevance filter (`YourDayLogic.changeIsRelevant`) and tests survive — copy that shape if a second subscriber comes back. See `SupabaseConfig.realtimeURL`.
-- **`SupabaseConfig`** — project URL + **public anon key** (safe to ship; RLS is the real boundary) and the derived `rest/auth/storage/realtime` URLs.
-- Supporting: `Session`, `Storage` (image upload), `Moderation` (Claude edge function), `Reminders`, `Interests`, `TrailServices`, `KnownVenues`, `DateHelpers`, `Models`, `LocationPermission` + `UserLocation` (when-in-use authorization + a one-shot location fix — no continuous updates; map search/pin-sheet distances hide silently when denied).
+The entire backend is written by hand over `URLSession` to match `@hygge/core` 1:1 — there is
+**no `supabase-swift` dependency**. `[prose]`
 
-### Features — one folder per screen, `View` + `Model` (`BlockParty/Features/`)
-The house pattern is a `SomethingView` paired with a `SomethingModel` (`@MainActor final class … ObservableObject`) that owns state + API calls. Current top-level folders are `Home`, `Add`, `Auth`, `Board`, `Civic`, `Components`, `Map`, `Onboarding`, `Place`, `Profile`, and `Share`. `OnboardingFlow/` was **deleted** on 2026-09-18 (with `Onboarding/OnboardingView.swift`, `Onboarding/NameStepView.swift`, `Backend/OnboardingAPI.swift`, `App/SplashView.swift` and `BlockPartyTests/OnboardingFlowTests.swift`); `Onboarding/` survives only because `MapIntroView` (the map's help sheet) and `InterestPickerView` + its cards (Edit Profile) live there, alongside `OnboardingChrome.swift`, which now also carries `ContinueButton`. **If onboarding is rebuilt, `ONBOARDING.md` is the spec — read it first.** `[prose]` Its locked rule: the primary CTA occupies one fixed position for the whole flow and never moves between steps (only its title and enabled state change), with the shell owning the chrome and footer so step views cannot draw their own button. `Activities/` and `Calendar/` were **deleted** on 2026-09-17 (with `Backend/CalendarExport.swift` and `Components/ActivityTile.swift`); their tab slots survive as `BlankTab`. `Civic/` is the unbuilt town-utilities screen plus `Civic/Parked/` — code that is unreferenced **on purpose** and must not be swept up as dead `[prose]` (it has its own README; read it before touching anything under it).
+- **`SupabaseHTTP`** — the low-level client: `auth(...)` hits GoTrue (`/auth/v1`), `rest(...)`
+  hits PostgREST (`/rest/v1`).
+- **`AuthStore`** (`@MainActor`, singleton `.shared`) — the single auth source: email +
+  password, **Keychain-persisted `Session`**, and **coalesced token refresh** (GoTrue rotates
+  the refresh token, so concurrent refreshes funnel through one in-flight task). **Always get
+  tokens via `validAccessToken()`.** `[prose]`
+- **`CommunityAPI`** — the domain API (events, RSVPs, clubs, quests, trails), mirroring the
+  Expo `createCommunityApi`, plus the per-user "My activity" reads behind the profile.
+- **`ProfileAPI`** — the community-profile layer over **`town_profiles`** (own-row RLS).
+  **Community identity lives in `town_profiles`, NOT the wellness app's `profiles` table**
+  `[prose]` — the shared Supabase project backs two apps, and `profiles` belongs to the other
+  one.
+- **`RealtimeClient`** (`@MainActor`) — a hand-written Phoenix-channel client over
+  `URLSessionWebSocketTask`. Joins `postgres_changes` on `club_events` with the user's JWT
+  (RLS still filters what arrives), heartbeats, and reconnects with capped exponential
+  backoff. **One production subscriber** since the strip-down: `MapModel`. `YourDayLogic.
+  changeIsRelevant` and its tests survive the module that used to be the second — copy that
+  shape if a subscriber comes back.
+- **`SupabaseConfig`** — project URL + **public anon key** (safe to ship; RLS is the real
+  boundary) and the derived `rest`/`auth`/`storage`/`realtime` URLs.
+- Supporting: `Session`, `Storage`, `Moderation`, `Reminders`, `Interests`, `TrailServices`,
+  `KnownVenues`, `DateHelpers`, `Models`, `LocationPermission` + `UserLocation`.
 
-**Today (`Features/Home/Briefing/` + `Feed/`) — the tab is empty, and that is the current design.** The 2026-09-17 strip-down deleted every module that used to render here: almanac, Your Day (the horizon card), trivia, spotlight, sign-off, town notes and For You, along with their views — `AlmanacSection`, `DailyGreeting`, `SpotlightCard`, `TriviaCard`, `DailyTouchCard`, `CaughtUpFooter`, `HappeningSoonSection`, `TownNotesDeck`, `ForYouSection` and the galleries beside them. What remains is chrome: `HomeView` is still a compatibility shell over `FeedView`, `FeedView` still holds `TodayTopBar`, now as a top `safeAreaBar` on its scroll view, and the column below it has nothing in it.
+## Features — one folder per screen, `View` + `Model` (`BlockParty/Features/`)
 
-**The machinery under that empty screen is intact and is the point.** `FeedRegistry` still owns the only production array — it is now a literal `[]`, with the comment saying so — and the module protocol, the phase/visibility contract, the erased-view renderer and the order/offset tie-break all still work. **Adding a module back is one entry in that literal and nothing else** `[prose]`; `FeedView` never changes. `FeedModuleID` keeps its five named constants (`.almanac`, `.yourDay`, `.trivia`, `.spotlight`, `.signOff`) as stable names for exactly that, and unknown string-backed ids still decode and are skipped safely. Each module still owns its own phase, visibility, loading/error/empty rendering, spacing, reveal index and view.
+The house pattern is a `SomethingView` paired with a `SomethingModel` (`@MainActor final
+class … ObservableObject`) that owns state and API calls. Top-level folders: `Home`, `Add`,
+`Auth`, `Board`, `Civic`, `Components`, `Map`, `Onboarding`, `Place`, `Profile`, `Share`.
 
-**Every `FeedRoute` now presents its own sheet.** The hand-up lane died with the Activities tab: there is no longer a route with a nil `destination` that `FeedView` passes to `MainTabsView` for a tab change. The three surviving cases — `.civicTab` (the unbuilt Civic stub), `.editInterests`, `.event(UpcomingEvent)` — each carry a destination and open as a modal over Today. The day sheet is likewise reachable only by flag now that the rail that opened it is gone, and `DayScheduleAnchor.callToAction` survives solely for the `-day-sheet-state cta` fixture.
+- **`Civic/Parked/` is unreferenced on purpose and must not be swept up as dead code.**
+  `[prose]` It has its own README; read it before touching anything under it. The utility
+  subsystem lives verbatim and still tested under `Features/Civic/Parked/Utility/`, and
+  `user_utility_prefs` still holds real per-user configuration that a rebuild must re-hydrate.
+- **If onboarding is rebuilt, `ONBOARDING.md` is the spec — read it first.** `[prose]` Its
+  locked rule: the primary CTA occupies one fixed position for the whole flow and never moves
+  between steps (only its title and enabled state change), with the shell owning the chrome
+  and footer so step views cannot draw their own button. `Onboarding/` survives today only
+  because `MapIntroView`, `InterestPickerView` and `OnboardingChrome.swift` live there.
 
-**The briefing read contract is untouched and still fires.** `BriefingModel` is still constructed by `FeedController` and `BriefingAPI.today()` still makes one authenticated `POST` to `rpc/get_today_briefing`, returning the whole `BriefingPayload` for the St. Joseph date; the model still paints the disk cache first, reconciles with the RPC, keeps cached content through an outage, and owns optimistic vote/RSVP updates with rollback. Almanac/weather/touch/spotlight/fallback are degradable, featured may be empty, `caughtUp` is the required finite ending — the payload is simply arriving with nothing mounted to draw it. Keep it that way rather than ripping the contract out `[prose]`; a rebuilt module should find its data already there.
+### Town feed (`Features/Home/Briefing/` + `Feed/`) — empty by design
 
-The **utility subsystem** moved out of Today earlier and now lives, verbatim and still tested, under **`Features/Civic/Parked/Utility/`** waiting on the Civic tab — read `Features/Civic/Parked/README.md` before touching it, and note `user_utility_prefs` still holds real per-user configuration that a rebuild must re-hydrate. The legacy card-feed files beside the registry (`TodayFeedView`, `FeedEventCard`, `FeedCardGallery` and friends) remain for regression/rollback only. What each deleted surface was, and how to get it back, is in **`docs/GUTTING-LEDGER.md`**.
+The strip-down deleted every module that used to render here. What remains is chrome:
+`HomeView` is a compatibility shell over `FeedView`, which still holds `TodayTopBar`.
 
-**The Map (`Features/Map/`)** is presented as a `.fullScreenCover` from Today's top-bar map
-button rather than being a tab. Its anatomy and its rules are in `docs/rules/map.md`.
+**The machinery under that empty screen is intact and is the point.** `FeedRegistry` still
+owns the only production array — now a literal `[]` — and the module protocol, the
+phase/visibility contract, the erased-view renderer and the order/offset tie-break all still
+work. **Adding a module back is one entry in that literal and nothing else** `[prose]`;
+`FeedView` never changes. `FeedModuleID` keeps its five named constants as stable names for
+exactly that, and unknown string-backed ids still decode and are skipped safely.
 
-**Today top bar (`Features/Home/TodayTopBar.swift`)** — chrome that **leaves on a downward scroll and comes back on an upward one** (Jesse, 2026-09-21, naming Instagram): the brand mark (`BlockPartyWordmark`, 31pt tall, the logo's letterforms in ink) is **centred** against the bar rather than laid out in the row — an `HStack` would park it wherever the trailing button's width left it — the map disc trails, and all of it leaves together the moment you scroll down — and returns the moment you scroll up, wherever you are in the feed. **The bar's height is a constant 58 and must stay one** `[prose]` — it is a `safeAreaBar`, so its height IS the feed scroll's top inset, and this bar is the live evidence for the scroll-geometry loop in `docs/rules/swift-traps.md`, which states what may and may not be driven off that scroll. **The bar draws no hairline** `[prose]` — that rule and its `-header-hairline` flag, `showsHairline` plumbing and four tests were deleted on 2026-09-19 (Jesse: it read as a seam where the fade ends); the scroll edge effect is the separation now. **The rule is DIRECTION, not distance** (2026-09-21): `TodayHeader.chromeHidden(wasHidden:previousOffset:offset:)` is pure and total — down past `directionThreshold` (4pt) hides, up shows, the first `hideAfter` (24pt) and any rubber-band pull past the top always show, and sub-threshold jitter holds the current state. It replaced the old `chromeProgress` fade band, which could only bring the bar back by scrolling all the way home. `previousOffset` comes free from `onScrollGeometryChange`'s old value, so `FeedView` stores only the answer (`chromeHidden`) and writes it only when it flips — no per-frame invalidation. Three tests in `TodayHeaderTests` cover down/up, the top, and the jitter floor.
+**The briefing read contract is untouched and still fires.** `BriefingAPI.today()` still makes
+one authenticated `POST` to `rpc/get_today_briefing`; the model still paints the disk cache
+first, reconciles with the RPC, keeps cached content through an outage, and owns optimistic
+vote/RSVP updates with rollback. **Keep that contract rather than ripping it out** `[prose]` —
+a rebuilt module should find its data already there.
 
-**The chrome is REMOVED when hidden, not faded in place, and it has to be** `[prose]` — the glass-compositing rule is in `docs/rules/swift-traps.md`. `TodayTopBar` branches on `chromeHidden` inside a fixed-height `ZStack` and animates the `.transition` (slide up + fade, spring; crossfade only under Reduce Motion). Note the offset expression it keeps: `contentOffset.y` rests at `-contentInsets.top`, so the `+ geometry.contentInsets.top` term is what makes 0 mean "at rest" — drop it and the trace reads on the wrong schedule. `-feed-scrolled [-feed-scrolled-y <pt>]` starts the feed scrolled; `-feed-scroll-sweep` animates one long scroll and `-scroll-log` prints every offset sample — that pair is how the ringing described in `docs/rules/swift-traps.md` was caught, and it is the check to re-run after any change to the bar's geometry. **The bar has NO fill of its own** (2026-09-19): it is a `.safeAreaBar(edge: .top)` on the feed's own scroll, so content passes underneath it and `.scrollEdgeEffectStyle(.soft, for: .top)` blurs and washes that content toward the page — the iOS 26 scroll-edge effect, matching Instagram's feed. It spent a few hours on `.hard` while the bar was locked in place, because a bar that never leaves shares that band with the feed and `.soft` passed the card action row through legibly (a ghost heart under the search mark). With the chrome leaving again the band is the feed's own, and the gradient is the point — Jesse: "no clean cut white line, a fade gradient like Instagram." **Do not put a hairline or a fill here.** `[prose]` **`safeAreaBar`, not `safeAreaInset`:** an inset gets no edge effect, which is what the first attempt shipped — content slid under a bare status bar with no blur at all and the build stayed green. `FeedView` also holds a `ScrollPosition` purely so `-feed-scrolled` can jump. **On 2026-09-20 the bar went from one control to three** (Jesse, copying an Alta reference; every measurement is in `refs/chrome/REFERENCE-SPEC.md`): a **search magnifier** leads, the wordmark still centres, and a **notifications bell** now holds the trailing corner — so the map disc slid inboard of it. The two new marks are **bare ink in 44pt touch boxes, not discs**, which is both what the reference does and the only thing the width budget allows: the lockup claims 75.4pt either side of the midline, the trailing lane costs `rowInset 4 + glyphTap 44 + controlGap 8 + mapSide 50` = 106pt, and the clearance `W/2 − 181.4` runs **+6.1pt at 375 and +15.1 at 393**. A second 50pt disc trailing takes that to **−11.9 and −2.9** — the mark and the control overlap on most phones. A disc LEADING would also trip `TodayHeaderTests.testBrandLockupLeavesTheLeadingHeaderAreaBlank`, which allows under 20 saturated pixels in the leading 18% against the ~7,800 a yellow disc puts there. `TodayBarMetric.inset` is now the OPTICAL margin and `rowInset` the real padding; the difference is the invisible overhang of those touch boxes. Chrome that has left still must not take taps — `.allowsHitTesting(!chromeHidden)` and `.accessibilityHidden(chromeHidden)` are on the control row, and with the row removed outright when hidden there is nothing left to catch a touch mid-feed. Before all this it was a fixed bar with **one trailing control and an empty leading side**. The JoeTown wordmark went on 2026-09-17; the profile avatar — the ⋮-lineage button that opened the town menu — went on 2026-09-18 (Jesse's call), and the map button took its place in the corner. That button is now a **true circle** (the one deliberate exception to this system's 12pt rounded squares), **50×50** — big enough to clear the 44pt target on its own, so the old grow-and-hand-back padding is gone, and the bar grew with it (`TodayHeader.contentHeight` 44→58, `maxHeight` 52→66; the geometry guard test moved with them, deliberately).
+**Every `FeedRoute` presents its own sheet.** `[prose]` There is no longer a route with a nil
+`destination` that `FeedView` hands to `MainTabsView` for a tab change; the three surviving
+cases each carry a destination and open as a modal.
 
-It is **not** a `.glassEffect` surface, and that is measured rather than stylistic: a Liquid Glass surface composites what sits near it into its own layer, which flattened the highlight to a 2/255 difference and re-rendered the glyph as a refracted ghost. The disc is instead `ultraThinMaterial` + `Hue.mapWash` + a two-layer `sheen` (a faint top-third gradient and a rim that is brighter where the light lands) + the glyph, stacked with ordinary compositing, over one soft close shadow. It is deliberately **mostly flat** — roughly a 9/255 top-to-bottom ramp, measured. The first pass modelled a sphere (specular, sub-equator shade, bounce light) and read as a plastic badge stuck on the page; Jesse's call is a flat translucent SURFACE with a little glass in it, not a ball.
+### Town top bar (`Features/Home/TodayTopBar.swift`)
 
-The glyph is **`MapPinGlyph`**, drawn in-house — a pin outline and a concentric ring as **two subpaths of one `Path`**, so a single stroke renders both at identical weight (not, as this line said until 2026-09-20, an even-odd cut hole), specified in a 24pt box and scaled — SF `map` is a hard-cornered folded sheet, and a rectangle inside a circle inside a rounded bar was three silhouettes fighting. The button only reports its tap; the shell owns the cover. With the dots and the bounce gone, so are the `-tap-menu` / `-slow-tap` flags. Its two new neighbours, **`MagnifierGlyph`** and **`BellGlyph`** (`Features/Home/BarGlyphs.swift`), follow the same idiom for the same reason: Alta's magnifier carries a concentric reflection arc no SF symbol has, and its bell has no crown nub and dead-vertical walls where SF `bell` flares — different silhouettes, not the same shape at another weight. **The bell has no badge**, because the reference has none and the app has no notifications feature to badge honestly. Both marks are ~1.38pt of ink against the pin's 2.088pt; that mismatch is real, deliberate for now, and argued out at the foot of `refs/chrome/REFERENCE-SPEC.md`.
+Chrome that **leaves on a downward scroll and comes back on an upward one** (Jesse,
+2026-09-21, naming Instagram). The brand mark is **centred against the bar** rather than laid
+out in the row — an `HStack` would park it wherever the trailing button's width left it.
 
-**Town menu (`Features/Home/TownMenuView.swift` + `Features/Components/GlassShowcaseOverlay.swift`) — still wired, still UNREACHABLE in the UI.** The avatar was its only entry point and went on 2026-09-18. Its Calendar and Activities rows went with the tabs they pointed at, leaving four actions (`TownMenuAction`: map, compose, invite, profile). Profile now has its own tab, so what the drawer alone still reaches is the appearance switch. DEBUG `-open-menu` / `-menu-autoclose` raise it. Re-attaching is a one-line `onMenu` hook wherever its next entry point lands.
+- **The bar's height is a constant 58 and must stay one.** `[prose]` It is a `safeAreaBar`,
+  so its height IS the feed scroll's top inset. This bar is the live evidence for the
+  scroll-geometry loop in `docs/rules/swift-traps.md`.
+- **`safeAreaBar`, not `safeAreaInset`.** `[prose]` An inset gets no scroll-edge effect —
+  the first attempt shipped content sliding under a bare status bar with no blur at all, and
+  the build stayed green.
+- **The bar has no fill and draws no hairline.** `[prose]` Content passes underneath it and
+  `.scrollEdgeEffectStyle(.soft, for: .top)` blurs and washes that content toward the page.
+  Jesse: "no clean cut white line, a fade gradient like Instagram."
+- **The rule is DIRECTION, not distance.** `TodayHeader.chromeHidden(wasHidden:previousOffset:
+  offset:)` is pure and total — down past `directionThreshold` (4pt) hides, up shows, the
+  first `hideAfter` (24pt) and any rubber-band pull past the top always show, and
+  sub-threshold jitter holds the current state. `previousOffset` comes free from
+  `onScrollGeometryChange`'s old value, so `FeedView` stores only the answer and writes it
+  only when it flips — no per-frame invalidation.
+- **The chrome is REMOVED when hidden, not faded in place, and it has to be** `[prose]` — the
+  glass-compositing rule is in `docs/rules/swift-traps.md`. `TodayTopBar` branches on
+  `chromeHidden` inside a fixed-height `ZStack` and animates the `.transition`. Note the
+  offset expression it keeps: `contentOffset.y` rests at `-contentInsets.top`, so the
+  `+ geometry.contentInsets.top` term is what makes 0 mean "at rest" — drop it and the trace
+  reads on the wrong schedule.
+- **Chrome that has left must not take taps** `[prose]` — `.allowsHitTesting(!chromeHidden)`
+  and `.accessibilityHidden(chromeHidden)` sit on the control row.
+- **Three controls, and the two new ones are bare ink in 44pt touch boxes, not discs.**
+  `[prose]` A search magnifier leads, the wordmark centres, a notifications bell holds the
+  trailing corner, and the map disc sits inboard of it. Bare marks are what the width budget
+  allows: a second 50pt disc trailing overlaps the centred lockup on most phones, and a disc
+  **leading** trips `TodayHeaderTests.testBrandLockupLeavesTheLeadingHeaderAreaBlank`. Every
+  measurement behind that is in `refs/chrome/REFERENCE-SPEC.md`. `TodayBarMetric.inset` is
+  the OPTICAL margin and `rowInset` the real padding; the difference is the invisible
+  overhang of those touch boxes.
+- **The map button is a true circle, 50×50** — the one deliberate exception to this system's
+  12pt rounded squares, and big enough to clear the 44pt target on its own.
+- **It is not a `.glassEffect` surface, and that is measured rather than stylistic**
+  `[prose]`: a Liquid Glass surface composites what sits near it into its own layer, which
+  flattened the highlight to a 2/255 difference and re-rendered the glyph as a refracted
+  ghost. The disc is `ultraThinMaterial` + `Hue.mapWash` + a two-layer `sheen` + the glyph,
+  stacked with ordinary compositing. It is deliberately **mostly flat** — roughly a 9/255
+  top-to-bottom ramp. Jesse's call is a flat translucent surface with a little glass in it,
+  not a ball.
+- **The bar's glyphs are drawn in-house** (`MapPinGlyph`, and `MagnifierGlyph` / `BellGlyph`
+  in `Features/Home/BarGlyphs.swift`) because the SF equivalents are different silhouettes,
+  not the same shape at another weight. `MapPinGlyph` is a pin outline and a concentric ring
+  as **two subpaths of one `Path`**, so a single stroke renders both at identical weight.
+  **The bell has no badge**, because the app has no notifications feature to badge honestly.
 
-**Profile (`Features/Profile/`)** — the **You** tab (`ProfileView(showsClose: false)`), and still presentable as a sheet from the town menu's "Your profile" row. In tab form the bottom spacer grows to 112 so the last row clears the floating bar. `ProfileView` shows identity (`ProfileAPI` → `town_profiles`) plus **real** activity via the `CommunityAPI` My-activity reads — no fabricated counts, so an empty state reads "0". `ProfileView(onClose:)` still accepts an injected close (used if presented as an overlay) but defaults to `@Environment(\.dismiss)`. `EditProfileView` writes **server-first** (upload avatar → `ProfileAPI.upsert`) and surfaces a real save failure instead of a false success; it reuses onboarding's `InterestPickerView` with `showsProgress: false` to drop the wizard step-bar.
+### Other surfaces
 
-**Share (`Features/Share/`)** — the app-wide **"share reveal"** (ported ~99% from a Duolingo reference recording). Any share calls **`ShareCenter.shared.present(SharePayload(...))`**: a preview card of *exactly what's being shared* springs up over a dimmed backdrop in a dedicated overlay **`UIWindow`** (above the tab bar **and** any `.sheet`), with a Duolingo-style target row (**Messages · Save image · More**). The preview view is also what's rendered to the shared image (`ImageRenderer`) — what you see is what you send. `ShareCenter` (`@MainActor` singleton) owns the window + present/dismiss + the reveal spring (`response 0.58, damping 0.76`; scrim `easeOut 0.40`; **Reduce-Motion cross-fades**, no scale); `ShareRevealView` is the scrim/card/sheet; `ShareTargets` holds the Messages (`MFMessageComposeViewController`), Save-image (`PHPhotoLibrary`, needs `INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription`), and More (`UIActivityViewController`) actions. **Add a new share in one line** via a `SharePayload` factory (`.event(...)`, `.appInvite()`, `.place(...)`) — preview cards stay typographic except for the canonical app mark (no illustration). Motion is verified with the sim frame-montage method (spec: `docs/superpowers/specs/2026-07-11-share-reveal-animation-design.md`).
+- **Town menu** (`TownMenuView` + `GlassShowcaseOverlay`) — still wired, still **UNREACHABLE
+  in the UI**; the avatar was its only entry point. What the drawer alone still reaches is
+  the appearance switch. DEBUG `-open-menu` raises it; re-attaching is a one-line `onMenu`
+  hook wherever its next entry point lands.
+- **Profile** (`Features/Profile/`) — the **You** tab, and still presentable as a sheet.
+  `ProfileView` shows identity plus **real** activity via the My-activity reads — **no
+  fabricated counts** `[prose]`, so an empty state reads "0". `EditProfileView` writes
+  **server-first** (upload avatar → `ProfileAPI.upsert`) and surfaces a real save failure
+  instead of a false success.
+- **Share** (`Features/Share/`) — the app-wide **share reveal**. Any share calls
+  **`ShareCenter.shared.present(SharePayload(...))`**: a preview card of *exactly what's being
+  shared* springs up over a dimmed backdrop in a dedicated overlay **`UIWindow`** (above the
+  tab bar **and** any `.sheet`), with a target row (Messages · Save image · More). **The
+  preview view is also what's rendered to the shared image** — what you see is what you send.
+  **Add a new share in one line** via a `SharePayload` factory; preview cards stay
+  typographic except for the canonical app mark. The reveal spring is `response 0.58,
+  damping 0.76` and the scrim `easeOut 0.40`; **Reduce Motion cross-fades with no scale**.
 
 ## Feed content rules
 
-- **The Town feed shows one-time news, not a standing calendar.** `[prose]` Every posting passes through **`townSurfacing`** (`Features/Home/Feed/FeedSurfacing.swift`) after `dedupeRecurring` and before `FeedSectioning`. A one-time posting is carried on its debut day and again from seven days out through the event day; it is hidden in the quiet middle and gone after the event. A **recurring series is carried on its debut day only** — a weekly club is announced once and must never reappear week after week. The filter is stateless date arithmetic, deliberately: there is no per-neighbour "seen" state to sync, so "once the week of" means the card is present for that week rather than for a single day of it. `debut` rides on the `FeedRecurringPosting` tuple and, for a series, is the **earliest** `createdAt` in the group — using the surviving occurrence's own `createdAt` would re-announce the club every time someone adds another Saturday. Adding a fourth window, or making it per-user, is a product change: read the Town principle in `PRODUCT.md` first.
-- **Admin is an email allowlist**, not a security boundary `[prose]` — `Admin.isAdmin` in `DateHelpers.swift` (self-approved events are an intentional product decision shared with the Expo app). RLS is the real boundary.
+- **The Town feed shows one-time news, not a standing calendar.** `[prose]` **This rule is
+  decided but NOT in this branch** — `townSurfacing` and `Features/Home/Feed/FeedSurfacing.swift`
+  live only on the unmerged branch `feat/tab-town` (commit `8e52b7a`), so do not expect to find
+  them here, and do not re-implement them from scratch either: adopt that branch. `dedupeRecurring`
+  and `FeedSectioning`, the stages it sits between, *are* here. How it behaves when it lands: A one-time posting is carried on its debut
+  day and again from seven days out through the event day; it is hidden in the quiet middle
+  and gone after the event. **A recurring series is carried on its debut day only** — a weekly
+  club is announced once and must never reappear week after week. The filter is stateless
+  date arithmetic, deliberately: there is no per-neighbour "seen" state to sync. `debut` is,
+  for a series, the **earliest** `createdAt` in the group — using the surviving occurrence's
+  own `createdAt` would re-announce the club every time someone adds another Saturday.
+  **Adding a fourth window, or making it per-user, is a product change** — read the Town
+  principle in `PRODUCT.md` first.
+- **Admin is an email allowlist, not a security boundary** `[prose]` — `Admin.isAdmin` in
+  `DateHelpers.swift`. Self-approved events are an intentional product decision shared with
+  the Expo app. **RLS is the real boundary.**

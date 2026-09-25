@@ -6,10 +6,8 @@ and obeys it. It is a **router**, not a manual: it holds how Jesse works, what *
 means, the rules no machine can check, and a table naming the one file to read before you
 act. Everything else lives under `docs/rules/` and loads only when the table sends you.
 
-Precedence when sources disagree: **the code wins, then `MEMORY.md`, then this file.**
-Surface the mismatch rather than inventing a path or an API around it.
-
-Written for Jesse, who is not a developer. Explain things accordingly.
+Precedence when sources disagree: **the code wins, then `MEMORY.md`, then this file, then a
+skill.** Surface the mismatch rather than inventing a path or an API around it.
 
 **This file is generated.** `[ci]` Edit `rules/router/*.md`, then run
 `python3 scripts/bp_rules.py build`. A hand-edit fails `bp_rules.py check`.

@@ -8,10 +8,8 @@ and obeys it. It is a **router**, not a manual: it holds how Jesse works, what *
 means, the rules no machine can check, and a table naming the one file to read before you
 act. Everything else lives under `docs/rules/` and loads only when the table sends you.
 
-Precedence when sources disagree: **the code wins, then `MEMORY.md`, then this file.**
-Surface the mismatch rather than inventing a path or an API around it.
-
-Written for Jesse, who is not a developer. Explain things accordingly.
+Precedence when sources disagree: **the code wins, then `MEMORY.md`, then this file, then a
+skill.** Surface the mismatch rather than inventing a path or an API around it.
 
 **This file is generated.** `[ci]` Edit `rules/router/*.md`, then run
 `python3 scripts/bp_rules.py build`. A hand-edit fails `bp_rules.py check`.
@@ -92,8 +90,7 @@ have matched any row.
   `.aider*`) as part of a task here. `[prose]` This applies to every agent that reads this
   router, not just Claude Code.
 
-**Two rules in this block, and nothing checks either.** Keeping that number down is the
-ongoing work of this system — a rule nobody can check is a rule that gets broken.
+**Nothing checks either rule above.** Keeping this block short is the point.
 
 ## Before you act, read the one file that covers it
 
@@ -107,8 +104,8 @@ ongoing work of this system — a rule nobody can check is a rule that gets brok
 | work on the map, its pins, or its realtime feed | `docs/rules/map.md` |
 | need a bundle id, a key, a project id, or a config file | `docs/rules/identifiers.md` |
 
-Read the row you are in **before** you act, not after. Each file is complete on its own; none of
-them is background reading, and none is optional once its row matches.
+Read your row **before** you act, not after. Each file is complete on its own and none is
+optional once its row matches.
 
 ## Where everything else lives
 
@@ -119,6 +116,8 @@ them is background reading, and none is optional once its row matches.
 | Outstanding console work, and why a past exception was made | `DECISIONS.md` |
 | Brand assets and logo artwork, in depth | `DESIGN.md` |
 | Map work, chronologically | `MAP_BUILD_LOG.md` |
+| What the product is for, and the Town feed's intended shape | `PRODUCT.md` |
+| The onboarding spec — locked rules, bans, Jesse's direction | `ONBOARDING.md` |
 | Product and launch strategy | `docs/playbook.md` |
 | Parked-but-tested code (utility row, horizon) | `BlockParty/Features/Civic/Parked/README.md` |
 | The pre-commit hook that catches a drifted `AGENTS.md`/`CLAUDE.md` — not installed by default, one run per checkout | `docs/rules/git-worktrees.md` |
