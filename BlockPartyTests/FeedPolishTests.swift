@@ -528,6 +528,66 @@ final class DayScheduleAnchorTests: XCTestCase {
     }
 }
 
+/// The day sheet's page must span the whole card. On 2026-09-24 the "Add to today"
+/// button went, and it had been the only full-width child: the page shrank to a
+/// centred strip the width of its text. Rendered, because only layout shows it.
+@MainActor
+final class DayScheduleSheetWidthTests: XCTestCase {
+
+    private struct Host: View {
+        let items: [DayItem]
+        @Namespace private var ns
+
+        var body: some View {
+            DayScheduleSheet(
+                items: items,
+                anchor: .top,
+                namespace: ns,
+                dates: FixedDateProvider(DayScheduleFixture.fixedNow),
+                onDismiss: {}
+            )
+        }
+    }
+
+    /// RGBA of the pixel at (x, y) in a rendered view, 1x scale.
+    private func pixel(_ image: CGImage, x: Int, y: Int) -> (UInt8, UInt8, UInt8) {
+        var rgba = [UInt8](repeating: 0, count: 4)
+        let context = CGContext(
+            data: &rgba, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        )!
+        context.draw(image, in: CGRect(x: -x, y: y - image.height + 1,
+                                       width: image.width, height: image.height))
+        return (rgba[0], rgba[1], rgba[2])
+    }
+
+    private func assertPageReachesBothEdges(_ items: [DayItem], file: StaticString = #filePath, line: UInt = #line) throws {
+        let width: CGFloat = 393, height: CGFloat = 800
+        let renderer = ImageRenderer(
+            content: Host(items: items)
+                .frame(width: width, height: height)
+                .environment(\.colorScheme, .light)
+        )
+        renderer.scale = 1
+        let image = try XCTUnwrap(renderer.cgImage, file: file, line: line)
+        for x in [1, Int(width) - 2] {
+            let (r, g, b) = pixel(image, x: x, y: Int(height) / 2)
+            XCTAssertEqual([r, g, b], [0xFA, 0xFA, 0xF7],
+                           "The page colour does not reach x = \(x); the sheet's page is narrower than its card.",
+                           file: file, line: line)
+        }
+    }
+
+    func testTheEmptyDaysPageSpansTheCard() throws {
+        try assertPageReachesBothEdges([])
+    }
+
+    func testADayWithRowsKeepsItsPageFullWidth() throws {
+        try assertPageReachesBothEdges(DayScheduleFixture.items(now: DayScheduleFixture.fixedNow))
+    }
+}
+
 @MainActor
 final class DaySchedulePresentationTests: XCTestCase {
 

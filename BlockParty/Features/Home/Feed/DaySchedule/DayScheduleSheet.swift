@@ -91,6 +91,9 @@ struct DayScheduleSheet: View {
                         rows
                     }
                 }
+                // The page spans the card whatever the day holds. Without this an
+                // empty day sized the scroll, and so the page, to its one line of text.
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, DayScheduleMetrics.pageMargin)
                 .padding(.bottom, 24)
             }
