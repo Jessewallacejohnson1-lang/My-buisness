@@ -144,3 +144,17 @@ struct FeedCardPressStyle: ButtonStyle {
             )
     }
 }
+
+/// `FeedCardPressStyle`'s press, reported instead of drawn. When the button is only
+/// part of a card, the WHOLE card has to squish or a gap opens between the pressed
+/// part and the rest. Same reporter shape as `DayCardPressStyle`, without its haptic.
+struct FeedCardPressReporter: ButtonStyle {
+    @Binding var isPressed: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .onChange(of: configuration.isPressed) { _, pressed in
+                isPressed = pressed
+            }
+    }
+}

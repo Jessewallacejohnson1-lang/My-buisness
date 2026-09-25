@@ -54,6 +54,9 @@ struct FeedEventCard: View {
     @State private var commentsPresented = false
     @State private var likeBurst = FeedLikeBurst()
     @State private var autoplayStep = 0
+    /// The link's press, so the whole card squishes: set on touch-down by
+    /// `FeedTouchDownTracker` and by the link's own `FeedCardPressReporter`.
+    @State private var linkPressed = false
 
     init(
         item: FeedCardItem,
@@ -81,15 +84,28 @@ struct FeedEventCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            hostRow
-                .padding(.horizontal, DailyFeedMetric.contentInset)
+            // Host, photo and going line are one link to the event's page. The
+            // action row stays outside it, so its own buttons keep their own taps.
+            NavigationLink(value: item) {
+                VStack(alignment: .leading, spacing: 0) {
+                    hostRow
+                        .padding(.horizontal, DailyFeedMetric.contentInset)
 
-            imageSection
-                .padding(.top, item.hostName.isEmpty ? 0 : 10)
+                    imageSection
+                        .padding(.top, item.hostName.isEmpty ? 0 : 10)
 
-            socialRow
-                .padding(.top, 10)
-                .padding(.horizontal, DailyFeedMetric.contentInset)
+                    socialRow
+                        .padding(.top, 10)
+                        .padding(.horizontal, DailyFeedMetric.contentInset)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(FeedCardPressReporter(isPressed: $linkPressed))
+            .accessibilityIdentifier("event-card-link")
+            // The photo's double tap holds the link's own press until it fails, ~0.3 s,
+            // so the link also tracks touch-down itself and the card squishes the
+            // moment a finger lands, photo included.
+            .gesture(FeedTouchDownTracker(isPressed: $linkPressed))
 
             actionRow
                 .padding(.top, 2)
@@ -97,6 +113,11 @@ struct FeedEventCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
+        // The whole card answers the link's press, action row included, so no gap
+        // opens between the squished part and the row under it.
+        .scaleEffect(FeedMotion.pressScale(isPressed: linkPressed, reduceMotion: motionIsReduced))
+        .opacity(FeedMotion.pressOpacity(isPressed: linkPressed, reduceMotion: motionIsReduced))
+        .animation(FeedMotion.pressAnimation(reduceMotion: motionIsReduced), value: linkPressed)
         .sheet(isPresented: $commentsPresented) {
             FeedCommentSheet(
                 commentState: $commentState,
@@ -260,7 +281,10 @@ struct FeedEventCard: View {
         .contentShape(Rectangle())
         // Both kinds carry a heart in the row below, so the double-tap always has a
         // control to mirror — and something on screen you can undo it with.
-        .simultaneousGesture(
+        // High priority, because the photo sits inside the card's link: a double tap
+        // likes without also pushing, and a single tap pushes once the double-tap
+        // window has passed.
+        .highPriorityGesture(
             SpatialTapGesture(count: 2).onEnded { performImageLike(at: $0.location) }
         )
     }
@@ -405,5 +429,55 @@ struct FeedEventCard: View {
         guard !Task.isCancelled else { return }
         autoplayStep = 4
         #endif
+    }
+}
+
+/// A touch-down the instant a finger lands, and its end, reported WITHOUT taking part
+/// in who wins the touch: the feed's scroll, the link and the photo's double tap all
+/// still get it. A SwiftUI `LongPressGesture` here, even as `.simultaneousGesture`,
+/// stopped the feed scrolling and turned a drag into a push (measured 2026-09-25),
+/// the pan-stealing `FeedMotion`'s header warns about. A slide past `slop` counts as
+/// letting go, so a drag that becomes a scroll releases the squish.
+private struct FeedTouchDownTracker: UIGestureRecognizerRepresentable {
+    @Binding var isPressed: Bool
+
+    /// UIKit's tap slop, the distance a tap stops being a tap.
+    private static let slop: CGFloat = 10
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var start: CGPoint = .zero
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            true
+        }
+    }
+
+    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator {
+        Coordinator()
+    }
+
+    func makeUIGestureRecognizer(context: Context) -> UILongPressGestureRecognizer {
+        let recognizer = UILongPressGestureRecognizer()
+        recognizer.minimumPressDuration = 0
+        recognizer.cancelsTouchesInView = false
+        recognizer.delegate = context.coordinator
+        return recognizer
+    }
+
+    func handleUIGestureRecognizerAction(_ recognizer: UILongPressGestureRecognizer, context: Context) {
+        let point = recognizer.location(in: nil)
+        switch recognizer.state {
+        case .began:
+            context.coordinator.start = point
+            isPressed = true
+        case .changed:
+            let start = context.coordinator.start
+            if isPressed, hypot(point.x - start.x, point.y - start.y) > Self.slop { isPressed = false }
+        default:
+            isPressed = false
+        }
     }
 }
