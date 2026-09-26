@@ -39,9 +39,10 @@ build time, and the colour half has no backstop. A human eye is the only check f
     `actionIcon(_:active:tint:)`, which sets `foregroundStyle` closer to the `Image`; an
     outer style silently loses.
   - **`brandYellowHex`** #FCE804 — the app's accent, taken from the logo's yellow field.
-    **`brandDisc`** is that yellow at full strength, solid, for exactly **one control: the
-    Town bar's map disc** (renamed from `createDisc` on 2026-09-24 when the tab bar's Create
-    disc was removed). `mapWash`, the 68% translucent version that disc used to use, is still
+    **`brandDisc`** is that yellow at full strength, solid, for exactly **two uses: the
+    Town bar's map disc and the selected tab-bar icon** (renamed from `createDisc` on
+    2026-09-24 when the tab bar's Create disc was removed; the tab icon joined it on
+    2026-09-25, Jesse). `mapWash`, the 68% translucent version that disc used to use, is still
     declared but no longer drawn — it went mustard over photographs.
   - The rule is **white ground + small yellow accents, every yellow derived from
     `brandYellowHex`** — never a second yellow, never a call-site hex. These are scoped
@@ -57,9 +58,10 @@ build time, and the colour half has no backstop. A human eye is the only check f
   `Font.system(size:)` is FROZEN while `Font.custom(_:size:)` scales unbounded, and mixing
   them broke Dynamic Type across every screen. Both faces now scale against a shared text
   style. The SF helpers snap to the nearest system step, so `Font.sans(14)` renders at 15;
-  Jost keeps its exact size. `Font.logo` and `Font.glyph(_:weight:)` are the deliberate
-  frozen exceptions — **`glyph` is for ARTWORK only** (map markers, the heart burst, avatar
-  placeholders, tab bar icons), and text reaching for it is a bug.
+  Jost keeps its exact size. `Font.logo`, `Font.glyph(_:weight:)` and
+  `Font.tabLabel(selected:)` are the deliberate frozen exceptions — **`glyph` is for ARTWORK
+  only** (map markers, the heart burst, avatar placeholders, tab bar icons), and text
+  reaching for it is a bug. The tab bar's labels use `tabLabel`, frozen at 10pt like Apple's.
   - **Two faces.** Display/wordmark/headlines are **Jost** (bundled variable font, OFL
     licence alongside it); body/UI/data stay **SF Pro** via `Font.sans*`/`Font.mono*`, with
     numbers tabular via `.monospacedDigit()`.

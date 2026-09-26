@@ -61,6 +61,8 @@ all live there now. This file carries what is newer than that, or narrower than 
 
 ## Brand
 
+- 2026-09-25 — Tab bar selected icon is solid BP yellow #FCE804, revealed by a darker grey
+  glass bubble (Jesse); **supersedes** the teal selected-state line for the tab bar.
 - 2026-09-06 — App icon glyph is **three rooftops in a row**: three roof peaks only, no
   walls, doors, or windows, middle peak slightly taller, one solid color on a solid
   ground. **Supersedes** the water tower, the crossed street sign, and the wave figure.

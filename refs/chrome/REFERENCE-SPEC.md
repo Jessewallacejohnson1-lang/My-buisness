@@ -144,3 +144,67 @@ Ways out, with the arithmetic:
   Either breaks the pin's own 1:1 with the reference it was approved against.
 
 Settle it on a screenshot, not on paper.
+
+---
+
+## Tab bar — Tripadvisor (Mobbin) and Apple's own bar, measured 2026-09-25/26
+
+`TabBarMetric` in `BlockParty/App/RootView.swift` holds these numbers in capsule-local
+points (x = 0 at the capsule's leading edge). Sources, all in
+`/Users/owner/BP app/references/` in the main checkout (untracked):
+
+- the Reference, `tripadvisor-glass-tabbar.png`: 1179 × 2676 px, but the Mobbin footer
+  starts at y 2556, so the device is the top 2556 px, 393 × 852 pt @3x;
+- Apple's 4-tab bar, `tab-bar/shot_outline_white.png` and `shot_baseline_white.png`
+  (iPhone 16 @3x), and its scrub recording `tab-bar/scrub.mp4`;
+- Apple's bar in the `TabProbe` app on the 420 pt iPhone Air eyes sim, `tab-bar/air/`.
+
+The full brief is `tab-bar/MEASURED.md`; § numbers point into it. Pixels are @3x
+(px / 3 = pt). Every value is MEASURED unless marked.
+
+### Geometry
+
+| | value | source |
+| --- | --- | --- |
+| capsule, 393 pt | x 63–1115, y 2307–2492 px = 351 × 62 pt; 21 pt from each side and from the bottom; ends fully round (r 31) | Reference §1.2 = Apple §2.1 |
+| capsule, 420 pt | 378 × 62 pt at 21 / 21 / 21 | `air/` |
+| Selection bubble, 393 | x 75–361, y 2319–2480 px = 95.7 × 54 pt, inset 4 pt, capsule | Apple §2.2 |
+| Selection bubble, 420 | ~102 × 54 pt, inset 4 pt | `air/` |
+| tab centres, 393 | 217 / 466.5 / 713.5 / 959 px on screen = 72.3 / 155.5 / 237.8 / 319.7 pt, 82.5 pt apart; 51.3 / 134.5 / 216.8 / 298.7 capsule-local | Apple §2.2 |
+| tab centres, 420 | 55.3 / 144.3 / 233.3 / 322.3 pt capsule-local, 89 pt apart | `air/` |
+| icons | glyph box 54–58 px = 18–19.3 pt, stroke ~4.5 px: a 20 pt SF Symbol, `.regular` (ESTIMATED match); centre y 2379 px, 24 pt below the capsule top | Reference §1.4 |
+| labels | cap top y 2431, baseline 2452 px (48.33 pt below the capsule top); cap height 21–22 px ≈ SF Pro 10 pt (ESTIMATED); stems 2.9–3.3 px unselected (Medium), 3.7–4.0 px selected (Semibold); 8 pt below the icon | Reference §1.5, Apple §2.5 |
+
+**The width rule** (ESTIMATED from the two widths; GUESSED at others): bubble width =
+`(capsule − 8) / 4 + 10`, the end bubbles touch the 4 pt inset, and the four centres are
+evenly spaced between. It lands within 0.6 pt of every measured centre at 351 and 378.
+
+### Glass and colour
+
+| | value | source |
+| --- | --- | --- |
+| glass tone | Reference over the fireworks photo: luminance 5th / 50th / 95th percentile 169 / 181 / 206; over the white page 236 (232–241) | §1.6 |
+| glass flip, BP | plain `.glassEffect(.regular)` over a near-black Town card (`-feed-scrolled-y 1200`) flipped dark: 23/255, ink invisible. With a white underlay behind it: 20% → 40/255 (still flipped), 30% → 178/255 (held). Shipped at 35% | BP eyes sim, 2026-09-26 |
+| bubble vs bar | Reference 0.80×: 156 inside against 193–198 just outside, same row. Black at 20% reproduces it. Apple's own bubble over white is 0.93× (235 on 253) | §1.8, §2.3 |
+| rim | 1 pt (3 px) near-white line on every side, +60–75 above the glass over dark ground. BP draws white at 60% (opacity GUESSED) | §1.9 |
+| dim band | Reference only: full-width, white 255 → ~187 from y 2170 to 2470 px (723 → 823 pt), no blur. Tripadvisor's, not iOS's. Not copied (Jesse) | §1.11 |
+| shadow | Reference fit: black ~10–12%, blur ~16–20 pt, +6 pt down (ESTIMATED). BP adds none; the glass casts its own | §1.10 |
+
+### Motion
+
+| | value | source |
+| --- | --- | --- |
+| Lens while held | 1.20× the bubble's width, 1.30× its height; constant size while held | `air/` hold (d); scrub §3.4 |
+| Lens growth on touch-down | 89% at 37 ms, 96% at 70 ms, no overshoot. BP: spring response 0.06, damping 1 | `air/` hold (d) |
+| quick tap | the Lens is drawn on a plain tap too: lifts within ~37 ms, stretches to ~136–141 pt wide while travelling, arrives ~270–280 ms, re-forms the grey bubble at ~323–353 ms, then squashes 0.87× wide / 1.14× tall and settles within 1 px by ~860 ms. BP does not draw the squash | `air/` tap (b) |
+| BP travel | spring response 0.45, damping 0.8 (tuned, not measured); arrives ~252 ms on the eyes sim | BP eyes sim, 2026-09-26 |
+| bar swell | 1.042× at +70 ms, 1.039× held (1.025× with the finger far above), ~1.015× peak on a quick tap, back to 1.0 within ~160 ms of release. BP: 1.04 | `air/` |
+| magnification | content under the Lens ~1.2× (Account label 120 → 146 px, head 29 → 34 px) | scrub §3.7 |
+| Lens at the ends | stops 9 pt past the last centre (328.7 pt on screen at 393); the left end is mirrored (GUESSED) | scrub §3.5–3.6 |
+| Lens over white | reads ~245: lighter than the resting bubble (233–235), just below the bar (251–253) | scrub §3.7 |
+| release | the Lens collapses within ~76 ms; the bubble settles by ~0.38 s with a ~1.7 pt undershoot | scrub §3.6 |
+| release far above | Apple switches tabs on a release 150 pt above the bar, so there is no cancel zone | `air/` drag-up (c) |
+
+**Not measured:** how far the Lens lags a real finger (the scrub swipe was synthetic);
+the bubble spring's own parameters (only its arrival times); the width rule between and
+beyond 393 and 420 pt.

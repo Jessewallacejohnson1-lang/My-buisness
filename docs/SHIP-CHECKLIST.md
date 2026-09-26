@@ -78,6 +78,15 @@ command or without a pass condition is a reminder, not a check, and reminders ro
   screenshot attached. Fix the layout — do not add a baseline number to make it green, and
   do not add the element to `isFrozenByDesign` unless it is chrome that is frozen on
   purpose in the app already.
+- **Reopened 2026-09-25.** Town, town menu and scrolled town were confirmed at AX3 and AX5
+  on 2026-09-22 (all six audits clean, commit `dc45d18`). The glass tab bar changed the
+  bottom chrome on all three, so that row came back here. Not run since.
+- **Also check by hand, at the same sizes: the large content viewer still opens on a long
+  press of each tab.** The one-touch drag that replaced the per-tab buttons has never been
+  tried against it. Set the size with `xcrun simctl ui <udid> content_size
+  accessibility-extra-large` (AX3) or `accessibility-extra-extra-extra-large` (AX5), launch
+  with `-open-tab town`, and long-press each of the four tabs. Pass: each shows its icon
+  and name enlarged.
 
 ### Audit coverage ledger — decide the deferred screens
 
@@ -141,7 +150,6 @@ command or without a pass condition is a reminder, not a check, and reminders ro
 | Item | Confirmed | Evidence | Re-run if |
 |---|---|---|---|
 | Text scales everywhere — no raw point sizes outside `BlockPartyFont` | 2026-09-22 | `TypographyScalingGuardTests` runs in the unit target on every change, so this one stays continuously proven rather than needing a ship pass | never manually; the unit test owns it |
-| Town, town menu and scrolled town hold their layout at AX3 and AX5 | 2026-09-22 | Re-confirmed the day this file was written: all six audits (3 surfaces x AX3/AX5) passed in 64s, zero findings. Commit `dc45d18`. Six labels were freed to take the lines they need (event card host name, meta line, going-summary, town menu neighbour name, posting caption, meta summary). Audit ran clean on an uncontended simulator with `knownIssueCounts` empty — the strictest form of the gate | a layout on one of those three surfaces changes |
 | Loading states are skeletons, never spinners or full-screen covers | 2026-09-21 | Commit `768b814`, plus `LoadingGuardTests` in the unit target as the standing regression guard | never manually; the unit test owns it |
 | Accessibility audit is scoped to developed pages only | 2026-09-22 | `DynamicTypeAuditTests.surfaces` holds town, town-menu, town-scrolled; unfinished pages are parked in `notDevelopedYet` with reasons | a parked page is finished — move it one line into `surfaces` |
 | The audit harness survives a contended simulator | 2026-09-22 | One retry on a thrown audit, added after `XCAXAuditConfiguration` timed out under full-suite load while the same surface audited clean in 57s alone. Only a thrown audit retries, and findings are cleared first, so it cannot hide a real finding | the harness times out twice in a row |
