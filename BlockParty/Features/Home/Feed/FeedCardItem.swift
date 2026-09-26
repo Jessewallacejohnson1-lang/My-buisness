@@ -27,6 +27,10 @@ struct FeedCardItem: Identifiable, Hashable {
     var eventDate: String? = nil
     var startTime: String? = nil
     var location: String? = nil
+    /// The event page's About text and its grey category line. nil hides the row;
+    /// nothing fills in for a missing value.
+    var description: String? = nil
+    var category: EventCategory? = nil
 
     var shareTime: String? {
         if let startTime { return startTime }

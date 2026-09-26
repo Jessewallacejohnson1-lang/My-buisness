@@ -113,29 +113,44 @@ enum DailyFixtures {
                 host: "St. Joseph Parks & Rec", hostAvatar: true,
                 chip: "TONIGHT", meta: "7pm · Millstream Park",
                 photo: true, hoursUntil: 6, postedHoursAgo: 8, going: 41,
-                followed: true, friend: false, followedLikers: 12, now: now
+                followed: true, friend: false, followedLikers: 12,
+                category: .musicArts,
+                // Long on purpose: it runs past the event page's 4-line clamp.
+                description: "Bring a blanket or a lawn chair and find a spot on the grass by the river. This week it's a local bluegrass trio playing two sets, with a short break in between so the kids can run around. The lemonade stand will be going, and a food truck or two usually parks by the lot. If it rains, check back here before you head over. Leashed dogs are welcome. Please pack out what you pack in.",
+                now: now
             ),
             event(
                 id: "e2", title: "Farmers Market",
                 host: "Resurrection Lutheran", hostAvatar: true,
                 chip: "SAT", meta: "8am · Resurrection Lutheran",
                 photo: true, hoursUntil: 40, postedHoursAgo: 30, going: 128,
-                followed: true, friend: false, followedLikers: 6, now: now
+                followed: true, friend: false, followedLikers: 6,
+                category: .food,
+                description: "Produce, eggs, honey and bread in the church parking lot.",
+                now: now
             ),
             event(
                 id: "e3", title: "Trail cleanup morning",
                 host: "Wobegon Trail Association", hostAvatar: false,
                 chip: "SUN", meta: "9am · Lake Wobegon Trailhead",
                 photo: false, hoursUntil: 64, postedHoursAgo: 52, going: 12,
-                followed: false, friend: false, followedLikers: 0, now: now
+                followed: false, friend: false, followedLikers: 0,
+                category: .service,
+                description: "Meet at the trailhead. We'll have gloves, bags, grabbers and coffee. Wear shoes you don't mind getting muddy.",
+                now: now
             ),
             event(
                 id: "e4", title: "Abbey organ recital",
                 host: "Saint John's Abbey", hostAvatar: true,
                 chip: "NEXT MONTH", meta: "4pm · Saint John's Abbey",
                 photo: true, hoursUntil: 24 * 27, postedHoursAgo: 96, going: 63,
-                followed: true, friend: false, followedLikers: 4, now: now
+                followed: true, friend: false, followedLikers: 4,
+                category: .musicArts,
+                description: "An hour of Bach and a few newer pieces on the Abbey church organ. Open to everyone.",
+                now: now
             ),
+            // No description and no category (none fits a council meeting), so the
+            // event page's About and category rows hide.
             event(
                 id: "e5", title: "City Council — regular meeting",
                 host: "City of St. Joseph", hostAvatar: false,
@@ -148,7 +163,10 @@ enum DailyFixtures {
                 host: "College of Saint Benedict", hostAvatar: true,
                 chip: "FINISHED", meta: "7pm · Sacred Heart Chapel",
                 photo: true, hoursUntil: -30, postedHoursAgo: 120, going: 210,
-                followed: true, friend: true, followedLikers: 20, now: now
+                followed: true, friend: true, followedLikers: 20,
+                category: .musicArts,
+                description: "The college choirs sing their spring program in Sacred Heart Chapel.",
+                now: now
             ),
         ]
     }
@@ -185,7 +203,8 @@ enum DailyFixtures {
         id: String, title: String, host: String, hostAvatar: Bool,
         chip: String, meta: String, photo: Bool,
         hoursUntil: Double, postedHoursAgo: Double, going: Int,
-        followed: Bool, friend: Bool, followedLikers: Int, now: Date
+        followed: Bool, friend: Bool, followedLikers: Int,
+        category: EventCategory? = nil, description: String? = nil, now: Date
     ) -> DailyFeedItem {
         let item = FeedCardItem(
             id: id,
@@ -202,7 +221,9 @@ enum DailyFixtures {
             likeCount: 0,
             isLiked: false,
             isSaved: false,
-            isJoined: false
+            isJoined: false,
+            description: description,
+            category: category
         )
         // Stated, not derived from the start time. Deriving it put every event more
         // than a day out in the FUTURE, which pinned its recency term at the maximum

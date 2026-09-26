@@ -48,7 +48,8 @@ extension FeedCardItem {
 
     /// A Your Day event as a card item, so Town and Your Day open the one event
     /// page. Same image cascade as a posting (`imageSource`), so an event without
-    /// its own photo still falls back to a venue lookup.
+    /// its own photo still falls back to a venue lookup. No description:
+    /// `UpcomingEvent` carries none, so the page's About hides.
     init(_ event: UpcomingEvent) {
         let time = Self.nonempty(event.startTime)
         let location = Self.nonempty(event.location)
@@ -74,7 +75,8 @@ extension FeedCardItem {
             isJoined: event.rsvpd,
             eventDate: event.eventDate,
             startTime: time,
-            location: location
+            location: location,
+            category: event.category
         )
     }
 
