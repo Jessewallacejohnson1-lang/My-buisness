@@ -509,7 +509,9 @@ private struct PhotoDoubleTap: UIGestureRecognizerRepresentable {
         override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
             super.touchesEnded(touches, with: event)
             if state == .possible {
-                perform(#selector(windowClosed), with: nil, afterDelay: PhotoDoubleTap.window)
+                // `.common`, so the window still closes while a scroll is tracking.
+                perform(#selector(windowClosed), with: nil, afterDelay: PhotoDoubleTap.window,
+                        inModes: [.common])
             }
         }
 
