@@ -81,12 +81,12 @@ command or without a pass condition is a reminder, not a check, and reminders ro
 - **Reopened 2026-09-25.** Town, town menu and scrolled town were confirmed at AX3 and AX5
   on 2026-09-22 (all six audits clean, commit `dc45d18`). The glass tab bar changed the
   bottom chrome on all three, so that row came back here. Not run since.
-- **Also check by hand, at the same sizes: the large content viewer still opens on a long
-  press of each tab.** The one-touch drag that replaced the per-tab buttons has never been
-  tried against it. Set the size with `xcrun simctl ui <udid> content_size
-  accessibility-extra-large` (AX3) or `accessibility-extra-extra-extra-large` (AX5), launch
-  with `-open-tab town`, and long-press each of the four tabs. Pass: each shows its icon
-  and name enlarged.
+- **Decide before ship: the tab bar has no large content viewer.** The per-tab buttons
+  carried one; the glass bar's one-touch drag owns the long press (as Apple's own bar's
+  Lens does), so it was removed on 2026-09-26. At AX3/AX5 (`xcrun simctl ui <udid>
+  content_size accessibility-extra-large` / `accessibility-extra-extra-extra-large`, launch
+  with `-open-tab town`), check the frozen 10pt labels are still findable; if not, raise it
+  with Jesse.
 
 ### Audit coverage ledger — decide the deferred screens
 

@@ -522,18 +522,27 @@ is hand-built so the ink never changes, whatever sits under it.
 - **One touch drives the bar.** On touch-down (a plain tap included) the bubble lifts into
   a clear-glass Lens, 1.20× its width and 1.30× its height (measured). It follows the
   finger, clamped 9pt past the end centres; icons magnify up to 1.2× by distance from it;
-  the whole bar swells 1.04× while pressed (measured). Growth: spring response 0.06,
-  critically damped (measured: 89% at 37ms, 96% at 70ms). Travel: spring response 0.45,
-  damping 0.8, tuned to Apple's ~270ms arrival (measured ~252ms on the eyes sim).
+  the whole bar swells 1.04× while pressed (measured). After a tap the Lens keeps its look
+  until the bubble lands (260ms after lift); after a drag it collapses in 70ms (Apple:
+  ~76ms), swapping to the grey bubble in one frame. Growth: spring response 0.06,
+  critically damped (measured: 89% at 37ms, 96% at 70ms), scoped to size only. Travel:
+  critically damped spring response 0.33, fitted to Apple's bubble centre being 96.5% of
+  the way at +272ms (an earlier 0.45/0.8 arrived at ~350ms and overshot 2.5pt).
+- **The Lens cannot flip dark either:** it sits on the same 35% white layer as the bar
+  (recorded held over the near-black card, 2026-09-26: the Lens stayed light, ink black).
 - **No cancel zone.** Apple's bar switches on a release 150pt above it (measured), so a
   release picks the tab nearest the finger's x, however high the finger is.
 - **No dim band** (Jesse, Gate 1). The Reference's full-width darkening behind the bar is
   Tripadvisor's, not iOS's.
-- **Reduce Motion:** no Lens, growth, magnification or swell; the bubble lands on the new
-  tab without travel (instant, not the crossfade the plan named).
-- **Accessibility:** `TabPressStyle` and the four per-tab `Button`s are deleted. Each tab is
-  one VoiceOver element over its slot with the button trait, `.isSelected` on the current
-  tab, its own action and the long-press large content viewer.
+- **Reduce Motion:** no Lens, growth, magnification or swell; on a change the bubble and the
+  yellow crossfade from the old tab to the new on the page's 0.2s ease (recorded
+  2026-09-26).
+- **Accessibility:** `TabPressStyle` and the four per-tab `Button`s are deleted. The bar is a
+  tab-bar container (`.isTabBar`) whose synthetic children are exactly four tab elements
+  over the slots, `.isSelected` on the current one, each with its own action (snapshot:
+  Town/Daily/Business/You, one selected). The old long-press large content viewer is gone:
+  the bar-wide drag owns the long press, as Apple's Lens does. Rim opacity 0.75 (0.6 read
+  +56 over the glass; the Reference is +60–75).
 
 ### Not built
 
