@@ -54,8 +54,8 @@ struct FeedEventCard: View {
     @State private var commentsPresented = false
     @State private var likeBurst = FeedLikeBurst()
     @State private var autoplayStep = 0
-    /// The link's press, so the whole card squishes: set on touch-down by
-    /// `FeedTouchDownTracker` and by the link's own `FeedCardPressReporter`.
+    /// The link's press, so the whole card squishes. Set on touch-down by
+    /// `FeedTouchDownTracker`, the one writer.
     @State private var linkPressed = false
 
     init(
@@ -100,7 +100,7 @@ struct FeedEventCard: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(FeedCardPressReporter(isPressed: $linkPressed))
+            .buttonStyle(FeedCardLinkStyle())
             .accessibilityIdentifier("event-card-link")
             // The photo's double tap holds the link's own press until it fails, ~0.3 s,
             // so the link also tracks touch-down itself and the card squishes the
@@ -479,5 +479,12 @@ private struct FeedTouchDownTracker: UIGestureRecognizerRepresentable {
         default:
             isPressed = false
         }
+    }
+}
+
+/// The link draws nothing on press: the card's squish comes from `FeedTouchDownTracker`.
+private struct FeedCardLinkStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
     }
 }
