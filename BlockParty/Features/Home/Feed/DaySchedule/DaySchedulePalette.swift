@@ -86,18 +86,7 @@ nonisolated enum DayScheduleMetrics {
     static let nowDotSize: CGFloat = 6
     static let nowLineHeight: CGFloat = 1.5
 
-    static let ctaHeight: CGFloat = 56
-    static let ctaRadius: CGFloat = 28
-    static let ctaMargin: CGFloat = pageMargin
     static let sheetCornerRadius: CGFloat = 20
-
-    /// The band ABOVE the CTA over which the page fades in.
-    ///
-    /// The gradient used to run across the CTA's own inset and reach full page
-    /// colour at its midpoint, ~43pt BEHIND the pill — so content was cut off by a
-    /// hard edge level with the button's waist rather than faded out. The ramp now
-    /// lives entirely above the button.
-    static let ctaScrimFade: CGFloat = 40
 
     /// Where a tapped item comes to rest: one third down the viewport.
     static let openAnchor = UnitPoint(x: 0, y: 1.0 / 3.0)

@@ -10,5 +10,5 @@
 | work on the map, its pins, or its realtime feed | `docs/rules/map.md` |
 | need a bundle id, a key, a project id, or a config file | `docs/rules/identifiers.md` |
 
-Read the row you are in **before** you act, not after. Each file is complete on its own; none of
-them is background reading, and none is optional once its row matches.
+Read your row **before** you act, not after. Each file is complete on its own and none is
+optional once its row matches.

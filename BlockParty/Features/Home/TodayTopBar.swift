@@ -316,7 +316,7 @@ struct TodayTopBar: View {
                 .contentShape(Rectangle())
         }
         // The same pop the app's other bare controls use. The map disc beside it
-        // runs the same style at the Create disc's 0.92, without the tick.
+        // runs the same style at 0.92, without the tick.
         .buttonStyle(PressableStyle(scale: 0.88, haptic: true))
         .accessibilityLabel(label)
         .accessibilityHint(hint)
@@ -354,8 +354,8 @@ struct TodayTopBar: View {
     /// than a change of layout.
     private static let mapShape = Circle()
 
-    /// The yellow map disc: a SOLID circle in the exact brand yellow, the same fill
-    /// and ink as the tab bar's Create disc. It sits inboard of the bell rather than
+    /// The yellow map disc: a SOLID circle in the exact brand yellow (`Hue.brandDisc`),
+    /// with `Hue.onBrandDisc` ink. It sits inboard of the bell rather than
     /// on the bar's trailing edge, and it is still 50pt — still the one OBJECT among
     /// three marks.
     ///
@@ -366,15 +366,15 @@ struct TodayTopBar: View {
     /// step with the rest of the bar. A plain view fades, slides and clips with its
     /// neighbours. `TodayHeaderTests.testMapDiscIsExactBrandYellow` guards the colour.
     ///
-    /// The press is the Create disc's squish (`RootView.createButton`), without the
-    /// haptic: opening the map is not a commit (Jesse, Q4 A).
+    /// The press is a 0.92 squish without the haptic: opening the map is not a
+    /// commit (Jesse, Q4 A).
     private var mapButton: some View {
         let side = TodayBarMetric.mapSide
         return Button(action: onOpenMap) {
             MapPinGlyph(size: TodayBarMetric.mapGlyphSize)
-                .foregroundStyle(Hue.onCreateDisc)
+                .foregroundStyle(Hue.onBrandDisc)
                 .frame(width: side, height: side)
-                .background(Self.mapShape.fill(Hue.createDisc))
+                .background(Self.mapShape.fill(Hue.brandDisc))
                 .contentShape(Self.mapShape)
         }
         .buttonStyle(PressableStyle(scale: 0.92, haptic: false))

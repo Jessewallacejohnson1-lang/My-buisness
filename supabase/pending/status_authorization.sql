@@ -1,15 +1,16 @@
 -- ⚠️ PROPOSAL — NOT APPLIED. Needs a PRODUCT DECISION first, then sign-off.
 -- Addresses REVIEW.md correctness/foundation finding: whether a submitted event/club
 -- is auto-published (status='approved') or queued is decided entirely CLIENT-SIDE
--- (CommunityAPI.submitClub / AddModel), not enforced by RLS. Any authenticated user
--- can talk to PostgREST directly and self-approve, bypassing moderation.
+-- (CommunityAPI.submitClub / the composer, removed from the app 2026-09-24), not
+-- enforced by RLS. Any authenticated user can talk to PostgREST directly and
+-- self-approve, bypassing moderation.
 --
 -- Fix: force status='pending' on INSERT unless the submitter is in a server-side
 -- admin allowlist. This mirrors Admin.isAdmin (DateHelpers.swift) but makes it a real
 -- server guarantee instead of a UI convention. RLS remains the true boundary.
 --
 -- ⚠️ MATERIAL SIDE-EFFECT (found while inspecting the flow): today a NON-admin post
--- that Claude clears goes live IMMEDIATELY (AddModel sets status=approved on a clear
+-- that Claude clears goes live IMMEDIATELY (the composer set status=approved on a clear
 -- pass; the pending queue only fills when the moderation service is unavailable).
 -- The server CANNOT verify that client-side Claude moderation ran, so this trigger
 -- forces EVERY non-admin post to 'pending' — i.e. it REPLACES "Claude auto-approves"

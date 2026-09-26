@@ -364,7 +364,7 @@ struct CommunityAPI {
     /// commitment from a whole-town happening.
     ///
     /// Deliberately NOT `getMyUpcomingRsvps`. That read means "what is coming up
-    /// for me, today onward" and the profile and almanac depend on that contract;
+    /// for me, today onward" and the profile depends on that contract;
     /// Your Day needs the opposite scope — one day, the whole town — so it gets
     /// its own query rather than bending that one.
     ///

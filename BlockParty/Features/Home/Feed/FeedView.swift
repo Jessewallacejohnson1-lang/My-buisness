@@ -156,7 +156,7 @@ struct FeedView: View {
 
                 // The social feed. Below the module column rather than instead
                 // of it: the registry is empty today, but a module that lands
-                // later is town-wide chrome (weather, the almanac) and belongs
+                // later is town-wide chrome (weather, say) and belongs
                 // above the stream, not buried in it.
                 DailyFeedColumn(items: DailyView.currentItems, now: feedClock)
 
@@ -286,8 +286,8 @@ struct FeedView: View {
         }
         // Gated on the briefing having FINISHED, not on it having SUCCEEDED.
         //
-        // `contentRevealed` used to key off `payload != nil`. But the modules below
-        // the almanac are `springReveal`'d on it, and springReveal hides with
+        // `contentRevealed` used to key off `payload != nil`. But the modules were
+        // `springReveal`'d on it, and springReveal hides with
         // opacity/scale/offset — all non-layout-affecting. So when the briefing RPC
         // failed (outage, expired token, or simply `-briefing-preview` without
         // `-briefing-state`, which makes a live authenticated call), `payload`

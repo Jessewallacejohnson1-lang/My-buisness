@@ -7,6 +7,8 @@
 | Outstanding console work, and why a past exception was made | `DECISIONS.md` |
 | Brand assets and logo artwork, in depth | `DESIGN.md` |
 | Map work, chronologically | `MAP_BUILD_LOG.md` |
+| What the product is for, and the Town feed's intended shape | `PRODUCT.md` |
+| The onboarding spec — locked rules, bans, Jesse's direction | `ONBOARDING.md` |
 | Product and launch strategy | `docs/playbook.md` |
 | Parked-but-tested code (utility row, horizon) | `BlockParty/Features/Civic/Parked/README.md` |
 | The pre-commit hook that catches a drifted `AGENTS.md`/`CLAUDE.md` — not installed by default, one run per checkout | `docs/rules/git-worktrees.md` |

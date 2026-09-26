@@ -3,13 +3,19 @@
 Everything needed to build, test, install and screenshot this app. Read it before you
 run any of those things, not after one fails.
 
-**Resolve `-destination` against the machine, not from memory.** `[prose]` The simulator names below are examples, and a name that does not exist fails the whole invocation with *"Unable to find a device matching the provided destination specifier"* — which reads like a project problem and is not one. `xcrun simctl list devices available` lists what is installed; a failed `xcodebuild` also prints every valid destination for the scheme. (This machine's iPhone-family simulators, checked 2026-09-24, all on iOS 26.5: `iPhone Air` — reserved for screenshots, see `.claude/guard-config.json` — plus `BlockParty Tests`, the device created for test runs, `BP Test Runner`, and `BP-375`. Re-run the command above rather than trusting this list; it goes stale the moment a sim is added or deleted.)
+**Resolve `-destination` against the machine, not from memory.** `[prose]` A simulator name
+that does not exist fails the whole invocation with *"Unable to find a device matching the
+provided destination specifier"* — which reads like a project problem and is not one.
+`xcrun simctl list devices available` lists what is installed, and a failed `xcodebuild`
+prints every valid destination for the scheme. Every command below writes `<sim>` rather than
+a real name for that reason: substitute one you just looked up. The screenshot device is
+reserved and named in `.claude/guard-config.json` — never aim a test run at it.
 
 **Unit tests** live in the `BlockPartyTests` target (app-hosted, so `@testable import BlockParty` works). Run them with:
 
 ```bash
 xcodebuild test -project BlockParty.xcodeproj -scheme BlockParty \
-  -destination 'platform=iOS Simulator,name=iPhone 17' CODE_SIGNING_ALLOWED=NO
+  -destination 'platform=iOS Simulator,name=<sim>' CODE_SIGNING_ALLOWED=NO
 ```
 
 A **single** test or class: append `-only-testing:BlockPartyTests/DateHelpersTests/testAdminGate` (or `-only-testing:BlockPartyTests/DateHelpersTests`). Coverage now includes date/admin rules, the Today briefing contract/model/feel/live-payload parity/registry, utility-row providers/preferences/motion/contrast, town-timezone formatting, town-rain physics, the map polish pass (search matching, pin-detail copy, filter-chip semantics, sheet rubber-band math), the horizon layer (solar model, palette, day building, scrub math), and Your Day's realtime relevance filter. **The count is one per `func test` in `BlockPartyTests/` — read it, do not quote a number from here.** It moves under you in this repo: parallel sessions add suites to the same tree, so a figure written down is stale within the day. What matters is the invariant: the executed count must RISE when you add a test (see the registration trap below) and must not fall unless you deleted one on purpose. The horizon, Your Day, trivia and utility suites now test **unmounted** code — they are the proof those parked layers still work, so keep them green rather than deleting them with the surfaces they used to back. It is still mostly pure logic: visual map/feed/sheet/animation fidelity requires a clean 0-warning build plus simulator screenshots, and scroll/gesture behavior requires a real-device check.
@@ -36,7 +42,7 @@ Raw shell tooling (a session with XcodeBuildMCP should prefer it — see `CLAUDE
 ```bash
 # Build for the simulator
 xcodebuild -project BlockParty.xcodeproj -scheme BlockParty -configuration Debug \
-  -destination 'platform=iOS Simulator,name=iPhone 17' build
+  -destination 'platform=iOS Simulator,name=<sim>' build
 
 # Launch on a booted sim (see debug flags below), then screenshot
 # `-open-map` raises the map cover; `-open-tab` takes town|daily|business|you.
@@ -48,7 +54,7 @@ xcrun simctl io <udid> screenshot /tmp/map.png
 
 ```bash
 DIR=$(xcodebuild -project BlockParty.xcodeproj -scheme BlockParty -configuration Debug \
-  -destination 'platform=iOS Simulator,name=iPhone 17' -showBuildSettings \
+  -destination 'platform=iOS Simulator,name=<sim>' -showBuildSettings \
   | awk -F' = ' '/ BUILT_PRODUCTS_DIR =/{print $2; exit}')
 xcrun simctl install <udid> "$DIR/BlockParty.app"   # install OVER the app — do NOT `uninstall`
 ```

@@ -35,7 +35,7 @@ These stay where the house pattern puts them, and the Civic tab will need them:
   so other civic content can share it.
 - `Theme/Motion.swift` — `bentoExpand` / `tilePress` / `tileEntrance` are shared
   with the Calendar Insights bento boxes. **Do not move or delete them.**
-- `Features/Home/WeatherService.swift` — shared with the almanac and greeting.
+- `Features/Home/WeatherService.swift` — shared with the greeting.
   The weather tile is a consumer, not the owner.
 
 ## Live user data — read this before rebuilding
@@ -62,3 +62,15 @@ before wiring it into Civic. Its tests also still run in `BlockPartyTests`:
 `UtilityCustomizeSheetSeedTests`, `GarbageScheduleTests`, `LibraryHoursTests`.
 
 See `Features/Civic/CivicTabDestination.swift` for the destination stub.
+
+## The almanac is gone (2026-09-25)
+
+Comments in `UtilityRowEntrance.swift` and `UtilityRowView.swift` still refer to the
+almanac — `AlmanacReveal.hasWrittenThisLaunch` as the model for the once-per-launch
+write, and "sits below the almanac" as the row's position. The almanac was removed
+completely on 2026-09-25: app code, tests, the Supabase tables and the edge function.
+
+Those comments were deliberately **not** edited, because this folder moved as a unit and
+is kept intact. Read them as history: the pattern they describe is still the pattern to
+copy, but the type they name no longer exists. The rescued almanac content is in
+`docs/ST-JOSEPH-ALMANAC-ARCHIVE.md`.

@@ -37,5 +37,6 @@ drop table if exists public.profiles;
 -- ── STEP 3 (optional): remove wellness edge functions ──────────────────────
 --   If the wellness app deployed any edge functions (e.g. nutrition scoring),
 --   delete them from Dashboard → Edge Functions. The community app's functions
---   (daily-almanac, the moderation function) must stay.
+--   (moderate-post, log-agent-event) must stay. daily-almanac was deleted on
+--   2026-09-25 when the almanac was removed; do not restore it.
 -- ============================================================================

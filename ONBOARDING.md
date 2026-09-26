@@ -24,6 +24,23 @@ What survived, and what a rebuild starts from:
   estimated — use them rather than re-deriving by eye.
 - `supabase/migrations/20260725000000_onboarding_answers.sql` — the answers table.
 
+## Direction — Jesse's calls
+
+- It is a near 1:1 clone of Duolingo's iOS onboarding — interactions, button feel, top
+  progress bar. Only colours and question content change.
+- **Any deviation from Duolingo must be raised as a question. Jesse approves every change.**
+  Do not improve it on your own judgment.
+- The Block Party mark replaces Duo as the guide on every screen. Voice is "we" — the mark
+  stays a logo, never a named character.
+- All 20 screens are decided, 6 questions. Screen 4 reads "Just 6 quick questions and you're
+  in." Taglines: "Join the neighborhood." (screen 2), "JOIN THE PARTY" (screen 20).
+- Screen 13 still reads "30+ St. Joe happenings a month", which contradicts the current
+  public estimate in `MEMORY.md`. Verify against seeded content before ship rather than
+  silently editing it.
+- Reference frames exist twice over: the measured PNGs at `refs/onboarding/duolingo/S01–S20.png`
+  are authoritative for any number; the original Mobbin captures live in Figma, ids in
+  `docs/rules/identifiers.md`.
+
 ## The bar
 
 Onboarding is smooth and as frictionless as possible. It should feel like the app

@@ -2,7 +2,7 @@
 //  FeedStateViews.swift
 //  Block Party — the ONE shape of "loading" and "didn't load" in the Today feed.
 //
-//  Almanac, Your Day and Town Notes each fetch on their own, so before this file
+//  Your Day and Town Notes each fetched on their own, so before this file
 //  each had invented its own failure card: different background, different radius,
 //  different button, different sentence. Three ways to say the same thing on one
 //  screen reads as three unfinished features. They now share this.
@@ -26,13 +26,12 @@ nonisolated enum FeedStateCopy {
     /// A label that matches what tapping it does: it runs the load again.
     static let retryAction = "Try again"
 
-    static let almanacUnavailable = "Today’s readings didn’t load."
     static let yourDayUnavailable = "Your day didn’t load."
     static let townNotesUnavailable = "Town notes didn’t load."
 }
 
 /// Title + explanation + retry, with no surface of its own. Used directly when the
-/// state already sits inside a card (the almanac masthead).
+/// state already sits inside a card.
 struct FeedUnavailableBody: View {
     let title: String
     var message: String = FeedStateCopy.retryMessage

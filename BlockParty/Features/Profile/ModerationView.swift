@@ -1,7 +1,7 @@
 //
 //  ModerationView.swift
-//  Block Party — the admin review queue. AddModel routes anything Claude doesn't clear
-//  to status=pending, and CommunityAPI already exposes getPendingPosts/getPendingClubs
+//  Block Party — the admin review queue. The composer (removed 2026-09-24, posting
+//  paused) routed anything Claude didn't clear to status=pending, and CommunityAPI already exposes getPendingPosts/getPendingClubs
 //  + approve/reject — but nothing consumed them, so queued submissions were invisible
 //  until someone opened a SQL client. This is that missing screen: an admin-gated
 //  list with approve / not-yet actions. RLS remains the real boundary (Admin.isAdmin

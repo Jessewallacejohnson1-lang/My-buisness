@@ -116,31 +116,6 @@ jobs:
           path: TestResults.xcresult
           retention-days: 7
 
-  almanac-checks:
-    name: Almanac edge function checks
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-
-      # The almanac prompt lives twice — readable in prompts/almanac.md and
-      # base64-embedded in index.ts, because Deno Deploy ships no side files.
-      # This is the check that stops those two silently drifting apart.
-      - name: Prompt sync
-        working-directory: supabase/functions/daily-almanac
-        run: node --experimental-strip-types prompt-sync.check.mts
-
-      # Format spread + no-repeat rules. Runs offline; the opening-phrase check
-      # self-skips without ANTHROPIC_API_KEY, which is expected in CI.
-      - name: Variety and format rules
-        working-directory: supabase/functions/daily-almanac
-        run: node --experimental-strip-types verify.mts
-
   rules:
     name: Instruction files in sync
     runs-on: ubuntu-latest

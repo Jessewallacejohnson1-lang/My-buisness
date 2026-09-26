@@ -7,6 +7,13 @@ check it before you type an identifier from memory.
 - **Xcode project** `BlockParty.xcodeproj` · **scheme** `BlockParty` · **iOS deployment target 26.5** · Swift 5. `[prose]`
 - **Shared Supabase project id:** `lxdgwhvqjqmqliobwjpi` — the same project the Expo app uses, and the same one the Android port calls. `[prose]`
 
+## Reference libraries
+
+- **Onboarding reference, Figma team library:** file `BHomEEi7JSfHOiw9DOY6IF`, frame
+  `3311:2` (screens `3311:3`–`3311:22`) — the 20 Mobbin captures of Duolingo's iOS
+  onboarding. `[prose]` For any *measurement*, prefer the local pixel-scanned frames at
+  `refs/onboarding/duolingo/S01–S20.png`; these ids are the provenance.
+
 ## The two gitignored config files
 
 - **Two gitignored `BlockParty/Config/` files must be recreated** on a fresh clone (both hold secrets, both are in `.gitignore`, and the build won't compile without the symbols they declare):

@@ -56,7 +56,6 @@ def main() -> None:
     none = copy.deepcopy(base)
     none["status"] = "none"
     none["published_at"] = None
-    none["almanac"] = None
     none["weather"] = None
     none["featured"] = []
     none["featured_fallback"] = None
@@ -68,7 +67,6 @@ def main() -> None:
     # Mirrors the existing HomeModel rule that a feed outage must not take the
     # rest of Today down with it.
     degraded = copy.deepcopy(base)
-    degraded["almanac"] = None
     degraded["weather"] = None
     degraded["featured"] = []
     degraded["featured_fallback"] = EVERGREEN_FALLBACK

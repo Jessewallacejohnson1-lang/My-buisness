@@ -159,40 +159,37 @@ nonisolated enum Hue {
     /// Re-sampled 2026-09-19 for the wordmark logo: 0xF2B800 (the retired
     /// wave-figure icon's arcs) → 0xFCE804. The rule did not change, the artwork did.
     ///
-    /// Accents are small by rule: the Today bar's map disc and the tab bar's Create
-    /// disc today, and whatever else Jesse scopes in later. The app's ground stays
-    /// white/paper.
+    /// Accents are small by rule: the Town bar's map disc today, and whatever else
+    /// Jesse scopes in later. The app's ground stays white/paper.
     nonisolated static let brandYellowHex: UInt32 = 0xFCE804
 
-    /// The brand yellow at FULL strength, as a solid disc: the tab bar's Create
-    /// disc (Jesse, 2026-09-20) and, since 2026-09-24, the Today bar's map disc
-    /// too. A centre button that let the glass capsule through would read as a hole
-    /// rather than as an object; the reference's centre button is a solid disc, and
-    /// this is that disc in our colour. The map disc used to be glass tinted with
-    /// the yellow at 68% (`mapWash`, deleted 2026-09-24): a tint is not the brand
-    /// yellow, and it went mustard over photos.
+    /// The brand yellow at FULL strength, as a solid disc: the Town bar's map disc,
+    /// the ONE control that wears it (2026-09-24). It was the tab bar's Create disc
+    /// until Create was removed the same day, which is why it is a disc token rather
+    /// than a map one. The map disc used to be glass tinted with the yellow at 68%
+    /// (`mapWash`, deleted 2026-09-24): a tint is not the brand yellow, and it went
+    /// mustard over photos.
     ///
     /// DESIGN.md's "accents are small by rule" still holds and this is the boundary:
-    /// two controls, both circular, both 50pt or under. A third is a conversation.
-    static let createDisc    = Color(hex: brandYellowHex)
+    /// one control, circular, 50pt. A second is a conversation.
+    static let brandDisc     = Color(hex: brandYellowHex)
 
-    /// Ink drawn ON `createDisc`, pinned to the LIGHT ramp.
+    /// Ink drawn ON `brandDisc`, pinned to the LIGHT ramp.
     ///
     /// The disc is the same yellow in both appearances, so it is a fixed canvas in
     /// exactly the sense `Color.onLightCanvas` exists for. Following the system here
     /// would put the dark ramp's near-white `ink` (#F2F1EC) on #FCE804 at **1.11:1**
-    /// — the plus would vanish in Dark Mode. The light ink measures **15.0:1** on it.
+    /// — the glyph would vanish in Dark Mode. The light ink measures **15.0:1** on it.
     ///
-    /// The reference draws a WHITE plus on a black disc. White on this yellow is
-    /// 1.26:1, so the inversion is forced by the colour swap, not a style choice.
+    /// White on this yellow is 1.26:1, so a white glyph is never an option here.
     ///
     /// Written as the hex rather than `ink.onLightCanvas`, which is what the map's
     /// fixed-canvas tokens use: `Hue` is `nonisolated` and `onLightCanvas` is a
     /// MainActor-isolated property, so routing through it here is a warning, and
-    /// this file holds the zero-warning bar. `CreateDiscContrastTests` pins the two
+    /// this file holds the zero-warning bar. `BrandDiscContrastTests` pins the two
     /// together so the restated value cannot drift from `ink`'s light column.
-    nonisolated static let onCreateDiscHex: UInt32 = 0x111111
-    static let onCreateDisc  = Color(hex: onCreateDiscHex)
+    nonisolated static let onBrandDiscHex: UInt32 = 0x111111
+    static let onBrandDisc   = Color(hex: onBrandDiscHex)
 
     /// The one brand accent — meaning-scoped ONLY (live events, active filters,
     /// selected/saved state, primary CTAs), never decoration, body copy, or a

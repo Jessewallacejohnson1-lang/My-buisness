@@ -12,9 +12,6 @@ Jesse's standing corrections load with this one:
 
 @MEMORY.md
 
-Precedence when sources disagree: **the code wins, then `MEMORY.md`, then `AGENTS.md`,
-then this file.** Surface the mismatch rather than inventing a path or an API around it.
-
 ## Claude-only notes
 
 - **Tooling is not guaranteed.** `[prose]` Every tool below is optional. Use it only if it

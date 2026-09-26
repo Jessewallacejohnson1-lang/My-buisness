@@ -15,7 +15,7 @@
 import Foundation
 
 nonisolated enum FeedDebugFocus {
-    /// `-feed-focus almanac|yourDay|townNotes`
+    /// `-feed-focus yourDay|townNotes`
     static var focused: FeedModuleID? {
         let args = ProcessInfo.processInfo.arguments
         guard let index = args.firstIndex(of: "-feed-focus"), index + 1 < args.count

@@ -37,13 +37,8 @@ nonisolated struct DayScheduleFixture {
         return Town.calendar.date(from: components) ?? Date(timeIntervalSince1970: 0)
     }
 
-    /// `-day-sheet-state upcoming|inprogress|completed|empty|cta`. Defaults to the
+    /// `-day-sheet-state upcoming|inprogress|completed|empty`. Defaults to the
     /// whole day with nothing pre-selected.
-    ///
-    /// `cta` rests the day on the bottom of the timeline, with its own sticky "Add
-    /// to today" button under it, rather than on a row. It used to be what the
-    /// rail's plus tile opened; that tile now leaves for Activities, so this fixture
-    /// is the ONLY way to reach that resting position — which is why it stays.
     static func fromArguments(_ arguments: [String] = ProcessInfo.processInfo.arguments)
         -> DayScheduleFixture {
         let now = fixedNow
@@ -63,8 +58,6 @@ nonisolated struct DayScheduleFixture {
             return DayScheduleFixture(items: day, anchor: .item("fixture-story"), dates: dates)
         case "completed":
             return DayScheduleFixture(items: day, anchor: .item("fixture-walk"), dates: dates)
-        case "cta":
-            return DayScheduleFixture(items: day, anchor: .callToAction, dates: dates)
         case "empty":
             return DayScheduleFixture(items: [], anchor: .top, dates: dates)
         default:

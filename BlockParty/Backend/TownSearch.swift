@@ -15,8 +15,9 @@
 //       so the closest thing sits on top.
 //
 //  Pure, synchronous, tiny-data (a handful of places, a few dozen happenings) —
-//  no network, no Google Places. The billed type-ahead stays in
-//  VenueAutocompleteField; this is free, local, and reference-aware.
+//  no network, no Google Places. The billed type-ahead
+//  (`GooglePlacesService.autocomplete`) lost its only caller when the composer was
+//  removed on 2026-09-24; this is free, local, and reference-aware.
 //
 
 import Foundation

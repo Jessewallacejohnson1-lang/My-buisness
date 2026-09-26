@@ -10,5 +10,4 @@ have matched any row.
   `.aider*`) as part of a task here. `[prose]` This applies to every agent that reads this
   router, not just Claude Code.
 
-**Two rules in this block, and nothing checks either.** Keeping that number down is the
-ongoing work of this system — a rule nobody can check is a rule that gets broken.
+**Nothing checks either rule above.** Keeping this block short is the point.

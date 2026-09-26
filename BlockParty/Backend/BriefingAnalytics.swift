@@ -20,8 +20,6 @@ nonisolated enum BriefingEventName {
     /// The briefing rendered for a given date. The north star: distinct users
     /// per day. Fired once per launch per briefing date.
     static let briefingOpen = "briefing_open"
-    /// The almanac card stayed on screen long enough to have been read.
-    static let almanacDwell = "almanac_dwell"
     /// A poll vote landed.
     static let touchVote = "touch_vote"
     /// An RSVP made from the briefing rather than from Activities.

@@ -30,26 +30,21 @@ tapped, and nothing else — never a border, never a background, never an error 
 A heart that stays ink reads as a shape; a heart that turns red reads as something you
 did, which is the control's whole job.
 
-**Accents are small by rule.** The yellow marks exactly TWO controls, both circular,
-both under 50pt:
+**Accents are small by rule.** The yellow marks exactly ONE control: the Town bar's
+map disc, a 50pt circle in `Hue.brandDisc` — the brand yellow at FULL strength, solid,
+with no glass and no tint (2026-09-24). The tab bar's Create disc that also wore it was
+removed the same day, when posting was paused.
 
-- the Today bar's map disc (`Hue.mapWash` — the brand yellow at 68%, the same hue
-  carried at partial opacity so the disc stays translucent over what is behind it);
-- the tab bar's Create disc (`Hue.createDisc` — the same yellow at FULL strength,
-  because a centre button that let the glass capsule through reads as a hole rather
-  than as an object). Jesse's call, 2026-09-20, copying an Alta reference whose centre
-  button is solid black.
-
-It is not a background wash, not body copy, not a card, not a category colour. Two is
-the boundary; a third is a conversation, and more yellow is Jesse's call to scope, not
+It is not a background wash, not body copy, not a card, not a category colour. One is
+the boundary; a second is a conversation, and more yellow is Jesse's call to scope, not
 an agent's to spread.
 
 **What sits ON the yellow is not a free choice.** #FCE804 has a relative luminance of
 0.784 — nearly as bright as paper. White on it measures **1.26:1** and the dark ramp's
-`Hue.ink` **1.11:1**; only the light ink clears, at **15.0:1**. So the Create disc's
-plus is `Hue.onCreateDisc`, pinned to the light ramp the way the map canvas's ink is,
-and the reference's white-on-black plus could not be copied. `CreateDiscContrastTests`
-pins all four of those numbers.
+`Hue.ink` **1.11:1**; only the light ink clears, at **15.0:1**. So the map disc's
+glyph is `Hue.onBrandDisc`, pinned to the light ramp the way the map canvas's ink is,
+and a white glyph is never an option. `BrandDiscContrastTests` pins all four of those
+numbers.
 
 The plum `Hue.accent` (#8E3B6B) still ships where it already carries meaning — live
 events, active filters, selected/saved map state — and stays until Jesse says
@@ -76,9 +71,8 @@ All values are sRGB hex from `Hue` (`BlockPartyColor.swift`). Six tokens, and no
 | `Hue.hairline` | `#E7E7E4` | Borders, dividers |
 | `Hue.fill` | `#F1F1EF` | Inert fills — placeholders, skeletons, disabled |
 | `Hue.brandYellowHex` | `#FCE804` | **The accent**, sampled from the logo's field. Tints derive from it |
-| `Hue.mapWash` | `#FCE804` @ 68% | The Today bar's map disc — translucent, scoped to that one control |
-| `Hue.createDisc` | `#FCE804` | The tab bar's Create disc — the same yellow, solid |
-| `Hue.onCreateDisc` | `#111111` | Ink ON the Create disc, pinned to the light ramp (the disc is a fixed canvas) |
+| `Hue.brandDisc` | `#FCE804` | The Town bar's map disc — the same yellow, solid, scoped to that one control |
+| `Hue.onBrandDisc` | `#111111` | Ink ON the map disc, pinned to the light ramp (the disc is a fixed canvas) |
 | `Hue.heart` | `#FF3040` | A liked heart, and nothing else. State, not chrome |
 
 > Note the surface/page swap in the rebrand: `Hue.paper` used to mean "white card" and
@@ -114,7 +108,7 @@ survives the monochrome system, because the map is content rather than chrome.
 | `Font.mono(_)` / `Font.monoMedium(_)` | system regular/medium | Data — **pair with `.monospacedDigit()`** for tabular figures |
 
 - **Numbers are always tabular** (`.monospacedDigit()` at the call site). This is a house rule — times, temps, counts.
-- Small labels/eyebrows use `Font.mono(11)` with `.tracking(1.5)` in `Hue.inkSecondary` (e.g. `ALMANAC`, `TODAY IN ST. JOE`). This tracked-mono micro-label is an established in-app pattern, not the banned generic eyebrow.
+- Small labels/eyebrows use `Font.mono(11)` with `.tracking(1.5)` in `Hue.inkSecondary` (e.g. `TODAY IN ST. JOE`). This tracked-mono micro-label is an established in-app pattern, not the banned generic eyebrow.
 - **Jost is a variable font and its PostScript names are inconsistent upstream** — `Jost-Regular`, but `JostRoman-Medium` / `JostRoman-SemiBold` / `JostRoman-Bold`. Use them exactly; a wrong name falls back to the system font **silently**, with no error.
 - **Text takes a role, never a raw point size.** `BlockPartyFont` is the ONLY file in the app allowed to name a size, because the two ways of naming one behave oppositely: `Font.system(size:)` is frozen and never grows, while `Font.custom(_:size:)` grows with no ceiling. Mixing them is what broke text scaling app-wide — at AX5 a 22pt Jost title reached ~55pt and truncated mid-word while the 13pt SF body beside it did not move at all. Every helper now scales against a shared text style, so the two faces move together. `TypographyScalingGuardTests` fails the build if a raw size appears anywhere else, and separately proves at render time that body text actually grows at AX5.
 - **The SF helpers snap to the nearest system step** (caption2 11, caption 12, footnote 13, subheadline 15, callout 16, body 17, title3 20, title2 22, title 28, largeTitle 34), because SwiftUI has no `system(size:relativeTo:)` — so `Font.sans(14)` renders at 15. Jost keeps its exact size and uses the step only as its growth rate. Ties round up: this file serves the user who asked for larger text.

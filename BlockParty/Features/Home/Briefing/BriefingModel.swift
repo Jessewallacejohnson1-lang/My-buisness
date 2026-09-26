@@ -202,7 +202,7 @@ nonisolated extension BriefingPayload {
     private func applying(featured newFeatured: [BriefingEvent]) -> BriefingPayload {
         BriefingPayload(
             briefingDate: briefingDate, tz: tz, status: status, publishedAt: publishedAt,
-            almanac: almanac, weather: weather, featured: newFeatured,
+            weather: weather, featured: newFeatured,
             featuredFallback: featuredFallback, touch: touch,
             spotlight: spotlight, caughtUp: caughtUp
         )
@@ -212,7 +212,7 @@ nonisolated extension BriefingPayload {
     func applying(touch newTouch: BriefingTouch) -> BriefingPayload {
         BriefingPayload(
             briefingDate: briefingDate, tz: tz, status: status, publishedAt: publishedAt,
-            almanac: almanac, weather: weather, featured: featured,
+            weather: weather, featured: featured,
             featuredFallback: featuredFallback, touch: newTouch,
             spotlight: spotlight, caughtUp: caughtUp
         )

@@ -16,7 +16,7 @@
 import SwiftUI
 
 /// What a menu row does. The host (MainTabsView) closes the drawer then routes.
-enum TownMenuAction { case map, compose, invite, profile }
+enum TownMenuAction { case map, invite, profile }
 
 struct TownMenuView: View {
     /// So the neighbour's name can take a second line rather than clip at
@@ -46,7 +46,6 @@ struct TownMenuView: View {
 
     private let rows: [Row] = [
         Row(icon: "map",                title: "Town map",        action: .map),
-        Row(icon: "plus.circle",        title: "Add an event",    action: .compose),
         Row(icon: "person.badge.plus",  title: "Invite a neighbor", action: .invite),
         Row(icon: "person.crop.circle", title: "Your profile",    action: .profile),
     ]

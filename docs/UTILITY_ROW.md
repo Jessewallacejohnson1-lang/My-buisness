@@ -1,7 +1,7 @@
 # Today Utility Row — build notes & acceptance
 
 A registry-driven, fully user-customizable row of glanceable town-info tiles on the
-Today tab (weather · garbage · roads · library), below the almanac and above the
+Today tab (weather · garbage · roads · library), below the masthead and above the
 feed. Tiles are a structural clone of the Calendar bento box (22pt `.continuous`
 corners, gradient, `insightsCardShadow`) and **tap-expand in place** with the
 bento's spring (0.44 / 0.82). Colours are a deliberate, user-approved departure

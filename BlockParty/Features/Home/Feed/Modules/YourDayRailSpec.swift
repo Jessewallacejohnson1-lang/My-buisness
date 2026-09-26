@@ -118,7 +118,6 @@ nonisolated enum YourDayRailPalette {
 
 nonisolated enum YourDayRailCopy {
     static let header = "Your day"
-    static let addTile = "Add to today"
     static let suggested = "SUGGESTED"
 
     /// Said by BOTH browse affordances — the plus tile and the zero-state card —
