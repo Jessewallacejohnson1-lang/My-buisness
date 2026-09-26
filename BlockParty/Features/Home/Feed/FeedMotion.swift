@@ -18,7 +18,9 @@
 //  touch-down with a UIKit recognizer that only observes (simultaneous with every
 //  recognizer, never cancels touches), because its photo's double tap holds the
 //  link's `isPressed` back. A SwiftUI LongPressGesture there, even simultaneous,
-//  still stopped the feed scrolling.
+//  still stopped the feed scrolling. The photo's `.gesture(PhotoDoubleTap …)`, a
+//  UIKit double tap, is covered too: a UIKit tap fails as soon as the finger
+//  moves, so it never competes with the scroll.
 //
 
 import SwiftUI

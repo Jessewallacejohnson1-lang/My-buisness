@@ -481,7 +481,7 @@ the record of why Create was added.
 
 The Town event card's host row, photo and going line are one link to the event page, and
 the whole card squishes by `FeedMotion.quietPress` on touch-down (event-detail Phase 1).
-Two UIKit recognizers make that work. Jesse approved both; the first is a deliberate
+Two UIKit recognizers make that work. Jesse approved both; together they are one deliberate
 exception to the "no card-level gesture in a scroll view" rule in
 `docs/rules/swift-traps.md` and the `FeedMotion.swift` header.
 
@@ -494,14 +494,18 @@ exception to the "no card-level gesture in a scroll view" rule in
   A SwiftUI `LongPressGesture` in its place, even `.simultaneousGesture`, stopped the feed
   scrolling and turned a drag into a push (recorded 2026-09-25); the UIKit one scrolls.
 - **`PhotoDoubleTap`** — a two-tap `UITapGestureRecognizer` whose window closes 0.2 s after
-  the first lift. The link waits for it to fail, so the window is a single tap's delay:
-  lift to push measured 0.25–0.35 s, median 0.29 s (six recordings; the host row pushes in
-  0.02–0.04 s), down from 0.50–0.53 s with SwiftUI's `SpatialTapGesture(count: 2)`. Jesse
-  asked for ~0.3 s; a 0.25 s window measured 0.36–0.43 s. A double tap whose second touch comes later
-  than 0.2 s after the first lift reads as a tap and opens the page. `EventCardPhotoTapTests`
-  proves a double tap likes and never pushes; with the recognizer removed, it fails.
+  the first lift, attached to the photo with `.gesture`. The exception covers it because a
+  UIKit tap fails as soon as the finger moves, so it never competes with the scroll. The
+  link waits for it to fail, so the window is a single tap's delay: lift to push median
+  0.29 s (0.248–0.347 s over six recordings). Jesse asked for ~0.3 s. Unrecorded
+  observations, not evidence: a 0.25 s window gave 0.36–0.43 s, the host row 0.02–0.04 s,
+  and SwiftUI's `SpatialTapGesture(count: 2)` 0.50–0.53 s. A double tap whose second touch
+  comes later than 0.2 s after the first lift reads as a tap and opens the page.
+  `EventCardPhotoTapTests` proves a double tap likes and never pushes; with the recognizer
+  removed, it fails.
 - **The squish stays a `.scaleEffect`.** Even at scale 1 it stops SwiftUI pixel-snapping the
   card, which draws the cropped Memorial Park photo half a pixel softer in the DEBUG
-  `-today-feed-preview`. Jesse accepted that over a Metal squish, which, switched off at
-  rest, still re-rendered the card's icons and avatar and moved every event-card screen.
+  `-today-feed-preview`, and nudges the going line 1 px at some Town scroll depths. Jesse
+  accepted both over a Metal squish, which, switched off at rest, still re-rendered the
+  card's icons and avatar and moved every event-card screen.
 
