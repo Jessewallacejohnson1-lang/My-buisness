@@ -603,8 +603,8 @@ nonisolated enum TabBarMetric {
     static let landingAfterTap: Duration = .milliseconds(260)
     static let collapseAfterDrag: Duration = .milliseconds(70)
 
-    /// The white layer behind the bar's glass (and the Lens's) that holds it in its
-    /// light state. MEASURED threshold: 20% flipped, 30% held; 35% for margin.
+    /// The white layer behind the bar's glass that holds it in its light state.
+    /// MEASURED threshold: 20% flipped, 30% held; 35% for margin.
     static let glassUnderlay: Double = 0.35
 
     /// A tab's centre: the bubble touches the 4pt inset at both ends and the four
@@ -678,7 +678,7 @@ struct BlockPartyTabBar: View {
                                           held: held, following: lens?.moved == true,
                                           selection: selection, reduceMotion: reduceMotion)
             ZStack(alignment: .topLeading) {
-                bubble(held: held)
+                bubble
                     .modifier(geometry)
                 Items(selection: selection, capsuleWidth: width, onSelect: onSelect,
                       geometry: geometry, lensX: lens == nil ? nil : bubbleX)
@@ -736,32 +736,17 @@ struct BlockPartyTabBar: View {
         }
     }
 
-    /// The Selection bubble at rest (black at 20% over the glass reads 0.80x the bar's
-    /// brightness on any ground, §1.8), or the Lens while held: the fill clears and a
-    /// glass capsule takes its place, lighter than the bar as Apple's is (§3.7). The
-    /// glass is inserted and removed, never faded (swift-traps.md: hide glass by
-    /// removing it), and sits on the same white layer as the bar so it cannot flip
-    /// dark over a dark photo either.
-    private func bubble(held: Bool) -> some View {
-        ZStack {
-            // Swapped in one frame with the glass, never faded: a fade left frames
-            // with neither the Lens nor the bubble (measured 2026-09-26).
-            Capsule(style: .continuous)
-                .fill(Color.black.opacity(held ? 0 : 0.2))
-                .animation(nil, value: held)
-            if held {
-                ZStack {
-                    Capsule(style: .continuous)
-                        .fill(Hue.surface.onLightCanvas.opacity(TabBarMetric.glassUnderlay))
-                    Capsule(style: .continuous)
-                        .fill(.clear)
-                        .glassEffect(.regular, in: Capsule(style: .continuous))
-                }
-                .transition(.identity)
-            }
-        }
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
+    /// The Selection bubble: black at 20% over the glass reads 0.80x the bar's
+    /// brightness on any ground (§1.8). While held it IS the Lens, the same grey
+    /// capsule grown to Apple's measured Lens size. Apple's Lens is clear glass, but
+    /// a glass capsule here cannot travel: `.glassEffect` draws at the final layout
+    /// position, so it jumped to the finger while the bubble and the yellow slid
+    /// behind it (round 2, 2026-09-26). The plan's fallback: the dark pressed capsule.
+    private var bubble: some View {
+        Capsule(style: .continuous)
+            .fill(Color.black.opacity(0.2))
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 
     /// Where the bubble is and how it moves, shared by the bubble and the yellow
@@ -829,6 +814,18 @@ struct BlockPartyTabBar: View {
                     .mask { reveal }
                 // Labels stay ink, selected or not, and are never revealed.
                 labels
+                // Frozen chrome owes the reader another way in: the glyph and the
+                // label never grow, so a long press at an accessibility text size
+                // has to enlarge them (docs/rules/architecture.md).
+                ForEach(Tab.allCases) { tab in
+                    Color.clear
+                        .frame(width: TabBarMetric.pitch(capsuleWidth: capsuleWidth), height: TabBarMetric.height)
+                        .contentShape(Rectangle())
+                        .accessibilityShowsLargeContentViewer {
+                            Label(tab.title, systemImage: selection == tab ? tab.selectedSymbol : tab.symbol)
+                        }
+                        .position(x: centreX(tab), y: TabBarMetric.height / 2)
+                }
             }
             .frame(width: capsuleWidth, height: TabBarMetric.height, alignment: .topLeading)
             // VoiceOver sees exactly four tabs, not the drawing's layers: the icons
@@ -879,9 +876,7 @@ struct BlockPartyTabBar: View {
             .accessibilityHidden(true)
         }
 
-        /// One VoiceOver element per tab, over its slot, with the tab's action. The
-        /// old bar's long-press large content viewer is gone: the bar-wide drag owns
-        /// the long press, as Apple's own bar's Lens does (docs/SHIP-CHECKLIST.md).
+        /// One VoiceOver element per tab, over its slot, with the tab's action.
         private func accessibilityElement(_ tab: Tab) -> some View {
             let selected = selection == tab
             return Color.clear

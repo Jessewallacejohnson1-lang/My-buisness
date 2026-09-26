@@ -99,14 +99,17 @@ since a tab has no close.
   Selection bubble (black at 20%): the yellow filled symbol is masked to the bubble over the
   ink outline. Labels are never revealed and stay ink. No bounce, no colour animation.
 - **One touch drives the bar; there are no per-tab `Button`s.** `[prose]` On touch-down the
-  bubble lifts into a clear-glass Lens (1.20× wide, 1.30× tall) that follows the finger,
-  icons near it magnify up to 1.2×, and the bar swells 1.04×. Release picks the tab nearest
-  the finger's x `[test]`; there is no cancel zone, because Apple's bar has none. The haptic
-  and the page slide stay in `MainTabsView.select`. Reduce Motion drops the Lens, growth,
-  magnification and swell, and the bubble lands without travel.
-- **Each tab is one VoiceOver element with its own action and
-  `.accessibilityShowsLargeContentViewer`** `[prose]` — the long-press enlargement that
-  frozen chrome owes the reader. **The labels are frozen at 10pt** (`Font.tabLabel`), like
+  bubble lifts into a Lens, the same grey capsule grown 1.20× wide and 1.30× tall, that
+  follows the finger; icons near it magnify up to 1.2×, and the bar swells 1.04×. Release
+  picks the tab nearest the finger's x `[test]`; there is no cancel zone, because Apple's
+  bar has none. The haptic and the page slide stay in `MainTabsView.select`. Reduce Motion
+  drops the Lens, growth, magnification and swell, and the bubble crossfades to the new tab.
+  **Never put `.glassEffect` on something that moves inside the bar** `[prose]`: glass draws
+  at its final layout position, so a glass Lens jumped to the finger while the bubble slid
+  (2026-09-26).
+- **Each tab is one VoiceOver element with its own action** (synthetic children of an
+  `.isTabBar` container), **and each slot keeps `.accessibilityShowsLargeContentViewer`**
+  `[prose]` — the long-press enlargement that frozen chrome owes the reader. **The labels are frozen at 10pt** (`Font.tabLabel`), like
   Apple's; nothing scales or shrinks them.
 - **The map is not a tab.** `SJMapView` is presented as a `.fullScreenCover` from the Town
   top bar's map button, so it carries its own close and owns its own state.
