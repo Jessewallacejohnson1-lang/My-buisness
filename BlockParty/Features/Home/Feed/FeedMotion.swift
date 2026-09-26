@@ -14,6 +14,11 @@
 //  Never attach a whole-card LongPressGesture/DragGesture/.gesture(TapGesture) to
 //  anything inside the feed's scroll views — it claims the touch on press-down and
 //  out-competes the vertical pan. Press feedback is a ButtonStyle's `isPressed`.
+//  One deliberate exception (DECISIONS.md, 2026-09-25): `FeedEventCard` tracks its
+//  touch-down with a UIKit recognizer that only observes (simultaneous with every
+//  recognizer, never cancels touches), because its photo's double tap holds the
+//  link's `isPressed` back. A SwiftUI LongPressGesture there, even simultaneous,
+//  still stopped the feed scrolling.
 //
 
 import SwiftUI
