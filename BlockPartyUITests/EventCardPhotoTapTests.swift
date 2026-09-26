@@ -3,11 +3,12 @@
 //  Block Party — one photo, two gestures: a Town event card's photo opens the event
 //  page on a single tap and likes on a double tap, never both.
 //
-//  The photo sits inside the card's link and carries double-tap-to-like as a
-//  high-priority gesture, so a single tap only pushes once the double-tap window has
-//  passed. The simulator automation used for screenshots cannot send two taps close
-//  enough to count as a double tap, so the split is proven here, with XCUITest's own
-//  `doubleTap()`.
+//  The photo sits inside the card's link and carries its own double-tap recognizer
+//  (`PhotoDoubleTap`), which the link waits on: a single tap pushes once that
+//  recognizer's window has closed, a double tap likes instead. With the recognizer
+//  removed, the double-tap test fails (the page pushes). The simulator automation used
+//  for screenshots cannot send two taps close enough to count as a double tap, so the
+//  split is proven here, with XCUITest's own `doubleTap()`.
 //
 //  Run on the "BlockParty Tests" simulator, never the screenshot one (`sim-guard.sh`).
 //

@@ -19,6 +19,7 @@
 
 import SwiftUI
 import UIKit
+import UIKit.UIGestureRecognizerSubclass
 
 struct FeedEventCard: View {
     let item: FeedCardItem
@@ -102,8 +103,8 @@ struct FeedEventCard: View {
             }
             .buttonStyle(FeedCardLinkStyle())
             .accessibilityIdentifier("event-card-link")
-            // The photo's double tap holds the link's own press until it fails, ~0.3 s,
-            // so the link also tracks touch-down itself and the card squishes the
+            // The press comes from the touch itself, not the link: the photo's double
+            // tap holds the link's own press until it fails, so the card squishes the
             // moment a finger lands, photo included.
             .gesture(FeedTouchDownTracker(isPressed: $linkPressed))
 
@@ -281,12 +282,10 @@ struct FeedEventCard: View {
         .contentShape(Rectangle())
         // Both kinds carry a heart in the row below, so the double-tap always has a
         // control to mirror — and something on screen you can undo it with.
-        // High priority, because the photo sits inside the card's link: a double tap
-        // likes without also pushing, and a single tap pushes once the double-tap
-        // window has passed.
-        .highPriorityGesture(
-            SpatialTapGesture(count: 2).onEnded { performImageLike(at: $0.location) }
-        )
+        // The link waits for this to fail before it pushes, so a single tap on the
+        // photo opens the page `PhotoDoubleTap.window` after the finger lifts, and a
+        // double tap likes without opening it (`EventCardPhotoTapTests`).
+        .gesture(PhotoDoubleTap { performImageLike(at: $0) })
     }
 
     @ViewBuilder
@@ -486,5 +485,51 @@ private struct FeedTouchDownTracker: UIGestureRecognizerRepresentable {
 private struct FeedCardLinkStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
+    }
+}
+
+/// Double-tap-to-like on the photo, with a window the card owns. The link waits for
+/// this to fail before it pushes, so the window IS a single tap's delay. SwiftUI's own
+/// double tap waited ~0.5 s after the finger lifted (measured 2026-09-25); this one
+/// fails `window` after it.
+private struct PhotoDoubleTap: UIGestureRecognizerRepresentable {
+    let onDoubleTap: (CGPoint) -> Void
+
+    /// Longest gap between the first lift and the second touch that still counts as a
+    /// double tap. Shorter opens the page sooner, and a slower double tap reads as a
+    /// tap. Jesse asked for ~0.3 s from lift to push (2026-09-25).
+    static let window: TimeInterval = 0.2
+
+    final class Recognizer: UITapGestureRecognizer {
+        override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+            NSObject.cancelPreviousPerformRequests(withTarget: self)
+            super.touchesBegan(touches, with: event)
+        }
+
+        override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
+            super.touchesEnded(touches, with: event)
+            if state == .possible {
+                perform(#selector(windowClosed), with: nil, afterDelay: PhotoDoubleTap.window)
+            }
+        }
+
+        override func reset() {
+            NSObject.cancelPreviousPerformRequests(withTarget: self)
+            super.reset()
+        }
+
+        @objc private func windowClosed() {
+            if state == .possible { state = .failed }
+        }
+    }
+
+    func makeUIGestureRecognizer(context: Context) -> Recognizer {
+        let recognizer = Recognizer()
+        recognizer.numberOfTapsRequired = 2
+        return recognizer
+    }
+
+    func handleUIGestureRecognizerAction(_ recognizer: Recognizer, context: Context) {
+        if recognizer.state == .ended { onDoubleTap(context.converter.localLocation) }
     }
 }
