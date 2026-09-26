@@ -374,8 +374,14 @@ struct MainTabsView: View {
                 }
             }
 
-            BlockPartyTabBar(selection: $tab, onSelect: select)
-                .transition(.opacity)
+            BlockPartyTabBar(selection: tab, onSelect: select)
+                // Apple's measured spot: 21pt above the PHYSICAL bottom edge, not
+                // above the home-indicator safe area. The full-height frame is what
+                // lets `ignoresSafeArea` reach the edge: on the fixed-height bar alone
+                // it moved nothing, and the capsule sat 34pt too high (measured).
+                .padding(.bottom, TabBarMetric.margin)
+                .frame(maxHeight: .infinity, alignment: .bottom)
+                .ignoresSafeArea(edges: .bottom)
                 .zIndex(10)
             // THE `.environment(\.colorScheme, .light)` THAT USED TO BE HERE IS GONE.
             //
@@ -525,87 +531,173 @@ struct MainTabsView: View {
     }
 }
 
-/// The global bottom shell — the surviving tab buttons on one persistent Liquid
-/// Glass bar. It mounts on every tab now: the map left the bar for a button on
-/// Today, so there is no longer a surface that needs to hide it.
-struct BlockPartyTabBar: View {
-    @Binding var selection: Tab
-    /// Tap handler — the parent owns the animated page slide + haptic, so the pill
-    /// (driven by `selection`) and the screen slide ride the same spring.
-    var onSelect: (Tab) -> Void
-    @Namespace private var pill
+/// The tab bar's measured geometry, in CAPSULE-LOCAL points: x = 0 at the capsule's
+/// leading edge, y = 0 at its top. One set of numbers places the items and the
+/// bubble, and will hit-test the finger. Source: Apple's own 4-tab bar measured at
+/// 393pt and on the 420pt iPhone Air, which the Reference matches to the pixel at
+/// 393 (`/Users/owner/BP app/references/tab-bar/MEASURED.md` and `air/`).
+///
+/// `nonisolated`: constants and pure arithmetic, callable from any context.
+nonisolated enum TabBarMetric {
+    /// Capsule height, and its gap to the screen's sides and physical bottom edge.
+    /// MEASURED at both widths: 62 tall, 21 from each side and from the bottom.
+    static let height: CGFloat = 62
+    static let margin: CGFloat = 21
+    /// The Selection bubble: 54 tall, 4 inside the capsule. MEASURED.
+    static let bubbleInset: CGFloat = 4
+    static let bubbleHeight: CGFloat = 54
+    /// Icon point size, and its centre below the capsule top. The Reference's glyph
+    /// boxes are 18–19pt, a 20pt SF Symbol; centre 24pt down. MEASURED §1.4.
+    static let iconSize: CGFloat = 20
+    static let iconCentreY: CGFloat = 24
+    /// Label baseline below the capsule top. MEASURED §1.5 (y 2452px on a 2307px top).
+    static let labelBaseline: CGFloat = 48.33
+    /// How far past the first and last centres the Lens may travel. MEASURED at the
+    /// right end (§3.5); the left end mirrors it, GUESSED.
+    static let lensOvershoot: CGFloat = 9
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    // Corner radii: the outer glass shell and the inner sliding highlight are both
-    // CAPSULES — fully rounded, the way the reference bar is. A capsule inside a
-    // capsule keeps the highlight concentric with the shell at every position, which
-    // a fixed radius cannot do once the pill reaches either end.
-
-    private let iconSize: CGFloat = 20
-    private let iconLane: CGFloat = 23
-
-    var body: some View {
-        HStack(spacing: 4) {
-            ForEach(Tab.allCases) { tab in
-                tabButton(tab)
-            }
-        }
-        .padding(5)
-        // Real Liquid Glass (iOS 26): genuinely translucent and refractive, with
-        // its own specular rim and floating shadow — no faked frost or white wash.
-        .glassEffect(.regular, in: Capsule(style: .continuous))
-        .padding(.horizontal, 20)
-        .padding(.bottom, 4)
+    /// A quarter of the capsule's inner width, plus 10. ESTIMATED from two MEASURED
+    /// widths: 95.7 in the 351pt capsule, 101.7–102.2 in the 378pt one.
+    static func bubbleWidth(capsuleWidth: CGFloat) -> CGFloat {
+        (capsuleWidth - 2 * bubbleInset) / 4 + 10
     }
 
-    @ViewBuilder
-    private func tabButton(_ tab: Tab) -> some View {
-        let selected = selection == tab
-        Button {
-            onSelect(tab)
-        } label: {
-            VStack(spacing: 4) {
-                // Outline → filled on selection. `contentTransition` makes that a
-                // symbol REPLACE (the glyph re-draws in place) rather than a
-                // cross-fade between two images, and the bounce is the little
-                // acknowledgement the tap deserves. Both are dropped under Reduce
-                // Motion, where the fill swap alone still carries the state.
-                Image(systemName: selected ? tab.selectedSymbol : tab.symbol)
-                    .font(.glyph(iconSize, weight: selected ? .semibold : .medium))
-                    .frame(height: iconLane)
-                    .contentTransition(.symbolEffect(.replace))
-                    // The swap gets its OWN short curve instead of inheriting the page
-                    // spring (0.44s). Stretched over that spring, `.replace` held the
-                    // outgoing glyph half-faded for ~150ms — the icon read as missing
-                    // mid-travel while the pill slid out from under it. 0.22s snappy
-                    // lands the new glyph before the pill arrives, which is the order
-                    // the eye wants: the destination lights up, then the pill catches up.
-                    .animation(.snappy(duration: 0.22), value: selected)
-                    .symbolEffect(.bounce, options: .speed(1.6), value: reduceMotion ? false : selected)
-                Text(tab.title)
-                    .font(selected ? .sansSemibold(12) : .sansMedium(12))
+    /// A tab's centre: the bubble touches the 4pt inset at both ends and the four
+    /// centres are evenly spaced between. Within 0.6pt of Apple at 351 and 378
+    /// (ESTIMATED rule; GUESSED at other widths).
+    static func centreX(of tab: Tab, capsuleWidth: CGFloat) -> CGFloat {
+        let bubble = bubbleWidth(capsuleWidth: capsuleWidth)
+        let step = (capsuleWidth - 2 * bubbleInset - bubble) / CGFloat(Tab.allCases.count - 1)
+        return bubbleInset + bubble / 2 + step * CGFloat(tab.rawValue)
+    }
+
+    /// The tab a release picks: the centre nearest the finger's x. Its height does
+    /// not matter — Apple's bar switches on a release 150pt above it (MEASURED on
+    /// the Air probe, 2026-09-25), so there is no cancel zone.
+    static func tab(atX x: CGFloat, capsuleWidth: CGFloat) -> Tab {
+        Tab.allCases.min {
+            abs(centreX(of: $0, capsuleWidth: capsuleWidth) - x) < abs(centreX(of: $1, capsuleWidth: capsuleWidth) - x)
+        } ?? .town
+    }
+
+    /// Where the Lens sits under a finger: on it, clamped `lensOvershoot` past the
+    /// end centres.
+    static func lensCentreX(fingerX: CGFloat, capsuleWidth: CGFloat) -> CGFloat {
+        let first = centreX(of: .town, capsuleWidth: capsuleWidth) - lensOvershoot
+        let last = centreX(of: .you, capsuleWidth: capsuleWidth) + lensOvershoot
+        return min(max(fingerX, first), last)
+    }
+}
+
+/// The global bottom shell: one floating Liquid Glass capsule at Apple's measured
+/// size, restyled to the Tripadvisor Reference in BP's ink and yellow (2026-09-25).
+/// It mounts on every tab and never hides.
+struct BlockPartyTabBar: View {
+    let selection: Tab
+    /// Tap handler — the parent owns the animated page slide + haptic, so the bubble
+    /// (driven by `selection`) and the screen slide ride the same spring.
+    var onSelect: (Tab) -> Void
+
+    var body: some View {
+        GeometryReader { capsule in
+            let width = capsule.size.width
+            ZStack(alignment: .topLeading) {
+                // The Selection bubble. Black at 20% over the glass reads 0.80× the
+                // bar's brightness on any ground, as the Reference measures (§1.8):
+                // never yellow, never lighter than the bar, in either appearance.
+                Capsule(style: .continuous)
+                    .fill(Color.black.opacity(0.2))
+                    .frame(width: TabBarMetric.bubbleWidth(capsuleWidth: width),
+                           height: TabBarMetric.bubbleHeight)
+                    .position(x: TabBarMetric.centreX(of: selection, capsuleWidth: width),
+                              y: TabBarMetric.height / 2)
+                Items(selection: selection, capsuleWidth: width, onSelect: onSelect)
             }
-            .foregroundStyle(selected ? Hue.ink : Hue.inkSecondary)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 9)
-            .background {
-                if selected {
-                    Capsule(style: .continuous)
-                        .fill(Hue.fill)
-                        .matchedGeometryEffect(id: "pill", in: pill)
+        }
+        .frame(height: TabBarMetric.height)
+        // Real Liquid Glass, untinted: near-white over paper, mid-grey over dark
+        // photos — the same response the Reference measures (§1.6, §1.13).
+        .glassEffect(.regular, in: Capsule(style: .continuous))
+        // Keeps the glass in its LIGHT state. Over a near-black feed card the glass
+        // flipped to its dark state (measured 2026-09-26, Town at
+        // `-feed-scrolled-y 1200`: glass 23/255, ink invisible), and no colour-scheme
+        // pin stopped it. A white layer BEHIND the glass lifts what it samples: at
+        // 20% it still flipped (40/255), at 30% it held (178/255, the Reference's
+        // 169–181 over its dark photo). 35% leaves a margin for pure black.
+        .background {
+            Capsule(style: .continuous)
+                .fill(Hue.surface.onLightCanvas.opacity(0.35))
+                .allowsHitTesting(false)
+        }
+        // The Reference's brighter 1pt rim (§1.9). Opacity GUESSED, tuned on device.
+        .overlay {
+            Capsule(style: .continuous)
+                .strokeBorder(Hue.surface.onLightCanvas.opacity(0.6), lineWidth: 1)
+                .allowsHitTesting(false)
+        }
+        .padding(.horizontal, TabBarMetric.margin)
+    }
+
+    /// The four items, placed from `TabBarMetric`. No glass and no bubble, so a test
+    /// can render them alone.
+    struct Items: View {
+        let selection: Tab
+        let capsuleWidth: CGFloat
+        var onSelect: (Tab) -> Void
+
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+        var body: some View {
+            ZStack(alignment: .topLeading) {
+                ForEach(Tab.allCases) { tab in
+                    item(tab)
                 }
             }
-            .contentShape(Rectangle())
+            .frame(width: capsuleWidth, height: TabBarMetric.height, alignment: .topLeading)
         }
-        .buttonStyle(TabPressStyle(reduceMotion: reduceMotion))
-        .accessibilityLabel(tab.title)
-        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
-        // Frozen chrome owes the reader another way in: the glyph never grows, so a
-        // long press has to enlarge it. Apple's requirement for a custom bar, and
-        // until now the app had zero call sites of it.
-        .accessibilityShowsLargeContentViewer {
-            Label(tab.title, systemImage: selected ? tab.selectedSymbol : tab.symbol)
+
+        @ViewBuilder
+        private func item(_ tab: Tab) -> some View {
+            let selected = selection == tab
+            // Each item's touch area spans the gap between neighbouring centres.
+            let slot = TabBarMetric.centreX(of: .daily, capsuleWidth: capsuleWidth)
+                - TabBarMetric.centreX(of: .town, capsuleWidth: capsuleWidth)
+            Button {
+                onSelect(tab)
+            } label: {
+                ZStack(alignment: .top) {
+                    // Ink outline at rest; the selected tab's icon is the solid symbol
+                    // in exact #FCE804 with no outline. The swap never animates, so an
+                    // icon is only ever ink or exact yellow, never a blend of the two.
+                    // Ink is the LIGHT-canvas value, fixed: glass that flips hands its
+                    // items a dark trait, and adaptive `Hue.ink` then drew white
+                    // (measured 2026-09-26). Chrome ink never changes (taste.md).
+                    Image(systemName: selected ? tab.selectedSymbol : tab.symbol)
+                        .font(.glyph(TabBarMetric.iconSize))
+                        .foregroundStyle(selected ? Hue.brandDisc : Hue.ink.onLightCanvas)
+                        .frame(height: TabBarMetric.iconCentreY * 2)
+                        .animation(nil, value: selected)
+                    // Labels stay ink, selected or not. Baseline pinned, not stacked,
+                    // so the icon's box cannot push it.
+                    Text(tab.title)
+                        .font(.tabLabel(selected: selected))
+                        .foregroundStyle(Hue.ink.onLightCanvas)
+                        .alignmentGuide(.top) { $0[.lastTextBaseline] - TabBarMetric.labelBaseline }
+                }
+                .frame(width: slot, height: TabBarMetric.height, alignment: .top)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(TabPressStyle(reduceMotion: reduceMotion))
+            .accessibilityLabel(tab.title)
+            .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+            // Frozen chrome owes the reader another way in: the glyph and the label
+            // never grow, so a long press has to enlarge them. Apple's requirement
+            // for a custom bar.
+            .accessibilityShowsLargeContentViewer {
+                Label(tab.title, systemImage: selected ? tab.selectedSymbol : tab.symbol)
+            }
+            .position(x: TabBarMetric.centreX(of: tab, capsuleWidth: capsuleWidth),
+                      y: TabBarMetric.height / 2)
         }
     }
 }

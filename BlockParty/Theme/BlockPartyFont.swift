@@ -153,4 +153,15 @@ extension Font {
     static func glyph(_ size: CGFloat, weight: Weight = .regular) -> Font {
         .system(size: size, weight: weight)
     }
+
+    /// Tab bar label — SF Pro 10pt, frozen: Medium, Semibold when selected.
+    ///
+    /// Apple's own tab bar freezes its labels at this size (cap height 7pt and the
+    /// two stem weights MEASURED on its 4-tab bar, `references/tab-bar/MEASURED.md`
+    /// §2.5), and Jesse's rule is that the tab bar does not scale. `sansMedium(10)`
+    /// cannot do it: it snaps to caption2, 11pt. The reader's way in is the long-press
+    /// large content viewer every tab carries.
+    static func tabLabel(selected: Bool) -> Font {
+        .system(size: 10, weight: selected ? .semibold : .medium)
+    }
 }
