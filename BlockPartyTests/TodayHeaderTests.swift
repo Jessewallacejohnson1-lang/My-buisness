@@ -191,6 +191,28 @@ final class TodayHeaderTests: XCTestCase {
         XCTAssertFalse(drive(jitter, startHidden: true).contains(false), "jitter must not show the bar")
     }
 
+    // MARK: - Bare at home, frosted circles while floating (Instagram, 2026-09-27)
+
+    /// Instagram's side buttons are bare marks at the top of the feed and sit in
+    /// frosted circles once the bar comes back over the feed. The whole trip:
+    /// home, the first scroll down, away mid-feed, back mid-feed, home again.
+    func testTheButtonsFloatOnlyAfterTheBarHasLeftMidFeed() {
+        XCTAssertFalse(TodayHeader.chromeFloating(wasFloating: false, hidden: false, offset: 0),
+                       "home is bare")
+        XCTAssertFalse(TodayHeader.chromeFloating(wasFloating: false, hidden: false, offset: 30),
+                       "the first scroll down, before the bar leaves, stays bare")
+        XCTAssertTrue(TodayHeader.chromeFloating(wasFloating: false, hidden: true, offset: 400),
+                      "the bar leaves floating, so it comes back with its circles")
+        XCTAssertTrue(TodayHeader.chromeFloating(wasFloating: true, hidden: false, offset: 380),
+                      "back over the feed, the circles stay")
+        XCTAssertTrue(TodayHeader.chromeFloating(wasFloating: true, hidden: false, offset: 10),
+                      "still over the feed near the top")
+        XCTAssertFalse(TodayHeader.chromeFloating(wasFloating: true, hidden: false, offset: 0),
+                       "home again is bare")
+        XCTAssertFalse(TodayHeader.chromeFloating(wasFloating: true, hidden: false, offset: -60),
+                       "a rubber-band pull past home is home")
+    }
+
     // MARK: - The bar's height still does not follow the scroll
 
     /// The bar's height is a CONSTANT, and this is the guard on that.
@@ -258,18 +280,18 @@ final class TodayHeaderTests: XCTestCase {
     /// the yellow at 68%, which read as mustard over photos. A tint or a second
     /// yellow coming back fails here.
     ///
-    /// The disc sits `rowInset 4 + glyphTap 44 + controlGap 8` in from the trailing
-    /// edge and is 50pt wide, so on a 390pt bar its centre is (309, 29). The ring
-    /// sampled is 19pt out: clear of the ~12pt pin and of the rim's antialiasing.
+    /// The disc sits `rowInset 16 + glyphTap 44 + controlGap 8` in from the trailing
+    /// edge and is 44pt wide, so on a 390pt bar its centre is (300, 29). The ring
+    /// sampled is 16pt out: clear of the ~10.5pt pin and of the rim's antialiasing.
     func testMapDiscIsExactBrandYellow() throws {
         let bitmap = try renderedHeaderBitmap()
         let scale = 2.0
-        let centre = (x: 309.0, y: Double(TodayHeader.contentHeight) / 2)
+        let centre = (x: 300.0, y: Double(TodayHeader.contentHeight) / 2)
 
         for step in 0..<8 {
             let angle = Double(step) * .pi / 4
-            let x = Int((centre.x + 19 * cos(angle)) * scale)
-            let y = Int((centre.y + 19 * sin(angle)) * scale)
+            let x = Int((centre.x + 16 * cos(angle)) * scale)
+            let y = Int((centre.y + 16 * sin(angle)) * scale)
             let (r, g, b, a) = bitmap.pixel(x: x, y: y)
             XCTAssertEqual(a, 255, "disc must be opaque at (\(x), \(y))")
             XCTAssertLessThanOrEqual(abs(Int(r) - 0xFC), 2, "red off at (\(x), \(y)): \(r)")

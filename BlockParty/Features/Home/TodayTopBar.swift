@@ -102,6 +102,19 @@ nonisolated enum TodayHeader {
         return wasHidden
     }
 
+    /// Is the bar floating over the feed, rather than sitting at home on the paper?
+    /// Instagram's side buttons are bare marks at the top of the feed and sit in
+    /// frosted circles once the bar has come back over the feed (recorded
+    /// 2026-09-27, `references/soft-top-edge/instagram-top.mov`).
+    ///
+    /// Floating starts the moment the bar leaves mid-feed, so it comes BACK with its
+    /// circles and never grows them on screen; the first scroll down from home, before
+    /// the bar leaves, stays bare. Only home ends it.
+    static func chromeFloating(wasFloating: Bool, hidden: Bool, offset: CGFloat) -> Bool {
+        guard offset > 0 else { return false }
+        return wasFloating || hidden
+    }
+
     /// Today's date as an uppercase eyebrow — "SATURDAY, AUGUST 1".
     ///
     /// Formatted on the TOWN's clock, never the device's: a neighbor travelling east
@@ -121,39 +134,51 @@ nonisolated enum TodayHeader {
 /// The bar's fixed geometry, in one place. `nonisolated` for the same reason as
 /// `TodayHeader`: these are constants, not state.
 private nonisolated enum TodayBarMetric {
-    /// The OPTICAL screen inset — where the drawn ink of the outermost control
-    /// lands. The row itself is padded by `rowInset`; the difference is the
-    /// invisible overhang of the bare glyphs' 44pt touch boxes.
-    static let inset: CGFloat = 16
-    /// The map button's disc. Unchanged at 50 — it is still the only control in this
-    /// bar that is an OBJECT rather than a mark, and shrinking it to match its new
-    /// neighbours would have made three marks where the reference has one button.
-    static let mapSide: CGFloat = 50
-    /// A bare glyph's touch box. The marks themselves are ~20pt, well under the 44pt
-    /// HIG target, so each one is centred in a box that meets it. The box is
-    /// invisible, which is why the ROW is inset less than the ink appears to be.
+    /// The map button's disc: Instagram's button circle, 44pt (MEASURED 2026-09-27,
+    /// `references/soft-top-edge/instagram-top.mov`; Jesse: same size as theirs).
+    /// Was 50 until then.
+    static let mapSide: CGFloat = 44
+    /// A side button's touch box, and the frosted circle drawn in it while the bar
+    /// floats: Instagram's circle, 44pt (MEASURED, as above).
     static let glyphTap: CGFloat = 44
     /// The search mark and the bell, at their measured reference sizes
     /// (19.82pt square and 20.69pt tall — see `refs/chrome/REFERENCE-SPEC.md`).
     static let searchGlyphSize: CGFloat = 20
     static let bellGlyphSize: CGFloat = 21
-    /// The row's real padding: `inset` minus the touch box's overhang past the ink,
-    /// so a 20pt mark in a 44pt box draws its edge on the 16pt line.
-    static let rowInset: CGFloat = inset - (glyphTap - searchGlyphSize) / 2
-    /// Between the map disc and the bell's touch box. The bell's ink sits 11.5pt
-    /// inside its box, so the gap READS as ~19pt — which is what keeps the two
-    /// trailing controls from looking like one clump.
+    /// The row's padding: Instagram's circles sit 16pt in from the screen's edges,
+    /// and its marks stay put inside them whether or not the circle shows (MEASURED,
+    /// as above). Was 4 until 2026-09-27, which put the bare ink itself on 16pt.
+    static let rowInset: CGFloat = 16
+    /// Between the map disc and the bell's touch box. PICKED (2026-09-27): unchanged
+    /// from before the circles; Instagram has no third button to measure.
     static let controlGap: CGFloat = 8
-    /// The glyph's square, inside the disc.
-    static let mapGlyphSize: CGFloat = 24
+    /// The glyph's square, inside the disc: the old 24 scaled with the disc
+    /// (24 × 44/50). PICKED.
+    static let mapGlyphSize: CGFloat = 21
+    /// How white the frosted circle is over the blurred feed. Instagram's reads
+    /// 68–83% of the way from what is behind it to white (MEASURED over wood, a
+    /// keyboard, a grey room, a black video). At 0.6 ours read 68–74%; 0.68 lands
+    /// on Instagram's middle. Tuned on the simulator.
+    static let discWhite: Double = 0.68
     /// The centred wordmark's height. 31 runs the lockup 151pt wide — 18 → 24 → 31
-    /// over three passes on 2026-09-19, Jesse each time. It still clears the 50pt
+    /// over three passes on 2026-09-19, Jesse each time. It still clears the map
     /// disc beside it, with the bar's 58pt content height as the hard ceiling.
     static let wordmarkHeight: CGFloat = 31
-    /// How far below the controls (or below the status band, with the bar away)
-    /// the soft edge runs out. GUESSED (2026-09-24), pending an Instagram screen
-    /// recording in `references/` — taste.md says sizes come from a Reference.
-    static let backdropFade: CGFloat = 16
+    /// How far the soft edge takes to thin from full blur to none, ending at the
+    /// bar's lower edge (or at the bottom of the status band with the bar away).
+    /// MEASURED on Instagram (2026-09-27, `references/soft-top-edge/instagram-top.mov`):
+    /// its blur thins over ~30pt with the bar showing and ~15pt with it away, and
+    /// its haze over ~45 and ~25. These sit between the two.
+    static let fadeWithBar: CGFloat = 40
+    static let fadeBarAway: CGFloat = 20
+    /// The system material alone is a grey fog: a blue sky came out grey under the
+    /// clock. Instagram keeps the photo's colour, lightened. These take the
+    /// material's white back out (contrast and brightness pivot at white, so paper
+    /// stays paper) and give the colour back. Tuned side by side with Instagram's
+    /// frames on the simulator (2026-09-27); 1.8 / −0.4 read too white at the top.
+    static let edgeSaturation: Double = 1.5
+    static let edgeContrast: Double = 1.43
+    static let edgeBrightness: Double = -0.21
 }
 
 struct TodayTopBar: View {
@@ -169,6 +194,10 @@ struct TodayTopBar: View {
     /// false the moment the feed is scrolled back up. `FeedView` owns the state,
     /// `TodayHeader.chromeHidden` owns the rule.
     var chromeHidden: Bool = false
+    /// True while the bar floats over the feed rather than sitting at home on the
+    /// paper: search and the bell sit in frosted circles, as Instagram's buttons do.
+    /// `TodayHeader.chromeFloating` owns the rule.
+    var chromeFloating: Bool = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -202,20 +231,27 @@ struct TodayTopBar: View {
         // drawn over the status bar.
         .clipped()
         // Instagram's top edge (Jesse, 2026-09-27, replacing the paper bar and the
-        // always-on paper status strip): the feed shows through, blurred and washed,
-        // behind the status bar and the row. With the bar away it shrinks to the
-        // status band, so the clock never sits on a raw photo. Its height is chrome
+        // always-on paper status strip): the feed shows through, blurred, behind the
+        // status bar and the row, strongest under the clock and thinning to nothing
+        // at the bar's lower edge.
+        // With the bar away it shrinks to the status band. Its height is chrome
         // state, not scroll, and it is a background, so it moves no inset.
         .background(alignment: .top) {
             Color.clear
-                .frame(height: (chromeHidden ? 0 : TodayHeader.contentHeight) + TodayBarMetric.backdropFade)
-                .background(SoftTopEdge().ignoresSafeArea(edges: .top))
+                .frame(height: chromeHidden ? 0 : TodayHeader.contentHeight)
+                .background(
+                    SoftTopEdge(fade: chromeHidden ? TodayBarMetric.fadeBarAway : TodayBarMetric.fadeWithBar)
+                        .ignoresSafeArea(edges: .top)
+                )
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }
         .animation(reduceMotion ? .easeOut(duration: 0.18)
                                 : .spring(response: 0.34, dampingFraction: 0.9),
                    value: chromeHidden)
+        .animation(reduceMotion ? .easeOut(duration: 0.18)
+                                : .spring(response: 0.34, dampingFraction: 0.9),
+                   value: chromeFloating)
     }
 
     // MARK: - Layers
@@ -235,16 +271,14 @@ struct TodayTopBar: View {
     ///
     /// The lockup is 150.8pt wide (`BlockPartyWordmark.aspect` 4.8657 × 31), so it
     /// claims 75.4pt either side of the midline. The trailing side consumes
-    /// `rowInset 4 + glyphTap 44 + controlGap 8 + mapSide 50` = 106pt, which leaves
-    /// `W/2 − 181.4`: **+6.1pt at 375, +15.1 at 393, +38.6 at 440**. Break-even is
-    /// 362.8pt, below every iPhone that runs this OS. The leading side takes 48pt
-    /// and is never the binding constraint.
+    /// `rowInset 16 + glyphTap 44 + controlGap 8 + mapSide 44` = 112pt, which leaves
+    /// `W/2 − 187.4`: **+0.1pt at 375, +9.1 at 393, +32.6 at 440**. Break-even is
+    /// 374.8pt, at the narrowest iPhone that runs this OS. The leading side takes
+    /// 60pt and is never the binding constraint.
     ///
-    /// This is why the two new marks are BARE INK and not discs like the map's. A
-    /// second 50pt disc trailing pushes the lane to 112pt and the clearance to
-    /// **−11.9pt at 375 and −2.9pt at 393** — the mark and the control overlap on
-    /// most phones. The reference draws its top-bar marks bare too, so fidelity and
-    /// arithmetic agree here. (A disc LEADING would also trip
+    /// Search and the bell are bare marks at home and only sit in frosted circles
+    /// while the bar floats (`chromeFloating`), as Instagram's do. The map disc is
+    /// the one control that is always an object. (A disc LEADING would trip
     /// `TodayHeaderTests.testBrandLockupLeavesTheLeadingHeaderAreaBlank`, which
     /// allows under 20 saturated pixels in the leading 18% of the bar against the
     /// roughly 7,800 a yellow disc puts there.)
@@ -271,9 +305,10 @@ struct TodayTopBar: View {
         .accessibilityHidden(chromeHidden)
     }
 
-    /// A bare traced mark in a 44pt touch box. Shared by the search glyph and the
-    /// bell, because the only thing that differs between them is the glyph and the
-    /// label — and two near-identical button bodies is how the two drift apart.
+    /// A traced mark in a 44pt touch box: bare at home, in a frosted circle while
+    /// the bar floats. Shared by the search glyph and the bell, because the only
+    /// thing that differs between them is the glyph and the label — and two
+    /// near-identical button bodies is how the two drift apart.
     @ViewBuilder
     private func glyphButton<Glyph: View>(
         label: String,
@@ -283,8 +318,15 @@ struct TodayTopBar: View {
     ) -> some View {
         Button(action: action) {
             glyph()
-                .foregroundStyle(Hue.ink)
+                // The circle is always light, so the ink on it is the light-canvas
+                // ink; bare on the paper it stays the page's own ink.
+                .foregroundStyle(chromeFloating ? Hue.ink.onLightCanvas : Hue.ink)
                 .frame(width: TodayBarMetric.glyphTap, height: TodayBarMetric.glyphTap)
+                .background {
+                    if chromeFloating {
+                        FrostedCircle().transition(.opacity)
+                    }
+                }
                 .contentShape(Rectangle())
         }
         // The same pop the app's other bare controls use. The map disc beside it
@@ -328,8 +370,8 @@ struct TodayTopBar: View {
 
     /// The yellow map disc: a SOLID circle in the exact brand yellow (`Hue.brandDisc`),
     /// with `Hue.onBrandDisc` ink. It sits inboard of the bell rather than
-    /// on the bar's trailing edge, and it is still 50pt — still the one OBJECT among
-    /// three marks.
+    /// on the bar's trailing edge, at Instagram's 44pt button size — the one control
+    /// that is always an object.
     ///
     /// It was Liquid Glass tinted with the yellow at 68% until 2026-09-24. Two
     /// things killed it (Jesse, Q1 A): a tint is not the brand yellow (it went
@@ -354,29 +396,53 @@ struct TodayTopBar: View {
     }
 }
 
-/// The feed blurred and washed with paper behind the status bar and the row — full
-/// blur down to the last `backdropFade` points, which fade to clear. Instagram's top
-/// edge, drawn by hand: the system's soft scroll edge needs `.safeAreaBar`, which
-/// flipped the bar dark over photos (2026-09-24), and on a retry (2026-09-27) it
-/// barely blurred a dark photo behind the logo and turned the clock white. The wash is heaviest at the top so
-/// the clock stays on light; it is pinned light, so the ink over it never changes
-/// (taste.md, Chrome over content). Wash values tuned by eye on the simulator
-/// (2026-09-27): at 0.3 the clock flipped white over a dark photo; 0.5 holds it dark.
+/// The feed blurred behind the status bar and the row, thinning to nothing over the
+/// last `fade` points of its frame.
+/// Instagram's top edge (2026-09-27, `references/soft-top-edge/instagram-top.mov`),
+/// drawn by hand: the system's soft scroll edge needs `.safeAreaBar`, which flipped
+/// the bar dark over photos (2026-09-24), and on a retry (2026-09-27) it barely
+/// blurred a dark photo behind the logo and left no edge at all behind the clock.
+///
+/// No paper wash on top of the blur: Instagram's photo keeps its colours under the
+/// clock, and the wash that sat here (2026-09-27, 0.5 → 0) turned every photo into
+/// a grey-white fog. Without it the clock still stayed black in every frame of a
+/// scroll over a near-black photo, both bar states. Pinned light, so the ink over
+/// it never changes (taste.md, Chrome over content).
 private struct SoftTopEdge: View {
+    var fade: CGFloat
+
     var body: some View {
-        ZStack {
-            Rectangle().fill(.ultraThinMaterial)
-            LinearGradient(colors: [Hue.paper.opacity(0.5), Hue.paper.opacity(0)],
-                           startPoint: .top, endPoint: .bottom)
-        }
-        .environment(\.colorScheme, .light)
-        .mask {
-            VStack(spacing: 0) {
-                Rectangle()
-                LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
-                    .frame(height: TodayBarMetric.backdropFade)
+        Rectangle()
+            .fill(.ultraThinMaterial)
+            .environment(\.colorScheme, .light)
+            .saturation(TodayBarMetric.edgeSaturation)
+            .contrast(TodayBarMetric.edgeContrast)
+            .brightness(TodayBarMetric.edgeBrightness)
+            .mask {
+                VStack(spacing: 0) {
+                    Rectangle()
+                    LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
+                        .frame(height: fade)
+                }
             }
-        }
+    }
+}
+
+/// The frosted circle behind search and the bell while the bar floats over the
+/// feed — Instagram's button circle, which reads mostly white with a tint of the
+/// photo behind it (MEASURED 2026-09-27). A material, not Liquid Glass: glass
+/// composites outside its view's layer, so in this bar it arrives and leaves out
+/// of step with the slide (the map disc, until 2026-09-24), and it flips dark over
+/// a dark photo (the tab bar). A material fades, slides and clips with its mark.
+private struct FrostedCircle: View {
+    var body: some View {
+        Circle()
+            .fill(.ultraThinMaterial)
+            .overlay(Circle().fill(Hue.surface.onLightCanvas.opacity(TodayBarMetric.discWhite)))
+            // Instagram's brighter rim, as the tab bar draws it.
+            .overlay(Circle().strokeBorder(Hue.surface.onLightCanvas.opacity(0.75), lineWidth: 1))
+            .environment(\.colorScheme, .light)
+            .allowsHitTesting(false)
     }
 }
 

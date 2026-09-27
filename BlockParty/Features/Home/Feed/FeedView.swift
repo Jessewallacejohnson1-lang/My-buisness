@@ -122,6 +122,9 @@ struct FeedView: View {
     /// Written only when the direction reverses, or at home, where it tracks the
     /// offset — never touches the bar's height.
     @State private var chromeAnchor: CGFloat = 0
+    /// Is the bar floating over the feed rather than at home on the paper
+    /// (`TodayHeader.chromeFloating`)? Written only when it flips.
+    @State private var chromeFloating = false
 
     /// DEBUG-only: `-header-collapsed` pins the bar to its scrolled-away state.
     /// There is no scroll automation in this setup, so without it that state cannot
@@ -185,8 +188,12 @@ struct FeedView: View {
             let hidden = TodayHeader.chromeHidden(wasHidden: chromeHidden,
                                                   anchor: anchor,
                                                   offset: offset)
+            let floating = TodayHeader.chromeFloating(wasFloating: chromeFloating,
+                                                      hidden: hidden,
+                                                      offset: offset)
             if anchor != chromeAnchor { chromeAnchor = anchor }
             if hidden != chromeHidden { chromeHidden = hidden }
+            if floating != chromeFloating { chromeFloating = floating }
             #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("-scroll-log") {
                 print("SCROLLLOG offset=\(offset) hidden=\(hidden)")
@@ -203,7 +210,8 @@ struct FeedView: View {
             TodayTopBar(onOpenSearch: onOpenSearch,
                         onOpenMap: onOpenMap,
                         onOpenNotifications: onOpenNotifications,
-                        chromeHidden: forcedCollapse || chromeHidden)
+                        chromeHidden: forcedCollapse || chromeHidden,
+                        chromeFloating: chromeFloating)
         }
         // The tab bar shrinks on the same signal, as Instagram's does.
         .preference(key: TabBarCompactKey.self, value: forcedCollapse || chromeHidden)

@@ -203,15 +203,20 @@ Chrome that **leaves on a downward scroll and comes back on an upward one** (Jes
 2026-09-21, naming Instagram). The brand mark is **centred against the bar** rather than laid
 out in the row — an `HStack` would park it wherever the trailing button's width left it.
 
-- **The bar's height is a constant 58 and must stay one.** `[prose]` It is a `safeAreaBar`,
-  so its height IS the feed scroll's top inset. This bar is the live evidence for the
-  scroll-geometry loop in `docs/rules/swift-traps.md`.
-- **`safeAreaBar`, not `safeAreaInset`.** `[prose]` An inset gets no scroll-edge effect —
-  the first attempt shipped content sliding under a bare status bar with no blur at all, and
-  the build stayed green.
-- **The bar has no fill and draws no hairline.** `[prose]` Content passes underneath it and
-  `.scrollEdgeEffectStyle(.soft, for: .top)` blurs and washes that content toward the page.
-  Jesse: "no clean cut white line, a fade gradient like Instagram."
+- **The bar's height is a constant 58 and must stay one.** `[prose]` It is a
+  `safeAreaInset`, so its height IS the feed scroll's top inset. This bar is the live
+  evidence for the scroll-geometry loop in `docs/rules/swift-traps.md`.
+- **`safeAreaInset`, and the bar brings its own soft edge (`SoftTopEdge`).** `[prose]` The
+  system's `.safeAreaBar` + `.scrollEdgeEffectStyle(.soft)` flipped the bar dark over photos
+  (2026-09-24), and on a retry (2026-09-27) barely blurred a photo behind the logo and drew
+  no edge at all behind the clock with the bar away. `SoftTopEdge` is a light-pinned
+  material that thins to nothing at the bar's lower edge and shrinks to the status band
+  with the bar away; its height is chrome state, never scroll.
+- **The bar has no fill and draws no hairline, and the photo keeps its colour under it**
+  `[prose]` — Instagram's recording, `references/soft-top-edge/` in the BP app folder. The
+  material alone was a grey fog, so saturation, contrast and brightness put the colour back
+  (`TodayBarMetric.edgeSaturation` and neighbours). No paper wash over it: that is what the
+  fog was.
 - **The rule is DIRECTION, not distance.** `TodayHeader.chromeHidden(wasHidden:previousOffset:
   offset:)` is pure and total — down past `directionThreshold` (4pt) hides, up shows, the
   first `hideAfter` (24pt) and any rubber-band pull past the top always show, and
@@ -226,16 +231,16 @@ out in the row — an `HStack` would park it wherever the trailing button's widt
   reads on the wrong schedule.
 - **Chrome that has left must not take taps** `[prose]` — `.allowsHitTesting(!chromeHidden)`
   and `.accessibilityHidden(chromeHidden)` sit on the control row.
-- **Three controls, and the two new ones are bare ink in 44pt touch boxes, not discs.**
-  `[prose]` A search magnifier leads, the wordmark centres, a notifications bell holds the
-  trailing corner, and the map disc sits inboard of it. Bare marks are what the width budget
-  allows: a second 50pt disc trailing overlaps the centred lockup on most phones, and a disc
-  **leading** trips `TodayHeaderTests.testBrandLockupLeavesTheLeadingHeaderAreaBlank`. Every
-  measurement behind that is in `refs/chrome/REFERENCE-SPEC.md`. `TodayBarMetric.inset` is
-  the OPTICAL margin and `rowInset` the real padding; the difference is the invisible
-  overhang of those touch boxes.
-- **The map button is a true circle, 50×50** — the one deliberate exception to this system's
-  12pt rounded squares, and big enough to clear the 44pt target on its own.
+- **Three controls in 44pt boxes, 16pt in from the screen's edges** (Instagram's, measured
+  2026-09-27). `[prose]` A search magnifier leads, the wordmark centres, a notifications bell
+  holds the trailing corner, and the map disc sits inboard of it. Search and the bell are
+  **bare ink at home and sit in frosted circles while the bar floats** over the feed
+  (`TodayHeader.chromeFloating`: from the moment the bar leaves mid-feed until the feed is
+  home again) — a material circle, not Liquid Glass, so it slides and fades with its mark
+  (see the glass rule in `docs/rules/swift-traps.md`). A disc **leading** trips
+  `TodayHeaderTests.testBrandLockupLeavesTheLeadingHeaderAreaBlank`.
+- **The map button is a true circle, 44×44** (Instagram's button size, Jesse 2026-09-27;
+  50 before) — the one deliberate exception to this system's 12pt rounded squares.
 - **The map disc is a solid `Hue.brandDisc` circle, exactly #FCE804, carrying
   `Hue.onBrandDisc` ink — no glass, no material, no tint** (2026-09-24). `[test]`
   `TodayHeaderTests.testMapDiscIsExactBrandYellow` pixel-samples the colour. The translucent
