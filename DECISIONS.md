@@ -511,3 +511,21 @@ are one deliberate exception to the "no card-level gesture in a scroll view" rul
   accepted both over a Metal squish, which, switched off at rest, still re-rendered the
   card's icons and avatar and moved every event-card screen.
 
+
+## Built 2026-09-26, awaiting Jesse — the stack keeps its swipe back with the bar hidden
+
+The event page hides the system navigation bar, as the shell does, so neither shows a
+title or a "Done". Hidden on the pushed page too, UIKit refused every swipe back: the edge
+swipe did nothing on iOS 26.5, and with the bar shown the same recorded swipe followed the
+finger (event-detail Phase 3). `SwipeBack` in `RootView.swift` gives the stack's
+`interactiveContentPopGestureRecognizer`, which on iOS 26 handles the edge swipe as well as
+a swipe from anywhere (logged: the edge recognizer was never asked), a delegate that lets
+it begin whenever there is a page to go back to and no push or pop is running.
+
+- UIKit's header says the recognizer should only be used for failure requirements, so
+  replacing its delegate is a deliberate exception. It is scoped to the one app-level
+  `NavigationStack`, and at the root (`viewControllers.count == 1`) it refuses as UIKit did.
+- Recorded on the simulator: the edge swipe follows the finger and can reverse halfway
+  (the page stays); a right swipe on the page body pops it; a right swipe on photo 1
+  rubber-bands the carousel and does not pop; a right swipe from photo 2 goes back to
+  photo 1. A real device check is still owed.
