@@ -104,7 +104,8 @@ struct DailyFeedColumn: View {
         )
     }
 
-    private static func share(_ event: FeedCardItem) {
+    /// The card's share, and the event page's.
+    static func share(_ event: FeedCardItem) {
         ShareCenter.shared.present(
             .event(
                 title: event.title,

@@ -271,9 +271,11 @@ struct FeedEventDetailDestination: View {
 
             Spacer(minLength: 0)
 
-            // Share is drawn here; its action lands with Join's.
-            // 15, not the row's 17: the Reference's share mark is 14 x 17 pt.
-            circleButton(glyph: Image(systemName: "square.and.arrow.up").font(.sansSemibold(15)), label: "Share") {}
+            // The card's share reveal. 15, not the row's 17: the Reference's share
+            // mark is 14 x 17 pt.
+            circleButton(glyph: Image(systemName: "square.and.arrow.up").font(.sansSemibold(15)), label: "Share") {
+                DailyFeedColumn.share(item)
+            }
 
             circleButton(glyph: saveGlyph, label: isSaved ? "Saved" : "Save", action: toggleSave)
                 .accessibilityAddTraits(isSaved ? .isSelected : [])
