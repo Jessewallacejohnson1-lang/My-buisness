@@ -80,7 +80,7 @@ final class EventDetailPageTests: XCTestCase {
     /// photo" at once, so the page starts without a hero instead of a skeleton.
     func testAVenueWithNoAnchorIsKnownToHaveNoPhoto() {
         let known = FeedCardVenuePhoto.known(name: "Somebody's back yard", hint: "Garage sale")
-        XCTAssertNotNil(known, "known without a lookup")
+        XCTAssertTrue(known != nil, "known without a lookup")
         XCTAssertNil(known.flatMap { $0 }, "and known to have no photo")
     }
 
@@ -90,6 +90,22 @@ final class EventDetailPageTests: XCTestCase {
         XCTAssertEqual(FeedCardURLPhoto.pixelWidth(points: 420 + 1.0 / 3, scale: 3), 1260)
         XCTAssertEqual(FeedCardURLPhoto.pixelWidth(points: 420, scale: 3), 1260)
         XCTAssertEqual(FeedCardURLPhoto.pixelWidth(points: 32, scale: 3), 96, "an avatar is unchanged")
+    }
+
+    /// The card and its page read saved by one rule: the feed's own flag, or this
+    /// device's saved list.
+    func testCardAndPageShareOneSavedRule() {
+        let store = SavedStore.shared
+        var item = FeedCardItem(event(imageUrl: nil))
+        if store.isSaved(item.id) { store.toggle(item.id) }
+        defer { if store.isSaved(item.id) { store.toggle(item.id) } }
+
+        XCTAssertFalse(item.isSaved(in: store))
+        store.toggle(item.id)
+        XCTAssertTrue(item.isSaved(in: store), "saved on this device")
+        store.toggle(item.id)
+        item.isSaved = true
+        XCTAssertTrue(item.isSaved(in: store), "saved by the feed")
     }
 
     func testCounterShowsOnlyForTwoOrMorePhotos() {
