@@ -328,10 +328,12 @@ struct MainTabsView: View {
     /// and the edge swipe brings the town back under the finger. The shell draws
     /// its own chrome, so the system bar is hidden with `.toolbar(.hidden)` —
     /// never `navigationBarBackButtonHidden`, which kills the swipe back.
+    /// `SwipeBack` keeps that swipe alive once the pushed page hides the bar too.
     var body: some View {
         NavigationStack {
             shell
                 .toolbar(.hidden, for: .navigationBar)
+                .background { SwipeBack().frame(width: 0, height: 0) }
                 .navigationDestination(for: FeedCardItem.self) { item in
                     FeedEventDetailDestination(item: item)
                 }
@@ -657,6 +659,30 @@ private struct BlankTab: View {
                     .padding(.horizontal, 44)
             }
             .accessibilityElement(children: .combine)
+        }
+    }
+}
+
+/// The stack's swipe back, kept alive while the bar is hidden. With the event page
+/// hiding the bar as well, UIKit refused every swipe back: the edge swipe did nothing,
+/// and with the bar shown it followed the finger (recorded 2026-09-26). On iOS 26 the
+/// swipe, edge included, is `interactiveContentPopGestureRecognizer` (logged: the edge
+/// recognizer is never asked), so this delegate lets that one start whenever there is
+/// a page to go back to and no push or pop is already running. A photo carousel still
+/// wins its own horizontal drags (recorded: a right swipe on photo 1 rubber-bands).
+private struct SwipeBack: UIViewControllerRepresentable {
+    func makeUIViewController(context: Context) -> Controller { Controller() }
+    func updateUIViewController(_ controller: Controller, context: Context) {}
+
+    final class Controller: UIViewController, UIGestureRecognizerDelegate {
+        override func viewDidAppear(_ animated: Bool) {
+            super.viewDidAppear(animated)
+            navigationController?.interactiveContentPopGestureRecognizer?.delegate = self
+        }
+
+        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            guard let navigation = navigationController else { return false }
+            return navigation.viewControllers.count > 1 && navigation.transitionCoordinator == nil
         }
     }
 }
