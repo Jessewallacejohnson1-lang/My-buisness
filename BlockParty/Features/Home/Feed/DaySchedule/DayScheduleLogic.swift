@@ -183,7 +183,12 @@ nonisolated enum DayScheduleLogic {
     /// There is no coordinate on an event, so this is a text search against the
     /// town — good enough to open the right pin, and honest about being a search.
     static func directionsURL(for item: DayItem) -> URL? {
-        guard let location = item.location?.trimmingCharacters(in: .whitespacesAndNewlines),
+        directionsURL(forPlace: item.location)
+    }
+
+    /// The same Maps search for any named place. The event page's location pill opens it.
+    static func directionsURL(forPlace place: String?) -> URL? {
+        guard let location = place?.trimmingCharacters(in: .whitespacesAndNewlines),
               !location.isEmpty
         else { return nil }
 

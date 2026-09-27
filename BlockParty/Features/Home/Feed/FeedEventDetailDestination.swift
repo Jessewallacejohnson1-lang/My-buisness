@@ -18,7 +18,6 @@
 //
 
 import Combine
-import CoreLocation
 import SwiftUI
 
 struct FeedEventDetailDestination: View {
@@ -375,10 +374,10 @@ struct FeedEventDetailDestination: View {
         .padding(.top, hasHero ? 0 : Metric.buttonTop + Metric.button + Metric.noPhotoGap)
     }
 
-    /// Opens Apple Maps on the venue, the way the map's place card does.
+    /// Opens Apple Maps on the venue, the same search Your Day's "Directions" opens.
     private func locationPill(_ place: String) -> some View {
         Button {
-            if let url = Self.mapsURL(for: place) { openURL(url) }
+            if let url = DayScheduleLogic.directionsURL(forPlace: place) { openURL(url) }
         } label: {
             HStack(spacing: Metric.pinGap) {
                 // SF Symbols has no filled teardrop like the Reference's; this is its pin.
@@ -583,18 +582,6 @@ struct FeedEventDetailDestination: View {
         guard KnownVenues.anchor(location: query.name, named: query.hint ?? query.name) != nil
         else { return nil }
         return query
-    }
-
-    /// A Maps search for the venue in town, pinned to its curated coordinate when
-    /// `KnownVenues` has one: the map place card's shape (`MapPlaceDetail.directionsURL`).
-    private static func mapsURL(for place: String) -> URL? {
-        var components = URLComponents(string: "http://maps.apple.com/")
-        var query = [URLQueryItem(name: "q", value: "\(place), \(Town.display)")]
-        if let coordinate = KnownVenues.coordinate(for: place) {
-            query.append(URLQueryItem(name: "ll", value: "\(coordinate.latitude),\(coordinate.longitude)"))
-        }
-        components?.queryItems = query
-        return components?.url
     }
 }
 
