@@ -112,14 +112,17 @@ since a tab has no close.
   animation (Jesse, 2026-09-27). **You** draws the neighbour's photo when there is one
   (`TabAvatar`), the person icon otherwise.
 - **One touch drives the bar; there are no per-tab `Button`s.** `[prose]` On touch-down the
-  bubble lifts into a Lens, the same grey capsule grown to Apple's Lens size, that follows
-  the finger; icons near it magnify, and the bar swells. Release picks the tab nearest the
+  grey bubble gives way to a clear glass Lens at Apple's Lens size, lighter than the bar as
+  Instagram's is, that follows the finger; icons near it magnify, and the bar swells. On
+  release the grey bubble takes over in the same frame and slides to the picked tab. Release picks the tab nearest the
   finger's x `[test]`; there is no cancel zone, because Apple's bar has none. The haptic
   and the page slide stay in `MainTabsView.select`. Reduce Motion drops the Lens, growth,
   magnification and swell, and the bubble crossfades to the new tab.
-  **Never put `.glassEffect` on something that moves inside the bar** `[prose]`: glass draws
-  at its final layout position, so a glass Lens jumped to the finger while the bubble slid
-  (2026-09-26).
+  **Never animate `.glassEffect` across the bar** `[prose]`: glass draws at its final layout
+  position, so a glass Lens riding the bubble's spring jumped to the finger while the bubble
+  slid (2026-09-26). The Lens works because it is placed straight at the finger and never
+  travels: the sliding is the grey bubble's job. It also stays mounted at zero size between
+  touches, because glass inserted fresh drew two frames late (2026-09-27).
 - **Each tab is one VoiceOver element with its own action** (synthetic children of an
   `.isTabBar` container), **and each slot keeps `.accessibilityShowsLargeContentViewer`**
   `[prose]` — the long-press enlargement that frozen chrome owes the reader. **The icons are

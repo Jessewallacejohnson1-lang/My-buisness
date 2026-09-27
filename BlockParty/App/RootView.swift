@@ -721,8 +721,21 @@ struct BlockPartyTabBar: View {
                                           held: held, following: lens?.moved == true,
                                           selection: selection, reduceMotion: reduceMotion)
             ZStack(alignment: .topLeading) {
+                // Under a finger the grey bubble gives way to a clear glass Lens, as
+                // Instagram's does. The glass is placed straight at the finger, never
+                // animated there (glass draws at its final position), and swapped with
+                // the bubble in one frame, never faded. It stays mounted at zero size
+                // between touches: inserted fresh, it drew two frames late and left
+                // the touch-down with neither Lens nor bubble (eyes sim, 2026-09-27).
                 bubble
                     .modifier(geometry)
+                    .opacity(lens == nil ? 1 : 0)
+                    .animation(nil, value: lens == nil)
+                lensGlass
+                    .frame(width: lens == nil ? 0 : geometry.size.width,
+                           height: lens == nil ? 0 : geometry.size.height)
+                    .position(x: bubbleX, y: TabBarMetric.height / 2)
+                    .transaction { $0.animation = nil }
                 Items(selection: selection, capsuleWidth: width, onSelect: onSelect,
                       avatarURL: avatarURL, lensX: lens == nil ? nil : bubbleX)
             }
@@ -793,6 +806,16 @@ struct BlockPartyTabBar: View {
     private var bubble: some View {
         Capsule(style: .continuous)
             .fill(Color.black.opacity(TabBarMetric.bubbleShade))
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+
+    /// The held Lens: real Liquid Glass on the same white layer as the bar, so it
+    /// reads lighter than the bar and cannot flip dark over a dark photo either.
+    private var lensGlass: some View {
+        Capsule(style: .continuous)
+            .fill(Hue.surface.onLightCanvas.opacity(TabBarMetric.glassUnderlay))
+            .glassEffect(.regular, in: Capsule(style: .continuous))
             .allowsHitTesting(false)
             .accessibilityHidden(true)
     }
@@ -893,8 +916,9 @@ struct BlockPartyTabBar: View {
                 .font(.glyph(TabBarMetric.iconSize))
                 .foregroundStyle(Hue.ink.onLightCanvas)
                 // Swapped, not crossfaded: under the tab switch's spring the outline
-                // and the filled symbol blended into a grey blob for ~3 frames.
-                .contentTransition(.identity)
+                // and the filled symbol blended into a grey blob for ~3 frames, and
+                // `.contentTransition(.identity)` did not stop it.
+                .transaction { $0.animation = nil }
         }
 
         /// One VoiceOver element per tab, over its slot, with the tab's action.

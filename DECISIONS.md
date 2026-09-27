@@ -579,6 +579,37 @@ and takes "saved" off the plum `Hue.accent`'s list.
   it #F9E504.
 - `docs/rules/design.md`, `DESIGN.md` and the `Hue` comments say the same.
 
+## Decided 2026-09-27 — the tab bar copies Instagram's, with BP's icons
+
+Jesse recorded Instagram's iOS 26 bar and asked for it 1:1, keeping BP's icons, every icon
+black, and Instagram's colours (Check-in 1, 2026-09-27). The recording, its frames and the
+measured values are in `/Users/owner/BP app/references/instagram-tab-bar/`; every number
+is a `TabBarMetric` constant with its source. Still BP's own bar, for the reason below.
+
+- **Icons only, all ink, the selected one filled.** No labels (`Font.tabLabel` is deleted)
+  and no yellow: `brandDisc` is back to two uses. The symbol swaps with no animation; under
+  the tab switch's spring the outline and the fill blended into a grey blob.
+- **Instagram's geometry:** 60pt tall, the slots split the capsule evenly inside a 9pt side
+  inset, the bubble one slot wide and 50pt tall, the icons 22pt boxes.
+- **Instagram's colours:** the bubble is black at 13% (0.87x the glass); the white layer
+  behind the glass dropped to 30%, which read 188–194 over a near-black photo against
+  Instagram's 192 over black, and never flipped over the recorded flick (lowest 183).
+- **It shrinks while the Town feed reads down**, to 0.84x on a critically damped 0.3s
+  spring, on the top bar's own come-and-go (`TabBarCompactKey`), and a finger on it
+  brings it back to full size while it is down. The way back on a scroll up is GUESSED:
+  Instagram's recording never scrolls up.
+- **The Lens is clear glass again**, which is what the 2026-09-25 build could not do. It
+  sits straight under the finger and never travels; the grey bubble does the sliding and
+  takes over in the same frame on release. It stays mounted at zero size between touches:
+  inserted fresh, it drew two frames late and left the touch-down bare.
+- **You shows the neighbour's photo** (`TabAvatar`, loaded once by
+  `TodayHeaderProfileModel`), the person icon while it loads, when it fails or when there
+  is none. No red dot: the Town bar's bell covers notifications. The ink ring on the
+  selected photo is GUESSED; the recording never selects that tab.
+
+The 2026-09-25 entry below stays as the record of the glass work this builds on; its
+yellow, labels, sizes and grey Lens are superseded by the list above.
+
 ## Decided 2026-09-25 — BP keeps its own tab bar, restyled to the glass Reference
 
 Jesse supplied a Tripadvisor frame from Mobbin (the Reference) and asked for its glass
