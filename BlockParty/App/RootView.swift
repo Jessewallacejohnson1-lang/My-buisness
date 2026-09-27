@@ -940,12 +940,15 @@ private struct BlankTab: View {
 }
 
 /// The stack's swipe back, kept alive while the bar is hidden. With the event page
-/// hiding the bar as well, UIKit refused every swipe back: the edge swipe did nothing,
-/// and with the bar shown it followed the finger (recorded 2026-09-26). On iOS 26 the
-/// swipe, edge included, is `interactiveContentPopGestureRecognizer` (logged: the edge
-/// recognizer is never asked), so this delegate lets that one start whenever there is
-/// a page to go back to and no push or pop is already running. A photo carousel still
-/// wins its own horizontal drags (recorded: a right swipe on photo 1 rubber-bands).
+/// hiding the bar as well, UIKit refused every swipe back (recorded 2026-09-26; with the
+/// bar shown it followed the finger). Two recognizers do that swipe on iOS 26:
+/// `interactivePopGestureRecognizer` from the leading edge, and
+/// `interactiveContentPopGestureRecognizer` anywhere else on the page. This delegate lets
+/// both begin whenever there is a page to go back to and no push or pop is running; at
+/// the root they stay off, where a pop would freeze the stack. The edge one also beats a
+/// horizontal scroll under the finger, so an edge swipe on the photo carousel pops the
+/// page (`EventCardPhotoTapTests`), while a swipe that starts on a photo away from the
+/// edge still pages or rubber-bands the carousel.
 private struct SwipeBack: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> Controller { Controller() }
     func updateUIViewController(_ controller: Controller, context: Context) {}
@@ -953,12 +956,24 @@ private struct SwipeBack: UIViewControllerRepresentable {
     final class Controller: UIViewController, UIGestureRecognizerDelegate {
         override func viewDidAppear(_ animated: Bool) {
             super.viewDidAppear(animated)
+            navigationController?.interactivePopGestureRecognizer?.delegate = self
             navigationController?.interactiveContentPopGestureRecognizer?.delegate = self
         }
 
+        /// Both swipes begin only with a page to go back to: at the root a pop freezes the stack.
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
             guard let navigation = navigationController else { return false }
             return navigation.viewControllers.count > 1 && navigation.transitionCoordinator == nil
+        }
+
+        /// The edge swipe beats a horizontal scroll under the finger (the photo carousel): its
+        /// pan waits for the edge swipe to fail, which it does at once off the edge.
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldBeRequiredToFailBy other: UIGestureRecognizer
+        ) -> Bool {
+            gestureRecognizer === navigationController?.interactivePopGestureRecognizer
+                && other.view is UIScrollView && other is UIPanGestureRecognizer
         }
     }
 }

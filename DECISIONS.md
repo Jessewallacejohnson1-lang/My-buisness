@@ -521,20 +521,33 @@ are one deliberate exception to the "no card-level gesture in a scroll view" rul
 ## Decided 2026-09-26 — the stack keeps its swipe back with the bar hidden
 
 The event page hides the system navigation bar, as the shell does, so neither shows a
-title or a "Done". Hidden on the pushed page too, UIKit refused every swipe back: the edge
-swipe did nothing on iOS 26.5, and with the bar shown the same recorded swipe followed the
-finger (event-detail Phase 3). `SwipeBack` in `RootView.swift` gives the stack's
-`interactiveContentPopGestureRecognizer`, which on iOS 26 handles the edge swipe as well as
-a swipe from anywhere (logged: the edge recognizer was never asked), a delegate that lets
-it begin whenever there is a page to go back to and no push or pop is running.
+title or a "Done". Hidden on the pushed page too, UIKit refused every swipe back on iOS
+26.5; with the bar shown the same recorded swipe followed the finger (event-detail
+Phase 3). Two recognizers do that swipe: `interactivePopGestureRecognizer` from the
+leading edge, and `interactiveContentPopGestureRecognizer` anywhere else on the page.
+`SwipeBack` in `RootView.swift` becomes the delegate of both. It lets them begin whenever
+there is a page to go back to and no push or pop is running, and it makes a horizontal
+scroll view's pan wait for the edge one to fail, so an edge swipe that starts on the
+photo carousel pops the page.
 
-- UIKit's header says the recognizer should only be used for failure requirements, so
-  replacing its delegate is a deliberate exception. It is scoped to the one app-level
-  `NavigationStack`, and at the root (`viewControllers.count == 1`) it refuses as UIKit did.
-- Recorded on the simulator: the edge swipe follows the finger and can reverse halfway
-  (the page stays); a right swipe on the page body pops it; a right swipe on photo 1
-  rubber-bands the carousel and does not pop; a right swipe from photo 2 goes back to
-  photo 1.
+- UIKit's header says these recognizers should only be used for failure requirements, so
+  replacing their delegate is a deliberate exception. It is scoped to the one app-level
+  `NavigationStack`, and at the root (`viewControllers.count == 1`) both refuse, as UIKit
+  did, because a pop there freezes the stack.
+- The first version restored only the content recognizer, and an edge swipe over the
+  photo carousel rubber-banded the photos instead of popping (independent review,
+  2026-09-26). `EventCardPhotoTapTests.testEdgeSwipeOverTheHeroPopsAndTheRootStillPushes`
+  now proves the edge swipe on the hero pops and a swipe at the root leaves the stack
+  pushable; it fails with the edge recognizer's delegate removed, and again with the
+  priority over the scroll pan removed.
+- AXe's simulated touches never start the edge recognizer (logged: it receives the touch
+  and never asks to begin), so on the simulator an AXe "edge" swipe only reaches the
+  content recognizer, which yields to the carousel. XCUITest's drags do start it; the
+  slow, fast and reversed-halfway edge swipes were recorded from XCUITest.
+- Recorded: an edge swipe on the hero follows the finger, pops, and turned back halfway
+  leaves the page; a right swipe on the page body pops it; a right swipe that starts on
+  photo 1 away from the edge rubber-bands the carousel (Jesse approved); a right swipe
+  from photo 2 goes back to photo 1.
 - Jesse approved `SwipeBack` on 2026-09-26. The real-device check is still owed, at the
   event page's Gate 2.
 
