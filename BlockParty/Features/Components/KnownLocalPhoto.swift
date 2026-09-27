@@ -1,7 +1,7 @@
 //
 //  KnownLocalPhoto.swift
 //  Block Party — bundled photos for specific real St. Joe / Collegeville trails and
-//  events that don't have a confident Google Places match (see VenuePhoto).
+//  events that don't have a confident Google Places match (see FeedCardVenuePhoto).
 //  Dropped into Resources/Images via the same Higgsfield pipeline as
 //  wobegon-trail.jpg; PhotoView resolves them by base name.
 //

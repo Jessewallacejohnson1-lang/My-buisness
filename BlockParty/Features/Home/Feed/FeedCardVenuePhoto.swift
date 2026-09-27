@@ -1,9 +1,9 @@
 //
 //  FeedCardVenuePhoto.swift
 //  Block Party — turns a feed card's `venueLookup` intent into a displayable
-//  Google Places photo. Same confidence gate as VenuePhoto
-//  (`GooglePlacesService.confidentPhoto(forFreeText:hint:)` → Locked Rule A), but
-//  it hands back a `FeedCardImageSource` so the card keeps FeedCardURLPhoto's
+//  Google Places photo, through the Locked Rule A confidence gate
+//  (`GooglePlacesService.confidentPhoto(forFreeText:hint:)`). It hands back a
+//  `FeedCardImageSource` so the card (and the event page) keeps FeedCardURLPhoto's
 //  downsampling + LRU cache instead of loading through a raw AsyncImage.
 //
 //  Google ToS: the photo NAME is used to build a media URL here and then dropped

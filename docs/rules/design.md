@@ -140,8 +140,11 @@ and `DECISIONS.md` win wherever they disagree.
   own skeleton, for as long as it takes.** Do not reintroduce a readiness gate.
 - **Imagery comes from the Google Places Photo API at runtime — that is the default, not a
   fallback.** `[prose]` Photography is the main colour-bearing venue content layer, and
-  hand-curating it does not scale. Resolve it live through **`VenuePhoto`**, backed by
-  `GooglePlacesService.confidentPhoto(name:coordinate:)` or `confidentPhoto(forFreeText:hint:)`.
+  hand-curating it does not scale. Resolve it live through **`FeedCardVenuePhoto`** (feed
+  cards, the event page) or `VenueInfoView` (the map), backed by
+  `GooglePlacesService.confidentPhoto(name:coordinate:)` or `confidentPhoto(forFreeText:hint:)`,
+  and load it through `FeedCardURLPhoto`, whose loader sends the bundle-id header the key
+  checks (a bare `AsyncImage` gets a 403).
   Do **not** reach for a bundled image because a photo is missing — first check whether the
   venue resolves.
   - **Locked Rule A is the trust gate, not a formality.** `[prose]` A photo is shown only

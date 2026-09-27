@@ -1,7 +1,7 @@
 //
 //  PhotoCredit.swift
 //  Block Party — the ONE Google-required photographer credit treatment, shared by
-//  every place a Places photo is rendered (VenuePhoto, the feed hero, VenueInfoView).
+//  every place a Places photo is rendered (the feed hero, the event page, VenueInfoView).
 //
 //  It lives in one file on purpose: the credit is a ToS obligation, not decoration, so
 //  it must never fork into a second, weaker treatment. It previously had — a 9pt

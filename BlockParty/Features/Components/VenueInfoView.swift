@@ -91,8 +91,8 @@ struct VenueInfoView: View {
     private func photoView(_ p: (url: URL, attributions: [String])) -> some View {
         // Loaded through `FeedCardURLPhoto`, whose loader sends the bundle-id header the
         // Places key checks; `AsyncImage` cannot, and every download was a 403. The
-        // credit shows only once the photo has — the same discipline as `VenuePhoto` —
-        // so it never credits a photo nobody can see. A photo that fails is dropped.
+        // credit shows only once the photo has, so it never credits a photo nobody can
+        // see. A photo that fails is dropped.
         ZStack {
             Rectangle().fill(palette.card)
             FeedCardURLPhoto(
