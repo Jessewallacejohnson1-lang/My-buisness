@@ -6,6 +6,7 @@
 import Foundation
 import ImageIO
 import SwiftUI
+import UIKit
 
 struct FeedCardURLPhoto: View {
     let url: URL
@@ -48,11 +49,11 @@ private struct FeedCardDownsampledPhoto: View {
     /// shows the old photo.
     @State private var loaded: (url: URL, image: CGImage)?
 
-    /// What to draw: this view's own bitmap, else one already drawn elsewhere for the
-    /// same URL at another size (the card's, when the event page asks for a wider one).
+    /// What to draw: this view's own bitmap, else the largest one already decoded for
+    /// the same photo, so a photo on screen elsewhere draws here in the first frame.
     private var image: CGImage? {
         if let loaded, loaded.url == request.url { return loaded.image }
-        return FeedCardShownBitmaps.bitmap(for: request.url)
+        return FeedCardImageLoader.shared.largest(for: request.url)
     }
 
     var body: some View {
@@ -73,7 +74,6 @@ private struct FeedCardDownsampledPhoto: View {
             let loadedImage = await FeedCardImageLoader.shared.image(for: request)
             guard !Task.isCancelled else { return }
             if let loadedImage {
-                FeedCardShownBitmaps.remember(loadedImage, for: request.url)
                 // Cross-fade the photograph in rather than hard-cutting it over the ink.
                 withAnimation(.easeOut(duration: 0.2)) { loaded = (request.url, loadedImage) }
             }
@@ -83,44 +83,55 @@ private struct FeedCardDownsampledPhoto: View {
     }
 }
 
-/// The newest bitmap drawn for each photo URL, at whatever size, readable without
-/// waiting on the loader. The event page asks for a wider copy of the photo its card
-/// just drew, so its hero flashed a skeleton over a photo already on screen (design.md
-/// "Don't flash"); it now draws this one at once and swaps in the wider one when it
-/// decodes. The same 12-photo bound as `FeedCardImageLoader`.
-@MainActor
-enum FeedCardShownBitmaps {
-    private static var bitmaps: [URL: CGImage] = [:]
-    private static var order: [URL] = []
-
-    static func bitmap(for url: URL) -> CGImage? { bitmaps[url] }
-
-    static func remember(_ bitmap: CGImage, for url: URL) {
-        bitmaps[url] = bitmap
-        order.removeAll { $0 == url }
-        order.append(url)
-        if order.count > 12 { bitmaps[order.removeFirst()] = nil }
-    }
-}
-
 private nonisolated struct FeedCardImageRequest: Hashable, Sendable {
     let url: URL
     let maxPixelSize: Int
 }
 
-private actor FeedCardImageLoader {
+/// Downsampled photos, the 12 used last, keyed by URL and pixel size. On the main
+/// actor, so a view can draw a photo already decoded in the frame it appears; the
+/// download and the decode run off it. Emptied on a memory warning.
+///
+/// The event page's hero is a third of a point wider than its card on iPhone Air
+/// (1261 px against 1260, measured 2026-09-26), so its size misses the card's copy
+/// and it starts from `largest(for:)` instead of a skeleton.
+@MainActor
+final class FeedCardImageLoader {
     static let shared = FeedCardImageLoader()
 
     private static let maxCachedImages = 12
     private var cache: [FeedCardImageRequest: CGImage] = [:]
     private var cacheOrder: [FeedCardImageRequest] = []
 
-    func image(for request: FeedCardImageRequest) async -> CGImage? {
+    private init() {
+        _ = NotificationCenter.default.addObserver(
+            forName: UIApplication.didReceiveMemoryWarningNotification, object: nil, queue: .main
+        ) { _ in
+            MainActor.assumeIsolated {
+                FeedCardImageLoader.shared.cache.removeAll()
+                FeedCardImageLoader.shared.cacheOrder.removeAll()
+            }
+        }
+    }
+
+    /// The largest bitmap decoded for this photo at any size. Largest, so a host's
+    /// 96 px avatar cut from the same file never stands in for a full-width photo.
+    func largest(for url: URL) -> CGImage? {
+        cache.filter { $0.key.url == url }.values.max { $0.width < $1.width }
+    }
+
+    fileprivate func image(for request: FeedCardImageRequest) async -> CGImage? {
         if let cached = cache[request] {
             touch(request)
             return cached
         }
+        guard let thumbnail = await Self.decode(request) else { return nil }
+        insert(thumbnail, for: request)
+        return thumbnail
+    }
 
+    @concurrent
+    private nonisolated static func decode(_ request: FeedCardImageRequest) async -> CGImage? {
         let source: CGImageSource?
         if request.url.isFileURL {
             source = CGImageSourceCreateWithURL(request.url as CFURL, nil)
@@ -136,17 +147,10 @@ private actor FeedCardImageLoader {
             kCGImageSourceShouldCacheImmediately: true,
             kCGImageSourceThumbnailMaxPixelSize: request.maxPixelSize,
         ]
-        guard let thumbnail = CGImageSourceCreateThumbnailAtIndex(
-            source,
-            0,
-            options as CFDictionary
-        ) else { return nil }
-
-        insert(thumbnail, for: request)
-        return thumbnail
+        return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
     }
 
-    private func remoteData(from url: URL) async -> Data? {
+    private nonisolated static func remoteData(from url: URL) async -> Data? {
         do {
             // Through `mediaRequest`, so a Google Places photo carries the bundle-id
             // header its key checks. Every other URL goes out as before.

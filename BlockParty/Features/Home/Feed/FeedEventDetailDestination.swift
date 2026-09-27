@@ -220,7 +220,7 @@ struct FeedEventDetailDestination: View {
 
     /// Drawn already (by its card, at another size) counts as shown: no skeleton.
     private func isShown(_ url: URL) -> Bool {
-        shownPhotos.contains(url) || FeedCardShownBitmaps.bitmap(for: url) != nil
+        shownPhotos.contains(url) || FeedCardImageLoader.shared.largest(for: url) != nil
     }
 
     /// Google's terms: the credit shows wherever its photo does, and only once the
