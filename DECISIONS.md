@@ -456,11 +456,17 @@ replacement entry point. The tab bar is back to **four even slots built from
 the four destinations in order and one slot per `Tab`. The Alta section above stays as
 the record of why Create was added.
 
+**Superseded 2026-09-25:** still four slots from `Tab.allCases`, but no longer that bar's
+shape. They sit on Apple's measured glass capsule under a Selection bubble and a Lens;
+see *Decided 2026-09-25* below.
+
 - **Token rename, same colour.** `Hue.createDisc` / `onCreateDisc` / `onCreateDiscHex`
   became `Hue.brandDisc` / `onBrandDisc` / `onBrandDiscHex`, and `CreateDiscContrastTests`
   became `BrandDiscContrastTests` (same pbxproj IDs, same four pinned numbers). The Town
   bar's map disc is the ONE control that wears it, still exactly `#FCE804`
   (`TodayHeaderTests.testMapDiscIsExactBrandYellow`).
+  **Superseded 2026-09-25:** the map disc is no longer the only one. `brandDisc` also
+  fills the selected tab-bar icon (Jesse); see *Decided 2026-09-25* below.
 - **Deleted:** `Features/Add/` (`AddView`, `AddFormView`, `AddModel`, `AddKind`),
   `ComposeSpeedDial` (with `SpeedDialItem` / `SpeedDialAction` / `SpeedDialAnchor`),
   `VenueAutocompleteField`, the town menu's "Add an event" row, `HomeView.onCompose`,
@@ -531,3 +537,89 @@ it begin whenever there is a page to go back to and no push or pop is running.
   photo 1.
 - Jesse approved `SwipeBack` on 2026-09-26. The real-device check is still owed, at the
   event page's Gate 2.
+
+## Decided 2026-09-25 — BP keeps its own tab bar, restyled to the glass Reference
+
+Jesse supplied a Tripadvisor frame from Mobbin (the Reference) and asked for its glass
+tab bar in BP's black and yellow. Plan: `~/Documents/agent-os/plans/2026-09-25-glass-tab-bar.md`.
+Every number is in `refs/chrome/REFERENCE-SPEC.md` (*Tab bar*). The raw evidence (the
+Reference, Apple's `TabProbe` bar, recordings, contact sheets and `MEASURED.md`) sits in
+`/Users/owner/BP app/references/tab-bar/` in the main checkout, untracked.
+
+**Approved by Jesse at Gate 2, 2026-09-26** ("I agree with all"): keep the 35% white layer
+behind the glass, the Lens as the grown grey bubble, the 1.04× press swell, the bubble's
+0.80× darkness on white pages, and the `house.fill` door cut-out.
+
+### Why not Apple's `TabView`
+
+Jesse rejected it. Over dark photos Apple's bar flips its glass to the dark state and its
+ink to white: 20 flips in one slow scroll of the Town feed, and nothing pins it. BP's bar
+is hand-built so the ink never changes, whatever sits under it.
+
+### What was built
+
+- **Capsule:** Apple's measured size, 62pt tall, 21pt from each side and from the
+  physical bottom edge (351×62 at 393pt, 378×62 on the 420pt Air). It never hides on
+  scroll. `TabBarMetric` holds the geometry, capsule-local; `TabBarTests` pins the tab
+  centres to Apple's at both widths.
+- **Glass:** `.glassEffect(.regular)` with a 35% white capsule (`Hue.surface.onLightCanvas`)
+  BEHIND it, and a 1pt white rim at 75%. The underlay exists because the plain glass
+  flipped too: over a near-black feed card (Town at `-feed-scrolled-y 1200`, measured
+  2026-09-26) it went to its dark state, 23/255 with the ink invisible, and no
+  colour-scheme pin stopped it. At 20% white it still flipped (40/255); at 30% it held
+  (178/255, the Reference's 169–181 over its dark photo). 35% leaves a margin.
+- **Ink:** fixed #111111 (`Hue.ink.onLightCanvas`) on every icon and label. Adaptive
+  `Hue.ink` drew white, because flipped glass hands its items a dark trait.
+- **Selection bubble:** black at 20% over the glass, which reads 0.80× the bar's
+  brightness, the Reference's ratio. 54pt tall, 4pt inset, `(capsule − 8) / 4 + 10` wide.
+- **Selected icon:** Apple's reveal, icon drawing only (Jesse, Gate 1). A solid #FCE804
+  filled symbol (`Hue.brandDisc`) is masked to the moving bubble over the ink outline, so
+  mid-slide the yellow shows only inside the bubble. Labels are never revealed and stay
+  #111111. No bounce, no colour animation.
+- **Labels:** SF Pro 10pt, Medium (Semibold selected), frozen via `Font.tabLabel(selected:)`,
+  as Apple's are.
+- **One touch drives the bar.** On touch-down (a plain tap included) the Selection bubble
+  lifts into a Lens: the same grey capsule grown to Apple's measured Lens size, 1.20× its
+  width and 1.30× its height. It follows the finger, clamped 9pt past the end centres;
+  icons magnify up to 1.2× by distance from it; the whole bar swells 1.04× while pressed
+  (measured). After a tap the Lens keeps its size until the bubble lands (260ms after
+  lift); after a drag it shrinks back in 70ms (Apple: ~76ms). Growth: spring response
+  0.06, critically damped (measured: 89% at 37ms, 96% at 70ms), scoped to size only.
+  Travel: critically damped spring response 0.33, fitted to Apple's bubble centre being
+  96.5% of the way at +272ms (an earlier 0.45/0.8 arrived at ~350ms and overshot 2.5pt).
+- **Why the Lens is grey, not clear glass like Apple's:** a `.glassEffect` capsule draws at
+  its final layout position, so it jumped straight to the finger while the bubble and the
+  yellow slid across the bar behind it (result debate round 2, 2026-09-26). The plan's
+  fallback is the dark pressed capsule, and that is what shipped.
+- **No cancel zone.** Apple's bar switches on a release 150pt above it (measured), so a
+  release picks the tab nearest the finger's x, however high the finger is.
+- **No dim band** (Jesse, Gate 1). The Reference's full-width darkening behind the bar is
+  Tripadvisor's, not iOS's.
+- **Reduce Motion:** no Lens, growth, magnification or swell; on a change the bubble and the
+  yellow crossfade from the old tab to the new on the page's 0.2s ease (recorded
+  2026-09-26).
+- **Accessibility:** `TabPressStyle` and the four per-tab `Button`s are deleted. The bar is a
+  tab-bar container (`.isTabBar`) whose synthetic children are exactly four tab elements
+  over the slots, `.isSelected` on the current one, each with its own action (snapshot:
+  Town/Daily/Business/You, one selected). Each slot keeps the long-press large content
+  viewer (verified at AX3 on the eyes sim, 2026-09-26: a long press on Daily shows the
+  enlarged "Daily"). Rim opacity 0.75 (0.6 read +56 over the glass; the Reference is
+  +60–75).
+
+### Not built
+
+- Apple's post-tap squash wobble: its bubble lands at 0.87× width / 1.14× height and
+  settles within 1px by ~860ms (measured on `TabProbe`).
+- A haptic per tab crossed while scrubbing. The release already ticks once on a real
+  change, so a crossing tick would double on landing.
+
+### Recovering the old bar
+
+The bar before this one (four `Button`s, a `Hue.fill` matchedGeometry pill, the 0.92 press
+squish of `TabPressStyle`, `Hue.inkSecondary` for unselected tabs) is recoverable with:
+
+```bash
+git show 0348d20:BlockParty/App/RootView.swift
+```
+
+`BlockPartyTabBar` is at lines 531–611 of that file and `TabPressStyle` at 616–624.
