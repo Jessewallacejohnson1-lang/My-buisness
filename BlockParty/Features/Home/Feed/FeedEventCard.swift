@@ -305,10 +305,9 @@ struct FeedEventCard: View {
 
     @ViewBuilder
     private var imageContent: some View {
-        switch loadedSource {
-        case .eventPhoto(let url), .placesPhoto(let url, _):
+        if let url = loadedSource.url {
             FeedCardURLPhoto(url: url, onReady: markVenuePhotoDecoded)
-        case .venueLookup, .fallback:
+        } else {
             Rectangle().fill(Hue.ink)
         }
     }

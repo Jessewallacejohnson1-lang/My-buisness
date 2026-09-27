@@ -218,10 +218,9 @@ struct PostingCard: View {
     private var imageContent: some View {
         GeometryReader { proxy in
             Group {
-                switch posting.image {
-                case .eventPhoto(let url), .placesPhoto(let url, _):
+                if let url = posting.image.url {
                     FeedCardURLPhoto(url: url)
-                case .venueLookup, .fallback:
+                } else {
                     // Ink, matching the event card's undownloaded state — a pale box
                     // would read as a broken image rather than as the card's own
                     // fallback treatment.

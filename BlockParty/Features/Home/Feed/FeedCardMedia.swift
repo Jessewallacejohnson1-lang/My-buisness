@@ -232,6 +232,14 @@ extension View {
 }
 
 extension FeedCardImageSource {
+    /// The photograph's address; nil for the two cases that are not a photo yet.
+    var url: URL? {
+        switch self {
+        case .eventPhoto(let url), .placesPhoto(let url, _): url
+        case .venueLookup, .fallback: nil
+        }
+    }
+
     /// Whether a photograph is on screen. An unresolved `venueLookup` is not one yet —
     /// the card shows the fallback treatment until (and unless) it resolves.
     var isPhoto: Bool {

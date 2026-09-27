@@ -221,7 +221,7 @@ struct FeedEventDetailDestination: View {
 
     @ViewBuilder
     private func heroPhoto(_ photo: FeedCardImageSource) -> some View {
-        if let url = Self.url(of: photo) {
+        if let url = photo.url {
             let shown = isShown(url)
             FeedCardURLPhoto(url: url, onReady: { shownPhotos.insert(url) }, onFailure: { drop(url) })
                 .frame(maxHeight: .infinity)
@@ -251,7 +251,7 @@ struct FeedEventDetailDestination: View {
     @ViewBuilder
     private var credit: some View {
         let page = photoPage ?? 0
-        if photos.indices.contains(page), let url = Self.url(of: photos[page]), isShown(url),
+        if photos.indices.contains(page), let url = photos[page].url, isShown(url),
            let credit = photos[page].attribution {
             PhotoCredit(names: [credit])
                 .padding(.leading, Metric.inset - 9)
@@ -624,7 +624,7 @@ struct FeedEventDetailDestination: View {
         var seen = failed
         var list: [FeedCardImageSource] = []
         for photo in [event] + venue {
-            guard list.count < 3, let url = Self.url(of: photo), seen.insert(url).inserted else { continue }
+            guard list.count < 3, let url = photo.url, seen.insert(url).inserted else { continue }
             list.append(photo)
         }
         return list
@@ -654,13 +654,6 @@ struct FeedEventDetailDestination: View {
               !trimmed.isEmpty
         else { return nil }
         return trimmed
-    }
-
-    private static func url(of photo: FeedCardImageSource) -> URL? {
-        switch photo {
-        case .eventPhoto(let url), .placesPhoto(let url, _): url
-        case .venueLookup, .fallback: nil
-        }
     }
 
     /// The venue to ask Google about: a card's pending lookup, or the where line with
