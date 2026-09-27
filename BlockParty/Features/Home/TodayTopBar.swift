@@ -175,10 +175,14 @@ private nonisolated enum TodayBarMetric {
     /// clock. Instagram keeps the photo's colour, lightened. These take the
     /// material's white back out (contrast and brightness pivot at white, so paper
     /// stays paper) and give the colour back. Tuned side by side with Instagram's
-    /// frames on the simulator (2026-09-27); 1.8 / −0.4 read too white at the top.
+    /// frames on the simulator (2026-09-27); 1.8 / −0.4 read too white at the top,
+    /// and 1.43 took a black photo under the clock to ~50, darker than Instagram's
+    /// 60–75, where its black clock still reads. Brightness is set so the edge over
+    /// the paper at home IS paper: at 1.43 / −0.21 it read 238 on 250, a grey strip
+    /// always up there.
     static let edgeSaturation: Double = 1.5
-    static let edgeContrast: Double = 1.43
-    static let edgeBrightness: Double = -0.21
+    static let edgeContrast: Double = 1.3
+    static let edgeBrightness: Double = -0.10
 }
 
 struct TodayTopBar: View {
