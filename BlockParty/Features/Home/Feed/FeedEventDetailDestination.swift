@@ -385,13 +385,20 @@ struct FeedEventDetailDestination: View {
                 .foregroundStyle(Hue.ink)
                 .accessibilityAddTraits(.isHeader)
 
+            // The text itself switches at once; only the box around it moves. Letting the
+            // text animate cross-faded the two layouts, and a "lem" fragment floated at the
+            // old place while it collapsed (independent review). Opening, the box uncovers
+            // the lines; closing, it shuts over the space they leave.
             Text(about)
                 .font(.sans(17))
                 .foregroundStyle(Hue.ink)
                 .lineLimit(aboutExpanded ? nil : Metric.aboutLines)
+                .animation(nil, value: aboutExpanded)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background { aboutProbe(about) }
+                .frame(height: aboutBoxHeight, alignment: .top)
+                .clipped()
                 .padding(.top, Metric.bodyTop)
 
             // Its own line, in ink, and only when four lines really cut the text.
@@ -402,12 +409,20 @@ struct FeedEventDetailDestination: View {
                     Text(aboutExpanded ? "Show less" : "Read more")
                         .font(.sansSemibold(17))
                         .foregroundStyle(Hue.ink)
+                        .animation(nil, value: aboutExpanded)
                         // A 44 pt target on a 22 pt line.
                         .contentShape(Rectangle().inset(by: -11))
                 }
                 .buttonStyle(FeedCardJoinPressStyle(reduceMotion: reduceMotion, autoplayPressed: false))
             }
         }
+    }
+
+    /// The About's box: the full text's height open, four lines' shut. nil until the
+    /// probe has measured, so the first frame lays out naturally.
+    private var aboutBoxHeight: CGFloat? {
+        guard aboutFullHeight > 0 else { return nil }
+        return aboutExpanded ? aboutFullHeight : aboutClampedHeight
     }
 
     /// The About set twice out of sight, in full and at four lines, to learn whether
