@@ -24,7 +24,9 @@ final class EventCardPhotoTapTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
         app = XCUIApplication()
-        app.launchArguments = ["-open-tab", "town"]
+        // Every event page gets a second, bundled photo instead of Google's, so the edge
+        // swipe below always has a carousel to start on, network or not.
+        app.launchArguments = ["-open-tab", "town", "-event-page-two-photos"]
         app.launch()
     }
 
@@ -81,7 +83,7 @@ final class EventCardPhotoTapTests: XCTestCase {
     /// At the root the same swipe has nothing to pop and must leave the stack pushable.
     /// Proven here because AXe's simulated touches never start a screen-edge swipe; the
     /// drags XCUITest synthesizes do. With `SwipeBack`'s edge half removed, this fails.
-    func testEdgeSwipeOverTheHeroPopsAndTheRootStillPushes() throws {
+    func testEdgeSwipeOverTheHeroPopsAndTheRootStillPushes() {
         let link = firstCardLink()
 
         // Across the top bar, clear of the card, whose link would take the touch.
@@ -89,12 +91,10 @@ final class EventCardPhotoTapTests: XCTestCase {
         link.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.05)).tap()
         XCTAssertTrue(waitForPush(from: link, timeout: 3), "a swipe at the root froze the stack")
 
-        // The carousel only scrolls with two photos, the venue's coming from Google.
+        // The carousel only scrolls with two photos; `-event-page-two-photos` gives it two.
         let twoPhotos = app.descendants(matching: .any)
             .matching(NSPredicate(format: "value BEGINSWITH 'Photo 1 of 2'")).firstMatch
-        guard twoPhotos.waitForExistence(timeout: 10) else {
-            throw XCTSkip("no venue photo from Google, so there is no carousel to swipe over")
-        }
+        XCTAssertTrue(twoPhotos.waitForExistence(timeout: 10), "no two-photo carousel to swipe over")
 
         edgeSwipe(atHeight: 0.22)
         let back = NSPredicate(format: "exists == true AND hittable == true")

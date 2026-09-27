@@ -558,6 +558,16 @@ struct FeedEventDetailDestination: View {
     // MARK: Venue lookup
 
     private func resolveVenuePhoto() async {
+        #if DEBUG
+        // UI tests only: a second bundled photo in place of Google's, so the carousel
+        // is there to swipe over with no network (`EventCardPhotoTapTests`).
+        if ProcessInfo.processInfo.arguments.contains("-event-page-two-photos"),
+           let url = Bundle.main.url(forResource: "centennial-park", withExtension: "jpg") {
+            venuePhoto = .eventPhoto(url)
+            venuePending = false
+            return
+        }
+        #endif
         guard let query = Self.venueQuery(for: item) else { return }
         let resolved = await FeedCardVenuePhoto.resolve(name: query.name, hint: query.hint)
         guard !Task.isCancelled else { return }

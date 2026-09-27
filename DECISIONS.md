@@ -539,7 +539,9 @@ photo carousel pops the page.
   2026-09-26). `EventCardPhotoTapTests.testEdgeSwipeOverTheHeroPopsAndTheRootStillPushes`
   now proves the edge swipe on the hero pops and a swipe at the root leaves the stack
   pushable; it fails with the edge recognizer's delegate removed, and again with the
-  priority over the scroll pan removed.
+  priority over the scroll pan removed. It launches with `-event-page-two-photos`, a
+  bundled second photo in place of Google's, so the carousel it swipes over is there
+  with no network; it used to skip itself when Google sent no venue photo.
 - AXe's simulated touches never start the edge recognizer (logged: it receives the touch
   and never asks to begin), so on the simulator an AXe "edge" swipe only reaches the
   content recognizer, which yields to the carousel. XCUITest's drags do start it; the
