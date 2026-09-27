@@ -10,7 +10,7 @@ Residents of the real town of **St. Joseph, Minnesota** — neighbors of every a
 
 ## Product Purpose
 
-One calm place for everything happening in St. Joseph: a daily timeline (Today), a shared calendar anyone can add to, a live town map, and a daily quest. It exists to make a small town feel legible and connected without the noise of a social network. Success is a neighbor opening it, seeing something real and local, and stepping out the door — not time-on-app, not streaks, not a feed to scroll forever.
+One calm place for everything happening in St. Joseph: a daily timeline (Today), a shared calendar anyone can add to, a live town map, and a daily quest. It is a community social network for one town at a time, and it exists to make a small town feel legible and connected. Success is a neighbor opening it, seeing something real and local, and stepping out the door — not streaks or engagement bait.
 
 This is the **native SwiftUI + Mapbox iOS port** of an Expo/React-Native twin app; the two share one Supabase backend and must keep design tokens and query semantics in sync.
 
@@ -21,7 +21,7 @@ Warm, calm, quiet, neighborly, hyper-local. **The voice is a neighbor, not a bra
 ## Anti-references
 
 - **No engagement bait.** No badges, streaks, points, leaderboards, or notification-spam. The "roll call" was explicitly conceived as *the anti-streak*.
-- **No infinite feed dopamine loop.** Where a social feed exists (the Today remake), it is deliberate and calm, not endless-scroll optimized.
+- **Feeds are fine; manipulation isn't** (Jesse, 2026-09-27). A feed may scroll endlessly. It never keeps people in with fake urgency, streaks or notification spam.
 - **No fabricated or inflated numbers — ever.** Real data only. An empty state reads "0", never a seeded or demo count. Reads are filtered to real, submitted content.
 - **Not a "brand."** No marketing gloss, no mascots or AI-drawn artwork as final art, no hero-metric SaaS template, no gradient-text shouting.
 - **Not gamified wellness.** Where the app touches daily rhythm it is rendered as *place* (real sun + weather → one honest nudge), never a fake goal ring or step count. (The daily almanac, the original expression of this, was removed on 2026-09-25.)
@@ -49,8 +49,7 @@ Target **WCAG AA** for text contrast (the charcoal `ink` ramp is verified on whi
 `docs/GUTTING-LEDGER.md` says how to get each one back and `docs/rules/architecture.md`
 describes the empty shell that remains. Build to this section when a module returns.
 
-- The feed **hard-stops at "all caught up" for the day**. That stop is the point; do not add
-  infinite scroll behind it.
+- The feed may scroll past today; the old "all caught up" hard stop is superseded (Jesse, 2026-09-27).
 - The coloured utility tile row (weather, garbage, road) is removed. It stole attention.
 - News: five stories. Tapping the card opens a summary; a separate tap opens the exact source
   story. **The focused reader is the signature interaction** — the card grows out of its own
