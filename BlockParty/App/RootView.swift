@@ -73,9 +73,6 @@ struct RootView: View {
     var body: some View {
         Group {
             #if DEBUG
-            // `-show-map-intro` forces the map's first-run explainer on stage so it
-            // can be verified headlessly in the simulator. No effect in release or
-            // without the flag.
             if ProcessInfo.processInfo.arguments.contains("-show-home") {
                 // A deterministic Home route for simulator verification. The Home
                 // preview loader supplies local data, so this bypasses auth and
@@ -125,6 +122,9 @@ struct RootView: View {
                 SkeletonGalleryPreview()
             } else if ProcessInfo.processInfo.arguments.contains("-show-map-intro"),
                       !debugIntroDismissed {
+                // `-show-map-intro` forces the map's first-run explainer on stage so it
+                // can be verified headlessly in the simulator. No effect in release or
+                // without the flag.
                 MapIntroView { debugIntroDismissed = true }
             } else if ProcessInfo.processInfo.arguments.contains("-day-sheet-demo") {
                 // The whole day-sheet TRANSITION, driven programmatically over the
@@ -216,8 +216,8 @@ struct RootView: View {
 
 /// The authed shell: the four tabs and the sheets and covers they open.
 struct MainTabsView: View {
-    /// A one-shot starting tab (e.g. land on Map straight after onboarding). nil →
-    /// the usual default (Today, or a DEBUG `-open-tab` override).
+    /// A one-shot starting tab. nil → the usual default (Town, or a DEBUG `-open-tab`
+    /// override).
     let startTab: Tab?
     @State private var tab: Tab
 
@@ -233,7 +233,7 @@ struct MainTabsView: View {
     /// DEBUG-only: `-open-map` raises the map cover on launch. It replaces the old
     /// `-open-tab map`, which died with the map's tab: the map is a presented cover
     /// now, so a tab argument can no longer reach it. Screenshot automation needs
-    /// SOME way in, and tapping the Today button is not available headlessly.
+    /// SOME way in, and tapping the Today bar's map disc is not available headlessly.
     private static func debugOpenMap() -> Bool {
         #if DEBUG
         return ProcessInfo.processInfo.arguments.contains("-open-map")
@@ -242,7 +242,7 @@ struct MainTabsView: View {
         #endif
     }
 
-    /// DEBUG-only: `-open-tab block|daily|shops|you` launch argument selects
+    /// DEBUG-only: `-open-tab town|daily|business|you` launch argument selects
     /// the starting tab, so simulator verification can screenshot any tab
     /// without UI driving. No effect in release builds or without the flag.
     private static func initialTab() -> Tab {
@@ -294,8 +294,8 @@ struct MainTabsView: View {
     }
 
     @State private var expandedPlace: Place?
-    /// The map, presented full-screen from the Today tab's top-right button
-    /// rather than living in the bar. Its selected-pin state belongs to
+    /// The map, presented full-screen from the map disc in the Town tab's Today bar
+    /// rather than living in the tab bar. Its selected-pin state belongs to
     /// `SJMapView` itself now — the shell has no tab bar to hide under it.
     @State private var showMap = false
     /// The Today bar's two new controls, added 2026-09-20. Both open a reserved
@@ -303,8 +303,9 @@ struct MainTabsView: View {
     /// named empty room is the same call `BlankTab` makes for the unbuilt tabs.
     @State private var showSearch = MainTabsView.debugOpen("-open-search")
     @State private var showNotifications = MainTabsView.debugOpen("-open-notifications")
-    /// The town menu — a corner "genie" drawer out of Home's top-right button.
-    /// Owned here (not in HomeView) so it renders above the tab bar.
+    /// The town menu — a glass panel grown from the top-right corner. Nothing in the
+    /// Today bar opens it since the avatar was retired (2026-09-18); `-open-menu` still
+    /// does. Owned here (not in HomeView) so it renders above the tab bar.
     @State private var showMenu = false
     /// The profile, now a menu destination (presented as a standard sheet).
     @State private var showProfileSheet = false
@@ -438,8 +439,8 @@ struct MainTabsView: View {
             }
         }
         .animation(.spring(response: 0.42, dampingFraction: 0.82), value: expandedPlace?.id)
-        // The town menu — Home's top-right ⋮ frosts the whole app into glass and
-        // floats a centered showcase pane (its own overlay lane, above the tab bar).
+        // The town menu — frosts the whole app into glass and grows its panel from the
+        // top-right corner (its own overlay lane, above the tab bar).
         .overlay {
             GlassShowcaseOverlay(isPresented: $showMenu) { close in
                 TownMenuView(onClose: close) { action in
@@ -497,9 +498,8 @@ struct MainTabsView: View {
     }
     #endif
 
-    /// Route a town-menu tap. The drawer is already collapsing; tab switches swap
-    /// instantly behind it (no competing page slide), while sheets/overlays wait
-    /// for the collapse to finish so two presentations don't fight.
+    /// Route a town-menu tap. The drawer is already collapsing, so every action
+    /// waits for the collapse to finish and two presentations don't fight.
     private func handleMenu(_ action: TownMenuAction) {
         switch action {
         case .map:        afterMenuClose { showMap = true }
@@ -522,7 +522,7 @@ struct MainTabsView: View {
 
     /// The tab change itself, with its horizontal page slide. Direction is derived
     /// from the tab order (`Tab: Int`), so moving right through the bar slides content
-    /// the way your thumb expects. The bar's bubble rides its own measured spring
+    /// the way your thumb expects. The bar's bubble rides its own fitted spring
     /// (`TabBarMetric.travel`); Reduce Motion swaps both for a short crossfade.
     /// Shared, so a route-driven change feels exactly like a tapped one.
     private func switchTab(to newTab: Tab) {
