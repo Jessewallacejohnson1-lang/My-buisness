@@ -79,7 +79,7 @@ struct DailyFeedColumn: View {
         case .event(let event, _):
             FeedEventCard(
                 item: event,
-                onShare: { Self.share(event) },
+                onShare: { ShareCenter.shared.present(.event(event)) },
                 actionKind: .event
             )
         }
@@ -101,18 +101,6 @@ struct DailyFeedColumn: View {
                     .padding(16)
                     .background(Hue.surface)
             }
-        )
-    }
-
-    /// The card's share, and the event page's.
-    static func share(_ event: FeedCardItem) {
-        ShareCenter.shared.present(
-            .event(
-                title: event.title,
-                dateLabel: event.dateChip,
-                time: event.shareTime,
-                location: event.shareLocation
-            )
         )
     }
 }

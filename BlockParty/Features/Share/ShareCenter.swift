@@ -168,6 +168,11 @@ extension SharePayload {
         }
     }
 
+    /// A feed card's event: the card's share, and its event page's.
+    static func event(_ item: FeedCardItem) -> SharePayload {
+        .event(title: item.title, dateLabel: item.dateChip, time: item.shareTime, location: item.shareLocation)
+    }
+
     /// A place off the town map (the pin-detail sheet's share action). `detail`
     /// is the place's real address or curated blurb — omitted when absent, never
     /// invented.

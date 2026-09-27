@@ -304,7 +304,7 @@ struct FeedEventDetailDestination: View {
             // The card's share reveal. 15, not the row's 17: the Reference's share
             // mark is 14 x 17 pt.
             circleButton(glyph: Image(systemName: "square.and.arrow.up").font(.sansSemibold(15)), label: "Share") {
-                DailyFeedColumn.share(item)
+                ShareCenter.shared.present(.event(item))
             }
 
             // The app's bookmark, as on the card: saved, the brand yellow exactly
