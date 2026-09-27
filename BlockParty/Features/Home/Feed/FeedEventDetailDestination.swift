@@ -186,7 +186,8 @@ struct FeedEventDetailDestination: View {
     @ViewBuilder
     private func heroPhoto(_ photo: FeedCardImageSource) -> some View {
         if let url = Self.url(of: photo) {
-            let shown = shownPhotos.contains(url)
+            // Drawn already (by its card, at another size) counts as shown: no skeleton.
+            let shown = shownPhotos.contains(url) || FeedCardShownBitmaps.bitmap(for: url) != nil
             FeedCardURLPhoto(url: url, onReady: { shownPhotos.insert(url) }, onFailure: { drop(url) })
                 .frame(maxHeight: .infinity)
                 .clipped()

@@ -44,7 +44,16 @@ private struct FeedCardDownsampledPhoto: View {
     var onReady: (() -> Void)? = nil
     var onFailure: (() -> Void)? = nil
 
-    @State private var image: CGImage?
+    /// The bitmap this view loaded, tagged with its URL so a view handed a new URL never
+    /// shows the old photo.
+    @State private var loaded: (url: URL, image: CGImage)?
+
+    /// What to draw: this view's own bitmap, else one already drawn elsewhere for the
+    /// same URL at another size (the card's, when the event page asks for a wider one).
+    private var image: CGImage? {
+        if let loaded, loaded.url == request.url { return loaded.image }
+        return FeedCardShownBitmaps.bitmap(for: request.url)
+    }
 
     var body: some View {
         Group {
@@ -63,10 +72,34 @@ private struct FeedCardDownsampledPhoto: View {
         .task(id: request) {
             let loadedImage = await FeedCardImageLoader.shared.image(for: request)
             guard !Task.isCancelled else { return }
-            // Cross-fade the photograph in rather than hard-cutting it over the ink.
-            withAnimation(.easeOut(duration: 0.2)) { image = loadedImage }
-            if loadedImage != nil { onReady?() } else { onFailure?() }
+            if let loadedImage {
+                FeedCardShownBitmaps.remember(loadedImage, for: request.url)
+                // Cross-fade the photograph in rather than hard-cutting it over the ink.
+                withAnimation(.easeOut(duration: 0.2)) { loaded = (request.url, loadedImage) }
+            }
+            // A photo already on screen at another size has not failed.
+            if image != nil { onReady?() } else { onFailure?() }
         }
+    }
+}
+
+/// The newest bitmap drawn for each photo URL, at whatever size, readable without
+/// waiting on the loader. The event page asks for a wider copy of the photo its card
+/// just drew, so its hero flashed a skeleton over a photo already on screen (design.md
+/// "Don't flash"); it now draws this one at once and swaps in the wider one when it
+/// decodes. The same 12-photo bound as `FeedCardImageLoader`.
+@MainActor
+enum FeedCardShownBitmaps {
+    private static var bitmaps: [URL: CGImage] = [:]
+    private static var order: [URL] = []
+
+    static func bitmap(for url: URL) -> CGImage? { bitmaps[url] }
+
+    static func remember(_ bitmap: CGImage, for url: URL) {
+        bitmaps[url] = bitmap
+        order.removeAll { $0 == url }
+        order.append(url)
+        if order.count > 12 { bitmaps[order.removeFirst()] = nil }
     }
 }
 
