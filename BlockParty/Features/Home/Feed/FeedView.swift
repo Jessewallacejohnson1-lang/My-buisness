@@ -197,34 +197,13 @@ struct FeedView: View {
         // passes underneath it, but `.safeAreaBar` let iOS adapt the bar to what was
         // behind it and flip it dark over photos — white logo and marks, dark paper
         // (recorded 2026-09-24). `.safeAreaInset` opts out of that adaptation, and
-        // the bar now brings its own paper-to-clear backdrop instead, so the logo
-        // sits on paper mid-feed; when the bar leaves, the backdrop leaves with it
-        // and only the status strip below stays. Height stays the constant 58pt.
+        // the bar brings its own soft edge instead (`SoftTopEdge`), which also
+        // covers the status band when the bar is away. Height stays the constant 58pt.
         .safeAreaInset(edge: .top, spacing: 0) {
             TodayTopBar(onOpenSearch: onOpenSearch,
                         onOpenMap: onOpenMap,
                         onOpenNotifications: onOpenNotifications,
                         chromeHidden: forcedCollapse || chromeHidden)
-        }
-        // An always-on paper strip behind the status bar, exactly the top safe area
-        // and nothing below it (Jesse, Gate 2, 2026-09-24: like Instagram's). With
-        // the bar away, the dark clock and battery otherwise sat straight on dark
-        // photos: under `.safeAreaInset` the soft scroll edge effect draws nothing,
-        // so it was deleted rather than left as dead code. With the bar showing,
-        // the strip is paper under the bar's own paper backdrop, so nothing changes.
-        //
-        // A zero-height view at the safe area's top edge, with the paper as its
-        // BACKGROUND ignoring the top safe area: the flexible background grows up
-        // to the screen edge, which is the status band's height. (Paper on a fixed
-        // frame would be shifted, not grown — the backdrop's first bug.) Applied
-        // AFTER `.safeAreaInset`, so its safe area is the status band alone, not the
-        // band plus the 58pt bar. It takes no taps and changes no inset or height.
-        .overlay(alignment: .top) {
-            Color.clear
-                .frame(height: 0)
-                .background(Hue.paper.ignoresSafeArea(edges: .top))
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
         }
         .scrollPosition($feedPosition)
         .refreshable {

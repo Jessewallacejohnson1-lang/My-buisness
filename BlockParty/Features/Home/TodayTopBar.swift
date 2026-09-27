@@ -7,8 +7,7 @@
 //  the content. This bar is chrome: it is present immediately (no spring entrance),
 //  it does not scroll with the content, it LEAVES on a downward scroll and returns
 //  on an upward one (Jesse, 2026-09-21, naming Instagram), and it carries no rule of
-//  its own — its paper backdrop fades to clear below the row, so the bar separates
-//  from the feed with a gradient rather than a cut.
+//  its own — the feed shows through a soft blurred edge behind it (`SoftTopEdge`).
 //
 //  The Joetown lockup was retired on 2026-09-17; the profile avatar — the ⋮-lineage
 //  button that opened the town menu — was retired on 2026-09-18 (Jesse's call). For
@@ -151,9 +150,9 @@ private nonisolated enum TodayBarMetric {
     /// over three passes on 2026-09-19, Jesse each time. It still clears the 50pt
     /// disc beside it, with the bar's 58pt content height as the hard ceiling.
     static let wordmarkHeight: CGFloat = 31
-    /// How far below the controls the paper backdrop fades to clear. GUESSED
-    /// (2026-09-24), pending an Instagram screen recording in `references/` —
-    /// taste.md says sizes come from a Reference, and there is none yet.
+    /// How far below the controls (or below the status band, with the bar away)
+    /// the soft edge runs out. GUESSED (2026-09-24), pending an Instagram screen
+    /// recording in `references/` — taste.md says sizes come from a Reference.
     static let backdropFade: CGFloat = 16
 }
 
@@ -190,9 +189,7 @@ struct TodayTopBar: View {
         //
         // The bar's HEIGHT never moves — the frame below holds 58 whether or not
         // anything is inside it. See `TodayHeader.contentHeight` for why a height
-        // derived from this scroll rings instead of settling. With the backdrop gone
-        // too, the band the chrome leaves behind shows the feed itself, unblurred;
-        // only the status band above it keeps paper (`FeedView`'s status strip).
+        // derived from this scroll rings instead of settling.
         ZStack {
             if !chromeHidden {
                 controls
@@ -204,46 +201,21 @@ struct TodayTopBar: View {
         // Cut at the bar's own edge, so a mid-flight slide is trimmed rather than
         // drawn over the status bar.
         .clipped()
-        // The paper backdrop, OUTSIDE that clip because it has to reach up behind
-        // the status bar and down past the row. It arrives and leaves with the
-        // controls (one animation drives both), so mid-feed the logo, icons and
-        // status bar come back on paper instead of over a photo (Jesse, 2026-09-24,
-        // Q2 A). At the top of the feed it is paper on paper, so nothing changes
-        // there. Not the white lid of 2026-09-19: it fades to clear below the row,
-        // and it is gone whenever the bar is.
+        // Instagram's top edge (Jesse, 2026-09-27, replacing the paper bar and the
+        // always-on paper status strip): the feed shows through, blurred and washed,
+        // behind the status bar and the row. With the bar away it shrinks to the
+        // status band, so the clock never sits on a raw photo. Its height is chrome
+        // state, not scroll, and it is a background, so it moves no inset.
         .background(alignment: .top) {
-            ZStack {
-                if !chromeHidden {
-                    backdrop
-                }
-            }
+            Color.clear
+                .frame(height: (chromeHidden ? 0 : TodayHeader.contentHeight) + TodayBarMetric.backdropFade)
+                .background(SoftTopEdge().ignoresSafeArea(edges: .top))
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
         }
         .animation(reduceMotion ? .easeOut(duration: 0.18)
                                 : .spring(response: 0.34, dampingFraction: 0.9),
                    value: chromeHidden)
-    }
-
-    /// Full paper behind the status bar and the 58pt row, then paper-to-clear over
-    /// `backdropFade`. It slides by its own layout height (`.move(edge: .top)`,
-    /// 58 + fade; the status-band paper is drawn outside that frame) and fades on
-    /// the same spring as the controls. Taps pass through to the feed underneath.
-    private var backdrop: some View {
-        VStack(spacing: 0) {
-            // The safe-area extension goes on a FLEXIBLE paper behind the row's
-            // fixed 58pt, so it grows upward from the row. On a fixed-height box it
-            // shifted the box up into the status band instead, leaving the logo row
-            // on bare feed (eyes pass, 2026-09-24).
-            Color.clear
-                .frame(height: TodayHeader.contentHeight)
-                .background(Hue.paper.ignoresSafeArea(edges: .top))
-            LinearGradient(colors: [Hue.paper, Hue.paper.opacity(0)],
-                           startPoint: .top, endPoint: .bottom)
-                .frame(height: TodayBarMetric.backdropFade)
-        }
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
-        // Same shape as the controls' transition, so the two land on the same frame.
-        .transition(.move(edge: .top).combined(with: .opacity))
     }
 
     // MARK: - Layers
@@ -379,6 +351,30 @@ struct TodayTopBar: View {
         }
         .buttonStyle(PressableStyle(scale: 0.92, haptic: false))
         .accessibilityLabel("Open the town map")
+    }
+}
+
+/// The feed blurred and washed with paper behind the status bar and the row — full
+/// blur down to the last `backdropFade` points, which fade to clear. Instagram's top
+/// edge, drawn by hand: the system's soft scroll edge needs `.safeAreaBar`, which
+/// flipped the bar dark over photos (2026-09-24). The wash is heaviest at the top so
+/// the clock stays on light; it is pinned light, so the ink over it never changes
+/// (taste.md, Chrome over content). Wash values GUESSED (2026-09-27).
+private struct SoftTopEdge: View {
+    var body: some View {
+        ZStack {
+            Rectangle().fill(.ultraThinMaterial)
+            LinearGradient(colors: [Hue.paper.opacity(0.75), Hue.paper.opacity(0.45)],
+                           startPoint: .top, endPoint: .bottom)
+        }
+        .environment(\.colorScheme, .light)
+        .mask {
+            VStack(spacing: 0) {
+                Rectangle()
+                LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
+                    .frame(height: TodayBarMetric.backdropFade)
+            }
+        }
     }
 }
 
