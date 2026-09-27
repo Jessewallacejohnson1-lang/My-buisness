@@ -91,7 +91,7 @@ final class EventCardPhotoTapTests: XCTestCase {
 
         // The carousel only scrolls with two photos, the venue's coming from Google.
         let twoPhotos = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "value == 'Photo 1 of 2' OR label == 'Photo 1 of 2'")).firstMatch
+            .matching(NSPredicate(format: "value BEGINSWITH 'Photo 1 of 2'")).firstMatch
         guard twoPhotos.waitForExistence(timeout: 10) else {
             throw XCTSkip("no venue photo from Google, so there is no carousel to swipe over")
         }

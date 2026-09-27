@@ -181,6 +181,18 @@ struct FeedEventDetailDestination: View {
             .scrollTargetBehavior(.paging)
             .scrollPosition(id: $photoPage)
             .scrollDisabled(photos.count < 2)
+            // For VoiceOver the carousel is one adjustable element: swipe up or down
+            // for the next or previous photo. One photo has nothing to adjust.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Photos")
+            .accessibilityValue(photoValue)
+            .accessibilityAdjustableAction { direction in
+                let page = photoPage ?? 0
+                let next = direction == .increment ? page + 1 : page - 1
+                guard photos.indices.contains(next) else { return }
+                withAnimation(Motion.smooth) { photoPage = next }
+            }
+            .accessibilityHidden(photos.count < 2)
         }
     }
 
@@ -217,6 +229,14 @@ struct FeedEventDetailDestination: View {
         }
     }
 
+    /// "Photo 2 of 2, by Ada Lovelace": where VoiceOver is in the carousel, and whose
+    /// photo it is.
+    private var photoValue: String {
+        let page = photoPage ?? 0
+        let credit = photos.indices.contains(page) ? photos[page].attribution : nil
+        return "Photo \(page + 1) of \(photos.count)" + (credit.map { ", by \($0)" } ?? "")
+    }
+
     @ViewBuilder
     private var counter: some View {
         if let text = Self.counterText(page: photoPage ?? 0, count: photos.count) {
@@ -232,7 +252,8 @@ struct FeedEventDetailDestination: View {
                 .background(.black.opacity(0.55), in: Capsule())
                 .padding(.trailing, Metric.inset)
                 .padding(.bottom, Metric.counterBottom)
-                .accessibilityLabel("Photo \((photoPage ?? 0) + 1) of \(photos.count)")
+                // The carousel says it, with the credit.
+                .accessibilityHidden(true)
                 .transition(.opacity)
         }
     }
