@@ -61,8 +61,12 @@ all live there now. This file carries what is newer than that, or narrower than 
 
 ## Brand
 
+- 2026-09-27 — The tab bar copies Instagram's: icons only, all ink, the selected one filled;
+  the You tab shows the neighbour's photo (Jesse). **Supersedes** the 2026-09-25 yellow
+  selected icon.
 - 2026-09-25 — Tab bar selected icon is solid BP yellow #FCE804, revealed by a darker grey
   bubble (Jesse); **supersedes** the teal selected-state line for the tab bar.
+  **Superseded 2026-09-27** (line above).
 - 2026-09-06 — App icon glyph is **three rooftops in a row**: three roof peaks only, no
   walls, doors, or windows, middle peak slightly taller, one solid color on a solid
   ground. **Supersedes** the water tower, the crossed street sign, and the wave figure.

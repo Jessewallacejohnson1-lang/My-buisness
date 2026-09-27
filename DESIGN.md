@@ -30,10 +30,11 @@ tapped, and nothing else — never a border, never a background, never an error 
 A heart that stays ink reads as a shape; a heart that turns red reads as something you
 did, which is the control's whole job.
 
-**Accents are small by rule.** The yellow marks exactly three things. The Town bar's map
+**Accents are small by rule.** The yellow marks exactly two things. The Town bar's map
 disc, a 50pt circle in `Hue.brandDisc` — the brand yellow at FULL strength, solid, with
-no glass and no tint (2026-09-24). The selected tab-bar icon, a solid `brandDisc`
-symbol revealed by the darker grey Selection bubble (Jesse, 2026-09-25). And every saved
+no glass and no tint (2026-09-24). The tab bar has none: it copies Instagram's, every
+icon ink and the selected one filled (Jesse, 2026-09-27; it was yellow from
+2026-09-25). And every saved
 bookmark, filled `brandDisc` inside its ink outline, wherever it appears: the feed cards,
 the event page, the map's pin sheet and pin badge, and `SaveBookmarkButton`, all drawn by
 one `BookmarkGlyph` (Jesse, 2026-09-26 and 2026-09-27). The tab bar's Create disc that
@@ -76,7 +77,7 @@ All values are sRGB hex from `Hue` (`BlockPartyColor.swift`). Six tokens, and no
 | `Hue.hairline` | `#E7E7E4` | Borders, dividers |
 | `Hue.fill` | `#F1F1EF` | Inert fills — placeholders, skeletons, disabled |
 | `Hue.brandYellowHex` | `#FCE804` | **The accent**, sampled from the logo's field. Tints derive from it |
-| `Hue.brandDisc` | `#FCE804` | The Town bar's map disc, the selected tab-bar icon, and every saved bookmark's fill — the same yellow, solid, scoped to those three |
+| `Hue.brandDisc` | `#FCE804` | The Town bar's map disc and every saved bookmark's fill — the same yellow, solid, scoped to those two |
 | `Hue.onBrandDisc` | `#111111` | Ink ON the map disc, pinned to the light ramp (the disc is a fixed canvas) |
 | `Hue.heart` | `#FF3040` | A liked heart, and nothing else. State, not chrome |
 
@@ -117,7 +118,7 @@ survives the monochrome system, because the map is content rather than chrome.
 - **Jost is a variable font and its PostScript names are inconsistent upstream** — `Jost-Regular`, but `JostRoman-Medium` / `JostRoman-SemiBold` / `JostRoman-Bold`. Use them exactly; a wrong name falls back to the system font **silently**, with no error.
 - **Text takes a role, never a raw point size.** `BlockPartyFont` is the ONLY file in the app allowed to name a size, because the two ways of naming one behave oppositely: `Font.system(size:)` is frozen and never grows, while `Font.custom(_:size:)` grows with no ceiling. Mixing them is what broke text scaling app-wide — at AX5 a 22pt Jost title reached ~55pt and truncated mid-word while the 13pt SF body beside it did not move at all. Every helper now scales against a shared text style, so the two faces move together. `TypographyScalingGuardTests` fails the build if a raw size appears anywhere else, and separately proves at render time that body text actually grows at AX5.
 - **The SF helpers snap to the nearest system step** (caption2 11, caption 12, footnote 13, subheadline 15, callout 16, body 17, title3 20, title2 22, title 28, largeTitle 34), because SwiftUI has no `system(size:relativeTo:)` — so `Font.sans(14)` renders at 15. Jost keeps its exact size and uses the step only as its growth rate. Ties round up: this file serves the user who asked for larger text.
-- **Three helpers do not scale, and each says why in its own doc comment.** `Font.logo` is `JostRoman-SemiBold` at a fixed size — a logo is a mark, not text. `Font.glyph(_:weight:)` is for ARTWORK: a symbol centred in a fixed-diameter map marker, the double-tap heart burst over a photo, a placeholder inside a circular avatar, the tab bar icons. Text reaching for `glyph` is a bug. `Font.tabLabel(selected:)` is the tab bar's label, SF Pro, Medium or Semibold when selected, frozen like Apple's (2026-09-25). Anything using them owes the reader an alternative — `accessibilityHidden` if decorative, a label if it carries meaning, `.accessibilityShowsLargeContentViewer()` on map chrome and on every tab. `AtkinsonHyperlegible-Bold.ttf` is still bundled but no longer referenced.
+- **Two helpers do not scale, and each says why in its own doc comment.** `Font.logo` is `JostRoman-SemiBold` at a fixed size — a logo is a mark, not text. `Font.glyph(_:weight:)` is for ARTWORK: a symbol centred in a fixed-diameter map marker, the double-tap heart burst over a photo, a placeholder inside a circular avatar, the tab bar icons. Text reaching for `glyph` is a bug. The tab bar has no labels since 2026-09-27. Anything using them owes the reader an alternative — `accessibilityHidden` if decorative, a label if it carries meaning, `.accessibilityShowsLargeContentViewer()` on map chrome and on every tab. `AtkinsonHyperlegible-Bold.ttf` is still bundled but no longer referenced.
 - Do not add a third family.
 
 ## Layout, radii & elevation

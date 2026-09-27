@@ -239,11 +239,11 @@ final class DynamicTypeAuditTests: XCTestCase {
     /// This list is SHORT and it stays short. Jesse's rule: scale the text that
     /// makes sense to scale, and rule out the tab bar and the logo. Everything
     /// ruled out here is already frozen deliberately in the app through
-    /// `Font.glyph`, `Font.logo` or `Font.tabLabel` — this is the same decision, stated where the
+    /// `Font.glyph` or `Font.logo` — this is the same decision, stated where the
     /// auditor can read it.
     ///
     /// A thing in this list owes the reader another way in. The tab bar's icons
-    /// and labels are both frozen (`Font.glyph`, `Font.tabLabel`, 2026-09-25), so
+    /// are frozen (`Font.glyph`; it has had no labels since 2026-09-27), so
     /// every tab carries `.accessibilityShowsLargeContentViewer()` and a long press
     /// enlarges it — which is Apple's requirement for a custom bar, not a nicety.
     private func isFrozenByDesign(_ issue: XCUIAccessibilityAuditIssue) -> Bool {

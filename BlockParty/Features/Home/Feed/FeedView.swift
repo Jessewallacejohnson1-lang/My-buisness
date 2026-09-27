@@ -205,6 +205,8 @@ struct FeedView: View {
                         onOpenNotifications: onOpenNotifications,
                         chromeHidden: forcedCollapse || chromeHidden)
         }
+        // The tab bar shrinks on the same signal, as Instagram's does.
+        .preference(key: TabBarCompactKey.self, value: forcedCollapse || chromeHidden)
         .scrollPosition($feedPosition)
         .refreshable {
             if controller.briefing.needsRefresh {

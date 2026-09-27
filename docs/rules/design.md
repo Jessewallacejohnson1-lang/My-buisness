@@ -40,11 +40,11 @@ build time, and the colour half has no backstop. A human eye is the only check f
     `glyphIcon(_:filled:tint:)`, which sets `foregroundStyle` closer to the glyph; an
     outer style silently loses.
   - **`brandYellowHex`** #FCE804 — the app's accent, taken from the logo's yellow field.
-    **`brandDisc`** is that yellow at full strength, solid, for exactly **three uses: the
-    Town bar's map disc, the selected tab-bar icon, and the fill of every saved
-    bookmark** (renamed from `createDisc` on 2026-09-24 when the tab bar's Create disc
-    was removed; the tab icon joined it on 2026-09-25, and saved bookmarks on
-    2026-09-26/27, Jesse). A saved bookmark is **`BookmarkGlyph`** (`ExploreKit.swift`):
+    **`brandDisc`** is that yellow at full strength, solid, for exactly **two uses: the
+    Town bar's map disc and the fill of every saved bookmark** (renamed from `createDisc`
+    on 2026-09-24 when the tab bar's Create disc was removed; saved bookmarks joined on
+    2026-09-26/27, and the selected tab icon, yellow from 2026-09-25, went back to ink on
+    2026-09-27 with the Instagram bar, Jesse). A saved bookmark is **`BookmarkGlyph`** (`ExploreKit.swift`):
     the yellow inside an ink outline, on the feed cards, the event page, the map's pin
     sheet and pin badge, and `SaveBookmarkButton`. Draw a new bookmark with it, never
     with a yellow at the call site. `mapWash`, the 68% translucent version that disc used to use, is still
@@ -63,10 +63,10 @@ build time, and the colour half has no backstop. A human eye is the only check f
   `Font.system(size:)` is FROZEN while `Font.custom(_:size:)` scales unbounded, and mixing
   them broke Dynamic Type across every screen. Both faces now scale against a shared text
   style. The SF helpers snap to the nearest system step, so `Font.sans(14)` renders at 15;
-  Jost keeps its exact size. `Font.logo`, `Font.glyph(_:weight:)` and
-  `Font.tabLabel(selected:)` are the deliberate frozen exceptions — **`glyph` is for ARTWORK
-  only** (map markers, the heart burst, avatar placeholders, tab bar icons), and text
-  reaching for it is a bug. The tab bar's labels use `tabLabel`, frozen like Apple's.
+  Jost keeps its exact size. `Font.logo` and `Font.glyph(_:weight:)` are the deliberate
+  frozen exceptions — **`glyph` is for ARTWORK only** (map markers, the heart burst, avatar
+  placeholders, tab bar icons), and text reaching for it is a bug. The tab bar has no
+  labels (2026-09-27).
   - **Two faces.** Display/wordmark/headlines are **Jost** (bundled variable font, OFL
     licence alongside it); body/UI/data stay **SF Pro** via `Font.sans*`/`Font.mono*`, with
     numbers tabular via `.monospacedDigit()`.

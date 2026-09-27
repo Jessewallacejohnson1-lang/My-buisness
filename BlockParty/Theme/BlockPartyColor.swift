@@ -164,17 +164,17 @@ nonisolated enum Hue {
     /// The app's ground stays white/paper.
     nonisolated static let brandYellowHex: UInt32 = 0xFCE804
 
-    /// The brand yellow at FULL strength, solid. Three uses: the Town bar's map disc
-    /// (2026-09-24), the selected tab-bar icon, revealed by the Selection bubble
-    /// (Jesse, 2026-09-25), and the fill of every saved bookmark, `BookmarkGlyph`
-    /// (Jesse, 2026-09-26/27). It was the tab bar's Create disc until Create was removed
-    /// on 2026-09-24, which is why it is a disc token rather than a map one. The map
-    /// disc used to be glass tinted with the yellow at 68% (`mapWash`, deleted
-    /// 2026-09-24): a tint is not the brand yellow, and it went mustard over photos.
+    /// The brand yellow at FULL strength, solid. Two uses: the Town bar's map disc
+    /// (2026-09-24) and the fill of every saved bookmark, `BookmarkGlyph` (Jesse,
+    /// 2026-09-26/27). The selected tab-bar icon was yellow from 2026-09-25 until the
+    /// Instagram bar made it ink (Jesse, 2026-09-27). It was the tab bar's Create disc
+    /// until Create was removed on 2026-09-24, which is why it is a disc token rather
+    /// than a map one. The map disc used to be glass tinted with the yellow at 68%
+    /// (`mapWash`, deleted 2026-09-24): a tint is not the brand yellow, and it went
+    /// mustard over photos.
     ///
-    /// DESIGN.md's "accents are small by rule" still holds: the map disc was the one,
-    /// the tab icon the second and the saved bookmark the third, each scoped in by
-    /// Jesse. A fourth is his call, not an agent's.
+    /// DESIGN.md's "accents are small by rule" still holds: the map disc and the saved
+    /// bookmark are the two, each scoped in by Jesse. A third is his call, not an agent's.
     static let brandDisc     = Color(hex: brandYellowHex)
 
     /// Ink drawn ON `brandDisc`, pinned to the LIGHT ramp.

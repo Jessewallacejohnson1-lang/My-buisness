@@ -1,16 +1,16 @@
 //
 //  TabBarTests.swift
-//  Block Party — pins the tab bar: four destinations, Apple's measured geometry,
-//  and the ink and yellow it draws.
+//  Block Party — pins the tab bar: four destinations, Instagram's measured
+//  geometry, and the one ink it draws.
 //
 //  The first two tests keep the bar at four: `Tab` names the four destinations in
 //  order, and the bar draws one slot per `Tab` case and nothing else. (It carried a
 //  fifth, non-tab Create slot from 2026-09-21 until posting was paused 2026-09-24.)
 //
-//  The geometry tests pin `TabBarMetric` to Apple's own 4-tab bar, measured at two
-//  widths: the 351pt capsule of a 393pt phone (`references/tab-bar/MEASURED.md`
-//  §2.2) and the 378pt capsule of the 420pt iPhone Air (`references/tab-bar/air/`,
-//  measured 2026-09-25). Everything is capsule-local: x = 0 at the capsule's edge.
+//  The geometry tests pin `TabBarMetric` to Instagram's bar (2026-09-27,
+//  `references/instagram-tab-bar/MEASURED.md`): equal slots inside a 9pt side
+//  inset, the bubble one slot wide and 5pt inside the capsule top and bottom.
+//  Everything is capsule-local: x = 0 at the capsule's edge.
 //
 //  The colour tests render the item row alone, WITHOUT the glass — nothing in this
 //  suite has ever rendered `.glassEffect`. The on-device sample over real glass is
@@ -56,19 +56,19 @@ final class TabBarTests: XCTestCase {
 
     // MARK: - Geometry (capsule-local points)
 
-    /// Apple's item centres, from glyph bounding boxes. 351pt: MEASURED.md §2.2.
-    /// 378pt (iPhone Air): the 2026-09-25 TabProbe pre-step.
-    private static let appleCentres: [(capsuleWidth: CGFloat, centres: [CGFloat])] = [
-        (351, [51.3, 134.5, 216.8, 298.7]),
-        (378, [55.33, 144.33, 233.33, 322.33]),
-    ]
-
-    func testTabCentresMatchAppleAt393And420() {
-        for (width, centres) in Self.appleCentres {
-            for (tab, apple) in zip(Tab.allCases, centres) {
-                XCTAssertEqual(TabBarMetric.centreX(of: tab, capsuleWidth: width), apple, accuracy: 1,
-                               "\(tab) in the \(width)pt capsule")
-            }
+    /// Instagram's layout rule, at the 393pt phone's capsule and the Air's: the end
+    /// bubbles sit 9pt in, neighbouring bubbles touch, and every bubble is 5pt inside
+    /// the capsule top and bottom.
+    func testSlotsSplitTheCapsuleEvenlyInsideInstagramsInset() {
+        XCTAssertEqual(TabBarMetric.height, 60)
+        XCTAssertEqual((TabBarMetric.height - TabBarMetric.bubbleHeight) / 2, 5)
+        for width: CGFloat in [351, 378] {
+            let bubble = TabBarMetric.bubbleWidth(capsuleWidth: width)
+            let centre = { (tab: Tab) in TabBarMetric.centreX(of: tab, capsuleWidth: width) }
+            XCTAssertEqual(centre(.town) - bubble / 2, 9, accuracy: 0.001, "first bubble at \(width)")
+            XCTAssertEqual(centre(.you) + bubble / 2, width - 9, accuracy: 0.001, "last bubble at \(width)")
+            XCTAssertEqual(TabBarMetric.pitch(capsuleWidth: width), bubble, accuracy: 0.001,
+                           "neighbouring bubbles touch at \(width)")
         }
     }
 
@@ -91,61 +91,57 @@ final class TabBarTests: XCTestCase {
     }
 
     /// Between the stops the Lens sits under the finger; past them it parks 9pt
-    /// beyond the end centres (MEASURED at the right end, MEASURED.md §3.5: 307.7
-    /// capsule-local; the left end mirrors it).
+    /// beyond the end centres (Apple's MEASURED overshoot, `references/tab-bar/
+    /// MEASURED.md` §3.5; the left end mirrors it).
     func testLensCentreFollowsFingerAndClampsAtTheEnds() {
         let width: CGFloat = 351
+        let first = TabBarMetric.centreX(of: .town, capsuleWidth: width) - 9
+        let last = TabBarMetric.centreX(of: .you, capsuleWidth: width) + 9
         for finger in stride(from: CGFloat(50), through: 300, by: 25) {
             XCTAssertEqual(TabBarMetric.lensCentreX(fingerX: finger, capsuleWidth: width), finger, accuracy: 0.001)
         }
         for finger: CGFloat in [-80, 0, 30] {
-            XCTAssertEqual(TabBarMetric.lensCentreX(fingerX: finger, capsuleWidth: width), 42.3, accuracy: 1)
+            XCTAssertEqual(TabBarMetric.lensCentreX(fingerX: finger, capsuleWidth: width), first, accuracy: 0.001)
         }
         for finger: CGFloat in [320, width, width + 80] {
-            XCTAssertEqual(TabBarMetric.lensCentreX(fingerX: finger, capsuleWidth: width), 307.7, accuracy: 1)
+            XCTAssertEqual(TabBarMetric.lensCentreX(fingerX: finger, capsuleWidth: width), last, accuracy: 0.001)
         }
     }
 
-    // MARK: - Ink and yellow (item row only, no glass)
+    // MARK: - Ink (item row only, no glass)
 
-    func testSelectedIconIsExactBrandYellowWithNoInkOutline() throws {
-        let bitmap = try renderedItems(selected: .town)
-        var exactYellow = 0
-        var ink = 0
-        for (r, g, b, a) in bitmap.pixels(in: iconBox(.town)) {
-            if isExactBrandYellow(r, g, b, a) { exactYellow += 1 }
-            if isInkDark(r, g, b, a) { ink += 1 }
+    /// Instagram's selected tab is its icon filled, in the same ink as the rest: the
+    /// filled house covers far more of its box than the outline does.
+    func testSelectedIconIsFilledInTheSameInk() throws {
+        let selected = try renderedItems(selected: .town)
+        let unselected = try renderedItems(selected: .daily)
+        let inkPixels = { (bitmap: TabBarBitmap) in
+            bitmap.pixels(in: self.iconBox(.town)).filter { self.isInkDark($0.0, $0.1, $0.2, $0.3) }.count
         }
-        // A 20pt `house.fill` covers well over 1000 px at @3x; its core must be the
-        // exact yellow, not a near-yellow.
-        XCTAssertGreaterThan(exactYellow, 600, "selected icon core is not #FCE804 ±2")
-        XCTAssertEqual(ink, 0, "the selected icon carries ink — an outline or the old black fill")
+        XCTAssertGreaterThan(Double(inkPixels(selected)), Double(inkPixels(unselected)) * 1.5,
+                             "the selected house is not filled")
     }
 
-    func testEveryOtherIconAndEveryLabelIsInk() throws {
+    func testEveryIconIsInkAndNothingIsYellow() throws {
         let bitmap = try renderedItems(selected: .town)
 
-        var boxes = Tab.allCases.map { ("\($0) label", labelBox($0)) }
-        boxes += [Tab.daily, .business, .you].map { ("\($0) icon", iconBox($0)) }
-        for (name, box) in boxes {
-            let darkest = try XCTUnwrap(bitmap.pixels(in: box).filter { $0.3 > 200 }
+        for tab in Tab.allCases {
+            let darkest = try XCTUnwrap(bitmap.pixels(in: iconBox(tab)).filter { $0.3 > 200 }
                 .min { Int($0.0) + Int($0.1) + Int($0.2) < Int($1.0) + Int($1.1) + Int($1.2) },
-                "\(name): nothing drawn")
+                "\(tab) icon: nothing drawn")
             for channel in [darkest.0, darkest.1, darkest.2] {
-                XCTAssertLessThanOrEqual(abs(Int(channel) - 0x11), 3, "\(name) core is not #111111: \(darkest)")
+                XCTAssertLessThanOrEqual(abs(Int(channel) - 0x11), 3, "\(tab) icon core is not #111111: \(darkest)")
             }
         }
 
-        // No yellow anywhere but the selected icon.
-        let selected = iconBox(.town)
-        var strayYellow = 0
+        var yellow = 0
         for y in 0..<bitmap.height {
-            for x in 0..<bitmap.width where !selected.contains(CGPoint(x: x, y: y)) {
+            for x in 0..<bitmap.width {
                 let (r, g, b, a) = bitmap.pixel(x: x, y: y)
-                if a > 200, Int(r) - Int(b) > 40, Int(g) - Int(b) > 40 { strayYellow += 1 }
+                if a > 200, Int(r) - Int(b) > 40, Int(g) - Int(b) > 40 { yellow += 1 }
             }
         }
-        XCTAssertEqual(strayYellow, 0, "yellow drawn outside the selected icon")
+        XCTAssertEqual(yellow, 0, "yellow drawn in the tab bar")
     }
 
     // MARK: - Rendering
@@ -163,24 +159,14 @@ final class TabBarTests: XCTestCase {
         return try TabBarBitmap(cgImage: XCTUnwrap(renderer.cgImage))
     }
 
-    /// A 28pt square around the icon's centre — clear of the label below it.
+    /// A 30pt square around the icon's centre.
     private func iconBox(_ tab: Tab) -> CGRect {
         let x = TabBarMetric.centreX(of: tab, capsuleWidth: width)
-        return pixelRect(x: x - 14, y: TabBarMetric.iconCentreY - 14, width: 28, height: 28)
-    }
-
-    /// The label's line, from above its cap height to below its descender.
-    private func labelBox(_ tab: Tab) -> CGRect {
-        let x = TabBarMetric.centreX(of: tab, capsuleWidth: width)
-        return pixelRect(x: x - 30, y: TabBarMetric.labelBaseline - 10, width: 60, height: 13)
+        return pixelRect(x: x - 15, y: TabBarMetric.iconCentreY - 15, width: 30, height: 30)
     }
 
     private func pixelRect(x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat) -> CGRect {
         CGRect(x: x * scale, y: y * scale, width: width * scale, height: height * scale).integral
-    }
-
-    private func isExactBrandYellow(_ r: UInt8, _ g: UInt8, _ b: UInt8, _ a: UInt8) -> Bool {
-        a == 255 && abs(Int(r) - 0xFC) <= 2 && abs(Int(g) - 0xE8) <= 2 && abs(Int(b) - 0x04) <= 2
     }
 
     private func isInkDark(_ r: UInt8, _ g: UInt8, _ b: UInt8, _ a: UInt8) -> Bool {

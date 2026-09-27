@@ -30,7 +30,7 @@ enum Tab: Int, CaseIterable, Identifiable {
     }
 
     /// The resting glyph, drawn as an ink outline. The selected tab shows the filled
-    /// `selectedSymbol` in brand yellow, revealed inside the Selection bubble.
+    /// `selectedSymbol` in the same ink, as Instagram's bar does.
     var symbol: String {
         switch self {
         case .town:     return "house"
@@ -323,6 +323,11 @@ struct MainTabsView: View {
     /// from the trailing edge (moving *forward* through the tab order) or the
     /// leading edge (moving back). Set in `select(_:)` right before the animation.
     @State private var slideForward = true
+    /// The Town feed is reading down (`TabBarCompactKey`): the tab bar rests small.
+    @State private var tabBarCompact = false
+    /// The You tab's photo. The narrow loader the Today header once used: one
+    /// profile read, and a failed refresh keeps the last good photo.
+    @StateObject private var avatar = TodayHeaderProfileModel(auth: .shared)
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// One stack over the whole shell, so a pushed event page covers the tab bar
@@ -390,8 +395,11 @@ struct MainTabsView: View {
 
                 }
             }
+            .onPreferenceChange(TabBarCompactKey.self) { tabBarCompact = $0 }
 
-            BlockPartyTabBar(selection: tab, onSelect: select)
+            BlockPartyTabBar(selection: tab, onSelect: select,
+                             avatarURL: avatar.avatarUrl, compact: tabBarCompact)
+                .task { await avatar.refresh() }
                 // Apple's measured spot: 21pt above the PHYSICAL bottom edge, not
                 // above the home-indicator safe area. The full-height frame is what
                 // lets `ignoresSafeArea` reach the edge: on the fixed-height bar alone
@@ -468,7 +476,7 @@ struct MainTabsView: View {
         #if DEBUG
         .onAppear {
             // `-tab-cycle` walks the bar end to end on a loop so the bubble travel, the
-            // yellow reveal and the page slide can be recorded headlessly — there is no
+            // icon swap and the page slide can be recorded headlessly — there is no
             // tap automation in this setup, and motion is the whole point of the bar.
             if ProcessInfo.processInfo.arguments.contains("-tab-cycle") {
                 cycleTabs(from: 1)
@@ -549,33 +557,39 @@ struct MainTabsView: View {
 
 /// The tab bar's measured geometry, in CAPSULE-LOCAL points: x = 0 at the capsule's
 /// leading edge, y = 0 at its top. One set of numbers places the items and the
-/// bubble, and will hit-test the finger. Source: Apple's own 4-tab bar measured at
-/// 393pt and on the 420pt iPhone Air, which the Reference matches to the pixel at
-/// 393 (`/Users/owner/BP app/references/tab-bar/MEASURED.md` and `air/`).
+/// bubble, and will hit-test the finger. Source: Instagram's iOS 26 bar, measured
+/// from Jesse's recording (`/Users/owner/BP app/references/instagram-tab-bar/`,
+/// 2026-09-27), where it sets a value; Apple's own bar (`references/tab-bar/`)
+/// where Instagram's recording cannot.
 ///
 /// `nonisolated`: constants and pure arithmetic, callable from any context.
 nonisolated enum TabBarMetric {
     /// Capsule height, and its gap to the screen's sides and physical bottom edge.
-    /// MEASURED at both widths: 62 tall, 21 from each side and from the bottom.
-    static let height: CGFloat = 62
+    /// Height: Instagram's capsule is 0.167x its width, 60pt at 360 (MEASURED as a
+    /// ratio, so the recording's scale drops out). Gaps: 21pt, Apple's MEASURED
+    /// value; Instagram's side gap matches it, its bottom gap is outside the crop.
+    static let height: CGFloat = 60
     static let margin: CGFloat = 21
-    /// The Selection bubble: 54 tall, 4 inside the capsule. MEASURED.
-    static let bubbleInset: CGFloat = 4
-    static let bubbleHeight: CGFloat = 54
-    /// Icon point size, and its centre below the capsule top. The Reference's glyph
-    /// boxes are 18–19pt, a 20pt SF Symbol; centre 24pt down. MEASURED §1.4.
-    static let iconSize: CGFloat = 20
-    static let iconCentreY: CGFloat = 24
-    /// Label baseline below the capsule top. MEASURED §1.5 (y 2452px on a 2307px top).
-    static let labelBaseline: CGFloat = 48.33
+    /// The Selection bubble: 50pt tall, so 5pt inside the capsule top and bottom,
+    /// and as wide as one tab's slot. The slots split the capsule evenly inside a
+    /// 9pt side inset, so the end bubbles sit 9pt in. MEASURED on Instagram's five
+    /// slots (69.4pt bubble, 68.5pt slot, first centre 43pt in); four here.
+    static let sideInset: CGFloat = 9
+    static let bubbleHeight: CGFloat = 50
+    /// Icon point size, centred up and down: Instagram's glyph boxes are 22pt and
+    /// its strokes ~1.6pt (MEASURED). At 23 the house drew 26.7pt wide on the eyes
+    /// sim; 19.5 brings the widest glyph to ~22.5pt.
+    static let iconSize: CGFloat = 19.5
+    static let iconCentreY: CGFloat = height / 2
+    /// The You tab's photo: a 25pt circle (MEASURED on Instagram's profile tab).
+    static let avatarSize: CGFloat = 25
     /// How far past the first and last centres the Lens may travel. MEASURED at the
-    /// right end (§3.5); the left end mirrors it, GUESSED.
+    /// right end on Apple's bar (§3.5); the left end mirrors it, GUESSED.
     static let lensOvershoot: CGFloat = 9
 
-    /// A quarter of the capsule's inner width, plus 10. ESTIMATED from two MEASURED
-    /// widths: 95.7 in the 351pt capsule, 101.7–102.2 in the 378pt one.
+    /// One tab's share of the capsule, and the bubble's width.
     static func bubbleWidth(capsuleWidth: CGFloat) -> CGFloat {
-        (capsuleWidth - 2 * bubbleInset) / 4 + 10
+        (capsuleWidth - 2 * sideInset) / CGFloat(Tab.allCases.count)
     }
 
     /// The Lens while held: 1.20x the bubble's width and 1.30x its height, so it
@@ -620,16 +634,24 @@ nonisolated enum TabBarMetric {
     static let collapseAfterDrag: Duration = .milliseconds(70)
 
     /// The white layer behind the bar's glass that holds it in its light state.
-    /// MEASURED threshold: 20% flipped, 30% held; 35% for margin.
-    static let glassUnderlay: Double = 0.35
+    /// MEASURED threshold: 20% flipped, 30% held. 35% read 202–208 over a near-black
+    /// photo (2026-09-27), lighter than Instagram's 192 over black, so it sits at the
+    /// threshold that held.
+    static let glassUnderlay: Double = 0.30
+    /// The Selection bubble's black: Instagram's reads 0.87x the glass on any
+    /// ground (168 on 192 over black, 221 on 255 over white; MEASURED).
+    static let bubbleShade: Double = 0.13
 
-    /// A tab's centre: the bubble touches the 4pt inset at both ends and the four
-    /// centres are evenly spaced between. Within 0.6pt of Apple at 351 and 378
-    /// (ESTIMATED rule; GUESSED at other widths).
+    /// While the feed reads down, the whole bar rests at 0.84x (Instagram's
+    /// 462×78px against 550×92px, MEASURED), and gets there with no overshoot: half
+    /// way at ~80ms, 98% at ~250ms. Fitted as a critically damped spring; the way
+    /// back is GUESSED to mirror it (the recording never scrolls up).
+    static let compactScale: CGFloat = 0.84
+    static let compaction = Animation.spring(response: 0.3, dampingFraction: 1)
+
+    /// A tab's centre: the middle of its slot.
     static func centreX(of tab: Tab, capsuleWidth: CGFloat) -> CGFloat {
-        let bubble = bubbleWidth(capsuleWidth: capsuleWidth)
-        let step = (capsuleWidth - 2 * bubbleInset - bubble) / CGFloat(Tab.allCases.count - 1)
-        return bubbleInset + bubble / 2 + step * CGFloat(tab.rawValue)
+        sideInset + bubbleWidth(capsuleWidth: capsuleWidth) * (CGFloat(tab.rawValue) + 0.5)
     }
 
     /// The tab a release picks: the centre nearest the finger's x. Its height does
@@ -650,9 +672,9 @@ nonisolated enum TabBarMetric {
     }
 }
 
-/// The global bottom shell: one floating Liquid Glass capsule at Apple's measured
-/// size, restyled to the Tripadvisor Reference in BP's ink and yellow (2026-09-25).
-/// It mounts on every tab and never hides.
+/// The global bottom shell: one floating Liquid Glass capsule, a copy of Instagram's
+/// iOS 26 bar with BP's icons (Jesse, 2026-09-27). It mounts on every tab and never
+/// hides; while the Town feed reads down it shrinks, as Instagram's does.
 ///
 /// One touch drives it, the way Apple's own bar works (TabProbe, 2026-09-25): the
 /// Selection bubble lifts into a Lens under the finger on touch-down (a plain tap
@@ -663,6 +685,11 @@ struct BlockPartyTabBar: View {
     /// Tap handler — the parent owns the page slide and the haptic, and ignores a
     /// release on the tab that is already selected.
     var onSelect: (Tab) -> Void
+    /// The signed-in neighbour's photo for the You tab; nil draws the person icon.
+    var avatarURL: String? = nil
+    /// The feed is reading down (its top bar is away): the bar rests small. A touch
+    /// brings it back to full size while the finger is down.
+    var compact = false
 
     /// The finger while it is down, capsule-local. `@GestureState` resets itself
     /// when the system cancels the touch, so the Lens can never stay stuck up.
@@ -697,7 +724,7 @@ struct BlockPartyTabBar: View {
                 bubble
                     .modifier(geometry)
                 Items(selection: selection, capsuleWidth: width, onSelect: onSelect,
-                      geometry: geometry, lensX: lens == nil ? nil : bubbleX)
+                      avatarURL: avatarURL, lensX: lens == nil ? nil : bubbleX)
             }
             .contentShape(Rectangle())
             .gesture(
@@ -738,6 +765,11 @@ struct BlockPartyTabBar: View {
         // Apple's whole bar swells while pressed (1.042x peak, MEASURED on TabProbe).
         .scaleEffect(touch != nil && !reduceMotion ? TabBarMetric.swell : 1)
         .animation(reduceMotion ? nil : TabBarMetric.growth, value: touch != nil)
+        // Instagram's shrink while reading down, around the bar's own centre. A
+        // finger on the bar (or its landing) holds it at full size. Under Reduce
+        // Motion it still shrinks, without the spring.
+        .scaleEffect(compact && touch == nil && !landing ? TabBarMetric.compactScale : 1)
+        .animation(reduceMotion ? nil : TabBarMetric.compaction, value: compact && touch == nil && !landing)
         .padding(.horizontal, TabBarMetric.margin)
     }
 
@@ -752,21 +784,20 @@ struct BlockPartyTabBar: View {
         }
     }
 
-    /// The Selection bubble: black at 20% over the glass reads 0.80x the bar's
-    /// brightness on any ground (§1.8). While held it IS the Lens, the same grey
+    /// The Selection bubble: translucent black at Instagram's measured shade
+    /// (`TabBarMetric.bubbleShade`). While held it IS the Lens, the same grey
     /// capsule grown to Apple's measured Lens size. Apple's Lens is clear glass, but
     /// a glass capsule here cannot travel: `.glassEffect` draws at the final layout
     /// position, so it jumped to the finger while the bubble and the yellow slid
     /// behind it (round 2, 2026-09-26). The plan's fallback: the dark pressed capsule.
     private var bubble: some View {
         Capsule(style: .continuous)
-            .fill(Color.black.opacity(0.2))
+            .fill(Color.black.opacity(TabBarMetric.bubbleShade))
             .allowsHitTesting(false)
             .accessibilityHidden(true)
     }
 
-    /// Where the bubble is and how it moves, shared by the bubble and the yellow
-    /// reveal so the two can never part. Size and look ride the measured growth
+    /// Where the bubble is and how it moves. Size and look ride the measured growth
     /// spring; position rides the travel spring (or tracks the finger). Scoped this
     /// way because one `.animation` over both let the travel spring win the growth.
     struct BubbleGeometry: ViewModifier {
@@ -797,42 +828,32 @@ struct BlockPartyTabBar: View {
     }
 
     /// The four items, placed from `TabBarMetric`. No glass, so a test can render
-    /// them alone; with no geometry given they draw the resting selected state.
+    /// them alone.
     struct Items: View {
         let selection: Tab
         let capsuleWidth: CGFloat
         var onSelect: (Tab) -> Void
-        /// Where the bubble (or Lens) is: the yellow is revealed inside it.
-        var geometry: BubbleGeometry? = nil
+        /// The signed-in neighbour's photo, drawn on the You tab in place of its icon.
+        var avatarURL: String? = nil
         /// The Lens centre while held; icons near it magnify.
         var lensX: CGFloat? = nil
 
         var body: some View {
-            let reveal = Capsule(style: .continuous)
-                .modifier(geometry ?? BubbleGeometry(
-                    x: TabBarMetric.centreX(of: selection, capsuleWidth: capsuleWidth),
-                    size: TabBarMetric.bubbleSize(capsuleWidth: capsuleWidth, held: false),
-                    held: false, following: false, selection: selection, reduceMotion: true))
             ZStack(alignment: .topLeading) {
-                // Apple's reveal, icon drawing only (Jesse, Gate 1): ink outlines
-                // everywhere the bubble is not, the solid #FCE804 icon wherever it is.
-                // No in-between shade: only the mask's own anti-aliased edge mixes
-                // the two, as a sliding edge must. Ink is the LIGHT-canvas value,
-                // fixed: glass that flips hands its items a dark trait, and adaptive
-                // `Hue.ink` then drew white (measured 2026-09-26).
-                icons(filled: false)
-                    .mask {
-                        Rectangle()
-                            .overlay { reveal.blendMode(.destinationOut) }
-                            .compositingGroup()
-                    }
-                icons(filled: true)
-                    .mask { reveal }
-                // Labels stay ink, selected or not, and are never revealed.
-                labels
-                // Frozen chrome owes the reader another way in: the glyph and the
-                // label never grow, so a long press at an accessibility text size
-                // has to enlarge them (docs/rules/architecture.md).
+                // Instagram's bar: icons only, all one ink, the selected one filled.
+                // Ink is the LIGHT-canvas value, fixed: glass that flips hands its
+                // items a dark trait, and adaptive `Hue.ink` then drew white
+                // (measured 2026-09-26).
+                ForEach(Tab.allCases) { tab in
+                    icon(tab)
+                        .scaleEffect(magnification(tab))
+                        .position(x: centreX(tab), y: TabBarMetric.iconCentreY)
+                }
+                .animation(TabBarMetric.growth, value: lensX)
+                .accessibilityHidden(true)
+                // Frozen chrome owes the reader another way in: the glyph never
+                // grows, so a long press at an accessibility text size has to
+                // enlarge it (docs/rules/architecture.md).
                 ForEach(Tab.allCases) { tab in
                     Color.clear
                         .frame(width: TabBarMetric.pitch(capsuleWidth: capsuleWidth), height: TabBarMetric.height)
@@ -844,9 +865,8 @@ struct BlockPartyTabBar: View {
                 }
             }
             .frame(width: capsuleWidth, height: TabBarMetric.height, alignment: .topLeading)
-            // VoiceOver sees exactly four tabs, not the drawing's layers: the icons
-            // and labels are split into masked layers, so the tab elements are
-            // synthetic children laid over the slots.
+            // VoiceOver sees exactly four tabs, named, not the drawing: the tab
+            // elements are synthetic children laid over the slots.
             .accessibilityChildren {
                 ZStack(alignment: .topLeading) {
                     ForEach(Tab.allCases) { tab in
@@ -858,38 +878,23 @@ struct BlockPartyTabBar: View {
             .accessibilityAddTraits(.isTabBar)
         }
 
-        private var labels: some View {
-            ZStack(alignment: .topLeading) {
-                ForEach(Tab.allCases) { tab in
-                    // Baseline pinned, not stacked, so the icon's box cannot push it.
-                    Text(tab.title)
-                        .font(.tabLabel(selected: selection == tab))
-                        .foregroundStyle(Hue.ink.onLightCanvas)
-                        .alignmentGuide(.top) { $0[.lastTextBaseline] - TabBarMetric.labelBaseline }
-                        .frame(width: TabBarMetric.pitch(capsuleWidth: capsuleWidth),
-                               height: TabBarMetric.height, alignment: .top)
-                        .scaleEffect(magnification(tab))
-                        .position(x: centreX(tab), y: TabBarMetric.height / 2)
-                }
+        @ViewBuilder
+        private func icon(_ tab: Tab) -> some View {
+            let selected = selection == tab
+            if tab == .you, let avatarURL, let url = URL(string: avatarURL) {
+                TabAvatar(url: url, selected: selected, placeholder: symbol(tab, selected: selected))
+            } else {
+                symbol(tab, selected: selected)
             }
-            .frame(width: capsuleWidth, height: TabBarMetric.height, alignment: .topLeading)
-            .animation(TabBarMetric.growth, value: lensX)
-            .accessibilityHidden(true)
         }
 
-        private func icons(filled: Bool) -> some View {
-            ZStack(alignment: .topLeading) {
-                ForEach(Tab.allCases) { tab in
-                    Image(systemName: filled ? tab.selectedSymbol : tab.symbol)
-                        .font(.glyph(TabBarMetric.iconSize))
-                        .foregroundStyle(filled ? Hue.brandDisc : Hue.ink.onLightCanvas)
-                        .scaleEffect(magnification(tab))
-                        .position(x: centreX(tab), y: TabBarMetric.iconCentreY)
-                }
-            }
-            .frame(width: capsuleWidth, height: TabBarMetric.height, alignment: .topLeading)
-            .animation(TabBarMetric.growth, value: lensX)
-            .accessibilityHidden(true)
+        private func symbol(_ tab: Tab, selected: Bool) -> some View {
+            Image(systemName: selected ? tab.selectedSymbol : tab.symbol)
+                .font(.glyph(TabBarMetric.iconSize))
+                .foregroundStyle(Hue.ink.onLightCanvas)
+                // Swapped, not crossfaded: under the tab switch's spring the outline
+                // and the filled symbol blended into a grey blob for ~3 frames.
+                .contentTransition(.identity)
         }
 
         /// One VoiceOver element per tab, over its slot, with the tab's action.
@@ -912,6 +917,42 @@ struct BlockPartyTabBar: View {
             guard let lensX else { return 1 }
             return TabBarMetric.magnification(itemX: centreX(tab), lensX: lensX, capsuleWidth: capsuleWidth)
         }
+    }
+}
+
+/// The You tab's photo, as Instagram's profile tab draws it: a plain circle, with an
+/// ink ring when selected (GUESSED ring: the recording never selects that tab). The
+/// person icon stands in while it loads or when it fails, so the slot is never blank.
+private struct TabAvatar<Placeholder: View>: View {
+    let url: URL
+    let selected: Bool
+    let placeholder: Placeholder
+
+    var body: some View {
+        AsyncImage(url: url) { phase in
+            if case .success(let image) = phase {
+                image.resizable().scaledToFill()
+                    .frame(width: TabBarMetric.avatarSize, height: TabBarMetric.avatarSize)
+                    .clipShape(Circle())
+                    .padding(3)
+                    .overlay {
+                        if selected {
+                            Circle().strokeBorder(Hue.ink.onLightCanvas, lineWidth: 1.5)
+                        }
+                    }
+            } else {
+                placeholder
+            }
+        }
+    }
+}
+
+/// The Town feed's "reading down" signal, carried up to the shell so the tab bar can
+/// shrink with the top bar. Absent (false) on every other tab.
+struct TabBarCompactKey: PreferenceKey {
+    static let defaultValue = false
+    static func reduce(value: inout Bool, nextValue: () -> Bool) {
+        value = value || nextValue()
     }
 }
 

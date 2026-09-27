@@ -95,21 +95,22 @@ since a tab has no close.
   `TabBarTests`. The centre Create disc was removed on 2026-09-24 when posting was paused,
   so **there is no compose entry anywhere in the app** — not in the bar, not on the map, not
   in the town menu. Do not add one back without Jesse saying posting is on again.
-- **It is BP's own bar, not Apple's `TabView`, at Apple's size** (2026-09-25; the why is in
+- **It is BP's own bar, not Apple's `TabView`, copying Instagram's iOS 26 bar with BP's
+  icons** (2026-09-27; Apple's `TabView` was rejected on 2026-09-25, the why is in
   `DECISIONS.md`). One floating glass capsule, the same gap from each side and from the
   physical bottom edge. **Every size, inset, scale and timing is a `TabBarMetric` constant**
-  (`RootView.swift`), capsule-local, with its source in its comment; the four centres are
-  `[test]` pinned to Apple's bar at both measured widths. Change a number there, not in a
-  doc. **It never hides on scroll.**
+  (`RootView.swift`), capsule-local, with its source in its comment; the slot rule is
+  `[test]` pinned. Change a number there, not in a doc. **It never hides, but it shrinks**
+  to `TabBarMetric.compactScale` while the Town feed reads down, on the same signal that
+  sends the top bar away (`TabBarCompactKey`), and a finger on it brings it back.
 - **The glass stays light and the ink never changes.** `[prose]` `.glassEffect(.regular)`
   sits on a white underlay (`TabBarMetric.glassUnderlay`), without which it flips dark over
-  a near-black photo. Icons and labels are `Hue.ink.onLightCanvas` (#111111), never
-  adaptive `Hue.ink`, which drew white on flipped glass. Removing either brings the flip
-  back.
-- **The selected icon is solid `Hue.brandDisc` #FCE804** `[test]`, revealed by the sliding
-  Selection bubble (translucent black): the yellow filled symbol is masked to the bubble
-  over the ink outline. Labels are never revealed and stay ink. No bounce, no colour
-  animation.
+  a near-black photo. Icons are `Hue.ink.onLightCanvas` (#111111), never adaptive
+  `Hue.ink`, which drew white on flipped glass. Removing either brings the flip back.
+- **Icons only, all one ink; the selected icon is its filled symbol** `[test]`, over the
+  sliding Selection bubble (translucent black). No labels, no yellow, no bounce, no colour
+  animation (Jesse, 2026-09-27). **You** draws the neighbour's photo when there is one
+  (`TabAvatar`), the person icon otherwise.
 - **One touch drives the bar; there are no per-tab `Button`s.** `[prose]` On touch-down the
   bubble lifts into a Lens, the same grey capsule grown to Apple's Lens size, that follows
   the finger; icons near it magnify, and the bar swells. Release picks the tab nearest the
@@ -121,8 +122,8 @@ since a tab has no close.
   (2026-09-26).
 - **Each tab is one VoiceOver element with its own action** (synthetic children of an
   `.isTabBar` container), **and each slot keeps `.accessibilityShowsLargeContentViewer`**
-  `[prose]` — the long-press enlargement that frozen chrome owes the reader. **The labels are frozen** (`Font.tabLabel`), like
-  Apple's; nothing scales or shrinks them.
+  `[prose]` — the long-press enlargement that frozen chrome owes the reader. **The icons are
+  frozen** (`Font.glyph`), like Apple's; nothing scales them with the text size.
 - **The map is not a tab.** `SJMapView` is presented as a `.fullScreenCover` from the Town
   top bar's map button, so it carries its own close and owns its own state.
 
