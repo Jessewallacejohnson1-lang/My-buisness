@@ -169,6 +169,17 @@ final class EventDetailPageTests: XCTestCase {
         XCTAssertEqual(model.failedRollbacks, 2, "a turn back the neighbour asked for does not shake")
     }
 
+    /// Popped mid-rollback: the failed Join makes no shake and no buzz on the screen
+    /// underneath.
+    func testAClosedPageNeverShakesAfterAFailedJoin() async throws {
+        let model = FeedEventDetailModel(item: FeedCardItem(event(imageUrl: nil, rsvpd: false)), auth: AuthStore())
+
+        model.toggleGoing()
+        model.pageClosed()
+        try await Task.sleep(for: FeedEventDetailModel.rollbackFloor + .seconds(FeedEventDetailModel.flip) + .milliseconds(300))
+        XCTAssertEqual(model.failedRollbacks, 0, "no shake, and so no buzz, once the page has gone")
+    }
+
     /// Polls every 10 ms until `condition` is false, for at most 5 s.
     private func waitWhile(_ condition: @autoclosure () -> Bool) async throws {
         let start = ContinuousClock.now

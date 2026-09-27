@@ -130,6 +130,7 @@ struct FeedEventDetailDestination: View {
         .animation(Motion.smooth, value: photos.count)
         .animation(Motion.smooth, value: venuePending)
         .task { await resolveVenuePhoto() }
+        .onDisappear { model.pageClosed() }
     }
 
     // MARK: Photos
@@ -689,6 +690,8 @@ final class FeedEventDetailModel: ObservableObject {
     private let eventID: String
     private let auth: AuthStore
     private var inFlight: Task<Void, Never>?
+    /// False once the page has gone (`pageClosed`).
+    private var pageOpen = true
     /// Where a failed write goes back to, while it waits out `rollbackFloor`.
     private var failedFrom: (isGoing: Bool, count: Int)?
 
@@ -734,18 +737,25 @@ final class FeedEventDetailModel: ObservableObject {
                 Log.network("event rsvp toggle failed: \(error.localizedDescription)")
                 failedFrom = (wasGoing, previousCount)
                 try? await Task.sleep(until: tapped + Self.rollbackFloor)
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled, pageOpen else { return }
                 rollBack(to: (wasGoing, previousCount))
                 // Join first, then the shake: it waits for the face to finish turning, so
                 // it never shakes the two labels mid cross-fade (Jesse, 2026-09-27). A tap
                 // before then cancels it.
                 try? await Task.sleep(for: .seconds(Self.flip))
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled, pageOpen else { return }
                 failedRollbacks += 1
                 // Here, not in the view: Reduce Motion drops the shake, never the buzz.
                 Haptics.error()
             }
         }
+    }
+
+    /// The page has gone, so a failed Join no longer turns back, shakes or buzzes: the
+    /// buzz used to land on Town after a pop. The write itself runs on, so a real RSVP
+    /// still in flight is never cancelled by leaving the page.
+    func pageClosed() {
+        pageOpen = false
     }
 
     private func rollBack(to state: (isGoing: Bool, count: Int)) {
