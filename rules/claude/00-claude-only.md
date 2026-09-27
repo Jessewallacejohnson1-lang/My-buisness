@@ -18,7 +18,8 @@ Jesse's standing corrections load with this one:
   is actually present in this session — XcodeBuildMCP, graphify, code-review-graph alike;
   otherwise take the fallback named in the leaf file.
 - **Prefer XcodeBuildMCP** (`build_run_sim`, `build_sim`, `screenshot`) over raw shell for
-  Apple tooling. `[prose]` The raw `xcodebuild` / `xcrun simctl` fallbacks are in
+  Apple tooling, except inside bp-build, which builds through its own `xc.sh` (it takes the
+  machine-wide build lock; see `docs/rules/build.md`). `[prose]` The raw `xcodebuild` / `xcrun simctl` fallbacks are in
   `docs/rules/build.md`. Run `session_show_defaults` **before** a build: every worktree
   builds the same bundle id, so installing any of them overwrites the same simulator app
   and the last build wins.

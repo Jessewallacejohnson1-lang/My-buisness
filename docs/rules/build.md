@@ -34,8 +34,9 @@ A **single** test or class: append `-only-testing:BlockPartyTests/DateHelpersTes
 - **One build or recording at a time on this Mac.** `[prose]` The same test takes 31 s
   alone and 381 s next to another build, and load shifts motion timing by seconds
   (measured 2026-09-25). Take the shared lock: `lockf -k /tmp/bp-xc.lock xcodebuild …`.
-  bp-build Lanes use `xc.sh`, which takes it for them. Don't use the XcodeBuildMCP build or
-  test tools while a `BP Lane` simulator exists; they can't take the lock.
+  bp-build builds through its `xc.sh`, which takes it for it, in its one build folder
+  `~/Documents/bp-build`. The XcodeBuildMCP build and test tools can't take the lock: don't
+  use them while `pgrep -x xcodebuild` shows a build running.
 - **A new test file does not run until it is registered.** `[test]` The test targets
   carry an explicit source list; a file under `BlockPartyTests/` or `BlockPartyUITests/`
   is invisible to `xcodebuild test` until 4 `project.pbxproj` entries exist.
