@@ -38,6 +38,9 @@ struct FeedEventDetailDestination: View {
     /// Photos whose bitmaps are on screen. Until then a page shows the skeleton,
     /// and a Google photo's credit waits for its photo.
     @State private var shownPhotos: Set<URL> = []
+    /// Photos that could not be loaded. They leave the carousel, so a failure never
+    /// holds a skeleton on screen.
+    @State private var failedPhotos: Set<URL> = []
     @State private var aboutExpanded = false
     /// The About's height in full and at four lines, so "Read more" shows only when
     /// the clamp actually cuts something.
@@ -127,7 +130,7 @@ struct FeedEventDetailDestination: View {
     // MARK: Photos
 
     private var photos: [FeedCardImageSource] {
-        Self.photoList(event: item.image, venue: venuePhoto.map { [$0] } ?? [])
+        Self.photoList(event: item.image, venue: venuePhoto.map { [$0] } ?? [], failed: failedPhotos)
     }
 
     private var hasHero: Bool { !photos.isEmpty || venuePending }
@@ -184,7 +187,7 @@ struct FeedEventDetailDestination: View {
     private func heroPhoto(_ photo: FeedCardImageSource) -> some View {
         if let url = Self.url(of: photo) {
             let shown = shownPhotos.contains(url)
-            FeedCardURLPhoto(url: url, onReady: { shownPhotos.insert(url) })
+            FeedCardURLPhoto(url: url, onReady: { shownPhotos.insert(url) }, onFailure: { drop(url) })
                 .frame(maxHeight: .infinity)
                 .clipped()
                 .overlay {
@@ -458,6 +461,12 @@ struct FeedEventDetailDestination: View {
         }
     }
 
+    /// Takes a photo that failed out of the carousel and keeps the page in range.
+    private func drop(_ url: URL) {
+        failedPhotos.insert(url)
+        photoPage = min(photoPage ?? 0, max(photos.count - 1, 0))
+    }
+
     // MARK: Venue lookup
 
     private func resolveVenuePhoto() async {
@@ -471,9 +480,14 @@ struct FeedEventDetailDestination: View {
     // MARK: Pure rules (EventDetailPageTests)
 
     /// The hero's photos: the event's own first, then the venue's, the same picture
-    /// only once, at most three. Anything that is not a photo yet is left out.
-    static func photoList(event: FeedCardImageSource, venue: [FeedCardImageSource]) -> [FeedCardImageSource] {
-        var seen = Set<URL>()
+    /// only once, at most three. Anything that is not a photo yet, or that `failed`
+    /// to load, is left out.
+    static func photoList(
+        event: FeedCardImageSource,
+        venue: [FeedCardImageSource],
+        failed: Set<URL> = []
+    ) -> [FeedCardImageSource] {
+        var seen = failed
         var list: [FeedCardImageSource] = []
         for photo in [event] + venue {
             guard list.count < 3, let url = Self.url(of: photo), seen.insert(url).inserted else { continue }

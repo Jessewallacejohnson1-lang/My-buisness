@@ -103,9 +103,9 @@ final class GooglePlacesService {
     /// in the console — which is exactly what happened when the key was restricted
     /// after the Jesse.Hygge -> Jesse.BlockParty rename. Read it from the bundle so
     /// it can never drift from PRODUCT_BUNDLE_IDENTIFIER again.
-    private static let iosBundleID = Bundle.main.bundleIdentifier ?? ""
+    nonisolated private static let iosBundleID = Bundle.main.bundleIdentifier ?? ""
 
-    private static let base = "https://places.googleapis.com/v1"
+    nonisolated private static let base = "https://places.googleapis.com/v1"
     private static let biasRadius = 15_000.0   // ~15 km around town
 
     /// The session for the JSON endpoints (autocomplete / details / searchText /
@@ -116,7 +116,7 @@ final class GooglePlacesService {
     /// ephemeral, un-cached session keeps every photo name in memory only.
     ///
     /// The photo *media* request (`photoURL`) is deliberately NOT routed here — it is
-    /// loaded by the views (AsyncImage / FeedCardImageLoader) on the shared session,
+    /// loaded by `FeedCardImageLoader` on the shared session through `mediaRequest`,
     /// and image bytes carry no photo name, so caching them is fine and desirable.
     private static let jsonSession: URLSession = {
         let config = URLSessionConfiguration.ephemeral
@@ -354,7 +354,8 @@ final class GooglePlacesService {
     // MARK: Photo
 
     /// Loadable media URL for a photo `name` from details(). The endpoint 302s to
-    /// the image, so AsyncImage / URLSession can load it directly.
+    /// the image. Load it through `mediaRequest(for:)` (`FeedCardImageLoader` does),
+    /// never a bare `AsyncImage`: the key's bundle-id check 403s a request without it.
     func photoURL(name: String, maxWidth: Int = 800) -> URL {
         var comps = URLComponents(string: "\(Self.base)/\(name)/media")!
         comps.queryItems = [
@@ -362,6 +363,19 @@ final class GooglePlacesService {
             URLQueryItem(name: "key", value: GOOGLE_PLACES_API_KEY),
         ]
         return comps.url!
+    }
+
+    /// The download request for a photo's media URL. The key's iOS restriction is
+    /// checked against `X-Ios-Bundle-Identifier` on the media endpoint too: without
+    /// it every photo download answered 403 `API_KEY_IOS_APP_BLOCKED` while the
+    /// lookup before it had cleared and billed (found 2026-09-26). Any other URL goes
+    /// out bare, so the bundle id is only ever sent to Google.
+    nonisolated static func mediaRequest(for url: URL) -> URLRequest {
+        var request = URLRequest(url: url)
+        if url.host() == URL(string: base)?.host() {
+            request.setValue(iosBundleID, forHTTPHeaderField: "X-Ios-Bundle-Identifier")
+        }
+        return request
     }
 
     // MARK: Confident-match photo for free text (events, trails, clubs)

@@ -52,6 +52,30 @@ final class EventDetailPageTests: XCTestCase {
         XCTAssertEqual(page.photoList(event: .fallback, venue: []), [])
     }
 
+    func testAPhotoThatFailsToLoadLeavesTheListAndTheCounter() {
+        let event = FeedCardImageSource.eventPhoto(Self.photoURL)
+        let venue = FeedCardImageSource.placesPhoto(Self.url("park"), attribution: "Ada Lovelace")
+        let page = FeedEventDetailDestination.self
+
+        let list = page.photoList(event: event, venue: [venue], failed: [Self.url("park")])
+        XCTAssertEqual(list, [event], "a venue photo that failed is dropped, not left as a skeleton")
+        XCTAssertNil(page.counterText(page: 0, count: list.count), "one photo left, no counter")
+        XCTAssertEqual(page.photoList(event: event, venue: [], failed: [Self.photoURL]), [],
+                       "nothing loaded, no hero")
+    }
+
+    func testPlacesPhotoDownloadCarriesTheBundleHeader() throws {
+        // The key is restricted to this app's bundle id, which Google reads from this
+        // header; without it every photo download is a 403. No real key here.
+        let media = URL(string: "https://places.googleapis.com/v1/places/abc/photos/def/media?maxWidthPx=400")!
+        let request = GooglePlacesService.mediaRequest(for: media)
+        XCTAssertEqual(request.value(forHTTPHeaderField: "X-Ios-Bundle-Identifier"),
+                       try XCTUnwrap(Bundle.main.bundleIdentifier))
+
+        XCTAssertNil(GooglePlacesService.mediaRequest(for: Self.photoURL).value(forHTTPHeaderField: "X-Ios-Bundle-Identifier"),
+                     "only Google gets the header")
+    }
+
     func testCounterShowsOnlyForTwoOrMorePhotos() {
         let page = FeedEventDetailDestination.self
 

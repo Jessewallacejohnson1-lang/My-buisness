@@ -50,6 +50,8 @@ struct VenueInfoView: View {
 
     @State private var details: PlaceDetails?
     @State private var photo: (url: URL, attributions: [String])?
+    /// The photo's bitmap is on screen; the card-coloured box stands in until then.
+    @State private var photoLoaded = false
     @State private var showHours = false
     @Environment(\.openURL) private var openURL
 
@@ -79,6 +81,7 @@ struct VenueInfoView: View {
         .task(id: query) {
             details = nil        // clear the previous spot's card/photo before re-resolving
             photo = nil
+            photoLoaded = false
             await resolve(query)
         }
     }
@@ -86,21 +89,21 @@ struct VenueInfoView: View {
     // MARK: Photo
 
     private func photoView(_ p: (url: URL, attributions: [String])) -> some View {
-        // The credit lives INSIDE the `.success` branch — the same discipline as
-        // `VenuePhoto.filled` — so it never draws over the loading/failed placeholder,
-        // crediting a photo nobody can see. It rides the CLEAR success container rather
-        // than the image (which `scaledToFill` renders larger than the box), and reuses
-        // the one shared `PhotoCredit` treatment.
-        AsyncImage(url: p.url) { phase in
-            switch phase {
-            case .success(let img):
-                Color.clear
-                    .overlay { img.resizable().scaledToFill() }
-                    .clipped()
-                    .overlay(alignment: .bottomTrailing) { PhotoCredit(names: p.attributions) }
-            default:
-                Rectangle().fill(palette.card)
-            }
+        // Loaded through `FeedCardURLPhoto`, whose loader sends the bundle-id header the
+        // Places key checks; `AsyncImage` cannot, and every download was a 403. The
+        // credit shows only once the photo has — the same discipline as `VenuePhoto` —
+        // so it never credits a photo nobody can see. A photo that fails is dropped.
+        ZStack {
+            Rectangle().fill(palette.card)
+            FeedCardURLPhoto(
+                url: p.url,
+                onReady: { photoLoaded = true },
+                onFailure: { if photo?.url == p.url { photo = nil } }
+            )
+            .opacity(photoLoaded ? 1 : 0)
+        }
+        .overlay(alignment: .bottomTrailing) {
+            if photoLoaded { PhotoCredit(names: p.attributions) }
         }
         .frame(height: 150).frame(maxWidth: .infinity).clipped()
         .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))

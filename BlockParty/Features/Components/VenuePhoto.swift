@@ -35,16 +35,14 @@ struct VenuePhoto<Blank: View>: View {
     @ViewBuilder var blank: () -> Blank
 
     @State private var photo: ConfidentPhoto?
+    /// The photo's bitmap is on screen. Until then, and if it never loads, `blank()`.
+    @State private var loaded = false
 
     var body: some View {
         Group {
             if let cp = photo {
-                AsyncImage(url: GooglePlacesService.shared.photoURL(name: cp.photoName, maxWidth: maxWidth)) { phase in
-                    switch phase {
-                    case .success(let img): filled(img, credit: cp.attributions)
-                    default: blank()
-                    }
-                }
+                filled(GooglePlacesService.shared.photoURL(name: cp.photoName, maxWidth: maxWidth),
+                       credit: cp.attributions)
             } else {
                 blank()
             }
@@ -54,6 +52,7 @@ struct VenuePhoto<Blank: View>: View {
             // shows the blank() fallback immediately instead of the previous
             // venue's photo + attribution while the new lookup is in flight.
             photo = nil
+            loaded = false
             if let coordinate {
                 photo = await GooglePlacesService.shared.confidentPhoto(name: venueName, coordinate: coordinate)
             } else {
@@ -62,19 +61,23 @@ struct VenuePhoto<Blank: View>: View {
         }
     }
 
-    /// The loaded photo filling the caller's box, with the required author credit
-    /// pinned to its corner. The credit sits on the CLEAR container rather than on
-    /// the image itself: `scaledToFill` renders a bitmap larger than the box, so an
-    /// overlay anchored to the image would land outside the caller's clip.
+    /// The photo filling the caller's box, with the required author credit pinned to
+    /// its corner. Loaded through `FeedCardURLPhoto`, whose loader sends the bundle-id
+    /// header the Places key checks; `AsyncImage` cannot, and every download was a 403.
     ///
-    /// Attribution is attached to this branch only — a photo that is still loading,
-    /// or that failed to load, draws `blank()` and must not carry a credit for an
-    /// image nobody can see.
-    private func filled(_ img: Image, credit names: [String]) -> some View {
-        Color.clear
-            .overlay { img.resizable().scaledToFill() }
-            .clipped()
-            .overlay(alignment: .bottomTrailing) { PhotoCredit(names: names) }
+    /// The credit shows only once the photo has — a photo that is still loading, or
+    /// that failed to load, draws `blank()` and must not carry a credit for an image
+    /// nobody can see.
+    private func filled(_ url: URL, credit names: [String]) -> some View {
+        ZStack {
+            FeedCardURLPhoto(url: url, onReady: { loaded = true })
+                .clipped()
+                .opacity(loaded ? 1 : 0)
+            if !loaded { blank() }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            if loaded { PhotoCredit(names: names) }
+        }
     }
 
     /// Re-run the lookup only when what determines the *match* changes (name +

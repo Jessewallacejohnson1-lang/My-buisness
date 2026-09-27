@@ -13,6 +13,9 @@ struct FeedCardURLPhoto: View {
     /// feed card uses it to hold its fallback typography until the photo exists, so it
     /// never animates into photo-mode over an undownloaded flat-ink frame.
     var onReady: (() -> Void)? = nil
+    /// Fired once when the bitmap could not be loaded at all, so a caller can drop
+    /// the photo instead of holding a placeholder over it forever.
+    var onFailure: (() -> Void)? = nil
 
     @Environment(\.displayScale) private var displayScale
 
@@ -28,7 +31,8 @@ struct FeedCardURLPhoto: View {
                     url: url,
                     maxPixelSize: targetPixelWidth
                 ),
-                onReady: onReady
+                onReady: onReady,
+                onFailure: onFailure
             )
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
@@ -38,6 +42,7 @@ struct FeedCardURLPhoto: View {
 private struct FeedCardDownsampledPhoto: View {
     let request: FeedCardImageRequest
     var onReady: (() -> Void)? = nil
+    var onFailure: (() -> Void)? = nil
 
     @State private var image: CGImage?
 
@@ -60,7 +65,7 @@ private struct FeedCardDownsampledPhoto: View {
             guard !Task.isCancelled else { return }
             // Cross-fade the photograph in rather than hard-cutting it over the ink.
             withAnimation(.easeOut(duration: 0.2)) { image = loadedImage }
-            if loadedImage != nil { onReady?() }
+            if loadedImage != nil { onReady?() } else { onFailure?() }
         }
     }
 }
@@ -110,7 +115,9 @@ private actor FeedCardImageLoader {
 
     private func remoteData(from url: URL) async -> Data? {
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
+            // Through `mediaRequest`, so a Google Places photo carries the bundle-id
+            // header its key checks. Every other URL goes out as before.
+            let (data, response) = try await URLSession.shared.data(for: GooglePlacesService.mediaRequest(for: url))
             if let response = response as? HTTPURLResponse,
                !(200..<300).contains(response.statusCode) {
                 return nil
