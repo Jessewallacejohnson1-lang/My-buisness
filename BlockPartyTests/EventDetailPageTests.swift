@@ -29,6 +29,9 @@ final class EventDetailPageTests: XCTestCase {
         // No photo of its own: the venue is looked up, the title only a hint.
         let noPhoto = FeedCardItem(event(imageUrl: nil))
         XCTAssertEqual(noPhoto.image, .venueLookup(name: "Millstream Park", hint: "Neighborhood walk"))
+
+        // `.other` is the fallback for a null column, not a category: nothing fills in.
+        XCTAssertNil(FeedCardItem(event(imageUrl: nil, category: .other)).category)
     }
 
     func testDetailModelSeedsFromCardItem() {
@@ -44,7 +47,11 @@ final class EventDetailPageTests: XCTestCase {
         XCTAssertNil(venueOnly.organizerImageURL)
     }
 
-    private func event(imageUrl: String?, rsvpd: Bool = true) -> UpcomingEvent {
+    private func event(
+        imageUrl: String?,
+        rsvpd: Bool = true,
+        category: EventCategory = .outdoors
+    ) -> UpcomingEvent {
         UpcomingEvent(
             id: "event-1",
             title: "Neighborhood walk",
@@ -56,7 +63,7 @@ final class EventDetailPageTests: XCTestCase {
             imageUrl: imageUrl,
             rsvpd: rsvpd,
             clubName: "Wobegon Walkers",
-            category: .outdoors
+            category: category
         )
     }
 }

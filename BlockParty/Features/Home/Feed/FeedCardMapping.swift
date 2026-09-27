@@ -49,7 +49,8 @@ extension FeedCardItem {
     /// A Your Day event as a card item, so Town and Your Day open the one event
     /// page. Same image cascade as a posting (`imageSource`), so an event without
     /// its own photo still falls back to a venue lookup. No description:
-    /// `UpcomingEvent` carries none, so the page's About hides.
+    /// `UpcomingEvent` carries none, so the page's About hides. `.other` is the
+    /// fallback for a null category column, so it maps to no category at all.
     init(_ event: UpcomingEvent) {
         let time = Self.nonempty(event.startTime)
         let location = Self.nonempty(event.location)
@@ -76,7 +77,7 @@ extension FeedCardItem {
             eventDate: event.eventDate,
             startTime: time,
             location: location,
-            category: event.category
+            category: event.category == .other ? nil : event.category
         )
     }
 
