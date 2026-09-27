@@ -491,6 +491,10 @@ Every number is in `refs/chrome/REFERENCE-SPEC.md` (*Tab bar*). The raw evidence
 Reference, Apple's `TabProbe` bar, recordings, contact sheets and `MEASURED.md`) sits in
 `/Users/owner/BP app/references/tab-bar/` in the main checkout, untracked.
 
+**Approved by Jesse at Gate 2, 2026-09-26** ("I agree with all"): keep the 35% white layer
+behind the glass, the Lens as the grown grey bubble, the 1.04× press swell, the bubble's
+0.80× darkness on white pages, and the `house.fill` door cut-out.
+
 ### Why not Apple's `TabView`
 
 Jesse rejected it. Over dark photos Apple's bar flips its glass to the dark state and its
