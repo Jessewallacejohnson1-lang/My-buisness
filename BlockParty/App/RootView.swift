@@ -946,10 +946,11 @@ private struct BlankTab: View {
 /// `interactiveContentPopGestureRecognizer` anywhere else on the page. This delegate lets
 /// both begin whenever there is a page to go back to and no push or pop is running; at
 /// the root they stay off, as UIKit leaves them. That is a defensive guard against the
-/// known root-pop freeze, which did not reproduce here on iOS 26.5. The edge one also beats a
-/// horizontal scroll under the finger, so an edge swipe on the photo carousel pops the
-/// page (`EventCardPhotoTapTests`), while a swipe that starts on a photo away from the
-/// edge still pages or rubber-bands the carousel.
+/// known root-pop freeze, which did not reproduce here on iOS 26.5. With a page to go back
+/// to, the edge one also beats a horizontal scroll under the finger, so an edge swipe on the
+/// photo carousel pops the page (`EventCardPhotoTapTests`), while a swipe that starts on a
+/// photo away from the edge still pages or rubber-bands the carousel. Vertical scrolls, and
+/// every scroll at the root, never wait on it.
 private struct SwipeBack: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> Controller { Controller() }
     func updateUIViewController(_ controller: Controller, context: Context) {}
@@ -968,14 +969,23 @@ private struct SwipeBack: UIViewControllerRepresentable {
             return navigation.viewControllers.count > 1 && navigation.transitionCoordinator == nil
         }
 
-        /// The edge swipe beats a horizontal scroll under the finger (the photo carousel): its
-        /// pan waits for the edge swipe to fail, which it does at once off the edge.
+        /// With a page to go back to, the edge swipe beats a horizontal scroll under the finger
+        /// (the photo carousel): its pan waits for the edge swipe to fail, which it does at
+        /// once off the edge. A vertical scroll (the page, the feed) never waits, and nothing
+        /// waits at the root, where the edge swipe can't begin.
         func gestureRecognizer(
             _ gestureRecognizer: UIGestureRecognizer,
             shouldBeRequiredToFailBy other: UIGestureRecognizer
         ) -> Bool {
-            gestureRecognizer === navigationController?.interactivePopGestureRecognizer
-                && other.view is UIScrollView && other is UIPanGestureRecognizer
+            guard let navigation = navigationController,
+                  gestureRecognizer === navigation.interactivePopGestureRecognizer,
+                  navigation.viewControllers.count > 1,
+                  other is UIPanGestureRecognizer,
+                  let scroll = other.view as? UIScrollView
+            else { return false }
+            // A point of slack: the event page's vertical scroll measures a fraction of a
+            // point off its own width (420.17 in 420.33 on iPhone Air).
+            return scroll.isPagingEnabled || scroll.contentSize.width > scroll.bounds.width + 1
         }
     }
 }

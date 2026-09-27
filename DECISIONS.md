@@ -526,9 +526,13 @@ title or a "Done". Hidden on the pushed page too, UIKit refused every swipe back
 Phase 3). Two recognizers do that swipe: `interactivePopGestureRecognizer` from the
 leading edge, and `interactiveContentPopGestureRecognizer` anywhere else on the page.
 `SwipeBack` in `RootView.swift` becomes the delegate of both. It lets them begin whenever
-there is a page to go back to and no push or pop is running, and it makes a horizontal
-scroll view's pan wait for the edge one to fail, so an edge swipe that starts on the
-photo carousel pops the page.
+there is a page to go back to and no push or pop is running, and, only while there is a
+page to go back to, it makes a horizontal scroll view's pan (paging, or content wider
+than the view) wait for the edge one to fail, so an edge swipe that starts on the photo
+carousel pops the page. Vertical scrolls never wait on it, and at the root nothing does.
+(Until 2026-09-27 the code applied that wait to every scroll view at every depth, the
+feed's included, which this entry and the comments never said; the result debate caught
+it.)
 
 - UIKit's header says these recognizers should only be used for failure requirements, so
   replacing their delegate is a deliberate exception. It is scoped to the one app-level
