@@ -154,6 +154,8 @@ struct FeedEventDetailDestination: View {
                     let pull = max(0, proxy.frame(in: .scrollView(axis: .vertical)).minY)
                     return content.scaleEffect(1 + pull / max(proxy.size.height, 1), anchor: .bottom)
                 }
+                // After the stretch, so it stays put at the hero's bottom right, unscaled.
+                .overlay(alignment: .bottomTrailing) { counter }
                 .transition(.opacity)
         }
     }
@@ -179,7 +181,6 @@ struct FeedEventDetailDestination: View {
             .scrollTargetBehavior(.paging)
             .scrollPosition(id: $photoPage)
             .scrollDisabled(photos.count < 2)
-            .overlay(alignment: .bottomTrailing) { counter }
         }
     }
 
@@ -230,7 +231,7 @@ struct FeedEventDetailDestination: View {
                 // like `PhotoCredit`.
                 .background(.black.opacity(0.55), in: Capsule())
                 .padding(.trailing, Metric.inset)
-                .padding(.bottom, Metric.heroUnderlap + Metric.counterBottom)
+                .padding(.bottom, Metric.counterBottom)
                 .accessibilityLabel("Photo \((photoPage ?? 0) + 1) of \(photos.count)")
                 .transition(.opacity)
         }
