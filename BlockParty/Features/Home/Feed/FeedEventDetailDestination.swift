@@ -325,7 +325,7 @@ struct FeedEventDetailDestination: View {
     }
 
     /// A white circle with an ink glyph, lifted by the map's floating-button shadow
-    /// (guessed; the Reference's heart is solid white). Not Liquid Glass: glass takes
+    /// (Jesse's pick, 2026-09-26; the Reference's heart is solid white). Not Liquid Glass: glass takes
     /// its colour from what is under it and went dark with white glyphs over a dark
     /// photo, even with the scheme pinned (measured 2026-09-26), and chrome never takes
     /// its colour from what is under it (taste.md).
