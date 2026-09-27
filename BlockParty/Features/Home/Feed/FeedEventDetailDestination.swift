@@ -156,7 +156,8 @@ struct FeedEventDetailDestination: View {
                     let pull = max(0, proxy.frame(in: .scrollView(axis: .vertical)).minY)
                     return content.scaleEffect(1 + pull / max(proxy.size.height, 1), anchor: .bottom)
                 }
-                // After the stretch, so it stays put at the hero's bottom right, unscaled.
+                // After the stretch, so they stay put at the hero's bottom corners, unscaled.
+                .overlay(alignment: .bottomLeading) { credit }
                 .overlay(alignment: .bottomTrailing) { counter }
                 .transition(.opacity)
         }
@@ -201,8 +202,7 @@ struct FeedEventDetailDestination: View {
     @ViewBuilder
     private func heroPhoto(_ photo: FeedCardImageSource) -> some View {
         if let url = Self.url(of: photo) {
-            // Drawn already (by its card, at another size) counts as shown: no skeleton.
-            let shown = shownPhotos.contains(url) || FeedCardShownBitmaps.bitmap(for: url) != nil
+            let shown = isShown(url)
             FeedCardURLPhoto(url: url, onReady: { shownPhotos.insert(url) }, onFailure: { drop(url) })
                 .frame(maxHeight: .infinity)
                 .clipped()
@@ -215,19 +215,29 @@ struct FeedEventDetailDestination: View {
                 }
                 .animation(Motion.smooth, value: shown)
                 .accessibilityHidden(true)
-                .overlay(alignment: .bottomLeading) { credit(for: photo, shown: shown) }
         }
     }
 
+    /// Drawn already (by its card, at another size) counts as shown: no skeleton.
+    private func isShown(_ url: URL) -> Bool {
+        shownPhotos.contains(url) || FeedCardShownBitmaps.bitmap(for: url) != nil
+    }
+
     /// Google's terms: the credit shows wherever its photo does, and only once the
-    /// photo itself is on screen. Bottom left, because the counter owns bottom right;
-    /// its chip edges line up with the counter's (`PhotoCredit` pads itself 9 pt).
+    /// photo itself is on screen. It names the photo the counter counts, from outside
+    /// the carousel like the counter, so the pull-down stretch leaves it in place.
+    /// Bottom left, because the counter owns bottom right; its chip edges line up with
+    /// the counter's (`PhotoCredit` pads itself 9 pt).
     @ViewBuilder
-    private func credit(for photo: FeedCardImageSource, shown: Bool) -> some View {
-        if shown, let credit = photo.attribution {
+    private var credit: some View {
+        let page = photoPage ?? 0
+        if photos.indices.contains(page), let url = Self.url(of: photos[page]), isShown(url),
+           let credit = photos[page].attribution {
             PhotoCredit(names: [credit])
                 .padding(.leading, Metric.inset - 9)
-                .padding(.bottom, Metric.heroUnderlap + Metric.counterBottom - 9)
+                .padding(.bottom, Metric.counterBottom - 9)
+                // The carousel says it, with the photo's number.
+                .accessibilityHidden(true)
         }
     }
 
