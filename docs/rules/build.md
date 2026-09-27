@@ -31,6 +31,11 @@ A **single** test or class: append `-only-testing:BlockPartyTests/DateHelpersTes
   through the shell — `mcp__xcodebuildmcp__test_sim` never reaches it, even though
   `CLAUDE.md` says to prefer XcodeBuildMCP for Apple tooling. A test run made through that
   tool needs the same care by hand.
+- **One build or recording at a time on this Mac.** `[prose]` The same test takes 31 s
+  alone and 381 s next to another build, and load shifts motion timing by seconds
+  (measured 2026-09-25). Take the shared lock: `lockf -k /tmp/bp-xc.lock xcodebuild …`.
+  bp-build Lanes use `xc.sh`, which takes it for them. Don't use the XcodeBuildMCP build or
+  test tools while a `BP Lane` simulator exists; they can't take the lock.
 - **A new test file does not run until it is registered.** `[test]` The test targets
   carry an explicit source list; a file under `BlockPartyTests/` or `BlockPartyUITests/`
   is invisible to `xcodebuild test` until 4 `project.pbxproj` entries exist.
@@ -61,7 +66,7 @@ xcrun simctl install <udid> "$DIR/BlockParty.app"   # install OVER the app — d
 
 **A second DerivedData trap: an open Xcode races CLI builds in the shared default DerivedData.** `[prose]` Its background SPM resolution corrupts the binary artifacts mid-run — symptom: `error: There is no XCFramework found at …/artifacts/turf-swift/Turf.xcframework` (or the Mapbox ones) on a build that just succeeded — and it also deletes the worktree's `Package.resolved` (restore with `git checkout --`). One `rm -rf` of the DerivedData folder fixes a single run, but the race comes back; the durable fix is a **dedicated `-derivedDataPath`** for CLI builds and tests whenever Xcode is open (hit twice on 2026-08-19).
 
-`simctl uninstall` wipes the app container: the session and the local profile/interest mirrors go with it, so the next launch is a signed-out one. Install **over** the app. Nothing needs restoring afterwards beyond signing back in — the `bp.onboarded.<uid>` flag stopped gating anything when onboarding was deleted on 2026-09-18.
+`simctl uninstall` wipes the app container: the session and the local profile/interest mirrors go with it, so the next launch is a signed-out one. Install **over** the app. (The one exception: on a `BP Lane` simulator, bp-build's `eyes.py` uninstalls for a clean container every run, which is safe while `RootView.requiresSignIn` is false.) Nothing needs restoring afterwards beyond signing back in — the `bp.onboarded.<uid>` flag stopped gating anything when onboarding was deleted on 2026-09-18.
 
 **Build + install to a physical device (raw tooling — XcodeBuildMCP here exposes only *simulator* workflow tools).** The app uses **Automatic** signing under Jesse's team (`Apple Development: jessewallacejohnson1@icloud.com`) for `Jesse.BlockParty`; the first device build after the identifier change may create or refresh the provisioning profile. Build with `-allowProvisioningUpdates`. The **two device ids differ**: `xcodebuild -destination id=` wants the **hardware UDID** (`xcrun xctrace list devices`), while `devicectl --device` wants the **CoreDevice UUID** (`xcrun devicectl list devices`).
 
@@ -78,11 +83,11 @@ A remote `process launch` fails with `RequestDenied … Locked` while the phone 
 
 **DEBUG-only launch arguments** for headless verification (`-open-map`, `-briefing-preview`, `-map-open`, `-show-home`, and ~80 more; all compile out in Release) are catalogued in **`docs/debug-flags.md`** — read it when you need one. The 2026-09-17 strip-down killed a large block of them along with their views; that file has been pruned to what the source actually still parses.
 
-**A green build is not evidence that a visual change landed.** `[prose]` SwiftUI accepts modifiers that do nothing — an outer `foregroundStyle` that a nested one overrides, a gloss composited away by a neighbouring `.glassEffect` surface — and nothing fails. Three such no-ops shipped looking "subtle" before being measured. The loop that catches them: build → install over → `simctl launch` with a debug flag → `simctl io screenshot` (or `recordVideo` + `ffmpeg` frame extraction) → **count actual pixels** in the region you changed. There is no PIL here; a small PNG decoder in `python3` is enough, and the numbers are what settle it.
+**A green build is not evidence that a visual change landed.** `[prose]` SwiftUI accepts modifiers that do nothing — an outer `foregroundStyle` that a nested one overrides, a gloss composited away by a neighbouring `.glassEffect` surface — and nothing fails. Three such no-ops shipped looking "subtle" before being measured. The loop that catches them: build → install over → `simctl launch` with a debug flag → `simctl io screenshot` (or `recordVideo` + `ffmpeg` frame extraction) → **count actual pixels** in the region you changed. PIL and numpy are installed (homebrew `python3`), and the numbers are what settle it.
 
 The same applies to layout: `-feed-scroll-sweep -scroll-log` (see `docs/debug-flags.md`) animates one scroll and prints every offset the scroll reports, and **direction reversals in that trace are the signal** — 0 is healthy, a few hundred means something is ringing. That is how the top bar's inset feedback loop was found, while the build was green and every test passed.
 
-There is no simulator gesture/scroll automation in this setup. Use the targeted galleries/preview flags for below-the-fold states, but still verify real scrolling, taps, and map gestures on a device.
+AXe (bundled with XcodeBuildMCP, `~/.npm-global/lib/node_modules/xcodebuildmcp/bundled/axe`) automates taps, holds and swipes on a simulator. It can't double-tap (about 0.29 s per touch step), and `axe drag` fails here ("FBSimulatorHIDEvent does not support touch move events"), so a slow drag is `axe swipe` with a `--duration`. Use the galleries/preview flags for states no gesture reaches, and still verify real scrolling, taps, and map gestures on a device.
 
 ## First-checkout setup — required or the build fails
 - **Two gitignored `BlockParty/Config/` files must be recreated** on a fresh clone, or the build will not compile. `[prose]` Which files, what each declares, and where to copy them from: `docs/rules/identifiers.md`.

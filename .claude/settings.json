@@ -30,7 +30,7 @@
           {
             "type": "command",
             "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/sim-guard.sh",
-            "if": "Bash(xcodebuild *)",
+            "if": "Bash(*xcodebuild*)",
             "timeout": 5
           }
         ]
