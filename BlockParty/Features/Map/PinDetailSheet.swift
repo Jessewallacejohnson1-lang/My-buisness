@@ -462,8 +462,9 @@ struct PinDetailSheet: View {
                 if isSaved { Haptics.light() } else { Haptics.success() }
                 saved.toggle(detail.saveID)
             } label: {
-                barIcon(isSaved ? "bookmark.fill" : "bookmark",
-                        tint: isSaved ? Hue.accent : Hue.ink)
+                // The app's bookmark: brand yellow inside the ink outline once
+                // saved, as everywhere else (Jesse, 2026-09-27).
+                barIcon(BookmarkGlyph(saved: isSaved))
             }
             .buttonStyle(.plain)
             .accessibilityLabel(isSaved
@@ -477,7 +478,7 @@ struct PinDetailSheet: View {
                     categoryLabel: detail.categoryLabel,
                     detail: detail.poi?.address ?? detail.spot?.blurb))
             } label: {
-                barIcon("square.and.arrow.up")
+                barIcon(Image(systemName: "square.and.arrow.up"))
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Share \(detail.name)")
@@ -496,7 +497,7 @@ struct PinDetailSheet: View {
                     }
                 }
             } label: {
-                barIcon("ellipsis")
+                barIcon(Image(systemName: "ellipsis"))
             }
             .buttonStyle(.plain)
             .accessibilityLabel("More actions")
@@ -524,10 +525,10 @@ struct PinDetailSheet: View {
         .mapFloatShadow()
     }
 
-    private func barIcon(_ symbol: String, tint: Color = Hue.ink) -> some View {
-        Image(systemName: symbol)
+    private func barIcon(_ glyph: some View) -> some View {
+        glyph
             .font(.sansMedium(17))
-            .foregroundStyle(tint)
+            .foregroundStyle(Hue.ink)
             .frame(width: 44, height: 44)
             .contentShape(Rectangle())
     }

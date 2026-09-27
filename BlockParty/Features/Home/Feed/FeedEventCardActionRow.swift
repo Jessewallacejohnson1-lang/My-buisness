@@ -87,7 +87,7 @@ struct FeedEventCardActionRow: View {
                     // reads as one family until you act on it.
                     //
                     // The colour is passed IN rather than applied to the returned
-                    // view: `actionIcon` sets `foregroundStyle` itself, closer to the
+                    // view: `glyphIcon` sets `foregroundStyle` itself, closer to the
                     // Image, and the inner style wins. Wrapping it from outside
                     // silently did nothing (caught on the recording — no red).
                     glyphIcon(.heart, filled: true, tint: Hue.heart)
@@ -133,15 +133,14 @@ struct FeedEventCardActionRow: View {
 
     private var saveButton: some View {
         Button(action: performSaveTap) {
-            // Saved is the brand yellow exactly, inside the ink outline, the same
-            // bookmark as the event page's: saved reads yellow everywhere (Jesse,
+            // Saved is the brand yellow exactly, inside the ink outline: the app's
+            // one bookmark (`BookmarkGlyph`), yellow everywhere once saved (Jesse,
             // 2026-09-27). The outline never moves, so unsaved draws as before.
-            ZStack {
-                actionIcon("bookmark.fill", tint: Color(hex: Hue.brandYellowHex))
-                    .opacity(state.isSaved ? 1 : 0)
-                actionIcon("bookmark")
-            }
-            .offset(y: reduceMotion ? 0 : bookmarkOffset)
+            BookmarkGlyph(saved: state.isSaved)
+                .font(.sans(Metric.glyph))
+                .symbolRenderingMode(.monochrome)
+                .foregroundStyle(Hue.ink)
+                .offset(y: reduceMotion ? 0 : bookmarkOffset)
             .frame(width: Metric.tapWidth, height: Metric.rowHeight)
             .contentShape(actionShape)
         }
@@ -183,22 +182,10 @@ struct FeedEventCardActionRow: View {
         .buttonStyle(.plain)
     }
 
-    /// One icon in the row. `tint` overrides the ink ramp for the controls that
-    /// carry colour — the liked heart and the saved bookmark's fill — and must be
-    /// passed here rather than layered on the result, because this `foregroundStyle`
-    /// sits closer to the Image and would win.
-    private func actionIcon(_ symbol: String, tint: Color? = nil) -> some View {
-        // SF Symbols does not expose a 1.75pt stroke; regular approximates the spec.
-        Image(systemName: symbol)
-            .font(.sans(Metric.glyph))
-            .symbolRenderingMode(.monochrome)
-            // Solid ink, the way Instagram draws its row (Jesse, 2026-09-24). Only the
-            // liked heart and the saved bookmark's fill have a colour of their own.
-            .foregroundStyle(tint ?? Hue.ink)
-    }
-
-    /// The drawn heart, comment and send marks (`FeedActionGlyphs`), in the same
-    /// solid ink as `actionIcon` and under the same `tint` rule.
+    /// The drawn heart, comment and send marks (`FeedActionGlyphs`), in solid ink, the
+    /// way Instagram draws its row (Jesse, 2026-09-24). `tint` overrides the ink for
+    /// the liked heart, and must be passed here rather than layered on the result,
+    /// because this `foregroundStyle` sits closer to the glyph and would win.
     private func glyphIcon(
         _ glyph: FeedActionGlyph,
         filled: Bool = false,

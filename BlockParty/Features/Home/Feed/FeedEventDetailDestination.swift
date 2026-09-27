@@ -290,24 +290,13 @@ struct FeedEventDetailDestination: View {
                 DailyFeedColumn.share(item)
             }
 
-            circleButton(glyph: saveGlyph, label: isSaved ? "Saved" : "Save", action: toggleSave)
+            // The app's bookmark, as on the card: saved, the brand yellow exactly
+            // (Jesse, 2026-09-24) inside the ink outline, so it reads on the white circle.
+            circleButton(glyph: BookmarkGlyph(saved: isSaved), label: isSaved ? "Saved" : "Save", action: toggleSave)
                 .accessibilityAddTraits(isSaved ? .isSelected : [])
         }
         .padding(.horizontal, Metric.inset - (Metric.tapBox - Metric.button) / 2)
         .padding(.top, Metric.buttonTop - (Metric.tapBox - Metric.button) / 2)
-    }
-
-    /// A bookmark, as on the card. Saved, it fills with the brand yellow exactly
-    /// (Jesse, 2026-09-24), inside the same ink outline (guessed) so it reads on the
-    /// white circle.
-    private var saveGlyph: some View {
-        ZStack {
-            if isSaved {
-                Image(systemName: "bookmark.fill")
-                    .foregroundStyle(Color(hex: Hue.brandYellowHex))
-            }
-            Image(systemName: "bookmark")
-        }
     }
 
     private var isSaved: Bool { saves.isSaved(item.id) }

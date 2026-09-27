@@ -91,7 +91,8 @@ enum MarkerRole {
     /// The glyph inside a civic pin — the value that reads on `civicFill`.
     static var civicGlyph: Color { MapInk.surface }
 
-    /// Device-local saved accent drawn on a civic pin.
+    /// Device-local saved accent drawn on a civic pin: a `BookmarkGlyph`, this ink
+    /// outlining the brand yellow every saved bookmark fills with (Jesse, 2026-09-27).
     static var savedGlyph: Color { MapInk.ink }
     static var savedBadgeFill: Color { MapInk.surface }
     static var savedBadgeStroke: Color { MapInk.hairline }

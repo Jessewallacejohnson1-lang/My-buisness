@@ -165,7 +165,29 @@ final class SavedStore: ObservableObject {
     }
 }
 
-/// The floating bookmark on a card photo. Coral fill when saved, ink when not.
+/// Every bookmark in the app: an outline, and when saved the brand yellow filling it
+/// exactly, `Hue.brandDisc` #FCE804 (Jesse, 2026-09-27: every saved bookmark in BP,
+/// on the feed cards, the event page, the map's pin sheet and pin badge, and
+/// `SaveBookmarkButton`). The caller's font sizes it and the caller's foreground
+/// style inks the outline; the fill always keeps its own yellow.
+struct BookmarkGlyph: View {
+    let saved: Bool
+
+    var body: some View {
+        ZStack {
+            Image(systemName: "bookmark.fill")
+                .foregroundStyle(Hue.brandDisc)
+                .opacity(saved ? 1 : 0)
+            Image(systemName: "bookmark")
+        }
+        // One layer, so a shadow the caller puts on it falls under the whole mark. Per
+        // layer, the pin sheet bar's shadow of the outline landed on the fill and dulled
+        // #FCE804 to #F9E504 (measured 2026-09-27).
+        .compositingGroup()
+    }
+}
+
+/// The floating bookmark on a card photo: an ink outline, brand yellow inside when saved.
 struct SaveBookmarkButton: View {
     let id: String
     @ObservedObject private var store = SavedStore.shared
@@ -176,9 +198,9 @@ struct SaveBookmarkButton: View {
             Haptics.light()
             withAnimation(.spring(response: 0.3, dampingFraction: 0.62)) { store.toggle(id) }
         } label: {
-            Image(systemName: saved ? "bookmark.fill" : "bookmark")
+            BookmarkGlyph(saved: saved)
                 .font(.sansSemibold(15))
-                .foregroundStyle(saved ? Hue.ink : Hue.ink)
+                .foregroundStyle(Hue.ink)
                 .symbolEffect(.bounce, value: saved)
                 .frame(width: 38, height: 38)
                 .background(Hue.surface)

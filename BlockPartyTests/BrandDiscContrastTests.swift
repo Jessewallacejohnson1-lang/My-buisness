@@ -98,6 +98,41 @@ final class BrandDiscContrastTests: XCTestCase {
         )
     }
 
+    // MARK: - Every saved bookmark is the brand yellow
+
+    /// Every saved bookmark in BP fills with the brand yellow exactly (Jesse,
+    /// 2026-09-27). `SaveBookmarkButton` is on no screen today, so this is its proof:
+    /// rendered saved, the middle of its bookmark is #FCE804 to the unit; unsaved, not.
+    func testSavedBookmarkButtonFillsExactBrandYellow() throws {
+        let id = "BrandDiscContrastTests.bookmark"
+        let store = SavedStore.shared
+        if store.isSaved(id) { store.toggle(id) }
+        defer { if store.isSaved(id) { store.toggle(id) } }
+
+        XCTAssertNotEqual(try centrePixel(of: SaveBookmarkButton(id: id)), Hue.brandYellowHex,
+                          "an unsaved bookmark is not yellow")
+        store.toggle(id)
+        XCTAssertEqual(try centrePixel(of: SaveBookmarkButton(id: id)), Hue.brandYellowHex,
+                       "a saved bookmark is the brand yellow exactly")
+    }
+
+    /// The pixel at the middle of `view`, rendered at 3x on paper, as 0xRRGGBB.
+    private func centrePixel(of view: some View) throws -> UInt32 {
+        let renderer = ImageRenderer(content: view.padding(10).background(Hue.paper))
+        renderer.scale = 3
+        let image = try XCTUnwrap(renderer.cgImage)
+        var rgba = [UInt8](repeating: 0, count: 4)
+        let context = try XCTUnwrap(CGContext(
+            data: &rgba, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        // Draw the image shifted so its middle pixel lands on the context's one pixel.
+        context.draw(image, in: CGRect(x: -(image.width / 2), y: -(image.height / 2),
+                                       width: image.width, height: image.height))
+        return UInt32(rgba[0]) << 16 | UInt32(rgba[1]) << 8 | UInt32(rgba[2])
+    }
+
     /// Why the glyph is never white. If this ever passes 3:1 the brand yellow has
     /// changed into a different colour.
     func testAWhiteGlyphWouldNotBeLegibleOnOurYellow() {

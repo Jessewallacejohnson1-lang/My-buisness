@@ -1610,7 +1610,8 @@ private struct SelectedPulseRing: View {
 //           so six pins share the map without crowding each other's names.
 // expanded (zoomed in enough, or selected): 28pt circle + white glyph + halo'd
 //           label beside it, same as before.
-// saved:    + a small ink bookmark corner accent (expanded only — too cramped compact).
+// saved:    + a small bookmark corner accent, brand yellow in an ink outline (expanded
+//           only — too cramped compact).
 // live:     coral fill + pulse ring + coral label (live always wins the tint; the
 //           pulse still shows compact — it's the one thing worth keeping glanceable
 //           at any zoom).
@@ -1746,7 +1747,9 @@ private struct MapPinBadge: View {
                 .opacity(expanded ? 1 : 0)   // too cramped on a 14pt compact dot
 
             if saved {
-                Image(systemName: "bookmark.fill")
+                // The app's bookmark: brand yellow inside the ink outline, as every
+                // saved bookmark is (Jesse, 2026-09-27).
+                BookmarkGlyph(saved: true)
                     .font(.glyph(7, weight: .bold))
                     .foregroundStyle(MarkerRole.savedGlyph)
                     .frame(width: 12, height: 12)
