@@ -99,6 +99,38 @@ final class AppearanceStore: ObservableObject {
         }
     }
 
+    /// The phone's own light or dark. Read off the SCREEN: the scene and its
+    /// windows carry the scheme the root requested (measured 2026-09-27: phone light,
+    /// scene and window still dark), the screen does not, so `.system` keeps
+    /// following the phone after the root has started asking for a scheme.
+    @Published private(set) var phoneScheme: ColorScheme = AppearanceStore.scheme(of: UITraitCollection.current)
+    private var phoneWatch: AnyCancellable?
+
+    /// What the root asks for: the choice, or under `.system` the phone's own
+    /// scheme. Always a request, never nil — see the call site in `RootView` for
+    /// the white clock that nil let through.
+    var requestedScheme: ColorScheme { choice.colorScheme ?? phoneScheme }
+
+    /// Follows the phone's appearance: read now, and again every time the app
+    /// becomes active — which switching it in Control Center or Settings does.
+    /// UIScreen offers no trait-change callback.
+    /// ponytail: a scheduled light/dark switch while the app stays open waits for
+    /// the next activation; poll the screen if that ever matters.
+    func followPhone(on screen: UIScreen) {
+        phoneScheme = Self.scheme(of: screen.traitCollection)
+        phoneWatch = NotificationCenter.default
+            .publisher(for: UIApplication.didBecomeActiveNotification)
+            .sink { [weak self, weak screen] _ in
+                guard let self, let screen else { return }
+                let scheme = Self.scheme(of: screen.traitCollection)
+                if scheme != self.phoneScheme { self.phoneScheme = scheme }
+            }
+    }
+
+    nonisolated static func scheme(of traits: UITraitCollection) -> ColorScheme {
+        traits.userInterfaceStyle == .dark ? .dark : .light
+    }
+
     private let defaults: UserDefaults
 
     /// `UserDefaults.standard` is nonisolated, so it is safe as a default argument

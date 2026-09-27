@@ -150,8 +150,11 @@ struct RootView: View {
         // preview root above bypasses it, and a preference attached there would
         // silently do nothing on exactly the screens used to verify it.
         //
-        // `.system` resolves to `nil` — no request — so the app keeps following the
-        // phone and keeps following it as the phone changes. `.light` / `.dark` turn
+        // It is ALWAYS a request (`requestedScheme`): `.system` asks for the phone's
+        // own scheme, which the store keeps following as the phone changes. With no
+        // request at all, iOS 26 picks the status bar's ink from whatever scrolls
+        // under it, and the clock turned white over every dark photo in the Town feed
+        // (recorded 2026-09-27; Instagram's stays black). `.light` / `.dark` turn
         // the hosting window's interface style over, which is why every `Hue` token,
         // every `.glassEffect` surface and every presented sheet move together.
         //
@@ -159,7 +162,14 @@ struct RootView: View {
         // tree only, leaving the UIKit-backed materials resolving the device's
         // appearance underneath the ink drawn on them. It was removed a commit ago
         // (see the note further down this file) and must not come back.
-        .preferredColorScheme(appearance.choice.colorScheme)
+        .preferredColorScheme(appearance.requestedScheme)
+        .onAppear {
+            // ponytail: the first window scene; per-scene following if iPad
+            // multi-window ever matters.
+            if let scene = UIApplication.shared.connectedScenes.first(where: { $0 is UIWindowScene }) as? UIWindowScene {
+                appearance.followPhone(on: scene.screen)
+            }
+        }
         #if DEBUG
         // `-appearance <state>` / `-appearance-demo` — the stand-in for a tap on the
         // town-menu control, which no automation in this setup can perform.

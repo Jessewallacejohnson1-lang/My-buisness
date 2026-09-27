@@ -449,6 +449,27 @@ final class AppearancePreferenceTests: XCTestCase {
         XCTAssertEqual(AppearanceChoice.dark.interfaceStyle, .dark)
     }
 
+    /// The root ALWAYS asks for a scheme (2026-09-27). With no request, iOS 26 picks
+    /// the status bar's ink from whatever scrolls under it, and the clock went white
+    /// over dark photos in the Town feed. `.system` asks for the phone's own scheme
+    /// instead of for nothing, so it still follows the phone.
+    func testTheRootAlwaysRequestsASchemeAndSystemAsksForThePhones() throws {
+        let (defaults, suite) = try makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = AppearanceStore(defaults: defaults)
+
+        store.choice = .system
+        XCTAssertEqual(store.requestedScheme, store.phoneScheme)
+        store.choice = .light
+        XCTAssertEqual(store.requestedScheme, .light)
+        store.choice = .dark
+        XCTAssertEqual(store.requestedScheme, .dark)
+
+        XCTAssertEqual(AppearanceStore.scheme(of: UITraitCollection(userInterfaceStyle: .dark)), .dark)
+        XCTAssertEqual(AppearanceStore.scheme(of: UITraitCollection(userInterfaceStyle: .light)), .light)
+        XCTAssertEqual(AppearanceStore.scheme(of: UITraitCollection(userInterfaceStyle: .unspecified)), .light)
+    }
+
     func testTheControlOffersExactlyThreeOptionsInMenuOrder() {
         XCTAssertEqual(AppearanceChoice.allCases, [.system, .light, .dark])
         XCTAssertEqual(AppearanceChoice.allCases.map(\.label), ["System", "Light", "Dark"])
