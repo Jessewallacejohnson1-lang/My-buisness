@@ -345,7 +345,7 @@ struct FeedEventDetailDestination: View {
                 .frame(width: Metric.tapBox, height: Metric.tapBox)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(FeedCardJoinPressStyle(reduceMotion: reduceMotion, autoplayPressed: false))
+        .buttonStyle(FeedCardJoinPressStyle(reduceMotion: reduceMotion))
         .accessibilityLabel(label)
     }
 
@@ -467,7 +467,7 @@ struct FeedEventDetailDestination: View {
                         // AXe; 11 gave 42.3).
                         .contentShape(Rectangle().inset(by: -12))
                 }
-                .buttonStyle(FeedCardJoinPressStyle(reduceMotion: reduceMotion, autoplayPressed: false))
+                .buttonStyle(FeedCardJoinPressStyle(reduceMotion: reduceMotion))
             }
         }
     }
@@ -519,7 +519,7 @@ struct FeedEventDetailDestination: View {
                 joinTappedAt = model.failedRollbacks
                 model.toggleGoing()
             } label: { joinFace }
-                .buttonStyle(FeedCardJoinPressStyle(reduceMotion: reduceMotion, autoplayPressed: false))
+                .buttonStyle(FeedCardJoinPressStyle(reduceMotion: reduceMotion))
                 .keyframeAnimator(initialValue: CGFloat.zero, trigger: model.failedRollbacks) { [joinShakes] button, x in
                     button.offset(x: joinShakes ? x : 0)
                 } keyframes: { _ in

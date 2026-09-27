@@ -130,7 +130,9 @@ struct FeedEventCardJoinButton: View {
 /// press with it too.
 struct FeedCardJoinPressStyle: ButtonStyle {
     let reduceMotion: Bool
-    let autoplayPressed: Bool
+    /// Shows the press with no finger down, for a caller that drives it
+    /// (`FeedEventCardJoinButton`); a plain button leaves it false.
+    var autoplayPressed = false
 
     func makeBody(configuration: Configuration) -> some View {
         let isPressed = configuration.isPressed || autoplayPressed
