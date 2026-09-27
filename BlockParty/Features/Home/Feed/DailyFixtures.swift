@@ -168,6 +168,18 @@ enum DailyFixtures {
                 description: "The college choirs sing their spring program in Sacred Heart Chapel.",
                 now: now
             ),
+            // A long title on purpose: three lines and more at the event page's
+            // title size, the way a real listing written out in full wraps.
+            event(
+                id: "e7", title: "Fire Department pancake breakfast and open house at the St. Joseph fire hall",
+                host: "St. Joseph Fire Department", hostAvatar: false,
+                chip: "SAT", meta: "7am · St. Joseph Fire Hall",
+                photo: true, hoursUntil: 44, postedHoursAgo: 20, going: 57,
+                followed: false, friend: false, followedLikers: 3,
+                category: .food,
+                description: "Pancakes, sausage and coffee, then a look inside the trucks. Free will offering.",
+                now: now
+            ),
         ]
     }
 
