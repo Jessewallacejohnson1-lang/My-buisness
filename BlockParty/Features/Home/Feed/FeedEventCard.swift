@@ -58,6 +58,9 @@ struct FeedEventCard: View {
     /// The link's press, so the whole card squishes. Set on touch-down by
     /// `FeedTouchDownTracker`, the one writer.
     @State private var linkPressed = false
+    /// The device's saved list. The event page's bookmark writes it too, so a save
+    /// made on either shows on both.
+    @ObservedObject private var saves = SavedStore.shared
 
     init(
         item: FeedCardItem,
@@ -79,8 +82,15 @@ struct FeedEventCard: View {
         self.onShare = onShare
         self.actionKind = actionKind
         self.debugAutoplay = debugAutoplay
-        _actionState = State(initialValue: FeedCardActionState(item: item))
+        _actionState = State(initialValue: Self.actionState(for: item))
         _commentState = State(initialValue: FeedCommentState(comments: comments))
+    }
+
+    /// The item's counts, and saved if the item says so or this device saved it.
+    private static func actionState(for item: FeedCardItem) -> FeedCardActionState {
+        var state = FeedCardActionState(item: item)
+        if !state.isSaved, SavedStore.shared.isSaved(item.id) { state.toggleSave() }
+        return state
     }
 
     var body: some View {
@@ -127,7 +137,11 @@ struct FeedEventCard: View {
             )
         }
         .onChange(of: item) { _, updatedItem in
-            actionState.sync(with: updatedItem)
+            actionState = Self.actionState(for: updatedItem)
+        }
+        // Saved or unsaved on the event page: the bookmark follows.
+        .onChange(of: saves.isSaved(item.id)) { _, saved in
+            if actionState.isSaved != saved { actionState.toggleSave() }
         }
         .task(id: item.image) { await resolveVenuePhoto() }
         .task { await runDebugAutoplay() }
@@ -385,7 +399,10 @@ struct FeedEventCard: View {
             reduceMotion: motionIsReduced,
             autoplayStep: autoplayStep,
             onLike: onLike,
-            onSave: onSave,
+            onSave: { saved in
+                if saves.isSaved(item.id) != saved { saves.toggle(item.id) }
+                onSave?(saved)
+            },
             onComment: { commentsPresented = true },
             onShare: onShare
         )

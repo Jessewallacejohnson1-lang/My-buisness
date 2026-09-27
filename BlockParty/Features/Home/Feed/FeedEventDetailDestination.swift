@@ -29,6 +29,9 @@ struct FeedEventDetailDestination: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var model: FeedEventDetailModel
+    /// Saves stay on the device, in the list the card's bookmark reads too, so the
+    /// two always agree.
+    @ObservedObject private var saves = SavedStore.shared
     /// The venue's photo, once `FeedCardVenuePhoto` has looked it up.
     @State private var venuePhoto: FeedCardImageSource?
     /// True until that lookup answers. Starts false when there is nothing to look up.
@@ -268,12 +271,12 @@ struct FeedEventDetailDestination: View {
 
             Spacer(minLength: 0)
 
-            // Share and save are drawn here; their actions land with Join's.
+            // Share is drawn here; its action lands with Join's.
             // 15, not the row's 17: the Reference's share mark is 14 x 17 pt.
             circleButton(glyph: Image(systemName: "square.and.arrow.up").font(.sansSemibold(15)), label: "Share") {}
 
-            circleButton(glyph: saveGlyph, label: item.isSaved ? "Saved" : "Save") {}
-                .accessibilityAddTraits(item.isSaved ? .isSelected : [])
+            circleButton(glyph: saveGlyph, label: isSaved ? "Saved" : "Save", action: toggleSave)
+                .accessibilityAddTraits(isSaved ? .isSelected : [])
         }
         .padding(.horizontal, Metric.inset - (Metric.tapBox - Metric.button) / 2)
         .padding(.top, Metric.buttonTop - (Metric.tapBox - Metric.button) / 2)
@@ -284,12 +287,20 @@ struct FeedEventDetailDestination: View {
     /// white circle.
     private var saveGlyph: some View {
         ZStack {
-            if item.isSaved {
+            if isSaved {
                 Image(systemName: "bookmark.fill")
                     .foregroundStyle(Color(hex: Hue.brandYellowHex))
             }
             Image(systemName: "bookmark")
         }
+    }
+
+    private var isSaved: Bool { saves.isSaved(item.id) }
+
+    /// A save is a commit, so it gets the light tap (taste.md); the fill springs in.
+    private func toggleSave() {
+        Haptics.light()
+        withAnimation(Motion.snappy) { saves.toggle(item.id) }
     }
 
     /// A white circle with an ink glyph, lifted by the map's floating-button shadow

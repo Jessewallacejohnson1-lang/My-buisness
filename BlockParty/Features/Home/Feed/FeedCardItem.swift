@@ -200,12 +200,6 @@ struct FeedCardActionState: Equatable {
         isSaved.toggle()
         return isSaved
     }
-
-    mutating func sync(with item: FeedCardItem) {
-        likeCount = item.likeCount
-        isLiked = item.isLiked
-        isSaved = item.isSaved
-    }
 }
 
 /// What sits behind a feed card's title.
