@@ -399,7 +399,9 @@ struct MainTabsView: View {
 
             BlockPartyTabBar(selection: tab, onSelect: select,
                              avatarURL: avatar.avatarUrl, compact: tabBarCompact)
-                .task { await avatar.refresh() }
+                // Re-read on every tab change, so a photo changed on You (or missed
+                // by an offline launch) shows as soon as the neighbour moves on.
+                .task(id: tab) { await avatar.refresh() }
                 // Apple's measured spot: 21pt above the PHYSICAL bottom edge, not
                 // above the home-indicator safe area. The full-height frame is what
                 // lets `ignoresSafeArea` reach the edge: on the fixed-height bar alone
@@ -741,15 +743,21 @@ struct BlockPartyTabBar: View {
             }
             .contentShape(Rectangle())
             .gesture(
-                DragGesture(minimumDistance: 0)
+                // Read in screen space and mapped onto the bar at its PRESSED size. In
+                // the bar's own space a still finger kept the x it touched down at on
+                // the shrunk bar, so the Lens slid off the finger as the bar grew
+                // back (review, 2026-09-27). The bar scales about its centre, so its
+                // centre is the same at any scale.
+                DragGesture(minimumDistance: 0, coordinateSpace: .global)
                     .updating($touch) { value, state, _ in
-                        state = Touch(x: value.location.x,
+                        state = Touch(x: pressedX(value.location.x, capsule: capsule),
                                       moved: state?.moved == true || abs(value.translation.width) > 4)
                     }
                     .onEnded { value in
                         land(after: abs(value.translation.width) > 4
                              ? TabBarMetric.collapseAfterDrag : TabBarMetric.landingAfterTap)
-                        onSelect(TabBarMetric.tab(atX: value.location.x, capsuleWidth: width))
+                        onSelect(TabBarMetric.tab(atX: pressedX(value.location.x, capsule: capsule),
+                                                  capsuleWidth: width))
                     }
             )
         }
@@ -761,8 +769,8 @@ struct BlockPartyTabBar: View {
         // flipped to its dark state (measured 2026-09-26, Town at
         // `-feed-scrolled-y 1200`: glass 23/255, ink invisible), and no colour-scheme
         // pin stopped it. A white layer BEHIND the glass lifts what it samples: at
-        // 20% it still flipped (40/255), at 30% it held (178/255, the Reference's
-        // 169–181 over its dark photo). 35% leaves a margin for pure black.
+        // 20% it still flipped (40/255), at 30% it held (178/255). It sits at 30%, the
+        // value that held, to match Instagram's grey (`TabBarMetric.glassUnderlay`).
         .background {
             Capsule(style: .continuous)
                 .fill(Hue.surface.onLightCanvas.opacity(TabBarMetric.glassUnderlay))
@@ -786,6 +794,13 @@ struct BlockPartyTabBar: View {
         .padding(.horizontal, TabBarMetric.margin)
     }
 
+    /// A finger's screen x, in capsule points on the bar at its pressed size (the
+    /// swell; 1x under Reduce Motion, which has none).
+    private func pressedX(_ screenX: CGFloat, capsule: GeometryProxy) -> CGFloat {
+        let scale = reduceMotion ? 1 : TabBarMetric.swell
+        return capsule.size.width / 2 + (screenX - capsule.frame(in: .global).midX) / scale
+    }
+
     private func land(after delay: Duration) {
         guard !reduceMotion else { return }
         landingTask?.cancel()
@@ -798,11 +813,8 @@ struct BlockPartyTabBar: View {
     }
 
     /// The Selection bubble: translucent black at Instagram's measured shade
-    /// (`TabBarMetric.bubbleShade`). While held it IS the Lens, the same grey
-    /// capsule grown to Apple's measured Lens size. Apple's Lens is clear glass, but
-    /// a glass capsule here cannot travel: `.glassEffect` draws at the final layout
-    /// position, so it jumped to the finger while the bubble and the yellow slid
-    /// behind it (round 2, 2026-09-26). The plan's fallback: the dark pressed capsule.
+    /// (`TabBarMetric.bubbleShade`). It does all the sliding; under a finger the
+    /// glass Lens stands in for it (`lensGlass`).
     private var bubble: some View {
         Capsule(style: .continuous)
             .fill(Color.black.opacity(TabBarMetric.bubbleShade))
