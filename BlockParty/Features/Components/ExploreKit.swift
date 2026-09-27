@@ -173,10 +173,18 @@ final class SavedStore: ObservableObject {
 struct BookmarkGlyph: View {
     let saved: Bool
 
+    /// Pulls the fill's edge about half a stroke in at every size the app draws
+    /// (7 to 24 pt), still under the outline, never short of it.
+    private static let fillScale: CGFloat = 0.9
+
     var body: some View {
         ZStack {
             Image(systemName: "bookmark.fill")
                 .foregroundStyle(Hue.brandDisc)
+                // A touch smaller than the outline, so the fill's soft edge stays under
+                // the stroke. Full size, it showed as a device pixel of olive outside the
+                // ink (112,107,52 on the event page, measured 2026-09-27).
+                .scaleEffect(Self.fillScale)
                 .opacity(saved ? 1 : 0)
             Image(systemName: "bookmark")
         }
