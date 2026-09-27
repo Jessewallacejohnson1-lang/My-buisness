@@ -84,6 +84,14 @@ final class EventDetailPageTests: XCTestCase {
         XCTAssertNil(known.flatMap { $0 }, "and known to have no photo")
     }
 
+    /// The page's hero (420.33 pt on iPhone Air) asks for the same decode as its card
+    /// (420 pt), so the photo is decoded once and cached once.
+    func testThePageHeroSharesItsCardsDecodeWidth() {
+        XCTAssertEqual(FeedCardURLPhoto.pixelWidth(points: 420 + 1.0 / 3, scale: 3), 1260)
+        XCTAssertEqual(FeedCardURLPhoto.pixelWidth(points: 420, scale: 3), 1260)
+        XCTAssertEqual(FeedCardURLPhoto.pixelWidth(points: 32, scale: 3), 96, "an avatar is unchanged")
+    }
+
     func testCounterShowsOnlyForTwoOrMorePhotos() {
         let page = FeedEventDetailDestination.self
 

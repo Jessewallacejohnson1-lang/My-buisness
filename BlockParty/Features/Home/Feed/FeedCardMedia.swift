@@ -22,21 +22,23 @@ struct FeedCardURLPhoto: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let targetPixelWidth = max(
-                1,
-                Int((proxy.size.width * displayScale).rounded(.up))
-            )
-
             FeedCardDownsampledPhoto(
                 request: FeedCardImageRequest(
                     url: url,
-                    maxPixelSize: targetPixelWidth
+                    maxPixelSize: Self.pixelWidth(points: proxy.size.width, scale: displayScale)
                 ),
                 onReady: onReady,
                 onFailure: onFailure
             )
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
+    }
+
+    /// The width to decode at, from whole points: the event page's hero measures
+    /// 420.33 pt on iPhone Air, and rounding its pixels up asked for 1261 px against
+    /// its card's 1260, so one photo decoded twice and took two of the cache's slots.
+    static func pixelWidth(points: CGFloat, scale: CGFloat) -> Int {
+        max(1, Int(points.rounded() * scale))
     }
 }
 
@@ -90,11 +92,9 @@ private nonisolated struct FeedCardImageRequest: Hashable, Sendable {
 
 /// Downsampled photos, the 12 used last, keyed by URL and pixel size. On the main
 /// actor, so a view can draw a photo already decoded in the frame it appears; the
-/// download and the decode run off it. Emptied on a memory warning.
-///
-/// The event page's hero is a third of a point wider than its card on iPhone Air
-/// (1261 px against 1260, measured 2026-09-26), so its size misses the card's copy
-/// and it starts from `largest(for:)` instead of a skeleton.
+/// download and the decode run off it. Emptied on a memory warning. A photo shown
+/// at another size (a venue photo on the page after its card) starts from
+/// `largest(for:)`, never from a skeleton.
 @MainActor
 final class FeedCardImageLoader {
     static let shared = FeedCardImageLoader()
