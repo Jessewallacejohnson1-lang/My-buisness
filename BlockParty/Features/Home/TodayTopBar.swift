@@ -357,7 +357,8 @@ struct TodayTopBar: View {
 /// The feed blurred and washed with paper behind the status bar and the row — full
 /// blur down to the last `backdropFade` points, which fade to clear. Instagram's top
 /// edge, drawn by hand: the system's soft scroll edge needs `.safeAreaBar`, which
-/// flipped the bar dark over photos (2026-09-24). The wash is heaviest at the top so
+/// flipped the bar dark over photos (2026-09-24), and on a retry (2026-09-27) it
+/// barely blurred a dark photo behind the logo and turned the clock white. The wash is heaviest at the top so
 /// the clock stays on light; it is pinned light, so the ink over it never changes
 /// (taste.md, Chrome over content). Wash values tuned by eye on the simulator
 /// (2026-09-27): at 0.3 the clock flipped white over a dark photo; 0.5 holds it dark.
