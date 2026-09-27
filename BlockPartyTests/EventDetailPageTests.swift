@@ -116,14 +116,17 @@ final class EventDetailPageTests: XCTestCase {
 
     /// Signed out, a Join fails before any network (a Town fixture always does). It
     /// still shows "Going" for `rollbackFloor`, so the turn back reads as deliberate,
-    /// then returns count and all. A tap while it waits goes straight back to Join.
+    /// then returns count and all, and counts one failed rollback (the page shakes the
+    /// button on it). A tap during that shake joins again at once. A tap while it
+    /// waits goes straight back to Join, and is no failure to shake about.
     func testAFailedJoinHoldsGoingThenRollsBack() async throws {
         let model = FeedEventDetailModel(item: FeedCardItem(event(imageUrl: nil, rsvpd: false)), auth: AuthStore())
 
-        let tapped = ContinuousClock.now
+        var tapped = ContinuousClock.now
         model.toggleGoing()
         XCTAssertTrue(model.isGoing, "Going at once")
         XCTAssertEqual(model.goingCount, 13)
+        XCTAssertEqual(model.failedRollbacks, 0, "nothing has failed yet")
 
         while model.isGoing, ContinuousClock.now - tapped < .seconds(5) {
             try await Task.sleep(for: .milliseconds(10))
@@ -132,6 +135,17 @@ final class EventDetailPageTests: XCTestCase {
                                     "turned back before it could be seen")
         XCTAssertFalse(model.isGoing, "a failed Join turns back")
         XCTAssertEqual(model.goingCount, 12)
+        XCTAssertEqual(model.failedRollbacks, 1, "the turn back is a failure: one shake")
+
+        // Straight away, while the shake would still be running: the tap acts at once.
+        tapped = ContinuousClock.now
+        model.toggleGoing()
+        XCTAssertTrue(model.isGoing, "a tap during the shake shows Going at once")
+        XCTAssertEqual(model.goingCount, 13)
+        while model.isGoing, ContinuousClock.now - tapped < .seconds(5) {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(model.failedRollbacks, 2, "and fails again the same way")
 
         model.toggleGoing()
         try await Task.sleep(for: .milliseconds(50))
@@ -141,6 +155,7 @@ final class EventDetailPageTests: XCTestCase {
         try await Task.sleep(for: FeedEventDetailModel.rollbackFloor * 2)
         XCTAssertFalse(model.isGoing, "and nothing flips it back to Going")
         XCTAssertEqual(model.goingCount, 12)
+        XCTAssertEqual(model.failedRollbacks, 2, "a turn back the neighbour asked for does not shake")
     }
 
     private static func url(_ name: String) -> URL {

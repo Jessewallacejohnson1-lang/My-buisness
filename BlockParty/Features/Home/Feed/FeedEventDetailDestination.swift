@@ -48,6 +48,9 @@ struct FeedEventDetailDestination: View {
     /// the clamp actually cuts something.
     @State private var aboutFullHeight: CGFloat = 0
     @State private var aboutClampedHeight: CGFloat = 0
+    /// `model.failedRollbacks` when Join was last tapped. Equal means the neighbour has
+    /// tapped since the last failed turn back, so its shake stops.
+    @State private var joinTappedAt = 0
 
     init(item: FeedCardItem, inSheet: Bool = false, auth: AuthStore? = nil) {
         self.item = item
@@ -504,9 +507,25 @@ struct FeedEventDetailDestination: View {
             Spacer(minLength: 0)
 
             // Optimistic: it answers at once, and a write that fails turns it back
-            // (`FeedEventDetailModel`).
-            Button { model.toggleGoing() } label: { joinFace }
+            // (`FeedEventDetailModel`), with a shake.
+            Button {
+                joinTappedAt = model.failedRollbacks
+                model.toggleGoing()
+            } label: { joinFace }
                 .buttonStyle(FeedCardJoinPressStyle(reduceMotion: reduceMotion, autoplayPressed: false))
+                .keyframeAnimator(initialValue: CGFloat.zero, trigger: model.failedRollbacks) { [joinShakes] button, x in
+                    button.offset(x: joinShakes ? x : 0)
+                } keyframes: { _ in
+                    // Out 6 pt, back past centre, dying away: 0.32 s. The app has no
+                    // shake to copy, so every number here is guessed.
+                    KeyframeTrack {
+                        CubicKeyframe(6, duration: 0.06)
+                        CubicKeyframe(-5, duration: 0.08)
+                        CubicKeyframe(3, duration: 0.07)
+                        CubicKeyframe(-1.5, duration: 0.06)
+                        CubicKeyframe(0, duration: 0.05)
+                    }
+                }
                 .accessibilityLabel(model.isGoing ? "Going" : "Join")
                 .accessibilityAddTraits(model.isGoing ? .isSelected : [])
         }
@@ -526,7 +545,10 @@ struct FeedEventDetailDestination: View {
     /// button inverts when joined: a white face, a hairline edge and an ink check. The
     /// Reference has no Going state, so this look is guessed.
     private var joinFace: some View {
-        Group {
+        // A ZStack, not a Group: a Group hands the capsule below to each branch, so the
+        // morph drew two capsules, and the one fading out stayed put while the shake
+        // moved the other (the eyes pass, 2026-09-27). One capsule; only the words swap.
+        ZStack {
             if model.isGoing {
                 Label("Going", systemImage: "checkmark")
                     .labelStyle(.titleAndIcon)
@@ -542,6 +564,13 @@ struct FeedEventDetailDestination: View {
                 .fill(model.isGoing ? Hue.surface : Hue.ink)
                 .overlay { Capsule().strokeBorder(model.isGoing ? Hue.hairline : .clear, lineWidth: 1) }
         }
+    }
+
+    /// Whether the last failed turn back may still shake Join. Reduce Motion: never
+    /// (the error buzz still comes, from the model). A tap since then: no, so a tap
+    /// mid-shake stops it and acts at once.
+    private var joinShakes: Bool {
+        !reduceMotion && joinTappedAt != model.failedRollbacks
     }
 
     /// The card's join morph (`FeedEventCardJoinButton`), both ways, rollback included.
@@ -652,6 +681,10 @@ struct FeedEventDetailDestination: View {
 final class FeedEventDetailModel: ObservableObject {
     @Published private(set) var isGoing: Bool
     @Published private(set) var goingCount: Int
+    /// One more each time a failed write turns the button back by itself; the page
+    /// shakes the button on it. A tap that turns it back sooner is not counted: that
+    /// neighbour asked for the state they get.
+    @Published private(set) var failedRollbacks = 0
 
     /// A failed Join still shows "Going" this long after the tap before it turns back,
     /// so the rollback reads as the app's answer, not a flicker. Signed out, the write
@@ -710,6 +743,9 @@ final class FeedEventDetailModel: ObservableObject {
                 try? await Task.sleep(until: tapped + Self.rollbackFloor)
                 guard !Task.isCancelled else { return }
                 rollBack(to: (wasGoing, previousCount))
+                failedRollbacks += 1
+                // Here, not in the view: Reduce Motion drops the shake, never the buzz.
+                Haptics.error()
             }
         }
     }
