@@ -122,12 +122,9 @@ final class EventDetailPageTests: XCTestCase {
 
         XCTAssertTrue(model.isGoing, "isJoined becomes isGoing")
         XCTAssertEqual(model.goingCount, 12)
-        XCTAssertEqual(model.organizerImageURL, Self.photoURL)
 
-        // A venue lookup is not the organizer's photo.
-        let venueOnly = FeedEventDetailModel(item: FeedCardItem(event(imageUrl: nil, rsvpd: false)))
-        XCTAssertFalse(venueOnly.isGoing)
-        XCTAssertNil(venueOnly.organizerImageURL)
+        let notGoing = FeedEventDetailModel(item: FeedCardItem(event(imageUrl: nil, rsvpd: false)))
+        XCTAssertFalse(notGoing.isGoing)
     }
 
     /// Signed out, a Join fails before any network (a Town fixture always does). It

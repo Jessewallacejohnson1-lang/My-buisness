@@ -692,8 +692,6 @@ final class FeedEventDetailModel: ObservableObject {
     /// join morph (`FeedEventCardJoinButton`), in seconds.
     static let flip: TimeInterval = 0.18
 
-    let organizerImageURL: URL?
-
     private let eventID: String
     private let auth: AuthStore
     private var inFlight: Task<Void, Never>?
@@ -707,11 +705,6 @@ final class FeedEventDetailModel: ObservableObject {
         self.auth = auth ?? .shared
         self.isGoing = item.isJoined
         self.goingCount = item.goingCount
-        if case .eventPhoto(let url) = item.image {
-            self.organizerImageURL = url
-        } else {
-            self.organizerImageURL = nil
-        }
     }
 
     func toggleGoing() {
