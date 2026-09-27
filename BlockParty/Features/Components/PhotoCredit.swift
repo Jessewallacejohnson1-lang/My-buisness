@@ -34,7 +34,9 @@ struct PhotoCredit: View {
     private static let tracking: CGFloat = 0.2
     private static let insetH: CGFloat = 7
     private static let insetV: CGFloat = 4
-    private static let edgeInset: CGFloat = 9
+    /// How far the credit's chip sits in from the photo's edge. The event page lines its
+    /// counter up against it.
+    static let edgeInset: CGFloat = 9
     private static let scrimOpacity: Double = 0.46
 
     private var credit: String { names.joined(separator: ", ") }

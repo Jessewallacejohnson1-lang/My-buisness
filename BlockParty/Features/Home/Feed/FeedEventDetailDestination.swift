@@ -247,15 +247,15 @@ struct FeedEventDetailDestination: View {
     /// photo itself is on screen. It names the photo the counter counts, from outside
     /// the carousel like the counter, so the pull-down stretch leaves it in place.
     /// Bottom left, because the counter owns bottom right; its chip edges line up with
-    /// the counter's (`PhotoCredit` pads itself 9 pt).
+    /// the counter's (`PhotoCredit` pads itself `edgeInset`).
     @ViewBuilder
     private var credit: some View {
         let page = photoPage ?? 0
         if photos.indices.contains(page), let url = photos[page].url, isShown(url),
            let credit = photos[page].attribution {
             PhotoCredit(names: [credit])
-                .padding(.leading, Metric.inset - 9)
-                .padding(.bottom, Metric.counterBottom - 9)
+                .padding(.leading, Metric.inset - PhotoCredit.edgeInset)
+                .padding(.bottom, Metric.counterBottom - PhotoCredit.edgeInset)
                 // The carousel says it, with the photo's number.
                 .accessibilityHidden(true)
         }
