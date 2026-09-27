@@ -71,13 +71,18 @@ all live there now. This file carries what is newer than that, or narrower than 
   heavy rounded retro serif, black on bright yellow. No additional mark.
 - App palette comes from the Joetown city logo: orange `#E67633` (buttons, progress,
   splash), teal `#72C5B6` (selected states — locked), gray `#707174` (secondary,
-  disabled).
+  disabled). **Superseded 2026-09-27:** the code has no teal, no orange buttons and no
+  `#707174`; the palette is in `DESIGN.md`.
 - The old cream / terracotta / sage / rosewood hand-drawn earthy palette is dead in the
   app. Ask for the current direction rather than reusing it. The waitlist site is the one
   exception — it still runs cream with a terracotta accent.
 - The app is not monochrome. Color is part of the design direction, not an exception.
+  **Superseded 2026-09-27:** chrome is ink on paper with small yellow accents, and colour
+  comes from photos and the map (`DESIGN.md`).
 - Jesse dislikes the current static splash (coral script wordmark on black). Direction
   under consideration is Duolingo-style: BP mark centered, full wordmark near the bottom.
+  **Superseded 2026-09-27:** there has been no splash since 2026-09-18
+  (`docs/rules/architecture.md`).
 
 ## Per-surface direction lives with the surface
 
