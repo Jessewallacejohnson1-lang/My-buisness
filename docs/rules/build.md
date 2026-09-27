@@ -82,7 +82,7 @@ A remote `process launch` fails with `RequestDenied … Locked` while the phone 
 
 The same applies to layout: `-feed-scroll-sweep -scroll-log` (see `docs/debug-flags.md`) animates one scroll and prints every offset the scroll reports, and **direction reversals in that trace are the signal** — 0 is healthy, a few hundred means something is ringing. That is how the top bar's inset feedback loop was found, while the build was green and every test passed.
 
-There is no simulator gesture/scroll automation in this setup. Use the targeted galleries/preview flags for below-the-fold states, but still verify real scrolling, taps, and map gestures on a device.
+Simulator gestures can be driven. AXe (bundled with XcodeBuildMCP) taps and swipes with `touch` and `swipe`; it has no touch-move event, but a run of `touch --down` steps at new points moves one finger along a path, which is how the event page's edge swipe was recorded reversing halfway. A UI test can drag with XCUITest's `press(forDuration:thenDragTo:)`. The galleries and preview flags still reach below-the-fold states faster, and the feel of real scrolling, taps and map gestures still gets a check on a device.
 
 ## First-checkout setup — required or the build fails
 - **Two gitignored `BlockParty/Config/` files must be recreated** on a fresh clone, or the build will not compile. `[prose]` Which files, what each declares, and where to copy them from: `docs/rules/identifiers.md`.
