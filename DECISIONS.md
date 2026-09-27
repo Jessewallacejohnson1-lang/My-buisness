@@ -533,7 +533,8 @@ photo carousel pops the page.
 - UIKit's header says these recognizers should only be used for failure requirements, so
   replacing their delegate is a deliberate exception. It is scoped to the one app-level
   `NavigationStack`, and at the root (`viewControllers.count == 1`) both refuse, as UIKit
-  did, because a pop there freezes the stack.
+  did. That is a defensive guard against the known root-pop freeze; the freeze did not
+  reproduce on iOS 26.5.
 - The first version restored only the content recognizer, and an edge swipe over the
   photo carousel rubber-banded the photos instead of popping (independent review,
   2026-09-26). `EventCardPhotoTapTests.testEdgeSwipeOverTheHeroPopsAndTheRootStillPushes`

@@ -945,7 +945,8 @@ private struct BlankTab: View {
 /// `interactivePopGestureRecognizer` from the leading edge, and
 /// `interactiveContentPopGestureRecognizer` anywhere else on the page. This delegate lets
 /// both begin whenever there is a page to go back to and no push or pop is running; at
-/// the root they stay off, where a pop would freeze the stack. The edge one also beats a
+/// the root they stay off, as UIKit leaves them. That is a defensive guard against the
+/// known root-pop freeze, which did not reproduce here on iOS 26.5. The edge one also beats a
 /// horizontal scroll under the finger, so an edge swipe on the photo carousel pops the
 /// page (`EventCardPhotoTapTests`), while a swipe that starts on a photo away from the
 /// edge still pages or rubber-bands the carousel.
@@ -960,7 +961,8 @@ private struct SwipeBack: UIViewControllerRepresentable {
             navigationController?.interactiveContentPopGestureRecognizer?.delegate = self
         }
 
-        /// Both swipes begin only with a page to go back to: at the root a pop freezes the stack.
+        /// Both swipes begin only with a page to go back to. Off at the root is a guard
+        /// against the known root-pop freeze; it did not reproduce on iOS 26.5.
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
             guard let navigation = navigationController else { return false }
             return navigation.viewControllers.count > 1 && navigation.transitionCoordinator == nil
