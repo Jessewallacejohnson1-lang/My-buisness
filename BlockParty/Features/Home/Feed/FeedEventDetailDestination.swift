@@ -29,9 +29,9 @@ struct FeedEventDetailDestination: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var model: FeedEventDetailModel
-    /// Saves stay on the device, in the list the card's bookmark reads too, so the
-    /// two always agree.
-    @ObservedObject private var saves = SavedStore.shared
+    /// Saved by the card's own rule (`FeedCardItem.isSaved(in:)`), so the two agree. A
+    /// tap flips it and writes the device's saved list to match, as the card does.
+    @State private var isSaved: Bool
     /// The venue's photo, once `FeedCardVenuePhoto` has looked it up.
     @State private var venuePhoto: FeedCardImageSource?
     /// True until that lookup answers. Starts false when the answer is already known.
@@ -56,6 +56,7 @@ struct FeedEventDetailDestination: View {
         self.item = item
         self.inSheet = inSheet
         _model = StateObject(wrappedValue: FeedEventDetailModel(item: item, auth: auth))
+        _isSaved = State(initialValue: item.isSaved(in: .shared))
         // Known already (nothing to look up, or looked up before, as on a second push):
         // the first frame draws it, so a cached venue photo never flashes a skeleton
         // (docs/rules/design.md, "Don't flash").
@@ -315,12 +316,12 @@ struct FeedEventDetailDestination: View {
         .padding(.top, Metric.buttonTop - (Metric.tapBox - Metric.button) / 2)
     }
 
-    private var isSaved: Bool { saves.isSaved(item.id) }
-
     /// A save is a commit, so it gets the light tap (taste.md); the fill springs in.
     private func toggleSave() {
         Haptics.light()
-        withAnimation(Motion.snappy) { saves.toggle(item.id) }
+        withAnimation(Motion.snappy) { isSaved.toggle() }
+        let saves = SavedStore.shared
+        if saves.isSaved(item.id) != isSaved { saves.toggle(item.id) }
     }
 
     /// A white circle with an ink glyph, lifted by the map's floating-button shadow

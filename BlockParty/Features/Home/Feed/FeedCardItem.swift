@@ -48,6 +48,12 @@ struct FeedCardItem: Identifiable, Hashable {
         return location.isEmpty ? nil : location
     }
 
+    /// Saved, as the card and its event page both show it: by the feed's own read, or
+    /// on this device (`SavedStore`, which both their bookmarks write).
+    func isSaved(in store: SavedStore) -> Bool {
+        isSaved || store.isSaved(id)
+    }
+
     /// The when line under the headline: date and start time.
     var whenLine: FeedWhenLine? {
         FeedWhenLine(eventDate: eventDate, startTime: shareTime, fallbackDate: dateChip)

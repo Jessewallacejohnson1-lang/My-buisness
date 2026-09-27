@@ -86,10 +86,11 @@ struct FeedEventCard: View {
         _commentState = State(initialValue: FeedCommentState(comments: comments))
     }
 
-    /// The item's counts, and saved if the item says so or this device saved it.
+    /// The item's counts, and saved by the rule the event page shares
+    /// (`FeedCardItem.isSaved(in:)`).
     private static func actionState(for item: FeedCardItem) -> FeedCardActionState {
         var state = FeedCardActionState(item: item)
-        if !state.isSaved, SavedStore.shared.isSaved(item.id) { state.toggleSave() }
+        if state.isSaved != item.isSaved(in: .shared) { state.toggleSave() }
         return state
     }
 
@@ -140,7 +141,7 @@ struct FeedEventCard: View {
             actionState = Self.actionState(for: updatedItem)
         }
         // Saved or unsaved on the event page: the bookmark follows.
-        .onChange(of: saves.isSaved(item.id)) { _, saved in
+        .onChange(of: item.isSaved(in: saves)) { _, saved in
             if actionState.isSaved != saved { actionState.toggleSave() }
         }
         .task(id: item.image) { await resolveVenuePhoto() }
