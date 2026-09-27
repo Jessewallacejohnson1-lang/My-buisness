@@ -76,6 +76,14 @@ final class EventDetailPageTests: XCTestCase {
                      "only Google gets the header")
     }
 
+    /// A place Google can't be asked about (no `KnownVenues` anchor) is a known "no
+    /// photo" at once, so the page starts without a hero instead of a skeleton.
+    func testAVenueWithNoAnchorIsKnownToHaveNoPhoto() {
+        let known = FeedCardVenuePhoto.known(name: "Somebody's back yard", hint: "Garage sale")
+        XCTAssertNotNil(known, "known without a lookup")
+        XCTAssertNil(known.flatMap { $0 }, "and known to have no photo")
+    }
+
     func testCounterShowsOnlyForTwoOrMorePhotos() {
         let page = FeedEventDetailDestination.self
 

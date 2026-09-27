@@ -34,7 +34,7 @@ struct FeedEventDetailDestination: View {
     @ObservedObject private var saves = SavedStore.shared
     /// The venue's photo, once `FeedCardVenuePhoto` has looked it up.
     @State private var venuePhoto: FeedCardImageSource?
-    /// True until that lookup answers. Starts false when there is nothing to look up.
+    /// True until that lookup answers. Starts false when the answer is already known.
     @State private var venuePending: Bool
     @State private var photoPage: Int? = 0
     /// Photos whose bitmaps are on screen. Until then a page shows the skeleton,
@@ -56,7 +56,15 @@ struct FeedEventDetailDestination: View {
         self.item = item
         self.inSheet = inSheet
         _model = StateObject(wrappedValue: FeedEventDetailModel(item: item, auth: auth))
-        _venuePending = State(initialValue: Self.venueQuery(for: item) != nil)
+        // Known already (nothing to look up, or looked up before, as on a second push):
+        // the first frame draws it, so a cached venue photo never flashes a skeleton
+        // (docs/rules/design.md, "Don't flash").
+        var known: FeedCardImageSource?? = .some(nil)
+        if let query = Self.venueQuery(for: item) {
+            known = FeedCardVenuePhoto.known(name: query.name, hint: query.hint)
+        }
+        _venuePhoto = State(initialValue: known.flatMap { $0 })
+        _venuePending = State(initialValue: known == nil)
     }
 
     /// Sizes off the Reference, in points. Measured 2026-09-26 on the original PNG.
@@ -587,7 +595,7 @@ struct FeedEventDetailDestination: View {
             return
         }
         #endif
-        guard let query = Self.venueQuery(for: item) else { return }
+        guard venuePending, let query = Self.venueQuery(for: item) else { return }
         let resolved = await FeedCardVenuePhoto.resolve(name: query.name, hint: query.hint)
         guard !Task.isCancelled else { return }
         venuePhoto = resolved
@@ -647,21 +655,12 @@ struct FeedEventDetailDestination: View {
     }
 
     /// The venue to ask Google about: a card's pending lookup, or the where line with
-    /// the title as a hint. nil when `KnownVenues` has no anchor for it, the gate
-    /// `confidentPhoto(forFreeText:hint:)` applies first, so the page knows up front
-    /// that there is nothing to wait for and never flashes a skeleton.
+    /// the title as a hint. Whether Google can be asked at all (a `KnownVenues` anchor)
+    /// is `GooglePlacesService`'s rule; `FeedCardVenuePhoto.known` answers "no" at once
+    /// when it can't, so the page never waits on a lookup that can't happen.
     private static func venueQuery(for item: FeedCardItem) -> (name: String, hint: String?)? {
-        let query: (name: String, hint: String?)
-        if case .venueLookup(let name, let hint) = item.image {
-            query = (name, hint)
-        } else if let place = placeText(item) {
-            query = (place, item.title)
-        } else {
-            return nil
-        }
-        guard KnownVenues.anchor(location: query.name, named: query.hint ?? query.name) != nil
-        else { return nil }
-        return query
+        if case .venueLookup(let name, let hint) = item.image { return (name, hint) }
+        return placeText(item).map { ($0, item.title) }
     }
 }
 

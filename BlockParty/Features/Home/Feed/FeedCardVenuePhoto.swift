@@ -26,12 +26,18 @@ enum FeedCardVenuePhoto {
     /// fails soft, caches per venue, and coalesces concurrent callers, so several
     /// cards sharing one venue cost a single billed round-trip.
     static func resolve(name: String, hint: String?) async -> FeedCardImageSource? {
-        let places = GooglePlacesService.shared
-        guard let photo = await places.confidentPhoto(forFreeText: name, hint: hint)
-        else { return nil }
+        await GooglePlacesService.shared.confidentPhoto(forFreeText: name, hint: hint).map(source)
+    }
 
-        return .placesPhoto(
-            places.photoURL(name: photo.photoName, maxWidth: heroPixelWidth),
+    /// `resolve`'s answer when it is already known, with no network call: `.some(nil)`
+    /// is a known "no photo", nil means only `resolve` can tell.
+    static func known(name: String, hint: String?) -> FeedCardImageSource?? {
+        GooglePlacesService.shared.knownConfidentPhoto(forFreeText: name, hint: hint).map { $0.map(source) }
+    }
+
+    private static func source(_ photo: ConfidentPhoto) -> FeedCardImageSource {
+        .placesPhoto(
+            GooglePlacesService.shared.photoURL(name: photo.photoName, maxWidth: heroPixelWidth),
             attribution: photo.attributions.joined(separator: ", ")
         )
     }

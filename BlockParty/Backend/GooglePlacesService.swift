@@ -393,8 +393,29 @@ final class GooglePlacesService {
         // keyword anywhere in the combined string, which let an event title hijack the
         // anchor away from its location (Millstream Arts Festival → Millstream Park,
         // 1,025 m off, card blanked). See `KnownVenues.anchor(location:named:)`.
-        guard let coord = KnownVenues.anchor(location: title, named: hint ?? title) else { return nil }
+        guard let coord = Self.freeTextAnchor(title, hint: hint) else { return nil }
         return await confidentPhoto(name: title, coordinate: coord)
+    }
+
+    /// What `confidentPhoto(forFreeText:hint:)` already knows, with no network call:
+    /// `.some(nil)` when there is nothing to check (no KnownVenues anchor) or a
+    /// finished lookup found no photo, `.some(photo)` when one found it, and nil when
+    /// only the lookup can tell. The event page reads it so a venue it has already
+    /// shown draws in its first frame instead of flashing a skeleton.
+    func knownConfidentPhoto(forFreeText title: String, hint: String?) -> ConfidentPhoto?? {
+        guard let coord = Self.freeTextAnchor(title, hint: hint) else { return .some(nil) }
+        return confidentPhotoCache[Self.photoKey(name: title, coordinate: coord)]
+    }
+
+    private static func freeTextAnchor(_ title: String, hint: String?) -> CLLocationCoordinate2D? {
+        KnownVenues.anchor(location: title, named: hint ?? title)
+    }
+
+    /// Name + coordinate: a generic reused label ("Community Room") can resolve to
+    /// different curated coordinates per caller, and each must run its own Rule A check
+    /// rather than inherit the first caller's result.
+    private static func photoKey(name: String, coordinate: CLLocationCoordinate2D) -> String {
+        "\(name)|\(coordinate.latitude),\(coordinate.longitude)"
     }
 
     // MARK: Confident-match photo (Locked Rule A)
@@ -410,10 +431,7 @@ final class GooglePlacesService {
     /// its detail view) don't re-run the confidence check. nil if not confidently
     /// identified or the place has no photo.
     func confidentPhoto(name: String, coordinate: CLLocationCoordinate2D) async -> ConfidentPhoto? {
-        // Key on name + coordinate: a generic reused label ("Community Room") can
-        // resolve to different curated coordinates per caller, and each must run its
-        // own Rule A check rather than inherit the first caller's result.
-        let key = "\(name)|\(coordinate.latitude),\(coordinate.longitude)"
+        let key = Self.photoKey(name: name, coordinate: coordinate)
         if let hit = confidentPhotoCache[key] { return hit }
         // Coalesce concurrent callers for the same venue (e.g. several list cards
         // sharing one location) onto a single billed Places round-trip.
