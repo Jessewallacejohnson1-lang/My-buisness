@@ -116,9 +116,11 @@ final class EventDetailPageTests: XCTestCase {
 
     /// Signed out, a Join fails before any network (a Town fixture always does). It
     /// still shows "Going" for `rollbackFloor`, so the turn back reads as deliberate,
-    /// then returns count and all, and counts one failed rollback (the page shakes the
-    /// button on it). A tap during that shake joins again at once. A tap while it
-    /// waits goes straight back to Join, and is no failure to shake about.
+    /// then returns count and all. Join lands first; only then does it count one failed
+    /// rollback (the page shakes the button on it, with the error buzz), so the shake
+    /// never runs over the two labels cross-fading. A tap during the shake joins again
+    /// at once; a tap between the turn back and the shake cancels that shake. A tap
+    /// while it waits goes straight back to Join, and is no failure to shake about.
     func testAFailedJoinHoldsGoingThenRollsBack() async throws {
         let model = FeedEventDetailModel(item: FeedCardItem(event(imageUrl: nil, rsvpd: false)), auth: AuthStore())
 
@@ -128,24 +130,33 @@ final class EventDetailPageTests: XCTestCase {
         XCTAssertEqual(model.goingCount, 13)
         XCTAssertEqual(model.failedRollbacks, 0, "nothing has failed yet")
 
-        while model.isGoing, ContinuousClock.now - tapped < .seconds(5) {
-            try await Task.sleep(for: .milliseconds(10))
-        }
+        try await waitWhile(model.isGoing)
         XCTAssertGreaterThanOrEqual(ContinuousClock.now - tapped, FeedEventDetailModel.rollbackFloor,
                                     "turned back before it could be seen")
         XCTAssertFalse(model.isGoing, "a failed Join turns back")
         XCTAssertEqual(model.goingCount, 12)
-        XCTAssertEqual(model.failedRollbacks, 1, "the turn back is a failure: one shake")
+        XCTAssertEqual(model.failedRollbacks, 0, "Join first: no shake while it turns back")
 
-        // Straight away, while the shake would still be running: the tap acts at once.
+        let flipped = ContinuousClock.now
+        try await waitWhile(model.failedRollbacks == 0)
+        XCTAssertGreaterThanOrEqual(ContinuousClock.now - flipped, .seconds(FeedEventDetailModel.flip) - .milliseconds(40),
+                                    "the shake waits for Join to land")
+        XCTAssertEqual(model.failedRollbacks, 1, "then the turn back counts as a failure: one shake")
+
+        // Straight away, while the shake is running: the tap acts at once.
         tapped = ContinuousClock.now
         model.toggleGoing()
         XCTAssertTrue(model.isGoing, "a tap during the shake shows Going at once")
         XCTAssertEqual(model.goingCount, 13)
-        while model.isGoing, ContinuousClock.now - tapped < .seconds(5) {
-            try await Task.sleep(for: .milliseconds(10))
-        }
-        XCTAssertEqual(model.failedRollbacks, 2, "and fails again the same way")
+        try await waitWhile(model.isGoing)
+        XCTAssertEqual(model.failedRollbacks, 1, "Join is back, its shake not yet due")
+
+        // A tap between that turn back and its shake: Going at once, and no shake for it.
+        model.toggleGoing()
+        XCTAssertTrue(model.isGoing, "a tap before the shake shows Going at once")
+        try await waitWhile(model.isGoing)
+        try await waitWhile(model.failedRollbacks == 1)
+        XCTAssertEqual(model.failedRollbacks, 2, "only the Join that ran its course shakes")
 
         model.toggleGoing()
         try await Task.sleep(for: .milliseconds(50))
@@ -156,6 +167,14 @@ final class EventDetailPageTests: XCTestCase {
         XCTAssertFalse(model.isGoing, "and nothing flips it back to Going")
         XCTAssertEqual(model.goingCount, 12)
         XCTAssertEqual(model.failedRollbacks, 2, "a turn back the neighbour asked for does not shake")
+    }
+
+    /// Polls every 10 ms until `condition` is false, for at most 5 s.
+    private func waitWhile(_ condition: @autoclosure () -> Bool) async throws {
+        let start = ContinuousClock.now
+        while condition(), ContinuousClock.now - start < .seconds(5) {
+            try await Task.sleep(for: .milliseconds(10))
+        }
     }
 
     private static func url(_ name: String) -> URL {

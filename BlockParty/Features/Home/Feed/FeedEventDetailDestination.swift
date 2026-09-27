@@ -564,7 +564,7 @@ struct FeedEventDetailDestination: View {
 
     /// The card's join morph (`FeedEventCardJoinButton`), both ways, rollback included.
     private var joinMorph: Animation {
-        .easeInOut(duration: reduceMotion ? 0.15 : 0.18)
+        .easeInOut(duration: reduceMotion ? 0.15 : FeedEventDetailModel.flip)
     }
 
     /// Takes a photo that failed out of the carousel and keeps the page in range.
@@ -670,15 +670,19 @@ struct FeedEventDetailDestination: View {
 final class FeedEventDetailModel: ObservableObject {
     @Published private(set) var isGoing: Bool
     @Published private(set) var goingCount: Int
-    /// One more each time a failed write turns the button back by itself; the page
-    /// shakes the button on it. A tap that turns it back sooner is not counted: that
-    /// neighbour asked for the state they get.
+    /// One more each time a failed write turns the button back by itself, once "Join"
+    /// has landed (`flip` after the turn); the page shakes the button on it. A tap that
+    /// turns it back sooner is not counted: that neighbour asked for the state they get.
     @Published private(set) var failedRollbacks = 0
 
     /// A failed Join still shows "Going" this long after the tap before it turns back,
     /// so the rollback reads as the app's answer, not a flicker. Signed out, the write
     /// failed 15 ms after the tap (measured 2026-09-26), about one frame. (guessed)
     static let rollbackFloor: Duration = .milliseconds(600)
+
+    /// How long Join takes to turn from one face to the other, both ways: the card's
+    /// join morph (`FeedEventCardJoinButton`), in seconds.
+    static let flip: TimeInterval = 0.18
 
     let organizerImageURL: URL?
 
@@ -732,6 +736,11 @@ final class FeedEventDetailModel: ObservableObject {
                 try? await Task.sleep(until: tapped + Self.rollbackFloor)
                 guard !Task.isCancelled else { return }
                 rollBack(to: (wasGoing, previousCount))
+                // Join first, then the shake: it waits for the face to finish turning, so
+                // it never shakes the two labels mid cross-fade (Jesse, 2026-09-27). A tap
+                // before then cancels it.
+                try? await Task.sleep(for: .seconds(Self.flip))
+                guard !Task.isCancelled else { return }
                 failedRollbacks += 1
                 // Here, not in the view: Reduce Motion drops the shake, never the buzz.
                 Haptics.error()
