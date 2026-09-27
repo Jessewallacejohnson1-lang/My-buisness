@@ -11,7 +11,7 @@ import re
 import sys
 from pathlib import Path
 
-SOURCES = ["MAP_BUILD_LOG.md", "REVIEW.md", "DECISIONS.md"]
+SOURCES = ["docs/archive/MAP_BUILD_LOG.md", "REVIEW.md", "DECISIONS.md"]
 RULE_LEAD = re.compile(r"^\s*[-*]\s+\*\*(?P<lead>[^*]{8,120})\*\*")
 
 

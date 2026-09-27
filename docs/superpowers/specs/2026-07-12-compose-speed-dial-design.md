@@ -73,7 +73,7 @@ DEBUG: `-open-speeddial` (+ `-speeddial-loop`) unfolds/loops the dial headlessly
 
 ## Verification plan
 
-Same discipline as `MAP_BUILD_LOG.md` / the share-reveal + town-menu specs:
+Same discipline as `docs/archive/MAP_BUILD_LOG.md` / the share-reveal + town-menu specs:
 - **Build clean, 0 warnings.**
 - **Motion match:** DEBUG launch arg to auto-open the speed-dial headlessly (like `-open-menu`), record the sim, extract frames (AVAssetImageGenerator), build a **REF vs HYG** two-row montage at matching progress, iterate to ~99%.
 - **Render:** items/labels/circles correct at rest and fully open on Explore, Calendar, Map; no layout breakage; tab bar dims correctly.

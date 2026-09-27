@@ -5,7 +5,7 @@
 > spec's "recede to an invisible dot until saved/live/tapped." Every curated spot now always
 > renders a small badge (`MapPinBadge` in `SJMapView.swift`); the Mapbox `CircleLayer`/`SymbolLayer`
 > collision system this spec describes was removed. See the "Living Basemap retired + pin badges
-> redrawn" entry in `MAP_BUILD_LOG.md`. Kept here as a historical record.
+> redrawn" entry in `docs/archive/MAP_BUILD_LOG.md`. Kept here as a historical record.
 
 **Date:** 2026-07-13 · **Surface:** `Features/Map/` · **Reference feel:** Snapchat Map, Life360.
 

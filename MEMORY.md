@@ -71,13 +71,19 @@ all live there now. This file carries what is newer than that, or narrower than 
   heavy rounded retro serif, black on bright yellow. No additional mark.
 - App palette comes from the Joetown city logo: orange `#E67633` (buttons, progress,
   splash), teal `#72C5B6` (selected states — locked), gray `#707174` (secondary,
-  disabled).
+  disabled). **Superseded 2026-09-27:** teal and orange survive only as category-gradient
+  stops; selected states aren't teal, buttons aren't orange, and `#707174` is gone. The
+  palette is in `DESIGN.md`.
 - The old cream / terracotta / sage / rosewood hand-drawn earthy palette is dead in the
   app. Ask for the current direction rather than reusing it. The waitlist site is the one
   exception — it still runs cream with a terracotta accent.
 - The app is not monochrome. Color is part of the design direction, not an exception.
+  **Superseded 2026-09-27:** chrome is ink on paper with small yellow accents, and colour
+  comes from photos and the map (`DESIGN.md`).
 - Jesse dislikes the current static splash (coral script wordmark on black). Direction
   under consideration is Duolingo-style: BP mark centered, full wordmark near the bottom.
+  **Superseded 2026-09-27:** there has been no splash since 2026-09-18
+  (`docs/rules/architecture.md`).
 
 ## Per-surface direction lives with the surface
 
@@ -86,7 +92,7 @@ Jesse's direction for a specific screen sits in that screen's own file, reached 
 
 - **The full-screen map** — `docs/rules/map.md`, *Direction* section.
 - **The Town feed's intended shape** — `PRODUCT.md`, *The Town feed*. Every module in it was
-  deleted in the strip-down; `docs/GUTTING-LEDGER.md` says how to get each one back.
+  deleted in the strip-down; `docs/archive/GUTTING-LEDGER.md` says how to get each one back.
 - **Onboarding** — `ONBOARDING.md`, *Direction* section, alongside its locked rules and bans.
 
 ## Data and backend

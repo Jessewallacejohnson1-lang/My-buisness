@@ -12,10 +12,8 @@ A change is not done until all four are true. Say which ones you ran.
    capture, and show Jesse the actual screen. For a visual change, count pixels in the
    region you touched.
 4. **The logs are updated** `[prose]` — if the work touched them:
-   - map work → `MAP_BUILD_LOG.md` (chronological; the record of what is verified)
    - an identifier, a constant, or a deliberate exception → `DECISIONS.md`
-   - anything deleted, parked, or recovered from the strip-down → `docs/GUTTING-LEDGER.md`
-   - a correction from Jesse → `MEMORY.md`
+   - a correction from Jesse → `MEMORY.md` (looks and motion → BP app's `taste.md`)
 
 **Not part of done: the end-of-production checks.** `[prose]` `docs/SHIP-CHECKLIST.md` holds
 the checks that run once, before the App Store build, instead of on every change — the

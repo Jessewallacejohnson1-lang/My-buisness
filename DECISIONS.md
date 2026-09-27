@@ -582,14 +582,17 @@ and takes "saved" off the plum `Hue.accent`'s list.
 ## Decided 2026-09-25 — BP keeps its own tab bar, restyled to the glass Reference
 
 Jesse supplied a Tripadvisor frame from Mobbin (the Reference) and asked for its glass
-tab bar in BP's black and yellow. Plan: `~/Documents/agent-os/plans/2026-09-25-glass-tab-bar.md`.
-Every number is in `refs/chrome/REFERENCE-SPEC.md` (*Tab bar*). The raw evidence (the
-Reference, Apple's `TabProbe` bar, recordings, contact sheets and `MEASURED.md`) sits in
-`/Users/owner/BP app/references/tab-bar/` in the main checkout, untracked.
+tab bar in BP's black and yellow. Plan: `~/Documents/archive/agent-os/plans/archive/2026-09-25-glass-tab-bar.md`.
+Every number lives in the code, `TabBarMetric` and `BlockPartyTabBar` in
+`BlockParty/App/RootView.swift`, and each comment says whether the value was measured,
+estimated or guessed, and where from. The raw evidence (the Reference, Apple's `TabProbe`
+bar, recordings, contact sheets and `MEASURED.md`) sits in
+`/Users/owner/BP app/references/tab-bar/`; `refs/chrome/REFERENCE-SPEC.md` (*Tab bar*)
+lists the sources.
 
-**Approved by Jesse at Gate 2, 2026-09-26** ("I agree with all"): keep the 35% white layer
-behind the glass, the Lens as the grown grey bubble, the 1.04× press swell, the bubble's
-0.80× darkness on white pages, and the `house.fill` door cut-out.
+**Approved by Jesse at Gate 2, 2026-09-26** ("I agree with all"): keep the white layer
+behind the glass, the Lens as the grown grey bubble, the press swell, the bubble's
+darkness on white pages, and the `house.fill` door cut-out.
 
 ### Why not Apple's `TabView`
 
@@ -599,58 +602,59 @@ is hand-built so the ink never changes, whatever sits under it.
 
 ### What was built
 
-- **Capsule:** Apple's measured size, 62pt tall, 21pt from each side and from the
-  physical bottom edge (351×62 at 393pt, 378×62 on the 420pt Air). It never hides on
-  scroll. `TabBarMetric` holds the geometry, capsule-local; `TabBarTests` pins the tab
-  centres to Apple's at both widths.
-- **Glass:** `.glassEffect(.regular)` with a 35% white capsule (`Hue.surface.onLightCanvas`)
-  BEHIND it, and a 1pt white rim at 75%. The underlay exists because the plain glass
-  flipped too: over a near-black feed card (Town at `-feed-scrolled-y 1200`, measured
-  2026-09-26) it went to its dark state, 23/255 with the ink invisible, and no
-  colour-scheme pin stopped it. At 20% white it still flipped (40/255); at 30% it held
-  (178/255, the Reference's 169–181 over its dark photo). 35% leaves a margin.
+- **Capsule:** Apple's measured size, the same gap from each side and from the physical
+  bottom edge, at both measured widths. It never hides on scroll. `TabBarMetric` holds
+  the geometry, capsule-local; `TabBarTests` pins the tab centres to Apple's at both
+  widths.
+- **Glass:** `.glassEffect(.regular)` with a white capsule (`Hue.surface.onLightCanvas`)
+  BEHIND it, and a thin white rim. The underlay exists because the plain glass flipped
+  too: over a near-black feed card (Town at `-feed-scrolled-y 1200`, measured 2026-09-26)
+  it went to its dark state with the ink invisible, and no colour-scheme pin stopped it.
+  The strengths that flipped and held, and the margin shipped, are in the comment on
+  `TabBarMetric.glassUnderlay` and the underlay in `BlockPartyTabBar`.
 - **Ink:** fixed #111111 (`Hue.ink.onLightCanvas`) on every icon and label. Adaptive
   `Hue.ink` drew white, because flipped glass hands its items a dark trait.
-- **Selection bubble:** black at 20% over the glass, which reads 0.80× the bar's
-  brightness, the Reference's ratio. 54pt tall, 4pt inset, `(capsule − 8) / 4 + 10` wide.
+- **Selection bubble:** translucent black over the glass, matching the Reference's
+  bubble-to-bar brightness ratio. Its size, inset and width rule are `TabBarMetric`'s.
 - **Selected icon:** Apple's reveal, icon drawing only (Jesse, Gate 1). A solid #FCE804
   filled symbol (`Hue.brandDisc`) is masked to the moving bubble over the ink outline, so
   mid-slide the yellow shows only inside the bubble. Labels are never revealed and stay
   #111111. No bounce, no colour animation.
-- **Labels:** SF Pro 10pt, Medium (Semibold selected), frozen via `Font.tabLabel(selected:)`,
+- **Labels:** SF Pro, Medium (Semibold selected), frozen via `Font.tabLabel(selected:)`,
   as Apple's are.
 - **One touch drives the bar.** On touch-down (a plain tap included) the Selection bubble
-  lifts into a Lens: the same grey capsule grown to Apple's measured Lens size, 1.20× its
-  width and 1.30× its height. It follows the finger, clamped 9pt past the end centres;
-  icons magnify up to 1.2× by distance from it; the whole bar swells 1.04× while pressed
-  (measured). After a tap the Lens keeps its size until the bubble lands (260ms after
-  lift); after a drag it shrinks back in 70ms (Apple: ~76ms). Growth: spring response
-  0.06, critically damped (measured: 89% at 37ms, 96% at 70ms), scoped to size only.
-  Travel: critically damped spring response 0.33, fitted to Apple's bubble centre being
-  96.5% of the way at +272ms (an earlier 0.45/0.8 arrived at ~350ms and overshot 2.5pt).
+  lifts into a Lens: the same grey capsule grown to Apple's measured Lens size. It follows
+  the finger, clamped a little past the end centres; icons magnify by distance from it;
+  the whole bar swells while pressed (measured). After a tap the Lens keeps its size until
+  the bubble lands; after a drag it shrinks back quickly, as Apple's does. Growth is a
+  critically damped spring fitted to Apple's measured touch-down, scoped to size only.
+  Travel is a critically damped spring fitted to Apple's arrival time (an earlier
+  underdamped spring arrived late and overshot). Every value, with its measurement, is a
+  `TabBarMetric` constant.
 - **Why the Lens is grey, not clear glass like Apple's:** a `.glassEffect` capsule draws at
   its final layout position, so it jumped straight to the finger while the bubble and the
   yellow slid across the bar behind it (result debate round 2, 2026-09-26). The plan's
   fallback is the dark pressed capsule, and that is what shipped.
-- **No cancel zone.** Apple's bar switches on a release 150pt above it (measured), so a
-  release picks the tab nearest the finger's x, however high the finger is.
+- **No cancel zone.** Apple's bar switches on a release far above it (measured; see
+  `TabBarMetric.tab(atX:capsuleWidth:)`), so a release picks the tab nearest the finger's
+  x, however high the finger is.
 - **No dim band** (Jesse, Gate 1). The Reference's full-width darkening behind the bar is
   Tripadvisor's, not iOS's.
 - **Reduce Motion:** no Lens, growth, magnification or swell; on a change the bubble and the
-  yellow crossfade from the old tab to the new on the page's 0.2s ease (recorded
+  yellow crossfade from the old tab to the new on the page's short ease (recorded
   2026-09-26).
 - **Accessibility:** `TabPressStyle` and the four per-tab `Button`s are deleted. The bar is a
   tab-bar container (`.isTabBar`) whose synthetic children are exactly four tab elements
   over the slots, `.isSelected` on the current one, each with its own action (snapshot:
   Town/Daily/Business/You, one selected). Each slot keeps the long-press large content
   viewer (verified at AX3 on the eyes sim, 2026-09-26: a long press on Daily shows the
-  enlarged "Daily"). Rim opacity 0.75 (0.6 read +56 over the glass; the Reference is
-  +60–75).
+  enlarged "Daily").
 
 ### Not built
 
-- Apple's post-tap squash wobble: its bubble lands at 0.87× width / 1.14× height and
-  settles within 1px by ~860ms (measured on `TabProbe`).
+- Apple's post-tap squash wobble: its bubble lands squashed and settles about a second
+  after the tap (measured on `TabProbe`; the numbers are in `refs/chrome/REFERENCE-SPEC.md`,
+  *Measured on Apple's bar, not built*).
 - A haptic per tab crossed while scrubbing. The release already ticks once on a real
   change, so a crossing tick would double on landing.
 

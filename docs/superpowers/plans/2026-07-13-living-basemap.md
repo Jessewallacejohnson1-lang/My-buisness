@@ -3,7 +3,7 @@
 > **RETIRED (2026-07-13), same day.** Everything this plan built (`AtmosphereModel`,
 > `AtmosphereOverride`, `BasemapPalette.make(for:)`, the `-atmosphere` DEBUG flag) was deleted the
 > same day in favor of one static basemap. See the "Living Basemap retired" entry in
-> `MAP_BUILD_LOG.md`. Kept here as a historical record — do not follow these steps or treat the
+> `docs/archive/MAP_BUILD_LOG.md`. Kept here as a historical record — do not follow these steps or treat the
 > APIs below as current.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
@@ -1239,7 +1239,7 @@ Wire the model in, recolor from the palette **on atmosphere change** (the key ch
 
 **Files:**
 - Modify: `BlockParty/Features/Map/SJMapView.swift`
-- Docs: append a `-atmosphere` bullet to `CLAUDE.md` DEBUG-flag list + a Living Basemap entry to `MAP_BUILD_LOG.md`.
+- Docs: append a `-atmosphere` bullet to `CLAUDE.md` DEBUG-flag list + a Living Basemap entry to `docs/archive/MAP_BUILD_LOG.md`.
 
 **Interfaces — Consumes:** `AtmosphereModel`, `BasemapPalette`, `TimeWashOverlay`, `WeatherParticles`, `AtmosphereWhisper` (Tasks 5–9).
 
@@ -1348,10 +1348,10 @@ done
 
 - [ ] **Step 9: Montage-verify motion** (snow drift + golden→night wash), per the project's established loop: record with `-atmosphere winter…snow`, extract frames, build a contact sheet, confirm the snow actually moves and the wash cross-fades. (Reduce Motion path: relaunch with the sim's Reduce Motion on and confirm particles are static + whisper still present.)
 
-- [ ] **Step 10: Update docs + commit.** Add to `CLAUDE.md` the `-atmosphere` DEBUG bullet (mirroring the `-almanac-write` entry style) and a "Living basemap" note in the Map section; append a dated Living Basemap section to `MAP_BUILD_LOG.md` (what shipped + verified moods).
+- [ ] **Step 10: Update docs + commit.** Add to `CLAUDE.md` the `-atmosphere` DEBUG bullet (mirroring the `-almanac-write` entry style) and a "Living basemap" note in the Map section; append a dated Living Basemap section to `docs/archive/MAP_BUILD_LOG.md` (what shipped + verified moods).
 
 ```bash
-git add BlockParty/Features/Map/SJMapView.swift CLAUDE.md MAP_BUILD_LOG.md
+git add BlockParty/Features/Map/SJMapView.swift CLAUDE.md docs/archive/MAP_BUILD_LOG.md
 git commit -m "feat(map): Living Basemap — time/season/weather modulate the map
 
 Atmosphere (SolarClock + SeasonClock + Open-Meteo) drives the basemap palette,

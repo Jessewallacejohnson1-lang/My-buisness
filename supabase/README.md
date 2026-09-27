@@ -1,14 +1,14 @@
 # supabase/ — schema under version control
 
 Until now, schema / RLS / publication changes were applied ad-hoc to the live
-project (`lxdgwhvqjqmqliobwjpi`) and recorded only in prose in `MAP_BUILD_LOG.md`.
+project (`lxdgwhvqjqmqliobwjpi`) and recorded only in prose in `docs/archive/MAP_BUILD_LOG.md`.
 That leaves no reproducible way to stand up a second environment, no rollback path,
 and no diffable record of the DB's actual shape. This directory fixes the *practice*.
 
 ## The rule
 
 Every schema / RLS / publication / storage change gets a numbered `.sql` file
-committed here **alongside the Swift change that depends on it**. `MAP_BUILD_LOG.md`
+committed here **alongside the Swift change that depends on it**. `docs/archive/MAP_BUILD_LOG.md`
 stays the narrative layer; `supabase/migrations/` becomes the durable record.
 
 ## Workflow

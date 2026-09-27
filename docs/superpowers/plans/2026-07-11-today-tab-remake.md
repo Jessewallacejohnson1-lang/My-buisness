@@ -234,7 +234,7 @@ func hydrateUserState(_ postings: [FeedPosting]) async throws -> [FeedPosting] /
 ## Task 10: Prod merge + graphify update
 
 - [ ] **Step 1:** With user greenlight, `merge_branch` the Supabase migration to prod; smoke-test the live feed in the sim.
-- [ ] **Step 2:** `graphify update .` to refresh the knowledge graph. Update `CLAUDE.md`'s brand bar to record the deliberate "Home has a feed now" evolution. Continue `MAP_BUILD_LOG.md`? (Home, not map — use a `HOME_BUILD_LOG.md` or a spec addendum instead.)
+- [ ] **Step 2:** `graphify update .` to refresh the knowledge graph. Update `CLAUDE.md`'s brand bar to record the deliberate "Home has a feed now" evolution. Continue `docs/archive/MAP_BUILD_LOG.md`? (Home, not map — use a `HOME_BUILD_LOG.md` or a spec addendum instead.)
 - [ ] **Step 3: Commit** `chore(home): prod merge + graph refresh + brand-bar note`.
 
 ---

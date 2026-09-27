@@ -161,7 +161,7 @@ WeatherBar.task
 ## Verification
 
 No XCTest target exists. "Verified" = **builds clean (0 warnings)** + confirmed
-in the running simulator via screenshot, per `MAP_BUILD_LOG.md` discipline.
+in the running simulator via screenshot, per `docs/archive/MAP_BUILD_LOG.md` discipline.
 
 Because the bucket is empty today, the pass criteria are:
 

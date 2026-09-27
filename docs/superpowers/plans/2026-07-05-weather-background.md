@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - **Deployment target iOS 26.5, Swift 5** — `onChange(of:) { _, _ in }` two-param signature and `URLSession.download(from:)` async are available.
-- **No XCTest target.** "Verified" = builds clean with **0 warnings** + confirmed in the running simulator via screenshot (per `MAP_BUILD_LOG.md` discipline). The per-task cycle below is build → (screenshot for visible tasks) → commit.
+- **No XCTest target.** "Verified" = builds clean with **0 warnings** + confirmed in the running simulator via screenshot (per `docs/archive/MAP_BUILD_LOG.md` discipline). The per-task cycle below is build → (screenshot for visible tasks) → commit.
 - **Prefer XcodeBuildMCP** (`build_sim`, `build_run_sim`, `screenshot`) over raw `xcodebuild`. Scheme `BlockParty`, bundle id `Jesse.Hygge`, simulator `iPhone 17`.
 - **File-system-synchronized Xcode group:** new files under `BlockParty/` are auto-included — no `.pbxproj` edit needed. After any build failure mentioning "Multiple commands produce", run `find BlockParty -type d -name .impeccable -exec rm -rf {} +`.
 - **Honest data only / on-brand:** never a fabricated temperature; coral (`Hue.accent`) is reserved for live/tappable and must not appear in this backdrop; don't hardcode a hex a `Hue` token already covers (the six sky gradients are the sanctioned exception, like the map's base-map hexes).

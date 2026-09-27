@@ -46,7 +46,7 @@ Target **WCAG AA** for text contrast (the charcoal `ink` ramp is verified on whi
 ## The Town feed — intended shape
 
 **Intent, not current state.** The 2026-09-17 strip-down deleted every module below;
-`docs/GUTTING-LEDGER.md` says how to get each one back and `docs/rules/architecture.md`
+`docs/archive/GUTTING-LEDGER.md` says how to get each one back and `docs/rules/architecture.md`
 describes the empty shell that remains. Build to this section when a module returns.
 
 - The feed may scroll past today; the old "all caught up" hard stop is superseded (Jesse, 2026-09-27).

@@ -3,7 +3,7 @@
 > **RETIRED (2026-07-13).** The time/season/weather basemap recoloring this spec describes was
 > built, then reversed the same day — the map now uses one static `BasemapPalette` matched to a
 > Life360/Mobbin reference, no modulation. See the "Living Basemap retired" entry in
-> `MAP_BUILD_LOG.md` for why and what replaced it. Kept here as a historical record.
+> `docs/archive/MAP_BUILD_LOG.md` for why and what replaced it. Kept here as a historical record.
 
 **Date:** 2026-07-13
 **Status:** Approved (brainstorm) → planning

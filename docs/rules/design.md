@@ -66,7 +66,7 @@ build time, and the colour half has no backstop. A human eye is the only check f
   Jost keeps its exact size. `Font.logo`, `Font.glyph(_:weight:)` and
   `Font.tabLabel(selected:)` are the deliberate frozen exceptions — **`glyph` is for ARTWORK
   only** (map markers, the heart burst, avatar placeholders, tab bar icons), and text
-  reaching for it is a bug. The tab bar's labels use `tabLabel`, frozen at 10pt like Apple's.
+  reaching for it is a bug. The tab bar's labels use `tabLabel`, frozen like Apple's.
   - **Two faces.** Display/wordmark/headlines are **Jost** (bundled variable font, OFL
     licence alongside it); body/UI/data stay **SF Pro** via `Font.sans*`/`Font.mono*`, with
     numbers tabular via `.monospacedDigit()`.
