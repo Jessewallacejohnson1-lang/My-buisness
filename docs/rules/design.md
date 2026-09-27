@@ -37,7 +37,7 @@ build time, and the colour half has no backstop. A human eye is the only check f
     2026-09-27.
   - **`statusTint`** #FDECE8 — the pin-detail status card's wash and nothing else.
   - **`heart`** #FF3040 — a liked heart and nothing else: state, not chrome. Pass it *into*
-    `actionIcon(_:active:tint:)`, which sets `foregroundStyle` closer to the `Image`; an
+    `glyphIcon(_:filled:tint:)`, which sets `foregroundStyle` closer to the glyph; an
     outer style silently loses.
   - **`brandYellowHex`** #FCE804 — the app's accent, taken from the logo's yellow field.
     **`brandDisc`** is that yellow at full strength, solid, for exactly **three uses: the
