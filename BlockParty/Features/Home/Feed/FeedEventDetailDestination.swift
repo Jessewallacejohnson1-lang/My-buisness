@@ -252,9 +252,6 @@ struct FeedEventDetailDestination: View {
         }
         .padding(.horizontal, Metric.inset - (Metric.tapBox - Metric.button) / 2)
         .padding(.top, Metric.buttonTop - (Metric.tapBox - Metric.button) / 2)
-        // Chrome never takes its colour from what is under it (taste.md): ink on
-        // white, pinned to the light ramp like the Town bar.
-        .environment(\.colorScheme, .light)
     }
 
     /// A bookmark, as on the card. Saved, it fills with the brand yellow exactly
@@ -273,7 +270,8 @@ struct FeedEventDetailDestination: View {
     /// A white circle with an ink glyph, lifted by the map's floating-button shadow
     /// (guessed; the Reference's heart is solid white). Not Liquid Glass: glass takes
     /// its colour from what is under it and went dark with white glyphs over a dark
-    /// photo, pinned scheme or not (measured 2026-09-26).
+    /// photo, even with the scheme pinned (measured 2026-09-26), and chrome never takes
+    /// its colour from what is under it (taste.md).
     private func circleButton(
         glyph: some View,
         label: String,
