@@ -133,11 +133,13 @@ struct FeedEventCardActionRow: View {
 
     private var saveButton: some View {
         Button(action: performSaveTap) {
+            // Saved is the brand yellow exactly, inside the ink outline, the same
+            // bookmark as the event page's: saved reads yellow everywhere (Jesse,
+            // 2026-09-27). The outline never moves, so unsaved draws as before.
             ZStack {
-                actionIcon("bookmark")
-                    .opacity(state.isSaved ? 0 : 1)
-                actionIcon("bookmark.fill")
+                actionIcon("bookmark.fill", tint: Color(hex: Hue.brandYellowHex))
                     .opacity(state.isSaved ? 1 : 0)
+                actionIcon("bookmark")
             }
             .offset(y: reduceMotion ? 0 : bookmarkOffset)
             .frame(width: Metric.tapWidth, height: Metric.rowHeight)
@@ -181,17 +183,17 @@ struct FeedEventCardActionRow: View {
         .buttonStyle(.plain)
     }
 
-    /// One icon in the row. `tint` overrides the ink ramp for the one control that
-    /// carries colour — the liked heart — and must be passed here rather than layered
-    /// on the result, because this `foregroundStyle` sits closer to the Image and
-    /// would win.
+    /// One icon in the row. `tint` overrides the ink ramp for the controls that
+    /// carry colour — the liked heart and the saved bookmark's fill — and must be
+    /// passed here rather than layered on the result, because this `foregroundStyle`
+    /// sits closer to the Image and would win.
     private func actionIcon(_ symbol: String, tint: Color? = nil) -> some View {
         // SF Symbols does not expose a 1.75pt stroke; regular approximates the spec.
         Image(systemName: symbol)
             .font(.sans(Metric.glyph))
             .symbolRenderingMode(.monochrome)
-            // Solid ink, the way Instagram draws its row (Jesse, 2026-09-24). The
-            // liked heart is the only control with a colour of its own.
+            // Solid ink, the way Instagram draws its row (Jesse, 2026-09-24). Only the
+            // liked heart and the saved bookmark's fill have a colour of their own.
             .foregroundStyle(tint ?? Hue.ink)
     }
 
