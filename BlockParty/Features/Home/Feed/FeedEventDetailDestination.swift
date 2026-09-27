@@ -130,7 +130,14 @@ struct FeedEventDetailDestination: View {
         .ignoresSafeArea(edges: hasHero ? .top : [])
         .background(Hue.paper.ignoresSafeArea())
         // Outside the scroll, so the buttons stay put while the page moves under them.
-        .overlay(alignment: .top) { topButtons }
+        // The sort priority asks VoiceOver to read them first, as they sit, not after the
+        // About. AXe's element tree does not show sort priority, so the sim can't prove it.
+        .overlay(alignment: .top) {
+            topButtons
+                .accessibilityElement(children: .contain)
+                .accessibilitySortPriority(1)
+        }
+        .accessibilityElement(children: .contain)
         .safeAreaInset(edge: .bottom, spacing: 0) { bottomBar }
         // Hidden, never `navigationBarBackButtonHidden`. Hidden here, UIKit also turns
         // the swipe back off; `SwipeBack` (RootView) turns it back on.
@@ -747,6 +754,8 @@ final class FeedEventDetailModel: ObservableObject {
                 failedRollbacks += 1
                 // Here, not in the view: Reduce Motion drops the shake, never the buzz.
                 Haptics.error()
+                // The shake and the buzz are silent to VoiceOver; this says it.
+                AccessibilityNotification.Announcement(wasGoing ? "Couldn't leave" : "Couldn't join").post()
             }
         }
     }
