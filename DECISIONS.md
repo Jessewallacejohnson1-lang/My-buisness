@@ -481,8 +481,10 @@ the record of why Create was added.
 
 The Town event card's host row, photo and going line are one link to the event page, and
 the whole card squishes by `FeedMotion.quietPress` on touch-down (event-detail Phase 1).
-Two UIKit recognizers make that work. Jesse approved both; together they are one deliberate
-exception to the "no card-level gesture in a scroll view" rule in
+What Jesse approved is the behaviour: the whole card squishes on touch-down, and a photo tap
+opens the event after the double-tap window, cut to ~0.3 s, while a double tap still likes.
+Two UIKit recognizers are the implementation choice that follows from that. Together they
+are one deliberate exception to the "no card-level gesture in a scroll view" rule in
 `docs/rules/swift-traps.md` and the `FeedMotion.swift` header.
 
 - **`FeedTouchDownTracker`** — a `UILongPressGestureRecognizer`, `minimumPressDuration = 0`,
