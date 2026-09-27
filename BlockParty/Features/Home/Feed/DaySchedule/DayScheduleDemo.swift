@@ -2,7 +2,7 @@
 //  DayScheduleDemo.swift
 //  Block Party — `-day-sheet-demo`, the day sheet driven without a finger.
 //
-//  This setup has NO simulator scroll or tap automation (CLAUDE.md), so the one
+//  This was written when the setup had no simulator scroll or tap automation (AXe drives both now), so the one
 //  thing the in-hierarchy rewrite exists to produce — the accent bar morphing out
 //  of a rail card and back into it — is unrecordable by hand. The house answer to
 //  exactly this problem is already in the codebase: `-tab-cycle`, `-bp-motion`
