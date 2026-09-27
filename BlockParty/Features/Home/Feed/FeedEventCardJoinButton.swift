@@ -126,8 +126,9 @@ struct FeedEventCardJoinButton: View {
 
 /// The `+` press. Its numbers and its Reduce-Motion branch live in `FeedMarkPress`
 /// so the For You cards press with exactly this feel, and so the cross-fade
-/// fallback is the same one the rest of the feed uses.
-private struct FeedCardJoinPressStyle: ButtonStyle {
+/// fallback is the same one the rest of the feed uses. The event page's buttons
+/// press with it too.
+struct FeedCardJoinPressStyle: ButtonStyle {
     let reduceMotion: Bool
     let autoplayPressed: Bool
 

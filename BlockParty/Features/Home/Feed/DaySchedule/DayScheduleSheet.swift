@@ -75,7 +75,7 @@ struct DayScheduleSheet: View {
             .background(DaySchedulePalette.page)
             .safeAreaInset(edge: .top, spacing: 0) { header }
             .task { await followTheMinute() }
-            .sheet(item: $detailEvent) { FeedEventDetailDestination(item: FeedCardItem($0)) }
+            .sheet(item: $detailEvent) { FeedEventDetailDestination(item: FeedCardItem($0), inSheet: true) }
     }
 
     // MARK: - The timeline
