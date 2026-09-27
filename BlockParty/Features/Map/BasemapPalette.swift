@@ -26,7 +26,7 @@
 //  There is deliberately NO time/season/weather modulation. The base map looks the
 //  same at every hour, by design — one calm base layer. (The old "Living Basemap"
 //  that shifted the palette by time-of-day · season · weather was retired here —
-//  see MAP_BUILD_LOG.md. Its summer·noon·clear anchor preserved the ROUND-1 muted
+//  see docs/archive/MAP_BUILD_LOG.md. Its summer·noon·clear anchor preserved the ROUND-1 muted
 //  palette; the values below are the round-2 colorful palette and are now the
 //  regression anchor. If a screenshot ever renders paler than these, the recolor
 //  didn't land — see the race note on `recolor`.)

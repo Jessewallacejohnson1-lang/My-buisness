@@ -202,7 +202,7 @@ simulator**. Screenshot loop each screen at each state:
 - Avatar: empty well, image chosen.
 - Progress bar + back across steps.
 - Reduce-Motion pass renders correctly.
-Record results in `MAP_BUILD_LOG.md` (onboarding subsection) as the app does for map work.
+Record results in `docs/archive/MAP_BUILD_LOG.md` (onboarding subsection) as the app does for map work.
 
 ## 9. File-by-file change list
 - `BlockParty/Backend/Interests.swift` — new 18-item taxonomy + sections; add
@@ -220,7 +220,7 @@ Record results in `MAP_BUILD_LOG.md` (onboarding subsection) as the app does for
 - `BlockParty/Assets.xcassets/` — `interest-<id>` imagesets (18).
 - `BlockParty/App/RootView.swift` — hydrate profile on launch; DEBUG step args.
 - Supabase — `town_profiles` table + `avatars` bucket + policies (via migration).
-- `MAP_BUILD_LOG.md` — onboarding verification log.
+- `docs/archive/MAP_BUILD_LOG.md` — onboarding verification log.
 
 ## 10. Open questions / tunables
 - Minimum interests to continue (default: 1, gentle). Bump to 3/5 if desired.

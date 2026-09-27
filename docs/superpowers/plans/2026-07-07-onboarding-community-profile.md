@@ -70,7 +70,7 @@ Run (MCP `execute_sql`): `select count(*) from public.town_profiles;` → return
 Run: `select id, public from storage.buckets where id='avatars';` → `avatars, true`.
 Run `get_advisors` (type `security`) → no new **errors** introduced by these objects (RLS is enabled).
 
-- [ ] **Step 3: Commit** — no repo change; record in `MAP_BUILD_LOG.md` under a new "Onboarding" heading that the migration was applied (done in Task 11).
+- [ ] **Step 3: Commit** — no repo change; record in `docs/archive/MAP_BUILD_LOG.md` under a new "Onboarding" heading that the migration was applied (done in Task 11).
 
 ---
 
@@ -1195,20 +1195,20 @@ git commit -m "feat(onboarding): hydrate community profile on launch; honor remo
 ### Task 11: Full-flow verification + build log
 
 **Files:**
-- Modify: `MAP_BUILD_LOG.md` (append an "Onboarding" section)
+- Modify: `docs/archive/MAP_BUILD_LOG.md` (append an "Onboarding" section)
 
 - [ ] **Step 1: End-to-end run** — fresh signed-in account, walk Welcome → Name → Interests → Avatar → Map, tap "Explore the map" → lands on Today/tabs. Screenshot each transition; confirm progress bar advances, back preserves state, haptics fire, no jank.
 
 - [ ] **Step 2: Confirm persistence** — `select * from town_profiles;` shows the row; the `avatars` bucket has `{uid}/avatar-*.jpg` when a photo was chosen; the public avatar URL resolves (open it).
 
-- [ ] **Step 3: Append to `MAP_BUILD_LOG.md`**
+- [ ] **Step 3: Append to `docs/archive/MAP_BUILD_LOG.md`**
 
 Record: the migration applied (Task 1), the new files, the screenshot-verified states, the Reduce-Motion pass, and any known follow-ups (e.g. real St. Joe photos to swap into `Assets.xcassets/Interests`). Note the hybrid imagery status (seed art in place; real photos drop in by name).
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add MAP_BUILD_LOG.md
+git add docs/archive/MAP_BUILD_LOG.md
 git commit -m "docs(onboarding): verification log for community-profile onboarding"
 ```
 

@@ -3,7 +3,7 @@
 //  Block Party — the curated catalogue of Saint Joseph places shown on the map.
 //
 //  Six real spots with building-accurate coordinates (verified against OSM
-//  footprints + published addresses — see MAP_BUILD_LOG.md FIX 5). Shared by the
+//  footprints + published addresses — see docs/archive/MAP_BUILD_LOG.md FIX 5). Shared by the
 //  map (pins + liveness) and the admin quick-add sheet (spot picker), so there's
 //  a single source of truth. `keywords` are matched against real events' title +
 //  location so an event lights the right pin; nothing here invents counts.

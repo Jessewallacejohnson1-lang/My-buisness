@@ -11,7 +11,7 @@ MN**. It is a **native port of the Expo / React Native app** in a separate repo 
 
 > **The app is mid-rebuild.** The 2026-09-17 strip-down emptied Today, gutted two tabs to
 > reserved blank slots, and moved the map off the tab bar. Parts of these rule files describe
-> surfaces that no longer render. **`docs/GUTTING-LEDGER.md`** is the record of what went,
+> surfaces that no longer render. **`docs/archive/GUTTING-LEDGER.md`** is the record of what went,
 > why, and how to recover it — open it when something is missing, not as background.
 
 - **Project, scheme, bundle id and deployment target:** `docs/rules/identifiers.md`.

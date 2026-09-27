@@ -8,7 +8,7 @@
 Apple Maps / Airbnb-level premium: no snapping, no orphaned pins, no visual clutter, one continuous bottom glass, greens matching Apple Maps.
 
 ## Process
-Lead engineer (Opus) orchestrates. Each phase runs a **design-match loop**: build → screenshot the simulator → a *fresh* QA agent + a *fresh* Design Director agent grade against this spec → fix → rebuild → repeat until pass → **STOP for Jesse**. The agent that writes code never reviews its own work. Phases are strictly gated: A → stop → B → stop → C → stop → final pass. Commit each phase and record it in `MAP_BUILD_LOG.md`.
+Lead engineer (Opus) orchestrates. Each phase runs a **design-match loop**: build → screenshot the simulator → a *fresh* QA agent + a *fresh* Design Director agent grade against this spec → fix → rebuild → repeat until pass → **STOP for Jesse**. The agent that writes code never reviews its own work. Phases are strictly gated: A → stop → B → stop → C → stop → final pass. Commit each phase and record it in `docs/archive/MAP_BUILD_LOG.md`.
 
 **References:** self-sourced — capture "before" from the simulator, color-match green against a real Apple Maps light-mode screenshot.
 

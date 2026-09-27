@@ -38,4 +38,4 @@ View annotations render above the whole basemap incl. labels; true collision-dod
 - Fresh QA + Design Director review the frames against this spec before the phase gate.
 
 ## Done (Phase A gate)
-No orphaned pins at any zoom; merge/split glides (no snap); count animates; civic pins + taps + sheet all intact; egregious label occlusion gone. Remove the spike (`_SpikeClusterView.swift` + the RootView branch) before committing. Commit + append `MAP_BUILD_LOG.md`. Then STOP for Jesse with before/after.
+No orphaned pins at any zoom; merge/split glides (no snap); count animates; civic pins + taps + sheet all intact; egregious label occlusion gone. Remove the spike (`_SpikeClusterView.swift` + the RootView branch) before committing. Commit + append `docs/archive/MAP_BUILD_LOG.md`. Then STOP for Jesse with before/after.

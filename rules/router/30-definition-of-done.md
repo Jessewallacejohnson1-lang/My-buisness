@@ -12,9 +12,9 @@ A change is not done until all four are true. Say which ones you ran.
    capture, and show Jesse the actual screen. For a visual change, count pixels in the
    region you touched.
 4. **The logs are updated** `[prose]` — if the work touched them:
-   - map work → `MAP_BUILD_LOG.md` (chronological; the record of what is verified)
+   - map work → `docs/archive/MAP_BUILD_LOG.md` (chronological; the record of what is verified)
    - an identifier, a constant, or a deliberate exception → `DECISIONS.md`
-   - anything deleted, parked, or recovered from the strip-down → `docs/GUTTING-LEDGER.md`
+   - anything deleted, parked, or recovered from the strip-down → `docs/archive/GUTTING-LEDGER.md`
    - a correction from Jesse → `MEMORY.md`
 
 **Not part of done: the end-of-production checks.** `[prose]` `docs/SHIP-CHECKLIST.md` holds

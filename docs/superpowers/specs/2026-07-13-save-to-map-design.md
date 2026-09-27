@@ -68,7 +68,7 @@ create policy "own rows – delete" on public.saved_places
 **Self-contained by design:** each row carries its own `name` + `lat/lng`, so the
 **Mine layer renders with zero joins** — no `places` table, no runtime geocode. RLS
 mirrors `town_profiles` (own-row). Applied as a migration; recorded in
-`MAP_BUILD_LOG.md`. Not added to any realtime publication (personal data, no
+`docs/archive/MAP_BUILD_LOG.md`. Not added to any realtime publication (personal data, no
 cross-user push needed).
 
 ## 4. Sync architecture

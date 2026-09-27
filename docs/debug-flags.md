@@ -7,7 +7,7 @@ Read this file when you need a specific flag; CLAUDE.md points here.
 > Calendar features, and the map tab, and took their flags with them. Every flag below was
 > checked against the source on that date. The dead ones are called out where their absence
 > would otherwise read as a bug — a flag that stages a deleted view is worse than no flag,
-> because it fails silently. `docs/GUTTING-LEDGER.md` records what went and how to get it back.
+> because it fails silently. `docs/archive/GUTTING-LEDGER.md` records what went and how to get it back.
 
 **DEBUG-only launch arguments** (for headless verification; all compile out in Release):
 

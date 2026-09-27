@@ -91,7 +91,7 @@ Jesse's direction for a specific screen sits in that screen's own file, reached 
 
 - **The full-screen map** — `docs/rules/map.md`, *Direction* section.
 - **The Town feed's intended shape** — `PRODUCT.md`, *The Town feed*. Every module in it was
-  deleted in the strip-down; `docs/GUTTING-LEDGER.md` says how to get each one back.
+  deleted in the strip-down; `docs/archive/GUTTING-LEDGER.md` says how to get each one back.
 - **Onboarding** — `ONBOARDING.md`, *Direction* section, alongside its locked rules and bans.
 
 ## Data and backend
