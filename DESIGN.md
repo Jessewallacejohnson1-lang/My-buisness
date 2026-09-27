@@ -30,15 +30,18 @@ tapped, and nothing else — never a border, never a background, never an error 
 A heart that stays ink reads as a shape; a heart that turns red reads as something you
 did, which is the control's whole job.
 
-**Accents are small by rule.** The yellow marks exactly two things. The Town bar's map
+**Accents are small by rule.** The yellow marks exactly three things. The Town bar's map
 disc, a 50pt circle in `Hue.brandDisc` — the brand yellow at FULL strength, solid, with
-no glass and no tint (2026-09-24). And the selected tab-bar icon, a solid `brandDisc`
-symbol revealed by the darker grey Selection bubble (Jesse, 2026-09-25). The tab bar's
-Create disc that also wore it was removed on 2026-09-24, when posting was paused.
+no glass and no tint (2026-09-24). The selected tab-bar icon, a solid `brandDisc`
+symbol revealed by the darker grey Selection bubble (Jesse, 2026-09-25). And every saved
+bookmark, filled `brandDisc` inside its ink outline, wherever it appears: the feed cards,
+the event page, the map's pin sheet and pin badge, and `SaveBookmarkButton`, all drawn by
+one `BookmarkGlyph` (Jesse, 2026-09-26 and 2026-09-27). The tab bar's Create disc that
+also wore it was removed on 2026-09-24, when posting was paused.
 
 It is not a background wash, not body copy, not a card, not a category colour. The map
-disc was the one; the tab icon is the second, scoped in by Jesse. More yellow is Jesse's
-call to scope, not an agent's to spread.
+disc was the one; the tab icon the second and the saved bookmark the third, each scoped in
+by Jesse. More yellow is Jesse's call to scope, not an agent's to spread.
 
 **What sits ON the yellow is not a free choice.** #FCE804 has a relative luminance of
 0.784 — nearly as bright as paper. White on it measures **1.26:1** and the dark ramp's
@@ -48,8 +51,9 @@ and a white glyph is never an option. `BrandDiscContrastTests` pins all four of 
 numbers.
 
 The plum `Hue.accent` (#8E3B6B) still ships where it already carries meaning — live
-events, active filters, selected/saved map state — and stays until Jesse says
-otherwise. The brand accent going forward is the yellow.
+events, active filters, selected map state — and stays until Jesse says otherwise.
+Saved is no longer one of them: the pin sheet's saved bookmark turned yellow on
+2026-09-27. The brand accent going forward is the yellow.
 
 ## Theme
 
@@ -72,7 +76,7 @@ All values are sRGB hex from `Hue` (`BlockPartyColor.swift`). Six tokens, and no
 | `Hue.hairline` | `#E7E7E4` | Borders, dividers |
 | `Hue.fill` | `#F1F1EF` | Inert fills — placeholders, skeletons, disabled |
 | `Hue.brandYellowHex` | `#FCE804` | **The accent**, sampled from the logo's field. Tints derive from it |
-| `Hue.brandDisc` | `#FCE804` | The Town bar's map disc and the selected tab-bar icon — the same yellow, solid, scoped to those two |
+| `Hue.brandDisc` | `#FCE804` | The Town bar's map disc, the selected tab-bar icon, and every saved bookmark's fill — the same yellow, solid, scoped to those three |
 | `Hue.onBrandDisc` | `#111111` | Ink ON the map disc, pinned to the light ramp (the disc is a fixed canvas) |
 | `Hue.heart` | `#FF3040` | A liked heart, and nothing else. State, not chrome |
 

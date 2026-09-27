@@ -159,20 +159,22 @@ nonisolated enum Hue {
     /// Re-sampled 2026-09-19 for the wordmark logo: 0xF2B800 (the retired
     /// wave-figure icon's arcs) → 0xFCE804. The rule did not change, the artwork did.
     ///
-    /// Accents are small by rule: the Town bar's map disc and the selected tab-bar
-    /// icon today, and whatever else Jesse scopes in later. The app's ground stays
-    /// white/paper.
+    /// Accents are small by rule: the Town bar's map disc, the selected tab-bar icon
+    /// and every saved bookmark's fill today, and whatever else Jesse scopes in later.
+    /// The app's ground stays white/paper.
     nonisolated static let brandYellowHex: UInt32 = 0xFCE804
 
-    /// The brand yellow at FULL strength, solid. Two uses: the Town bar's map disc
-    /// (2026-09-24), and the selected tab-bar icon, revealed by the Selection bubble
-    /// (Jesse, 2026-09-25). It was the tab bar's Create disc until Create was removed
+    /// The brand yellow at FULL strength, solid. Three uses: the Town bar's map disc
+    /// (2026-09-24), the selected tab-bar icon, revealed by the Selection bubble
+    /// (Jesse, 2026-09-25), and the fill of every saved bookmark, `BookmarkGlyph`
+    /// (Jesse, 2026-09-26/27). It was the tab bar's Create disc until Create was removed
     /// on 2026-09-24, which is why it is a disc token rather than a map one. The map
     /// disc used to be glass tinted with the yellow at 68% (`mapWash`, deleted
     /// 2026-09-24): a tint is not the brand yellow, and it went mustard over photos.
     ///
     /// DESIGN.md's "accents are small by rule" still holds: the map disc was the one,
-    /// the tab icon is the second Jesse scoped in. A third is his call, not an agent's.
+    /// the tab icon the second and the saved bookmark the third, each scoped in by
+    /// Jesse. A fourth is his call, not an agent's.
     static let brandDisc     = Color(hex: brandYellowHex)
 
     /// Ink drawn ON `brandDisc`, pinned to the LIGHT ramp.
@@ -193,7 +195,7 @@ nonisolated enum Hue {
     static let onBrandDisc   = Color(hex: onBrandDiscHex)
 
     /// The one brand accent — meaning-scoped ONLY (live events, active filters,
-    /// selected/saved state, primary CTAs), never decoration, body copy, or a
+    /// selected state, primary CTAs; saved moved to `brandDisc` on 2026-09-27), never decoration, body copy, or a
     /// background wash. Plum/berry: distinct from the retired coral ramp AND from the
     /// basemap's sage parks / sky water, so it never reads as terrain. On the map
     /// CANVAS the accent means "live" (routed via `MarkerRole`); in sheet/chrome it

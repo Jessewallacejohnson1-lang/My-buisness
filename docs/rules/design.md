@@ -32,17 +32,22 @@ build time, and the colour half has no backstop. A human eye is the only check f
 - **`BlockPartyColor`** (`Hue.*`) `[hook]` — six neutral tokens (`ink`, `paper`, `surface`,
   `inkSecondary`, `hairline`, `fill`) plus scoped colour:
   - **`accent`** plum/berry #8E3B6B — the one meaning-scoped accent. Live events, active
-    filters, selected/saved states and primary CTAs only. Never decorative washes, never
-    body copy.
+    filters, selected states and primary CTAs only. Never decorative washes, never
+    body copy. **Not saved:** a saved bookmark is the brand yellow (below) since
+    2026-09-27.
   - **`statusTint`** #FDECE8 — the pin-detail status card's wash and nothing else.
   - **`heart`** #FF3040 — a liked heart and nothing else: state, not chrome. Pass it *into*
     `actionIcon(_:active:tint:)`, which sets `foregroundStyle` closer to the `Image`; an
     outer style silently loses.
   - **`brandYellowHex`** #FCE804 — the app's accent, taken from the logo's yellow field.
-    **`brandDisc`** is that yellow at full strength, solid, for exactly **two uses: the
-    Town bar's map disc and the selected tab-bar icon** (renamed from `createDisc` on
-    2026-09-24 when the tab bar's Create disc was removed; the tab icon joined it on
-    2026-09-25, Jesse). `mapWash`, the 68% translucent version that disc used to use, is still
+    **`brandDisc`** is that yellow at full strength, solid, for exactly **three uses: the
+    Town bar's map disc, the selected tab-bar icon, and the fill of every saved
+    bookmark** (renamed from `createDisc` on 2026-09-24 when the tab bar's Create disc
+    was removed; the tab icon joined it on 2026-09-25, and saved bookmarks on
+    2026-09-26/27, Jesse). A saved bookmark is **`BookmarkGlyph`** (`ExploreKit.swift`):
+    the yellow inside an ink outline, on the feed cards, the event page, the map's pin
+    sheet and pin badge, and `SaveBookmarkButton`. Draw a new bookmark with it, never
+    with a yellow at the call site. `mapWash`, the 68% translucent version that disc used to use, is still
     declared but no longer drawn — it went mustard over photographs.
   - The rule is **white ground + small yellow accents, every yellow derived from
     `brandYellowHex`** — never a second yellow, never a call-site hex. These are scoped

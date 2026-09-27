@@ -554,6 +554,27 @@ photo carousel pops the page.
 - Jesse approved `SwipeBack` on 2026-09-26. The real-device check is still owed, at the
   event page's Gate 2.
 
+## Decided 2026-09-27 — every saved bookmark is the brand yellow
+
+Jesse, over the event-detail build: the event page's saved bookmark fills with the brand
+yellow exactly (2026-09-24), then the Town card's (2026-09-26/27), then **every saved
+bookmark in BP** (2026-09-27, the result debate). That makes the saved bookmark the third
+use of `Hue.brandDisc` #FCE804, after the Town bar's map disc and the selected tab-bar icon,
+and takes "saved" off the plum `Hue.accent`'s list.
+
+- **One view draws it: `BookmarkGlyph`** (`Features/Components/ExploreKit.swift`), the
+  yellow `bookmark.fill` inside the ink `bookmark` outline. It is on the feed cards'
+  action row (events and postings), the event page's top circle, the map's pin sheet
+  (plum until now), the map pin's saved badge (ink until now) and `SaveBookmarkButton`
+  (ink until now; on no screen today, so `BrandDiscContrastTests` renders it). The fill
+  is `brandDisc`, never `Color(hex: Hue.brandYellowHex)` at a call site.
+- **The outline is ink**, the stroke Jesse's first answer guessed so the yellow reads on
+  white; nobody has asked to change it.
+- The glyph is one compositing layer: the pin sheet's action bar casts `mapFloatShadow`
+  over its whole content, and per layer the outline's shadow fell on the fill and turned
+  it #F9E504.
+- `docs/rules/design.md`, `DESIGN.md` and the `Hue` comments say the same.
+
 ## Decided 2026-09-25 — BP keeps its own tab bar, restyled to the glass Reference
 
 Jesse supplied a Tripadvisor frame from Mobbin (the Reference) and asked for its glass
