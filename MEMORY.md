@@ -71,8 +71,9 @@ all live there now. This file carries what is newer than that, or narrower than 
   heavy rounded retro serif, black on bright yellow. No additional mark.
 - App palette comes from the Joetown city logo: orange `#E67633` (buttons, progress,
   splash), teal `#72C5B6` (selected states — locked), gray `#707174` (secondary,
-  disabled). **Superseded 2026-09-27:** the code has no teal, no orange buttons and no
-  `#707174`; the palette is in `DESIGN.md`.
+  disabled). **Superseded 2026-09-27:** teal and orange survive only as category-gradient
+  stops; selected states aren't teal, buttons aren't orange, and `#707174` is gone. The
+  palette is in `DESIGN.md`.
 - The old cream / terracotta / sage / rosewood hand-drawn earthy palette is dead in the
   app. Ask for the current direction rather than reusing it. The waitlist site is the one
   exception — it still runs cream with a terracotta accent.
