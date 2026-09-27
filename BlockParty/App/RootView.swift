@@ -597,7 +597,8 @@ nonisolated enum TabBarMetric {
     /// The Lens while held: 1.20x the bubble's width and 1.30x its height, so it
     /// stands ~4pt proud of the capsule. MEASURED on TabProbe (Air, hold (d)).
     static let lensScale = CGSize(width: 1.20, height: 1.30)
-    /// Apple's whole bar swells while pressed. MEASURED 1.042x peak, 1.039x held.
+    /// Apple's whole bar swells while pressed. MEASURED 1.042x peak, 1.039x held
+    /// (Instagram's 1.044x). The interactive glass draws it; this maps the finger.
     static let swell: CGFloat = 1.04
     /// Icons under the Lens centre magnify 1.2x (MEASURED §3.7), falling off
     /// linearly to 1.0 one tab away (GUESSED method: no jump between tabs).
@@ -640,6 +641,9 @@ nonisolated enum TabBarMetric {
     /// photo (2026-09-27), lighter than Instagram's 192 over black, so it sits at the
     /// threshold that held.
     static let glassUnderlay: Double = 0.30
+    /// The same layer under a finger, so the pressed bar lightens by Instagram's
+    /// middling amount (~+30 over a dark photo, with the interactive glass's own).
+    static let pressedUnderlay: Double = 0.40
     /// The Selection bubble's black: Instagram's reads 0.87x the glass on any
     /// ground (168 on 192 over black, 221 on 255 over white; MEASURED).
     static let bubbleShade: Double = 0.13
@@ -764,16 +768,22 @@ struct BlockPartyTabBar: View {
         .frame(height: TabBarMetric.height)
         // Real Liquid Glass, untinted: near-white over paper, mid-grey over dark
         // photos — the same response the Reference measures (§1.6, §1.13).
-        .glassEffect(.regular, in: Capsule(style: .continuous))
+        // Interactive, Apple's own pressed look: Instagram's bar lightens under a
+        // finger (206–239 over a near-black photo, against 192 at rest; MEASURED).
+        .glassEffect(.regular.interactive(), in: Capsule(style: .continuous))
         // Keeps the glass in its LIGHT state. Over a near-black feed card the glass
         // flipped to its dark state (measured 2026-09-26, Town at
         // `-feed-scrolled-y 1200`: glass 23/255, ink invisible), and no colour-scheme
         // pin stopped it. A white layer BEHIND the glass lifts what it samples: at
         // 20% it still flipped (40/255), at 30% it held (178/255). It sits at 30%, the
         // value that held, to match Instagram's grey (`TabBarMetric.glassUnderlay`).
+        // Pressed, it thickens: the interactive glass alone lightened the bar only
+        // +13 (198 → 211), the bottom of Instagram's +14 to +47.
         .background {
             Capsule(style: .continuous)
-                .fill(Hue.surface.onLightCanvas.opacity(TabBarMetric.glassUnderlay))
+                .fill(Hue.surface.onLightCanvas.opacity(touch != nil && !reduceMotion
+                    ? TabBarMetric.pressedUnderlay : TabBarMetric.glassUnderlay))
+                .animation(reduceMotion ? nil : TabBarMetric.growth, value: touch != nil)
                 .allowsHitTesting(false)
         }
         // The Reference's brighter 1pt rim (§1.9: +60–75 over the glass). Opacity
@@ -783,9 +793,8 @@ struct BlockPartyTabBar: View {
                 .strokeBorder(Hue.surface.onLightCanvas.opacity(0.75), lineWidth: 1)
                 .allowsHitTesting(false)
         }
-        // Apple's whole bar swells while pressed (1.042x peak, MEASURED on TabProbe).
-        .scaleEffect(touch != nil && !reduceMotion ? TabBarMetric.swell : 1)
-        .animation(reduceMotion ? nil : TabBarMetric.growth, value: touch != nil)
+        // No hand-made swell: the interactive glass swells the bar itself, and the
+        // two together pressed it to ~1.08x, past Instagram's 1.044x (eyes sim).
         // Instagram's shrink while reading down, around the bar's own centre. A
         // finger on the bar (or its landing) holds it at full size. Under Reduce
         // Motion it still shrinks, without the spring.

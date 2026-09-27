@@ -113,7 +113,8 @@ since a tab has no close.
   (`TabAvatar`), the person icon otherwise.
 - **One touch drives the bar; there are no per-tab `Button`s.** `[prose]` On touch-down the
   grey bubble gives way to a clear glass Lens at Apple's Lens size, lighter than the bar as
-  Instagram's is, that follows the finger; icons near it magnify, and the bar swells. On
+  Instagram's is, that follows the finger; icons near it magnify, and the bar swells and
+  lightens (Apple's interactive glass, plus a thicker white layer under it). On
   release the grey bubble takes over in the same frame and slides to the picked tab. Release picks the tab nearest the
   finger's x `[test]`; there is no cancel zone, because Apple's bar has none. The haptic
   and the page slide stay in `MainTabsView.select`. Reduce Motion drops the Lens, growth,

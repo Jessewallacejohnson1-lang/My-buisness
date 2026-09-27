@@ -602,9 +602,14 @@ is a `TabBarMetric` constant with its source. Still BP's own bar, for the reason
   sits straight under the finger and never travels; the grey bubble does the sliding and
   takes over in the same frame on release. It stays mounted at zero size between touches:
   inserted fresh, it drew two frames late and left the touch-down bare.
+- **Pressed, it lightens as Instagram's does** (Jesse, Check-in 2): the bar's glass is
+  Apple's interactive glass, which draws the press swell itself (the hand-made swell is
+  gone: the two together reached ~1.08x against Instagram's 1.044x), and the white layer
+  behind it thickens from 30% to 40% under a finger. Over a dark photo the pressed bar
+  measured +18 to +20 lighter; Instagram's measured +14 to +47.
 - **You shows the neighbour's photo** (`TabAvatar`, loaded once by
-  `TodayHeaderProfileModel`), the person icon while it loads, when it fails or when there
-  is none. No red dot: the Town bar's bell covers notifications. The ink ring on the
+  `TodayHeaderProfileModel` and re-read on every tab change), the person icon while it
+  loads, when it fails or when there is none. No red dot: the Town bar's bell covers notifications. The ink ring on the
   selected photo is GUESSED; the recording never selects that tab.
 
 The 2026-09-25 entry below stays as the record of the glass work this builds on; its
