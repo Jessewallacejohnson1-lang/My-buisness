@@ -67,6 +67,15 @@ seeder, and mounts `RootView` directly.
   Signed out, the app is honest rather than broken: authed reads fail into their own empty
   states, the profile tab reads "Add your name" with zeroed counts, and its **Sign out** row
   is hidden.
+- **One `NavigationStack` wraps the whole shell** (`MainTabsView.body`, `RootView.swift`)
+  `[prose]`, with `.navigationDestination(for: FeedCardItem.self)` opening the event page,
+  so a pushed page covers the tab bar and the edge swipe brings Town back under the finger.
+  Its bar is hidden with `.toolbar(.hidden, for: .navigationBar)`, never
+  `navigationBarBackButtonHidden`, which kills the swipe; `SwipeBack` keeps the swipe alive
+  with the bar hidden (`DECISIONS.md`, 2026-09-26). **Never nest a second `NavigationStack`
+  inside a tab or a pushed page:** push onto this one with `NavigationLink(value:)` and add
+  a destination beside the existing one. A sheet is its own presentation and may carry its
+  own stack.
 - **The target uses a checked-in `BlockParty/Info.plist`**, not `GENERATE_INFOPLIST_FILE`,
   with a file-system-synchronized **membership exception** so the plist isn't also copied as
   a bundle resource. `[prose]`
