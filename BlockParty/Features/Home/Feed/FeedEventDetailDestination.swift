@@ -487,20 +487,21 @@ struct FeedEventDetailDestination: View {
                     .font(.sans(17))
                     .monospacedDigit()
                     .foregroundStyle(Hue.inkSecondary)
+                    .contentTransition(.numericText())
+                    .transition(.opacity)
             }
 
             Spacer(minLength: 0)
 
-            // Drawn here; the RSVP toggle lands with save and share.
-            Button {} label: {
-                Text(model.isGoing ? "Going" : "Join")
-                    .font(.sansSemibold(17))
-                    .foregroundStyle(Hue.surface)
-                    .frame(width: Metric.joinSize.width, height: Metric.joinSize.height)
-                    .background(Hue.ink, in: Capsule())
-            }
-            .buttonStyle(FeedCardJoinPressStyle(reduceMotion: reduceMotion, autoplayPressed: false))
+            // Optimistic: it answers at once, and a write that fails turns it back
+            // (`FeedEventDetailModel`).
+            Button { model.toggleGoing() } label: { joinFace }
+                .buttonStyle(FeedCardJoinPressStyle(reduceMotion: reduceMotion, autoplayPressed: false))
+                .accessibilityLabel(model.isGoing ? "Going" : "Join")
+                .accessibilityAddTraits(model.isGoing ? .isSelected : [])
         }
+        .animation(joinMorph, value: model.isGoing)
+        .animation(joinMorph, value: model.goingCount)
         .padding(.horizontal, Metric.inset)
         .padding(.vertical, Metric.barPadding)
         .background(Hue.paper.ignoresSafeArea(edges: .bottom))
@@ -509,6 +510,33 @@ struct FeedEventDetailDestination: View {
                 .fill(Hue.hairline)
                 .frame(height: 1)
         }
+    }
+
+    /// Join is the Reference's black capsule. Going inverts it the way the card's join
+    /// button inverts when joined: a white face, a hairline edge and an ink check. The
+    /// Reference has no Going state, so this look is guessed.
+    private var joinFace: some View {
+        Group {
+            if model.isGoing {
+                Label("Going", systemImage: "checkmark")
+                    .labelStyle(.titleAndIcon)
+            } else {
+                Text("Join")
+            }
+        }
+        .font(.sansSemibold(17))
+        .foregroundStyle(model.isGoing ? Hue.ink : Hue.surface)
+        .frame(width: Metric.joinSize.width, height: Metric.joinSize.height)
+        .background {
+            Capsule()
+                .fill(model.isGoing ? Hue.surface : Hue.ink)
+                .overlay { Capsule().strokeBorder(model.isGoing ? Hue.hairline : .clear, lineWidth: 1) }
+        }
+    }
+
+    /// The card's join morph (`FeedEventCardJoinButton`), both ways, rollback included.
+    private var joinMorph: Animation {
+        .easeInOut(duration: reduceMotion ? 0.15 : 0.18)
     }
 
     /// Takes a photo that failed out of the carousel and keeps the page in range.
@@ -605,11 +633,18 @@ final class FeedEventDetailModel: ObservableObject {
     @Published private(set) var isGoing: Bool
     @Published private(set) var goingCount: Int
 
+    /// A failed Join still shows "Going" this long after the tap before it turns back,
+    /// so the rollback reads as the app's answer, not a flicker. Signed out, the write
+    /// failed 15 ms after the tap (measured 2026-09-26), about one frame. (guessed)
+    static let rollbackFloor: Duration = .milliseconds(600)
+
     let organizerImageURL: URL?
 
     private let eventID: String
     private let auth: AuthStore
     private var inFlight: Task<Void, Never>?
+    /// Where a failed write goes back to, while it waits out `rollbackFloor`.
+    private var failedFrom: (isGoing: Bool, count: Int)?
 
     init(item: FeedCardItem, auth: AuthStore? = nil) {
         self.eventID = item.id
@@ -624,14 +659,22 @@ final class FeedEventDetailModel: ObservableObject {
     }
 
     func toggleGoing() {
+        Haptics.light()
+        inFlight?.cancel()
+        // The write already failed and is only waiting to turn back: turn back now,
+        // rather than toggling a state the server never had.
+        if let failedFrom {
+            rollBack(to: failedFrom)
+            return
+        }
+
         let wasGoing = isGoing
         let previousCount = goingCount
+        let tapped = ContinuousClock.now
 
         isGoing = !wasGoing
         goingCount = max(0, previousCount + (wasGoing ? -1 : 1))
-        Haptics.light()
 
-        inFlight?.cancel()
         inFlight = Task { [eventID, auth] in
             do {
                 let api = CommunityAPI(auth: auth)
@@ -643,9 +686,17 @@ final class FeedEventDetailModel: ObservableObject {
             } catch {
                 guard !Task.isCancelled else { return }
                 Log.network("event rsvp toggle failed: \(error.localizedDescription)")
-                isGoing = wasGoing
-                goingCount = previousCount
+                failedFrom = (wasGoing, previousCount)
+                try? await Task.sleep(until: tapped + Self.rollbackFloor)
+                guard !Task.isCancelled else { return }
+                rollBack(to: (wasGoing, previousCount))
             }
         }
+    }
+
+    private func rollBack(to state: (isGoing: Bool, count: Int)) {
+        failedFrom = nil
+        isGoing = state.isGoing
+        goingCount = state.count
     }
 }

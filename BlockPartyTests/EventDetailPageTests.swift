@@ -114,6 +114,35 @@ final class EventDetailPageTests: XCTestCase {
         XCTAssertNil(venueOnly.organizerImageURL)
     }
 
+    /// Signed out, a Join fails before any network (a Town fixture always does). It
+    /// still shows "Going" for `rollbackFloor`, so the turn back reads as deliberate,
+    /// then returns count and all. A tap while it waits goes straight back to Join.
+    func testAFailedJoinHoldsGoingThenRollsBack() async throws {
+        let model = FeedEventDetailModel(item: FeedCardItem(event(imageUrl: nil, rsvpd: false)), auth: AuthStore())
+
+        let tapped = ContinuousClock.now
+        model.toggleGoing()
+        XCTAssertTrue(model.isGoing, "Going at once")
+        XCTAssertEqual(model.goingCount, 13)
+
+        while model.isGoing, ContinuousClock.now - tapped < .seconds(5) {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertGreaterThanOrEqual(ContinuousClock.now - tapped, FeedEventDetailModel.rollbackFloor,
+                                    "turned back before it could be seen")
+        XCTAssertFalse(model.isGoing, "a failed Join turns back")
+        XCTAssertEqual(model.goingCount, 12)
+
+        model.toggleGoing()
+        try await Task.sleep(for: .milliseconds(50))
+        model.toggleGoing()
+        XCTAssertFalse(model.isGoing, "a tap during the wait shows Join at once")
+        XCTAssertEqual(model.goingCount, 12)
+        try await Task.sleep(for: FeedEventDetailModel.rollbackFloor * 2)
+        XCTAssertFalse(model.isGoing, "and nothing flips it back to Going")
+        XCTAssertEqual(model.goingCount, 12)
+    }
+
     private static func url(_ name: String) -> URL {
         URL(string: "https://example.com/\(name).jpg")!
     }
