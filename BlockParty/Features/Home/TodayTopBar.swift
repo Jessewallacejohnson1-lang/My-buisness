@@ -359,12 +359,13 @@ struct TodayTopBar: View {
 /// edge, drawn by hand: the system's soft scroll edge needs `.safeAreaBar`, which
 /// flipped the bar dark over photos (2026-09-24). The wash is heaviest at the top so
 /// the clock stays on light; it is pinned light, so the ink over it never changes
-/// (taste.md, Chrome over content). Wash values GUESSED (2026-09-27).
+/// (taste.md, Chrome over content). Wash values tuned by eye on the simulator
+/// (2026-09-27): at 0.3 the clock flipped white over a dark photo; 0.5 holds it dark.
 private struct SoftTopEdge: View {
     var body: some View {
         ZStack {
             Rectangle().fill(.ultraThinMaterial)
-            LinearGradient(colors: [Hue.paper.opacity(0.75), Hue.paper.opacity(0.45)],
+            LinearGradient(colors: [Hue.paper.opacity(0.5), Hue.paper.opacity(0)],
                            startPoint: .top, endPoint: .bottom)
         }
         .environment(\.colorScheme, .light)
