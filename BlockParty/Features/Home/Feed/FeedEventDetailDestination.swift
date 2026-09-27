@@ -455,8 +455,9 @@ struct FeedEventDetailDestination: View {
                         .font(.sansSemibold(17))
                         .foregroundStyle(Hue.ink)
                         .animation(nil, value: aboutExpanded)
-                        // A 44 pt target on a 22 pt line.
-                        .contentShape(Rectangle().inset(by: -11))
+                        // 12 pt round the 20.3 pt line: a 44.3 pt target (measured with
+                        // AXe; 11 gave 42.3).
+                        .contentShape(Rectangle().inset(by: -12))
                 }
                 .buttonStyle(FeedCardJoinPressStyle(reduceMotion: reduceMotion, autoplayPressed: false))
             }
