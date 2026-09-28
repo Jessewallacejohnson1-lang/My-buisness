@@ -150,13 +150,13 @@ struct RootView: View {
         // preview root above bypasses it, and a preference attached there would
         // silently do nothing on exactly the screens used to verify it.
         //
-        // It is ALWAYS a request (`requestedScheme`): `.system` asks for the phone's
-        // own scheme, which the store keeps following as the phone changes. With no
-        // request at all, iOS 26 picks the status bar's ink from whatever scrolls
-        // under it, and the clock turned white over every dark photo in the Town feed
-        // (recorded 2026-09-27; Instagram's stays black). `.light` / `.dark` turn
-        // the hosting window's interface style over, which is why every `Hue` token,
-        // every `.glassEffect` surface and every presented sheet move together.
+        // `.system` resolves to no request, so the app keeps following the phone —
+        // except while the Town feed holds the clock (`AppearanceStore.holdsClock`),
+        // when it requests the phone's own scheme: with no request iOS 26 inks the
+        // clock from whatever scrolls under it, white over every dark photo.
+        // `.light` / `.dark` turn the hosting window's interface style over, which is
+        // why every `Hue` token, every `.glassEffect` surface and every presented
+        // sheet move together.
         //
         // NOT `.environment(\.colorScheme, …)`: that forces a value into the SwiftUI
         // tree only, leaving the UIKit-backed materials resolving the device's

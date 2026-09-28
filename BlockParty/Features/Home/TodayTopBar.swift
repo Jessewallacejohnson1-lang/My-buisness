@@ -231,9 +231,10 @@ struct TodayTopBar: View {
         }
         .frame(height: TodayHeader.contentHeight)
         .frame(maxWidth: .infinity)
-        // Cut at the bar's own edge, so a mid-flight slide is trimmed rather than
-        // drawn over the status bar.
-        .clipped()
+        // NOT clipped at the bar's edge: Instagram's header slides up under the clock
+        // fading and comes back down from behind it whole (recorded 2026-09-27). A
+        // clip sliced the circles flat on top for a frame on the way in.
+        //
         // Instagram's top edge (Jesse, 2026-09-27, replacing the paper bar and the
         // always-on paper status strip): the feed shows through, blurred, behind the
         // status bar and the row, strongest under the clock and thinning to nothing
@@ -250,12 +251,13 @@ struct TodayTopBar: View {
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }
-        .animation(reduceMotion ? .easeOut(duration: 0.18)
-                                : .spring(response: 0.34, dampingFraction: 0.9),
-                   value: chromeHidden)
-        .animation(reduceMotion ? .easeOut(duration: 0.18)
-                                : .spring(response: 0.34, dampingFraction: 0.9),
-                   value: chromeFloating)
+        .animation(motion, value: chromeHidden)
+        .animation(motion, value: chromeFloating)
+    }
+
+    /// The bar's one motion: a spring, or under Reduce Motion a short ease.
+    private var motion: Animation {
+        reduceMotion ? .easeOut(duration: 0.18) : .spring(response: 0.34, dampingFraction: 0.9)
     }
 
     // MARK: - Layers

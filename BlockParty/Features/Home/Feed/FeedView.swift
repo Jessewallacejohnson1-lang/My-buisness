@@ -215,6 +215,11 @@ struct FeedView: View {
         }
         // The tab bar shrinks on the same signal, as Instagram's does.
         .preference(key: TabBarCompactKey.self, value: forcedCollapse || chromeHidden)
+        // The clock stays black over the photos scrolling under it, as Instagram's
+        // does (taste.md: the status bar stays dark along with the bar). Released when
+        // an event page covers the feed, so its hero photo keeps a white clock.
+        .onAppear { AppearanceStore.shared.holdsClock = true }
+        .onDisappear { AppearanceStore.shared.holdsClock = false }
         .scrollPosition($feedPosition)
         .refreshable {
             if controller.briefing.needsRefresh {

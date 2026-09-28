@@ -106,10 +106,19 @@ final class AppearanceStore: ObservableObject {
     @Published private(set) var phoneScheme: ColorScheme = AppearanceStore.scheme(of: UITraitCollection.current)
     private var phoneWatch: AnyCancellable?
 
-    /// What the root asks for: the choice, or under `.system` the phone's own
-    /// scheme. Always a request, never nil — see the call site in `RootView` for
-    /// the white clock that nil let through.
-    var requestedScheme: ColorScheme { choice.colorScheme ?? phoneScheme }
+    /// True while the Town feed is on screen. Its photos scroll under the clock,
+    /// and with no scheme requested iOS 26 inks the clock to match them: white over
+    /// every dark photo (recorded 2026-09-27; Instagram's stays black). Only the
+    /// feed holds it — an event page's hero photo still gets the white clock it had.
+    @Published var holdsClock = false
+
+    /// What the root asks for. `.light` / `.dark` ask for themselves. `.system`
+    /// asks for nothing, so the app follows the phone — except while the feed
+    /// holds the clock, when it asks for the phone's own scheme: the same look,
+    /// but a request, and a request is what pins the clock's ink.
+    var requestedScheme: ColorScheme? {
+        choice.colorScheme ?? (holdsClock ? phoneScheme : nil)
+    }
 
     /// Follows the phone's appearance: read now, and again every time the app
     /// becomes active — which switching it in Control Center or Settings does.

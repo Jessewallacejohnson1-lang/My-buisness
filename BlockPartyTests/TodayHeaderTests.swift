@@ -449,21 +449,28 @@ final class AppearancePreferenceTests: XCTestCase {
         XCTAssertEqual(AppearanceChoice.dark.interfaceStyle, .dark)
     }
 
-    /// The root ALWAYS asks for a scheme (2026-09-27). With no request, iOS 26 picks
-    /// the status bar's ink from whatever scrolls under it, and the clock went white
-    /// over dark photos in the Town feed. `.system` asks for the phone's own scheme
-    /// instead of for nothing, so it still follows the phone.
-    func testTheRootAlwaysRequestsASchemeAndSystemAsksForThePhones() throws {
+    /// While the Town feed holds the clock, `.system` asks for the phone's own
+    /// scheme instead of for nothing (2026-09-27): with no request, iOS 26 inked the
+    /// clock white over dark photos. Released, `.system` asks for nothing again, so
+    /// an event page's hero photo keeps its white clock. Light and Dark never change.
+    func testTheFeedHoldsTheClockByRequestingThePhonesOwnScheme() throws {
         let (defaults, suite) = try makeDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
         let store = AppearanceStore(defaults: defaults)
 
         store.choice = .system
+        XCTAssertNil(store.requestedScheme, "released, System asks for nothing")
+        store.holdsClock = true
+        XCTAssertNotNil(store.requestedScheme, "held, System must be a request")
         XCTAssertEqual(store.requestedScheme, store.phoneScheme)
-        store.choice = .light
-        XCTAssertEqual(store.requestedScheme, .light)
-        store.choice = .dark
-        XCTAssertEqual(store.requestedScheme, .dark)
+
+        for hold in [false, true] {
+            store.holdsClock = hold
+            store.choice = .light
+            XCTAssertEqual(store.requestedScheme, .light)
+            store.choice = .dark
+            XCTAssertEqual(store.requestedScheme, .dark)
+        }
 
         XCTAssertEqual(AppearanceStore.scheme(of: UITraitCollection(userInterfaceStyle: .dark)), .dark)
         XCTAssertEqual(AppearanceStore.scheme(of: UITraitCollection(userInterfaceStyle: .light)), .light)
