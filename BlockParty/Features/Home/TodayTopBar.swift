@@ -149,9 +149,10 @@ private nonisolated enum TodayBarMetric {
     /// and its marks stay put inside them whether or not the circle shows (MEASURED,
     /// as above). Was 4 until 2026-09-27, which put the bare ink itself on 16pt.
     static let rowInset: CGFloat = 16
-    /// Between the map disc and the bell's touch box. PICKED (2026-09-27): unchanged
-    /// from before the circles; Instagram has no third button to measure.
-    static let controlGap: CGFloat = 8
+    /// Between the map disc and the bell's touch box: 4pt (Jesse, 2026-09-27), so the
+    /// centred logo still clears the disc on a 375pt phone. Instagram has no third
+    /// button to measure.
+    static let controlGap: CGFloat = 4
     /// The glyph's square, inside the disc: the old 24 scaled with the disc
     /// (24 × 44/50). PICKED.
     static let mapGlyphSize: CGFloat = 21
@@ -277,10 +278,10 @@ struct TodayTopBar: View {
     ///
     /// The lockup is 150.8pt wide (`BlockPartyWordmark.aspect` 4.8657 × 31), so it
     /// claims 75.4pt either side of the midline. The trailing side consumes
-    /// `rowInset 16 + glyphTap 44 + controlGap 8 + mapSide 44` = 112pt, which leaves
-    /// `W/2 − 187.4`: **+0.1pt at 375, +9.1 at 393, +32.6 at 440**. Break-even is
-    /// 374.8pt, at the narrowest iPhone that runs this OS. The leading side takes
-    /// 60pt and is never the binding constraint.
+    /// `rowInset 16 + glyphTap 44 + controlGap 4 + mapSide 44` = 108pt, which leaves
+    /// `W/2 − 183.4`: **+4.1pt at 375, +13.1 at 393, +36.6 at 440**. Break-even is
+    /// 366.8pt, below every iPhone that runs this OS. The leading side takes 60pt
+    /// and is never the binding constraint.
     ///
     /// Search and the bell are bare marks at home and only sit in frosted circles
     /// while the bar floats (`chromeFloating`), as Instagram's do. The map disc is

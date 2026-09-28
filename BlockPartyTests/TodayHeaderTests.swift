@@ -280,13 +280,13 @@ final class TodayHeaderTests: XCTestCase {
     /// the yellow at 68%, which read as mustard over photos. A tint or a second
     /// yellow coming back fails here.
     ///
-    /// The disc sits `rowInset 16 + glyphTap 44 + controlGap 8` in from the trailing
-    /// edge and is 44pt wide, so on a 390pt bar its centre is (300, 29). The ring
+    /// The disc sits `rowInset 16 + glyphTap 44 + controlGap 4` in from the trailing
+    /// edge and is 44pt wide, so on a 390pt bar its centre is (304, 29). The ring
     /// sampled is 16pt out: clear of the ~10.5pt pin and of the rim's antialiasing.
     func testMapDiscIsExactBrandYellow() throws {
         let bitmap = try renderedHeaderBitmap()
         let scale = 2.0
-        let centre = (x: 300.0, y: Double(TodayHeader.contentHeight) / 2)
+        let centre = (x: 304.0, y: Double(TodayHeader.contentHeight) / 2)
 
         for step in 0..<8 {
             let angle = Double(step) * .pi / 4
