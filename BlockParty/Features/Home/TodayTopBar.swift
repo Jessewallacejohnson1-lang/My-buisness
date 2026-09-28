@@ -54,10 +54,20 @@ nonisolated enum TodayHeader {
     /// Dim, blur, tint off the scroll freely. Height, insets and content size never.
     static let contentHeight: CGFloat = 58
 
-    /// How far down the feed must be before a downward swipe may take the chrome
-    /// away. Short on purpose: the bar belongs to the top of the feed, and one
-    /// deliberate swipe should clear it.
-    static let hideAfter: CGFloat = 24
+    /// How far down the feed must be before the direction rule may take the chrome
+    /// away: the bar's own height. Up to there the feed carries the bar out 1:1
+    /// (`homeTravel`), as Instagram's header rides the scroll out of the top of its
+    /// feed (Jesse, 2026-09-27); was 24 while the bar left on a spring instead.
+    static let hideAfter: CGFloat = contentHeight
+
+    /// How far the feed has carried the bar off the top: the scroll offset, 0 at
+    /// home and the bar's full height once it has gone. The bar moves up by this
+    /// and fades with it, so it follows the finger and stops where the finger stops
+    /// (`references/soft-top-edge/instagram-top.mov`, the first 0.7 s). An offset,
+    /// never a height — see `contentHeight`.
+    static func homeTravel(offset: CGFloat) -> CGFloat {
+        min(max(offset, 0), contentHeight)
+    }
 
     /// How far the scroll must travel in ONE direction, accumulated since that
     /// direction started, before the bar flips. Under this, a finger resting on
@@ -186,6 +196,13 @@ private nonisolated enum TodayBarMetric {
     static let edgeBrightness: Double = -0.10
 }
 
+/// How far the feed has carried the Town bar off the top of the screen, in points.
+/// A box of its own so the scroll can write it every frame and only the bar reads it.
+@Observable
+final class BarTravel {
+    var points: CGFloat = 0
+}
+
 struct TodayTopBar: View {
     /// The leading search mark. Like every control here, the bar only reports the
     /// tap — the shell owns what opens.
@@ -203,8 +220,16 @@ struct TodayTopBar: View {
     /// paper: search and the bell sit in frosted circles, as Instagram's buttons do.
     /// `TodayHeader.chromeFloating` owns the rule.
     var chromeFloating: Bool = false
+    /// How far the feed has carried the bar off the top (`TodayHeader.homeTravel`).
+    /// Written every frame of the first 58pt of scroll, so it arrives in its own
+    /// observable box: this bar reads it and nothing above it re-runs.
+    var travel = BarTravel()
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// The bar rides the scroll only out of HOME. Once it has come back over the
+    /// feed it floats where it is, and the direction rule moves it.
+    private var carried: CGFloat { chromeFloating ? 0 : travel.points }
 
     var body: some View {
         // The chrome LEAVES THE SCREEN on a downward scroll and comes straight back
@@ -227,6 +252,8 @@ struct TodayTopBar: View {
         ZStack {
             if !chromeHidden {
                 controls
+                    .offset(y: -carried)
+                    .opacity(1 - carried / TodayHeader.contentHeight)
                     .transition(.offset(y: -TodayHeader.contentHeight).combined(with: .opacity))
             }
         }
@@ -244,9 +271,9 @@ struct TodayTopBar: View {
         // state, not scroll, and it is a background, so it moves no inset.
         .background(alignment: .top) {
             Color.clear
-                .frame(height: chromeHidden ? 0 : TodayHeader.contentHeight)
+                .frame(height: chromeHidden ? 0 : TodayHeader.contentHeight - carried)
                 .background(
-                    SoftTopEdge(fade: chromeHidden ? TodayBarMetric.fadeBarAway : TodayBarMetric.fadeWithBar)
+                    SoftTopEdge(fade: chromeHidden ? TodayBarMetric.fadeBarAway : edgeFade)
                         .ignoresSafeArea(edges: .top)
                 )
                 .allowsHitTesting(false)
@@ -254,6 +281,13 @@ struct TodayTopBar: View {
         }
         .animation(motion, value: chromeHidden)
         .animation(motion, value: chromeFloating)
+    }
+
+    /// The edge's taper while the feed carries the bar out: the bar's own, easing to
+    /// the status band's as the bar goes, so nothing steps when it has gone.
+    private var edgeFade: CGFloat {
+        let gone = carried / TodayHeader.contentHeight
+        return TodayBarMetric.fadeWithBar - (TodayBarMetric.fadeWithBar - TodayBarMetric.fadeBarAway) * gone
     }
 
     /// The bar's one motion: a spring, or under Reduce Motion a short ease.

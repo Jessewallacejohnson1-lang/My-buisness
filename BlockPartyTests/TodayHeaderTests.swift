@@ -140,7 +140,7 @@ final class TodayHeaderTests: XCTestCase {
         XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: true, anchor: 0, offset: -80),
                        "a rubber-band pull past the top is not a downward scroll")
         XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: false, anchor: 0, offset: 20),
-                       "the first 24pt belong to the top of the feed")
+                       "the bar's own height belongs to the top of the feed")
     }
 
     /// Travel under `flipDistance` holds whatever the bar was doing. Without this
@@ -189,6 +189,25 @@ final class TodayHeaderTests: XCTestCase {
         let jitter = (0..<60).map { CGFloat(300 + ($0 % 2 == 0 ? 0 : 3)) }
         XCTAssertFalse(drive(jitter, startHidden: false).contains(true), "jitter must not hide the bar")
         XCTAssertFalse(drive(jitter, startHidden: true).contains(false), "jitter must not show the bar")
+    }
+
+    // MARK: - The feed carries the bar out of home (Instagram, 2026-09-27)
+
+    /// Out of home the bar rides the scroll 1:1, and only its own height of it:
+    /// half a bar of scroll is half the bar gone, and a rubber-band pull is home.
+    func testTheFeedCarriesTheBarOutOneToOne() {
+        XCTAssertEqual(TodayHeader.homeTravel(offset: 0), 0)
+        XCTAssertEqual(TodayHeader.homeTravel(offset: -40), 0, "a pull past home is home")
+        XCTAssertEqual(TodayHeader.homeTravel(offset: 29), 29, "the bar follows the finger")
+        XCTAssertEqual(TodayHeader.homeTravel(offset: 400), TodayHeader.contentHeight)
+    }
+
+    /// The direction rule never fights the carry: inside the bar's own height the
+    /// bar is carried, not hidden, whichever way the finger last went.
+    func testTheDirectionRuleWaitsUntilTheBarHasBeenCarriedAway() {
+        XCTAssertEqual(TodayHeader.hideAfter, TodayHeader.contentHeight)
+        XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: false, anchor: 0, offset: 50))
+        XCTAssertTrue(TodayHeader.chromeHidden(wasHidden: false, anchor: 58, offset: 70))
     }
 
     // MARK: - Bare at home, frosted circles while floating (Instagram, 2026-09-27)

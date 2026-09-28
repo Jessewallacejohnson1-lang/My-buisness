@@ -125,6 +125,9 @@ struct FeedView: View {
     /// Is the bar floating over the feed rather than at home on the paper
     /// (`TodayHeader.chromeFloating`)? Written only when it flips.
     @State private var chromeFloating = false
+    /// How far the feed has carried the bar off the top (`TodayHeader.homeTravel`).
+    /// Written here, read only by the bar, so this view does not re-run per frame.
+    @State private var barTravel = BarTravel()
 
     /// DEBUG-only: `-header-collapsed` pins the bar to its scrolled-away state.
     /// There is no scroll automation in this setup, so without it that state cannot
@@ -194,6 +197,7 @@ struct FeedView: View {
             if anchor != chromeAnchor { chromeAnchor = anchor }
             if hidden != chromeHidden { chromeHidden = hidden }
             if floating != chromeFloating { chromeFloating = floating }
+            barTravel.points = TodayHeader.homeTravel(offset: offset)
             #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("-scroll-log") {
                 print("SCROLLLOG offset=\(offset) hidden=\(hidden)")
@@ -211,7 +215,8 @@ struct FeedView: View {
                         onOpenMap: onOpenMap,
                         onOpenNotifications: onOpenNotifications,
                         chromeHidden: forcedCollapse || chromeHidden,
-                        chromeFloating: chromeFloating)
+                        chromeFloating: chromeFloating,
+                        travel: barTravel)
         }
         // The tab bar shrinks on the same signal, as Instagram's does.
         .preference(key: TabBarCompactKey.self, value: forcedCollapse || chromeHidden)
