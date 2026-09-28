@@ -189,6 +189,7 @@ struct FeedView: View {
                                                      previousOffset: previousOffset,
                                                      offset: offset)
             let hidden = TodayHeader.chromeHidden(wasHidden: chromeHidden,
+                                                  floating: chromeFloating,
                                                   anchor: anchor,
                                                   offset: offset)
             let floating = TodayHeader.chromeFloating(wasFloating: chromeFloating,

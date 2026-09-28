@@ -222,12 +222,18 @@ out in the row — an `HStack` would park it wherever the trailing button's widt
   bar from whatever scrolls under it and the clock went white over dark photos; while held,
   System requests the phone's own scheme, which pins it. Released under a pushed event page,
   whose hero photo keeps the white clock it had (2026-09-27).
-- **The rule is DIRECTION, not distance.** `TodayHeader.chromeHidden(wasHidden:previousOffset:
-  offset:)` is pure and total — down past `directionThreshold` (4pt) hides, up shows, the
-  first `hideAfter` (24pt) and any rubber-band pull past the top always show, and
-  sub-threshold jitter holds the current state. `previousOffset` comes free from
-  `onScrollGeometryChange`'s old value, so `FeedView` stores only the answer and writes it
-  only when it flips — no per-frame invalidation.
+- **Out of home the feed CARRIES the bar, 1:1** (Jesse, 2026-09-27, Instagram's header).
+  `TodayHeader.homeTravel` is the offset clamped to the bar's 58pt: the controls move up by
+  it and fade with it, and the soft edge shrinks with it. It reaches the bar through an
+  `@Observable` box (`BarTravel`) that only the bar reads, so the feed's body does not re-run
+  per frame. The edge is the one thing whose height follows the scroll, and it is safe only
+  because it is a BACKGROUND behind the fixed 58pt frame; never let it size that frame.
+- **Past that, the rule is DIRECTION, not distance.** `TodayHeader.chromeHidden(wasHidden:
+  floating:anchor:offset:)` is pure and total: inside `hideAfter` (the bar's own height) and
+  any rubber-band pull it always shows; a bar carried its full height out of home counts as
+  away at once; a floating bar hides after `flipDistance` (12pt) of one-way travel down and
+  comes back after 12pt up, and jitter holds the current state. `FeedView` writes each state
+  only when it flips.
 - **The chrome is REMOVED when hidden, not faded in place, and it has to be** `[prose]` — the
   glass-compositing rule is in `docs/rules/swift-traps.md`. `TodayTopBar` branches on
   `chromeHidden` inside a fixed-height `ZStack` and animates the `.transition`. Note the

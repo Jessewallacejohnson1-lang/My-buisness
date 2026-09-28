@@ -102,10 +102,16 @@ nonisolated enum TodayHeader {
     /// Pure and total, so the whole behaviour is testable without a scroll view:
     /// the only inputs are where the current direction started (`anchor`, from
     /// `directionAnchor`), where the scroll is, and what the bar was doing.
-    static func chromeHidden(wasHidden: Bool, anchor: CGFloat, offset: CGFloat) -> Bool {
+    static func chromeHidden(wasHidden: Bool, floating: Bool, anchor: CGFloat, offset: CGFloat) -> Bool {
         // Home, and anywhere a rubber-band pull takes you above it, always shows
-        // the bar — there is nothing below to read yet.
+        // the bar — there is nothing below to read yet. Inside its own height the
+        // feed carries it (`homeTravel`).
         guard offset > hideAfter else { return false }
+        // Carried its full height out of home, the bar has already gone: it counts
+        // as away at once, however the finger wobbled on the way down, so the next
+        // upward scroll floats it back. Waiting for the direction rule here left it
+        // faded out and still "showing" — nothing brought it back mid-feed.
+        guard floating else { return true }
         let travelled = offset - anchor
         if travelled >= flipDistance { return true }
         if travelled <= -flipDistance { return false }
@@ -243,8 +249,8 @@ struct TodayTopBar: View {
         // stays because gone chrome should not be in the hierarchy at all.
         //
         // The transition is what animates: a slide up combined with a fade, on a
-        // spring. Under Reduce Motion it is the crossfade alone, which is the same
-        // trade the rest of the app's chrome makes.
+        // spring (a short ease under Reduce Motion). Out of home it does not animate
+        // at all: the feed carries the bar, 1:1 with the finger.
         //
         // The bar's HEIGHT never moves — the frame below holds 58 whether or not
         // anything is inside it. See `TodayHeader.contentHeight` for why a height
@@ -267,8 +273,10 @@ struct TodayTopBar: View {
         // always-on paper status strip): the feed shows through, blurred, behind the
         // status bar and the row, strongest under the clock and thinning to nothing
         // at the bar's lower edge.
-        // With the bar away it shrinks to the status band. Its height is chrome
-        // state, not scroll, and it is a background, so it moves no inset.
+        // With the bar away it shrinks to the status band, and while the feed
+        // carries the bar out of home it shrinks with it. Its height DOES follow the
+        // scroll then, which is safe only because it is a background behind the
+        // fixed 58pt frame above: it moves no inset. Never let it size that frame.
         .background(alignment: .top) {
             Color.clear
                 .frame(height: chromeHidden ? 0 : TodayHeader.contentHeight - carried)

@@ -128,18 +128,18 @@ final class TodayHeaderTests: XCTestCase {
     /// it could only bring the bar back by scrolling all the way home.
     func testScrollingDownHidesTheChromeAndScrollingUpBringsItBack() {
         // Down, well past the threshold, deep in the feed.
-        XCTAssertTrue(TodayHeader.chromeHidden(wasHidden: false, anchor: 300, offset: 360))
+        XCTAssertTrue(TodayHeader.chromeHidden(wasHidden: false, floating: true, anchor: 300, offset: 360))
         // Up again, without going anywhere near the top.
-        XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: true, anchor: 360, offset: 300))
+        XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: true, floating: true, anchor: 360, offset: 300))
     }
 
     /// The top always shows the bar, including through a rubber-band pull past it —
     /// a bounce must not read as "scrolling down" and take the chrome with it.
     func testTheChromeIsAlwaysHomeAtTheTopOfTheFeed() {
-        XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: true, anchor: 40, offset: 0))
-        XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: true, anchor: 0, offset: -80),
+        XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: true, floating: true, anchor: 40, offset: 0))
+        XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: true, floating: true, anchor: 0, offset: -80),
                        "a rubber-band pull past the top is not a downward scroll")
-        XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: false, anchor: 0, offset: 20),
+        XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: false, floating: false, anchor: 0, offset: 20),
                        "the bar's own height belongs to the top of the feed")
     }
 
@@ -147,23 +147,26 @@ final class TodayHeaderTests: XCTestCase {
     /// the bar flickers: a finger resting on the glass and the last millimetres of
     /// inertia both deliver a stream of sub-point deltas in both directions.
     func testTinyMovementsDoNotFlipTheChrome() {
-        XCTAssertTrue(TodayHeader.chromeHidden(wasHidden: true, anchor: 300, offset: 302))
-        XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: false, anchor: 300, offset: 298))
-        XCTAssertTrue(TodayHeader.chromeHidden(wasHidden: true, anchor: 300, offset: 300))
+        XCTAssertTrue(TodayHeader.chromeHidden(wasHidden: true, floating: true, anchor: 300, offset: 302))
+        XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: false, floating: true, anchor: 300, offset: 298))
+        XCTAssertTrue(TodayHeader.chromeHidden(wasHidden: true, floating: true, anchor: 300, offset: 300))
     }
 
     // MARK: - Any speed: slow drags count, jitter does not (taste.md, 2026-09-24)
 
     /// Feeds a run of scroll offsets through the rule exactly as `FeedView` does,
     /// frame by frame, and returns whether the bar is hidden after each frame.
-    private func drive(_ offsets: [CGFloat], startHidden: Bool) -> [Bool] {
+    /// Mid-feed runs start floating: a bar mid-feed has been away and come back.
+    private func drive(_ offsets: [CGFloat], startHidden: Bool, startFloating: Bool = true) -> [Bool] {
         var hidden = startHidden
+        var floating = startFloating
         var previous = offsets[0]
         var anchor = offsets[0]
         var states: [Bool] = []
         for offset in offsets.dropFirst() {
             anchor = TodayHeader.directionAnchor(anchor: anchor, previousOffset: previous, offset: offset)
-            hidden = TodayHeader.chromeHidden(wasHidden: hidden, anchor: anchor, offset: offset)
+            hidden = TodayHeader.chromeHidden(wasHidden: hidden, floating: floating, anchor: anchor, offset: offset)
+            floating = TodayHeader.chromeFloating(wasFloating: floating, hidden: hidden, offset: offset)
             previous = offset
             states.append(hidden)
         }
@@ -206,8 +209,35 @@ final class TodayHeaderTests: XCTestCase {
     /// bar is carried, not hidden, whichever way the finger last went.
     func testTheDirectionRuleWaitsUntilTheBarHasBeenCarriedAway() {
         XCTAssertEqual(TodayHeader.hideAfter, TodayHeader.contentHeight)
-        XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: false, anchor: 0, offset: 50))
-        XCTAssertTrue(TodayHeader.chromeHidden(wasHidden: false, anchor: 58, offset: 70))
+        XCTAssertFalse(TodayHeader.chromeHidden(wasHidden: false, floating: false, anchor: 0, offset: 50))
+        XCTAssertTrue(TodayHeader.chromeHidden(wasHidden: false, floating: false, anchor: 58, offset: 59),
+                      "carried its full height, the bar is away at once")
+    }
+
+    /// A slow drag that slips back a little every step (11pt down, 2pt back)
+    /// never builds a 12pt run. The bar still has to count as away once the feed
+    /// has carried it off, so a scroll back up mid-feed brings it back. Before the
+    /// fix it stayed faded out and "showing" at offset 122.
+    func testAWobblyDragOutOfHomeStillLetsTheBarComeBack() {
+        var offsets: [CGFloat] = [0]
+        for _ in 0..<12 { offsets += [offsets.last! + 11, offsets.last! + 9] }
+        let deepest = offsets.last!
+        offsets += stride(from: deepest - 2, through: deepest - 30, by: -2).map { $0 }
+
+        var hidden = false, floating = false
+        var previous = offsets[0], anchor = offsets[0]
+        var awayAtDeepest = false
+        for offset in offsets.dropFirst() {
+            anchor = TodayHeader.directionAnchor(anchor: anchor, previousOffset: previous, offset: offset)
+            hidden = TodayHeader.chromeHidden(wasHidden: hidden, floating: floating, anchor: anchor, offset: offset)
+            floating = TodayHeader.chromeFloating(wasFloating: floating, hidden: hidden, offset: offset)
+            if offset == deepest { awayAtDeepest = hidden }
+            previous = offset
+        }
+        XCTAssertGreaterThan(deepest - 30, TodayHeader.hideAfter, "the run back up stays mid-feed")
+        XCTAssertTrue(awayAtDeepest, "away once carried off, wobbles and all")
+        XCTAssertFalse(hidden, "a scroll back up mid-feed brings it back")
+        XCTAssertTrue(floating, "and it comes back floating, not still carried off")
     }
 
     // MARK: - Bare at home, frosted circles while floating (Instagram, 2026-09-27)
