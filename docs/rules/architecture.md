@@ -217,6 +217,11 @@ out in the row — an `HStack` would park it wherever the trailing button's widt
   material alone was a grey fog, so saturation, contrast and brightness put the colour back
   (`TodayBarMetric.edgeSaturation` and neighbours). No paper wash over it: that is what the
   fog was.
+- **The feed holds the clock black** `[test]` (`AppearanceStore.holdsClock`, set by `FeedView`
+  on appear, cleared on disappear). With no colour scheme requested, iOS 26 inks the status
+  bar from whatever scrolls under it and the clock went white over dark photos; while held,
+  System requests the phone's own scheme, which pins it. Released under a pushed event page,
+  whose hero photo keeps the white clock it had (2026-09-27).
 - **The rule is DIRECTION, not distance.** `TodayHeader.chromeHidden(wasHidden:previousOffset:
   offset:)` is pure and total — down past `directionThreshold` (4pt) hides, up shows, the
   first `hideAfter` (24pt) and any rubber-band pull past the top always show, and
