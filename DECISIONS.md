@@ -704,3 +704,16 @@ git show 0348d20:BlockParty/App/RootView.swift
 ```
 
 `BlockPartyTabBar` is at lines 531–611 of that file and `TabPressStyle` at 616–624.
+
+## Open — should the server decide which posts go live?
+
+Today the app decides: a post Claude clears is saved as `approved`, and nothing on the
+server stops a signed-in user from sending `approved` themselves. The fix is a trigger
+that forces every non-admin post to `pending`, which also means Jesse approves every post
+by hand instead of Claude auto-approving. Posting has been paused since 2026-09-24, so
+this waits until it comes back. The drafted SQL (an admin table plus the trigger) is
+recoverable with:
+
+```bash
+git show 49781ccthorization.sql
+```

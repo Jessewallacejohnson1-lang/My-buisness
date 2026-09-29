@@ -115,7 +115,7 @@ enum PlaceSeeder {
     /// belong on a neighborly town map: a campus athletic facility that duplicates
     /// the Saint Ben's civic pin, and heavy-industrial businesses 1.5–2 km out
     /// (towing, materials / parts distributors). Matched by lowercased name
-    /// fragment. Keep in sync with supabase/migrations/20260715120000_places_seed.sql.
+    /// fragment. Keep in sync with the live `places` table.
     private static let excludedNameFragments: [String] = [
         "claire lynch", "mn heavy", "tamarack materials", "north central distributing",
         "bee line", "joe's auto parts", "precision motorsports",

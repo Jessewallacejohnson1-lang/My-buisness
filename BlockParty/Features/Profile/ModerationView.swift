@@ -5,8 +5,8 @@
 //  + approve/reject — but nothing consumed them, so queued submissions were invisible
 //  until someone opened a SQL client. This is that missing screen: an admin-gated
 //  list with approve / not-yet actions. RLS remains the real boundary (Admin.isAdmin
-//  is a product gate); see supabase/pending/status_authorization.sql for the
-//  server-side enforcement that should back this.
+//  is a product gate); DECISIONS.md, "should the server decide which posts go
+//  live?", has the server-side enforcement that should back this.
 //
 
 import SwiftUI

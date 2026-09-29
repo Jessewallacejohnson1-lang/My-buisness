@@ -22,7 +22,7 @@ What survived, and what a rebuild starts from:
   48pt with a 4pt bottom edge, 16pt side margin, circular corners, progress bar
   geometry, and the motion/haptics measurements. Numbers there are measured, not
   estimated — use them rather than re-deriving by eye.
-- `supabase/migrations/20260725000000_onboarding_answers.sql` — the answers table.
+- `supabase/migrations/20260929000000_schema.sql` — the answers live on `town_profiles`.
 
 ## Direction — Jesse's calls
 

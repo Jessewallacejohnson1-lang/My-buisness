@@ -20,7 +20,7 @@ from the monochrome chrome.
 - `Providers/*` — weather, garbage (`GarbageSchedule`), library (`LibraryHours`), roads.
 - `Backend/{TownStatusAPI,UtilityPrefsAPI,SupabaseCoding}.swift`, `WeatherBar.swift`
   (`WeatherService`), `RealtimeClient.onAnyChange`.
-- Migrations: `supabase/migrations/2026072412000{0,1}_*.sql` (applied live).
+- Tables `town_status` and `user_utility_prefs`: `supabase/migrations/20260929000000_schema.sql`.
 
 ## Colour system — final hexes (all pass WCAG 4.5:1 white text on the lighter stop)
 
