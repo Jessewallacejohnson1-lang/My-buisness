@@ -7,7 +7,7 @@
 //  the content. This bar is chrome: it is present immediately (no spring entrance),
 //  it does not scroll with the content, it LEAVES on a downward scroll and returns
 //  on an upward one (Jesse, 2026-09-21, naming Instagram), and it carries no rule of
-//  its own — the feed shows through a soft blurred edge behind it (`SoftTopEdge`).
+//  its own — the feed shows through a soft blurred edge (`StatusEdge`, `BarEdge`).
 //
 //  The Joetown lockup was retired on 2026-09-17; the profile avatar — the ⋮-lineage
 //  button that opened the town menu — was retired on 2026-09-18 (Jesse's call). For
@@ -181,25 +181,39 @@ private nonisolated enum TodayBarMetric {
     /// over three passes on 2026-09-19, Jesse each time. It still clears the map
     /// disc beside it, with the bar's 58pt content height as the hard ceiling.
     static let wordmarkHeight: CGFloat = 31
-    /// How far the soft edge takes to thin from full blur to none, ending at the
-    /// bar's lower edge (or at the bottom of the status band with the bar away).
-    /// MEASURED on Instagram (2026-09-27, `references/soft-top-edge/instagram-top.mov`):
-    /// its blur thins over ~30pt with the bar showing and ~15pt with it away, and
-    /// its haze over ~45 and ~25. These sit between the two.
-    static let fadeWithBar: CGFloat = 40
-    static let fadeBarAway: CGFloat = 20
-    /// The system material alone is a grey fog: a blue sky came out grey under the
-    /// clock. Instagram keeps the photo's colour, lightened. These take the
-    /// material's white back out (contrast and brightness pivot at white, so paper
-    /// stays paper) and give the colour back. Tuned side by side with Instagram's
-    /// frames on the simulator (2026-09-27); 1.8 / −0.4 read too white at the top,
-    /// and 1.43 took a black photo under the clock to ~50, darker than Instagram's
-    /// 60–75, where its black clock still reads. Brightness is set so the edge over
-    /// the paper at home IS paper: at 1.43 / −0.21 it read 238 on 250, a grey strip
-    /// always up there.
-    static let edgeSaturation: Double = 1.5
-    static let edgeContrast: Double = 1.3
-    static let edgeBrightness: Double = -0.10
+    /// Instagram's top edge, MEASURED (2026-09-29, `references/soft-top-edge/SPEC.md`,
+    /// from `instagram-top.mov`): the feed under it is blurred and mixed toward the
+    /// page, both thinning in a straight line from the top of the screen to nothing
+    /// at the bar's lower edge — about 7.5pt of blur (Gaussian sigma) and 45% haze at
+    /// the top. With the bar away the same edge has slid up with the bar, so only its
+    /// weaker lower part is left, ending just below the status bar. Built in two parts
+    /// so the bar's part can leave with the bar: the status edge (always there, over
+    /// the bar) and the bar edge (behind the bar while it floats), which together
+    /// make the measured whole.
+    ///
+    /// How far below the status bar the status edge runs (Instagram's: ~5pt).
+    static let statusEdgeTail: CGFloat = 4
+    /// The status edge's blur at the very top of the screen: the whole edge's, slid
+    /// up by the bar's height.
+    static let statusBlurTop: CGFloat = 4
+    /// The page colour laid over it at the top. Less than the measured 24%: the blur
+    /// itself pales the photo, and the two together read 24% (tuned on the simulator).
+    static let statusHaze: Double = 0.13
+    /// The bar edge's blur at the top of the screen: stacked on the status edge's, the
+    /// whole edge's 7.5pt.
+    static let barBlurTop: CGFloat = 6.5
+    /// The bar edge's page colour: level behind the status bar, thinning to nothing
+    /// across the bar row (`barHazeEnds` of the way down), less than the whole edge's
+    /// by what the status edge and the blur already give.
+    static let barHaze: Double = 0.11
+    /// Where the status bar ends on the bar edge, as a fraction of its height: 72 of
+    /// 126pt on a 68pt status bar, 66 of 120 on a 62. Only the haze's bend sits there.
+    static let barHazeEnds: CGFloat = 0.56
+    /// The blur UIKit's `systemUltraThinMaterial` effect reaches at full strength, as
+    /// a Gaussian sigma in points — what turns a wanted blur into how far in to stop
+    /// the effect (`PartialBlurView`). MEASURED on the simulator: at 20 the edges
+    /// blur within ±0.5pt of what they ask for.
+    static let blurAtFull: CGFloat = 20
 }
 
 /// How far the feed has carried the Town bar off the top of the screen, in points.
@@ -258,6 +272,17 @@ struct TodayTopBar: View {
         ZStack {
             if !chromeHidden {
                 controls
+                    .frame(height: TodayHeader.contentHeight)
+                    // Behind the bar while it floats over the feed: the part of
+                    // Instagram's edge that belongs to the bar, so it leaves and comes
+                    // back with it. At home there is only the page behind the bar.
+                    .background(alignment: .top) {
+                        if chromeFloating {
+                            BarEdge()
+                                .ignoresSafeArea(edges: .top)
+                                .transition(.opacity)
+                        }
+                    }
                     .offset(y: -carried)
                     .opacity(1 - carried / TodayHeader.contentHeight)
                     .transition(.offset(y: -TodayHeader.contentHeight).combined(with: .opacity))
@@ -266,36 +291,22 @@ struct TodayTopBar: View {
         .frame(height: TodayHeader.contentHeight)
         .frame(maxWidth: .infinity)
         // NOT clipped at the bar's edge: Instagram's header slides up under the clock
-        // fading and comes back down from behind it whole (recorded 2026-09-27). A
-        // clip sliced the circles flat on top for a frame on the way in.
+        // and comes back down from behind it whole (recorded 2026-09-27). A clip
+        // sliced the circles flat on top for a frame on the way in.
         //
-        // Instagram's top edge (Jesse, 2026-09-27, replacing the paper bar and the
-        // always-on paper status strip): the feed shows through, blurred, behind the
-        // status bar and the row, strongest under the clock and thinning to nothing
-        // at the bar's lower edge.
-        // With the bar away it shrinks to the status band, and while the feed
-        // carries the bar out of home it shrinks with it. Its height DOES follow the
-        // scroll then, which is safe only because it is a background behind the
-        // fixed 58pt frame above: it moves no inset. Never let it size that frame.
-        .background(alignment: .top) {
+        // The status edge sits OVER the bar, as Instagram's does: the header the feed
+        // carries out of home rides up under it and blurs and pales on the way, and
+        // a bar leaving mid-feed slides under it the same way. It stops a few points
+        // below the status bar, above the circles and the logo at rest.
+        .overlay(alignment: .top) {
             Color.clear
-                .frame(height: chromeHidden ? 0 : TodayHeader.contentHeight - carried)
-                .background(
-                    SoftTopEdge(fade: chromeHidden ? TodayBarMetric.fadeBarAway : edgeFade)
-                        .ignoresSafeArea(edges: .top)
-                )
+                .frame(height: TodayBarMetric.statusEdgeTail)
+                .background(StatusEdge().ignoresSafeArea(edges: .top))
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }
         .animation(motion, value: chromeHidden)
         .animation(motion, value: chromeFloating)
-    }
-
-    /// The edge's taper while the feed carries the bar out: the bar's own, easing to
-    /// the status band's as the bar goes, so nothing steps when it has gone.
-    private var edgeFade: CGFloat {
-        let gone = carried / TodayHeader.contentHeight
-        return TodayBarMetric.fadeWithBar - (TodayBarMetric.fadeWithBar - TodayBarMetric.fadeBarAway) * gone
     }
 
     /// The bar's one motion: a spring, or under Reduce Motion a short ease.
@@ -445,36 +456,145 @@ struct TodayTopBar: View {
     }
 }
 
-/// The feed blurred behind the status bar and the row, thinning to nothing over the
-/// last `fade` points of its frame.
-/// Instagram's top edge (2026-09-27, `references/soft-top-edge/instagram-top.mov`),
-/// drawn by hand: the system's soft scroll edge needs `.safeAreaBar`, which flipped
-/// the bar dark over photos (2026-09-24), and on a retry (2026-09-27) it barely
-/// blurred a dark photo behind the logo and left no edge at all behind the clock.
+/// Instagram's status-bar edge: the feed under the clock blurred and mixed toward
+/// the page, both thinning to nothing just below the status bar. Always there, and
+/// over the bar (`TodayTopBar.body`). Mixed toward the page's own colour, so over the
+/// page at home it is invisible, in either appearance.
 ///
-/// No paper wash on top of the blur: Instagram's photo keeps its colours under the
-/// clock, and the wash that sat here (2026-09-27, 0.5 → 0) turned every photo into
-/// a grey-white fog. Without it the clock still stayed black in every frame of a
-/// scroll over a near-black photo, both bar states. Pinned light, so the ink over
-/// it never changes (taste.md, Chrome over content).
-private struct SoftTopEdge: View {
-    var fade: CGFloat
-
+/// Not a material: every material blurs ~19pt and fogs the photo grey (the edge
+/// shipped that way 2026-09-27), where Instagram's blurs 5–9pt and keeps the colour.
+/// Not the system soft scroll edge either: it needs `.safeAreaBar`, which flipped the
+/// bar dark over photos (2026-09-24), and it cannot shrink when the bar leaves, since
+/// the bar's height is the scroll's inset (`TodayHeader.contentHeight`).
+private struct StatusEdge: View {
     var body: some View {
-        Rectangle()
-            .fill(.ultraThinMaterial)
-            .environment(\.colorScheme, .light)
-            .saturation(TodayBarMetric.edgeSaturation)
-            .contrast(TodayBarMetric.edgeContrast)
-            .brightness(TodayBarMetric.edgeBrightness)
-            .mask {
-                VStack(spacing: 0) {
-                    Rectangle()
-                    LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
-                        .frame(height: fade)
-                }
-            }
+        ProgressiveBlur(top: TodayBarMetric.statusBlurTop)
+            .overlay(Self.haze(TodayBarMetric.statusHaze))
     }
+
+    /// The page colour thinning from `strength` at the top to nothing.
+    static func haze(_ strength: Double) -> LinearGradient {
+        LinearGradient(colors: [Hue.paper.opacity(strength), Hue.paper.opacity(0)],
+                       startPoint: .top, endPoint: .bottom)
+    }
+}
+
+/// The rest of Instagram's edge while the bar floats over the feed: stronger behind
+/// the status bar, thinning to nothing at the bar's lower edge. On top of the status
+/// edge it makes the measured whole.
+private struct BarEdge: View {
+    var body: some View {
+        // One blur over the whole height: two stacked blurs meeting at the status
+        // bar's edge drew a seam there, each blurring only what was on its own side.
+        ProgressiveBlur(top: TodayBarMetric.barBlurTop)
+            .overlay(LinearGradient(stops: [
+                .init(color: Hue.paper.opacity(TodayBarMetric.barHaze), location: 0),
+                .init(color: Hue.paper.opacity(TodayBarMetric.barHaze), location: TodayBarMetric.barHazeEnds),
+                .init(color: Hue.paper.opacity(0), location: 1),
+            ], startPoint: .top, endPoint: .bottom))
+    }
+}
+
+/// The math of a blur that thins from top to bottom, built from stacked blurs.
+nonisolated enum EdgeBlur {
+    /// One blur in the stack: its sigma in points, and its mask — solid from the top
+    /// down to `solidTo`, thinning to clear at `clearAt` (fractions of the height).
+    struct Layer: Equatable {
+        var sigma: CGFloat
+        var solidTo: CGFloat
+        var clearAt: CGFloat
+    }
+
+    /// Stacked blurs compound — each blurs what the ones under it already blurred —
+    /// so their sigmas add as squares. Cut the height into `steps` bands; each band
+    /// gets a layer that thins across it and carries the variance that band adds, so
+    /// at every band's edge the stack blurs exactly `top → 0` in a straight line.
+    static func layers(top: CGFloat, steps: Int) -> [Layer] {
+        func variance(_ t: CGFloat) -> CGFloat { (top * (1 - t)) * (top * (1 - t)) }
+        return (1...steps).reversed().map { step in
+            let upper = CGFloat(step - 1) / CGFloat(steps)
+            let lower = CGFloat(step) / CGFloat(steps)
+            return Layer(sigma: (variance(upper) - variance(lower)).squareRoot(),
+                         solidTo: upper, clearAt: lower)
+        }
+    }
+}
+
+/// A blur that thins from `top` (a sigma in points) to nothing, as a stack of UIKit
+/// blurs (`EdgeBlur.layers`).
+private struct ProgressiveBlur: UIViewRepresentable {
+    var top: CGFloat
+    var steps = 2
+
+    func makeUIView(context: Context) -> UIView {
+        let stack = UIView()
+        stack.isUserInteractionEnabled = false
+        for layer in EdgeBlur.layers(top: top, steps: steps) {
+            let blur = PartialBlurView(fraction: layer.sigma / TodayBarMetric.blurAtFull,
+                                       solidTo: layer.solidTo, clearAt: layer.clearAt)
+            blur.frame = stack.bounds
+            blur.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            stack.addSubview(blur)
+        }
+        return stack
+    }
+
+    func updateUIView(_ view: UIView, context: Context) {}
+}
+
+/// UIKit's blur effect stopped part of the way in: the one public route to a blur
+/// lighter than a material's. A paused animator holds it there; it is re-armed each
+/// time the view lands in a window and each time the app comes back, since a paused
+/// animator does not survive either.
+private final class PartialBlurView: UIVisualEffectView {
+    private let fraction: CGFloat
+    private var animator: UIViewPropertyAnimator?
+
+    init(fraction: CGFloat, solidTo: CGFloat, clearAt: CGFloat) {
+        self.fraction = min(fraction, 1)
+        super.init(effect: nil)
+        let ramp = GradientMaskView()
+        ramp.gradient.colors = [UIColor.black.cgColor, UIColor.black.cgColor, UIColor.clear.cgColor]
+        ramp.gradient.locations = [0, NSNumber(value: Double(solidTo)), NSNumber(value: Double(clearAt))]
+        mask = ramp
+        NotificationCenter.default.addObserver(self, selector: #selector(arm),
+                                               name: UIApplication.willEnterForegroundNotification,
+                                               object: nil)
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        mask?.frame = bounds
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        // Next turn of the run loop: SwiftUI inserts views with UIKit animations
+        // switched off, and an animator started then lands on the full effect.
+        if window != nil { DispatchQueue.main.async { [weak self] in self?.arm() } }
+    }
+
+    @objc private func arm() {
+        animator?.stopAnimation(true)
+        effect = nil
+        let animator = UIViewPropertyAnimator(duration: 1, curve: .linear) { [unowned self] in
+            effect = UIBlurEffect(style: .systemUltraThinMaterial)
+        }
+        animator.fractionComplete = fraction
+        self.animator = animator
+    }
+
+    // A paused animator must be stopped before it is released, or UIKit traps.
+    isolated deinit {
+        animator?.stopAnimation(true)
+    }
+}
+
+private final class GradientMaskView: UIView {
+    override class var layerClass: AnyClass { CAGradientLayer.self }
+    var gradient: CAGradientLayer { layer as! CAGradientLayer }
 }
 
 /// The frosted circle behind search and the bell while the bar floats over the

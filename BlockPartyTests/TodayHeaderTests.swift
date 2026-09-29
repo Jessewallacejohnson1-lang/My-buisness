@@ -277,6 +277,23 @@ final class TodayHeaderTests: XCTestCase {
         XCTAssertEqual(TodayHeader.contentHeight, 58)
     }
 
+    // MARK: - The soft top edge
+
+    /// Stacked blurs add as squares, so at every band edge the stack must blur exactly
+    /// the straight line to nothing that Instagram's edge measured.
+    func testStackedBlursThinInAStraightLine() {
+        for (top, steps) in [(CGFloat(4), 2), (6.5, 2), (6, 3)] {
+            let layers = EdgeBlur.layers(top: top, steps: steps)
+            XCTAssertEqual(layers.count, steps)
+            for band in 0...steps {
+                let t = CGFloat(band) / CGFloat(steps)
+                // Every layer still solid at t blurs it; the ones thinning below t don't.
+                let variance = layers.filter { $0.solidTo >= t }.reduce(0) { $0 + $1.sigma * $1.sigma }
+                XCTAssertEqual(variance.squareRoot(), top * (1 - t), accuracy: 0.001, "\(top) at \(t)")
+            }
+        }
+    }
+
     // MARK: - What the bar carries
 
     /// The leading lane stays quiet. The old coral bP glyph lived there, and the
@@ -285,9 +302,11 @@ final class TodayHeaderTests: XCTestCase {
     func testBrandLockupLeavesTheLeadingHeaderAreaBlank() throws {
         let bitmap = try renderedHeaderBitmap()
 
+        // Below the status edge's last 4pt: that strip is a UIKit blur, which
+        // `ImageRenderer` can only draw as a placeholder.
         let colouredPixelCount = bitmap.countPixels(
             xFraction: 0.00..<0.18,
-            yFraction: 0.00..<1.00,
+            yFraction: 0.10..<1.00,
             where: isBrandColour
         )
 

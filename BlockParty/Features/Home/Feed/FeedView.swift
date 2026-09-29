@@ -140,6 +140,16 @@ struct FeedView: View {
         #endif
     }
 
+    /// DEBUG-only: `-feed-bar-back` holds the bar out over a `-feed-scrolled` feed,
+    /// so the floating bar's edge can be shot still.
+    private var forcedBack: Bool {
+        #if DEBUG
+        return ProcessInfo.processInfo.arguments.contains("-feed-bar-back")
+        #else
+        return false
+        #endif
+    }
+
     private var forcedScroll: Bool {
         #if DEBUG
         return ProcessInfo.processInfo.arguments.contains("-feed-scrolled")
@@ -209,13 +219,13 @@ struct FeedView: View {
         // passes underneath it, but `.safeAreaBar` let iOS adapt the bar to what was
         // behind it and flip it dark over photos — white logo and marks, dark paper
         // (recorded 2026-09-24). `.safeAreaInset` opts out of that adaptation, and
-        // the bar brings its own soft edge instead (`SoftTopEdge`), which also
-        // covers the status band when the bar is away. Height stays the constant 58pt.
+        // the bar brings its own soft edge instead (`StatusEdge`, `BarEdge`), which
+        // also covers the status band when the bar is away. Height stays the constant 58pt.
         .safeAreaInset(edge: .top, spacing: 0) {
             TodayTopBar(onOpenSearch: onOpenSearch,
                         onOpenMap: onOpenMap,
                         onOpenNotifications: onOpenNotifications,
-                        chromeHidden: forcedCollapse || chromeHidden,
+                        chromeHidden: forcedCollapse || (chromeHidden && !forcedBack),
                         chromeFloating: chromeFloating,
                         travel: barTravel)
         }
