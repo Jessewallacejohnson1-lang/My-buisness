@@ -206,17 +206,23 @@ out in the row — an `HStack` would park it wherever the trailing button's widt
 - **The bar's height is a constant 58 and must stay one.** `[prose]` It is a
   `safeAreaInset`, so its height IS the feed scroll's top inset. This bar is the live
   evidence for the scroll-geometry loop in `docs/rules/swift-traps.md`.
-- **`safeAreaInset`, and the bar brings its own soft edge (`SoftTopEdge`).** `[prose]` The
-  system's `.safeAreaBar` + `.scrollEdgeEffectStyle(.soft)` flipped the bar dark over photos
-  (2026-09-24), and on a retry (2026-09-27) barely blurred a photo behind the logo and drew
-  no edge at all behind the clock with the bar away. `SoftTopEdge` is a light-pinned
-  material that thins to nothing at the bar's lower edge and shrinks to the status band
-  with the bar away; its height is chrome state, never scroll.
-- **The bar has no fill and draws no hairline, and the photo keeps its colour under it**
-  `[prose]` — Instagram's recording, `references/soft-top-edge/` in the BP app folder. The
-  material alone was a grey fog, so saturation, contrast and brightness put the colour back
-  (`TodayBarMetric.edgeSaturation` and neighbours). No paper wash over it: that is what the
-  fog was.
+- **`safeAreaInset`, and the bar brings its own soft edge (`StatusEdge`, `BarEdge`).**
+  `[prose]` The system's `.safeAreaBar` + `.scrollEdgeEffectStyle(.soft)` flipped the bar dark
+  over photos (2026-09-24), and it cannot shrink when the bar leaves: the bar's height is the
+  scroll's inset. The edge copies Instagram's, MEASURED (2026-09-29,
+  `references/soft-top-edge/SPEC.md` in the BP app folder): the feed is blurred (7.5pt sigma
+  at the top) and mixed toward the page (45%), both thinning in a straight line to nothing
+  at the bar's lower edge; the photo keeps its colour. Two parts, so the bar's share can
+  leave with the bar: the **status edge sits OVER the bar** (always there, ending 4pt below
+  the status bar) and the **bar edge sits behind it** only while it floats.
+- **Every material blurs ~19pt, so the edge is not a material** `[test]`. It is a stack of
+  UIKit blurs, each stopped part of the way in by a paused `UIViewPropertyAnimator`
+  (`PartialBlurView`), masked into bands so their sigmas add up to a straight line
+  (`EdgeBlur.layers`, `TodayHeaderTests.testStackedBlursThinInAStraightLine`). Two traps:
+  the animator must start on the NEXT run-loop turn after the view lands in a window (SwiftUI
+  inserts views with UIKit animations off, and the effect jumps to full), and one blur must
+  span the whole height (two stacked views meeting mid-edge drew a seam, each blurring only
+  its own side). `ImageRenderer` draws the UIKit blur as a placeholder.
 - **The feed holds the clock black** `[test]` (`AppearanceStore.holdsClock`, set by `FeedView`
   on appear, cleared on disappear). With no colour scheme requested, iOS 26 inks the status
   bar from whatever scrolls under it and the clock went white over dark photos; while held,
@@ -224,10 +230,9 @@ out in the row — an `HStack` would park it wherever the trailing button's widt
   whose hero photo keeps the white clock it had (2026-09-27).
 - **Out of home the feed CARRIES the bar, 1:1** (Jesse, 2026-09-27, Instagram's header).
   `TodayHeader.homeTravel` is the offset clamped to the bar's 58pt: the controls move up by
-  it and fade with it, and the soft edge shrinks with it. It reaches the bar through an
-  `@Observable` box (`BarTravel`) that only the bar reads, so the feed's body does not re-run
-  per frame. The edge is the one thing whose height follows the scroll, and it is safe only
-  because it is a BACKGROUND behind the fixed 58pt frame; never let it size that frame.
+  it and fade with it, riding up under the status edge, which blurs and pales them on the
+  way out as Instagram's header is. It reaches the bar through an `@Observable` box
+  (`BarTravel`) that only the bar reads, so the feed's body does not re-run per frame.
 - **Past that, the rule is DIRECTION, not distance.** `TodayHeader.chromeHidden(wasHidden:
   floating:anchor:offset:)` is pure and total: inside `hideAfter` (the bar's own height) and
   any rubber-band pull it always shows; a bar carried its full height out of home counts as
