@@ -26,7 +26,7 @@ final class EventCardPhotoTapTests: XCTestCase {
         app = XCUIApplication()
         // Every event page gets a second, bundled photo instead of Google's, so the edge
         // swipe below always has a carousel to start on, network or not.
-        app.launchArguments = ["-open-tab", "town", "-event-page-two-photos"]
+        app.launchArguments = ["-open-tab", "town", "-event-page-two-photos", "-ui-tests"]
         app.launch()
     }
 

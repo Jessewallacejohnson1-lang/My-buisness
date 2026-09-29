@@ -157,7 +157,7 @@ final class DynamicTypeAuditTests: XCTestCase {
     private func audit(_ surface: Surface, atContentSize category: String, named sizeName: String) {
         let app = XCUIApplication()
         app.launchArguments = surface.arguments + [
-            "-UIPreferredContentSizeCategoryName", category,
+            "-UIPreferredContentSizeCategoryName", category, "-ui-tests",
         ]
         app.launch()
 

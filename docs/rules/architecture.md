@@ -222,7 +222,10 @@ out in the row — an `HStack` would park it wherever the trailing button's widt
   the animator must start on the NEXT run-loop turn after the view lands in a window (SwiftUI
   inserts views with UIKit animations off, and the effect jumps to full), and one blur must
   span the whole height (two stacked views meeting mid-edge drew a seam, each blurring only
-  its own side). `ImageRenderer` draws the UIKit blur as a placeholder.
+  its own side). A paused animator never finishes, so XCUITest waits out its 60s idle
+  timeout before every step: the UI tests launch with `-ui-tests`, which leaves the blur
+  off (finishing the animator at its current point instead drops the blur to nothing).
+  `ImageRenderer` draws the UIKit blur as a placeholder.
 - **The feed holds the clock black** `[test]` (`AppearanceStore.holdsClock`, set by `FeedView`
   on appear, cleared on disappear). With no colour scheme requested, iOS 26 inks the status
   bar from whatever scrolls under it and the clock went white over dark photos; while held,
@@ -233,6 +236,9 @@ out in the row — an `HStack` would park it wherever the trailing button's widt
   it and fade with it, riding up under the status edge, which blurs and pales them on the
   way out as Instagram's header is. It reaches the bar through an `@Observable` box
   (`BarTravel`) that only the bar reads, so the feed's body does not re-run per frame.
+  Carried its full height, the bar leaves WITHOUT the slide (`FeedView` sets that state in
+  a transaction with animations off): animated, it snapped back to rest as it started
+  floating and slid out again over the first post.
 - **Past that, the rule is DIRECTION, not distance.** `TodayHeader.chromeHidden(wasHidden:
   floating:anchor:offset:)` is pure and total: inside `hideAfter` (the bar's own height) and
   any rubber-band pull it always shows; a bar carried its full height out of home counts as

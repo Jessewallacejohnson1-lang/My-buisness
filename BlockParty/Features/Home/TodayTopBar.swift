@@ -195,17 +195,17 @@ private nonisolated enum TodayBarMetric {
     static let statusEdgeTail: CGFloat = 4
     /// The status edge's blur at the very top of the screen: the whole edge's, slid
     /// up by the bar's height.
-    static let statusBlurTop: CGFloat = 4
+    static let statusBlurTop: CGFloat = 5
     /// The page colour laid over it at the top. Less than the measured 24%: the blur
     /// itself pales the photo, and the two together read 24% (tuned on the simulator).
-    static let statusHaze: Double = 0.13
+    static let statusHaze: Double = 0.19
     /// The bar edge's blur at the top of the screen: stacked on the status edge's, the
     /// whole edge's 7.5pt.
-    static let barBlurTop: CGFloat = 6.5
+    static let barBlurTop: CGFloat = 6
     /// The bar edge's page colour: level behind the status bar, thinning to nothing
     /// across the bar row (`barHazeEnds` of the way down), less than the whole edge's
     /// by what the status edge and the blur already give.
-    static let barHaze: Double = 0.11
+    static let barHaze: Double = 0.08
     /// Where the status bar ends on the bar edge, as a fraction of its height: 72 of
     /// 126pt on a 68pt status bar, 66 of 120 on a 62. Only the haze's bend sits there.
     static let barHazeEnds: CGFloat = 0.56
@@ -280,6 +280,7 @@ struct TodayTopBar: View {
                         if chromeFloating {
                             BarEdge()
                                 .ignoresSafeArea(edges: .top)
+                                .allowsHitTesting(false)
                                 .transition(.opacity)
                         }
                     }
@@ -469,13 +470,9 @@ struct TodayTopBar: View {
 private struct StatusEdge: View {
     var body: some View {
         ProgressiveBlur(top: TodayBarMetric.statusBlurTop)
-            .overlay(Self.haze(TodayBarMetric.statusHaze))
-    }
-
-    /// The page colour thinning from `strength` at the top to nothing.
-    static func haze(_ strength: Double) -> LinearGradient {
-        LinearGradient(colors: [Hue.paper.opacity(strength), Hue.paper.opacity(0)],
-                       startPoint: .top, endPoint: .bottom)
+            .overlay(LinearGradient(colors: [Hue.paper.opacity(TodayBarMetric.statusHaze),
+                                             Hue.paper.opacity(0)],
+                                    startPoint: .top, endPoint: .bottom))
     }
 }
 
@@ -499,7 +496,7 @@ private struct BarEdge: View {
 nonisolated enum EdgeBlur {
     /// One blur in the stack: its sigma in points, and its mask — solid from the top
     /// down to `solidTo`, thinning to clear at `clearAt` (fractions of the height).
-    struct Layer: Equatable {
+    struct Layer {
         var sigma: CGFloat
         var solidTo: CGFloat
         var clearAt: CGFloat
@@ -524,12 +521,11 @@ nonisolated enum EdgeBlur {
 /// blurs (`EdgeBlur.layers`).
 private struct ProgressiveBlur: UIViewRepresentable {
     var top: CGFloat
-    var steps = 2
 
     func makeUIView(context: Context) -> UIView {
         let stack = UIView()
         stack.isUserInteractionEnabled = false
-        for layer in EdgeBlur.layers(top: top, steps: steps) {
+        for layer in EdgeBlur.layers(top: top, steps: 2) {
             let blur = PartialBlurView(fraction: layer.sigma / TodayBarMetric.blurAtFull,
                                        solidTo: layer.solidTo, clearAt: layer.clearAt)
             blur.frame = stack.bounds
@@ -543,9 +539,10 @@ private struct ProgressiveBlur: UIViewRepresentable {
 }
 
 /// UIKit's blur effect stopped part of the way in: the one public route to a blur
-/// lighter than a material's. A paused animator holds it there; it is re-armed each
-/// time the view lands in a window and each time the app comes back, since a paused
-/// animator does not survive either.
+/// lighter than a material's. A paused animator holds it there — finished at its
+/// current point instead, the blur went to nothing. It is set again each time the
+/// view lands in a window, the app comes back, or the appearance changes, since
+/// each of those rebuilds the effect.
 private final class PartialBlurView: UIVisualEffectView {
     private let fraction: CGFloat
     private var animator: UIViewPropertyAnimator?
@@ -560,6 +557,9 @@ private final class PartialBlurView: UIVisualEffectView {
         NotificationCenter.default.addObserver(self, selector: #selector(arm),
                                                name: UIApplication.willEnterForegroundNotification,
                                                object: nil)
+        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: PartialBlurView, _) in
+            view.arm()
+        }
     }
 
     required init?(coder: NSCoder) { nil }
@@ -579,6 +579,11 @@ private final class PartialBlurView: UIVisualEffectView {
     @objc private func arm() {
         animator?.stopAnimation(true)
         effect = nil
+        // A paused animation never finishes, so XCUITest would wait out its 60 s
+        // idle timeout before every step; the UI tests run without the blur.
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-ui-tests") { return }
+        #endif
         let animator = UIViewPropertyAnimator(duration: 1, curve: .linear) { [unowned self] in
             effect = UIBlurEffect(style: .systemUltraThinMaterial)
         }

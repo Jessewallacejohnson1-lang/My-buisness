@@ -206,8 +206,16 @@ struct FeedView: View {
                                                       hidden: hidden,
                                                       offset: offset)
             if anchor != chromeAnchor { chromeAnchor = anchor }
-            if hidden != chromeHidden { chromeHidden = hidden }
-            if floating != chromeFloating { chromeFloating = floating }
+            // A bar the feed has carried out of home has already gone, so it leaves
+            // without the slide: animated, it snapped back to rest the moment it
+            // started floating and slid out again over the first post (a flick past
+            // the bar's height in one frame).
+            var transaction = Transaction()
+            transaction.disablesAnimations = hidden && !chromeFloating
+            withTransaction(transaction) {
+                if hidden != chromeHidden { chromeHidden = hidden }
+                if floating != chromeFloating { chromeFloating = floating }
+            }
             barTravel.points = TodayHeader.homeTravel(offset: offset)
             #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("-scroll-log") {
