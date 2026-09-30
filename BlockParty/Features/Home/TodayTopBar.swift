@@ -306,13 +306,7 @@ struct TodayTopBar: View {
         // carries out of home rides up under it and blurs and pales on the way, and
         // a bar leaving mid-feed slides under it the same way. It stops a few points
         // below the status bar, above the circles and the logo at rest.
-        .overlay(alignment: .top) {
-            Color.clear
-                .frame(height: TodayBarMetric.statusEdgeTail)
-                .background(StatusEdge().ignoresSafeArea(edges: .top))
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-        }
+        .statusEdge()
         .animation(motion, value: chromeHidden)
         .animation(motion, value: chromeFloating)
     }
@@ -478,15 +472,25 @@ struct TodayTopBar: View {
 /// Not the system soft scroll edge either: it needs `.safeAreaBar`, which flipped the
 /// bar dark over photos (2026-09-24), and it cannot shrink when the bar leaves, since
 /// the bar's height is the scroll's inset (`TodayHeader.contentHeight`).
-struct StatusEdge: View {
-    /// How far the band reaches below the status bar. Daily's page wears it too.
-    static let tail = TodayBarMetric.statusEdgeTail
-
+private struct StatusEdge: View {
     var body: some View {
         ProgressiveBlur(top: TodayBarMetric.statusBlurTop)
             .overlay(LinearGradient(colors: [Hue.paper.opacity(TodayBarMetric.statusHaze),
                                              Hue.paper.opacity(0)],
                                     startPoint: .top, endPoint: .bottom))
+    }
+}
+
+extension View {
+    /// The status edge laid over the top of a screen: Today's bar, and Daily's page.
+    func statusEdge() -> some View {
+        overlay(alignment: .top) {
+            Color.clear
+                .frame(height: TodayBarMetric.statusEdgeTail)
+                .background(StatusEdge().ignoresSafeArea(edges: .top))
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
     }
 }
 

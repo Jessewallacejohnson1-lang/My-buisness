@@ -11,7 +11,7 @@ import SwiftUI
 
 /// Today's Spotlight: one local person or business and their story, the same for
 /// everyone in the Town and new each day.
-struct DailySpotlight: Equatable {
+struct DailySpotlight {
     var name: String
     /// What they do, or their business.
     var about: String
@@ -55,11 +55,13 @@ private nonisolated enum DailyMetric {
     static let dateToPortrait: CGFloat = 22
     static let portrait: CGFloat = 120
     static let portraitRing: CGFloat = 5
-    /// Card padding above the label: the photo's lower half, then 12.
-    static let cardTop: CGFloat = 72
+    /// Card padding above the label: the photo's lower half, then 17.
+    static let cardTop: CGFloat = 77
     static let cardInset: CGFloat = 18
-    static let nameTop: CGFloat = 6
-    static let nameBottom: CGFloat = 2
+    /// Jost's line box is taller than the mockup's 1.15; these put the name's glyphs
+    /// 15pt under the label and 6pt over the business line, as measured there.
+    static let nameTop: CGFloat = 3
+    static let nameBottom: CGFloat = -1.5
     static let photosTop: CGFloat = 16
     static let photoGap: CGFloat = 6
     static let photoAspect: CGFloat = 4.0 / 3.0
@@ -85,32 +87,20 @@ struct DailyPage: View {
             }
         }
         // The Town feed's frosted band behind the clock, so the page blurs under it.
-        .overlay(alignment: .top) {
-            Color.clear
-                .frame(height: StatusEdge.tail)
-                .background(StatusEdge().ignoresSafeArea(edges: .top))
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-        }
+        .statusEdge()
     }
 }
 
-/// A small, centred date line: today in the Town, so it turns over at the Town's
-/// midnight wherever the phone is.
-struct DailyDateLine: View {
+/// A small, centred date line: today in the Town, the Town header's own eyebrow, so it
+/// turns over at the Town's midnight wherever the phone is.
+private struct DailyDateLine: View {
     var body: some View {
         TimelineView(.everyMinute) { context in
-            Text(Self.label(for: context.date))
+            Text(TodayHeader.eyebrow(for: context.date))
                 .font(.mono(11)).tracking(1.5)
                 .foregroundStyle(Hue.inkSecondary)
                 .frame(maxWidth: .infinity)
         }
-    }
-
-    static func label(for date: Date, locale: Locale = .current) -> String {
-        var style = Date.FormatStyle(locale: locale, timeZone: WeatherService.townTZ)
-        style = style.weekday(.wide).month(.wide).day()
-        return date.formatted(style).uppercased()
     }
 }
 
@@ -120,9 +110,10 @@ private struct SpotlightCard: View {
     let spotlight: DailySpotlight
 
     var body: some View {
-        // The story page is the next piece; until then a press only squishes.
+        // The story page is the next piece; until then a press only squishes. The
+        // bouncier card press, not the feed's quiet one: the spec's "bouncy press".
         Button {} label: { card }
-            .buttonStyle(FeedCardPressStyle())
+            .buttonStyle(PressableCardStyle())
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Spotlight: \(spotlight.name), \(spotlight.about)")
     }
@@ -172,12 +163,8 @@ private struct SpotlightCard: View {
     }
 
     private var portrait: some View {
-        Circle()
-            .fill(Hue.fill)
-            .overlay {
-                if let url = spotlight.portrait { FeedCardURLPhoto(url: url) }
-            }
-            .clipShape(Circle())
+        FeedAuthorAvatar(url: spotlight.portrait, name: spotlight.name,
+                         side: DailyMetric.portrait - 2 * DailyMetric.portraitRing)
             .padding(DailyMetric.portraitRing)
             .background(Circle().fill(Hue.surface).portraitLift())
             .frame(width: DailyMetric.portrait, height: DailyMetric.portrait)

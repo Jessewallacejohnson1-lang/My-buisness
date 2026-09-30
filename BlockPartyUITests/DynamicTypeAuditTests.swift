@@ -58,8 +58,10 @@ final class DynamicTypeAuditTests: XCTestCase {
     /// returns to `surfaces` the day the page it names is finished, and the reason
     /// says what finished means for it.
     ///
-    ///  • `daily` / `search` — `BlankTab` placeholders. A title and one promise
-    ///    line: there is no layout here to hold or break yet.
+    ///  • `daily` — its first section only (the date line and the Spotlight card);
+    ///    Event of the day, Agenda, Suggestions and Following are still to come.
+    ///  • `search` — a `BlankTab` placeholder. A title and one promise line: there
+    ///    is no layout here to hold or break yet.
     ///  • `you` / `you-profile` — `ProfileView`. A real screen, but still moving,
     ///    and its unfinished states are what the auditor was reporting: "No plans
     ///    yet", "a neighbor", "Around town".
