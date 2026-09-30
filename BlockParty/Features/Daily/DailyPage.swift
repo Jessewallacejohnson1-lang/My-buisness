@@ -158,8 +158,13 @@ private struct SpotlightCard: View {
         .padding(.top, DailyMetric.cardTop)
         .padding([.horizontal, .bottom], DailyMetric.cardInset)
         .frame(maxWidth: .infinity)
-        .background(Hue.surface, in: RoundedRectangle(cornerRadius: Radius.bento, style: .continuous))
-        .spotlightLift()
+        // The lift goes on the card's shape alone: on the stack it would also be cast
+        // by each photo and line of text, greying the card under them.
+        .background {
+            RoundedRectangle(cornerRadius: Radius.bento, style: .continuous)
+                .fill(Hue.surface)
+                .spotlightLift()
+        }
         .overlay(alignment: .top) {
             portrait.offset(y: -DailyMetric.portrait / 2)
         }
@@ -174,8 +179,7 @@ private struct SpotlightCard: View {
             }
             .clipShape(Circle())
             .padding(DailyMetric.portraitRing)
-            .background(Circle().fill(Hue.surface))
+            .background(Circle().fill(Hue.surface).portraitLift())
             .frame(width: DailyMetric.portrait, height: DailyMetric.portrait)
-            .portraitLift()
     }
 }
