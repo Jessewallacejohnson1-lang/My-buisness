@@ -52,6 +52,23 @@ extension View {
         )
     }
 
+    // MARK: The Daily Spotlight (Jesse: the one card that pops out)
+
+    /// The Spotlight card's lift, from the Reference mockup's two CSS shadows
+    /// (0 26 50 −18 at 45%, 0 8 16 −6 at 14%). SwiftUI has no spread, so the
+    /// opacities are lowered to match what shows past the card's edge.
+    func spotlightLift() -> some View {
+        self
+            .shadow(color: .black.opacity(0.24), radius: 22, x: 0, y: 22)
+            .shadow(color: .black.opacity(0.10), radius: 7, x: 0, y: 6)
+    }
+
+    /// The Spotlight's round photo, floating over the card's top edge
+    /// (Reference: 0 14 26 −10 at 40%).
+    func portraitLift() -> some View {
+        self.shadow(color: .black.opacity(0.26), radius: 12, x: 0, y: 12)
+    }
+
     // MARK: Map shadows (soft, diffuse — no hard dark edges)
 
     /// Floating chrome button: y=2, blur=8, 10% opacity (spec §8 — one clean elevation).

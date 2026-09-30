@@ -478,7 +478,10 @@ struct TodayTopBar: View {
 /// Not the system soft scroll edge either: it needs `.safeAreaBar`, which flipped the
 /// bar dark over photos (2026-09-24), and it cannot shrink when the bar leaves, since
 /// the bar's height is the scroll's inset (`TodayHeader.contentHeight`).
-private struct StatusEdge: View {
+struct StatusEdge: View {
+    /// How far the band reaches below the status bar. Daily's page wears it too.
+    static let tail = TodayBarMetric.statusEdgeTail
+
     var body: some View {
         ProgressiveBlur(top: TodayBarMetric.statusBlurTop)
             .overlay(LinearGradient(colors: [Hue.paper.opacity(TodayBarMetric.statusHaze),

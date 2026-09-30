@@ -386,9 +386,14 @@ struct MainTabsView: View {
                                 expandedPlace: $expandedPlace,
                                 cardNS: cardNS
                             )
-                        // Daily and Search are named, reserved slots: the bar and
-                        // its motion are built, the screens behind them are not yet.
-                        case .daily:    BlankTab(tab: .daily)
+                        // Daily shows its page once it has something real to show;
+                        // until then, like Search, it is a named, reserved slot.
+                        case .daily:
+                            if let spotlight = DailySpotlight.today {
+                                DailyPage(spotlight: spotlight)
+                            } else {
+                                BlankTab(tab: .daily)
+                            }
                         case .search:   BlankTab(tab: .search)
                         // Profile is a real screen, mounted WITHOUT its sheet chrome —
                         // a tab has no "close", so the X is suppressed here.
