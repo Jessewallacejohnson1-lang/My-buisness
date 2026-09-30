@@ -82,13 +82,14 @@ seeder, and mounts `RootView` directly.
 
 ### The tab bar
 
-`MainTabsView` owns **four** tabs (`Tab`: town/daily/business/you), the custom
+`MainTabsView` owns **four** tabs (`Tab`: town/daily/search/you), the custom
 `BlockPartyTabBar`, the full-screen map cover, and town-menu presentation. **Town** (`house`) is the town feed, **Daily** (`newspaper`) is the personalised paper
-(town feed ∩ what the neighbour follows), **Business** (`briefcase`) is the owners' side of
-Main Street — not a shopfront directory — and **You** mounts `ProfileView(showsClose: false)`,
-since a tab has no close.
+(town feed ∩ what the neighbour follows), **Search** is BP's traced magnifier (`MagnifierGlyph`,
+thicker when selected, as Instagram's is) — it took Business's slot on 2026-09-29, when the
+Town bar's leading control became a friends mark — and **You** mounts
+`ProfileView(showsClose: false)`, since a tab has no close. Business has no slot for now.
 
-- **Daily and Business render `BlankTab` deliberately** — the slot's name plus its one-line
+- **Daily and Search render `BlankTab` deliberately** — the slot's name plus its one-line
   promise — because the bar and its motion are built and the screens are not. **Do not "fix"
   that by deleting the cases.** `[prose]`
 - **The bar is four slots built from `Tab.allCases`** `[test]`, pinned by

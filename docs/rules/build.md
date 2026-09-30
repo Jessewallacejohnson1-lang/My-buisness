@@ -51,7 +51,7 @@ xcodebuild -project BlockParty.xcodeproj -scheme BlockParty -configuration Debug
   -destination 'platform=iOS Simulator,name=<sim>' build
 
 # Launch on a booted sim (see debug flags below), then screenshot
-# `-open-map` raises the map cover; `-open-tab` takes town|daily|business|you.
+# `-open-map` raises the map cover; `-open-tab` takes town|daily|search|you.
 xcrun simctl launch <udid> Jesse.BlockParty -open-map
 xcrun simctl io <udid> screenshot /tmp/map.png
 ```

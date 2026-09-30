@@ -130,7 +130,7 @@ command or without a pass condition is a reminder, not a check, and reminders ro
 
   ```bash
   S=<simulator udid>
-  for args in "-open-tab town" "-open-tab daily" "-open-tab business" "-open-tab you" "-open-map"; do
+  for args in "-open-tab town" "-open-tab daily" "-open-tab search" "-open-tab you" "-open-map"; do
     xcrun simctl terminate $S Jesse.BlockParty
     xcrun simctl launch $S Jesse.BlockParty -appearance dark $args
     sleep 4
