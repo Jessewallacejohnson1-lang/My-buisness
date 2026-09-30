@@ -89,9 +89,12 @@ thicker when selected, as Instagram's is) — it took Business's slot on 2026-09
 Town bar's leading control became a friends mark — and **You** mounts
 `ProfileView(showsClose: false)`, since a tab has no close. Business has no slot for now.
 
-- **Daily and Search render `BlankTab` deliberately** — the slot's name plus its one-line
-  promise — because the bar and its motion are built and the screens are not. **Do not "fix"
-  that by deleting the cases.** `[prose]`
+- **Search renders `BlankTab` deliberately** — the slot's name plus its one-line promise —
+  because the bar and its motion are built and the screen is not. **Do not "fix" that by
+  deleting the case.** `[prose]` **Daily** (`Features/Daily/DailyPage.swift`) shows its page
+  when it has something real to show and `BlankTab` otherwise: DEBUG shows a sample
+  Spotlight, release keeps the placeholder until the Spotlight read exists. Its spec is
+  `docs/plans/daily-tab/SPEC.md` in the BP app folder; sections join one at a time.
 - **The bar is four slots built from `Tab.allCases`** `[test]`, pinned by
   `TabBarTests`. The centre Create disc was removed on 2026-09-24 when posting was paused,
   so **there is no compose entry anywhere in the app** — not in the bar, not on the map, not

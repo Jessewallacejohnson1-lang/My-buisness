@@ -163,7 +163,7 @@ number, or a test name. "Looked fine" is not evidence and will get the item re-r
 These are on the record rather than forgotten. Each returns to **Run before ship** the day
 the page it names is finished.
 
-- **Daily** and **Search** — `BlankTab` placeholders. A title and one promise line;
+- **Search** — a `BlankTab` placeholder (Daily too, in release, until its Spotlight read exists). A title and one promise line;
   there is no layout to hold or break yet.
 - **You / profile** — `ProfileView` is real but still moving. Its unfinished states ("No
   plans yet", "a neighbor", "Around town") were what the auditor kept reporting. High
