@@ -3,10 +3,10 @@
 //  Block Party — what a control that is BUILT but not yet WIRED opens.
 //
 //  The Today bar's search mark and bell landed on 2026-09-20 as chrome, ahead of the
-//  screens behind them (the friends mark took search's place on 2026-09-29). The two honest options were a button that does nothing and a
-//  named, empty room; this is the second one, and it is the same call `BlankTab`
-//  already makes for the Daily and Business tabs — a reserved slot reads as reserved,
-//  where a dead tap reads as broken.
+//  screens behind them; the friends mark took search's place on 2026-09-29. The two
+//  honest options were a button that does nothing and a named, empty room; this is
+//  the second one, and it is the same call `BlankTab` already makes for the Daily and
+//  Search tabs — a reserved slot reads as reserved, where a dead tap reads as broken.
 //
 //  Deliberately one small file and one small view. It is scaffolding with a
 //  half-life: when a real friends or notifications screen lands, its presentation

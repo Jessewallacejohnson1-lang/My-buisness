@@ -373,7 +373,7 @@ struct TodayTopBar: View {
         .accessibilityHidden(chromeHidden)
     }
 
-    /// A traced mark in a 44pt touch box: bare at home, in a frosted circle while
+    /// A bar mark in a 44pt touch box: bare at home, in a frosted circle while
     /// the bar floats. Shared by the friends glyph and the bell, because the only
     /// thing that differs between them is the glyph and the label — and two
     /// near-identical button bodies is how the two drift apart.

@@ -255,8 +255,9 @@ out in the row — an `HStack` would park it wherever the trailing button's widt
 - **Chrome that has left must not take taps** `[prose]` — `.allowsHitTesting(!chromeHidden)`
   and `.accessibilityHidden(chromeHidden)` sit on the control row.
 - **Three controls in 44pt boxes, 16pt in from the screen's edges** (Instagram's, measured
-  2026-09-27). `[prose]` A search magnifier leads, the wordmark centres, a notifications bell
-  holds the trailing corner, and the map disc sits inboard of it. Search and the bell are
+  2026-09-27). `[prose]` A friends mark leads (search until 2026-09-29, when it became a tab),
+  the wordmark centres, a notifications bell holds the trailing corner, and the map disc sits
+  inboard of it. Friends and the bell are
   **bare ink at home and sit in frosted circles while the bar floats** over the feed
   (`TodayHeader.chromeFloating`: from the moment the bar leaves mid-feed until the feed is
   home again) — a material circle, not Liquid Glass, so it slides and fades with its mark
@@ -275,6 +276,8 @@ out in the row — an `HStack` would park it wherever the trailing button's widt
   not the same shape at another weight. `MapPinGlyph` is a pin outline and a concentric ring
   as **two subpaths of one `Path`**, so a single stroke renders both at identical weight.
   **The bell has no badge**, because the app has no notifications feature to badge honestly.
+  The one exception is the friends mark: it is Apple's `person.2.fill` itself, because Jesse's
+  Reference is that symbol (they differ by ~1px of antialiasing), so there is nothing to trace.
 
 ### Other surfaces
 
