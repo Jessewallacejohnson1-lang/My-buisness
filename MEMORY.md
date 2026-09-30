@@ -42,6 +42,9 @@ all live there now. This file carries what is newer than that, or narrower than 
   owners' side of Main Street), **You** (profile). **Supersedes** Today / Activities /
   Calendar / Map (re-cut 2026-09-18). The map is not a tab: it opens full-screen from
   the yellow disc in the Town top bar.
+- 2026-09-29 — **Search** took Business's tab slot: Town, Daily, Search, You (Jesse).
+  The Town top bar leads with a friends mark instead. Business has no slot for now.
+  **Supersedes** Business in the line above.
 - Rollout is town by town. St. Joseph first, then St. Cloud, Sauk Rapids, Cold Spring,
   Waite Park. Nothing in the shared UI, copy, or icon may be St. Joe–specific.
 - App Store target is spring 2027. The months before that are networking and local
