@@ -3,13 +3,13 @@
 //  Block Party — what a control that is BUILT but not yet WIRED opens.
 //
 //  The Today bar's search mark and bell landed on 2026-09-20 as chrome, ahead of the
-//  screens behind them. The two honest options were a button that does nothing and a
+//  screens behind them (the friends mark took search's place on 2026-09-29). The two honest options were a button that does nothing and a
 //  named, empty room; this is the second one, and it is the same call `BlankTab`
 //  already makes for the Daily and Business tabs — a reserved slot reads as reserved,
 //  where a dead tap reads as broken.
 //
 //  Deliberately one small file and one small view. It is scaffolding with a
-//  half-life: when a real search or notifications screen lands, its presentation
+//  half-life: when a real friends or notifications screen lands, its presentation
 //  replaces the call here and this file's last caller goes with it.
 //
 
@@ -19,7 +19,7 @@ import SwiftUI
 struct ReservedScreen: View {
     let title: String
     /// One line on what will live here. Present tense, no ship date — a promise with
-    /// a date on it is a promise that expires.
+    /// a date on it is a promise that expires. Empty draws no line.
     let promise: String
     let symbol: String
 
@@ -36,11 +36,13 @@ struct ReservedScreen: View {
                 Text(title)
                     .font(.display(22))
                     .foregroundStyle(Hue.ink)
-                Text(promise)
-                    .font(.sans(14))
-                    .foregroundStyle(Hue.inkSecondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 44)
+                if !promise.isEmpty {
+                    Text(promise)
+                        .font(.sans(14))
+                        .foregroundStyle(Hue.inkSecondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 44)
+                }
             }
             .accessibilityElement(children: .combine)
         }
@@ -56,13 +58,10 @@ struct ReservedScreen: View {
 }
 
 extension ReservedScreen {
-    /// The two the Today bar opens today.
-    static var search: ReservedScreen {
-        ReservedScreen(
-            title: "Search",
-            promise: "Find a place, a happening, or someone on the block.",
-            symbol: "magnifyingglass"
-        )
+    /// The two the Today bar opens today. Friends has no line yet: Jesse is designing
+    /// the screen (2026-09-29).
+    static var friends: ReservedScreen {
+        ReservedScreen(title: "Friends", promise: "", symbol: "person.2")
     }
 
     static var notifications: ReservedScreen {
@@ -74,4 +73,4 @@ extension ReservedScreen {
     }
 }
 
-#Preview { ReservedScreen.search }
+#Preview { ReservedScreen.friends }

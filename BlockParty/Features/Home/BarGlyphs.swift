@@ -1,7 +1,8 @@
 //
 //  BarGlyphs.swift
-//  Block Party — the Today bar's two traced marks: the search magnifier and the
-//  notifications bell.
+//  Block Party — two traced marks: the search magnifier (the tab bar's Search tab
+//  since 2026-09-29; the Today bar's leading control before that) and the Today
+//  bar's notifications bell.
 //
 //  Both are drawn rather than taken from SF Symbols, for the same reason `MapPinGlyph`
 //  next door is: the reference's marks and Apple's are different SILHOUETTES, not the
@@ -29,18 +30,25 @@ import SwiftUI
 // MARK: - Magnifier
 
 /// The search mark: a lens ring, a concentric reflection arc inside it, and a handle
-/// at 45°.
+/// at 45°. `bold` is the selected tab: a magnifier has no filled form, so it thickens
+/// as Instagram's search tab does.
 ///
 /// The arc is the detail that rules SF out, and it is genuinely part of the mark —
 /// it appears at identical geometry in two independent reference frames, so it is not
 /// a transient "searching" state.
 struct MagnifierGlyph: View {
     var size: CGFloat = 20
+    var bold = false
+
+    /// Instagram's selected search stroke over its resting one: 8.82 / 5.79px at 3x
+    /// (MEASURED on Mobbin's Instagram tab bar, 2026-09-29). The ring keeps its
+    /// centreline, so the extra weight spills ~0.4pt past the box on each side.
+    static let boldStroke: CGFloat = 1.52
 
     var body: some View {
         MagnifierShape()
             .stroke(style: StrokeStyle(
-                lineWidth: size * MagnifierShape.strokeFraction,
+                lineWidth: size * MagnifierShape.strokeFraction * (bold ? Self.boldStroke : 1),
                 lineCap: .round,
                 lineJoin: .round
             ))

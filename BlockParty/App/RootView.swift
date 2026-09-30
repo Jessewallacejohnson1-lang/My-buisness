@@ -5,7 +5,8 @@
 
 import SwiftUI
 
-/// The four destinations, in bar order (2026-09-18). `Int`-backed because the page
+/// The four destinations, in bar order (2026-09-18; Search took Business's slot on
+/// 2026-09-29, Jesse). `Int`-backed because the page
 /// slide derives its direction from the order: moving right through the bar slides
 /// the content the way a thumb expects.
 enum Tab: Int, CaseIterable, Identifiable {
@@ -13,8 +14,8 @@ enum Tab: Int, CaseIterable, Identifiable {
     case town
     /// The neighbour's own paper: the town feed crossed with what they follow.
     case daily
-    /// The town's business network — the owners' side of Main Street.
-    case business
+    /// Search: the magnifier that sat at the Town bar's leading edge until 2026-09-29.
+    case search
     /// Their own profile.
     case you
 
@@ -24,23 +25,26 @@ enum Tab: Int, CaseIterable, Identifiable {
         switch self {
         case .town:     return "Town"
         case .daily:    return "Daily"
-        case .business: return "Business"
+        case .search:   return "Search"
         case .you:      return "You"
         }
     }
 
     /// The resting glyph, drawn as an ink outline. The selected tab shows the filled
-    /// `selectedSymbol` in the same ink, as Instagram's bar does.
+    /// `selectedSymbol` in the same ink, as Instagram's bar does. Search draws BP's own
+    /// traced magnifier instead (`MagnifierGlyph`); this name is only its large-content
+    /// stand-in.
     var symbol: String {
         switch self {
         case .town:     return "house"
         case .daily:    return "newspaper"
-        case .business: return "briefcase"
+        case .search:   return "magnifyingglass"
         case .you:      return "person"
         }
     }
 
-    var selectedSymbol: String { symbol + ".fill" }
+    /// A magnifier has no fill: selected, it thickens instead (`MagnifierGlyph.bold`).
+    var selectedSymbol: String { self == .search ? symbol : symbol + ".fill" }
 
     /// One line on what the slot is for — shown by the placeholder screens, so an
     /// unbuilt tab reads as reserved rather than broken.
@@ -48,7 +52,7 @@ enum Tab: Int, CaseIterable, Identifiable {
         switch self {
         case .town:     return "Everything happening on the block."
         case .daily:    return "Your paper — the town, filtered to what you follow."
-        case .business: return "The town's business network — owners, hours, hiring, who's open."
+        case .search:   return "Find a place, a happening, or someone on the block."
         case .you:      return "Your profile."
         }
     }
@@ -252,7 +256,7 @@ struct MainTabsView: View {
         #endif
     }
 
-    /// DEBUG-only: `-open-tab town|daily|business|you` launch argument selects
+    /// DEBUG-only: `-open-tab town|daily|search|you` launch argument selects
     /// the starting tab, so simulator verification can screenshot any tab
     /// without UI driving. No effect in release builds or without the flag.
     private static func initialTab() -> Tab {
@@ -262,7 +266,7 @@ struct MainTabsView: View {
             switch args[i + 1] {
             case "town":     return .town
             case "daily":    return .daily
-            case "business": return .business
+            case "search":   return .search
             case "you":      return .you
             default:         break
             }
@@ -289,8 +293,8 @@ struct MainTabsView: View {
         #endif
     }
 
-    /// DEBUG-only: raise a sheet on launch by flag name. `-open-search` and
-    /// `-open-notifications` are the Today bar's two new marks, whose only real
+    /// DEBUG-only: raise a sheet on launch by flag name. `-open-friends` and
+    /// `-open-notifications` are the Today bar's two marks, whose only real
     /// trigger is a tap — and there is no tap automation in this setup, so without a
     /// flag those screens cannot be screenshotted OR added to the accessibility
     /// audit's walk. Generic because the pattern above had already been copy-pasted
@@ -308,10 +312,10 @@ struct MainTabsView: View {
     /// rather than living in the tab bar. Its selected-pin state belongs to
     /// `SJMapView` itself now — the shell has no tab bar to hide under it.
     @State private var showMap = false
-    /// The Today bar's two new controls, added 2026-09-20. Both open a reserved
-    /// screen for now — the marks shipped ahead of what sits behind them, and a
-    /// named empty room is the same call `BlankTab` makes for the unbuilt tabs.
-    @State private var showSearch = MainTabsView.debugOpen("-open-search")
+    /// The Today bar's friends mark (2026-09-29, where search sat) and bell. Both open
+    /// a reserved screen for now — the marks shipped ahead of what sits behind them,
+    /// and a named empty room is the same call `BlankTab` makes for the unbuilt tabs.
+    @State private var showFriends = MainTabsView.debugOpen("-open-friends")
     @State private var showNotifications = MainTabsView.debugOpen("-open-notifications")
     /// The town menu — a glass panel grown from the top-right corner. Nothing in the
     /// Today bar opens it since the avatar was retired (2026-09-18); `-open-menu` still
@@ -377,15 +381,15 @@ struct MainTabsView: View {
                                 menuOpen: showMenu,
                                 profileShown: showProfileSheet,
                                 onOpenMap: { showMap = true },
-                                onOpenSearch: { showSearch = true },
+                                onOpenFriends: { showFriends = true },
                                 onOpenNotifications: { showNotifications = true },
                                 expandedPlace: $expandedPlace,
                                 cardNS: cardNS
                             )
-                        // Daily and Business are named, reserved slots: the bar and
+                        // Daily and Search are named, reserved slots: the bar and
                         // its motion are built, the screens behind them are not yet.
                         case .daily:    BlankTab(tab: .daily)
-                        case .business: BlankTab(tab: .business)
+                        case .search:   BlankTab(tab: .search)
                         // Profile is a real screen, mounted WITHOUT its sheet chrome —
                         // a tab has no "close", so the X is suppressed here.
                         case .you:      ProfileView(showsClose: false)
@@ -471,9 +475,9 @@ struct MainTabsView: View {
         }
         // Profile is now a menu destination — a standard sheet.
         .sheet(isPresented: $showProfileSheet) { ProfileView() }
-        // The Today bar's search mark and bell. Reserved screens until the real ones
+        // The Today bar's friends mark and bell. Reserved screens until the real ones
         // land; see `ReservedScreen`.
-        .sheet(isPresented: $showSearch) { ReservedScreen.search }
+        .sheet(isPresented: $showFriends) { ReservedScreen.friends }
         .sheet(isPresented: $showNotifications) { ReservedScreen.notifications }
         // The map is a destination now, not a tab. Full-screen cover rather than a
         // sheet: the map owns its own bottom sheet, and two stacked drag surfaces
@@ -592,6 +596,9 @@ nonisolated enum TabBarMetric {
     /// its strokes ~1.6pt (MEASURED). At 23 the house drew 26.7pt wide on the eyes
     /// sim; 19.5 brings the widest glyph to ~22.5pt.
     static let iconSize: CGFloat = 19.5
+    /// Search's traced magnifier fills its own box: Instagram's search mark, 22pt
+    /// (66px @3x, MEASURED on Mobbin's Instagram tab bar, 2026-09-29).
+    static let searchGlyphSize: CGFloat = 22
     static let iconCentreY: CGFloat = height / 2
     /// The You tab's photo: a 25pt circle (MEASURED on Instagram's profile tab).
     static let avatarSize: CGFloat = 25
@@ -943,13 +950,19 @@ struct BlockPartyTabBar: View {
         }
 
         private func symbol(_ tab: Tab, selected: Bool) -> some View {
-            Image(systemName: selected ? tab.selectedSymbol : tab.symbol)
-                .font(.glyph(TabBarMetric.iconSize))
-                .foregroundStyle(Hue.ink.onLightCanvas)
-                // Swapped, not crossfaded: under the tab switch's spring the outline
-                // and the filled symbol blended into a grey blob for ~3 frames, and
-                // `.contentTransition(.identity)` did not stop it.
-                .transaction { $0.animation = nil }
+            Group {
+                if tab == .search {
+                    MagnifierGlyph(size: TabBarMetric.searchGlyphSize, bold: selected)
+                } else {
+                    Image(systemName: selected ? tab.selectedSymbol : tab.symbol)
+                        .font(.glyph(TabBarMetric.iconSize))
+                }
+            }
+            .foregroundStyle(Hue.ink.onLightCanvas)
+            // Swapped, not crossfaded: under the tab switch's spring the outline
+            // and the filled symbol blended into a grey blob for ~3 frames, and
+            // `.contentTransition(.identity)` did not stop it.
+            .transaction { $0.animation = nil }
         }
 
         /// One VoiceOver element per tab, over its slot, with the tab's action.

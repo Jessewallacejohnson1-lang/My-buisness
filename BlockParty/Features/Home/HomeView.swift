@@ -23,7 +23,7 @@ struct HomeView: View {
     /// The bar's other two controls, added 2026-09-20 alongside the map. Declared
     /// AFTER `onOpenMap` for the same reason it sits where it does: `RootView` uses
     /// the memberwise init, which is positional.
-    var onOpenSearch: () -> Void = {}
+    var onOpenFriends: () -> Void = {}
     var onOpenNotifications: () -> Void = {}
     @Binding var expandedPlace: Place?
     var cardNS: Namespace.ID
@@ -33,7 +33,7 @@ struct HomeView: View {
     var body: some View {
         FeedView(
             auth: auth,
-            onOpenSearch: onOpenSearch,
+            onOpenFriends: onOpenFriends,
             onOpenMap: onOpenMap,
             onOpenNotifications: onOpenNotifications,
             profileShown: profileShown

@@ -58,14 +58,14 @@ final class DynamicTypeAuditTests: XCTestCase {
     /// returns to `surfaces` the day the page it names is finished, and the reason
     /// says what finished means for it.
     ///
-    ///  • `daily` / `business` — `BlankTab` placeholders. A title and one promise
+    ///  • `daily` / `search` — `BlankTab` placeholders. A title and one promise
     ///    line: there is no layout here to hold or break yet.
     ///  • `you` / `you-profile` — `ProfileView`. A real screen, but still moving,
     ///    and its unfinished states are what the auditor was reporting: "No plans
     ///    yet", "a neighbor", "Around town".
     static let notDevelopedYet: [Surface] = [
         Surface(id: "daily", arguments: ["-open-tab", "daily"]),
-        Surface(id: "business", arguments: ["-open-tab", "business"]),
+        Surface(id: "search", arguments: ["-open-tab", "search"]),
         Surface(id: "you", arguments: ["-open-tab", "you"]),
         Surface(id: "you-profile", arguments: ["-open-tab", "you", "-open-profile"]),
     ]
@@ -255,7 +255,7 @@ final class DynamicTypeAuditTests: XCTestCase {
         //
         // NOTE this matches by LABEL, app-wide, not by position in the bar, so any
         // other element labelled exactly one of these words is suppressed too.
-        if ["Town", "Daily", "Business", "You"].contains(label) { return true }
+        if ["Town", "Daily", "Search", "You"].contains(label) { return true }
 
         // The wordmark. A logo is a mark, not text — it holds its proportions
         // against the artwork beside it at every content size.

@@ -31,7 +31,7 @@ private typealias Tab = BlockParty.Tab
 final class TabBarTests: XCTestCase {
 
     func testTheBarHasExactlyFourDestinationsInOrder() {
-        XCTAssertEqual(Tab.allCases, [.town, .daily, .business, .you])
+        XCTAssertEqual(Tab.allCases, [.town, .daily, .search, .you])
     }
 
     func testTheBarDrawsOneSlotPerTab() throws {

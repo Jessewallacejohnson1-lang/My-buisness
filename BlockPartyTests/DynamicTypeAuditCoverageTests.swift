@@ -48,8 +48,8 @@ final class DynamicTypeAuditCoverageTests: XCTestCase {
         // than this ledger has entries.
 
         "RootView.swift:$showMap": .notYetAudited(reason: "The full-screen map. Needs a launch flag; its own text is mostly frozen map-marker chrome, so the payoff is the search and filter row, not the map."),
-        "RootView.swift:$showSearch": .notYetAudited(reason: "The Today bar's search mark. A reserved screen today — one title and one line of centred copy, which is the shape this audit is least likely to find anything in. Worth opening the moment it holds a field and a results list."),
-        "RootView.swift:$showNotifications": .notYetAudited(reason: "The Today bar's bell. Reserved screen, same shape as search above. A real notification list is user-generated text of any length, so it moves to high priority the day it has rows."),
+        "RootView.swift:$showFriends": .notYetAudited(reason: "The Today bar's friends mark. A reserved screen today — one title, which is the shape this audit is least likely to find anything in. Worth opening the moment it holds a list of people."),
+        "RootView.swift:$showNotifications": .notYetAudited(reason: "The Today bar's bell. Reserved screen, same shape as friends above. A real notification list is user-generated text of any length, so it moves to high priority the day it has rows."),
         "FeedView.swift:$route": .notYetAudited(reason: "Feed detail routes. Needs a fixture-driven launch flag."),
         "FeedEventCard.swift:$commentsPresented": .notYetAudited(reason: "Event comments. User-generated text of any length — high priority."),
         "PostingCard.swift:$commentsPresented": .notYetAudited(reason: "Post comments. Same as above."),
