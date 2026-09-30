@@ -31,16 +31,25 @@ struct DailySpotlight {
     }
 
     #if DEBUG
-    /// INVENTED: a made-up neighbour and business over the app's bundled St. Joe photos.
+    /// INVENTED: a made-up neighbour and business, over the warm photos from Jesse's
+    /// Reference (the onboarding interest images). A real Spotlight's round photo is the
+    /// person's face; the sample has no real face to show.
     static let sample = DailySpotlight(
         name: "Marta Reyes",
         about: "Northside Coffee",
-        portrait: bundled("the-local-blend"),
-        photos: [bundled("downtown"), bundled("farmers-market")].compactMap { $0 }
+        portrait: asset("interest-coffee"),
+        photos: [asset("interest-dining"), asset("interest-books")].compactMap { $0 }
     )
 
-    private static func bundled(_ name: String) -> URL? {
-        Bundle.main.url(forResource: name, withExtension: "jpg")
+    /// The card loads photos by URL and these live in the asset catalog, so each is
+    /// written out once to Caches.
+    private static func asset(_ name: String) -> URL? {
+        let url = URL.cachesDirectory.appending(path: "daily-sample-\(name).jpg")
+        if !FileManager.default.fileExists(atPath: url.path()),
+           let data = UIImage(named: name)?.jpegData(compressionQuality: 0.9) {
+            try? data.write(to: url)
+        }
+        return FileManager.default.fileExists(atPath: url.path()) ? url : nil
     }
     #endif
 }
@@ -65,6 +74,13 @@ private nonisolated enum DailyMetric {
     static let photosTop: CGFloat = 16
     static let photoGap: CGFloat = 6
     static let photoAspect: CGFloat = 4.0 / 3.0
+    /// The drop shadow's shape is pulled in this far from the card's sides and top, so
+    /// the shadow pools under the card instead of greying all round it.
+    static let dropInset: CGFloat = 16
+    static let dropTop: CGFloat = 28
+    /// Pressed, the round photo rises toward the finger while the card sinks.
+    static let portraitPressScale: CGFloat = 1.06
+    static let portraitPressRise: CGFloat = 5
     /// Clears the floating tab bar: the same 96 the other tab scrollers reserve.
     static let tabBarClearance: CGFloat = 96
 }
@@ -110,15 +126,33 @@ private struct SpotlightCard: View {
     let spotlight: DailySpotlight
 
     var body: some View {
-        // The story page is the next piece; until then a press only squishes. The
-        // bouncier card press, not the feed's quiet one: the spec's "bouncy press".
-        Button {} label: { card }
-            .buttonStyle(PressableCardStyle())
+        // The story page is the next piece; until then a press only squishes.
+        Button {} label: { SpotlightCardFace(spotlight: spotlight) }
+            .buttonStyle(SpotlightPressStyle())
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Spotlight: \(spotlight.name), \(spotlight.about)")
     }
+}
 
-    private var card: some View {
+/// The bouncier card press (the spec's "bouncy press"), telling the card inside that it
+/// is pressed so the round photo can rise while the card sinks.
+private struct SpotlightPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        PressableCardStyle().makeBody(configuration: configuration)
+            .environment(\.spotlightPressed, configuration.isPressed)
+    }
+}
+
+private extension EnvironmentValues {
+    @Entry var spotlightPressed = false
+}
+
+private struct SpotlightCardFace: View {
+    let spotlight: DailySpotlight
+    @Environment(\.spotlightPressed) private var pressed
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
         VStack(spacing: 0) {
             // SF Mono, as in the Reference's typewriter-style label (Jesse, 2026-09-30).
             Text("Spotlight".uppercased())
@@ -149,12 +183,24 @@ private struct SpotlightCard: View {
         .padding(.top, DailyMetric.cardTop)
         .padding([.horizontal, .bottom], DailyMetric.cardInset)
         .frame(maxWidth: .infinity)
-        // The lift goes on the card's shape alone: on the stack it would also be cast
-        // by each photo and line of text, greying the card under them.
+        // Shadows go on shapes alone: on the stack they would also be cast by each
+        // photo and line of text, greying the card under them.
         .background {
-            RoundedRectangle(cornerRadius: Radius.bento, style: .continuous)
-                .fill(Hue.surface)
-                .spotlightLift()
+            ZStack {
+                RoundedRectangle(cornerRadius: Radius.bento, style: .continuous)
+                    .fill(Hue.surface)
+                    .padding(.horizontal, DailyMetric.dropInset)
+                    .padding(.top, DailyMetric.dropTop)
+                    .spotlightDrop(pressed: pressed)
+                RoundedRectangle(cornerRadius: Radius.bento, style: .continuous)
+                    .fill(Hue.surface)
+                    .spotlightEdge()
+                    .overlay {
+                        RoundedRectangle(cornerRadius: Radius.bento, style: .continuous)
+                            .strokeBorder(Hue.hairline, lineWidth: 0.5)
+                    }
+            }
+            .animation(Motion.select, value: pressed)
         }
         .overlay(alignment: .top) {
             portrait.offset(y: -DailyMetric.portrait / 2)
@@ -163,10 +209,14 @@ private struct SpotlightCard: View {
     }
 
     private var portrait: some View {
-        FeedAuthorAvatar(url: spotlight.portrait, name: spotlight.name,
-                         side: DailyMetric.portrait - 2 * DailyMetric.portraitRing)
+        let rises = pressed && !reduceMotion
+        return FeedAuthorAvatar(url: spotlight.portrait, name: spotlight.name,
+                                side: DailyMetric.portrait - 2 * DailyMetric.portraitRing)
             .padding(DailyMetric.portraitRing)
-            .background(Circle().fill(Hue.surface).portraitLift())
+            .background(Circle().fill(Hue.surface).portraitLift(pressed: pressed))
             .frame(width: DailyMetric.portrait, height: DailyMetric.portrait)
+            .scaleEffect(rises ? DailyMetric.portraitPressScale : 1, anchor: .bottom)
+            .offset(y: rises ? -DailyMetric.portraitPressRise : 0)
+            .animation(Motion.select, value: pressed)
     }
 }

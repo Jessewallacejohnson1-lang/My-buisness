@@ -54,19 +54,22 @@ extension View {
 
     // MARK: The Daily Spotlight (Jesse: the one card that pops out)
 
-    /// The Spotlight card's lift, from the Reference mockup's two CSS shadows
-    /// (0 26 50 −18 at 45%, 0 8 16 −6 at 14%). SwiftUI has no spread, so the
-    /// opacities are lowered to match what shows past the card's edge.
-    func spotlightLift() -> some View {
-        self
-            .shadow(color: .black.opacity(0.24), radius: 22, x: 0, y: 22)
-            .shadow(color: .black.opacity(0.10), radius: 7, x: 0, y: 6)
+    /// The Spotlight card's drop shadow. The Reference mockup's CSS shadow has a
+    /// negative spread SwiftUI lacks, so this goes on a shape pulled in from the card's
+    /// sides and top, and pools under it. Pressed, the card sinks: the shadow tightens.
+    func spotlightDrop(pressed: Bool = false) -> some View {
+        shadow(color: .black.opacity(pressed ? 0.18 : 0.22), radius: pressed ? 16 : 20, x: 0, y: pressed ? 14 : 20)
     }
 
-    /// The Spotlight's round photo, floating over the card's top edge
-    /// (Reference: 0 14 26 −10 at 40%).
-    func portraitLift() -> some View {
-        self.shadow(color: .black.opacity(0.26), radius: 12, x: 0, y: 12)
+    /// The Spotlight card's own crisp edge, under the drop.
+    func spotlightEdge() -> some View {
+        shadow(color: .black.opacity(0.07), radius: 3, x: 0, y: 1.5)
+    }
+
+    /// The Spotlight's round photo, floating over the card's top edge. Pressed, it
+    /// rises toward the finger and its shadow deepens.
+    func portraitLift(pressed: Bool = false) -> some View {
+        shadow(color: .black.opacity(pressed ? 0.30 : 0.14), radius: pressed ? 16 : 8, x: 0, y: pressed ? 18 : 5)
     }
 
     // MARK: Map shadows (soft, diffuse — no hard dark edges)
