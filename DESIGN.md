@@ -44,6 +44,12 @@ It is not a background wash, not body copy, not a card, not a category colour. T
 disc was the one; the tab icon the second and the saved bookmark the third, each scoped in
 by Jesse. More yellow is Jesse's call to scope, not an agent's to spread.
 
+**The one yellow ground: the top of Daily** (Jesse, 2026-10-01). The Daily page is
+`brandDisc` from under the clock down to just under the Spotlight's business line, so the
+card rides the yellow's edge, half on yellow and half on paper. It is the exact yellow in
+both appearances; the clock's frosted edge is kept off it, since both its haze and its
+blur make a near-yellow. The "Spotlight" label on it is `onBrandDisc`.
+
 **What sits ON the yellow is not a free choice.** #FCE804 has a relative luminance of
 0.784 — nearly as bright as paper. White on it measures **1.26:1** and the dark ramp's
 `Hue.ink` **1.11:1**; only the light ink clears, at **15.0:1**. So the map disc's

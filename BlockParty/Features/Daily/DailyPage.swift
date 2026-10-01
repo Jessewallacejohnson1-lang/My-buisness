@@ -2,11 +2,12 @@
 //  DailyPage.swift
 //  Block Party — the Daily tab: the neighbour's own page for today.
 //
-//  Top to bottom (`docs/plans/daily-tab/SPEC.md` in the BP app folder): a date line,
-//  then the Spotlight. Event of the day, Agenda, Suggestions and Following join below,
-//  one at a time. A section with nothing in it is left out.
+//  Top to bottom (`docs/plans/daily-tab/SPEC.md` in the BP app folder): the Spotlight,
+//  under its label, on the yellow. Event of the day, Agenda, Suggestions and Following
+//  join below, one at a time. A section with nothing in it is left out.
 //
 
+import CoreMotion
 import SwiftUI
 
 /// Today's Spotlight: one local person or business and their story, the same for
@@ -57,80 +58,238 @@ struct DailySpotlight {
 /// Sizes MEASURED from Jesse's Reference: the Host card, layout 02 of the Daily Layouts
 /// mockup (`references/daily-tab/spotlight-host-card-pick.png` in the BP app folder).
 /// The card's corner is the one departure: 26 there, `Radius.bento` here (Jesse, 2026-09-30).
+/// The yellow, the low sun and the tilt are the depth page Jesse picked on 2026-10-01
+/// (ideas "Yellow cover", "Low sun" and "Tilt"); their values were picked there, in a
+/// browser mockup, not measured from another app. Its CSS blurs are halved here: a
+/// SwiftUI shadow radius blurs about as much as a CSS blur twice its size.
 private nonisolated enum DailyMetric {
     static let side: CGFloat = 18
-    static let dateTop: CGFloat = 6
-    /// From the date line to the top of the round photo.
-    static let dateToPortrait: CGFloat = 22
+    /// The "Spotlight" label sits where the date line was, at the date line's spacing.
+    static let labelTop: CGFloat = 6
+    /// From the label to the top of the round photo.
+    static let labelToPortrait: CGFloat = 22
     static let portrait: CGFloat = 120
     static let portraitRing: CGFloat = 5
-    /// Card padding above the label: the photo's lower half, then 17.
+    /// Card padding above the name: the photo's lower half, then 17.
     static let cardTop: CGFloat = 77
     static let cardInset: CGFloat = 18
-    /// Jost's line box is taller than the mockup's 1.15; these put the name's glyphs
-    /// 15pt under the label and 6pt over the business line, as measured there.
-    static let nameTop: CGFloat = 3
+    /// Jost's line box is taller than the mockup's 1.15; this puts the name's glyphs
+    /// 6pt over the business line, as measured there.
     static let nameBottom: CGFloat = -1.5
     static let photosTop: CGFloat = 16
     static let photoGap: CGFloat = 6
     static let photoAspect: CGFloat = 4.0 / 3.0
-    /// The drop shadow's shape is pulled in this far from the card's sides and top, so
-    /// the shadow pools under the card instead of greying all round it.
-    static let dropInset: CGFloat = 16
-    static let dropTop: CGFloat = 28
     /// Pressed, the round photo rises toward the finger while the card sinks.
     static let portraitPressScale: CGFloat = 1.06
     static let portraitPressRise: CGFloat = 5
     /// Clears the floating tab bar: the same 96 the other tab scrollers reserve.
     static let tabBarClearance: CGFloat = 96
+
+    /// The yellow ends this far under the business line, so the card rides its edge.
+    static let yellowBelowAbout: CGFloat = 12
+    /// How far up the yellow reaches from its lower edge: under the clock, and past
+    /// the longest pull, so pulling down never shows paper above it.
+    static let yellowReach: CGFloat = 1600
+    /// The status edge reaches no further down the screen than this. While the yellow
+    /// ends below it, where exactly doesn't matter, so the page stops tracking it.
+    static let edgeWatch: CGFloat = 120
+
+    /// The low sun's shadow. Sideways it reaches `sunReach` at sunrise and sunset and
+    /// nothing at midday; down it drops `sunDrop` at midday and up to `sunDropLong` more
+    /// at the ends of the day, and blurs the same way.
+    static let sunReach: CGFloat = 46
+    static let sunDrop: CGFloat = 12
+    static let sunDropLong: CGFloat = 24
+    static let sunBlur: CGFloat = 4
+    static let sunBlurLong: CGFloat = 4
+    static let sunOpacity: Double = 0.26
+    /// Pressed, the card sinks toward the yellow, so its shadow pulls in this much.
+    static let sunPressed: CGFloat = 0.7
+    /// The Town hours the sun is up; outside them the shadow is the midday one, short
+    /// and straight down, like a streetlight overhead (Jesse, 2026-10-01).
+    static let sunrise: Double = 6
+    static let sunset: Double = 21
+
+    /// A full lean is the phone tipped this far (in gravity, about 17°) from the way it
+    /// is being held.
+    static let tiltRange: Double = 0.3
+    /// How fast "the way it is being held" catches up with the hand, per reading: at 60
+    /// readings a second the lean settles back in about 1.5 s.
+    static let tiltRestFollow: Double = 0.012
+    static let tiltReadingsPerSecond: Double = 60
+    /// At a full lean: the card turns this many degrees, its shadow slides this far the
+    /// other way, and the round photo floats this far ahead of the card.
+    static let tiltLean: Double = 8
+    /// The mockup's 900pt camera for a card about 360pt wide; SwiftUI's default of 1
+    /// puts the camera a card's width away, which turned a full lean into a skew.
+    static let tiltPerspective: CGFloat = 0.4
+    static let tiltShadowX: CGFloat = 16
+    static let tiltShadowY: CGFloat = 12
+    static let tiltFloatX: CGFloat = 5
+    static let tiltFloatY: CGFloat = 4
+}
+
+/// The low sun over the yellow: morning light from the east throws the Spotlight's
+/// shadow right, dinner light throws it left, and midday drops it straight down.
+nonisolated enum DailySun {
+    struct Shadow: Equatable {
+        var x: CGFloat
+        var y: CGFloat
+        var blur: CGFloat
+    }
+
+    static func shadow(hour: Double) -> Shadow {
+        let up = (DailyMetric.sunrise...DailyMetric.sunset).contains(hour)
+        let day = (hour - DailyMetric.sunrise) / (DailyMetric.sunset - DailyMetric.sunrise)
+        let side = up ? cos(day * .pi) : 0
+        return Shadow(x: side * DailyMetric.sunReach,
+                      y: DailyMetric.sunDrop + abs(side) * DailyMetric.sunDropLong,
+                      blur: DailyMetric.sunBlur + abs(side) * DailyMetric.sunBlurLong)
+    }
+
+    /// The hour in the Town, with minutes as a fraction, wherever the phone is.
+    static func hour(at date: Date) -> Double {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = Town.timeZone
+        let parts = calendar.dateComponents([.hour, .minute], from: date)
+        return Double(parts.hour ?? 12) + Double(parts.minute ?? 0) / 60
+    }
+
+    /// DEBUG-only: `-daily-sun-hour <h>` holds the sun at that Town hour, so morning and
+    /// evening can be shot at any time of day.
+    static var debugHour: Double? {
+        #if DEBUG
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-daily-sun-hour"), i + 1 < args.count {
+            return Double(args[i + 1])
+        }
+        #endif
+        return nil
+    }
+}
+
+/// How the phone is held, as a lean from -1 to 1 on each axis against a rest that
+/// slowly catches up with the hand, so any comfortable grip reads as level. Apple's own
+/// tilt (`UIInterpolatingMotionEffect`, the wallpaper's) is UIKit-only, so this reads
+/// the motion sensor directly; that needs no permission.
+@Observable
+final class DailyTilt {
+    private(set) var lean: CGPoint = .zero
+    @ObservationIgnored private let motion = CMMotionManager()
+    @ObservationIgnored private var rest: (x: Double, z: Double)?
+
+    func start() {
+        #if DEBUG
+        if let held = Self.debugLean { lean = held; return }
+        #endif
+        guard motion.isDeviceMotionAvailable, !motion.isDeviceMotionActive else { return }
+        motion.deviceMotionUpdateInterval = 1 / DailyMetric.tiltReadingsPerSecond
+        motion.startDeviceMotionUpdates(to: .main) { [weak self] reading, _ in
+            guard let gravity = reading?.gravity else { return }
+            let x = gravity.x, z = gravity.z
+            MainActor.assumeIsolated { self?.read(x: x, z: z) }
+        }
+    }
+
+    func stop() {
+        motion.stopDeviceMotionUpdates()
+        rest = nil
+        lean = .zero
+    }
+
+    private func read(x: Double, z: Double) {
+        var held = rest ?? (x, z)
+        lean = Self.lean(gravity: (x, z), rest: &held)
+        rest = held
+    }
+
+    /// One reading: the lean against the rest, then the rest moves a little toward it.
+    nonisolated static func lean(gravity: (x: Double, z: Double),
+                                 rest: inout (x: Double, z: Double)) -> CGPoint {
+        let range = DailyMetric.tiltRange
+        let lean = CGPoint(x: min(1, max(-1, (gravity.x - rest.x) / range)),
+                           y: min(1, max(-1, (gravity.z - rest.z) / range)))
+        rest.x += (gravity.x - rest.x) * DailyMetric.tiltRestFollow
+        rest.z += (gravity.z - rest.z) * DailyMetric.tiltRestFollow
+        return lean
+    }
+
+    #if DEBUG
+    /// DEBUG-only: `-daily-tilt <x>,<y>` holds the card at that lean, since the
+    /// simulator has no motion sensor.
+    private static var debugLean: CGPoint? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-daily-tilt"), i + 1 < args.count else { return nil }
+        let parts = args[i + 1].split(separator: ",").compactMap { Double($0) }
+        return parts.count == 2 ? CGPoint(x: parts[0], y: parts[1]) : nil
+    }
+    #endif
+}
+
+private extension VerticalAlignment {
+    /// The yellow's lower edge, set by the Spotlight's business line.
+    nonisolated enum DailyYellowEdge: AlignmentID {
+        static func defaultValue(in d: ViewDimensions) -> CGFloat { d[.top] }
+    }
+    static let dailyYellowEdge = VerticalAlignment(DailyYellowEdge.self)
 }
 
 struct DailyPage: View {
     let spotlight: DailySpotlight
+    @State private var tilt = DailyTilt()
+    /// Where the yellow ends on screen, while that is within reach of the status edge.
+    @State private var yellowEnd = DailyMetric.edgeWatch
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
             Hue.paper.ignoresSafeArea()
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 0) {
-                    DailyDateLine()
-                        .padding(.top, DailyMetric.dateTop)
-                    SpotlightCard(spotlight: spotlight)
-                        .padding(.top, DailyMetric.dateToPortrait)
+                    // SF Mono, as in the Reference's typewriter-style label (Jesse, 2026-09-30).
+                    Text("Spotlight".uppercased())
+                        .font(.monoMedium(11).monospaced()).tracking(1.5)
+                        .foregroundStyle(Hue.onBrandDisc)
+                        .accessibilityAddTraits(.isHeader)
+                        .padding(.top, DailyMetric.labelTop)
+                    SpotlightCard(spotlight: spotlight, tilt: tilt)
+                        .padding(.top, DailyMetric.labelToPortrait)
                     Color.clear.frame(height: DailyMetric.tabBarClearance)
                 }
                 .padding(.horizontal, DailyMetric.side)
+                .background(alignment: Alignment(horizontal: .center, vertical: .dailyYellowEdge)) {
+                    Hue.brandDisc
+                        .frame(height: DailyMetric.yellowReach)
+                        .alignmentGuide(.dailyYellowEdge) { $0[.bottom] }
+                        .onGeometryChange(for: CGFloat.self) { proxy in
+                            min(max(proxy.frame(in: .global).maxY, 0), DailyMetric.edgeWatch)
+                        } action: { yellowEnd = $0 }
+                }
             }
         }
-        // The Town feed's frosted band behind the clock, so the page blurs under it.
-        .statusEdge()
-    }
-}
-
-/// A small, centred date line: today in the Town, the Town header's own eyebrow, so it
-/// turns over at the Town's midnight wherever the phone is.
-private struct DailyDateLine: View {
-    var body: some View {
-        TimelineView(.everyMinute) { context in
-            Text(TodayHeader.eyebrow(for: context.date))
-                .font(.mono(11)).tracking(1.5)
-                .foregroundStyle(Hue.inkSecondary)
-                .frame(maxWidth: .infinity)
+        // The Town feed's frosted band behind the clock, so the page blurs under it;
+        // kept off the yellow, which stays exact.
+        .statusEdge(clearAbove: yellowEnd)
+        .onAppear { if !reduceMotion { tilt.start() } }
+        .onDisappear { tilt.stop() }
+        .onChange(of: reduceMotion) { _, reduce in
+            if reduce { tilt.stop() } else { tilt.start() }
         }
     }
 }
 
 /// The Host card: a white card lifted off the page, its round photo breaking out of the
-/// top edge, then the label, the name, what they do, and two photos.
+/// top edge, then the name, what they do, and two photos.
 private struct SpotlightCard: View {
     let spotlight: DailySpotlight
+    let tilt: DailyTilt
 
     var body: some View {
         // The story page is the next piece; until then a press only squishes.
-        Button {} label: { SpotlightCardFace(spotlight: spotlight) }
+        Button {} label: { SpotlightCardFace(spotlight: spotlight, tilt: tilt) }
             .buttonStyle(SpotlightPressStyle())
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Spotlight: \(spotlight.name), \(spotlight.about)")
+            .accessibilityLabel("\(spotlight.name), \(spotlight.about)")
     }
 }
 
@@ -149,25 +308,24 @@ private extension EnvironmentValues {
 
 private struct SpotlightCardFace: View {
     let spotlight: DailySpotlight
+    let tilt: DailyTilt
     @Environment(\.spotlightPressed) private var pressed
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        let lean = tilt.lean
+        let float = CGSize(width: lean.x * DailyMetric.tiltFloatX, height: lean.y * DailyMetric.tiltFloatY)
         VStack(spacing: 0) {
-            // SF Mono, as in the Reference's typewriter-style label (Jesse, 2026-09-30).
-            Text("Spotlight".uppercased())
-                .font(.monoMedium(11).monospaced()).tracking(1.5)
-                .foregroundStyle(Hue.inkSecondary)
             Text(spotlight.name)
                 .font(.display(28))
                 .foregroundStyle(Hue.ink)
                 .multilineTextAlignment(.center)
-                .padding(.top, DailyMetric.nameTop)
                 .padding(.bottom, DailyMetric.nameBottom)
             Text(spotlight.about)
                 .font(.sans(15))
                 .foregroundStyle(Hue.inkSecondary)
                 .multilineTextAlignment(.center)
+                .alignmentGuide(.dailyYellowEdge) { $0[.bottom] + DailyMetric.yellowBelowAbout }
             if !spotlight.photos.isEmpty {
                 HStack(spacing: DailyMetric.photoGap) {
                     ForEach(spotlight.photos.prefix(2), id: \.self) { url in
@@ -187,11 +345,7 @@ private struct SpotlightCardFace: View {
         // photo and line of text, greying the card under them.
         .background {
             ZStack {
-                RoundedRectangle(cornerRadius: Radius.bento, style: .continuous)
-                    .fill(Hue.surface)
-                    .padding(.horizontal, DailyMetric.dropInset)
-                    .padding(.top, DailyMetric.dropTop)
-                    .spotlightDrop(pressed: pressed)
+                sunShadow(lean: lean, float: float)
                 RoundedRectangle(cornerRadius: Radius.bento, style: .continuous)
                     .fill(Hue.surface)
                     .spotlightEdge()
@@ -200,12 +354,38 @@ private struct SpotlightCardFace: View {
                             .strokeBorder(Hue.hairline, lineWidth: 0.5)
                     }
             }
-            .animation(Motion.select, value: pressed)
         }
         .overlay(alignment: .top) {
-            portrait.offset(y: -DailyMetric.portrait / 2)
+            portrait.offset(x: float.width, y: float.height - DailyMetric.portrait / 2)
         }
+        .rotation3DEffect(.degrees(lean.x * DailyMetric.tiltLean), axis: (x: 0, y: 1, z: 0),
+                          perspective: DailyMetric.tiltPerspective)
+        .rotation3DEffect(.degrees(-lean.y * DailyMetric.tiltLean), axis: (x: 1, y: 0, z: 0),
+                          perspective: DailyMetric.tiltPerspective)
         .padding(.top, DailyMetric.portrait / 2)
+    }
+
+    /// One shadow for the card and its round photo together, thrown across the yellow by
+    /// the Town's sun and slid the other way by the lean. Its shapes sit exactly under
+    /// the card and the photo, so only the shadow shows.
+    private func sunShadow(lean: CGPoint, float: CGSize) -> some View {
+        TimelineView(.everyMinute) { context in
+            let sun = DailySun.shadow(hour: DailySun.debugHour ?? DailySun.hour(at: context.date))
+            let sink = pressed ? DailyMetric.sunPressed : 1
+            ZStack(alignment: .top) {
+                RoundedRectangle(cornerRadius: Radius.bento, style: .continuous)
+                Circle()
+                    .frame(width: DailyMetric.portrait, height: DailyMetric.portrait)
+                    .offset(x: float.width, y: float.height - DailyMetric.portrait / 2)
+            }
+            .foregroundStyle(Hue.surface)
+            .compositingGroup()
+            .shadow(color: .black.opacity(DailyMetric.sunOpacity),
+                    radius: sun.blur * sink,
+                    x: (sun.x - lean.x * DailyMetric.tiltShadowX) * sink,
+                    y: (sun.y - lean.y * DailyMetric.tiltShadowY) * sink)
+            .animation(Motion.select, value: pressed)
+        }
     }
 
     private var portrait: some View {
@@ -213,7 +393,7 @@ private struct SpotlightCardFace: View {
         return FeedAuthorAvatar(url: spotlight.portrait, name: spotlight.name,
                                 side: DailyMetric.portrait - 2 * DailyMetric.portraitRing)
             .padding(DailyMetric.portraitRing)
-            .background(Circle().fill(Hue.surface).portraitLift(pressed: pressed))
+            .background(Circle().fill(Hue.surface))
             .frame(width: DailyMetric.portrait, height: DailyMetric.portrait)
             .scaleEffect(rises ? DailyMetric.portraitPressScale : 1, anchor: .bottom)
             .offset(y: rises ? -DailyMetric.portraitPressRise : 0)

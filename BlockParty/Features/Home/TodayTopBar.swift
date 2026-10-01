@@ -483,11 +483,16 @@ private struct StatusEdge: View {
 
 extension View {
     /// The status edge laid over the top of a screen: Today's bar, and Daily's page.
-    func statusEdge() -> some View {
+    /// `clearAbove` keeps it off the screen above that y: Daily's yellow. The haze
+    /// would make it a near-yellow, and so does the blur, which pulls in a lighter
+    /// band at the screen's top edge (measured 2026-10-01: #F7E61F over #FAE703).
+    func statusEdge(clearAbove: CGFloat = 0) -> some View {
         overlay(alignment: .top) {
             Color.clear
                 .frame(height: TodayBarMetric.statusEdgeTail)
-                .background(StatusEdge().ignoresSafeArea(edges: .top))
+                .background(StatusEdge()
+                    .mask(alignment: .top) { Color.black.padding(.top, clearAbove) }
+                    .ignoresSafeArea(edges: .top))
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }
