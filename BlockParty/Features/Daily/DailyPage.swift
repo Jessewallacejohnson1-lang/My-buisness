@@ -90,9 +90,6 @@ private nonisolated enum DailyMetric {
     /// How far up the yellow reaches from its lower edge: under the clock, and past
     /// the longest pull, so pulling down never shows paper above it.
     static let yellowReach: CGFloat = 1600
-    /// The status edge reaches no further down the screen than this. While the yellow
-    /// ends below it, where exactly doesn't matter, so the page stops tracking it.
-    static let edgeWatch: CGFloat = 120
 
     /// The low sun's shadow. Sideways it reaches `sunReach` at sunrise and sunset and
     /// nothing at midday; down it drops `sunDrop` at midday and up to `sunDropLong` more
@@ -117,6 +114,10 @@ private nonisolated enum DailyMetric {
     /// readings a second the lean settles back in about 1.5 s.
     static let tiltRestFollow: Double = 0.012
     static let tiltReadingsPerSecond: Double = 60
+    /// A lean change smaller than this isn't drawn: it moves the shadow under a tenth
+    /// of a point, it is sensor noise on a phone lying still, and redrawing for it 60
+    /// times a second would cost battery.
+    static let tiltStill: Double = 0.005
     /// At a full lean: the card turns this many degrees, its shadow slides this far the
     /// other way, and the round photo floats this far ahead of the card.
     static let tiltLean: Double = 8
@@ -199,8 +200,11 @@ final class DailyTilt {
 
     private func read(x: Double, z: Double) {
         var held = rest ?? (x, z)
-        lean = Self.lean(gravity: (x, z), rest: &held)
+        let next = Self.lean(gravity: (x, z), rest: &held)
         rest = held
+        if abs(next.x - lean.x) > DailyMetric.tiltStill || abs(next.y - lean.y) > DailyMetric.tiltStill {
+            lean = next
+        }
     }
 
     /// One reading: the lean against the rest, then the rest moves a little toward it.
@@ -237,8 +241,8 @@ private extension VerticalAlignment {
 struct DailyPage: View {
     let spotlight: DailySpotlight
     @State private var tilt = DailyTilt()
-    /// Where the yellow ends on screen, while that is within reach of the status edge.
-    @State private var yellowEnd = DailyMetric.edgeWatch
+    /// Whether any of the yellow is still on screen, under the clock.
+    @State private var yellowUnderClock = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -261,15 +265,15 @@ struct DailyPage: View {
                     Hue.brandDisc
                         .frame(height: DailyMetric.yellowReach)
                         .alignmentGuide(.dailyYellowEdge) { $0[.bottom] }
-                        .onGeometryChange(for: CGFloat.self) { proxy in
-                            min(max(proxy.frame(in: .global).maxY, 0), DailyMetric.edgeWatch)
-                        } action: { yellowEnd = $0 }
+                        .onGeometryChange(for: Bool.self) { proxy in
+                            proxy.frame(in: .global).maxY > 0
+                        } action: { yellowUnderClock = $0 }
                 }
             }
         }
-        // The Town feed's frosted band behind the clock, so the page blurs under it;
-        // kept off the yellow, which stays exact.
-        .statusEdge(clearAbove: yellowEnd)
+        // The Town feed's frosted band behind the clock, so the page blurs under it once
+        // the yellow has gone; kept off the yellow, which stays exact.
+        .statusEdge(hidden: yellowUnderClock)
         .onAppear { if !reduceMotion { tilt.start() } }
         .onDisappear { tilt.stop() }
         .onChange(of: reduceMotion) { _, reduce in

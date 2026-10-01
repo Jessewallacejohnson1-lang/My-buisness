@@ -483,16 +483,18 @@ private struct StatusEdge: View {
 
 extension View {
     /// The status edge laid over the top of a screen: Today's bar, and Daily's page.
-    /// `clearAbove` keeps it off the screen above that y: Daily's yellow. The haze
-    /// would make it a near-yellow, and so does the blur, which pulls in a lighter
-    /// band at the screen's top edge (measured 2026-10-01: #F7E61F over #FAE703).
-    func statusEdge(clearAbove: CGFloat = 0) -> some View {
+    /// `hidden` fades it out while Daily's yellow is under the clock: the haze would
+    /// make it a near-yellow, and so does the blur, which pulls in a lighter band at
+    /// the screen's top edge (measured 2026-10-01: #F7E61F over #FAE703). Faded, not
+    /// masked: a SwiftUI mask over this UIKit blur kept the app from ever going idle,
+    /// and the UI tests waited minutes at every step (2026-10-01).
+    func statusEdge(hidden: Bool = false) -> some View {
         overlay(alignment: .top) {
             Color.clear
                 .frame(height: TodayBarMetric.statusEdgeTail)
-                .background(StatusEdge()
-                    .mask(alignment: .top) { Color.black.padding(.top, clearAbove) }
-                    .ignoresSafeArea(edges: .top))
+                .background(StatusEdge().ignoresSafeArea(edges: .top))
+                .opacity(hidden ? 0 : 1)
+                .animation(Motion.smooth, value: hidden)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }

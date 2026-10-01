@@ -50,8 +50,10 @@ build time, and the colour half has no backstop. A human eye is the only check f
     with a yellow at the call site. `mapWash`, the 68% translucent version that disc used to use, is still
     declared but no longer drawn — it went mustard over photographs.
     **The one yellow ground** is the top of the Daily page (Jesse, 2026-10-01): `brandDisc`
-    down to just under the Spotlight's business line, with the status edge masked off it
-    (`statusEdge(clearAbove:)`): both its haze and its blur turn it into a near-yellow.
+    down to just under the Spotlight's business line. The status edge fades out while any of
+    it is under the clock (`statusEdge(hidden:)`): both its haze and its blur turn it into a
+    near-yellow. Never put a SwiftUI `.mask` over that edge: masking its UIKit blur kept
+    the app from going idle and the UI tests waited minutes per step (2026-10-01).
   - The rule is **white ground + small yellow accents, every yellow derived from
     `brandYellowHex`** — never a second yellow, never a call-site hex. These are scoped
     surface tints, not second accents. The retired coral and `moss`/`sky`/`honey`/`clay`
