@@ -172,11 +172,18 @@ final class SearchModel {
 
     var items: [SearchItem] { places + fixed }
 
+    /// The Town's places are public: signed out (sign-in is switched off), they are read
+    /// with the app's public key, which RLS lets read `places` and nothing private. A
+    /// failed read leaves those rows out, and the next visit tries again.
     func load() async {
         guard placesLoad != .loaded else { return }
         placesLoad = .loading
+        let token = (try? await AuthStore.shared.validAccessToken()) ?? SupabaseConfig.anonKey
         do {
-            show(try await CommunityAPI(auth: AuthStore.shared).getPlaces())
+            let (data, _) = try await SupabaseHTTP.rest("places", query: "select=*", accessToken: token)
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            show(try decoder.decode([POI].self, from: data))
         } catch {
             placesLoad = .failed
         }
