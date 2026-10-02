@@ -483,18 +483,21 @@ private struct StatusEdge: View {
 
 extension View {
     /// The status edge laid over the top of a screen: Today's bar, and Daily's page.
-    /// `hidden` fades it out while Daily's yellow is under the clock: the haze would
-    /// make it a near-yellow, and so does the blur, which pulls in a lighter band at
-    /// the screen's top edge (measured 2026-10-01: #F7E61F over #FAE703). Faded, not
-    /// masked: a SwiftUI mask over this UIKit blur kept the app from ever going idle,
-    /// and the UI tests waited minutes at every step (2026-10-01).
-    func statusEdge(hidden: Bool = false) -> some View {
+    /// `coveredTo` is how far down the screen Daily's yellow still reaches: the edge is
+    /// gone while the yellow fills it and fades in, with the scroll, as the yellow
+    /// leaves. Its haze would make a near-yellow, and so does its blur, which pulls in a
+    /// lighter band at the screen's top (measured 2026-10-01: #F7E61F over #FAE703).
+    /// Faded, not masked: a SwiftUI mask over this UIKit blur kept the app from ever
+    /// going idle, and the UI tests waited minutes at every step (2026-10-01).
+    func statusEdge(coveredTo: CGFloat = 0) -> some View {
         overlay(alignment: .top) {
             Color.clear
                 .frame(height: TodayBarMetric.statusEdgeTail)
                 .background(StatusEdge().ignoresSafeArea(edges: .top))
-                .opacity(hidden ? 0 : 1)
-                .animation(Motion.smooth, value: hidden)
+                .visualEffect { content, proxy in
+                    let band = proxy.frame(in: .global).maxY
+                    return content.opacity(1 - min(1, max(0, coveredTo) / max(band, 1)))
+                }
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }

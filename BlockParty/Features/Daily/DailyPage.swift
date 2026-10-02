@@ -90,6 +90,9 @@ private nonisolated enum DailyMetric {
     /// How far up the yellow reaches from its lower edge: under the clock, and past
     /// the longest pull, so pulling down never shows paper above it.
     static let yellowReach: CGFloat = 1600
+    /// The status edge reaches no further down the screen than this. While the yellow
+    /// ends below it, where exactly doesn't matter, so the page stops tracking it.
+    static let edgeWatch: CGFloat = 120
 
     /// The low sun's shadow. Sideways it reaches `sunReach` at sunrise and sunset and
     /// nothing at midday; down it drops `sunDrop` at midday and up to `sunDropLong` more
@@ -176,13 +179,17 @@ nonisolated enum DailySun {
 @Observable
 final class DailyTilt {
     private(set) var lean: CGPoint = .zero
-    @ObservationIgnored private let motion = CMMotionManager()
+    /// Made on the first start, not with the page: `@State` builds a new `DailyTilt`
+    /// every time the page view is rebuilt and keeps only the first.
+    @ObservationIgnored private var motion: CMMotionManager?
     @ObservationIgnored private var rest: (x: Double, z: Double)?
 
     func start() {
         #if DEBUG
         if let held = Self.debugLean { lean = held; return }
         #endif
+        let motion = self.motion ?? CMMotionManager()
+        self.motion = motion
         guard motion.isDeviceMotionAvailable, !motion.isDeviceMotionActive else { return }
         motion.deviceMotionUpdateInterval = 1 / DailyMetric.tiltReadingsPerSecond
         motion.startDeviceMotionUpdates(to: .main) { [weak self] reading, _ in
@@ -193,7 +200,7 @@ final class DailyTilt {
     }
 
     func stop() {
-        motion.stopDeviceMotionUpdates()
+        motion?.stopDeviceMotionUpdates()
         rest = nil
         lean = .zero
     }
@@ -241,9 +248,10 @@ private extension VerticalAlignment {
 struct DailyPage: View {
     let spotlight: DailySpotlight
     @State private var tilt = DailyTilt()
-    /// Whether any of the yellow is still on screen, under the clock.
-    @State private var yellowUnderClock = true
+    /// How far down the screen the yellow still reaches, while that is near the clock.
+    @State private var yellowEnd = DailyMetric.edgeWatch
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         ZStack {
@@ -265,20 +273,25 @@ struct DailyPage: View {
                     Hue.brandDisc
                         .frame(height: DailyMetric.yellowReach)
                         .alignmentGuide(.dailyYellowEdge) { $0[.bottom] }
-                        .onGeometryChange(for: Bool.self) { proxy in
-                            proxy.frame(in: .global).maxY > 0
-                        } action: { yellowUnderClock = $0 }
+                        .onGeometryChange(for: CGFloat.self) { proxy in
+                            min(max(proxy.frame(in: .global).maxY, 0), DailyMetric.edgeWatch)
+                        } action: { yellowEnd = $0 }
                 }
             }
         }
-        // The Town feed's frosted band behind the clock, so the page blurs under it once
-        // the yellow has gone; kept off the yellow, which stays exact.
-        .statusEdge(hidden: yellowUnderClock)
-        .onAppear { if !reduceMotion { tilt.start() } }
+        // The Town feed's frosted band behind the clock, so the page blurs under it;
+        // it fades in as the yellow leaves the clock, so the yellow stays exact.
+        .statusEdge(coveredTo: yellowEnd)
+        .onAppear(perform: followTilt)
         .onDisappear { tilt.stop() }
-        .onChange(of: reduceMotion) { _, reduce in
-            if reduce { tilt.stop() } else { tilt.start() }
-        }
+        .onChange(of: reduceMotion, followTilt)
+        .onChange(of: scenePhase, followTilt)
+    }
+
+    /// The tilt runs only while the app is in front and Reduce Motion is off; stopping
+    /// it also forgets the grip, so coming back in a new one doesn't jump to a lean.
+    private func followTilt() {
+        if scenePhase == .active && !reduceMotion { tilt.start() } else { tilt.stop() }
     }
 }
 
@@ -389,6 +402,8 @@ private struct SpotlightCardFace: View {
                     x: (sun.x - lean.x * DailyMetric.tiltShadowX) * sink,
                     y: (sun.y - lean.y * DailyMetric.tiltShadowY) * sink)
             .animation(Motion.select, value: pressed)
+            // Sunset and sunrise swing it a long way in one tick of the clock.
+            .animation(Motion.smooth, value: sun)
         }
     }
 
@@ -397,7 +412,7 @@ private struct SpotlightCardFace: View {
         return FeedAuthorAvatar(url: spotlight.portrait, name: spotlight.name,
                                 side: DailyMetric.portrait - 2 * DailyMetric.portraitRing)
             .padding(DailyMetric.portraitRing)
-            .background(Circle().fill(Hue.surface))
+            .background(Circle().fill(Hue.surface).portraitLift(pressed: rises))
             .frame(width: DailyMetric.portrait, height: DailyMetric.portrait)
             .scaleEffect(rises ? DailyMetric.portraitPressScale : 1, anchor: .bottom)
             .offset(y: rises ? -DailyMetric.portraitPressRise : 0)

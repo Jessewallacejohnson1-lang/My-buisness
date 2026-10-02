@@ -59,6 +59,13 @@ extension View {
         shadow(color: .black.opacity(0.07), radius: 3, x: 0, y: 1.5)
     }
 
+    /// The Spotlight's round photo, pressed: it rises toward the finger and casts its
+    /// own shadow on the card. At rest the low sun's shadow covers it, as in the depth
+    /// mockup Jesse picked (2026-10-01).
+    func portraitLift(pressed: Bool) -> some View {
+        shadow(color: .black.opacity(pressed ? 0.30 : 0), radius: 16, x: 0, y: 18)
+    }
+
     // MARK: Map shadows (soft, diffuse — no hard dark edges)
 
     /// Floating chrome button: y=2, blur=8, 10% opacity (spec §8 — one clean elevation).
