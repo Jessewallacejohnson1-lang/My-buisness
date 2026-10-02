@@ -17,6 +17,9 @@ struct FeedCardURLPhoto: View {
     /// Fired once when the bitmap could not be loaded at all, so a caller can drop
     /// the photo instead of holding a placeholder over it forever.
     var onFailure: (() -> Void)? = nil
+    /// What shows while the photo loads. Ink suits a card whose white title already
+    /// sits on top; Search's tiles keep their own lighter fill showing through instead.
+    var loadingFill: Color = Hue.ink
 
     @Environment(\.displayScale) private var displayScale
 
@@ -28,7 +31,8 @@ struct FeedCardURLPhoto: View {
                     maxPixelSize: Self.pixelWidth(points: proxy.size.width, scale: displayScale)
                 ),
                 onReady: onReady,
-                onFailure: onFailure
+                onFailure: onFailure,
+                loadingFill: loadingFill
             )
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
@@ -46,6 +50,7 @@ private struct FeedCardDownsampledPhoto: View {
     let request: FeedCardImageRequest
     var onReady: (() -> Void)? = nil
     var onFailure: (() -> Void)? = nil
+    var loadingFill: Color = Hue.ink
 
     /// The bitmap this view loaded, tagged with its URL so a view handed a new URL never
     /// shows the old photo.
@@ -69,7 +74,7 @@ private struct FeedCardDownsampledPhoto: View {
                 // Ink, not a light fill: the card's title is white and already sits on
                 // top during this beat, so a pale placeholder would swallow it. This
                 // way the load-in reads as the card's own fallback treatment.
-                Rectangle().fill(Hue.ink)
+                Rectangle().fill(loadingFill)
             }
         }
         .task(id: request) {

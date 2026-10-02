@@ -837,7 +837,7 @@ struct SearchPhoto: View {
             .overlay {
                 switch item.photo {
                 case .bundled(let name):
-                    if let url = Bundle.main.url(forResource: name, withExtension: "jpg") { FeedCardURLPhoto(url: url) }
+                    if let url = Bundle.main.url(forResource: name, withExtension: "jpg") { FeedCardURLPhoto(url: url, loadingFill: .clear) }
                 case .asset(let name):
                     Image(name).resizable().scaledToFill()
                 case .google:
@@ -860,7 +860,7 @@ private struct GooglePhoto: View {
         ZStack {
             if let photo {
                 FeedCardURLPhoto(url: GooglePlacesService.shared.photoURL(name: photo.photoName, maxWidth: 600),
-                                 onReady: { shown = true }, onFailure: { self.photo = nil })
+                                 onReady: { withAnimation(.easeOut(duration: 0.2)) { shown = true } }, onFailure: { self.photo = nil }, loadingFill: .clear)
                 if shown {
                     PhotoCredit(names: photo.attributions)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)

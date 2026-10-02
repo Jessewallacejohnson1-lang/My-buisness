@@ -96,6 +96,42 @@ final class SearchModelTests: XCTestCase {
         XCTAssertEqual(SearchModel.queryID("  Pumpkin "), "q:pumpkin")
     }
 
+    /// The business page's spring turns around from wherever it is, at the speed it
+    /// had, rather than jumping: a back tap halfway open sends it home from there.
+    func testSpringTurnsAroundWithoutAJump() {
+        let spring = LiveSpring(0)
+        spring.animate(to: 1, response: SearchMetric.openResponse, damping: SearchMetric.openDamping)
+        for _ in 0..<12 { spring.advance(by: 1.0 / 60) }
+        let halfway = spring.value
+        XCTAssertGreaterThan(halfway, 0.2)
+        XCTAssertLessThan(halfway, 0.9)
+        spring.animate(to: 0, response: SearchMetric.closeResponse, damping: 1)
+        spring.advance(by: 1.0 / 60)
+        XCTAssertEqual(spring.value, halfway, accuracy: 0.05)
+        for _ in 0..<240 { spring.advance(by: 1.0 / 60) }
+        XCTAssertEqual(spring.value, 0, accuracy: 0.001)
+    }
+
+    /// Reopened before it got home, the business stays; home, it is let go.
+    func testReopeningMidCloseKeepsTheBusiness() {
+        let opener = BusinessOpener()
+        let item = SearchItem(id: "p:stjoe-bruno-press", kind: .business, name: "Bruno Press",
+                              logo: SearchLogo.all["stjoe-bruno-press"])
+        let source = BusinessOpener.Source(logo: .zero, box: .zero, radius: 0, shadow: .black)
+        func run(_ frames: Int) { for _ in 0..<frames { opener.progress.advance(by: 1.0 / 60) } }
+        opener.open(item, from: source)
+        run(60)
+        opener.close()
+        run(6)
+        opener.open(item, from: source)
+        run(120)
+        XCTAssertEqual(opener.item?.id, item.id)
+        XCTAssertEqual(opener.progress.value, 1, accuracy: 0.001)
+        opener.close()
+        run(120)
+        XCTAssertNil(opener.item)
+    }
+
     /// CSS's hsl(), which the backdrops and cast shadows are written in.
     func testHSL() {
         func near(_ a: (Double, Double, Double), _ b: (Double, Double, Double)) {

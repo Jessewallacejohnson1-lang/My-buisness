@@ -64,9 +64,15 @@ final class LiveSpring: NSObject {
     }
 
     @objc private func tick(_ link: CADisplayLink) {
-        let k = pow(2 * .pi / response, 2), c = 4 * .pi * damping / response
-        let dt = min(0.034, link.timestamp - last) / 4
+        advance(by: link.timestamp - last)
         last = link.timestamp
+    }
+
+    /// One frame of the spring, in four steps. Long frames are cut to 34 ms, so a
+    /// hitch never throws it.
+    func advance(by seconds: CFTimeInterval) {
+        let k = pow(2 * .pi / response, 2), c = 4 * .pi * damping / response
+        let dt = min(0.034, max(0, seconds)) / 4
         var x = value
         for _ in 0..<4 {
             velocity += (-k * (x - target) - c * velocity) * dt
@@ -313,7 +319,7 @@ private struct BusinessPhotoTile: View {
             case .photo(let photo):
                 Hue.ink.opacity(SearchMetric.bizTileShade)
                 FeedCardURLPhoto(url: GooglePlacesService.shared.photoURL(name: photo.name, maxWidth: SearchMetric.bizPhotoPixels),
-                                 onReady: { shown = true })
+                                 onReady: { withAnimation(.easeOut(duration: 0.2)) { shown = true } }, loadingFill: .clear)
                 if shown {
                     PhotoCredit(names: photo.attributions)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
