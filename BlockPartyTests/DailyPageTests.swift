@@ -61,4 +61,58 @@ final class DailyPageTests: XCTestCase {
         let settled = DailyTilt.lean(gravity: (x: 0.6, z: -0.65), rest: &rest)
         XCTAssertEqual(settled.x, 0, accuracy: 0.01, "held still for 10 s, the grip reads as level")
     }
+
+    #if DEBUG
+    // MARK: Event of the day
+
+    /// 2026-10-01 in St. Joseph; the samples sit at 8–12, 16–17 and 19–21 Town time.
+    private let day = Date(timeIntervalSince1970: 1_790_857_800)
+
+    private func town(_ hour: Double) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = Town.timeZone
+        return calendar.startOfDay(for: day).addingTimeInterval(hour * 3600)
+    }
+
+    /// Soonest first, three at most; one that has ended gives its spot to the next, and
+    /// with none left nothing shows, so the section goes.
+    @MainActor
+    func testEventOfTheDayKeepsWhatIsStillOnSoonestFirst() {
+        let samples = DailyEvent.samples(on: day)
+        let morning = DailyEvent.showing(samples.reversed(), now: town(7))
+        XCTAssertEqual(morning.map(\.item.title), ["Farmers Market", "Abbey organ recital", "Music in Millstream Park"])
+        XCTAssertEqual(DailyEvent.showing(samples, now: town(12)).first?.item.title, "Abbey organ recital")
+        XCTAssertEqual(DailyEvent.showing(samples, now: town(20)).map(\.item.title), ["Music in Millstream Park"])
+        XCTAssertTrue(DailyEvent.showing(samples, now: town(21)).isEmpty)
+
+        var four = samples
+        four.append(samples[0])
+        four[3].starts = town(22)
+        four[3].ends = town(23)
+        XCTAssertEqual(DailyEvent.showing(four, now: town(7)).count, 3)
+    }
+
+    /// The pill says how soon, then "Now" once it has started.
+    @MainActor
+    func testEventOfTheDayPillSaysHowSoon() {
+        let recital = DailyEvent.samples(on: day)[1]
+        XCTAssertEqual(recital.startsLabel(now: town(14)), "In 2 hours")
+        XCTAssertEqual(recital.startsLabel(now: town(16.25)), "Now")
+    }
+
+    /// The time line keeps the Town's clock, names the host, and shows minutes only when
+    /// there are some ("4 – 5 PM", but "7:30 – 9:00 PM").
+    @MainActor
+    func testEventOfTheDayTimeLineIsInTownTime() {
+        var recital = DailyEvent.samples(on: day)[1]
+        XCTAssertTrue(recital.timeLine.hasPrefix("4"), recital.timeLine)
+        XCTAssertFalse(recital.timeLine.contains(":"), recital.timeLine)
+        XCTAssertTrue(recital.timeLine.hasSuffix(" · Hosted by Saint John's Abbey"), recital.timeLine)
+
+        recital.starts = town(19.5)
+        recital.ends = town(21)
+        XCTAssertTrue(recital.timeLine.hasPrefix("7:30"), recital.timeLine)
+        XCTAssertTrue(recital.timeLine.contains("9:00"), recital.timeLine)
+    }
+    #endif
 }

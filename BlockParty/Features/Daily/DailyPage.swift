@@ -62,7 +62,7 @@ struct DailySpotlight {
 /// (ideas "Yellow cover", "Low sun" and "Tilt"); their values were picked there, in a
 /// browser mockup, not measured from another app. Its CSS blurs are halved here: a
 /// SwiftUI shadow radius blurs about as much as a CSS blur twice its size.
-private nonisolated enum DailyMetric {
+nonisolated enum DailyMetric {
     static let side: CGFloat = 18
     /// The "Spotlight" label sits where the date line was, at the date line's spacing.
     static let labelTop: CGFloat = 6
@@ -90,9 +90,10 @@ private nonisolated enum DailyMetric {
     /// How far up the yellow reaches from its lower edge: under the clock, and past
     /// the longest pull, so pulling down never shows paper above it.
     static let yellowReach: CGFloat = 1600
-    /// The status edge reaches no further down the screen than this. While the yellow
-    /// ends below it, where exactly doesn't matter, so the page stops tracking it.
-    static let edgeWatch: CGFloat = 120
+    /// The clock's frosted edge comes in over this much scroll, as the Spotlight label
+    /// slides under the clock. At rest and pulled down it is gone, so the yellow under
+    /// the clock stays exact. Picked: no Reference has a yellow top under a clock.
+    static let edgeFade: CGFloat = 20
 
     /// The low sun's shadow. Sideways it reaches `sunReach` at sunrise and sunset and
     /// nothing at midday; down it drops `sunDrop` at midday and up to `sunDropLong` more
@@ -131,6 +132,37 @@ private nonisolated enum DailyMetric {
     static let tiltShadowY: CGFloat = 12
     static let tiltFloatX: CGFloat = 5
     static let tiltFloatY: CGFloat = 4
+
+    /// Event of the day, MEASURED from Jesse's Reference: Airbnb's "Apartment in New
+    /// York" trip card (`airbnb-trip-5.jpg` in the Daily spec's reference assets, an
+    /// @3x 393pt screen). Two departures, picked to match the Spotlight above it: the
+    /// card's sides sit at `side` (18) where Airbnb's sit at 24, and its corner is
+    /// `Radius.bento` (22) where Airbnb's is 24.
+    static let eventPhotoInset: CGFloat = 8
+    static let eventPhotoAspect: CGFloat = 3.0 / 2.0
+    static let eventChipInset: CGFloat = 10
+    static let eventChipHeight: CGFloat = 30
+    static let eventChipPadding: CGFloat = 15
+    /// The text and the divider sit this far in from the card's edges.
+    static let eventTextInset: CGFloat = 21
+    /// Gaps between the text's frames, set so the glyphs sit the Reference's distances
+    /// apart (measured in the frames, 2026-10-02): photo to the title's capitals 24,
+    /// the title's baseline to the time's capitals 16, the time's baseline to the
+    /// divider 20, the divider to the address's capitals 26, and the address's last
+    /// baseline to the card's edge 26. Jost's tall line box is most of the difference.
+    static let eventTitleTop: CGFloat = 15
+    static let eventTimeTop: CGFloat = 2
+    static let eventDividerTop: CGFloat = 16
+    static let eventPlaceTop: CGFloat = 23
+    static let eventBottom: CGFloat = 23
+    /// From the Spotlight card to the section's label, and from the label to the card:
+    /// Airbnb's gap between one trip's card and the next city's heading, and from that
+    /// heading to its card.
+    static let eventSectionTop: CGFloat = 38
+    static let eventLabelToCard: CGFloat = 15
+    /// Between the cards on a busy day; the next card's edge shows by this much less
+    /// than the page margin. Picked: Airbnb's trip card never sits in a row.
+    static let eventGap: CGFloat = 10
 }
 
 /// The low sun over the yellow: morning light from the east throws the Spotlight's
@@ -158,17 +190,22 @@ nonisolated enum DailySun {
         let parts = calendar.dateComponents([.hour, .minute], from: date)
         return Double(parts.hour ?? 12) + Double(parts.minute ?? 0) / 60
     }
+}
 
-    /// DEBUG-only: `-daily-sun-hour <h>` holds the sun at that Town hour, so morning and
-    /// evening can be shot at any time of day.
-    static var debugHour: Double? {
+/// The Town clock as Daily reads it: the low sun and Event of the day both run on it.
+nonisolated enum DailyClock {
+    static func now(_ date: Date) -> Date {
         #if DEBUG
+        // `-daily-hour <h>` holds it at that hour of today in the Town, so morning and
+        // evening can be shot at any time of day.
         let args = ProcessInfo.processInfo.arguments
-        if let i = args.firstIndex(of: "-daily-sun-hour"), i + 1 < args.count {
-            return Double(args[i + 1])
+        if let i = args.firstIndex(of: "-daily-hour"), i + 1 < args.count, let hour = Double(args[i + 1]) {
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = Town.timeZone
+            return calendar.startOfDay(for: date).addingTimeInterval(hour * 3600)
         }
         #endif
-        return nil
+        return date
     }
 }
 
@@ -249,7 +286,8 @@ struct DailyPage: View {
     let spotlight: DailySpotlight
     @State private var tilt = DailyTilt()
     /// How far down the screen the yellow still reaches, while that is near the clock.
-    @State private var yellowEnd = DailyMetric.edgeWatch
+    /// How far the page has scrolled, held only up to `edgeFade`.
+    @State private var scrolled: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
 
@@ -258,30 +296,34 @@ struct DailyPage: View {
             Hue.paper.ignoresSafeArea()
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 0) {
-                    // SF Mono, as in the Reference's typewriter-style label (Jesse, 2026-09-30).
-                    Text("Spotlight".uppercased())
-                        .font(.monoMedium(11).monospaced()).tracking(1.5)
-                        .foregroundStyle(Hue.onBrandDisc)
-                        .accessibilityAddTraits(.isHeader)
+                    DailySectionLabel(title: "Spotlight", ink: Hue.onBrandDisc)
                         .padding(.top, DailyMetric.labelTop)
                     SpotlightCard(spotlight: spotlight, tilt: tilt)
                         .padding(.top, DailyMetric.labelToPortrait)
+                        .padding(.horizontal, DailyMetric.side)
+                    TimelineView(.everyMinute) { context in
+                        let now = DailyClock.now(context.date)
+                        let events = DailyEvent.showing(DailyEvent.today(now: now), now: now)
+                        if !events.isEmpty {
+                            EventOfTheDaySection(events: events, now: now)
+                                .padding(.top, DailyMetric.eventSectionTop)
+                        }
+                    }
                     Color.clear.frame(height: DailyMetric.tabBarClearance)
                 }
-                .padding(.horizontal, DailyMetric.side)
                 .background(alignment: Alignment(horizontal: .center, vertical: .dailyYellowEdge)) {
                     Hue.brandDisc
                         .frame(height: DailyMetric.yellowReach)
                         .alignmentGuide(.dailyYellowEdge) { $0[.bottom] }
-                        .onGeometryChange(for: CGFloat.self) { proxy in
-                            min(max(proxy.frame(in: .global).maxY, 0), DailyMetric.edgeWatch)
-                        } action: { yellowEnd = $0 }
                 }
             }
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                min(max(geometry.contentOffset.y + geometry.contentInsets.top, 0), DailyMetric.edgeFade)
+            } action: { _, offset in scrolled = offset }
         }
         // The Town feed's frosted band behind the clock, so the page blurs under it;
-        // it fades in as the yellow leaves the clock, so the yellow stays exact.
-        .statusEdge(coveredTo: yellowEnd)
+        // it comes in with the first bit of scroll, so at rest the yellow stays exact.
+        .statusEdge(opacity: scrolled / DailyMetric.edgeFade)
         .onAppear(perform: followTilt)
         .onDisappear { tilt.stop() }
         .onChange(of: reduceMotion, followTilt)
@@ -292,6 +334,20 @@ struct DailyPage: View {
     /// it also forgets the grip, so coming back in a new one doesn't jump to a lean.
     private func followTilt() {
         if scenePhase == .active && !reduceMotion { tilt.start() } else { tilt.stop() }
+    }
+}
+
+/// A section's small label, centred: SF Mono, as in the Reference's typewriter-style
+/// label (Jesse, 2026-09-30). The names are working names; Jesse writes the final words.
+struct DailySectionLabel: View {
+    let title: String
+    let ink: Color
+
+    var body: some View {
+        Text(title.uppercased())
+            .font(.monoMedium(11).monospaced()).tracking(1.5)
+            .foregroundStyle(ink)
+            .accessibilityAddTraits(.isHeader)
     }
 }
 
@@ -387,7 +443,7 @@ private struct SpotlightCardFace: View {
     /// the card and the photo, so only the shadow shows.
     private func sunShadow(lean: CGPoint, float: CGSize) -> some View {
         TimelineView(.everyMinute) { context in
-            let sun = DailySun.shadow(hour: DailySun.debugHour ?? DailySun.hour(at: context.date))
+            let sun = DailySun.shadow(hour: DailySun.hour(at: DailyClock.now(context.date)))
             let sink = pressed ? DailyMetric.sunPressed : 1
             ZStack(alignment: .top) {
                 RoundedRectangle(cornerRadius: Radius.bento, style: .continuous)
