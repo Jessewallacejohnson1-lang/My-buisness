@@ -208,4 +208,39 @@ nonisolated enum Hue {
     /// colour: #8E3B6B on a #141412 page is 2.67:1, which is under the 3:1 an
     /// indicator needs, and #C06A96 is 5.04:1.
     static let accent        = Color(light: 0x8E3B6B, dark: 0xC06A96)
+
+    // MARK: Search (the tab's Reference: Jesse's mockup v7 and its Figma frames, 2026-10-02)
+
+    /// The search field's grey: iOS's own search-field fill, #767680 at 12%.
+    static let searchField   = Color(hex: 0x767680, alpha: 0.12)
+    /// The field's magnifier and its "Search" prompt.
+    static let searchFaint   = Color(hex: 0x8A8A8E)
+    /// The round clear button inside the field.
+    static let searchClear   = Color(hex: 0xA3A3A8)
+    /// An unselected filter pill's outline.
+    static let searchChipEdge = Color(light: 0xDCDCD8, dark: 0x3A3A35)
+    /// The warm brown of the floor under a logo: the backdrop darkens toward it at the
+    /// bottom (5% to 10%), so the logo stands on something.
+    static let searchFloor   = Color(hex: 0x46321E)
+    /// The logo wall's one studio backdrop, and the hue the cast shadows take on it.
+    nonisolated static let searchStudioHue: Double = 34
+
+    /// A colour from hue (degrees), saturation and lightness (0–100), as CSS writes it.
+    /// Search's photo-shoot backdrops and cast shadows are computed from each logo's
+    /// own hue, so they can't be listed here one by one; this is where they turn into
+    /// colours.
+    nonisolated static func hsl(_ h: Double, _ s: Double, _ l: Double) -> Color {
+        let (r, g, b) = hslToRGB(h, s, l)
+        return Color(.sRGB, red: r, green: g, blue: b, opacity: 1)
+    }
+
+    nonisolated static func hslToRGB(_ h: Double, _ s: Double, _ l: Double) -> (Double, Double, Double) {
+        let s = s / 100, l = l / 100
+        let a = s * min(l, 1 - l)
+        func f(_ n: Double) -> Double {
+            let k = (n + h / 30).truncatingRemainder(dividingBy: 12)
+            return l - a * max(-1, min(k - 3, 9 - k, 1))
+        }
+        return (f(0), f(8), f(4))
+    }
 }

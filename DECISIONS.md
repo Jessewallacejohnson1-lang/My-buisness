@@ -705,6 +705,25 @@ git show 0348d20:BlockParty/App/RootView.swift
 
 `BlockPartyTabBar` is at lines 531–611 of that file and `TabPressStyle` at 616–624.
 
+## Decided 2026-10-02 — Search's logos are bundled with the app
+
+Search draws each business's logo cut out and centred on a photo-shoot backdrop in its own
+hue, and seven of them as checked 3D renders (the `logo-3d` skill in the BP app folder).
+Those files are made offline (`designs/artifacts/search-tab/build.py <dir>` exports them)
+and ship in `BlockParty/Resources/SearchLogos`, keyed by `places.place_id`, with
+`search-logos.json` holding each one's hue and the mockup's row order. Jesse chose bundling
+over a database change ("yes", Check-in 1): no live migration, no new Storage paths.
+
+- **The exception:** design.md's rule that logos come from `places.logo_url` at runtime
+  still holds for the map's pins. Search's cut-outs and 3D renders are different files from
+  those 256 px favicons, so they don't fit that column.
+- **The cost:** a business that changes its logo, or a new 3D render, needs an app update.
+  When owners upload their own logos (the Business side), move these to Storage.
+- **Photos stay live:** restaurant cards and a business's photo grid are Google's, through
+  `confidentPhoto` / `confidentDetails` (Locked Rule A) or `details` for a real `ChIJ` id,
+  each with its `PhotoCredit`. Result rows show a logo or a glyph, never a Google photo:
+  a 44 pt avatar has no room for the credit.
+
 ## Open — should the server decide which posts go live?
 
 Today the app decides: a post Claude clears is saved as `approved`, and nothing on the

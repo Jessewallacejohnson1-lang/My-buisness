@@ -308,6 +308,9 @@ struct MainTabsView: View {
     }
 
     @State private var expandedPlace: Place?
+    /// Search's places and recents, kept across tab switches so the tab doesn't fetch
+    /// the Town's places again each time it comes back.
+    @State private var searchModel = SearchModel()
     /// The map, presented full-screen from the map disc in the Town tab's Today bar
     /// rather than living in the tab bar. Its selected-pin state belongs to
     /// `SJMapView` itself now — the shell has no tab bar to hide under it.
@@ -387,14 +390,14 @@ struct MainTabsView: View {
                                 cardNS: cardNS
                             )
                         // Daily shows its page once it has something real to show;
-                        // until then, like Search, it is a named, reserved slot.
+                        // until then it is a named, reserved slot.
                         case .daily:
                             if let spotlight = DailySpotlight.today {
                                 DailyPage(spotlight: spotlight)
                             } else {
                                 BlankTab(tab: .daily)
                             }
-                        case .search:   BlankTab(tab: .search)
+                        case .search:   SearchPage(model: searchModel)
                         // Profile is a real screen, mounted WITHOUT its sheet chrome —
                         // a tab has no "close", so the X is suppressed here.
                         case .you:      ProfileView(showsClose: false)

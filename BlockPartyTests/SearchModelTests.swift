@@ -1,0 +1,113 @@
+//
+//  SearchModelTests.swift
+//  BlockPartyTests — the Search tab's data: the bundled logos, how the Town's places
+//  split into rows and in what order, typed search, the recents, and the backdrop's
+//  colour maths.
+//
+
+import XCTest
+@testable import BlockParty
+
+@MainActor
+final class SearchModelTests: XCTestCase {
+    private var defaults: UserDefaults!
+
+    override func setUp() {
+        super.setUp()
+        defaults = UserDefaults(suiteName: "SearchModelTests")
+        defaults.removePersistentDomain(forName: "SearchModelTests")
+    }
+
+    private func poi(_ placeId: String, _ name: String, _ family: PlaceFamily, _ type: String) -> POI {
+        POI(id: UUID().uuidString, placeId: placeId, name: name, lat: 45.56, lon: -94.32, family: family,
+            primaryType: type, types: [type], address: nil, logoUrl: nil)
+    }
+
+    /// Every logo the pipeline exported is in the app, decodes, and the seven checked
+    /// 3D ones are marked. A missing file would leave an empty tile on the row.
+    func testEveryBundledLogoLoads() {
+        XCTAssertEqual(SearchLogo.all.count, 69)
+        for logo in SearchLogo.all.values {
+            XCTAssertNotNil(logo.image, logo.placeId)
+        }
+        XCTAssertEqual(SearchLogo.all.values.filter(\.is3D).count, 7)
+        XCTAssertTrue(SearchLogo.all["stjoe-bruno-press"]?.chroma ?? false, "Bruno Press's red logo gets a coloured backdrop")
+    }
+
+    /// Businesses show on the row only with a logo; food splits into coffee and the
+    /// rest; names lose what only repeats the kind of place.
+    func testPlacesSplitIntoRows() {
+        let model = SearchModel(defaults: defaults)
+        model.show([
+            poi("stjoe-bruno-press", "Bruno Press", .business, "print_shop"),
+            poi("stjoe-no-logo", "Plain Shop", .business, "store"),
+            poi("stjoe-blend", "The Local Blend", .food, "coffee_shop"),
+            poi("stjoe-flour", "Flour & Flower", .food, "bakery"),
+            poi("stjoe-krewe", "Krewe Restaurant", .food, "cajun_restaurant"),
+        ])
+        XCTAssertEqual(model.row(.business).map(\.name), ["Bruno Press"])
+        XCTAssertEqual(Set(model.row(.coffee).map(\.name)), ["The Local Blend", "Flour & Flower"])
+        XCTAssertEqual(model.row(.restaurant).map(\.name), ["Krewe"])
+        XCTAssertEqual(model.row(.restaurant).first?.sub, "Cajun")
+        XCTAssertEqual(model.row(.restaurant).first?.fullName, "Krewe Restaurant")
+        XCTAssertEqual(SearchModel.label("print_shop"), "Print shop")
+        XCTAssertTrue(model.chips.contains(.businesses))
+    }
+
+    /// The mockup's order first (the 3D logos lead), then by name.
+    func testRowsKeepTheMockupsOrder() {
+        let model = SearchModel(defaults: defaults)
+        model.show([
+            poi("stjoe-aaa", "Aardvark", .business, "store"),
+            poi("stjoe-white-peony-boutique", "White Peony Boutique", .business, "clothing_store"),
+            poi("stjoe-bruno-press", "Bruno Press", .business, "print_shop"),
+        ])
+        // Aardvark has no logo, so it stays off the row.
+        XCTAssertEqual(model.row(.business).map(\.name), ["Bruno Press", "White Peony Boutique"])
+        XCTAssertEqual(model.row(.park).first?.group, "Parks")
+        XCTAssertEqual(model.row(.park).last?.group, "Trails")
+    }
+
+    /// Typing finds by name and by kind of place; the Businesses pill takes food too.
+    func testTypedSearch() {
+        let model = SearchModel(defaults: defaults)
+        model.show([
+            poi("stjoe-her-hair-studio", "Her Hair Studio", .business, "hair_salon"),
+            poi("stjoe-gary", "Gary's Pizza", .food, "pizza_restaurant"),
+        ])
+        XCTAssertEqual(model.results(for: "hair", in: .all).first?.items.first?.name, "Her Hair Studio")
+        XCTAssertEqual(model.results(for: "pizza", in: .businesses).map(\.kind), [.restaurant])
+        XCTAssertTrue(model.results(for: "pizza", in: .parks).isEmpty)
+        XCTAssertTrue(model.results(for: "   ", in: .all).isEmpty)
+    }
+
+    /// Newest first, no repeats, eight at most, and kept between launches.
+    func testRecents() {
+        defaults.set([String](), forKey: SearchModel.recentsKey)
+        let model = SearchModel(defaults: defaults)
+        for i in 0..<10 { model.remember("q:\(i)") }
+        model.remember("q:3")
+        XCTAssertEqual(model.recentIDs.count, SearchModel.recentsMax)
+        XCTAssertEqual(model.recentIDs.first, "q:3")
+        XCTAssertEqual(model.recentIDs.filter { $0 == "q:3" }.count, 1)
+        model.forget("q:3")
+        XCTAssertFalse(model.recentIDs.contains("q:3"))
+        XCTAssertEqual(SearchModel(defaults: defaults).recentIDs, model.recentIDs)
+        XCTAssertEqual(SearchModel.queryID("  Pumpkin "), "q:pumpkin")
+    }
+
+    /// CSS's hsl(), which the backdrops and cast shadows are written in.
+    func testHSL() {
+        func near(_ a: (Double, Double, Double), _ b: (Double, Double, Double)) {
+            XCTAssertEqual(a.0, b.0, accuracy: 0.002)
+            XCTAssertEqual(a.1, b.1, accuracy: 0.002)
+            XCTAssertEqual(a.2, b.2, accuracy: 0.002)
+        }
+        near(Hue.hslToRGB(0, 100, 50), (1, 0, 0))
+        near(Hue.hslToRGB(120, 100, 25), (0, 0.5, 0))
+        near(Hue.hslToRGB(240, 100, 50), (0, 0, 1))
+        near(Hue.hslToRGB(34, 0, 94), (0.94, 0.94, 0.94))
+        // The studio backdrop's top, hsl(34 9% 94%): #F1F0EE.
+        near(Hue.hslToRGB(34, 9, 94), (0.9454, 0.9407, 0.9346))
+    }
+}

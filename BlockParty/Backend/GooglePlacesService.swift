@@ -61,7 +61,9 @@ struct PlaceDetails {
     let phone: String?
     let primaryType: String?        // Google category (e.g. "cafe") — nil if absent
     let types: [String]             // raw Google types[]
-    let photo: PlacePhoto?          // first photo only
+    let photo: PlacePhoto?          // the most scenic one (`bestScenicPhoto`)
+    /// Every photo Google returned (up to 10), in its order: a business's own page shows them all.
+    let photos: [PlacePhoto]
 }
 
 /// A place discovered by a Nearby Search sweep — carries the category type data the
@@ -215,7 +217,8 @@ final class GooglePlacesService {
                 phone: resp.nationalPhoneNumber,
                 primaryType: resp.primaryType,
                 types: resp.types ?? [],
-                photo: photo)
+                photo: photo,
+                photos: (resp.photos ?? []).map { PlacePhoto(name: $0.name, attributions: ($0.authorAttributions ?? []).compactMap { $0.displayName }) })
             detailsCache[placeId] = details
             return details
         } catch { return nil }

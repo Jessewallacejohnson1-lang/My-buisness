@@ -20,6 +20,13 @@ enum Radius {
     /// two separate literals carrying "deliberate match" comments, and a comment
     /// cannot fail a build when one of them moves.
     static let bento: CGFloat = 22
+
+    /// Search, measured from its References (mockup v7, 2026-10-02): iOS's search field
+    /// and the round result avatars' squares (10), Photoroom's logo squares (11), and
+    /// Airbnb's photo cards (13).
+    static let searchField: CGFloat = 10
+    static let logoTile: CGFloat = 11
+    static let photoCard: CGFloat = 13
 }
 
 /// The single elevation in the system — one soft, neutral lift. Everything else

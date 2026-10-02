@@ -89,9 +89,17 @@ thicker when selected, as Instagram's is) — it took Business's slot on 2026-09
 Town bar's leading control became a friends mark — and **You** mounts
 `ProfileView(showsClose: false)`, since a tab has no close. Business has no slot for now.
 
-- **Search renders `BlankTab` deliberately** — the slot's name plus its one-line promise —
-  because the bar and its motion are built and the screen is not. **Do not "fix" that by
-  deleting the case.** `[prose]` **Daily** (`Features/Daily/DailyPage.swift`) shows its page
+- **Search** (`Features/Search/`, 2026-10-02) is Jesse's Search mockup v7 and its Figma
+  frames: a field and filter pills over sideways rows (People, Businesses, Restaurants,
+  Coffee, Clubs) of the Town's places from Supabase `places`. Its model lives in
+  `MainTabsView` so the places aren't fetched again on every visit. A row's title pushes
+  its whole list onto the shell's stack (`SearchShelf`, declared in `SearchPage`). A
+  business logo opens `BusinessPage`, an overlay inside the tab, under the tab bar,
+  driven by one spring value (`LiveSpring`) so a drag can grab it mid-flight. Logos are
+  bundled (`Resources/SearchLogos`, `DECISIONS.md` 2026-10-02); restaurant and business
+  photos are Google's, each with its `PhotoCredit`. People, events and clubs are DEBUG
+  samples until their reads exist; a release build leaves those rows and pills out.
+- **Daily** (`Features/Daily/DailyPage.swift`) shows its page
   when it has something real to show and `BlankTab` otherwise: DEBUG shows a sample
   Spotlight, release keeps the placeholder until the Spotlight read exists. Its spec is
   `docs/plans/daily-tab/SPEC.md` in the BP app folder; sections join one at a time.
