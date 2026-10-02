@@ -13,8 +13,7 @@ struct DailyEvent: Identifiable {
     var item: FeedCardItem
     var starts: Date
     var ends: Date
-    /// The card's two address lines: the place, then the town.
-    var place: String
+    /// The address's second line, under the place (`item.location`).
     var town: String
 
     var id: String { item.id }
@@ -60,12 +59,28 @@ struct DailyEvent: Identifiable {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = Town.timeZone
         let onTheHour = [starts, ends].allSatisfy { calendar.component(.minute, from: $0) == 0 }
-        let formatter = DateIntervalFormatter()
-        formatter.locale = Locale(identifier: "en_US")
-        formatter.timeZone = Town.timeZone
-        formatter.dateTemplate = onTheHour ? "h" : "hmm"
-        let times = formatter.string(from: starts, to: ends)
+        let template = onTheHour ? "h" : "hmm"
+        let times: String
+        if calendar.isDate(starts, inSameDayAs: ends) {
+            let formatter = DateIntervalFormatter()
+            formatter.locale = Locale(identifier: "en_US")
+            formatter.timeZone = Town.timeZone
+            formatter.dateTemplate = template
+            times = formatter.string(from: starts, to: ends)
+        } else {
+            // Past midnight the interval formatter writes both dates out in full.
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US")
+            formatter.timeZone = Town.timeZone
+            formatter.setLocalizedDateFormatFromTemplate(template)
+            times = "\(formatter.string(from: starts)) – \(formatter.string(from: ends))"
+        }
         return item.hostName.isEmpty ? times : "\(times) · Hosted by \(item.hostName)"
+    }
+
+    /// The card's address: the place, then the town.
+    var address: String {
+        [item.location, town].compactMap { $0 }.joined(separator: "\n")
     }
 
     #if DEBUG
@@ -97,14 +112,24 @@ struct DailyEvent: Identifiable {
                                place: String, starts: Date, ends: Date,
                                category: EventCategory, description: String) -> DailyEvent {
         let url = Bundle.main.url(forResource: photo, withExtension: "jpg")
+        // The event page's when line reads these, so it shows the day and the time.
+        let day = DateFormatter()
+        day.locale = Locale(identifier: "en_US_POSIX")
+        day.timeZone = Town.timeZone
+        day.dateFormat = "yyyy-MM-dd"
+        let time = DateFormatter()
+        time.locale = Locale(identifier: "en_US")
+        time.timeZone = Town.timeZone
+        time.dateFormat = "h:mm a"
         let item = FeedCardItem(
             id: id, title: title, dateChip: "TODAY", metaLine: place,
             image: url.map { .eventPhoto($0) } ?? .fallback, recurrence: nil,
             hostName: host, goingCount: 0, goingAvatars: [], goingSummary: "",
             likeCount: 0, isLiked: false, isSaved: false, isJoined: false,
+            eventDate: day.string(from: starts), startTime: time.string(from: starts),
             location: place, description: description, category: category
         )
-        return DailyEvent(item: item, starts: starts, ends: ends, place: place, town: "St. Joseph, MN")
+        return DailyEvent(item: item, starts: starts, ends: ends, town: "St. Joseph, MN")
     }
     #endif
 }
@@ -125,6 +150,10 @@ struct EventOfTheDaySection: View {
                             EventOfTheDayCard(event: event, now: now)
                         }
                         .buttonStyle(PressableCardStyle())
+                        // The title first; drawn, the pill comes before it.
+                        .accessibilityLabel([event.item.title, event.startsLabel(now: now),
+                                             event.timeLine, event.item.location]
+                            .compactMap { $0 }.joined(separator: ", "))
                         .containerRelativeFrame(.horizontal)
                     }
                 }
@@ -171,7 +200,7 @@ private struct EventOfTheDayCard: View {
                     .fill(Hue.hairline)
                     .frame(height: 1)
                     .padding(.top, DailyMetric.eventDividerTop)
-                Text("\(event.place)\n\(event.town)")
+                Text(event.address)
                     .font(.sans(13))
                     .foregroundStyle(Hue.inkSecondary)
                     .padding(.top, DailyMetric.eventPlaceTop)
@@ -191,7 +220,6 @@ private struct EventOfTheDayCard: View {
                         .strokeBorder(Hue.hairline, lineWidth: 0.5)
                 }
         }
-        .accessibilityElement(children: .combine)
     }
 
     private var pill: some View {
@@ -199,7 +227,7 @@ private struct EventOfTheDayCard: View {
             .font(.sansMedium(14))
             .foregroundStyle(Hue.ink)
             .padding(.horizontal, DailyMetric.eventChipPadding)
-            .frame(height: DailyMetric.eventChipHeight)
+            .frame(minHeight: DailyMetric.eventChipHeight)
             .background(Capsule().fill(Hue.surface))
     }
 }

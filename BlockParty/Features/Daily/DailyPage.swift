@@ -285,7 +285,6 @@ private extension VerticalAlignment {
 struct DailyPage: View {
     let spotlight: DailySpotlight
     @State private var tilt = DailyTilt()
-    /// How far down the screen the yellow still reaches, while that is near the clock.
     /// How far the page has scrolled, held only up to `edgeFade`.
     @State private var scrolled: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

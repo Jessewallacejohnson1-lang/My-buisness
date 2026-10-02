@@ -113,6 +113,13 @@ final class DailyPageTests: XCTestCase {
         recital.ends = town(21)
         XCTAssertTrue(recital.timeLine.hasPrefix("7:30"), recital.timeLine)
         XCTAssertTrue(recital.timeLine.contains("9:00"), recital.timeLine)
+
+        // Past midnight it still reads as times, never two dates written out.
+        recital.starts = town(21)
+        recital.ends = town(25)
+        // Foundation puts a narrow no-break space before AM and PM.
+        let line = recital.timeLine.replacingOccurrences(of: "\u{202F}", with: " ")
+        XCTAssertTrue(line.hasPrefix("9 PM – 1 AM"), line)
     }
     #endif
 }
