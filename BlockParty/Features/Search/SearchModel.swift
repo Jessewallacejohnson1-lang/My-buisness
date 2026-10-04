@@ -55,6 +55,17 @@ struct SearchItem: Identifiable, Hashable {
 
     /// A business with a logo opens onto its own page of photos; the logo flies there.
     var opens: Bool { kind == .business && logo != nil }
+
+    /// What kind of place it is, drawn where there is no logo and no photo.
+    var glyph: String {
+        switch kind {
+        case .park: "tree"
+        case .business: "storefront"
+        case .coffee: "cup.and.saucer"
+        case .restaurant: "fork.knife"
+        default: "photo"
+        }
+    }
 }
 
 /// A business's logo as Search draws it: cut out and centred on a square by the logo

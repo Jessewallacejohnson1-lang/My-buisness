@@ -740,7 +740,7 @@ struct ItemRow: View {
             RoundedRectangle(cornerRadius: Radius.searchField, style: .continuous)
                 .fill(Hue.fill)
                 .overlay {
-                    Image(systemName: item.kind == .park ? "tree" : item.kind == .business ? "storefront" : "fork.knife")
+                    Image(systemName: item.glyph)
                         .font(.glyph(17))
                         .foregroundStyle(Hue.inkSecondary)
                 }
@@ -869,6 +869,10 @@ private struct GooglePhoto: View {
                 if let logo = item.logo {
                     SearchBackdrop(colors: logo.backdrop)
                     CastLogo(logo: logo, side: SearchMetric.logoOnTile)
+                } else {
+                    Image(systemName: item.glyph)
+                        .font(.glyph(28, weight: .light))
+                        .foregroundStyle(Hue.inkSecondary)
                 }
             } else {
                 Rectangle().fill(Hue.fill).shimmering()
