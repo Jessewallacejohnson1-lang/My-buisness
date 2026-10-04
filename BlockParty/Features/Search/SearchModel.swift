@@ -56,6 +56,20 @@ struct SearchItem: Identifiable, Hashable {
     /// A business with a logo opens onto its own page of photos; the logo flies there.
     var opens: Bool { kind == .business && logo != nil }
 
+    /// Its photos from Google Maps, shared by its card and its business page. With a
+    /// Google id it asks for the photos alone (the cheap tier); without one, its name
+    /// and coordinate must clear Locked Rule A first. Empty when there are none or the
+    /// ask failed.
+    func googlePhotos() async -> PlacePhotos {
+        let places = GooglePlacesService.shared
+        if let googleId, let photos = await places.photos(placeId: googleId) { return photos }
+        if googleId == nil, let coordinate,
+           let details = await places.confidentDetails(name: fullName ?? name, coordinate: coordinate) {
+            return PlacePhotos(all: details.photos, best: details.photo)
+        }
+        return PlacePhotos(all: [], best: nil)
+    }
+
     /// What kind of place it is, drawn where there is no logo and no photo.
     var glyph: String {
         switch kind {
@@ -110,6 +124,20 @@ struct SearchLogo: Hashable {
     }()
 
     private static var cache: [String: UIImage] = [:]
+
+    /// Decodes every logo off the main thread, so the first look at the wall doesn't
+    /// stall while 51 of them decode at once.
+    static func warm() async {
+        let ids = all.keys.filter { cache[$0] == nil }
+        let decoded = await Task.detached(priority: .utility) {
+            ids.compactMap { id -> (String, UIImage)? in
+                guard let url = Bundle.main.url(forResource: "searchlogo-\(id)", withExtension: "webp"),
+                      let image = UIImage(contentsOfFile: url.path())?.preparingForDisplay() else { return nil }
+                return (id, image)
+            }
+        }.value
+        for (id, image) in decoded { cache[id] = image }
+    }
 }
 
 /// The filter pills, in the mockup's order.
@@ -164,10 +192,13 @@ enum SearchRecent: Identifiable {
 
 @MainActor @Observable
 final class SearchModel {
-    enum Load { case loading, loaded, failed }
-
     private(set) var places: [SearchItem] = []
-    private(set) var placesLoad = Load.loading
+    private(set) var placesLoaded = false
+    /// What the tab was showing, kept across tab switches as Instagram keeps it.
+    var chip = SearchChip.all
+    var words = ""
+    /// From the field's first tap until Cancel: Cancel shows, and so do the recents.
+    var searching = false
     /// Ids, newest first: an item's id, or `q:` and the words.
     private(set) var recentIDs: [String]
 
@@ -183,26 +214,23 @@ final class SearchModel {
 
     var items: [SearchItem] { places + fixed }
 
-    /// The Town's places are public: signed out (sign-in is switched off), they are read
-    /// with the app's public key, which RLS lets read `places` and nothing private. A
-    /// failed read leaves those rows out, and the next visit tries again.
+    /// Reads the Town's places, trying again while the tab is open (2 s, 4 s, … 30 s
+    /// apart) until it can: offline, the rows wait as skeletons rather than vanish.
     func load() async {
-        guard placesLoad != .loaded else { return }
-        placesLoad = .loading
-        let token = (try? await AuthStore.shared.validAccessToken()) ?? SupabaseConfig.anonKey
-        do {
-            let (data, _) = try await SupabaseHTTP.rest("places", query: "select=*", accessToken: token)
-            let decoder = JSONDecoder()
-            decoder.keyDecodingStrategy = .convertFromSnakeCase
-            show(try decoder.decode([POI].self, from: data))
-        } catch {
-            placesLoad = .failed
+        var wait = 2.0
+        while !placesLoaded && !Task.isCancelled {
+            if let pois = try? await CommunityAPI(auth: AuthStore.shared).getPlaces() {
+                show(pois)
+                return
+            }
+            try? await Task.sleep(for: .seconds(wait))
+            wait = min(wait * 2, 30)
         }
     }
 
     func show(_ pois: [POI]) {
         places = Self.places(from: pois)
-        placesLoad = .loaded
+        placesLoaded = true
     }
 
     // MARK: Rows
@@ -214,7 +242,7 @@ final class SearchModel {
 
     /// Whether a kind's row is still waiting on Supabase.
     func isLoading(_ kind: SearchItem.Kind) -> Bool {
-        placesLoad == .loading && [.business, .restaurant, .coffee].contains(kind)
+        !placesLoaded && [.business, .restaurant, .coffee].contains(kind)
     }
 
     /// The pills worth showing: All, and every filter with something behind it.

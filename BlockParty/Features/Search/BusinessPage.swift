@@ -227,9 +227,11 @@ private struct BusinessPageBody: View {
         }
         .ignoresSafeArea(.keyboard)
         .allowsHitTesting(opener.isOpen)
+        // Over the whole screen: VoiceOver stays on the business, not the rows behind it.
+        .accessibilityAddTraits(opener.isOpen ? .isModal : [])
         .task(id: item.id) {
             photos = nil
-            photos = await Self.photos(for: item)
+            photos = await item.googlePhotos().all
         }
     }
 
@@ -295,14 +297,6 @@ private struct BusinessPageBody: View {
         return photos.isEmpty ? Array(repeating: .none, count: SearchMetric.bizBlankTiles) : photos.map { .photo($0) }
     }
 
-    /// The business's photos from Google Maps. A real Google id is asked directly; a
-    /// place Supabase only knows by its own id has to clear Locked Rule A first.
-    static func photos(for item: SearchItem) async -> [PlacePhoto] {
-        let places = GooglePlacesService.shared
-        if let id = item.googleId { return await places.details(placeId: id)?.photos ?? [] }
-        guard let coordinate = item.coordinate else { return [] }
-        return await places.confidentDetails(name: item.fullName ?? item.name, coordinate: coordinate)?.photos ?? []
-    }
 }
 
 private struct BusinessPhotoTile: View {
@@ -310,28 +304,33 @@ private struct BusinessPhotoTile: View {
     let index: Int
     let logo: SearchLogo
     @State private var shown = false
+    @State private var failed = false
 
     var body: some View {
         ZStack {
             switch tile {
             case .loading:
                 Hue.ink.opacity(SearchMetric.bizTileShade).shimmering()
-            case .photo(let photo):
+            case .photo(let photo) where !failed:
+                let url = GooglePlacesService.shared.photoURL(name: photo.name, maxWidth: SearchMetric.bizPhotoPixels)
                 Hue.ink.opacity(SearchMetric.bizTileShade)
-                FeedCardURLPhoto(url: GooglePlacesService.shared.photoURL(name: photo.name, maxWidth: SearchMetric.bizPhotoPixels),
-                                 onReady: { withAnimation(.easeOut(duration: 0.2)) { shown = true } }, loadingFill: .clear)
-                if shown {
+                FeedCardURLPhoto(url: url, onReady: { withAnimation(.easeOut(duration: 0.2)) { shown = true } },
+                                 onFailure: { failed = true }, loadingFill: .clear)
+                // A photo already decoded elsewhere draws at once: so does its credit.
+                if shown || FeedCardImageLoader.shared.largest(for: url) != nil {
                     PhotoCredit(names: photo.attributions)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                 }
-            case .none:
+            case .photo, .none:
                 Hue.hsl(logo.hue, logo.chroma ? 26 : 8, 80 - Double((index * 7) % 9))
                 Image(systemName: "photo")
                     .font(.glyph(24, weight: .light))
                     .foregroundStyle(Hue.ink.opacity(0.22))
+                    .accessibilityHidden(true)
             }
         }
-        .accessibilityHidden(true)
+        // A photo reads as its credit ("Photo by …"); a blank tile reads as nothing.
+        .accessibilityElement(children: .combine)
     }
 }
 

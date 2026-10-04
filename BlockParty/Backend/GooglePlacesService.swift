@@ -80,6 +80,12 @@ struct NearbyPlace: Identifiable {
     var id: String { placeId }
 }
 
+/// A place's photos (up to 10, Google's order) and the most scenic of them.
+struct PlacePhotos {
+    let all: [PlacePhoto]
+    let best: PlacePhoto?
+}
+
 /// A photo cleared by Locked Rule A's confidence check — safe to display.
 struct ConfidentPhoto {
     let photoName: String           // pass to photoURL(name:maxWidth:)
@@ -96,6 +102,7 @@ final class GooglePlacesService {
     private var autocompleteCache: [String: [PlaceSuggestion]] = [:]
     private var searchCache: [String: [PlaceResult]] = [:]
     private var detailsCache: [String: PlaceDetails] = [:]
+    private var photosCache: [String: PlacePhotos] = [:]
     private var confidentPhotoCache: [String: ConfidentPhoto?] = [:]   // "name|lat,lon" → resolved (or checked-nil)
     private var confidentPhotoInFlight: [String: Task<PhotoLookup, Never>] = [:]  // coalesce concurrent callers per key
 
@@ -218,10 +225,36 @@ final class GooglePlacesService {
                 primaryType: resp.primaryType,
                 types: resp.types ?? [],
                 photo: photo,
-                photos: (resp.photos ?? []).map { PlacePhoto(name: $0.name, attributions: ($0.authorAttributions ?? []).compactMap { $0.displayName }) })
+                photos: (resp.photos ?? []).map(Self.placePhoto))
             detailsCache[placeId] = details
             return details
         } catch { return nil }
+    }
+
+    /// A place's photos alone, for a place whose Google id is known. `photos` is in
+    /// Google's IDs-only tier, so unlike `details` this bills no Pro or Enterprise
+    /// field; a photo is billed only when its picture is loaded. nil when the request
+    /// fails, so a failure is never cached as "no photos".
+    func photos(placeId: String) async -> PlacePhotos? {
+        if let hit = photosCache[placeId] { return hit }
+        if let d = detailsCache[placeId] { return PlacePhotos(all: d.photos, best: d.photo) }
+        guard let url = URL(string: "\(Self.base)/places/\(placeId)") else { return nil }
+        var req = URLRequest(url: url)
+        req.setValue(GOOGLE_PLACES_API_KEY, forHTTPHeaderField: "X-Goog-Api-Key")
+        req.setValue(Self.iosBundleID, forHTTPHeaderField: "X-Ios-Bundle-Identifier")
+        req.setValue("photos", forHTTPHeaderField: "X-Goog-FieldMask")
+        do {
+            let (data, response) = try await Self.jsonSession.data(for: req)
+            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
+            let raw = try JSONDecoder().decode(DetailsResponse.self, from: data).photos ?? []
+            let photos = PlacePhotos(all: raw.map(Self.placePhoto), best: Self.bestScenicPhoto(raw))
+            photosCache[placeId] = photos
+            return photos
+        } catch { return nil }
+    }
+
+    private static func placePhoto(_ p: DetailsResponse.Photo) -> PlacePhoto {
+        PlacePhoto(name: p.name, attributions: (p.authorAttributions ?? []).compactMap { $0.displayName })
     }
 
     // MARK: Scenic photo pick

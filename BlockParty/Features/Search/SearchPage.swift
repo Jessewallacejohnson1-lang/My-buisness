@@ -77,8 +77,13 @@ nonisolated enum SearchMetric {
     static let rowGap: CGFloat = 12
     static let avatar: CGFloat = 44
     static let avatarLogo: CGFloat = 36
-    static let removeSide: CGFloat = 36
-    static let removeTrail: CGFloat = 6
+    /// A recent's remove cross: the mockup's 36 box, with its tap area grown to 44
+    /// around the same centre.
+    static let removeSide: CGFloat = 44
+    static let removeTrail: CGFloat = 2
+    /// The smallest tap area, Apple's 44: smaller marks get theirs grown to it.
+    static let tapMin: CGFloat = 44
+    static let pageBackLead: CGFloat = 6
     static let sectionTop: CGFloat = 14
     static let sectionBottom: CGFloat = 6
     static let peopleTop: CGFloat = 6
@@ -134,12 +139,8 @@ struct SearchShelf: Hashable {
 }
 
 struct SearchPage: View {
-    let model: SearchModel
+    @Bindable var model: SearchModel
     @State private var opener = BusinessOpener()
-    @State private var chip = SearchChip.all
-    @State private var words = SearchPage.debugWords
-    /// From the field's first tap until Cancel: Cancel shows, and so do the recents.
-    @State private var searching = SearchPage.debugSearching
     @FocusState private var fieldFocused: Bool
     @Namespace private var chipNS
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -149,13 +150,13 @@ struct SearchPage: View {
     }
 
     private var mode: Mode {
-        if !words.trimmingCharacters(in: .whitespaces).isEmpty { return .results(chip) }
-        if searching { return .recents }
-        switch chip {
+        if !model.words.trimmingCharacters(in: .whitespaces).isEmpty { return .results(model.chip) }
+        if model.searching { return .recents }
+        switch model.chip {
         case .all: return .shelves
         case .people: return .people
         case .businesses: return .wall
-        default: return .groups(chip.kind ?? .park)
+        default: return .groups(model.chip.kind ?? .park)
         }
     }
 
@@ -171,14 +172,17 @@ struct SearchPage: View {
             SearchShelfPage(shelf: shelf).environment(model)
         }
         .task { await model.load() }
+        .task { await SearchLogo.warm() }
         .onAppear {
             opener.reduceMotion = reduceMotion
             #if DEBUG
-            if let debug = Self.debugChip { chip = debug }
+            if let debug = Self.debugChip { model.chip = debug }
+            if let debug = Self.debugWords { model.words = debug }
+            if Self.debugSearching { model.searching = true }
             #endif
         }
         .onChange(of: fieldFocused) { _, focused in
-            if focused { searching = true }
+            if focused { model.searching = true }
         }
         .onChange(of: opener.item?.id) { _, id in
             if id != nil { fieldFocused = false }
@@ -209,19 +213,23 @@ struct SearchPage: View {
     private var fieldRow: some View {
         ZStack(alignment: .trailing) {
             field
-                .padding(.trailing, searching ? SearchMetric.cancelReserve : 0)
-            Button("Cancel") { cancel() }
-                .font(.sans(16))
-                .foregroundStyle(Hue.ink)
+                .padding(.trailing, model.searching ? SearchMetric.cancelReserve : 0)
+            Button { cancel() } label: {
+                Text("Cancel")
+                    .font(.sans(16))
+                    .foregroundStyle(Hue.ink)
+                    .frame(height: SearchMetric.tapMin)
+                    .contentShape(Rectangle())
+            }
                 .buttonStyle(DimStyle())
-                .opacity(searching ? 1 : 0)
-                .offset(x: searching ? 0 : SearchMetric.cancelSlide)
-                .allowsHitTesting(searching)
-                .accessibilityHidden(!searching)
+                .opacity(model.searching ? 1 : 0)
+                .offset(x: model.searching ? 0 : SearchMetric.cancelSlide)
+                .allowsHitTesting(model.searching)
+                .accessibilityHidden(!model.searching)
         }
         .padding(.horizontal, SearchMetric.side)
         .frame(height: SearchMetric.fieldHeight)
-        .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 1), value: searching)
+        .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 1), value: model.searching)
     }
 
     private var field: some View {
@@ -233,7 +241,7 @@ struct SearchPage: View {
                 .padding(.leading, SearchMetric.fieldIconLead)
                 .padding(.trailing, SearchMetric.fieldIconGap)
                 .accessibilityHidden(true)
-            TextField("Search", text: $words, prompt: Text("Search").foregroundStyle(Hue.searchFaint))
+            TextField("Search", text: $model.words, prompt: Text("Search").foregroundStyle(Hue.searchFaint))
                 .font(.sans(16))
                 .foregroundStyle(Hue.ink)
                 .focused($fieldFocused)
@@ -241,9 +249,9 @@ struct SearchPage: View {
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
                 .onSubmit(submit)
-            if !words.isEmpty {
+            if !model.words.isEmpty {
                 Button {
-                    words = ""
+                    model.words = ""
                     fieldFocused = true
                 } label: {
                     Image(systemName: "xmark.circle.fill")
@@ -251,7 +259,7 @@ struct SearchPage: View {
                         .foregroundStyle(Hue.surface, Hue.searchClear)
                         .font(.glyph(17))
                         .frame(width: SearchMetric.clearSide, height: SearchMetric.clearSide)
-                        .contentShape(Rectangle())
+                        .contentShape(Rectangle().inset(by: (SearchMetric.clearSide - SearchMetric.tapMin) / 2))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Clear")
@@ -272,7 +280,7 @@ struct SearchPage: View {
                 .padding(.horizontal, SearchMetric.side)
                 .frame(height: SearchMetric.chipsHeight)
             }
-            .onChange(of: chip) { _, c in
+            .onChange(of: model.chip) { _, c in
                 withAnimation(reduceMotion ? nil : .smooth) { proxy.scrollTo(c, anchor: .center) }
             }
         }
@@ -280,7 +288,7 @@ struct SearchPage: View {
     }
 
     private func chipButton(_ c: SearchChip) -> some View {
-        let on = c == chip
+        let on = c == model.chip
         return Button { pick(c) } label: {
             Text(c.title)
                 .font(.sansSemibold(14))
@@ -294,6 +302,7 @@ struct SearchPage: View {
                         Capsule().strokeBorder(Hue.searchChipEdge, lineWidth: 1)
                     }
                 }
+                .contentShape(Rectangle().inset(by: (SearchMetric.chipHeight - SearchMetric.tapMin) / 2))
         }
         .buttonStyle(SquishStyle())
         .accessibilityAddTraits(on ? .isSelected : [])
@@ -351,13 +360,13 @@ struct SearchPage: View {
                 ForEach(recents) { recent in
                     switch recent {
                     case .item(let item): ItemRow(item: item, removable: true)
-                    case .query(let words): QueryRow(words: words) { self.words = words }
+                    case .query(let words): QueryRow(words: words) { model.words = words }
                     }
                 }
                 .transition(.opacity)
             }
         case .results(let chip):
-            let sections = model.results(for: words, in: chip)
+            let sections = model.results(for: model.words, in: chip)
             if sections.isEmpty {
                 NothingFound()
             } else {
@@ -397,20 +406,20 @@ struct SearchPage: View {
     // MARK: Actions
 
     private func pick(_ c: SearchChip) {
-        guard c != chip else { return }
+        guard c != model.chip else { return }
         Haptics.selection()
-        withAnimation(reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.86)) { chip = c }
+        withAnimation(reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.86)) { model.chip = c }
     }
 
     private func submit() {
-        let q = words.trimmingCharacters(in: .whitespacesAndNewlines)
+        let q = model.words.trimmingCharacters(in: .whitespacesAndNewlines)
         if !q.isEmpty { model.remember(SearchModel.queryID(q)) }
         fieldFocused = false
     }
 
     private func cancel() {
-        searching = false
-        words = ""
+        model.searching = false
+        model.words = ""
         fieldFocused = false
     }
 
@@ -423,18 +432,15 @@ struct SearchPage: View {
         return args[i + 1]
     }
     /// `-search-words <text>`: opens with those words typed.
-    private static var debugWords: String { debugArg("-search-words") ?? "" }
+    private static var debugWords: String? { debugArg("-search-words") }
     /// `-search-focus`: opens on the recents, as after a tap on the field.
     private static var debugSearching: Bool {
-        ProcessInfo.processInfo.arguments.contains("-search-focus") || !debugWords.isEmpty
+        ProcessInfo.processInfo.arguments.contains("-search-focus") || debugWords != nil
     }
     /// `-search-chip <all|people|businesses|events|clubs|parks>`: opens on that filter.
     private static var debugChip: SearchChip? {
         debugArg("-search-chip").flatMap { name in SearchChip.allCases.first { $0.title.lowercased() == name } }
     }
-    #else
-    private static let debugWords = ""
-    private static let debugSearching = false
     #endif
 }
 
@@ -578,6 +584,7 @@ private struct LogoTile: View {
                 CastLogo(logo: logo, side: size)
                     .padding(.top, side * SearchMetric.logoCenterY - size / 2)
                     .opacity(opener.isAway(item) ? 0 : 1)
+                    .animation(nil, value: opener.isAway(item))
             }
             .frame(width: side, height: side)
             .clipShape(RoundedRectangle(cornerRadius: Radius.logoTile, style: .continuous))
@@ -631,6 +638,7 @@ private struct WallLogo: View {
                     }
                 }
                 .opacity(opener.isAway(item) ? 0 : 1)
+                .animation(nil, value: opener.isAway(item))
                 .contentShape(Rectangle())
                 .trackFrame(frame)
         }
@@ -732,6 +740,7 @@ struct ItemRow: View {
                 SearchFloor()
                 CastLogo(logo: logo, side: SearchMetric.avatarLogo)
                     .opacity(opener.isAway(item) ? 0 : 1)
+                    .animation(nil, value: opener.isAway(item))
             }
             .clipShape(RoundedRectangle(cornerRadius: Radius.searchField, style: .continuous))
         } else if item.photo == nil || item.photo == .google {
@@ -852,16 +861,18 @@ struct SearchPhoto: View {
 
 private struct GooglePhoto: View {
     let item: SearchItem
-    @State private var photo: ConfidentPhoto?
+    @State private var photo: PlacePhoto?
     @State private var asked = false
     @State private var shown = false
 
     var body: some View {
         ZStack {
             if let photo {
-                FeedCardURLPhoto(url: GooglePlacesService.shared.photoURL(name: photo.photoName, maxWidth: 600),
-                                 onReady: { withAnimation(.easeOut(duration: 0.2)) { shown = true } }, onFailure: { self.photo = nil }, loadingFill: .clear)
-                if shown {
+                let url = GooglePlacesService.shared.photoURL(name: photo.name, maxWidth: 600)
+                FeedCardURLPhoto(url: url, onReady: { withAnimation(.easeOut(duration: 0.2)) { shown = true } },
+                                 onFailure: { self.photo = nil }, loadingFill: .clear)
+                // A photo already decoded elsewhere draws at once: so does its credit.
+                if shown || FeedCardImageLoader.shared.largest(for: url) != nil {
                     PhotoCredit(names: photo.attributions)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                 }
@@ -879,19 +890,9 @@ private struct GooglePhoto: View {
             }
         }
         .task(id: item.id) {
-            photo = await Self.lookup(item)
+            photo = await item.googlePhotos().best
             asked = true
         }
-    }
-
-    /// A real Google id is asked directly; anything else has to clear Locked Rule A.
-    static func lookup(_ item: SearchItem) async -> ConfidentPhoto? {
-        let places = GooglePlacesService.shared
-        if let id = item.googleId {
-            return await places.details(placeId: id)?.photo.map { ConfidentPhoto(photoName: $0.name, attributions: $0.attributions) }
-        }
-        guard let coordinate = item.coordinate else { return nil }
-        return await places.confidentPhoto(name: item.fullName ?? item.name, coordinate: coordinate)
     }
 }
 
@@ -959,7 +960,7 @@ struct SearchShelfPage: View {
                 .accessibilityLabel("Back")
                 Spacer()
             }
-            .padding(.leading, SearchMetric.removeTrail)
+            .padding(.leading, SearchMetric.pageBackLead)
         }
         .frame(height: SearchMetric.pageBar)
         .frame(maxWidth: .infinity)
