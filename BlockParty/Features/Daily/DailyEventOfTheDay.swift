@@ -108,7 +108,7 @@ struct DailyEvent: Identifiable {
         ]
     }
 
-    private static func sample(id: String, title: String, host: String, photo: String,
+    static func sample(id: String, title: String, host: String, photo: String,
                                place: String, starts: Date, ends: Date,
                                category: EventCategory, description: String) -> DailyEvent {
         let url = Bundle.main.url(forResource: photo, withExtension: "jpg")

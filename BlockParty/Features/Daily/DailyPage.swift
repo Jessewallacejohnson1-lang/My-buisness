@@ -163,6 +163,30 @@ nonisolated enum DailyMetric {
     /// Between the cards on a busy day; the next card's edge shows by this much less
     /// than the page margin. Picked: Airbnb's trip card never sits in a row.
     static let eventGap: CGFloat = 10
+
+    /// The Agenda, MEASURED from Jesse's Reference: Airbnb's trip day plan
+    /// (`references/daily-agenda/airbnb-day-plan.jpg` in the BP app folder, an @3x 393pt
+    /// screen). The day's grey circle, its gap to the cards, and each card: 80pt tall,
+    /// a 64pt picture 8pt in, the text 16pt after it. The section sits under Event of
+    /// the day at that section's spacing.
+    static let agendaDay: CGFloat = 30
+    /// From the weekday's frame to the circle: the Reference's 6pt from its baseline.
+    static let agendaDayToCircle: CGFloat = 3
+    static let agendaRailGap: CGFloat = 13
+    static let agendaRow: CGFloat = 80
+    static let agendaPhoto: CGFloat = 64
+    static let agendaPhotoInset: CGFloat = 8
+    static let agendaPhotoRadius: CGFloat = 10
+    static let agendaCardRadius: CGFloat = 14
+    static let agendaTextGap: CGFloat = 16
+    /// Above and below the text, so a closed card's two lines sit centred on the photo
+    /// as the Reference's one line does, and an open card grows only downward.
+    static let agendaTextInset: CGFloat = 14
+    /// Between the cards. Picked: the Reference's gap from the trip card above to its
+    /// first row, since its rows never sit back to back.
+    static let agendaRowGap: CGFloat = 12
+    /// Room the open card keeps on its right for the arrow.
+    static let agendaArrowRoom: CGFloat = 22
 }
 
 /// The low sun over the yellow: morning light from the east throws the Spotlight's
@@ -303,9 +327,17 @@ struct DailyPage: View {
                     TimelineView(.everyMinute) { context in
                         let now = DailyClock.now(context.date)
                         let events = DailyEvent.showing(DailyEvent.today(now: now), now: now)
-                        if !events.isEmpty {
-                            EventOfTheDaySection(events: events, now: now)
-                                .padding(.top, DailyMetric.eventSectionTop)
+                        let agenda = DailyEvent.agendaShowing(DailyEvent.agenda(now: now), now: now,
+                                                              eventOfTheDay: events)
+                        VStack(spacing: 0) {
+                            if !events.isEmpty {
+                                EventOfTheDaySection(events: events, now: now)
+                                    .padding(.top, DailyMetric.eventSectionTop)
+                            }
+                            if !agenda.isEmpty {
+                                AgendaSection(events: agenda, now: now)
+                                    .padding(.top, DailyMetric.eventSectionTop)
+                            }
                         }
                     }
                     Color.clear.frame(height: DailyMetric.tabBarClearance)

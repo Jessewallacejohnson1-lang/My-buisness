@@ -121,5 +121,34 @@ final class DailyPageTests: XCTestCase {
         let line = recital.timeLine.replacingOccurrences(of: "\u{202F}", with: " ")
         XCTAssertTrue(line.hasPrefix("9 PM – 1 AM"), line)
     }
+
+    // MARK: Agenda
+
+    /// Soonest first; a finished one drops off; one Event of the day already shows
+    /// never shows again. The samples sit at 7–10, 9–11, 14–15:30 and 19:30–21.
+    @MainActor
+    func testAgendaKeepsWhatIsStillOnAndLeavesOutEventOfTheDay() {
+        let samples = DailyEvent.agendaSamples(on: day)
+        func ids(_ now: Double, without shown: [DailyEvent] = []) -> [String] {
+            DailyEvent.agendaShowing(samples.reversed(), now: town(now), eventOfTheDay: shown).map(\.id)
+        }
+        XCTAssertEqual(ids(8), ["daily-a1", "daily-a2", "daily-a3", "daily-a4"])
+        XCTAssertEqual(ids(10), ["daily-a2", "daily-a3", "daily-a4"])
+        XCTAssertEqual(ids(8, without: [samples[1]]), ["daily-a1", "daily-a3", "daily-a4"])
+        XCTAssertTrue(ids(21).isEmpty)
+    }
+
+    /// The card says "Now" once it has started, else when it starts, with minutes only
+    /// when there are some.
+    @MainActor
+    func testAgendaCardSaysWhenItStarts() {
+        let samples = DailyEvent.agendaSamples(on: day)
+        // Foundation puts a narrow no-break space before AM and PM.
+        func plain(_ text: String) -> String { text.replacingOccurrences(of: "\u{202F}", with: " ") }
+        XCTAssertEqual(samples[0].startTime(now: town(8)), "Now")
+        XCTAssertEqual(plain(samples[1].startTime(now: town(8))), "9 AM")
+        XCTAssertEqual(plain(samples[3].startTime(now: town(8))), "7:30 PM")
+        XCTAssertEqual(plain(DailyEvent.clock(samples[2].ends)), "3:30 PM")
+    }
     #endif
 }
