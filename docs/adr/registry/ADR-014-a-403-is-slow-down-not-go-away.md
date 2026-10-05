@@ -2,6 +2,8 @@
 
 **Status:** Accepted
 **Date:** 2026-09-23
+**Exception:** [ADR-020](ADR-020-social-pages-are-read-through-apify.md) lets Block Party
+read public Facebook and Instagram through Apify. The ban below stands everywhere else.
 **Supersedes:** the "a 403 on `robots.txt` stays `search_snippet`" rule in
 [ADR-012](ADR-012-robots-facts-and-feeds.md). That ADR's other decisions — measure robots
 claims, prefer feeds to pages, a client-rendered page is not a source — all stand, as does

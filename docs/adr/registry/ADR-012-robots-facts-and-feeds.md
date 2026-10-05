@@ -2,6 +2,8 @@
 
 **Status:** Accepted
 **Date:** 2026-09-23
+**Exception:** [ADR-020](ADR-020-social-pages-are-read-through-apify.md) lets Block Party
+read public Facebook and Instagram through Apify. The ban below stands everywhere else.
 **Corrects:** a factual claim in [ADR-001](ADR-001-daily-routine-and-trust-tiers.md).
 That ADR's decisions stand; one of the facts it rested on was wrong.
 **Partly superseded by [ADR-014](ADR-014-a-403-is-slow-down-not-go-away.md):** the rule
