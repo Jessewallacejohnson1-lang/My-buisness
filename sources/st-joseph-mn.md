@@ -1957,6 +1957,7 @@ tier: listed
 place_type: "Business"
 address: "17 2nd Ave NW"
 phone: "3207611089"
+aka: ["Danzl's Barber Shop"]
 added_by: agent:town-verify
 sources:
   - url: http://www.2ndavecuts.com/
@@ -1993,6 +1994,7 @@ category: "financial_service"
 place_type: "Business"
 address: "15 E Minnesota St Ste 105A"
 phone: "+13202519144"
+aka: ["Adam McArthur Agency LLC American Family Insurance"]
 added_by: agent:town-verify
 sources:
   - url: https://www.amfam.com/agents/minnesota/saint-joseph/adam-mcarthur
@@ -2044,6 +2046,7 @@ category: "flowers_and_gifts_store"
 place_type: "Business"
 address: "38 E Birch St"
 phone: "3202532298"
+aka: ["All Occasion Floral and Gifts featuring DJ's Flower Bar & Tea"]
 added_by: agent:town-verify
 sources:
   - url: http://www.saukrapidsflorist.com/
@@ -2420,6 +2423,7 @@ category: "vehicle_parts_store"
 place_type: "Business"
 address: "718 19th Ave NE"
 phone: "3203631055"
+aka: ["Autocolor & Bumper Supply"]
 added_by: agent:town-verify
 sources:
   - url: http://www.autocolor.cc/
@@ -2522,6 +2526,7 @@ category: "auto_dealer"
 place_type: "Business"
 address: "8805 Ridgewood Ct"
 phone: "+13203631270"
+aka: ["Bee Line Service Center", "Bee Line Yamaha Super Store"]
 added_by: agent:town-verify
 sources:
   - url: https://www.beelineautoandsport.com/
@@ -2626,6 +2631,7 @@ category: "home_service"
 place_type: "Business"
 address: "126 16th Ave SE"
 phone: "+13202004893"
+aka: ["B L GrafX LLC"]
 added_by: agent:town-verify
 sources:
   - url: http://blgrafx.com/
@@ -2831,6 +2837,7 @@ category: "storage_facility"
 place_type: "Business"
 address: "8850 Ridgewood Ct"
 phone: "+13202533488"
+aka: ["Ridgewood Storage"]
 added_by: agent:town-verify
 sources:
   - url: http://www.capitalstoragerental.com/
@@ -2867,6 +2874,7 @@ category: "real_estate_service"
 place_type: "Business"
 address: "912 E Baker St"
 phone: "+13205570195"
+aka: ["Cloverdale Townhouses"]
 added_by: agent:town-verify
 sources:
   - url: https://brutgerequities.com/
@@ -2885,6 +2893,7 @@ category: "personal_or_beauty_service"
 place_type: "Business"
 address: "235 Cedar St E"
 phone: "+13203630200"
+aka: ["Aveda"]
 added_by: agent:town-verify
 sources:
   - url: https://www.aveda.com
@@ -2900,8 +2909,7 @@ id: cedar-trails-apartments
 status: proposed
 tier: listed
 place_type: "Business"
-address: "133 Cedar Street NW"
-phone: "(320) 363-4525"
+aka: ["Campus Park Villas & Townhomes"]
 added_by: agent:town-verify
 sources:
   - url: TODO
@@ -2920,6 +2928,7 @@ category: "diagnostics_imaging_or_lab_service"
 place_type: "Business"
 address: "1360 Elm St E"
 phone: "3203637765"
+aka: ["Centracare Clinic", "Christopher Thompson, MD", "Dr. Thomas J. Newton, MD", "Katrina Wherry, MD", "Newton Thomas MD", "Sean Wherry, MD", "St. Joe Clinic"]
 added_by: agent:town-verify
 sources:
   - url: http://www.centracare.com/locations/profile/?id=11
@@ -2938,6 +2947,7 @@ category: "manufacturer"
 place_type: "Business"
 address: "636 19th Ave NE"
 phone: "+13203631065"
+aka: ["Central Canvas Mfg Inc", "Central Canvas Mfg. Inc"]
 added_by: agent:town-verify
 sources:
   - url: https://wearepoparts.com
@@ -2980,9 +2990,9 @@ sources:
 ```
 Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-02: Live paid Wix site with services, phone and staff emails at this address (footer still says 2023).. Unreviewed — tier `listed`, so it publishes nothing until promoted.
 
-## Charlie Walker Construction
+## Central Minnesota Prefinish
 ```yaml
-id: charlie-walker-construction
+id: central-minnesota-prefinish
 status: proposed
 tier: listed
 category: "home_service"
@@ -2996,7 +3006,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-05: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
 
 ## Chem-Dry of St. Cloud
 ```yaml
@@ -3025,6 +3035,7 @@ category: "complementary_and_alternative_medicine"
 place_type: "Business"
 address: "709 County Road 75"
 phone: "+13203634694"
+aka: ["Chiropractic Connection"]
 added_by: agent:town-verify
 sources:
   - url: http://drschleper.com/
@@ -3079,6 +3090,7 @@ category: "real_estate_service"
 place_type: "Business"
 address: "15 E Minnesota St"
 phone: "+13203637656"
+aka: ["Collegeville Development Group", "Jon Petters Collegeville Brokerage"]
 added_by: agent:town-verify
 sources:
   - url: http://www.collegevillebrokerage.com/
@@ -3203,6 +3215,7 @@ category: "dental_clinic"
 place_type: "Business"
 address: "26 2nd Ave NW"
 phone: "(320) 363-4468"
+aka: ["Contardo, Michael F DDS", "Laser Dentistry- Dr. Contardo"]
 added_by: agent:town-verify
 sources:
   - url: http://www.laserdentistrymn.com
@@ -3422,6 +3435,7 @@ id: dancing-pines-retreat
 status: proposed
 tier: listed
 place_type: "Business"
+aka: ["DANCING PINES SUITE at Dancing Pines Retreat \u2022 A Luxury Log Home & Pet Friendly.", "DANCING PINES SUITE near SJU, CSB Wobegon Trail", "LOG BEAR DEN near SJU, CSB Wobegon Trail. Relaxing. Romantic. Refined. Rustic.", "Log Bear Den at Dancing Pines Retreat \u2022 A Luxury Log Home & Pet Friendly."]
 added_by: agent:town-verify
 sources:
   - url: TODO
@@ -3769,6 +3783,7 @@ category: "complementary_and_alternative_medicine"
 place_type: "Business"
 address: "103 N College Ave"
 phone: "+13203634573"
+aka: ["Brian Koltes", "Jerry Wetterling DC", "St. Joseph Family Chiropractic"]
 added_by: agent:town-verify
 sources:
   - url: http://www.jlwchiro.com
@@ -4598,6 +4613,7 @@ tier: listed
 place_type: "Business"
 address: "26 E Birch St"
 phone: "3203630007"
+aka: ["KIA Insurance Inc"]
 added_by: agent:town-verify
 sources:
   - url: http://www.divingrates.com/
@@ -5092,6 +5108,7 @@ category: "family_service"
 place_type: "Business"
 address: "110 E Able St"
 phone: "3202674202"
+aka: ["Leaps and Bounds Childcare"]
 added_by: agent:town-verify
 sources:
   - url: TODO
@@ -5107,6 +5124,7 @@ id: lilac-retreat
 status: proposed
 tier: listed
 place_type: "Business"
+aka: ["Lilac Retreat lake house sauna + pickleball close to St. Johns and St. Bens"]
 added_by: agent:town-verify
 sources:
   - url: TODO
@@ -5143,6 +5161,7 @@ category: "automotive_service"
 place_type: "Business"
 address: "819 19th Ave NE"
 phone: "+13203637690"
+aka: ["Lookin Good"]
 added_by: agent:town-verify
 sources:
   - url: http://WWW.lgtint.com/
@@ -5363,6 +5382,7 @@ category: "dental_clinic"
 place_type: "Business"
 address: "1514 E Minnesota St"
 phone: "+13203637729"
+aka: ["Dr. Curt Cotton", "Milbert Kelsey K DDS", "Styles & Cotton Dental Office", "Styles Dr, Cotton Dr & Milbert Dr..."]
 added_by: agent:town-verify
 sources:
   - url: http://www.stjoedds.com/
@@ -5435,7 +5455,7 @@ category: "social_or_community_service"
 place_type: "Business"
 address: "601 Elm St E E"
 phone: "+13202710909"
-aka: ["Minnesota Association of Farm Mutual"]
+aka: ["Minnesota Assn of Farm Mutual", "Minnesota Association of Farm Mutual"]
 added_by: agent:town-verify
 sources:
   - url: http://www.mafmic.org/
@@ -5523,7 +5543,7 @@ category: "automotive_service"
 place_type: "Business"
 address: "30890 Co Rd 2"
 phone: "3204295634"
-aka: ["MN HEAVY TRUCK REPAIR"]
+aka: ["24 HOUR SEMI TRUCK TOWING", "MN HEAVY TRUCK REPAIR"]
 added_by: agent:town-verify
 sources:
   - url: https://mn-heavy-towing-llc.business.site/
@@ -5611,6 +5631,7 @@ category: "restaurant"
 place_type: "Business"
 address: "2010 County Road 75"
 phone: "+13205570268"
+aka: ["Neighbors Route 75 Bar and Grill", "Stonehouse Tavern & Eatery"]
 added_by: agent:town-verify
 sources:
   - url: http://Neighborsroute75.com/
@@ -5904,12 +5925,12 @@ place_type: "Business"
 aka: ["Peaceful Village"]
 added_by: agent:town-verify
 sources:
-  - url: http://www.peacefulvillage.com/
+  - url: TODO
     kind: website
-    method: fetch
+    method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, http://www.peacefulvillage.com/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, http://www.peacefulvillage.com/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
 
 ## the Perfect Fit
 ```yaml
@@ -5973,6 +5994,7 @@ category: "home_service"
 place_type: "Business"
 address: "30659 Pearl Dr  Ste 1"
 phone: "13203630379"
+aka: ["Piper's Inc of St. Cloud", "Pipers Inc Of St Cloud", "Pipers Inc of St Cloud"]
 added_by: agent:town-verify
 sources:
   - url: TODO
@@ -5991,6 +6013,7 @@ category: "sporting_goods_store"
 place_type: "Business"
 address: "207 Cedar St E"
 phone: "+13203637478"
+aka: ["Powerhouse Inc"]
 added_by: agent:town-verify
 sources:
   - url: http://www.powerhouse.cc/
@@ -6042,6 +6065,7 @@ category: "home_service"
 place_type: "Business"
 address: "628 19th Ave NE"
 phone: "13203637401"
+aka: ["Precise Refrigeration", "Precise Refrigeration Heating"]
 added_by: agent:town-verify
 sources:
   - url: https://precisemn.com
@@ -6060,7 +6084,7 @@ category: "vehicle_parts_store"
 place_type: "Business"
 address: "109 Cedar St E"
 phone: "+13203634637"
-aka: ["Precision Motor Sports"]
+aka: ["Precision Motor Sports", "Precision Propeller & Cycle"]
 added_by: agent:town-verify
 sources:
   - url: https://www.precision-motorsports.net/
@@ -6372,6 +6396,7 @@ category: "professional_service"
 place_type: "Business"
 address: "203 Cedar St E"
 phone: "+13203637406"
+aka: ["R Tamm Photography"]
 added_by: agent:town-verify
 sources:
   - url: https://www.rtammphotography.com/
@@ -6440,6 +6465,7 @@ tier: listed
 place_type: "Business"
 address: "33 W Minnesota St"
 phone: "3203637350"
+aka: ["Ross Nesbit Agencies St. Joseph"]
 added_by: agent:town-verify
 sources:
   - url: http://www.rossnesbitagenciesstjoseph.com/
@@ -6548,7 +6574,7 @@ category: "home_service"
 place_type: "Business"
 address: "31101 County Road 133"
 phone: "+13203637479"
-aka: ["Scenic Specialties Landscape"]
+aka: ["Pond Shop", "Scenic Specialties Landscape"]
 added_by: agent:town-verify
 sources:
   - url: http://www.scenicspecialties.com/
@@ -6650,6 +6676,7 @@ category: "bank_or_credit_union"
 place_type: "Business"
 address: "400 4th Ave NE"
 phone: "+13203637721"
+aka: ["First State Bank of St. Joseph"]
 added_by: agent:town-verify
 sources:
   - url: https://mysentrybank.com/about-us/contact/
@@ -6703,6 +6730,7 @@ category: "second_hand_store"
 place_type: "Business"
 address: "31 W Minnesota St"
 phone: "+13202829598"
+aka: ["Sisters & Co. Consignment Boutique"]
 added_by: agent:town-verify
 sources:
   - url: TODO
@@ -6739,6 +6767,7 @@ category: "gym"
 place_type: "Business"
 address: "708 Elm St E"
 phone: "+13203637757"
+aka: ["Snap Fitness St. Joseph", "St. Joseph, MN"]
 added_by: agent:town-verify
 sources:
   - url: https://www.snapfitness.com/us/gyms/st-joseph-mn/?utm_source=fb&utm_medium=yext
@@ -6772,6 +6801,7 @@ category: "personal_or_beauty_service"
 place_type: "Business"
 address: "710 Co Rd 75 #107"
 phone: "+13202713117"
+aka: ["J L Nails"]
 added_by: agent:town-verify
 sources:
   - url: https://solarnailsmn.com/home
@@ -6877,6 +6907,7 @@ category: "animal_or_pet_service"
 place_type: "Business"
 address: "809 County Road 75"
 phone: "+13203634908"
+aka: ["St. Joseph Cold Spring Vet"]
 added_by: agent:town-verify
 sources:
   - url: http://saintjosephequineclinic.com/
@@ -7051,6 +7082,7 @@ category: "b2b_service"
 place_type: "Business"
 address: "417 1st Ave NE"
 phone: "18003283841"
+aka: ["Sunset Equipment And Supply", "Sunset Equipment Supply", "Sunset Equipment and Supply", "Sunset Manufacturing Co"]
 added_by: agent:town-verify
 sources:
   - url: http://www.sunset-eq.com
@@ -7143,6 +7175,7 @@ category: "manufacturer"
 place_type: "Business"
 address: "8646 Ridgewood Rd"
 phone: "13203634671"
+aka: ["Borgert Products Inc", "Bremix"]
 added_by: agent:town-verify
 sources:
   - url: https://www.borgertproducts.com
@@ -7314,6 +7347,7 @@ tier: listed
 place_type: "Business"
 address: "28391 Kelp Road"
 phone: "(320) 363-7564"
+aka: ["James Kuebelbeck Water Loc Service"]
 added_by: agent:town-verify
 sources:
   - url: http://www.undergroundwaterlocating.com
@@ -7332,6 +7366,7 @@ category: "complementary_and_alternative_medicine"
 place_type: "Business"
 address: "19 Ash St E"
 phone: "+13203044873"
+aka: ["Unwind: Craniosacral, Myofascial, Lactation Clinic"]
 added_by: agent:town-verify
 sources:
   - url: TODO
@@ -7431,6 +7466,7 @@ tier: listed
 place_type: "Business"
 address: "209 E Cedar Street"
 phone: "(320) 363-4195"
+aka: ["Music & Dance News"]
 added_by: agent:town-verify
 sources:
   - url: TODO
@@ -7502,6 +7538,7 @@ category: "real_estate_service"
 place_type: "Business"
 address: "111 College Ave N"
 phone: "+13209805920"
+aka: ["Wendy Loso Central MN Realty"]
 added_by: agent:town-verify
 sources:
   - url: http://wendyloso.com/
@@ -7571,6 +7608,7 @@ category: "complementary_and_alternative_medicine"
 place_type: "Business"
 address: "32 1st Ave NW #72"
 phone: "+13204062888"
+aka: ["The Whole You Wellness Collective-Trisha Kubasek LLC"]
 added_by: agent:town-verify
 sources:
   - url: https://thewholeyouwellnesscollective.com/
@@ -7675,6 +7713,7 @@ tier: listed
 category: "social_or_community_service"
 place_type: "Community group"
 address: "29495 Kraemer Lake Rd"
+aka: ["St. Joe Rod and Gun Club boat launch"]
 added_by: agent:town-verify
 sources:
   - url: http://stjoerodandgunclub.org/
@@ -7817,6 +7856,7 @@ category: "coffee_shop"
 place_type: "School / college"
 address: "1300 Jade Rd"
 phone: "(320) 363-4737"
+aka: ["Kids Stop"]
 added_by: agent:town-verify
 sources:
   - url: http://bgcmn.org/
@@ -7870,6 +7910,7 @@ category: "place_of_learning"
 place_type: "School / college"
 address: "32 W Minnesota St"
 phone: "+13203637769"
+aka: ["St Joseph Laboratory School", "St. Joseph Laboratory School"]
 added_by: agent:town-verify
 sources:
   - url: https://www.stjosephparish.org
@@ -7937,6 +7978,7 @@ category: "government_office"
 place_type: "Government"
 address: "935 College Ave S"
 phone: "+13203638825"
+aka: ["St. Joseph Town Hall"]
 added_by: agent:town-verify
 sources:
   - url: https://www.sjct.org
@@ -7955,6 +7997,7 @@ category: "military_site"
 place_type: "Government"
 address: "110 20th Ave SE"
 phone: "+13202517942"
+aka: ["Saint Joseph Deers Office"]
 added_by: agent:town-verify
 sources:
   - url: https://rapids-appointments-scheduler.dmdc.osd.mil
@@ -8017,6 +8060,7 @@ tier: listed
 category: "park"
 place_type: "Park / historic"
 address: "12857 Co Rd 51"
+aka: ["Kraemer Lake & Wildwood Park", "Wildwood Park Maple Sugar Shack", "Wildwood park picnic shelter and fishing pier"]
 added_by: agent:town-verify
 sources:
   - url: TODO
@@ -8032,6 +8076,7 @@ id: lions-park
 status: proposed
 tier: listed
 place_type: "Park / historic"
+aka: ["St. Joseph MN Lions Park"]
 added_by: agent:town-verify
 sources:
   - url: TODO
@@ -8085,6 +8130,7 @@ category: "real_estate_service"
 place_type: "Park / historic"
 address: "407 1st Ave NW"
 phone: "+13203631004"
+aka: ["W J Properties"]
 added_by: agent:town-verify
 sources:
   - url: https://www.summitproperties.info/st-joseph-mobile-home-community
@@ -8103,6 +8149,7 @@ category: "sports_and_recreation"
 place_type: "Park / historic"
 address: "605 1st Ave NE"
 phone: "+13202939364"
+aka: ["Lake Wobegon Trail"]
 added_by: agent:town-verify
 sources:
   - url: http://lakewobegontrail.com/

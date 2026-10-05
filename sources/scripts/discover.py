@@ -260,7 +260,10 @@ TOWNS = {
             ['Sisters & Company', 'Sisters & Co. Consignment Boutique'],
             ['St Joe Rod and Gun Club', 'St. Joe Rod and Gun Club boat launch'],
             ['Lions Park', 'St. Joseph MN Lions Park'],
-            ['Charlie Walker Construction', 'Central Minnesota Prefinish'],
+            ['Charlie Walker Construction', 'Charlie Walker Construstion, Inc.'],
+            # Settled by Jesse, 2026-10-05.
+            ['Peaceful Village Imports Inc.', 'Peaceful Village', 'Peaceful Village Imports'],
+            ['Millstream Arts Festival', 'Millstream Art Festival'],
             ['Kraemer Lake-Wildwood County Park', 'Kraemer Lake & Wildwood Park',
              'Wildwood Park Maple Sugar Shack',
              'Wildwood park picnic shelter and fishing pier'],
@@ -825,6 +828,7 @@ def merge(records, aliases=None, known_distinct=(), stale=()):
     by_key = {}
     for r in records:
         k = match_key(r["name"])
+        seen_as = r["name"]
         if k in aliases:
             k, canon_name = aliases[k]
             r = dict(r, name=canon_name)   # one place, one name
@@ -838,6 +842,8 @@ def merge(records, aliases=None, known_distinct=(), stale=()):
             for f in FIELDS:
                 cur[f] = None
         _absorb(cur, r)
+        if match_key(seen_as) != k and seen_as not in cur.setdefault("aka", []):
+            cur["aka"].append(seen_as)     # the registry entry remembers its other names
 
     # Second pass: shared phone, or same street spot with overlapping names. A phone from
     # a stale directory does not count: numbers get reassigned, and Synergistic Healing's
@@ -924,6 +930,7 @@ def _absorb(cur, r):
     for f in FIELDS:
         if cur.get(f) is None and r.get(f) not in (None, ""):
             cur[f] = r[f]
+            cur.setdefault("from", {})[f] = src
 
 
 GENERIC = set("st saint joseph mn minnesota cloud of inc llc co company corp services service "

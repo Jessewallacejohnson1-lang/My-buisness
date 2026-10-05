@@ -33,12 +33,13 @@ Outputs, in --out (default .runs/verify/<town>/):
   proposed.md    `proposed` drafts for open, confirmed places the registry lacks
 """
 import argparse, csv, json, re, sys
-from datetime import date, datetime, timezone
+from datetime import date
 from pathlib import Path
+from urllib.parse import urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from discover import (TOWNS, GOOGLE, NOT_A_PLACE, build_alias_map, entry_md, looks_like_event,
-                      match_key, norm, phone_key, registry_keys, street_key, _names_overlap)
+                      match_key, norm, phone_key, street_key, _names_overlap)
 from registry import find_root, load
 
 CURRENT_LISTINGS = {"stjosephchamber.com", "www.joetown.org"}
@@ -194,9 +195,12 @@ def main():
             by_key.setdefault(match_key(a), p)
     skip = {match_key(n) for n in town.get("not_places", ())}
     for e in entries:
-        keys = {match_key(e["_name"])} | {match_key(a) for a in (e.get("aka") or [])}
-        keys |= {aliases[k][0] for k in keys if k in aliases}
-        if keys & skip or NOT_A_PLACE.search(e["_name"]) or e.get("category") in ("town", "festival", "vendors"):
+        # The entry's own name first, then its old names: "BSN SPORTS" must find the BSN
+        # place, not the Game Day Athletic place its aka also points at.
+        keys = [match_key(e["_name"])] + [match_key(a) for a in (e.get("aka") or [])]
+        keys += [aliases[k][0] for k in keys if k in aliases]
+        keys = list(dict.fromkeys(keys))
+        if set(keys) & skip or NOT_A_PLACE.search(e["_name"]) or e.get("category") in ("town", "festival", "vendors"):
             continue    # the town itself, an event or a kiosk: a source, not a place
         hit = next((by_key[k] for k in keys if k in by_key), None)
         if hit is None:
@@ -282,7 +286,10 @@ def main():
                         g(p, "website"), (p.get("entry") or {}).get("status", ""),
                         ", ".join(s for s in p["sources"] if s != "registry"),
                         v.get("evidence", ""), v.get("source_url", ""), v.get("checked", "")])
-    retire = [p for p in places if p.get("entry") and p["v"]["verdict"] in ("Closed", "Moved", "Renamed")]
+    retire = [p for p in places if p.get("entry") and p["v"]["verdict"] in ("Closed", "Moved", "Renamed")
+              # an entry already carrying the new name has nothing left to change
+              and not (p["v"]["verdict"] == "Renamed" and
+                       match_key(p["entry"]["name"]) == match_key(p["v"].get("current_name") or ""))]
     with open(out / "retire.csv", "w", newline="") as fh:
         w = csv.writer(fh)
         w.writerow(["Entry id", "Name", "Verdict", "New name", "Proof", "Proof link"])
@@ -307,6 +314,7 @@ def main():
             w.writerow([a, b, ratio, ""])
 
     # Drafts: open, not yet in the registry, and named by a non-Google source.
+    stale = {urlparse(d["url"]).netloc for d in town["directories"] if d.get("stale")}
     drafts = []
     for p in places:
         v = p["v"]
@@ -319,6 +327,14 @@ def main():
             rec["aka"] = list(p.get("aka", [])) + [p["name"]]
             rec["name"] = v["current_name"]
             rec["address"] = v.get("current_address") or p.get("address")
+        # An old directory's address loses to a current listing somewhere else: the place
+        # moved (Peaceful Village left its farm for Elm St), so leave the field empty.
+        # House numbers only: "County Road 2" and "Stearns 2 County" are one road.
+        number = lambda a: street_key(a).split()[0] if street_key(a) else None
+        g_no = number((p.get("google") or {}).get("address"))
+        if (p.get("from") or {}).get("address") in stale and g_no and \
+                g_no != number(p.get("address")) and not v.get("current_address"):
+            rec.update(address=None, phone=None)
         if set(p["sources"]) <= GOOGLE:       # ADR-016: nothing from Google goes in
             site = re.match(r"its own website, (\S+)", v.get("confirmed_by") or "")
             rec.update(address=v.get("current_address") or None, phone=None, category=None,
