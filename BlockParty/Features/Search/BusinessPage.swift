@@ -111,6 +111,9 @@ final class BusinessOpener {
         /// wall, a result row): there the backdrop fades in instead of growing out.
         var radius: CGFloat
         var shadow: Color
+        /// Opened from a photo card, where the logo isn't on screen: the backdrop
+        /// fades in over the photo and the logo fades in as it flies.
+        var fades = false
     }
 
     private(set) var item: SearchItem?
@@ -194,7 +197,7 @@ private struct BusinessPageBody: View {
                 // The backdrop grows out of the card it came from.
                 SearchBackdrop(colors: logo.backdrop)
                     .clipShape(RoundedClip(rect: lerp(box, screen, c), radius: lerp(source.radius, 0, c)))
-                    .opacity(source.radius > 0 ? 1 : min(1, c * 4))
+                    .opacity(source.radius > 0 && !source.fades ? 1 : min(1, c * 4))
 
                 photoGrid(width: full.width, travel: full.height - gridTop, p: p)
                     .padding(.top, gridTop)
@@ -219,6 +222,7 @@ private struct BusinessPageBody: View {
                 CastLogo(logo: logo, side: flying.width, shadow: source.shadow,
                          stretch: 1 + lift * SearchMetric.liftStretch, strength: 1 - lift * SearchMetric.liftFade)
                     .offset(x: flying.minX, y: flying.minY)
+                    .opacity(source.fades ? min(1, c * 4) : 1)
                     .allowsHitTesting(false)
                     .accessibilityLabel(item.name)
             }

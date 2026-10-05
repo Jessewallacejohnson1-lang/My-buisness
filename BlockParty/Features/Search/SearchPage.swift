@@ -652,14 +652,17 @@ struct PhotoCard: View {
     /// nil fills a grid column.
     var width: CGFloat? = SearchMetric.cardWidth
     @Environment(SearchModel.self) private var model
+    @Environment(BusinessOpener.self) private var opener
+    @State private var photoFrame = FrameBox()
 
     var body: some View {
-        Button { model.remember(item.id) } label: {
+        Button(action: tap) {
             VStack(alignment: .leading, spacing: 0) {
                 SearchPhoto(item: item)
                     .frame(maxWidth: .infinity)
                     .frame(height: SearchMetric.cardPhoto)
                     .clipShape(RoundedRectangle(cornerRadius: Radius.photoCard, style: .continuous))
+                    .trackFrame(photoFrame)
                 Text(item.name)
                     .font(.sansSemibold(15))
                     .foregroundStyle(Hue.ink)
@@ -676,6 +679,17 @@ struct PhotoCard: View {
             .frame(maxWidth: width == nil ? .infinity : nil, alignment: .leading)
         }
         .buttonStyle(SquishStyle())
+    }
+
+    /// A restaurant or coffee shop with a logo opens its page from the photo: the
+    /// logo flies out of the photo's middle.
+    private func tap() {
+        model.remember(item.id)
+        guard item.opens, let logo = item.logo else { return }
+        let box = photoFrame.rect, size = SearchMetric.logoOnTile
+        opener.open(item, from: .init(
+            logo: CGRect(x: box.midX - size / 2, y: box.midY - size / 2, width: size, height: size),
+            box: box, radius: Radius.photoCard, shadow: logo.shadow, fades: true))
     }
 }
 

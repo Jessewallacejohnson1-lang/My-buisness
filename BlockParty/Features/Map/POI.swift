@@ -20,6 +20,10 @@ struct POI: Identifiable, Decodable, Hashable {
     /// Public URL of the curated brand logo (`places.logo_url`, Supabase Storage).
     /// Null for most places — the category glyph is the designed fallback.
     let logoUrl: String?
+    /// Google's own place id for a row whose `placeId` is a local one (`stjoe-*`), found
+    /// once through Locked Rule A (`scripts/resolve_google_place_ids.py`). nil when
+    /// nothing cleared it, or when `placeId` is already Google's.
+    var googlePlaceId: String? = nil
 
     var coordinate: CLLocationCoordinate2D { .init(latitude: lat, longitude: lon) }
 

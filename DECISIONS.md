@@ -719,10 +719,16 @@ over a database change ("yes", Check-in 1): no live migration, no new Storage pa
   those 256 px favicons, so they don't fit that column.
 - **The cost:** a business that changes its logo, or a new 3D render, needs an app update.
   When owners upload their own logos (the Business side), move these to Storage.
-- **Photos stay live:** restaurant cards and a business's photo grid are Google's, through
-  `confidentPhoto` / `confidentDetails` (Locked Rule A) or `details` for a real `ChIJ` id,
-  each with its `PhotoCredit`. Result rows show a logo or a glyph, never a Google photo:
-  a 44 pt avatar has no room for the credit.
+- **Photos stay live:** restaurant cards and a business's photo grid are Google's, each with
+  its `PhotoCredit`. A place with a Google id asks for its photos alone
+  (`GooglePlacesService.photos(placeId:)`, the IDs-only tier, no Pro field billed); the
+  rest still clear Locked Rule A through `confidentDetails`. Result rows show a logo or a
+  glyph, never a Google photo: a 44 pt avatar has no room for the credit.
+- **Google ids are stored once** (Jesse, 2026-10-04, "yes" to saving them): the new
+  `places.google_place_id` (migration `20261005000000`) holds Google's id for a row whose
+  `place_id` is local (`stjoe-*`), found by `scripts/resolve_google_place_ids.py` through
+  the same Rule A. 39 of the 62 local rows cleared on 2026-10-05; the other 23 keep
+  searching at runtime. Place ids are the one Google field the terms let us keep.
 
 ## Open — should the server decide which posts go live?
 

@@ -54,6 +54,23 @@ final class SearchModelTests: XCTestCase {
         XCTAssertTrue(model.chips.contains(.businesses))
     }
 
+    /// A local place whose Google id was found asks Google by that id; restaurants and
+    /// coffee shops with a logo open their page as a business does.
+    func testGoogleIdsAndWhatOpens() {
+        var bruno = poi("stjoe-bruno-press", "Bruno Press", .business, "print_shop")
+        bruno.googlePlaceId = "ChIJbruno"
+        let items = SearchModel.places(from: [
+            bruno,
+            poi("ChIJmTKJ0M9ZtFIRm7FAmBzwApc", "The Local Blend", .food, "coffee_shop"),
+            poi("stjoe-krewe", "Krewe Restaurant", .food, "cajun_restaurant"),
+        ])
+        func named(_ name: String) -> SearchItem? { items.first { $0.name == name } }
+        XCTAssertEqual(named("Bruno Press")?.googleId, "ChIJbruno")
+        XCTAssertEqual(named("The Local Blend")?.googleId, "ChIJmTKJ0M9ZtFIRm7FAmBzwApc")
+        XCTAssertEqual(named("The Local Blend")?.opens, true)
+        XCTAssertEqual(named("Krewe")?.opens, false, "no logo, nothing to fly")
+    }
+
     /// The mockup's order first (the 3D logos lead), then by name.
     func testRowsKeepTheMockupsOrder() {
         let model = SearchModel(defaults: defaults)

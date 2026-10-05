@@ -53,8 +53,9 @@ struct SearchItem: Identifiable, Hashable {
         return CLLocationCoordinate2D(latitude: lat, longitude: lon)
     }
 
-    /// A business with a logo opens onto its own page of photos; the logo flies there.
-    var opens: Bool { kind == .business && logo != nil }
+    /// A business or food place with a logo opens onto its own page of photos; the
+    /// logo flies there (Jesse, 2026-10-04: restaurants and coffee open like logos).
+    var opens: Bool { [.business, .restaurant, .coffee].contains(kind) && logo != nil }
 
     /// Its photos from Google Maps, shared by its card and its business page. With a
     /// Google id it asks for the photos alone (the cheap tier); without one, its name
@@ -314,7 +315,7 @@ final class SearchModel {
             return SearchItem(id: "p:\(key)", kind: kind, name: shown(poi.name), fullName: poi.name,
                               sub: label(type), logo: logo, photo: kind == .business ? nil : .google,
                               keywords: [type.replacingOccurrences(of: "_", with: " ")],
-                              lat: poi.lat, lon: poi.lon, googleId: key.hasPrefix("ChIJ") ? key : nil,
+                              lat: poi.lat, lon: poi.lon, googleId: key.hasPrefix("ChIJ") ? key : poi.googlePlaceId,
                               rank: logo?.rank ?? .max)
         }
     }
