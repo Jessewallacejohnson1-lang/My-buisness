@@ -204,7 +204,9 @@ not re-tier on its own.
 - **Prefer a feed to a page (ADR-012).** Where a site publishes iCal or RSS, that is the
   source. An HTML page that renders its content in JavaScript is not a source at all — the
   snapshot will be filter chrome. Find the feed, or fall back to `search_snippet`.
-- **One file per town**, named `sources/<town>-mn.md` (ADR-006).
+- **One file per town**, named `sources/<town>-mn.md` (ADR-006). Every other `.md` in this
+  folder is read as a town file too, unless `scripts/registry.py` skips it by name (it skips
+  `README.md` and `CONTEXT.md`). Put new docs elsewhere, or add them to that list.
 - **Registry lives at the repo root**, in this folder. The Android repo and the waitlist repo
   link here instead of keeping their own copies (ADR-004).
 - **Runners default to dry-run.** Writing to production requires an explicit `--write`
