@@ -197,13 +197,13 @@ nonisolated enum DailyMetric {
     static let suggestionPhoto: CGFloat = 158
     static let suggestionGap: CGFloat = 13
     /// The time chip: 24 tall, 10 in from the photo's corner, as wide as "11 AM" there.
+    /// The photo floats on the one soft card shadow, as Airbnb's does.
     static let suggestionChipInset: CGFloat = 10
     static let suggestionChipHeight: CGFloat = 24
     static let suggestionChipPadding: CGFloat = 8
-    /// The bookmark sits where Airbnb's heart does, its middle 26pt in from the corner.
-    static let suggestionSaveCentre: CGFloat = 26
-    static let suggestionSave: CGFloat = 28
-    static let suggestionSaveGlyph: CGFloat = 13
+    /// The bookmark sits where Airbnb's heart does, its middle 26pt in from the corner:
+    /// this, plus half its 44pt tap area.
+    static let suggestionSaveInset: CGFloat = 4
     /// From the photo to the title's frame: 11pt to its capitals, as measured.
     static let suggestionTitleTop: CGFloat = 8
     /// Between the title and each grey line under it.

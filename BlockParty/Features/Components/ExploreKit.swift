@@ -195,13 +195,13 @@ struct BookmarkGlyph: View {
     }
 }
 
-/// The floating bookmark on a card photo: an ink outline, brand yellow inside when saved.
+/// The floating bookmark on a card photo: an ink outline, brand yellow inside when saved,
+/// in a white circle the size of Airbnb's heart on its cards (Daily's Suggestions,
+/// measured 2026-10-05). The tap area around it is 44pt.
 struct SaveBookmarkButton: View {
     let id: String
-    /// The white circle, and the bookmark in it. The tap area stays at least 44pt.
-    var side: CGFloat = 38
-    var glyph: CGFloat = 15
     @ObservedObject private var store = SavedStore.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let saved = store.isSaved(id)
@@ -210,17 +210,18 @@ struct SaveBookmarkButton: View {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.62)) { store.toggle(id) }
         } label: {
             BookmarkGlyph(saved: saved)
-                .font(.sansSemibold(glyph))
+                .font(.sansSemibold(13))
                 .foregroundStyle(Hue.ink)
                 .symbolEffect(.bounce, value: saved)
-                .frame(width: side, height: side)
+                .frame(width: 28, height: 28)
                 .background(Hue.surface)
                 .clipShape(Circle())
                 .mapFloatShadow()
-                .frame(width: max(side, 44), height: max(side, 44))
+                .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        // It squishes like the event page's save, not fades (taste.md: press).
+        .buttonStyle(FeedCardJoinPressStyle(reduceMotion: reduceMotion))
         .accessibilityLabel(saved ? "Remove from saved" : "Save for later")
     }
 }

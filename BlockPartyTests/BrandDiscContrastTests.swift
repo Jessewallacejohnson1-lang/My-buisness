@@ -101,8 +101,9 @@ final class BrandDiscContrastTests: XCTestCase {
     // MARK: - Every saved bookmark is the brand yellow
 
     /// Every saved bookmark in BP fills with the brand yellow exactly (Jesse,
-    /// 2026-09-27). `SaveBookmarkButton` is on no screen today, so this is its proof:
-    /// rendered saved, the middle of its bookmark is #FCE804 to the unit; unsaved, not.
+    /// 2026-09-27). `SaveBookmarkButton` is the one on Daily's Suggestions cards; this is
+    /// its proof: rendered saved, the middle of its bookmark is #FCE804 to the unit;
+    /// unsaved, not.
     func testSavedBookmarkButtonFillsExactBrandYellow() throws {
         let id = "BrandDiscContrastTests.bookmark"
         let store = SavedStore.shared

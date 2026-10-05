@@ -66,6 +66,7 @@ extension DailyEvent {
 struct SuggestionsSection: View {
     let events: [DailyEvent]
     let now: Date
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 0) {
@@ -77,9 +78,13 @@ struct SuggestionsSection: View {
                     }
                 }
                 .scrollTargetLayout()
+                // A finished event's card closes up instead of vanishing.
+                .animation(reduceMotion ? nil : Motion.smooth, value: events.map(\.id))
             }
             .contentMargins(.horizontal, DailyMetric.side, for: .scrollContent)
             .scrollTargetBehavior(.viewAligned)
+            // The photos' shadows reach past the row; don't cut them off.
+            .scrollClipDisabled()
             .padding(.top, DailyMetric.eventLabelToCard)
         }
     }
@@ -98,15 +103,17 @@ private struct SuggestionCard: View {
                     .frame(width: DailyMetric.suggestionWidth, height: DailyMetric.suggestionPhoto)
                     .overlay { if let url = event.photo { FeedCardURLPhoto(url: url) } }
                     .clipShape(RoundedRectangle(cornerRadius: Radius.bento, style: .continuous))
+                    .modifier(CardShadow())
                     .overlay(alignment: .topLeading) { chip.padding(DailyMetric.suggestionChipInset) }
                 VStack(alignment: .leading, spacing: DailyMetric.suggestionLineGap) {
+                    // 13, Airbnb's title size, the same as the grey lines under it.
                     Text(event.item.title)
-                        .font(.sansSemibold(14))
+                        .font(.sansSemibold(13))
                         .foregroundStyle(Hue.ink)
                         .lineLimit(2)
                     Group {
                         if let place = event.item.location { Text(place) }
-                        if !event.item.hostName.isEmpty { Text("Hosted by \(event.item.hostName)") }
+                        if let host { Text("Hosted by \(host)") }
                     }
                     .font(.sans(13))
                     .foregroundStyle(Hue.inkSecondary)
@@ -120,14 +127,19 @@ private struct SuggestionCard: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(PressableCardStyle())
+        // The title first; drawn, the time comes before it.
+        .accessibilityLabel([event.item.title, event.startTime(now: now), event.item.location,
+                             host.map { "Hosted by \($0)" }].compactMap { $0 }.joined(separator: ", "))
         // The bookmark answers its own taps, over the link, never opening the page.
         .overlay(alignment: .topTrailing) {
-            SaveBookmarkButton(id: event.id, side: DailyMetric.suggestionSave,
-                               glyph: DailyMetric.suggestionSaveGlyph)
-                // Its tap area is 44pt square, so its middle sits 22pt into it.
-                .padding(DailyMetric.suggestionSaveCentre - 22)
+            SaveBookmarkButton(id: event.id).padding(DailyMetric.suggestionSaveInset)
         }
-        .accessibilityElement(children: .contain)
+    }
+
+    /// Who hosts it, unless that is the place again ("Saint John's Arboretum" twice).
+    private var host: String? {
+        let name = event.item.hostName
+        return name.isEmpty || name == event.item.location ? nil : name
     }
 
     private var chip: some View {
@@ -135,7 +147,7 @@ private struct SuggestionCard: View {
             .font(.sansMedium(13))
             .foregroundStyle(Hue.ink)
             .padding(.horizontal, DailyMetric.suggestionChipPadding)
-            .frame(height: DailyMetric.suggestionChipHeight)
+            .frame(minHeight: DailyMetric.suggestionChipHeight)
             .background(Capsule().fill(Hue.surface))
     }
 }
