@@ -97,21 +97,23 @@ private struct SuggestionCard: View {
                 Hue.fill
                     .frame(width: DailyMetric.suggestionWidth, height: DailyMetric.suggestionPhoto)
                     .overlay { if let url = event.photo { FeedCardURLPhoto(url: url) } }
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.bento, style: .continuous))
                     .overlay(alignment: .topLeading) { chip.padding(DailyMetric.suggestionChipInset) }
-                Text(event.item.title)
-                    .font(.sansSemibold(14))
-                    .foregroundStyle(Hue.ink)
-                    .lineLimit(2)
-                    .padding(.top, DailyMetric.suggestionTitleTop)
-                Group {
-                    if let place = event.item.location { Text(place) }
-                    if !event.item.hostName.isEmpty { Text("Hosted by \(event.item.hostName)") }
+                VStack(alignment: .leading, spacing: DailyMetric.suggestionLineGap) {
+                    Text(event.item.title)
+                        .font(.sansSemibold(14))
+                        .foregroundStyle(Hue.ink)
+                        .lineLimit(2)
+                    Group {
+                        if let place = event.item.location { Text(place) }
+                        if !event.item.hostName.isEmpty { Text("Hosted by \(event.item.hostName)") }
+                    }
+                    .font(.sans(13))
+                    .foregroundStyle(Hue.inkSecondary)
+                    .lineLimit(1)
                 }
-                .font(.sans(13))
-                .foregroundStyle(Hue.inkSecondary)
-                .lineLimit(1)
-                .padding(.top, DailyMetric.suggestionLineGap)
+                .padding(.top, DailyMetric.suggestionTitleTop)
+                .padding(.horizontal, DailyMetric.suggestionTextInset)
             }
             .multilineTextAlignment(.leading)
             .frame(width: DailyMetric.suggestionWidth, alignment: .leading)

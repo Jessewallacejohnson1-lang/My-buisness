@@ -192,7 +192,7 @@ nonisolated enum DailyMetric {
     /// (`references/daily-suggestions/airbnb-happening-today.jpg` in the BP app folder,
     /// an @3x 393pt screen), copied 1:1 (Jesse, 2026-10-05). The cards start at `side`
     /// (18) where Airbnb's start at 24, as Event of the day's do. The photo's corner is
-    /// `Radius.tile`, as the Agenda's card is for the same round Airbnb corner.
+    /// `Radius.bento`: measured edge to edge against Airbnb's, it rounds the same.
     static let suggestionWidth: CGFloat = 167
     static let suggestionPhoto: CGFloat = 158
     static let suggestionGap: CGFloat = 13
@@ -208,6 +208,8 @@ nonisolated enum DailyMetric {
     static let suggestionTitleTop: CGFloat = 8
     /// Between the title and each grey line under it.
     static let suggestionLineGap: CGFloat = 2
+    /// The words sit this far in from the photo's edges, as Airbnb's do.
+    static let suggestionTextInset: CGFloat = 3
 }
 
 /// The low sun over the yellow: morning light from the east throws the Spotlight's
