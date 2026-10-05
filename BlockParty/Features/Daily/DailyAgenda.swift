@@ -38,10 +38,15 @@ extension DailyEvent {
     static func clock(_ date: Date) -> String {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = Town.timeZone
+        return townTime(calendar.component(.minute, from: date) == 0 ? "h" : "hmm", date)
+    }
+
+    /// `date` written from a date template ("EEE", "d", "h"), in English, in the Town's time.
+    static func townTime(_ template: String, _ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US")
         formatter.timeZone = Town.timeZone
-        formatter.setLocalizedDateFormatFromTemplate(calendar.component(.minute, from: date) == 0 ? "h" : "hmm")
+        formatter.setLocalizedDateFormatFromTemplate(template)
         return formatter.string(from: date)
     }
 
@@ -87,8 +92,18 @@ struct AgendaSection: View {
     @State private var openID: String?
     @State private var pushed: FeedCardItem?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
 
+    /// Stays in the page with no events too, empty and with no height, so an event page
+    /// it opened stays open when that event ends under it.
     var body: some View {
+        VStack(spacing: 0) {
+            if !events.isEmpty { section }
+        }
+        .navigationDestination(item: $pushed) { FeedEventDetailDestination(item: $0) }
+    }
+
+    private var section: some View {
         VStack(spacing: 0) {
             DailySectionLabel(title: "Agenda", ink: Hue.ink)
             VStack(spacing: DailyMetric.agendaRowGap) {
@@ -105,14 +120,17 @@ struct AgendaSection: View {
                     .fixedSize(horizontal: false, vertical: true)
                 }
             }
+            // A finished event closes up instead of vanishing.
+            .animation(reduceMotion ? nil : Motion.bentoExpand, value: events.map(\.id))
             .padding(.top, DailyMetric.eventLabelToCard)
             .padding(.horizontal, DailyMetric.side)
         }
-        .navigationDestination(item: $pushed) { FeedEventDetailDestination(item: $0) }
+        .padding(.top, DailyMetric.eventSectionTop)
     }
 
+    /// VoiceOver reads the whole card at once, so its first tap opens the page.
     private func tap(_ event: DailyEvent) {
-        if openID == event.id {
+        if openID == event.id || voiceOver {
             pushed = event.item
         } else {
             withAnimation(reduceMotion ? nil : Motion.bentoExpand) { openID = event.id }
@@ -138,10 +156,10 @@ private struct AgendaRail: View {
         .overlay(alignment: .top) {
             if let day {
                 VStack(spacing: DailyMetric.agendaDayToCircle) {
-                    Text(Self.format("EEE", day))
+                    Text(DailyEvent.townTime("EEE", day))
                         .font(.sansBold(12))
                         .foregroundStyle(Hue.ink)
-                    Text(Self.format("d", day))
+                    Text(DailyEvent.townTime("d", day))
                         .font(.sansMedium(14))
                         .foregroundStyle(Hue.inkSecondary)
                         .frame(width: DailyMetric.agendaDay, height: DailyMetric.agendaDay)
@@ -156,14 +174,6 @@ private struct AgendaRail: View {
     private var line: some View {
         Hue.hairline.frame(width: 1)
     }
-
-    private static func format(_ template: String, _ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US")
-        formatter.timeZone = Town.timeZone
-        formatter.setLocalizedDateFormatFromTemplate(template)
-        return formatter.string(from: date)
-    }
 }
 
 /// One card: the event's square photo, when it starts, and the title on one line.
@@ -176,11 +186,12 @@ private struct AgendaCard: View {
 
     var body: some View {
         let started = event.starts <= now
+        let card = RoundedRectangle(cornerRadius: Radius.tile, style: .continuous)
         HStack(alignment: .top, spacing: DailyMetric.agendaTextGap) {
             Hue.fill
                 .frame(width: DailyMetric.agendaPhoto, height: DailyMetric.agendaPhoto)
                 .overlay { if let url = event.photo { FeedCardURLPhoto(url: url) } }
-                .clipShape(RoundedRectangle(cornerRadius: DailyMetric.agendaPhotoRadius, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             // Opening only adds below: the time and the title's first line stay put.
             VStack(alignment: .leading, spacing: 0) {
                 Text(event.startTime(now: now))
@@ -194,13 +205,13 @@ private struct AgendaCard: View {
                     }
                     .font(.sans(13))
                     .foregroundStyle(Hue.inkSecondary)
+                    .padding(.trailing, DailyMetric.agendaArrowRoom)
                     .transition(.opacity)
                 }
             }
             .multilineTextAlignment(.leading)
             .padding(.vertical, DailyMetric.agendaTextInset)
             .frame(maxWidth: .infinity, minHeight: DailyMetric.agendaPhoto, alignment: .topLeading)
-            .padding(.trailing, open ? DailyMetric.agendaArrowRoom : 0)
         }
         .padding(DailyMetric.agendaPhotoInset)
         .overlay(alignment: .trailing) {
@@ -213,36 +224,33 @@ private struct AgendaCard: View {
         }
         // The lines an opening card adds start at their final place; this keeps them
         // inside the card while it grows to reach them.
-        .clipShape(RoundedRectangle(cornerRadius: DailyMetric.agendaCardRadius, style: .continuous))
+        .clipShape(card)
         .background {
-            RoundedRectangle(cornerRadius: DailyMetric.agendaCardRadius, style: .continuous)
-                .fill(Hue.surface)
+            card.fill(Hue.surface)
                 .modifier(CardShadow())
-                .overlay {
-                    RoundedRectangle(cornerRadius: DailyMetric.agendaCardRadius, style: .continuous)
-                        .strokeBorder(Hue.hairline, lineWidth: 0.5)
-                }
+                .overlay { card.strokeBorder(Hue.hairline, lineWidth: 0.5) }
         }
-        .contentShape(RoundedRectangle(cornerRadius: DailyMetric.agendaCardRadius, style: .continuous))
+        .contentShape(card)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel([event.item.title, event.startTime(now: now), open ? more : nil]
-            .compactMap { $0 }.joined(separator: ", "))
+        .accessibilityLabel([event.item.title, event.startTime(now: now), more].joined(separator: ", "))
     }
 
-    /// What the open card adds, for VoiceOver: "Until 11 AM, Lake Wobegon Trailhead".
-    /// "Until" is a working word, from the mockup Jesse picked; he writes the final ones.
+    /// What the open card adds, and VoiceOver always reads: "Until 11 AM, Lake Wobegon
+    /// Trailhead". "Until" is a working word, from the mockup Jesse picked; he writes
+    /// the final ones.
     private var more: String {
         ["Until \(DailyEvent.clock(event.ends))", event.item.location].compactMap { $0 }.joined(separator: ", ")
     }
 
     /// The title, cut to one line until the card opens. The whole title fades in over
-    /// the cut one while its frame grows down from the first line, so the words don't
-    /// reflow mid-spring.
+    /// the cut one while its frame grows down from the first line. It always leaves the
+    /// arrow its room, so no width changes mid-spring and the words never reflow.
     private var title: some View {
         let text = Text(event.item.title).font(.sansSemibold(15)).foregroundStyle(Hue.ink)
         return ZStack(alignment: .topLeading) {
             text.lineLimit(1).opacity(open ? 0 : 1)
             text.fixedSize(horizontal: false, vertical: true)
+                .padding(.trailing, DailyMetric.agendaArrowRoom)
                 .frame(height: open ? nil : 0, alignment: .top)
                 .clipped()
                 .opacity(open ? 1 : 0)

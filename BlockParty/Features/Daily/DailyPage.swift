@@ -168,7 +168,9 @@ nonisolated enum DailyMetric {
     /// (`references/daily-agenda/airbnb-day-plan.jpg` in the BP app folder, an @3x 393pt
     /// screen). The day's grey circle, its gap to the cards, and each card: 80pt tall,
     /// a 64pt picture 8pt in, the text 16pt after it. The section sits under Event of
-    /// the day at that section's spacing.
+    /// the day at that section's spacing. The corners are tokens: the Reference's round
+    /// 13.5 card and 10.5 picture read as `Radius.tile` and `Radius.button`, which are
+    /// continuous and so look smaller than their numbers.
     static let agendaDay: CGFloat = 30
     /// From the weekday's frame to the circle: the Reference's 6pt from its baseline.
     static let agendaDayToCircle: CGFloat = 3
@@ -176,8 +178,6 @@ nonisolated enum DailyMetric {
     static let agendaRow: CGFloat = 80
     static let agendaPhoto: CGFloat = 64
     static let agendaPhotoInset: CGFloat = 8
-    static let agendaPhotoRadius: CGFloat = 10
-    static let agendaCardRadius: CGFloat = 14
     static let agendaTextGap: CGFloat = 16
     /// Above and below the text, so a closed card's two lines sit centred on the photo
     /// as the Reference's one line does, and an open card grows only downward.
@@ -334,10 +334,7 @@ struct DailyPage: View {
                                 EventOfTheDaySection(events: events, now: now)
                                     .padding(.top, DailyMetric.eventSectionTop)
                             }
-                            if !agenda.isEmpty {
-                                AgendaSection(events: agenda, now: now)
-                                    .padding(.top, DailyMetric.eventSectionTop)
-                            }
+                            AgendaSection(events: agenda, now: now)
                         }
                     }
                     Color.clear.frame(height: DailyMetric.tabBarClearance)
