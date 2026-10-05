@@ -187,6 +187,27 @@ nonisolated enum DailyMetric {
     static let agendaRowGap: CGFloat = 12
     /// Room the open card keeps on its right for the arrow.
     static let agendaArrowRoom: CGFloat = 22
+
+    /// Suggestions, MEASURED from Jesse's Reference: Airbnb's "Happening today" row
+    /// (`references/daily-suggestions/airbnb-happening-today.jpg` in the BP app folder,
+    /// an @3x 393pt screen), copied 1:1 (Jesse, 2026-10-05). The cards start at `side`
+    /// (18) where Airbnb's start at 24, as Event of the day's do. The photo's corner is
+    /// `Radius.tile`, as the Agenda's card is for the same round Airbnb corner.
+    static let suggestionWidth: CGFloat = 167
+    static let suggestionPhoto: CGFloat = 158
+    static let suggestionGap: CGFloat = 13
+    /// The time chip: 24 tall, 10 in from the photo's corner, as wide as "11 AM" there.
+    static let suggestionChipInset: CGFloat = 10
+    static let suggestionChipHeight: CGFloat = 24
+    static let suggestionChipPadding: CGFloat = 8
+    /// The bookmark sits where Airbnb's heart does, its middle 26pt in from the corner.
+    static let suggestionSaveCentre: CGFloat = 26
+    static let suggestionSave: CGFloat = 28
+    static let suggestionSaveGlyph: CGFloat = 13
+    /// From the photo to the title's frame: 11pt to its capitals, as measured.
+    static let suggestionTitleTop: CGFloat = 8
+    /// Between the title and each grey line under it.
+    static let suggestionLineGap: CGFloat = 2
 }
 
 /// The low sun over the yellow: morning light from the east throws the Spotlight's
@@ -326,15 +347,22 @@ struct DailyPage: View {
                         .padding(.horizontal, DailyMetric.side)
                     TimelineView(.everyMinute) { context in
                         let now = DailyClock.now(context.date)
-                        let events = DailyEvent.showing(DailyEvent.today(now: now), now: now)
-                        let agenda = DailyEvent.agendaShowing(DailyEvent.agenda(now: now), now: now,
-                                                              eventOfTheDay: events)
+                        // Each section leaves out what one above it shows (SPEC.md).
+                        let events = DailyEvent.showing(DailyEvent.today(now: now), now: now, limit: 3)
+                        let agenda = DailyEvent.showing(DailyEvent.agenda(now: now), now: now,
+                                                        without: events, limit: .max)
+                        let suggestions = DailyEvent.showing(DailyEvent.suggestions(now: now), now: now,
+                                                             without: events + agenda, limit: 10)
                         VStack(spacing: 0) {
                             if !events.isEmpty {
                                 EventOfTheDaySection(events: events, now: now)
                                     .padding(.top, DailyMetric.eventSectionTop)
                             }
                             AgendaSection(events: agenda, now: now)
+                            if !suggestions.isEmpty {
+                                SuggestionsSection(events: suggestions, now: now)
+                                    .padding(.top, DailyMetric.eventSectionTop)
+                            }
                         }
                     }
                     Color.clear.frame(height: DailyMetric.tabBarClearance)

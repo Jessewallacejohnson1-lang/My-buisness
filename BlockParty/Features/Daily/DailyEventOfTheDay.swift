@@ -35,10 +35,14 @@ struct DailyEvent: Identifiable {
         #endif
     }
 
-    /// What the section shows: the ones on now or still to come, soonest first, three
-    /// at most. When one ends the next takes its spot; with none left the section goes.
-    static func showing(_ events: [DailyEvent], now: Date) -> [DailyEvent] {
-        Array(events.filter { $0.ends > now }.sorted { $0.starts < $1.starts }.prefix(3))
+    /// What a section shows: the ones on now or still to come, soonest first, leaving out
+    /// any a section above it already shows, `limit` at most. When one ends the next
+    /// takes its spot; with none left the section goes.
+    static func showing(_ events: [DailyEvent], now: Date, without shown: [DailyEvent] = [],
+                        limit: Int) -> [DailyEvent] {
+        let shownIDs = Set(shown.map(\.id))
+        return Array(events.filter { $0.ends > now && !shownIDs.contains($0.id) }
+            .sorted { $0.starts < $1.starts }.prefix(limit))
     }
 
     /// The pill on the photo: how soon it starts, as the Reference's "In 3 months" does.

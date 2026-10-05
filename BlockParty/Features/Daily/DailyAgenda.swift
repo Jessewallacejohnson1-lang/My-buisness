@@ -19,15 +19,6 @@ extension DailyEvent {
         #endif
     }
 
-    /// What the Agenda shows: the ones on now or still to come, soonest first, leaving
-    /// out any that Event of the day already shows. A finished one drops off.
-    static func agendaShowing(_ events: [DailyEvent], now: Date,
-                              eventOfTheDay: [DailyEvent]) -> [DailyEvent] {
-        let shown = Set(eventOfTheDay.map(\.id))
-        return events.filter { $0.ends > now && !shown.contains($0.id) }
-            .sorted { $0.starts < $1.starts }
-    }
-
     /// The card's time: "Now" once it has started, else when it starts ("9 AM",
     /// "7:30 PM"), in the Town's time. Working words; Jesse writes the final ones.
     func startTime(now: Date) -> String {

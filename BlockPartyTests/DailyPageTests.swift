@@ -79,17 +79,17 @@ final class DailyPageTests: XCTestCase {
     @MainActor
     func testEventOfTheDayKeepsWhatIsStillOnSoonestFirst() {
         let samples = DailyEvent.samples(on: day)
-        let morning = DailyEvent.showing(samples.reversed(), now: town(7))
+        let morning = DailyEvent.showing(samples.reversed(), now: town(7), limit: 3)
         XCTAssertEqual(morning.map(\.item.title), ["Farmers Market", "Abbey organ recital", "Music in Millstream Park"])
-        XCTAssertEqual(DailyEvent.showing(samples, now: town(12)).first?.item.title, "Abbey organ recital")
-        XCTAssertEqual(DailyEvent.showing(samples, now: town(20)).map(\.item.title), ["Music in Millstream Park"])
-        XCTAssertTrue(DailyEvent.showing(samples, now: town(21)).isEmpty)
+        XCTAssertEqual(DailyEvent.showing(samples, now: town(12), limit: 3).first?.item.title, "Abbey organ recital")
+        XCTAssertEqual(DailyEvent.showing(samples, now: town(20), limit: 3).map(\.item.title), ["Music in Millstream Park"])
+        XCTAssertTrue(DailyEvent.showing(samples, now: town(21), limit: 3).isEmpty)
 
         var four = samples
         four.append(samples[0])
         four[3].starts = town(22)
         four[3].ends = town(23)
-        XCTAssertEqual(DailyEvent.showing(four, now: town(7)).count, 3)
+        XCTAssertEqual(DailyEvent.showing(four, now: town(7), limit: 3).count, 3)
     }
 
     /// The pill says how soon, then "Now" once it has started.
@@ -130,7 +130,7 @@ final class DailyPageTests: XCTestCase {
     func testAgendaKeepsWhatIsStillOnAndLeavesOutEventOfTheDay() {
         let samples = DailyEvent.agendaSamples(on: day)
         func ids(_ now: Double, without shown: [DailyEvent] = []) -> [String] {
-            DailyEvent.agendaShowing(samples.reversed(), now: town(now), eventOfTheDay: shown).map(\.id)
+            DailyEvent.showing(samples.reversed(), now: town(now), without: shown, limit: .max).map(\.id)
         }
         XCTAssertEqual(ids(8), ["daily-a1", "daily-a2", "daily-a3", "daily-a4"])
         XCTAssertEqual(ids(10), ["daily-a2", "daily-a3", "daily-a4"])
@@ -149,6 +149,26 @@ final class DailyPageTests: XCTestCase {
         XCTAssertEqual(plain(samples[1].startTime(now: town(8))), "9 AM")
         XCTAssertEqual(plain(samples[3].startTime(now: town(8))), "7:30 PM")
         XCTAssertEqual(plain(DailyEvent.clock(samples[2].ends)), "3:30 PM")
+    }
+
+    // MARK: Suggestions
+
+    /// Soonest first, ten at most, and never one a section above already shows. The
+    /// samples run from 7:30 in the morning to 8:30 at night.
+    @MainActor
+    func testSuggestionsLeaveOutWhatIsAboveAndStopAtTen() {
+        let samples = DailyEvent.suggestionSamples(on: day)
+        XCTAssertEqual(DailyEvent.showing(samples.reversed(), now: town(8), without: [samples[2]], limit: 10).map(\.id),
+                       ["daily-s1", "daily-s2", "daily-s4", "daily-s5", "daily-s6", "daily-s7"])
+        XCTAssertEqual(DailyEvent.showing(samples, now: town(9), limit: 10).first?.id, "daily-s2")
+
+        let many = (0..<12).map { i in
+            DailyEvent.sample(id: "many-\(i)", title: "Event \(i)", host: "", photo: "", place: "Here",
+                              starts: town(9 + Double(i) / 2), ends: town(10 + Double(i) / 2),
+                              category: .other, description: "")
+        }
+        XCTAssertEqual(DailyEvent.showing(many, now: town(8), limit: 10).map(\.id),
+                       (0..<10).map { "many-\($0)" })
     }
     #endif
 }
