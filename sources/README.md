@@ -38,7 +38,7 @@ Two thirds of St. Joseph has no website — measured, 23 of 69 named places. Tha
 not the town. Closing the rest is outreach, not scraping.
 
 The decisions behind every rule here live in [`docs/adr/registry/`](../docs/adr/registry/),
-named `ADR-NNN-kebab-slug.md` and numbered 001–015 in their own series, separate from the
+named `ADR-NNN-kebab-slug.md` and numbered from 001 in their own series, separate from the
 app's ADRs in `docs/adr/`. ADRs are immutable; when a decision changes, a new ADR supersedes
 the old one, and the old one is never edited (ADR-005).
 
@@ -102,6 +102,8 @@ what keeps an entry written in 2026 readable in 2030.
 | `tier` | no (defaults to `listed`) | What the entry is *for*, and how often it is checked. See [tier values](#tier-adr-011). |
 | `aka` | no | Other names this place is known by. Discovery treats them as already held, so the same place stops being proposed under a second name every month. This is how a human settles "Kennedy Elementary is Kennedy Community School" permanently — no rule can work that out. |
 | — | — | *Roster-side twin:* discovery's per-town `aliases` list folds two **candidate** names into one before either becomes an entry (Sal's Bar / Sal's Bar and Grill). `aka` settles a candidate against an entry that already exists; `aliases` settles two candidates against each other. |
+| `place_type` | no | `Business`, `Community group`, `Church`, `School / college`, `Government` or `Park / historic`. Set by verification so "businesses only" is a filter, not a second list. |
+| `address`, `phone` | no | Where the place is and how to reach it, from a non-Google source only (ADR-016). Verification's drafts fill them in. |
 | `entity` | no (defaults to `place`) | What kind of thing this is. The registry lists **places**; events live in their own table and are what a place's sources produce (ADR-013). |
 | `sources` | yes | List of places to look. At least one. |
 
@@ -187,6 +189,8 @@ not re-tier on its own.
   stays `search_snippet`. `stjosephchamber.com` returns **403 to any non-browser client**,
   so robots.txt cannot even be read — that is a server refusing us, not a robots rule, and
   retrying with a browser user-agent to get past it is forbidden.
+  `mblsportal.sos.mn.gov` (Minnesota Secretary of State filings) has `Disallow: /` for
+  every agent (measured 2026-10-04): never fetched; filings count only as search snippets.
 - **A 403 usually means "slow down", not "go away" (ADR-014).** `stjosephchamber.com` was
   written off as blocking us and is not: it serves our honest bot user-agent HTTP 200 and
   **403s a Chrome user-agent**, which is an anti-scraper rule, not a wall. Its robots.txt
@@ -208,23 +212,22 @@ not re-tier on its own.
 - **Run `sources/validate` after every edit.** It is instant, and it is the only thing between
   a typo and a broken 6am run.
 - **Measure coverage with `sources/discover`, not by counting entries.** ADR-010 measures
-  against an external roster — OpenStreetMap plus the local directories — so the number
-  that matters is how many places exist that the registry does not have. Discovery writes
-  `proposed` entries only and never promotes or edits anything.
+  against an external roster — Overture, OpenStreetMap, a Google Maps sweep and the local
+  directories — so the number that matters is how many places exist that the registry
+  does not have. A town is its ZIP codes (ADR-019); duplicates merge only on certainty
+  (ADR-018).
+- **Then `sources/verify` decides what is open** and writes the drafts, the retire list
+  and the outreach list. A place only Google knows needs a non-Google source before it
+  is proposed (ADR-016); a place is the organisation, not the building (ADR-017). Agents
+  write `proposed` entries only; promoting and retiring stay with Jesse (ADR-008). The
+  `town-discovery` and `town-verify` skills are the playbook.
 
 ---
 
 ## Glossary
 
-| Term | Meaning |
-| --- | --- |
-| **Registry** | This folder. The whole set of town files — the human-owned answer to "where does Block Party look, and how". |
-| **Entry** | One place in a town file: a `## Name` heading plus its yaml block. Identified forever by its `id`. |
-| **Source** | One item in an entry's `sources` list — a single URL plus how to read it. An entry can have several. |
-| **Runtime state** | What happened when a source was last read: `last_checked`, `last_hash`, `last_error`. Lives in the Supabase `sources` table, never in these files (ADR-002). |
-| **Sync** | The one-way copy of registry fields from these md files into the database at the start of a run. If the two disagree on a registry field, the md wins (ADR-002). |
-| **Snapshot** | The saved text of a source at the moment it was read, written only when its hash changed. Dry-run snapshots go to `.runs/`, which is gitignored (ADR-009). |
-| **Dry-run** | A run that fetches for real but writes nothing to production. The default (ADR-009). |
+The registry's words — Registry, Entry, Source, Place, Town, Discovery, Verification,
+Verdict and the rest — are defined in [`CONTEXT.md`](CONTEXT.md).
 
 ---
 

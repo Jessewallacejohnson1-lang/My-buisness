@@ -49,7 +49,9 @@ def find_root(start="."):
 def load(root):
     """Return (entries, file_errors). Each entry gets _file, _name, _town, _extra."""
     entries, errors = [], []
-    files = sorted(p for p in (root / "sources").glob("*.md") if p.name.lower() != "readme.md")
+    # README and CONTEXT (the glossary) are about the registry, not towns in it.
+    files = sorted(p for p in (root / "sources").glob("*.md")
+                   if p.name.lower() not in ("readme.md", "context.md"))
     if not files:
         errors.append("sources/: no town files found")
     for f in files:

@@ -1,0 +1,7 @@
+#!/bin/sh
+# Decide whether each place in a town is open, from evidence, and write the lists a
+# person acts on (places, retire, outreach, same place?, proposed drafts).
+# Run sources/discover first: this reads its newest roster. Map answers are cached.
+set -eu
+here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+exec python3 "$here/scripts/verify.py" --root "$(dirname -- "$here")" "$@"
