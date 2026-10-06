@@ -719,6 +719,12 @@ over a database change ("yes", Check-in 1): no live migration, no new Storage pa
   those 256 px favicons, so they don't fit that column.
 - **The cost:** a business that changes its logo, or a new 3D render, needs an app update.
   When owners upload their own logos (the Business side), move these to Storage.
+- **Re-cut 2026-10-06:** the first flat cut-outs left white inside letters and a white glow
+  round thin type. `build.py` now cuts every flat logo itself, at 512 px, from the
+  business's own full-size file where one was found. `search-tab/flat.json` holds the
+  per-logo choices: which source, which logos keep their badge's white (Jesse: keep it), the
+  Sisters' dome alone (Jesse: symbol over a thin wordmark), and Coborn's Pharmacy left out so
+  Coborn's shows once (Jesse).
 - **Photos stay live:** restaurant cards and a business's photo grid are Google's, each with
   its `PhotoCredit`. A place with a Google id asks for its photos alone
   (`GooglePlacesService.photos(placeId:)`, the IDs-only tier, no Pro field billed); the
