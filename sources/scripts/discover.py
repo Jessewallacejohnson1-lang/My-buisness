@@ -74,6 +74,10 @@ TOWNS = {
         # ADR-019: a town is its ZIP codes. Every place whose address carries one belongs
         # here, the 56374 countryside included; anything else belongs to another town.
         "zips": ["56374"],
+        # Words in an address that put it in another town despite a 56374 ZIP. The City's
+        # calendar lists Saint John's events as "St. Joseph MN 56374"; its mail goes to
+        # Collegeville (ADR-019). read_events.py skips these.
+        "elsewhere": ["Saint John's University", "Abbey Plaza", "Collegeville"],
         # South, west, north, east. Covers the city plus the immediate fringe, because
         # Milk & Honey is out on County Road 51 and still very much St. Joe.
         "bbox": (45.540, -94.360, 45.590, -94.280),
