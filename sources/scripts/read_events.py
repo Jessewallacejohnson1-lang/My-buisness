@@ -19,6 +19,7 @@ them by (source_name, source_uid) and never touches their status, so a decline s
 """
 
 import argparse, html, json, re, secrets, sys
+from urllib.parse import urljoin, urlparse
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -82,6 +83,16 @@ def outside(location, town):
     return any(w.lower() in location.lower() for w in town.get("elsewhere", ()))
 
 
+def page_url(ev, feed_url):
+    """A link a person can open. CivicPlus feeds (the City's) give each event a relative URL
+    pointing back at the feed itself; the event's own page is Calendar.aspx?EID=<UID>."""
+    url = urljoin(feed_url, unescape(ev["URL"][1])) if "URL" in ev else feed_url
+    if "iCalendar.aspx" in url:
+        host = urlparse(feed_url)
+        return f"{host.scheme}://{host.netloc}/Calendar.aspx?EID={ev['UID'][1].strip()}"
+    return url
+
+
 def to_event(ev, source_name, feed_url, town, today):
     """An event row, or a reason it is not one."""
     if "DTSTART" not in ev or "UID" not in ev:
@@ -106,7 +117,7 @@ def to_event(ev, source_name, feed_url, town, today):
         "location": location or None,
         "description": unescape(ev.get("DESCRIPTION", ("", ""))[1])[:1000] or None,
         "source_name": source_name,
-        "source_url": unescape(ev["URL"][1]) if "URL" in ev else feed_url,
+        "source_url": page_url(ev, feed_url),
         "source_uid": ev["UID"][1].strip(),
     }, None
 
@@ -144,6 +155,9 @@ def selftest():
     assert row["description"] == "Groceries, cheap" and row["end_at"].startswith("2026-12-07T17:30:00-06:00")
     assert got[1] == (None, "news") and got[2] == (None, "out of town"), got
     assert clock(datetime(2026, 1, 1, 18, 0)) == "6 PM"
+    assert page_url({"UID": ("", "2447"), "URL": ("", "/common/modules/iCalendar/iCalendar.aspx?feed=calendar&catID=25")},
+                    "https://www.stjosephmn.gov/common/modules/iCalendar/iCalendar.aspx?catID=25&feed=calendar") \
+        == "https://www.stjosephmn.gov/Calendar.aspx?EID=2447"
     print("read_events OK")
 
 
