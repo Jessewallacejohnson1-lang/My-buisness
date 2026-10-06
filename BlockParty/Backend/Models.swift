@@ -244,6 +244,10 @@ struct RawEvent: Decodable {
     /// (`createdAt`); `DateHelpers.timestamp(_:)` parses it at the API boundary.
     let endAt: String?
     let allDay: Bool?
+    /// Who announced a found event and where it was read (`club_events.source_name`,
+    /// `source_url`; ADR-021). Nil for events a club or neighbour posted.
+    let sourceName: String?
+    let sourceUrl: String?
     let clubs: ClubRef?
 
     struct ClubRef: Decodable { let name: String? }

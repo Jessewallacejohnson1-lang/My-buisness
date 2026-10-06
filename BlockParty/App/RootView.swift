@@ -121,6 +121,12 @@ struct RootView: View {
                 // The Daily social feed over fixtures, without auth or network, so
                 // both card shapes and the ranked order can be screenshotted.
                 DailyFeedPreview()
+            } else if ProcessInfo.processInfo.arguments.contains("-review-queue-preview") {
+                // The admin Review queue over the City's real found events, without
+                // auth or network. Its only real entry is the admin's profile, which a
+                // clean simulator can't reach. Add `-review-queue-fail` to make every
+                // decision fail, so the row coming back with a shake can be recorded.
+                ModerationView(preview: true)
             } else if ProcessInfo.processInfo.arguments.contains("-show-skeletons") {
                 // Preview the per-tab shimmer skeletons (bypassing the auth gate).
                 SkeletonGalleryPreview()

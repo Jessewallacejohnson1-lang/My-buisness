@@ -14,7 +14,19 @@ struct PendingPost: Identifiable, Hashable {
     let kind: PostKind
     let eventDate: String?
     let startTime: String?
+    var allDay = false
+    /// Set for a found event (ADR-021): who announced it, and the page it came from.
+    var sourceName: String? = nil
+    var sourceURL: URL? = nil
     var id: String { trail.id }
+}
+
+/// Why the admin declined an event in the Review queue (`club_events.review_reason`).
+/// The misread share of found events decides when they may publish on their own.
+enum DeclineReason: String, CaseIterable, Identifiable {
+    case notEvent = "not_event", wrongWhen = "wrong_when", wrongPlace = "wrong_place",
+         wrongTitle = "wrong_title", other
+    var id: String { rawValue }
 }
 
 struct CommunityAPI {
@@ -575,10 +587,11 @@ struct CommunityAPI {
     func getPendingPosts() async throws -> [PendingPost] {
         let t = try await token()
         let (data, _) = try await SupabaseHTTP.rest("club_events",
-            query: "select=*&status=eq.pending&order=created_at.desc", accessToken: t)
+            query: "select=*&status=eq.pending&order=event_date.asc.nullslast,created_at.desc", accessToken: t)
         let rows: [RawEvent] = try decode(data)
         return rows.map { PendingPost(trail: mapTrail($0), kind: PostKind(rawValue: $0.kind ?? "event") ?? .event,
-                                      eventDate: $0.eventDate, startTime: $0.startTime) }
+                                      eventDate: $0.eventDate, startTime: $0.startTime, allDay: $0.allDay ?? false,
+                                      sourceName: $0.sourceName, sourceURL: ReviewRow.webURL($0.sourceUrl)) }
     }
 
     func getPendingClubs() async throws -> [ClubRow] {
@@ -589,7 +602,14 @@ struct CommunityAPI {
     }
 
     func approvePost(_ id: String) async throws { try await patchStatus("club_events", id: id, status: .approved) }
-    func rejectPost(_ id: String) async throws { try await patchStatus("club_events", id: id, status: .rejected) }
+    /// Decline with what was wrong. Approving never clears the reason (see the migration).
+    func declinePost(_ id: String, reason: DeclineReason) async throws {
+        let t = try await token()
+        _ = try await SupabaseHTTP.rest("club_events", method: "PATCH", query: "id=eq.\(id)", accessToken: t,
+                                        body: try body(["status": ClubStatus.rejected.rawValue,
+                                                        "review_reason": reason.rawValue]),
+                                        prefer: "return=minimal")
+    }
     func setClubStatus(_ id: String, status: ClubStatus) async throws { try await patchStatus("clubs", id: id, status: status) }
 
     private func patchStatus(_ table: String, id: String, status: ClubStatus) async throws {
