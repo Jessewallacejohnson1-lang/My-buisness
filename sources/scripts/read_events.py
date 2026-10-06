@@ -12,7 +12,9 @@ Crawl-delay obeyed, ADR-014), and keeps what is an event in the town in the next
 
 Dry-run by default (ADR-009): prints what it found. `--sql FILE` writes one upsert for
 public.club_events. Found events go in as `pending` and wait for review; re-reading updates
-them by (source_name, source_uid) and never touches their status, so a decline stays one.
+them by (source_name, source_uid). A decline stays one, except an event declined as a
+misread (any review_reason but not_event): when a re-read changes its title, date, time
+or place, it goes back to `pending` for another look. Its reason stays, so it still counts.
 
   python3 sources/scripts/read_events.py [--town st-joseph-mn] [--sql out.sql]
   python3 sources/scripts/read_events.py --selftest
@@ -136,7 +138,12 @@ def upsert_sql(rows):
         "  x.location, x.description, x.source_name, x.source_url, x.source_uid\n"
         f"from jsonb_to_recordset(${tag}${payload}${tag}$::jsonb) as x({cols})\n"
         "on conflict on constraint club_events_source_uid_key do update set\n  "
-        + ", ".join(f"{c} = excluded.{c}" for c in keep) + ";\n"
+        + ", ".join(f"{c} = excluded.{c}" for c in keep) + ",\n"
+        "  status = case when club_events.status = 'rejected'\n"
+        "      and club_events.review_reason is distinct from 'not_event' and club_events.review_reason is not null\n"
+        "      and (club_events.title, club_events.event_date, club_events.start_time, club_events.all_day, club_events.location)\n"
+        "          is distinct from (excluded.title, excluded.event_date, excluded.start_time, excluded.all_day, excluded.location)\n"
+        "    then 'pending' else club_events.status end;\n"
     )
 
 
