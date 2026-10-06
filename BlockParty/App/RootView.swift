@@ -360,6 +360,9 @@ struct MainTabsView: View {
                 .navigationDestination(for: FeedCardItem.self) { item in
                     FeedEventDetailDestination(item: item)
                 }
+                .navigationDestination(for: PostingItem.self) { posting in
+                    DailyPostPage(posting: posting)
+                }
         }
     }
 

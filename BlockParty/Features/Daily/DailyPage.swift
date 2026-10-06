@@ -210,6 +210,21 @@ nonisolated enum DailyMetric {
     static let suggestionLineGap: CGFloat = 2
     /// The words sit this far in from the photo's edges, as Airbnb's do.
     static let suggestionTextInset: CGFloat = 3
+
+    /// Following, MEASURED from Jesse's Reference: Instagram's activity rows
+    /// (`references/daily-following/instagram-activity.jpg` in the BP app folder, an
+    /// @3x 393pt screen): a 44pt round photo, 13pt to the words, a 44pt photo with 8pt
+    /// corners on the right, rows 64pt apart. The rows start at `side` (18) where
+    /// Instagram's start at 16, as the other Daily sections do.
+    static let followingPhoto: CGFloat = 44
+    static let followingPhotoRadius: CGFloat = 8
+    static let followingGap: CGFloat = 13
+    /// Above and below each row's 44pt photos, for Instagram's 64pt rows.
+    static let followingRowInset: CGFloat = 10
+    /// The label sits 15pt over the first photo, as over every Daily section's content.
+    static let followingLabelToRows: CGFloat = eventLabelToCard - followingRowInset
+    /// The post page's back button from the screen's edge. Picked: no Reference.
+    static let followingBackInset: CGFloat = 8
 }
 
 /// The low sun over the yellow: morning light from the east throws the Spotlight's
@@ -355,6 +370,7 @@ struct DailyPage: View {
                                                         without: events, limit: .max)
                         let suggestions = DailyEvent.showing(DailyEvent.suggestions(now: now), now: now,
                                                              without: events + agenda, limit: 10)
+                        let following = DailyFollowing.showing(DailyFollowing.today(now: now), now: now)
                         VStack(spacing: 0) {
                             if !events.isEmpty {
                                 EventOfTheDaySection(events: events, now: now)
@@ -363,6 +379,10 @@ struct DailyPage: View {
                             AgendaSection(events: agenda, now: now)
                             if !suggestions.isEmpty {
                                 SuggestionsSection(events: suggestions, now: now)
+                                    .padding(.top, DailyMetric.eventSectionTop)
+                            }
+                            if !following.isEmpty {
+                                FollowingSection(items: following, now: now)
                                     .padding(.top, DailyMetric.eventSectionTop)
                             }
                         }

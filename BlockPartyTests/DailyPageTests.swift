@@ -170,5 +170,32 @@ final class DailyPageTests: XCTestCase {
         XCTAssertEqual(DailyEvent.showing(many, now: town(8), limit: 10).map(\.id),
                        (0..<10).map { "many-\($0)" })
     }
+
+    // MARK: Following
+
+    /// Events still to come, soonest first, then today's updates so far, newest first.
+    /// The samples: events at 9–13, 15–16 and 17:30–18:30, updates at 7:15 and 11.
+    @MainActor
+    func testFollowingPutsEventsSoonestFirstThenUpdatesNewestFirst() {
+        let samples = DailyFollowing.samples(on: day)
+        XCTAssertEqual(DailyFollowing.showing(samples.reversed(), now: town(12)).map(\.id),
+                       ["follow-1", "follow-2", "follow-3", "follow-4", "follow-5"])
+        // At 8 the 11 o'clock update hasn't gone up; at 14 the porch sale is over.
+        XCTAssertEqual(DailyFollowing.showing(samples, now: town(8)).map(\.id),
+                       ["follow-1", "follow-2", "follow-3", "follow-5"])
+        XCTAssertEqual(DailyFollowing.showing(samples, now: town(14)).map(\.id),
+                       ["follow-2", "follow-3", "follow-4", "follow-5"])
+    }
+
+    /// An event says when it starts; an update says how long ago it went up.
+    @MainActor
+    func testFollowingTimeIsTheStartOrHowLongAgo() {
+        let samples = DailyFollowing.samples(on: day)
+        func plain(_ text: String) -> String { text.replacingOccurrences(of: "\u{202F}", with: " ") }
+        XCTAssertEqual(plain(samples[2].time(now: town(12))), "5:30 PM")
+        XCTAssertEqual(samples[0].time(now: town(12)), "Now")
+        XCTAssertEqual(samples[3].time(now: town(13.5)), "2h")
+        XCTAssertEqual(samples[3].time(now: town(11.25)), "15m")
+    }
     #endif
 }
