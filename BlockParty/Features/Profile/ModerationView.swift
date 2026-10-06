@@ -370,6 +370,7 @@ struct ModerationQueueSkeleton: View {
                 SkeletonLine(widthFraction: 0.8, height: 15)
                 SkeletonLine(widthFraction: 0.55, height: 12)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             SkeletonBlock(cornerRadius: 18).frame(width: 92, height: 36)
             Color.clear.frame(width: 44, height: 44)
         }
