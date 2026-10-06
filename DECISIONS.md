@@ -723,8 +723,9 @@ over a database change ("yes", Check-in 1): no live migration, no new Storage pa
   round thin type. `build.py` now cuts every flat logo itself, at 512 px, from the
   business's own full-size file where one was found. `search-tab/flat.json` holds the
   per-logo choices: which source, which logos keep their badge's white (Jesse: keep it), the
-  Sisters' dome alone (Jesse: symbol over a thin wordmark), and Coborn's Pharmacy left out so
-  Coborn's shows once (Jesse).
+  Sisters' dome alone (Jesse: symbol over a thin wordmark), and Coborn's Pharmacy kept off
+  the wall (`"wall": false`) so Coborn's apple shows once there (Jesse); it still opens from a
+  search.
 - **Photos stay live:** restaurant cards and a business's photo grid are Google's, each with
   its `PhotoCredit`. A place with a Google id asks for its photos alone
   (`GooglePlacesService.photos(placeId:)`, the IDs-only tier, no Pro field billed); the

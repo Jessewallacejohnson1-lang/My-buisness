@@ -94,6 +94,9 @@ struct SearchLogo: Hashable {
     let chroma: Bool
     let is3D: Bool
     let rank: Int?
+    /// Off the logo wall when another place shows the same logo there (Coborn's Pharmacy
+    /// and Coborn's): it still opens from a search.
+    let onWall: Bool
 
     /// The photo-shoot backdrop in the logo's own hue, light at the centre top where
     /// the light hits and a little deeper at the edges.
@@ -114,13 +117,13 @@ struct SearchLogo: Hashable {
     }
 
     static let all: [String: SearchLogo] = {
-        struct Row: Decodable { let hue: Double; let chroma: Bool; let d3: Bool?; let rank: Int? }
+        struct Row: Decodable { let hue: Double; let chroma: Bool; let d3: Bool?; let rank: Int?; let wall: Bool? }
         guard let url = Bundle.main.url(forResource: "search-logos", withExtension: "json"),
               let data = try? Data(contentsOf: url),
               let rows = try? JSONDecoder().decode([String: Row].self, from: data) else { return [:] }
         return rows.reduce(into: [:]) { all, row in
             all[row.key] = SearchLogo(placeId: row.key, hue: row.value.hue, chroma: row.value.chroma,
-                                      is3D: row.value.d3 ?? false, rank: row.value.rank)
+                                      is3D: row.value.d3 ?? false, rank: row.value.rank, onWall: row.value.wall ?? true)
         }
     }()
 
@@ -236,9 +239,10 @@ final class SearchModel {
 
     // MARK: Rows
 
-    /// One kind's row, in order. Businesses show only with a logo: the row is logos.
+    /// One kind's row, in order. Businesses show only with a logo: the row is logos, each
+    /// shown once.
     func row(_ kind: SearchItem.Kind) -> [SearchItem] {
-        Self.ordered(items.filter { $0.kind == kind && (kind != .business || $0.logo != nil) })
+        Self.ordered(items.filter { $0.kind == kind && (kind != .business || $0.logo?.onWall == true) })
     }
 
     /// Whether a kind's row is still waiting on Supabase.

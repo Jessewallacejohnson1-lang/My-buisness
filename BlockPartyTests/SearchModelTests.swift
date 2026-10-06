@@ -25,10 +25,10 @@ final class SearchModelTests: XCTestCase {
 
     /// Every logo the pipeline exported is in the app, decodes, and the seven checked
     /// 3D ones are marked. A missing file would leave an empty tile on the row. Coborn's
-    /// Pharmacy has none, so Coborn's apple shows once.
+    /// Pharmacy shares Coborn's apple, so only Coborn's shows it on the wall.
     func testEveryBundledLogoLoads() {
-        XCTAssertEqual(SearchLogo.all.count, 68)
-        XCTAssertNil(SearchLogo.all["ChIJ-bSQp6VZtFIRsrFXg1RYwFs"], "Coborn's Pharmacy")
+        XCTAssertEqual(SearchLogo.all.count, 69)
+        XCTAssertEqual(SearchLogo.all.values.filter { !$0.onWall }.map(\.placeId), ["ChIJ-bSQp6VZtFIRsrFXg1RYwFs"])
         for logo in SearchLogo.all.values {
             XCTAssertNotNil(logo.image, logo.placeId)
         }
@@ -43,11 +43,12 @@ final class SearchModelTests: XCTestCase {
         model.show([
             poi("stjoe-bruno-press", "Bruno Press", .business, "print_shop"),
             poi("stjoe-no-logo", "Plain Shop", .business, "store"),
+            poi("ChIJ-bSQp6VZtFIRsrFXg1RYwFs", "Coborn's Pharmacy", .business, "pharmacy"),
             poi("stjoe-blend", "The Local Blend", .food, "coffee_shop"),
             poi("stjoe-flour", "Flour & Flower", .food, "bakery"),
             poi("stjoe-krewe", "Krewe Restaurant", .food, "cajun_restaurant"),
         ])
-        XCTAssertEqual(model.row(.business).map(\.name), ["Bruno Press"])
+        XCTAssertEqual(model.row(.business).map(\.name), ["Bruno Press"], "no logo, or its logo is on the wall already")
         XCTAssertEqual(Set(model.row(.coffee).map(\.name)), ["The Local Blend", "Flour & Flower"])
         XCTAssertEqual(model.row(.restaurant).map(\.name), ["Krewe"])
         XCTAssertEqual(model.row(.restaurant).first?.sub, "Cajun")
