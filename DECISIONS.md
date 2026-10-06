@@ -719,6 +719,15 @@ over a database change ("yes", Check-in 1): no live migration, no new Storage pa
   those 256 px favicons, so they don't fit that column.
 - **The cost:** a business that changes its logo, or a new 3D render, needs an app update.
   When owners upload their own logos (the Business side), move these to Storage.
+- **When to move, and how (Jesse, 2026-10-06):** move them to Storage when the second town
+  starts or when owners can upload their own logo, whichever comes first. Bundled, every town
+  adds about 2 MB to every phone, and each new business or official logo swap waits on an App
+  Store release. Lay Storage out as one bucket, `places/<town>/<place_id>/`, a folder per
+  business holding all its files (`logo-…webp`, `logo-3d-…webp`, `map-pin-…png`, later
+  `photos/`). The folder is named by `place_id`, never the name: names change. Each new
+  version gets a new file name (`logo-2026-06.webp`), not an overwrite, so phones holding a
+  copy notice the swap; the database row points at the current file, and the old one is
+  deleted. The map pins' flat `place-logos` bucket folds into the same folders then.
 - **Re-cut 2026-10-06:** the first flat cut-outs left white inside letters and a white glow
   round thin type. `build.py` now cuts every flat logo itself, at 512 px, from the
   business's own full-size file where one was found. `search-tab/flat.json` holds the
