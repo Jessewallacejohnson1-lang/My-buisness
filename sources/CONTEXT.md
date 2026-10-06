@@ -1,7 +1,8 @@
 # Source registry
 
 Where Block Party learns what exists in a town and what is happening there. This glossary
-covers the places side: finding every place in a town and knowing whether it is open.
+covers the places side (finding every place in a town and knowing whether it is open) and
+the events and news those places announce.
 
 ## Language
 
@@ -70,7 +71,8 @@ _Avoid_: profile, account, socials
 Something a place publishes on its own channel that Block Party shows as it is, photo and
 words included. Only for a place that has said yes; for every other place, Block Party
 takes the facts (an event, a closure, a cancellation) and leaves the post.
-_Avoid_: business post (any place can post), repost, share
+_Avoid_: business post (any place can post), repost, share, posting (the app's word for an
+event card)
 
 **Town group**:
 An online group where neighbours post about the town, such as a public Facebook group. It
@@ -90,6 +92,36 @@ _Avoid_: closed (Closed means gone for good)
 **Outreach list**:
 The places verification cannot settle online, kept for confirming by phone or in person.
 _Avoid_: call list
+
+### Events and news
+
+**Event**:
+Something a neighbour can go to, at a time and a place: a council meeting, a fish fry, a
+festival. The same kind of thing whoever announced it, a club, a place or the city.
+_Avoid_: posting, listing, happening
+
+**News**:
+Something to know rather than go to, even when it carries dates: a road closure, a new
+menu, a policy change. It goes on the town board, never the event list.
+_Avoid_: event (for anything you cannot attend), announcement
+
+**Series**:
+A repeating event stored once with its rule ("every Friday 3–7, May through October").
+_Avoid_: recurring event (fine in speech, but the series is the thing)
+
+**Occurrence**:
+One date of a series. Cancelling an occurrence leaves the series and its other dates alone.
+_Avoid_: instance, session
+
+**Mention**:
+One source announcing an event or a piece of news. An event announced by the City, a
+place's page and two neighbours is one event with four mentions.
+_Avoid_: duplicate (that is two sightings of one place), copy
+
+**Cancellation**:
+An event or occurrence called off. It is shown, not deleted, so a neighbour who planned to
+go finds out.
+_Avoid_: closure (that is a place)
 
 ### The registry
 

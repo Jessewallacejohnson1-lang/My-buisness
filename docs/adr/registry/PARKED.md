@@ -11,9 +11,9 @@ as gaps. If one of these is needed, it gets grilled out and written as an ADR fi
 
 | Parked | What is undecided |
 | --- | --- |
-| **Staging table** | Whether fetched content lands in a staging table for review before it becomes an event, and who or what approves it. |
-| **Event dedupe** | How the same event mentioned by several sources — or by one source several times — collapses into one posting. Ties directly into the trust tiers in ADR-001. |
-| **Recurring events** | How "every Friday, May through October" is represented, expanded, and cancelled for a single week. |
+| ~~**Staging table**~~ | Decided 2026-10-06 in [ADR-021](ADR-021-found-events-are-events.md): reviewed first in the app, then automatic below 1 wrong in 20. |
+| ~~**Event dedupe**~~ | Decided 2026-10-06 in [ADR-021](ADR-021-found-events-are-events.md): merge only when certain; every source kept as a mention. |
+| ~~**Recurring events**~~ | Decided 2026-10-06 in [ADR-021](ADR-021-found-events-are-events.md): a series with occurrences; one date cancels alone. |
 
 None of these change anything in `sources/`. The registry format is additive (ADR-007),
 so whatever is decided can be recorded without a rewrite.
