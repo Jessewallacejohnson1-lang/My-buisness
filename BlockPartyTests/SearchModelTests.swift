@@ -24,9 +24,11 @@ final class SearchModelTests: XCTestCase {
     }
 
     /// Every logo the pipeline exported is in the app, decodes, and the seven checked
-    /// 3D ones are marked. A missing file would leave an empty tile on the row.
+    /// 3D ones are marked. A missing file would leave an empty tile on the row. Coborn's
+    /// Pharmacy has none, so Coborn's apple shows once.
     func testEveryBundledLogoLoads() {
-        XCTAssertEqual(SearchLogo.all.count, 69)
+        XCTAssertEqual(SearchLogo.all.count, 68)
+        XCTAssertNil(SearchLogo.all["ChIJ-bSQp6VZtFIRsrFXg1RYwFs"], "Coborn's Pharmacy")
         for logo in SearchLogo.all.values {
             XCTAssertNotNil(logo.image, logo.placeId)
         }
