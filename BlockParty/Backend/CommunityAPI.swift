@@ -27,6 +27,17 @@ enum DeclineReason: String, CaseIterable, Identifiable {
     case notEvent = "not_event", wrongWhen = "wrong_when", wrongPlace = "wrong_place",
          wrongTitle = "wrong_title", other
     var id: String { rawValue }
+
+    /// Placeholder words; Jesse writes the final ones.
+    var label: String {
+        switch self {
+        case .notEvent: "Not an event"
+        case .wrongWhen: "Wrong date or time"
+        case .wrongPlace: "Wrong place"
+        case .wrongTitle: "Wrong title"
+        case .other: "Something else"
+        }
+    }
 }
 
 struct CommunityAPI {

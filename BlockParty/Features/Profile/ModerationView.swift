@@ -36,16 +36,6 @@ enum ReviewRow {
               scheme == "http" || scheme == "https", url.host != nil else { return nil }
         return url
     }
-
-    static func label(_ reason: DeclineReason) -> String {
-        switch reason {
-        case .notEvent: "Not an event"
-        case .wrongWhen: "Wrong date or time"
-        case .wrongPlace: "Wrong place"
-        case .wrongTitle: "Wrong title"
-        case .other: "Something else"
-        }
-    }
 }
 
 @MainActor
@@ -69,8 +59,9 @@ final class ModerationModel: ObservableObject {
         do {
             async let p = api.getPendingPosts()
             async let c = api.getPendingClubs()
-            posts = try await p
-            clubs = try await c
+            // A row mid-decision stays gone even if this fetch raced its write.
+            posts = try await p.filter { !acting.contains($0.id) }
+            clubs = try await c.filter { !acting.contains($0.id) }
             failed = false
         } catch {
             if posts.isEmpty && clubs.isEmpty { failed = true }
@@ -91,7 +82,7 @@ final class ModerationModel: ObservableObject {
             }
         } catch {
             withAnimation(Self.leave) { posts.insert(post, at: min(i, posts.count)) }
-            rollback(post.id)
+                completion: { self.rollback(post.id) }
             Log.network("Moderation.decidePost: \(error)")
         }
     }
@@ -104,11 +95,12 @@ final class ModerationModel: ObservableObject {
             try await write { try await api.setClubStatus(club.id, status: approve ? .approved : .rejected) }
         } catch {
             withAnimation(Self.leave) { clubs.insert(club, at: min(i, clubs.count)) }
-            rollback(club.id)
+                completion: { self.rollback(club.id) }
             Log.network("Moderation.decideClub: \(error)")
         }
     }
 
+    /// Flip back first, then shake (taste.md): runs once the row has landed.
     private func rollback(_ id: String) {
         Haptics.error()
         rollbacks[id, default: 0] += 1
@@ -133,21 +125,21 @@ final class ModerationModel: ObservableObject {
     #if DEBUG
     /// The City's real found events from 2026-10-06 (`-review-queue-preview`).
     static let fixtures: [PendingPost] = [
-        ("2026-10-06", "6 PM", false, "AED & Hands-Only CPR Training"),
-        ("2026-10-10", "11 AM", false, "Empty Bowls: A Gathering of Hope"),
-        ("2026-10-12", "6 PM", false, "Planning Commission"),
-        ("2026-10-13", "7 PM", false, "Joint Planning Board (as needed)"),
-        ("2026-10-19", "5 PM", false, "City Council Work Session"),
-        ("2026-10-19", "6 PM", false, "City Council Meeting"),
-        ("2026-10-20", "12 PM", false, "Economic Development Authority"),
-        ("2026-10-26", "6:30 PM", false, "Park Board Meeting"),
-        ("2026-11-09", nil, true, "Fare for All"),
+        ("2026-10-06", "6 PM", false, "AED & Hands-Only CPR Training", 2449),
+        ("2026-10-10", "11 AM", false, "Empty Bowls: A Gathering of Hope", 2376),
+        ("2026-10-12", "6 PM", false, "Planning Commission", 2100),
+        ("2026-10-13", "7 PM", false, "Joint Planning Board (as needed)", 2260),
+        ("2026-10-19", "5 PM", false, "City Council Work Session", 2354),
+        ("2026-10-19", "6 PM", false, "City Council Meeting", 2310),
+        ("2026-10-20", "12 PM", false, "Economic Development Authority", 2205),
+        ("2026-10-26", "6:30 PM", false, "Park Board Meeting", 2243),
+        ("2026-11-09", nil, true, "Fare for All", 2335),
     ].enumerated().map { i, row in
         PendingPost(trail: Trail(id: "fixture-\(i)", title: row.3, location: "St. Joseph MN 56374", length: nil,
                                  difficulty: nil, description: nil, imageUrl: nil, status: .pending, createdAt: ""),
                     kind: .event, eventDate: row.0, startTime: row.1, allDay: row.2,
                     sourceName: "City of St. Joseph",
-                    sourceURL: URL(string: "https://www.stjosephmn.gov/Calendar.aspx?EID=\(2100 + i)"))
+                    sourceURL: URL(string: "https://www.stjosephmn.gov/Calendar.aspx?EID=\(row.4)"))
     }
     #endif
 }
@@ -230,8 +222,8 @@ struct ModerationView: View {
         }
     }
 
-    private static let rowTransition = AnyTransition.asymmetric(
-        insertion: .opacity, removal: .move(edge: .leading).combined(with: .opacity))
+    /// Leaves to the left and, when a write fails, comes back from the left.
+    private static let rowTransition = AnyTransition.move(edge: .leading).combined(with: .opacity)
 
     private func emptyState(icon: String, title: String, detail: String) -> some View {
         VStack(spacing: 10) {
@@ -248,13 +240,13 @@ struct ModerationSectionLabel: View {
     let text: String
     var body: some View {
         Text(text.uppercased()).font(.mono(11)).tracking(1.5).foregroundStyle(Hue.inkSecondary)
-            .padding(.leading, 20).padding(.top, 14).padding(.bottom, 6)
+            .padding(.leading, 16).padding(.top, 14).padding(.bottom, 6)
             .accessibilityAddTraits(.isHeader)
     }
 }
 
 /// One request: tile, two lines, Approve, ×. Sizes measured off Yubo's friends list
-/// (row 80 pt, tile 60 pt, pill 36 pt tall; ±2 pt).
+/// (row 80 pt, tile 64 pt, pill 36 pt tall; ±2 pt), which has no lines between rows.
 struct ReviewQueueRow: View {
     enum Tile { case date(String, String), symbol(String) }
 
@@ -272,30 +264,20 @@ struct ReviewQueueRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Button { onOpen?() } label: {
-                HStack(spacing: 12) {
-                    tileView
-                    VStack(alignment: .leading, spacing: 2) {
-                        // Two lines: the whole title is what a review checks ("Wrong title"). Picked;
-                        // Yubo's names fit one line, the City's meeting names don't.
-                        Text(title).font(.sansSemibold(17)).foregroundStyle(Hue.ink).lineLimit(2)
-                        if !subtitle.isEmpty {
-                            Text(subtitle).font(.sans(15)).foregroundStyle(Hue.inkSecondary).lineLimit(1)
-                        }
-                    }
-                    Spacer(minLength: 0)
-                }
-                .contentShape(Rectangle())
+            if let onOpen {
+                Button(action: onOpen) { summary }
+                    .buttonStyle(PressableStyle(scale: 0.98))
+                    .accessibilityElement(children: .combine)
+                    .accessibilityHint("Opens where it was found")
+            } else {
+                summary.accessibilityElement(children: .combine)
             }
-            .buttonStyle(PressableStyle(scale: 0.98))
-            .disabled(onOpen == nil)
-            .accessibilityElement(children: .combine)
-            .accessibilityHint(onOpen == nil ? "" : "Opens where it was found")
 
             Button { Haptics.light(); onApprove() } label: {
                 Text("Approve").font(.sansSemibold(15)).foregroundStyle(.white)
                     .padding(.horizontal, 16).frame(height: 36)
                     .background(Hue.ink, in: Capsule())
+                    .frame(height: 44).contentShape(Rectangle())
             }
             .buttonStyle(PressableStyle(scale: 0.94))
 
@@ -308,16 +290,13 @@ struct ReviewQueueRow: View {
             // On the × itself, so iOS 26 points the dialog at the row it is about.
             .confirmationDialog("What was wrong?", isPresented: $asking, titleVisibility: .visible) {
                 ForEach(DeclineReason.allCases) { reason in
-                    Button(ReviewRow.label(reason)) { onDecline(reason) }
+                    Button(reason.label) { onDecline(reason) }
                 }
             }
         }
         .padding(.leading, 16).padding(.trailing, 6)
-        .padding(.vertical, 10)
+        .padding(.vertical, 8)
         .frame(minHeight: 80)
-        .overlay(alignment: .top) {
-            Rectangle().fill(Hue.hairline).frame(height: 1).padding(.leading, 88)
-        }
         .keyframeAnimator(initialValue: CGFloat.zero, trigger: shakes) { [reduceMotion] row, x in
             row.offset(x: reduceMotion ? 0 : x)
         } keyframes: { _ in
@@ -332,9 +311,25 @@ struct ReviewQueueRow: View {
         }
     }
 
+    private var summary: some View {
+        HStack(spacing: 12) {
+            tileView
+            VStack(alignment: .leading, spacing: 2) {
+                // Up to three lines: the whole title is what a review checks ("Wrong title").
+                // Picked; Yubo's names fit one line, the City's meeting names don't.
+                Text(title).font(.sansSemibold(17)).foregroundStyle(Hue.ink).lineLimit(3)
+                if !subtitle.isEmpty {
+                    Text(subtitle).font(.sans(15)).foregroundStyle(Hue.inkSecondary).lineLimit(1)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .contentShape(Rectangle())
+    }
+
     @ViewBuilder private var tileView: some View {
         RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Hue.fill)
-            .frame(width: 60, height: 60)
+            .frame(width: 64, height: 64)
             .overlay {
                 switch tile {
                 case let .date(month, day):
@@ -365,7 +360,7 @@ struct ModerationQueueSkeleton: View {
 
     private var row: some View {
         HStack(spacing: 12) {
-            SkeletonBlock(cornerRadius: 12).frame(width: 60, height: 60)
+            SkeletonBlock(cornerRadius: 12).frame(width: 64, height: 64)
             VStack(alignment: .leading, spacing: 8) {
                 SkeletonLine(widthFraction: 0.8, height: 15)
                 SkeletonLine(widthFraction: 0.55, height: 12)
@@ -375,6 +370,7 @@ struct ModerationQueueSkeleton: View {
             Color.clear.frame(width: 44, height: 44)
         }
         .padding(.leading, 16).padding(.trailing, 6)
+        .padding(.vertical, 8)
         .frame(minHeight: 80)
     }
 }
