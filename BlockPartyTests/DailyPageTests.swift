@@ -178,13 +178,16 @@ final class DailyPageTests: XCTestCase {
     @MainActor
     func testFollowingPutsEventsSoonestFirstThenUpdatesNewestFirst() {
         let samples = DailyFollowing.samples(on: day)
-        XCTAssertEqual(DailyFollowing.showing(samples.reversed(), now: town(12)).map(\.id),
+        XCTAssertEqual(DailyFollowing.showing(samples.reversed(), now: town(12), limit: 10).map(\.id),
                        ["follow-1", "follow-2", "follow-3", "follow-4", "follow-5"])
         // At 8 the 11 o'clock update hasn't gone up; at 14 the porch sale is over.
-        XCTAssertEqual(DailyFollowing.showing(samples, now: town(8)).map(\.id),
+        XCTAssertEqual(DailyFollowing.showing(samples, now: town(8), limit: 10).map(\.id),
                        ["follow-1", "follow-2", "follow-3", "follow-5"])
-        XCTAssertEqual(DailyFollowing.showing(samples, now: town(14)).map(\.id),
+        XCTAssertEqual(DailyFollowing.showing(samples, now: town(14), limit: 10).map(\.id),
                        ["follow-2", "follow-3", "follow-4", "follow-5"])
+        // Not one a section above shows, and no more than the limit.
+        XCTAssertEqual(DailyFollowing.showing(samples, now: town(12), without: [samples[1].event!], limit: 3).map(\.id),
+                       ["follow-1", "follow-3", "follow-4"])
     }
 
     /// An event says when it starts; an update says how long ago it went up.
@@ -196,6 +199,7 @@ final class DailyPageTests: XCTestCase {
         XCTAssertEqual(samples[0].time(now: town(12)), "Now")
         XCTAssertEqual(samples[3].time(now: town(13.5)), "2h")
         XCTAssertEqual(samples[3].time(now: town(11.25)), "15m")
+        XCTAssertEqual(samples[3].spokenTime(now: town(11.25)), "15 minutes ago")
     }
     #endif
 }

@@ -36,18 +36,22 @@ struct DailyFollowing: Identifiable {
     /// The event's start, or when the update went up.
     var when: Date { event?.starts ?? post?.createdAt ?? .distantPast }
 
-    var photo: URL? {
-        if let event { return event.photo }
-        if case .eventPhoto(let url) = post?.image { return url }
-        return nil
-    }
+    var photo: URL? { (event?.item.image ?? post?.image)?.url }
 
     /// In grey after the words: when the event starts ("7 PM", or "Now"), or how long
-    /// ago the update went up ("2h"), as Instagram writes it.
+    /// ago the update went up ("2h"), as Instagram and the Town feed's posts write it.
     func time(now: Date) -> String {
         if let event { return event.startTime(now: now) }
-        let minutes = max(1, Int(now.timeIntervalSince(when) / 60))
-        return minutes < 60 ? "\(minutes)m" : "\(minutes / 60)h"
+        return PostingCard.relativeLabel(for: when, now: now)
+    }
+
+    /// The same for VoiceOver, which would read "30m" as metres: "30 minutes ago".
+    func spokenTime(now: Date) -> String {
+        guard event == nil else { return time(now: now) }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.locale = Locale(identifier: "en_US")
+        formatter.unitsStyle = .full
+        return formatter.localizedString(for: when, relativeTo: now)
     }
 
     /// Today's from everyone you follow. There is no read for them yet, so a release
@@ -61,30 +65,38 @@ struct DailyFollowing: Identifiable {
         #endif
     }
 
-    /// What the section shows (Jesse, 2026-10-06): events still on or to come, soonest
-    /// first, then today's updates so far, newest first.
-    static func showing(_ items: [DailyFollowing], now: Date) -> [DailyFollowing] {
+    /// What the section shows (Jesse, 2026-10-06): today's events still on or to come,
+    /// soonest first, leaving out any a section above already shows, then today's
+    /// updates so far, newest first; `limit` rows at most.
+    static func showing(_ items: [DailyFollowing], now: Date, without shown: [DailyEvent] = [],
+                        limit: Int) -> [DailyFollowing] {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = Town.timeZone
-        let events = items.filter { ($0.event?.ends ?? .distantPast) > now }
-            .sorted { $0.when < $1.when }
+        let shownIDs = Set(shown.map(\.id))
+        let events = items.filter {
+            guard let event = $0.event else { return false }
+            return event.ends > now && calendar.isDate(event.starts, inSameDayAs: now) && !shownIDs.contains(event.id)
+        }
+        .sorted { $0.when < $1.when }
         let updates = items.filter { $0.post != nil && $0.when <= now && calendar.isDate($0.when, inSameDayAs: now) }
             .sorted { $0.when > $1.when }
-        return events + updates
+        return Array((events + updates).prefix(limit))
     }
 
     #if DEBUG
     /// INVENTED: a neighbour, a club and three places you might follow, with the bundled
-    /// town photos. Every name but the real places', every time and every word is made up.
+    /// town photos, the round photo never the same as the small one, as in Instagram's
+    /// rows. Every name but the real places', every time and every word is made up.
     static func samples(on date: Date) -> [DailyFollowing] {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = Town.timeZone
         let day = calendar.startOfDay(for: date)
         func at(_ hour: Double) -> Date { day.addingTimeInterval(hour * 3600) }
         func photo(_ name: String) -> URL? { Bundle.main.url(forResource: name, withExtension: "jpg") }
-        func update(_ id: String, _ author: String, _ name: String, at hour: Double, _ caption: String) -> PostingItem {
-            PostingItem(id: id, authorName: author, authorAvatar: photo(name), createdAt: at(hour),
-                        image: photo(name).map { .eventPhoto($0) } ?? .fallback, caption: caption,
+        func update(_ id: String, _ author: String, _ avatar: String, _ picture: String, at hour: Double,
+                    _ caption: String) -> PostingItem {
+            PostingItem(id: id, authorName: author, authorAvatar: photo(avatar), createdAt: at(hour),
+                        image: photo(picture).map { .eventPhoto($0) } ?? .fallback, caption: caption,
                         likeCount: 0, commentCount: 0, isLiked: false, isSaved: false,
                         signals: FeedSignals(isFollowed: true))
         }
@@ -100,7 +112,7 @@ struct DailyFollowing: Identifiable {
                 what: "has an open choir rehearsal.",
                 opens: .event(DailyEvent.sample(
                     id: "daily-f2", title: "Open choir rehearsal", host: "College of Saint Benedict",
-                    photo: "saint-bens", place: "Saint Benedict's Monastery", starts: at(15), ends: at(16),
+                    photo: "sacred-heart-chapel", place: "Saint Benedict's Monastery", starts: at(15), ends: at(16),
                     category: .musicArts, description: "Sit in on the choirs getting ready for Sunday."))),
             DailyFollowing(
                 id: "follow-3", name: "St. Joseph Running Club", avatar: photo("klinefelter-park-trail"),
@@ -112,12 +124,12 @@ struct DailyFollowing: Identifiable {
             DailyFollowing(
                 id: "follow-4", name: "Bad Habit Brewing", avatar: photo("bad-habit-brewing"),
                 what: "put a new beer on tap.",
-                opens: .update(update("daily-p1", "Bad Habit Brewing", "bad-habit-brewing", at: 11,
+                opens: .update(update("daily-p1", "Bad Habit Brewing", "bad-habit-brewing", "rocktoberfest", at: 11,
                                       "New on tap today: an apple ale made with fruit from up the road."))),
             DailyFollowing(
                 id: "follow-5", name: "The Local Blend", avatar: photo("the-local-blend"),
                 what: "has a new fall menu.",
-                opens: .update(update("daily-p2", "The Local Blend", "the-local-blend", at: 7.25,
+                opens: .update(update("daily-p2", "The Local Blend", "the-local-blend", "farmers-market", at: 7.25,
                                       "Our fall menu starts today: maple lattes, apple cider and pumpkin bread."))),
         ]
     }
@@ -157,7 +169,7 @@ private struct FollowingRow: View {
             }
         }
         .buttonStyle(PressableCardStyle())
-        .accessibilityLabel("\(item.name) \(item.what) \(item.time(now: now))")
+        .accessibilityLabel("\(item.name) \(item.what) \(item.spokenTime(now: now))")
     }
 
     private var face: some View {
@@ -168,10 +180,13 @@ private struct FollowingRow: View {
                 .foregroundStyle(Hue.ink)
                 .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Hue.fill
-                .frame(width: DailyMetric.followingPhoto, height: DailyMetric.followingPhoto)
-                .overlay { if let url = item.photo { FeedCardURLPhoto(url: url) } }
-                .clipShape(RoundedRectangle(cornerRadius: DailyMetric.followingPhotoRadius, style: .continuous))
+            // With no photo the words run to the edge, as Instagram's do.
+            if let url = item.photo {
+                Hue.fill
+                    .frame(width: DailyMetric.followingPhoto, height: DailyMetric.followingPhoto)
+                    .overlay { FeedCardURLPhoto(url: url) }
+                    .clipShape(RoundedRectangle(cornerRadius: DailyMetric.followingPhotoRadius, style: .continuous))
+            }
         }
         .padding(.horizontal, DailyMetric.side)
         .padding(.vertical, DailyMetric.followingRowInset)
@@ -189,27 +204,28 @@ private struct FollowingRow: View {
 }
 
 /// An update from someone you follow on its own page, as Instagram opens a post from its
-/// activity rows: the Town feed's post card under a back button.
+/// activity rows: the Town feed's post card under the Search pages' back button.
 struct DailyPostPage: View {
     let posting: PostingItem
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ScrollView {
-            PostingCard(posting: posting)
+            PostingCard(posting: posting, onShare: { DailyFeedColumn.share(posting) })
         }
         .background(Hue.paper.ignoresSafeArea())
         .safeAreaInset(edge: .top, spacing: 0) {
             Button { dismiss() } label: {
                 Image(systemName: "chevron.left")
-                    .font(.sansSemibold(17))
+                    .font(.glyph(20, weight: .semibold))
                     .foregroundStyle(Hue.ink)
-                    .frame(width: 44, height: 44)
+                    .frame(width: SearchMetric.pageBar, height: SearchMetric.pageBar)
                     .contentShape(Rectangle())
             }
+            .buttonStyle(DimStyle())
             .accessibilityLabel("Back")
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, DailyMetric.followingBackInset)
+            .padding(.leading, SearchMetric.pageBackLead)
             .background(Hue.paper)
         }
         .toolbar(.hidden, for: .navigationBar)

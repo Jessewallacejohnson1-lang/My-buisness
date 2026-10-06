@@ -87,7 +87,7 @@ struct DailyFeedColumn: View {
 
     // MARK: - Share
 
-    private static func share(_ posting: PostingItem) {
+    static func share(_ posting: PostingItem) {
         ShareCenter.shared.present(
             SharePayload(
                 title: posting.authorName,

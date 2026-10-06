@@ -223,8 +223,6 @@ nonisolated enum DailyMetric {
     static let followingRowInset: CGFloat = 10
     /// The label sits 15pt over the first photo, as over every Daily section's content.
     static let followingLabelToRows: CGFloat = eventLabelToCard - followingRowInset
-    /// The post page's back button from the screen's edge. Picked: no Reference.
-    static let followingBackInset: CGFloat = 8
 }
 
 /// The low sun over the yellow: morning light from the east throws the Spotlight's
@@ -370,7 +368,8 @@ struct DailyPage: View {
                                                         without: events, limit: .max)
                         let suggestions = DailyEvent.showing(DailyEvent.suggestions(now: now), now: now,
                                                              without: events + agenda, limit: 10)
-                        let following = DailyFollowing.showing(DailyFollowing.today(now: now), now: now)
+                        let following = DailyFollowing.showing(DailyFollowing.today(now: now), now: now,
+                                                               without: events + agenda + suggestions, limit: 10)
                         VStack(spacing: 0) {
                             if !events.isEmpty {
                                 EventOfTheDaySection(events: events, now: now)
