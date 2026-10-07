@@ -85,6 +85,15 @@ def outside(location, town):
     return any(w.lower() in location.lower() for w in town.get("elsewhere", ()))
 
 
+def bare_town(location, town):
+    """A location naming only the town ("St. Joseph MN 56374") says nowhere to go: the
+    card would print the town as if it were the place, so it is written as no place."""
+    rest = location.lower().replace(town["label"].lower(), "")
+    for z in town["zips"]:
+        rest = rest.replace(z, "")
+    return not re.sub(r"[\W_]+", "", rest)
+
+
 def page_url(ev, feed_url):
     """A link a person can open. CivicPlus feeds (the City's) give each event a relative URL
     pointing back at the feed itself; the event's own page is Calendar.aspx?EID=<UID>."""
@@ -109,6 +118,8 @@ def to_event(ev, source_name, feed_url, town, today):
     location = unescape(ev.get("LOCATION", ("", ""))[1])
     if outside(location, town):
         return None, "out of town"
+    if bare_town(location, town):
+        location = ""
     end = when(ev["DTEND"])[0] if "DTEND" in ev and not all_day else None
     return {
         "title": title,
@@ -148,19 +159,22 @@ def upsert_sql(rows):
 
 
 def selftest():
-    town = {"zips": ["56374"], "elsewhere": ["Saint John's University"]}
+    town = {"label": "St. Joseph MN", "zips": ["56374"], "elsewhere": ["Saint John's University"]}
     ics = ("BEGIN:VEVENT\r\nUID:7\r\nSUMMARY:Fare for All\r\nDTSTART:20261207T153000\r\n"
            "DTEND:20261207T173000\r\nLOCATION: - 610 County Rd 2  St. Joseph MN \r\n 56374\r\n"
            "DESCRIPTION:<p>Groceries\\, cheap</p>\r\nEND:VEVENT\r\n"
            "BEGIN:VEVENT\r\nUID:8\r\nSUMMARY:Holiday - City Offices Closed\r\nDTSTART;VALUE=DATE:20261126\r\nEND:VEVENT\r\n"
            "BEGIN:VEVENT\r\nUID:9\r\nSUMMARY:Film\r\nDTSTART:20261204T190000\r\n"
-           "LOCATION:Saint John's University - 2850 Abbey Plaza St. Joseph MN 56374\r\nEND:VEVENT\r\n")
+           "LOCATION:Saint John's University - 2850 Abbey Plaza St. Joseph MN 56374\r\nEND:VEVENT\r\n"
+           "BEGIN:VEVENT\r\nUID:10\r\nSUMMARY:City Council Meeting\r\nDTSTART:20261207T180000\r\n"
+           "LOCATION: - St. Joseph MN 56374\r\nEND:VEVENT\r\n")
     got = [to_event(e, "City", "feed", town, date(2026, 10, 6)) for e in parse_ics(ics)]
     row = got[0][0]
     assert row["start_time"] == "3:30 PM" and row["event_date"] == "2026-12-07", row
     assert row["location"] == "610 County Rd 2 St. Joseph MN 56374", row["location"]
     assert row["description"] == "Groceries, cheap" and row["end_at"].startswith("2026-12-07T17:30:00-06:00")
     assert got[1] == (None, "news") and got[2] == (None, "out of town"), got
+    assert got[3][0]["location"] is None, got[3]
     assert clock(datetime(2026, 1, 1, 18, 0)) == "6 PM"
     assert page_url({"UID": ("", "2447"), "URL": ("", "/common/modules/iCalendar/iCalendar.aspx?feed=calendar&catID=25")},
                     "https://www.stjosephmn.gov/common/modules/iCalendar/iCalendar.aspx?catID=25&feed=calendar") \
