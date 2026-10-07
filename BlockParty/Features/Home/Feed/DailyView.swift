@@ -14,20 +14,6 @@ struct DailyView: View {
 
     @State private var now = Date()
 
-    /// What the feed shows today.
-    ///
-    /// There is no backend for it yet, so a release build gets an empty array and
-    /// lands on the empty state — which is the truth, and reads as onboarding
-    /// rather than as breakage. DEBUG gets the fixtures. When the reads exist, this
-    /// is the one property that changes.
-    static var currentItems: [DailyFeedItem] {
-        #if DEBUG
-        return DailyFixtures.all()
-        #else
-        return []
-        #endif
-    }
-
     var body: some View {
         ZStack {
             Hue.paper.ignoresSafeArea()

@@ -175,7 +175,12 @@ nonisolated enum YourDayLogic {
     /// Town midnight on the row's `event_date`. Internal rather than private so the
     /// Your Day item builder shares this one parse — see `YourDayItems.swift`.
     static func eventDay(for event: UpcomingEvent) -> Date? {
-        let parts = event.eventDate.split(separator: "-").compactMap { Int($0) }
+        townDay(event.eventDate)
+    }
+
+    /// Town midnight on a `yyyy-MM-dd` date column.
+    static func townDay(_ date: String) -> Date? {
+        let parts = date.split(separator: "-").compactMap { Int($0) }
         guard parts.count == 3 else { return nil }
 
         var components = DateComponents()

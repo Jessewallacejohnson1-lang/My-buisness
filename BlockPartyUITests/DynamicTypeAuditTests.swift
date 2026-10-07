@@ -48,9 +48,9 @@ final class DynamicTypeAuditTests: XCTestCase {
     ///
     /// AUDIT-SURFACES-BEGIN — parsed by the coverage test. Keep one entry per line.
     static let surfaces: [Surface] = [
-        Surface(id: "town", arguments: ["-open-tab", "town"]),
-        Surface(id: "town-menu", arguments: ["-open-tab", "town", "-open-menu"]),
-        Surface(id: "town-scrolled", arguments: ["-open-tab", "town", "-feed-scrolled"]),
+        Surface(id: "town", arguments: ["-open-tab", "town", "-town-samples"]),
+        Surface(id: "town-menu", arguments: ["-open-tab", "town", "-town-samples", "-open-menu"]),
+        Surface(id: "town-scrolled", arguments: ["-open-tab", "town", "-town-samples", "-feed-scrolled"]),
     ]
     /// AUDIT-SURFACES-END
 

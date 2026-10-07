@@ -106,9 +106,11 @@ struct FeedEventCard: View {
                     imageSection
                         .padding(.top, item.hostName.isEmpty ? 0 : 10)
 
-                    socialRow
-                        .padding(.top, 10)
-                        .padding(.horizontal, DailyFeedMetric.contentInset)
+                    if !item.goingSummary.isEmpty || !item.goingAvatars.isEmpty {
+                        socialRow
+                            .padding(.top, 10)
+                            .padding(.horizontal, DailyFeedMetric.contentInset)
+                    }
                 }
                 .contentShape(Rectangle())
             }

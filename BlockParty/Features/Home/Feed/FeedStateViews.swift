@@ -28,6 +28,8 @@ nonisolated enum FeedStateCopy {
 
     static let yourDayUnavailable = "Your day didn’t load."
     static let townNotesUnavailable = "Town notes didn’t load."
+    /// Working words; Jesse writes the final ones.
+    static let townEventsUnavailable = "Events didn’t load."
 }
 
 /// Title + explanation + retry, with no surface of its own. Used directly when the

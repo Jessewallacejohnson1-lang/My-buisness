@@ -125,6 +125,33 @@ struct DailyFeedEmptyState: View {
     }
 }
 
+/// Two event cards' shapes while the Town's events load: host row, picture, going
+/// line, at the card's own sizes, so the cards land where these stood.
+struct DailyFeedSkeleton: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 28) {
+            ForEach(0..<2, id: \.self) { _ in
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 10) {
+                        SkeletonCircle(diameter: 32)
+                        SkeletonLine(widthFraction: 0.4)
+                    }
+                    .padding(.horizontal, DailyFeedMetric.contentInset)
+
+                    SkeletonBlock(cornerRadius: DailyFeedMetric.mediaRadius)
+                        .aspectRatio(3.0 / 2.0, contentMode: .fit)
+
+                    SkeletonLine(widthFraction: 0.5)
+                        .padding(.horizontal, DailyFeedMetric.contentInset)
+                }
+            }
+        }
+        .padding(.top, 12)
+        .shimmering()
+        .accessibilityHidden(true)
+    }
+}
+
 /// The feed's arrival: the first few cards fade up 12pt, one after another.
 ///
 /// Its own modifier rather than `staggeredAppear` because that one caps its delay

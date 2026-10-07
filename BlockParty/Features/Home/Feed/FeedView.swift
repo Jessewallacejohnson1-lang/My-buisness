@@ -55,6 +55,10 @@ struct FeedView: View {
     /// The clock the social feed ranks against. Bumped on pull-to-refresh so a
     /// stale ordering cannot outlive the gesture that asked for a new one.
     @State private var feedClock = Date()
+    /// The Town's events as feed cards. nil until the first read answers, which the
+    /// column shows as its skeleton; a failed refresh keeps the last good list.
+    @State private var townEvents: [DailyFeedItem]?
+    @State private var townEventsFailed = false
 
     init(
         auth: AuthStore,
@@ -174,7 +178,24 @@ struct FeedView: View {
                 // of it: the registry is empty today, but a module that lands
                 // later is town-wide chrome (weather, say) and belongs
                 // above the stream, not buried in it.
-                DailyFeedColumn(items: DailyView.currentItems, now: feedClock)
+                ZStack(alignment: .top) {
+                    if let townEvents {
+                        DailyFeedColumn(items: townEvents, now: feedClock)
+                            .transition(.opacity)
+                    } else if townEventsFailed {
+                        FeedUnavailableBody(title: FeedStateCopy.townEventsUnavailable) {
+                            townEventsFailed = false
+                            Task { await loadTownEvents() }
+                        }
+                        .padding(.top, 72)
+                        .padding(.horizontal, DailyFeedMetric.contentInset)
+                        .transition(.opacity)
+                    } else {
+                        DailyFeedSkeleton()
+                            .transition(.opacity)
+                    }
+                }
+                .animation(Motion.smooth, value: townEvents == nil)
 
                 Color.clear.frame(height: 96)
             }
@@ -251,6 +272,7 @@ struct FeedView: View {
             }
 
             feedClock = Date()
+            await loadTownEvents()
 
             revealAnimated = false
             revealed = false
@@ -266,6 +288,9 @@ struct FeedView: View {
         .sheet(item: $route) { route in
             if let destination = route.destination { destination }
         }
+        // Its own task: the briefing below is awaited first and renders nothing today,
+        // so the events must not queue behind it.
+        .task { await loadTownEvents() }
         .task {
             name = Interests.displayName ?? firstNameFromEmail(auth.email)
             controller.updateContext(context)
@@ -324,6 +349,27 @@ struct FeedView: View {
             guard !shown else { return }
             name = Interests.displayName ?? firstNameFromEmail(auth.email)
             controller.updateContext(context)
+        }
+    }
+}
+
+extension FeedView {
+    /// Reads the Town's upcoming events into feed cards. `-town-samples` (DEBUG) shows
+    /// the fixtures instead, for design work that needs photos under the chrome.
+    private func loadTownEvents() async {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-town-samples") {
+            townEvents = DailyFixtures.all()
+            return
+        }
+        #endif
+        do {
+            let events = try await CommunityAPI(auth: auth).getUpcomingEvents()
+            townEvents = DailyFeedItem.town(events, now: Date(), signedIn: auth.isSignedIn)
+            townEventsFailed = false
+        } catch {
+            Log.network("FeedView town events: \(error)")
+            if townEvents == nil { townEventsFailed = true }
         }
     }
 }

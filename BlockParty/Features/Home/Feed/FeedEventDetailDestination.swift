@@ -139,7 +139,9 @@ struct FeedEventDetailDestination: View {
                 .accessibilitySortPriority(1)
         }
         .accessibilityElement(children: .contain)
-        .safeAreaInset(edge: .bottom, spacing: 0) { bottomBar }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if item.canJoin { bottomBar }
+        }
         // Hidden, never `navigationBarBackButtonHidden`. Hidden here, UIKit also turns
         // the swipe back off; `SwipeBack` (RootView) turns it back on.
         .toolbar(.hidden, for: .navigationBar)

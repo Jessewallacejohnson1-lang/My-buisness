@@ -64,13 +64,24 @@ struct CommunityAPI {
         return uid
     }
 
-    /// "Real submissions only" guard, appended to every event *display* query.
-    /// Every legitimate insert stamps `submitted_by` (addEvent / addTrail),
-    /// so a row with a NULL submitter was never created by a person in-app — it's
-    /// seed / demo / fabricated content. Filtering it out here means such a row can
-    /// never surface again, even if one lands in the shared DB. Trails intentionally
-    /// omit this (curated reference data). Mirror in @hygge/core to protect the twin.
-    private static let realOnly = "&submitted_by=not.is.null"
+    /// "Real events only" guard, appended to every event *display* query.
+    /// Every legitimate insert stamps `submitted_by` (addEvent / addTrail), and a
+    /// found event (ADR-021) records where it was read instead, in `source_name`.
+    /// A row with neither was never created by a person in-app nor read from a
+    /// source — it's seed / demo / fabricated content — so it can never surface,
+    /// even if one lands in the shared DB. The `status=eq.approved` beside this is
+    /// what keeps a found event hidden until the admin approves it. Trails
+    /// intentionally omit this (curated reference data). The Expo twin (@hygge/core)
+    /// still filters on `submitted_by` alone, so it hides found events.
+    private static let realOnly = "&or=(submitted_by.not.is.null,source_name.not.is.null)"
+
+    /// A token for a read RLS opens to everyone. Sign-in is switched off, so most
+    /// neighbours have no session; they read with the app's public key, as
+    /// `getPlaces` does, instead of failing into an empty screen. Approved events are
+    /// readable by the anon role; RSVPs are not, so a signed-out read sees none.
+    private func readToken() async -> String {
+        (try? await token()) ?? SupabaseConfig.anonKey
+    }
 
     // MARK: - User / admin
 
@@ -85,7 +96,7 @@ struct CommunityAPI {
     /// the anon role too, so signed out (sign-in is switched off) they are read with the
     /// app's public key instead of failing into an empty map and an empty Search.
     func getPlaces() async throws -> [POI] {
-        let t = (try? await token()) ?? SupabaseConfig.anonKey
+        let t = await readToken()
         let (data, _) = try await SupabaseHTTP.rest("places", query: "select=*", accessToken: t)
         return try decode(data)
     }
@@ -157,7 +168,7 @@ struct CommunityAPI {
     }
 
     private func timelineEvents(forDate date: String) async throws -> [TimelineEvent] {
-        let t = try await token()
+        let t = await readToken()
         let uid = auth.userId
         let (data, _) = try await SupabaseHTTP.rest("club_events",
             query: "select=*,clubs(name)&status=eq.approved&kind=eq.event&event_date=eq.\(date)\(Self.realOnly)&order=start_time.asc",
@@ -193,7 +204,7 @@ struct CommunityAPI {
     }
 
     func getUpcomingEvents() async throws -> [UpcomingEvent] {
-        let t = try await token()
+        let t = await readToken()
         let uid = auth.userId
         let today = DateHelpers.localDate()
         let (data, _) = try await SupabaseHTTP.rest("club_events",
@@ -217,7 +228,9 @@ struct CommunityAPI {
                           startTime: $0.startTime, location: $0.location,
                           goingCount: counts[$0.id] ?? 0, createdAt: $0.createdAt ?? "",
                           imageUrl: $0.imageUrl, rsvpd: mine.contains($0.id),
-                          clubName: $0.clubs?.name, category: EventCategory.from($0.category))
+                          clubName: $0.clubs?.name, category: EventCategory.from($0.category),
+                          endAt: DateHelpers.timestamp($0.endAt), isAllDay: $0.allDay ?? false,
+                          sourceName: $0.sourceName, showsFrom: $0.showsFrom)
         }
     }
 
