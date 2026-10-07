@@ -317,14 +317,21 @@ struct MainTabsView: View {
     /// Search's places and recents, kept across tab switches so the tab doesn't fetch
     /// the Town's places again each time it comes back.
     @State private var searchModel = SearchModel()
+    /// The friends inbox and its chats (DEBUG samples until real messages exist), kept
+    /// here so an opened chat stays read when the inbox comes back.
+    @State private var friendsModel = FriendsModel()
+    /// The shell stack's path, so the Town bar's friends mark can push the inbox.
+    @State private var path = NavigationPath()
     /// The map, presented full-screen from the map disc in the Town tab's Today bar
     /// rather than living in the tab bar. Its selected-pin state belongs to
     /// `SJMapView` itself now — the shell has no tab bar to hide under it.
     @State private var showMap = false
-    /// The Today bar's friends mark (2026-09-29, where search sat) and bell. Both open
-    /// a reserved screen for now — the marks shipped ahead of what sits behind them,
-    /// and a named empty room is the same call `BlankTab` makes for the unbuilt tabs.
-    @State private var showFriends = MainTabsView.debugOpen("-open-friends")
+    /// The Today bar's friends mark (2026-09-29, where search sat) and bell. The bell
+    /// opens a reserved screen — the marks shipped ahead of what sits behind them, and a
+    /// named empty room is the same call `BlankTab` makes for the unbuilt tabs. Friends
+    /// does too while there are no chats, which is every release build until real
+    /// messages exist (`FriendsModel`); otherwise it pushes the inbox (`openFriends`).
+    @State private var showFriends = false
     @State private var showNotifications = MainTabsView.debugOpen("-open-notifications")
     /// The town menu — a glass panel grown from the top-right corner. Nothing in the
     /// Today bar opens it since the avatar was retired (2026-09-18); `-open-menu` still
@@ -359,7 +366,7 @@ struct MainTabsView: View {
     /// never `navigationBarBackButtonHidden`, which kills the swipe back.
     /// `SwipeBack` keeps that swipe alive once the pushed page hides the bar too.
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             shell
                 .toolbar(.hidden, for: .navigationBar)
                 .background { SwipeBack().frame(width: 0, height: 0) }
@@ -369,6 +376,29 @@ struct MainTabsView: View {
                 .navigationDestination(for: PostingItem.self) { posting in
                     DailyPostPage(posting: posting)
                 }
+                .navigationDestination(for: FriendsRoute.self) { route in
+                    Group {
+                        switch route {
+                        case .inbox: FriendsPage()
+                        case .chat(let id): FriendChatPage(id: id)
+                        }
+                    }
+                    .environment(friendsModel)
+                }
+        }
+        .onAppear {
+            // DEBUG: `-open-friends` lands on the inbox, `-open-friends-chat` on its newest chat.
+            if Self.debugOpen("-open-friends") || Self.debugOpen("-open-friends-chat") { openFriends() }
+            if Self.debugOpen("-open-friends-chat"), let newest = friendsModel.visible.first { path.append(FriendsRoute.chat(newest.id)) }
+        }
+    }
+
+    /// The friends mark: the inbox when there are chats, the reserved screen when not.
+    private func openFriends() {
+        if friendsModel.chats.isEmpty {
+            showFriends = true
+        } else {
+            path.append(FriendsRoute.inbox)
         }
     }
 
@@ -393,7 +423,7 @@ struct MainTabsView: View {
                                 menuOpen: showMenu,
                                 profileShown: showProfileSheet,
                                 onOpenMap: { showMap = true },
-                                onOpenFriends: { showFriends = true },
+                                onOpenFriends: openFriends,
                                 onOpenNotifications: { showNotifications = true },
                                 expandedPlace: $expandedPlace,
                                 cardNS: cardNS
@@ -492,8 +522,8 @@ struct MainTabsView: View {
         }
         // Profile is now a menu destination — a standard sheet.
         .sheet(isPresented: $showProfileSheet) { ProfileView() }
-        // The Today bar's friends mark and bell. Reserved screens until the real ones
-        // land; see `ReservedScreen`.
+        // The Today bar's friends mark (while there are no chats) and bell. Reserved
+        // screens until the real ones land; see `ReservedScreen`.
         .sheet(isPresented: $showFriends) { ReservedScreen.friends }
         .sheet(isPresented: $showNotifications) { ReservedScreen.notifications }
         // The map is a destination now, not a tab. Full-screen cover rather than a

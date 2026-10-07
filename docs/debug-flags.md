@@ -22,9 +22,10 @@ Read this file when you need a specific flag; CLAUDE.md points here.
 - **Signed-out data:** `-anon-data` — with NO session, `AuthStore.validAccessToken()` hands back the shipped public anon key so a signed-out simulator can still photograph data-bearing states. Reads go exactly as far as RLS lets the anon role (`places`/`club_events` allow anon SELECT); any write is refused server-side like any anonymous caller. DEBUG-only, compiles out in release.
 - **Map marker/rain states:** repeatable `-map-save <spotid>` and `-map-force-live <spotid>`; `-town-rain` drives the real map interaction; `-town-rain-preview` bypasses auth and loops the physics; add `-poi-logo-stub` for deterministic offline logos. See `docs/town-rain-reference-measurements.md`.
 - **Town menu/profile:** `-open-menu` with optional `-menu-autoclose` — the only entry into the menu since Today's avatar was removed on 2026-09-18, which also killed `-tap-menu` and `-slow-tap`; `-open-profile` with `-profile-expand|-profile-bottom|-profile-edit|-profile-edit-interests|-profile-moderation|-profile-autoclose`.
-- **Today bar's friends / notifications:** `-open-friends` and `-open-notifications` raise the
-  two reserved screens behind the top bar's friends mark and bell (added 2026-09-20 as
-  `-open-search`; search became a tab on 2026-09-29). Their only
+- **Today bar's friends / notifications:** `-open-friends` pushes the friends inbox (its DEBUG
+  sample chats; the reserved screen when there are none), `-open-friends-chat` the inbox and then
+  its newest chat (2026-10-06). `-open-notifications` raises the reserved screen behind the bell
+  (added 2026-09-20 as `-open-search`; search became a tab on 2026-09-29). Their only
   real trigger is a tap, so without these there is no way to screenshot them and no way to add
   them to `DynamicTypeAuditTests`' walk — which is exactly the reason their ledger entries say
   `notYetAudited`. Pair either with `-open-tab town`.
