@@ -58,13 +58,20 @@ final class TownFeedEventsTests: XCTestCase {
     /// Signed out, RSVPs can't be read, so no "Nobody's going yet", and can't be
     /// written, so no Join (Jesse, 2026-10-07).
     func testSignedOutGetsNoGoingLineAndNoJoin() {
-        let out = cards([event("a", on: "2026-10-12", going: 3)], signedIn: false)[0]
-        XCTAssertEqual(out.goingSummary, "")
-        XCTAssertFalse(out.canJoin)
+        XCTAssertFalse(cards([event("a", on: "2026-10-12", going: 3)], signedIn: false)[0].canJoin)
 
         let signedIn = cards([event("a", on: "2026-10-12", going: 3)])[0]
         XCTAssertEqual(signedIn.goingSummary, "3 going")
         XCTAssertTrue(signedIn.canJoin)
+    }
+
+    /// Started an hour ago: still on while it runs, gone once it's over.
+    func testAnEventStaysUntilItEnds() {
+        var running = event("running", on: "2026-10-07", at: "11 AM")
+        running.endAt = now.addingTimeInterval(3600)
+        let noEnd = event("no-end", on: "2026-10-07", at: "11 AM")
+        let shown = DailyRanker.rank(DailyFeedItem.town([running, noEnd], now: now, signedIn: true), now: now)
+        XCTAssertEqual(shown.map(\.id), ["event:running"])
     }
 
     func testAnAllDayEventStaysUntilItsDayIsOver() {

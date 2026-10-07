@@ -50,6 +50,8 @@ struct FeedSignals: Hashable {
     var likeCount: Int = 0
     /// Only set for events: when the thing actually happens.
     var startsAt: Date?
+    /// When it's over, when known. An event still on stays in the feed until then.
+    var endsAt: Date?
 }
 
 enum DailyFeedItem: Identifiable {

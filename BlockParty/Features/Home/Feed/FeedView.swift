@@ -60,6 +60,11 @@ struct FeedView: View {
     @State private var townEvents: [DailyFeedItem]?
     @State private var townEventsFailed = false
 
+    /// Skeleton, retry or cards: what the Town feed's cross-fade keys on.
+    private var townFeedPhase: Int {
+        townEvents != nil ? 2 : townEventsFailed ? 1 : 0
+    }
+
     init(
         auth: AuthStore,
         onOpenFriends: @escaping () -> Void = {},
@@ -191,11 +196,11 @@ struct FeedView: View {
                         .padding(.horizontal, DailyFeedMetric.contentInset)
                         .transition(.opacity)
                     } else {
-                        DailyFeedSkeleton()
+                        DailyFeedSkeleton(showsGoing: auth.isSignedIn)
                             .transition(.opacity)
                     }
                 }
-                .animation(Motion.smooth, value: townEvents == nil)
+                .animation(Motion.smooth, value: townFeedPhase)
 
                 Color.clear.frame(height: 96)
             }
@@ -368,6 +373,9 @@ extension FeedView {
             townEvents = DailyFeedItem.town(events, now: Date(), signedIn: auth.isSignedIn)
             townEventsFailed = false
         } catch {
+            // Left mid-read (the tab went away): not a failure, and the read runs again
+            // when the feed comes back.
+            guard !Task.isCancelled else { return }
             Log.network("FeedView town events: \(error)")
             if townEvents == nil { townEventsFailed = true }
         }

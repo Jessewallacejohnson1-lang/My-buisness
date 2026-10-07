@@ -106,7 +106,7 @@ struct FeedEventCard: View {
                     imageSection
                         .padding(.top, item.hostName.isEmpty ? 0 : 10)
 
-                    if !item.goingSummary.isEmpty || !item.goingAvatars.isEmpty {
+                    if item.canJoin {
                         socialRow
                             .padding(.top, 10)
                             .padding(.horizontal, DailyFeedMetric.contentInset)

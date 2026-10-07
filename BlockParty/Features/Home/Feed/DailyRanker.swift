@@ -81,8 +81,9 @@ enum DailyRanker {
     /// An event that has already happened is not news, it is a receipt. Postings
     /// never expire — an old one simply scores its way to the bottom.
     static func isVisible(_ item: DailyFeedItem, now: Date) -> Bool {
-        guard case .event = item, let startsAt = item.signals.startsAt else { return true }
-        return startsAt >= now
+        guard case .event = item, let over = item.signals.endsAt ?? item.signals.startsAt
+        else { return true }
+        return over >= now
     }
 
     /// `recency × engagement × affinity × urgency + socialProof`

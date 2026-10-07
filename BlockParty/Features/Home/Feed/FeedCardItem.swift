@@ -19,14 +19,13 @@ struct FeedCardItem: Identifiable, Hashable {
     var hostAvatar: URL? = nil
     let goingCount: Int
     let goingAvatars: [URL]
-    /// Empty draws no going line: signed out, who's going can't be read.
-    var goingSummary: String
+    let goingSummary: String
     var likeCount: Int
     var isLiked: Bool
     var isSaved: Bool
     var isJoined: Bool
-    /// False hides the event page's Join and its going count. Signed out, an RSVP can
-    /// neither be read nor written, so the page offers none (Jesse, 2026-10-07).
+    /// False hides who's going, on the card and its page, and the page's Join. Signed
+    /// out, an RSVP can neither be read nor written, so none is offered (Jesse, 2026-10-07).
     var canJoin = true
     var eventDate: String? = nil
     var startTime: String? = nil

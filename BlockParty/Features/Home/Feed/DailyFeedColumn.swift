@@ -126,12 +126,17 @@ struct DailyFeedEmptyState: View {
 }
 
 /// Two event cards' shapes while the Town's events load: host row, picture, going
-/// line, at the card's own sizes, so the cards land where these stood.
+/// line (signed in only, as on the card), and room for the action row, at the card's
+/// own sizes, so the cards land where these stood.
 struct DailyFeedSkeleton: View {
+    var showsGoing = true
+
     var body: some View {
         VStack(alignment: .leading, spacing: 28) {
             ForEach(0..<2, id: \.self) { _ in
-                VStack(alignment: .leading, spacing: 10) {
+                // The card's own spacing (`FeedEventCard.body`): 10 to the picture,
+                // 10 to the going line, 2 to the action row.
+                VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 10) {
                         SkeletonCircle(diameter: 32)
                         SkeletonLine(widthFraction: 0.4)
@@ -140,9 +145,18 @@ struct DailyFeedSkeleton: View {
 
                     SkeletonBlock(cornerRadius: DailyFeedMetric.mediaRadius)
                         .aspectRatio(3.0 / 2.0, contentMode: .fit)
+                        .padding(.top, 10)
 
-                    SkeletonLine(widthFraction: 0.5)
-                        .padding(.horizontal, DailyFeedMetric.contentInset)
+                    if showsGoing {
+                        SkeletonLine(widthFraction: 0.5)
+                            .frame(height: 24)
+                            .padding(.top, 10)
+                            .padding(.horizontal, DailyFeedMetric.contentInset)
+                    }
+
+                    // The heart, share and bookmark row: no shapes, its height only.
+                    Color.clear.frame(height: 44)
+                        .padding(.top, 2)
                 }
             }
         }

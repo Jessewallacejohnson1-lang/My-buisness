@@ -214,7 +214,9 @@ struct CommunityAPI {
         let ids = events.map(\.id)
         var counts: [String: Int] = [:]
         var mine = Set<String>()
-        if !ids.isEmpty {
+        // Signed out, RLS shows no RSVPs at all, so don't ask: a season of ids would
+        // only lengthen the URL toward the server's limit.
+        if uid != nil, !ids.isEmpty {
             let (rd, _) = try await SupabaseHTTP.rest("event_rsvps",
                 query: "select=event_id,user_id&event_id=in.(\(ids.joined(separator: ",")))", accessToken: t)
             let rsvps: [RsvpRow] = try decode(rd)

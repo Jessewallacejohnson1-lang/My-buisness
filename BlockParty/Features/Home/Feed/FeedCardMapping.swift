@@ -174,13 +174,10 @@ extension DailyFeedItem {
                   now >= opens
             else { return nil }
             var item = FeedCardItem(event)
-            if !signedIn {
-                item.goingSummary = ""
-                item.canJoin = false
-            }
+            item.canJoin = signedIn
             let starts = YourDayLogic.eventStart(for: event)
             let signals = FeedSignals(createdAt: DateHelpers.timestamp(event.createdAt) ?? .distantPast,
-                                      startsAt: starts)
+                                      startsAt: starts, endsAt: event.endAt)
             return (starts ?? day, .event(item, signals: signals))
         }
         .sorted { $0.start < $1.start }
