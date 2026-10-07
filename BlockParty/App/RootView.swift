@@ -389,7 +389,7 @@ struct MainTabsView: View {
         .onAppear {
             // DEBUG: `-open-friends` lands on the inbox, `-open-friends-chat` on its newest chat.
             if Self.debugOpen("-open-friends") || Self.debugOpen("-open-friends-chat") { openFriends() }
-            if Self.debugOpen("-open-friends-chat"), let newest = friendsModel.visible.first { path.append(FriendsRoute.chat(newest.id)) }
+            if Self.debugOpen("-open-friends-chat"), let newest = friendsModel.visible().first { path.append(FriendsRoute.chat(newest.id)) }
         }
     }
 

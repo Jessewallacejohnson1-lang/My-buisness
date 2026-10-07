@@ -23,7 +23,8 @@ struct FriendChatPage: View {
             Hue.paper.ignoresSafeArea()
             if let chat = model.chat(id) {
                 history(chat)
-                bar(chat)
+                // Drawn last so it sits over the history, read first so Back comes first.
+                bar(chat).accessibilitySortPriority(1)
             }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -70,7 +71,7 @@ struct FriendChatPage: View {
                     ForEach(Array(chat.messages.enumerated()), id: \.element.id) { i, message in
                         let prev = i > 0 ? chat.messages[i - 1] : nil
                         let next = i + 1 < chat.messages.count ? chat.messages[i + 1] : nil
-                        Bubble(message: message, photo: chat.photo,
+                        Bubble(message: message, photo: chat.photo, speaker: chat.name,
                                showsFace: !message.fromMe && next?.fromMe != false)
                             .padding(.top, prev == nil ? 0 : (prev?.fromMe == message.fromMe ? FriendsMetric.sameGap : FriendsMetric.turnGap))
                             .id(message.id)
@@ -98,6 +99,8 @@ struct FriendChatPage: View {
             Text(chat.name)
                 .font(.sansBold(20))
                 .foregroundStyle(Hue.ink)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, FriendsMetric.side)
         }
         .padding(.top, FriendsMetric.heroTop)
         .frame(maxWidth: .infinity)
@@ -154,6 +157,7 @@ struct FriendChatPage: View {
 private struct Bubble: View {
     let message: FriendMessage
     let photo: String
+    let speaker: String
     let showsFace: Bool
 
     var body: some View {
@@ -175,5 +179,7 @@ private struct Bubble: View {
             if !message.fromMe { Spacer(minLength: 0) }
         }
         .padding(.horizontal, FriendsMetric.side)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(message.fromMe ? "You" : speaker): \(message.text)")
     }
 }

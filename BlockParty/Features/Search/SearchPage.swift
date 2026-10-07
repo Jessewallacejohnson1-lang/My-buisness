@@ -837,7 +837,8 @@ private struct RemoveButton: View {
     }
 }
 
-private struct NothingFound: View {
+/// Nothing matched: a large grey magnifier, no words. Search's, and the friends inbox's.
+struct NothingFound: View {
     var body: some View {
         Image(systemName: "magnifyingglass")
             .font(.glyph(34, weight: .light))

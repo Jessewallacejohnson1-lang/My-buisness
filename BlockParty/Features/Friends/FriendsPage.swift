@@ -60,12 +60,14 @@ struct FriendsPage: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var fieldFocused: Bool
     @Namespace private var chipNS
+    @State private var filter: FriendsFilter = .all
+    @State private var words = ""
     /// The large title has gone under the bar: the bar shows the small one.
     @State private var titleUnder = false
 
     var body: some View {
-        @Bindable var model = model
-        ZStack(alignment: .top) {
+        let rows = model.visible(filter, words: words)
+        return ZStack(alignment: .top) {
             Hue.paper.ignoresSafeArea()
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
@@ -81,12 +83,13 @@ struct FriendsPage: View {
                     chips
                         .padding(.top, SearchMetric.chipsTop)
                         .padding(.bottom, SearchMetric.headBottom)
-                    ForEach(model.visible) { chat in
+                    ForEach(rows) { chat in
                         NavigationLink(value: FriendsRoute.chat(chat.id)) {
                             FriendRow(chat: chat)
                         }
                         .buttonStyle(RowPressStyle())
                     }
+                    if rows.isEmpty { NothingFound() }
                 }
                 .padding(.top, SearchMetric.pageBar)
             }
@@ -96,7 +99,8 @@ struct FriendsPage: View {
             } action: { _, under in
                 titleUnder = under
             }
-            bar
+            // Drawn last so it sits over the rows, read first so Back comes first.
+            bar.accessibilitySortPriority(1)
         }
         .toolbar(.hidden, for: .navigationBar)
     }
@@ -125,8 +129,7 @@ struct FriendsPage: View {
 
     /// Search's field, without Cancel: typing narrows the rows by name.
     private var field: some View {
-        @Bindable var model = model
-        return HStack(spacing: 0) {
+        HStack(spacing: 0) {
             Image(systemName: "magnifyingglass")
                 .font(.glyph(15, weight: .medium))
                 .foregroundStyle(Hue.searchFaint)
@@ -134,16 +137,16 @@ struct FriendsPage: View {
                 .padding(.leading, SearchMetric.fieldIconLead)
                 .padding(.trailing, SearchMetric.fieldIconGap)
                 .accessibilityHidden(true)
-            TextField("Search", text: $model.words, prompt: Text("Search").foregroundStyle(Hue.searchFaint))
+            TextField("Search", text: $words, prompt: Text("Search").foregroundStyle(Hue.searchFaint))
                 .font(.sans(16))
                 .foregroundStyle(Hue.ink)
                 .focused($fieldFocused)
                 .submitLabel(.search)
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
-            if !model.words.isEmpty {
+            if !words.isEmpty {
                 Button {
-                    model.words = ""
+                    words = ""
                     fieldFocused = true
                 } label: {
                     Image(systemName: "xmark.circle.fill")
@@ -165,11 +168,11 @@ struct FriendsPage: View {
     private var chips: some View {
         HStack(spacing: SearchMetric.chipGap) {
             ForEach(FriendsFilter.allCases, id: \.self) { f in
-                let on = f == model.filter
+                let on = f == filter
                 Button {
                     guard !on else { return }
                     Haptics.selection()
-                    withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.86)) { model.filter = f }
+                    withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.86)) { filter = f }
                 } label: {
                     Text(f.title)
                         .font(.sansSemibold(14))
@@ -212,6 +215,7 @@ private struct FriendRow: View {
                         Text(FriendsModel.timeLabel(last.at))
                             .font(chat.unread ? .sansSemibold(15) : .sans(15))
                             .foregroundStyle(chat.unread ? Hue.ink : Hue.inkSecondary)
+                            .fixedSize()
                     }
                 }
                 HStack(spacing: 8) {

@@ -26,19 +26,16 @@ final class FriendsModelTests: XCTestCase {
 
     /// Newest chat first, whatever order they arrive in.
     func testRowsAreNewestFirst() {
-        XCTAssertEqual(model().visible.map(\.name), ["Marlene Ostendorf", "Dale Brunner", "Bea Lindgren", "Hal Pedersen"])
+        XCTAssertEqual(model().visible().map(\.name), ["Marlene Ostendorf", "Dale Brunner", "Bea Lindgren", "Hal Pedersen"])
     }
 
     /// Unread keeps only chats with the dot; typing narrows by name, any case.
     func testFilterAndSearch() {
         let m = model()
-        m.filter = .unread
-        XCTAssertEqual(m.visible.map(\.name), ["Marlene Ostendorf", "Dale Brunner"])
-        m.filter = .all
-        m.words = "  bea "
-        XCTAssertEqual(m.visible.map(\.name), ["Bea Lindgren"])
-        m.words = "zzz"
-        XCTAssertTrue(m.visible.isEmpty)
+        XCTAssertEqual(m.visible(.unread).map(\.name), ["Marlene Ostendorf", "Dale Brunner"])
+        XCTAssertEqual(m.visible(words: "  bea ").map(\.name), ["Bea Lindgren"])
+        XCTAssertTrue(m.visible(words: "zzz").isEmpty)
+        XCTAssertEqual(m.visible(.unread, words: "dale").map(\.name), ["Dale Brunner"])
     }
 
     /// Opening a chat takes its dot away, and it drops out of Unread.
@@ -46,8 +43,7 @@ final class FriendsModelTests: XCTestCase {
         let m = model()
         m.markRead("Marlene Ostendorf")
         XCTAssertEqual(m.chat("Marlene Ostendorf")?.unread, false)
-        m.filter = .unread
-        XCTAssertEqual(m.visible.map(\.name), ["Dale Brunner"])
+        XCTAssertEqual(m.visible(.unread).map(\.name), ["Dale Brunner"])
     }
 
     /// A sent message lands last, trimmed, as yours, and moves the chat to the top.
@@ -60,7 +56,7 @@ final class FriendsModelTests: XCTestCase {
         let last = m.chat("Hal Pedersen")?.last
         XCTAssertEqual(last?.text, "Thanks again!")
         XCTAssertEqual(last?.fromMe, true)
-        XCTAssertEqual(m.visible.first?.name, "Hal Pedersen")
+        XCTAssertEqual(m.visible().first?.name, "Hal Pedersen")
         XCTAssertEqual(m.chat("Hal Pedersen")?.preview, "You: Thanks again!")
     }
 

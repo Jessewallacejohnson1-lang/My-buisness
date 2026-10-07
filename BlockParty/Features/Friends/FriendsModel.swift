@@ -63,8 +63,6 @@ enum FriendsRoute: Hashable {
 @MainActor @Observable
 final class FriendsModel {
     var chats: [FriendChat]
-    var filter: FriendsFilter = .all
-    var words = ""
 
     /// Nil takes the samples, resolved here rather than in a default argument
     /// (docs/rules/swift-traps.md, MainActor defaults).
@@ -73,7 +71,8 @@ final class FriendsModel {
     }
 
     /// The inbox's rows: newest chat first, narrowed by the filter and the typed name.
-    var visible: [FriendChat] {
+    /// The filter and the words belong to the inbox page, so each visit starts fresh.
+    func visible(_ filter: FriendsFilter = .all, words: String = "") -> [FriendChat] {
         let query = words.trimmingCharacters(in: .whitespaces)
         return chats
             .filter { filter == .all || $0.unread }
