@@ -32,6 +32,7 @@
  },
  "ChIJIQh2uc9ZtFIRmCpM-CN5dTw": {
   "chroma": true,
+  "d3": true,
   "hue": 348,
   "rank": 17
  },
@@ -76,8 +77,8 @@
   "rank": 13
  },
  "ChIJmTKJ0M9ZtFIRm7FAmBzwApc": {
-  "chroma": true,
-  "hue": 30,
+  "chroma": false,
+  "hue": 34,
   "rank": 29
  },
  "ChIJn0f45cZZtFIReWj8etT4Z5w": {
@@ -96,6 +97,7 @@
  },
  "ChIJsUeENdBZtFIRk-BROmx3-Fs": {
   "chroma": true,
+  "d3": true,
   "hue": 7,
   "rank": 24
  },
@@ -109,6 +111,7 @@
  },
  "ChIJxSjlws9ZtFIR91vPZw-Cw2s": {
   "chroma": false,
+  "d3": true,
   "hue": 34,
   "rank": 23
  },
@@ -236,6 +239,7 @@
  },
  "stjoe-milk-honey-ciders": {
   "chroma": true,
+  "d3": true,
   "hue": 36
  },
  "stjoe-obbink-distilling": {
