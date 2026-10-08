@@ -27,9 +27,8 @@ struct HomeView: View {
     var onOpenNotifications: () -> Void = {}
     @Binding var expandedPlace: Place?
     var cardNS: Namespace.ID
-    /// The shell's Town feed, kept across tab switches. The DEBUG briefing preview,
-    /// which has no shell, gets its own.
-    var townFeed = TownFeed()
+    /// The shell's Town feed, kept across tab switches.
+    var townFeed: TownFeed
 
     @EnvironmentObject private var auth: AuthStore
 

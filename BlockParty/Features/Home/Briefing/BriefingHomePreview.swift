@@ -21,9 +21,10 @@ import SwiftUI
 struct BriefingHomePreview: View {
     @Namespace private var cardNS
     @State private var expandedPlace: Place?
+    @State private var townFeed = TownFeed()
 
     var body: some View {
-        HomeView(expandedPlace: $expandedPlace, cardNS: cardNS)
+        HomeView(expandedPlace: $expandedPlace, cardNS: cardNS, townFeed: townFeed)
             .environmentObject(AuthStore.shared)
     }
 }

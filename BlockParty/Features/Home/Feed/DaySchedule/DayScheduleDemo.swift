@@ -156,9 +156,10 @@ struct DayScheduleDemoView: View {
     @Namespace private var dayNamespace
     @StateObject private var presentation = DaySchedulePresentation()
     @StateObject private var completion = DayCompletionStore()
+    @State private var townFeed = TownFeed()
 
     var body: some View {
-        FeedView(auth: .shared)
+        FeedView(auth: .shared, townFeed: townFeed)
             .dayScheduleHost(presentation, namespace: dayNamespace, completion: completion)
             .environmentObject(AuthStore.shared)
     }

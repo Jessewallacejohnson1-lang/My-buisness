@@ -39,7 +39,7 @@ final class TownFeedEventsTests: XCTestCase {
         [{"id":"e1","title":"City Council Meeting","event_date":"2026-10-19","start_time":"6 PM",
           "location":"City Hall","image_url":null,"category":null,"club_name":null,
           "source_name":"City of St. Joseph","end_at":"2026-10-20T04:59:00+00:00","all_day":false,
-          "shows_from":null,"created_at":"2026-10-06T16:08:20.123+00:00","going_count":2,
+          "created_at":"2026-10-06T16:08:20.123+00:00","going_count":2,
           "rsvpd":true,"recurrence":"Every 1st & 3rd Monday",
           "leaves_at":"2026-10-20T04:59:00+00:00"}]
         """
@@ -92,6 +92,23 @@ final class TownFeedEventsTests: XCTestCase {
         await town.reload(at: now.addingTimeInterval(2 * 3600))
         XCTAssertEqual(town.cards.map(\.id), ["long"])
         XCTAssertEqual(town.nextLeave, now.addingTimeInterval(5 * 3600))
+    }
+
+    /// The clock moves only once the read is done. The feed's leave timer is keyed on
+    /// `nextLeave`, which the clock decides: moved first, it cancelled the timer's own
+    /// read, so a series' next date never came in.
+    func testTheClockMovesOnlyOnceTheReadIsDone() async {
+        final class Probe { var town: TownFeed?; var clockDuringRead: Date? }
+        let probe = Probe()
+        let town = TownFeed {
+            probe.clockDuringRead = probe.town?.clock
+            return [TownFeed.entry(self.row("a"), signedIn: true)]
+        }
+        probe.town = town
+        let before = town.clock
+        await town.reload(at: now)
+        XCTAssertEqual(probe.clockDuringRead, before)
+        XCTAssertEqual(town.clock, now)
     }
 
     /// Skeleton until the first answer; a failed first read shows the retry; a failed

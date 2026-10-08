@@ -57,8 +57,11 @@ final class TownFeed {
 
     /// Reads the feed as of `now`. A failed read keeps the list already showing, minus
     /// what has left; with no list, the feed shows its retry.
+    ///
+    /// The clock moves only once the read is done: it decides `nextLeave`, and the
+    /// feed's leave timer is keyed on that, so moving it first cancelled the very read
+    /// the timer had started.
     func reload(at now: Date = Date()) async {
-        clock = now
         if entries == nil { failed = false }
         do {
             entries = try await read()
@@ -70,6 +73,7 @@ final class TownFeed {
             Log.network("TownFeed: \(error)")
             if entries == nil { failed = true }
         }
+        clock = now
     }
 
     private static func live() async throws -> [TownFeedEntry] {

@@ -67,15 +67,14 @@ struct FeedView: View {
         onOpenMap: @escaping () -> Void = {},
         onOpenNotifications: @escaping () -> Void = {},
         profileShown: Bool = false,
-        townFeed: TownFeed? = nil
+        townFeed: TownFeed
     ) {
         self.auth = auth
         self.onOpenFriends = onOpenFriends
         self.onOpenMap = onOpenMap
         self.onOpenNotifications = onOpenNotifications
         self.profileShown = profileShown
-        // Resolved here, not as a default argument, which runs off the main actor.
-        self.townFeed = townFeed ?? TownFeed()
+        self.townFeed = townFeed
 
         let briefing = BriefingModel()
         let context = FeedModuleContext(
@@ -185,6 +184,9 @@ struct FeedView: View {
                 ZStack(alignment: .top) {
                     if townFeed.entries != nil {
                         DailyFeedColumn(items: townFeed.cards.map { .event($0) })
+                            // A card whose time is up goes, and a series' next date
+                            // comes in, rather than popping.
+                            .animation(Motion.smooth, value: townFeed.clock)
                             .transition(.opacity)
                     } else if townFeed.failed {
                         FeedUnavailableBody(title: FeedStateCopy.townEventsUnavailable) {

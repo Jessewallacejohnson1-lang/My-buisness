@@ -96,9 +96,14 @@ enum DailyFixtures {
         townEntries(now: now).filter { $0.leavesAt > now }.map { .event($0.card) }
     }
 
-    /// The sample events as the Town feed gets them (`-town-samples`), in the order
-    /// below, each leaving two hours after it starts, as one with no end time does.
+    /// The sample events as the Town feed gets them (`-town-samples`): soonest first,
+    /// as `get_town_feed` sends them, each leaving two hours after it starts, as one
+    /// with no end time does.
     static func townEntries(now: Date = Date()) -> [TownFeedEntry] {
+        sampleEvents(now: now).sorted { $0.leavesAt < $1.leavesAt }
+    }
+
+    private static func sampleEvents(now: Date) -> [TownFeedEntry] {
         [
             event(
                 id: "e1", title: "Music in Millstream Park",

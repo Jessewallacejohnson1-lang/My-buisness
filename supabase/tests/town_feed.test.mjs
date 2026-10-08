@@ -98,6 +98,13 @@ test('an event stays until its end, days after it started', async () => {
   assert.deepEqual(await titles('2026-10-09 18:01'), []);
 });
 
+test('an exhibit that opened months ago is still there until it closes', async () => {
+  await reset();
+  await add('Summer exhibit', '2026-06-01', { start_time: '10 AM', end_at: '2026-10-31 17:00-05' });
+  await add('Long over', '2026-06-01', { start_time: '10 AM' });
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Summer exhibit']);
+});
+
 test('an event shows from its show-from day, or 14 days ahead', async () => {
   await reset();
   await add('Two weeks out', '2026-10-22', { start_time: '6 PM' });
@@ -155,7 +162,8 @@ test('a series shows once, at its next date, with how it repeats', async () => {
 
 test('how a series repeats, in words', async () => {
   assert.equal(await label('2026-10-10', '2026-10-24', '2026-11-07'), 'Every other Saturday');
-  assert.equal(await label('2026-10-10', '2026-10-11', '2026-10-12'), 'Every day');
+  // A weekend festival on three days in a row is not "every day".
+  assert.equal(await label('2026-10-09', '2026-10-10', '2026-10-11'), null);
   assert.equal(await label('2026-10-20', '2026-11-17', '2026-12-15'), 'Every 3rd Tuesday');
   assert.equal(await label('2026-10-12', '2026-11-09', '2026-12-14'), 'Every 2nd Monday');
   assert.equal(await label('2026-10-19', '2026-11-02', '2026-11-16', '2026-12-07'),

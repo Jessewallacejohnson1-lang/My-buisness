@@ -3,6 +3,10 @@
 -- the rows in the order given and hides one when its leaves_at passes; it never
 -- re-sorts. Events only for now; posts, updates and news join when they exist.
 
+-- Dropped first so this file can be run again as it changes: a function's returned
+-- columns can't be changed in place.
+drop function if exists public.get_town_feed(timestamptz);
+
 -- How a series repeats, from its dates, in Jesse's words ("Every Tuesday", "Every 1st &
 -- 3rd Monday"); null under three dates or with no clear pattern, so the card shows the
 -- next date only.
@@ -33,9 +37,8 @@ begin
   gaps := array(select d[i + 1] - d[i] from generate_series(1, n - 1) i);
   weekday := to_char(d[1], 'FMDay');
 
-  if 1 = all(gaps) then
-    return 'Every day';
-  elsif 7 = all(gaps) then
+  -- Days in a row (a weekend festival) are not "every day": no label.
+  if 7 = all(gaps) then
     return 'Every ' || weekday;
   elsif 14 = all(gaps) then
     return 'Every other ' || weekday;
@@ -111,7 +114,6 @@ returns table (
   source_name text,
   end_at timestamptz,
   all_day boolean,
-  shows_from date,
   created_at timestamptz,
   going_count int,
   rsvpd boolean,
@@ -145,10 +147,13 @@ as $$
     cross join lateral (select
       regexp_match(lower(btrim(e.start_time)), '^(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?$') as m12,
       regexp_match(btrim(e.start_time), '^(\d{1,2}):(\d{2})(?::\d{2})?$') as m24) t
+    cross join town
     where e.status = 'approved'
       and e.kind = 'event'
       and e.event_date is not null
       and (e.submitted_by is not null or e.source_name is not null)
+      -- The window a series' wording reads, plus anything still running.
+      and (e.event_date >= town.today - 60 or e.end_at > p_now)
   ),
   timed as (
     select r.*,
@@ -168,14 +173,16 @@ as $$
   ),
   next_up as (
     select t.*,
-           row_number() over (partition by t.series order by t.event_date, t.starts_at nulls first, t.id) as nth
+           row_number() over (partition by t.series order by t.event_date, t.starts_at nulls first, t.id) as nth,
+           exists (select 1 from public.event_rsvps r where r.event_id = t.id and r.user_id = auth.uid())
+             as going
     from timed t
     where t.leaves_at > p_now
   )
   select e.id, e.title, e.event_date, e.start_time, e.location, e.image_url, e.category,
-         c.name, e.source_name, e.end_at, e.all_day, e.shows_from, e.created_at,
+         c.name, e.source_name, e.end_at, e.all_day, e.created_at,
          (select count(*)::int from public.event_rsvps r where r.event_id = e.id),
-         exists (select 1 from public.event_rsvps r where r.event_id = e.id and r.user_id = auth.uid()),
+         e.going,
          l.recurrence,
          e.leaves_at
   from next_up e
@@ -185,7 +192,7 @@ as $$
   where e.nth = 1
     and town.today >= coalesce(e.shows_from, e.event_date - 14)
   order by
-    exists (select 1 from public.event_rsvps r where r.event_id = e.id and r.user_id = auth.uid()),
+    e.going,
     coalesce(e.starts_at, e.event_date::timestamp at time zone town.zone),
     e.title,
     e.id;
