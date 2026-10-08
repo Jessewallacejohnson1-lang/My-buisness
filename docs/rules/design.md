@@ -180,14 +180,11 @@ and `DECISIONS.md` win wherever they disagree.
     `Resources/Images` plus a `KnownLocalPhoto` entry, sourced from city or owner-supplied
     material (never a Google photo), recording the source and any permission caveat in the
     code comment.
-- **Map-pin logos are an OFFLINE pipeline, not runtime** `[prose]` — contrast the live photo
-  path above. The brand logo on a POI pin comes from `places.logo_url` (the Supabase
-  `place-logos` Storage bucket); a pin with none falls back to its category glyph.
-  Regenerate in three steps: **`fetch_place_logos.py`** resolves each `places` row's website
-  (Google Places details for real `ChIJ*` ids, text search for the synthetic local ones — it
-  expects the `stjoe-*` prefix, which is what production carries) and walks a favicon ladder (apple-touch-icon → `og:image` → `<link rel=icon>` →
-  `/favicon.ico` → Google favicon service), normalizing to a 256×256 PNG;
-  **`logo_montage.py`** tiles them with the 26px pin-crop preview for a human approval pass;
-  **`upload_place_logos.py`** pushes approved PNGs to the bucket and prints the
-  `places.logo_url` SQL (needs a scoped insert policy, or `SUPABASE_SERVICE_ROLE_KEY` to
-  bypass RLS).
+- **Business logos are an OFFLINE pipeline, not runtime** `[prose]` — contrast the live photo
+  path above. Every logo lives in Storage, one folder per business:
+  `places/<town>/<place_id>/logo-<hash>.webp` (Search's cut-out or 3D render, via
+  `places.search_logo`) and `pin-<hash>.png` (the same logo on a white 256 px square, via
+  `places.logo_url`, for the map's pins and the town rain); a pin with none falls back to its
+  category glyph. BP app's `logo-3d` skill makes them and `logo3d.py publish` uploads them,
+  points the rows at them and deletes the versions they replace. Don't bundle logos in the
+  app (`DECISIONS.md` 2026-10-02, moved 2026-10-08).

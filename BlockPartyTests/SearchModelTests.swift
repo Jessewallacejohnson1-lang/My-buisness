@@ -18,22 +18,42 @@ final class SearchModelTests: XCTestCase {
         defaults.removePersistentDomain(forName: "SearchModelTests")
     }
 
-    private func poi(_ placeId: String, _ name: String, _ family: PlaceFamily, _ type: String) -> POI {
+    private func poi(_ placeId: String, _ name: String, _ family: PlaceFamily, _ type: String,
+                     logo: SearchLogo.Row? = nil) -> POI {
         POI(id: UUID().uuidString, placeId: placeId, name: name, lat: 45.56, lon: -94.32, family: family,
-            primaryType: type, types: [type], address: nil, logoUrl: nil)
+            primaryType: type, types: [type], address: nil, logoUrl: nil, searchLogo: logo)
     }
 
-    /// Every logo the pipeline exported is in the app, decodes, and the seven checked
-    /// 3D ones are marked. A missing file would leave an empty tile on the row. Coborn's
-    /// Pharmacy shares Coborn's apple, so only Coborn's shows it on the wall.
-    func testEveryBundledLogoLoads() {
-        XCTAssertEqual(SearchLogo.all.count, 69)
-        XCTAssertEqual(SearchLogo.all.values.filter { !$0.onWall }.map(\.placeId), ["ChIJ-bSQp6VZtFIRsrFXg1RYwFs"])
-        for logo in SearchLogo.all.values {
-            XCTAssertNotNil(logo.image, logo.placeId)
-        }
-        XCTAssertEqual(SearchLogo.all.values.filter(\.is3D).count, 21)
-        XCTAssertTrue(SearchLogo.all["stjoe-bruno-press"]?.chroma ?? false, "Bruno Press's red logo gets a coloured backdrop")
+    private func logo(wall: Bool? = nil) -> SearchLogo.Row {
+        SearchLogo.Row(url: URL(string: "https://example.com/logo-0.webp")!, hue: 354, chroma: true, wall: wall)
+    }
+
+    /// A places row as Supabase sends it carries its Search logo: the file, the backdrop's
+    /// hue, 3D, its place in the row, and whether it stays off the wall.
+    func testPlacesRowCarriesItsLogo() throws {
+        let json = """
+        [{"id": "a", "place_id": "stjoe-bruno-press", "name": "Bruno Press", "lat": 45.5, "lon": -94.3,
+          "family": "business", "primary_type": null, "types": [], "address": null, "logo_url": null,
+          "search_logo": {"url": "https://x.supabase.co/storage/v1/object/public/places/st-joseph/stjoe-bruno-press/logo-1a2b3c4d.webp",
+                          "hue": 354, "chroma": true, "d3": true, "rank": 2}},
+         {"id": "b", "place_id": "ChIJ-pharmacy", "name": "Coborn's Pharmacy", "lat": 45.5, "lon": -94.3,
+          "family": "business", "primary_type": null, "types": [], "address": null, "logo_url": null,
+          "search_logo": {"url": "https://x.supabase.co/a.webp", "hue": 80, "chroma": true, "wall": false}},
+         {"id": "c", "place_id": "stjoe-plain", "name": "Plain Shop", "lat": 45.5, "lon": -94.3,
+          "family": "business", "primary_type": null, "types": [], "address": null, "logo_url": null,
+          "search_logo": null}]
+        """
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let items = SearchModel.places(from: try decoder.decode([POI].self, from: Data(json.utf8)))
+        let bruno = try XCTUnwrap(items[0].logo)
+        XCTAssertEqual(bruno.url.lastPathComponent, "logo-1a2b3c4d.webp")
+        XCTAssertTrue(bruno.is3D && bruno.chroma && bruno.onWall)
+        XCTAssertEqual(bruno.rank, 2)
+        XCTAssertEqual(items[0].rank, 2)
+        XCTAssertEqual(items[1].logo?.onWall, false)
+        XCTAssertEqual(items[1].logo?.is3D, false)
+        XCTAssertNil(items[2].logo)
     }
 
     /// Businesses show on the row only with a logo; food splits into coffee and the
@@ -41,9 +61,9 @@ final class SearchModelTests: XCTestCase {
     func testPlacesSplitIntoRows() {
         let model = SearchModel(defaults: defaults)
         model.show([
-            poi("stjoe-bruno-press", "Bruno Press", .business, "print_shop"),
+            poi("stjoe-bruno-press", "Bruno Press", .business, "print_shop", logo: logo()),
             poi("stjoe-no-logo", "Plain Shop", .business, "store"),
-            poi("ChIJ-bSQp6VZtFIRsrFXg1RYwFs", "Coborn's Pharmacy", .business, "pharmacy"),
+            poi("ChIJ-bSQp6VZtFIRsrFXg1RYwFs", "Coborn's Pharmacy", .business, "pharmacy", logo: logo(wall: false)),
             poi("stjoe-blend", "The Local Blend", .food, "coffee_shop"),
             poi("stjoe-flour", "Flour & Flower", .food, "bakery"),
             poi("stjoe-krewe", "Krewe Restaurant", .food, "cajun_restaurant"),
@@ -60,11 +80,11 @@ final class SearchModelTests: XCTestCase {
     /// A local place whose Google id was found asks Google by that id; restaurants and
     /// coffee shops with a logo open their page as a business does.
     func testGoogleIdsAndWhatOpens() {
-        var bruno = poi("stjoe-bruno-press", "Bruno Press", .business, "print_shop")
+        var bruno = poi("stjoe-bruno-press", "Bruno Press", .business, "print_shop", logo: logo())
         bruno.googlePlaceId = "ChIJbruno"
         let items = SearchModel.places(from: [
             bruno,
-            poi("ChIJmTKJ0M9ZtFIRm7FAmBzwApc", "The Local Blend", .food, "coffee_shop"),
+            poi("ChIJmTKJ0M9ZtFIRm7FAmBzwApc", "The Local Blend", .food, "coffee_shop", logo: logo()),
             poi("stjoe-krewe", "Krewe Restaurant", .food, "cajun_restaurant"),
         ])
         func named(_ name: String) -> SearchItem? { items.first { $0.name == name } }
@@ -136,7 +156,7 @@ final class SearchModelTests: XCTestCase {
     func testReopeningMidCloseKeepsTheBusiness() {
         let opener = BusinessOpener()
         let item = SearchItem(id: "p:stjoe-bruno-press", kind: .business, name: "Bruno Press",
-                              logo: SearchLogo.all["stjoe-bruno-press"])
+                              logo: SearchLogo(placeId: "stjoe-bruno-press", row: logo()))
         let source = BusinessOpener.Source(logo: .zero, box: .zero, radius: 0, shadow: .black)
         func run(_ frames: Int) { for _ in 0..<frames { opener.progress.advance(by: 1.0 / 60) } }
         opener.open(item, from: source)

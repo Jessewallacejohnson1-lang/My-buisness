@@ -705,7 +705,23 @@ git show 0348d20:BlockParty/App/RootView.swift
 
 `BlockPartyTabBar` is at lines 531–611 of that file and `TabPressStyle` at 616–624.
 
-## Decided 2026-10-02 — Search's logos are bundled with the app
+## Decided 2026-10-02 — Search's logos are bundled with the app (moved to Storage 2026-10-08)
+
+- **Moved 2026-10-08 (Jesse: "why not just organize in database?", then "yes"):** every
+  logo now lives in Storage, one folder per business, `places/st-joseph/<place_id>/`:
+  `logo-<hash>.webp` (Search's cut-out or 3D render) and `pin-<hash>.png` (the same logo on a
+  white 256 px square, for the map's pins and the town rain). `places.search_logo` (jsonb:
+  url, hue, chroma, d3, rank, wall) and `places.logo_url` point at the current files;
+  migration `20261008000000`. The working files behind each logo (the business's own file,
+  every 3D try, the detail list, notes.json with the choices) sit in the private
+  `place-sources` bucket under the same folder. BP app's `logo3d.py publish` writes all of
+  it and deletes superseded versions, so a swap no longer waits on an App Store release.
+  Search loads its logos through `POILogoCache`, the map's cache (disk-backed, immutable per
+  URL): the first open needs the network, as the places rows already did. The bundled
+  `Resources/SearchLogos` and the 256 px favicon pipeline (`fetch_place_logos.py`,
+  `logo_montage.py`, `upload_place_logos.py`, the `place-logos` bucket) are gone. The 8
+  places with a pin but no Search logo keep their old pin, cut clean (`flat.json`
+  `pin_only`). Everything below is the history.
 
 Search draws each business's logo cut out and centred on a photo-shoot backdrop in its own
 hue, and seven of them as checked 3D renders (the `logo-3d` skill in the BP app folder).

@@ -172,7 +172,6 @@ struct SearchPage: View {
             SearchShelfPage(shelf: shelf).environment(model)
         }
         .task { await model.load() }
-        .task { await SearchLogo.warm() }
         .onAppear {
             opener.reduceMotion = reduceMotion
             #if DEBUG

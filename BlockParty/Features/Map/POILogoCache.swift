@@ -10,6 +10,9 @@
 //
 //  Disk persistence rides the session's URLCache (logos are immutable per URL —
 //  `.returnCacheDataElseLoad` means a relaunch re-fills memory from disk, offline).
+//  Search's logos (`SearchLogo.url`) load through it too, so there is one cache for
+//  every logo file in Storage. Each image is decoded off the main thread as it lands,
+//  so the first look at the logo wall doesn't stall decoding 69 of them at once.
 //
 
 import SwiftUI
@@ -43,14 +46,17 @@ final class POILogoCache: ObservableObject {
         return images[url]
     }
 
+    /// A Search logo if it has arrived; nil until then (its tile shows the backdrop alone).
+    func image(for url: URL) -> UIImage? { images[url] }
+
     /// Kick off loads for every logo URL not yet resolved. Callers pass the whole
     /// roster (deduped + in-flight-guarded here); publishes once per arriving image.
     func prefetch(_ urls: [URL]) {
         for url in urls where images[url] == nil && !inflight.contains(url) {
             inflight.insert(url)
             Task {
-                let image = (try? await Self.session.data(from: url))
-                    .flatMap { UIImage(data: $0.0) }
+                let raw = (try? await Self.session.data(from: url).0).flatMap { UIImage(data: $0) }
+                let image = await raw?.byPreparingForDisplay() ?? raw
                 inflight.remove(url)
                 if let image { images[url] = image }
                 // A failed fetch stays absent → glyph fallback; the next prefetch

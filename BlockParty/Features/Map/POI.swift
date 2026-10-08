@@ -24,6 +24,9 @@ struct POI: Identifiable, Decodable, Hashable {
     /// once through Locked Rule A (`scripts/resolve_google_place_ids.py`). nil when
     /// nothing cleared it, or when `placeId` is already Google's.
     var googlePlaceId: String? = nil
+    /// Search's logo for this place (`places.search_logo`): its file in Storage and how
+    /// Search shows it. nil for a place with no logo in Search.
+    var searchLogo: SearchLogo.Row? = nil
 
     var coordinate: CLLocationCoordinate2D { .init(latitude: lat, longitude: lon) }
 

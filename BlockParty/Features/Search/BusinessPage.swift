@@ -396,8 +396,10 @@ struct CastLogo: View {
     var stretch: CGFloat = 1
     var strength: Double = 1
 
+    @ObservedObject private var cache = POILogoCache.shared
+
     var body: some View {
-        if let image = logo.image {
+        if let image = cache.image(for: logo.url) {
             let color = shadow ?? logo.shadow, k = stretch
             Image(uiImage: image)
                 .resizable()

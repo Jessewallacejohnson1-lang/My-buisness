@@ -95,8 +95,9 @@ Town bar's leading control became a friends mark — and **You** mounts
   `MainTabsView` so the places aren't fetched again on every visit. A row's title pushes
   its whole list onto the shell's stack (`SearchShelf`, declared in `SearchPage`). A
   business logo opens `BusinessPage`, an overlay inside the tab, under the tab bar,
-  driven by one spring value (`LiveSpring`) so a drag can grab it mid-flight. Logos are
-  bundled (`Resources/SearchLogos`, `DECISIONS.md` 2026-10-02); restaurant and business
+  driven by one spring value (`LiveSpring`) so a drag can grab it mid-flight. Logos come
+  from Storage through `places.search_logo` (`DECISIONS.md` 2026-10-02, moved 2026-10-08)
+  and load through `POILogoCache`, the map pins' cache; restaurant and business
   photos are Google's, each with its `PhotoCredit`. People, events and clubs are DEBUG
   samples until their reads exist; a release build leaves those rows and pills out.
 - **Daily** (`Features/Daily/DailyPage.swift`) shows its page

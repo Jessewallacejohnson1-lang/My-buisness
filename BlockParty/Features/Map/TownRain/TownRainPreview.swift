@@ -7,12 +7,10 @@
 //  touch on the town pill and this setup has NO tap automation — without a gate the
 //  animation cannot be recorded, and its timing is the whole point of the feature.
 //
-//  It stands in ONLY for the `places` rows, never for the marks: the logo URLs are
-//  rebuilt from the real roster uuids against the public `place-logos` bucket — the
-//  exact objects production loads — so the preview rains the REAL businesses' logos
-//  through the real `POILogoCache` path, with no auth (the bucket is public read).
-//  Add `-poi-logo-stub` for a deterministic offline run when measuring the PHYSICS,
-//  where network timing and mark shapes would only add noise.
+//  It reads the real `places` rows (anon read, no sign-in), so the preview rains the REAL
+//  businesses' map-pin logos through the real `POILogoCache` path. Add `-poi-logo-stub`
+//  for a deterministic offline run when measuring the PHYSICS, where network timing and
+//  mark shapes would only add noise: it rains code-drawn marks on stand-in rows.
 //
 //  Measure a recording with `scripts/track_rain.swift` and compare against
 //  `docs/town-rain-reference-measurements.md`.
@@ -25,7 +23,7 @@ import SwiftUI
 struct TownRainPreview: View {
 
     @State private var trigger = 0
-    @State private var pois: [POI] = TownRainPreview.syntheticPlaces()
+    @State private var pois: [POI] = POILogoCache.stubEnabled ? TownRainPreview.syntheticPlaces() : []
 
     /// Presses come in runs: several a beat apart, so a recording shows marks
     /// ACCUMULATING (the thing that changed), then a gap long enough for the field to
@@ -54,7 +52,10 @@ struct TownRainPreview: View {
             TownRainField(trigger: trigger, pois: pois)
                 .ignoresSafeArea()
         }
-        .onAppear {
+        .task {
+            if !POILogoCache.stubEnabled, let real = try? await CommunityAPI(auth: AuthStore.shared).getPlaces() {
+                pois = real
+            }
             POILogoCache.shared.prefetch(pois.compactMap(\.logoURL))
             fire()
         }
@@ -70,14 +71,10 @@ struct TownRainPreview: View {
         }
     }
 
-    /// Stand-ins for `places` rows, one per roster slot, so `TownRainRoster.eligible`
-    /// resolves a full pool without a signed-in session. The uuids are the REAL roster
-    /// ids and the URLs are the REAL bucket objects (`place-logos/{uuid}.png`, public
-    /// read — the same convention `upload_place_logos.py` writes and the same column
-    /// value `places.logo_url` holds), so this exercises production's lookup and fetch
-    /// path rather than a mock of it. Only `name`/`lat`/`lon` are stand-ins: the drop
-    /// itself reads none of them, though `-poi-logo-stub` DOES read `name` and `id` to
-    /// draw its monogram, so the marks in an offline run are stand-ins as well.
+    /// Stand-ins for `places` rows for the offline `-poi-logo-stub` run, one per roster
+    /// slot, so `TownRainRoster.eligible` resolves a full pool. The uuids are the real
+    /// roster ids; the stub draws each mark from `name` and `id`, so the URL only has to
+    /// be present, never fetched.
     private static func syntheticPlaces() -> [POI] {
         TownRainRoster.placeIDs.enumerated().map { index, id in
             POI(id: id,
@@ -89,9 +86,7 @@ struct TownRainPreview: View {
                 primaryType: nil,
                 types: [],
                 address: nil,
-                logoUrl: SupabaseConfig.storageURL
-                    .appendingPathComponent("object/public/place-logos/\(id).png")
-                    .absoluteString)
+                logoUrl: "stub://\(id)")
         }
     }
 }

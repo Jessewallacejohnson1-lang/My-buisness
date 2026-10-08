@@ -15,7 +15,7 @@ nothing else from Google is.
     python3 scripts/resolve_google_place_ids.py --selftest # Rule A port, no network
 
 The .sql holds one UPDATE per resolved row, for `places.google_place_id`. Keys are parsed
-from the gitignored Swift config files, as fetch_place_logos.py does.
+from the gitignored Swift config files.
 """
 from __future__ import annotations
 

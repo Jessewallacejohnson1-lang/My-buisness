@@ -84,11 +84,23 @@ struct SearchItem: Identifiable, Hashable {
 }
 
 /// A business's logo as Search draws it: cut out and centred on a square by the logo
-/// pipeline (`designs/artifacts/search-tab/build.py`), and 3D for the ones the
-/// `logo-3d` skill has made and checked. Bundled in `Resources/SearchLogos`, keyed by
-/// `places.place_id`; `search-logos.json` carries each one's hue and row order.
+/// pipeline, and 3D for the ones the `logo-3d` skill has made and checked. The file lives in
+/// Storage (`places/<town>/<place_id>/logo-<hash>.webp`) and `places.search_logo` points at
+/// it with its hue and row order, both written by BP app's `logo3d.py publish`. Images load
+/// through `POILogoCache`, the map pins' cache, so a logo is fetched once and kept on disk.
 struct SearchLogo: Hashable {
+    /// `places.search_logo` as stored.
+    struct Row: Decodable, Hashable {
+        let url: URL
+        let hue: Double
+        let chroma: Bool
+        var d3: Bool? = nil
+        var rank: Int? = nil
+        var wall: Bool? = nil
+    }
+
     let placeId: String
+    let url: URL
     let hue: Double
     /// A colourful logo; a black, white or grey one gets a nearly neutral backdrop.
     let chroma: Bool
@@ -97,6 +109,16 @@ struct SearchLogo: Hashable {
     /// Off the logo wall when another place shows the same logo there (Coborn's Pharmacy
     /// and Coborn's): it still opens from a search.
     let onWall: Bool
+
+    init(placeId: String, row: Row) {
+        self.placeId = placeId
+        url = row.url
+        hue = row.hue
+        chroma = row.chroma
+        is3D = row.d3 ?? false
+        rank = row.rank
+        onWall = row.wall ?? true
+    }
 
     /// The photo-shoot backdrop in the logo's own hue, light at the centre top where
     /// the light hits and a little deeper at the edges.
@@ -107,41 +129,6 @@ struct SearchLogo: Hashable {
 
     /// The cast shadow's colour: a dark shade of the logo's hue, never grey.
     var shadow: Color { Hue.hsl(hue, chroma ? 30 : 10, 18) }
-
-    var image: UIImage? {
-        if let hit = Self.cache[placeId] { return hit }
-        guard let url = Bundle.main.url(forResource: "searchlogo-\(placeId)", withExtension: "webp"),
-              let image = UIImage(contentsOfFile: url.path()) else { return nil }
-        Self.cache[placeId] = image
-        return image
-    }
-
-    static let all: [String: SearchLogo] = {
-        struct Row: Decodable { let hue: Double; let chroma: Bool; let d3: Bool?; let rank: Int?; let wall: Bool? }
-        guard let url = Bundle.main.url(forResource: "search-logos", withExtension: "json"),
-              let data = try? Data(contentsOf: url),
-              let rows = try? JSONDecoder().decode([String: Row].self, from: data) else { return [:] }
-        return rows.reduce(into: [:]) { all, row in
-            all[row.key] = SearchLogo(placeId: row.key, hue: row.value.hue, chroma: row.value.chroma,
-                                      is3D: row.value.d3 ?? false, rank: row.value.rank, onWall: row.value.wall ?? true)
-        }
-    }()
-
-    private static var cache: [String: UIImage] = [:]
-
-    /// Decodes every logo off the main thread, so the first look at the wall doesn't
-    /// stall while 51 of them decode at once.
-    static func warm() async {
-        let ids = all.keys.filter { cache[$0] == nil }
-        let decoded = await Task.detached(priority: .utility) {
-            ids.compactMap { id -> (String, UIImage)? in
-                guard let url = Bundle.main.url(forResource: "searchlogo-\(id)", withExtension: "webp"),
-                      let image = UIImage(contentsOfFile: url.path())?.preparingForDisplay() else { return nil }
-                return (id, image)
-            }
-        }.value
-        for (id, image) in decoded { cache[id] = image }
-    }
 }
 
 /// The filter pills, in the mockup's order.
@@ -235,6 +222,7 @@ final class SearchModel {
     func show(_ pois: [POI]) {
         places = Self.places(from: pois)
         placesLoaded = true
+        POILogoCache.shared.prefetch(places.compactMap(\.logo?.url))
     }
 
     // MARK: Rows
@@ -312,7 +300,7 @@ final class SearchModel {
     static func places(from pois: [POI]) -> [SearchItem] {
         pois.map { poi in
             let key = poi.placeId ?? poi.id
-            let logo = SearchLogo.all[key]
+            let logo = poi.searchLogo.map { SearchLogo(placeId: key, row: $0) }
             let type = poi.primaryType ?? ""
             let kind: SearchItem.Kind = poi.family == .business ? .business
                 : coffeeTypes.contains(type) ? .coffee : .restaurant
