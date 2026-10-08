@@ -762,6 +762,22 @@ over a database change ("yes", Check-in 1): no live migration, no new Storage pa
   the same Rule A. 39 of the 62 local rows cleared on 2026-10-05; the other 23 keep
   searching at runtime. Place ids are the one Google field the terms let us keep.
 
+## Decided 2026-10-08 — the Town feed's rules and order live in `get_town_feed`
+
+- **One database function, both apps:** what is in the Town feed, when an event leaves, how
+  a series collapses and how it repeats in words, and the order are `public.get_town_feed`
+  (migration `20261008120000_town_feed.sql`), applied to the live database on 2026-10-08 with
+  Jesse's yes. Android calls it too; neither app filters or re-sorts. Its stories run in
+  PGlite (`supabase/tests/`), under the live read rules, so no Docker is needed.
+- **Security invoker:** RLS decides what each caller sees, so a signed-out read counts no
+  RSVPs, exactly as the app's own read did.
+- **`DailyRanker` is deleted.** Its note said to move ranking to the server "when a page
+  stops fitting in memory"; ticket 04 said now. The order until the recipe is settled
+  (ticket 09) is soonest first, with the ones you go to below the rest.
+- **Two decided rules wait on data** (BP app ticket 05): City meetings stay in until people
+  can follow the City or a board, and the ZIP check waits until events carry a ZIP or a
+  Place.
+
 ## Open — should the server decide which posts go live?
 
 Today the app decides: a post Claude clears is saved as `approved`, and nothing on the

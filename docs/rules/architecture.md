@@ -188,12 +188,28 @@ class … ObservableObject`) that owns state and API calls. Top-level folders: `
   and footer so step views cannot draw their own button. `Onboarding/` survives today only
   because `MapIntroView`, `InterestPickerView` and `OnboardingChrome.swift` live there.
 
-### Town feed (`Features/Home/Briefing/` + `Feed/`) — empty by design
+### Town feed (`Features/Home/Feed/`)
 
-The strip-down deleted every module that used to render here. What remains is chrome:
-`HomeView` is a compatibility shell over `FeedView`, which still holds `TodayTopBar`.
+The Town tab's list of everything coming up in the Town, in an order worked out for each
+person (BP app `docs/plans/town-feed`). `HomeView` is a compatibility shell over `FeedView`,
+which holds `TodayTopBar` and the feed.
 
-**The machinery under that empty screen is intact and is the point.** `FeedRegistry` still
+- **What is in it and in what order is the database's** `[test]`: `get_town_feed`
+  (`supabase/migrations/20261008120000_town_feed.sql`, stories in `supabase/tests/`) applies
+  ticket 05. Approved events from their show-from day until they leave (at their end, else 2
+  hours after they start, else Town midnight); a series once, at its next date, worded
+  "Every 1st & 3rd Monday"; soonest first, the ones you go to last. Android calls the same
+  function. **Never filter, re-sort or re-word it in the app** `[prose]`: change the function
+  and its tests.
+- **`TownFeed` is the app's one module for it** `[test]` (`TownFeedEventsTests`). `MainTabsView`
+  holds it, so coming back to Town shows the list it left while it reads again; a failed read
+  keeps the list; a card goes when its `leaves_at` passes, and the feed reads again then (a
+  series' next date only arrives with a fresh read) and on return to the foreground. Its read
+  is injected: live, or DEBUG `-town-samples`' sample events.
+- `DailyFeedColumn` shows its items in the order given. Events only for now; posts, updates
+  and news join when they exist.
+
+**The module machinery above the feed is intact.** `FeedRegistry` still
 owns the only production array — now a literal `[]` — and the module protocol, the
 phase/visibility contract, the erased-view renderer and the order/offset tie-break all still
 work. **Adding a module back is one entry in that literal and nothing else** `[prose]`;
@@ -314,19 +330,12 @@ out in the row — an `HStack` would park it wherever the trailing button's widt
 
 ## Feed content rules
 
-- **The Town feed shows one-time news, not a standing calendar.** `[prose]` **This rule is
-  decided but NOT in this branch** — `townSurfacing` and `Features/Home/Feed/FeedSurfacing.swift`
-  live only on the unmerged branch `feat/tab-town` (commit `8e52b7a`), so do not expect to find
-  them here, and do not re-implement them from scratch either: adopt that branch. `dedupeRecurring`
-  and `FeedSectioning`, the stages it sits between, *are* here. How it behaves when it lands: A one-time posting is carried on its debut
-  day and again from seven days out through the event day; it is hidden in the quiet middle
-  and gone after the event. **A recurring series is carried on its debut day only** — a weekly
-  club is announced once and must never reappear week after week. The filter is stateless
-  date arithmetic, deliberately: there is no per-neighbour "seen" state to sync. `debut` is,
-  for a series, the **earliest** `createdAt` in the group — using the surviving occurrence's
-  own `createdAt` would re-announce the club every time someone adds another Saturday.
-  **Adding a fourth window, or making it per-user, is a product change** — read the Town
-  principle in `PRODUCT.md` first.
+- **The Town feed's rules live in `get_town_feed`, not in the app.** `[prose]` They are BP app
+  `docs/plans/town-feed/issues/05-eligible.md` (Jesse, 2026-10-08), and they replace the old
+  "one-time news, not a standing calendar" rule and `feat/tab-town`'s `townSurfacing`: do not
+  adopt that branch. `dedupeRecurring` and `FeedSectioning` are the old posting pipeline, used
+  only by DEBUG previews. Two decided rules wait on data: City meetings stay in until people
+  can follow the City, and the ZIP check waits until events carry a ZIP or a Place.
 - **Admin is an email allowlist, not a security boundary** `[prose]` — `Admin.isAdmin` in
   `DateHelpers.swift`. Self-approved events are an intentional product decision shared with
   the Expo app. **RLS is the real boundary.**
