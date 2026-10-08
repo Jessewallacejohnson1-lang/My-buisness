@@ -34,7 +34,6 @@
 		8419DF2B88A6B0A2CE56CCE8 /* TownFeedEventsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 348924DDB9A3B74BE9CA2EDE /* TownFeedEventsTests.swift */; };
 		847E1C121AFB0ED4DA1097B3 /* GarbageScheduleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22F2FD6B26B33048FB6F1F3A /* GarbageScheduleTests.swift */; };
 		89F28F368D5E70E326802B9B /* UtilityContrastTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4DA0E62B9E16C5F6FED195E /* UtilityContrastTests.swift */; };
-		8AACB700C44E33DA8B77B489 /* DailyRankerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCBC3E865B3DF29291D695A2 /* DailyRankerTests.swift */; };
 		8D66765DBC1A2AB48CEFB070 /* FakeTokenProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 638DB9DE7EC40B8F6418B2D4 /* FakeTokenProvider.swift */; };
 		9446CBEBF3FA9CE9DE47CFE3 /* ConcentricRectangleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C1F3BDBD5AAB1843C5553CA /* ConcentricRectangleTests.swift */; };
 		9604D65B53F241B6EA2E1852 /* SolarSkyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6DC1AD88815594BD1764E2E /* SolarSkyTests.swift */; };
@@ -133,7 +132,6 @@
 		EBA9254B30229AA500E64CA5 /* BlockParty.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = BlockParty.xctestplan; sourceTree = "<group>"; };
 		EBBFA6F02FF473FB00A2EDB1 /* BlockParty.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BlockParty.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FBE1040C1E2A3E28EE57DE38 /* SearchModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SearchModelTests.swift; path = BlockPartyTests/SearchModelTests.swift; sourceTree = "<group>"; };
-		FCBC3E865B3DF29291D695A2 /* DailyRankerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DailyRankerTests.swift; path = BlockPartyTests/DailyRankerTests.swift; sourceTree = "<group>"; };
 		FCE178E8E9CAEDC7860D5827 /* TownTimezoneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TownTimezoneTests.swift; path = BlockPartyTests/TownTimezoneTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -222,7 +220,6 @@
 				5406A0184E5BBCB208CA99D5 /* ScrubModelTests.swift */,
 				C74EA2B308B2971D8E97A509 /* SolarTableTests.swift */,
 				B3E390D77A70D0A5BD31B3A4 /* ScrubHapticsTests.swift */,
-				FCBC3E865B3DF29291D695A2 /* DailyRankerTests.swift */,
 				48BA1E696C5C1C87375CBABB /* TypographyScalingGuardTests.swift */,
 				4D7E0B93C1A5486207FB3D28 /* LoadingGuardTests.swift */,
 				A654EA3AEEE5DF3087113C47 /* ReviewQueueTests.swift */,
@@ -461,7 +458,6 @@
 				339FA5342960F6AC08ED501A /* ScrubModelTests.swift in Sources */,
 				BAB92377323323EC8DC04027 /* SolarTableTests.swift in Sources */,
 				E37EE8606D7E3E64FD5B56B7 /* ScrubHapticsTests.swift in Sources */,
-				8AACB700C44E33DA8B77B489 /* DailyRankerTests.swift in Sources */,
 				CF9C65778A65AF1B0C59098E /* TypographyScalingGuardTests.swift in Sources */,
 				9A1C4F02E7D84B6135CA0917 /* LoadingGuardTests.swift in Sources */,
 				FD277FAB43BFB8F454BD65AF /* ReviewQueueTests.swift in Sources */,

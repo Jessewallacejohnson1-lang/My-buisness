@@ -12,20 +12,17 @@ import SwiftUI
 struct DailyView: View {
     var items: [DailyFeedItem]
 
-    @State private var now = Date()
-
     var body: some View {
         ZStack {
             Hue.paper.ignoresSafeArea()
 
             ScrollView(showsIndicators: false) {
-                DailyFeedColumn(items: items, now: now)
+                DailyFeedColumn(items: items)
 
                 // Clears the floating tab bar, which is a ZStack sibling rather than
                 // a safe-area inset — the same 96 the other tab scrollers reserve.
                 Color.clear.frame(height: 96)
             }
-            .refreshable { now = Date() }
         }
     }
 }
@@ -34,8 +31,8 @@ struct DailyView: View {
 /// `-daily-feed-preview` — the feed full-screen over fixtures, no auth, no network.
 ///
 /// Pair with `-daily-feed-state mixed|postings|events|empty`. The state argument is
-/// not a convenience: this setup can drive no scroll, so without it only whatever
-/// the ranker puts first is ever reachable for a screenshot.
+/// not a convenience: this setup can drive no scroll, so without it only what comes
+/// first is ever reachable for a screenshot.
 struct DailyFeedPreview: View {
     var body: some View {
         DailyView(items: Self.items)

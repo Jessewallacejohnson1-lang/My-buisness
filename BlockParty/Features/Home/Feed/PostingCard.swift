@@ -51,7 +51,7 @@ struct PostingCard: View {
         self.onLoadComments = onLoadComments
         self.onComment = onComment
         _actionState = State(initialValue: FeedCardActionState(posting: posting))
-        _isFollowing = State(initialValue: posting.signals.isFollowed)
+        _isFollowing = State(initialValue: posting.isFollowed)
         _commentState = State(initialValue: FeedCommentState(comments: comments))
     }
 

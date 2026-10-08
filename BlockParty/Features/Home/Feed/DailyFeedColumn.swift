@@ -29,10 +29,8 @@ nonisolated enum DailyFeedMetric {
 }
 
 struct DailyFeedColumn: View {
-    /// Everything available to show, in any order. `DailyRanker` decides the rest.
+    /// What to show, in the order to show it.
     var items: [DailyFeedItem]
-    /// The clock the ranking is against. Bumped by the host's pull-to-refresh.
-    var now: Date = Date()
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var revealedIDs: Set<String> = []
@@ -41,18 +39,14 @@ struct DailyFeedColumn: View {
     /// the scroll that reveals them, so the rest simply appear.
     private static let entranceCardCount = 6
 
-    private var ranked: [DailyFeedItem] {
-        DailyRanker.rank(items, now: now)
-    }
-
     var body: some View {
         LazyVStack(alignment: .leading, spacing: 28) {
-            if ranked.isEmpty {
+            if items.isEmpty {
                 DailyFeedEmptyState()
                     .padding(.top, 72)
                     .padding(.horizontal, DailyFeedMetric.contentInset)
             } else {
-                ForEach(Array(ranked.enumerated()), id: \.element.id) { index, item in
+                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                     card(for: item)
                         .modifier(DailyCardEntrance(
                             index: index,
@@ -76,7 +70,7 @@ struct DailyFeedColumn: View {
                 posting: posting,
                 onShare: { Self.share(posting) }
             )
-        case .event(let event, _):
+        case .event(let event):
             FeedEventCard(
                 item: event,
                 onShare: { ShareCenter.shared.present(.event(event)) },

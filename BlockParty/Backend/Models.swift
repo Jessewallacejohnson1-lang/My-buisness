@@ -92,8 +92,15 @@ nonisolated struct UpcomingEvent: Identifiable, Hashable {
     var isAllDay: Bool = false
     /// Who announced a found event (ADR-021), shown where a club's name would be.
     var sourceName: String? = nil
-    /// `club_events.shows_from`: when it enters the Town feed. Nil = two weeks ahead.
-    var showsFrom: String? = nil
+}
+
+/// One row of `get_town_feed` (`supabase/migrations/20261008120000_town_feed.sql`): an
+/// event, how its series repeats ("Every Tuesday"; nil for a one-off or no clear
+/// pattern), and when it leaves the Town feed.
+nonisolated struct TownFeedRow: Hashable {
+    let event: UpcomingEvent
+    let recurrence: String?
+    let leavesAt: Date
 }
 
 struct WeekEvent: Identifiable, Hashable {
@@ -252,9 +259,6 @@ struct RawEvent: Decodable {
     /// `source_url`; ADR-021). Nil for events a club or neighbour posted.
     let sourceName: String?
     let sourceUrl: String?
-    /// The day this event starts showing in the Town feed (`club_events.shows_from`).
-    /// Nil means two weeks ahead; a big event can be set to show earlier.
-    let showsFrom: String?
     let clubs: ClubRef?
 
     struct ClubRef: Decodable { let name: String? }

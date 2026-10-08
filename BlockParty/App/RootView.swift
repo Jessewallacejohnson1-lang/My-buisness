@@ -317,6 +317,9 @@ struct MainTabsView: View {
     /// Search's places and recents, kept across tab switches so the tab doesn't fetch
     /// the Town's places again each time it comes back.
     @State private var searchModel = SearchModel()
+    /// The Town feed's events, kept here for the same reason: coming back to Town shows
+    /// the list it left while it reads again behind it.
+    @State private var townFeed = TownFeed()
     /// The friends inbox and its chats (DEBUG samples until real messages exist), kept
     /// here so an opened chat stays read when the inbox comes back.
     @State private var friendsModel = FriendsModel()
@@ -426,7 +429,8 @@ struct MainTabsView: View {
                                 onOpenFriends: openFriends,
                                 onOpenNotifications: { showNotifications = true },
                                 expandedPlace: $expandedPlace,
-                                cardNS: cardNS
+                                cardNS: cardNS,
+                                townFeed: townFeed
                             )
                         // Daily shows its page once it has something real to show;
                         // until then it is a named, reserved slot.

@@ -40,8 +40,11 @@ struct FeedView: View {
     var onOpenMap: () -> Void = {}
     var onOpenNotifications: () -> Void = {}
     var profileShown = false
+    /// The Town feed's events, held by the shell so a tab switch doesn't read them again.
+    var townFeed: TownFeed
 
     @StateObject private var controller: FeedController
+    @Environment(\.scenePhase) private var scenePhase
     @State private var name: String?
     @State private var route: FeedRoute?
     @State private var revealed = false
@@ -52,17 +55,10 @@ struct FeedView: View {
     /// setup, so without it the scrolled state — where the top glass fade actually
     /// does anything — cannot be screenshotted at all.
     @State private var feedPosition = ScrollPosition()
-    /// The clock the social feed ranks against. Bumped on pull-to-refresh so a
-    /// stale ordering cannot outlive the gesture that asked for a new one.
-    @State private var feedClock = Date()
-    /// The Town's events as feed cards. nil until the first read answers, which the
-    /// column shows as its skeleton; a failed refresh keeps the last good list.
-    @State private var townEvents: [DailyFeedItem]?
-    @State private var townEventsFailed = false
 
     /// Skeleton, retry or cards: what the Town feed's cross-fade keys on.
     private var townFeedPhase: Int {
-        townEvents != nil ? 2 : townEventsFailed ? 1 : 0
+        townFeed.entries != nil ? 2 : townFeed.failed ? 1 : 0
     }
 
     init(
@@ -70,13 +66,16 @@ struct FeedView: View {
         onOpenFriends: @escaping () -> Void = {},
         onOpenMap: @escaping () -> Void = {},
         onOpenNotifications: @escaping () -> Void = {},
-        profileShown: Bool = false
+        profileShown: Bool = false,
+        townFeed: TownFeed? = nil
     ) {
         self.auth = auth
         self.onOpenFriends = onOpenFriends
         self.onOpenMap = onOpenMap
         self.onOpenNotifications = onOpenNotifications
         self.profileShown = profileShown
+        // Resolved here, not as a default argument, which runs off the main actor.
+        self.townFeed = townFeed ?? TownFeed()
 
         let briefing = BriefingModel()
         let context = FeedModuleContext(
@@ -184,13 +183,12 @@ struct FeedView: View {
                 // later is town-wide chrome (weather, say) and belongs
                 // above the stream, not buried in it.
                 ZStack(alignment: .top) {
-                    if let townEvents {
-                        DailyFeedColumn(items: townEvents, now: feedClock)
+                    if townFeed.entries != nil {
+                        DailyFeedColumn(items: townFeed.cards.map { .event($0) })
                             .transition(.opacity)
-                    } else if townEventsFailed {
+                    } else if townFeed.failed {
                         FeedUnavailableBody(title: FeedStateCopy.townEventsUnavailable) {
-                            townEventsFailed = false
-                            Task { await loadTownEvents() }
+                            Task { await townFeed.reload() }
                         }
                         .padding(.top, 72)
                         .padding(.horizontal, DailyFeedMetric.contentInset)
@@ -276,8 +274,7 @@ struct FeedView: View {
                 await controller.refreshBriefing()
             }
 
-            feedClock = Date()
-            await loadTownEvents()
+            await townFeed.reload()
 
             revealAnimated = false
             revealed = false
@@ -294,8 +291,20 @@ struct FeedView: View {
             if let destination = route.destination { destination }
         }
         // Its own task: the briefing below is awaited first and renders nothing today,
-        // so the events must not queue behind it.
-        .task { await loadTownEvents() }
+        // so the events must not queue behind it. Coming back to the tab reads again
+        // behind the list already showing.
+        .task { await townFeed.reload() }
+        // When a card's time is up it goes, and the feed reads again: a series' next
+        // date only arrives with a fresh read.
+        .task(id: townFeed.nextLeave) {
+            guard let next = townFeed.nextLeave else { return }
+            try? await Task.sleep(for: .seconds(max(0, next.timeIntervalSinceNow) + 1))
+            guard !Task.isCancelled else { return }
+            await townFeed.reload()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await townFeed.reload() } }
+        }
         .task {
             name = Interests.displayName ?? firstNameFromEmail(auth.email)
             controller.updateContext(context)
@@ -354,30 +363,6 @@ struct FeedView: View {
             guard !shown else { return }
             name = Interests.displayName ?? firstNameFromEmail(auth.email)
             controller.updateContext(context)
-        }
-    }
-}
-
-extension FeedView {
-    /// Reads the Town's upcoming events into feed cards. `-town-samples` (DEBUG) shows
-    /// the fixtures instead, for design work that needs photos under the chrome.
-    private func loadTownEvents() async {
-        #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-town-samples") {
-            townEvents = DailyFixtures.all()
-            return
-        }
-        #endif
-        do {
-            let events = try await CommunityAPI(auth: auth).getUpcomingEvents()
-            townEvents = DailyFeedItem.town(events, now: Date(), signedIn: auth.isSignedIn)
-            townEventsFailed = false
-        } catch {
-            // Left mid-read (the tab went away): not a failure, and the read runs again
-            // when the feed comes back.
-            guard !Task.isCancelled else { return }
-            Log.network("FeedView town events: \(error)")
-            if townEvents == nil { townEventsFailed = true }
         }
     }
 }

@@ -232,7 +232,55 @@ struct CommunityAPI {
                           imageUrl: $0.imageUrl, rsvpd: mine.contains($0.id),
                           clubName: $0.clubs?.name, category: EventCategory.from($0.category),
                           endAt: DateHelpers.timestamp($0.endAt), isAllDay: $0.allDay ?? false,
-                          sourceName: $0.sourceName, showsFrom: $0.showsFrom)
+                          sourceName: $0.sourceName)
+        }
+    }
+
+    /// The Town feed, in its order: what's in it, when each event leaves, and a series
+    /// once with how it repeats, all worked out by `get_town_feed`, the one function
+    /// iOS and Android both call. Signed out, it reads with the public key, as
+    /// `getPlaces` does.
+    func getTownFeed() async throws -> [TownFeedRow] {
+        let (data, _) = try await SupabaseHTTP.rest("rpc/get_town_feed", method: "POST",
+                                                    accessToken: await readToken(),
+                                                    body: Data("{}".utf8))
+        return try Self.townFeedRows(from: data)
+    }
+
+    /// `get_town_feed`'s rows as events. A row whose `leaves_at` doesn't parse is
+    /// dropped: it would have no moment to leave.
+    static func townFeedRows(from data: Data) throws -> [TownFeedRow] {
+        struct Row: Decodable {
+            let id: String
+            let title: String
+            let eventDate: String
+            let startTime: String?
+            let location: String?
+            let imageUrl: String?
+            let category: String?
+            let clubName: String?
+            let sourceName: String?
+            let endAt: String?
+            let allDay: Bool
+            let createdAt: String
+            let goingCount: Int
+            let rsvpd: Bool
+            let recurrence: String?
+            let leavesAt: String
+        }
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return try decoder.decode([Row].self, from: data).compactMap { row in
+            guard let leavesAt = DateHelpers.timestamp(row.leavesAt) else { return nil }
+            let event = UpcomingEvent(id: row.id, title: row.title, eventDate: row.eventDate,
+                                      startTime: row.startTime, location: row.location,
+                                      goingCount: row.goingCount, createdAt: row.createdAt,
+                                      imageUrl: row.imageUrl, rsvpd: row.rsvpd,
+                                      clubName: row.clubName,
+                                      category: EventCategory.from(row.category),
+                                      endAt: DateHelpers.timestamp(row.endAt),
+                                      isAllDay: row.allDay, sourceName: row.sourceName)
+            return TownFeedRow(event: event, recurrence: row.recurrence, leavesAt: leavesAt)
         }
     }
 

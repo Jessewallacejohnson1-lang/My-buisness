@@ -51,7 +51,8 @@ extension FeedCardItem {
     /// its own photo still falls back to a venue lookup. No description:
     /// `UpcomingEvent` carries none, so the page's About hides. `.other` is the
     /// fallback for a null category column, so it maps to no category at all.
-    init(_ event: UpcomingEvent) {
+    /// `recurrence` is how its series repeats ("Every Tuesday"), from `get_town_feed`.
+    init(_ event: UpcomingEvent, recurrence: String? = nil) {
         let time = Self.nonempty(event.startTime)
         let location = Self.nonempty(event.location)
 
@@ -65,7 +66,7 @@ extension FeedCardItem {
                 location: location,
                 title: event.title
             ),
-            recurrence: nil,
+            recurrence: recurrence,
             hostName: Self.nonempty(event.clubName) ?? Self.nonempty(event.sourceName) ?? "",
             goingCount: event.goingCount,
             goingAvatars: [],
@@ -156,32 +157,6 @@ extension FeedCardItem {
         case 2: "\(name) and 1 other are going"
         default: "\(name) and \(count - 1) others are going"
         }
-    }
-}
-
-extension DailyFeedItem {
-    /// How many days ahead an event enters the Town feed when its `showsFrom` is unset.
-    /// Picked for now; a skill is to set a bigger event's day earlier (Jesse, 2026-10-07).
-    static let townLeadDays = 14
-
-    /// The Town feed's events: each one from the day it starts showing until it starts,
-    /// on the card a club's event gets, soonest first for the ranker's ties.
-    static func town(_ events: [UpcomingEvent], now: Date, signedIn: Bool) -> [DailyFeedItem] {
-        events.compactMap { event -> (start: Date, item: DailyFeedItem)? in
-            guard let day = YourDayLogic.eventDay(for: event),
-                  let opens = event.showsFrom.flatMap(YourDayLogic.townDay)
-                    ?? Town.calendar.date(byAdding: .day, value: -townLeadDays, to: day),
-                  now >= opens
-            else { return nil }
-            var item = FeedCardItem(event)
-            item.canJoin = signedIn
-            let starts = YourDayLogic.eventStart(for: event)
-            let signals = FeedSignals(createdAt: DateHelpers.timestamp(event.createdAt) ?? .distantPast,
-                                      startsAt: starts, endsAt: event.endAt)
-            return (starts ?? day, .event(item, signals: signals))
-        }
-        .sorted { $0.start < $1.start }
-        .map(\.item)
     }
 }
 
