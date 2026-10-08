@@ -1,8 +1,10 @@
 # Block Party — the mark
 
-The logo (Sep 19, 2026) is the **wordmark lockup**: black `BlockParty.` on a yellow
-field. `source-logo-1254.png` is the master, and every visible app mark derives from
-those pixels.
+The app icon (Oct 8, 2026) is Jesse's Icon Composer file `BlockParty/AppIcon.icon`:
+`Block` / `Party.` stacked, black on a yellow gradient, with dark, tinted and clear
+looks. Edit it in Icon Composer. `LaunchMark` (the icon inside the app) is its Default
+export inset 36 px. It replaced the one-line Sep 19 lockup, whose master
+`source-logo-1254.png` still makes the header's `Wordmark`.
 
 It replaced the Aug 25 **wave figure** — a painted black figure with raised arms
 inside three yellow broadcast arcs — which Jesse cut on 2026-09-19 ("remove that logo
@@ -21,8 +23,7 @@ python3 scripts/brand/wordmark.py docs/brand/source-logo-1254.png
 
 | asset | size | format |
 |---|---|---|
-| `Assets.xcassets/AppIcon.appiconset/AppIcon.png` | 1024² | RGB, full-bleed, **no alpha** |
-| `Assets.xcassets/LaunchMark.imageset/LaunchMark.png` | 880² | RGB, the **36**/1024 inset crop |
+| `Assets.xcassets/LaunchMark.imageset/LaunchMark.png` | 952² | RGB, Icon Composer's Default export inset 36 px (not from this script since 2026-10-08) |
 | `Assets.xcassets/Wordmark.imageset/Wordmark.png` | 1051 × 216 | RGBA, the letterforms alone, **template-rendered** |
 
 The script writes them into `docs/brand/`; move them into the asset catalog. It also
@@ -47,7 +48,7 @@ failing when stale — a wrong value mis-sizes marks instead of crashing.
 
 | number | where | current |
 |---|---|---|
-| `BlockPartyMark.contentFraction` | `BlockParty/App/LoaderBlockPartyMark.swift` | **0.9014** — 1051 px of the 1166 px crop |
+| `BlockPartyMark.contentFraction` | removed 2026-10-08: nothing read it | was **0.9014** |
 | `BlockPartyWordmark.aspect` | `BlockParty/Features/Components/BlockPartyWordmark.swift` | **4.8657** — 1051 × 216 |
 
 `contentFraction` history: 0.8273 (Aug 7 confetti) → 0.8864 (Aug 8 flat vector) →

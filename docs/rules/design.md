@@ -80,16 +80,18 @@ build time, and the colour half has no backstop. A human eye is the only check f
     the system font **silently**. `Font.logo` is `JostRoman-SemiBold`.
     `registerBlockPartyFonts()` registers every bundled ttf, so Jost self-registers;
     `AtkinsonHyperlegible-Bold.ttf` is still bundled but no longer referenced.
-- **Brand artwork** `[prose]` — the app icon is the **wordmark lockup, black "BlockParty." on
-  a yellow field**; the master is `docs/brand/source-logo-1254.png` and
-  `scripts/brand/wordmark.py` regenerates every asset from it (`AppIcon`, `LaunchMark`, and
-  `Wordmark`). **Two views, two meanings:** `BlockPartyMark` is the app icon, field and all,
+- **Brand artwork** `[prose]` — the app icon is Jesse's Icon Composer file
+  `BlockParty/AppIcon.icon` (2026-10-08): **"Block / Party." stacked, black on a yellow
+  gradient**, with dark, tinted and clear looks. Edit it in Icon Composer, never by hand;
+  `LaunchMark` is its Default export inset 36 px (see `BlockPartyMark`). The one-line
+  `Wordmark` still comes from `docs/brand/source-logo-1254.png` through
+  `scripts/brand/wordmark.py`, whose `AppIcon`/`LaunchMark` outputs are retired.
+  **Two views, two meanings:** `BlockPartyMark` is the app icon, field and all,
   squircle-clipped (launch loader, invite card); `BlockPartyWordmark` is the logo on the
   app's own page, ink on nothing, and it is what the Today bar centres. Every live brand
-  surface uses the exact raster. On any re-export: keep the icon **full-bleed** (no alpha;
-  iOS applies its own mask), regenerate all three assets plus the waitlist site's favicons
-  from the same master, and re-measure both `BlockPartyMark.contentFraction` and
-  `BlockPartyWordmark.aspect` — the script prints both.
+  surface uses the exact raster. On a wordmark re-export, regenerate `Wordmark` plus the
+  waitlist site's favicons from the same master and re-measure `BlockPartyWordmark.aspect`
+  (the script prints it).
 - **`BlockPartyMetrics`** — four radii `[prose]`: `button` 12 (a rounded square, **never a
   pill**, with exactly one recorded exception — `PinDetailSheet`'s floating action bar is a
   Flighty-faithful capsule behind the `actionBarShape` constant, per `DECISIONS.md` §6, so
