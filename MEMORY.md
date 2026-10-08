@@ -45,6 +45,12 @@ all live there now. This file carries what is newer than that, or narrower than 
 - 2026-09-29 — **Search** took Business's tab slot: Town, Daily, Search, You (Jesse).
   The Town top bar leads with a friends mark instead. Business has no slot for now.
   **Supersedes** Business in the line above.
+- 2026-10-08 — **Town** and **Daily** are both personal (Jesse). The Town feed is everything
+  coming up in the Town, today included, in an order worked out for each person; Daily is
+  your today. Ordered per person: the Town feed, friend suggestions, and Daily's Event of
+  the day and Suggestions; every other list keeps a fixed order. Spec: BP app
+  `docs/plans/town-feed/issues/14-which-feeds.md`. **Supersedes** "for everyone" and "the
+  neighbour's own paper" in the 2026-09-24 line.
 - Rollout is town by town. St. Joseph first, then St. Cloud, Sauk Rapids, Cold Spring,
   Waite Park. Nothing in the shared UI, copy, or icon may be St. Joe–specific.
 - App Store target is spring 2027. The months before that are networking and local
