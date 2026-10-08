@@ -63,4 +63,6 @@ describes the empty shell that remains. Build to this section when a module retu
   time of day and flips at sunset — **never** the sky gradient. The rail is solar-anchored:
   exact sunrise to exact sunset, no rounding, so its width changes with the season.
 - Civic content lives in its own tab, not in the feed. No time-of-day reordering.
+  Exception (Jesse, 2026-10-08): City meetings reach a person's Town feed when they follow
+  the City or that board (BP app `docs/plans/town-feed/issues/05-eligible.md`).
 - The feed must be genuinely useful and habit-forming **without being manipulative**.
