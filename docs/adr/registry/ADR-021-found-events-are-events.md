@@ -9,6 +9,13 @@ events.
 separate), [ADR-001](ADR-001-daily-routine-and-trust-tiers.md) (trust tiers),
 [ADR-020](ADR-020-social-pages-are-read-through-apify.md) (cancellations and tips)
 
+**Amended 2026-10-07:** review is paused. Jesse: "just let them run without my approval for
+now." Found events from the official calendars `read_events.py` reads publish as approved the
+moment they are read (one mention is enough for an official source, ADR-001). The Review
+queue stays and still takes a decline with its reason, but nothing waits in it, so the
+two-week 1-in-20 measurement below is not running. Turning review back on is one word in
+`read_events.py` (`approved` back to `pending`).
+
 ## Context
 
 ADR-013 split events from places and left their table, review, dedupe and repeats for

@@ -11,10 +11,12 @@ Crawl-delay obeyed, ADR-014), and keeps what is an event in the town in the next
     file says is elsewhere (Saint John's mail goes to Collegeville, ADR-019), is skipped.
 
 Dry-run by default (ADR-009): prints what it found. `--sql FILE` writes one upsert for
-public.club_events. Found events go in as `pending` and wait for review; re-reading updates
-them by (source_name, source_uid). A decline stays one, except an event declined as a
-misread (any review_reason but not_event): when a re-read changes its title, date, time
-or place, it goes back to `pending` for another look. Its reason stays, so it still counts.
+public.club_events. Found events go in as `approved` and show straight away: Jesse,
+2026-10-07, "just let them run without my approval for now" (ADR-021's review is paused;
+these are official calendars, one mention under ADR-001). Re-reading updates them by
+(source_name, source_uid) and never changes a status the admin set. A decline stays one,
+except an event declined as a misread (any review_reason but not_event): when a re-read
+changes its title, date, time or place, it goes back to `pending` for another look.
 
   python3 sources/scripts/read_events.py [--town st-joseph-mn] [--sql out.sql]
   python3 sources/scripts/read_events.py --selftest
@@ -145,7 +147,7 @@ def upsert_sql(rows):
     return (
         "insert into public.club_events (status, kind, title, event_date, start_time, end_at, all_day,\n"
         "  location, description, source_name, source_url, source_uid)\n"
-        "select 'pending', 'event', x.title, x.event_date, x.start_time, x.end_at, x.all_day,\n"
+        "select 'approved', 'event', x.title, x.event_date, x.start_time, x.end_at, x.all_day,\n"
         "  x.location, x.description, x.source_name, x.source_url, x.source_uid\n"
         f"from jsonb_to_recordset(${tag}${payload}${tag}$::jsonb) as x({cols})\n"
         "on conflict on constraint club_events_source_uid_key do update set\n  "
