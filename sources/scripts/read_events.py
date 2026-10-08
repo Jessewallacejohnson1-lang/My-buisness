@@ -14,7 +14,8 @@ Dry-run by default (ADR-009): prints what it found. `--sql FILE` writes one upse
 public.club_events. Found events go in as `approved` and show straight away: Jesse,
 2026-10-07, "just let them run without my approval for now" (ADR-021's review is paused;
 these are official calendars, one mention under ADR-001). Re-reading updates them by
-(source_name, source_uid) and never changes a status the admin set. A decline stays one,
+(source_name, source_uid) and never changes a status the admin set. After a read, run
+the event-lead-time skill: it sizes each new event and sets when it starts showing. A decline stays one,
 except an event declined as a misread (any review_reason but not_event): when a re-read
 changes its title, date, time or place, it goes back to `pending` for another look.
 
@@ -152,6 +153,10 @@ def upsert_sql(rows):
         f"from jsonb_to_recordset(${tag}${payload}${tag}$::jsonb) as x({cols})\n"
         "on conflict on constraint club_events_source_uid_key do update set\n  "
         + ", ".join(f"{c} = excluded.{c}" for c in keep) + ",\n"
+        # A moved date voids the show-from day the event-lead-time skill set, so it gets
+        # sized again; left alone, a date moved earlier could hide the event entirely.
+        "  shows_from = case when club_events.event_date is distinct from excluded.event_date\n"
+        "    then null else club_events.shows_from end,\n"
         "  status = case when club_events.status = 'rejected'\n"
         "      and club_events.review_reason is distinct from 'not_event' and club_events.review_reason is not null\n"
         "      and (club_events.title, club_events.event_date, club_events.start_time, club_events.all_day, club_events.location)\n"

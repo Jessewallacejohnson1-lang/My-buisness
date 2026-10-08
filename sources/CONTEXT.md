@@ -123,6 +123,18 @@ An event or occurrence called off. It is shown, not deleted, so a neighbour who 
 go finds out.
 _Avoid_: closure (that is a place)
 
+**Event size**:
+How far ahead neighbours need to hear about an event: **everyday** (a council meeting, a
+weekly class, a regular fish fry), **notable** (a one-off community event: a fundraiser, a
+church dinner, a concert) or **big** (a town festival, a parade, an annual event people plan
+around, anything with tickets or sign-ups that fill up). Not how many people go.
+_Avoid_: importance, priority
+
+**Lead time**:
+How long before an event it starts showing in the Town feed, set by its size: two weeks
+for everyday, four for notable, eight for big. The day it starts is its show-from day.
+_Avoid_: horizon, window
+
 ### The registry
 
 **Registry**:
