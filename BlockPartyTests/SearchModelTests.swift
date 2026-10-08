@@ -99,8 +99,10 @@ final class SearchModelTests: XCTestCase {
         let model = SearchModel(defaults: defaults)
         model.show([
             poi("stjoe-aaa", "Aardvark", .business, "store"),
-            poi("stjoe-white-peony-boutique", "White Peony Boutique", .business, "clothing_store"),
-            poi("stjoe-bruno-press", "Bruno Press", .business, "print_shop"),
+            poi("stjoe-white-peony-boutique", "White Peony Boutique", .business, "clothing_store",
+                logo: SearchLogo.Row(url: URL(string: "https://example.com/w.webp")!, hue: 0, chroma: false, rank: 1)),
+            poi("stjoe-bruno-press", "Bruno Press", .business, "print_shop",
+                logo: SearchLogo.Row(url: URL(string: "https://example.com/b.webp")!, hue: 354, chroma: true, rank: 0)),
         ])
         // Aardvark has no logo, so it stays off the row.
         XCTAssertEqual(model.row(.business).map(\.name), ["Bruno Press", "White Peony Boutique"])
