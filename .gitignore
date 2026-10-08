@@ -49,3 +49,7 @@ graphify-out/
 
 # Python bytecode cache
 __pycache__/
+
+# The database tests install PGlite here (supabase/tests: npm install && npm test).
+supabase/tests/node_modules/
+supabase/tests/package-lock.json

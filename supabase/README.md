@@ -11,6 +11,9 @@ waitlist website.
 - `functions/`: source of the two live Edge Functions, `moderate-post` (Claude reviews a
   post) and `log-agent-event` (Control Room build log). Deploy from here with
   `supabase functions deploy <name>`; never edit only in the dashboard.
+- `tests/`: fixed stories for the database functions, run in PGlite (Postgres compiled to
+  WASM, so no Docker): `npm install && npm test` there. The Town feed's are in
+  `town_feed.test.mjs`.
 - `pending/20260711_sunset_wellness_app.sql`: drops the retired Hygge Health tables
   (`profiles`, `food_logs`, `workouts`). Not run. Destructive: back up, then run by hand.
 
