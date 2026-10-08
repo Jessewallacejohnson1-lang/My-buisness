@@ -399,16 +399,21 @@ struct CastLogo: View {
     @ObservedObject private var cache = POILogoCache.shared
 
     var body: some View {
-        if let image = cache.image(for: logo.url) {
-            let color = shadow ?? logo.shadow, k = stretch
-            Image(uiImage: image)
-                .resizable()
-                .interpolation(.high)
-                .frame(width: side, height: side)
-                .shadow(color: color.opacity(0.36 * strength), radius: max(1.2, side * 0.016) * k / 2, y: side * 0.008 * k)
-                .shadow(color: color.opacity(0.22 * strength), radius: side * 0.07 * k / 2, y: side * 0.03 * k)
-                .shadow(color: color.opacity(0.14 * strength), radius: side * 0.18 * k / 2, y: side * 0.075 * k)
+        ZStack {
+            if let image = cache.image(for: logo.url) {
+                let color = shadow ?? logo.shadow, k = stretch
+                Image(uiImage: image)
+                    .resizable()
+                    .interpolation(.high)
+                    .shadow(color: color.opacity(0.36 * strength), radius: max(1.2, side * 0.016) * k / 2, y: side * 0.008 * k)
+                    .shadow(color: color.opacity(0.22 * strength), radius: side * 0.07 * k / 2, y: side * 0.03 * k)
+                    .shadow(color: color.opacity(0.14 * strength), radius: side * 0.18 * k / 2, y: side * 0.075 * k)
+            }
         }
+        .frame(width: side, height: side)
+        // A logo whose fetch failed (offline when the places loaded) asks again when it is
+        // next on screen; one already loaded or in flight is skipped by the cache.
+        .task(id: logo.url) { cache.prefetch([logo.url]) }
     }
 }
 
