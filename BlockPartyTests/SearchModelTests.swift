@@ -32,7 +32,7 @@ final class SearchModelTests: XCTestCase {
         for logo in SearchLogo.all.values {
             XCTAssertNotNil(logo.image, logo.placeId)
         }
-        XCTAssertEqual(SearchLogo.all.values.filter(\.is3D).count, 11)
+        XCTAssertEqual(SearchLogo.all.values.filter(\.is3D).count, 21)
         XCTAssertTrue(SearchLogo.all["stjoe-bruno-press"]?.chroma ?? false, "Bruno Press's red logo gets a coloured backdrop")
     }
 

@@ -2,13 +2,13 @@
  "ChIJ-bSQp6VZtFIRadBh8Mlrxws": {
   "chroma": true,
   "hue": 76,
-  "rank": 16
+  "rank": 20
  },
  "ChIJ-bSQp6VZtFIReXOuDq-PFwQ": {
   "chroma": true,
   "d3": true,
   "hue": 213,
-  "rank": 3
+  "rank": 7
  },
  "ChIJ-bSQp6VZtFIRsrFXg1RYwFs": {
   "chroma": true,
@@ -18,49 +18,52 @@
  "ChIJ8-AGArJZtFIRPdapnHeQWpc": {
   "chroma": true,
   "hue": 201,
-  "rank": 27
+  "rank": 31
  },
  "ChIJETP5ry5ZtFIR-go-9evnRwc": {
   "chroma": false,
+  "d3": true,
   "hue": 34,
-  "rank": 14
+  "rank": 0
  },
  "ChIJFfdMxRVZtFIR77H-NqLzUTc": {
   "chroma": true,
+  "d3": true,
   "hue": 19,
-  "rank": 28
+  "rank": 32
  },
  "ChIJIQh2uc9ZtFIRmCpM-CN5dTw": {
   "chroma": true,
   "d3": true,
   "hue": 348,
-  "rank": 17
+  "rank": 21
  },
  "ChIJKaje0DFZtFIR3zQYUG406MU": {
   "chroma": false,
   "d3": true,
   "hue": 34,
-  "rank": 2
+  "rank": 6
  },
  "ChIJO6rMKx5ZtFIRdVZTpacbThY": {
   "chroma": false,
   "hue": 34,
-  "rank": 30
+  "rank": 34
  },
  "ChIJPZImC8ZZtFIR9_fV1pe_1B8": {
   "chroma": true,
   "hue": 354,
-  "rank": 7
+  "rank": 13
  },
  "ChIJVUdOHB1ZtFIRMciOBnBKbRI": {
   "chroma": true,
   "hue": 203,
-  "rank": 18
+  "rank": 22
  },
  "ChIJX5Keuc9ZtFIRwF6PHvJmcdk": {
   "chroma": true,
+  "d3": true,
   "hue": 25,
-  "rank": 19
+  "rank": 23
  },
  "ChIJZ_M1dcZZtFIRj1WUp5Owhks": {
   "chroma": true,
@@ -68,18 +71,19 @@
  },
  "ChIJfSYLxM9ZtFIRnStgMgXkQqs": {
   "chroma": true,
+  "d3": true,
   "hue": 155,
-  "rank": 20
+  "rank": 24
  },
  "ChIJh8mk0M9ZtFIR9Y58T0xGDdw": {
   "chroma": true,
   "hue": 188,
-  "rank": 13
+  "rank": 18
  },
  "ChIJmTKJ0M9ZtFIRm7FAmBzwApc": {
   "chroma": true,
   "hue": 30,
-  "rank": 29
+  "rank": 33
  },
  "ChIJn0f45cZZtFIReWj8etT4Z5w": {
   "chroma": true,
@@ -88,22 +92,24 @@
  "ChIJoSTgPNBZtFIR8Uaf5spTM9U": {
   "chroma": true,
   "hue": 8,
-  "rank": 9
+  "rank": 15
  },
  "ChIJs3OYN8VZtFIRD_rcmlDNcGo": {
   "chroma": true,
   "hue": 57,
-  "rank": 22
+  "rank": 26
  },
  "ChIJsUeENdBZtFIRk-BROmx3-Fs": {
   "chroma": true,
   "d3": true,
   "hue": 7,
-  "rank": 24
+  "rank": 28
  },
  "ChIJtSr6H7hZtFIRwLvX5L__hOI": {
   "chroma": true,
-  "hue": 210
+  "d3": true,
+  "hue": 210,
+  "rank": 9
  },
  "ChIJvceKY9BZtFIRrc2jwo27hGA": {
   "chroma": true,
@@ -113,17 +119,17 @@
   "chroma": false,
   "d3": true,
   "hue": 34,
-  "rank": 23
+  "rank": 27
  },
  "ChIJy9h63EtZtFIRYVJtkqYK2zQ": {
   "chroma": true,
   "hue": 45,
-  "rank": 25
+  "rank": 29
  },
  "ChIJz-W_cL1ZtFIRnuug5NtJwqA": {
   "chroma": true,
   "hue": 17,
-  "rank": 26
+  "rank": 30
  },
  "ChIJzdcewc9ZtFIR7BrOxmjRYLw": {
   "chroma": false,
@@ -153,7 +159,7 @@
   "chroma": true,
   "d3": true,
   "hue": 354,
-  "rank": 0
+  "rank": 1
  },
  "stjoe-cedar-street-salon-spa": {
   "chroma": false,
@@ -177,7 +183,9 @@
  },
  "stjoe-floor-to-ceiling": {
   "chroma": true,
-  "hue": 50
+  "d3": true,
+  "hue": 50,
+  "rank": 2
  },
  "stjoe-floral-arts-inc": {
   "chroma": true,
@@ -189,33 +197,36 @@
  },
  "stjoe-groundsman-llc": {
   "chroma": false,
-  "hue": 34
+  "d3": true,
+  "hue": 34,
+  "rank": 3
  },
  "stjoe-hansen-company-woodworks": {
   "chroma": false,
+  "d3": true,
   "hue": 34,
-  "rank": 10
+  "rank": 4
  },
  "stjoe-her-hair-studio": {
   "chroma": false,
   "d3": true,
   "hue": 34,
-  "rank": 1
+  "rank": 5
  },
  "stjoe-home-town-title": {
   "chroma": true,
   "hue": 208,
-  "rank": 15
+  "rank": 19
  },
  "stjoe-hudson-company": {
   "chroma": false,
   "hue": 34,
-  "rank": 12
+  "rank": 17
  },
  "stjoe-joetown-smashburger": {
   "chroma": true,
   "hue": 68,
-  "rank": 21
+  "rank": 25
  },
  "stjoe-john-kuebelbeck-american-legion-post-328": {
   "chroma": true,
@@ -244,11 +255,14 @@
  },
  "stjoe-obbink-distilling": {
   "chroma": true,
+  "d3": true,
   "hue": 0
  },
  "stjoe-pierce-insurance-agency": {
   "chroma": true,
-  "hue": 2
+  "d3": true,
+  "hue": 2,
+  "rank": 8
  },
  "stjoe-st-joseph-farmers-market": {
   "chroma": true,
@@ -266,7 +280,7 @@
   "chroma": true,
   "d3": true,
   "hue": 328,
-  "rank": 4
+  "rank": 10
  },
  "stjoe-the-estates-bed-breakfast": {
   "chroma": false,
@@ -279,7 +293,7 @@
  "stjoe-thomsen-s-garden-center": {
   "chroma": true,
   "hue": 158,
-  "rank": 8
+  "rank": 14
  },
  "stjoe-tiremaxx-service-centers": {
   "chroma": true,
@@ -293,7 +307,7 @@
   "chroma": false,
   "d3": true,
   "hue": 34,
-  "rank": 5
+  "rank": 11
  },
  "stjoe-uptown-styles": {
   "chroma": false,
@@ -311,11 +325,11 @@
   "chroma": false,
   "d3": true,
   "hue": 34,
-  "rank": 6
+  "rank": 12
  },
  "stjoe-wildwood-ranch-maple-syrup": {
   "chroma": true,
   "hue": 28,
-  "rank": 11
+  "rank": 16
  }
 }
