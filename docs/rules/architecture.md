@@ -203,9 +203,16 @@ which holds `TodayTopBar` and the feed.
   and its tests.
 - **`TownFeed` is the app's one module for it** `[test]` (`TownFeedEventsTests`). `MainTabsView`
   holds it, so coming back to Town shows the list it left while it reads again; a failed read
-  keeps the list; a card goes when its `leaves_at` passes, and the feed reads again then (a
-  series' next date only arrives with a fresh read) and on return to the foreground. Its read
-  is injected: live, or DEBUG `-town-samples`' sample events.
+  keeps the list and shows the bar's offline pill; a card goes when its `leaves_at` passes, and
+  the feed reads again then and on return to the foreground. Its read is injected: live, DEBUG
+  `-town-samples`' sample events, or `-town-offline` (samples kept, every read failing).
+- **When the order changes is ticket 11's** `[test]`: a fresh order only on pull to refresh, or
+  on coming back after 30 minutes or more away (a launch counts) while still at the top. Any
+  other read keeps the order on screen: cards update in place, ones that went drop out, new ones
+  wait for the next fresh order. This keeps the database's last order; it never re-sorts.
+  Back within 30 minutes the feed lands on the card it left (`topCardID`), which a tab switch
+  used to lose. The last list is kept per account on disk (`TownFeedCache`, raw bytes like
+  `BriefingCache`), so a relaunch shows it at once, offline too.
 - `DailyFeedColumn` shows its items in the order given. Events only for now; posts, updates
   and news join when they exist.
 

@@ -57,6 +57,9 @@ struct DailyFeedColumn: View {
                 }
             }
         }
+        // Each card is a scroll target, so the Town feed can tell which one is at
+        // the top and land on it again after a tab switch.
+        .scrollTargetLayout()
         // NO horizontal inset: the cards' media runs edge to edge. Each card insets
         // its own copy and controls by `DailyFeedMetric.contentInset`.
         .padding(.top, 12)
