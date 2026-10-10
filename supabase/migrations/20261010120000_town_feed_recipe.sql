@@ -83,8 +83,9 @@ $$;
 --   interests). An event's interests are its one category until events carry more;
 -- * size from how early the event starts showing: shows_from 50+ days ahead is big (3),
 --   25+ medium (2), else small (1);
--- * reason: the biggest lift when it's worth a point or more, in the playground's order
---   (friend, follow, interest, popular, size), else the day; reason_name the interest;
+-- * reason: 'new' for the item moved to the new-item spot; else the biggest lift when it's
+--   worth a point or more, in the playground's order (friend, follow, interest, popular,
+--   size); else the day (today, tomorrow, soon). reason_name is the matched interest;
 -- * score: every term behind the place, for the admin only; null for everyone else.
 -- Security invoker: RLS decides what the caller sees, so a signed-out read counts no
 -- RSVPs and has no picks or own state: the Town's biggest, soonest things first.
@@ -237,8 +238,10 @@ as $$
          e.going,
          l.recurrence,
          e.leaves_at,
-         coalesce(e.lift, case when e.days_off <= 0 then 'today' when e.days_off = 1 then 'tomorrow' else 'soon' end),
-         case when e.lift = 'interest' then e.matched[1] end,
+         case when p.moved then 'new'
+              else coalesce(e.lift, case when e.days_off <= 0 then 'today' when e.days_off = 1 then 'tomorrow' else 'soon' end)
+         end,
+         case when e.lift = 'interest' and not p.moved then e.matched[1] end,
          case when public.is_admin() then jsonb_build_object(
            'interest', e.interest_pts, 'friend', e.friend_pts, 'follow', e.follow_pts,
            'popular', e.popular_pts, 'size', e.size_pts, 'sizeStep', e.size,

@@ -319,8 +319,10 @@ test('one new event gets spot 4 when it would sit lower', async () => {
                                    created_at: '2026-10-07 12:00-05' });
   await add('Newer, further', '2026-10-21', { start_time: '6 PM', source_name: 'Other',
                                               created_at: '2026-10-07 13:00-05' });
-  assert.deepEqual(await titles('2026-10-08 12:00'),
+  const rows = await feed('2026-10-08 12:00');
+  assert.deepEqual(rows.map((r) => r.title),
                    ['Old 1', 'Old 2', 'Old 3', 'New', 'Old 4', 'Old 5', 'Newer, further']);
+  assert.equal(rows[3].reason, 'new');
   // Two days on it's no longer new, and drops back to its place.
   await db.query(`update public.club_events set created_at = '2026-10-05 12:00-05'`);
   assert.deepEqual((await titles('2026-10-08 12:00')).slice(3, 5), ['Old 4', 'Old 5']);
@@ -367,7 +369,7 @@ test("the playground's sample week gives the playground's top 8 for each of its 
   const byTitle = Object.fromEntries(playground.events.map((e) => [e.title, e.id]));
   // The playground's why() line, as the code and name the app turns into words.
   const code = (why) => why.startsWith('Matches ') ? ['interest', why.slice(8)]
-    : { 'Big in town': ['size', null], 'Happening today': ['today', null],
+    : { 'New in town': ['new', null], 'Big in town': ['size', null], 'Happening today': ['today', null],
         'Happening tomorrow': ['tomorrow', null], 'Coming up soon': ['soon', null] }[why];
   for (const [n, p] of playground.people.entries()) {
     const person = `00000000-0000-0000-0000-0000000002${String(n).padStart(2, '0')}`;

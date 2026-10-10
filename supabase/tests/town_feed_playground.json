@@ -1,5 +1,5 @@
 {
- "about": "The recipe playground's sample week and four people (BP app docs/plans/town-feed/assets/09-recipe-playground.html, ticket 09) as the database sees them today: Events only, City meetings out (following the City isn't built), one interest per Event, and no friends, follows, popularity, Mute or Not interested (their tickets come later). top8 is the playground's own score() and rank() run on this same data, at now.",
+ "about": "The recipe playground's sample week and four people (BP app docs/plans/town-feed/assets/09-recipe-playground.html, ticket 09) as the database sees them today: Events only, City meetings out (following the City isn't built), one interest per Event, and no friends, follows, popularity, Mute or Not interested (their tickets come later). top8 is the playground's own score() and rank() run on this same data, at now. why is the line the playground's render() prints: its why(), or \"New in town\" for the item moved to the new-item spot.",
  "now": "2026-10-08 09:00",
  "lead": {
   "1": 14,
@@ -222,7 +222,7 @@
     "Matches Families & kids",
     "Matches Live music",
     "Matches Live music",
-    "Big in town",
+    "New in town",
     "Matches Families & kids",
     "Matches Live music",
     "Matches Festivals & fairs",
