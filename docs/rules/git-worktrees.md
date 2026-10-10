@@ -20,6 +20,10 @@ checkout. It refuses a commit whose generated `AGENTS.md`/`CLAUDE.md` have drift
 `rules/`. CI checks the same thing and is not bypassable, so skipping this install is
 survivable but slower — the drift surfaces at push time instead of commit time.
 
+A new worktree has no `BlockParty/Config/` (ignored; it holds the Google Places and Mapbox
+keys), so its first build fails with `cannot find 'GOOGLE_PLACES_API_KEY' in scope`. `[prose]`
+Copy it from a checkout that has it: `ditto ~/Documents/bp-build/BlockParty/Config <new>/BlockParty/Config`.
+
 ## The traps
 
 - **Never `git add -A` or `git commit -a` here.** `[hook]` A blanket stage takes another
