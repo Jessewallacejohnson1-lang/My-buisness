@@ -778,6 +778,22 @@ over a database change ("yes", Check-in 1): no live migration, no new Storage pa
   can follow the City or a board, and the ZIP check waits until events carry a ZIP or a
   Place.
 
+## Decided 2026-10-09 — anonymous accounts: every install can act, none can publish
+
+- **Supabase anonymous sign-in is on** (Jesse's yes), so every install quietly gets an
+  account and Going, Save and Heart work before sign-in exists. Manual identity linking
+  stays off: turning an anonymous account into a real one belongs to the onboarding build.
+- **They act but never publish:** `public.is_real_account()` and restrictive rules on
+  posting events, starting clubs, commenting, and uploading avatars or event images
+  (migration `20261009220000_anonymous_accounts.sql`), applied before the sign-in setting
+  was switched on, so no gap opened.
+- **Profile photos are a real account's only;** an anonymous account can still save a name,
+  which only its owner can read.
+- **`compose_briefing` closed to the public key** in the same migration: it was a security
+  definer anyone could call to write the day's briefing. The nightly job runs as postgres.
+- **Losses are logged, not hidden:** an anonymous session can't be signed back into, so the
+  app logs a rejected anonymous session and a failed sign-up.
+
 ## Open — should the server decide which posts go live?
 
 Today the app decides: a post Claude clears is saved as `approved`, and nothing on the

@@ -67,6 +67,20 @@ seeder, and mounts `RootView` directly.
   Signed out, the app is honest rather than broken: authed reads fail into their own empty
   states, the profile tab reads "Add your name" with zeroed counts, and its **Sign out** row
   is hidden.
+- **Every install gets a quiet anonymous account** (2026-10-09, BP app
+  `docs/plans/real-life-actions`). `AuthStore.ensureAccount()` makes one through Supabase's
+  anonymous sign-in once `restore()` finds no session, and again on each return to the
+  foreground; it fails silently and never replaces a restored session. It is a session like
+  any other (Keychain, shared refresh), so `isSignedIn` (has a session: may Join, Save,
+  Heart) is true for it, and `isAnonymous` tells it apart where only a real account counts
+  (the You tab's Sign out). **Anonymous accounts act but never publish** `[test]`:
+  restrictive `is_real_account()` rules stop them posting events, starting clubs,
+  commenting and uploading photos (`supabase/migrations/20261009220000_anonymous_accounts.sql`,
+  stories in `supabase/tests/`). Unit tests make no account. **Unsigned simulator builds
+  (bp-build's `xc.sh`) can't use the Keychain** (-34018, no entitlement): there the session
+  lives in UserDefaults (`Keychain.simulatorKey`), so it survives relaunches but not
+  eyes.py's uninstall, and each eyes.py run makes one new anonymous account on the live
+  project. Before 2026-10-09 every simulator launch did.
 - **One `NavigationStack` wraps the whole shell** (`MainTabsView.body`, `RootView.swift`)
   `[prose]`, with `.navigationDestination(for: FeedCardItem.self)` opening the event page,
   so a pushed page covers the tab bar and the edge swipe brings Town back under the finger.
