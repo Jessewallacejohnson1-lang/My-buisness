@@ -240,6 +240,7 @@ struct MainTabsView: View {
     /// override).
     let startTab: Tab?
     @State private var tab: Tab
+    @EnvironmentObject private var auth: AuthStore
 
     init(startTab: Tab? = nil) {
         self.startTab = startTab
@@ -371,6 +372,11 @@ struct MainTabsView: View {
     var body: some View {
         NavigationStack(path: $path) {
             shell
+                // The quiet account arrives after the first read; read again so the
+                // cards offer Join and show who's going.
+                .onChange(of: auth.userId) { _, _ in
+                    Task { await townFeed.reload() }
+                }
                 .toolbar(.hidden, for: .navigationBar)
                 .background { SwipeBack().frame(width: 0, height: 0) }
                 .navigationDestination(for: FeedCardItem.self) { item in

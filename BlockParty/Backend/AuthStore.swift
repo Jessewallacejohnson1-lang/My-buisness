@@ -16,11 +16,16 @@ final class AuthStore: ObservableObject, TokenProviding {
 
     static let shared = AuthStore()
 
+    /// A session exists, real or anonymous: the person can act (Join, Save, Heart).
     var isSignedIn: Bool { session != nil }
+    /// The session is the quiet account every install gets (`ensureAccount`), not one
+    /// someone signed into, so there is nothing to sign out of.
+    var isAnonymous: Bool { session?.user.isAnonymous == true }
     var email: String? { session?.user.email }
     var userId: String? { session?.user.id }
 
     private var refreshTask: Task<Void, Error>?
+    private var accountTask: Task<Void, Never>?
     /// Bumped whenever the signed-in identity intentionally changes (sign-out). An
     /// in-flight refresh captures this at start and refuses to write a session whose
     /// generation is stale — so a refresh resolving after sign-out can't resurrect
@@ -41,6 +46,35 @@ final class AuthStore: ObservableObject, TokenProviding {
             }
         }
         booting = false
+    }
+
+    /// Makes the quiet anonymous account when there is no session, so Going, Save and
+    /// Heart work before sign-in exists (BP app docs/plans/real-life-actions). Runs
+    /// after `restore()` and on each return to the foreground. Silent on failure
+    /// (offline, Supabase's per-network limit): the app reads with the public key as
+    /// before and tries again next time. Unit tests make no account.
+    func ensureAccount() async {
+        guard !booting, session == nil,
+              ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil
+        else { return }
+        if let accountTask {
+            await accountTask.value
+            return
+        }
+        let generation = sessionGeneration
+        let task = Task {
+            do {
+                let data = try await SupabaseHTTP.auth("signup", body: [:])
+                // A session restored or signed into meanwhile wins over this one.
+                guard session == nil, generation == sessionGeneration else { return }
+                try setSession(from: data)
+            } catch {
+                Log.network("AuthStore: anonymous account not made: \(error)")
+            }
+        }
+        accountTask = task
+        defer { accountTask = nil }
+        await task.value
     }
 
     // MARK: - Flows (return a user-facing error string, nil on success)
@@ -164,6 +198,9 @@ final class AuthStore: ObservableObject, TokenProviding {
                 // is dead; a transient/offline error must NOT destroy a still-valid
                 // session. Skip the clear if we've since signed out, too.
                 if generation == sessionGeneration, isTokenRejected(error) {
+                    // An anonymous account can't be signed back into: its Going goes
+                    // with it. Logged so losses can be counted.
+                    if isAnonymous { Log.network("AuthStore: anonymous session rejected and cleared: \(error)") }
                     session = nil
                     Keychain.clear()
                 }

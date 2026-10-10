@@ -196,7 +196,7 @@ struct FeedView: View {
                         .padding(.horizontal, DailyFeedMetric.contentInset)
                         .transition(.opacity)
                     } else {
-                        DailyFeedSkeleton(showsGoing: auth.isSignedIn)
+                        DailyFeedSkeleton()
                             .transition(.opacity)
                     }
                 }

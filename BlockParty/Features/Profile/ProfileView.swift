@@ -91,8 +91,10 @@ struct ProfileView: View {
                 // (`RootView.requiresSignIn`), so for most people this screen is now
                 // reached without ever having signed in, and a "Sign out" button that
                 // can only clear something that was never set reads as a broken
-                // control. It comes back with the gate.
-                if AuthStore.shared.isSignedIn {
+                // control. It comes back with the gate. The quiet anonymous account
+                // every install gets counts as not signed in: signing out would only
+                // throw away its Going.
+                if AuthStore.shared.isSignedIn && !AuthStore.shared.isAnonymous {
                     signOutButton.springReveal(4, revealed: revealed).id("bottom")
                 }
                 // Clears the floating tab bar when this screen IS a tab; a sheet

@@ -9,6 +9,14 @@ import Security
 struct AuthUser: Codable, Equatable {
     let id: String
     let email: String?
+    /// GoTrue's `is_anonymous`: the quiet account every install gets before sign-in
+    /// exists. Absent from sessions stored before 2026-10-09, which read as real.
+    var isAnonymous: Bool? = nil
+
+    enum CodingKeys: String, CodingKey {
+        case id, email
+        case isAnonymous = "is_anonymous"
+    }
 }
 
 /// A GoTrue session. `expiresAt` is an absolute epoch time (seconds).
@@ -34,17 +42,23 @@ struct Session: Codable, Equatable {
 enum Keychain {
     private static let account = "bp.session"
 
+    /// Updates the stored session in place, adding it when there is none. Never
+    /// deletes first: an anonymous account lost between a delete and an add can't be
+    /// signed back into.
     static func save(_ session: Session) {
         guard let data = try? JSONEncoder().encode(session) else { return }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: account,
         ]
-        SecItemDelete(query as CFDictionary)
-        var add = query
-        add[kSecValueData as String] = data
-        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-        SecItemAdd(add as CFDictionary, nil)
+        var status = SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+        if status == errSecItemNotFound {
+            var add = query
+            add[kSecValueData as String] = data
+            add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+            status = SecItemAdd(add as CFDictionary, nil)
+        }
+        if status != errSecSuccess { Log.network("Keychain: session not saved (\(status))") }
     }
 
     static func load() -> Session? {

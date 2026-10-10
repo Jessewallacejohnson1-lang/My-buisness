@@ -27,6 +27,9 @@ struct FeedCardItem: Identifiable, Hashable {
     /// False hides who's going, on the card and its page, and the page's Join. Signed
     /// out, an RSVP can neither be read nor written, so none is offered (Jesse, 2026-10-07).
     var canJoin = true
+    /// The card's going line: only where an RSVP can be read, and never at zero, as
+    /// the event page never shows a zero count (taste.md, 2026-10-04: fewer words).
+    var showsGoingLine: Bool { canJoin && goingCount > 0 }
     var eventDate: String? = nil
     var startTime: String? = nil
     var location: String? = nil
