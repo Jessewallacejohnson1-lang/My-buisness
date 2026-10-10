@@ -110,7 +110,8 @@ Not part of the ask, so not swept. A second pass could take: `Feed/FeedDebugFocu
 `DaySchedule/DayScheduleDemoOpener`, the legacy `FeedPosting` pipeline
 (`TodayFeedView`, `TodayFeedPreview`, `FeedCardMapping`, `FeedSectioning`, `FeedRecurrence`,
 `FeedPipelineSelfCheck`, `BlockMotifSpinner`), `Briefing/BriefingUnavailableCard`,
-`Briefing/DwellTracker`, `CommunityFeed/**`, `HomeModel.swift`, and the orphaned
+`Briefing/DwellTracker`, `CommunityFeed/**` (its `CommunityFeedPreview` went with `HomeModel.swift`,
+deleted 2026-10-10 with the reads only it called, BP app real-life-actions ticket 02), and the orphaned
 `ExploreKit` members (`ExploreBlankPhoto`, `ExploreCard`, `SaveBookmarkButton`, `MetaItem`,
 `exploreMetaRow`, `exploreCircleIcon` — but NOT `PressableStyle`, which 13 files use).
 

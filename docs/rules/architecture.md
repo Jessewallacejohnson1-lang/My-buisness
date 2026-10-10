@@ -220,6 +220,19 @@ which holds `TodayTopBar` and the feed.
   keeps the list and shows the bar's offline pill; a card goes when its `leaves_at` passes, and
   the feed reads again then and on return to the foreground. Its read is injected: live, DEBUG
   `-town-samples`' sample events, or `-town-offline` (samples kept, every read failing).
+- **`RealLifeActions` is the app's one home for Going** `[test]` (`RealLifeActionsTests`; BP app
+  `docs/plans/real-life-actions`, ticket 02; Save and Heart join it in 03 and 04). `MainTabsView`
+  holds it beside `TownFeed`, hands it to `TownFeed` (every list the feed takes sets each Event's
+  base state, in the same turn) and puts it in the environment over the shell's stack, so the
+  card's going line and the event page's Join read one entry. **Never keep Going in a screen's
+  own state again** `[prose]`: the page used to, and the card behind it went stale. A tap lays
+  the choice over the base until a read agrees; writes run one at a time per Event and are never
+  cancelled, so the last tap is what the server ends with; a failure holds 600 ms, flips back,
+  then shakes and buzzes only while that Event's page is open. Whether Join and the going line
+  show is its `canAct` (an account, or a backend that needs none), not the card's. Writes are
+  injected: Supabase, or under DEBUG `-town-samples` nowhere and `-town-offline` always failing,
+  so a sample Join never reaches the live database. `RootView` gives the DEBUG preview roots
+  outside the shell `RealLifeActions.preview`; a card or event page outside both would crash.
 - **When the order changes is ticket 11's** `[test]`: a fresh order only on pull to refresh, or
   on coming back after 30 minutes or more away (a launch counts) while still at the top. Any
   other read keeps the order on screen: cards update in place, ones that went drop out, new ones
@@ -240,9 +253,10 @@ exactly that, and unknown string-backed ids still decode and are skipped safely.
 
 **The briefing read contract is untouched and still fires.** `BriefingAPI.today()` still makes
 one authenticated `POST` to `rpc/get_today_briefing`; the model still paints the disk cache
-first, reconciles with the RPC, keeps cached content through an outage, and owns optimistic
-vote/RSVP updates with rollback. **Keep that contract rather than ripping it out** `[prose]` —
-a rebuilt module should find its data already there.
+first, reconciles with the RPC, keeps cached content through an outage, and owns the poll's
+optimistic vote with rollback. **Keep that contract rather than ripping it out** `[prose]` —
+a rebuilt module should find its data already there. Its RSVP copy is gone (2026-10-10): Going
+anywhere in the app is `RealLifeActions`'.
 
 **Every `FeedRoute` presents its own sheet.** `[prose]` There is no longer a route with a nil
 `destination` that `FeedView` hands to `MainTabsView` for a tab change; the three surviving
