@@ -54,6 +54,49 @@ final class TownFeedEventsTests: XCTestCase {
         let card = TownFeed.entry(rows[0]).card
         XCTAssertEqual(card.recurrence, "Every 1st & 3rd Monday")
         XCTAssertEqual(card.hostName, "City of St. Joseph")
+        // A row from before the recipe (a kept list) says no reason: no ••• menu.
+        XCTAssertNil(card.why)
+        XCTAssertNil(card.score)
+    }
+
+    /// The recipe's columns (ticket 18): the reason becomes the card's line, and the
+    /// admin's score comes through whole.
+    func testTheRecipesReasonAndScoreReachTheCard() throws {
+        let json = """
+        [{"id":"e1","title":"Choir concert","event_date":"2026-10-12","start_time":"3 PM",
+          "location":null,"image_url":null,"category":"live_music","club_name":null,
+          "source_name":"Arts center","end_at":null,"all_day":false,
+          "created_at":"2026-10-06T16:08:20+00:00","going_count":0,"rsvpd":false,
+          "recurrence":null,"leaves_at":"2026-10-12T22:00:00+00:00",
+          "reason":"interest","reason_name":"live_music",
+          "score":{"interest":3,"friend":0,"follow":0,"popular":0,"size":1.5,"sizeStep":2,
+                   "daysAway":2.12,"soon":0.8105,"acted":1,"spacing":0.5,"newSpot":false,
+                   "total":1.8236,"spot":2,"of":5}},
+         {"id":"e2","title":"Bake sale","event_date":"2026-10-08","start_time":"11 AM",
+          "location":null,"image_url":null,"category":null,"club_name":null,
+          "source_name":"Parish","end_at":null,"all_day":false,
+          "created_at":"2026-10-06T16:08:20+00:00","going_count":0,"rsvpd":false,
+          "recurrence":null,"leaves_at":"2026-10-08T18:00:00+00:00",
+          "reason":"today","reason_name":null,"score":null}]
+        """
+        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.entry($0).card }
+        XCTAssertEqual(cards.map(\.why), ["Matches Live music", "Happening today"])
+        XCTAssertEqual(cards[0].score?.spot, 2)
+        XCTAssertEqual(cards[0].score?.spacing, 0.5)
+        XCTAssertEqual(cards[0].score?.sizeStep, 2)
+        XCTAssertNil(cards[1].score)
+    }
+
+    /// Every reason the database sends has a line; one this app doesn't know has none,
+    /// so a newer database never puts a wrong line on an older app.
+    func testEachReasonHasItsLine() {
+        XCTAssertEqual(FeedCardMenu.line(reason: "new", name: nil), "New in town")
+        XCTAssertEqual(FeedCardMenu.line(reason: "size", name: nil), "Big in town")
+        XCTAssertEqual(FeedCardMenu.line(reason: "tomorrow", name: nil), "Happening tomorrow")
+        XCTAssertEqual(FeedCardMenu.line(reason: "soon", name: nil), "Coming up soon")
+        XCTAssertEqual(FeedCardMenu.line(reason: "friend", name: "Sam"), "Sam is going")
+        XCTAssertNil(FeedCardMenu.line(reason: "friend", name: nil))
+        XCTAssertNil(FeedCardMenu.line(reason: "something-new", name: nil))
     }
 
     func testAFoundEventIsHostedByItsSourceAndAClubEventByItsClub() async {

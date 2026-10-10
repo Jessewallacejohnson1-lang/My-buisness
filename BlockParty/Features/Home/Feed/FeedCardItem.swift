@@ -32,6 +32,11 @@ struct FeedCardItem: Identifiable, Hashable {
     /// nothing fills in for a missing value.
     var description: String? = nil
     var category: EventCategory? = nil
+    /// Why the Town feed shows this card, in words (`FeedCardMenu.line`). nil leaves the
+    /// card without its ••• menu: only the Town feed's own cards have a reason.
+    var why: String? = nil
+    /// The points behind the card's place; the database sends them to the admin only.
+    var score: FeedScore? = nil
 
     var shareTime: String? {
         if let startTime { return startTime }

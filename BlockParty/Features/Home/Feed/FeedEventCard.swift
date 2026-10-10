@@ -43,6 +43,15 @@ struct FeedEventCard: View {
     /// around, not text, so it does not scale.
     private static let hostAvatarSide: CGFloat = 32
 
+    /// The ••• button: a 44pt target round the app's Lucide ellipsis at 20pt, whose dots
+    /// span 15pt (Instagram's span 14.7, 15pt from the edge). Its dots end at the
+    /// card's inset, so the button reaches 14.5pt past it.
+    private static let menuTarget: CGFloat = 44
+    private static let menuGlyph: CGFloat = 20
+    private static let menuDotsInset: CGFloat = 14.5
+    /// Kept clear at the end of the host row so a long name stops short of the dots.
+    private static let menuRoom: CGFloat = 15 + 8
+
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     /// Read so the card's one-line labels can take a second line at accessibility
     /// sizes. The same trade `PostingCard`'s header already makes: a clipped line is
@@ -53,6 +62,7 @@ struct FeedEventCard: View {
     @State private var actionState: FeedCardActionState
     @State private var commentState: FeedCommentState
     @State private var commentsPresented = false
+    @State private var menuPresented = false
     @State private var likeBurst = FeedLikeBurst()
     @State private var autoplayStep = 0
     /// The link's press, so the whole card squishes. Set on touch-down by
@@ -106,7 +116,7 @@ struct FeedEventCard: View {
                         .padding(.horizontal, DailyFeedMetric.contentInset)
 
                     imageSection
-                        .padding(.top, item.hostName.isEmpty ? 0 : 10)
+                        .padding(.top, showsHostRow ? 10 : 0)
 
                     if let goingLine = actions.goingLine(item) {
                         socialRow(goingLine)
@@ -133,6 +143,9 @@ struct FeedEventCard: View {
                 .padding(.top, 2)
                 .padding(.horizontal, DailyFeedMetric.contentInset)
         }
+        // Over the host row's end, outside the link: pressing it neither squishes nor
+        // opens the card.
+        .overlay(alignment: .topTrailing) { menuButton }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         // The whole card answers the link's press, action row included, so no gap
@@ -140,6 +153,9 @@ struct FeedEventCard: View {
         .scaleEffect(FeedMotion.pressScale(isPressed: linkPressed, reduceMotion: motionIsReduced))
         .opacity(FeedMotion.pressOpacity(isPressed: linkPressed, reduceMotion: motionIsReduced))
         .animation(FeedMotion.pressAnimation(reduceMotion: motionIsReduced), value: linkPressed)
+        .sheet(isPresented: $menuPresented) {
+            if let why = item.why { FeedCardMenu(why: why, score: item.score) }
+        }
         .sheet(isPresented: $commentsPresented) {
             FeedCommentSheet(
                 commentState: $commentState,
@@ -160,8 +176,12 @@ struct FeedEventCard: View {
 
     // MARK: - Host
 
-    /// Who is putting this on, above the photograph. A missing host draws nothing
-    /// rather than a placeholder — the headline is still the card.
+    /// A Town feed card always has the row, for its •••; anywhere else a card with no
+    /// host has none.
+    private var showsHostRow: Bool { !item.hostName.isEmpty || item.why != nil }
+
+    /// Who is putting this on, above the photograph. A missing host draws no
+    /// placeholder — the headline is still the card — only the room for the •••.
     @ViewBuilder
     private var hostRow: some View {
         if !item.hostName.isEmpty {
@@ -175,7 +195,30 @@ struct FeedEventCard: View {
 
                 Spacer(minLength: 8)
             }
+            .padding(.trailing, item.why == nil ? 0 : Self.menuRoom)
             .accessibilityElement(children: .combine)
+        } else if item.why != nil {
+            Color.clear.frame(height: Self.hostAvatarSide)
+        }
+    }
+
+    /// The card's ••• menu (`FeedCardMenu`), on the Town feed's own cards.
+    @ViewBuilder
+    private var menuButton: some View {
+        if item.why != nil {
+            Button { menuPresented = true } label: {
+                Image("Lucide/ellipsis")
+                    .resizable()
+                    .frame(width: Self.menuGlyph, height: Self.menuGlyph)
+                    .foregroundStyle(Hue.ink)
+                    .frame(width: Self.menuTarget, height: Self.menuTarget)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(SquishStyle())
+            .padding(.trailing, DailyFeedMetric.contentInset - Self.menuDotsInset)
+            // Centred on the 32pt host row.
+            .offset(y: (Self.hostAvatarSide - Self.menuTarget) / 2)
+            .accessibilityLabel("More options")
         }
     }
 

@@ -94,13 +94,38 @@ nonisolated struct UpcomingEvent: Identifiable, Hashable {
     var sourceName: String? = nil
 }
 
-/// One row of `get_town_feed` (`supabase/migrations/20261008120000_town_feed.sql`): an
-/// event, how its series repeats ("Every Tuesday"; nil for a one-off or no clear
-/// pattern), and when it leaves the Town feed.
+/// One row of `get_town_feed` (`supabase/migrations/*_town_feed*.sql`): an event, how its
+/// series repeats ("Every Tuesday"; nil for a one-off or no clear pattern), when it
+/// leaves the Town feed, why it's there (the recipe's top reason and the one name it
+/// needs), and for the admin the points behind its place. Rows kept from before the
+/// recipe have no reason.
 nonisolated struct TownFeedRow: Hashable {
     let event: UpcomingEvent
     let recurrence: String?
     let leavesAt: Date
+    var reason: String? = nil
+    var reasonName: String? = nil
+    var score: FeedScore? = nil
+}
+
+/// The points behind a card's place in the Town feed, as `get_town_feed` sends them to
+/// the admin only: each lift in points, each multiplier, and the spot they add up to.
+nonisolated struct FeedScore: Decodable, Hashable, Sendable {
+    let interest: Double
+    let friend: Double
+    let follow: Double
+    let popular: Double
+    let size: Double
+    /// 1 small, 2 medium, 3 big.
+    let sizeStep: Int
+    let daysAway: Double
+    let soon: Double
+    let acted: Double
+    let spacing: Double
+    let newSpot: Bool
+    let total: Double
+    let spot: Int
+    let of: Int
 }
 
 struct AgendaEvent: Identifiable, Hashable {

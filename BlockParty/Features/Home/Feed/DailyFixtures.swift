@@ -113,6 +113,12 @@ enum DailyFixtures {
                 category: .musicArts,
                 // Long on purpose: it runs past the event page's 4-line clamp.
                 description: "Bring a blanket or a lawn chair and find a spot on the grass by the river. This week it's a local bluegrass trio playing two sets, with a short break in between so the kids can run around. The lemonade stand will be going, and a food truck or two usually parks by the lot. If it rains, check back here before you head over. Leashed dogs are welcome. Please pack out what you pack in.",
+                // The one card with a score, so the Eyes pass shows the admin's sheet
+                // beside everyone else's.
+                reason: "interest", reasonName: "live_music",
+                score: FeedScore(interest: 3, friend: 0, follow: 0, popular: 0, size: 1.5,
+                                 sizeStep: 2, daysAway: 0.25, soon: 0.98, acted: 1, spacing: 1,
+                                 newSpot: false, total: 5.39, spot: 1, of: 6),
                 now: now
             ),
             event(
@@ -200,9 +206,10 @@ enum DailyFixtures {
         id: String, title: String, host: String, hostAvatar: Bool,
         chip: String, meta: String, photo: Bool,
         hoursUntil: Double, going: Int,
-        category: EventCategory? = nil, description: String? = nil, now: Date
+        category: EventCategory? = nil, description: String? = nil,
+        reason: String? = nil, reasonName: String? = nil, score: FeedScore? = nil, now: Date
     ) -> TownFeedEntry {
-        let item = FeedCardItem(
+        var item = FeedCardItem(
             id: id,
             title: title,
             dateChip: chip,
@@ -220,6 +227,10 @@ enum DailyFixtures {
             description: description,
             category: category
         )
+        // Why each is in the feed, as `get_town_feed` would say it by default: the day.
+        let day = reason ?? (hoursUntil < 18 ? "today" : hoursUntil < 42 ? "tomorrow" : "soon")
+        item.why = FeedCardMenu.line(reason: day, name: reasonName)
+        item.score = score
         return TownFeedEntry(card: item, leavesAt: now.addingTimeInterval((hoursUntil + 2) * 3600))
     }
 

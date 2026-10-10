@@ -235,6 +235,9 @@ struct CommunityAPI {
             let rsvpd: Bool
             let recurrence: String?
             let leavesAt: String
+            let reason: String?
+            let reasonName: String?
+            let score: FeedScore?
         }
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -248,7 +251,8 @@ struct CommunityAPI {
                                       category: EventCategory.from(row.category),
                                       endAt: DateHelpers.timestamp(row.endAt),
                                       isAllDay: row.allDay, sourceName: row.sourceName)
-            return TownFeedRow(event: event, recurrence: row.recurrence, leavesAt: leavesAt)
+            return TownFeedRow(event: event, recurrence: row.recurrence, leavesAt: leavesAt,
+                               reason: row.reason, reasonName: row.reasonName, score: row.score)
         }
     }
 

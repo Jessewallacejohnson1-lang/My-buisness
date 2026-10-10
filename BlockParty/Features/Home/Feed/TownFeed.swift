@@ -192,6 +192,9 @@ final class TownFeed {
     /// is `RealLifeActions.canAct`'s, so a card read before the quiet account arrived
     /// offers Join once it has.
     static func entry(_ row: TownFeedRow) -> TownFeedEntry {
-        TownFeedEntry(card: FeedCardItem(row.event, recurrence: row.recurrence), leavesAt: row.leavesAt)
+        var card = FeedCardItem(row.event, recurrence: row.recurrence)
+        card.why = row.reason.flatMap { FeedCardMenu.line(reason: $0, name: row.reasonName) }
+        card.score = row.score
+        return TownFeedEntry(card: card, leavesAt: row.leavesAt)
     }
 }
