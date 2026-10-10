@@ -172,6 +172,7 @@ struct FeedEventCard: View {
         }
         .task(id: item.image) { await resolveVenuePhoto() }
         .task { await runDebugAutoplay() }
+        .task { await openMenuForDebug() }
     }
 
     // MARK: - Host
@@ -476,6 +477,16 @@ struct FeedEventCard: View {
         likeBurst.fire(at: point)
 
         if changed { onLike?(true) }
+    }
+
+    /// DEBUG-only: `-town-menu-open` opens the first sample card's ••• sheet, so the phone,
+    /// which nothing here can tap, shows it for a screenshot.
+    private func openMenuForDebug() async {
+        #if DEBUG
+        guard item.id == "e1", ProcessInfo.processInfo.arguments.contains("-town-menu-open") else { return }
+        try? await Task.sleep(for: .seconds(1))
+        menuPresented = true
+        #endif
     }
 
     /// DEBUG-only gallery driver: like → image burst → save → unlike.
