@@ -173,6 +173,10 @@ struct RootView: View {
         // appearance underneath the ink drawn on them. It was removed a commit ago
         // (see the note further down this file) and must not come back.
         .preferredColorScheme(appearance.requestedScheme)
+        #if DEBUG
+        // The preview roots above show cards without the shell; the shell sets its own.
+        .environment(RealLifeActions.preview)
+        #endif
         .onAppear {
             // ponytail: the first window scene; per-scene following if iPad
             // multi-window ever matters.
@@ -249,6 +253,9 @@ struct MainTabsView: View {
         _showMap = State(initialValue: MainTabsView.debugOpenMap())
         _showMenu = State(initialValue: resolved == .town && MainTabsView.debugOpenMenu())
         _showProfileSheet = State(initialValue: MainTabsView.debugOpenProfile())
+        let actions = RealLifeActions()
+        _actions = State(initialValue: actions)
+        _townFeed = State(initialValue: TownFeed(actions: actions))
     }
 
     /// DEBUG-only: `-open-map` raises the map cover on launch. It replaces the old
@@ -320,7 +327,10 @@ struct MainTabsView: View {
     @State private var searchModel = SearchModel()
     /// The Town feed's events, kept here for the same reason: coming back to Town shows
     /// the list it left while it reads again behind it.
-    @State private var townFeed = TownFeed()
+    @State private var townFeed: TownFeed
+    /// Each Event's Going for the session, which the Town feed's reads set and every
+    /// card and event page reads, so they agree (BP app docs/plans/real-life-actions).
+    @State private var actions: RealLifeActions
     /// The friends inbox and its chats (DEBUG samples until real messages exist), kept
     /// here so an opened chat stays read when the inbox comes back.
     @State private var friendsModel = FriendsModel()
@@ -372,9 +382,10 @@ struct MainTabsView: View {
     var body: some View {
         NavigationStack(path: $path) {
             shell
-                // The quiet account arrives after the first read; read again so the
-                // cards offer Join and show who's going.
+                // The quiet account arrives after the first read: Join comes up at once,
+                // and the feed reads again for who's going as this account sees it.
                 .onChange(of: auth.userId) { _, _ in
+                    actions.accountChanged(signedIn: auth.isSignedIn)
                     Task { await townFeed.reload() }
                 }
                 .toolbar(.hidden, for: .navigationBar)
@@ -395,6 +406,8 @@ struct MainTabsView: View {
                     .environment(friendsModel)
                 }
         }
+        // Outside the stack, so pushed pages and sheets read the same one.
+        .environment(actions)
         .onAppear {
             // DEBUG: `-open-friends` lands on the inbox, `-open-friends-chat` on its newest chat.
             if Self.debugOpen("-open-friends") || Self.debugOpen("-open-friends-chat") { openFriends() }

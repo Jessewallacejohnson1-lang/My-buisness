@@ -33,19 +33,4 @@ final class AnonymousAccountTests: XCTestCase {
         let again = try JSONDecoder().decode(Session.self, from: JSONEncoder().encode(s))
         XCTAssertEqual(again, s)
     }
-
-    /// A card shows who's going only where RSVPs can be read, and never at zero, as
-    /// the event page never shows a zero count.
-    func testACardShowsNoGoingLineAtZero() {
-        func card(going: Int, canJoin: Bool) -> FeedCardItem {
-            var item = FeedCardItem(UpcomingEvent(id: "e", title: "Trivia", eventDate: "2026-10-12",
-                                                  startTime: "7 PM", location: nil, goingCount: going,
-                                                  createdAt: "2026-10-06T16:08:20+00:00"))
-            item.canJoin = canJoin
-            return item
-        }
-        XCTAssertFalse(card(going: 0, canJoin: true).showsGoingLine)
-        XCTAssertTrue(card(going: 2, canJoin: true).showsGoingLine)
-        XCTAssertFalse(card(going: 2, canJoin: false).showsGoingLine)
-    }
 }

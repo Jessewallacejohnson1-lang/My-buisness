@@ -32,10 +32,6 @@ extension FeedCardItem {
             hostAvatar: Self.nonempty(posting.posterAvatar).flatMap(URL.init(string:)),
             goingCount: posting.goingCount,
             goingAvatars: Array(goingPreview?.avatars.prefix(3) ?? []),
-            goingSummary: Self.goingSummary(
-                for: posting.goingCount,
-                names: goingPreview?.names ?? []
-            ),
             likeCount: posting.likeCount,
             isLiked: posting.liked,
             isSaved: false,
@@ -70,7 +66,6 @@ extension FeedCardItem {
             hostName: Self.nonempty(event.clubName) ?? Self.nonempty(event.sourceName) ?? "",
             goingCount: event.goingCount,
             goingAvatars: [],
-            goingSummary: Self.goingSummary(for: event.goingCount, names: []),
             likeCount: 0,
             isLiked: false,
             isSaved: false,
@@ -147,17 +142,6 @@ extension FeedCardItem {
         return .venueLookup(name: venue, hint: location != nil ? title : nil)
     }
 
-    private static func goingSummary(for count: Int, names: [String]) -> String {
-        guard count > 0 else { return "Nobody's going yet — be first." }
-        guard let name = names.first?.split(whereSeparator: \.isWhitespace).first.map(String.init)
-        else { return "\(count) going" }
-
-        return switch count {
-        case 1: "\(name) is going"
-        case 2: "\(name) and 1 other are going"
-        default: "\(name) and \(count - 1) others are going"
-        }
-    }
 }
 
 extension FeedPostingSection {

@@ -28,8 +28,8 @@ final class TownFeedEventsTests: XCTestCase {
                            leavesAt: now.addingTimeInterval(hours * 3600))
     }
 
-    private func feed(_ rows: [TownFeedRow], signedIn: Bool = true) -> TownFeed {
-        TownFeed { rows.map { TownFeed.entry($0, signedIn: signedIn) } }
+    private func feed(_ rows: [TownFeedRow]) -> TownFeed {
+        TownFeed { rows.map(TownFeed.entry) }
     }
 
     /// The columns `get_town_feed` returns, as PostgREST sends them. A renamed column
@@ -51,7 +51,7 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(rows[0].event.goingCount, 2)
         XCTAssertTrue(rows[0].event.rsvpd)
 
-        let card = TownFeed.entry(rows[0], signedIn: true).card
+        let card = TownFeed.entry(rows[0]).card
         XCTAssertEqual(card.recurrence, "Every 1st & 3rd Monday")
         XCTAssertEqual(card.hostName, "City of St. Joseph")
     }
@@ -69,17 +69,21 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(town.cards.map(\.id), ["later", "sooner", "going"])
     }
 
-    /// Signed out, RSVPs can't be read, so no "Nobody's going yet", and can't be
-    /// written, so no Join (Jesse, 2026-10-07).
-    func testSignedOutGetsNoJoin() async {
-        let signedOut = feed([row("a", going: 3)], signedIn: false)
-        await signedOut.reload(at: now)
-        XCTAssertFalse(signedOut.cards[0].canJoin)
+    /// Every list the feed takes, kept or read, sets each Event's Going in
+    /// `RealLifeActions`, so an event page pushed before a read shows the read's count.
+    func testEveryListTellsRealLifeActions() async {
+        let actions = RealLifeActions(signedIn: true, needsAccount: true, hold: .zero, flip: .zero,
+                                      setGoing: { _, _ in })
+        var going = 3
+        let town = TownFeed(read: { [TownFeed.entry(self.row("a", going: going))] },
+                            kept: { [TownFeed.entry(self.row("a", going: 1))] },
+                            actions: actions)
+        let pushed = TownFeed.entry(row("a", going: 0)).card
 
-        let signedIn = feed([row("a", going: 3)])
-        await signedIn.reload(at: now)
-        XCTAssertEqual(signedIn.cards[0].goingSummary, "3 going")
-        XCTAssertTrue(signedIn.cards[0].canJoin)
+        going = 5
+        await town.reload(at: now)
+        XCTAssertEqual(actions.going(pushed).count, 5)
+        XCTAssertEqual(actions.goingLine(town.cards[0]), "5 going")
     }
 
     /// A card goes once its time is up, and the feed knows when to read again.
@@ -102,7 +106,7 @@ final class TownFeedEventsTests: XCTestCase {
         let probe = Probe()
         let town = TownFeed {
             probe.clockDuringRead = probe.town?.clock
-            return [TownFeed.entry(self.row("a"), signedIn: true)]
+            return [TownFeed.entry(self.row("a"))]
         }
         probe.town = town
         let before = town.clock
@@ -116,7 +120,7 @@ final class TownFeedEventsTests: XCTestCase {
     func testAFailedReadKeepsTheListAlreadyShowing() async {
         var answers: [Result<[TownFeedEntry], Error>] = [
             .failure(Offline()),
-            .success([TownFeed.entry(row("a"), signedIn: true)]),
+            .success([TownFeed.entry(row("a"))]),
             .failure(Offline()),
         ]
         let town = TownFeed { try answers.removeFirst().get() }
@@ -138,7 +142,7 @@ final class TownFeedEventsTests: XCTestCase {
     // MARK: When the order changes (ticket 11)
 
     private func entries(_ ids: [String], going: Int = 0) -> [TownFeedEntry] {
-        ids.map { TownFeed.entry(row($0, going: going), signedIn: true) }
+        ids.map { TownFeed.entry(row($0, going: going)) }
     }
 
     /// A feed whose reads answer in turn.
@@ -214,7 +218,7 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(offline.cards.map(\.id), ["a"])
         XCTAssertTrue(offline.failed)
 
-        let gone = [TownFeed.entry(row("old", leavesIn: -1), signedIn: true)]
+        let gone = [TownFeed.entry(row("old", leavesIn: -1))]
         let stale = TownFeed(read: { throw Offline() }, kept: { gone })
         await stale.refresh(at: now)
         XCTAssertNil(stale.entries)

@@ -213,7 +213,6 @@ enum DailyFixtures {
             hostAvatar: hostAvatar ? Self.avatarURL(id) : nil,
             goingCount: going,
             goingAvatars: [],
-            goingSummary: going == 1 ? "1 neighbor is going" : "\(going) neighbors are going",
             likeCount: 0,
             isLiked: false,
             isSaved: false,

@@ -1097,7 +1097,7 @@ final class FeedWhenLineTests: XCTestCase {
         let timeOnly = FeedCardItem(
             id: "t", title: "T", dateChip: "", metaLine: "7 PM",
             image: .fallback, recurrence: nil,
-            goingCount: 0, goingAvatars: [], goingSummary: "",
+            goingCount: 0, goingAvatars: [],
             likeCount: 0, isLiked: false, isSaved: false, isJoined: false,
             startTime: "7 PM"
         )

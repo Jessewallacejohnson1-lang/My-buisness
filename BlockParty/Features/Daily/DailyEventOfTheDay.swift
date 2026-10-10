@@ -128,7 +128,7 @@ struct DailyEvent: Identifiable {
         let item = FeedCardItem(
             id: id, title: title, dateChip: "TODAY", metaLine: place,
             image: url.map { .eventPhoto($0) } ?? .fallback, recurrence: nil,
-            hostName: host, goingCount: 0, goingAvatars: [], goingSummary: "",
+            hostName: host, goingCount: 0, goingAvatars: [],
             likeCount: 0, isLiked: false, isSaved: false, isJoined: false,
             eventDate: day.string(from: starts), startTime: time.string(from: starts),
             location: place, description: description, category: category

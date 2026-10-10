@@ -17,7 +17,6 @@
 //  category (or `.other`), no grey line; no place, no pill; no photo, no hero.
 //
 
-import Combine
 import SwiftUI
 
 struct FeedEventDetailDestination: View {
@@ -28,7 +27,8 @@ struct FeedEventDetailDestination: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @StateObject private var model: FeedEventDetailModel
+    /// Going, shared with the card behind the page (`RealLifeActions`).
+    @Environment(RealLifeActions.self) private var actions
     /// Saved by the card's own rule (`FeedCardItem.isSaved(in:)`), so the two agree. A
     /// tap flips it and writes the device's saved list to match, as the card does.
     @State private var isSaved: Bool
@@ -48,14 +48,13 @@ struct FeedEventDetailDestination: View {
     /// the clamp actually cuts something.
     @State private var aboutFullHeight: CGFloat = 0
     @State private var aboutClampedHeight: CGFloat = 0
-    /// `model.failedRollbacks` when Join was last tapped. Equal means the neighbour has
+    /// `actions.failureCount` when Join was last tapped. Equal means the neighbour has
     /// tapped since the last failed turn back, so its shake stops.
     @State private var joinTappedAt = 0
 
-    init(item: FeedCardItem, inSheet: Bool = false, auth: AuthStore? = nil) {
+    init(item: FeedCardItem, inSheet: Bool = false) {
         self.item = item
         self.inSheet = inSheet
-        _model = StateObject(wrappedValue: FeedEventDetailModel(item: item, auth: auth))
         _isSaved = State(initialValue: item.isSaved(in: .shared))
         // Known already (nothing to look up, or looked up before, as on a second push):
         // the first frame draws it, so a cached venue photo never flashes a skeleton
@@ -139,16 +138,26 @@ struct FeedEventDetailDestination: View {
                 .accessibilitySortPriority(1)
         }
         .accessibilityElement(children: .contain)
+        // Whether the person may act is the module's, not the card's the page was opened
+        // with: on first launch the quiet account can arrive while the page is open, and
+        // the bar comes up then.
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if item.canJoin { bottomBar }
+            if actions.canAct {
+                bottomBar
+                    .transition(reduceMotion ? .opacity : .move(edge: .bottom))
+            }
         }
+        .animation(Motion.smooth, value: actions.canAct)
         // Hidden, never `navigationBarBackButtonHidden`. Hidden here, UIKit also turns
         // the swipe back off; `SwipeBack` (RootView) turns it back on.
         .toolbar(.hidden, for: .navigationBar)
         .animation(Motion.smooth, value: photos.count)
         .animation(Motion.smooth, value: venuePending)
         .task { await resolveVenuePhoto() }
-        .onDisappear { model.pageClosed() }
+        // A failed Join shakes and buzzes only while its page is open: the buzz used to
+        // land on Town after a pop. Leaving never cancels the write itself.
+        .onAppear { actions.pageOpened(item.id) }
+        .onDisappear { actions.pageClosed(item.id) }
     }
 
     // MARK: Photos
@@ -502,9 +511,11 @@ struct FeedEventDetailDestination: View {
     // MARK: The bar
 
     private var bottomBar: some View {
-        HStack(spacing: 12) {
+        let going = actions.going(item)
+        let failures = actions.failureCount(item.id)
+        return HStack(spacing: 12) {
             // `goingLabel` is nil at zero: never "0 going".
-            if let going = YourDayLogic.goingLabel(for: model.goingCount) {
+            if let going = YourDayLogic.goingLabel(for: going.count) {
                 Text(going)
                     .font(.sans(17))
                     .monospacedDigit()
@@ -516,13 +527,13 @@ struct FeedEventDetailDestination: View {
             Spacer(minLength: 0)
 
             // Optimistic: it answers at once, and a write that fails turns it back
-            // (`FeedEventDetailModel`), with a shake.
+            // (`RealLifeActions`), with a shake.
             Button {
-                joinTappedAt = model.failedRollbacks
-                model.toggleGoing()
-            } label: { joinFace }
+                joinTappedAt = failures
+                actions.toggleGoing(item)
+            } label: { joinFace(going.isGoing) }
                 .buttonStyle(FeedCardJoinPressStyle(reduceMotion: reduceMotion))
-                .keyframeAnimator(initialValue: CGFloat.zero, trigger: model.failedRollbacks) { [joinShakes] button, x in
+                .keyframeAnimator(initialValue: CGFloat.zero, trigger: failures) { [joinShakes = joinShakes(failures)] button, x in
                     button.offset(x: joinShakes ? x : 0)
                 } keyframes: { _ in
                     // Out 6 pt, back past centre, dying away: 0.32 s. The app has no
@@ -535,11 +546,11 @@ struct FeedEventDetailDestination: View {
                         CubicKeyframe(0, duration: 0.05)
                     }
                 }
-                .accessibilityLabel(model.isGoing ? "Going" : "Join")
-                .accessibilityAddTraits(model.isGoing ? .isSelected : [])
+                .accessibilityLabel(going.isGoing ? "Going" : "Join")
+                .accessibilityAddTraits(going.isGoing ? .isSelected : [])
         }
-        .animation(joinMorph, value: model.isGoing)
-        .animation(joinMorph, value: model.goingCount)
+        .animation(joinMorph, value: going.isGoing)
+        .animation(joinMorph, value: going.count)
         .padding(.horizontal, Metric.inset)
         .padding(.vertical, Metric.barPadding)
         .background(Hue.paper.ignoresSafeArea(edges: .bottom))
@@ -553,12 +564,12 @@ struct FeedEventDetailDestination: View {
     /// Join is the Reference's black capsule. Going inverts it the way the card's join
     /// button inverts when joined: a white face, a hairline edge and an ink check. The
     /// Reference has no Going state, so this look is guessed.
-    private var joinFace: some View {
+    private func joinFace(_ isGoing: Bool) -> some View {
         // A ZStack, not a Group: a Group hands the capsule below to each branch, so the
         // morph drew two capsules, and the one fading out stayed put while the shake
         // moved the other (the eyes pass, 2026-09-27). One capsule; only the words swap.
         ZStack {
-            if model.isGoing {
+            if isGoing {
                 Label("Going", systemImage: "checkmark")
                     .labelStyle(.titleAndIcon)
             } else {
@@ -566,25 +577,25 @@ struct FeedEventDetailDestination: View {
             }
         }
         .font(.sansSemibold(17))
-        .foregroundStyle(model.isGoing ? Hue.ink : Hue.surface)
+        .foregroundStyle(isGoing ? Hue.ink : Hue.surface)
         .frame(width: Metric.joinSize.width, height: Metric.joinSize.height)
         .background {
             Capsule()
-                .fill(model.isGoing ? Hue.surface : Hue.ink)
-                .overlay { Capsule().strokeBorder(model.isGoing ? Hue.hairline : .clear, lineWidth: 1) }
+                .fill(isGoing ? Hue.surface : Hue.ink)
+                .overlay { Capsule().strokeBorder(isGoing ? Hue.hairline : .clear, lineWidth: 1) }
         }
     }
 
     /// Whether the last failed turn back may still shake Join. Reduce Motion: never
-    /// (the error buzz still comes, from the model). A tap since then: no, so a tap
-    /// mid-shake stops it and acts at once.
-    private var joinShakes: Bool {
-        !reduceMotion && joinTappedAt != model.failedRollbacks
+    /// (the error buzz still comes, from `RealLifeActions`). A tap since then: no, so a
+    /// tap mid-shake stops it and acts at once.
+    private func joinShakes(_ failures: Int) -> Bool {
+        !reduceMotion && joinTappedAt != failures
     }
 
     /// The card's join morph (`FeedEventCardJoinButton`), both ways, rollback included.
     private var joinMorph: Animation {
-        .easeInOut(duration: reduceMotion ? 0.15 : FeedEventDetailModel.flip)
+        .easeInOut(duration: reduceMotion ? 0.15 : RealLifeActions.flip)
     }
 
     /// Takes a photo that failed out of the carousel and keeps the page in range.
@@ -665,100 +676,5 @@ struct FeedEventDetailDestination: View {
     private static func venueQuery(for item: FeedCardItem) -> (name: String, hint: String?)? {
         if case .venueLookup(let name, let hint) = item.image { return (name, hint) }
         return placeText(item).map { ($0, item.title) }
-    }
-}
-
-/// Optimistic RSVP with rollback, matching how `BriefingModel` treats a vote: the
-/// control answers instantly and only reverts if the write actually fails.
-@MainActor
-final class FeedEventDetailModel: ObservableObject {
-    @Published private(set) var isGoing: Bool
-    @Published private(set) var goingCount: Int
-    /// One more each time a failed write turns the button back by itself, once "Join"
-    /// has landed (`flip` after the turn); the page shakes the button on it. A tap that
-    /// turns it back sooner is not counted: that neighbour asked for the state they get.
-    @Published private(set) var failedRollbacks = 0
-
-    /// A failed Join still shows "Going" this long after the tap before it turns back,
-    /// so the rollback reads as the app's answer, not a flicker. Signed out, the write
-    /// failed 15 ms after the tap (measured 2026-09-26), about one frame. (guessed)
-    static let rollbackFloor: Duration = .milliseconds(600)
-
-    /// How long Join takes to turn from one face to the other, both ways: the card's
-    /// join morph (`FeedEventCardJoinButton`), in seconds.
-    static let flip: TimeInterval = 0.18
-
-    private let eventID: String
-    private let auth: AuthStore
-    private var inFlight: Task<Void, Never>?
-    /// False once the page has gone (`pageClosed`).
-    private var pageOpen = true
-    /// Where a failed write goes back to, while it waits out `rollbackFloor`.
-    private var failedFrom: (isGoing: Bool, count: Int)?
-
-    init(item: FeedCardItem, auth: AuthStore? = nil) {
-        self.eventID = item.id
-        self.auth = auth ?? .shared
-        self.isGoing = item.isJoined
-        self.goingCount = item.goingCount
-    }
-
-    func toggleGoing() {
-        Haptics.light()
-        inFlight?.cancel()
-        // The write already failed and is only waiting to turn back: turn back now,
-        // rather than toggling a state the server never had.
-        if let failedFrom {
-            rollBack(to: failedFrom)
-            return
-        }
-
-        let wasGoing = isGoing
-        let previousCount = goingCount
-        let tapped = ContinuousClock.now
-
-        isGoing = !wasGoing
-        goingCount = max(0, previousCount + (wasGoing ? -1 : 1))
-
-        inFlight = Task { [eventID, auth] in
-            do {
-                let api = CommunityAPI(auth: auth)
-                if wasGoing {
-                    try await api.unRsvpEvent(eventID)
-                } else {
-                    try await api.rsvpEvent(eventID)
-                }
-            } catch {
-                guard !Task.isCancelled else { return }
-                Log.network("event rsvp toggle failed: \(error.localizedDescription)")
-                failedFrom = (wasGoing, previousCount)
-                try? await Task.sleep(until: tapped + Self.rollbackFloor)
-                guard !Task.isCancelled, pageOpen else { return }
-                rollBack(to: (wasGoing, previousCount))
-                // Join first, then the shake: it waits for the face to finish turning, so
-                // it never shakes the two labels mid cross-fade (Jesse, 2026-09-27). A tap
-                // before then cancels it.
-                try? await Task.sleep(for: .seconds(Self.flip))
-                guard !Task.isCancelled, pageOpen else { return }
-                failedRollbacks += 1
-                // Here, not in the view: Reduce Motion drops the shake, never the buzz.
-                Haptics.error()
-                // The shake and the buzz are silent to VoiceOver; this says it.
-                AccessibilityNotification.Announcement(wasGoing ? "Couldn't leave" : "Couldn't join").post()
-            }
-        }
-    }
-
-    /// The page has gone, so a failed Join no longer turns back, shakes or buzzes: the
-    /// buzz used to land on Town after a pop. The write itself runs on, so a real RSVP
-    /// still in flight is never cancelled by leaving the page.
-    func pageClosed() {
-        pageOpen = false
-    }
-
-    private func rollBack(to state: (isGoing: Bool, count: Int)) {
-        failedFrom = nil
-        isGoing = state.isGoing
-        goingCount = state.count
     }
 }

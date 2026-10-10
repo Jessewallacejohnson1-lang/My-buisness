@@ -61,6 +61,8 @@ struct FeedEventCard: View {
     /// The device's saved list. The event page's bookmark writes it too, so a save
     /// made on either shows on both.
     @ObservedObject private var saves = SavedStore.shared
+    /// Going, shared with the event page, so a Join there shows here at once.
+    @Environment(RealLifeActions.self) private var actions
 
     init(
         item: FeedCardItem,
@@ -106,12 +108,18 @@ struct FeedEventCard: View {
                     imageSection
                         .padding(.top, item.hostName.isEmpty ? 0 : 10)
 
-                    if item.showsGoingLine {
-                        socialRow
+                    if let goingLine = actions.goingLine(item) {
+                        socialRow(goingLine)
                             .padding(.top, 10)
                             .padding(.horizontal, DailyFeedMetric.contentInset)
+                            .transition(.opacity)
                     }
                 }
+                // A Join turned back after the page has gone changes the line with
+                // nobody touching the card: it rolls, as the page's count does, rather
+                // than jumping.
+                .animation(motionIsReduced ? .easeInOut(duration: 0.15) : Motion.smooth,
+                           value: actions.going(item).count)
                 .contentShape(Rectangle())
             }
             .buttonStyle(FeedCardLinkStyle())
@@ -375,18 +383,19 @@ struct FeedEventCard: View {
 
     // MARK: - Social
 
-    private var socialRow: some View {
+    private func socialRow(_ goingLine: String) -> some View {
         HStack(spacing: 8) {
             if !item.goingAvatars.isEmpty {
                 FeedCardFacepile(
                     neighborAvatars: item.goingAvatars,
-                    goingCount: item.goingCount,
+                    goingCount: actions.going(item).count,
                     reduceMotion: motionIsReduced
                 )
             }
 
-            Text(item.goingSummary)
+            Text(goingLine)
                 .font(.sans(13))
+                .contentTransition(.numericText())
                 .foregroundStyle(Hue.inkSecondary)
                 .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                 .layoutPriority(1)

@@ -57,32 +57,37 @@ final class TownFeed {
 
     private let read: () async throws -> [TownFeedEntry]
     private let kept: () -> [TownFeedEntry]?
+    /// Told each Event's Going from every list the feed takes, in the same turn, so a
+    /// card and its Event page never disagree for a frame.
+    private let actions: RealLifeActions?
 
     /// `kept` is the list the last session left on the phone, asked for once, at the
     /// first read, so it is built with the account that read sees.
     init(read: @escaping () async throws -> [TownFeedEntry],
-         kept: @escaping () -> [TownFeedEntry]? = { nil }) {
+         kept: @escaping () -> [TownFeedEntry]? = { nil },
+         actions: RealLifeActions? = nil) {
         self.read = read
         self.kept = kept
+        self.actions = actions
     }
 
     /// The live feed, or under DEBUG `-town-samples` the sample events, so design
     /// work has photos under the chrome and never reads the live database;
     /// `-town-offline` keeps the samples on screen with every read failing.
-    convenience init() {
+    convenience init(actions: RealLifeActions? = nil) {
         #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
         if arguments.contains("-town-offline") {
             self.init(read: { throw URLError(.notConnectedToInternet) },
-                      kept: { DailyFixtures.townEntries() })
+                      kept: { DailyFixtures.townEntries() }, actions: actions)
             return
         }
         if arguments.contains("-town-samples") {
-            self.init { DailyFixtures.townEntries() }
+            self.init(read: { DailyFixtures.townEntries() }, actions: actions)
             return
         }
         #endif
-        self.init(read: Self.live, kept: Self.keptOnDisk)
+        self.init(read: Self.live, kept: Self.keptOnDisk, actions: actions)
     }
 
     /// The cards still on, in the database's order.
@@ -134,6 +139,7 @@ final class TownFeed {
         if entries == nil, !keptChecked {
             keptChecked = true
             if let kept = kept(), kept.contains(where: { $0.leavesAt > now }) {
+                actions?.read(kept.map(\.card))
                 entries = kept
                 clock = now
             }
@@ -151,6 +157,7 @@ final class TownFeed {
                 Log.ui("TownFeed: read in \(ms) ms after the feed opened, \(entries == nil ? "nothing" : "a kept list") on screen meanwhile")
                 self.cameBackAt = nil
             }
+            actions?.read(new.map(\.card))
             if entries == nil || freshOrder || (freshDue && atTop) {
                 entries = new
             } else {
@@ -170,13 +177,7 @@ final class TownFeed {
     }
 
     private static func live() async throws -> [TownFeedEntry] {
-        let auth = AuthStore.shared
-        // Read before the request picks its token, so Join and the going counts come
-        // from the same account even if the quiet account arrives mid-read.
-        let signedIn = auth.isSignedIn
-        return try await CommunityAPI(auth: auth).getTownFeed().map {
-            entry($0, signedIn: signedIn)
-        }
+        try await CommunityAPI(auth: AuthStore.shared).getTownFeed().map(entry)
     }
 
     /// The list the last live read left on disk, or nil when there is none or it no
@@ -184,14 +185,13 @@ final class TownFeed {
     private static func keptOnDisk() -> [TownFeedEntry]? {
         guard let data = TownFeedCache.load(),
               let rows = try? CommunityAPI.townFeedRows(from: data) else { return nil }
-        return rows.map { entry($0, signedIn: AuthStore.shared.isSignedIn) }
+        return rows.map(entry)
     }
 
-    /// A row as the card a club's event gets. Signed out, an RSVP can be neither read
-    /// nor written, so the card offers no Join (`FeedCardItem.canJoin`).
-    static func entry(_ row: TownFeedRow, signedIn: Bool) -> TownFeedEntry {
-        var card = FeedCardItem(row.event, recurrence: row.recurrence)
-        card.canJoin = signedIn
-        return TownFeedEntry(card: card, leavesAt: row.leavesAt)
+    /// A row as the card a club's event gets. Whether its Going may be shown or changed
+    /// is `RealLifeActions.canAct`'s, so a card read before the quiet account arrived
+    /// offers Join once it has.
+    static func entry(_ row: TownFeedRow) -> TownFeedEntry {
+        TownFeedEntry(card: FeedCardItem(row.event, recurrence: row.recurrence), leavesAt: row.leavesAt)
     }
 }

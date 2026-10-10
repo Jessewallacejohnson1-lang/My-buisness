@@ -17,19 +17,14 @@ struct FeedCardItem: Identifiable, Hashable {
     /// card. Empty means the source is unknown and the line is simply not drawn.
     var hostName: String = ""
     var hostAvatar: URL? = nil
+    /// Going as the read gave it. What a card and its page show is
+    /// `RealLifeActions.going`, which lays the neighbour's own taps over this.
     let goingCount: Int
     let goingAvatars: [URL]
-    let goingSummary: String
     var likeCount: Int
     var isLiked: Bool
     var isSaved: Bool
     var isJoined: Bool
-    /// False hides who's going, on the card and its page, and the page's Join. Signed
-    /// out, an RSVP can neither be read nor written, so none is offered (Jesse, 2026-10-07).
-    var canJoin = true
-    /// The card's going line: only where an RSVP can be read, and never at zero, as
-    /// the event page never shows a zero count (taste.md, 2026-10-04: fewer words).
-    var showsGoingLine: Bool { canJoin && goingCount > 0 }
     var eventDate: String? = nil
     var startTime: String? = nil
     var location: String? = nil
