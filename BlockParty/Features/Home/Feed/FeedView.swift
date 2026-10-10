@@ -280,13 +280,12 @@ struct FeedView: View {
         .onAppear {
             AppearanceStore.shared.holdsClock = true
             townFeed.cameBack()
-            if townFeed.returnY > 0 {
-                // Back partway down: the bar comes back floating over the feed, as
-                // Instagram's does, not at home with no edge behind it.
-                chromeFloating = true
-                chromeAnchor = townFeed.returnY
-                feedPosition.scrollTo(y: townFeed.returnY)
-            }
+            // Back partway down: jump there a turn later, once the rebuilt scroll has
+            // reported its first position, so the bar's rule sees the jump and leaves
+            // the bar as a scroll there would. Jumping at once left it at home over
+            // the cards.
+            let returnY = townFeed.returnY
+            if returnY > 0 { Task { feedPosition.scrollTo(y: returnY) } }
         }
         .onDisappear {
             AppearanceStore.shared.holdsClock = false
