@@ -103,13 +103,6 @@ nonisolated struct TownFeedRow: Hashable {
     let leavesAt: Date
 }
 
-struct WeekEvent: Identifiable, Hashable {
-    let id: String
-    let title: String
-    let dateLabel: String
-    var goingCount: Int
-}
-
 struct AgendaEvent: Identifiable, Hashable {
     let id: String
     let title: String
@@ -128,13 +121,6 @@ struct Trail: Identifiable, Hashable {
     let imageUrl: String?
     let status: ClubStatus
     let createdAt: String
-}
-
-struct DailyQuest: Codable, Identifiable, Hashable {
-    let id: String
-    let title: String
-    let description: String?
-    let date: String
 }
 
 // MARK: - Social layer (follow / like / comment / feed) — Today tab remake.
@@ -169,8 +155,8 @@ struct GoingPreview {
 
 /// One komoot-style feed card's worth of data — a posting (club_events row)
 /// with its poster identity + real social counts + the viewer's own state.
-/// `liked`/`following`/`rsvpd` start false from the RPC and are filled in by
-/// `SocialAPI.hydrateUserState(_:)` for the signed-in user.
+/// `liked`/`following`/`rsvpd` say what the viewer has done. Only DEBUG previews
+/// build these now (the legacy posting pipeline).
 struct FeedPosting: Identifiable {
     let id: String
     let title: String

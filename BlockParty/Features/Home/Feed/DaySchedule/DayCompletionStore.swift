@@ -24,7 +24,7 @@
 //  tombstone would need a nullable boolean column and a second migration; the
 //  behaviour is documented rather than faked.
 //
-//  OPTIMISTIC WITH ROLLBACK, the same shape as `BriefingModel.vote` / `setRsvp`:
+//  OPTIMISTIC WITH ROLLBACK, the same shape as `BriefingModel.vote` and `RealLifeActions`:
 //  flip locally so the box answers the tap, write, and put the previous value back
 //  if the write fails — the sheet must never show a tick that did not land.
 //

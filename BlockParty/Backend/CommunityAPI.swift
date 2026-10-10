@@ -86,7 +86,6 @@ struct CommunityAPI {
     // MARK: - User / admin
 
     func currentUserId() async -> String? { auth.userId }
-    func currentEmail() async -> String? { auth.email }
     func isAdmin() async -> Bool { Admin.isAdmin(auth.email) }
 
     // MARK: - Places (permanent food/business POI markers)
@@ -203,39 +202,6 @@ struct CommunityAPI {
         }
     }
 
-    func getUpcomingEvents() async throws -> [UpcomingEvent] {
-        let t = await readToken()
-        let uid = auth.userId
-        let today = DateHelpers.localDate()
-        let (data, _) = try await SupabaseHTTP.rest("club_events",
-            query: "select=*,clubs(name)&status=eq.approved&kind=eq.event&event_date=gte.\(today)\(Self.realOnly)&order=event_date.asc",
-            accessToken: t)
-        let events: [RawEvent] = try decode(data)
-        let ids = events.map(\.id)
-        var counts: [String: Int] = [:]
-        var mine = Set<String>()
-        // Signed out, RLS shows no RSVPs at all, so don't ask: a season of ids would
-        // only lengthen the URL toward the server's limit.
-        if uid != nil, !ids.isEmpty {
-            let (rd, _) = try await SupabaseHTTP.rest("event_rsvps",
-                query: "select=event_id,user_id&event_id=in.(\(ids.joined(separator: ",")))", accessToken: t)
-            let rsvps: [RsvpRow] = try decode(rd)
-            for r in rsvps {
-                counts[r.eventId, default: 0] += 1
-                if let uid, r.userId == uid { mine.insert(r.eventId) }
-            }
-        }
-        return events.map {
-            UpcomingEvent(id: $0.id, title: $0.title, eventDate: $0.eventDate ?? "",
-                          startTime: $0.startTime, location: $0.location,
-                          goingCount: counts[$0.id] ?? 0, createdAt: $0.createdAt ?? "",
-                          imageUrl: $0.imageUrl, rsvpd: mine.contains($0.id),
-                          clubName: $0.clubs?.name, category: EventCategory.from($0.category),
-                          endAt: DateHelpers.timestamp($0.endAt), isAllDay: $0.allDay ?? false,
-                          sourceName: $0.sourceName)
-        }
-    }
-
     /// The Town feed, in its order: what's in it, when each event leaves, and a series
     /// once with how it repeats, all worked out by `get_town_feed`, the one function
     /// iOS and Android both call. Signed out, it reads with the public key, as
@@ -283,21 +249,6 @@ struct CommunityAPI {
                                       endAt: DateHelpers.timestamp(row.endAt),
                                       isAllDay: row.allDay, sourceName: row.sourceName)
             return TownFeedRow(event: event, recurrence: row.recurrence, leavesAt: leavesAt)
-        }
-    }
-
-    func getWeekEvents() async throws -> [WeekEvent] {
-        let t = try await token()
-        let today = DateHelpers.localDate()
-        let until = DateHelpers.localDate(DateHelpers.addDays(7))
-        let (data, _) = try await SupabaseHTTP.rest("club_events",
-            query: "select=*&status=eq.approved&kind=eq.event&event_date=gt.\(today)&event_date=lte.\(until)\(Self.realOnly)&order=event_date.asc",
-            accessToken: t)
-        let events: [RawEvent] = try decode(data)
-        let counts = try await rsvpCounts(eventIds: events.map(\.id), token: t)
-        return events.map {
-            WeekEvent(id: $0.id, title: $0.title, dateLabel: DateHelpers.weekdayLabel($0.eventDate ?? ""),
-                      goingCount: counts[$0.id] ?? 0)
         }
     }
 
@@ -392,38 +343,6 @@ struct CommunityAPI {
     }
 
     // MARK: - Quests
-
-    func getTodayQuest() async throws -> DailyQuest? {
-        let t = try await token()
-        let today = DateHelpers.localDate()
-        let (data, _) = try await SupabaseHTTP.rest("daily_quests",
-            query: "select=id,title,description,date&date=eq.\(today)", accessToken: t)
-        let quests: [DailyQuest] = try decode(data)
-        return quests.first
-    }
-
-    func getQuestCompletionCount(_ questId: String) async throws -> Int {
-        let t = try await token()
-        let (data, _) = try await SupabaseHTTP.rest("quest_completions",
-            query: "select=id&quest_id=eq.\(questId)", accessToken: t)
-        let rows: [IdRow] = try decode(data)
-        return rows.count
-    }
-
-    func hasUserCompletedQuest(_ questId: String, userId: String) async throws -> Bool {
-        let t = try await token()
-        let (data, _) = try await SupabaseHTTP.rest("quest_completions",
-            query: "select=id&quest_id=eq.\(questId)&user_id=eq.\(userId)&limit=1", accessToken: t)
-        let rows: [IdRow] = try decode(data)
-        return !rows.isEmpty
-    }
-
-    func completeQuest(_ questId: String) async throws {
-        let t = try await token()
-        let uid = try await uidOrThrow()
-        _ = try await SupabaseHTTP.rest("quest_completions", method: "POST", accessToken: t,
-                                        body: try body(["quest_id": questId, "user_id": uid]), prefer: "return=minimal")
-    }
 
     func setQuest(title: String, description: String, date: String) async throws {
         let t = try await token()

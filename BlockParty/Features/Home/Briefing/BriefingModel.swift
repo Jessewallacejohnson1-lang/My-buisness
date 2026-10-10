@@ -25,8 +25,7 @@ final class BriefingModel: ObservableObject {
     @Published private(set) var loadFailed = false
     @Published private(set) var hasLoaded = false
 
-    /// Guards against a stale in-flight response overwriting a newer one, the
-    /// same generation-counter pattern HomeModel uses.
+    /// Guards against a stale in-flight response overwriting a newer one.
     private var generation = 0
 
     // MARK: - Loading
@@ -113,30 +112,6 @@ final class BriefingModel: ObservableObject {
         }
     }
 
-    /// Same shape as voting: flip locally so the control answers the tap, write,
-    /// and restore the previous payload if the write fails. The going count moves
-    /// with it, so the number never disagrees with the button beside it.
-    @discardableResult
-    func setRsvp(_ api: CommunityAPI, event: BriefingEvent, going: Bool) async -> Bool {
-        guard let current = payload else { return false }
-        payload = current.applyingRsvp(eventID: event.id, going: going)
-
-        do {
-            if going {
-                try await api.rsvpEvent(event.id)
-            } else {
-                try await api.unRsvpEvent(event.id)
-            }
-            if let payload { BriefingCache.save(payload: payload) }
-            return true
-        } catch {
-            Log.network("briefing rsvp failed: \(error.localizedDescription)")
-            payload = payload?.applyingRsvp(eventID: event.id, going: !going)
-            Haptics.error()
-            return false
-        }
-    }
-
     #if DEBUG
     /// The canned payload named by `-briefing-state <name>`, if any. Defaults to
     /// the three-event sample when the flag is passed with no name.
@@ -178,36 +153,7 @@ nonisolated extension BriefingTouch {
     }
 }
 
-nonisolated extension BriefingEvent {
-    /// A copy with the caller's RSVP flipped and the going count moved to match.
-    /// The count is floored at zero so a stale payload cannot render "-1 going".
-    func applyingRsvp(_ going: Bool) -> BriefingEvent {
-        guard going != rsvpd else { return self }
-        return BriefingEvent(
-            rank: rank, id: id, title: title, eventDate: eventDate, startTime: startTime,
-            location: location, imageUrl: imageUrl, clubName: clubName, category: category,
-            goingCount: max(0, goingCount + (going ? 1 : -1)), goingAvatars: goingAvatars,
-            likeCount: likeCount, commentCount: commentCount,
-            rsvpd: going, saved: saved, liked: liked
-        )
-    }
-}
-
 nonisolated extension BriefingPayload {
-    /// A copy with one featured event's RSVP state changed.
-    func applyingRsvp(eventID: String, going: Bool) -> BriefingPayload {
-        applying(featured: featured.map { $0.id == eventID ? $0.applyingRsvp(going) : $0 })
-    }
-
-    private func applying(featured newFeatured: [BriefingEvent]) -> BriefingPayload {
-        BriefingPayload(
-            briefingDate: briefingDate, tz: tz, status: status, publishedAt: publishedAt,
-            weather: weather, featured: newFeatured,
-            featuredFallback: featuredFallback, touch: touch,
-            spotlight: spotlight, caughtUp: caughtUp
-        )
-    }
-
     /// A copy carrying a different touch, leaving every other module untouched.
     func applying(touch newTouch: BriefingTouch) -> BriefingPayload {
         BriefingPayload(

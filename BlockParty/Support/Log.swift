@@ -28,7 +28,7 @@
 //  The logger itself still records no user identity and sends nothing anywhere.
 //
 //  The os.Logger interpolation lives here so call sites need no `import os` — they
-//  pass a plain String:  catch { Log.network("HomeModel.load: \(error)") }
+//  pass a plain String:  catch { Log.network("TownFeed: \(error)") }
 //
 
 import OSLog
