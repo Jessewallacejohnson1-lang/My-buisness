@@ -236,6 +236,26 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(town.returnY, 0)
     }
 
+    /// Reads overlap: a slow one that lands last never overwrites a newer answer.
+    func testOnlyTheNewestReadIsKept() async {
+        final class Gate { var open: (() -> Void)?; var calls = 0 }
+        let gate = Gate()
+        let town = TownFeed(read: {
+            gate.calls += 1
+            if gate.calls == 1 {
+                await withCheckedContinuation { done in gate.open = { done.resume() } }
+                return self.entries(["older"])
+            }
+            return self.entries(["newer"])
+        })
+        let slow = Task { await town.reload(at: now) }
+        while gate.open == nil { await Task.yield() }
+        await town.reload(at: now)
+        gate.open?()
+        await slow.value
+        XCTAssertEqual(town.cards.map(\.id), ["newer"])
+    }
+
     /// One kept list per account, since it holds that person's Going: saving one
     /// removes another's.
     func testTheKeptListBelongsToOneAccount() {

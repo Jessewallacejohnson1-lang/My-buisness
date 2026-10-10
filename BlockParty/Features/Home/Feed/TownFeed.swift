@@ -51,6 +51,8 @@ final class TownFeed {
     @ObservationIgnored private var freshDue = false
     @ObservationIgnored private var refreshing = false
     @ObservationIgnored private var keptChecked = false
+    /// Numbers each read, so only the newest one's answer is kept.
+    @ObservationIgnored private var latestRead = 0
     /// When the feed last came on screen, for the speed log.
     @ObservationIgnored private var cameBackAt: Date?
 
@@ -142,8 +144,13 @@ final class TownFeed {
             }
         }
         if entries == nil { failed = false }
+        // Reads overlap (the feed opening, the foreground, a new account): a slow one
+        // that lands last must not overwrite a newer one's answer.
+        latestRead &+= 1
+        let thisRead = latestRead
         do {
             let new = try await read()
+            guard thisRead == latestRead else { return }
             if let cameBackAt {
                 let ms = Int(Date().timeIntervalSince(cameBackAt) * 1000)
                 Log.ui("TownFeed: read in \(ms) ms after the feed opened, \(entries == nil ? "nothing" : "a kept list") on screen meanwhile")
@@ -160,7 +167,7 @@ final class TownFeed {
         } catch {
             // Left mid-read (the tab went away): not a failure; the read runs again
             // when the feed comes back.
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, thisRead == latestRead else { return }
             Log.network("TownFeed: \(error)")
             failed = true
         }
