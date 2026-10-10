@@ -245,7 +245,7 @@ struct CommunityAPI {
                                                     accessToken: await readToken(),
                                                     body: Data("{}".utf8))
         let rows = try Self.townFeedRows(from: data)
-        TownFeedCache.save(data, for: auth.userId)
+        TownFeedCache.save(data)
         return rows
     }
 

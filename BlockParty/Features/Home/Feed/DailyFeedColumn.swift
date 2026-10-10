@@ -31,6 +31,9 @@ nonisolated enum DailyFeedMetric {
 struct DailyFeedColumn: View {
     /// What to show, in the order to show it.
     var items: [DailyFeedItem]
+    /// The first cards rise in as the column appears. Off when the Town feed comes
+    /// back partway down, where they would fade in after the tab had slid in.
+    var entrance = true
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var revealedIDs: Set<String> = []
@@ -50,16 +53,13 @@ struct DailyFeedColumn: View {
                     card(for: item)
                         .modifier(DailyCardEntrance(
                             index: index,
-                            enabled: index < Self.entranceCardCount && !reduceMotion,
+                            enabled: entrance && index < Self.entranceCardCount && !reduceMotion,
                             revealed: revealedIDs.contains(item.id),
                             onReveal: { revealedIDs.insert(item.id) }
                         ))
                 }
             }
         }
-        // Each card is a scroll target, so the Town feed can tell which one is at
-        // the top and land on it again after a tab switch.
-        .scrollTargetLayout()
         // NO horizontal inset: the cards' media runs edge to edge. Each card insets
         // its own copy and controls by `DailyFeedMetric.contentInset`.
         .padding(.top, 12)

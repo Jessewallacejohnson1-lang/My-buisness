@@ -183,10 +183,11 @@ private nonisolated enum TodayBarMetric {
     /// keyboard, a grey room, a black video). At 0.6 ours read 68–74%; 0.68 lands
     /// on Instagram's middle. Tuned on the simulator.
     static let discWhite: Double = 0.68
-    /// The offline pill: 32pt tall, 8pt under the bar's row. PICKED, from the
-    /// Particle News Reference at 393pt wide.
-    static let offlinePillHeight: CGFloat = 32
+    /// The offline pill: 38pt tall, MEASURED from the Particle News Reference
+    /// (38.7pt); 8pt under the bar's row and its shadow are PICKED.
+    static let offlinePillHeight: CGFloat = 38
     static let offlinePillGap: CGFloat = 8
+    static let offlinePillShadow: Double = 0.12
     /// The centred wordmark's height. 31 runs the lockup 151pt wide — 18 → 24 → 31
     /// over three passes on 2026-09-19, Jesse each time. It still clears the map
     /// disc beside it, with the bar's 58pt content height as the hard ceiling.
@@ -677,6 +678,10 @@ private struct OfflinePill: View {
         .padding(.horizontal, 14)
         .frame(height: TodayBarMetric.offlinePillHeight)
         .background(Frosted(shape: Capsule()))
+        // The frosted white alone barely shows on the paper at the top of the feed.
+        .shadow(color: .black.opacity(TodayBarMetric.offlinePillShadow), radius: 8, y: 2)
+        // A label, not a control: taps go through to the card under it.
+        .allowsHitTesting(false)
         // VoiceOver hears it once as an announcement when it appears (FeedView).
         .accessibilityElement(children: .combine)
     }

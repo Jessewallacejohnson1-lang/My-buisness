@@ -49,7 +49,6 @@ final class TownFeed {
     /// When the feed went off screen; a launch counts as long away.
     @ObservationIgnored private var awaySince: Date? = .distantPast
     @ObservationIgnored private var freshDue = false
-    @ObservationIgnored private var refreshing = false
     @ObservationIgnored private var keptChecked = false
     /// Numbers each read, so only the newest one's answer is kept.
     @ObservationIgnored private var latestRead = 0
@@ -115,12 +114,8 @@ final class TownFeed {
         }
     }
 
-    /// Reads behind the list on screen (coming back, a card leaving). A second call
-    /// while one is reading does nothing.
+    /// Reads behind the list on screen (coming back, a card leaving).
     func refresh(at now: Date = Date()) async {
-        guard !refreshing else { return }
-        refreshing = true
-        defer { refreshing = false }
         await readAgain(at: now, freshOrder: false)
     }
 
@@ -184,10 +179,9 @@ final class TownFeed {
     /// The list the last live read left on disk, or nil when there is none or it no
     /// longer decodes.
     private static func keptOnDisk() -> [TownFeedEntry]? {
-        let auth = AuthStore.shared
-        guard let data = TownFeedCache.load(for: auth.userId),
+        guard let data = TownFeedCache.load(),
               let rows = try? CommunityAPI.townFeedRows(from: data) else { return nil }
-        return rows.map { entry($0, signedIn: auth.isSignedIn) }
+        return rows.map { entry($0, signedIn: AuthStore.shared.isSignedIn) }
     }
 
     /// A row as the card a club's event gets. Signed out, an RSVP can be neither read

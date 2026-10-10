@@ -55,6 +55,9 @@ struct FeedView: View {
     /// setup, so without it the scrolled state — where the top glass fade actually
     /// does anything — cannot be screenshotted at all.
     @State private var feedPosition = ScrollPosition()
+    /// Fixed for this view's life: whether the Town feed's first cards rise in. Not
+    /// when it comes back partway down (`TownFeed.returnY`).
+    @State private var entrance: Bool
 
     /// A read failed while a list is showing: the bar says so (ticket 11).
     private var offline: Bool { townFeed.failed && townFeed.entries != nil }
@@ -78,6 +81,7 @@ struct FeedView: View {
         self.onOpenNotifications = onOpenNotifications
         self.profileShown = profileShown
         self.townFeed = townFeed
+        _entrance = State(initialValue: townFeed.returnY == 0)
 
         let briefing = BriefingModel()
         let context = FeedModuleContext(
@@ -186,7 +190,8 @@ struct FeedView: View {
                 // above the stream, not buried in it.
                 ZStack(alignment: .top) {
                     if townFeed.entries != nil {
-                        DailyFeedColumn(items: townFeed.cards.map { .event($0) })
+                        DailyFeedColumn(items: townFeed.cards.map { .event($0) },
+                                        entrance: entrance)
                             // A card whose time is up goes, and a series' next date
                             // comes in, rather than popping.
                             .animation(Motion.smooth, value: townFeed.clock)
@@ -280,12 +285,20 @@ struct FeedView: View {
         .onAppear {
             AppearanceStore.shared.holdsClock = true
             townFeed.cameBack()
-            // Back partway down: jump there a turn later, once the rebuilt scroll has
-            // reported its first position, so the bar's rule sees the jump and leaves
-            // the bar as a scroll there would. Jumping at once left it at home over
-            // the cards.
+            // Back partway down: land there at once, and a turn later leave the bar
+            // as a scroll there would, gone and floating once it comes back. The
+            // rebuilt view starts with the bar at home, and the jump isn't always
+            // reported to the bar's rule, which left it at home over the cards.
             let returnY = townFeed.returnY
-            if returnY > 0 { Task { feedPosition.scrollTo(y: returnY) } }
+            if returnY > 0 {
+                feedPosition.scrollTo(y: returnY)
+                Task {
+                    chromeHidden = true
+                    chromeFloating = true
+                    chromeAnchor = returnY
+                    barTravel.points = TodayHeader.homeTravel(offset: returnY)
+                }
+            }
         }
         .onDisappear {
             AppearanceStore.shared.holdsClock = false
@@ -293,13 +306,10 @@ struct FeedView: View {
         }
         .scrollPosition($feedPosition)
         .refreshable {
-            // Side by side: the feed must not wait on the briefing's round trip, and
+            // Not awaited: the feed must not wait on the briefing's round trip, and
             // the briefing renders nothing today.
-            let briefing = Task {
-                if controller.briefing.needsRefresh { await controller.refreshBriefing() }
-            }
+            Task { if controller.briefing.needsRefresh { await controller.refreshBriefing() } }
             await townFeed.reload()
-            await briefing.value
 
             revealAnimated = false
             revealed = false

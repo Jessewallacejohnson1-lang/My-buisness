@@ -256,15 +256,11 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(town.cards.map(\.id), ["newer"])
     }
 
-    /// One kept list per account, since it holds that person's Going: saving one
-    /// removes another's.
-    func testTheKeptListBelongsToOneAccount() {
-        TownFeedCache.save(Data("[1]".utf8), for: "test-person-1")
-        XCTAssertEqual(TownFeedCache.load(for: "test-person-1"), Data("[1]".utf8))
-        XCTAssertNil(TownFeedCache.load(for: "test-person-2"))
-
-        TownFeedCache.save(Data("[2]".utf8), for: "test-person-2")
-        XCTAssertNil(TownFeedCache.load(for: "test-person-1"))
-        XCTAssertEqual(TownFeedCache.load(for: "test-person-2"), Data("[2]".utf8))
+    /// The kept list reads back what was saved, and signing out clears it.
+    func testTheKeptListIsClearedOnSignOut() {
+        TownFeedCache.save(Data("[1]".utf8))
+        XCTAssertEqual(TownFeedCache.load(), Data("[1]".utf8))
+        TownFeedCache.clear()
+        XCTAssertNil(TownFeedCache.load())
     }
 }
