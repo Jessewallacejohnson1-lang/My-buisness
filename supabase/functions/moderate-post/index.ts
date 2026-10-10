@@ -36,6 +36,9 @@ Deno.serve(async (req) => {
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, publishableKeys['default'])
     const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token)
     if (claimsError || !claimsData?.claims?.sub) return json({ ok: false, reason: 'Unauthorized.' }, 401)
+    // An anonymous account (every install's quiet account, 2026-10-09) can't publish,
+    // so it never needs a check and must not be able to spend credits on one.
+    if (claimsData.claims.is_anonymous === true) return json({ ok: false, reason: 'Sign in to post.' }, 403)
   } catch {
     return json({ ok: false, reason: 'Unauthorized.' }, 401)
   }

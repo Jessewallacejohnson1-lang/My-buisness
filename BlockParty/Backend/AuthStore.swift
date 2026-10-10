@@ -25,7 +25,7 @@ final class AuthStore: ObservableObject, TokenProviding {
     var userId: String? { session?.user.id }
 
     private var refreshTask: Task<Void, Error>?
-    private var accountTask: Task<Void, Never>?
+    private var makingAccount = false
     /// Bumped whenever the signed-in identity intentionally changes (sign-out). An
     /// in-flight refresh captures this at start and refuses to write a session whose
     /// generation is stale — so a refresh resolving after sign-out can't resurrect
@@ -52,29 +52,34 @@ final class AuthStore: ObservableObject, TokenProviding {
     /// Heart work before sign-in exists (BP app docs/plans/real-life-actions). Runs
     /// after `restore()` and on each return to the foreground. Silent on failure
     /// (offline, Supabase's per-network limit): the app reads with the public key as
-    /// before and tries again next time. Unit tests make no account.
+    /// before and tries again next time.
     func ensureAccount() async {
-        guard !booting, session == nil,
-              ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil
-        else { return }
-        if let accountTask {
-            await accountTask.value
-            return
-        }
+        guard !booting, session == nil, !makingAccount, Self.makesAccounts else { return }
+        makingAccount = true
+        defer { makingAccount = false }
         let generation = sessionGeneration
-        let task = Task {
-            do {
-                let data = try await SupabaseHTTP.auth("signup", body: [:])
-                // A session restored or signed into meanwhile wins over this one.
-                guard session == nil, generation == sessionGeneration else { return }
-                try setSession(from: data)
-            } catch {
-                Log.network("AuthStore: anonymous account not made: \(error)")
-            }
+        do {
+            let data = try await SupabaseHTTP.auth("signup", body: [:])
+            // A session restored or signed into meanwhile wins over this one.
+            guard session == nil, generation == sessionGeneration else { return }
+            try setSession(from: data)
+        } catch {
+            Log.network("AuthStore: anonymous account not made: \(error)")
         }
-        accountTask = task
-        defer { accountTask = nil }
-        await task.value
+    }
+
+    /// Unit tests, UI tests and sample mode make no live account: each fresh install of
+    /// those would add one to the live project, inside the same 30-an-hour limit
+    /// Jesse's phone shares on this network.
+    private static var makesAccounts: Bool {
+        let process = ProcessInfo.processInfo
+        if process.environment["XCTestConfigurationFilePath"] != nil { return false }
+        #if DEBUG
+        if process.arguments.contains("-ui-tests") || process.arguments.contains("-town-samples") {
+            return false
+        }
+        #endif
+        return true
     }
 
     // MARK: - Flows (return a user-facing error string, nil on success)

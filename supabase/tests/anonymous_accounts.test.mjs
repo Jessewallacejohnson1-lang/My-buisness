@@ -10,7 +10,9 @@ import { PGlite } from '@electric-sql/pglite';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
-const file = readdirSync(migrations).find((f) => f.endsWith('_anonymous_accounts.sql'));
+const files = readdirSync(migrations)
+  .filter((f) => f.endsWith('_anonymous_accounts.sql') || f.endsWith('_anonymous_profile_photos.sql'))
+  .sort();
 
 const db = await PGlite.create();
 await db.exec(`
@@ -37,7 +39,7 @@ await db.exec(`
     event_id uuid not null, user_id uuid not null, body text not null);
   create table public.event_rsvps (id uuid primary key default gen_random_uuid(),
     event_id uuid not null, user_id uuid not null);
-  create table public.town_profiles (user_id uuid primary key, display_name text);
+  create table public.town_profiles (user_id uuid primary key, display_name text, avatar_url text);
   create table storage.objects (id uuid primary key default gen_random_uuid(),
     bucket_id text not null, name text not null);
 
@@ -61,13 +63,17 @@ await db.exec(`
   create policy "read rsvps" on public.event_rsvps for select to authenticated using (true);
   create policy "town_profiles_insert_own" on public.town_profiles for insert to public
     with check (auth.uid() = user_id);
+  create policy "town_profiles_update_own" on public.town_profiles for update to public
+    using (auth.uid() = user_id);
+  create policy "town_profiles_select_own" on public.town_profiles for select to public
+    using (auth.uid() = user_id);
   create policy "avatars_insert_own" on storage.objects for insert to authenticated
     with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
   create policy "event images authenticated upload" on storage.objects for insert to authenticated
     with check (bucket_id = 'event-images');
-  grant select, insert, delete on all tables in schema public, storage to anon, authenticated;
+  grant select, insert, update, delete on all tables in schema public, storage to anon, authenticated;
 `);
-await db.exec(readFileSync(join(migrations, file), 'utf8'));
+for (const f of files) await db.exec(readFileSync(join(migrations, f), 'utf8'));
 
 const ANON_USER = '00000000-0000-0000-0000-0000000000a1';
 const REAL_USER = '00000000-0000-0000-0000-0000000000b2';
@@ -89,9 +95,13 @@ test('an anonymous account can add and remove its own Going', async () => {
   await denied(`insert into public.event_rsvps (event_id, user_id) values ($1, $2)`, [event, REAL_USER]);
 });
 
-test('an anonymous account keeps its own profile name', async () => {
+test('an anonymous account keeps its own profile name, but no photo link', async () => {
   await as('authenticated', ANON_USER, true);
   await allowed(`insert into public.town_profiles (user_id, display_name) values ($1, 'Sam')`, [ANON_USER]);
+  await allowed(`update public.town_profiles set display_name = 'Sam B' where user_id = $1`, [ANON_USER]);
+  await denied(`update public.town_profiles set avatar_url = 'https://example.com/x.jpg' where user_id = $1`, [ANON_USER]);
+  await as('authenticated', REAL_USER, false);
+  await allowed(`insert into public.town_profiles (user_id, avatar_url) values ($1, 'https://example.com/me.jpg')`, [REAL_USER]);
 });
 
 test('an anonymous account cannot post an Event, a club, a comment or a photo', async () => {

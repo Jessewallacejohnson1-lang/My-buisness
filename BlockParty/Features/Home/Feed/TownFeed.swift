@@ -78,8 +78,11 @@ final class TownFeed {
 
     private static func live() async throws -> [TownFeedEntry] {
         let auth = AuthStore.shared
+        // Read before the request picks its token, so Join and the going counts come
+        // from the same account even if the quiet account arrives mid-read.
+        let signedIn = auth.isSignedIn
         return try await CommunityAPI(auth: auth).getTownFeed().map {
-            entry($0, signedIn: auth.isSignedIn)
+            entry($0, signedIn: signedIn)
         }
     }
 
