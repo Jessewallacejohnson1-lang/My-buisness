@@ -214,7 +214,8 @@ struct FeedEventCard: View {
                     .frame(width: Self.menuTarget, height: Self.menuTarget)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(SquishStyle())
+            // Dims under the finger, as a bar icon does: a squish doesn't show on 15pt of dots.
+            .buttonStyle(DimStyle())
             .padding(.trailing, DailyFeedMetric.contentInset - Self.menuDotsInset)
             // Centred on the 32pt host row.
             .offset(y: (Self.hostAvatarSide - Self.menuTarget) / 2)
