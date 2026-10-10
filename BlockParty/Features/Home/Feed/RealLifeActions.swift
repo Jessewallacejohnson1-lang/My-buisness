@@ -52,6 +52,8 @@ final class RealLifeActions {
     @ObservationIgnored private var taps: [String: Int] = [:]
     @ObservationIgnored private var tappedAt: [String: ContinuousClock.Instant] = [:]
     @ObservationIgnored private var openPages: [String: Int] = [:]
+    /// Numbers each account, so a write the last one sent says nothing about this one.
+    @ObservationIgnored private var account = 0
 
     private let needsAccount: Bool
     private let holdFor: Duration
@@ -175,15 +177,15 @@ final class RealLifeActions {
         openPages[eventID] = max(0, (openPages[eventID] ?? 0) - 1)
     }
 
-    /// A new account (or none): the last one's state is not this one's.
+    /// A new account (or none): the last one's choices are not this one's. Its base
+    /// stays until the feed reads again for the new one.
     func accountChanged(signedIn: Bool) {
         canAct = signedIn || !needsAccount
+        account &+= 1
         turnBacks.values.forEach { $0.cancel() }
         turnBacks = [:]
         failedFrom = [:]
-        taps = [:]
         chosen = [:]
-        base = [:]
     }
 
     // MARK: Inside
@@ -192,14 +194,23 @@ final class RealLifeActions {
     /// time. A failure a newer tap has overtaken just lets the loop write that tap.
     private func write(_ id: String) async {
         var written: Bool?
-        while let choice = chosen[id], choice != written {
+        var account = self.account
+        while let choice = chosen[id] {
+            // A new account came mid-write: what the last one's writes did says nothing
+            // about this one's, so its choice is written whatever it is.
+            if account != self.account {
+                account = self.account
+                written = nil
+            }
+            guard choice != written else { break }
             let tap = taps[id]
             do {
                 try await setGoing(id, choice)
                 written = choice
             } catch {
                 Log.network("RealLifeActions: going \(choice) for \(id) failed: \(error.localizedDescription)")
-                guard tap == taps[id] else { continue }
+                // A newer tap, or a new account, overtook this write: no turn back.
+                guard tap == taps[id], account == self.account else { continue }
                 writers[id] = nil
                 turnBack(id, to: !choice)
                 return

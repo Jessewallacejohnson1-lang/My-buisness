@@ -84,6 +84,16 @@ final class TownFeedEventsTests: XCTestCase {
         await town.reload(at: now)
         XCTAssertEqual(actions.going(pushed).count, 5)
         XCTAssertEqual(actions.goingLine(town.cards[0]), "5 going")
+
+        // Offline at launch: the kept list is all there is, and it sets the base too.
+        let offlineActions = RealLifeActions(signedIn: true, needsAccount: true, hold: .zero, flip: .zero,
+                                             setGoing: { _, _ in })
+        let offline = TownFeed(read: { throw Offline() },
+                               kept: { [TownFeed.entry(self.row("a", going: 1))] },
+                               actions: offlineActions)
+        await offline.reload(at: now)
+        XCTAssertTrue(offline.failed)
+        XCTAssertEqual(offlineActions.going(pushed).count, 1)
     }
 
     /// A card goes once its time is up, and the feed knows when to read again.

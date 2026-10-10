@@ -382,12 +382,6 @@ struct MainTabsView: View {
     var body: some View {
         NavigationStack(path: $path) {
             shell
-                // The quiet account arrives after the first read: Join comes up at once,
-                // and the feed reads again for who's going as this account sees it.
-                .onChange(of: auth.userId) { _, _ in
-                    actions.accountChanged(signedIn: auth.isSignedIn)
-                    Task { await townFeed.reload() }
-                }
                 .toolbar(.hidden, for: .navigationBar)
                 .background { SwipeBack().frame(width: 0, height: 0) }
                 .navigationDestination(for: FeedCardItem.self) { item in
@@ -408,6 +402,13 @@ struct MainTabsView: View {
         }
         // Outside the stack, so pushed pages and sheets read the same one.
         .environment(actions)
+        // The quiet account arrives after the first read: Join comes up at once, even on
+        // an event page already open, and the feed reads again for who's going as this
+        // account sees it. Here, not on the stack's root, which a pushed page covers.
+        .onChange(of: auth.userId) { _, _ in
+            actions.accountChanged(signedIn: auth.isSignedIn)
+            Task { await townFeed.reload() }
+        }
         .onAppear {
             // DEBUG: `-open-friends` lands on the inbox, `-open-friends-chat` on its newest chat.
             if Self.debugOpen("-open-friends") || Self.debugOpen("-open-friends-chat") { openFriends() }

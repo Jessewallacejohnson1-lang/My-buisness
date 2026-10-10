@@ -149,7 +149,6 @@ struct EventComment: Identifiable {
 /// Up to three public identities for an event's going facepile. Counts remain
 /// authoritative on `FeedPosting`; this is only the lightweight display sample.
 struct GoingPreview {
-    let names: [String]
     let avatars: [URL]
 }
 

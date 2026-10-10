@@ -117,10 +117,7 @@ enum FeedPipelineSelfCheck {
             URL(string: "https://example.com/alex.jpg")!,
             URL(string: "https://example.com/lee.jpg")!
         ]
-        let preview = GoingPreview(
-            names: ["Sam Rivera", "Maya Chen", "Alex Kim"],
-            avatars: avatarURLs
-        )
+        let preview = GoingPreview(avatars: avatarURLs)
 
         let manyGoing = FeedCardItem(
             from: posting("many", title: "Many", date: "2026-07-24", going: 4),

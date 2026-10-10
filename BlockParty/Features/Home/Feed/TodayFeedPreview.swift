@@ -97,7 +97,6 @@ struct TodayFeedPreview: View {
 
     private static let goingPreviews: [String: GoingPreview] = [
         "preview-today": GoingPreview(
-            names: ["Sam Rivera", "Maya Chen", "Alex Kim"],
             avatars: ["the-local-blend", "farmers-market", "rivers-bend-park"]
                 .compactMap(bundledPhotoURL)
         )

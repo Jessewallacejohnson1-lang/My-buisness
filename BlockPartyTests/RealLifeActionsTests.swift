@@ -202,6 +202,36 @@ final class RealLifeActionsTests: XCTestCase {
         XCTAssertNil(actions.goingLine(card(going: 0)), "never at zero")
     }
 
+    /// The account changes while a write is out (the quiet account replacing a cleared
+    /// one): that write's failure turns nothing back for the new account, and the new
+    /// account's own tap is written, even when it matches what the old write sent.
+    func testANewAccountIgnoresTheLastOnesWrite() async throws {
+        let server = Server()
+        server.delay = .milliseconds(40)
+        server.failing = true
+        let actions = actions(server)
+        let item = card()
+        actions.pageOpened(item.id)
+
+        actions.toggleGoing(item)
+        try await Task.sleep(for: .milliseconds(5))
+        actions.accountChanged(signedIn: true)
+        XCTAssertFalse(actions.going(item).isGoing, "the last account's choice is gone")
+        try await Task.sleep(for: (Self.hold + Self.flip) * 2)
+        XCTAssertFalse(actions.going(item).isGoing)
+        XCTAssertEqual(actions.failureCount(item.id), 0, "no shake for the last account's write")
+
+        server.failing = false
+        server.writes = []
+        actions.toggleGoing(item)
+        try await Task.sleep(for: .milliseconds(5))
+        actions.accountChanged(signedIn: true)
+        actions.toggleGoing(item)
+        try await Task.sleep(for: .milliseconds(150))
+        XCTAssertEqual(server.writes, [true, true], "the new account's Join is sent, not assumed")
+        XCTAssertTrue(actions.going(item).isGoing)
+    }
+
     /// Sample mode's writes go nowhere, so a Join on a sample card never reaches the
     /// live database; offline's always fail. Release builds always write for real.
     func testSampleModeNeverWritesLive() {
