@@ -27,8 +27,8 @@ skill.** Surface the mismatch rather than inventing a path or an API around it.
 5. **Keep it tidy.** `[prose]` Every project lives in its own folder. Never dump loose
    files at the repo root. New code goes in the folder its feature already owns.
 6. **Short answers.** `[prose]` Bullets over paragraphs. No essays.
-7. **Show drafts before anything gets sent anywhere** `[prose]` — a commit, a push, a
-   migration, a message, a deploy.
+7. **Show drafts before anything gets sent anywhere** `[prose]` — a push, a migration, a
+   message, a deploy. Local commits need no draft.
 
 ### Corrections become rules — `MEMORY.md`
 
