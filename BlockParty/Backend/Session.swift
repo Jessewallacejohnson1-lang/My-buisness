@@ -42,6 +42,14 @@ struct Session: Codable, Equatable {
 enum Keychain {
     private static let account = "bp.session"
 
+    #if targetEnvironment(simulator)
+    /// Simulator builds made without signing (bp-build's `xc.sh`) carry no keychain
+    /// entitlement, so every save failed (-34018) and each launch made a new anonymous
+    /// account on the live project. There, and only there, the session lives in
+    /// UserDefaults instead: it survives relaunches, not an uninstall.
+    private static let simulatorKey = "bp.session.simulator"
+    #endif
+
     /// Updates the stored session in place, adding it when there is none. Never
     /// deletes first: an anonymous account lost between a delete and an add can't be
     /// signed back into.
@@ -58,6 +66,12 @@ enum Keychain {
             add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
             status = SecItemAdd(add as CFDictionary, nil)
         }
+        #if targetEnvironment(simulator)
+        if status == errSecMissingEntitlement {
+            UserDefaults.standard.set(data, forKey: simulatorKey)
+            return
+        }
+        #endif
         if status != errSecSuccess { Log.network("Keychain: session not saved (\(status))") }
     }
 
@@ -69,9 +83,12 @@ enum Keychain {
             kSecMatchLimit as String: kSecMatchLimitOne,
         ]
         var item: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
-              let data = item as? Data else { return nil }
-        return try? JSONDecoder().decode(Session.self, from: data)
+        var data: Data?
+        if SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess { data = item as? Data }
+        #if targetEnvironment(simulator)
+        data = data ?? UserDefaults.standard.data(forKey: simulatorKey)
+        #endif
+        return data.flatMap { try? JSONDecoder().decode(Session.self, from: $0) }
     }
 
     static func clear() {
@@ -80,5 +97,8 @@ enum Keychain {
             kSecAttrAccount as String: account,
         ]
         SecItemDelete(query as CFDictionary)
+        #if targetEnvironment(simulator)
+        UserDefaults.standard.removeObject(forKey: simulatorKey)
+        #endif
     }
 }
