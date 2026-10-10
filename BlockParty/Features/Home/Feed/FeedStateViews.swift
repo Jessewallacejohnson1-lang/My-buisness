@@ -30,6 +30,9 @@ nonisolated enum FeedStateCopy {
     static let townNotesUnavailable = "Town notes didn’t load."
     /// Working words; Jesse writes the final ones.
     static let townEventsUnavailable = "Events didn’t load."
+    /// The Town feed's pill when a read fails over a kept list: the map sheet's words
+    /// (Jesse, 2026-10-09).
+    static let offline = "You’re offline."
 }
 
 /// Title + explanation + retry, with no surface of its own. Used directly when the

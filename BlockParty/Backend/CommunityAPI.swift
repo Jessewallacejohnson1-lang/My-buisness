@@ -244,7 +244,9 @@ struct CommunityAPI {
         let (data, _) = try await SupabaseHTTP.rest("rpc/get_town_feed", method: "POST",
                                                     accessToken: await readToken(),
                                                     body: Data("{}".utf8))
-        return try Self.townFeedRows(from: data)
+        let rows = try Self.townFeedRows(from: data)
+        TownFeedCache.save(data)
+        return rows
     }
 
     /// `get_town_feed`'s rows as events. A row whose `leaves_at` doesn't parse is

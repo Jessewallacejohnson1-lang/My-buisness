@@ -55,6 +55,12 @@ struct FeedView: View {
     /// setup, so without it the scrolled state — where the top glass fade actually
     /// does anything — cannot be screenshotted at all.
     @State private var feedPosition = ScrollPosition()
+    /// Fixed for this view's life: whether the Town feed's first cards rise in. Not
+    /// when it comes back partway down (`TownFeed.returnY`).
+    @State private var entrance: Bool
+
+    /// A read failed while a list is showing: the bar says so (ticket 11).
+    private var offline: Bool { townFeed.failed && townFeed.entries != nil }
 
     /// Skeleton, retry or cards: what the Town feed's cross-fade keys on.
     private var townFeedPhase: Int {
@@ -75,6 +81,7 @@ struct FeedView: View {
         self.onOpenNotifications = onOpenNotifications
         self.profileShown = profileShown
         self.townFeed = townFeed
+        _entrance = State(initialValue: townFeed.returnY == 0)
 
         let briefing = BriefingModel()
         let context = FeedModuleContext(
@@ -183,7 +190,8 @@ struct FeedView: View {
                 // above the stream, not buried in it.
                 ZStack(alignment: .top) {
                     if townFeed.entries != nil {
-                        DailyFeedColumn(items: townFeed.cards.map { .event($0) })
+                        DailyFeedColumn(items: townFeed.cards.map { .event($0) },
+                                        entrance: entrance)
                             // A card whose time is up goes, and a series' next date
                             // comes in, rather than popping.
                             .animation(Motion.smooth, value: townFeed.clock)
@@ -243,6 +251,7 @@ struct FeedView: View {
                 if floating != chromeFloating { chromeFloating = floating }
             }
             barTravel.points = TodayHeader.homeTravel(offset: offset)
+            townFeed.scrollY = offset
             #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("-scroll-log") {
                 print("SCROLLLOG offset=\(offset) hidden=\(hidden)")
@@ -261,21 +270,45 @@ struct FeedView: View {
                         onOpenNotifications: onOpenNotifications,
                         chromeHidden: forcedCollapse || (chromeHidden && !forcedBack),
                         chromeFloating: chromeFloating,
-                        travel: barTravel)
+                        travel: barTravel,
+                        offline: offline)
         }
         // The tab bar shrinks on the same signal, as Instagram's does.
         .preference(key: TabBarCompactKey.self, value: forcedCollapse || chromeHidden)
         // The clock stays black over the photos scrolling under it, as Instagram's
         // does (taste.md: the status bar stays dark along with the bar). Released when
         // an event page covers the feed, so its hero photo keeps a white clock.
-        .onAppear { AppearanceStore.shared.holdsClock = true }
-        .onDisappear { AppearanceStore.shared.holdsClock = false }
+        //
+        // Leaving and coming back are also the Town feed's (ticket 11): back within 30
+        // minutes it lands where it was, which a tab switch used to lose, since the
+        // tab's view is rebuilt.
+        .onAppear {
+            AppearanceStore.shared.holdsClock = true
+            townFeed.cameBack()
+            // Back partway down: land there at once, and a turn later leave the bar
+            // as a scroll there would, gone and floating once it comes back. The
+            // rebuilt view starts with the bar at home, and the jump isn't always
+            // reported to the bar's rule, which left it at home over the cards.
+            let returnY = townFeed.returnY
+            if returnY > 0 {
+                feedPosition.scrollTo(y: returnY)
+                Task {
+                    chromeHidden = true
+                    chromeFloating = true
+                    chromeAnchor = returnY
+                    barTravel.points = TodayHeader.homeTravel(offset: returnY)
+                }
+            }
+        }
+        .onDisappear {
+            AppearanceStore.shared.holdsClock = false
+            townFeed.left()
+        }
         .scrollPosition($feedPosition)
         .refreshable {
-            if controller.briefing.needsRefresh {
-                await controller.refreshBriefing()
-            }
-
+            // Not awaited: the feed must not wait on the briefing's round trip, and
+            // the briefing renders nothing today.
+            Task { if controller.briefing.needsRefresh { await controller.refreshBriefing() } }
             await townFeed.reload()
 
             revealAnimated = false
@@ -295,17 +328,28 @@ struct FeedView: View {
         // Its own task: the briefing below is awaited first and renders nothing today,
         // so the events must not queue behind it. Coming back to the tab reads again
         // behind the list already showing.
-        .task { await townFeed.reload() }
-        // When a card's time is up it goes, and the feed reads again: a series' next
-        // date only arrives with a fresh read.
+        .task { await townFeed.refresh() }
+        // When a card's time is up it goes, and the feed reads again behind it.
         .task(id: townFeed.nextLeave) {
             guard let next = townFeed.nextLeave else { return }
             try? await Task.sleep(for: .seconds(max(0, next.timeIntervalSinceNow) + 1))
             guard !Task.isCancelled else { return }
-            await townFeed.reload()
+            await townFeed.refresh()
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { Task { await townFeed.reload() } }
+            switch phase {
+            case .active:
+                townFeed.cameBack()
+                Task { await townFeed.refresh() }
+            case .background:
+                townFeed.left()
+            default:
+                break
+            }
+        }
+        // Someone partway down the list never reaches the pill, so it is read out once.
+        .onChange(of: offline) { _, offline in
+            if offline { AccessibilityNotification.Announcement(FeedStateCopy.offline).post() }
         }
         .task {
             name = Interests.displayName ?? firstNameFromEmail(auth.email)

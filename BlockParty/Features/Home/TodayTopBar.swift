@@ -183,6 +183,11 @@ private nonisolated enum TodayBarMetric {
     /// keyboard, a grey room, a black video). At 0.6 ours read 68–74%; 0.68 lands
     /// on Instagram's middle. Tuned on the simulator.
     static let discWhite: Double = 0.68
+    /// The offline pill: 38pt tall, MEASURED from the Particle News Reference
+    /// (38.7pt); 8pt under the bar's row and its shadow are PICKED.
+    static let offlinePillHeight: CGFloat = 38
+    static let offlinePillGap: CGFloat = 8
+    static let offlinePillShadow: Double = 0.12
     /// The centred wordmark's height. 31 runs the lockup 151pt wide — 18 → 24 → 31
     /// over three passes on 2026-09-19, Jesse each time. It still clears the map
     /// disc beside it, with the bar's 58pt content height as the hard ceiling.
@@ -251,6 +256,9 @@ struct TodayTopBar: View {
     /// Written every frame of the first 58pt of scroll, so it arrives in its own
     /// observable box: this bar reads it and nothing above it re-runs.
     var travel = BarTravel()
+    /// A read failed while the Town feed shows its kept list: a pill under the bar
+    /// says so, and leaves and comes back with the bar (ticket 11).
+    var offline = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -291,6 +299,16 @@ struct TodayTopBar: View {
                                 .transition(.opacity)
                         }
                     }
+                    // Under the bar, outside its fixed height, so the cards never move
+                    // for it.
+                    .overlay(alignment: .bottom) {
+                        if offline {
+                            OfflinePill()
+                                .offset(y: TodayBarMetric.offlinePillHeight + TodayBarMetric.offlinePillGap)
+                                .transition(.opacity)
+                        }
+                    }
+                    .animation(motion, value: offline)
                     .offset(y: -carried)
                     .opacity(1 - carried / TodayHeader.contentHeight)
                     .transition(.offset(y: -TodayHeader.contentHeight).combined(with: .opacity))
@@ -386,7 +404,7 @@ struct TodayTopBar: View {
                 .frame(width: TodayBarMetric.glyphTap, height: TodayBarMetric.glyphTap)
                 .background {
                     if chromeFloating {
-                        FrostedCircle().transition(.opacity)
+                        Frosted(shape: Circle()).transition(.opacity)
                     }
                 }
                 .contentShape(Rectangle())
@@ -632,15 +650,40 @@ private final class GradientMaskView: UIView {
 /// composites outside its view's layer, so in this bar it arrives and leaves out
 /// of step with the slide (the map disc, until 2026-09-24), and it flips dark over
 /// a dark photo (the tab bar). A material fades, slides and clips with its mark.
-private struct FrostedCircle: View {
+private struct Frosted<S: InsettableShape>: View {
+    let shape: S
+
     var body: some View {
-        Circle()
+        shape
             .fill(.ultraThinMaterial)
-            .overlay(Circle().fill(Hue.surface.onLightCanvas.opacity(TodayBarMetric.discWhite)))
+            .overlay(shape.fill(Hue.surface.onLightCanvas.opacity(TodayBarMetric.discWhite)))
             // Instagram's brighter rim, as the tab bar draws it.
-            .overlay(Circle().strokeBorder(Hue.surface.onLightCanvas.opacity(0.75), lineWidth: 1))
+            .overlay(shape.strokeBorder(Hue.surface.onLightCanvas.opacity(0.75), lineWidth: 1))
             .environment(\.colorScheme, .light)
             .allowsHitTesting(false)
+    }
+}
+
+/// The Town feed's offline pill: the map sheet's crossed-out wifi and words, ink on
+/// the bar's frosted white. Particle News's "No Internet Connection" pill is the
+/// Reference (BP app `references/town-fresh-order/`).
+private struct OfflinePill: View {
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "wifi.slash").font(.sansMedium(11))
+            Text(FeedStateCopy.offline)
+        }
+        .font(.sans(13))
+        .foregroundStyle(Hue.ink.onLightCanvas)
+        .padding(.horizontal, 14)
+        .frame(height: TodayBarMetric.offlinePillHeight)
+        .background(Frosted(shape: Capsule()))
+        // The frosted white alone barely shows on the paper at the top of the feed.
+        .shadow(color: .black.opacity(TodayBarMetric.offlinePillShadow), radius: 8, y: 2)
+        // A label, not a control: taps go through to the card under it.
+        .allowsHitTesting(false)
+        // VoiceOver hears it once as an announcement when it appears (FeedView).
+        .accessibilityElement(children: .combine)
     }
 }
 

@@ -131,7 +131,136 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(town.cards.map(\.id), ["a"])
 
         await town.reload(at: now)
-        XCTAssertFalse(town.failed)
+        XCTAssertTrue(town.failed, "a failed refresh over a list says it's offline")
         XCTAssertEqual(town.cards.map(\.id), ["a"])
+    }
+
+    // MARK: When the order changes (ticket 11)
+
+    private func entries(_ ids: [String], going: Int = 0) -> [TownFeedEntry] {
+        ids.map { TownFeed.entry(row($0, going: going), signedIn: true) }
+    }
+
+    /// A feed whose reads answer in turn.
+    private func feed(answers: [[TownFeedEntry]], kept: [TownFeedEntry]? = nil) -> TownFeed {
+        var answers = answers
+        return TownFeed(read: { answers.removeFirst() }, kept: { kept })
+    }
+
+    /// Back within 30 minutes, the order on screen stays: cards update in place, a
+    /// card that went drops out, and a new one waits for the next fresh order.
+    func testBackSoonKeepsTheOrderOnScreen() async {
+        let town = feed(answers: [entries(["a", "b", "c"]),
+                                  entries(["new", "c", "a"], going: 5)])
+        town.cameBack(at: now)
+        await town.reload(at: now)
+        town.scrollY = 300
+        town.left(at: now)
+        town.cameBack(at: now.addingTimeInterval(29 * 60))
+        await town.refresh(at: now.addingTimeInterval(29 * 60))
+        XCTAssertEqual(town.cards.map(\.id), ["a", "c"])
+        XCTAssertEqual(town.cards.map(\.goingCount), [5, 5])
+    }
+
+    /// Back after 30 minutes or more, still at the top: the fresh order.
+    func testBackAfterHalfAnHourAtTheTopTakesTheFreshOrder() async {
+        let town = feed(answers: [entries(["a", "b"]), entries(["new", "b", "a"])])
+        town.cameBack(at: now)
+        await town.reload(at: now)
+        town.left(at: now)
+        town.cameBack(at: now.addingTimeInterval(30 * 60))
+        await town.refresh(at: now.addingTimeInterval(30 * 60))
+        XCTAssertEqual(town.cards.map(\.id), ["new", "b", "a"])
+    }
+
+    /// Already scrolling when the fresh order lands: it waits for the next pull, so
+    /// nothing moves under the finger.
+    func testAFreshOrderWaitsForAPullOnceTheScreenHasScrolled() async {
+        let town = feed(answers: [entries(["a", "b"]), entries(["new", "b", "a"]),
+                                  entries(["new", "b", "a"])])
+        town.cameBack(at: now)
+        await town.reload(at: now)
+        town.left(at: now)
+        town.cameBack(at: now.addingTimeInterval(60 * 60))
+        town.scrollY = 300
+        await town.refresh(at: now.addingTimeInterval(60 * 60))
+        XCTAssertEqual(town.cards.map(\.id), ["a", "b"])
+
+        await town.reload(at: now.addingTimeInterval(60 * 60))
+        XCTAssertEqual(town.cards.map(\.id), ["new", "b", "a"])
+    }
+
+    /// A launch shows the list kept on the phone at once, before its read answers,
+    /// then the fresh order (a launch counts as long away).
+    func testALaunchShowsTheKeptListAtOnceThenTheFreshOrder() async {
+        final class Probe { var town: TownFeed?; var shownDuringRead: [String]? }
+        let probe = Probe()
+        let town = TownFeed(read: {
+            probe.shownDuringRead = probe.town?.cards.map(\.id)
+            return self.entries(["new", "a"])
+        }, kept: { self.entries(["a"]) })
+        probe.town = town
+        town.cameBack(at: now)
+        await town.refresh(at: now)
+        XCTAssertEqual(probe.shownDuringRead, ["a"])
+        XCTAssertEqual(town.cards.map(\.id), ["new", "a"])
+    }
+
+    /// Offline at launch: the kept list stays and the feed says it's offline. A kept
+    /// list with nothing still on shows the skeleton, not an empty feed.
+    func testOfflineAtLaunchKeepsTheKeptList() async {
+        let offline = TownFeed(read: { throw Offline() }, kept: { self.entries(["a"]) })
+        await offline.refresh(at: now)
+        XCTAssertEqual(offline.cards.map(\.id), ["a"])
+        XCTAssertTrue(offline.failed)
+
+        let gone = [TownFeed.entry(row("old", leavesIn: -1), signedIn: true)]
+        let stale = TownFeed(read: { throw Offline() }, kept: { gone })
+        await stale.refresh(at: now)
+        XCTAssertNil(stale.entries)
+    }
+
+    /// Back within 30 minutes it lands where it was; after, from the top.
+    func testComingBackLandsWhereItWasUnlessLongAway() {
+        let town = feed(answers: [])
+        town.cameBack(at: now)
+        town.scrollY = 900
+        town.left(at: now)
+        town.scrollY = 0    // the rebuilt screen starts at the top
+        town.cameBack(at: now.addingTimeInterval(10 * 60))
+        XCTAssertEqual(town.returnY, 900)
+
+        town.scrollY = 900
+        town.left(at: now)
+        town.cameBack(at: now.addingTimeInterval(45 * 60))
+        XCTAssertEqual(town.returnY, 0)
+    }
+
+    /// Reads overlap: a slow one that lands last never overwrites a newer answer.
+    func testOnlyTheNewestReadIsKept() async {
+        final class Gate { var open: (() -> Void)?; var calls = 0 }
+        let gate = Gate()
+        let town = TownFeed(read: {
+            gate.calls += 1
+            if gate.calls == 1 {
+                await withCheckedContinuation { done in gate.open = { done.resume() } }
+                return self.entries(["older"])
+            }
+            return self.entries(["newer"])
+        })
+        let slow = Task { await town.reload(at: now) }
+        while gate.open == nil { await Task.yield() }
+        await town.reload(at: now)
+        gate.open?()
+        await slow.value
+        XCTAssertEqual(town.cards.map(\.id), ["newer"])
+    }
+
+    /// The kept list reads back what was saved, and signing out clears it.
+    func testTheKeptListIsClearedOnSignOut() {
+        TownFeedCache.save(Data("[1]".utf8))
+        XCTAssertEqual(TownFeedCache.load(), Data("[1]".utf8))
+        TownFeedCache.clear()
+        XCTAssertNil(TownFeedCache.load())
     }
 }

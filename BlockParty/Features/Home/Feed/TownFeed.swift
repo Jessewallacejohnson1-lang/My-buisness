@@ -4,9 +4,14 @@
 //
 //  The database works both out (`get_town_feed`, the one function iOS and Android call;
 //  BP app docs/plans/town-feed, ticket 05), so this never filters or re-sorts by its
-//  own rules. It keeps the last good list across tab switches and failed refreshes,
-//  lets an event go once its leaves-at passes, and reads again then, because a
-//  series' next date only arrives with a fresh read.
+//  own rules. It keeps the last good list across tab switches, failed refreshes and
+//  relaunches, lets an event go once its leaves-at passes, and reads again then.
+//
+//  When the order may change is ticket 11's: a fresh order on pull to refresh, or on
+//  coming back after 30 minutes or more away (a launch counts), and then only while
+//  the screen is still at the top, so nothing moves under a finger. Any other read
+//  keeps the order on screen: cards update in place, ones that went drop out, and new
+//  ones wait for the next fresh order.
 //
 
 import Foundation
@@ -20,29 +25,64 @@ struct TownFeedEntry: Identifiable {
 
 @MainActor @Observable
 final class TownFeed {
-    /// nil until the first read answers, which the feed shows as its skeleton.
+    /// nil until there is a list to show, which the feed shows as its skeleton.
     private(set) var entries: [TownFeedEntry]?
-    /// The first read failed, so there is nothing to show yet.
+    /// The last read failed. With no list the feed shows its retry; with one, it keeps
+    /// the list and says it's offline.
     private(set) var failed = false
     /// When the list was last read or checked. Events that have left by then are hidden.
     private(set) var clock = Date()
 
-    private let read: () async throws -> [TownFeedEntry]
+    /// How far down the screen is scrolled. Written by the screen as it scrolls; not
+    /// observed, so scrolling re-renders nothing.
+    @ObservationIgnored var scrollY: CGFloat = 0
+    /// At the top is the only place a fresh order may replace the list.
+    var atTop: Bool { scrollY <= 1 }
+    /// Where the screen was when the feed went away, so coming back within 30 minutes
+    /// lands there. Kept apart from `scrollY`, which a rebuilt screen resets to 0
+    /// before it can scroll back.
+    @ObservationIgnored private(set) var returnY: CGFloat = 0
 
-    init(read: @escaping () async throws -> [TownFeedEntry]) {
+    /// Away this long, coming back brings a fresh order (ticket 11).
+    static let awayLimit: TimeInterval = 30 * 60
+
+    /// When the feed went off screen; a launch counts as long away.
+    @ObservationIgnored private var awaySince: Date? = .distantPast
+    @ObservationIgnored private var freshDue = false
+    @ObservationIgnored private var keptChecked = false
+    /// Numbers each read, so only the newest one's answer is kept.
+    @ObservationIgnored private var latestRead = 0
+    /// When the feed last came on screen, for the speed log.
+    @ObservationIgnored private var cameBackAt: Date?
+
+    private let read: () async throws -> [TownFeedEntry]
+    private let kept: () -> [TownFeedEntry]?
+
+    /// `kept` is the list the last session left on the phone, asked for once, at the
+    /// first read, so it is built with the account that read sees.
+    init(read: @escaping () async throws -> [TownFeedEntry],
+         kept: @escaping () -> [TownFeedEntry]? = { nil }) {
         self.read = read
+        self.kept = kept
     }
 
     /// The live feed, or under DEBUG `-town-samples` the sample events, so design
-    /// work has photos under the chrome and never reads the live database.
+    /// work has photos under the chrome and never reads the live database;
+    /// `-town-offline` keeps the samples on screen with every read failing.
     convenience init() {
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-town-samples") {
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-town-offline") {
+            self.init(read: { throw URLError(.notConnectedToInternet) },
+                      kept: { DailyFixtures.townEntries() })
+            return
+        }
+        if arguments.contains("-town-samples") {
             self.init { DailyFixtures.townEntries() }
             return
         }
         #endif
-        self.init(read: Self.live)
+        self.init(read: Self.live, kept: Self.keptOnDisk)
     }
 
     /// The cards still on, in the database's order.
@@ -55,23 +95,76 @@ final class TownFeed {
         entries?.lazy.map(\.leavesAt).filter { $0 > self.clock }.min()
     }
 
-    /// Reads the feed as of `now`. A failed read keeps the list already showing, minus
-    /// what has left; with no list, the feed shows its retry.
-    ///
-    /// The clock moves only once the read is done: it decides `nextLeave`, and the
-    /// feed's leave timer is keyed on that, so moving it first cancelled the very read
-    /// the timer had started.
+    /// The feed went off screen: another tab, the map, or the app left the foreground.
+    func left(at now: Date = Date()) {
+        guard awaySince == nil else { return }
+        awaySince = now
+        returnY = scrollY
+    }
+
+    /// The feed is back on screen. After 30 minutes away the next read may bring a
+    /// fresh order, from the top; sooner, it lands where it was.
+    func cameBack(at now: Date = Date()) {
+        guard let since = awaySince else { return }
+        awaySince = nil
+        cameBackAt = now
+        if now.timeIntervalSince(since) >= Self.awayLimit {
+            freshDue = true
+            returnY = 0
+        }
+    }
+
+    /// Reads behind the list on screen (coming back, a card leaving).
+    func refresh(at now: Date = Date()) async {
+        await readAgain(at: now, freshOrder: false)
+    }
+
+    /// Pull to refresh, retry, a new account: the new order, whatever is on screen.
     func reload(at now: Date = Date()) async {
+        await readAgain(at: now, freshOrder: true)
+    }
+
+    /// A failed read keeps the list already showing, minus what has left; with no
+    /// list, the feed shows its retry.
+    ///
+    /// The clock moves only once the read is done, and nothing is awaited after the
+    /// list changes: `nextLeave` reads both, and the feed's leave timer is keyed on
+    /// it, so changing either first cancelled the very read the timer had started.
+    private func readAgain(at now: Date, freshOrder: Bool) async {
+        if entries == nil, !keptChecked {
+            keptChecked = true
+            if let kept = kept(), kept.contains(where: { $0.leavesAt > now }) {
+                entries = kept
+                clock = now
+            }
+        }
         if entries == nil { failed = false }
+        // Reads overlap (the feed opening, the foreground, a new account): a slow one
+        // that lands last must not overwrite a newer one's answer.
+        latestRead &+= 1
+        let thisRead = latestRead
         do {
-            entries = try await read()
+            let new = try await read()
+            guard thisRead == latestRead else { return }
+            if let cameBackAt {
+                let ms = Int(Date().timeIntervalSince(cameBackAt) * 1000)
+                Log.ui("TownFeed: read in \(ms) ms after the feed opened, \(entries == nil ? "nothing" : "a kept list") on screen meanwhile")
+                self.cameBackAt = nil
+            }
+            if entries == nil || freshOrder || (freshDue && atTop) {
+                entries = new
+            } else {
+                let byID = Dictionary(new.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+                entries = entries?.compactMap { byID[$0.id] }
+            }
+            freshDue = false
             failed = false
         } catch {
             // Left mid-read (the tab went away): not a failure; the read runs again
             // when the feed comes back.
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, thisRead == latestRead else { return }
             Log.network("TownFeed: \(error)")
-            if entries == nil { failed = true }
+            failed = true
         }
         clock = now
     }
@@ -84,6 +177,14 @@ final class TownFeed {
         return try await CommunityAPI(auth: auth).getTownFeed().map {
             entry($0, signedIn: signedIn)
         }
+    }
+
+    /// The list the last live read left on disk, or nil when there is none or it no
+    /// longer decodes.
+    private static func keptOnDisk() -> [TownFeedEntry]? {
+        guard let data = TownFeedCache.load(),
+              let rows = try? CommunityAPI.townFeedRows(from: data) else { return nil }
+        return rows.map { entry($0, signedIn: AuthStore.shared.isSignedIn) }
     }
 
     /// A row as the card a club's event gets. Signed out, an RSVP can be neither read
