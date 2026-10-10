@@ -304,7 +304,7 @@ test('never more than 3 of one kind in a row while another kind is left', async 
   // drives the placing step the feed uses directly.
   const ids = [1, 2, 3, 4, 5].map((n) => `00000000-0000-0000-0000-00000000010${n}`);
   const { rows } = await db.query(
-    `select id, spot from public.town_feed_place($1::uuid[], $2::text[], $3::text[], $4::float8[],
+    `select id, spot from private.town_feed_place($1::uuid[], $2::text[], $3::text[], $4::float8[],
        $5::boolean[], 3, 0.5, 4) order by spot`,
     [ids, ['event', 'event', 'event', 'event', 'post'], ['a', 'b', 'c', 'd', 'e'],
      [5, 4, 3, 2, 1], [false, false, false, false, false]]);
@@ -339,6 +339,17 @@ test('the score breakdown is filled for the admin and null for everyone else', a
     interest: 3, friend: 0, follow: 0, popular: 0, size: 0, sizeStep: 1, daysAway: 1,
     soon: 0.9057, acted: 1, spacing: 1, newSpot: false, total: 3.6229, spot: 1, of: 1,
   });
+});
+
+test('the admin\'s breakdown on a longer feed: same host halves, nothing moved when nothing is new', async () => {
+  await reset();
+  for (const [i, h] of ['8 AM', '9 AM', '10 AM', '11 AM', '12 PM'].entries())
+    await add(`Meeting ${i + 1}`, '2026-10-09', { start_time: h });
+  await db.exec(`set test.admin = 'on'`);
+  const rows = await feed('2026-10-08 12:00');
+  assert.deepEqual(rows.map((r) => [r.score.spot, r.score.spacing, r.score.newSpot]),
+                   [[1, 1, false], [2, 0.5, false], [3, 0.25, false], [4, 0.125, false], [5, 0.0625, false]]);
+  assert.ok(rows.every((r) => r.score.total > 0));
 });
 
 test('signed out, the public key gets the same recipe with no personal terms', async () => {

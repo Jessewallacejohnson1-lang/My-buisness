@@ -237,7 +237,13 @@ struct CommunityAPI {
             let leavesAt: String
             let reason: String?
             let reasonName: String?
-            let score: FeedScore?
+            let score: LenientScore?
+        }
+        /// The admin's breakdown, or nil when it doesn't decode: a score never costs the
+        /// feed.
+        struct LenientScore: Decodable {
+            let value: FeedScore?
+            init(from decoder: Decoder) { value = try? FeedScore(from: decoder) }
         }
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -252,7 +258,7 @@ struct CommunityAPI {
                                       endAt: DateHelpers.timestamp(row.endAt),
                                       isAllDay: row.allDay, sourceName: row.sourceName)
             return TownFeedRow(event: event, recurrence: row.recurrence, leavesAt: leavesAt,
-                               reason: row.reason, reasonName: row.reasonName, score: row.score)
+                               reason: row.reason, reasonName: row.reasonName, score: row.score?.value)
         }
     }
 

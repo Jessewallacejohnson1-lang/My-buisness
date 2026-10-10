@@ -77,14 +77,22 @@ final class TownFeedEventsTests: XCTestCase {
           "source_name":"Parish","end_at":null,"all_day":false,
           "created_at":"2026-10-06T16:08:20+00:00","going_count":0,"rsvpd":false,
           "recurrence":null,"leaves_at":"2026-10-08T18:00:00+00:00",
-          "reason":"today","reason_name":null,"score":null}]
+          "reason":"today","reason_name":null,"score":null},
+         {"id":"e3","title":"Fair","event_date":"2026-10-08","start_time":"1 PM",
+          "location":null,"image_url":null,"category":null,"club_name":null,
+          "source_name":"Fair board","end_at":null,"all_day":false,
+          "created_at":"2026-10-06T16:08:20+00:00","going_count":0,"rsvpd":false,
+          "recurrence":null,"leaves_at":"2026-10-08T20:00:00+00:00",
+          "reason":"today","reason_name":null,"score":{"spot":3,"newSpot":null}}]
         """
         let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.entry($0).card }
-        XCTAssertEqual(cards.map(\.why), ["Matches Live music", "Happening today"])
+        XCTAssertEqual(cards.map(\.why), ["Matches Live music", "Happening today", "Happening today"])
         XCTAssertEqual(cards[0].score?.spot, 2)
         XCTAssertEqual(cards[0].score?.spacing, 0.5)
         XCTAssertEqual(cards[0].score?.sizeStep, 2)
         XCTAssertNil(cards[1].score)
+        // A breakdown that doesn't read costs only the breakdown, never the feed.
+        XCTAssertNil(cards[2].score)
     }
 
     /// Every reason the database sends has a line; one this app doesn't know has none,

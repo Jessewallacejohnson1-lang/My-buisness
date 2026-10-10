@@ -88,7 +88,7 @@ struct FeedCardMenu: View {
 
     private func group<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         content()
-            .background(Hue.fill, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+            .background(Hue.fill)
             .clipShape(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
     }
 
@@ -139,7 +139,7 @@ private struct ScoreBox: View {
             row("Soon · " + Self.number(score.daysAway) + " days", "×" + Self.number(score.soon),
                 idle: score.soon == 1)
             row("Going or saved", "×" + Self.number(score.acted), idle: score.acted == 1)
-            row("Spacing", "×" + Self.number(score.spacing), idle: score.spacing == 1)
+            row(sameHost, "×" + Self.number(score.spacing), idle: score.spacing == 1)
 
             Rectangle().fill(Hue.hairline).frame(height: 1)
             Text("Spot \(score.spot) of \(score.of)" + (score.newSpot ? " · moved up as new" : ""))
@@ -152,6 +152,15 @@ private struct ScoreBox: View {
         .padding(.trailing, 16)
         .padding(.vertical, 14)
         .accessibilityElement(children: .combine)
+    }
+
+    /// "Same host · 2nd from this host": the spacing halves for each earlier card from it.
+    private var sameHost: String {
+        let earlier = Int((log(score.spacing) / log(0.5)).rounded())
+        guard earlier > 0 else { return "Same host" }
+        let ordinal = NumberFormatter()
+        ordinal.numberStyle = .ordinal
+        return "Same host · " + (ordinal.string(from: NSNumber(value: earlier + 1)) ?? "") + " from this host"
     }
 
     private func row(_ label: String, _ value: String, idle: Bool) -> some View {

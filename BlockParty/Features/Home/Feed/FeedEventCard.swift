@@ -215,8 +215,7 @@ struct FeedEventCard: View {
                     .frame(width: Self.menuTarget, height: Self.menuTarget)
                     .contentShape(Rectangle())
             }
-            // Dims under the finger, as a bar icon does: a squish doesn't show on 15pt of dots.
-            .buttonStyle(DimStyle())
+            .buttonStyle(MenuPressStyle())
             .padding(.trailing, DailyFeedMetric.contentInset - Self.menuDotsInset)
             // Centred on the 32pt host row.
             .offset(y: (Self.hostAvatarSide - Self.menuTarget) / 2)
@@ -561,6 +560,19 @@ private struct FeedTouchDownTracker: UIGestureRecognizerRepresentable {
         default:
             isPressed = false
         }
+    }
+}
+
+/// The •••'s press, as the approved Check-in 1 mock drew it: it shrinks to 0.88 over a
+/// faint disc on touch-down and springs back the way it went.
+private struct MenuPressStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(Hue.ink.opacity(configuration.isPressed ? 0.06 : 0), in: Circle())
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.88 : 1)
+            .animation(.spring(response: 0.28, dampingFraction: 0.68), value: configuration.isPressed)
     }
 }
 

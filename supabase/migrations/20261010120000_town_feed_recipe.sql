@@ -7,14 +7,19 @@
 
 drop function if exists public.get_town_feed(timestamptz);
 
+-- Helpers the feed calls but nobody should call over the API: PostgREST exposes only
+-- public, so they live here, usable by the roles that read the feed.
+create schema if not exists private;
+grant usage on schema private to anon, authenticated;
+
 -- Places scored items one at a time (the playground's rank()): each pick is the best
 -- score left after x repeat_host per item already placed from the same host, and never
 -- a (max_run + 1)th of one kind in a row while another kind is left. Then the best-placed
 -- fresh item moves up to spot new_spot if it sits lower. Inputs are parallel arrays in
--- the caller's order, which breaks ties. Returns each item's 1-based spot and the
--- spacing factor its pick was made at.
+-- the caller's order, which breaks ties. Returns each item's 1-based spot, the same-host
+-- factor it was placed at, and whether it was the one moved up.
 -- ponytail: O(n^2) picks; fine for the few hundred items a Town has, a heap past that.
-create or replace function public.town_feed_place(
+create or replace function private.town_feed_place(
   ids uuid[], kinds text[], hosts text[], scores float8[], fresh boolean[],
   max_run int, repeat_host float8, new_spot int)
 returns table (id uuid, spot int, spacing float8, moved boolean)
@@ -47,10 +52,10 @@ begin
     for i in 1..n loop
       continue when taken[i];
       s := power(repeat_host, coalesce((seen ->> hosts[i])::int, 0));
-      if kinds[i] = run_kind then s := s * 1e-6; end if;
-      if best is null or scores[i] * s > best_s then
+      -- The run rule only steers the pick; it isn't part of the item's points.
+      if best is null or scores[i] * s * (case when kinds[i] = run_kind then 1e-6 else 1 end) > best_s then
         best := i;
-        best_s := scores[i] * s;
+        best_s := scores[i] * s * (case when kinds[i] = run_kind then 1e-6 else 1 end);
         best_f := s;
       end if;
     end loop;
@@ -67,7 +72,8 @@ begin
   end if;
 
   return query
-    select ids[order_[j]], j, factor[order_[j]], new_spot > 0 and first_new > new_spot and j = new_spot
+    select ids[order_[j]], j, factor[order_[j]],
+           coalesce(new_spot > 0 and first_new > new_spot and j = new_spot, false)
     from generate_series(1, n) j;
 end;
 $$;
@@ -229,7 +235,7 @@ as $$
                  array_agg(t.fresh order by t.sort_at, t.title, t.id) as fresh
           from totals t) a,
          weights,
-         public.town_feed_place(a.ids, a.kinds, a.hosts, a.scores, a.fresh,
+         private.town_feed_place(a.ids, a.kinds, a.hosts, a.scores, a.fresh,
                                 (w->>'maxRun')::int, (w->>'repeatHost')::float8, (w->>'newSpot')::int) p
   )
   select e.id, e.title, e.event_date, e.start_time, e.location, e.image_url, e.category,
@@ -257,7 +263,9 @@ as $$
   order by p.spot;
 $$;
 
-grant execute on function public.town_feed_place(uuid[], text[], text[], float8[], boolean[], int, float8, int)
+revoke execute on function private.town_feed_place(uuid[], text[], text[], float8[], boolean[], int, float8, int)
+  from public;
+grant execute on function private.town_feed_place(uuid[], text[], text[], float8[], boolean[], int, float8, int)
   to anon, authenticated;
 grant execute on function public.get_town_feed(timestamptz) to anon, authenticated;
 
