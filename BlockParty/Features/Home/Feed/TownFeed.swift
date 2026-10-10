@@ -33,13 +33,15 @@ final class TownFeed {
     /// When the list was last read or checked. Events that have left by then are hidden.
     private(set) var clock = Date()
 
-    /// The card at the top of the screen, so coming back within 30 minutes lands on
-    /// it. The screen writes it as it scrolls; not observed, so scrolling re-renders
-    /// nothing.
-    @ObservationIgnored var topCardID: String?
-    /// Whether the screen is scrolled to the top, the only place a fresh order may
-    /// replace the list. Written by the screen.
-    @ObservationIgnored var atTop = true
+    /// How far down the screen is scrolled. Written by the screen as it scrolls; not
+    /// observed, so scrolling re-renders nothing.
+    @ObservationIgnored var scrollY: CGFloat = 0
+    /// At the top is the only place a fresh order may replace the list.
+    var atTop: Bool { scrollY <= 1 }
+    /// Where the screen was when the feed went away, so coming back within 30 minutes
+    /// lands there. Kept apart from `scrollY`, which a rebuilt screen resets to 0
+    /// before it can scroll back.
+    @ObservationIgnored private(set) var returnY: CGFloat = 0
 
     /// Away this long, coming back brings a fresh order (ticket 11).
     static let awayLimit: TimeInterval = 30 * 60
@@ -94,18 +96,20 @@ final class TownFeed {
 
     /// The feed went off screen: another tab, the map, or the app left the foreground.
     func left(at now: Date = Date()) {
-        if awaySince == nil { awaySince = now }
+        guard awaySince == nil else { return }
+        awaySince = now
+        returnY = scrollY
     }
 
     /// The feed is back on screen. After 30 minutes away the next read may bring a
-    /// fresh order, from the top; sooner, it lands on the card it left.
+    /// fresh order, from the top; sooner, it lands where it was.
     func cameBack(at now: Date = Date()) {
         guard let since = awaySince else { return }
         awaySince = nil
         cameBackAt = now
         if now.timeIntervalSince(since) >= Self.awayLimit {
             freshDue = true
-            topCardID = nil
+            returnY = 0
         }
     }
 

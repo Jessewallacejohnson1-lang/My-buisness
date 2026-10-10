@@ -303,7 +303,7 @@ struct TodayTopBar: View {
                     .overlay(alignment: .bottom) {
                         if offline {
                             OfflinePill()
-                                .alignmentGuide(.bottom) { $0[.top] - TodayBarMetric.offlinePillGap }
+                                .offset(y: TodayBarMetric.offlinePillHeight + TodayBarMetric.offlinePillGap)
                                 .transition(.opacity)
                         }
                     }

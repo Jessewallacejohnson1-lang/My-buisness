@@ -210,8 +210,8 @@ which holds `TodayTopBar` and the feed.
   on coming back after 30 minutes or more away (a launch counts) while still at the top. Any
   other read keeps the order on screen: cards update in place, ones that went drop out, new ones
   wait for the next fresh order. This keeps the database's last order; it never re-sorts.
-  Back within 30 minutes the feed lands on the card it left (`topCardID`), which a tab switch
-  used to lose. The last list is kept per account on disk (`TownFeedCache`, raw bytes like
+  Back within 30 minutes the feed lands where it was (`scrollY`), which a tab switch used to
+  lose. The last list is kept per account on disk (`TownFeedCache`, raw bytes like
   `BriefingCache`), so a relaunch shows it at once, offline too.
 - `DailyFeedColumn` shows its items in the order given. Events only for now; posts, updates
   and news join when they exist.

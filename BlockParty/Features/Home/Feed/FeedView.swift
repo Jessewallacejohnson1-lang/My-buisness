@@ -246,7 +246,7 @@ struct FeedView: View {
                 if floating != chromeFloating { chromeFloating = floating }
             }
             barTravel.points = TodayHeader.homeTravel(offset: offset)
-            if (offset <= 1) != townFeed.atTop { townFeed.atTop = offset <= 1 }
+            townFeed.scrollY = offset
             #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("-scroll-log") {
                 print("SCROLLLOG offset=\(offset) hidden=\(hidden)")
@@ -275,21 +275,24 @@ struct FeedView: View {
         // an event page covers the feed, so its hero photo keeps a white clock.
         //
         // Leaving and coming back are also the Town feed's (ticket 11): back within 30
-        // minutes it lands on the card that was at the top, which a tab switch used to
-        // lose, since the tab's view is rebuilt.
+        // minutes it lands where it was, which a tab switch used to lose, since the
+        // tab's view is rebuilt.
         .onAppear {
             AppearanceStore.shared.holdsClock = true
             townFeed.cameBack()
-            if let card = townFeed.topCardID { feedPosition.scrollTo(id: card, anchor: .top) }
+            if townFeed.returnY > 0 {
+                // Back partway down: the bar comes back floating over the feed, as
+                // Instagram's does, not at home with no edge behind it.
+                chromeFloating = true
+                chromeAnchor = townFeed.returnY
+                feedPosition.scrollTo(y: townFeed.returnY)
+            }
         }
         .onDisappear {
             AppearanceStore.shared.holdsClock = false
             townFeed.left()
         }
         .scrollPosition($feedPosition)
-        .onScrollTargetVisibilityChange(idType: String.self) { cards in
-            townFeed.topCardID = cards.first
-        }
         .refreshable {
             // Side by side: the feed must not wait on the briefing's round trip, and
             // the briefing renders nothing today.

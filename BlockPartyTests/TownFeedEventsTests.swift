@@ -154,7 +154,7 @@ final class TownFeedEventsTests: XCTestCase {
                                   entries(["new", "c", "a"], going: 5)])
         town.cameBack(at: now)
         await town.reload(at: now)
-        town.atTop = false
+        town.scrollY = 300
         town.left(at: now)
         town.cameBack(at: now.addingTimeInterval(29 * 60))
         await town.refresh(at: now.addingTimeInterval(29 * 60))
@@ -182,7 +182,7 @@ final class TownFeedEventsTests: XCTestCase {
         await town.reload(at: now)
         town.left(at: now)
         town.cameBack(at: now.addingTimeInterval(60 * 60))
-        town.atTop = false
+        town.scrollY = 300
         await town.refresh(at: now.addingTimeInterval(60 * 60))
         XCTAssertEqual(town.cards.map(\.id), ["a", "b"])
 
@@ -220,18 +220,20 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertNil(stale.entries)
     }
 
-    /// Back within 30 minutes it lands on the card it left; after, from the top.
-    func testComingBackLandsOnTheCardItLeftUnlessLongAway() {
+    /// Back within 30 minutes it lands where it was; after, from the top.
+    func testComingBackLandsWhereItWasUnlessLongAway() {
         let town = feed(answers: [])
         town.cameBack(at: now)
-        town.topCardID = "c"
+        town.scrollY = 900
         town.left(at: now)
+        town.scrollY = 0    // the rebuilt screen starts at the top
         town.cameBack(at: now.addingTimeInterval(10 * 60))
-        XCTAssertEqual(town.topCardID, "c")
+        XCTAssertEqual(town.returnY, 900)
 
+        town.scrollY = 900
         town.left(at: now)
         town.cameBack(at: now.addingTimeInterval(45 * 60))
-        XCTAssertNil(town.topCardID)
+        XCTAssertEqual(town.returnY, 0)
     }
 
     /// One kept list per account, since it holds that person's Going: saving one
