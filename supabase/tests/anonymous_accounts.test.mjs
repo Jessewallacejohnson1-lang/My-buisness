@@ -39,6 +39,8 @@ await db.exec(`
     event_id uuid not null, user_id uuid not null, body text not null);
   create table public.event_rsvps (id uuid primary key default gen_random_uuid(),
     event_id uuid not null, user_id uuid not null);
+  create table public.event_likes (id uuid primary key default gen_random_uuid(),
+    event_id uuid not null, user_id uuid not null);
   create table public.town_profiles (user_id uuid primary key, display_name text, avatar_url text);
   create table storage.objects (id uuid primary key default gen_random_uuid(),
     bucket_id text not null, name text not null);
@@ -48,6 +50,7 @@ await db.exec(`
   alter table public.clubs enable row level security;
   alter table public.event_comments enable row level security;
   alter table public.event_rsvps enable row level security;
+  alter table public.event_likes enable row level security;
   alter table public.town_profiles enable row level security;
   alter table storage.objects enable row level security;
   create policy "submit events" on public.club_events for insert to public
@@ -61,6 +64,10 @@ await db.exec(`
   create policy "rsvp delete" on public.event_rsvps for delete to public
     using (user_id = auth.uid());
   create policy "read rsvps" on public.event_rsvps for select to authenticated using (true);
+  create policy "own likes insert" on public.event_likes for insert to public
+    with check (auth.uid() = user_id);
+  create policy "own likes delete" on public.event_likes for delete to public
+    using (auth.uid() = user_id);
   create policy "town_profiles_insert_own" on public.town_profiles for insert to public
     with check (auth.uid() = user_id);
   create policy "town_profiles_update_own" on public.town_profiles for update to public
@@ -93,6 +100,14 @@ test('an anonymous account can add and remove its own Going', async () => {
   await allowed(`insert into public.event_rsvps (event_id, user_id) values ($1, $2)`, [event, ANON_USER]);
   await allowed(`delete from public.event_rsvps where event_id = $1 and user_id = $2`, [event, ANON_USER]);
   await denied(`insert into public.event_rsvps (event_id, user_id) values ($1, $2)`, [event, REAL_USER]);
+});
+
+test('an anonymous account can add and remove its own heart', async () => {
+  await as('authenticated', ANON_USER, true);
+  const event = '00000000-0000-0000-0000-00000000e001';
+  await allowed(`insert into public.event_likes (event_id, user_id) values ($1, $2)`, [event, ANON_USER]);
+  await allowed(`delete from public.event_likes where event_id = $1 and user_id = $2`, [event, ANON_USER]);
+  await denied(`insert into public.event_likes (event_id, user_id) values ($1, $2)`, [event, REAL_USER]);
 });
 
 test('an anonymous account keeps its own profile name, but no photo link', async () => {

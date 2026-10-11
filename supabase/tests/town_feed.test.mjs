@@ -10,9 +10,9 @@ import { PGlite } from '@electric-sql/pglite';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
-// The function as first built, then the recipe that re-creates it (ticket 18).
-const files = readdirSync(migrations)
-  .filter((f) => f.endsWith('_town_feed.sql') || f.endsWith('_town_feed_recipe.sql')).sort();
+// The function as first built, then each file that re-creates it: the recipe (ticket 18),
+// hearts (real-life actions, ticket 03).
+const files = readdirSync(migrations).filter((f) => /_town_feed(_[a-z]+)?\.sql$/.test(f)).sort();
 const playground = JSON.parse(readFileSync(join(here, 'town_feed_playground.json'), 'utf8'));
 
 const db = await PGlite.create();
@@ -40,6 +40,10 @@ await db.exec(`
   create table public.event_saves (
     event_id uuid not null, user_id uuid not null, created_at timestamptz not null default now(),
     primary key (event_id, user_id));
+  create table public.event_likes (
+    id uuid primary key default gen_random_uuid(), event_id uuid not null,
+    user_id uuid not null, created_at timestamptz not null default now(),
+    unique (event_id, user_id));
   create table public.town_profiles (
     user_id uuid primary key, interests text[] not null default '{}'::text[]);
   create index event_rsvps_event_idx on public.event_rsvps (event_id);
@@ -51,12 +55,15 @@ await db.exec(`
   alter table public.event_rsvps enable row level security;
   alter table public.clubs enable row level security;
   alter table public.event_saves enable row level security;
+  alter table public.event_likes enable row level security;
   alter table public.town_profiles enable row level security;
   create policy "read events" on public.club_events for select to public
     using (status = 'approved' or submitted_by = auth.uid() or is_admin());
   create policy "read rsvps" on public.event_rsvps for select to authenticated using (true);
   create policy "read clubs" on public.clubs for select to public using (true);
   create policy "event saves select" on public.event_saves for select to authenticated using (true);
+  create policy "own likes select" on public.event_likes for select to public
+    using (auth.uid() = user_id);
   create policy "town_profiles_select_own" on public.town_profiles for select to public
     using (auth.uid() = user_id);
   grant select on all tables in schema public to anon, authenticated;
@@ -68,7 +75,8 @@ const ME = '00000000-0000-0000-0000-00000000000a';
 
 async function reset() {
   await db.exec(`reset role; delete from public.event_rsvps; delete from public.club_events;
-                 delete from public.event_saves; delete from public.town_profiles;
+                 delete from public.event_saves; delete from public.event_likes;
+                 delete from public.town_profiles;
                  reset request.jwt.claim.sub; reset test.admin;`);
 }
 
@@ -231,6 +239,34 @@ test('signed out, the feed reads as the public role and counts no RSVPs', async 
   await db.exec(`reset role; set role authenticated; set request.jwt.claim.sub = '${ME}'`);
   // Your own draft is readable to you, but only approved events are in the feed.
   assert.deepEqual(await counts(), [{ title: 'Bake sale', going_count: 1, rsvpd: true }]);
+});
+
+test("every account's hearts are counted, and yours says you hearted it", async () => {
+  await reset();
+  const fair = await add('Fall fair', '2026-10-09', { start_time: '11 AM' });
+  const quiz = await add('Quiz night', '2026-10-09', { start_time: '7 PM' });
+  const OTHER = '00000000-0000-0000-0000-0000000000c3';
+  await db.query(`insert into public.event_likes (event_id, user_id) values ($1, $2), ($1, $3), ($4, $3)`,
+                 [fair, ME, OTHER, quiz]);
+  const hearts = async () => (await db.query(
+    `select title, heart_count, hearted from public.get_town_feed(
+       ('2026-10-08 12:00'::timestamp at time zone 'America/Chicago')) order by title`)).rows;
+  await db.exec(`reset role; set role authenticated; set request.jwt.claim.sub = '${ME}'`);
+  assert.deepEqual(await hearts(), [{ title: 'Fall fair', heart_count: 2, hearted: true },
+                                    { title: 'Quiz night', heart_count: 1, hearted: false }]);
+  // Signed out, the public key reads nobody's hearts, as it reads nobody's Going.
+  await db.exec(`reset role; reset request.jwt.claim.sub; set role anon`);
+  assert.deepEqual(await hearts(), [{ title: 'Fall fair', heart_count: 0, hearted: false },
+                                    { title: 'Quiz night', heart_count: 0, hearted: false }]);
+});
+
+test('a heart moves nothing: the order is the recipe\'s', async () => {
+  await reset();
+  await add('Bake sale', '2026-10-09', { start_time: '11 AM' });
+  const later = await add('Book swap', '2026-10-10', { start_time: '11 AM' });
+  await db.query(`insert into public.event_likes (event_id, user_id) values ($1, $2)`, [later, ME]);
+  await signIn(ME);
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Bake sale', 'Book swap']);
 });
 
 // ---- The recipe (ticket 18): each neighbour's own order, by the playground's weights ----
