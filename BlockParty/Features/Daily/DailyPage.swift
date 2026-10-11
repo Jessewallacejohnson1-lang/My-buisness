@@ -3,8 +3,9 @@
 //  Block Party — the Daily tab: the neighbour's own page for today.
 //
 //  Top to bottom (`docs/plans/daily-tab/SPEC.md` in the BP app folder): the Spotlight,
-//  under its label, on the yellow. Event of the day, Agenda, Suggestions and Following
-//  join below, one at a time. A section with nothing in it is left out.
+//  under its label, on the yellow. Event of the day, Suggestions and Following join
+//  below, one at a time. A section with nothing in it is left out. What you're Going to
+//  lives on the You tab (BP app docs/plans/you-tab).
 //
 
 import SwiftUI
@@ -152,30 +153,6 @@ nonisolated enum DailyMetric {
     /// than the page margin. Picked: Airbnb's trip card never sits in a row.
     static let eventGap: CGFloat = 10
 
-    /// The Agenda, MEASURED from Jesse's Reference: Airbnb's trip day plan
-    /// (`references/daily-agenda/airbnb-day-plan.jpg` in the BP app folder, an @3x 393pt
-    /// screen). The day's grey circle, its gap to the cards, and each card: 80pt tall,
-    /// a 64pt picture 8pt in, the text 16pt after it. The section sits under Event of
-    /// the day at that section's spacing. The corners are tokens: the Reference's round
-    /// 13.5 card and 10.5 picture read as `Radius.tile` and `Radius.button`, which are
-    /// continuous and so look smaller than their numbers.
-    static let agendaDay: CGFloat = 30
-    /// From the weekday's frame to the circle: the Reference's 6pt from its baseline.
-    static let agendaDayToCircle: CGFloat = 3
-    static let agendaRailGap: CGFloat = 13
-    static let agendaRow: CGFloat = 80
-    static let agendaPhoto: CGFloat = 64
-    static let agendaPhotoInset: CGFloat = 8
-    static let agendaTextGap: CGFloat = 16
-    /// Above and below the text, so a closed card's two lines sit centred on the photo
-    /// as the Reference's one line does, and an open card grows only downward.
-    static let agendaTextInset: CGFloat = 14
-    /// Between the cards. Picked: the Reference's gap from the trip card above to its
-    /// first row, since its rows never sit back to back.
-    static let agendaRowGap: CGFloat = 12
-    /// Room the open card keeps on its right for the arrow.
-    static let agendaArrowRoom: CGFloat = 22
-
     /// Suggestions, MEASURED from Jesse's Reference: Airbnb's "Happening today" row
     /// (`references/daily-suggestions/airbnb-happening-today.jpg` in the BP app folder,
     /// an @3x 393pt screen), copied 1:1 (Jesse, 2026-10-05). The cards start at `side`
@@ -267,6 +244,8 @@ private extension VerticalAlignment {
 
 struct DailyPage: View {
     let spotlight: DailySpotlight
+    @Environment(RealLifeActions.self) private var actions
+    @ObservedObject private var saves = SavedStore.shared
     @State private var tilt = PhoneTilt()
     /// How far the page has scrolled, held only up to `edgeFade`.
     @State private var scrolled: CGFloat = 0
@@ -285,18 +264,18 @@ struct DailyPage: View {
                         let now = DailyClock.now(context.date)
                         // Each section leaves out what one above it shows (SPEC.md).
                         let events = DailyEvent.showing(DailyEvent.today(now: now), now: now, limit: 3)
-                        let agenda = DailyEvent.showing(DailyEvent.agenda(now: now), now: now,
-                                                        without: events, limit: .max)
-                        let suggestions = DailyEvent.showing(DailyEvent.suggestions(now: now), now: now,
-                                                             without: events + agenda, limit: 10)
+                        // Suggestions never offer what you're Going to or saved (SPEC.md).
+                        let suggestions = DailyEvent.showing(
+                            DailyEvent.suggestions(now: now).filter {
+                                !actions.going($0.item).isGoing && !$0.item.isSaved(in: saves)
+                            }, now: now, without: events, limit: 10)
                         let following = DailyFollowing.showing(DailyFollowing.today(now: now), now: now,
-                                                               without: events + agenda + suggestions, limit: 10)
+                                                               without: events + suggestions, limit: 10)
                         VStack(spacing: 0) {
                             if !events.isEmpty {
                                 EventOfTheDaySection(events: events, now: now)
                                     .padding(.top, DailyMetric.eventSectionTop)
                             }
-                            AgendaSection(events: agenda, now: now)
                             if !suggestions.isEmpty {
                                 SuggestionsSection(events: suggestions, now: now)
                                     .padding(.top, DailyMetric.eventSectionTop)

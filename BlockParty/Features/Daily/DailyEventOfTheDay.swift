@@ -15,6 +15,9 @@ struct DailyEvent: Identifiable {
     var ends: Date
     /// The address's second line, under the place (`item.location`).
     var town: String
+    /// False when its start couldn't be read ("after dark") or it runs all day: it
+    /// starts at midnight then, and its card shows the organizer's own words.
+    var timed = true
 
     var id: String { item.id }
 
@@ -33,6 +36,35 @@ struct DailyEvent: Identifiable {
         #else
         return []
         #endif
+    }
+
+    /// The card's time: "Now" while it's on, else when it starts ("9 AM", "7:30 PM"), in
+    /// the Town's time. An untimed Event shows the organizer's own words, or "All day".
+    /// Working words; Jesse writes the final ones.
+    func startTime(now: Date) -> String {
+        guard timed else { return item.startTime ?? "All day" }
+        return isOn(now) ? "Now" : Self.clock(starts)
+    }
+
+    /// Started and not yet over.
+    func isOn(_ now: Date) -> Bool {
+        timed && starts <= now && now < ends
+    }
+
+    /// "9 AM" or "7:30 PM" in the Town's time: minutes only when there are some.
+    static func clock(_ date: Date) -> String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = Town.timeZone
+        return townTime(calendar.component(.minute, from: date) == 0 ? "h" : "hmm", date)
+    }
+
+    /// `date` written from a date template ("EEE", "d", "h"), in English, in the Town's time.
+    static func townTime(_ template: String, _ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US")
+        formatter.timeZone = Town.timeZone
+        formatter.setLocalizedDateFormatFromTemplate(template)
+        return formatter.string(from: date)
     }
 
     /// What a section shows: the ones on now or still to come, soonest first, leaving out

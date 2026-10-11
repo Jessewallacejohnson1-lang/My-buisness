@@ -43,7 +43,6 @@ enum DeclineReason: String, CaseIterable, Identifiable {
 struct CommunityAPI {
     let auth: any TokenProviding
 
-    private struct IdRow: Decodable { let id: String }
 
     // MARK: - Plumbing
 
@@ -265,17 +264,6 @@ struct CommunityAPI {
         }
     }
 
-    /// Count-only RSVP tally for a set of event ids (no user filter).
-    private func rsvpCounts(eventIds ids: [String], token t: String) async throws -> [String: Int] {
-        guard !ids.isEmpty else { return [:] }
-        let (rd, _) = try await SupabaseHTTP.rest("event_rsvps",
-            query: "select=event_id&event_id=in.(\(ids.joined(separator: ",")))", accessToken: t)
-        let rsvps: [RsvpRow] = try decode(rd)
-        var counts: [String: Int] = [:]
-        for r in rsvps { counts[r.eventId, default: 0] += 1 }
-        return counts
-    }
-
     func rsvpEvent(_ eventId: String) async throws {
         let t = try await token()
         let uid = try await uidOrThrow()
@@ -431,47 +419,46 @@ struct CommunityAPI {
         }
     }
 
-    // MARK: - My activity (profile screen — per-user, real counts only)
+    // MARK: - My Going (the You tab)
 
-    /// Upcoming events the signed-in user has RSVP'd to (today onward), soonest
-    /// first. Two hops: their `event_rsvps` → those approved `club_events`. Empty
-    /// when they've RSVP'd to nothing upcoming — never a fabricated number.
-    func getMyUpcomingRsvps() async throws -> [UpcomingEvent] {
-        let t = try await token()
-        let uid = try await uidOrThrow()
-        let (rd, _) = try await SupabaseHTTP.rest("event_rsvps",
-            query: "select=event_id&user_id=eq.\(uid)", accessToken: t)
-        let mine: [RsvpRow] = try decode(rd)
-        let ids = Array(Set(mine.map(\.eventId)))
-        guard !ids.isEmpty else { return [] }
-        let today = DateHelpers.localDate()
-        let (data, _) = try await SupabaseHTTP.rest("club_events",
-            query: "select=*&id=in.(\(ids.joined(separator: ",")))&status=eq.approved&kind=eq.event&event_date=gte.\(today)\(Self.realOnly)&order=event_date.asc",
-            accessToken: t)
-        let events: [RawEvent] = try decode(data)
-        let counts = try await rsvpCounts(eventIds: events.map(\.id), token: t)
-        return events.map {
-            UpcomingEvent(id: $0.id, title: $0.title, eventDate: $0.eventDate ?? "",
-                          startTime: $0.startTime, location: $0.location,
-                          goingCount: counts[$0.id] ?? 0, createdAt: $0.createdAt ?? "",
-                          imageUrl: $0.imageUrl, rsvpd: true)
+    /// The neighbour's Going from `from` to `to`, Town days as "yyyy-MM-dd", both ends
+    /// included, past days too: `get_my_going`, the one function iOS and Android call
+    /// (BP app docs/plans/you-tab). Ordered by day; the You page orders a day by start.
+    func getMyGoing(from: String, to: String) async throws -> [UpcomingEvent] {
+        let body = try JSONSerialization.data(withJSONObject: ["p_from": from, "p_to": to])
+        let (data, _) = try await SupabaseHTTP.rest("rpc/get_my_going", method: "POST",
+                                                    accessToken: try await token(), body: body)
+        return try Self.myGoingRows(from: data)
+    }
+
+    /// `get_my_going`'s rows as events, each one the neighbour is Going to.
+    static func myGoingRows(from data: Data) throws -> [UpcomingEvent] {
+        struct Row: Decodable {
+            let id: String
+            let title: String
+            let eventDate: String
+            let startTime: String?
+            let location: String?
+            let imageUrl: String?
+            let category: String?
+            let clubName: String?
+            let sourceName: String?
+            let endAt: String?
+            let allDay: Bool
+            let createdAt: String
+            let goingCount: Int
         }
-    }
-
-    /// Clubs the signed-in user has joined. Derives from the approved-clubs fetch,
-    /// which already resolves `joined` per row — no separate endpoint needed.
-    func getMyClubs() async throws -> [ClubView] {
-        try await getApprovedClubs().filter { $0.joined }
-    }
-
-    /// How many daily quests the user has ever completed (all-time). Real count.
-    func getMyQuestCount() async throws -> Int {
-        let t = try await token()
-        let uid = try await uidOrThrow()
-        let (data, _) = try await SupabaseHTTP.rest("quest_completions",
-            query: "select=id&user_id=eq.\(uid)", accessToken: t)
-        let rows: [IdRow] = try decode(data)
-        return rows.count
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return try decoder.decode([Row].self, from: data).map { row in
+            UpcomingEvent(id: row.id, title: row.title, eventDate: row.eventDate,
+                          startTime: row.startTime, location: row.location,
+                          goingCount: row.goingCount, createdAt: row.createdAt,
+                          imageUrl: row.imageUrl, rsvpd: true, clubName: row.clubName,
+                          category: EventCategory.from(row.category),
+                          endAt: DateHelpers.timestamp(row.endAt),
+                          isAllDay: row.allDay, sourceName: row.sourceName)
+        }
     }
 
     // MARK: - Trails

@@ -55,6 +55,10 @@ final class RealLifeActions {
 
     /// Each Event as the last Town feed read gave it.
     private var base: [Key: Tally] = [:]
+    /// Every Event the neighbour tapped Going or Leave on this session, whole, so the You
+    /// page can show a Join made on a card before a read of their Going brings it back
+    /// (BP app docs/plans/you-tab). Whether each is still Going is `going(_:)`.
+    private(set) var goingTapped: [String: FeedCardItem] = [:]
     /// The neighbour's own choice, laid over `base` until a read agrees with it.
     private var chosen: [Key: Bool] = [:]
     /// One more each time a failed write turns a choice back by itself while the screen
@@ -184,6 +188,7 @@ final class RealLifeActions {
     /// Join or leave, shown at once. A tap while a failed write waits to turn back
     /// turns it back now, rather than toggling a state the server never had.
     func toggleGoing(_ item: FeedCardItem) {
+        if canAct { goingTapped[item.id] = item }
         toggle(Key(kind: .going, id: item.id), from: going(item).isGoing)
     }
 
@@ -249,6 +254,7 @@ final class RealLifeActions {
         failedFrom = [:]
         turnedBack = []
         chosen = [:]
+        goingTapped = [:]
     }
 
     // MARK: Inside

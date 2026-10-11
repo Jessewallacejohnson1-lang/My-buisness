@@ -53,7 +53,7 @@ enum Tab: Int, CaseIterable, Identifiable {
         case .town:     return "Everything happening on the block."
         case .daily:    return "Your paper — the town, filtered to what you follow."
         case .search:   return "Find a place, a happening, or someone on the block."
-        case .you:      return "Your profile."
+        case .you:      return "Your three weeks, and your profile."
         }
     }
 }
@@ -331,6 +331,9 @@ struct MainTabsView: View {
     /// Each Event's Going for the session, which the Town feed's reads set and every
     /// card and event page reads, so they agree (BP app docs/plans/real-life-actions).
     @State private var actions: RealLifeActions
+    /// The You tab's three weeks of Going, kept here like the Town feed's, so coming back
+    /// to You shows the Calendar it left while it reads again behind it.
+    @State private var you = YouModel()
     /// The friends inbox and its chats (DEBUG samples until real messages exist), kept
     /// here so an opened chat stays read when the inbox comes back.
     @State private var friendsModel = FriendsModel()
@@ -351,7 +354,7 @@ struct MainTabsView: View {
     /// Today bar opens it since the avatar was retired (2026-09-18); `-open-menu` still
     /// does. Owned here (not in HomeView) so it renders above the tab bar.
     @State private var showMenu = false
-    /// The profile, now a menu destination (presented as a standard sheet).
+    /// Profile, in Apple's standard sheet, from the photo at the top left of You.
     @State private var showProfileSheet = false
     @Namespace private var cardNS
     /// The Your Day rail ↔ day sheet morph, and the sheet's own presentation.
@@ -408,7 +411,9 @@ struct MainTabsView: View {
         .onChange(of: auth.userId) { _, _ in
             // Animated, so the heart and the going line come in rather than pop.
             withAnimation(Motion.snappy) { actions.accountChanged(signedIn: auth.isSignedIn) }
+            you.accountChanged()
             Task { await townFeed.reload() }
+            Task { await you.refresh() }
         }
         .onAppear {
             // DEBUG: `-open-friends` lands on the inbox, `-open-friends-chat` on its newest chat.
@@ -462,9 +467,10 @@ struct MainTabsView: View {
                                 BlankTab(tab: .daily)
                             }
                         case .search:   SearchPage(model: searchModel)
-                        // Profile is a real screen, mounted WITHOUT its sheet chrome —
-                        // a tab has no "close", so the X is suppressed here.
-                        case .you:      ProfileView(showsClose: false)
+                        // Your three weeks; your photo at its top left opens Profile.
+                        case .you:
+                            YouPage(model: you, avatarURL: avatar.avatarUrl,
+                                    onProfile: { showProfileSheet = true })
                         }
                     }
                     // Identity keyed on the tab so a switch is an insertion+removal that
@@ -545,8 +551,13 @@ struct MainTabsView: View {
                 }
             }
         }
-        // Profile is now a menu destination — a standard sheet.
-        .sheet(isPresented: $showProfileSheet) { ProfileView() }
+        // Profile: Apple's standard sheet, from the photo on You (and the town menu).
+        // It drags down to close, so it draws no close button of its own.
+        .sheet(isPresented: $showProfileSheet) {
+            ProfileView()
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
         // The Today bar's friends mark (while there are no chats) and bell. Reserved
         // screens until the real ones land; see `ReservedScreen`.
         .sheet(isPresented: $showFriends) { ReservedScreen.friends }
