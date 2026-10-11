@@ -99,21 +99,22 @@ nonisolated enum SearchMetric {
     /// A new view of the results fades in, rising this far.
     static let enterRise: CGFloat = 10
 
-    // The logo shine (`LogoShine`), from the mock Jesse picked on 2026-10-11. Places across
-    // a logo run from 0 at its top-left corner to 1 at its bottom-right, along a line at
-    // CSS's 115°, the band lying across it.
-    /// Where the band rests: over the top-left corner, the gloss of light from above.
-    static let shineRest: CGFloat = 0.115
-    /// How far a full lean (`PhoneTilt.range`, about 17°) carries the band, side to side
-    /// and, by `shineLeanY`, forward and back. Guessed, to tune on the phone.
-    static let shineTravel: CGFloat = 0.9
-    static let shineLeanY: CGFloat = 0.5
-    /// The band's white at its middle and at its shoulders, `shineCore` either side, fading
-    /// out by `shineEdge`: 40% fainter than the mock first showed (Jesse).
+    // The logo shine (`LogoShine`), from the mock Jesse picked on 2026-10-11 ("360 light").
+    // Places on a logo run from 0 at its top-left corner to 1 at its bottom-right.
+    /// Where the glow rests: over the top-left, the reflection of a light above.
+    static let shineRestX: CGFloat = 0.24
+    static let shineRestY: CGFloat = 0.2
+    /// How far a full lean (`PhoneTilt.range`, about 17°) carries the glow, either way on
+    /// either axis. From the mock; to tune on the phone.
+    static let shineTravel: CGFloat = 0.62
+    /// The glow's reach, as a share of the logo's side (the mock's 78% by 58% ellipse, made
+    /// round), its white at the middle, at `shineShoulderAt` of the reach, and gone by
+    /// `shineFadeAt`: 40% fainter than the mock first showed (Jesse).
+    static let shineRadius: CGFloat = 0.68
     static let shinePeak: Double = 0.3
     static let shineShoulder: Double = 0.096
-    static let shineCore: CGFloat = 0.09
-    static let shineEdge: CGFloat = 0.26
+    static let shineShoulderAt: CGFloat = 0.36
+    static let shineFadeAt: CGFloat = 0.7
 
     // The business page (`BusinessPage`).
     static let openResponse: CGFloat = 0.5
@@ -180,7 +181,8 @@ struct SearchPage: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            content
+            // Covered by an open business, the logos stop following the tilt.
+            content.environment(opener.isOpen ? nil : tilt)
             header
             BusinessPage()
         }
@@ -952,6 +954,8 @@ struct SearchShelfPage: View {
                     .padding(.top, SearchMetric.pageBar)
                     .padding(.bottom, SearchMetric.tabBarClearance)
             }
+            // Covered by an open business, the logos stop following the tilt.
+            .environment(opener.isOpen ? nil : tilt)
             bar
             BusinessPage()
         }

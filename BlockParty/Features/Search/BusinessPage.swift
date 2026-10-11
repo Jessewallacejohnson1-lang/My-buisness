@@ -408,14 +408,11 @@ struct CastLogo: View {
                 Image(uiImage: image)
                     .resizable()
                     .interpolation(.high)
-                    .overlay {
-                        if let tilt {
-                            LogoShine(tilt: tilt).mask { Image(uiImage: image).resizable() }
-                        }
-                    }
                     .shadow(color: color.opacity(0.36 * strength), radius: max(1.2, side * 0.016) * k / 2, y: side * 0.008 * k)
                     .shadow(color: color.opacity(0.22 * strength), radius: side * 0.07 * k / 2, y: side * 0.03 * k)
                     .shadow(color: color.opacity(0.14 * strength), radius: side * 0.18 * k / 2, y: side * 0.075 * k)
+                    // Over the shadows, not under them: a new lean then redraws the light alone.
+                    .overlay { if let tilt { LogoShine(image: image, tilt: tilt) } }
                     .transition(.opacity)
             }
         }
@@ -429,35 +426,28 @@ struct CastLogo: View {
     }
 }
 
-/// A soft band of light across a logo, cut to its shape by the caller, that slides as the
-/// phone tilts and rests over the top-left corner (Jesse, 2026-10-11, taste.md). Its own
-/// view, so a new lean redraws the band and not the logo.
+/// A soft round glow on a logo, in the logo's own shape: the reflection of a light above,
+/// moving whichever way the phone tips and resting over the top-left (Jesse, 2026-10-11,
+/// taste.md: "360 light"). Its own view, so a new lean redraws the glow and not the logo.
 private struct LogoShine: View {
+    let image: UIImage
     let tilt: PhoneTilt
 
-    /// The gradient's line runs past the logo both ways, so every stop stays inside 0...1
-    /// wherever the band is: from `-reach` to `1 + reach` in places across the logo.
-    private static let reach: CGFloat = 0.6
-    /// CSS's 115° line across a square, from its start to its end.
-    private static let from = UnitPoint(x: -0.102, y: 0.219), to = UnitPoint(x: 1.102, y: 0.781)
-
     var body: some View {
-        let m = SearchMetric.self, r = Self.reach
-        let spot = m.shineRest + m.shineTravel * (tilt.lean.x + m.shineLeanY * tilt.lean.y)
-        let middle = min(max(spot, m.shineEdge - r), 1 + r - m.shineEdge)
-        let at = { (place: CGFloat) in (place + r) / (1 + 2 * r) }
-        let line = { (t: CGFloat) in
-            UnitPoint(x: Self.from.x + (Self.to.x - Self.from.x) * t, y: Self.from.y + (Self.to.y - Self.from.y) * t)
-        }
-        LinearGradient(stops: [
-            .init(color: Hue.logoShine.opacity(0), location: at(middle - m.shineEdge)),
-            .init(color: Hue.logoShine.opacity(m.shineShoulder), location: at(middle - m.shineCore)),
-            .init(color: Hue.logoShine.opacity(m.shinePeak), location: at(middle)),
-            .init(color: Hue.logoShine.opacity(m.shineShoulder), location: at(middle + m.shineCore)),
-            .init(color: Hue.logoShine.opacity(0), location: at(middle + m.shineEdge)),
-        ], startPoint: line(-r), endPoint: line(1 + r))
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
+        let m = SearchMetric.self
+        let center = UnitPoint(x: m.shineRestX + m.shineTravel * tilt.lean.x,
+                               y: m.shineRestY + m.shineTravel * tilt.lean.y)
+        // The logo as a stencil, filled with the glow: its shape with no mask pass.
+        Image(uiImage: image)
+            .renderingMode(.template)
+            .resizable()
+            .foregroundStyle(EllipticalGradient(stops: [
+                .init(color: Hue.logoShine.opacity(m.shinePeak), location: 0),
+                .init(color: Hue.logoShine.opacity(m.shineShoulder), location: m.shineShoulderAt),
+                .init(color: Hue.logoShine.opacity(0), location: m.shineFadeAt),
+            ], center: center, endRadiusFraction: m.shineRadius))
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 }
 
