@@ -397,6 +397,8 @@ struct CastLogo: View {
     var strength: Double = 1
 
     @ObservedObject private var cache = POILogoCache.shared
+    /// Handed down by a page that follows the phone's tilt; none, and the logo has no shine.
+    @Environment(PhoneTilt.self) private var tilt: PhoneTilt?
 
     var body: some View {
         let image = cache.image(for: logo.url)
@@ -406,6 +408,11 @@ struct CastLogo: View {
                 Image(uiImage: image)
                     .resizable()
                     .interpolation(.high)
+                    .overlay {
+                        if let tilt {
+                            LogoShine(tilt: tilt).mask { Image(uiImage: image).resizable() }
+                        }
+                    }
                     .shadow(color: color.opacity(0.36 * strength), radius: max(1.2, side * 0.016) * k / 2, y: side * 0.008 * k)
                     .shadow(color: color.opacity(0.22 * strength), radius: side * 0.07 * k / 2, y: side * 0.03 * k)
                     .shadow(color: color.opacity(0.14 * strength), radius: side * 0.18 * k / 2, y: side * 0.075 * k)
@@ -419,6 +426,38 @@ struct CastLogo: View {
         // A logo whose fetch failed (offline when the places loaded) asks again when it is
         // next on screen; one already loaded or in flight is skipped by the cache.
         .task(id: logo.url) { cache.prefetch([logo.url]) }
+    }
+}
+
+/// A soft band of light across a logo, cut to its shape by the caller, that slides as the
+/// phone tilts and rests over the top-left corner (Jesse, 2026-10-11, taste.md). Its own
+/// view, so a new lean redraws the band and not the logo.
+private struct LogoShine: View {
+    let tilt: PhoneTilt
+
+    /// The gradient's line runs past the logo both ways, so every stop stays inside 0...1
+    /// wherever the band is: from `-reach` to `1 + reach` in places across the logo.
+    private static let reach: CGFloat = 0.6
+    /// CSS's 115° line across a square, from its start to its end.
+    private static let from = UnitPoint(x: -0.102, y: 0.219), to = UnitPoint(x: 1.102, y: 0.781)
+
+    var body: some View {
+        let m = SearchMetric.self, r = Self.reach
+        let spot = m.shineRest + m.shineTravel * (tilt.lean.x + m.shineLeanY * tilt.lean.y)
+        let middle = min(max(spot, m.shineEdge - r), 1 + r - m.shineEdge)
+        let at = { (place: CGFloat) in (place + r) / (1 + 2 * r) }
+        let line = { (t: CGFloat) in
+            UnitPoint(x: Self.from.x + (Self.to.x - Self.from.x) * t, y: Self.from.y + (Self.to.y - Self.from.y) * t)
+        }
+        LinearGradient(stops: [
+            .init(color: Hue.logoShine.opacity(0), location: at(middle - m.shineEdge)),
+            .init(color: Hue.logoShine.opacity(m.shineShoulder), location: at(middle - m.shineCore)),
+            .init(color: Hue.logoShine.opacity(m.shinePeak), location: at(middle)),
+            .init(color: Hue.logoShine.opacity(m.shineShoulder), location: at(middle + m.shineCore)),
+            .init(color: Hue.logoShine.opacity(0), location: at(middle + m.shineEdge)),
+        ], startPoint: line(-r), endPoint: line(1 + r))
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 

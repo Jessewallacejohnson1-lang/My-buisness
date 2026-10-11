@@ -222,6 +222,8 @@ nonisolated enum Hue {
     /// The warm brown of the floor under a logo: the backdrop darkens toward it at the
     /// bottom (5% to 10%), so the logo stands on something.
     static let searchFloor   = Color(hex: 0x46321E)
+    /// The light a logo catches as the phone tilts (`LogoShine`): white, faded by the band.
+    static let logoShine     = Color(hex: 0xFFFFFF)
     /// The logo wall's one studio backdrop, and the hue the cast shadows take on it.
     nonisolated static let searchStudioHue: Double = 34
 

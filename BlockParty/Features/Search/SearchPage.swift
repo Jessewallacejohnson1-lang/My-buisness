@@ -99,6 +99,22 @@ nonisolated enum SearchMetric {
     /// A new view of the results fades in, rising this far.
     static let enterRise: CGFloat = 10
 
+    // The logo shine (`LogoShine`), from the mock Jesse picked on 2026-10-11. Places across
+    // a logo run from 0 at its top-left corner to 1 at its bottom-right, along a line at
+    // CSS's 115°, the band lying across it.
+    /// Where the band rests: over the top-left corner, the gloss of light from above.
+    static let shineRest: CGFloat = 0.115
+    /// How far a full lean (`PhoneTilt.range`, about 17°) carries the band, side to side
+    /// and, by `shineLeanY`, forward and back. Guessed, to tune on the phone.
+    static let shineTravel: CGFloat = 0.9
+    static let shineLeanY: CGFloat = 0.5
+    /// The band's white at its middle and at its shoulders, `shineCore` either side, fading
+    /// out by `shineEdge`: 40% fainter than the mock first showed (Jesse).
+    static let shinePeak: Double = 0.3
+    static let shineShoulder: Double = 0.096
+    static let shineCore: CGFloat = 0.09
+    static let shineEdge: CGFloat = 0.26
+
     // The business page (`BusinessPage`).
     static let openResponse: CGFloat = 0.5
     static let openDamping: CGFloat = 0.84
@@ -141,6 +157,8 @@ struct SearchShelf: Hashable {
 struct SearchPage: View {
     @Bindable var model: SearchModel
     @State private var opener = BusinessOpener()
+    /// Each page follows the tilt on its own: a pushed row's page has its own.
+    @State private var tilt = PhoneTilt()
     @FocusState private var fieldFocused: Bool
     @Namespace private var chipNS
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -168,6 +186,7 @@ struct SearchPage: View {
         }
         .environment(model)
         .environment(opener)
+        .following(tilt)
         .navigationDestination(for: SearchShelf.self) { shelf in
             SearchShelfPage(shelf: shelf).environment(model)
         }
@@ -915,6 +934,7 @@ private struct GooglePhoto: View {
 struct SearchShelfPage: View {
     let shelf: SearchShelf
     @State private var opener = BusinessOpener()
+    @State private var tilt = PhoneTilt()
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -936,6 +956,7 @@ struct SearchShelfPage: View {
             BusinessPage()
         }
         .environment(opener)
+        .following(tilt)
         .toolbar(.hidden, for: .navigationBar)
         .onAppear { opener.reduceMotion = reduceMotion }
     }
