@@ -100,17 +100,17 @@ nonisolated enum SearchMetric {
     static let enterRise: CGFloat = 10
 
     // The logo shine (`LogoShine`), from the mock Jesse picked on 2026-10-11 ("360 light").
-    // Places on a logo run from 0 at its top-left corner to 1 at its bottom-right.
-    /// Where the glow rests: over the top-left, the reflection of a light above.
-    static let shineRestX: CGFloat = 0.24
-    static let shineRestY: CGFloat = 0.2
-    /// How far a full lean (`PhoneTilt.range`, about 17°) carries the glow, either way on
-    /// either axis. From the mock; to tune on the phone.
+    // Held level, the glow sits on the logo's middle, a light shining straight down (Jesse).
+    /// How far a full lean (`PhoneTilt.range`, about 17°) carries the glow from the middle,
+    /// either way on either axis, as a share of the logo's side. From the mock; to tune on
+    /// the phone.
     static let shineTravel: CGFloat = 0.62
-    /// The glow's reach, as a share of the logo's side (the mock's 78% by 58% ellipse, made
-    /// round), its white at the middle, at `shineShoulderAt` of the reach, and gone by
-    /// `shineFadeAt`: 40% fainter than the mock first showed (Jesse).
-    static let shineRadius: CGFloat = 0.68
+    /// The glow's reach either side of its middle, as a share of the logo's side: an oval
+    /// wider than tall, the mock's 78% by 58% (Jesse: not round). Its white at the middle,
+    /// at `shineShoulderAt` of the reach, and gone by `shineFadeAt`: 40% fainter than the
+    /// mock first showed (Jesse).
+    static let shineReachX: CGFloat = 0.78
+    static let shineReachY: CGFloat = 0.58
     static let shinePeak: Double = 0.3
     static let shineShoulder: Double = 0.096
     static let shineShoulderAt: CGFloat = 0.36

@@ -412,7 +412,7 @@ struct CastLogo: View {
                     .shadow(color: color.opacity(0.22 * strength), radius: side * 0.07 * k / 2, y: side * 0.03 * k)
                     .shadow(color: color.opacity(0.14 * strength), radius: side * 0.18 * k / 2, y: side * 0.075 * k)
                     // Over the shadows, not under them: a new lean then redraws the light alone.
-                    .overlay { if let tilt { LogoShine(image: image, tilt: tilt) } }
+                    .overlay { if let tilt { LogoShine(image: image, side: side, tilt: tilt) } }
                     .transition(.opacity)
             }
         }
@@ -426,26 +426,29 @@ struct CastLogo: View {
     }
 }
 
-/// A soft round glow on a logo, in the logo's own shape: the reflection of a light above,
-/// moving whichever way the phone tips and resting over the top-left (Jesse, 2026-10-11,
-/// taste.md: "360 light"). Its own view, so a new lean redraws the glow and not the logo.
+/// A soft oval glow on a logo, in the logo's own shape: the reflection of a light straight
+/// above, over the logo's middle while the phone is held level, moving whichever way it
+/// tips (Jesse, 2026-10-11, taste.md: a 360 light, an oval, shining straight down). Its own
+/// view, so a new lean redraws the glow and not the logo.
 private struct LogoShine: View {
     let image: UIImage
+    let side: CGFloat
     let tilt: PhoneTilt
 
     var body: some View {
         let m = SearchMetric.self
-        let center = UnitPoint(x: m.shineRestX + m.shineTravel * tilt.lean.x,
-                               y: m.shineRestY + m.shineTravel * tilt.lean.y)
-        // The logo as a stencil, filled with the glow: its shape with no mask pass.
-        Image(uiImage: image)
-            .renderingMode(.template)
-            .resizable()
-            .foregroundStyle(EllipticalGradient(stops: [
-                .init(color: Hue.logoShine.opacity(m.shinePeak), location: 0),
-                .init(color: Hue.logoShine.opacity(m.shineShoulder), location: m.shineShoulderAt),
-                .init(color: Hue.logoShine.opacity(0), location: m.shineFadeAt),
-            ], center: center, endRadiusFraction: m.shineRadius))
+        // An oval wider than it is tall, its edge where the frame's is, centred where the
+        // lean puts it, then cut to the logo.
+        EllipticalGradient(stops: [
+            .init(color: Hue.logoShine.opacity(m.shinePeak), location: 0),
+            .init(color: Hue.logoShine.opacity(m.shineShoulder), location: m.shineShoulderAt),
+            .init(color: Hue.logoShine.opacity(0), location: m.shineFadeAt),
+        ], center: .center, endRadiusFraction: 0.5)
+            .frame(width: side * 2 * m.shineReachX, height: side * 2 * m.shineReachY)
+            .position(x: side * (0.5 + m.shineTravel * tilt.lean.x),
+                      y: side * (0.5 + m.shineTravel * tilt.lean.y))
+            .frame(width: side, height: side)
+            .mask { Image(uiImage: image).resizable() }
             .allowsHitTesting(false)
             .accessibilityHidden(true)
     }
