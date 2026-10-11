@@ -7,7 +7,6 @@
 //  join below, one at a time. A section with nothing in it is left out.
 //
 
-import CoreMotion
 import SwiftUI
 
 /// Today's Spotlight: one local person or business and their story, the same for
@@ -111,17 +110,6 @@ nonisolated enum DailyMetric {
     static let sunrise: Double = 6
     static let sunset: Double = 21
 
-    /// A full lean is the phone tipped this far (in gravity, about 17°) from the way it
-    /// is being held.
-    static let tiltRange: Double = 0.3
-    /// How fast "the way it is being held" catches up with the hand, per reading: at 60
-    /// readings a second the lean settles back in about 1.5 s.
-    static let tiltRestFollow: Double = 0.012
-    static let tiltReadingsPerSecond: Double = 60
-    /// A lean change smaller than this isn't drawn: it moves the shadow under a tenth
-    /// of a point, it is sensor noise on a phone lying still, and redrawing for it 60
-    /// times a second would cost battery.
-    static let tiltStill: Double = 0.005
     /// At a full lean: the card turns this many degrees, its shadow slides this far the
     /// other way, and the round photo floats this far ahead of the card.
     static let tiltLean: Double = 8
@@ -269,71 +257,6 @@ nonisolated enum DailyClock {
     }
 }
 
-/// How the phone is held, as a lean from -1 to 1 on each axis against a rest that
-/// slowly catches up with the hand, so any comfortable grip reads as level. Apple's own
-/// tilt (`UIInterpolatingMotionEffect`, the wallpaper's) is UIKit-only, so this reads
-/// the motion sensor directly; that needs no permission.
-@Observable
-final class DailyTilt {
-    private(set) var lean: CGPoint = .zero
-    /// Made on the first start, not with the page: `@State` builds a new `DailyTilt`
-    /// every time the page view is rebuilt and keeps only the first.
-    @ObservationIgnored private var motion: CMMotionManager?
-    @ObservationIgnored private var rest: (x: Double, z: Double)?
-
-    func start() {
-        #if DEBUG
-        if let held = Self.debugLean { lean = held; return }
-        #endif
-        let motion = self.motion ?? CMMotionManager()
-        self.motion = motion
-        guard motion.isDeviceMotionAvailable, !motion.isDeviceMotionActive else { return }
-        motion.deviceMotionUpdateInterval = 1 / DailyMetric.tiltReadingsPerSecond
-        motion.startDeviceMotionUpdates(to: .main) { [weak self] reading, _ in
-            guard let gravity = reading?.gravity else { return }
-            let x = gravity.x, z = gravity.z
-            MainActor.assumeIsolated { self?.read(x: x, z: z) }
-        }
-    }
-
-    func stop() {
-        motion?.stopDeviceMotionUpdates()
-        rest = nil
-        lean = .zero
-    }
-
-    private func read(x: Double, z: Double) {
-        var held = rest ?? (x, z)
-        let next = Self.lean(gravity: (x, z), rest: &held)
-        rest = held
-        if abs(next.x - lean.x) > DailyMetric.tiltStill || abs(next.y - lean.y) > DailyMetric.tiltStill {
-            lean = next
-        }
-    }
-
-    /// One reading: the lean against the rest, then the rest moves a little toward it.
-    nonisolated static func lean(gravity: (x: Double, z: Double),
-                                 rest: inout (x: Double, z: Double)) -> CGPoint {
-        let range = DailyMetric.tiltRange
-        let lean = CGPoint(x: min(1, max(-1, (gravity.x - rest.x) / range)),
-                           y: min(1, max(-1, (gravity.z - rest.z) / range)))
-        rest.x += (gravity.x - rest.x) * DailyMetric.tiltRestFollow
-        rest.z += (gravity.z - rest.z) * DailyMetric.tiltRestFollow
-        return lean
-    }
-
-    #if DEBUG
-    /// DEBUG-only: `-daily-tilt <x>,<y>` holds the card at that lean, since the
-    /// simulator has no motion sensor.
-    private static var debugLean: CGPoint? {
-        let args = ProcessInfo.processInfo.arguments
-        guard let i = args.firstIndex(of: "-daily-tilt"), i + 1 < args.count else { return nil }
-        let parts = args[i + 1].split(separator: ",").compactMap { Double($0) }
-        return parts.count == 2 ? CGPoint(x: parts[0], y: parts[1]) : nil
-    }
-    #endif
-}
-
 private extension VerticalAlignment {
     /// The yellow's lower edge, set by the Spotlight's business line.
     nonisolated enum DailyYellowEdge: AlignmentID {
@@ -344,11 +267,9 @@ private extension VerticalAlignment {
 
 struct DailyPage: View {
     let spotlight: DailySpotlight
-    @State private var tilt = DailyTilt()
+    @State private var tilt = PhoneTilt()
     /// How far the page has scrolled, held only up to `edgeFade`.
     @State private var scrolled: CGFloat = 0
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         ZStack {
@@ -401,16 +322,7 @@ struct DailyPage: View {
         // The Town feed's frosted band behind the clock, so the page blurs under it;
         // it comes in with the first bit of scroll, so at rest the yellow stays exact.
         .statusEdge(opacity: scrolled / DailyMetric.edgeFade)
-        .onAppear(perform: followTilt)
-        .onDisappear { tilt.stop() }
-        .onChange(of: reduceMotion, followTilt)
-        .onChange(of: scenePhase, followTilt)
-    }
-
-    /// The tilt runs only while the app is in front and Reduce Motion is off; stopping
-    /// it also forgets the grip, so coming back in a new one doesn't jump to a lean.
-    private func followTilt() {
-        if scenePhase == .active && !reduceMotion { tilt.start() } else { tilt.stop() }
+        .following(tilt)
     }
 }
 
@@ -432,7 +344,7 @@ struct DailySectionLabel: View {
 /// top edge, then the name, what they do, and two photos.
 private struct SpotlightCard: View {
     let spotlight: DailySpotlight
-    let tilt: DailyTilt
+    let tilt: PhoneTilt
 
     var body: some View {
         // The story page is the next piece; until then a press only squishes.
@@ -458,7 +370,7 @@ private extension EnvironmentValues {
 
 private struct SpotlightCardFace: View {
     let spotlight: DailySpotlight
-    let tilt: DailyTilt
+    let tilt: PhoneTilt
     @Environment(\.spotlightPressed) private var pressed
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 

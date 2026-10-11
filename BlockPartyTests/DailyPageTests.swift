@@ -51,14 +51,14 @@ final class DailyPageTests: XCTestCase {
     /// rest creeps toward the hand so a new grip reads as level again.
     func testTiltLeansFromTheRestAndTheRestFollows() {
         var rest = (x: 0.0, z: -0.5)
-        let lean = DailyTilt.lean(gravity: (x: 0.6, z: -0.65), rest: &rest)
+        let lean = PhoneTilt.lean(gravity: (x: 0.6, z: -0.65), rest: &rest)
         XCTAssertEqual(lean.x, 1, accuracy: 0.001, "a lean past the range stops at a full lean")
         XCTAssertEqual(lean.y, -0.5, accuracy: 0.001)
         XCTAssertGreaterThan(rest.x, 0)
         XCTAssertLessThan(rest.x, 0.6)
 
-        for _ in 0..<600 { _ = DailyTilt.lean(gravity: (x: 0.6, z: -0.65), rest: &rest) }
-        let settled = DailyTilt.lean(gravity: (x: 0.6, z: -0.65), rest: &rest)
+        for _ in 0..<600 { _ = PhoneTilt.lean(gravity: (x: 0.6, z: -0.65), rest: &rest) }
+        let settled = PhoneTilt.lean(gravity: (x: 0.6, z: -0.65), rest: &rest)
         XCTAssertEqual(settled.x, 0, accuracy: 0.01, "held still for 10 s, the grip reads as level")
     }
 
