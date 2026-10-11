@@ -406,7 +406,8 @@ struct MainTabsView: View {
         // an event page already open, and the feed reads again for who's going as this
         // account sees it. Here, not on the stack's root, which a pushed page covers.
         .onChange(of: auth.userId) { _, _ in
-            actions.accountChanged(signedIn: auth.isSignedIn)
+            // Animated, so the heart and the going line come in rather than pop.
+            withAnimation(Motion.snappy) { actions.accountChanged(signedIn: auth.isSignedIn) }
             Task { await townFeed.reload() }
         }
         .onAppear {

@@ -367,6 +367,21 @@ final class RealLifeActionsTests: XCTestCase {
         XCTAssertEqual(actions.heart(item), .init(isHearted: false, count: 3))
     }
 
+    /// A heart that reached the server but lost its answer turns back; the next read,
+    /// which has it, is the truth, and nothing stays wrong until a relaunch.
+    func testAReadCorrectsAHeartThatLandedButLostItsAnswer() async throws {
+        let server = Server()
+        server.failing = true
+        let actions = actions(server)
+        let item = card(hearts: 3)
+
+        actions.toggleHeart(item)
+        try await waitWhile(actions.heart(item).isHearted)
+        XCTAssertEqual(server.hearts, [true], "the server took it; only the answer was lost")
+        actions.read([card(hearts: 4, hearted: true)])
+        XCTAssertEqual(actions.heart(item), .init(isHearted: true, count: 4))
+    }
+
     /// A read sets each Event's heart base: everyone's count and your own heart.
     func testAFeedReadSetsTheHeartBase() {
         let actions = actions(Server())

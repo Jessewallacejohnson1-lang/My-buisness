@@ -49,6 +49,8 @@ await db.exec(`
   create index event_rsvps_event_idx on public.event_rsvps (event_id);
   create index event_rsvps_user_id_idx on public.event_rsvps (user_id);
   create index event_saves_user_id_idx on public.event_saves (user_id);
+  create index event_likes_event_idx on public.event_likes (event_id);
+  create index event_likes_user_id_idx on public.event_likes (user_id);
 
   -- The live read rules (schema.sql), so a signed-out read is tested as it runs live.
   alter table public.club_events enable row level security;
@@ -435,7 +437,7 @@ test("the playground's sample week gives the playground's top 8 for each of its 
 test('the feed is read in under 100 ms with 5,000 people', async () => {
   await reset();
   // About eight weeks of a busy Town: 200 events, 5,000 people with three picks each,
-  // 50,000 Going and 10,000 saves.
+  // 50,000 Going, 10,000 saves and 50,000 hearts.
   const picks = ['live_music', 'dining', 'biking', 'families_kids', 'breweries', 'trails_hiking'];
   await db.query(`
     insert into public.club_events (title, event_date, source_name, start_time, category, created_at)
@@ -457,9 +459,15 @@ test('the feed is read in under 100 ms with 5,000 people', async () => {
     join (select user_id, row_number() over (order by user_id) n from public.town_profiles) p
       on (p.n * 3 + e.n) % 100 = 0
     on conflict do nothing;
+    insert into public.event_likes (event_id, user_id)
+    select e.id, p.user_id from (select id, row_number() over (order by id) n from public.club_events) e
+    join (select user_id, row_number() over (order by user_id) n from public.town_profiles) p
+      on (p.n * 11 + e.n) % 20 = 0;
     analyze;`);
   const { rows: [{ n }] } = await db.query(`select count(*)::int n from public.event_rsvps`);
   assert.ok(n >= 45000, `${n} Going rows`);
+  const { rows: [{ h }] } = await db.query(`select count(*)::int h from public.event_likes`);
+  assert.ok(h >= 45000, `${h} hearts`);
   await signIn('00000000-0000-0000-0001-000000000042');
   await feed('2026-10-08 12:00'); // warm up
   const times = [];

@@ -68,6 +68,9 @@ final class RealLifeActions {
     @ObservationIgnored private var turnBacks: [Key: Task<Void, Never>] = [:]
     /// Where a failed write goes back to while it waits out `hold`.
     @ObservationIgnored private var failedFrom: [Key: Bool] = [:]
+    /// Turned back after a failed write. The write may still have landed with its answer
+    /// lost, so the next read is the truth, agreeing or not.
+    @ObservationIgnored private var turnedBack: Set<Key> = []
     /// Numbers each tap, so a failure that a newer tap has overtaken is not a turn back.
     @ObservationIgnored private var taps: [Key: Int] = [:]
     @ObservationIgnored private var tappedAt: [Key: ContinuousClock.Instant] = [:]
@@ -212,8 +215,9 @@ final class RealLifeActions {
             base[Key(kind: .heart, id: card.id)] = Tally(on: card.isLiked, count: card.likeCount)
         }
         for (key, choice) in chosen where writers[key] == nil && failedFrom[key] == nil {
-            if base[key]?.on == choice { chosen[key] = nil }
+            if base[key]?.on == choice || turnedBack.contains(key) { chosen[key] = nil }
         }
+        turnedBack = []
     }
 
     /// An Event's page is on screen. Only then does a failed Join shake and buzz: the
@@ -243,6 +247,7 @@ final class RealLifeActions {
         turnBacks.values.forEach { $0.cancel() }
         turnBacks = [:]
         failedFrom = [:]
+        turnedBack = []
         chosen = [:]
     }
 
@@ -268,6 +273,7 @@ final class RealLifeActions {
     }
 
     private func choose(_ key: Key, _ on: Bool) {
+        turnedBack.remove(key)
         chosen[key] = on
         taps[key, default: 0] += 1
         tappedAt[key] = .now
@@ -319,6 +325,7 @@ final class RealLifeActions {
             try? await Task.sleep(until: tapped + holdFor)
             guard !Task.isCancelled else { return }
             failedFrom[key] = nil
+            turnedBack.insert(key)
             // Turns back over `flip`, the time the shake below waits, so it never shakes
             // the two faces mid cross-fade (Jesse, 2026-09-27). A tap before then
             // cancels the shake.
