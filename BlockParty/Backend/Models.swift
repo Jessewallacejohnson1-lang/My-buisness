@@ -124,8 +124,10 @@ nonisolated struct FeedScore: Decodable, Hashable, Sendable {
     let spacing: Double
     let newSpot: Bool
     let total: Double
-    let spot: Int
-    let of: Int
+    /// Where the card sits; `TownFeed.cards` sets it to the card's place on screen, which
+    /// a read that keeps the order on screen can leave different from the database's.
+    var spot: Int
+    var of: Int
 }
 
 struct AgendaEvent: Identifiable, Hashable {

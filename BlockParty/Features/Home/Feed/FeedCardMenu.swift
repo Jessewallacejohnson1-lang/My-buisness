@@ -114,12 +114,13 @@ struct FeedCardMenu: View {
 }
 
 /// Every term behind a card's place, for Jesse's account: lifts in points, then the
-/// multipliers, the total and the spot. A term that changes nothing is greyed.
+/// multipliers, the total and the card's place in the feed. A term that changes nothing
+/// is greyed. Rows 14pt apart and plain words (Jesse, 2026-10-11).
 private struct ScoreBox: View {
     let score: FeedScore
 
     var body: some View {
-        VStack(spacing: 9) {
+        VStack(spacing: 14) {
             HStack {
                 Text("Score")
                 Spacer()
@@ -130,19 +131,18 @@ private struct ScoreBox: View {
             .padding(.bottom, 3)
 
             row("Start", "1", idle: false)
-            row("Interests", "+" + Self.number(score.interest), idle: score.interest == 0)
+            row("Your interests", "+" + Self.number(score.interest), idle: score.interest == 0)
             row("Friends going", "+" + Self.number(score.friend), idle: score.friend == 0)
-            row("Follows", "+" + Self.number(score.follow), idle: score.follow == 0)
-            row("Popular", "+" + Self.number(score.popular), idle: score.popular == 0)
-            row("Size · " + (score.sizeStep == 3 ? "big" : score.sizeStep == 2 ? "medium" : "small"),
+            row("You follow the host", "+" + Self.number(score.follow), idle: score.follow == 0)
+            row("Popular in town", "+" + Self.number(score.popular), idle: score.popular == 0)
+            row((score.sizeStep == 3 ? "Big" : score.sizeStep == 2 ? "Medium" : "Small") + " event",
                 "+" + Self.number(score.size), idle: score.size == 0)
-            row("Soon · " + Self.number(score.daysAway) + " days", "×" + Self.number(score.soon),
-                idle: score.soon == 1)
-            row("Going or saved", "×" + Self.number(score.acted), idle: score.acted == 1)
+            row(startsIn, "×" + Self.number(score.soon), idle: score.soon == 1)
+            row("You're going or saved it", "×" + Self.number(score.acted), idle: score.acted == 1)
             row(sameHost, "×" + Self.number(score.spacing), idle: score.spacing == 1)
 
             Rectangle().fill(Hue.hairline).frame(height: 1)
-            Text("Spot \(score.spot) of \(score.of)" + (score.newSpot ? " · moved up as new" : ""))
+            Text("Place \(score.spot) of \(score.of) in your feed" + (score.newSpot ? ", moved up as new" : ""))
                 .font(.sans(13))
                 .foregroundStyle(Hue.ink)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -154,13 +154,21 @@ private struct ScoreBox: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// "Same host · 2nd from this host": the spacing halves for each earlier card from it.
+    /// "Starts in 6 hours", "Starts in 2 days": what the time multiplier is about.
+    private var startsIn: String {
+        let hours = Int((score.daysAway * 24).rounded())
+        if hours == 0 { return "Happening now" }
+        if hours < 24 { return "Starts in \(hours) hour" + (hours == 1 ? "" : "s") }
+        let days = Int(score.daysAway.rounded())
+        return "Starts in \(days) day" + (days == 1 ? "" : "s")
+    }
+
+    /// "2nd card from this host": the spacing halves for each earlier card from it.
     private var sameHost: String {
         let earlier = Int((log(score.spacing) / log(0.5)).rounded())
-        guard earlier > 0 else { return "Same host" }
         let ordinal = NumberFormatter()
         ordinal.numberStyle = .ordinal
-        return "Same host · " + (ordinal.string(from: NSNumber(value: earlier + 1)) ?? "") + " from this host"
+        return (ordinal.string(from: NSNumber(value: earlier + 1)) ?? "") + " card from this host"
     }
 
     private func row(_ label: String, _ value: String, idle: Bool) -> some View {

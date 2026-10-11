@@ -227,6 +227,30 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(town.cards.map(\.goingCount), [5, 5])
     }
 
+    /// The admin's Score names each card's place on screen, not the database's, so it
+    /// holds after a read that kept the order.
+    func testScoreNamesTheCardsPlaceOnScreen() async {
+        func scored(_ ids: [String]) -> [TownFeedEntry] {
+            ids.enumerated().map { place, id in
+                var row = row(id)
+                row.score = FeedScore(interest: 0, friend: 0, follow: 0, popular: 0, size: 0,
+                                      sizeStep: 1, daysAway: 1, soon: 0.9, acted: 1, spacing: 1,
+                                      newSpot: false, total: 0.9, spot: place + 1, of: ids.count)
+                return TownFeed.entry(row)
+            }
+        }
+        let town = feed(answers: [scored(["a", "b", "c"]), scored(["new", "c", "a"])])
+        town.cameBack(at: now)
+        await town.reload(at: now)
+        town.scrollY = 300
+        town.left(at: now)
+        town.cameBack(at: now.addingTimeInterval(29 * 60))
+        await town.refresh(at: now.addingTimeInterval(29 * 60))
+        XCTAssertEqual(town.cards.map(\.id), ["a", "c"])
+        XCTAssertEqual(town.cards.map { $0.score?.spot }, [1, 2])
+        XCTAssertEqual(town.cards.map { $0.score?.of }, [2, 2])
+    }
+
     /// Back after 30 minutes or more, still at the top: the fresh order.
     func testBackAfterHalfAnHourAtTheTopTakesTheFreshOrder() async {
         let town = feed(answers: [entries(["a", "b"]), entries(["new", "b", "a"])])

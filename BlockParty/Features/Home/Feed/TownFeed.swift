@@ -90,9 +90,16 @@ final class TownFeed {
         self.init(read: Self.live, kept: Self.keptOnDisk, actions: actions)
     }
 
-    /// The cards still on, in the database's order.
+    /// The cards still on, in the database's order. The admin's Score names each card's
+    /// place as it is on screen, so it holds after a read that kept the order.
     var cards: [FeedCardItem] {
-        (entries ?? []).filter { $0.leavesAt > clock }.map(\.card)
+        let on = (entries ?? []).filter { $0.leavesAt > clock }.map(\.card)
+        return on.enumerated().map { place, card in
+            var card = card
+            card.score?.spot = place + 1
+            card.score?.of = on.count
+            return card
+        }
     }
 
     /// When the next card leaves: the feed reads again then.
