@@ -1,11 +1,8 @@
 //
 //  ProfileModel.swift
-//  Block Party — state for the community profile screen. Loads the town_profiles row
-//  (name · avatar · interests) plus the viewer's REAL activity (upcoming RSVPs,
-//  joined clubs, quests completed) and owns the edit/save + sign-out paths.
-//
-//  Real-data-only: every count comes from a query. Nothing is seeded; if a value
-//  can't be made real it stays 0/empty and the row simply reads "none yet".
+//  Block Party — state for Profile, the sheet behind the photo on the You tab. Loads the
+//  town_profiles row (name · avatar · interests) and owns the edit/save + sign-out paths.
+//  What the neighbour is Going to lives on the You page (`YouModel`), not here.
 //
 
 import SwiftUI
@@ -21,34 +18,17 @@ final class ProfileModel: ObservableObject {
     @Published var sinceLabel: String?
     @Published var isAdmin = false
 
-    // Activity (real — see CommunityAPI "My activity")
-    @Published var upcoming: [UpcomingEvent] = []
-    @Published var clubs: [ClubView] = []
-    @Published var questCount = 0
-
     // Lifecycle
     @Published var loading = false
     @Published var loaded = false
 
     private let auth: AuthStore
-    private var api: CommunityAPI { CommunityAPI(auth: auth) }
     private var profiles: ProfileAPI { ProfileAPI(auth: auth) }
     private var storage: Storage { Storage(auth: auth) }
 
     // Default arg is nil (not `.shared`) so the main-actor singleton is only
     // touched inside this @MainActor init body — no cross-isolation warning.
     init(auth: AuthStore? = nil) { self.auth = auth ?? .shared }
-
-    // MARK: - Derived
-
-    /// Stored interest ids → human labels (drops any unknown id).
-    var interestLabels: [String] { Interests.labels(for: interestIds) }
-
-    var goingCount: Int { upcoming.count }
-    var clubCount: Int { clubs.count }
-
-    /// The soonest upcoming plan, for the feature card's subtitle.
-    var nextPlan: UpcomingEvent? { upcoming.first }
 
     // MARK: - Load
 
@@ -64,14 +44,7 @@ final class ProfileModel: ObservableObject {
         if displayName.isEmpty { displayName = Interests.displayName ?? "" }
         if interestIds.isEmpty { interestIds = Interests.get() }
 
-        let api = self.api
-        let profiles = self.profiles
-        async let profileCall = profiles.getMyProfile()
-        async let upcomingCall = api.getMyUpcomingRsvps()
-        async let clubsCall = api.getMyClubs()
-        async let questCall = api.getMyQuestCount()
-
-        let profile = (try? await profileCall) ?? nil
+        let profile = (try? await profiles.getMyProfile()) ?? nil
         if let p = profile {
             if let n = p.displayName, !n.isEmpty { displayName = n }
             avatarUrl = p.avatarUrl
@@ -82,9 +55,6 @@ final class ProfileModel: ObservableObject {
             Interests.set(p.interests)
             sinceLabel = ProfileModel.since(from: p.onboardedAt)
         }
-        upcoming   = (try? await upcomingCall) ?? []
-        clubs      = (try? await clubsCall) ?? []
-        questCount = (try? await questCall) ?? 0
 
         loading = false
         loaded = true

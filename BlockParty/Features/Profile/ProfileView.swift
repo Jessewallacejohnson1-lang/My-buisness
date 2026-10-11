@@ -1,25 +1,15 @@
 //
 //  ProfileView.swift
-//  Block Party — the community profile. A warm frosted-glass sheet: the town knows your
-//  name, photo, interests, and your real activity (plans you've RSVP'd to, clubs
-//  you've joined, quests done). Layout echoes a Revolut-style profile — avatar →
-//  name → two feature cards → grouped rows — rendered on iOS translucency over the
-//  light canvas, coral accent. Opened from Home's top-right person button.
+//  Block Party — Profile: your photo, name, Edit profile and settings, in Apple's standard
+//  sheet from your photo at the top left of the You tab (BP app docs/plans/you-tab). What
+//  you're Going to lives on the You page; your interests are edited in Edit profile.
 //
-//  Motion: the house SpringReveal cascade on appear; press-scale on every control;
-//  spring disclosure for the activity lists. Real-data-only — no seeded counts.
+//  Motion: the house SpringReveal cascade on appear; press-scale on every control.
 //
 
 import SwiftUI
 
 struct ProfileView: View {
-    /// Injected by the genie overlay so the top-bar ✕ and sign-out play the
-    /// corner-collapse. Falls back to `dismiss()` if presented some other way.
-    var onClose: (() -> Void)? = nil
-    /// Whether the sheet's close "X" is drawn. False when this screen is a TAB —
-    /// there is nothing to close, and a dead button in the corner reads as a bug.
-    var showsClose: Bool = true
-
     @Environment(\.dismiss) private var dismiss
     @StateObject private var model = ProfileModel()
 
@@ -28,14 +18,11 @@ struct ProfileView: View {
     @State private var showAbout = false
     @State private var showModeration = ProfileView.debugModeration()
     @State private var confirmSignOut = false
-    @State private var expanded: Expandable? = ProfileView.debugExpand()
     #if DEBUG
     #endif
 
-    private enum Expandable { case events, clubs }
-
-    /// DEBUG-only: force the edit sheet / an expanded activity list open on launch
-    /// so those states can be screenshotted headlessly. No effect in release.
+    /// DEBUG-only: force the edit sheet open on launch so it can be screenshotted
+    /// headlessly. No effect in release.
     private static func debugEdit() -> Bool {
         #if DEBUG
         return ProcessInfo.processInfo.arguments.contains("-profile-edit")
@@ -51,14 +38,6 @@ struct ProfileView: View {
         return false
         #endif
     }
-    private static func debugExpand() -> Expandable? {
-        #if DEBUG
-        return ProcessInfo.processInfo.arguments.contains("-profile-expand") ? .events : nil
-        #else
-        return nil
-        #endif
-    }
-
     var body: some View {
         ScrollViewReader { proxy in
             content.onAppear {
@@ -69,13 +48,12 @@ struct ProfileView: View {
         }
     }
 
-    /// DEBUG-only: `-profile-autoclose` fires the genie collapse ~1.6s after open
-    /// so the close motion can be recorded headlessly (no tap driving). Routes
-    /// through the real `close()`, so it exercises the exact dismissal path.
+    /// DEBUG-only: `-profile-autoclose` dismisses the sheet ~1.6s after open so the
+    /// close motion can be recorded headlessly (no tap driving).
     private func debugAutoClose() {
         #if DEBUG
         guard ProcessInfo.processInfo.arguments.contains("-profile-autoclose") else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { close() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { dismiss() }
         #endif
     }
 
@@ -84,9 +62,8 @@ struct ProfileView: View {
             VStack(spacing: 16) {
                 Color.clear.frame(height: 44)          // clears the fixed top bar
                 header.springReveal(0, revealed: revealed)
-                featureCards.springReveal(1, revealed: revealed)
-                aroundTown.springReveal(2, revealed: revealed)
-                settingsGroup.springReveal(3, revealed: revealed)
+                inviteCard.springReveal(1, revealed: revealed)
+                settingsGroup.springReveal(2, revealed: revealed)
                 // Hidden when there is no session to end. Sign-in is switched off
                 // (`RootView.requiresSignIn`), so for most people this screen is now
                 // reached without ever having signed in, and a "Sign out" button that
@@ -95,11 +72,10 @@ struct ProfileView: View {
                 // every install gets counts as not signed in: signing out would only
                 // throw away its Going.
                 if AuthStore.shared.isSignedIn && !AuthStore.shared.isAnonymous {
-                    signOutButton.springReveal(4, revealed: revealed).id("bottom")
+                    signOutButton.springReveal(3, revealed: revealed).id("bottom")
                 }
-                // Clears the floating tab bar when this screen IS a tab; a sheet
-                // has no bar under it and only needs breathing room.
-                Color.clear.frame(height: showsClose ? 40 : 112)
+                // A sheet has no tab bar under it and only needs breathing room.
+                Color.clear.frame(height: 40)
             }
             .padding(.horizontal, 18)
         }
@@ -113,15 +89,9 @@ struct ProfileView: View {
         }
         .sheet(isPresented: $showModeration) { ModerationView() }
         .confirmationDialog("Sign out of Block Party?", isPresented: $confirmSignOut, titleVisibility: .visible) {
-            Button("Sign out", role: .destructive) { Task { await model.signOut(); close() } }
+            Button("Sign out", role: .destructive) { Task { await model.signOut(); dismiss() } }
             Button("Cancel", role: .cancel) {}
         }
-    }
-
-    /// Dismiss through the genie collapse when presented that way; otherwise the
-    /// environment dismiss.
-    private func close() {
-        if let onClose { onClose() } else { dismiss() }
     }
 
     /// DEBUG-only: `-profile-bottom` scrolls to the sign-out row on appear so the
@@ -139,10 +109,6 @@ struct ProfileView: View {
 
     private var topBar: some View {
         HStack {
-            if showsClose {
-                circleButton("xmark") { close() }
-                    .accessibilityLabel("Close profile")
-            }
             Spacer()
             Button { Haptics.selection(); editing = true } label: {
                 HStack(spacing: 6) {
@@ -162,19 +128,6 @@ struct ProfileView: View {
         }
         .padding(.horizontal, 16)
         .padding(.top, 12)
-    }
-
-    private func circleButton(_ symbol: String, action: @escaping () -> Void) -> some View {
-        Button { Haptics.light(); action() } label: {
-            Image(systemName: symbol)
-                .font(.sansSemibold(14))
-                .foregroundStyle(Hue.ink)
-                .frame(width: 38, height: 38)
-                .background(.ultraThinMaterial, in: Circle())
-                .overlay(Circle().stroke(Hue.hairline, lineWidth: 1))
-                .shadow(color: .black.opacity(0.06), radius: 4, y: 1)
-        }
-        .buttonStyle(PressableStyle())
     }
 
     // MARK: - Header
@@ -212,13 +165,6 @@ struct ProfileView: View {
 
                 if model.isAdmin { organizerBadge }
             }
-
-            if !model.interestLabels.isEmpty {
-                FlowLayout(spacing: 8) {
-                    ForEach(model.interestLabels, id: \.self) { interestChip($0) }
-                }
-                .padding(.top, 2)
-            }
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 4)
@@ -242,129 +188,18 @@ struct ProfileView: View {
         .padding(.top, 2)
     }
 
-    // MARK: - Feature cards
+    // MARK: - Invite
 
-    private var featureCards: some View {
-        HStack(spacing: 12) {
-            plansCard
-            Button {
-                ShareCenter.shared.present(.appInvite())
-            } label: {
-                FeatureFace(icon: "person.badge.plus",
-                            value: "Invite",
-                            label: "a neighbor",
-                            subtitle: "Share Block Party")
-            }
-            .buttonStyle(PressableStyle())
+    private var inviteCard: some View {
+        Button {
+            ShareCenter.shared.present(.appInvite())
+        } label: {
+            FeatureFace(icon: "person.badge.plus",
+                        value: "Invite",
+                        label: "a neighbor",
+                        subtitle: "Share Block Party")
         }
-    }
-
-    /// Coral + tappable only when there are plans to expand; otherwise a calm,
-    /// non-interactive "0 plans · Nothing yet" tile (no dead coral affordance).
-    @ViewBuilder private var plansCard: some View {
-        let hasPlans = !model.upcoming.isEmpty
-        let face = FeatureFace(icon: "calendar",
-                               value: "\(model.goingCount)",
-                               label: model.goingCount == 1 ? "plan" : "plans",
-                               subtitle: hasPlans ? nextPlanLabel : "No plans yet",
-                               emphasized: hasPlans)
-        if hasPlans {
-            Button { Haptics.light(); toggle(.events) } label: { face }
-                .buttonStyle(PressableStyle())
-        } else {
-            face
-        }
-    }
-
-    private var nextPlanLabel: String? {
-        guard let e = model.nextPlan else { return nil }
-        return "Next · \(DateHelpers.prettyDate(e.eventDate))"
-    }
-
-    // MARK: - Around town (real activity)
-
-    private var aroundTown: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            groupLabel("Around town")
-            GlassGroup {
-                ProfileRow(icon: "calendar",
-                           title: "Events you're going to",
-                           trailing: "\(model.goingCount)",
-                           accessory: model.upcoming.isEmpty ? .none : .expand(expanded == .events),
-                           action: model.upcoming.isEmpty ? nil : { toggle(.events) })
-                if expanded == .events, !model.upcoming.isEmpty {
-                    disclosure { ForEach(model.upcoming) { eventItem($0) } }
-                }
-
-                ProfileRowDivider()
-                ProfileRow(icon: "person.2",
-                           title: "Clubs you've joined",
-                           trailing: "\(model.clubCount)",
-                           accessory: model.clubs.isEmpty ? .none : .expand(expanded == .clubs),
-                           action: model.clubs.isEmpty ? nil : { toggle(.clubs) })
-                if expanded == .clubs, !model.clubs.isEmpty {
-                    disclosure { ForEach(model.clubs) { clubItem($0) } }
-                }
-
-                ProfileRowDivider()
-                ProfileRow(icon: "checkmark.seal",
-                           title: "Quests completed",
-                           trailing: "\(model.questCount)",
-                           accessory: .none)
-            }
-        }
-    }
-
-    private func toggle(_ e: Expandable) {
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
-            expanded = expanded == e ? nil : e
-        }
-    }
-
-    private func disclosure<C: View>(@ViewBuilder _ content: () -> C) -> some View {
-        VStack(spacing: 0) {
-            ProfileRowDivider()
-            VStack(spacing: 13) { content() }
-                .padding(.vertical, 13)
-        }
-        .transition(.opacity.combined(with: .move(edge: .top)))
-    }
-
-    private func eventItem(_ e: UpcomingEvent) -> some View {
-        HStack(spacing: 11) {
-            Circle().fill(Hue.ink).frame(width: 7, height: 7)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(e.title).font(.sansMedium(14)).foregroundStyle(Hue.ink).lineLimit(1)
-                Text(eventWhen(e)).font(.sans(12)).foregroundStyle(Hue.inkSecondary).lineLimit(1)
-            }
-            Spacer(minLength: 6)
-            if e.goingCount > 0 {
-                Text("\(e.goingCount) going")
-                    .font(.monoMedium(12)).monospacedDigit().foregroundStyle(Hue.inkSecondary)
-            }
-        }
-        .padding(.leading, 4)
-    }
-
-    private func eventWhen(_ e: UpcomingEvent) -> String {
-        var s = DateHelpers.prettyDate(e.eventDate)
-        if let t = e.startTime, !t.isEmpty { s += " · \(t)" }
-        return s
-    }
-
-    private func clubItem(_ c: ClubView) -> some View {
-        HStack(spacing: 11) {
-            Image(systemName: "person.2.fill").font(.sans(12)).foregroundStyle(Hue.ink).frame(width: 16)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(c.name).font(.sansMedium(14)).foregroundStyle(Hue.ink).lineLimit(1)
-                if let sched = c.schedule, !sched.isEmpty {
-                    Text(sched).font(.sans(12)).foregroundStyle(Hue.inkSecondary).lineLimit(1)
-                }
-            }
-            Spacer(minLength: 6)
-            Text("\(c.memberCount)").font(.monoMedium(12)).monospacedDigit().foregroundStyle(Hue.inkSecondary)
-        }
-        .padding(.leading, 4)
+        .buttonStyle(PressableStyle())
     }
 
     // MARK: - Settings
