@@ -133,7 +133,7 @@ struct ProfileRow: View {
     /// nil → a static (non-tappable) row, e.g. a count-only or read-only line.
     var action: (() -> Void)? = nil
 
-    enum Accessory { case chevron, none, expand(Bool) }
+    enum Accessory { case chevron, none }
 
     var body: some View {
         if let action {
@@ -182,11 +182,6 @@ struct ProfileRow: View {
             Image(systemName: "chevron.right")
                 .font(.sansSemibold(13))
                 .foregroundStyle(Hue.inkSecondary.opacity(0.7))
-        case .expand(let open):
-            Image(systemName: "chevron.down")
-                .font(.sansSemibold(13))
-                .foregroundStyle(Hue.inkSecondary.opacity(0.7))
-                .rotationEffect(.degrees(open ? 0 : -90))
         }
     }
 }
@@ -217,19 +212,14 @@ struct FeatureFace: View {
     let value: String
     let label: String
     var subtitle: String? = nil
-    /// Marks the tile as live and tappable (the caller wraps it in a Button only in
-    /// that case). Was a coral treatment; collapsing it to ink made both branches
-    /// identical, so a tappable tile looked exactly like an inert one. Now it
-    /// inverts — the affordance is carried by fill, not hue.
-    var emphasized = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Image(systemName: icon)
                 .font(.sansSemibold(19))
-                .foregroundStyle(emphasized ? Hue.surface : Hue.ink)
+                .foregroundStyle(Hue.ink)
                 .frame(width: 42, height: 42)
-                .background((emphasized ? Hue.ink : Hue.fill).opacity(0.9), in: Circle())
+                .background(Hue.fill.opacity(0.9), in: Circle())
             Spacer(minLength: 12)
             Text(value)
                 .font(.displaySemi(21))

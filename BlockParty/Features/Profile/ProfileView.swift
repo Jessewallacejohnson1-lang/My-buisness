@@ -18,8 +18,6 @@ struct ProfileView: View {
     @State private var showAbout = false
     @State private var showModeration = ProfileView.debugModeration()
     @State private var confirmSignOut = false
-    #if DEBUG
-    #endif
 
     /// DEBUG-only: force the edit sheet open on launch so it can be screenshotted
     /// headlessly. No effect in release.

@@ -53,13 +53,16 @@ final class YouModel {
         let first = YouCalendar.firstDay(of: now)
         latestRead += 1
         let mine = latestRead
+        // A retry with nothing on screen shows the skeleton again while it reads.
+        if going == nil { failed = false }
         do {
             let rows = try await read(Town.day(first), Town.day(YouCalendar.lastDay(from: first)))
             guard mine == latestRead else { return }
             going = rows.compactMap(YouCalendar.event(from:))
             failed = false
         } catch {
-            guard mine == latestRead else { return }
+            // Leaving the tab mid-read cancels it; that says nothing about the network.
+            guard mine == latestRead, !Task.isCancelled, !(error is CancellationError) else { return }
             failed = true
         }
     }
@@ -81,12 +84,12 @@ enum YouCalendar {
     /// Gregorian in the Town's time zone, weeks from Sunday whatever the phone is set to
     /// (Jesse picked Sunday, 2026-10-10). Days are stepped, never added as 24 hours, so
     /// the Sunday the clocks go back stays one day.
-    static var calendar: Calendar {
+    static let calendar: Calendar = {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = Town.timeZone
         calendar.firstWeekday = 1
         return calendar
-    }
+    }()
 
     /// Town midnight on the Sunday of `now`'s week.
     static func firstDay(of now: Date) -> Date {
@@ -107,8 +110,10 @@ enum YouCalendar {
 
     /// A row of the read as the Agenda's Event. nil when its date doesn't parse.
     static func event(from row: UpcomingEvent) -> DailyEvent? {
-        timed(FeedCardItem(row), day: row.eventDate, time: row.isAllDay ? nil : row.startTime,
-              endAt: row.endAt)
+        var item = FeedCardItem(row)
+        // An all-day Event shows no start time (schema.sql, `all_day`).
+        if row.isAllDay { item.startTime = nil }
+        return timed(item, day: row.eventDate, time: item.startTime, endAt: row.endAt)
     }
 
     /// An Event tapped Going on a card, before a read brings it back with its end.
@@ -138,7 +143,8 @@ enum YouCalendar {
 
     /// The Going on the Calendar: the read's, and the Events tapped Going this session
     /// that fall in the three weeks, each once (the read's details win), only those
-    /// still Going, soonest first, then by title.
+    /// still Going; by day, a day's timed Events soonest first and then its untimed ones,
+    /// then by title.
     static func going(read: [DailyEvent], tapped: [FeedCardItem], isGoing: (FeedCardItem) -> Bool,
                       first: Date) -> [DailyEvent] {
         let end = calendar.date(byAdding: .day, value: length, to: first) ?? first
@@ -147,12 +153,21 @@ enum YouCalendar {
         for event in read { byID[event.id] = event }
         return byID.values
             .filter { isGoing($0.item) && $0.starts >= first && $0.starts < end }
-            .sorted { ($0.starts, $0.item.title) < ($1.starts, $1.item.title) }
+            .sorted { order($0) < order($1) }
+    }
+
+    private static func order(_ event: DailyEvent) -> (Date, Int, Date, String) {
+        (calendar.startOfDay(for: event.starts), event.timed ? 0 : 1, event.starts, event.item.title)
     }
 
     /// The Events on one day, in the order they came.
     static func on(_ day: Date, _ going: [DailyEvent]) -> [DailyEvent] {
         going.filter { calendar.isDate($0.starts, inSameDayAs: day) }
+    }
+
+    /// The Going by Town day, once for the whole grid, each day in the order it came.
+    static func byDay(_ going: [DailyEvent]) -> [Date: [DailyEvent]] {
+        Dictionary(grouping: going) { calendar.startOfDay(for: $0.starts) }
     }
 
     #if DEBUG

@@ -8,7 +8,6 @@
 //
 
 import SwiftUI
-import UIKit
 
 /// The page's sizes. The Calendar's are MEASURED from Jesse's Reference, Lapse's calendar
 /// (`references/profile-tab/mobbin/calendar-lapse-1.jpg` in the BP app folder, an @3x
@@ -47,7 +46,7 @@ enum YouMetric {
     /// Under the Calendar to the Agenda's label, and the label to the first card: the mock's.
     static let calendarToLabel: CGFloat = 26
     static let labelToCards: CGFloat = 13
-    static let side: CGFloat = 18
+    static let side: CGFloat = 16
     static let emptyLine: CGFloat = 18
     /// Cards the Agenda's skeleton draws while the first read is out.
     static let skeletonCards = 2
@@ -60,8 +59,11 @@ struct YouPage: View {
     let onProfile: () -> Void
     @Environment(RealLifeActions.self) private var actions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
     /// The day the Agenda shows; nil is today.
     @State private var picked: Date?
+    /// The event page an Agenda card opened. Held here, where it outlives the day's cards.
+    @State private var pushed: FeedCardItem?
     /// How far the page has scrolled, held only up to the frosted band's fade.
     @State private var scrolled: CGFloat = 0
     @Namespace private var ring
@@ -81,8 +83,9 @@ struct YouPage: View {
                 // On every visit and each new week: the list on screen stays meanwhile.
                 .task(id: first) { await model.refresh(now: now) }
         }
-        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
-            Task { await model.refresh() }
+        .navigationDestination(item: $pushed) { FeedEventDetailDestination(item: $0) }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await model.refresh() } }
         }
     }
 
@@ -95,6 +98,8 @@ struct YouPage: View {
                 // A working word; Jesse writes the final one.
                 DailySectionLabel(title: "Agenda", ink: Hue.ink)
                     .padding(.top, YouMetric.calendarToLabel)
+                // Another day's cards come in at once; only the ring travels (`calendar`),
+                // so two days' cards never show over each other mid-fade.
                 agenda(going: going, day: day, now: now)
                     .padding(.top, YouMetric.labelToCards)
                     .padding(.horizontal, YouMetric.side)
@@ -143,34 +148,37 @@ struct YouPage: View {
                 .frame(height: 1)
                 .padding(.horizontal, -YouMetric.ruleOutset)
                 .padding(.top, YouMetric.weekdayToRule)
+            let byDay = YouCalendar.byDay(going)
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7),
                       spacing: YouMetric.rowGap) {
                 ForEach(days, id: \.self) { date in
-                    let events = YouCalendar.on(date, going)
+                    let events = byDay[date] ?? []
                     Button { pick(date, from: day) } label: {
                         YouDay(date: date, events: events, isToday: date == today,
                                isPast: date < today, isPicked: date == day, ring: ring)
                     }
                     .buttonStyle(PressableCardStyle())
-                    .accessibilityLabel(Self.spoken(date, plans: events.count))
+                    .accessibilityLabel(Self.spoken(date, plans: events.count, today: date == today))
                     .accessibilityAddTraits(date == day ? .isSelected : [])
                 }
             }
             .padding(.top, YouMetric.ruleToDays)
+            // The ring travels to the picked day; nothing outside the grid animates.
+            .animation(reduceMotion ? nil : Motion.select, value: day)
         }
         .padding(.horizontal, YouMetric.calendarSide)
     }
 
-    /// "Tuesday, October 13, 2 plans". Working words; Jesse writes the final ones.
-    static func spoken(_ date: Date, plans: Int) -> String {
+    /// "Today, Tuesday, October 13, 2 plans". Working words; Jesse writes the final ones.
+    static func spoken(_ date: Date, plans: Int, today: Bool = false) -> String {
         let count = plans == 0 ? "nothing planned" : plans == 1 ? "1 plan" : "\(plans) plans"
-        return "\(DailyEvent.townTime("EEEEMMMMd", date)), \(count)"
+        return (today ? "Today, " : "") + "\(DailyEvent.townTime("EEEEMMMMd", date)), \(count)"
     }
 
     private func pick(_ date: Date, from current: Date) {
         guard date != current else { return }
         Haptics.selection()
-        withAnimation(reduceMotion ? nil : Motion.select) { picked = date }
+        picked = date
     }
 
     // MARK: The Agenda
@@ -187,10 +195,9 @@ struct YouPage: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, YouMetric.emptyLine)
             } else {
-                AgendaCards(events: events, now: now)
+                AgendaCards(events: events, now: now, open: { pushed = $0 })
                     // A new day starts with every card closed.
                     .id(day)
-                    .transition(.opacity)
             }
         } else if model.failed {
             FeedRetryButton { Task { await model.refresh() } }
@@ -269,6 +276,8 @@ private struct YouDay: View {
         }
         .frame(width: YouMetric.day, height: YouMetric.day)
         .clipShape(Circle())
+        // The whole circle takes the tap, not only the number of an empty day.
+        .contentShape(Circle())
         .overlay {
             if isPicked {
                 Circle()

@@ -78,7 +78,7 @@ final class YouCalendarTests: XCTestCase {
         XCTAssertEqual(dark.startTime(now: town("2026-10-14 20:00")), "after dark")
         let allDay = YouCalendar.event(from: row("b", "2026-10-14", "9 AM", allDay: true))!
         XCTAssertFalse(allDay.timed)
-        XCTAssertEqual(allDay.startTime(now: town("2026-10-14 10:00")), "9 AM")
+        XCTAssertEqual(allDay.startTime(now: town("2026-10-14 10:00")), "All day")
         XCTAssertNil(YouCalendar.event(from: row("c", "someday", "9 AM")))
     }
 
@@ -104,6 +104,18 @@ final class YouCalendarTests: XCTestCase {
         XCTAssertEqual(going.map(\.id), ["sun", "book", "zumba", "late"])
         XCTAssertEqual(YouCalendar.on(town("2026-10-14 00:00"), going).map(\.id), ["book", "zumba", "late"])
         XCTAssertEqual(YouCalendar.on(town("2026-10-12 00:00"), going).map(\.id), [])
+    }
+
+    /// On one day, the timed Events come first, soonest first; "after dark" and all-day
+    /// ones after them.
+    func testUntimedEventsComeAfterTheDaysTimedOnes() {
+        let first = YouCalendar.firstDay(of: town("2026-10-14 12:00"))
+        let read = [row("dark", "2026-10-14", "after dark"), row("coffee", "2026-10-14", "8 AM"),
+                    row("fair", "2026-10-14", nil, allDay: true), row("next", "2026-10-15", "7 AM")]
+            .compactMap(YouCalendar.event(from:))
+        let going = YouCalendar.going(read: read, tapped: [], isGoing: { _ in true }, first: first)
+        XCTAssertEqual(going.map(\.id), ["coffee", "dark", "fair", "next"])
+        XCTAssertEqual(YouCalendar.byDay(going)[town("2026-10-14 00:00")]?.map(\.id), ["coffee", "dark", "fair"])
     }
 
     /// A Join on a card shows before the read brings it back; one outside the three weeks
@@ -206,5 +218,27 @@ final class YouCalendarTests: XCTestCase {
     func testVoiceOverReadsTheDayAndItsPlans() {
         XCTAssertEqual(YouPage.spoken(town("2026-10-13 00:00"), plans: 2), "Tuesday, October 13, 2 plans")
         XCTAssertEqual(YouPage.spoken(town("2026-10-13 00:00"), plans: 0), "Tuesday, October 13, nothing planned")
+        XCTAssertEqual(YouPage.spoken(town("2026-10-13 00:00"), plans: 1, today: true), "Today, Tuesday, October 13, 1 plan")
+    }
+
+    /// `get_my_going`'s rows decode into Going Events, an all-day one and a club's included.
+    func testTheReadsRowsDecode() throws {
+        let json = """
+        [{"id":"e1","title":"Fall market","event_date":"2026-10-24","start_time":"8 AM",
+          "location":"Centennial Park","image_url":null,"category":"food","club_name":null,
+          "source_name":"City of St. Joseph","end_at":"2026-10-24T17:00:00+00:00","all_day":false,
+          "created_at":"2026-10-01T12:00:00+00:00","going_count":4},
+         {"id":"e2","title":"Ride","event_date":"2026-10-25","start_time":null,"location":null,
+          "image_url":null,"category":null,"club_name":"Bike club","source_name":null,"end_at":null,
+          "all_day":true,"created_at":"2026-10-01T12:00:00+00:00","going_count":1}]
+        """
+        let rows = try CommunityAPI.myGoingRows(from: Data(json.utf8))
+        XCTAssertEqual(rows.map(\.id), ["e1", "e2"])
+        XCTAssertTrue(rows.allSatisfy(\.rsvpd))
+        XCTAssertEqual(rows[0].goingCount, 4)
+        XCTAssertEqual(rows[0].category, .food)
+        XCTAssertEqual(rows[0].endAt, town("2026-10-24 12:00"))
+        XCTAssertEqual(rows[1].clubName, "Bike club")
+        XCTAssertTrue(rows[1].isAllDay)
     }
 }

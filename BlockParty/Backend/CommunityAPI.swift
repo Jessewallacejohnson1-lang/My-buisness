@@ -101,25 +101,6 @@ struct CommunityAPI {
 
     // MARK: - Clubs
 
-    func getApprovedClubs() async throws -> [ClubView] {
-        let t = try await token()
-        let uid = auth.userId
-        let (data, _) = try await SupabaseHTTP.rest("clubs", query: "select=*&status=eq.approved&order=created_at.asc", accessToken: t)
-        let clubs: [ClubRow] = try decode(data)
-        let ids = clubs.map(\.id)
-        var counts: [String: Int] = [:]
-        var mine = Set<String>()
-        if !ids.isEmpty {
-            let (md, _) = try await SupabaseHTTP.rest("club_members", query: "select=club_id,user_id&club_id=in.(\(ids.joined(separator: ",")))", accessToken: t)
-            let members: [MemberRow] = try decode(md)
-            for m in members {
-                counts[m.clubId, default: 0] += 1
-                if let uid, m.userId == uid { mine.insert(m.clubId) }
-            }
-        }
-        return clubs.map { ClubView(row: $0, memberCount: counts[$0.id] ?? 0, joined: mine.contains($0.id)) }
-    }
-
     func joinClub(_ clubId: String) async throws {
         let t = try await token()
         let uid = try await uidOrThrow()

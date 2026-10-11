@@ -30,13 +30,14 @@ enum AgendaMetric {
 }
 
 /// The cards, soonest first. A tap opens a card in place; a tap on the open card opens
-/// its event page. One card is open at a time, and it is still open when you come back
-/// from the page.
+/// its event page through `open`. One card is open at a time, and it is still open when
+/// you come back from the page. The page owns the push, not these cards: leaving the
+/// day's last Event from its page empties the day, and a push held here would close it.
 struct AgendaCards: View {
     let events: [DailyEvent]
     let now: Date
+    let open: (FeedCardItem) -> Void
     @State private var openID: String?
-    @State private var pushed: FeedCardItem?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
 
@@ -49,13 +50,12 @@ struct AgendaCards: View {
                 .buttonStyle(PressableCardStyle())
             }
         }
-        .navigationDestination(item: $pushed) { FeedEventDetailDestination(item: $0) }
     }
 
     /// VoiceOver reads the whole card at once, so its first tap opens the page.
     private func tap(_ event: DailyEvent) {
         if openID == event.id || voiceOver {
-            pushed = event.item
+            open(event.item)
         } else {
             withAnimation(reduceMotion ? nil : Motion.bentoExpand) { openID = event.id }
         }

@@ -60,12 +60,18 @@ struct DailyEvent: Identifiable {
 
     /// `date` written from a date template ("EEE", "d", "h"), in English, in the Town's time.
     static func townTime(_ template: String, _ date: Date) -> String {
+        if let formatter = townFormatters[template] { return formatter.string(from: date) }
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US")
         formatter.timeZone = Town.timeZone
         formatter.setLocalizedDateFormatFromTemplate(template)
+        townFormatters[template] = formatter
         return formatter.string(from: date)
     }
+
+    /// One formatter per template, kept: the You tab's Calendar writes 49 dates each time
+    /// it draws, and building a formatter is the slow part.
+    private static var townFormatters: [String: DateFormatter] = [:]
 
     /// What a section shows: the ones on now or still to come, soonest first, leaving out
     /// any a section above it already shows, `limit` at most. When one ends the next
