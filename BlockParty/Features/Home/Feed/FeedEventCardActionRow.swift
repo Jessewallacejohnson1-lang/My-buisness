@@ -20,6 +20,12 @@ struct FeedEventCardActionRow: View {
     var kind: FeedActionKind = .posting
     /// Shown beside the comment glyph, the way Instagram shows it. 0 hides it.
     var commentCount: Int = 0
+    /// The heart and its count. Off while the person can't act yet (no account), as
+    /// Join is (Jesse, 2026-10-11).
+    var showsHeart = true
+    /// Each failed heart turned back while the card was open (`RealLifeActions`) shakes
+    /// the heart once.
+    var heartFailures = 0
     @Binding var state: FeedCardActionState
     let reduceMotion: Bool
     let autoplayStep: Int
@@ -31,6 +37,8 @@ struct FeedEventCardActionRow: View {
     @State private var heartScale: CGFloat = 1
     @State private var bookmarkOffset: CGFloat = 0
     @State private var heartGeneration = 0
+    /// `heartFailures` at the last tap: a tap mid-shake stills it and acts at once.
+    @State private var heartTappedAt = 0
     @State private var bookmarkGeneration = 0
 
     /// Instagram's feed action row, measured off a capture (Jesse, 2026-09-20):
@@ -51,7 +59,9 @@ struct FeedEventCardActionRow: View {
         // away somewhere else — sits alone at the trailing edge.
         HStack(spacing: 0) {
             HStack(spacing: Metric.groupSpacing) {
-                heartControl
+                if showsHeart {
+                    heartControl
+                }
                 if kind == .posting {
                     countedControl(
                         .comment,
@@ -98,6 +108,7 @@ struct FeedEventCardActionRow: View {
                 .contentShape(actionShape)
             }
             .buttonStyle(.plain)
+            .turnBackShake(failures: heartFailures, shakes: !reduceMotion && heartTappedAt != heartFailures)
             .accessibilityLabel("Like, \(state.likeCount) likes")
             .accessibilityValue(state.isLiked ? "Liked" : "Not liked")
             .accessibilityAddTraits(state.isLiked ? .isSelected : [])
@@ -218,6 +229,7 @@ struct FeedEventCardActionRow: View {
     }
 
     private func performHeartTap() {
+        heartTappedAt = heartFailures
         heartGeneration += 1
         let generation = heartGeneration
 

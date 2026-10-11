@@ -238,6 +238,8 @@ struct CommunityAPI {
             let reason: String?
             let reasonName: String?
             let score: LenientScore?
+            let heartCount: Int?
+            let hearted: Bool?
         }
         /// The admin's breakdown, or nil when it doesn't decode: a score never costs the
         /// feed.
@@ -258,7 +260,8 @@ struct CommunityAPI {
                                       endAt: DateHelpers.timestamp(row.endAt),
                                       isAllDay: row.allDay, sourceName: row.sourceName)
             return TownFeedRow(event: event, recurrence: row.recurrence, leavesAt: leavesAt,
-                               reason: row.reason, reasonName: row.reasonName, score: row.score?.value)
+                               reason: row.reason, reasonName: row.reasonName, score: row.score?.value,
+                               heartCount: row.heartCount ?? 0, hearted: row.hearted ?? false)
         }
     }
 

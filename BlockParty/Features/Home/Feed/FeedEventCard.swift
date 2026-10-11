@@ -24,7 +24,6 @@ import UIKit.UIGestureRecognizerSubclass
 struct FeedEventCard: View {
     let item: FeedCardItem
     let comments: [EventComment]
-    let onLike: ((Bool) -> Void)?
     let onSave: ((Bool) -> Void)?
     let onLoadComments: (() async throws -> [EventComment])?
     let onComment: ((String) async throws -> EventComment)?
@@ -71,13 +70,12 @@ struct FeedEventCard: View {
     /// The device's saved list. The event page's bookmark writes it too, so a save
     /// made on either shows on both.
     @ObservedObject private var saves = SavedStore.shared
-    /// Going, shared with the event page, so a Join there shows here at once.
+    /// Going and Heart, shared with the event page, so a Join there shows here at once.
     @Environment(RealLifeActions.self) private var actions
 
     init(
         item: FeedCardItem,
         comments: [EventComment] = [],
-        onLike: ((Bool) -> Void)? = nil,
         onSave: ((Bool) -> Void)? = nil,
         onLoadComments: (() async throws -> [EventComment])? = nil,
         onComment: ((String) async throws -> EventComment)? = nil,
@@ -87,7 +85,6 @@ struct FeedEventCard: View {
     ) {
         self.item = item
         self.comments = comments
-        self.onLike = onLike
         self.onSave = onSave
         self.onLoadComments = onLoadComments
         self.onComment = onComment
@@ -170,6 +167,10 @@ struct FeedEventCard: View {
         .onChange(of: item.isSaved(in: saves)) { _, saved in
             if actionState.isSaved != saved { actionState.toggleSave() }
         }
+        // On screen: a heart that fails may shake here. Scrolled away or covered by the
+        // Event page, it turns back without a shake or a buzz.
+        .onAppear { actions.cardOpened(item.id) }
+        .onDisappear { actions.cardClosed(item.id) }
         .task(id: item.image) { await resolveVenuePhoto() }
         .task { await runDebugAutoplay() }
         .task { await openMenuForDebug() }
@@ -450,10 +451,12 @@ struct FeedEventCard: View {
     private var actionRow: some View {
         FeedEventCardActionRow(
             kind: actionKind,
-            state: $actionState,
+            showsHeart: actions.canAct,
+            heartFailures: actions.heartFailureCount(item.id),
+            state: rowState,
             reduceMotion: motionIsReduced,
             autoplayStep: autoplayStep,
-            onLike: onLike,
+            onLike: nil,
             onSave: { saved in
                 if saves.isSaved(item.id) != saved { saves.toggle(item.id) }
                 onSave?(saved)
@@ -463,19 +466,30 @@ struct FeedEventCard: View {
         )
     }
 
+    /// The row's heart is the shared one (`RealLifeActions`), kept on the server; its
+    /// bookmark is still this card's own.
+    private var rowState: Binding<FeedCardActionState> {
+        Binding {
+            let heart = actions.heart(item)
+            return FeedCardActionState(likeCount: heart.count, isLiked: heart.isHearted,
+                                       isSaved: actionState.isSaved)
+        } set: { new in
+            if new.isLiked != actions.heart(item).isHearted { actions.toggleHeart(item) }
+            if new.isSaved != actionState.isSaved { actionState.toggleSave() }
+        }
+    }
+
     private var motionIsReduced: Bool {
         accessibilityReduceMotion
     }
 
+    /// No heart to mirror without an account, so no double tap either.
     private func performImageLike(at point: CGPoint?) {
-        let changed = !actionState.isLiked
-
+        guard actions.canAct else { return }
         withAnimation(motionIsReduced ? .easeInOut(duration: 0.15) : Motion.snappy) {
-            _ = actionState.like()
+            actions.heartOn(item)
         }
         likeBurst.fire(at: point)
-
-        if changed { onLike?(true) }
     }
 
     /// DEBUG-only: `-town-menu-open` opens the first sample card's ••• sheet, so the phone,

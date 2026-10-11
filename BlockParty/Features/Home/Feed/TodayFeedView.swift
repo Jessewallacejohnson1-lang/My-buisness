@@ -4,7 +4,6 @@ struct TodayFeedView: View {
     let sections: [FeedCardSection]
     var isLoading = false
     var isRefreshing = false
-    var onLike: ((String, Bool) -> Void)?
     var onLoadComments: ((String) async throws -> [EventComment])?
     var onComment: ((String, String) async throws -> EventComment)?
     var onShare: ((FeedCardItem) -> Void)?
@@ -71,7 +70,6 @@ struct TodayFeedView: View {
                 let entranceIndex = entranceIndex(for: item.id)
                 FeedEventCard(
                     item: item,
-                    onLike: { liked in onLike?(item.id, liked) },
                     onSave: { saved in onSave?(item.id, saved) },
                     onLoadComments: commentLoader(for: item.id),
                     onComment: commentSender(for: item.id),

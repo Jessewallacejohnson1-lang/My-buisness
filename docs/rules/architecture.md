@@ -220,16 +220,18 @@ which holds `TodayTopBar` and the feed.
   keeps the list and shows the bar's offline pill; a card goes when its `leaves_at` passes, and
   the feed reads again then and on return to the foreground. Its read is injected: live, DEBUG
   `-town-samples`' sample events, or `-town-offline` (samples kept, every read failing).
-- **`RealLifeActions` is the app's one home for Going** `[test]` (`RealLifeActionsTests`; BP app
-  `docs/plans/real-life-actions`, ticket 02; Save and Heart join it in 03 and 04). `MainTabsView`
+- **`RealLifeActions` is the app's one home for Going and Heart** `[test]` (`RealLifeActionsTests`;
+  BP app `docs/plans/real-life-actions`, tickets 02 and 03; Save joins it in 04). `MainTabsView`
   holds it beside `TownFeed`, hands it to `TownFeed` (every list the feed takes sets each Event's
   base state, in the same turn) and puts it in the environment over the shell's stack, so the
-  card's going line and the event page's Join read one entry. **Never keep Going in a screen's
-  own state again** `[prose]`: the page used to, and the card behind it went stale. A tap lays
+  card's going line and heart and the event page's Join read one entry. **Never keep Going or a
+  heart in a screen's own state again** `[prose]`: the page used to, and the card behind it went
+  stale; the card's heart reset on every refresh. A tap lays
   the choice over the base until a read agrees; writes run one at a time per Event and are never
   cancelled, so the last tap is what the server ends with; a failure holds 600 ms, flips back,
-  then shakes and buzzes only while that Event's page is open. Whether Join and the going line
-  show is its `canAct` (an account, or a backend that needs none), not the card's. Writes are
+  then shakes and buzzes only while the screen that asked is open: the Event page for Going,
+  the card for Heart. The photo's double tap only ever hearts. Whether Join, the going line
+  and the heart show is its `canAct` (an account, or a backend that needs none), not the card's. Writes are
   injected: Supabase, or under DEBUG `-town-samples` nowhere and `-town-offline` always failing,
   so a sample Join never reaches the live database. `RootView` gives the DEBUG preview roots
   outside the shell `RealLifeActions.preview`; a card or event page outside both would crash.

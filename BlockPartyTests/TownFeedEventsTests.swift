@@ -57,6 +57,9 @@ final class TownFeedEventsTests: XCTestCase {
         // A row from before the recipe (a kept list) says no reason: no ••• menu.
         XCTAssertNil(card.why)
         XCTAssertNil(card.score)
+        // And from before hearts, none: the next read brings them.
+        XCTAssertEqual(card.likeCount, 0)
+        XCTAssertFalse(card.isLiked)
     }
 
     /// The recipe's columns (ticket 18): the reason becomes the card's line, and the
@@ -71,7 +74,8 @@ final class TownFeedEventsTests: XCTestCase {
           "reason":"interest","reason_name":"live_music",
           "score":{"interest":3,"friend":0,"follow":0,"popular":0,"size":1.5,"sizeStep":2,
                    "daysAway":2.12,"soon":0.8105,"acted":1,"spacing":0.5,"newSpot":false,
-                   "total":1.8236,"spot":2,"of":5}},
+                   "total":1.8236,"spot":2,"of":5},
+          "heart_count":4,"hearted":true},
          {"id":"e2","title":"Bake sale","event_date":"2026-10-08","start_time":"11 AM",
           "location":null,"image_url":null,"category":null,"club_name":null,
           "source_name":"Parish","end_at":null,"all_day":false,
@@ -91,6 +95,9 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(cards[0].score?.spacing, 0.5)
         XCTAssertEqual(cards[0].score?.sizeStep, 2)
         XCTAssertNil(cards[1].score)
+        // Everyone's hearts, and whether you hearted it (ticket 03).
+        XCTAssertEqual(cards[0].likeCount, 4)
+        XCTAssertTrue(cards[0].isLiked)
         // A breakdown that doesn't read costs only the breakdown, never the feed.
         XCTAssertNil(cards[2].score)
     }
@@ -124,7 +131,7 @@ final class TownFeedEventsTests: XCTestCase {
     /// `RealLifeActions`, so an event page pushed before a read shows the read's count.
     func testEveryListTellsRealLifeActions() async {
         let actions = RealLifeActions(signedIn: true, needsAccount: true, hold: .zero, flip: .zero,
-                                      setGoing: { _, _ in })
+                                      setGoing: { _, _ in }, setHeart: { _, _ in })
         var going = 3
         let town = TownFeed(read: { [TownFeed.entry(self.row("a", going: going))] },
                             kept: { [TownFeed.entry(self.row("a", going: 1))] },
@@ -138,7 +145,7 @@ final class TownFeedEventsTests: XCTestCase {
 
         // Offline at launch: the kept list is all there is, and it sets the base too.
         let offlineActions = RealLifeActions(signedIn: true, needsAccount: true, hold: .zero, flip: .zero,
-                                             setGoing: { _, _ in })
+                                             setGoing: { _, _ in }, setHeart: { _, _ in })
         let offline = TownFeed(read: { throw Offline() },
                                kept: { [TownFeed.entry(self.row("a", going: 1))] },
                                actions: offlineActions)

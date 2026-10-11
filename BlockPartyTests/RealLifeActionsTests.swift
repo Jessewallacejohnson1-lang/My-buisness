@@ -1,7 +1,7 @@
 //
 //  RealLifeActionsTests.swift
-//  BlockPartyTests — the app's one home for Going (`RealLifeActions`), driven the way
-//  the card and the event page drive it, against a stand-in server. The 600 ms hold
+//  BlockPartyTests — the app's one home for Going and Heart (`RealLifeActions`), driven
+//  the way the card and the event page drive it, against a stand-in server. The 600 ms hold
 //  and 0.18 s flip come in shorter, so these run fast; the order of what happens is
 //  the same.
 //
@@ -19,6 +19,7 @@ final class RealLifeActionsTests: XCTestCase {
     @MainActor
     private final class Server {
         var writes: [Bool] = []
+        var hearts: [Bool] = []
         var failing = false
         var delay: Duration = .zero
 
@@ -27,17 +28,27 @@ final class RealLifeActionsTests: XCTestCase {
             writes.append(going)
             if failing { throw URLError(.notConnectedToInternet) }
         }
+
+        func heart(_ eventID: String, _ hearted: Bool) async throws {
+            if delay > .zero { try? await Task.sleep(for: delay) }
+            hearts.append(hearted)
+            if failing { throw URLError(.notConnectedToInternet) }
+        }
     }
 
     private func actions(_ server: Server, signedIn: Bool = true) -> RealLifeActions {
         RealLifeActions(signedIn: signedIn, needsAccount: true, hold: Self.hold, flip: Self.flip,
-                        setGoing: server.write)
+                        setGoing: server.write, setHeart: server.heart)
     }
 
-    private func card(going: Int = 4, joined: Bool = false) -> FeedCardItem {
-        FeedCardItem(UpcomingEvent(id: "e1", title: "Trivia night", eventDate: "2026-10-12",
-                                   startTime: "7 PM", location: nil, goingCount: going,
-                                   createdAt: "2026-10-06T16:08:20+00:00", rsvpd: joined))
+    private func card(going: Int = 4, joined: Bool = false,
+                      hearts: Int = 3, hearted: Bool = false) -> FeedCardItem {
+        var card = FeedCardItem(UpcomingEvent(id: "e1", title: "Trivia night", eventDate: "2026-10-12",
+                                              startTime: "7 PM", location: nil, goingCount: going,
+                                              createdAt: "2026-10-06T16:08:20+00:00", rsvpd: joined))
+        card.likeCount = hearts
+        card.isLiked = hearted
+        return card
     }
 
     func testAJoinShowsAtOnceAndStays() async throws {
@@ -238,6 +249,145 @@ final class RealLifeActionsTests: XCTestCase {
         XCTAssertEqual(RealLifeActions.backend(for: ["-open-tab", "town", "-town-samples"]), .samples)
         XCTAssertEqual(RealLifeActions.backend(for: ["-town-offline"]), .offline)
         XCTAssertEqual(RealLifeActions.backend(for: []), .live)
+    }
+
+    // MARK: Heart
+
+    func testAHeartShowsAtOnceAndStays() async throws {
+        let server = Server()
+        let actions = actions(server)
+        let item = card()
+
+        actions.toggleHeart(item)
+        XCTAssertEqual(actions.heart(item), .init(isHearted: true, count: 4), "hearted at once, counting you")
+        XCTAssertEqual(actions.going(item), .init(isGoing: false, count: 4), "Going is untouched")
+
+        try await Task.sleep(for: Self.hold * 3)
+        XCTAssertEqual(server.hearts, [true])
+        XCTAssertEqual(server.writes, [], "no Going write")
+        XCTAssertEqual(actions.heart(item), .init(isHearted: true, count: 4), "a heart that lands stays")
+
+        actions.toggleHeart(item)
+        try await Task.sleep(for: Self.hold)
+        XCTAssertEqual(server.hearts, [true, false], "un-hearting is written too")
+        XCTAssertEqual(actions.heart(item), .init(isHearted: false, count: 3))
+    }
+
+    /// A failed heart holds, turns back, then shakes its card once, as a failed Join
+    /// does on its page.
+    func testAFailedHeartHoldsThenTurnsBackThenCountsOneFailure() async throws {
+        let server = Server()
+        server.failing = true
+        let actions = actions(server)
+        let item = card()
+        actions.cardOpened(item.id)
+
+        let tapped = ContinuousClock.now
+        actions.toggleHeart(item)
+        try await waitWhile(actions.heart(item).isHearted)
+        XCTAssertGreaterThanOrEqual(ContinuousClock.now - tapped, Self.hold, "turned back before it could be seen")
+        XCTAssertEqual(actions.heart(item), .init(isHearted: false, count: 3))
+        XCTAssertEqual(actions.heartFailureCount(item.id), 0, "no shake while it turns back")
+
+        try await waitWhile(actions.heartFailureCount(item.id) == 0)
+        XCTAssertEqual(actions.heartFailureCount(item.id), 1, "one turn back, one shake")
+        XCTAssertEqual(actions.failureCount(item.id), 0, "Join doesn't shake for a heart")
+    }
+
+    /// Each kind shakes only on its own screen: a failed heart on the card, a failed Join
+    /// on the Event page. Neither shakes the other's screen, or a closed one.
+    func testAHeartAndAJoinShakeOnlyTheirOwnScreen() async throws {
+        let server = Server()
+        server.failing = true
+        let actions = actions(server)
+        let item = card()
+
+        actions.pageOpened(item.id)
+        actions.toggleHeart(item)
+        try await Task.sleep(for: (Self.hold + Self.flip) * 3)
+        XCTAssertFalse(actions.heart(item).isHearted, "the heart still turns back")
+        XCTAssertEqual(actions.heartFailureCount(item.id), 0, "card closed: no shake, no buzz")
+        actions.pageClosed(item.id)
+
+        actions.cardOpened(item.id)
+        actions.toggleGoing(item)
+        try await Task.sleep(for: (Self.hold + Self.flip) * 3)
+        XCTAssertFalse(actions.going(item).isGoing)
+        XCTAssertEqual(actions.failureCount(item.id), 0, "page closed: no Join shake on the card")
+    }
+
+    /// The photo's double tap hearts and never un-hearts.
+    func testADoubleTapOnlyHearts() async throws {
+        let server = Server()
+        let actions = actions(server)
+        let item = card()
+
+        actions.heartOn(item)
+        actions.heartOn(item)
+        XCTAssertTrue(actions.heart(item).isHearted)
+        try await Task.sleep(for: Self.hold)
+        XCTAssertEqual(server.hearts, [true], "the second double tap writes nothing")
+        XCTAssertEqual(actions.heart(item).count, 4)
+    }
+
+    /// A double tap while a failed heart waits to turn back keeps it on and writes it
+    /// again, rather than turning it off (taste.md: a double tap still likes).
+    func testADoubleTapDuringAFailedHeartsWaitKeepsItOn() async throws {
+        let server = Server()
+        server.failing = true
+        let actions = actions(server)
+        let item = card()
+        actions.cardOpened(item.id)
+
+        actions.heartOn(item)
+        try await Task.sleep(for: .milliseconds(20))
+        XCTAssertEqual(server.hearts, [true], "the write has failed; the heart still holds")
+        server.failing = false
+        actions.heartOn(item)
+        XCTAssertTrue(actions.heart(item).isHearted)
+        try await Task.sleep(for: (Self.hold + Self.flip) * 2)
+        XCTAssertEqual(server.hearts, [true, true], "written again")
+        XCTAssertEqual(actions.heart(item), .init(isHearted: true, count: 4), "and it stays")
+        XCTAssertEqual(actions.heartFailureCount(item.id), 0)
+    }
+
+    /// Heart, un-heart, heart before the first write answers: one write at a time, never
+    /// cancelled, and the server ends with the last tap.
+    func testTheLastHeartTapWins() async throws {
+        let server = Server()
+        server.delay = .milliseconds(30)
+        let actions = actions(server)
+        let item = card()
+
+        actions.toggleHeart(item)
+        try await Task.sleep(for: .milliseconds(5))
+        actions.toggleHeart(item)
+        try await Task.sleep(for: .milliseconds(150))
+        XCTAssertEqual(server.hearts, [true, false])
+        XCTAssertEqual(actions.heart(item), .init(isHearted: false, count: 3))
+    }
+
+    /// A read sets each Event's heart base: everyone's count and your own heart.
+    func testAFeedReadSetsTheHeartBase() {
+        let actions = actions(Server())
+        let pushed = card(hearts: 3)
+        actions.read([card(hearts: 7, hearted: true)])
+        XCTAssertEqual(actions.heart(pushed), .init(isHearted: true, count: 7))
+        actions.read([card(hearts: 2, hearted: false)])
+        XCTAssertEqual(actions.heart(pushed), .init(isHearted: false, count: 2))
+    }
+
+    /// No account: the card hides the heart, and the module refuses it anyway.
+    func testNoAccountMeansNoHeart() async throws {
+        let server = Server()
+        let actions = actions(server, signedIn: false)
+        let item = card()
+
+        actions.toggleHeart(item)
+        actions.heartOn(item)
+        try await Task.sleep(for: Self.hold)
+        XCTAssertFalse(actions.heart(item).isHearted)
+        XCTAssertEqual(server.hearts, [])
     }
 
     /// Polls every 5 ms until `condition` is false, for at most 5 s.

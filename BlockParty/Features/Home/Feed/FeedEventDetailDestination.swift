@@ -533,19 +533,7 @@ struct FeedEventDetailDestination: View {
                 actions.toggleGoing(item)
             } label: { joinFace(going.isGoing) }
                 .buttonStyle(FeedCardJoinPressStyle(reduceMotion: reduceMotion))
-                .keyframeAnimator(initialValue: CGFloat.zero, trigger: failures) { [joinShakes = joinShakes(failures)] button, x in
-                    button.offset(x: joinShakes ? x : 0)
-                } keyframes: { _ in
-                    // Out 6 pt, back past centre, dying away: 0.32 s. The app has no
-                    // shake to copy, so every number here is guessed.
-                    KeyframeTrack {
-                        CubicKeyframe(6, duration: 0.06)
-                        CubicKeyframe(-5, duration: 0.08)
-                        CubicKeyframe(3, duration: 0.07)
-                        CubicKeyframe(-1.5, duration: 0.06)
-                        CubicKeyframe(0, duration: 0.05)
-                    }
-                }
+                .turnBackShake(failures: failures, shakes: joinShakes(failures))
                 .accessibilityLabel(going.isGoing ? "Going" : "Join")
                 .accessibilityAddTraits(going.isGoing ? .isSelected : [])
         }

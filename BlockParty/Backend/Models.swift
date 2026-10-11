@@ -97,8 +97,9 @@ nonisolated struct UpcomingEvent: Identifiable, Hashable {
 /// One row of `get_town_feed` (`supabase/migrations/*_town_feed*.sql`): an event, how its
 /// series repeats ("Every Tuesday"; nil for a one-off or no clear pattern), when it
 /// leaves the Town feed, why it's there (the recipe's top reason and the one name it
-/// needs), and for the admin the points behind its place. Rows kept from before the
-/// recipe have no reason.
+/// needs), for the admin the points behind its place, and its hearts: everyone's, and
+/// whether you hearted it. Rows kept from before the recipe have no reason, and from
+/// before hearts, no hearts.
 nonisolated struct TownFeedRow: Hashable {
     let event: UpcomingEvent
     let recurrence: String?
@@ -106,6 +107,8 @@ nonisolated struct TownFeedRow: Hashable {
     var reason: String? = nil
     var reasonName: String? = nil
     var score: FeedScore? = nil
+    var heartCount = 0
+    var hearted = false
 }
 
 /// The points behind a card's place in the Town feed, as `get_town_feed` sends them to

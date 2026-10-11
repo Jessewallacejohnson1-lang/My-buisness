@@ -57,8 +57,8 @@ final class TownFeed {
 
     private let read: () async throws -> [TownFeedEntry]
     private let kept: () -> [TownFeedEntry]?
-    /// Told each Event's Going from every list the feed takes, in the same turn, so a
-    /// card and its Event page never disagree for a frame.
+    /// Told each Event's Going and Heart from every list the feed takes, in the same
+    /// turn, so a card and its Event page never disagree for a frame.
     private let actions: RealLifeActions?
 
     /// `kept` is the list the last session left on the phone, asked for once, at the
@@ -195,13 +195,15 @@ final class TownFeed {
         return rows.map(entry)
     }
 
-    /// A row as the card a club's event gets. Whether its Going may be shown or changed
-    /// is `RealLifeActions.canAct`'s, so a card read before the quiet account arrived
-    /// offers Join once it has.
+    /// A row as the card a club's event gets. Whether its Going and Heart may be shown
+    /// or changed is `RealLifeActions.canAct`'s, so a card read before the quiet account
+    /// arrived offers Join and the heart once it has.
     static func entry(_ row: TownFeedRow) -> TownFeedEntry {
         var card = FeedCardItem(row.event, recurrence: row.recurrence)
         card.why = row.reason.flatMap { FeedCardMenu.line(reason: $0, name: row.reasonName) }
         card.score = row.score
+        card.likeCount = row.heartCount
+        card.isLiked = row.hearted
         return TownFeedEntry(card: card, leavesAt: row.leavesAt)
     }
 }

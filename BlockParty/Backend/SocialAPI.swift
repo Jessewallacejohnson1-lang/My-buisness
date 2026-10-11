@@ -104,15 +104,6 @@ struct SocialAPI {
                                         query: "event_id=eq.\(id)&user_id=eq.\(uid)", accessToken: t)
     }
 
-    func hasLiked(_ id: String) async throws -> Bool {
-        let t = try await token()
-        let uid = try await uidOrThrow()
-        let (data, _) = try await SupabaseHTTP.rest("event_likes",
-            query: "select=id&event_id=eq.\(id)&user_id=eq.\(uid)&limit=1", accessToken: t)
-        let rows: [IdRow] = try decode(data)
-        return !rows.isEmpty
-    }
-
     // MARK: - Saves
 
     func saveEvent(_ id: String) async throws {
