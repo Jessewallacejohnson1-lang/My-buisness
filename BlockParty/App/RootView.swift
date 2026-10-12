@@ -334,6 +334,10 @@ struct MainTabsView: View {
     /// The You tab's three weeks of Going, kept here like the Town feed's, so coming back
     /// to You shows the Calendar it left while it reads again behind it.
     @State private var you = YouModel()
+    /// Your Going in your iPhone Calendar, kept up to date from here while its switch in
+    /// Profile is on (BP app docs/plans/you-tab, ticket 05).
+    @State private var calendarSync = CalendarSync()
+    @Environment(\.scenePhase) private var scenePhase
     /// The friends inbox and its chats (DEBUG samples until real messages exist), kept
     /// here so an opened chat stays read when the inbox comes back.
     @State private var friendsModel = FriendsModel()
@@ -414,12 +418,33 @@ struct MainTabsView: View {
             you.accountChanged()
             Task { await townFeed.reload() }
             Task { await you.refresh() }
+            Task { await syncCalendar() }
+        }
+        // The iPhone Calendar follows the Going: on the switch, on every Join or leave once
+        // its 0.6 s hold has passed (a Join that turns back never reaches the calendar),
+        // and each time the app comes to the front.
+        .task(id: calendarKey) {
+            try? await Task.sleep(for: .seconds(1.5))
+            guard !Task.isCancelled else { return }
+            await syncCalendar()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await syncCalendar() } }
         }
         .onAppear {
             // DEBUG: `-open-friends` lands on the inbox, `-open-friends-chat` on its newest chat.
             if Self.debugOpen("-open-friends") || Self.debugOpen("-open-friends-chat") { openFriends() }
             if Self.debugOpen("-open-friends-chat"), let newest = friendsModel.visible().first { path.append(FriendsRoute.chat(newest.id)) }
         }
+    }
+
+    /// What the iPhone Calendar follows: the switch and this session's Going taps.
+    private var calendarKey: [String] {
+        actions.goingTapped.values.map { "\($0.id):\(actions.going($0).isGoing)" }.sorted() + ["\(calendarSync.isOn)"]
+    }
+
+    private func syncCalendar() async {
+        await calendarSync.sync(tapped: Array(actions.goingTapped.values), isGoing: { actions.going($0).isGoing })
     }
 
     /// The friends mark: the inbox when there are chats, the reserved screen when not.
@@ -555,6 +580,7 @@ struct MainTabsView: View {
         // It drags down to close, so it draws no close button of its own.
         .sheet(isPresented: $showProfileSheet) {
             ProfileView()
+                .environment(calendarSync)
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(Hue.paper)   // the You tab mock's paper sheet under white rows

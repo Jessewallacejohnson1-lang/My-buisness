@@ -142,12 +142,12 @@ enum YouCalendar {
     }
 
     /// The Going on the Calendar: the read's, and the Events tapped Going this session
-    /// that fall in the three weeks, each once (the read's details win), only those
-    /// still Going; by day, a day's timed Events soonest first and then its untimed ones,
-    /// then by title.
+    /// that fall in the `days` from `first` (the three weeks; a year for the iPhone
+    /// Calendar), each once (the read's details win), only those still Going; by day, a
+    /// day's timed Events soonest first and then its untimed ones, then by title.
     static func going(read: [DailyEvent], tapped: [FeedCardItem], isGoing: (FeedCardItem) -> Bool,
-                      first: Date) -> [DailyEvent] {
-        let end = calendar.date(byAdding: .day, value: length, to: first) ?? first
+                      first: Date, days: Int = length) -> [DailyEvent] {
+        let end = calendar.date(byAdding: .day, value: days, to: first) ?? first
         var byID: [String: DailyEvent] = [:]
         for item in tapped { if let event = event(from: item) { byID[event.id] = event } }
         for event in read { byID[event.id] = event }

@@ -22,6 +22,8 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Block Party adds the events you're Going to and keeps them up to date.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Block Party uses your location to show what's happening close by in St. Joseph.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>

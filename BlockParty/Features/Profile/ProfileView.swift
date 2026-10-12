@@ -11,6 +11,8 @@ import SwiftUI
 
 struct ProfileView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(CalendarSync.self) private var calendarSync
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var model = ProfileModel()
 
     @State private var revealed = false
@@ -163,25 +165,63 @@ struct ProfileView: View {
 
     /// One group of rows, as in the mock. Saved joins at the top with ticket 04.
     private var rows: some View {
-        GlassGroup {
-            ProfileRow(icon: "person.badge.plus", title: "Invite a neighbor",
-                       action: { ShareCenter.shared.present(.appInvite()) })
-            ProfileRowDivider()
-            if model.isAdmin {
-                ProfileRow(icon: "checkmark.shield", title: "Review queue",
-                           action: { Haptics.selection(); showModeration = true })
+        VStack(alignment: .leading, spacing: 0) {
+            GlassGroup {
+                ProfileRow(icon: "person.badge.plus", title: "Invite a neighbor",
+                           action: { ShareCenter.shared.present(.appInvite()) })
                 ProfileRowDivider()
+                calendarRow
+                ProfileRowDivider()
+                if model.isAdmin {
+                    ProfileRow(icon: "checkmark.shield", title: "Review queue",
+                               action: { Haptics.selection(); showModeration = true })
+                    ProfileRowDivider()
+                }
+                ProfileRow(icon: "bell", title: "Notifications",
+                           action: { openSystemSettings() })
+                ProfileRowDivider()
+                ProfileRow(icon: "info.circle", title: "About Block Party",
+                           action: { showAbout = true })
+                if let email = model.email, !email.isEmpty {
+                    ProfileRowDivider()
+                    ProfileRow(icon: "envelope", title: "Account", subtitle: email, accessory: .none)
+                }
             }
-            ProfileRow(icon: "bell", title: "Notifications",
-                       action: { openSystemSettings() })
-            ProfileRowDivider()
-            ProfileRow(icon: "info.circle", title: "About Block Party",
-                       action: { showAbout = true })
-            if let email = model.email, !email.isEmpty {
-                ProfileRowDivider()
-                ProfileRow(icon: "envelope", title: "Account", subtitle: email, accessory: .none)
+            if calendarSync.refused {
+                // Working words; Jesse writes the final ones.
+                Text("Allow it in Settings, Privacy, Calendars")
+                    .font(.sans(13))
+                    .foregroundStyle(Hue.inkSecondary)
+                    .padding(.top, 8)
+                    .padding(.leading, 6)
             }
         }
+    }
+
+    /// Your Going in your iPhone Calendar (ticket 05): Apple's switch, on while iOS is
+    /// asked; a refusal flips it back, then shakes it.
+    private var calendarRow: some View {
+        HStack(spacing: 13) {
+            Image(systemName: "calendar")
+                .font(.sansSemibold(16))
+                .foregroundStyle(Hue.ink)
+                .frame(width: 26)
+            // A working name; Jesse writes the final one.
+            Text("iPhone Calendar")
+                .font(.sansMedium(16))
+                .foregroundStyle(Hue.ink)
+                .accessibilityHidden(true)
+            Spacer(minLength: 8)
+            Toggle("iPhone Calendar", isOn: Binding(
+                get: { calendarSync.isOn || calendarSync.asking },
+                set: { on in
+                    if on { Task { await calendarSync.turnOn() } } else { calendarSync.turnOff() }
+                }))
+                .labelsHidden()
+                .disabled(calendarSync.asking)
+                .turnBackShake(failures: calendarSync.refusals, shakes: !reduceMotion)
+        }
+        .frame(minHeight: 52)                   // the rows' height (`ProfileRow`)
     }
 
     private var signOutButton: some View {
