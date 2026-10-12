@@ -38,14 +38,6 @@ import CoreLocation
 /// (the module defaults to MainActor): pure string logic, unit-testable.
 nonisolated enum PinDetailCopy {
 
-    /// Spelled-out small counts read warmer in a sentence ("Three events here
-    /// today."); past nine the numeral is clearer.
-    static func spelled(_ n: Int) -> String {
-        let words = ["zero", "one", "two", "three", "four",
-                     "five", "six", "seven", "eight", "nine"]
-        return (0...9).contains(n) ? words[n] : "\(n)"
-    }
-
     /// The status word beside the header dot. Live wins; otherwise today's real
     /// event count decides between anticipation and quiet.
     static func statusWord(isLive: Bool, todayCount: Int) -> String {
@@ -58,8 +50,9 @@ nonisolated enum PinDetailCopy {
     /// no week totals exist here, so none are claimed.
     static func happeningsSentence(todayCount: Int) -> String? {
         guard todayCount > 0 else { return nil }
-        if todayCount == 1 { return "One event here today." }
-        return "\(spelled(todayCount).capitalized) events here today."
+        // Numerals, as the map sheet counts (BP app's words page, `map-count-voice`).
+        if todayCount == 1 { return "1 event here today." }
+        return "\(todayCount) events here today."
     }
 
     static func statusRowLabel(isLive: Bool) -> String {

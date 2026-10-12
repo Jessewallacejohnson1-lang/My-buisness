@@ -23,20 +23,20 @@ import SwiftUI
 // MARK: - Copy (pure, tested in MapFilterChipsTests)
 
 /// The sheet's counted sentences — complete plain sentences in the brand voice
-/// (map polish Phase 4): "One" is spelled out, larger counts keep the numeral,
-/// and the noun agrees with the count. `nonisolated` (the module defaults to
+/// (map polish Phase 4): every count is a numeral, one included (BP app's words
+/// page, `map-count-voice`), and the noun agrees with the count. `nonisolated` (the module defaults to
 /// MainActor): pure string logic, unit-testable. The map pins' spoken labels
 /// reuse these, so eyes and VoiceOver hear one voice.
 nonisolated enum MapSheetCopy {
 
-    /// "One thing happening today." / "6 things happening today."
+    /// "1 thing happening today." / "6 things happening today."
     static func todayCountSentence(_ n: Int) -> String {
-        n == 1 ? "One thing happening today." : "\(n) things happening today."
+        n == 1 ? "1 thing happening today." : "\(n) things happening today."
     }
 
-    /// "One thing happening now." / "3 things happening now."
+    /// "1 thing happening now." / "3 things happening now."
     static func nowCountSentence(_ n: Int) -> String {
-        n == 1 ? "One thing happening now." : "\(n) things happening now."
+        n == 1 ? "1 thing happening now." : "\(n) things happening now."
     }
 
     /// The peek line's pull-up invitation, under the counted primary line.
@@ -44,9 +44,9 @@ nonisolated enum MapSheetCopy {
         n == 1 ? "Pull up to see it." : "Pull up to see them."
     }
 
-    /// The Places header: "One place in town." / "6 places in town."
+    /// The Places header: "1 place in town." / "6 places in town."
     static func placesCountSentence(_ n: Int) -> String {
-        n == 1 ? "One place in town." : "\(n) places in town."
+        n == 1 ? "1 place in town." : "\(n) places in town."
     }
 }
 

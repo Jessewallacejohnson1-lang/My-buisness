@@ -124,13 +124,13 @@ final class MapFilterChipsTests: XCTestCase {
 
     // MARK: MapSheetCopy — the counted sentences
 
-    func testTodayCountSentenceSpellsOneAndKeepsNumerals() {
-        XCTAssertEqual(MapSheetCopy.todayCountSentence(1), "One thing happening today.")
+    func testTodayCountSentenceUsesNumerals() {
+        XCTAssertEqual(MapSheetCopy.todayCountSentence(1), "1 thing happening today.")
         XCTAssertEqual(MapSheetCopy.todayCountSentence(6), "6 things happening today.")
     }
 
     func testNowCountSentence() {
-        XCTAssertEqual(MapSheetCopy.nowCountSentence(1), "One thing happening now.")
+        XCTAssertEqual(MapSheetCopy.nowCountSentence(1), "1 thing happening now.")
         XCTAssertEqual(MapSheetCopy.nowCountSentence(3), "3 things happening now.")
     }
 
@@ -140,7 +140,7 @@ final class MapFilterChipsTests: XCTestCase {
     }
 
     func testPlacesCountSentence() {
-        XCTAssertEqual(MapSheetCopy.placesCountSentence(1), "One place in town.")
+        XCTAssertEqual(MapSheetCopy.placesCountSentence(1), "1 place in town.")
         XCTAssertEqual(MapSheetCopy.placesCountSentence(6), "6 places in town.")
     }
 
@@ -154,8 +154,8 @@ final class MapFilterChipsTests: XCTestCase {
         for sentence in sentences {
             XCTAssertTrue(sentence.hasSuffix("."), "Not a sentence: \(sentence)")
             XCTAssertFalse(sentence.contains("!"), "Exclamation point: \(sentence)")
-            // The spec keeps the numeral past one ("6 things happening today."),
-            // so a sentence may open with a digit instead of a capital.
+            // Every count is a numeral ("1 thing happening today."), so a
+            // sentence may open with a digit instead of a capital.
             let first = sentence.first
             XCTAssertTrue(first?.isUppercase == true || first?.isNumber == true,
                           "No capital or numeral: \(sentence)")

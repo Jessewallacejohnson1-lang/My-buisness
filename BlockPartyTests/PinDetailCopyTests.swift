@@ -37,12 +37,12 @@ final class PinDetailCopyTests: XCTestCase {
 
     func testHappeningsSentenceSingular() {
         XCTAssertEqual(PinDetailCopy.happeningsSentence(todayCount: 1),
-                       "One event here today.")
+                       "1 event here today.")
     }
 
-    func testHappeningsSentenceSpellsSmallCounts() {
+    func testHappeningsSentenceUsesNumerals() {
         XCTAssertEqual(PinDetailCopy.happeningsSentence(todayCount: 3),
-                       "Three events here today.")
+                       "3 events here today.")
     }
 
     func testHappeningsSentenceFallsBackToNumeralsPastNine() {
@@ -133,7 +133,11 @@ final class PinDetailCopyTests: XCTestCase {
         for sentence in sentences {
             XCTAssertTrue(sentence.hasSuffix("."), "Not a sentence: \(sentence)")
             XCTAssertFalse(sentence.contains("!"), "Exclamation point: \(sentence)")
-            XCTAssertTrue(sentence.first?.isUppercase == true, "No capital: \(sentence)")
+            // Counts are numerals ("1 event here today."), so a sentence may
+            // open with a digit instead of a capital.
+            let first = sentence.first
+            XCTAssertTrue(first?.isUppercase == true || first?.isNumber == true,
+                          "No capital or numeral: \(sentence)")
         }
     }
 }
