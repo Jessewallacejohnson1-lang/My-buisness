@@ -22,8 +22,9 @@ final class RealLifeActionsTests: XCTestCase {
         var hearts: [Bool] = []
         /// Each save written, as "<event id> <saved>".
         var saves: [String] = []
-        /// The ids that are Events, for the phone's old saves.
+        /// The ids that are Events, for the phone's old saves, and how often they were asked.
         var events: Set<String> = []
+        var lookups = 0
         var failing = false
         var delay: Duration = .zero
 
@@ -47,6 +48,7 @@ final class RealLifeActionsTests: XCTestCase {
 
         /// Answers like `club_events`: only real Event ids, and only UUIDs reach it.
         func knownEvents(_ ids: [String]) async throws -> Set<String> {
+            lookups += 1
             XCTAssertTrue(ids.allSatisfy { UUID(uuidString: $0) != nil }, "a non-UUID would fail the whole read")
             if failing { throw URLError(.notConnectedToInternet) }
             return events.intersection(ids)
@@ -494,7 +496,10 @@ final class RealLifeActionsTests: XCTestCase {
     private func phone(_ ids: [String]) -> SavedStore {
         let key = "RealLifeActionsTests.\(UUID().uuidString)"
         UserDefaults.standard.set(ids, forKey: key)
-        addTeardownBlock { UserDefaults.standard.removeObject(forKey: key) }
+        addTeardownBlock {
+            UserDefaults.standard.removeObject(forKey: key)
+            UserDefaults.standard.removeObject(forKey: key + ".movedUp")
+        }
         return SavedStore(key: key)
     }
 
@@ -510,8 +515,11 @@ final class RealLifeActionsTests: XCTestCase {
         XCTAssertTrue(actions.saved(card(id: Self.event)), "saved before any read says so")
         XCTAssertTrue(SavedStore(key: store.key).ids == store.ids, "kept across launches")
 
+        server.events = []
         await actions.moveUp(store)
         XCTAssertEqual(server.saves, ["\(Self.event) true"], "running it again writes nothing")
+        XCTAssertTrue(store.movedUp)
+        XCTAssertEqual(server.lookups, 1, "done once: the map's Places never send another read")
     }
 
     /// A read that started before the move-up landed doesn't blank the bookmark.
@@ -539,6 +547,7 @@ final class RealLifeActionsTests: XCTestCase {
         await actions.moveUp(store)
         XCTAssertEqual(store.ids, [Self.event], "tried again next time")
         XCTAssertFalse(actions.saved(card(id: Self.event)))
+        XCTAssertFalse(store.movedUp)
     }
 
     func testNoAccountMovesNothing() async throws {

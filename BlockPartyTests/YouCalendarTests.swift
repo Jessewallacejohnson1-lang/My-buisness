@@ -148,7 +148,7 @@ final class YouCalendarTests: XCTestCase {
         var fail = false
         let actions = RealLifeActions(signedIn: true, needsAccount: false, hold: .milliseconds(1), flip: .milliseconds(1),
                                       setGoing: { _, _ in if fail { throw URLError(.notConnectedToInternet) } },
-                                      setHeart: { _, _ in })
+                                      setHeart: { _, _ in }, setSave: { _, _ in }, knownEvents: { _ in [] })
         var card = FeedCardItem(row("card", "2026-10-20", "6 PM"))
         card.isJoined = false
         func shown() -> [String] {

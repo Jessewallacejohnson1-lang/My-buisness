@@ -131,7 +131,8 @@ final class TownFeedEventsTests: XCTestCase {
     /// `RealLifeActions`, so an event page pushed before a read shows the read's count.
     func testEveryListTellsRealLifeActions() async {
         let actions = RealLifeActions(signedIn: true, needsAccount: true, hold: .zero, flip: .zero,
-                                      setGoing: { _, _ in }, setHeart: { _, _ in })
+                                      setGoing: { _, _ in }, setHeart: { _, _ in },
+                                      setSave: { _, _ in }, knownEvents: { _ in [] })
         var going = 3
         let town = TownFeed(read: { [TownFeed.entry(self.row("a", going: going))] },
                             kept: { [TownFeed.entry(self.row("a", going: 1))] },
@@ -145,7 +146,8 @@ final class TownFeedEventsTests: XCTestCase {
 
         // Offline at launch: the kept list is all there is, and it sets the base too.
         let offlineActions = RealLifeActions(signedIn: true, needsAccount: true, hold: .zero, flip: .zero,
-                                             setGoing: { _, _ in }, setHeart: { _, _ in })
+                                             setGoing: { _, _ in }, setHeart: { _, _ in },
+                                      setSave: { _, _ in }, knownEvents: { _ in [] })
         let offline = TownFeed(read: { throw Offline() },
                                kept: { [TownFeed.entry(self.row("a", going: 1))] },
                                actions: offlineActions)

@@ -110,7 +110,8 @@ final class BrandDiscContrastTests: XCTestCase {
                                               goingCount: 0, createdAt: "2026-10-12T12:00:00+00:00",
                                               rsvpd: false))
         let actions = RealLifeActions(signedIn: true, needsAccount: false, hold: .zero, flip: .zero,
-                                      setGoing: { _, _ in }, setHeart: { _, _ in })
+                                      setGoing: { _, _ in }, setHeart: { _, _ in },
+                                      setSave: { _, _ in }, knownEvents: { _ in [] })
         let button = SaveBookmarkButton(item: item).environment(actions)
 
         XCTAssertNotEqual(try centrePixel(of: button), Hue.brandYellowHex,

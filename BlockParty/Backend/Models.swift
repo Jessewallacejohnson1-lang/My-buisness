@@ -43,14 +43,12 @@ struct ClubView: Identifiable, Hashable {
     var expectations: String? { row.expectations }
 }
 
-/// A timeline row: a club event with the viewer's RSVP state + going count.
+/// A timeline row: a club event, for the map's Today list and search.
 struct TimelineEvent: Identifiable, Hashable {
     let id: String
     let title: String
     let startTime: String?
     let location: String?
-    var goingCount: Int
-    var rsvpd: Bool
     let clubName: String?
     let fromJoinedClub: Bool
     /// The organizer's blurb (club_events.description) — surfaced when a calendar
@@ -284,8 +282,6 @@ struct RawEvent: Decodable {
 struct MemberRow: Decodable { let clubId: String; let userId: String? }
 
 /// event_rsvps row (subset).
-struct RsvpRow: Decodable { let eventId: String; let userId: String? }
-
 /// Just an event_date column (month dot queries).
 struct DateRow: Decodable { let eventDate: String }
 

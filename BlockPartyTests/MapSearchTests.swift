@@ -33,7 +33,7 @@ final class MapSearchTests: XCTestCase {
     private func event(_ title: String, location: String? = nil,
                        category: EventCategory = .other) -> TimelineEvent {
         TimelineEvent(id: title, title: title, startTime: nil, location: location,
-                      goingCount: 0, rsvpd: false, clubName: nil,
+                      clubName: nil,
                       fromJoinedClub: false, details: nil, category: category)
     }
 

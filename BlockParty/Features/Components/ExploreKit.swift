@@ -171,6 +171,12 @@ final class SavedStore: ObservableObject {
         guard ids.remove(id) != nil else { return }
         UserDefaults.standard.set(Array(ids), forKey: key)
     }
+
+    /// The Event saves on this phone have moved up to the server (`RealLifeActions.moveUp`).
+    var movedUp: Bool {
+        get { UserDefaults.standard.bool(forKey: key + ".movedUp") }
+        set { UserDefaults.standard.set(newValue, forKey: key + ".movedUp") }
+    }
 }
 
 /// Every bookmark in the app: an outline, and when saved the brand yellow filling it

@@ -99,8 +99,8 @@ final class RealLifeActions {
     init(signedIn: Bool, needsAccount: Bool, hold: Duration, flip: Duration,
          setGoing: @escaping (_ eventID: String, _ going: Bool) async throws -> Void,
          setHeart: @escaping (_ eventID: String, _ hearted: Bool) async throws -> Void,
-         setSave: @escaping (_ eventID: String, _ saved: Bool) async throws -> Void = { _, _ in },
-         knownEvents: @escaping (_ ids: [String]) async throws -> Set<String> = { _ in [] }) {
+         setSave: @escaping (_ eventID: String, _ saved: Bool) async throws -> Void,
+         knownEvents: @escaping (_ ids: [String]) async throws -> Set<String>) {
         self.canAct = signedIn || !needsAccount
         self.needsAccount = needsAccount
         self.holdFor = hold
@@ -175,7 +175,8 @@ final class RealLifeActions {
     /// For the DEBUG screens that show cards outside the shell (`RootView`).
     static let preview = RealLifeActions(signedIn: true, needsAccount: false, hold: hold,
                                          flip: .seconds(flip), setGoing: { _, _ in },
-                                         setHeart: { _, _ in })
+                                         setHeart: { _, _ in }, setSave: { _, _ in },
+                                         knownEvents: { _ in [] })
     #endif
 
     // MARK: What screens read
@@ -285,24 +286,32 @@ final class RealLifeActions {
 
     /// Saves this phone kept before saves moved to the server (`SavedStore`): once there
     /// is an account, each Event's is written, shown saved straight away, and dropped
-    /// from the phone. Places' stay there for the map. One that fails stays too and is
-    /// tried again next time, so running it again changes nothing that moved.
+    /// from the phone. Places' stay there for the map. It runs until it has gone through
+    /// once with nothing failing (`SavedStore.movedUp`); one that fails stays on the
+    /// phone and is tried again next time, so running it again changes nothing that moved.
     func moveUp(_ store: SavedStore) async {
-        guard canAct, !movingUp else { return }
-        let ids = store.ids.filter { UUID(uuidString: $0) != nil }
-        guard !ids.isEmpty else { return }
+        guard canAct, !movingUp, !store.movedUp else { return }
         movingUp = true
         defer { movingUp = false }
         let account = self.account
-        guard let events = try? await knownEvents(Array(ids)) else { return }
+        // Map spots ("downtown") and Daily's samples ("daily-s1") aren't Events, and a
+        // non-UUID would fail the whole read.
+        let ids = store.ids.filter { UUID(uuidString: $0) != nil }
+        var events: Set<String> = []
+        if !ids.isEmpty {
+            guard let known = try? await knownEvents(Array(ids)) else { return }
+            events = known
+        }
+        var failed = false
         for id in events.sorted() {
-            do { try await setSave(id, true) } catch { continue }
+            do { try await setSave(id, true) } catch { failed = true; continue }
             guard account == self.account else { return }
             let key = Key(kind: .save, id: id)
             // Over a read that came before the write landed, until a read agrees.
             if base[key]?.on != true && writers[key] == nil { chosen[key] = true }
             store.remove(id)
         }
+        if !failed { store.movedUp = true }
     }
 
     /// A new account (or none): the last one's choices are not this one's. Its base

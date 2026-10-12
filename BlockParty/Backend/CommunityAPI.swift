@@ -153,18 +153,6 @@ struct CommunityAPI {
             query: "select=*,clubs(name)&status=eq.approved&kind=eq.event&event_date=eq.\(date)\(Self.realOnly)&order=start_time.asc",
             accessToken: t)
         let events: [RawEvent] = try decode(data)
-        let ids = events.map(\.id)
-        var counts: [String: Int] = [:]
-        var mine = Set<String>()
-        if !ids.isEmpty {
-            let (rd, _) = try await SupabaseHTTP.rest("event_rsvps",
-                query: "select=event_id,user_id&event_id=in.(\(ids.joined(separator: ",")))", accessToken: t)
-            let rsvps: [RsvpRow] = try decode(rd)
-            for r in rsvps {
-                counts[r.eventId, default: 0] += 1
-                if let uid, r.userId == uid { mine.insert(r.eventId) }
-            }
-        }
         var joined = Set<String>()
         if let uid {
             let (jd, _) = try await SupabaseHTTP.rest("club_members",
@@ -174,7 +162,6 @@ struct CommunityAPI {
         }
         return events.map { e in
             TimelineEvent(id: e.id, title: e.title, startTime: e.startTime, location: e.location,
-                          goingCount: counts[e.id] ?? 0, rsvpd: mine.contains(e.id),
                           clubName: e.clubs?.name,
                           fromJoinedClub: e.clubId != nil ? joined.contains(e.clubId!) : false,
                           details: e.description,
