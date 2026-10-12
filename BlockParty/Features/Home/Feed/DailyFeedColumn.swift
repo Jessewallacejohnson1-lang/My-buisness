@@ -115,7 +115,9 @@ struct DailyFeedEmptyState: View {
                 .font(.sans(14))
                 .foregroundStyle(Hue.inkSecondary)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 44)
+                // Narrow enough that the line breaks after "town," on every
+                // phone, not before "shows" with "it" left hanging.
+                .frame(maxWidth: 250)
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)

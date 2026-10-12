@@ -212,7 +212,7 @@ you're talking to someone you actually know from the street.
   blankets/wool/fireplace imagery. That brand is retired.
 - Don't over-exclaim. Warmth comes from specificity, not punctuation.
 
-Good: "Three things happening today." / "Nobody's signed up yet — be first."
+Good: "3 things happening today." / "Nobody's signed up yet — be first."
 Bad: "Cozy up with today's events!" / "Your hygge awaits ✨"
 
 ## Map
