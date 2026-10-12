@@ -188,10 +188,11 @@ struct ProfileView: View {
                 }
             }
             if calendarSync.refused {
-                // Working words; Jesse writes the final ones. A tap opens the app's
-                // Settings, as Notifications does.
+                // Words picked from popular apps' calendar sync screens (Jesse, 2026-10-12:
+                // "just use recommended words"). A tap opens the app's Settings, as
+                // Notifications does.
                 Button { openSystemSettings() } label: {
-                    Text("Allow it in Settings, Privacy, Calendars")
+                    Text("Calendar access is off. Turn it on in Settings.")
                         .font(.sans(13))
                         .foregroundStyle(Hue.inkSecondary)
                         .frame(minHeight: 44)
@@ -210,13 +211,13 @@ struct ProfileView: View {
                 .font(.sansSemibold(16))
                 .foregroundStyle(Hue.ink)
                 .frame(width: 26)
-            // A working name; Jesse writes the final one.
-            Text("iPhone Calendar")
+            // Todoist's and Grab's word for it (Mobbin, 2026-10-12).
+            Text("Sync to Calendar")
                 .font(.sansMedium(16))
                 .foregroundStyle(Hue.ink)
                 .accessibilityHidden(true)
             Spacer(minLength: 8)
-            Toggle("iPhone Calendar", isOn: Binding(
+            Toggle("Sync to Calendar", isOn: Binding(
                 get: { calendarSync.isOn || calendarSync.asking },
                 set: { on in
                     if on { Task { await calendarSync.turnOn() } } else { calendarSync.turnOff() }

@@ -113,7 +113,7 @@ final class CalendarSync {
             refusals += 1
             Haptics.error()
             // The shake and the buzz are silent to VoiceOver; this says it.
-            AccessibilityNotification.Announcement("Calendar access is off").post()
+            AccessibilityNotification.Announcement("Calendar access is off. Turn it on in Settings.").post()
             return
         }
         asking = false
@@ -235,7 +235,7 @@ final class EventKitCalendar: PhoneCalendar {
     /// One store for the app's life (Apple: release it last).
     private static let store = EKEventStore()
     private var store: EKEventStore { Self.store }
-    /// Working words; Jesse writes the final ones.
+    /// Shown in the entry's notes, so the person knows where it came from.
     static let note = "Added by Block Party"
 
     var hasAccess: Bool { EKEventStore.authorizationStatus(for: .event) == .fullAccess }
