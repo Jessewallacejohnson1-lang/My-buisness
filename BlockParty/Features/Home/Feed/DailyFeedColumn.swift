@@ -102,8 +102,8 @@ struct DailyFeedColumn: View {
     }
 }
 
-/// Written as onboarding, not as an error — nothing is broken when the block is
-/// quiet, there is simply nobody followed yet.
+/// Not an error — nothing is broken when the block is quiet, there is simply
+/// nothing planned in the Town yet. Words from BP app's words page (`town-empty`).
 struct DailyFeedEmptyState: View {
     var body: some View {
         VStack(spacing: 8) {
@@ -111,7 +111,7 @@ struct DailyFeedEmptyState: View {
             Text("Quiet on the block")
                 .font(.display(22))
                 .foregroundStyle(Hue.ink)
-            Text("Follow a few neighbors and this fills up.")
+            Text("When something's planned in town, it shows up here.")
                 .font(.sans(14))
                 .foregroundStyle(Hue.inkSecondary)
                 .multilineTextAlignment(.center)
