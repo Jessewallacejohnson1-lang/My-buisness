@@ -2,9 +2,8 @@
 //  ProfileComponents.swift
 //  Block Party — the warm-frosted-glass building blocks for the profile screen:
 //  a translucent glass panel, the avatar (with a clean blank slot — no gradient
-//  placeholder), coral interest chips in a flow layout, list rows, and the two
-//  feature-card faces. All coral-on-white per the house system; readable ink text
-//  keeps contrast on the frost.
+//  placeholder), coral interest chips in a flow layout, and list rows. All
+//  coral-on-white per the house system; readable ink text keeps contrast on the frost.
 //
 
 import SwiftUI
@@ -200,46 +199,5 @@ struct GlassGroup<Content: View>: View {
         VStack(spacing: 0) { content() }
             .padding(.horizontal, 16)
             .glassPanel()
-    }
-}
-
-// MARK: - Feature card face
-
-/// The visual for the two hero cards (used inside a Button and a ShareLink). Icon
-/// chip, a big value, a label, and an optional subtitle — on a frosted panel.
-struct FeatureFace: View {
-    let icon: String
-    let value: String
-    let label: String
-    var subtitle: String? = nil
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Image(systemName: icon)
-                .font(.sansSemibold(19))
-                .foregroundStyle(Hue.ink)
-                .frame(width: 42, height: 42)
-                .background(Hue.fill.opacity(0.9), in: Circle())
-            Spacer(minLength: 12)
-            Text(value)
-                .font(.displaySemi(21))
-                .monospacedDigit()
-                .foregroundStyle(Hue.ink)
-                .lineLimit(1)
-            Text(label)
-                .font(.sans(13))
-                .foregroundStyle(Hue.inkSecondary)
-                .lineLimit(1)
-            if let subtitle {
-                Text(subtitle)
-                    .font(.sans(12))
-                    .foregroundStyle(Hue.inkSecondary)
-                    .lineLimit(1)
-                    .padding(.top, 2)
-            }
-        }
-        .frame(maxWidth: .infinity, minHeight: 138, alignment: .leading)
-        .padding(16)
-        .glassPanel(Radius.card)
     }
 }

@@ -57,11 +57,9 @@ struct ProfileView: View {
 
     private var content: some View {
         ScrollView(showsIndicators: false) {
-            VStack(spacing: 16) {
-                Color.clear.frame(height: 44)          // clears the fixed top bar
+            VStack(spacing: 22) {
                 header.springReveal(0, revealed: revealed)
-                inviteCard.springReveal(1, revealed: revealed)
-                settingsGroup.springReveal(2, revealed: revealed)
+                settingsGroup.springReveal(1, revealed: revealed)
                 // Hidden when there is no session to end. Sign-in is switched off
                 // (`RootView.requiresSignIn`), so for most people this screen is now
                 // reached without ever having signed in, and a "Sign out" button that
@@ -70,14 +68,14 @@ struct ProfileView: View {
                 // every install gets counts as not signed in: signing out would only
                 // throw away its Going.
                 if AuthStore.shared.isSignedIn && !AuthStore.shared.isAnonymous {
-                    signOutButton.springReveal(3, revealed: revealed).id("bottom")
+                    signOutButton.springReveal(2, revealed: revealed).id("bottom")
                 }
                 // A sheet has no tab bar under it and only needs breathing room.
                 Color.clear.frame(height: 40)
             }
             .padding(.horizontal, 18)
+            .padding(.top, 39)                         // the mock's sheet edge to photo, under the grabber
         }
-        .overlay(alignment: .top) { topBar }
         .task { await model.load() }
         .sheet(isPresented: $editing) { EditProfileView(model: model) }
         .sheet(isPresented: $showAbout) {
@@ -103,69 +101,43 @@ struct ProfileView: View {
         #endif
     }
 
-    // MARK: - Top bar
-
-    private var topBar: some View {
-        HStack {
-            Spacer()
-            Button { Haptics.selection(); editing = true } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "pencil").font(.sansSemibold(13))
-                    Text("Edit profile").font(.sansSemibold(15))
-                }
-                .foregroundStyle(Hue.ink)
-                .padding(.horizontal, 15)
-                .padding(.vertical, 9)
-                .background(Hue.fill.opacity(0.92),
-                            in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
-                    .stroke(Hue.ink.opacity(0.18), lineWidth: 1))
-            }
-            .buttonStyle(PressableStyle())
-            .accessibilityLabel("Edit profile")
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 12)
-    }
-
     // MARK: - Header
 
+    /// The mock's head: photo, name, town line, then Edit profile, the one way into
+    /// Edit profile (BP app docs/plans/you-tab/issues/08).
     private var header: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 0) {
+            ProfileAvatar(url: model.avatarUrl, size: 104)
+                .accessibilityHidden(true)
+
+            Text(model.displayName.isEmpty ? "Add your name" : model.displayName)
+                .font(.display(26))
+                .foregroundStyle(model.displayName.isEmpty ? Hue.inkSecondary : Hue.ink)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.8)
+                .padding(.top, 12)
+
+            Text(subLine)
+                .font(.sans(13))
+                .foregroundStyle(Hue.inkSecondary)
+                .padding(.top, 4)
+
+            if model.isAdmin { organizerBadge }
+
             Button { Haptics.selection(); editing = true } label: {
-                ZStack(alignment: .bottomTrailing) {
-                    ProfileAvatar(url: model.avatarUrl, size: 104)
-                    Image(systemName: "pencil")
-                        .font(.sansBold(12))
-                        .foregroundStyle(.white)
-                        .frame(width: 30, height: 30)
-                        .background(Hue.ink, in: Circle())
-                        .overlay(Circle().stroke(.white, lineWidth: 2))
-                        .offset(x: 3, y: 3)
-                }
+                Text("Edit profile")
+                    .font(.sansSemibold(15))
+                    .foregroundStyle(Hue.ink)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 9)
+                    .background(Hue.fill, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Hue.ink.opacity(0.12), lineWidth: 1))
             }
             .buttonStyle(PressableStyle())
-            .accessibilityLabel("Edit profile picture")
-
-            VStack(spacing: 6) {
-                Text(model.displayName.isEmpty ? "Add your name" : model.displayName)
-                    .font(.display(26))
-                    .foregroundStyle(model.displayName.isEmpty ? Hue.inkSecondary : Hue.ink)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.8)
-
-                HStack(spacing: 5) {
-                    Image(systemName: "mappin.and.ellipse").font(.sansSemibold(11))
-                    Text(subLine).font(.sans(13))
-                }
-                .foregroundStyle(Hue.inkSecondary)
-
-                if model.isAdmin { organizerBadge }
-            }
+            .padding(.top, 14)
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 4)
     }
 
     private var subLine: String {
@@ -183,47 +155,30 @@ struct ProfileView: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
         .background(Hue.fill.opacity(0.92), in: Capsule())
-        .padding(.top, 2)
+        .padding(.top, 8)
     }
 
-    // MARK: - Invite
+    // MARK: - Rows
 
-    private var inviteCard: some View {
-        Button {
-            ShareCenter.shared.present(.appInvite())
-        } label: {
-            FeatureFace(icon: "person.badge.plus",
-                        value: "Invite",
-                        label: "a neighbor",
-                        subtitle: "Share Block Party")
-        }
-        .buttonStyle(PressableStyle())
-    }
-
-    // MARK: - Settings
-
+    /// One group of rows, as in the mock. Saved joins at the top with ticket 04.
     private var settingsGroup: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            groupLabel("Settings")
-            GlassGroup {
-                if model.isAdmin {
-                    ProfileRow(icon: "checkmark.shield", title: "Review queue",
-                               subtitle: "Approve or reject neighbor submissions",
-                               action: { Haptics.selection(); showModeration = true })
-                    ProfileRowDivider()
-                }
-                ProfileRow(icon: "person.crop.circle", title: "Edit profile",
-                           action: { Haptics.selection(); editing = true })
+        GlassGroup {
+            ProfileRow(icon: "person.badge.plus", title: "Invite a neighbor",
+                       action: { ShareCenter.shared.present(.appInvite()) })
+            ProfileRowDivider()
+            if model.isAdmin {
+                ProfileRow(icon: "checkmark.shield", title: "Review queue",
+                           action: { Haptics.selection(); showModeration = true })
                 ProfileRowDivider()
-                ProfileRow(icon: "bell", title: "Notifications", subtitle: "Manage in iOS Settings",
-                           action: { openSystemSettings() })
+            }
+            ProfileRow(icon: "bell", title: "Notifications",
+                       action: { openSystemSettings() })
+            ProfileRowDivider()
+            ProfileRow(icon: "info.circle", title: "About Block Party",
+                       action: { showAbout = true })
+            if let email = model.email, !email.isEmpty {
                 ProfileRowDivider()
-                ProfileRow(icon: "info.circle", title: "About Block Party",
-                           action: { showAbout = true })
-                if let email = model.email, !email.isEmpty {
-                    ProfileRowDivider()
-                    ProfileRow(icon: "envelope", title: "Account", subtitle: email, accessory: .none)
-                }
+                ProfileRow(icon: "envelope", title: "Account", subtitle: email, accessory: .none)
             }
         }
     }
@@ -243,10 +198,6 @@ struct ProfileView: View {
     }
 
     // MARK: - Helpers
-
-    private func groupLabel(_ text: String) -> some View {
-        Text(text).font(.mono(11)).tracking(1.5).foregroundStyle(Hue.inkSecondary).padding(.leading, 6)
-    }
 
     private func openSystemSettings() {
         if let url = URL(string: UIApplication.openSettingsURLString) {
