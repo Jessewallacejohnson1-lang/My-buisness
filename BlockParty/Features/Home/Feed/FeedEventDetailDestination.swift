@@ -27,11 +27,12 @@ struct FeedEventDetailDestination: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// Going, shared with the card behind the page (`RealLifeActions`).
+    /// Going and Save, shared with the card behind the page (`RealLifeActions`).
     @Environment(RealLifeActions.self) private var actions
-    /// Saved by the card's own rule (`FeedCardItem.isSaved(in:)`), so the two agree. A
-    /// tap flips it and writes the device's saved list to match, as the card does.
-    @State private var isSaved: Bool
+    /// `actions.saveFailureCount` when the bookmark was last tapped, as `joinTappedAt`.
+    @State private var saveTappedAt = 0
+    /// The bookmark tapped with no account yet opens sign in (Jesse, 2026-10-12).
+    @State private var signInShown = false
     /// The venue's photo, once `FeedCardVenuePhoto` has looked it up.
     @State private var venuePhoto: FeedCardImageSource?
     /// True until that lookup answers. Starts false when the answer is already known.
@@ -55,7 +56,6 @@ struct FeedEventDetailDestination: View {
     init(item: FeedCardItem, inSheet: Bool = false) {
         self.item = item
         self.inSheet = inSheet
-        _isSaved = State(initialValue: item.isSaved(in: .shared))
         // Known already (nothing to look up, or looked up before, as on a second push):
         // the first frame draws it, so a cached venue photo never flashes a skeleton
         // (docs/rules/design.md, "Don't flash").
@@ -154,8 +154,9 @@ struct FeedEventDetailDestination: View {
         .animation(Motion.smooth, value: photos.count)
         .animation(Motion.smooth, value: venuePending)
         .task { await resolveVenuePhoto() }
-        // A failed Join shakes and buzzes only while its page is open: the buzz used to
-        // land on Town after a pop. Leaving never cancels the write itself.
+        .signInSheet(isPresented: $signInShown)
+        // A failed Join or Save shakes and buzzes only while its page is open: the buzz
+        // used to land on Town after a pop. Leaving never cancels the write itself.
         .onAppear { actions.pageOpened(item.id) }
         .onDisappear { actions.pageClosed(item.id) }
     }
@@ -320,19 +321,22 @@ struct FeedEventDetailDestination: View {
 
             // The app's bookmark, as on the card: saved, the brand yellow exactly
             // (Jesse, 2026-09-24) inside the ink outline, so it reads on the white circle.
-            circleButton(glyph: BookmarkGlyph(saved: isSaved), label: isSaved ? "Saved" : "Save", action: toggleSave)
-                .accessibilityAddTraits(isSaved ? .isSelected : [])
+            let saved = actions.saved(item)
+            let failures = actions.saveFailureCount(item.id)
+            circleButton(glyph: BookmarkGlyph(saved: saved), label: saved ? "Saved" : "Save", action: toggleSave)
+                .turnBackShake(failures: failures, shakes: !reduceMotion && saveTappedAt != failures)
+                .accessibilityAddTraits(saved ? .isSelected : [])
         }
         .padding(.horizontal, Metric.inset - (Metric.tapBox - Metric.button) / 2)
         .padding(.top, Metric.buttonTop - (Metric.tapBox - Metric.button) / 2)
     }
 
-    /// A save is a commit, so it gets the light tap (taste.md); the fill springs in.
+    /// A save is a commit, so it gets the light tap (taste.md, from `RealLifeActions`);
+    /// the fill springs in. With no account yet, sign in instead.
     private func toggleSave() {
-        Haptics.light()
-        withAnimation(Motion.snappy) { isSaved.toggle() }
-        let saves = SavedStore.shared
-        if saves.isSaved(item.id) != isSaved { saves.toggle(item.id) }
+        guard actions.canAct else { signInShown = true; return }
+        saveTappedAt = actions.saveFailureCount(item.id)
+        withAnimation(Motion.snappy) { actions.toggleSave(item) }
     }
 
     /// A white circle with an ink glyph, lifted by the map's floating-button shadow

@@ -225,7 +225,7 @@ nonisolated extension YourDayLogic {
 
     /// Should a `club_events` change re-sync the rail? Mirrors `MapModel.handle`'s
     /// test, widened from `event_date == today` to the same
-    /// `[today − lookback, today]` town-time window `getTownDayCandidates` reads —
+    /// `[today − lookback, today]` town-time window (`CommunityAPI.dayLookbackDays`) —
     /// a multi-day row dated days ago can still overlap today.
     ///
     /// Status is deliberately NOT checked: the UPDATE that approves a pending

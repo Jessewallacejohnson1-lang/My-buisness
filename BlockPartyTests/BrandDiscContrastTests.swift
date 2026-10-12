@@ -105,15 +105,18 @@ final class BrandDiscContrastTests: XCTestCase {
     /// its proof: rendered saved, the middle of its bookmark is #FCE804 to the unit;
     /// unsaved, not.
     func testSavedBookmarkButtonFillsExactBrandYellow() throws {
-        let id = "BrandDiscContrastTests.bookmark"
-        let store = SavedStore.shared
-        if store.isSaved(id) { store.toggle(id) }
-        defer { if store.isSaved(id) { store.toggle(id) } }
+        let item = FeedCardItem(UpcomingEvent(id: "BrandDiscContrastTests.bookmark", title: "Bookmark",
+                                              eventDate: "2026-10-12", startTime: nil, location: nil,
+                                              goingCount: 0, createdAt: "2026-10-12T12:00:00+00:00",
+                                              rsvpd: false))
+        let actions = RealLifeActions(signedIn: true, needsAccount: false, hold: .zero, flip: .zero,
+                                      setGoing: { _, _ in }, setHeart: { _, _ in })
+        let button = SaveBookmarkButton(item: item).environment(actions)
 
-        XCTAssertNotEqual(try centrePixel(of: SaveBookmarkButton(id: id)), Hue.brandYellowHex,
+        XCTAssertNotEqual(try centrePixel(of: button), Hue.brandYellowHex,
                           "an unsaved bookmark is not yellow")
-        store.toggle(id)
-        XCTAssertEqual(try centrePixel(of: SaveBookmarkButton(id: id)), Hue.brandYellowHex,
+        actions.toggleSave(item)
+        XCTAssertEqual(try centrePixel(of: button), Hue.brandYellowHex,
                        "a saved bookmark is the brand yellow exactly")
     }
 

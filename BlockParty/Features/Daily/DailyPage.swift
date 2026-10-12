@@ -245,7 +245,6 @@ private extension VerticalAlignment {
 struct DailyPage: View {
     let spotlight: DailySpotlight
     @Environment(RealLifeActions.self) private var actions
-    @ObservedObject private var saves = SavedStore.shared
     @State private var tilt = PhoneTilt()
     /// How far the page has scrolled, held only up to `edgeFade`.
     @State private var scrolled: CGFloat = 0
@@ -267,7 +266,7 @@ struct DailyPage: View {
                         // Suggestions never offer what you're Going to or saved (SPEC.md).
                         let suggestions = DailyEvent.showing(
                             DailyEvent.suggestions(now: now).filter {
-                                !actions.going($0.item).isGoing && !$0.item.isSaved(in: saves)
+                                !actions.going($0.item).isGoing && !actions.saved($0.item)
                             }, now: now, without: events, limit: 10)
                         let following = DailyFollowing.showing(DailyFollowing.today(now: now), now: now,
                                                                without: events + suggestions, limit: 10)

@@ -419,7 +419,11 @@ struct MainTabsView: View {
             you.accountChanged()
             Task { await townFeed.reload() }
             Task { await you.refresh() }
+            Task { await actions.moveUp(.shared) }
         }
+        // Event saves this phone kept before they moved to the server go up once, at
+        // launch with an account or when one arrives (above).
+        .task { await actions.moveUp(.shared) }
         .onAppear {
             // DEBUG: `-open-friends` lands on the inbox, `-open-friends-chat` on its newest chat.
             if Self.debugOpen("-open-friends") || Self.debugOpen("-open-friends-chat") { openFriends() }

@@ -132,7 +132,7 @@ private struct SuggestionCard: View {
                              host.map { "Hosted by \($0)" }].compactMap { $0 }.joined(separator: ", "))
         // The bookmark answers its own taps, over the link, never opening the page.
         .overlay(alignment: .topTrailing) {
-            SaveBookmarkButton(id: event.id).padding(DailyMetric.suggestionSaveInset)
+            SaveBookmarkButton(item: event.item).padding(DailyMetric.suggestionSaveInset)
         }
     }
 

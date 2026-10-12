@@ -24,7 +24,6 @@ import UIKit.UIGestureRecognizerSubclass
 struct FeedEventCard: View {
     let item: FeedCardItem
     let comments: [EventComment]
-    let onSave: ((Bool) -> Void)?
     let onLoadComments: (() async throws -> [EventComment])?
     let onComment: ((String) async throws -> EventComment)?
     let onShare: (() -> Void)?
@@ -58,7 +57,6 @@ struct FeedEventCard: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var resolvedVenuePhoto: ResolvedVenuePhoto?
     @State private var venuePhotoDecoded = false
-    @State private var actionState: FeedCardActionState
     @State private var commentState: FeedCommentState
     @State private var commentsPresented = false
     @State private var menuPresented = false
@@ -67,16 +65,14 @@ struct FeedEventCard: View {
     /// The link's press, so the whole card squishes. Set on touch-down by
     /// `FeedTouchDownTracker`, the one writer.
     @State private var linkPressed = false
-    /// The device's saved list. The event page's bookmark writes it too, so a save
-    /// made on either shows on both.
-    @ObservedObject private var saves = SavedStore.shared
-    /// Going and Heart, shared with the event page, so a Join there shows here at once.
+    /// Going, Heart and Save, shared with the event page, so a Join there shows here at once.
     @Environment(RealLifeActions.self) private var actions
+    /// A bookmark tapped with no account yet opens sign in (Jesse, 2026-10-12).
+    @State private var signInShown = false
 
     init(
         item: FeedCardItem,
         comments: [EventComment] = [],
-        onSave: ((Bool) -> Void)? = nil,
         onLoadComments: (() async throws -> [EventComment])? = nil,
         onComment: ((String) async throws -> EventComment)? = nil,
         onShare: (() -> Void)? = nil,
@@ -85,22 +81,12 @@ struct FeedEventCard: View {
     ) {
         self.item = item
         self.comments = comments
-        self.onSave = onSave
         self.onLoadComments = onLoadComments
         self.onComment = onComment
         self.onShare = onShare
         self.actionKind = actionKind
         self.debugAutoplay = debugAutoplay
-        _actionState = State(initialValue: Self.actionState(for: item))
         _commentState = State(initialValue: FeedCommentState(comments: comments))
-    }
-
-    /// The item's counts, and saved by the rule the event page shares
-    /// (`FeedCardItem.isSaved(in:)`).
-    private static func actionState(for item: FeedCardItem) -> FeedCardActionState {
-        var state = FeedCardActionState(item: item)
-        if state.isSaved != item.isSaved(in: .shared) { state.toggleSave() }
-        return state
     }
 
     var body: some View {
@@ -160,15 +146,9 @@ struct FeedEventCard: View {
                 onSend: onComment
             )
         }
-        .onChange(of: item) { _, updatedItem in
-            actionState = Self.actionState(for: updatedItem)
-        }
-        // Saved or unsaved on the event page: the bookmark follows.
-        .onChange(of: item.isSaved(in: saves)) { _, saved in
-            if actionState.isSaved != saved { actionState.toggleSave() }
-        }
-        // On screen: a heart that fails may shake here. Scrolled away or covered by the
-        // Event page, it turns back without a shake or a buzz.
+        .signInSheet(isPresented: $signInShown)
+        // On screen: a heart or save that fails may shake here. Scrolled away or covered
+        // by the Event page, it turns back without a shake or a buzz.
         .onAppear { actions.cardOpened(item.id) }
         .onDisappear { actions.cardClosed(item.id) }
         .task(id: item.image) { await resolveVenuePhoto() }
@@ -453,29 +433,27 @@ struct FeedEventCard: View {
             kind: actionKind,
             showsHeart: actions.canAct,
             heartFailures: actions.heartFailureCount(item.id),
+            saveFailures: actions.saveFailureCount(item.id),
             state: rowState,
             reduceMotion: motionIsReduced,
             autoplayStep: autoplayStep,
             onLike: nil,
-            onSave: { saved in
-                if saves.isSaved(item.id) != saved { saves.toggle(item.id) }
-                onSave?(saved)
-            },
+            onSave: { _ in if !actions.canAct { signInShown = true } },
             onComment: { commentsPresented = true },
             onShare: onShare
         )
     }
 
-    /// The row's heart is the shared one (`RealLifeActions`), kept on the server; its
-    /// bookmark is still this card's own.
+    /// The row's heart and bookmark are the shared ones (`RealLifeActions`), kept on the
+    /// server.
     private var rowState: Binding<FeedCardActionState> {
         Binding {
             let heart = actions.heart(item)
             return FeedCardActionState(likeCount: heart.count, isLiked: heart.isHearted,
-                                       isSaved: actionState.isSaved)
+                                       isSaved: actions.saved(item))
         } set: { new in
             if new.isLiked != actions.heart(item).isHearted { actions.toggleHeart(item) }
-            if new.isSaved != actionState.isSaved { actionState.toggleSave() }
+            if new.isSaved != actions.saved(item) { actions.toggleSave(item) }
         }
     }
 

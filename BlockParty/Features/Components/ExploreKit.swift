@@ -1,9 +1,7 @@
 //
 //  ExploreKit.swift
-//  Block Party — the AllTrails-style "Explore" building blocks: a photo-card shell,
-//  a coral metadata row, a saved-bookmark toggle, and shared press/appear motion.
-//
-//  White surface with ink active states. Reused by ActivitiesView.
+//  Block Party — shared press/appear motion, the bookmark glyph and button, and the
+//  phone's old saved list (now the map's Places).
 //
 
 import SwiftUI
@@ -147,20 +145,30 @@ extension View {
 
 // MARK: - Saved (bookmark) state
 
-/// The viewer's personal saved list — local to the device, persisted in
-/// UserDefaults. Not a backend count (nothing inflated), just this user's marks.
+/// The viewer's saved list on this phone, persisted in UserDefaults: the map's Places
+/// (pin sheet, pin badges). Event saves live on the server (`RealLifeActions`); ones
+/// made here before that move up once (`RealLifeActions.moveUp`) and leave this list.
 @MainActor
 final class SavedStore: ObservableObject {
     static let shared = SavedStore()
     @Published private(set) var ids: Set<String>
-    private let key = "bp.saved.ids"
+    let key: String
 
-    private init() { ids = Set(UserDefaults.standard.stringArray(forKey: key) ?? []) }
+    /// `key` other than the phone's own is for tests.
+    init(key: String = "bp.saved.ids") {
+        self.key = key
+        ids = Set(UserDefaults.standard.stringArray(forKey: key) ?? [])
+    }
 
     func isSaved(_ id: String) -> Bool { ids.contains(id) }
 
     func toggle(_ id: String) {
         if ids.contains(id) { ids.remove(id) } else { ids.insert(id) }
+        UserDefaults.standard.set(Array(ids), forKey: key)
+    }
+
+    func remove(_ id: String) {
+        guard ids.remove(id) != nil else { return }
         UserDefaults.standard.set(Array(ids), forKey: key)
     }
 }
@@ -197,17 +205,23 @@ struct BookmarkGlyph: View {
 
 /// The floating bookmark on a card photo: an ink outline, brand yellow inside when saved,
 /// in a white circle the size of Airbnb's heart on its cards (Daily's Suggestions,
-/// measured 2026-10-05). The tap area around it is 44pt.
+/// measured 2026-10-05). The tap area around it is 44pt. Saved is the shared one
+/// (`RealLifeActions`); with no account yet, a tap opens sign in.
 struct SaveBookmarkButton: View {
-    let id: String
-    @ObservedObject private var store = SavedStore.shared
+    let item: FeedCardItem
+    @Environment(RealLifeActions.self) private var actions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var signInShown = false
+    /// `actions.saveFailureCount` at the last tap: a tap mid-shake stills it.
+    @State private var tappedAt = 0
 
     var body: some View {
-        let saved = store.isSaved(id)
+        let saved = actions.saved(item)
+        let failures = actions.saveFailureCount(item.id)
         Button {
-            Haptics.light()
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.62)) { store.toggle(id) }
+            guard actions.canAct else { signInShown = true; return }
+            tappedAt = failures
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.62)) { actions.toggleSave(item) }
         } label: {
             BookmarkGlyph(saved: saved)
                 .font(.sansSemibold(13))
@@ -222,111 +236,11 @@ struct SaveBookmarkButton: View {
         }
         // It squishes like the event page's save, not fades (taste.md: press).
         .buttonStyle(FeedCardJoinPressStyle(reduceMotion: reduceMotion))
+        .turnBackShake(failures: failures, shakes: !reduceMotion && tappedAt != failures)
         .accessibilityLabel(saved ? "Remove from saved" : "Save for later")
-    }
-}
-
-// MARK: - Metadata row (the "★ rating · Moderate · 5.8 mi" line, with real data)
-
-/// One dot-separated fact on a card. The first item usually leads in coral.
-struct MetaItem: Identifiable {
-    let id = UUID()
-    let icon: String?
-    let text: String
-    var coral: Bool = false
-}
-
-/// A coral-led, dot-separated metadata line. Numbers are mono per the type rules.
-@ViewBuilder
-func exploreMetaRow(_ items: [MetaItem]) -> some View {
-    HStack(spacing: 7) {
-        ForEach(Array(items.enumerated()), id: \.offset) { i, m in
-            if i > 0 {
-                Text("·").font(.mono(12)).foregroundStyle(Hue.inkSecondary)
-            }
-            HStack(spacing: 4) {
-                if let ic = m.icon {
-                    Image(systemName: ic).font(.sansSemibold(11))
-                }
-                Text(m.text).font(.monoMedium(12)).monospacedDigit()
-            }
-            .foregroundStyle(m.coral ? Hue.ink : Hue.inkSecondary)
-            .lineLimit(1)
-        }
-    }
-}
-
-/// The small circular action beside a card title (invite / join / directions).
-/// Coral outline by default; a filled coral disc for the "on" state.
-@ViewBuilder
-func exploreCircleIcon(_ system: String, filled: Bool = false) -> some View {
-    Image(systemName: system)
-        .font(.sansSemibold(15))
-        .foregroundStyle(filled ? .white : Hue.ink)
-        .frame(width: 40, height: 40)
-        .background(filled ? Hue.ink : Hue.surface)
-        .clipShape(Circle())
-        .overlay(Circle().stroke(filled ? Color.clear : Hue.ink.opacity(0.45), lineWidth: 1.5))
-        .shadow(color: .black.opacity(0.06), radius: 3, x: 0, y: 1)
-        .contentTransition(.symbolEffect(.replace))
-}
-
-// MARK: - Photo slot
-
-/// The empty image area for a card with no photo yet: a neutral block mark that
-/// inherits each real photo slot's exact frame and clipping from its caller.
-struct ExploreBlankPhoto: View {
-    var body: some View {
-        ZStack {
-            Hue.fill
-            Image(systemName: "square.on.square")
-                .font(.sansMedium(28))
-                .foregroundStyle(Hue.inkSecondary)
-        }
-    }
-}
-
-// MARK: - Card shell
-
-/// The AllTrails card: a rounded photo (with the bookmark floating on it), then
-/// a title + trailing action, a location subtitle, and the coral metadata row —
-/// all sitting on the white page, no border.
-struct ExploreCard<Photo: View, Trailing: View>: View {
-    let id: String
-    let title: String
-    let subtitle: String?
-    let meta: [MetaItem]
-    @ViewBuilder var photo: () -> Photo
-    @ViewBuilder var trailing: () -> Trailing
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 11) {
-            ZStack(alignment: .topTrailing) {
-                photo()
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 172)
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
-                SaveBookmarkButton(id: id).padding(11)
-            }
-
-            HStack(alignment: .center, spacing: 10) {
-                Text(title)
-                    .font(.sansBold(18))
-                    .foregroundStyle(Hue.ink)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 6)
-                trailing()
-            }
-
-            if let subtitle, !subtitle.isEmpty {
-                Text(subtitle)
-                    .font(.sans(14))
-                    .foregroundStyle(Hue.inkSecondary)
-                    .lineLimit(1)
-            }
-
-            if !meta.isEmpty { exploreMetaRow(meta) }
-        }
+        .signInSheet(isPresented: $signInShown)
+        // On screen: a save that fails may shake here.
+        .onAppear { actions.cardOpened(item.id) }
+        .onDisappear { actions.cardClosed(item.id) }
     }
 }

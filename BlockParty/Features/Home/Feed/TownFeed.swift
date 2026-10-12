@@ -204,6 +204,7 @@ final class TownFeed {
         card.score = row.score
         card.likeCount = row.heartCount
         card.isLiked = row.hearted
+        card.isSaved = row.saved
         return TownFeedEntry(card: card, leavesAt: row.leavesAt)
     }
 }

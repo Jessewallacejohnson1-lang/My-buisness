@@ -171,3 +171,24 @@ struct LoginView: View {
         }
     }
 }
+
+extension View {
+    /// Sign in over this screen, for a tap that needs an account while there is none:
+    /// a bookmark with no account yet opens it (Jesse, 2026-10-12). It closes once an
+    /// account is signed in.
+    func signInSheet(isPresented: Binding<Bool>) -> some View {
+        sheet(isPresented: isPresented) {
+            SignInSheet().environmentObject(AuthStore.shared)
+        }
+    }
+}
+
+private struct SignInSheet: View {
+    @EnvironmentObject private var auth: AuthStore
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        LoginView()
+            .onChange(of: auth.isSignedIn) { _, signedIn in if signedIn { dismiss() } }
+    }
+}

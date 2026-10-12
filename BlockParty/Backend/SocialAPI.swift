@@ -14,7 +14,6 @@ struct SocialAPI {
     let auth: AuthStore
 
     private struct IdRow: Decodable { let id: String }
-    private struct SaveRow: Decodable { let eventId: String }
 
     // MARK: - Plumbing
 
@@ -121,15 +120,6 @@ struct SocialAPI {
         let uid = try await uidOrThrow()
         _ = try await SupabaseHTTP.rest("event_saves", method: "DELETE",
                                         query: "event_id=eq.\(id)&user_id=eq.\(uid)", accessToken: t)
-    }
-
-    func hasSaved(_ id: String) async throws -> Bool {
-        let t = try await token()
-        let uid = try await uidOrThrow()
-        let (data, _) = try await SupabaseHTTP.rest("event_saves",
-            query: "select=event_id&event_id=eq.\(id)&user_id=eq.\(uid)&limit=1", accessToken: t)
-        let rows: [SaveRow] = try decode(data)
-        return !rows.isEmpty
     }
 
     // MARK: - Comments

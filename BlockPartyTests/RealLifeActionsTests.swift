@@ -1,6 +1,6 @@
 //
 //  RealLifeActionsTests.swift
-//  BlockPartyTests — the app's one home for Going and Heart (`RealLifeActions`), driven
+//  BlockPartyTests — the app's one home for Going, Heart and Save (`RealLifeActions`), driven
 //  the way the card and the event page drive it, against a stand-in server. The 600 ms hold
 //  and 0.18 s flip come in shorter, so these run fast; the order of what happens is
 //  the same.
@@ -20,6 +20,10 @@ final class RealLifeActionsTests: XCTestCase {
     private final class Server {
         var writes: [Bool] = []
         var hearts: [Bool] = []
+        /// Each save written, as "<event id> <saved>".
+        var saves: [String] = []
+        /// The ids that are Events, for the phone's old saves.
+        var events: Set<String> = []
         var failing = false
         var delay: Duration = .zero
 
@@ -34,16 +38,30 @@ final class RealLifeActionsTests: XCTestCase {
             hearts.append(hearted)
             if failing { throw URLError(.notConnectedToInternet) }
         }
+
+        func save(_ eventID: String, _ saved: Bool) async throws {
+            if delay > .zero { try? await Task.sleep(for: delay) }
+            saves.append("\(eventID) \(saved)")
+            if failing { throw URLError(.notConnectedToInternet) }
+        }
+
+        /// Answers like `club_events`: only real Event ids, and only UUIDs reach it.
+        func knownEvents(_ ids: [String]) async throws -> Set<String> {
+            XCTAssertTrue(ids.allSatisfy { UUID(uuidString: $0) != nil }, "a non-UUID would fail the whole read")
+            if failing { throw URLError(.notConnectedToInternet) }
+            return events.intersection(ids)
+        }
     }
 
     private func actions(_ server: Server, signedIn: Bool = true) -> RealLifeActions {
         RealLifeActions(signedIn: signedIn, needsAccount: true, hold: Self.hold, flip: Self.flip,
-                        setGoing: server.write, setHeart: server.heart)
+                        setGoing: server.write, setHeart: server.heart, setSave: server.save,
+                        knownEvents: server.knownEvents)
     }
 
-    private func card(going: Int = 4, joined: Bool = false,
+    private func card(id: String = "e1", going: Int = 4, joined: Bool = false,
                       hearts: Int = 3, hearted: Bool = false) -> FeedCardItem {
-        var card = FeedCardItem(UpcomingEvent(id: "e1", title: "Trivia night", eventDate: "2026-10-12",
+        var card = FeedCardItem(UpcomingEvent(id: id, title: "Trivia night", eventDate: "2026-10-12",
                                               startTime: "7 PM", location: nil, goingCount: going,
                                               createdAt: "2026-10-06T16:08:20+00:00", rsvpd: joined))
         card.likeCount = hearts
@@ -403,6 +421,134 @@ final class RealLifeActionsTests: XCTestCase {
         try await Task.sleep(for: Self.hold)
         XCTAssertFalse(actions.heart(item).isHearted)
         XCTAssertEqual(server.hearts, [])
+    }
+
+    // MARK: Save
+
+    func testASaveShowsAtOnceAndStays() async throws {
+        let server = Server()
+        let actions = actions(server)
+        let item = card()
+
+        actions.toggleSave(item)
+        XCTAssertTrue(actions.saved(item), "saved at once")
+        try await Task.sleep(for: Self.hold * 3)
+        XCTAssertEqual(server.saves, ["e1 true"])
+        XCTAssertTrue(actions.saved(item), "a save that lands stays")
+        XCTAssertEqual(actions.saveFailureCount(item.id), 0)
+    }
+
+    /// A failed save turns back like Join, and shakes the card or the page that is open.
+    func testAFailedSaveTurnsBackThenCountsOneFailure() async throws {
+        let server = Server()
+        server.failing = true
+        let actions = actions(server)
+        let item = card()
+        actions.cardOpened(item.id)
+
+        actions.toggleSave(item)
+        try await waitWhile(actions.saved(item))
+        XCTAssertFalse(actions.saved(item), "back to unsaved")
+        try await waitWhile(actions.saveFailureCount(item.id) == 0)
+        XCTAssertEqual(actions.saveFailureCount(item.id), 1, "one turn back, one shake")
+        XCTAssertEqual(actions.heartFailureCount(item.id), 0, "the heart never shakes for it")
+
+        actions.cardClosed(item.id)
+        actions.pageOpened(item.id)
+        actions.toggleSave(item)
+        try await waitWhile(actions.saveFailureCount(item.id) == 1)
+        XCTAssertEqual(actions.saveFailureCount(item.id), 2, "the Event page shakes for it too")
+        XCTAssertEqual(actions.failureCount(item.id), 0, "Join never shakes for it")
+    }
+
+    /// The feed's read says what you saved; the card, the page and Daily read one entry.
+    func testAFeedReadSetsSavedForEveryScreen() {
+        let actions = actions(Server())
+        let pushed = card()
+        var read = card()
+        read.isSaved = true
+        actions.read([read])
+        XCTAssertTrue(actions.saved(pushed), "a page pushed with an older item agrees with the read")
+        read.isSaved = false
+        actions.read([read])
+        XCTAssertFalse(actions.saved(pushed))
+    }
+
+    func testNoAccountMeansNoSave() async throws {
+        let server = Server()
+        let actions = actions(server, signedIn: false)
+        let item = card()
+
+        actions.toggleSave(item)
+        try await Task.sleep(for: Self.hold)
+        XCTAssertFalse(actions.saved(item))
+        XCTAssertEqual(server.saves, [])
+    }
+
+    // MARK: The phone's old saves move up once
+
+    private static let event = "6b1f3a2e-0c4d-4f8a-9b21-7e5d3c1a0f44"
+    private static let place = "3c9e7d14-5b62-4a08-9f37-2d8c6e1b5a90"
+
+    /// A saved list of its own, so no test touches the phone's real one.
+    private func phone(_ ids: [String]) -> SavedStore {
+        let key = "RealLifeActionsTests.\(UUID().uuidString)"
+        UserDefaults.standard.set(ids, forKey: key)
+        addTeardownBlock { UserDefaults.standard.removeObject(forKey: key) }
+        return SavedStore(key: key)
+    }
+
+    func testOldPhoneSavesMoveUpOnceAndPlacesStay() async throws {
+        let server = Server()
+        server.events = [Self.event]
+        let actions = actions(server)
+        let store = phone([Self.event, Self.place, "downtown", "daily-s1"])
+
+        await actions.moveUp(store)
+        XCTAssertEqual(server.saves, ["\(Self.event) true"])
+        XCTAssertEqual(store.ids, [Self.place, "downtown", "daily-s1"], "the map's Places stay on the phone")
+        XCTAssertTrue(actions.saved(card(id: Self.event)), "saved before any read says so")
+        XCTAssertTrue(SavedStore(key: store.key).ids == store.ids, "kept across launches")
+
+        await actions.moveUp(store)
+        XCTAssertEqual(server.saves, ["\(Self.event) true"], "running it again writes nothing")
+    }
+
+    /// A read that started before the move-up landed doesn't blank the bookmark.
+    func testAnOlderReadKeepsAMovedSaveShowing() async throws {
+        let server = Server()
+        server.events = [Self.event]
+        let actions = actions(server)
+        actions.read([card(id: Self.event)])
+
+        await actions.moveUp(phone([Self.event]))
+        XCTAssertTrue(actions.saved(card(id: Self.event)))
+        var agreed = card(id: Self.event)
+        agreed.isSaved = true
+        actions.read([agreed])
+        XCTAssertTrue(actions.saved(card(id: Self.event)))
+    }
+
+    func testAFailedMoveUpKeepsTheSaveOnThePhone() async throws {
+        let server = Server()
+        server.events = [Self.event]
+        server.failing = true
+        let actions = actions(server)
+        let store = phone([Self.event])
+
+        await actions.moveUp(store)
+        XCTAssertEqual(store.ids, [Self.event], "tried again next time")
+        XCTAssertFalse(actions.saved(card(id: Self.event)))
+    }
+
+    func testNoAccountMovesNothing() async throws {
+        let server = Server()
+        server.events = [Self.event]
+        let store = phone([Self.event])
+
+        await actions(server, signedIn: false).moveUp(store)
+        XCTAssertEqual(server.saves, [])
+        XCTAssertEqual(store.ids, [Self.event])
     }
 
     /// Polls every 5 ms until `condition` is false, for at most 5 s.

@@ -220,6 +220,7 @@ struct CommunityAPI {
             let score: LenientScore?
             let heartCount: Int?
             let hearted: Bool?
+            let saved: Bool?
         }
         /// The admin's breakdown, or nil when it doesn't decode: a score never costs the
         /// feed.
@@ -241,7 +242,8 @@ struct CommunityAPI {
                                       isAllDay: row.allDay, sourceName: row.sourceName)
             return TownFeedRow(event: event, recurrence: row.recurrence, leavesAt: leavesAt,
                                reason: row.reason, reasonName: row.reasonName, score: row.score?.value,
-                               heartCount: row.heartCount ?? 0, hearted: row.hearted ?? false)
+                               heartCount: row.heartCount ?? 0, hearted: row.hearted ?? false,
+                               saved: row.saved ?? false)
         }
     }
 
@@ -346,58 +348,19 @@ struct CommunityAPI {
     /// filtering client-side. Two weeks is nothing for a town whose entire
     /// calendar is ~9 rows.
     /// Internal (not private) and nonisolated: `YourDayLogic.changeIsRelevant`
-    /// filters realtime changes against the same window this query casts, and
-    /// two copies of this number would drift.
+    /// filters realtime changes against this window, and two copies of this
+    /// number would drift.
     nonisolated static let dayLookbackDays = 14
 
-    /// Every approved public event that could be running on the TOWN's today,
-    /// each carrying the viewer's own RSVP state so Your Day can tell a personal
-    /// commitment from a whole-town happening.
-    ///
-    /// Deliberately NOT `getMyUpcomingRsvps`. That read means "what is coming up
-    /// for me, today onward" and the profile depends on that contract;
-    /// Your Day needs the opposite scope — one day, the whole town — so it gets
-    /// its own query rather than bending that one.
-    ///
-    /// `event_saves` is never read here: saving is a bookmark, not a commitment,
-    /// and Your Day is only about what the neighbour is actually part of today.
-    /// Recurring series need no special handling either — each occurrence is its
-    /// own `club_events` row with its own `event_date`, so occurrences that do not
-    /// land today are excluded by the date window itself.
-    func getTownDayCandidates(now: Date) async throws -> [UpcomingEvent] {
-        let t = try await token()
-        let uid = auth.userId
-        let today = Town.day(now)
-        let earliest = Town.day(
-            Town.calendar.date(byAdding: .day, value: -Self.dayLookbackDays, to: now) ?? now
-        )
-
+    /// Which of these ids are Events, for moving the phone's old saves up to the server
+    /// (`RealLifeActions.moveUp`): the phone's saved list holds the map's Places too.
+    func knownEventIDs(_ ids: [String]) async throws -> Set<String> {
+        guard !ids.isEmpty else { return [] }
+        struct Row: Decodable { let id: String }
         let (data, _) = try await SupabaseHTTP.rest("club_events",
-            query: "select=*,clubs(name)&status=eq.approved&kind=eq.event&event_date=gte.\(earliest)&event_date=lte.\(today)\(Self.realOnly)&order=event_date.asc,start_time.asc",
-            accessToken: t)
-        let events: [RawEvent] = try decode(data)
-
-        var counts: [String: Int] = [:]
-        var mine = Set<String>()
-        let ids = events.map(\.id)
-        if !ids.isEmpty {
-            let (rd, _) = try await SupabaseHTTP.rest("event_rsvps",
-                query: "select=event_id,user_id&event_id=in.(\(ids.joined(separator: ",")))", accessToken: t)
-            let rsvps: [RsvpRow] = try decode(rd)
-            for r in rsvps {
-                counts[r.eventId, default: 0] += 1
-                if let uid, r.userId == uid { mine.insert(r.eventId) }
-            }
-        }
-
-        return events.map {
-            UpcomingEvent(id: $0.id, title: $0.title, eventDate: $0.eventDate ?? "",
-                          startTime: $0.startTime, location: $0.location,
-                          goingCount: counts[$0.id] ?? 0, createdAt: $0.createdAt ?? "",
-                          imageUrl: $0.imageUrl, rsvpd: mine.contains($0.id),
-                          clubName: $0.clubs?.name, category: EventCategory.from($0.category),
-                          endAt: DateHelpers.timestamp($0.endAt), isAllDay: $0.allDay ?? false)
-        }
+            query: "select=id&id=in.(\(ids.joined(separator: ",")))", accessToken: await readToken())
+        let rows: [Row] = try decode(data)
+        return Set(rows.map(\.id))
     }
 
     // MARK: - My Going (the You tab)
