@@ -352,9 +352,12 @@ out in the row — an `HStack` would park it wherever the trailing button's widt
   2026-09-24 with posting, leaving three actions (`TownMenuAction`: map, invite, profile).
   What the drawer alone still reaches is the appearance switch. DEBUG `-open-menu` raises it; re-attaching is a one-line `onMenu`
   hook wherever its next entry point lands.
-- **Profile** (`Features/Profile/`) — the **You** tab, and still presentable as a sheet.
-  `ProfileView` shows identity plus **real** activity via the My-activity reads — **no
-  fabricated counts** `[prose]`, so an empty state reads "0". `EditProfileView` writes
+- **You** (`Features/You/`) — the fourth tab: the neighbour's three weeks of Going on a
+  Lapse-style Calendar, with the Agenda for the picked day under it, read by
+  `get_my_going` and kept in the shell (`YouModel`) like the Town feed (BP app
+  `docs/plans/you-tab`).
+- **Profile** (`Features/Profile/`) — Apple's sheet from the photo at the top left of You
+  (and the town menu): identity and settings, **no fabricated counts** `[prose]`. `EditProfileView` writes
   **server-first** (upload avatar → `ProfileAPI.upsert`) and surfaces a real save failure
   instead of a false success.
 - **Share** (`Features/Share/`) — the app-wide **share reveal**. Any share calls

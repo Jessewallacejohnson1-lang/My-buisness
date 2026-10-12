@@ -51,6 +51,11 @@ all live there now. This file carries what is newer than that, or narrower than 
   the day and Suggestions; every other list keeps a fixed order. Spec: BP app
   `docs/plans/town-feed/issues/14-which-feeds.md`. **Supersedes** "for everyone" and "the
   neighbour's own paper" in the 2026-09-24 line.
+- 2026-10-11 — **You** is the neighbour's own three weeks, not their profile (Jesse): a
+  Lapse-style Calendar of what they're Going to, the Agenda for the picked day under it
+  (moved off Daily), and Profile in Apple's sheet from their photo at the top left. Only
+  they see it. Spec: BP app `docs/plans/you-tab/SPEC.md`. **Supersedes** "**You**
+  (profile)" in the 2026-09-24 line and Daily's Agenda.
 - Rollout is town by town. St. Joseph first, then St. Cloud, Sauk Rapids, Cold Spring,
   Waite Park. Nothing in the shared UI, copy, or icon may be St. Joe–specific.
 - App Store target is spring 2027. The months before that are networking and local
