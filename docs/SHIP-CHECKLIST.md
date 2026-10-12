@@ -115,8 +115,8 @@ command or without a pass condition is a reminder, not a check, and reminders ro
   ```
 
 - **Pass looks like:** every number in shipped copy matches the current public estimate in
-  `MEMORY.md` (**200+ events a month across 150+ places**) and the seeded data. Known
-  outstanding case: onboarding screen 13 reads "30+ St. Joe happenings a month".
+  `MEMORY.md` (**200+ events a month across 150+ places**) and the seeded data. Onboarding
+  screen 13's "200+ events a month in {town}" is checked against each town's real Events.
 - **Re-run if:** the public estimate changes, or seeded content is regenerated.
 
 ### Dark mode pass

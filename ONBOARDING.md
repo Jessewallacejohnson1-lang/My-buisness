@@ -34,9 +34,9 @@ What survived, and what a rebuild starts from:
   stays a logo, never a named character.
 - All 20 screens are decided, 6 questions. Screen 4 reads "Just 6 quick questions and you're
   in." Taglines: "Join the neighborhood." (screen 2), "JOIN THE PARTY" (screen 20).
-- Screen 13 still reads "30+ St. Joe happenings a month", which contradicts the current
-  public estimate in `MEMORY.md`. Verify against seeded content before ship rather than
-  silently editing it.
+- Screen 13 reads "200+ events a month in {town}" (BP app's words page, `onboard-13`,
+  2026-10-12). The 200+ is `MEMORY.md`'s public estimate for St. Joseph; `{town}` and the
+  number come from each town's real Events, checked against them before ship.
 - Reference frames exist twice over: the measured PNGs at `refs/onboarding/duolingo/S01–S20.png`
   are authoritative for any number; the original Mobbin captures live in Figma, ids in
   `docs/rules/identifiers.md`.
