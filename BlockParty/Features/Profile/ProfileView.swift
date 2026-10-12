@@ -59,7 +59,7 @@ struct ProfileView: View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 22) {
                 header.springReveal(0, revealed: revealed)
-                settingsGroup.springReveal(1, revealed: revealed)
+                rows.springReveal(1, revealed: revealed)
                 // Hidden when there is no session to end. Sign-in is switched off
                 // (`RootView.requiresSignIn`), so for most people this screen is now
                 // reached without ever having signed in, and a "Sign out" button that
@@ -134,6 +134,7 @@ struct ProfileView: View {
                     .background(Hue.fill, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Hue.ink.opacity(0.12), lineWidth: 1))
             }
+            .contentShape(Rectangle().inset(by: -4))   // 44pt tap target around the mock's 36pt button
             .buttonStyle(PressableStyle())
             .padding(.top, 14)
         }
@@ -161,7 +162,7 @@ struct ProfileView: View {
     // MARK: - Rows
 
     /// One group of rows, as in the mock. Saved joins at the top with ticket 04.
-    private var settingsGroup: some View {
+    private var rows: some View {
         GlassGroup {
             ProfileRow(icon: "person.badge.plus", title: "Invite a neighbor",
                        action: { ShareCenter.shared.present(.appInvite()) })

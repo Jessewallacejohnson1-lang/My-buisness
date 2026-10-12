@@ -557,6 +557,7 @@ struct MainTabsView: View {
             ProfileView()
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
+                .presentationBackground(Hue.paper)   // the You tab mock's paper sheet under white rows
         }
         // The Today bar's friends mark (while there are no chats) and bell. Reserved
         // screens until the real ones land; see `ReservedScreen`.

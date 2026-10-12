@@ -10,28 +10,21 @@ import SwiftUI
 
 // MARK: - Glass panel
 
-/// A frosted panel that sits on the sheet's translucent backdrop: a warm-white
-/// wash lets the blurred Home show faintly through while keeping ink text crisp,
-/// with a bright glass rim + a grounding hairline.
+/// A white card with a hairline on the paper sheet, as in the You tab mock.
 private struct GlassPanel: ViewModifier {
     var radius: CGFloat = Radius.card
     func body(content: Content) -> some View {
         content
-            .background(Hue.surface.opacity(0.62), in: RoundedRectangle(cornerRadius: radius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .stroke(.white.opacity(0.5), lineWidth: 0.75)
-            )
+            .background(Hue.surface, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
                     .stroke(Hue.hairline, lineWidth: 1)
             )
-            .modifier(CardShadow())
     }
 }
 
 extension View {
-    /// Warm frosted-glass surface — the profile's card/group background.
+    /// The profile's card/group background.
     func glassPanel(_ radius: CGFloat = Radius.card) -> some View { modifier(GlassPanel(radius: radius)) }
 }
 
@@ -123,12 +116,9 @@ struct FlowLayout: Layout {
 /// One tappable settings/activity row, styled to sit inside a `GlassGroup`.
 struct ProfileRow: View {
     let icon: String
-    var iconTint: Color = Hue.ink
     let title: String
     var subtitle: String? = nil
-    var trailing: String? = nil        // a mono count / short value
     var accessory: Accessory = .chevron
-    var destructive = false
     /// nil → a static (non-tappable) row, e.g. a count-only or read-only line.
     var action: (() -> Void)? = nil
 
@@ -147,11 +137,11 @@ struct ProfileRow: View {
         HStack(spacing: 13) {
             Image(systemName: icon)
                 .font(.sansSemibold(16))
-                .foregroundStyle(destructive ? Hue.ink : iconTint)
+                .foregroundStyle(Hue.ink)
                 .frame(width: 26)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(destructive ? .sansBold(16) : .sansMedium(16))
+                    .font(.sansMedium(16))
                     .foregroundStyle(Hue.ink)
                 if let subtitle {
                     Text(subtitle)
@@ -161,12 +151,6 @@ struct ProfileRow: View {
                 }
             }
             Spacer(minLength: 8)
-            if let trailing {
-                Text(trailing)
-                    .font(.monoMedium(15))
-                    .monospacedDigit()
-                    .foregroundStyle(Hue.inkSecondary)
-            }
             accessoryView
         }
         .padding(.vertical, 16)                 // 52pt rows, the You tab mock's
