@@ -170,14 +170,16 @@ enum YouCalendar {
         Dictionary(grouping: going) { calendar.startOfDay(for: $0.starts) }
     }
 
-    /// The Places row (ticket 03): the soonest Event at each place from `today` (a Town
-    /// midnight) on, in the order they came. A place is the organizer's typed name, the
-    /// same whatever its case or edge spaces; an Event with none is left out.
-    static func places(_ going: [DailyEvent], today: Date) -> [DailyEvent] {
+    /// The Places row (ticket 03): the next Event at each place, one not over by `now`,
+    /// in the order they came. A place is the organizer's typed name, the same whatever
+    /// its case, spacing or apostrophe; an Event with none is left out.
+    static func places(_ going: [DailyEvent], now: Date) -> [DailyEvent] {
         var seen = Set<String>()
         return going.filter { event in
-            guard event.starts >= today, let place = place(of: event) else { return false }
-            return seen.insert(place.lowercased()).inserted
+            guard event.ends > now, let place = place(of: event) else { return false }
+            let key = place.lowercased().replacingOccurrences(of: "’", with: "'")
+                .split(whereSeparator: \.isWhitespace).joined(separator: " ")
+            return seen.insert(key).inserted
         }
     }
 

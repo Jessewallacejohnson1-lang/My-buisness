@@ -112,7 +112,7 @@ struct YouPage: View {
                     .padding(.top, YouMetric.labelToCards)
                     .padding(.horizontal, YouMetric.side)
                 // Left out while there's nowhere to go, as on Daily.
-                let places = YouCalendar.places(going ?? [], today: today)
+                let places = YouCalendar.places(going ?? [], now: now)
                 if !places.isEmpty {
                     // A working word; Jesse writes the final one.
                     DailySectionLabel(title: "Places", ink: Hue.ink)
@@ -245,17 +245,12 @@ private struct YouPlaces: View {
                     let place = YouCalendar.place(of: event) ?? ""
                     Button { open(event.item) } label: {
                         VStack(spacing: YouMetric.placeNameTop) {
-                            Group {
-                                if let photo = event.photo {
-                                    FeedCardURLPhoto(url: photo, loadingFill: Hue.fill)
-                                } else {
-                                    Hue.fill
-                                }
-                            }
-                            .frame(width: YouMetric.placePhoto, height: YouMetric.placePhoto)
-                            .clipShape(Circle())
-                            .frame(width: YouMetric.placeRing, height: YouMetric.placeRing)
-                            .overlay(Circle().strokeBorder(Hue.ink.opacity(0.14), lineWidth: YouMetric.placeRingLine))
+                            Hue.fill
+                                .overlay { if let url = event.photo { FeedCardURLPhoto(url: url) } }
+                                .frame(width: YouMetric.placePhoto, height: YouMetric.placePhoto)
+                                .clipShape(Circle())
+                                .frame(width: YouMetric.placeRing, height: YouMetric.placeRing)
+                                .overlay(Circle().strokeBorder(Hue.ink.opacity(0.14), lineWidth: YouMetric.placeRingLine))
                             Text(place)
                                 .font(.sans(12))
                                 .foregroundStyle(Hue.ink)
@@ -265,7 +260,7 @@ private struct YouPlaces: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(PressableCardStyle())
-                    .accessibilityLabel("\(place), \(event.item.title)")
+                    .accessibilityLabel("\(place), \(event.item.title), \(DailyEvent.townTime("EEEEMMMMd", event.starts))")
                 }
             }
         }
