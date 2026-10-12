@@ -68,6 +68,8 @@ final class CalendarSync {
     @ObservationIgnored private let account: () -> String?
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private var syncing = false
+    /// A sync asked for while one runs: it runs next, with the newer taps.
+    @ObservationIgnored private var queued: (tapped: [FeedCardItem], isGoing: (FeedCardItem) -> Bool, now: Date)?
 
     private static let onKey = "calendarSync.on"
     private static let stateKey = "calendarSync.state"
@@ -104,8 +106,9 @@ final class CalendarSync {
         asking = true
         let allowed = await calendar.requestAccess()
         guard allowed else {
-            withAnimation(.easeInOut(duration: 0.25)) { asking = false }
-            try? await Task.sleep(for: .milliseconds(300))
+            // The Join's turn back: flip, then shake, never mid-flip.
+            withAnimation(.easeInOut(duration: RealLifeActions.flip)) { asking = false }
+            try? await Task.sleep(for: .seconds(RealLifeActions.flip))
             refused = true
             refusals += 1
             Haptics.error()
@@ -134,64 +137,78 @@ final class CalendarSync {
     // MARK: Keeping the calendar
 
     /// Brings the calendar in line with the Going: the read's from today for a year, with
-    /// this session's taps laid over it. A failed read changes nothing.
-    func sync(tapped: [FeedCardItem], isGoing: (FeedCardItem) -> Bool, now: Date = Date()) async {
-        guard isOn, !syncing else { return }
+    /// this session's taps laid over it. A failed read changes nothing; one asked for
+    /// while another runs runs after it.
+    func sync(tapped: [FeedCardItem], isGoing: @escaping (FeedCardItem) -> Bool, now: Date = Date()) async {
+        guard isOn else { return }
+        guard !syncing else { queued = (tapped, isGoing, now); return }
+        syncing = true
+        defer { syncing = false }
+        var next: (tapped: [FeedCardItem], isGoing: (FeedCardItem) -> Bool, now: Date)? = (tapped, isGoing, now)
+        while let run = next {
+            queued = nil
+            await once(tapped: run.tapped, isGoing: run.isGoing, now: run.now)
+            next = queued
+        }
+    }
+
+    private func once(tapped: [FeedCardItem], isGoing: (FeedCardItem) -> Bool, now: Date) async {
+        guard isOn else { return }
         guard calendar.hasAccess else {
             // Access taken away in Settings: the switch says so.
             setOn(false)
             refused = true
             return
         }
-        syncing = true
-        defer { syncing = false }
+        let who = account()
         let today = YouCalendar.calendar.startOfDay(for: now)
         let last = YouCalendar.calendar.date(byAdding: .day, value: Self.horizonDays, to: today) ?? today
-        guard let rows = try? await read(Town.day(today), Town.day(last)), isOn else { return }
+        // An account that changed during the read gets the next sync, not this answer.
+        guard let rows = try? await read(Town.day(today), Town.day(last)), isOn, account() == who else { return }
         let going = YouCalendar.going(read: rows.compactMap(YouCalendar.event(from:)), tapped: tapped,
                                       isGoing: isGoing, first: today, days: Self.horizonDays + 1)
         var wanted: [String: CalendarEntry] = [:]
         for event in going { wanted[event.id] = Self.entry(for: event) }
         var state = loadState()
-        Self.apply(wanted, to: &state, in: calendar, account: account(), now: now)
+        Self.apply(wanted, to: &state, in: calendar, account: who, today: today)
         saveState(state)
     }
 
     /// The rules, apart from the read and the phone, so the tests drive them.
     /// - A new account starts over and leaves the calendar alone.
-    /// - Going and not yet written: added, or adopted when the same entry is already
-    ///   there (the app was deleted and put back), so nothing is added twice.
+    /// - Going and not yet written: added, or adopted when Block Party's own entry for it
+    ///   is already there (the app was deleted and put back), so nothing is added twice.
     /// - Written before: found by its ref, else by what was written (a full calendar sync
     ///   can lose the ref). Not found: the person deleted it, and it stays deleted.
     ///   Updated only when the Event changed since it was written.
-    /// - Written and no longer Going: removed, unless it's already over.
+    /// - Written and no longer Going: removed when it starts from `today` on, inside the
+    ///   read; one that started before (over, or still on past midnight) is left.
+    /// One entry EventKit refuses (a read-only calendar) waits for the next sync; the
+    /// rest go on.
     static func apply(_ wanted: [String: CalendarEntry], to state: inout State, in calendar: PhoneCalendar,
-                      account: String?, now: Date) {
+                      account: String?, today: Date) {
         if state.account != account { state = State(account: account) }
         func locate(_ written: Written) -> String? {
             calendar.exists(written.ref) ? written.ref : calendar.find(written.entry)
         }
-        do {
-            for (id, entry) in wanted.sorted(by: { $0.key < $1.key }) {
-                if var written = state.written[id] {
-                    guard let ref = locate(written) else { continue }
-                    if entry != written.entry {
-                        try calendar.update(ref, to: entry)
-                        written.entry = entry
-                    }
-                    written.ref = ref
-                    state.written[id] = written
-                } else {
-                    let ref = try calendar.find(entry) ?? calendar.add(entry)
-                    state.written[id] = Written(ref: ref, entry: entry)
+        for (id, entry) in wanted.sorted(by: { $0.key < $1.key }) {
+            if var written = state.written[id] {
+                guard let ref = locate(written) else { continue }
+                if entry != written.entry {
+                    guard (try? calendar.update(ref, to: entry)) != nil else { continue }
+                    written.entry = entry
                 }
+                written.ref = ref
+                state.written[id] = written
+            } else if let ref = calendar.find(entry) ?? (try? calendar.add(entry)) {
+                state.written[id] = Written(ref: ref, entry: entry)
             }
-            for (id, written) in state.written where wanted[id] == nil {
-                if written.entry.ends > now, let ref = locate(written) { try calendar.remove(ref) }
-                state.written[id] = nil
+        }
+        for (id, written) in state.written where wanted[id] == nil {
+            if written.entry.starts >= today, let ref = locate(written) {
+                guard (try? calendar.remove(ref)) != nil else { continue }
             }
-        } catch {
-            // EventKit refused a write: keep what was done, try again next time.
+            state.written[id] = nil
         }
     }
 
@@ -211,9 +228,15 @@ final class CalendarSync {
 }
 
 /// The phone's calendar through EventKit, entries in the default calendar for new events.
+/// Each carries a note saying where it came from, and only entries with it are ever
+/// found, so a person's own entry of the same name is never taken over.
 @MainActor
 final class EventKitCalendar: PhoneCalendar {
-    private let store = EKEventStore()
+    /// One store for the app's life (Apple: release it last).
+    private static let store = EKEventStore()
+    private var store: EKEventStore { Self.store }
+    /// Working words; Jesse writes the final ones.
+    static let note = "Added by Block Party"
 
     var hasAccess: Bool { EKEventStore.authorizationStatus(for: .event) == .fullAccess }
 
@@ -230,7 +253,7 @@ final class EventKitCalendar: PhoneCalendar {
         let day = YouCalendar.calendar.startOfDay(for: entry.starts)
         let next = YouCalendar.calendar.date(byAdding: .day, value: 1, to: day) ?? day
         let found = store.events(matching: store.predicateForEvents(withStart: day, end: next, calendars: nil))
-        return found.first { $0.title == entry.title && $0.isAllDay == entry.allDay
+        return found.first { $0.notes == Self.note && $0.title == entry.title && $0.isAllDay == entry.allDay
                              && (entry.allDay || $0.startDate == entry.starts) }?.calendarItemIdentifier
     }
 
@@ -256,10 +279,44 @@ final class EventKitCalendar: PhoneCalendar {
     private static func write(_ entry: CalendarEntry, into event: EKEvent) {
         event.title = entry.title
         event.location = entry.place
+        event.notes = note
         event.isAllDay = entry.allDay
         // The Town's clock, so a plan reads right wherever the phone is.
         event.timeZone = entry.allDay ? nil : Town.timeZone
         event.startDate = entry.starts
-        event.endDate = entry.allDay ? entry.starts : entry.ends
+        // An all-day entry ends on its last day: midnight after it, less a second.
+        event.endDate = entry.allDay ? max(entry.starts, entry.ends.addingTimeInterval(-1)) : entry.ends
+    }
+}
+
+/// Keeps the iPhone Calendar following the Going from its own small view, so a heart or a
+/// feed read redraws only this, not the shell: on the switch, the account, every Join or
+/// leave once its 0.6 s hold has passed (a Join that turns back never reaches the
+/// calendar), and each time the app comes to the front.
+struct CalendarFollower: View {
+    let sync: CalendarSync
+    @Environment(RealLifeActions.self) private var actions
+    @EnvironmentObject private var auth: AuthStore
+    @Environment(\.scenePhase) private var scenePhase
+
+    var body: some View {
+        Color.clear
+            .task(id: key) {
+                try? await Task.sleep(for: .seconds(1.5))
+                guard !Task.isCancelled else { return }
+                await run()
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { Task { await run() } }
+            }
+    }
+
+    private var key: [String] {
+        actions.goingTapped.values.map { "\($0.id):\(actions.going($0).isGoing)" }.sorted()
+            + ["\(sync.isOn)", auth.userId ?? ""]
+    }
+
+    private func run() async {
+        await sync.sync(tapped: Array(actions.goingTapped.values), isGoing: { actions.going($0).isGoing })
     }
 }

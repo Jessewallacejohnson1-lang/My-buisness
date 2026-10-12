@@ -9,12 +9,14 @@
 import XCTest
 @testable import BlockParty
 
-/// The phone's calendar in memory. `delete` and `move` are the person, in Apple Calendar.
+/// The phone's calendar in memory. Entries in `theirs` are the person's own: `find`, like
+/// EventKit's (which looks for Block Party's note), never returns them.
 @MainActor
 private final class FakeCalendar: PhoneCalendar {
     var allows = true
     var hasAccess = false
     var entries: [String: CalendarEntry] = [:]
+    var theirs: Set<String> = []
     var asked = 0
     private var next = 0
 
@@ -25,7 +27,7 @@ private final class FakeCalendar: PhoneCalendar {
     }
     func exists(_ ref: String) -> Bool { entries[ref] != nil }
     func find(_ entry: CalendarEntry) -> String? {
-        entries.first { $0.value.title == entry.title && $0.value.starts == entry.starts }?.key
+        entries.first { !theirs.contains($0.key) && $0.value.title == entry.title && $0.value.starts == entry.starts }?.key
     }
     func add(_ entry: CalendarEntry) throws -> String {
         next += 1
@@ -45,12 +47,15 @@ final class CalendarSyncTests: XCTestCase {
     private var account: String? = "me"
     /// What `get_my_going` answers; nil fails the read.
     private var rows: [UpcomingEvent]? = []
+    /// The read takes a moment, so a second sync can be asked for during it.
+    private var slowRead = false
 
     override func setUp() {
         phone = FakeCalendar()
         defaults = UserDefaults(suiteName: "CalendarSyncTests-\(UUID().uuidString)")
         account = "me"
         rows = []
+        slowRead = false
     }
 
     private func town(_ text: String) -> Date {
@@ -69,6 +74,7 @@ final class CalendarSyncTests: XCTestCase {
     private func makeSync() -> CalendarSync {
         CalendarSync(calendar: phone, defaults: defaults, account: { [unowned self] in self.account },
                      read: { [unowned self] _, _ in
+                         if self.slowRead { try await Task.sleep(for: .milliseconds(80)) }
                          guard let rows = self.rows else { throw URLError(.notConnectedToInternet) }
                          return rows
                      })
@@ -213,5 +219,34 @@ final class CalendarSyncTests: XCTestCase {
         XCTAssertFalse(s.isOn)
         XCTAssertTrue(s.refused)
         XCTAssertEqual(phone.titles, ["hike"])
+    }
+
+    /// The person's own entry of the same name and time is never taken over, so leaving
+    /// the Event removes only Block Party's.
+    func testYourOwnSameNamedEntryIsNeverTaken() async {
+        phone.entries["mine"] = CalendarEntry(title: "hike", starts: town("2026-10-15 18:00"),
+                                              ends: town("2026-10-15 20:00"), allDay: false, place: nil)
+        phone.theirs = ["mine"]
+        rows = [row("hike", "2026-10-15")]
+        let s = makeSync()
+        await on(s)
+        XCTAssertEqual(phone.titles, ["hike", "hike"])
+        rows = []
+        await sync(s)
+        XCTAssertEqual(Array(phone.entries.keys), ["mine"])
+    }
+
+    /// A Join while a sync is reading isn't dropped: it runs once that one is done.
+    func testAJoinDuringASyncIsNotDropped() async {
+        rows = []
+        let s = makeSync()
+        await on(s)
+        slowRead = true
+        let card = FeedCardItem(row("ride", "2026-10-20"))
+        async let first: Void = sync(s)
+        try? await Task.sleep(for: .milliseconds(20))
+        await sync(s, tapped: [card])
+        await first
+        XCTAssertEqual(phone.titles, ["ride"])
     }
 }

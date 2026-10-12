@@ -188,12 +188,16 @@ struct ProfileView: View {
                 }
             }
             if calendarSync.refused {
-                // Working words; Jesse writes the final ones.
-                Text("Allow it in Settings, Privacy, Calendars")
-                    .font(.sans(13))
-                    .foregroundStyle(Hue.inkSecondary)
-                    .padding(.top, 8)
-                    .padding(.leading, 6)
+                // Working words; Jesse writes the final ones. A tap opens the app's
+                // Settings, as Notifications does.
+                Button { openSystemSettings() } label: {
+                    Text("Allow it in Settings, Privacy, Calendars")
+                        .font(.sans(13))
+                        .foregroundStyle(Hue.inkSecondary)
+                        .frame(minHeight: 44)
+                        .padding(.leading, 6)
+                }
+                .buttonStyle(PressableStyle())
             }
         }
     }
