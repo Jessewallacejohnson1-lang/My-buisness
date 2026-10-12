@@ -11,8 +11,10 @@ import { PGlite } from '@electric-sql/pglite';
 const here = dirname(fileURLToPath(import.meta.url));
 const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
 // The function as first built, then each file that re-creates it: the recipe (ticket 18),
-// hearts (real-life actions, ticket 03).
-const files = readdirSync(migrations).filter((f) => /_town_feed(_[a-z]+)?\.sql$/.test(f)).sort();
+// hearts (real-life actions, ticket 03), saves and own-row reads (ticket 19), with the
+// counting helpers it reads.
+const files = readdirSync(migrations)
+  .filter((f) => /_(town_feed(_[a-z]+)?|action_counts)\.sql$/.test(f)).sort();
 const playground = JSON.parse(readFileSync(join(here, 'town_feed_playground.json'), 'utf8'));
 
 const db = await PGlite.create();
@@ -228,7 +230,7 @@ test('start times written the ways the app reads them', async () => {
   });
 });
 
-test('signed out, the feed reads as the public role and counts no RSVPs', async () => {
+test('signed out, the feed reads as the public role with the same counts', async () => {
   await reset();
   const id = await add('Bake sale', '2026-10-09', { start_time: '11 AM' });
   await add('Hidden draft', '2026-10-09', { status: 'pending', submitted_by: ME });
@@ -237,7 +239,7 @@ test('signed out, the feed reads as the public role and counts no RSVPs', async 
     `select title, going_count, rsvpd from public.get_town_feed(
        ('2026-10-08 12:00'::timestamp at time zone 'America/Chicago'))`)).rows;
   await db.exec(`set role anon`);
-  assert.deepEqual(await counts(), [{ title: 'Bake sale', going_count: 0, rsvpd: false }]);
+  assert.deepEqual(await counts(), [{ title: 'Bake sale', going_count: 1, rsvpd: false }]);
   await db.exec(`reset role; set role authenticated; set request.jwt.claim.sub = '${ME}'`);
   // Your own draft is readable to you, but only approved events are in the feed.
   assert.deepEqual(await counts(), [{ title: 'Bake sale', going_count: 1, rsvpd: true }]);
@@ -256,10 +258,10 @@ test("every account's hearts are counted, and yours says you hearted it", async 
   await db.exec(`reset role; set role authenticated; set request.jwt.claim.sub = '${ME}'`);
   assert.deepEqual(await hearts(), [{ title: 'Fall fair', heart_count: 2, hearted: true },
                                     { title: 'Quiz night', heart_count: 1, hearted: false }]);
-  // Signed out, the public key reads nobody's hearts, as it reads nobody's Going.
+  // Signed out, the public key gets the same counts, and hearted nothing.
   await db.exec(`reset role; reset request.jwt.claim.sub; set role anon`);
-  assert.deepEqual(await hearts(), [{ title: 'Fall fair', heart_count: 0, hearted: false },
-                                    { title: 'Quiz night', heart_count: 0, hearted: false }]);
+  assert.deepEqual(await hearts(), [{ title: 'Fall fair', heart_count: 2, hearted: false },
+                                    { title: 'Quiz night', heart_count: 1, hearted: false }]);
 });
 
 test('a heart moves nothing: the order is the recipe\'s', async () => {
@@ -326,6 +328,53 @@ test('what you are Going to or saved sits lower, but stays', async () => {
   assert.deepEqual(await titles('2026-10-08 12:00'), ['Going', 'Saved', 'Neither']);
   await signIn(YOU);
   assert.deepEqual(await titles('2026-10-08 12:00'), ['Neither', 'Going', 'Saved']);
+});
+
+test('the feed says whether you saved each event, and only yours', async () => {
+  await reset();
+  const fair = await add('Fall fair', '2026-10-09', { start_time: '11 AM' });
+  await add('Quiz night', '2026-10-09', { start_time: '7 PM' });
+  const OTHER = '00000000-0000-0000-0000-0000000000c3';
+  await db.query(`insert into public.event_saves (event_id, user_id) values ($1, $2)`, [fair, YOU]);
+  const saves = async () => (await db.query(
+    `select title, saved from public.get_town_feed(
+       ('2026-10-08 12:00'::timestamp at time zone 'America/Chicago')) order by title`)).rows;
+  await signIn(YOU);
+  assert.deepEqual(await saves(), [{ title: 'Fall fair', saved: true }, { title: 'Quiz night', saved: false }]);
+  await signIn(OTHER);
+  assert.deepEqual(await saves(), [{ title: 'Fall fair', saved: false }, { title: 'Quiz night', saved: false }]);
+  await db.exec(`reset role; reset request.jwt.claim.sub; set role anon`);
+  assert.deepEqual(await saves(), [{ title: 'Fall fair', saved: false }, { title: 'Quiz night', saved: false }]);
+});
+
+test("nobody reads who is Going, saved or hearted: only their own rows, and the counts stay", async () => {
+  await reset();
+  const fair = await add('Fall fair', '2026-10-09', { start_time: '11 AM' });
+  const OTHER = '00000000-0000-0000-0000-0000000000c3';
+  for (const t of ['event_rsvps', 'event_saves', 'event_likes']) {
+    await db.query(`insert into public.${t} (event_id, user_id) values ($1, $2), ($1, $3)`, [fair, YOU, OTHER]);
+  }
+  const who = async () => {
+    const out = {};
+    for (const t of ['event_rsvps', 'event_saves', 'event_likes']) {
+      out[t] = (await db.query(`select user_id from public.${t}`)).rows.map((r) => r.user_id);
+    }
+    return out;
+  };
+  const counts = async () => (await db.query(
+    `select going_count, heart_count from public.get_town_feed(
+       ('2026-10-08 12:00'::timestamp at time zone 'America/Chicago'))`)).rows;
+  await signIn(OTHER);
+  assert.deepEqual(await who(), { event_rsvps: [OTHER], event_saves: [OTHER], event_likes: [OTHER] });
+  assert.deepEqual(await counts(), [{ going_count: 2, heart_count: 2 }]);
+  await db.exec(`reset role; reset request.jwt.claim.sub; set role anon`);
+  assert.deepEqual(await who(), { event_rsvps: [], event_saves: [], event_likes: [] });
+  assert.deepEqual(await counts(), [{ going_count: 2, heart_count: 2 }]);
+  // The helpers sit in the private schema, which the API doesn't expose.
+  await db.exec('reset role');
+  const { rows } = await db.query(`select n.nspname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                                   where p.proname in ('going_count', 'heart_count') order by 1`);
+  assert.deepEqual(rows.map((r) => r.nspname), ['private', 'private']);
 });
 
 test('the same host is spaced out: each further item from it counts half', async () => {

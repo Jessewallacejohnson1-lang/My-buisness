@@ -10,7 +10,9 @@ import { PGlite } from '@electric-sql/pglite';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
-const files = readdirSync(migrations).filter((f) => /_my_going\.sql$/.test(f)).sort();
+// The function, then its re-creation with counts from the private helpers (town-feed ticket 19).
+const files = readdirSync(migrations)
+  .filter((f) => /_(my_going(_[a-z]+)?|action_counts)\.sql$/.test(f)).sort();
 
 const db = await PGlite.create();
 await db.exec(`
@@ -31,14 +33,18 @@ await db.exec(`
   create table public.event_rsvps (
     id uuid primary key default gen_random_uuid(), event_id uuid not null,
     user_id uuid not null, created_at timestamptz not null default now());
+  create table public.event_likes (
+    id uuid primary key default gen_random_uuid(), event_id uuid not null,
+    user_id uuid not null, created_at timestamptz not null default now());
 
-  -- The live read rules (schema.sql).
+  -- The live read rules (schema.sql; Going readable only as your own rows since ticket 19).
   alter table public.club_events enable row level security;
   alter table public.event_rsvps enable row level security;
   alter table public.clubs enable row level security;
   create policy "read events" on public.club_events for select to public
     using (status = 'approved' or submitted_by = auth.uid() or is_admin());
-  create policy "read rsvps" on public.event_rsvps for select to authenticated using (true);
+  create policy "own rsvps select" on public.event_rsvps for select to public
+    using ((select auth.uid()) = user_id);
   create policy "read clubs" on public.clubs for select to public using (true);
   grant select on all tables in schema public to anon, authenticated;
 `);
