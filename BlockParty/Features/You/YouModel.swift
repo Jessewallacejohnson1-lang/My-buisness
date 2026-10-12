@@ -170,6 +170,22 @@ enum YouCalendar {
         Dictionary(grouping: going) { calendar.startOfDay(for: $0.starts) }
     }
 
+    /// The Places row (ticket 03): the soonest Event at each place from `today` (a Town
+    /// midnight) on, in the order they came. A place is the organizer's typed name, the
+    /// same whatever its case or edge spaces; an Event with none is left out.
+    static func places(_ going: [DailyEvent], today: Date) -> [DailyEvent] {
+        var seen = Set<String>()
+        return going.filter { event in
+            guard event.starts >= today, let place = place(of: event) else { return false }
+            return seen.insert(place.lowercased()).inserted
+        }
+    }
+
+    static func place(of event: DailyEvent) -> String? {
+        let place = event.item.location?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return place.isEmpty ? nil : place
+    }
+
     #if DEBUG
     /// INVENTED: Going at real St. Joseph places with the bundled town photos, spread
     /// over the three weeks around `now`, today busy, one with no photo of its own. Every

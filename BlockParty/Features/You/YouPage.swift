@@ -50,6 +50,14 @@ enum YouMetric {
     static let emptyLine: CGFloat = 18
     /// Cards the Agenda's skeleton draws while the first read is out.
     static let skeletonCards = 2
+    /// The Places row, Instagram's highlights as the mock draws them: a 62pt photo in a
+    /// 70pt ring (2pt line, 2pt gap), the name 6pt under it in a 72pt column, 14pt apart.
+    static let placePhoto: CGFloat = 62
+    static let placeRing: CGFloat = 70
+    static let placeRingLine: CGFloat = 2
+    static let placeColumn: CGFloat = 72
+    static let placeNameTop: CGFloat = 6
+    static let placeGap: CGFloat = 14
 }
 
 struct YouPage: View {
@@ -103,6 +111,15 @@ struct YouPage: View {
                 agenda(going: going, day: day, now: now)
                     .padding(.top, YouMetric.labelToCards)
                     .padding(.horizontal, YouMetric.side)
+                // Left out while there's nowhere to go, as on Daily.
+                let places = YouCalendar.places(going ?? [], today: today)
+                if !places.isEmpty {
+                    // A working word; Jesse writes the final one.
+                    DailySectionLabel(title: "Places", ink: Hue.ink)
+                        .padding(.top, YouMetric.calendarToLabel)
+                    YouPlaces(events: places, open: { pushed = $0 })
+                        .padding(.top, YouMetric.labelToCards)
+                }
                 Color.clear.frame(height: DailyMetric.tabBarClearance)
             }
         }
@@ -211,6 +228,48 @@ struct YouPage: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Loading your plans")
         }
+    }
+}
+
+/// Where the neighbour's plans are, as Instagram's highlights: each place's next Event's
+/// photo in a ring with the place's name under it, cut at the column's width, never
+/// reworded. A tap opens that Event. No photo of its own: a grey circle, as on the Calendar.
+private struct YouPlaces: View {
+    let events: [DailyEvent]
+    let open: (FeedCardItem) -> Void
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(alignment: .top, spacing: YouMetric.placeGap) {
+                ForEach(events) { event in
+                    let place = YouCalendar.place(of: event) ?? ""
+                    Button { open(event.item) } label: {
+                        VStack(spacing: YouMetric.placeNameTop) {
+                            Group {
+                                if let photo = event.photo {
+                                    FeedCardURLPhoto(url: photo, loadingFill: Hue.fill)
+                                } else {
+                                    Hue.fill
+                                }
+                            }
+                            .frame(width: YouMetric.placePhoto, height: YouMetric.placePhoto)
+                            .clipShape(Circle())
+                            .frame(width: YouMetric.placeRing, height: YouMetric.placeRing)
+                            .overlay(Circle().strokeBorder(Hue.ink.opacity(0.14), lineWidth: YouMetric.placeRingLine))
+                            Text(place)
+                                .font(.sans(12))
+                                .foregroundStyle(Hue.ink)
+                                .lineLimit(1)
+                        }
+                        .frame(width: YouMetric.placeColumn)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(PressableCardStyle())
+                    .accessibilityLabel("\(place), \(event.item.title)")
+                }
+            }
+        }
+        .contentMargins(.horizontal, YouMetric.side, for: .scrollContent)
     }
 }
 

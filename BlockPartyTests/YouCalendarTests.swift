@@ -22,8 +22,8 @@ final class YouCalendarTests: XCTestCase {
     }
 
     private func row(_ id: String, _ day: String, _ time: String?, title: String? = nil,
-                     endAt: Date? = nil, allDay: Bool = false) -> UpcomingEvent {
-        UpcomingEvent(id: id, title: title ?? id, eventDate: day, startTime: time, location: "Klinefelter Park",
+                     endAt: Date? = nil, allDay: Bool = false, at place: String? = "Klinefelter Park") -> UpcomingEvent {
+        UpcomingEvent(id: id, title: title ?? id, eventDate: day, startTime: time, location: place,
                       goingCount: 1, createdAt: "", rsvpd: true, endAt: endAt, isAllDay: allDay)
     }
 
@@ -165,6 +165,47 @@ final class YouCalendarTests: XCTestCase {
         XCTAssertEqual(shown(), ["card"])
         try await Task.sleep(for: .milliseconds(200))
         XCTAssertEqual(shown(), [])
+    }
+
+    // MARK: The Places row (ticket 03)
+
+    /// From today on only, each place once with its soonest Event there, soonest first;
+    /// the same typed name in another case or with spaces is the same place; an Event
+    /// with no place is left out.
+    func testPlacesFromTodayOnEachOnceSoonestFirst() {
+        let now = town("2026-10-14 12:00")
+        let first = YouCalendar.firstDay(of: now)
+        let read = [row("past", "2026-10-13", "6 PM", at: "Bad Habit Brewing"),
+                    row("tonight", "2026-10-14", "7 PM", at: "Klinefelter Park"),
+                    row("morning", "2026-10-14", "8 AM", at: "The Local Blend"),
+                    row("again", "2026-10-16", "6 PM", at: " klinefelter park "),
+                    row("nowhere", "2026-10-17", "6 PM", at: nil),
+                    row("blank", "2026-10-17", "7 PM", at: "  "),
+                    row("later", "2026-10-20", "6 PM", at: "Bad Habit Brewing")]
+            .compactMap(YouCalendar.event(from:))
+        let going = YouCalendar.going(read: read, tapped: [], isGoing: { _ in true }, first: first)
+        let places = YouCalendar.places(going, today: YouCalendar.calendar.startOfDay(for: now))
+        XCTAssertEqual(places.map(\.id), ["morning", "tonight", "later"])
+    }
+
+    /// A Join adds its place; leaving the sooner Event at a place moves the place to the
+    /// next one there, and leaving the last takes the place off.
+    func testAJoinOrLeaveChangesPlaces() {
+        let now = town("2026-10-14 12:00")
+        let first = YouCalendar.firstDay(of: now)
+        let today = YouCalendar.calendar.startOfDay(for: now)
+        let read = [row("soon", "2026-10-15", "6 PM", at: "Klinefelter Park"),
+                    row("next", "2026-10-22", "6 PM", at: "Klinefelter Park")]
+            .compactMap(YouCalendar.event(from:))
+        let joined = FeedCardItem(row("joined", "2026-10-16", "7 PM", at: "Saint Ben's"))
+        func places(going ids: Set<String>) -> [String] {
+            YouCalendar.places(YouCalendar.going(read: read, tapped: [joined], isGoing: { ids.contains($0.id) },
+                                                 first: first), today: today).map(\.id)
+        }
+        XCTAssertEqual(places(going: ["soon", "next"]), ["soon"])
+        XCTAssertEqual(places(going: ["soon", "next", "joined"]), ["soon", "joined"])
+        XCTAssertEqual(places(going: ["next", "joined"]), ["joined", "next"])
+        XCTAssertEqual(places(going: ["joined"]), ["joined"])
     }
 
     // MARK: The model
