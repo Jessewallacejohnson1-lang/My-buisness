@@ -169,7 +169,7 @@ struct ProfileRow: View {
             }
             accessoryView
         }
-        .padding(.vertical, 13)
+        .padding(.vertical, 16)                 // 52pt rows, the You tab mock's
         .contentShape(Rectangle())
     }
 
