@@ -141,10 +141,9 @@ struct YouPage: View {
         }
         .onScrollGeometryChange(for: CGFloat.self) { geometry in
             min(max(geometry.contentOffset.y + geometry.contentInsets.top, 0), DailyMetric.edgeFade)
-        } action: { _, offset in
-            scrolled = offset
-            if offset > 0 { fold() }
-        }
+        } action: { _, offset in scrolled = offset }
+        // The finger, not the offset: the page can report one on its own as it settles in.
+        .onScrollPhaseChange { _, phase in if phase == .interacting { fold() } }
         .background(Hue.paper.ignoresSafeArea())
         // The Town feed's frosted band behind the clock, in with the first bit of scroll.
         .statusEdge(opacity: scrolled / DailyMetric.edgeFade)
