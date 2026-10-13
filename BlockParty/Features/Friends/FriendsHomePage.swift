@@ -241,7 +241,7 @@ private struct AcceptedLine: View {
                     .font(.sans(15))
                     .foregroundStyle(Hue.ink)
                     .multilineTextAlignment(.leading)
-                Spacer(minLength: 0)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.horizontal, FriendsMetric.side)
             .padding(.vertical, FriendsMetric.acceptedPad)

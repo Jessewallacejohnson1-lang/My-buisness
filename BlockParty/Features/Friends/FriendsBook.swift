@@ -89,8 +89,17 @@ final class FriendsBook {
                       write: { try await api().friendWrite($0, $1) },
                       isAnonymous: { !AuthStore.shared.isSignedIn || AuthStore.shared.isAnonymous })
         case .samples:
+            // DEBUG `-friends-fail` makes every tap fail, `-friends-limit` every Add friend hit
+            // the daily limit, so the flip back, the shake and the alert can be recorded.
+            let args = ProcessInfo.processInfo.arguments
+            let fails = args.contains("-friends-fail"), limited = args.contains("-friends-limit")
             self.init(read: { Self.samplePage() }, readDot: { true }, markSeen: {},
-                      write: { action, _ in Self.answer(to: action) }, isAnonymous: { false })
+                      write: { action, _ in
+                          if fails { throw URLError(.notConnectedToInternet) }
+                          if limited, action == .add { throw SupabaseError(message: Problem.limit.rawValue, status: 400) }
+                          return Self.answer(to: action)
+                      },
+                      isAnonymous: { false })
         case .offline:
             let offline = URLError(.notConnectedToInternet)
             self.init(read: { throw offline }, readDot: { throw offline }, markSeen: { throw offline },

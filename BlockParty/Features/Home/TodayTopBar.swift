@@ -170,6 +170,10 @@ private nonisolated enum TodayBarMetric {
     static let friendsDot: CGFloat = 7.5
     static let friendsDotRing: CGFloat = 1.5
     static let friendsDotInset: CGFloat = 2
+    /// How far the symbol's frame runs past its ink on the right and top, so the dot sits on
+    /// the ink's corner, not the frame's (measured on BP Build, 2026-10-13, ±0.5).
+    static let friendsInkRight: CGFloat = 3.3
+    static let friendsInkTop: CGFloat = 1.5
     /// The bell, at its measured reference size (20.69pt tall — see
     /// `refs/chrome/REFERENCE-SPEC.md`).
     static let bellGlyphSize: CGFloat = 21
@@ -444,7 +448,8 @@ struct TodayTopBar: View {
                             .frame(width: TodayBarMetric.friendsDot, height: TodayBarMetric.friendsDot)
                             .padding(TodayBarMetric.friendsDotRing)
                             .background(Circle().fill(chromeFloating ? Hue.surface : Hue.paper))
-                            .offset(x: reach - TodayBarMetric.friendsDotInset, y: TodayBarMetric.friendsDotInset - reach)
+                            .offset(x: reach - TodayBarMetric.friendsDotInset - TodayBarMetric.friendsInkRight,
+                                    y: TodayBarMetric.friendsDotInset - reach + TodayBarMetric.friendsInkTop)
                             .transition(.scale.combined(with: .opacity))
                     }
                 }
