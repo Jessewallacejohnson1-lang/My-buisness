@@ -440,7 +440,7 @@ struct MainTabsView: View {
         }
         // The friend sheet, from a friend's •••, anyone's page and the Friends button (ticket 04).
         .sheet(item: Binding(get: { friendsBook.menu }, set: { friendsBook.menu = $0 })) { person in
-            FriendMenu(person: person).environment(friendsBook)
+            FriendMenu(person: person, relation: friendsBook.relation(person)).environment(friendsBook)
         }
         .onChange(of: friendsBook.problem) { _, problem in if let problem { said = problem } }
         .sheet(isPresented: $addingName) { AddNameSheet() }

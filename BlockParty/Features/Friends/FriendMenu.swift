@@ -29,12 +29,20 @@ extension FriendsMetric {
 
 struct FriendMenu: View {
     let person: Neighbor
+    /// Where you stood when the sheet opened: an Unfriend shouldn't rewrite the sheet as it
+    /// slides away.
+    @State private var relation: Neighbor.Relation
     @Environment(FriendsBook.self) private var book
     @Environment(\.dismiss) private var dismiss
     /// The question up, and the last one asked, kept while the alert fades so its words don't change.
     @State private var asking: FriendsBook.Action?
     @State private var asked = FriendsBook.Action.block
     @State private var height: CGFloat = 240
+
+    init(person: Neighbor, relation: Neighbor.Relation) {
+        self.person = person
+        _relation = State(initialValue: relation)
+    }
 
     private var first: String {
         person.displayName.split(separator: " ").first.map(String.init) ?? person.displayName
@@ -43,7 +51,7 @@ struct FriendMenu: View {
     /// `friend-menu`: "Friends since October 2026" (this month for a friendship made since the
     /// last read); anyone else, "Neighbor since".
     private var line: String? {
-        guard book.relation(person) == .friends else { return person.sinceLine }
+        guard relation == .friends else { return person.sinceLine }
         return ProfileModel.since(from: person.friendsSince ?? Date.now.formatted(.iso8601)).map { "Friends since \($0)" }
     }
 
@@ -71,7 +79,7 @@ struct FriendMenu: View {
             .accessibilityAddTraits(.isHeader)
             Rectangle().fill(Hue.hairline).frame(height: FriendsMetric.hairline)
             VStack(spacing: 0) {
-                ForEach(FriendsBook.menuChoices(for: book.relation(person)), id: \.self) { row($0) }
+                ForEach(FriendsBook.menuChoices(for: relation), id: \.self) { row($0) }
             }
             .padding(.vertical, FriendsMetric.menuRowsPad)
         }
@@ -82,6 +90,8 @@ struct FriendMenu: View {
         .presentationDetents([.height(height)])
         .presentationDragIndicator(.visible)
         .presentationBackground(Hue.surface)
+        .onAppear { book.menuOnScreen = true }
+        .onDisappear { book.menuOnScreen = false }
         // `unfriend-confirm` and `block-confirm`, in Apple's alert.
         .alert(asked == .block ? "Block \(first)?" : "Unfriend \(first)?",
                isPresented: Binding(get: { asking != nil }, set: { if !$0 { asking = nil } }),

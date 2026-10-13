@@ -466,9 +466,9 @@ struct NeighborPage: View {
             .accessibilitySortPriority(1)
         }
         .toolbar(.hidden, for: .navigationBar)
-        // Blocked: back to where you came from, as on Facebook (ticket 04).
-        .onChange(of: book.relation(neighbor) == .blocked) { _, blocked in
-            if blocked { dismiss() }
+        // Blocked: back to where you came from, as on Facebook, once the sheet is down (ticket 04).
+        .onChange(of: book.relation(neighbor) == .blocked && !book.menuOnScreen) { _, gone in
+            if gone { dismiss() }
         }
         .onAppear { book.screenOpened() }
         .onDisappear { book.screenClosed() }

@@ -71,6 +71,9 @@ final class FriendsBook {
     var problem: Problem?
     /// The person whose friend sheet is up (ticket 04).
     var menu: Neighbor?
+    /// The friend sheet is on screen, closing included: a page waits for it to go before it
+    /// goes back after a block, so the two never slide at once.
+    var menuOnScreen = false
     /// Profile's Blocked list as the last read gave it.
     private(set) var blockedRead: [Neighbor] = []
     private(set) var blockedLoaded = false
