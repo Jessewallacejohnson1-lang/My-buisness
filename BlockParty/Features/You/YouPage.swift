@@ -338,8 +338,10 @@ private struct YouBadge: View {
                     .padding(.horizontal, YouMetric.pillSide)
                     // A one-letter name still makes a pill, not an upright oval.
                     .frame(minWidth: YouMetric.pill)
-                    // The pill closes over it from the right as it eases left and fades.
-                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .offset(x: -YouMetric.nameOut)))
+                    // The pill closes over it from the right as it eases left and fades, gone
+                    // in a quarter second, before the photo comes in (the mock's).
+                    .transition((reduceMotion ? AnyTransition.opacity : .opacity.combined(with: .offset(x: -YouMetric.nameOut)))
+                        .animation(Motion.snappy))
             }
         }
         .frame(minHeight: name == nil ? YouMetric.photo : YouMetric.pill)
