@@ -25,7 +25,11 @@ Read this file when you need a specific flag; CLAUDE.md points here.
 - **Today bar's friends / notifications:** `-open-friends` pushes the Friends page (2026-10-13,
   BP app docs/plans/friends), and `-friends-words <text>` opens it with those words typed. It
   finds neighbours on the live database for a real account; `-town-samples` gives it sample
-  neighbours on town photos instead, and `-town-offline` makes every search fail.
+  neighbours on town photos instead (two asking you, three friends, one you asked, and a
+  BP-yellow dot on the friends mark), and `-town-offline` makes every search and friends read
+  fail. With `-town-samples`, `-friends-fail` makes every Add friend, Cancel, Confirm and
+  Delete fail (the hold, flip back and shake) and `-friends-limit` makes Add friend hit the
+  daily limit (Apple's alert) (2026-10-13, friends 03).
   `-open-friends-chat` pushes the sample inbox and then its newest chat (2026-10-06), the one
   way left into the sample chats. `-open-notifications` raises the reserved screen behind the bell
   (added 2026-09-20 as `-open-search`; search became a tab on 2026-09-29). Their only

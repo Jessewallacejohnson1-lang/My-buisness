@@ -353,6 +353,8 @@ out in the row — an `HStack` would park it wherever the trailing button's widt
   not the same shape at another weight. `MapPinGlyph` is a pin outline and a concentric ring
   as **two subpaths of one `Path`**, so a single stroke renders both at identical weight.
   **The bell has no badge**, because the app has no notifications feature to badge honestly.
+  The friends mark does carry one: a new friend request puts Instagram's unread dot on it, in
+  exact BP yellow (`FriendsBook.dot`, BP app docs/plans/friends ticket 03; Jesse, 2026-10-13).
   The one exception is the friends mark: it is Apple's `person.2.fill` itself, because Jesse's
   Reference is that symbol (they differ by ~1px of antialiasing), so there is nothing to trace.
 
