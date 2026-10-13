@@ -384,6 +384,13 @@ struct CommunityAPI {
         return zip(kinds, people).map { ($0.kind, $1) }
     }
 
+    /// The people you blocked, newest first: Profile's Blocked list (ticket 04).
+    func getBlocked() async throws -> [Neighbor] {
+        let (data, _) = try await SupabaseHTTP.rest("rpc/get_blocked", method: "POST",
+                                                    accessToken: try await token(), body: try body([:]))
+        return try decode(data)
+    }
+
     /// A request newer than your last visit to Friends: the dot on the friends mark.
     func friendsDot() async throws -> Bool {
         let (data, _) = try await SupabaseHTTP.rest("rpc/friends_dot", method: "POST",
@@ -397,13 +404,17 @@ struct CommunityAPI {
                                     accessToken: try await token(), body: try body([:]))
     }
 
-    /// Add friend, Cancel, Confirm or Delete with one person; answers where you two now stand.
+    /// Add friend, Cancel, Confirm, Delete, Unfriend, Block or Unblock with one person; answers
+    /// where you two now stand.
     func friendWrite(_ action: FriendsBook.Action, _ userID: String) async throws -> Neighbor.Relation {
         let (function, key) = switch action {
         case .add: ("send_friend_request", "p_to")
         case .cancel: ("cancel_friend_request", "p_to")
         case .confirm: ("confirm_friend_request", "p_from")
         case .delete: ("delete_friend_request", "p_from")
+        case .unfriend: ("unfriend", "p_user")
+        case .block: ("block_neighbor", "p_user")
+        case .unblock: ("unblock_neighbor", "p_user")
         }
         let (data, _) = try await SupabaseHTTP.rest("rpc/\(function)", method: "POST",
                                                     accessToken: try await token(), body: try body([key: userID]))

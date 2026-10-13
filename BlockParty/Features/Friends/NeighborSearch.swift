@@ -9,9 +9,10 @@ import SwiftUI
 
 /// A neighbour as search and their page show them: never Anonymous, always named.
 struct Neighbor: Identifiable, Hashable, Decodable {
-    /// Where the two of you stand, as the server last said (ticket 03).
+    /// Where the two of you stand, as the server last said (ticket 03). `blocked` is only ever
+    /// yours on them (ticket 04): theirs on you reads as nobody at all.
     enum Relation: String, Decodable, Hashable {
-        case stranger = "none", sent, received, friends
+        case stranger = "none", sent, received, friends, blocked
     }
 
     let userId: String
@@ -21,6 +22,8 @@ struct Neighbor: Identifiable, Hashable, Decodable {
     let since: String?
     var relation: Relation
     var mutualFriends: Int
+    /// When you became friends, as the server stores it; nil when you aren't (ticket 04).
+    var friendsSince: String? = nil
     var id: String { userId }
 
     /// "Neighbor since October 2026", as the neighbour's own Profile says it.
@@ -116,6 +119,7 @@ final class NeighborSearch {
     static func samples(matching words: String) -> [Neighbor] {
         let words = words.lowercased()
         return Neighbor.samples.filter { n in
+            guard n.relation != .blocked else { return false }
             let name = n.displayName.lowercased()
             return name.hasPrefix(words) || name.split(separator: " ").contains { $0.hasPrefix(words) }
         }
@@ -125,16 +129,18 @@ final class NeighborSearch {
 extension Neighbor {
     #if DEBUG
     /// INVENTED, for `-town-samples`: neighbours on bundled town photos (one without a photo),
-    /// two asking you, three friends, one you asked.
+    /// two asking you, three friends, one you asked, two you blocked.
     static let samples: [Neighbor] = [
         ("Sam Rivera", "centennial-park", Relation.friends, 1), ("Sarah Lindgren", "farmers-market", .received, 2),
         ("Ana Samuels", "saint-bens", .stranger, 1), ("Marlene Ostendorf", "memorial-park", .friends, 3),
         ("Hal Pedersen", nil, .stranger, 2), ("Heidi Vue", "sju-arboretum-trail", .sent, 0),
         ("Junie Okonkwo", "millstream-arts-festival", .received, 0), ("Dale Brunner", "wobegon-trail", .friends, 0),
+        ("Hank Feldner", "rivers-bend-park", .blocked, 0), ("Tess Marrow", "rocktoberfest", .blocked, 0),
     ].map { name, photo, relation, mutual in
         Neighbor(userId: "sample:\(name)", displayName: name,
                  avatarUrl: photo.flatMap { Bundle.main.url(forResource: $0, withExtension: "jpg")?.absoluteString },
-                 since: "2026-03-02T10:00:00Z", relation: relation, mutualFriends: mutual)
+                 since: "2026-03-02T10:00:00Z", relation: relation, mutualFriends: mutual,
+                 friendsSince: relation == .friends ? "2026-08-14T18:00:00Z" : nil)
     }
     #else
     static let samples: [Neighbor] = []

@@ -1,7 +1,7 @@
 //
 //  FriendsBookTests.swift
-//  BlockPartyTests — friend requests and friends (`FriendsBook`, BP app docs/plans/friends,
-//  ticket 03), driven the way the Friends page, a person's page and Search drive it, against
+//  BlockPartyTests — friend requests, friends, Unfriend and Block (`FriendsBook`, BP app
+//  docs/plans/friends, tickets 03 and 04), driven the way the Friends page, a person's page and Search drive it, against
 //  a stand-in server. The 600 ms hold and 0.18 s flip come in shorter, so these run fast.
 //
 
@@ -18,6 +18,7 @@ final class FriendsBookTests: XCTestCase {
     @MainActor
     private final class Server {
         var rows: [(kind: String, neighbor: Neighbor)] = []
+        var blocked: [Neighbor] = []
         var dot = false
         var writes: [String] = []
         var reads = 0
@@ -39,6 +40,7 @@ final class FriendsBookTests: XCTestCase {
 
     private func book(_ server: Server, anonymous: Bool = false) -> FriendsBook {
         FriendsBook(read: { server.reads += 1; return server.rows },
+                    readBlocked: { server.blocked },
                     readDot: { server.dot },
                     markSeen: { server.seen += 1 },
                     write: { try await server.write($0, $1) },
@@ -258,5 +260,141 @@ final class FriendsBookTests: XCTestCase {
         XCTAssertFalse(b.dot)
         XCTAssertFalse(b.loaded)
         XCTAssertTrue(b.friends.isEmpty)
+    }
+
+    // MARK: Unfriend and Block (ticket 04)
+
+    func testTheSheetOffersUnfriendAndBlockToAFriendAndBlockToAnyoneElse() {
+        XCTAssertEqual(FriendsBook.menuChoices(for: .friends), [.unfriend, .block])
+        for relation in [Neighbor.Relation.stranger, .sent, .received] {
+            XCTAssertEqual(FriendsBook.menuChoices(for: relation), [.block])
+        }
+    }
+
+    func testUnfriendTakesThemOutOfYourFriendsAndBackToAddFriend() async {
+        let server = Server()
+        server.rows = [("friend", Self.person("Sam", .friends)), ("friend", Self.person("Tess", .friends))]
+        let b = book(server)
+        await b.refresh()
+        let sam = Self.person("Sam", .friends)
+        b.act(.unfriend, sam)
+        XCTAssertEqual(b.friends.map(\.displayName), ["Tess"])
+        await wait()
+        XCTAssertEqual(b.relation(sam), .stranger)
+        XCTAssertEqual(server.writes, ["unfriend Sam"])
+    }
+
+    func testAFailedUnfriendComesBackAndShakes() async {
+        let server = Server()
+        server.rows = [("friend", Self.person("Sam", .friends))]
+        server.failing = URLError(.notConnectedToInternet)
+        let b = book(server)
+        await b.refresh()
+        b.screenOpened()
+        b.act(.unfriend, Self.person("Sam", .friends))
+        XCTAssertTrue(b.friends.isEmpty)
+        await waitOutTurnBack()
+        XCTAssertEqual(b.friends.map(\.displayName), ["Sam"])
+        XCTAssertEqual(b.failures["Sam"], 1)
+    }
+
+    func testABlockHidesThemEverywhereAtOnce() async {
+        let server = Server()
+        server.rows = [("accepted", Self.person("Sam", .friends)), ("request", Self.person("Junie", .received)),
+                       ("friend", Self.person("Sam", .friends))]
+        let b = book(server)
+        await b.refresh()
+        b.act(.block, Self.person("Sam", .friends))
+        b.act(.block, Self.person("Junie", .received))
+        XCTAssertTrue(b.accepted.isEmpty)
+        XCTAssertTrue(b.requests.isEmpty)
+        XCTAssertTrue(b.friends.isEmpty)
+        XCTAssertTrue(b.isEmpty)
+        let found = NeighborSearch.State.found([Self.person("Sam"), Self.person("Ana")])
+        XCTAssertEqual(b.visible(found), .found([Self.person("Ana")]))
+        XCTAssertEqual(b.visible(.found([Self.person("Sam")])), NeighborSearch.State.none,
+                       "nobody left is nobody found")
+    }
+
+    func testABlockStaysAfterTheNextReadOfFriends() async {
+        let server = Server()
+        server.rows = [("friend", Self.person("Sam", .friends))]
+        let b = book(server)
+        await b.refresh()
+        b.act(.block, Self.person("Sam", .friends))
+        await wait()
+        server.rows = []
+        await b.refresh()
+        XCTAssertEqual(b.visible([Self.person("Sam")]), [], "still hidden from an older search result")
+    }
+
+    func testAFailedBlockBringsThemBackAndSaysSoInWords() async {
+        let server = Server()
+        server.rows = [("friend", Self.person("Sam Rivera", .friends))]
+        server.failing = URLError(.notConnectedToInternet)
+        let b = book(server)
+        await b.refresh()
+        b.screenOpened()
+        b.act(.block, Self.person("Sam Rivera", .friends))
+        XCTAssertTrue(b.friends.isEmpty)
+        await waitOutTurnBack()
+        XCTAssertEqual(b.friends.map(\.displayName), ["Sam Rivera"])
+        XCTAssertEqual(b.problem, .blockFailed("Sam"))
+        XCTAssertEqual(b.problem?.message, "Check your connection and try again.")
+        XCTAssertNil(b.failures["Sam Rivera"], "said in words, not shaken")
+    }
+
+    func testTheBlockedListUnblocksAtOnce() async {
+        let server = Server()
+        server.blocked = [Self.person("Hank", .blocked), Self.person("Tess", .blocked)]
+        let b = book(server)
+        await b.refreshBlocked()
+        XCTAssertTrue(b.blockedLoaded)
+        XCTAssertEqual(b.blocked.map(\.displayName), ["Hank", "Tess"])
+        b.act(.unblock, Self.person("Hank", .blocked))
+        XCTAssertEqual(b.blocked.map(\.displayName), ["Tess"])
+        await wait()
+        XCTAssertEqual(server.writes, ["unblock Hank"])
+        XCTAssertEqual(b.relation(Self.person("Hank", .blocked)), .stranger)
+    }
+
+    func testAFailedUnblockComesBackAndShakes() async {
+        let server = Server()
+        server.blocked = [Self.person("Hank", .blocked)]
+        server.failing = URLError(.notConnectedToInternet)
+        let b = book(server)
+        await b.refreshBlocked()
+        b.screenOpened()
+        b.act(.unblock, Self.person("Hank", .blocked))
+        XCTAssertTrue(b.blocked.isEmpty)
+        await waitOutTurnBack()
+        XCTAssertEqual(b.blocked.map(\.displayName), ["Hank"])
+        XCTAssertEqual(b.failures["Hank"], 1)
+    }
+
+    func testSomeoneYouJustBlockedIsOnTheBlockedListWhenItReads() async {
+        let server = Server()
+        let b = book(server)
+        let sam = Self.person("Sam", .friends)
+        b.act(.block, sam)
+        await wait()
+        server.blocked = [Self.person("Sam", .blocked)]
+        await b.refreshBlocked()
+        XCTAssertEqual(b.blocked.map(\.displayName), ["Sam"])
+    }
+
+    func testAnEmptyBlockedListIsLoadedAndEmpty() async {
+        let b = book(Server())
+        await b.refreshBlocked()
+        XCTAssertTrue(b.blockedLoaded)
+        XCTAssertTrue(b.blocked.isEmpty)
+    }
+
+    func testAFailedBlockedReadSaysItFailed() async {
+        let b = FriendsBook(read: { [] }, readBlocked: { throw URLError(.notConnectedToInternet) },
+                            readDot: { false }, markSeen: {}, write: { _, _ in .stranger }, isAnonymous: { false })
+        await b.refreshBlocked()
+        XCTAssertFalse(b.blockedLoaded)
+        XCTAssertTrue(b.blockedFailed)
     }
 }

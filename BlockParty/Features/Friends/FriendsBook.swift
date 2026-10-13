@@ -1,29 +1,56 @@
 //
 //  FriendsBook.swift
-//  Block Party — friend requests and friends (BP app docs/plans/friends, ticket 03): the
-//  Friends page's sections, the dot on the friends mark, and where you stand with each
-//  person, which one button shows on every row and page.
+//  Block Party — friend requests and friends (BP app docs/plans/friends, tickets 03 and 04):
+//  the Friends page's sections, the dot on the friends mark, where you stand with each
+//  person, which one button shows on every row and page, the friend sheet (Unfriend, Block)
+//  and Profile's Blocked list. Someone you block drops out of every list at once.
 //
 //  The shell holds it, as it holds `RealLifeActions`, so a row and a person's page agree.
 //  A tap shows its answer at once with a light tick. The server's reply is the truth: each
 //  write answers where the two now stand. A write that fails holds `RealLifeActions.hold`,
 //  flips back, and once the flip is done it shakes with the error buzz while a screen with
-//  the button is open. The limit and a missing name flip back at once and say why instead.
+//  the button is open. The limit and a missing name flip back at once and say why instead,
+//  and so does a failed Block, after the hold: nobody should think they're safe when they
+//  aren't.
 //
 
 import SwiftUI
 
 @MainActor @Observable
 final class FriendsBook {
-    enum Action { case add, cancel, confirm, delete }
+    enum Action { case add, cancel, confirm, delete, unfriend, block, unblock }
 
     /// Why a tap was refused, said in Apple's alert.
-    enum Problem: String, Identifiable {
+    enum Problem: Identifiable, Equatable {
         /// `friend-limit`: the 41st new request in a day.
-        case limit = "friend_limit"
+        case limit
         /// `friend-name-needed`: a request needs your name.
-        case nameNeeded = "friend_name_needed"
-        var id: String { rawValue }
+        case nameNeeded
+        /// A Block that didn't go through (offline): their first name.
+        case blockFailed(String)
+
+        /// The server's refusals, by the message it raises.
+        init?(server message: String) {
+            switch message {
+            case "friend_limit": self = .limit
+            case "friend_name_needed": self = .nameNeeded
+            default: return nil
+            }
+        }
+
+        var id: String { title }
+
+        var title: String {
+            switch self {
+            case .limit: "You've sent a lot of requests today. Try again tomorrow."
+            case .nameNeeded: "Add your name so neighbors know who's asking."
+            case .blockFailed(let name): "Couldn't block \(name)"
+            }
+        }
+
+        var message: String? {
+            if case .blockFailed = self { "Check your connection and try again." } else { nil }
+        }
     }
 
     /// The Friends page as the last read gave it.
@@ -42,6 +69,12 @@ final class FriendsBook {
     private(set) var dot = false
     /// Said in an alert, then cleared by it.
     var problem: Problem?
+    /// The person whose friend sheet is up (ticket 04).
+    var menu: Neighbor?
+    /// Profile's Blocked list as the last read gave it.
+    private(set) var blockedRead: [Neighbor] = []
+    private(set) var blockedLoaded = false
+    private(set) var blockedFailed = false
     /// One more each time a failed tap on that person flips back while a screen with the
     /// button is open; that screen's button shakes. Never goes down.
     private(set) var failures: [String: Int] = [:]
@@ -52,6 +85,7 @@ final class FriendsBook {
     @ObservationIgnored private var open = 0
 
     private let read: () async throws -> [(kind: String, neighbor: Neighbor)]
+    private let readBlocked: () async throws -> [Neighbor]
     private let readDot: () async throws -> Bool
     private let markSeen: () async throws -> Void
     private let write: (Action, String) async throws -> Neighbor.Relation
@@ -61,12 +95,14 @@ final class FriendsBook {
     private let flip: Duration
 
     init(read: @escaping () async throws -> [(kind: String, neighbor: Neighbor)],
+         readBlocked: @escaping () async throws -> [Neighbor] = { [] },
          readDot: @escaping () async throws -> Bool,
          markSeen: @escaping () async throws -> Void,
          write: @escaping (Action, String) async throws -> Neighbor.Relation,
          isAnonymous: @escaping () -> Bool,
          hold: Duration? = nil, flip: Duration? = nil) {
         self.read = read
+        self.readBlocked = readBlocked
         self.readDot = readDot
         self.markSeen = markSeen
         self.write = write
@@ -84,6 +120,7 @@ final class FriendsBook {
         case .live:
             let api = { CommunityAPI(auth: AuthStore.shared) }
             self.init(read: { try await api().getFriends() },
+                      readBlocked: { try await api().getBlocked() },
                       readDot: { try await api().friendsDot() },
                       markSeen: { try await api().markFriendsSeen() },
                       write: { try await api().friendWrite($0, $1) },
@@ -93,16 +130,19 @@ final class FriendsBook {
             // the daily limit, so the flip back, the shake and the alert can be recorded.
             let args = ProcessInfo.processInfo.arguments
             let fails = args.contains("-friends-fail"), limited = args.contains("-friends-limit")
-            self.init(read: { Self.samplePage() }, readDot: { true }, markSeen: {},
+            self.init(read: { Self.samplePage() },
+                      readBlocked: { Neighbor.samples.filter { $0.relation == .blocked } },
+                      readDot: { true }, markSeen: {},
                       write: { action, _ in
                           if fails { throw URLError(.notConnectedToInternet) }
-                          if limited, action == .add { throw SupabaseError(message: Problem.limit.rawValue, status: 400) }
+                          if limited, action == .add { throw SupabaseError(message: "friend_limit", status: 400) }
                           return Self.answer(to: action)
                       },
                       isAnonymous: { false })
         case .offline:
             let offline = URLError(.notConnectedToInternet)
-            self.init(read: { throw offline }, readDot: { throw offline }, markSeen: { throw offline },
+            self.init(read: { throw offline }, readBlocked: { throw offline },
+                      readDot: { throw offline }, markSeen: { throw offline },
                       write: { _, _ in throw offline }, isAnonymous: { false })
         }
     }
@@ -113,6 +153,21 @@ final class FriendsBook {
     func relation(_ person: Neighbor) -> Neighbor.Relation {
         chosen[person.id] ?? person.relation
     }
+
+    /// Everyone here but the people you blocked: for search results.
+    func visible(_ people: [Neighbor]) -> [Neighbor] {
+        people.filter { relation($0) != .blocked }
+    }
+
+    /// A search's answer less the people you blocked: nobody left is nobody found.
+    func visible(_ state: NeighborSearch.State) -> NeighborSearch.State {
+        guard case .found(let people) = state else { return state }
+        let left = visible(people)
+        return left.isEmpty ? .none : .found(left)
+    }
+
+    /// "Sam accepted your friend request.", unless you've since blocked Sam.
+    var accepted: [Neighbor] { visible(page.accepted) }
 
     /// Requests still waiting on you, newest first.
     var requests: [Neighbor] {
@@ -127,7 +182,17 @@ final class FriendsBook {
     }
 
     /// Nothing to show: no accepted line, no request, no friend.
-    var isEmpty: Bool { page.accepted.isEmpty && requests.isEmpty && friends.isEmpty }
+    var isEmpty: Bool { accepted.isEmpty && requests.isEmpty && friends.isEmpty }
+
+    /// Profile's Blocked list: the people you blocked, less any you just unblocked.
+    var blocked: [Neighbor] {
+        blockedRead.filter { relation($0) == .blocked }
+    }
+
+    /// The friend sheet's rows: Unfriend and Block for a friend, Block for anyone else.
+    static func menuChoices(for relation: Neighbor.Relation) -> [Action] {
+        relation == .friends ? [.unfriend, .block] : [.block]
+    }
 
     // MARK: What screens tell it
 
@@ -156,6 +221,21 @@ final class FriendsBook {
         }
     }
 
+    /// Profile's Blocked list opened (or came back): read it again.
+    func refreshBlocked() async {
+        guard !isAnonymous() else { return }
+        do {
+            let people = try await readBlocked()
+            let read = Set(people.map(\.id))
+            chosen = chosen.filter { !read.contains($0.key) || writing.contains($0.key) }
+            withAnimation(.easeInOut(duration: RealLifeActions.flip)) { blockedRead = people }
+            blockedLoaded = true
+            blockedFailed = false
+        } catch {
+            blockedFailed = true
+        }
+    }
+
     /// The page has drawn what it read: the dot clears here and on the server, and the
     /// accepted lines count as seen (they go on the next read).
     func seen() async {
@@ -177,13 +257,18 @@ final class FriendsBook {
         loaded = false
         failed = false
         dot = false
+        menu = nil
+        blockedRead = []
+        blockedLoaded = false
+        blockedFailed = false
     }
 
     func screenOpened() { open += 1 }
     func screenClosed() { open = max(0, open - 1) }
 
-    /// One tap on Add friend, Cancel, Confirm or Delete. A tap on someone whose last tap is
-    /// still being sent does nothing: the button already shows where it's going.
+    /// One tap on Add friend, Cancel, Confirm or Delete, or a confirmed Unfriend, Block or
+    /// Unblock. A tap on someone whose last tap is still being sent does nothing: the button
+    /// already shows where it's going.
     func act(_ action: Action, _ person: Neighbor) {
         guard !writing.contains(person.id) else { return }
         let before = relation(person)
@@ -197,18 +282,24 @@ final class FriendsBook {
                 writing.remove(person.id)
                 withAnimation(.easeInOut(duration: RealLifeActions.flip)) { chosen[person.id] = answer }
             } catch {
-                await turnBack(person.id, to: before, after: action, error: error)
+                await turnBack(person, to: before, after: action, error: error)
             }
         }
     }
 
-    private func turnBack(_ id: String, to before: Neighbor.Relation, after action: Action, error: Error) async {
-        let problem = (error as? SupabaseError).flatMap { Problem(rawValue: $0.message) }
-        if problem == nil { try? await Task.sleep(for: hold) }
+    private func turnBack(_ person: Neighbor, to before: Neighbor.Relation, after action: Action, error: Error) async {
+        let id = person.id
+        let refused = (error as? SupabaseError).flatMap { Problem(server: $0.message) }
+        if refused == nil { try? await Task.sleep(for: hold) }
         writing.remove(id)
         withAnimation(.easeInOut(duration: RealLifeActions.flip)) { chosen[id] = before }
-        if let problem {
-            self.problem = problem
+        if let refused {
+            problem = refused
+            return
+        }
+        if action == .block {
+            Haptics.error()
+            problem = .blockFailed(person.displayName.split(separator: " ").first.map(String.init) ?? person.displayName)
             return
         }
         try? await Task.sleep(for: flip)
@@ -221,6 +312,9 @@ final class FriendsBook {
         case .cancel: "Couldn't cancel request"
         case .confirm: "Couldn't confirm"
         case .delete: "Couldn't delete request"
+        case .unfriend: "Couldn't unfriend"
+        case .block: "Couldn't block"
+        case .unblock: "Couldn't unblock"
         }
         AccessibilityNotification.Announcement(said).post()
     }
@@ -232,7 +326,8 @@ final class FriendsBook {
         switch action {
         case .add: .sent
         case .confirm: .friends
-        case .cancel, .delete: .stranger
+        case .block: .blocked
+        case .cancel, .delete, .unfriend, .unblock: .stranger
         }
     }
 
