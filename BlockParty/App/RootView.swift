@@ -337,6 +337,8 @@ struct MainTabsView: View {
     @State private var friendsBook = FriendsBook()
     /// Edit profile, from a friend request refused for want of a name.
     @State private var addingName = false
+    /// The last refusal said, kept while its alert fades so its words don't change.
+    @State private var said: FriendsBook.Problem = .limit
     /// The You tab's three weeks of Going, kept here like the Town feed's, so coming back
     /// to You shows the Calendar it left while it reads again behind it.
     @State private var you = YouModel()
@@ -423,8 +425,8 @@ struct MainTabsView: View {
         .environment(actions)
         .environment(friendsBook)
         // `friend-limit` and `friend-name-needed`, in Apple's alert.
-        .alert(friendsBook.problem == .limit ? "You've sent a lot of requests today. Try again tomorrow."
-                                             : "Add your name so neighbors know who's asking.",
+        .alert((friendsBook.problem ?? said) == .limit ? "You've sent a lot of requests today. Try again tomorrow."
+                                                       : "Add your name so neighbors know who's asking.",
                isPresented: Binding(get: { friendsBook.problem != nil },
                                     set: { if !$0 { friendsBook.problem = nil } }),
                presenting: friendsBook.problem) { problem in
@@ -435,6 +437,7 @@ struct MainTabsView: View {
                 Button("OK", role: .cancel) {}
             }
         }
+        .onChange(of: friendsBook.problem) { _, problem in if let problem { said = problem } }
         .sheet(isPresented: $addingName) { AddNameSheet() }
         // The dot: read at launch and on coming back to the app (and on each visit to Town),
         // and again for another account, or the same one logged in for real.
@@ -454,7 +457,6 @@ struct MainTabsView: View {
             if old != nil { townFeed.accountChanged() }
             you.accountChanged()
             saves.accountChanged()
-
             Task { await townFeed.reload() }
             Task { await you.refresh() }
             Task { await actions.moveUp(.shared) }

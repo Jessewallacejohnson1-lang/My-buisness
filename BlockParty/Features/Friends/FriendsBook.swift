@@ -144,8 +144,10 @@ final class FriendsBook {
                 default: next.friends.append(row.neighbor)
                 }
             }
-            // A read agrees with every tap that's done; one still being sent stays.
-            chosen = chosen.filter { writing.contains($0.key) }
+            // The read is the truth for everyone it returned whose tap is done. Taps on people
+            // it doesn't return (a request you sent, someone you only found) stay.
+            let read = Set(rows.map(\.neighbor.id))
+            chosen = chosen.filter { !read.contains($0.key) || writing.contains($0.key) }
             withAnimation(.easeInOut(duration: RealLifeActions.flip)) { page = next }
             loaded = true
             failed = false
@@ -185,11 +187,7 @@ final class FriendsBook {
     func act(_ action: Action, _ person: Neighbor) {
         guard !writing.contains(person.id) else { return }
         let before = relation(person)
-        let shown: Neighbor.Relation = switch action {
-        case .add: .sent
-        case .confirm: .friends
-        case .cancel, .delete: .stranger
-        }
+        let shown = Self.answer(to: action)
         Haptics.light()
         withAnimation(.easeInOut(duration: RealLifeActions.flip)) { chosen[person.id] = shown }
         writing.insert(person.id)

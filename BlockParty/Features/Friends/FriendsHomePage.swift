@@ -127,24 +127,22 @@ struct FriendsHomePage: View {
                 switch row {
                 case .accepted(let person): AcceptedLine(person: person)
                 case .title(let title): FriendsSectionTitle(text: title)
-                case .request(let person): RequestRow(person: person) { signingIn = true }
-                case .friend(let person):
-                    NavigationLink(value: person) { NeighborRow(neighbor: person) }
-                        .buttonStyle(RowPressStyle())
+                case .person(let person, let waiting): PersonRow(person: person, waiting: waiting) { signingIn = true }
                 }
             }
         }
     }
 
     private enum Row: Identifiable {
-        case accepted(Neighbor), title(String), request(Neighbor), friend(Neighbor)
+        /// A request (`waiting`) or a friend: one case, so a confirmed request is the same view
+        /// with the same id in its new place, and SwiftUI moves it rather than swapping it.
+        case accepted(Neighbor), title(String), person(Neighbor, waiting: Bool)
 
         var id: String {
             switch self {
             case .accepted(let person): "accepted:" + person.id
             case .title(let title): "title:" + title
-            // The same id in both sections: SwiftUI moves the row rather than swapping it.
-            case .request(let person), .friend(let person): person.id
+            case .person(let person, _): person.id
             }
         }
     }
@@ -153,8 +151,8 @@ struct FriendsHomePage: View {
         // `friends-sections`
         var rows = book.page.accepted.map(Row.accepted)
         let requests = book.requests, friends = book.friends
-        if !requests.isEmpty { rows += [.title("Requests")] + requests.map(Row.request) }
-        if !friends.isEmpty { rows += [.title("Your friends")] + friends.map(Row.friend) }
+        if !requests.isEmpty { rows += [.title("Requests")] + requests.map { .person($0, waiting: true) } }
+        if !friends.isEmpty { rows += [.title("Your friends")] + friends.map { .person($0, waiting: false) } }
         return rows
     }
 
@@ -255,28 +253,35 @@ private struct AcceptedLine: View {
     }
 }
 
-/// Facebook's request row: a 92pt photo, the name, then Confirm and Delete under it. The
-/// face and name open the person; the buttons sit beside that link, not in it.
-private struct RequestRow: View {
+/// A request or a friend: one view for both, so Confirm moves the row down into Your friends
+/// and shrinks it from Facebook's 92pt request photo to the friends list's 60pt, rather than
+/// fading one row out and another in. Waiting, it carries Confirm and Delete. The face and
+/// the name open their page; the buttons sit beside those links, not in them.
+private struct PersonRow: View {
     let person: Neighbor
+    let waiting: Bool
     let logIn: () -> Void
 
     var body: some View {
         HStack(spacing: FriendsMetric.avatarGap) {
             NavigationLink(value: person) {
-                NeighborFace(url: person.avatarUrl, size: FriendsMetric.requestFace)
+                NeighborFace(url: person.avatarUrl, size: waiting ? FriendsMetric.requestFace : FriendsMetric.neighborFace)
             }
             .buttonStyle(DimStyle())
             .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: FriendsMetric.lineGap) {
                 NavigationLink(value: person) { NameAndMutual(person: person) }
                     .buttonStyle(DimStyle())
-                RelationButtons(person: person, logIn: logIn)
-                    .padding(.top, FriendsMetric.buttonTop)
+                if waiting {
+                    RelationButtons(person: person, logIn: logIn)
+                        .padding(.top, FriendsMetric.buttonTop)
+                        .transition(.opacity)
+                }
             }
         }
         .padding(.horizontal, FriendsMetric.side)
-        .padding(.vertical, FriendsMetric.requestPad)
+        .padding(.vertical, waiting ? FriendsMetric.requestPad : 0)
+        .frame(minHeight: waiting ? nil : FriendsMetric.row)
     }
 }
 
@@ -306,10 +311,12 @@ struct ResultRow: View {
     }
 }
 
-/// The name, and the friends you share under it when there are any.
+/// The name, and under it the friends you share, or "Request sent" in that place once you
+/// asked (Facebook's), so the row doesn't grow a line.
 private struct NameAndMutual: View {
     let person: Neighbor
     var nameFont: Font = .sansSemibold(17)
+    @Environment(FriendsBook.self) private var book
 
     var body: some View {
         VStack(alignment: .leading, spacing: FriendsMetric.lineGap) {
@@ -317,7 +324,8 @@ private struct NameAndMutual: View {
                 .font(nameFont)
                 .foregroundStyle(Hue.ink)
                 .lineLimit(1)
-            if let mutual = person.mutualLine {
+            // `friend-request-sent`
+            if let mutual = book.relation(person) == .sent ? "Request sent" : person.mutualLine {
                 Text(mutual)
                     .font(.sans(15))
                     .foregroundStyle(Hue.inkSecondary)
@@ -348,16 +356,7 @@ struct RelationButtons: View {
                 face("Add friend", ink: true) { tap(.add) }
             case .sent:
                 // `friend-request-sent`: a row says Request sent over Cancel; a page, Cancel request.
-                if onPage {
-                    face("Cancel request", ink: false) { tap(.cancel) }
-                } else {
-                    VStack(alignment: .leading, spacing: FriendsMetric.lineGap) {
-                        Text("Request sent")
-                            .font(.sans(15))
-                            .foregroundStyle(Hue.inkSecondary)
-                        face("Cancel", ink: false) { tap(.cancel) }
-                    }
-                }
+                face(onPage ? "Cancel request" : "Cancel", ink: false, spoken: "Cancel request") { tap(.cancel) }
             case .received:
                 // `friend-respond`
                 HStack(spacing: FriendsMetric.buttonGap) {
@@ -376,7 +375,8 @@ struct RelationButtons: View {
         .animation(.easeInOut(duration: reduceMotion ? 0.15 : RealLifeActions.flip), value: relation)
     }
 
-    private func face(_ title: String, ink: Bool, action: @escaping () -> Void) -> some View {
+    /// One button. VoiceOver hears whose it is: "Confirm, Sarah Lindgren".
+    private func face(_ title: String, ink: Bool, spoken: String? = nil, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
                 .font(.sansSemibold(15))
@@ -391,6 +391,7 @@ struct RelationButtons: View {
                 .contentShape(Rectangle().inset(by: (FriendsMetric.button - SearchMetric.tapMin) / 2))
         }
         .buttonStyle(PressableStyle())
+        .accessibilityLabel("\(spoken ?? title), \(person.displayName)")
     }
 
     private func tap(_ action: FriendsBook.Action) {
@@ -428,37 +429,6 @@ struct NeighborPage: View {
         .onAppear { book.screenOpened() }
         .onDisappear { book.screenClosed() }
         .signInSheet(isPresented: $signingIn)
-    }
-}
-
-/// A neighbour in a list: their face and name. The Friends page's is Facebook's row; Search
-/// passes its own smaller sizes.
-struct NeighborRow: View {
-    let neighbor: Neighbor
-    var face: CGFloat = FriendsMetric.neighborFace
-    var nameFont: Font = .sansSemibold(17)
-    var height: CGFloat = FriendsMetric.row
-
-    var body: some View {
-        HStack(spacing: FriendsMetric.avatarGap) {
-            NeighborFace(url: neighbor.avatarUrl, size: face)
-            VStack(alignment: .leading, spacing: FriendsMetric.lineGap) {
-                Text(neighbor.displayName)
-                    .font(nameFont)
-                    .foregroundStyle(Hue.ink)
-                    .lineLimit(1)
-                if let mutual = neighbor.mutualLine {
-                    Text(mutual)
-                        .font(.sans(15))
-                        .foregroundStyle(Hue.inkSecondary)
-                        .lineLimit(1)
-                }
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, FriendsMetric.side)
-        .frame(height: height)
-        .contentShape(Rectangle())
     }
 }
 

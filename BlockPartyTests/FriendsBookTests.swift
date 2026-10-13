@@ -209,6 +209,19 @@ final class FriendsBookTests: XCTestCase {
         XCTAssertEqual(b.relation(Self.person("Ana", .friends)), .friends, "Ana confirmed since")
     }
 
+    /// A request you sent never comes back in the Friends page's read: Request sent stays on
+    /// that person's search row and page after a visit to Friends.
+    func testATapOnSomeoneTheReadDoesNotReturnStays() async {
+        let server = Server()
+        server.rows = [("friend", Self.person("Dale", .friends))]
+        let b = book(server)
+        let ana = Self.person("Ana")
+        b.act(.add, ana)
+        await wait()
+        await b.refresh()
+        XCTAssertEqual(b.relation(ana), .sent)
+    }
+
     // MARK: The dot
 
     func testTheDotClearsOncePageHasBeenSeen() async {

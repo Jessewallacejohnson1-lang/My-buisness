@@ -65,7 +65,6 @@ create or replace function private.findable(p_user uuid)
 returns boolean
 language sql
 stable
-security definer
 set search_path = ''
 as $$
   select exists (
@@ -84,7 +83,6 @@ create or replace function private.relation(p_me uuid, p_other uuid)
 returns text
 language sql
 stable
-security definer
 set search_path = ''
 as $$
   select case
@@ -103,7 +101,6 @@ create or replace function private.mutual_friends(p_me uuid, p_other uuid)
 returns int
 language sql
 stable
-security definer
 set search_path = ''
 as $$
   with mine as (
@@ -130,7 +127,6 @@ create or replace function private.befriend(p_x uuid, p_y uuid, p_requested_by u
 returns void
 language sql
 volatile
-security definer
 set search_path = ''
 as $$
   insert into private.friendships (a, b, requested_by)
@@ -149,7 +145,6 @@ returns table (user_id uuid, display_name text, avatar_url text, since timestamp
                relation text, mutual_friends int)
 language sql
 stable
-security definer
 set search_path = ''
 as $$
   select p.user_id, btrim(p.display_name),
@@ -182,16 +177,22 @@ begin
     return;
   end if;
   return query
+    -- The name first, then who may be found among those it matched: the check runs on a
+    -- handful of names, not on every profile in the Town.
     with named as (
       select p.user_id, translate(lower(btrim(p.display_name)), '’', '''') as folded
       from public.town_profiles p
-      where private.findable(p.user_id)
-    ), hits as (
+      where p.display_name is not null
+    ), matched as materialized (
       select n.user_id, n.folded
       from named n
       where starts_with(n.folded, words)
          or exists (select 1 from regexp_split_to_table(n.folded, '\s+') w where starts_with(w, words))
-      order by starts_with(n.folded, words) desc, n.folded, n.user_id
+    ), hits as (
+      select m.user_id, m.folded
+      from matched m
+      where private.findable(m.user_id)
+      order by starts_with(m.folded, words) desc, m.folded, m.user_id
       limit 20
     )
     select r.*

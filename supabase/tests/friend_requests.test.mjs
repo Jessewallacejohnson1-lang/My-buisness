@@ -224,6 +224,27 @@ test('the dot clears once Friends has been seen, and comes back for a newer requ
   assert.equal(await dot(BEN), true);
 });
 
+test('search and the Friends page stay quick with 5,000 neighbours', async () => {
+  await reset();
+  await db.exec(`
+    insert into auth.users (id) select ('00000000-0000-0000-0001-' || lpad(g::text, 12, '0'))::uuid
+      from generate_series(1, 5000) g;
+    insert into public.town_profiles (user_id, display_name)
+      select ('00000000-0000-0000-0001-' || lpad(g::text, 12, '0'))::uuid, 'Neighbor ' || g
+      from generate_series(1, 5000) g;
+    insert into private.friendships (a, b, requested_by)
+      select least(u, '${ANA}'::uuid), greatest(u, '${ANA}'::uuid), u
+      from (select ('00000000-0000-0000-0001-' || lpad(g::text, 12, '0'))::uuid as u
+            from generate_series(1, 300) g) x;`);
+  let t = performance.now();
+  assert.equal((await stand(ANA, 'ben')).length, 1);
+  const search = performance.now() - t;
+  t = performance.now();
+  assert.equal((await page(ANA)).length, 300);
+  const friends = performance.now() - t;
+  assert.ok(search < 1500 && friends < 3000, `search ${search.toFixed(0)} ms, friends ${friends.toFixed(0)} ms`);
+});
+
 test("nobody can read the requests, friendships or anyone else's list directly", async () => {
   await reset();
   await send(ANA, BEN);
