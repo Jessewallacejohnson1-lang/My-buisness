@@ -191,7 +191,8 @@ struct FeedView: View {
                 ZStack(alignment: .top) {
                     if townFeed.entries != nil {
                         DailyFeedColumn(items: townFeed.cards.map { .event($0) },
-                                        entrance: entrance)
+                                        entrance: entrance,
+                                        onCardOnScreen: { townFeed.cardOnScreen($0, $1) })
                             // A card whose time is up goes, and a series' next date
                             // comes in, rather than popping.
                             .animation(Motion.smooth, value: townFeed.clock)

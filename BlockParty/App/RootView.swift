@@ -245,6 +245,7 @@ struct MainTabsView: View {
     let startTab: Tab?
     @State private var tab: Tab
     @EnvironmentObject private var auth: AuthStore
+    @Environment(\.scenePhase) private var scenePhase
 
     init(startTab: Tab? = nil) {
         self.startTab = startTab
@@ -394,6 +395,9 @@ struct MainTabsView: View {
                 .background { SwipeBack().frame(width: 0, height: 0) }
                 .navigationDestination(for: FeedCardItem.self) { item in
                     FeedEventDetailDestination(item: item)
+                        // An open, for popularity (ticket 20): only from the Town feed,
+                        // not Daily, which pushes the same page.
+                        .onAppear { if tab == .town { townFeed.opened(item.id) } }
                 }
                 .navigationDestination(for: PostingItem.self) { posting in
                     DailyPostPage(posting: posting)
@@ -415,9 +419,12 @@ struct MainTabsView: View {
         // The quiet account arrives after the first read: Join comes up at once, even on
         // an event page already open, and the feed reads again for who's going as this
         // account sees it. Here, not on the stack's root, which a pushed page covers.
-        .onChange(of: auth.userId) { _, _ in
+        .onChange(of: auth.userId) { old, _ in
             // Animated, so the heart and the going line come in rather than pop.
             withAnimation(Motion.snappy) { actions.accountChanged(signedIn: auth.isSignedIn) }
+            // Views made before the first quiet account go up under it; another
+            // account's never do.
+            if old != nil { townFeed.accountChanged() }
             you.accountChanged()
             saves.accountChanged()
             Task { await townFeed.reload() }
@@ -427,6 +434,18 @@ struct MainTabsView: View {
         // Event saves this phone kept before they moved to the server go up once, at
         // launch with an account or when one arrives (above).
         .task { await actions.moveUp(.shared) }
+        // The Town feed's views and opens go up every 30 seconds, from the shell so it
+        // runs on any tab and under a pushed page (ticket 20); the DEBUG demo screens
+        // outside the shell never send.
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(TownFeed.sendEvery))
+                await townFeed.send()
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background { Task { await townFeed.send(always: true) } }
+        }
         .onAppear {
             // DEBUG: `-open-friends` lands on the inbox, `-open-friends-chat` on its newest chat.
             if Self.debugOpen("-open-friends") || Self.debugOpen("-open-friends-chat") { openFriends() }
