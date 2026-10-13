@@ -3,7 +3,7 @@
 -- on screen for 1 second is one view, once per card per feed load) and what was opened; a
 -- summary turns views into Going per person who saw it, and the recipe's popularity term
 -- switches on. The two jobs that refresh the summary and delete old views are in
--- 20261013120100_feed_jobs.sql (pg_cron, which PGlite doesn't have).
+-- 20261013130100_feed_jobs.sql (pg_cron, which PGlite doesn't have).
 
 -- What the feed showed and what was opened. Insert-only through the API: the phone sends
 -- the event and the action; who and when are set here. Nobody reads a row through the API,
