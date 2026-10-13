@@ -334,16 +334,13 @@ private struct YouBadge: View {
         .frame(height: name == nil ? YouMetric.photo : YouMetric.pill)
         .clipShape(Capsule())
         .background {
-            // The cards' white, hairline and shadow. The white stays, under the photo once
-            // folded; the hairline and shadow go as the photo comes in.
-            ZStack {
-                Capsule().fill(Hue.surface)
-                Capsule()
-                    .fill(Hue.surface)
-                    .overlay { Capsule().strokeBorder(Hue.hairline, lineWidth: 1) }
-                    .modifier(CardShadow())
-                    .animation(Motion.smooth.delay(YouMetric.photoIn)) { $0.opacity(name == nil ? 0 : 1) }
-            }
+            // The cards' white, hairline and shadow, gone as the photo comes in: by then the
+            // pill has all but reached the photo's circle.
+            Capsule()
+                .fill(Hue.surface)
+                .overlay { Capsule().strokeBorder(Hue.hairline, lineWidth: 1) }
+                .modifier(CardShadow())
+                .animation(Motion.smooth.delay(YouMetric.photoIn)) { $0.opacity(name == nil ? 0 : 1) }
         }
     }
 
