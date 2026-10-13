@@ -794,6 +794,18 @@ over a database change ("yes", Check-in 1): no live migration, no new Storage pa
 - **Losses are logged, not hidden:** an anonymous session can't be signed back into, so the
   app logs a rejected anonymous session and a failed sign-up.
 
+## Decided 2026-10-12 — You's photo arrives as a first-name pill
+
+- **A second capsule, on purpose.** `Radius.button` says a button is never a pill, and the
+  photo at the top left of You is a button. Each time the neighbour switches to You it shows
+  as a white capsule holding their first name, then folds into the photo's circle after 2
+  seconds (Jesse asked for the pill; mock https://claude.ai/artifact/3pi7cpc7GUZvFrK8WP1tDJ).
+  It is the photo at a second size, not an action button, so don't "fix" it to 12pt
+  corners. `YouBadge` in `Features/You/YouPage.swift`.
+- **The name is `Interests.displayName`**, the local mirror Profile's save and the launch
+  read keep and sign-out clears, read once per visit so a late name never pops in. No
+  saved name: the photo alone.
+
 ## Open — should the server decide which posts go live?
 
 Today the app decides: a post Claude clears is saved as `approved`, and nothing on the

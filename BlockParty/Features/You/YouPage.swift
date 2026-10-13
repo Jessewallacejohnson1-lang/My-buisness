@@ -1,7 +1,8 @@
 //
 //  YouPage.swift
 //  Block Party — the You tab: the neighbour's own three weeks (BP app docs/plans/you-tab).
-//  Their photo at the top left opens Profile. Under it the Calendar, Lapse's: three rows
+//  Their photo at the top left opens Profile; each visit it starts as a pill with their
+//  first name and folds into the photo after 2 seconds. Under it the Calendar, Lapse's: three rows
 //  of seven days from this week's Sunday, each day they're Going to something showing
 //  that Event's photo. Right under it the Agenda for the day picked there, today until
 //  they tap another. Only they ever see it.
@@ -21,6 +22,15 @@ enum YouMetric {
     static let photo: CGFloat = 32
     static let photoEdge: CGFloat = 16
     static let target: CGFloat = 44
+    /// The first-name pill the page arrives with (Jesse, 2026-10-12; mock
+    /// https://claude.ai/artifact/3pi7cpc7GUZvFrK8WP1tDJ): Rodeo's pill
+    /// (`references/profile-tab/mobbin/calendar-rodeo-1.jpg`) sized to the 32pt photo, its
+    /// left edge on the photo's. It shows 2 seconds, then folds into the photo, which comes
+    /// in over the fold's last part (the mock's timing, guessed until there's a recording).
+    static let pill: CGFloat = 42
+    static let pillSide: CGFloat = 14
+    static let peek: Duration = .seconds(2)
+    static let photoIn: Double = 0.15
     /// The bar the photo sits in, and from it to the weekdays: the mock's.
     static let bar: CGFloat = 52
     static let calendarTop: CGFloat = 8
@@ -74,6 +84,10 @@ struct YouPage: View {
     @State private var pushed: FeedCardItem?
     /// How far the page has scrolled, held only up to the frosted band's fade.
     @State private var scrolled: CGFloat = 0
+    /// The first name the photo shows as a pill on arrival; nil once it has folded. Read
+    /// once per visit (every tab switch builds the page anew), so a name that lands late
+    /// never pops in.
+    @State private var peek = YouPage.firstName(Interests.displayName)
     @Namespace private var ring
 
     var body: some View {
@@ -92,6 +106,8 @@ struct YouPage: View {
                 .task(id: first) { await model.refresh(now: now) }
         }
         .navigationDestination(item: $pushed) { FeedEventDetailDestination(item: $0) }
+        // An event page opened mid-peek: back on You, the photo is already there.
+        .onChange(of: pushed) { _, item in if item != nil { peek = nil } }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await model.refresh() } }
         }
@@ -125,7 +141,10 @@ struct YouPage: View {
         }
         .onScrollGeometryChange(for: CGFloat.self) { geometry in
             min(max(geometry.contentOffset.y + geometry.contentInsets.top, 0), DailyMetric.edgeFade)
-        } action: { _, offset in scrolled = offset }
+        } action: { _, offset in
+            scrolled = offset
+            if offset > 0 { fold() }
+        }
         .background(Hue.paper.ignoresSafeArea())
         // The Town feed's frosted band behind the clock, in with the first bit of scroll.
         .statusEdge(opacity: scrolled / DailyMetric.edgeFade)
@@ -133,11 +152,18 @@ struct YouPage: View {
 
     // MARK: The photo
 
+    /// The page arrives with the first name in a pill where the photo sits; after
+    /// `YouMetric.peek` the pill folds into the photo, as Gmail's Compose button folds
+    /// into its pencil. A scroll or a tap folds it early.
     private var bar: some View {
         HStack(spacing: 0) {
-            Button(action: onProfile) {
-                YouPhoto(url: avatarURL)
-                    .frame(width: YouMetric.target, height: YouMetric.target)
+            Button {
+                fold()
+                onProfile()
+            } label: {
+                YouBadge(url: avatarURL, name: peek, reduceMotion: reduceMotion)
+                    // A 44pt target around the 32pt photo.
+                    .padding((YouMetric.target - YouMetric.photo) / 2)
                     .contentShape(Rectangle())
             }
             .buttonStyle(PressableCardStyle())
@@ -146,6 +172,21 @@ struct YouPage: View {
         }
         .padding(.leading, YouMetric.photoEdge - (YouMetric.target - YouMetric.photo) / 2)
         .frame(height: YouMetric.bar)
+        .task {
+            // Only a wait that ran its course folds; leaving the tab cancels it.
+            guard (try? await Task.sleep(for: YouMetric.peek)) != nil else { return }
+            fold()
+        }
+    }
+
+    private func fold() {
+        guard peek != nil else { return }
+        withAnimation(reduceMotion ? Motion.smooth : Motion.bentoExpand) { peek = nil }
+    }
+
+    /// The first word of the saved name; nil when there's none.
+    static func firstName(_ name: String?) -> String? {
+        name?.split(whereSeparator: \.isWhitespace).first.map(String.init)
     }
 
     // MARK: The Calendar
@@ -265,6 +306,50 @@ private struct YouPlaces: View {
             }
         }
         .contentMargins(.horizontal, YouMetric.side, for: .scrollContent)
+    }
+}
+
+/// The bar's photo, or the first-name pill it starts as: one capsule at two sizes. The name
+/// slides out of it as it shrinks to the photo's circle, and the photo comes in over the
+/// end of the fold.
+private struct YouBadge: View {
+    let url: String?
+    let name: String?
+    let reduceMotion: Bool
+
+    var body: some View {
+        HStack(spacing: 0) {
+            if let name {
+                Text(name)
+                    .font(.sansSemibold(16))
+                    .foregroundStyle(Hue.ink)
+                    .lineLimit(1)
+                    .padding(.horizontal, YouMetric.pillSide)
+                    .transition(reduceMotion ? .opacity : .move(edge: .leading).combined(with: .opacity))
+            } else {
+                YouPhoto(url: url)
+                    .transition(photoIn)
+            }
+        }
+        .frame(height: name == nil ? YouMetric.photo : YouMetric.pill)
+        .clipShape(Capsule())
+        .background {
+            // The cards' white, hairline and shadow. The white stays, under the photo once
+            // folded; the hairline and shadow go as the photo comes in.
+            ZStack {
+                Capsule().fill(Hue.surface)
+                Capsule()
+                    .fill(Hue.surface)
+                    .overlay { Capsule().strokeBorder(Hue.hairline, lineWidth: 1) }
+                    .modifier(CardShadow())
+                    .animation(Motion.smooth.delay(YouMetric.photoIn)) { $0.opacity(name == nil ? 0 : 1) }
+            }
+        }
+    }
+
+    private var photoIn: AnyTransition {
+        let fade = reduceMotion ? AnyTransition.opacity : .opacity.combined(with: .scale(scale: 0.6))
+        return fade.animation(Motion.smooth.delay(YouMetric.photoIn))
     }
 }
 

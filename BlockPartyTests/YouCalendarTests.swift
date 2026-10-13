@@ -283,4 +283,16 @@ final class YouCalendarTests: XCTestCase {
         XCTAssertEqual(rows[1].clubName, "Bike club")
         XCTAssertTrue(rows[1].isAllDay)
     }
+
+    // MARK: The name pill
+
+    func testThePillShowsTheFirstNameOnly() {
+        XCTAssertEqual(YouPage.firstName("Jesse Johnson"), "Jesse")
+        XCTAssertEqual(YouPage.firstName("  Mary Ann\n"), "Mary")
+        XCTAssertEqual(YouPage.firstName("Jesse"), "Jesse")
+        // No saved name: no pill, just the photo.
+        XCTAssertNil(YouPage.firstName(nil))
+        XCTAssertNil(YouPage.firstName(""))
+        XCTAssertNil(YouPage.firstName("   "))
+    }
 }
