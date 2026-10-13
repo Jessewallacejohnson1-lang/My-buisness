@@ -1,5 +1,6 @@
 // Fixed stories for get_my_going (supabase/migrations/*_my_going.sql), the You tab's read of
-// the caller's Going, run in PGlite like the Town feed's. Run: `npm install && npm test` in
+// the caller's Going, and get_my_saves (*_my_saves.sql), Profile's Saved list, run in PGlite
+// like the Town feed's. Run: `npm install && npm test` in
 // this folder. The schema below is the subset of schema.sql the function reads.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -12,7 +13,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
 // The function, then its re-creation with counts from the private helpers (town-feed ticket 19).
 const files = readdirSync(migrations)
-  .filter((f) => /_(my_going(_[a-z]+)?|action_counts)\.sql$/.test(f)).sort();
+  .filter((f) => /_(my_going(_[a-z]+)?|my_saves|action_counts)\.sql$/.test(f)).sort();
 
 const db = await PGlite.create();
 await db.exec(`
@@ -33,6 +34,9 @@ await db.exec(`
   create table public.event_rsvps (
     id uuid primary key default gen_random_uuid(), event_id uuid not null,
     user_id uuid not null, created_at timestamptz not null default now());
+  create table public.event_saves (
+    event_id uuid not null, user_id uuid not null, created_at timestamptz not null default now(),
+    primary key (event_id, user_id));
   create table public.event_likes (
     id uuid primary key default gen_random_uuid(), event_id uuid not null,
     user_id uuid not null, created_at timestamptz not null default now());
@@ -40,10 +44,13 @@ await db.exec(`
   -- The live read rules (schema.sql; Going readable only as your own rows since ticket 19).
   alter table public.club_events enable row level security;
   alter table public.event_rsvps enable row level security;
+  alter table public.event_saves enable row level security;
   alter table public.clubs enable row level security;
   create policy "read events" on public.club_events for select to public
     using (status = 'approved' or submitted_by = auth.uid() or is_admin());
   create policy "own rsvps select" on public.event_rsvps for select to public
+    using ((select auth.uid()) = user_id);
+  create policy "own saves select" on public.event_saves for select to public
     using ((select auth.uid()) = user_id);
   create policy "read clubs" on public.clubs for select to public using (true);
   grant select on all tables in schema public to anon, authenticated;
@@ -55,17 +62,18 @@ const ME = '00000000-0000-0000-0000-00000000000a';
 const NEIGHBOUR = '00000000-0000-0000-0000-00000000000b';
 
 async function reset() {
-  await db.exec(`reset role; delete from public.event_rsvps; delete from public.club_events;
+  await db.exec(`reset role; delete from public.event_rsvps; delete from public.event_saves;
+                 delete from public.club_events;
                  delete from public.clubs; reset request.jwt.claim.sub;`);
 }
 
 async function add(title, date, more = {}) {
   const row = { source_name: CITY, status: 'approved', kind: 'event', submitted_by: null,
-                club_id: null, ...more };
+                club_id: null, end_at: null, ...more };
   const { rows } = await db.query(
-    `insert into public.club_events (title, event_date, source_name, status, kind, submitted_by, club_id)
-     values ($1, $2, $3, $4, $5, $6, $7) returning id`,
-    [title, date, row.source_name, row.status, row.kind, row.submitted_by, row.club_id]);
+    `insert into public.club_events (title, event_date, source_name, status, kind, submitted_by, club_id, end_at)
+     values ($1, $2, $3, $4, $5, $6, $7, $8) returning id`,
+    [title, date, row.source_name, row.status, row.kind, row.submitted_by, row.club_id, row.end_at]);
   return rows[0].id;
 }
 
@@ -137,6 +145,90 @@ test('signed out reads nothing', async () => {
   await going(ME, await add('Trivia night', '2026-10-13'));
   await db.exec('set role anon');
   const { rows } = await db.query(`select * from public.get_my_going('2026-10-11', '2026-10-31')`);
+  await db.exec('reset role');
+  assert.equal(rows.length, 0);
+});
+
+// get_my_saves: Profile's Saved list (BP app docs/plans/you-tab, ticket 04).
+
+async function save(user, eventId) {
+  await db.query('insert into public.event_saves (event_id, user_id) values ($1, $2)', [eventId, user]);
+}
+
+async function saved(from, as = ME) {
+  await db.exec(`set role authenticated; set request.jwt.claim.sub = '${as}'`);
+  const { rows } = await db.query(
+    `select title, event_date::text as day, going, going_count from public.get_my_saves($1::date)`, [from]);
+  await db.exec('reset role');
+  return rows;
+}
+
+test('saves: only the caller\'s own, with every account\'s Going count', async () => {
+  await reset();
+  const trivia = await add('Trivia night', '2026-10-13');
+  const market = await add('Fall market', '2026-10-24');
+  await save(ME, trivia);
+  await save(NEIGHBOUR, market);
+  await going(NEIGHBOUR, trivia);
+  const rows = await saved('2026-10-12');
+  assert.deepEqual(rows.map((r) => [r.title, r.going_count]), [['Trivia night', 1]]);
+});
+
+test('saves: from the given day on, with no end; earlier days left out', async () => {
+  await reset();
+  for (const [title, day] of [['Yesterday', '2026-10-11'], ['Today', '2026-10-12'], ['Next year', '2027-10-12']]) {
+    await save(ME, await add(title, day));
+  }
+  const rows = await saved('2026-10-12');
+  assert.deepEqual(rows.map((r) => r.title), ['Today', 'Next year']);
+});
+
+test('saves: an Event that began before the day and is still running stays', async () => {
+  await reset();
+  await save(ME, await add('Festival', '2026-10-10', { end_at: new Date(Date.now() + 86400000).toISOString() }));
+  await save(ME, await add('Over', '2026-10-10', { end_at: new Date(Date.now() - 86400000).toISOString() }));
+  const rows = await saved('2026-10-12');
+  assert.deepEqual(rows.map((r) => r.title), ['Festival']);
+});
+
+test('saves: says whether the caller is Going', async () => {
+  await reset();
+  const trivia = await add('Trivia night', '2026-10-13');
+  const market = await add('Fall market', '2026-10-24');
+  await save(ME, trivia);
+  await save(ME, market);
+  await going(ME, market);
+  await going(NEIGHBOUR, trivia);
+  const rows = await saved('2026-10-12');
+  assert.deepEqual(rows.map((r) => [r.title, r.going]), [['Trivia night', false], ['Fall market', true]]);
+});
+
+test('saves: ordered by day, then title', async () => {
+  await reset();
+  for (const [title, day] of [['Zumba', '2026-10-14'], ['Book club', '2026-10-14'], ['Hike', '2026-10-13']]) {
+    await save(ME, await add(title, day));
+  }
+  const rows = await saved('2026-10-12');
+  assert.deepEqual(rows.map((r) => `${r.day} ${r.title}`),
+                   ['2026-10-13 Hike', '2026-10-14 Book club', '2026-10-14 Zumba']);
+});
+
+test('saves: pending, rejected, non-events and events with no host are left out', async () => {
+  await reset();
+  await save(ME, await add('Pending', '2026-10-13', { status: 'pending', submitted_by: NEIGHBOUR }));
+  await save(ME, await add('Rejected', '2026-10-13', { status: 'rejected' }));
+  await save(ME, await add('A post', '2026-10-13', { kind: 'post' }));
+  await save(ME, await add('Seeded sample', '2026-10-13', { source_name: null }));
+  await save(ME, await add('Posted by a neighbour', '2026-10-13', { source_name: null, submitted_by: NEIGHBOUR }));
+  const rows = await saved('2026-10-12');
+  assert.deepEqual(rows.map((r) => r.title), ['Posted by a neighbour']);
+});
+
+test('saves: signed out reads nothing', async () => {
+  await reset();
+  await save(ME, await add('Trivia night', '2026-10-13'));
+  await db.exec('set role anon');
+  const { rows } = await db.query(`select * from public.get_my_saves('2026-10-12')`);
   await db.exec('reset role');
   assert.equal(rows.length, 0);
 });
