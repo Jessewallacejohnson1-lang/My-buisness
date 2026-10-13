@@ -231,7 +231,8 @@ which holds `TodayTopBar` and the feed.
   cancelled, so the last tap is what the server ends with; the server's "no" holds 600 ms,
   flips back, then shakes and buzzes only while the screen that asked is open: the Event page
   for Going, the card for Heart. No answer at all (offline, timed out) is no "no": the tap
-  stays, is tried again (2, 4, 8, 10 s), and is kept on the phone for its account until a read
+  stays, is tried again (2, 4, 8, 10 s), and is kept on the phone for its account (up to a day,
+  real Events only) until a read
   agrees, so it survives a relaunch; a "no" that comes that late flips back with no shake or
   buzz (town-feed ticket 24). Test runs and sample modes keep nothing (`AuthStore.isTestRun`). The photo's double tap only ever hearts. Whether Join, the going line
   and the heart show is its `canAct` (an account, or a backend that needs none), not the card's. Writes are

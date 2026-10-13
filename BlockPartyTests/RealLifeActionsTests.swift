@@ -420,9 +420,10 @@ final class RealLifeActionsTests: XCTestCase {
         XCTAssertTrue(actions.heart(item).isHearted, "no answer is no \"no\": it stays")
         XCTAssertEqual(actions.heartFailureCount(item.id), 0)
 
+        server.hearts = []
         server.offline = false
-        try await waitWhile(server.hearts.last != true || actions.heartFailureCount(item.id) > 0)
-        try await Task.sleep(for: Self.retry * 6)
+        try await waitWhile(server.hearts != [true])
+        XCTAssertEqual(server.hearts, [true], "sent again once back online")
         actions.read([card(hearts: 4, hearted: true)])
         XCTAssertEqual(actions.heart(item), .init(isHearted: true, count: 4))
     }
@@ -494,14 +495,22 @@ final class RealLifeActionsTests: XCTestCase {
         XCTAssertEqual(actions.failureCount(item.id), 0, "no shake for a late no")
     }
 
+    /// The app at launch: the account comes back, then taps are made.
+    private func launched(_ server: Server, _ store: UserDefaults, as owner: String) -> RealLifeActions {
+        let actions = actions(server, keep: store, owner: { owner })
+        actions.accountChanged(signedIn: true)
+        return actions
+    }
+
     /// Taps made offline survive a relaunch: the next launch shows them once the account
-    /// is back, keeps them through the kept list's older read, and sends them.
+    /// is back, keeps them through the kept list's older read (which the app hands over
+    /// before the account comes back), and sends them.
     func testOfflineTapsSurviveARelaunch() async throws {
         let server = Server()
         server.offline = true
         let store = phoneStore()
-        let item = card()
-        let before = actions(server, keep: store, owner: { "anna" })
+        let item = card(id: Self.event)
+        let before = launched(server, store, as: "anna")
 
         before.toggleGoing(item)
         before.toggleSave(item)
@@ -513,19 +522,20 @@ final class RealLifeActionsTests: XCTestCase {
         server.writes = []
         server.saves = []
         let after = actions(server, keep: store, owner: { "anna" })
+        after.read([card(id: Self.event)])  // the kept list comes first, from before the taps
         XCTAssertFalse(after.going(item).isGoing, "nothing until the account is back")
         after.accountChanged(signedIn: true)
         XCTAssertTrue(after.going(item).isGoing, "Going is back after the relaunch")
         XCTAssertTrue(after.saved(item), "and so is the Save")
 
-        after.read([card()])  // the kept list, from before the taps
+        after.read([card(id: Self.event)])
         XCTAssertTrue(after.going(item).isGoing, "an older read doesn't undo a waiting tap")
-        XCTAssertEqual(Set(after.goingTapped.keys), [item.id], "You shows it too")
+        XCTAssertEqual(Set(after.goingTapped.keys), [Self.event], "You shows it too")
         try await waitWhile(server.writes.isEmpty || server.saves.isEmpty)
         XCTAssertEqual(server.writes, [true])
-        XCTAssertEqual(server.saves, ["e1 true"])
+        XCTAssertEqual(server.saves, ["\(Self.event) true"])
 
-        after.read([card(going: 5, joined: true)])
+        after.read([card(id: Self.event, going: 5, joined: true)])
         XCTAssertTrue(after.going(item).isGoing)
     }
 
@@ -534,8 +544,8 @@ final class RealLifeActionsTests: XCTestCase {
         let server = Server()
         server.offline = true
         let store = phoneStore()
-        let item = card()
-        let before = actions(server, keep: store, owner: { "anna" })
+        let item = card(id: Self.event)
+        let before = launched(server, store, as: "anna")
         before.toggleGoing(item)
         try await Task.sleep(for: Self.retry * 2)
         before.accountChanged(signedIn: false)
@@ -543,15 +553,27 @@ final class RealLifeActionsTests: XCTestCase {
 
         server.offline = false
         server.writes = []
-        let ben = actions(server, keep: store, owner: { "ben" })
-        ben.accountChanged(signedIn: true)
+        let ben = launched(server, store, as: "ben")
         XCTAssertFalse(ben.going(item).isGoing, "not Ben's tap")
         try await Task.sleep(for: Self.retry * 8)
         XCTAssertEqual(server.writes, [], "never sent under Ben's name")
 
-        let annaAgain = actions(server, keep: store, owner: { "anna" })
-        annaAgain.accountChanged(signedIn: true)
+        let annaAgain = launched(server, store, as: "anna")
         XCTAssertFalse(annaAgain.going(item).isGoing, "dropped for good once another account came")
+    }
+
+    /// Daily's sample Suggestions are saved for this run only: never kept for the next.
+    func testASampleSaveIsNotKept() async throws {
+        let server = Server()
+        server.offline = true
+        let store = phoneStore()
+        let before = launched(server, store, as: "anna")
+        before.toggleSave(card(id: "daily-s1"))
+        try await Task.sleep(for: Self.retry * 2)
+        before.accountChanged(signedIn: false)
+
+        let after = launched(server, store, as: "anna")
+        XCTAssertFalse(after.saved(card(id: "daily-s1")))
     }
 
     /// A read sets each Event's heart base: everyone's count and your own heart.

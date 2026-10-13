@@ -95,12 +95,26 @@ final class RealLifeActions {
     /// (Jesse, 2026-10-13); VoiceOver still says it.
     @ObservationIgnored private var late: Set<Key> = []
 
-    /// Taps not yet agreed by a read, kept on the phone for the account that made them.
+    /// Taps not yet agreed by a read, kept on the phone for the account that made them,
+    /// each with when it was made.
     private struct Waiting: Codable {
+        struct Tap: Codable {
+            var on: Bool
+            var at: Date
+        }
         var owner: String
-        var taps: [Key: Bool]
+        var taps: [Key: Tap]
     }
     private static let waitingKey = "bp.waitingTaps"
+    /// A kept tap older than this is dropped at launch: its Event has most likely gone
+    /// from the feed, so no read will ever agree with it.
+    private static let keepFor: TimeInterval = 24 * 3600
+    /// Whose taps `chosen` holds, set only by `accountChanged`: until then nothing is
+    /// kept or wiped, so a launch's first read can't erase taps not yet brought back,
+    /// and one account's taps are never filed under the next.
+    @ObservationIgnored private var keptFor: String?
+    /// When each tap was made, for `keepFor`.
+    @ObservationIgnored private var tappedOn: [Key: Date] = [:]
 
     private let needsAccount: Bool
     private let holdFor: Duration
@@ -365,9 +379,11 @@ final class RealLifeActions {
         turnedBack = []
         chosen = [:]
         late = []
+        tappedOn = [:]
         goingTapped = [:]
         savedTapped = [:]
-        if signedIn { restore() }
+        keptFor = signedIn ? owner() : nil
+        restore()
     }
 
     // MARK: Inside
@@ -405,6 +421,7 @@ final class RealLifeActions {
         chosen[key] = on
         taps[key, default: 0] += 1
         tappedAt[key] = .now
+        tappedOn[key] = Date()
         if writers[key] == nil {
             writers[key] = Task { await write(key) }
         }
@@ -414,11 +431,16 @@ final class RealLifeActions {
     /// Keeps every tap a read hasn't agreed with yet for this account, so a tap made
     /// offline, or sent but not yet read back, still shows after a relaunch and is sent.
     private func save() {
-        guard let keep, let owner = owner() else { return }
-        let taps = chosen.filter { !turnedBack.contains($0.key) && failedFrom[$0.key] == nil }
+        guard let keep, let keptFor else { return }
+        var taps: [Key: Waiting.Tap] = [:]
+        // Only real Events: Daily's sample Suggestions ("daily-s1") are this run's only.
+        for (key, on) in chosen where !turnedBack.contains(key) && failedFrom[key] == nil
+            && UUID(uuidString: key.id) != nil {
+            taps[key] = Waiting.Tap(on: on, at: tappedOn[key] ?? Date())
+        }
         if taps.isEmpty {
             keep.removeObject(forKey: Self.waitingKey)
-        } else if let data = try? JSONEncoder().encode(Waiting(owner: owner, taps: taps)) {
+        } else if let data = try? JSONEncoder().encode(Waiting(owner: keptFor, taps: taps)) {
             keep.set(data, forKey: Self.waitingKey)
         }
     }
@@ -427,21 +449,24 @@ final class RealLifeActions {
     /// dropped, never sent under someone else's name. No animation: they were already
     /// there before the relaunch.
     private func restore() {
-        guard let keep, let data = keep.data(forKey: Self.waitingKey) else { return }
+        guard let keep, let keptFor, let data = keep.data(forKey: Self.waitingKey) else { return }
         guard let waiting = try? JSONDecoder().decode(Waiting.self, from: data),
-              waiting.owner == owner() else {
+              waiting.owner == keptFor else {
             keep.removeObject(forKey: Self.waitingKey)
             return
         }
+        let fresh = waiting.taps.filter { Date().timeIntervalSince($0.value.at) < Self.keepFor }
         var quiet = Transaction()
         quiet.disablesAnimations = true
         withTransaction(quiet) {
-            for (key, on) in waiting.taps { chosen[key] = on }
+            for (key, tap) in fresh { chosen[key] = tap.on }
         }
-        for key in waiting.taps.keys {
+        for (key, tap) in fresh {
+            tappedOn[key] = tap.at
             late.insert(key)
             if writers[key] == nil { writers[key] = Task { await write(key) } }
         }
+        save()
     }
 
     private func close(_ key: Key) {
