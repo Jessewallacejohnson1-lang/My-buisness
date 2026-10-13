@@ -113,9 +113,10 @@ struct FlowLayout: Layout {
 
 // MARK: - List rows + groups
 
-/// One tappable settings/activity row, styled to sit inside a `GlassGroup`.
-struct ProfileRow: View {
-    let icon: String
+/// One tappable settings/activity row, styled to sit inside a `GlassGroup`. Its icon is an
+/// SF Symbol's name, or a view the row inks and sizes (Saved's `BookmarkGlyph`).
+struct ProfileRow<Icon: View>: View {
+    let icon: Icon
     let title: String
     var subtitle: String? = nil
     var accessory: Accessory = .chevron
@@ -135,7 +136,7 @@ struct ProfileRow: View {
 
     private var rowContent: some View {
         HStack(spacing: 13) {
-            Image(systemName: icon)
+            icon
                 .font(.sansSemibold(16))
                 .foregroundStyle(Hue.ink)
                 .frame(width: 26)
@@ -166,6 +167,14 @@ struct ProfileRow: View {
                 .font(.sansSemibold(13))
                 .foregroundStyle(Hue.inkSecondary.opacity(0.7))
         }
+    }
+}
+
+extension ProfileRow where Icon == Image {
+    init(icon: String, title: String, subtitle: String? = nil, accessory: Accessory = .chevron,
+         action: (() -> Void)? = nil) {
+        self.init(icon: Image(systemName: icon), title: title, subtitle: subtitle,
+                  accessory: accessory, action: action)
     }
 }
 

@@ -1,8 +1,9 @@
 //
 //  ProfileView.swift
-//  Block Party — Profile: your photo, name, Edit profile and settings, in Apple's standard
-//  sheet from your photo at the top left of the You tab (BP app docs/plans/you-tab). What
-//  you're Going to lives on the You page; your interests are edited in Edit profile.
+//  Block Party — Profile: your photo, name, Edit profile, your saved Events and settings, in
+//  Apple's standard sheet from your photo at the top left of the You tab (BP app
+//  docs/plans/you-tab). What you're Going to lives on the You page; your interests are edited
+//  in Edit profile. Saved pushes inside the sheet's own stack (`RootView`).
 //
 //  Motion: the house SpringReveal cascade on appear; press-scale on every control.
 //
@@ -10,6 +11,8 @@
 import SwiftUI
 
 struct ProfileView: View {
+    /// Profile's Saved list, kept in the shell so a second visit shows the last list at once.
+    let saves: YouModel
     @Environment(\.dismiss) private var dismiss
     @Environment(CalendarSync.self) private var calendarSync
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -78,6 +81,8 @@ struct ProfileView: View {
             .padding(.horizontal, 18)
             .padding(.top, 39)                         // the mock's sheet edge to photo, under the grabber
         }
+        // The sheet's stack draws its own ground under a page; the paper sheet shows through none.
+        .background(Hue.paper.ignoresSafeArea())
         .task { await model.load() }
         .sheet(isPresented: $editing) { EditProfileView(model: model) }
         .sheet(isPresented: $showAbout) {
@@ -163,10 +168,17 @@ struct ProfileView: View {
 
     // MARK: - Rows
 
-    /// One group of rows, as in the mock. Saved joins at the top with ticket 04.
+    /// One group of rows, as in the mock, Saved at the top (ticket 04).
     private var rows: some View {
         VStack(alignment: .leading, spacing: 0) {
             GlassGroup {
+                // Apple's push, as Instagram's and Facebook's Saved open (Mobbin, BP app
+                // references/saved-in-profile). "Saved" from the words page.
+                NavigationLink { SavedPage(model: saves) } label: {
+                    ProfileRow(icon: BookmarkGlyph(saved: true), title: "Saved")
+                }
+                .buttonStyle(PressableStyle())
+                ProfileRowDivider()
                 ProfileRow(icon: "person.badge.plus", title: "Invite a neighbor",
                            action: { ShareCenter.shared.present(.appInvite()) })
                 ProfileRowDivider()

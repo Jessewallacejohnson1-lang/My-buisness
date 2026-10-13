@@ -68,7 +68,7 @@ extension FeedCardItem {
             goingAvatars: [],
             likeCount: 0,
             isLiked: false,
-            isSaved: false,
+            isSaved: event.saved,
             isJoined: event.rsvpd,
             eventDate: event.eventDate,
             startTime: time,

@@ -2,7 +2,8 @@
 //  YouCalendarTests.swift
 //  BlockPartyTests — the You tab's three weeks (BP app docs/plans/you-tab, ticket 01): which
 //  days the Calendar shows, which of the neighbour's Going falls on each, what the Agenda
-//  card says, and the model keeping its list through a failed read.
+//  card says, and the model keeping its list through a failed read. Profile's Saved list
+//  (ticket 04) runs on the same rules.
 //
 
 import XCTest
@@ -165,6 +166,83 @@ final class YouCalendarTests: XCTestCase {
         XCTAssertEqual(shown(), ["card"])
         try await Task.sleep(for: .milliseconds(200))
         XCTAssertEqual(shown(), [])
+    }
+
+    // MARK: Saved (ticket 04)
+
+    private func saved(_ id: String, _ day: String, _ time: String?, endAt: Date? = nil) -> UpcomingEvent {
+        var event = row(id, day, time, endAt: endAt)
+        event.rsvpd = false
+        event.saved = true
+        return event
+    }
+
+    /// Saved lists the read's saves and this session's, each once, soonest first: this
+    /// morning's that's over drops off, a festival from before today still running stays,
+    /// one unsaved since the read goes, and next year's stays.
+    func testSavedShowsWhatsStillSavedAndNotOver() {
+        let now = town("2026-10-14 12:00")
+        let read = [saved("morning", "2026-10-14", "8 AM"),
+                    saved("festival", "2026-10-10", "10 AM", endAt: town("2026-10-15 22:00")),
+                    saved("tonight", "2026-10-14", "7 PM"),
+                    saved("unsaved", "2026-10-16", "6 PM"),
+                    saved("next-year", "2027-10-14", "6 PM")].compactMap(YouCalendar.event(from:))
+        var card = FeedCardItem(row("card", "2026-10-20", "6 PM"))
+        card.isSaved = true
+        let list = YouCalendar.saved(read: read, tapped: [card], isSaved: { $0.isSaved && $0.id != "unsaved" }, now: now)
+        XCTAssertEqual(list.map(\.id), ["festival", "tonight", "card", "next-year"])
+    }
+
+    /// Through a real Real-life actions: a read row the Town feed never read stays saved, a
+    /// save on a card shows at once, unsaving hides either, a save that turns back never
+    /// shows, and a new account starts with none of this session's.
+    func testRealLifeActionsDriveSaved() async throws {
+        let now = town("2026-10-14 12:00")
+        var fail = false
+        let actions = RealLifeActions(signedIn: true, needsAccount: false, hold: .milliseconds(1), flip: .milliseconds(1),
+                                      setGoing: { _, _ in }, setHeart: { _, _ in },
+                                      setSave: { _, _ in if fail { throw URLError(.notConnectedToInternet) } },
+                                      knownEvents: { _ in [] })
+        let read = [saved("read", "2026-10-15", "6 PM")].compactMap(YouCalendar.event(from:))
+        let card = FeedCardItem(row("card", "2026-10-20", "6 PM"))
+        func shown() -> [String] {
+            YouCalendar.saved(read: read, tapped: Array(actions.savedTapped.values),
+                              isSaved: { actions.saved($0) }, now: now).map(\.id)
+        }
+        XCTAssertEqual(shown(), ["read"])
+        actions.toggleSave(card)
+        XCTAssertEqual(shown(), ["read", "card"])
+        actions.toggleSave(read[0].item)
+        XCTAssertEqual(shown(), ["card"])
+        try await Task.sleep(for: .milliseconds(50))
+        actions.toggleSave(card)
+        XCTAssertEqual(shown(), [])
+        try await Task.sleep(for: .milliseconds(50))
+        fail = true
+        actions.toggleSave(card)
+        XCTAssertEqual(shown(), ["card"])
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertEqual(shown(), [])
+        actions.accountChanged(signedIn: true)
+        XCTAssertTrue(actions.savedTapped.isEmpty)
+    }
+
+    /// `get_my_saves`' rows decode saved, Going only where the row says so, and their cards
+    /// carry the bookmark.
+    func testTheSavedReadsRowsDecode() throws {
+        let json = """
+        [{"id":"e1","title":"Fall market","event_date":"2026-10-24","start_time":"8 AM",
+          "location":"Centennial Park","image_url":null,"category":"food","club_name":null,
+          "source_name":"City of St. Joseph","end_at":null,"all_day":false,
+          "created_at":"2026-10-01T12:00:00+00:00","going_count":4,"going":false},
+         {"id":"e2","title":"Ride","event_date":"2026-10-25","start_time":"6 PM","location":null,
+          "image_url":null,"category":null,"club_name":"Bike club","source_name":null,"end_at":null,
+          "all_day":false,"created_at":"2026-10-01T12:00:00+00:00","going_count":1,"going":true}]
+        """
+        let rows = try CommunityAPI.myGoingRows(from: Data(json.utf8), saved: true)
+        XCTAssertEqual(rows.map(\.rsvpd), [false, true])
+        XCTAssertTrue(rows.allSatisfy(\.saved))
+        XCTAssertTrue(rows.compactMap(YouCalendar.event(from:)).allSatisfy(\.item.isSaved))
     }
 
     // MARK: The Places row (ticket 03)

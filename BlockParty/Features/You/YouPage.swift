@@ -244,34 +244,13 @@ struct YouPage: View {
 
     // MARK: The Agenda
 
-    @ViewBuilder
     private func agenda(going: [DailyEvent]?, day: Date, now: Date) -> some View {
-        if let going {
-            let events = YouCalendar.on(day, going)
-            if events.isEmpty {
-                // A working line; Jesse writes the final words.
-                Text("Nothing planned")
-                    .font(.sans(15))
-                    .foregroundStyle(Hue.inkSecondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, YouMetric.emptyLine)
-            } else {
-                AgendaCards(events: events, now: now, open: { pushed = $0 })
-                    // A new day starts with every card closed.
-                    .id(day)
-            }
-        } else if model.failed {
-            FeedRetryButton { Task { await model.refresh() } }
-        } else {
-            VStack(spacing: AgendaMetric.rowGap) {
-                ForEach(0..<YouMetric.skeletonCards, id: \.self) { _ in
-                    SkeletonBlock(cornerRadius: Radius.tile).frame(height: AgendaMetric.row)
-                }
-            }
-            .shimmering()
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Loading your plans")
-        }
+        // "Nothing planned" is a working line; Jesse writes the final words.
+        AgendaList(events: going.map { YouCalendar.on(day, $0) }, failed: model.failed,
+                   empty: "Nothing planned", loading: "Loading your plans", now: now,
+                   retry: { Task { await model.refresh() } }, open: { pushed = $0 })
+            // A new day starts with every card closed.
+            .id(day)
     }
 }
 

@@ -59,6 +59,9 @@ final class RealLifeActions {
     /// page can show a Join made on a card before a read of their Going brings it back
     /// (BP app docs/plans/you-tab). Whether each is still Going is `going(_:)`.
     private(set) var goingTapped: [String: FeedCardItem] = [:]
+    /// Every Event saved or unsaved this session, whole, the same way for Profile's Saved
+    /// list (you-tab ticket 04). Whether each is still saved is `saved(_:)`.
+    private(set) var savedTapped: [String: FeedCardItem] = [:]
     /// The neighbour's own choice, laid over `base` until a read agrees with it.
     private var chosen: [Key: Bool] = [:]
     /// One more each time a failed write turns a choice back by itself while the screen
@@ -233,6 +236,7 @@ final class RealLifeActions {
 
     /// Save or unsave (the bookmark), shown at once, turned back the same way as Join.
     func toggleSave(_ item: FeedCardItem) {
+        if canAct { savedTapped[item.id] = item }
         toggle(Key(kind: .save, id: item.id), from: saved(item))
     }
 
@@ -325,6 +329,7 @@ final class RealLifeActions {
         turnedBack = []
         chosen = [:]
         goingTapped = [:]
+        savedTapped = [:]
     }
 
     // MARK: Inside

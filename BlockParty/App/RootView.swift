@@ -334,6 +334,8 @@ struct MainTabsView: View {
     /// The You tab's three weeks of Going, kept here like the Town feed's, so coming back
     /// to You shows the Calendar it left while it reads again behind it.
     @State private var you = YouModel()
+    /// Profile's Saved list (ticket 04), kept here the same way.
+    @State private var saves = YouModel.saves()
     /// Your Going in your iPhone Calendar, kept up to date from here while its switch in
     /// Profile is on (BP app docs/plans/you-tab, ticket 05).
     @State private var calendarSync = CalendarSync()
@@ -417,6 +419,7 @@ struct MainTabsView: View {
             // Animated, so the heart and the going line come in rather than pop.
             withAnimation(Motion.snappy) { actions.accountChanged(signedIn: auth.isSignedIn) }
             you.accountChanged()
+            saves.accountChanged()
             Task { await townFeed.reload() }
             Task { await you.refresh() }
             Task { await actions.moveUp(.shared) }
@@ -563,11 +566,18 @@ struct MainTabsView: View {
         // Profile: Apple's standard sheet, from the photo on You (and the town menu).
         // It drags down to close, so it draws no close button of its own.
         .sheet(isPresented: $showProfileSheet) {
-            ProfileView()
-                .environment(calendarSync)
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
-                .presentationBackground(Hue.paper)   // the You tab mock's paper sheet under white rows
+            // Its own stack, for Saved and the event pages it opens (architecture.md: a sheet
+            // may carry one). Profile draws its own top, so the bar hides there; `SwipeBack`
+            // keeps the edge swipe on an event page, which hides the bar too.
+            NavigationStack {
+                ProfileView(saves: saves)
+                    .toolbar(.hidden, for: .navigationBar)
+                    .background { SwipeBack().frame(width: 0, height: 0) }
+            }
+            .environment(calendarSync)
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+            .presentationBackground(Hue.paper)   // the You tab mock's paper sheet under white rows
         }
         // The Today bar's friends mark (while there are no chats) and bell. Reserved
         // screens until the real ones land; see `ReservedScreen`.
@@ -1154,7 +1164,7 @@ private struct BlankTab: View {
 /// photo carousel pops the page (`EventCardPhotoTapTests`), while a swipe that starts on a
 /// photo away from the edge still pages or rubber-bands the carousel. Vertical scrolls, and
 /// every scroll at the root, never wait on it.
-private struct SwipeBack: UIViewControllerRepresentable {
+struct SwipeBack: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> Controller { Controller() }
     func updateUIViewController(_ controller: Controller, context: Context) {}
 

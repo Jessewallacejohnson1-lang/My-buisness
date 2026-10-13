@@ -29,6 +29,47 @@ enum AgendaMetric {
     static let arrowRoom: CGFloat = 22
 }
 
+/// What an Agenda shows, on the You page and in Profile's Saved (ticket 04): two skeleton
+/// cards while the first read is out, the retry when it failed, one line when there's
+/// nothing, else the cards.
+struct AgendaList: View {
+    /// nil until the first read lands.
+    let events: [DailyEvent]?
+    let failed: Bool
+    let empty: String
+    /// What VoiceOver says over the skeleton.
+    let loading: String
+    let now: Date
+    var withDay = false
+    let retry: () -> Void
+    let open: (FeedCardItem) -> Void
+
+    var body: some View {
+        if let events {
+            if events.isEmpty {
+                Text(empty)
+                    .font(.sans(15))
+                    .foregroundStyle(Hue.inkSecondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, YouMetric.emptyLine)
+            } else {
+                AgendaCards(events: events, now: now, withDay: withDay, open: open)
+            }
+        } else if failed {
+            FeedRetryButton(action: retry)
+        } else {
+            VStack(spacing: AgendaMetric.rowGap) {
+                ForEach(0..<YouMetric.skeletonCards, id: \.self) { _ in
+                    SkeletonBlock(cornerRadius: Radius.tile).frame(height: AgendaMetric.row)
+                }
+            }
+            .shimmering()
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(loading)
+        }
+    }
+}
+
 /// The cards, soonest first. A tap opens a card in place; a tap on the open card opens
 /// its event page through `open`. One card is open at a time, and it is still open when
 /// you come back from the page. The page owns the push, not these cards: leaving the
@@ -36,6 +77,8 @@ enum AgendaMetric {
 struct AgendaCards: View {
     let events: [DailyEvent]
     let now: Date
+    /// The time line says the day too ("Sat, Oct 17 · Noon"), for a list that spans days.
+    var withDay = false
     let open: (FeedCardItem) -> Void
     @State private var openID: String?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -45,7 +88,7 @@ struct AgendaCards: View {
         VStack(spacing: AgendaMetric.rowGap) {
             ForEach(events) { event in
                 Button { tap(event) } label: {
-                    AgendaCard(event: event, now: now, open: openID == event.id)
+                    AgendaCard(event: event, now: now, withDay: withDay, open: openID == event.id)
                 }
                 .buttonStyle(PressableCardStyle())
             }
@@ -68,6 +111,7 @@ struct AgendaCards: View {
 private struct AgendaCard: View {
     let event: DailyEvent
     let now: Date
+    let withDay: Bool
     let open: Bool
 
     var body: some View {
@@ -80,7 +124,7 @@ private struct AgendaCard: View {
                 .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             // Opening only adds below: the time and the title's first line stay put.
             VStack(alignment: .leading, spacing: 0) {
-                Text(event.startTime(now: now))
+                Text(when.text)
                     .font(started ? .sansMedium(13) : .sans(13))
                     .foregroundStyle(started ? Hue.ink : Hue.inkSecondary)
                 title
@@ -118,7 +162,20 @@ private struct AgendaCard: View {
         }
         .contentShape(card)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel([event.item.title, event.startTime(now: now), more].joined(separator: ", "))
+        .accessibilityLabel([event.item.title, when.spoken, more].joined(separator: ", "))
+    }
+
+    /// When it starts: "Now" while it's on, else its time, or with `withDay` the Town
+    /// card's when line from the organizer's own time ("Tonight · 7 PM"; an all-day Event
+    /// shows only its day), and how VoiceOver reads it ("Saturday, October 17 at Noon").
+    private var when: (text: String, spoken: String) {
+        if withDay, !event.isOn(now),
+           let line = FeedWhenLine(eventDate: event.item.eventDate, startTime: event.item.startTime,
+                                   now: now, calendar: YouCalendar.calendar) {
+            return (line.text, line.spoken)
+        }
+        let time = event.startTime(now: now)
+        return (time, time)
     }
 
     /// What the open card adds, and VoiceOver always reads: "Until 11 AM, Lake Wobegon

@@ -48,6 +48,27 @@ final class YouModel {
         })
     }
 
+    /// Profile's Saved list (ticket 04), kept the same way: `get_my_saves` from this week's
+    /// Sunday on (`to` is unused; saves run as far ahead as they go), and `going` holds the
+    /// saves. The page leaves out what's over (`YouCalendar.saved`). Under DEBUG
+    /// `-town-samples` the You samples come back saved, and `-town-offline` fails.
+    static func saves() -> YouModel {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-town-offline") {
+            return YouModel(read: { _, _ in throw URLError(.notConnectedToInternet) })
+        }
+        if arguments.contains("-town-samples") {
+            return YouModel(read: { _, _ in
+                YouCalendar.samples(now: Date()).map { var event = $0; event.saved = true; return event }
+            })
+        }
+        #endif
+        return YouModel(read: { from, _ in
+            try await CommunityAPI(auth: AuthStore.shared).getMySaves(from: from)
+        })
+    }
+
     /// Reads the three weeks around `now` again, behind whatever is on screen.
     func refresh(now: Date = Date()) async {
         let first = YouCalendar.firstDay(of: now)
@@ -148,12 +169,26 @@ enum YouCalendar {
     static func going(read: [DailyEvent], tapped: [FeedCardItem], isGoing: (FeedCardItem) -> Bool,
                       first: Date, days: Int = length) -> [DailyEvent] {
         let end = calendar.date(byAdding: .day, value: days, to: first) ?? first
+        return merged(read, tapped)
+            .filter { isGoing($0.item) && $0.starts >= first && $0.starts < end }
+            .sorted { order($0) < order($1) }
+    }
+
+    /// Profile's Saved list (ticket 04), the same way: the read's and the Events saved this
+    /// session, each once, only those still saved and not over by `now`, in the Calendar's order.
+    static func saved(read: [DailyEvent], tapped: [FeedCardItem], isSaved: (FeedCardItem) -> Bool,
+                      now: Date) -> [DailyEvent] {
+        merged(read, tapped)
+            .filter { isSaved($0.item) && $0.ends > now }
+            .sorted { order($0) < order($1) }
+    }
+
+    /// The read's Events and the tapped ones, each once; the read's details win.
+    private static func merged(_ read: [DailyEvent], _ tapped: [FeedCardItem]) -> [DailyEvent] {
         var byID: [String: DailyEvent] = [:]
         for item in tapped { if let event = event(from: item) { byID[event.id] = event } }
         for event in read { byID[event.id] = event }
-        return byID.values
-            .filter { isGoing($0.item) && $0.starts >= first && $0.starts < end }
-            .sorted { order($0) < order($1) }
+        return Array(byID.values)
     }
 
     private static func order(_ event: DailyEvent) -> (Date, Int, Date, String) {

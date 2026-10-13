@@ -362,8 +362,19 @@ struct CommunityAPI {
         return try Self.myGoingRows(from: data)
     }
 
-    /// `get_my_going`'s rows as events, each one the neighbour is Going to.
-    static func myGoingRows(from data: Data) throws -> [UpcomingEvent] {
+    /// The neighbour's saved Events from `from` on, a Town day as "yyyy-MM-dd", and any
+    /// from before it still running: `get_my_saves`, Profile's Saved list (BP app
+    /// docs/plans/you-tab, ticket 04). Each comes back saved, saying whether they're Going.
+    func getMySaves(from: String) async throws -> [UpcomingEvent] {
+        let body = try JSONSerialization.data(withJSONObject: ["p_from": from])
+        let (data, _) = try await SupabaseHTTP.rest("rpc/get_my_saves", method: "POST",
+                                                    accessToken: try await token(), body: body)
+        return try Self.myGoingRows(from: data, saved: true)
+    }
+
+    /// `get_my_going`'s rows as events, each one the neighbour is Going to, and
+    /// `get_my_saves`' (`saved`), whose `going` says whether they are.
+    static func myGoingRows(from data: Data, saved: Bool = false) throws -> [UpcomingEvent] {
         struct Row: Decodable {
             let id: String
             let title: String
@@ -378,6 +389,7 @@ struct CommunityAPI {
             let allDay: Bool
             let createdAt: String
             let goingCount: Int
+            let going: Bool?
         }
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -385,7 +397,8 @@ struct CommunityAPI {
             UpcomingEvent(id: row.id, title: row.title, eventDate: row.eventDate,
                           startTime: row.startTime, location: row.location,
                           goingCount: row.goingCount, createdAt: row.createdAt,
-                          imageUrl: row.imageUrl, rsvpd: true, clubName: row.clubName,
+                          imageUrl: row.imageUrl, rsvpd: row.going ?? true, saved: saved,
+                          clubName: row.clubName,
                           category: EventCategory.from(row.category),
                           endAt: DateHelpers.timestamp(row.endAt),
                           isAllDay: row.allDay, sourceName: row.sourceName)

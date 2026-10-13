@@ -76,6 +76,8 @@ nonisolated struct UpcomingEvent: Identifiable, Hashable {
     /// The viewer's RSVP state. Defaulted so activities and profile callers that
     /// only need the event summary remain source-compatible.
     var rsvpd: Bool = false
+    /// The viewer's save. Only Profile's Saved read (`get_my_saves`) sets it.
+    var saved: Bool = false
     /// The organizing club, when this event belongs to one.
     var clubName: String? = nil
     /// The event category, with legacy/null rows falling back to the neutral icon.
