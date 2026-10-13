@@ -165,8 +165,9 @@ private nonisolated enum TodayBarMetric {
     /// with no scale, so the size is eyeballed against the bell (Jesse, 2026-09-29).
     static let friendsGlyphSize: CGFloat = 19
     /// A new friend request's dot: Instagram's unread dot on its heart, measured at 7.5pt
-    /// (±0.5) with a 1.5pt ring, centred 2pt inside the icon's top right; ink, not red
-    /// (BP app references/friends/ig-heart-dot.jpg, docs/plans/friends ticket 03).
+    /// (±0.5) with a 1.5pt ring, centred 2pt inside the icon's top right; exact BP yellow,
+    /// not red (Jesse, 2026-10-13: an ink dot read as a third head; BP app
+    /// references/friends/ig-heart-dot.jpg, docs/plans/friends ticket 03).
     static let friendsDot: CGFloat = 7.5
     static let friendsDotRing: CGFloat = 1.5
     static let friendsDotInset: CGFloat = 2
@@ -444,7 +445,7 @@ struct TodayTopBar: View {
                     if dot {
                         let reach = TodayBarMetric.friendsDot / 2 + TodayBarMetric.friendsDotRing
                         Circle()
-                            .fill(chromeFloating ? Hue.ink.onLightCanvas : Hue.ink)
+                            .fill(Hue.brandDisc)
                             .frame(width: TodayBarMetric.friendsDot, height: TodayBarMetric.friendsDot)
                             .padding(TodayBarMetric.friendsDotRing)
                             .background(Circle().fill(chromeFloating ? Hue.surface : Hue.paper))
