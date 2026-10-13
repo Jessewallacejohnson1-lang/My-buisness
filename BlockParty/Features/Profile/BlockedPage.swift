@@ -113,6 +113,7 @@ struct BlockedPage: View {
         .padding(.horizontal, FriendsMetric.side)
         .frame(height: FriendsMetric.row)
         .turnBackShake(failures: book.failures[person.id] ?? 0, shakes: !reduceMotion)
-        .transition(.opacity.combined(with: .move(edge: .leading)))
+        // Fades where it is while the rows below close up, as a friend's row does on Unfriend.
+        .transition(.opacity)
     }
 }
