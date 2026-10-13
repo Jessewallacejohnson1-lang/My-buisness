@@ -567,8 +567,9 @@ struct MainTabsView: View {
         // It drags down to close, so it draws no close button of its own.
         .sheet(isPresented: $showProfileSheet) {
             // Its own stack, for Saved and the event pages it opens (architecture.md: a sheet
-            // may carry one). Profile draws its own top, so the bar hides there; `SwipeBack`
-            // keeps the edge swipe on an event page, which hides the bar too.
+            // may carry one). Every page in it draws its own top, so the bar stays hidden (shown
+            // on Saved, it dropped the page 20pt at the end of the push); `SwipeBack` keeps the
+            // swipe back alive without it.
             NavigationStack {
                 ProfileView(saves: saves)
                     .toolbar(.hidden, for: .navigationBar)

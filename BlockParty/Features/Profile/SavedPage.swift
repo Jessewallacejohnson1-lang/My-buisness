@@ -2,8 +2,9 @@
 //  SavedPage.swift
 //  Block Party — Profile's Saved (BP app docs/plans/you-tab, ticket 04): every saved Event
 //  not over yet, soonest first, as the You tab's Agenda cards, each saying its day. Pushed
-//  from Profile's Saved row inside the sheet, with Apple's bar, as Instagram's and Facebook's
-//  Saved open (BP app references/saved-in-profile).
+//  from Profile's Saved row inside the sheet, under Instagram's Saved top: a back chevron and
+//  the title in the middle (BP app references/saved-in-profile), drawn as Search's shelf
+//  pages draw it, since Apple's bar dropped the page 20pt at the end of the push.
 //
 //  The read (`get_my_saves`, kept in the shell's `YouModel.saves()`) gives the list; a save
 //  or unsave made anywhere since comes from `RealLifeActions`, so the list matches without a
@@ -15,31 +16,56 @@ import SwiftUI
 struct SavedPage: View {
     let model: YouModel
     @Environment(RealLifeActions.self) private var actions
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     /// The event page a card opened. Held here, outside the list, so unsaving the last
     /// Event on its own page empties the list without closing the page.
     @State private var pushed: FeedCardItem?
 
+    /// The sheet's edge to the top bar: where Apple's own bar sat in this sheet, its
+    /// back button's centre 42pt down (measured on BP Build, 2026-10-13).
+    private static let barTop: CGFloat = 20
+
     var body: some View {
-        TimelineView(.everyMinute) { context in
-            let now = context.date
-            ScrollView(showsIndicators: false) {
-                list(now: now)
+        ScrollView(showsIndicators: false) {
+            TimelineView(.everyMinute) { context in
+                list(now: context.date)
+                    // The page's width whatever it holds: the retry alone left the paper a strip.
+                    .frame(maxWidth: .infinity)
                     .padding(.horizontal, YouMetric.side)
                     .padding(.top, AgendaMetric.rowGap)
                     .padding(.bottom, YouMetric.emptyLine)
             }
         }
+        .safeAreaInset(edge: .top, spacing: 0) { bar }
         .background(Hue.paper.ignoresSafeArea())
-        // "Saved" from the words page.
-        .navigationTitle("Saved")
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(item: $pushed) { FeedEventDetailDestination(item: $0) }
         // On every visit, the list on screen staying meanwhile; no account, nothing to read.
         .task { if actions.canAct { await model.refresh() } }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active, actions.canAct { Task { await model.refresh() } }
         }
+    }
+
+    private var bar: some View {
+        ZStack {
+            // "Saved" from the words page.
+            Text("Saved")
+                .font(.sansSemibold(17))
+                .foregroundStyle(Hue.ink)
+                .accessibilityAddTraits(.isHeader)
+            HStack {
+                FriendsBackButton { dismiss() }
+                Spacer()
+            }
+            .padding(.leading, SearchMetric.pageBackLead)
+        }
+        .frame(height: SearchMetric.pageBar)
+        .padding(.top, Self.barTop)
+        .frame(maxWidth: .infinity)
+        // The cards pass under it.
+        .background(Hue.paper)
     }
 
     private func list(now: Date) -> some View {
