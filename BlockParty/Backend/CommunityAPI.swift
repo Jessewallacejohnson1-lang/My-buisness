@@ -245,6 +245,18 @@ struct CommunityAPI {
                                         prefer: "resolution=ignore-duplicates,return=minimal")
     }
 
+    /// The Town feed's views and opens (ticket 20), in one insert. Who and when are set by
+    /// the database; nobody reads them back. Ids that aren't Events (samples) are skipped.
+    func recordFeedActions(_ batch: [FeedAction]) async throws {
+        let rows = batch.filter { UUID(uuidString: $0.itemID) != nil }
+            .map { ["item_id": $0.itemID, "action": $0.kind.rawValue] }
+        guard !rows.isEmpty else { return }
+        let t = try await token()
+        _ = try await SupabaseHTTP.rest("feed_actions", method: "POST", accessToken: t,
+                                        body: try JSONSerialization.data(withJSONObject: rows),
+                                        prefer: "return=minimal")
+    }
+
     func unRsvpEvent(_ eventId: String) async throws {
         let t = try await token()
         let uid = try await uidOrThrow()

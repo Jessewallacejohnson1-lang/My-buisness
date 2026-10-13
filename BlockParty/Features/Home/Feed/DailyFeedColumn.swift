@@ -34,6 +34,9 @@ struct DailyFeedColumn: View {
     /// The first cards rise in as the column appears. Off when the Town feed comes
     /// back partway down, where they would fade in after the tab had slid in.
     var entrance = true
+    /// A card crossed half on screen, with its Event's id: the Town feed counts views
+    /// (ticket 20). The system reports crossings only, so scrolling costs nothing.
+    var onCardOnScreen: ((String, Bool) -> Void)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var revealedIDs: Set<String> = []
@@ -57,6 +60,9 @@ struct DailyFeedColumn: View {
                             revealed: revealedIDs.contains(item.id),
                             onReveal: { revealedIDs.insert(item.id) }
                         ))
+                        .onScrollVisibilityChange(threshold: 0.5) { visible in
+                            if case .event(let event) = item { onCardOnScreen?(event.id, visible) }
+                        }
                 }
             }
         }

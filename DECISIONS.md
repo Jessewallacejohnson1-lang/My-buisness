@@ -806,6 +806,32 @@ over a database change ("yes", Check-in 1): no live migration, no new Storage pa
   read keep and sign-out clears, read once per visit so a late name never pops in. No
   saved name: the photo alone.
 
+## Decided 2026-10-13 — views and popularity per view (town-feed ticket 20)
+
+- **`feed_actions`** (event, action, who, when): insert-only for the signed-in caller, no
+  read for anyone through the API, own rows included. `action` is `view` or `open`; ticket
+  21 widens it for Not interested. The server makes each row's id: a phone-made id with
+  ignore-duplicates would need a select policy under row security. So a batch resent after
+  a lost answer can land twice; the summary counts distinct people, so popularity doesn't
+  move, and ticket 26 should count distinct people too. Index on `user_id` so an account's
+  deletion doesn't scan the table.
+- **A view** is a card at least half on screen (`onScrollVisibilityChange(threshold: 0.5)`)
+  for 1 second (`TownFeed.viewAfter`), once per card per feed load: a fresh order starts a
+  new load. An open is the Event page reached from the Town tab (Daily pushes the same page
+  and isn't counted). Batches go up every 30 seconds (`TownFeed.sendEvery`) and when the
+  app goes to the background; no network, no account or a 5xx keeps the batch for the next,
+  a 4xx drops it. Test runs (`AuthStore.isTestRun`) and the sample modes send nowhere.
+- **Popularity** is the playground's: popular × min(Going / max(viewers, 20) × 10, 3), from
+  `private.feed_item_stats` (refreshed every 10 minutes), and nothing until someone has
+  seen the event in the feed. "Popular in town" as the reason needs at least 3 Going and the
+  top quarter of the read's seen events by Going per viewer (Jesse, 2026-10-13: popular
+  compared with other events); an event nobody has seen takes no rank. The new-item spot
+  needs under 30 viewers. A screen that went (a tab switch rebuilds it) forgets its cards,
+  so they never count again in a later feed load.
+- **Jobs** (`*_feed_jobs.sql`, pg_cron): summary every 10 minutes, views older than 60 days
+  deleted at 3:30 am Central. Free plan: 18 MB of 500 MB on 2026-10-13; views reach about
+  1 GB kept at 3,000 daily people, so Pro comes before then (Jesse's spending yes).
+
 ## Open — should the server decide which posts go live?
 
 Today the app decides: a post Claude clears is saved as `approved`, and nothing on the

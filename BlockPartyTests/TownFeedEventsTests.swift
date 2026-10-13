@@ -361,4 +361,153 @@ final class TownFeedEventsTests: XCTestCase {
         TownFeedCache.clear()
         XCTAssertNil(TownFeedCache.load())
     }
+
+    // MARK: Views and opens (ticket 20)
+
+    /// Keeps every batch it's sent, and fails when told to.
+    @MainActor
+    private final class Sender {
+        var batches: [[FeedAction]] = []
+        var error: Error?
+        func send(_ batch: [FeedAction]) async throws {
+            if let error { throw error }
+            batches.append(batch)
+        }
+    }
+
+    /// A feed on screen with cards a, b and c, its views going to `sender`.
+    private func shownFeed(_ sender: Sender, ids: [String] = ["a", "b", "c"]) async -> TownFeed {
+        let rows = ids.map { row($0) }
+        let town = TownFeed(read: { rows.map(TownFeed.entry) }, send: sender.send)
+        await town.reload(at: now)
+        town.cameBack(at: now)
+        return town
+    }
+
+    private func views(_ town: TownFeed) -> [String] {
+        town.unsent.filter { $0.kind == .view }.map(\.itemID)
+    }
+
+    func testOneSecondHalfOnScreenIsOneViewAndLessIsNone() async {
+        let town = await shownFeed(Sender())
+        town.cardOnScreen("a", true, at: now)
+        town.cardOnScreen("a", false, at: now.addingTimeInterval(1))
+        town.cardOnScreen("b", true, at: now)
+        town.cardOnScreen("b", false, at: now.addingTimeInterval(0.9))
+        XCTAssertEqual(views(town), ["a"])
+    }
+
+    func testACardSeenTwiceInOneFeedLoadIsOneView() async {
+        let town = await shownFeed(Sender())
+        for start in [0.0, 5.0] {
+            town.cardOnScreen("a", true, at: now.addingTimeInterval(start))
+            town.cardOnScreen("a", false, at: now.addingTimeInterval(start + 2))
+        }
+        XCTAssertEqual(views(town), ["a"])
+    }
+
+    /// Leaving counts a card still on screen; time away counts nothing, and back on
+    /// screen its second starts over.
+    func testLeavingCountsWhatsOnScreenAndTimeAwayCountsNothing() async {
+        let town = await shownFeed(Sender())
+        town.cardOnScreen("a", true, at: now)
+        town.cardOnScreen("b", true, at: now.addingTimeInterval(0.5))
+        town.left(at: now.addingTimeInterval(1.2))
+        XCTAssertEqual(views(town), ["a"], "a was on 1.2 s, b only 0.7 s")
+
+        town.cameBack(at: now.addingTimeInterval(600))
+        town.cardOnScreen("b", false, at: now.addingTimeInterval(600.5))
+        XCTAssertEqual(views(town), ["a"], "ten minutes away is not ten minutes seen")
+    }
+
+    /// A tab switch rebuilds the screen: its cards never report going off, so they're
+    /// forgotten, and a later feed load counts only what the rebuilt screen reports.
+    func testCardsFromAScreenThatWentAreNotCountedAgain() async {
+        let town = await shownFeed(Sender())
+        town.cardOnScreen("c", true, at: now)
+        town.left(at: now.addingTimeInterval(2), viewGone: true)
+        XCTAssertEqual(views(town), ["c"])
+
+        town.cameBack(at: now.addingTimeInterval(31 * 60))
+        await town.reload(at: now.addingTimeInterval(31 * 60))
+        town.left(at: now.addingTimeInterval(32 * 60))
+        XCTAssertEqual(views(town), ["c"], "c was never on the rebuilt screen")
+    }
+
+    func testAFreshOrderStartsANewFeedLoad() async {
+        let town = await shownFeed(Sender())
+        town.cardOnScreen("a", true, at: now)
+        town.cardOnScreen("a", false, at: now.addingTimeInterval(1))
+        await town.reload(at: now.addingTimeInterval(60))
+        town.cardOnScreen("a", true, at: now.addingTimeInterval(61))
+        town.cardOnScreen("a", false, at: now.addingTimeInterval(62))
+        XCTAssertEqual(views(town), ["a", "a"])
+    }
+
+    func testACardNoLongerInTheListIsNotCounted() async {
+        let town = await shownFeed(Sender(), ids: ["a"])
+        town.cardOnScreen("gone", true, at: now)
+        town.cardOnScreen("gone", false, at: now.addingTimeInterval(2))
+        XCTAssertEqual(views(town), [])
+    }
+
+    func testOneBatchEvery30SecondsAndAtOnceWhenTheAppLeaves() async {
+        let sender = Sender()
+        let town = await shownFeed(sender)
+        town.opened("a")
+        await town.send(at: now)
+        XCTAssertEqual(sender.batches, [[FeedAction(itemID: "a", kind: .open)]], "the first goes at once")
+
+        town.opened("b")
+        await town.send(at: now.addingTimeInterval(29))
+        XCTAssertEqual(sender.batches.count, 1, "nothing before 30 s")
+        await town.send(at: now.addingTimeInterval(30))
+        XCTAssertEqual(sender.batches.count, 2)
+
+        town.opened("c")
+        await town.send(at: now.addingTimeInterval(31), always: true)
+        XCTAssertEqual(sender.batches.last, [FeedAction(itemID: "c", kind: .open)], "leaving sends now")
+    }
+
+    /// No network or no account: the batch waits for the next. A refused one is dropped.
+    func testAFailedBatchJoinsTheNextAndARefusedOneIsDropped() async {
+        let sender = Sender()
+        let town = await shownFeed(sender)
+        sender.error = URLError(.notConnectedToInternet)
+        town.opened("a")
+        await town.send(at: now)
+        sender.error = SupabaseError(message: "no session", status: 401)
+        town.opened("b")
+        await town.send(at: now.addingTimeInterval(30))
+        sender.error = nil
+        town.opened("c")
+        await town.send(at: now.addingTimeInterval(60))
+        XCTAssertEqual(sender.batches.last?.map(\.itemID), ["a", "b", "c"])
+
+        sender.error = SupabaseError(message: "bad row", status: 400)
+        town.opened("d")
+        await town.send(at: now.addingTimeInterval(90))
+        sender.error = nil
+        town.opened("e")
+        await town.send(at: now.addingTimeInterval(120))
+        XCTAssertEqual(sender.batches.last?.map(\.itemID), ["e"], "a refused batch would fail every one after it")
+    }
+
+    func testANewAccountDropsTheLastOnesWaitingViews() async {
+        let sender = Sender()
+        let town = await shownFeed(sender)
+        town.opened("a")
+        town.accountChanged()
+        await town.send(at: now, always: true)
+        XCTAssertEqual(sender.batches, [])
+    }
+
+    /// The Town feed's own default sends nowhere, so tests and previews never write.
+    func testAFeedBuiltForTestsSendsNowhere() async {
+        let town = TownFeed(read: { [] })
+        town.opened("a")
+        await town.send(at: now, always: true)
+        XCTAssertEqual(town.unsent, [])
+    }
 }
+

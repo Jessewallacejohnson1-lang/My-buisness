@@ -15,6 +15,8 @@ const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
 // counting helpers it reads.
 const files = readdirSync(migrations)
   .filter((f) => /_(town_feed(_[a-z]+)?|action_counts)\.sql$/.test(f)).sort();
+// (Views, ticket 20: the table, its summary and the clean-up load with town_feed_views; the
+// pg_cron jobs in feed_jobs don't, since PGlite has no pg_cron.)
 const playground = JSON.parse(readFileSync(join(here, 'town_feed_playground.json'), 'utf8'));
 
 const db = await PGlite.create();
@@ -23,6 +25,7 @@ await db.exec(`
   create role anon; create role authenticated;
   create schema auth;
   grant usage on schema auth to anon, authenticated;
+  create table auth.users (id uuid primary key);
   create function auth.uid() returns uuid language sql stable as
     $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
   -- The admin, for the score breakdown: on when a story sets test.admin.
@@ -71,6 +74,9 @@ await db.exec(`
   create policy "town_profiles_select_own" on public.town_profiles for select to public
     using (auth.uid() = user_id);
   grant select on all tables in schema public to anon, authenticated;
+  -- Supabase gives anon and authenticated every privilege on each new public table, so a
+  -- table that must not be read has to revoke it: copied here, so the revoke is tested.
+  alter default privileges in schema public grant all on tables to anon, authenticated;
 `);
 for (const f of files) await db.exec(readFileSync(join(migrations, f), 'utf8'));
 
@@ -78,7 +84,9 @@ const CITY = 'City of St. Joseph';
 const ME = '00000000-0000-0000-0000-00000000000a';
 
 async function reset() {
-  await db.exec(`reset role; delete from public.event_rsvps; delete from public.club_events;
+  await db.exec(`reset role; delete from public.feed_actions;
+                 refresh materialized view private.feed_item_stats;
+                 delete from public.event_rsvps; delete from public.club_events;
                  delete from public.event_saves; delete from public.event_likes;
                  delete from public.town_profiles;
                  reset request.jwt.claim.sub; reset test.admin;`);
@@ -100,6 +108,7 @@ async function add(title, date, more = {}) {
 
 async function signIn(id, interests = []) {
   await db.exec('reset role');
+  await db.query(`insert into auth.users (id) values ($1) on conflict do nothing`, [id]);
   await db.query(`insert into public.town_profiles (user_id, interests) values ($1, $2)
                   on conflict (user_id) do update set interests = excluded.interests`, [id, interests]);
   await db.exec(`set role authenticated; set request.jwt.claim.sub = '${id}'`);
@@ -423,7 +432,7 @@ test('the score breakdown is filled for the admin and null for everyone else', a
   await db.exec(`set test.admin = 'on'`);
   const { score } = (await feed('2026-10-08 12:00'))[0];
   assert.deepEqual(score, {
-    interest: 3, friend: 0, follow: 0, popular: 0, size: 0, sizeStep: 1, daysAway: 1,
+    interest: 3, friend: 0, follow: 0, popular: 0, viewers: 0, size: 0, sizeStep: 1, daysAway: 1,
     soon: 0.9057, acted: 1, spacing: 1, newSpot: false, total: 3.6229, spot: 1, of: 1,
   });
 });
@@ -481,6 +490,135 @@ test("the playground's sample week gives the playground's top 8 for each of its 
     assert.deepEqual(rows.map((r) => byTitle[r.title]), p.top8, p.name);
     assert.deepEqual(rows.map((r) => [r.reason, r.reason_name]), p.why.map(code), p.name);
   }
+});
+
+// Views (ticket 20). `seen` adds people who saw an event in the feed, `going` people Going,
+// then refreshes the summary as its 10-minute job does.
+async function seen(event, people, from = 0) {
+  await db.exec('reset role');
+  await db.query(`insert into auth.users (id) select ('00000000-0000-0000-0002-' || lpad(g::text, 12, '0'))::uuid
+                  from generate_series($1::int, $1::int + $2::int - 1) g on conflict do nothing`, [from, people]);
+  await db.query(`insert into public.feed_actions (id, user_id, item_id, action)
+                  select gen_random_uuid(), ('00000000-0000-0000-0002-' || lpad(g::text, 12, '0'))::uuid, $3, 'view'
+                  from generate_series($1::int, $1::int + $2::int - 1) g`, [from, people, event]);
+}
+async function going(event, people, from = 0) {
+  await db.exec('reset role');
+  await db.query(`insert into public.event_rsvps (event_id, user_id)
+                  select $3, ('00000000-0000-0000-0003-' || lpad(g::text, 12, '0'))::uuid
+                  from generate_series($1::int, $1::int + $2::int - 1) g`, [from, people, event]);
+}
+async function refreshStats() {
+  await db.exec('reset role; refresh materialized view private.feed_item_stats');
+}
+const refused = async (sql, params = []) => {
+  await assert.rejects(db.query(sql, params));
+  await db.exec('rollback').catch(() => {});
+};
+
+test('views: a person inserts only their own, and nobody reads them back', async () => {
+  await reset();
+  const event = await add('Trivia', '2026-10-09', { start_time: '7 PM' });
+  await signIn(ME);
+  await db.query(`insert into public.feed_actions (item_id, action) values ($1, 'view')`, [event]);
+  await db.query(`insert into public.feed_actions (item_id, action) values ($1, 'open')`, [event]);
+  await refused(`select * from public.feed_actions`);
+  await refused(`insert into public.feed_actions (id, user_id, item_id, action)
+                 values (gen_random_uuid(), $1, $2, 'view')`, [YOU, event]);
+  await refused(`insert into public.feed_actions (id, item_id, action, at)
+                 values (gen_random_uuid(), $1, 'view', now() - interval '1 year')`, [event]);
+  await refused(`insert into public.feed_actions (item_id, action) values ($1, 'like')`, [event]);
+  await refused(`insert into public.feed_actions (id, item_id, action) values (gen_random_uuid(), $1, 'view')`, [event]);
+  await refused(`insert into public.feed_actions (item_id, action)
+                 values ('00000000-0000-0000-0009-00000000dead', 'view')`);
+  await refused(`update public.feed_actions set action = 'open'`);
+  await refused(`delete from public.feed_actions`);
+  await db.exec(`set role anon; reset request.jwt.claim.sub`);
+  await refused(`insert into public.feed_actions (item_id, action) values ($1, 'view')`, [event]);
+  await db.exec('reset role');
+  const { rows } = await db.query(`select user_id::text, action from public.feed_actions order by action`);
+  assert.deepEqual(rows, [{ user_id: ME, action: 'open' }, { user_id: ME, action: 'view' }]);
+});
+
+test('popularity per view lifts an event, and says popular when it leads', async () => {
+  await reset();
+  const hit = await add('Crawfish boil', '2026-10-09', { start_time: '5 PM', source_name: 'Krewe' });
+  const quiet = await add('Book club', '2026-10-09', { start_time: '5 PM', source_name: 'Library' });
+  await seen(hit, 20); await seen(quiet, 20);
+  await going(hit, 6);
+  await refreshStats();
+  const rows = await feed('2026-10-08 12:00');
+  assert.deepEqual(rows.map((r) => [r.title, r.reason]), [['Crawfish boil', 'popular'], ['Book club', 'tomorrow']]);
+});
+
+test('many views with few Going does not lift', async () => {
+  await reset();
+  const crowded = await add('Street fair', '2026-10-09', { start_time: '5 PM', source_name: 'City' });
+  const loved = await add('Potluck', '2026-10-09', { start_time: '5 PM', source_name: 'Church' });
+  await seen(crowded, 500); await going(crowded, 10);
+  await seen(loved, 20, 1000); await going(loved, 6, 100);
+  await refreshStats();
+  const rows = await feed('2026-10-08 12:00');
+  assert.deepEqual(rows.map((r) => r.title), ['Potluck', 'Street fair']);
+  assert.notEqual(rows[1].reason, 'popular');
+});
+
+test('popular as the reason needs 3 Going and the top quarter; one Going still counts its points', async () => {
+  await reset();
+  const one = await add('Dog park meetup', '2026-10-09', { start_time: '10 AM', source_name: 'Megan' });
+  await seen(one, 5); await going(one, 1);
+  await refreshStats();
+  await db.exec(`set test.admin = 'on'`);
+  const [row] = await feed('2026-10-08 12:00');
+  assert.equal(row.score.popular, 1, 'one Going in a floor of 20: 1 point');
+  assert.equal(row.reason, 'tomorrow', 'one person is not popular');
+  // Never seen in the feed: no popularity at all.
+  await db.exec(`reset role; delete from public.feed_actions; refresh materialized view private.feed_item_stats`);
+  await db.exec(`set test.admin = 'on'`);
+  assert.equal((await feed('2026-10-08 12:00'))[0].score.popular, 0);
+});
+
+test('an event nobody has seen takes no rank from the ones people saw', async () => {
+  await reset();
+  const unseen = await add('Big unseen', '2026-10-09', { start_time: '9 AM', source_name: 'A' });
+  const seenA = await add('Seen A', '2026-10-09', { start_time: '10 AM', source_name: 'B' });
+  const seenB = await add('Seen B', '2026-10-09', { start_time: '11 AM', source_name: 'C' });
+  await going(unseen, 9);
+  await seen(seenA, 20); await going(seenA, 6, 100);
+  await seen(seenB, 20, 1000); await going(seenB, 1, 200);
+  await refreshStats();
+  const reasons = Object.fromEntries((await feed('2026-10-08 12:00')).map((r) => [r.title, r.reason]));
+  assert.equal(reasons['Seen A'], 'popular', 'the unseen event did not push it out of the top quarter');
+  assert.notEqual(reasons['Big unseen'], 'popular');
+});
+
+test('a new event seen by 30 people no longer takes the new spot', async () => {
+  await reset();
+  for (const [i, h] of ['8 AM', '9 AM', '10 AM', '11 AM', '12 PM'].entries())
+    await add(`Old ${i + 1}`, '2026-10-09', { start_time: h, source_name: `Host ${i}` });
+  const fresh = await add('New', '2026-10-20', { start_time: '6 PM', source_name: 'Newcomer',
+                                                 created_at: '2026-10-07 12:00-05' });
+  await seen(fresh, 29);
+  await refreshStats();
+  assert.equal((await feed('2026-10-08 12:00'))[3].reason, 'new', '29 viewers: still new');
+  await seen(fresh, 1, 500);
+  await refreshStats();
+  assert.ok((await feed('2026-10-08 12:00')).every((r) => r.reason !== 'new'), '30 viewers: not new');
+});
+
+test('the nightly clean-up deletes only views older than 60 days', async () => {
+  await reset();
+  const event = await add('Trivia', '2026-10-09', { start_time: '7 PM' });
+  await db.exec('reset role');
+  await db.query(`insert into auth.users (id) values ($1) on conflict do nothing`, [ME]);
+  await db.query(`insert into public.feed_actions (id, user_id, item_id, action, at) values
+                    (gen_random_uuid(), $1, $2, 'view', now() - interval '61 days'),
+                    (gen_random_uuid(), $1, $2, 'view', now() - interval '59 days'),
+                    (gen_random_uuid(), $1, $2, 'open', now() - interval '61 days')`, [ME, event]);
+  await db.exec(`select private.feed_clean_up()`);
+  const { rows } = await db.query(`select action, (now() - at) < interval '60 days' as recent
+                                   from public.feed_actions order by action`);
+  assert.deepEqual(rows, [{ action: 'open', recent: false }, { action: 'view', recent: true }]);
 });
 
 test('the feed is read in under 100 ms with 5,000 people', async () => {
