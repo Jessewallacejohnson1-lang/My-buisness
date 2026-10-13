@@ -357,7 +357,10 @@ out in the row — an `HStack` would park it wherever the trailing button's widt
   `get_my_going` and kept in the shell (`YouModel`) like the Town feed (BP app
   `docs/plans/you-tab`).
 - **Profile** (`Features/Profile/`) — Apple's sheet from the photo at the top left of You
-  (and the town menu): identity and settings, **no fabricated counts** `[prose]`. `EditProfileView` writes
+  (and the town menu): identity and settings, **no fabricated counts** `[prose]`. Its Saved
+  row pushes the saved Events inside the sheet's own stack (`SavedPage`), read by
+  `get_my_saves` and kept in the shell (`YouModel.saves()`), with this session's saves laid
+  over it from `RealLifeActions` (BP app `docs/plans/you-tab`, ticket 04). `EditProfileView` writes
   **server-first** (upload avatar → `ProfileAPI.upsert`) and surfaces a real save failure
   instead of a false success.
 - **Share** (`Features/Share/`) — the app-wide **share reveal**. Any share calls
