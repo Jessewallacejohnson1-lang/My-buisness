@@ -424,9 +424,8 @@ struct MainTabsView: View {
         // Outside the stack, so pushed pages and sheets read the same one.
         .environment(actions)
         .environment(friendsBook)
-        // `friend-limit` and `friend-name-needed`, in Apple's alert.
-        .alert((friendsBook.problem ?? said) == .limit ? "You've sent a lot of requests today. Try again tomorrow."
-                                                       : "Add your name so neighbors know who's asking.",
+        // `friend-limit`, `friend-name-needed` and a Block that didn't go through, in Apple's alert.
+        .alert((friendsBook.problem ?? said).title,
                isPresented: Binding(get: { friendsBook.problem != nil },
                                     set: { if !$0 { friendsBook.problem = nil } }),
                presenting: friendsBook.problem) { problem in
@@ -436,6 +435,12 @@ struct MainTabsView: View {
             } else {
                 Button("OK", role: .cancel) {}
             }
+        } message: { problem in
+            if let message = problem.message { Text(message) }
+        }
+        // The friend sheet, from a friend's •••, anyone's page and the Friends button (ticket 04).
+        .sheet(item: Binding(get: { friendsBook.menu }, set: { friendsBook.menu = $0 })) { person in
+            FriendMenu(person: person).environment(friendsBook)
         }
         .onChange(of: friendsBook.problem) { _, problem in if let problem { said = problem } }
         .sheet(isPresented: $addingName) { AddNameSheet() }
@@ -626,6 +631,7 @@ struct MainTabsView: View {
                     .background { SwipeBack().frame(width: 0, height: 0) }
             }
             .environment(calendarSync)
+            .environment(friendsBook)
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
             .presentationBackground(Hue.paper)   // the You tab mock's paper sheet under white rows

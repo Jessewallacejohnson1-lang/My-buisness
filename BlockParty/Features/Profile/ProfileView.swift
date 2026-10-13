@@ -15,6 +15,7 @@ struct ProfileView: View {
     let saves: YouModel
     @Environment(\.dismiss) private var dismiss
     @Environment(CalendarSync.self) private var calendarSync
+    @Environment(FriendsBook.self) private var friendsBook
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var model = ProfileModel()
 
@@ -181,6 +182,15 @@ struct ProfileView: View {
                 ProfileRow(icon: "bell", title: "Notifications",
                            action: { openSystemSettings() })
                 ProfileRowDivider()
+                // `blocked-row` (BP app docs/plans/friends, ticket 04): only a real account can
+                // have blocked anyone.
+                if !friendsBook.isAnonymous() {
+                    NavigationLink { BlockedPage() } label: {
+                        ProfileRow(icon: "hand.raised", title: "Blocked")
+                    }
+                    .buttonStyle(PressableStyle())
+                    ProfileRowDivider()
+                }
                 ProfileRow(icon: "info.circle", title: "About Block Party",
                            action: { showAbout = true })
                 if let email = model.email, !email.isEmpty {

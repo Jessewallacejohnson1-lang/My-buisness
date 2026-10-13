@@ -1,7 +1,7 @@
 //
 //  FriendsHomePage.swift
 //  Block Party — the Friends page and a neighbour's page (BP app docs/plans/friends, tickets
-//  02 and 03). The Town bar's friends mark pushes the Friends page: a large title and Search's
+//  02, 03 and 04). The Town bar's friends mark pushes the Friends page: a large title and Search's
 //  field, under the sample inbox's own top, then the accepted lines, Requests and Your friends.
 //  Typing finds neighbours by name; a name opens their page; one button on every row and
 //  page follows where the two of you stand (`FriendsBook`).
@@ -45,6 +45,11 @@ extension FriendsMetric {
     /// least the mock's 132pt wide.
     static let pageButtonTop: CGFloat = 14
     static let pageButton: CGFloat = 132
+    /// Ticket 04: Facebook's ••• on a friend's row ends 20pt from the screen's edge
+    /// (fb-requests-4, 375pt at 1:1); its 44pt target leaves this much past it.
+    static let moreTrail: CGFloat = 7
+    /// The check before "Friends" on its button. (picked)
+    static let iconGap: CGFloat = 6
 }
 
 struct FriendsHomePage: View {
@@ -57,6 +62,8 @@ struct FriendsHomePage: View {
     @State private var signingIn = false
 
     private var typing: Bool { !words.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    /// What the search found, less anyone you just blocked.
+    private var found: NeighborSearch.State { book.visible(search.state) }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -89,7 +96,7 @@ struct FriendsHomePage: View {
         // Nobody found, or no friends after a read that worked: Apple's empty page, in the
         // middle of the screen.
         .overlay {
-            if typing, search.state == .none {
+            if typing, found == .none {
                 ContentUnavailableView("No results found", systemImage: "magnifyingglass")
                     .allowsHitTesting(false)
             } else if !typing, search.state != .needsAccount, book.loaded, book.isEmpty {
@@ -149,7 +156,7 @@ struct FriendsHomePage: View {
 
     private var rows: [Row] {
         // `friends-sections`
-        var rows = book.page.accepted.map(Row.accepted)
+        var rows = book.accepted.map(Row.accepted)
         let requests = book.requests, friends = book.friends
         if !requests.isEmpty { rows += [.title("Requests")] + requests.map { .person($0, waiting: true) } }
         if !friends.isEmpty { rows += [.title("Your friends")] + friends.map { .person($0, waiting: false) } }
@@ -157,7 +164,7 @@ struct FriendsHomePage: View {
     }
 
     @ViewBuilder private var results: some View {
-        switch search.state {
+        switch found {
         case .found(let people):
             ForEach(people) { ResultRow(person: $0) { signingIn = true } }
         case .needsAccount:
@@ -261,6 +268,8 @@ private struct PersonRow: View {
     let person: Neighbor
     let waiting: Bool
     let logIn: () -> Void
+    @Environment(FriendsBook.self) private var book
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: FriendsMetric.avatarGap) {
@@ -278,10 +287,34 @@ private struct PersonRow: View {
                         .transition(.opacity)
                 }
             }
+            if !waiting {
+                MoreButton(person: person).transition(.opacity)
+            }
         }
-        .padding(.horizontal, FriendsMetric.side)
+        .padding(.leading, FriendsMetric.side)
+        .padding(.trailing, waiting ? FriendsMetric.side : FriendsMetric.moreTrail)
         .padding(.vertical, waiting ? FriendsMetric.requestPad : 0)
         .frame(minHeight: waiting ? nil : FriendsMetric.row)
+        // An Unfriend that turns back shakes the row it came back to.
+        .turnBackShake(failures: waiting ? 0 : book.failures[person.id] ?? 0, shakes: !reduceMotion)
+    }
+}
+
+/// Facebook's ••• on a friend: opens the friend sheet (ticket 04).
+struct MoreButton: View {
+    let person: Neighbor
+    @Environment(FriendsBook.self) private var book
+
+    var body: some View {
+        Button { book.menu = person } label: {
+            Image(systemName: "ellipsis")
+                .font(.glyph(17, weight: .bold))
+                .foregroundStyle(Hue.ink)
+                .frame(width: SearchMetric.tapMin, height: SearchMetric.tapMin)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(DimStyle())
+        .accessibilityLabel("More options, \(person.displayName)")
     }
 }
 
@@ -338,9 +371,9 @@ private struct NameAndMutual: View {
 }
 
 /// The one button that follows where you two stand (ticket 03): Add friend; Request sent
-/// with Cancel; Confirm and Delete when they asked you; Friends, a plain check and word
-/// until ticket 04 gives it the ••• sheet. Facebook's shape, black for blue (Jesse,
-/// 2026-10-13). On a row the buttons fill the row; on a person's page they sit centred.
+/// with Cancel; Confirm and Delete when they asked you; Friends, which opens the friend
+/// sheet (ticket 04). Facebook's shape, black for blue (Jesse, 2026-10-13). On a row the
+/// buttons fill the row; on a person's page they sit centred.
 struct RelationButtons: View {
     let person: Neighbor
     var onPage = false
@@ -365,10 +398,9 @@ struct RelationButtons: View {
                 }
             case .friends:
                 // `friends-button`
-                Label("Friends", systemImage: "checkmark")
-                    .font(.sansSemibold(15))
-                    .foregroundStyle(Hue.inkSecondary)
-                    .frame(height: FriendsMetric.button)
+                face("Friends", ink: false, icon: "checkmark") { book.menu = person }
+            case .blocked:
+                EmptyView()
             }
         }
         .turnBackShake(failures: book.failures[person.id] ?? 0, shakes: !reduceMotion)
@@ -376,9 +408,13 @@ struct RelationButtons: View {
     }
 
     /// One button. VoiceOver hears whose it is: "Confirm, Sarah Lindgren".
-    private func face(_ title: String, ink: Bool, spoken: String? = nil, action: @escaping () -> Void) -> some View {
+    private func face(_ title: String, ink: Bool, spoken: String? = nil, icon: String? = nil,
+                      action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Text(title)
+            HStack(spacing: FriendsMetric.iconGap) {
+                if let icon { Image(systemName: icon).font(.glyph(13, weight: .bold)) }
+                Text(title)
+            }
                 .font(.sansSemibold(15))
                 .foregroundStyle(ink ? Hue.surface : Hue.ink)
                 .lineLimit(1)
@@ -406,6 +442,7 @@ struct RelationButtons: View {
 struct NeighborPage: View {
     let neighbor: Neighbor
     @Environment(FriendsBook.self) private var book
+    @Environment(\.dismiss) private var dismiss
     @State private var signingIn = false
 
     var body: some View {
@@ -423,9 +460,16 @@ struct NeighborPage: View {
                 .padding(.horizontal, FriendsMetric.side)
                 .padding(.top, SearchMetric.pageBar + FriendsMetric.headTop)
             }
-            FriendsTitleBar(title: neighbor.displayName, titleUnder: false).accessibilitySortPriority(1)
+            FriendsTitleBar(title: neighbor.displayName, titleUnder: false) {
+                MoreButton(person: neighbor)
+            }
+            .accessibilitySortPriority(1)
         }
         .toolbar(.hidden, for: .navigationBar)
+        // Blocked: back to where you came from, as on Facebook (ticket 04).
+        .onChange(of: book.relation(neighbor) == .blocked) { _, blocked in
+            if blocked { dismiss() }
+        }
         .onAppear { book.screenOpened() }
         .onDisappear { book.screenClosed() }
         .signInSheet(isPresented: $signingIn)

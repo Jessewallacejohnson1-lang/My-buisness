@@ -400,7 +400,8 @@ struct SearchPage: View {
             }
         case .results(let chip):
             let sections = model.results(for: model.words, in: chip)
-            let people = chip == .all || chip == .people ? model.people.state : .idle
+            // Less anyone you just blocked (ticket 04).
+            let people = book.visible(chip == .all || chip == .people ? model.people.state : .idle)
             if sections.isEmpty && !people.hasRows {
                 // Nothing here yet: wait for the neighbours' answer before saying so.
                 if people != .loading { NothingFound() }
