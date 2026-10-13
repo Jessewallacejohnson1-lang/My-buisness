@@ -339,21 +339,18 @@ struct MainTabsView: View {
     /// Your Going in your iPhone Calendar, kept up to date from here while its switch in
     /// Profile is on (BP app docs/plans/you-tab, ticket 05).
     @State private var calendarSync = CalendarSync()
-    /// The friends inbox and its chats (DEBUG samples until real messages exist), kept
-    /// here so an opened chat stays read when the inbox comes back.
+    /// The sample friends inbox and its chats, unreached until messaging (BP app
+    /// docs/plans/friends), kept here so an opened chat stays read when the inbox comes back.
     @State private var friendsModel = FriendsModel()
-    /// The shell stack's path, so the Town bar's friends mark can push the inbox.
+    /// The shell stack's path, so the Town bar's friends mark can push the Friends page.
     @State private var path = NavigationPath()
     /// The map, presented full-screen from the map disc in the Town tab's Today bar
     /// rather than living in the tab bar. Its selected-pin state belongs to
     /// `SJMapView` itself now — the shell has no tab bar to hide under it.
     @State private var showMap = false
-    /// The Today bar's friends mark (2026-09-29, where search sat) and bell. The bell
-    /// opens a reserved screen — the marks shipped ahead of what sits behind them, and a
-    /// named empty room is the same call `BlankTab` makes for the unbuilt tabs. Friends
-    /// does too while there are no chats, which is every release build until real
-    /// messages exist (`FriendsModel`); otherwise it pushes the inbox (`openFriends`).
-    @State private var showFriends = false
+    /// The Today bar's bell opens a reserved screen: the mark shipped ahead of what sits
+    /// behind it, and a named empty room is the same call `BlankTab` makes for the
+    /// unbuilt tabs. The friends mark beside it pushes the Friends page (`openFriends`).
     @State private var showNotifications = MainTabsView.debugOpen("-open-notifications")
     /// The town menu — a glass panel grown from the top-right corner. Nothing in the
     /// Today bar opens it since the avatar was retired (2026-09-18); `-open-menu` still
@@ -401,12 +398,15 @@ struct MainTabsView: View {
                 .navigationDestination(for: FriendsRoute.self) { route in
                     Group {
                         switch route {
+                        case .home: FriendsHomePage()
                         case .inbox: FriendsPage()
                         case .chat(let id): FriendChatPage(id: id)
                         }
                     }
                     .environment(friendsModel)
                 }
+                // A neighbour's page, from any name or face: the Friends page or Search.
+                .navigationDestination(for: Neighbor.self) { NeighborPage(neighbor: $0) }
         }
         // The iPhone Calendar follows the Going (ticket 05).
         .background { CalendarFollower(sync: calendarSync) }
@@ -428,19 +428,19 @@ struct MainTabsView: View {
         // launch with an account or when one arrives (above).
         .task { await actions.moveUp(.shared) }
         .onAppear {
-            // DEBUG: `-open-friends` lands on the inbox, `-open-friends-chat` on its newest chat.
-            if Self.debugOpen("-open-friends") || Self.debugOpen("-open-friends-chat") { openFriends() }
-            if Self.debugOpen("-open-friends-chat"), let newest = friendsModel.visible().first { path.append(FriendsRoute.chat(newest.id)) }
+            // DEBUG: `-open-friends` lands on the Friends page; `-open-friends-chat` on the
+            // sample inbox's newest chat, the one way left into the sample chats.
+            if Self.debugOpen("-open-friends") { openFriends() }
+            if Self.debugOpen("-open-friends-chat"), let newest = friendsModel.visible().first {
+                path.append(FriendsRoute.inbox)
+                path.append(FriendsRoute.chat(newest.id))
+            }
         }
     }
 
-    /// The friends mark: the inbox when there are chats, the reserved screen when not.
+    /// The friends mark pushes the Friends page, covering the tab bar like an event page.
     private func openFriends() {
-        if friendsModel.chats.isEmpty {
-            showFriends = true
-        } else {
-            path.append(FriendsRoute.inbox)
-        }
+        path.append(FriendsRoute.home)
     }
 
     private var shell: some View {
@@ -580,9 +580,7 @@ struct MainTabsView: View {
             .presentationDragIndicator(.visible)
             .presentationBackground(Hue.paper)   // the You tab mock's paper sheet under white rows
         }
-        // The Today bar's friends mark (while there are no chats) and bell. Reserved
-        // screens until the real ones land; see `ReservedScreen`.
-        .sheet(isPresented: $showFriends) { ReservedScreen.friends }
+        // The Today bar's bell: a reserved screen until the real one lands; see `ReservedScreen`.
         .sheet(isPresented: $showNotifications) { ReservedScreen.notifications }
         // The map is a destination now, not a tab. Full-screen cover rather than a
         // sheet: the map owns its own bottom sheet, and two stacked drag surfaces

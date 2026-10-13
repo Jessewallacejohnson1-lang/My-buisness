@@ -174,8 +174,8 @@ struct LoginView: View {
 
 extension View {
     /// Sign in over this screen, for a tap that needs an account while there is none:
-    /// a bookmark with no account yet opens it (Jesse, 2026-10-12). It closes once an
-    /// account is signed in.
+    /// a bookmark with no account yet opens it (Jesse, 2026-10-12), and so does finding
+    /// neighbours from an Anonymous one. It closes once a real account is signed in.
     func signInSheet(isPresented: Binding<Bool>) -> some View {
         sheet(isPresented: isPresented) {
             SignInSheet().environmentObject(AuthStore.shared)
@@ -189,6 +189,7 @@ private struct SignInSheet: View {
 
     var body: some View {
         LoginView()
-            .onChange(of: auth.isSignedIn) { _, signedIn in if signedIn { dismiss() } }
+            // A real account, not just a session: an Anonymous one is already signed in.
+            .onChange(of: auth.isSignedIn && !auth.isAnonymous) { _, real in if real { dismiss() } }
     }
 }

@@ -58,12 +58,7 @@ struct ReservedScreen: View {
 }
 
 extension ReservedScreen {
-    /// The two the Today bar opens today. Friends has no line yet: Jesse is designing
-    /// the screen (2026-09-29).
-    static var friends: ReservedScreen {
-        ReservedScreen(title: "Friends", promise: "", symbol: "person.2")
-    }
-
+    /// The one the Today bar's bell opens today.
     static var notifications: ReservedScreen {
         ReservedScreen(
             title: "Notifications",
@@ -73,4 +68,4 @@ extension ReservedScreen {
     }
 }
 
-#Preview { ReservedScreen.friends }
+#Preview { ReservedScreen.notifications }

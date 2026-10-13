@@ -56,9 +56,7 @@ nonisolated enum FriendsMetric {
 
 struct FriendsPage: View {
     @Environment(FriendsModel.self) private var model
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @FocusState private var fieldFocused: Bool
     @Namespace private var chipNS
     @State private var filter: FriendsFilter = .all
     @State private var words = ""
@@ -77,7 +75,7 @@ struct FriendsPage: View {
                         .frame(height: FriendsMetric.titleLine)
                         .padding(.horizontal, FriendsMetric.side)
                         .accessibilityAddTraits(.isHeader)
-                    field
+                    FriendsSearchField(words: $words)
                         .padding(.horizontal, FriendsMetric.side)
                         .padding(.top, FriendsMetric.titleToField)
                     chips
@@ -100,68 +98,9 @@ struct FriendsPage: View {
                 titleUnder = under
             }
             // Drawn last so it sits over the rows, read first so Back comes first.
-            bar.accessibilitySortPriority(1)
+            FriendsTitleBar(title: "Friends", titleUnder: titleUnder).accessibilitySortPriority(1)
         }
         .toolbar(.hidden, for: .navigationBar)
-    }
-
-    private var bar: some View {
-        ZStack {
-            Text("Friends")
-                .font(.sansSemibold(17))
-                .foregroundStyle(Hue.ink)
-                .opacity(titleUnder ? 1 : 0)
-                .accessibilityHidden(true)
-            HStack {
-                FriendsBackButton { dismiss() }
-                Spacer()
-            }
-            .padding(.leading, SearchMetric.pageBackLead)
-        }
-        .frame(height: SearchMetric.pageBar)
-        .frame(maxWidth: .infinity)
-        .background(Hue.paper.ignoresSafeArea(edges: .top))
-        .overlay(alignment: .bottom) {
-            Rectangle().fill(Hue.hairline).frame(height: FriendsMetric.hairline).opacity(titleUnder ? 1 : 0)
-        }
-        .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: titleUnder)
-    }
-
-    /// Search's field, without Cancel: typing narrows the rows by name.
-    private var field: some View {
-        HStack(spacing: 0) {
-            Image(systemName: "magnifyingglass")
-                .font(.glyph(15, weight: .medium))
-                .foregroundStyle(Hue.searchFaint)
-                .frame(width: SearchMetric.fieldIcon, height: SearchMetric.fieldIcon)
-                .padding(.leading, SearchMetric.fieldIconLead)
-                .padding(.trailing, SearchMetric.fieldIconGap)
-                .accessibilityHidden(true)
-            TextField("Search", text: $words, prompt: Text("Search").foregroundStyle(Hue.searchFaint))
-                .font(.sans(16))
-                .foregroundStyle(Hue.ink)
-                .focused($fieldFocused)
-                .submitLabel(.search)
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
-            if !words.isEmpty {
-                Button {
-                    words = ""
-                    fieldFocused = true
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .symbolRenderingMode(.palette)
-                        .foregroundStyle(Hue.surface, Hue.searchClear)
-                        .font(.glyph(17))
-                        .frame(width: SearchMetric.clearSide, height: SearchMetric.clearSide)
-                        .contentShape(Rectangle().inset(by: (SearchMetric.clearSide - SearchMetric.tapMin) / 2))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Clear")
-            }
-        }
-        .frame(height: SearchMetric.fieldHeight)
-        .background(Hue.searchField, in: RoundedRectangle(cornerRadius: Radius.searchField, style: .continuous))
     }
 
     /// Search's pills: the ink one slides to the picked filter.
@@ -194,6 +133,80 @@ struct FriendsPage: View {
         }
         .padding(.horizontal, FriendsMetric.side)
         .frame(height: SearchMetric.chipsHeight)
+    }
+}
+
+/// A pushed Friends page's own top: Search's back chevron, and the small title once the large
+/// one has gone under it. Drawn, not Apple's bar, which drops a page pushed from a stack
+/// that hides it (Saved, 2026-10-13).
+struct FriendsTitleBar: View {
+    let title: String
+    let titleUnder: Bool
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        ZStack {
+            Text(title)
+                .font(.sansSemibold(17))
+                .foregroundStyle(Hue.ink)
+                .opacity(titleUnder ? 1 : 0)
+                .accessibilityHidden(true)
+            HStack {
+                FriendsBackButton { dismiss() }
+                Spacer()
+            }
+            .padding(.leading, SearchMetric.pageBackLead)
+        }
+        .frame(height: SearchMetric.pageBar)
+        .frame(maxWidth: .infinity)
+        .background(Hue.paper.ignoresSafeArea(edges: .top))
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Hue.hairline).frame(height: FriendsMetric.hairline).opacity(titleUnder ? 1 : 0)
+        }
+        .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: titleUnder)
+    }
+}
+
+/// Search's field, without Cancel.
+struct FriendsSearchField: View {
+    @Binding var words: String
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Image(systemName: "magnifyingglass")
+                .font(.glyph(15, weight: .medium))
+                .foregroundStyle(Hue.searchFaint)
+                .frame(width: SearchMetric.fieldIcon, height: SearchMetric.fieldIcon)
+                .padding(.leading, SearchMetric.fieldIconLead)
+                .padding(.trailing, SearchMetric.fieldIconGap)
+                .accessibilityHidden(true)
+            TextField("Search", text: $words, prompt: Text("Search").foregroundStyle(Hue.searchFaint))
+                .font(.sans(16))
+                .foregroundStyle(Hue.ink)
+                .focused($focused)
+                .submitLabel(.search)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+            if !words.isEmpty {
+                Button {
+                    words = ""
+                    focused = true
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(Hue.surface, Hue.searchClear)
+                        .font(.glyph(17))
+                        .frame(width: SearchMetric.clearSide, height: SearchMetric.clearSide)
+                        .contentShape(Rectangle().inset(by: (SearchMetric.clearSide - SearchMetric.tapMin) / 2))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear")
+            }
+        }
+        .frame(height: SearchMetric.fieldHeight)
+        .background(Hue.searchField, in: RoundedRectangle(cornerRadius: Radius.searchField, style: .continuous))
     }
 }
 

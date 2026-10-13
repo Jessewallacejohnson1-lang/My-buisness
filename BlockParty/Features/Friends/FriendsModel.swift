@@ -54,8 +54,11 @@ enum FriendsFilter: String, CaseIterable, Hashable {
     }
 }
 
-/// What the shell's stack pushes: the inbox, or one chat by id.
+/// What the shell's stack pushes for friends: the Friends page, the sample inbox, or one
+/// of its chats by id.
 enum FriendsRoute: Hashable {
+    /// The Friends page (BP app docs/plans/friends): search, then requests and friends.
+    case home
     case inbox
     case chat(String)
 }
