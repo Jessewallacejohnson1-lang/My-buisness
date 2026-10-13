@@ -1,4 +1,5 @@
-// Fixed stories for friend requests (supabase/migrations/*_friend_requests.sql): send, cancel,
+// Fixed stories for friend requests (supabase/migrations/*_friend_requests.sql, as
+// *_unfriend_and_block.sql re-made search, the Friends page and send): send, cancel,
 // confirm, delete, the dot and the accepted line, the daily limit, and who can read what
 // (BP app docs/plans/friends, ticket 03). Run in PGlite like the Town feed's: `npm install &&
 // npm test` in this folder. The schema below is the subset of schema.sql the functions read,
@@ -51,7 +52,7 @@ await db.exec(`
   grant select on all tables in schema public to anon, authenticated;
 `);
 await db.exec(realAccount);
-for (const sql of [...read('_find_neighbors.sql'), ...read('_friend_requests.sql')]) await db.exec(sql);
+for (const sql of [...read('_find_neighbors.sql'), ...read('_friend_requests.sql'), ...read('_unfriend_and_block.sql')]) await db.exec(sql);
 
 const id = (n) => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`;
 const [ANA, BEN, CAL, DEE, NONAME, ANON] = [1, 2, 3, 4, 5, 6].map(id);
