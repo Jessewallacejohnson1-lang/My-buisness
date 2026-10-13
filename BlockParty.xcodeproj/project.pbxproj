@@ -20,6 +20,7 @@
 		2B1FCB19C76A9430D3BCC7F6 /* BrandDiscContrastTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD01AF3CC4327965C1D208D7 /* BrandDiscContrastTests.swift */; };
 		2BEF95F19CE0BEB0A9C58B1B /* YouCalendarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68EDE0779D309A18FFCE7CD6 /* YouCalendarTests.swift */; };
 		2123869168DF0F1BFBC1BAD2 /* NeighborSearchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87038F4EB8BAFDB12859CDF5 /* NeighborSearchTests.swift */; };
+		8000B51821165CA40C021D78 /* FriendsBookTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44A49B2FD362D5E7942EEAD6 /* FriendsBookTests.swift */; };
 		C5A1D0E2F3B4A59687C0D1E2 /* CalendarSyncTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A1D0E2F3B4A59687C0D1E3 /* CalendarSyncTests.swift */; };
 		32F6506F85EE45ACBCEBBDA0 /* EventDetailPageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 620A33CF53AD97DFFB236AA0 /* EventDetailPageTests.swift */; };
 		339FA5342960F6AC08ED501A /* ScrubModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5406A0184E5BBCB208CA99D5 /* ScrubModelTests.swift */; };
@@ -105,6 +106,7 @@
 		638DB9DE7EC40B8F6418B2D4 /* FakeTokenProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FakeTokenProvider.swift; path = BlockPartyTests/FakeTokenProvider.swift; sourceTree = "<group>"; };
 		68EDE0779D309A18FFCE7CD6 /* YouCalendarTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = YouCalendarTests.swift; path = BlockPartyTests/YouCalendarTests.swift; sourceTree = "<group>"; };
 		87038F4EB8BAFDB12859CDF5 /* NeighborSearchTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NeighborSearchTests.swift; path = BlockPartyTests/NeighborSearchTests.swift; sourceTree = "<group>"; };
+		44A49B2FD362D5E7942EEAD6 /* FriendsBookTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FriendsBookTests.swift; path = BlockPartyTests/FriendsBookTests.swift; sourceTree = "<group>"; };
 		C5A1D0E2F3B4A59687C0D1E3 /* CalendarSyncTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CalendarSyncTests.swift; path = BlockPartyTests/CalendarSyncTests.swift; sourceTree = "<group>"; };
 		76491FE92A5DBD1F323E4C70 /* EventCardPhotoTapTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = EventCardPhotoTapTests.swift; path = BlockPartyUITests/EventCardPhotoTapTests.swift; sourceTree = "<group>"; };
 		8BAEAF081C5894957098D543 /* AnonymousAccountTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AnonymousAccountTests.swift; path = BlockPartyTests/AnonymousAccountTests.swift; sourceTree = "<group>"; };
@@ -247,6 +249,7 @@
 				99FF577AFFC0B66C1F2E52B6 /* RealLifeActionsTests.swift */,
 				68EDE0779D309A18FFCE7CD6 /* YouCalendarTests.swift */,
 				87038F4EB8BAFDB12859CDF5 /* NeighborSearchTests.swift */,
+				44A49B2FD362D5E7942EEAD6 /* FriendsBookTests.swift */,
 				C5A1D0E2F3B4A59687C0D1E3 /* CalendarSyncTests.swift */,
 			);
 			name = BlockPartyTests;
@@ -490,6 +493,7 @@
 				382322CA42CFEA2808BC3706 /* RealLifeActionsTests.swift in Sources */,
 				2BEF95F19CE0BEB0A9C58B1B /* YouCalendarTests.swift in Sources */,
 				2123869168DF0F1BFBC1BAD2 /* NeighborSearchTests.swift in Sources */,
+				8000B51821165CA40C021D78 /* FriendsBookTests.swift in Sources */,
 				C5A1D0E2F3B4A59687C0D1E2 /* CalendarSyncTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

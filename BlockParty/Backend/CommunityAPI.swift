@@ -373,6 +373,47 @@ struct CommunityAPI {
         return try decode(data)
     }
 
+    /// The Friends page (`get_friends`): accepted lines, requests newest first, friends A to
+    /// Z, each as `kind` and the neighbour (ticket 03).
+    func getFriends() async throws -> [(kind: String, neighbor: Neighbor)] {
+        struct Kind: Decodable { let kind: String }
+        let (data, _) = try await SupabaseHTTP.rest("rpc/get_friends", method: "POST",
+                                                    accessToken: try await token(), body: try body([:]))
+        let kinds: [Kind] = try decode(data)
+        let people: [Neighbor] = try decode(data)
+        return zip(kinds, people).map { ($0.kind, $1) }
+    }
+
+    /// A request newer than your last visit to Friends: the dot on the friends mark.
+    func friendsDot() async throws -> Bool {
+        let (data, _) = try await SupabaseHTTP.rest("rpc/friends_dot", method: "POST",
+                                                    accessToken: try await token(), body: try body([:]))
+        return try JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) as? Bool ?? false
+    }
+
+    /// The Friends page has drawn what it read: the dot clears and accepted lines go.
+    func markFriendsSeen() async throws {
+        try await SupabaseHTTP.rest("rpc/mark_friends_seen", method: "POST",
+                                    accessToken: try await token(), body: try body([:]))
+    }
+
+    /// Add friend, Cancel, Confirm or Delete with one person; answers where you two now stand.
+    func friendWrite(_ action: FriendsBook.Action, _ userID: String) async throws -> Neighbor.Relation {
+        let (function, key) = switch action {
+        case .add: ("send_friend_request", "p_to")
+        case .cancel: ("cancel_friend_request", "p_to")
+        case .confirm: ("confirm_friend_request", "p_from")
+        case .delete: ("delete_friend_request", "p_from")
+        }
+        let (data, _) = try await SupabaseHTTP.rest("rpc/\(function)", method: "POST",
+                                                    accessToken: try await token(), body: try body([key: userID]))
+        let raw = try JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) as? String
+        guard let relation = raw.flatMap(Neighbor.Relation.init(rawValue:)) else {
+            throw SupabaseError(message: "Unexpected answer", status: nil)
+        }
+        return relation
+    }
+
     // MARK: - My Going (the You tab)
 
     /// The neighbour's Going from `from` to `to`, Town days as "yyyy-MM-dd", both ends

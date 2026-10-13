@@ -17,7 +17,8 @@ final class NeighborSearchTests: XCTestCase {
         var failing = false
         var delays: [String: Duration] = [:]
         let people = ["Sam Rivera", "Samantha Ostendorf", "Ana Samuels"].map {
-            Neighbor(userId: $0, displayName: $0, avatarUrl: nil, since: "2026-03-02T10:00:00Z")
+            Neighbor(userId: $0, displayName: $0, avatarUrl: nil, since: "2026-03-02T10:00:00Z",
+                     relation: .stranger, mutualFriends: 0)
         }
 
         func find(_ words: String) async throws -> [Neighbor] {
@@ -151,18 +152,22 @@ final class NeighborSearchTests: XCTestCase {
     }
 
     func testNeighborSinceReadsAsTheProfileSaysIt() {
-        let sam = Neighbor(userId: "1", displayName: "Sam", avatarUrl: nil, since: "2026-03-02T10:00:00+00:00")
+        let sam = Neighbor(userId: "1", displayName: "Sam", avatarUrl: nil, since: "2026-03-02T10:00:00+00:00",
+                           relation: .stranger, mutualFriends: 0)
         XCTAssertEqual(sam.sinceLine, "Neighbor since March 2026")
-        XCTAssertNil(Neighbor(userId: "2", displayName: "Ana", avatarUrl: nil, since: nil).sinceLine)
+        XCTAssertNil(Neighbor(userId: "2", displayName: "Ana", avatarUrl: nil, since: nil,
+                              relation: .stranger, mutualFriends: 0).sinceLine)
     }
 
     /// `search_neighbors`' rows as the server sends them.
     func testDecodesTheServersRows() throws {
-        let json = #"[{"user_id":"7c1","display_name":"Sam Rivera","avatar_url":null,"since":"2026-10-13T15:30:00.123456+00:00"}]"#
+        let json = #"[{"user_id":"7c1","display_name":"Sam Rivera","avatar_url":null,"since":"2026-10-13T15:30:00.123456+00:00","relation":"none","mutual_friends":2}]"#
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         let rows = try decoder.decode([Neighbor].self, from: Data(json.utf8))
         XCTAssertEqual(rows.first?.displayName, "Sam Rivera")
         XCTAssertEqual(rows.first?.sinceLine, "Neighbor since October 2026")
+        XCTAssertEqual(rows.first?.relation, .stranger)
+        XCTAssertEqual(rows.first?.mutualLine, "2 mutual friends")
     }
 }

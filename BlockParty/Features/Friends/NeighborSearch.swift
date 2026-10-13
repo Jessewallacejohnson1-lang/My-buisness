@@ -9,15 +9,27 @@ import SwiftUI
 
 /// A neighbour as search and their page show them: never Anonymous, always named.
 struct Neighbor: Identifiable, Hashable, Decodable {
+    /// Where the two of you stand, as the server last said (ticket 03).
+    enum Relation: String, Decodable, Hashable {
+        case stranger = "none", sent, received, friends
+    }
+
     let userId: String
     let displayName: String
     let avatarUrl: String?
     /// When they became a neighbour, as the server stores it.
     let since: String?
+    var relation: Relation
+    var mutualFriends: Int
     var id: String { userId }
 
     /// "Neighbor since October 2026", as the neighbour's own Profile says it.
     var sinceLine: String? { ProfileModel.since(from: since).map { "Neighbor since \($0)" } }
+
+    /// `suggest-reason`: "1 mutual friend", "4 mutual friends", nothing at none.
+    var mutualLine: String? {
+        mutualFriends == 0 ? nil : mutualFriends == 1 ? "1 mutual friend" : "\(mutualFriends) mutual friends"
+    }
 }
 
 @MainActor @Observable
@@ -99,23 +111,32 @@ final class NeighborSearch {
         }
     }
 
-    #if DEBUG
-    /// INVENTED, for `-town-samples`: neighbours on bundled town photos (one without a photo),
-    /// matched as `search_neighbors` matches: the name, or a later word, starts with the words.
+    /// The sample neighbours (`Neighbor.samples`), matched as `search_neighbors` matches: the
+    /// name, or a later word, starts with the words.
     static func samples(matching words: String) -> [Neighbor] {
         let words = words.lowercased()
-        return [("Sam Rivera", "centennial-park"), ("Sarah Lindgren", "farmers-market"),
-                ("Ana Samuels", "saint-bens"), ("Marlene Ostendorf", "memorial-park"),
-                ("Hal Pedersen", nil), ("Heidi Vue", "sju-arboretum-trail")]
-            .filter { name, _ in name.lowercased().split(separator: " ").contains { $0.hasPrefix(words) }
-                || name.lowercased().hasPrefix(words) }
-            .map { name, photo in
-                Neighbor(userId: "sample:\(name)", displayName: name,
-                         avatarUrl: photo.flatMap { Bundle.main.url(forResource: $0, withExtension: "jpg")?.absoluteString },
-                         since: "2026-03-02T10:00:00Z")
-            }
+        return Neighbor.samples.filter { n in
+            let name = n.displayName.lowercased()
+            return name.hasPrefix(words) || name.split(separator: " ").contains { $0.hasPrefix(words) }
+        }
+    }
+}
+
+extension Neighbor {
+    #if DEBUG
+    /// INVENTED, for `-town-samples`: neighbours on bundled town photos (one without a photo),
+    /// two asking you, three friends, one you asked.
+    static let samples: [Neighbor] = [
+        ("Sam Rivera", "centennial-park", Relation.friends, 1), ("Sarah Lindgren", "farmers-market", .received, 2),
+        ("Ana Samuels", "saint-bens", .stranger, 1), ("Marlene Ostendorf", "memorial-park", .friends, 3),
+        ("Hal Pedersen", nil, .stranger, 2), ("Heidi Vue", "sju-arboretum-trail", .sent, 0),
+        ("Junie Okonkwo", "millstream-arts-festival", .received, 0), ("Dale Brunner", "wobegon-trail", .friends, 0),
+    ].map { name, photo, relation, mutual in
+        Neighbor(userId: "sample:\(name)", displayName: name,
+                 avatarUrl: photo.flatMap { Bundle.main.url(forResource: $0, withExtension: "jpg")?.absoluteString },
+                 since: "2026-03-02T10:00:00Z", relation: relation, mutualFriends: mutual)
     }
     #else
-    static func samples(matching words: String) -> [Neighbor] { [] }
+    static let samples: [Neighbor] = []
     #endif
 }
