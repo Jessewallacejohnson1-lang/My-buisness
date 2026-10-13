@@ -141,9 +141,15 @@ final class TownFeed {
 
     /// The feed went off screen: another tab, the map, an Event page, or the app left the
     /// foreground. Cards on screen long enough count first; timing stops while away.
-    func left(at now: Date = Date()) {
-        guard awaySince == nil else { return }
+    /// `viewGone`: the screen itself went (a tab switch rebuilds it), so its cards will
+    /// never report going off; they are forgotten, and a rebuilt screen's report again.
+    func left(at now: Date = Date(), viewGone: Bool = false) {
+        guard awaySince == nil else {
+            if viewGone { onScreen = [:] }
+            return
+        }
         for (id, since) in onScreen where now.timeIntervalSince(since) >= Self.viewAfter { counted(id) }
+        if viewGone { onScreen = [:] }
         awaySince = now
         returnY = scrollY
     }

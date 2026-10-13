@@ -420,6 +420,20 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(views(town), ["a"], "ten minutes away is not ten minutes seen")
     }
 
+    /// A tab switch rebuilds the screen: its cards never report going off, so they're
+    /// forgotten, and a later feed load counts only what the rebuilt screen reports.
+    func testCardsFromAScreenThatWentAreNotCountedAgain() async {
+        let town = await shownFeed(Sender())
+        town.cardOnScreen("c", true, at: now)
+        town.left(at: now.addingTimeInterval(2), viewGone: true)
+        XCTAssertEqual(views(town), ["c"])
+
+        town.cameBack(at: now.addingTimeInterval(31 * 60))
+        await town.reload(at: now.addingTimeInterval(31 * 60))
+        town.left(at: now.addingTimeInterval(32 * 60))
+        XCTAssertEqual(views(town), ["c"], "c was never on the rebuilt screen")
+    }
+
     func testAFreshOrderStartsANewFeedLoad() async {
         let town = await shownFeed(Sender())
         town.cardOnScreen("a", true, at: now)

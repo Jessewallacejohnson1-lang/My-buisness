@@ -578,6 +578,20 @@ test('popular as the reason needs 3 Going and the top quarter; one Going still c
   assert.equal((await feed('2026-10-08 12:00'))[0].score.popular, 0);
 });
 
+test('an event nobody has seen takes no rank from the ones people saw', async () => {
+  await reset();
+  const unseen = await add('Big unseen', '2026-10-09', { start_time: '9 AM', source_name: 'A' });
+  const seenA = await add('Seen A', '2026-10-09', { start_time: '10 AM', source_name: 'B' });
+  const seenB = await add('Seen B', '2026-10-09', { start_time: '11 AM', source_name: 'C' });
+  await going(unseen, 9);
+  await seen(seenA, 20); await going(seenA, 6, 100);
+  await seen(seenB, 20, 1000); await going(seenB, 1, 200);
+  await refreshStats();
+  const reasons = Object.fromEntries((await feed('2026-10-08 12:00')).map((r) => [r.title, r.reason]));
+  assert.equal(reasons['Seen A'], 'popular', 'the unseen event did not push it out of the top quarter');
+  assert.notEqual(reasons['Big unseen'], 'popular');
+});
+
 test('a new event seen by 30 people no longer takes the new spot', async () => {
   await reset();
   for (const [i, h] of ['8 AM', '9 AM', '10 AM', '11 AM', '12 PM'].entries())

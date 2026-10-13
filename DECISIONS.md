@@ -824,8 +824,10 @@ over a database change ("yes", Check-in 1): no live migration, no new Storage pa
 - **Popularity** is the playground's: popular × min(Going / max(viewers, 20) × 10, 3), from
   `private.feed_item_stats` (refreshed every 10 minutes), and nothing until someone has
   seen the event in the feed. "Popular in town" as the reason needs at least 3 Going and the
-  top quarter of the read by Going per viewer (Jesse, 2026-10-13: popular compared with
-  other events). The new-item spot needs under 30 viewers.
+  top quarter of the read's seen events by Going per viewer (Jesse, 2026-10-13: popular
+  compared with other events); an event nobody has seen takes no rank. The new-item spot
+  needs under 30 viewers. A screen that went (a tab switch rebuilds it) forgets its cards,
+  so they never count again in a later feed load.
 - **Jobs** (`*_feed_jobs.sql`, pg_cron): summary every 10 minutes, views older than 60 days
   deleted at 3:30 am Central. Free plan: 18 MB of 500 MB on 2026-10-13; views reach about
   1 GB kept at 3,000 daily people, so Pro comes before then (Jesse's spending yes).

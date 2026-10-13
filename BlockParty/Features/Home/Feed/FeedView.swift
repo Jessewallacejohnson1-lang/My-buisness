@@ -303,7 +303,7 @@ struct FeedView: View {
         }
         .onDisappear {
             AppearanceStore.shared.holdsClock = false
-            townFeed.left()
+            townFeed.left(viewGone: true)
         }
         .scrollPosition($feedPosition)
         .refreshable {
