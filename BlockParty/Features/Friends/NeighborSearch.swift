@@ -34,10 +34,11 @@ final class NeighborSearch {
         /// The ask failed (offline); the next keystroke asks again.
         case failed
 
-        /// Something to list: people, or the line asking to log in.
+        /// Something to list: people, the line asking to log in, or the one saying the ask
+        /// failed.
         var hasRows: Bool {
             switch self {
-            case .found, .needsAccount: true
+            case .found, .needsAccount, .failed: true
             default: false
             }
         }
@@ -75,11 +76,16 @@ final class NeighborSearch {
     /// The words typed so far. Results for older words never land over newer ones.
     func search(_ words: String) {
         asking?.cancel()
+        // An Anonymous account is asked to log in before it types anything.
+        guard !isAnonymous() else { state = .needsAccount; return }
         let words = words.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !words.isEmpty else { state = .idle; return }
-        guard !isAnonymous() else { state = .needsAccount; return }
-        // What was found stays up while the next words are asked about, as iOS search does.
-        if case .found = state {} else { state = .loading }
+        // What was found, or that nothing was, stays up while the next words are asked
+        // about, as iOS search does, so it doesn't blink on every letter.
+        switch state {
+        case .found, .none: break
+        default: state = .loading
+        }
         asking = Task { [find] in
             try? await Task.sleep(for: Self.pause)
             guard !Task.isCancelled else { return }

@@ -114,21 +114,10 @@ struct ProfileView: View {
     /// Edit profile (BP app docs/plans/you-tab/issues/08).
     private var header: some View {
         VStack(spacing: 0) {
-            ProfileAvatar(url: model.avatarUrl, size: 104)
-                .accessibilityHidden(true)
-
-            Text(model.displayName.isEmpty ? "Add your name" : model.displayName)
-                .font(.display(26))
-                .foregroundStyle(model.displayName.isEmpty ? Hue.inkSecondary : Hue.ink)
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .minimumScaleFactor(0.8)
-                .padding(.top, 12)
-
-            Text(subLine)
-                .font(.sans(13))
-                .foregroundStyle(Hue.inkSecondary)
-                .padding(.top, 4)
+            ProfileHead(url: model.avatarUrl,
+                        name: model.displayName.isEmpty ? "Add your name" : model.displayName,
+                        nameInk: model.displayName.isEmpty ? Hue.inkSecondary : Hue.ink,
+                        line: subLine)
 
             if model.isAdmin { organizerBadge }
 

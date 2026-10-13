@@ -72,10 +72,26 @@ final class NeighborSearchTests: XCTestCase {
     func testAnAnonymousAccountIsAskedToLogInAndNeverAsksTheServer() async {
         let server = Server()
         let s = search(server, anonymous: true)
+        s.search("")
+        XCTAssertEqual(s.state, .needsAccount)
         s.search("sam")
         XCTAssertEqual(s.state, .needsAccount)
         await settle()
         XCTAssertEqual(server.asked, [])
+    }
+
+    /// "No results found" stays while the next letter is asked about, then gives way.
+    func testNoResultsStaysWhileTheNextWordsAreAsked() async {
+        let server = Server()
+        let s = search(server)
+        s.search("zz")
+        await settle()
+        s.search("zzz")
+        XCTAssertEqual(s.state, .none)
+        s.search("ana")
+        XCTAssertEqual(s.state, .none)
+        await settle()
+        XCTAssertEqual(names(s.state), ["Ana Samuels"])
     }
 
     func testAFailedAskSaysSoAndTheNextWordsAskAgain() async {

@@ -1,7 +1,8 @@
 -- Find neighbors (BP app docs/plans/friends, ticket 02). A neighbour's name, photo and
 -- Neighbor since reach the app only through this function, and only for a real account:
 -- town_profiles stays readable as your own row alone, so nobody can list the Town's people
--- without signing in. It leaves out anonymous accounts, people with no name, and the caller.
+-- without signing in. It leaves out anonymous and banned accounts, people with no name, and
+-- the caller.
 -- Blocks join it in ticket 04, the mutual-friends count in ticket 03.
 -- ponytail: a person has no Town yet and St. Joseph is the only one, so search covers every
 -- real account; filter by the caller's Town when a second Town opens.
@@ -32,6 +33,7 @@ begin
       join auth.users u on u.id = p.user_id
       where p.user_id <> auth.uid()
         and not coalesce(u.is_anonymous, false)
+        and (u.banned_until is null or u.banned_until < now())
         and p.display_name ~ '[[:alpha:]]'
     )
     select n.user_id, n.name,

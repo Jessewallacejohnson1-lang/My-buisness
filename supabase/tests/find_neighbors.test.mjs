@@ -26,7 +26,8 @@ await db.exec(`
     $$ select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $$;
   create function auth.uid() returns uuid language sql stable as
     $$ select nullif(auth.jwt() ->> 'sub', '')::uuid $$;
-  create table auth.users (id uuid primary key, is_anonymous boolean not null default false);
+  create table auth.users (id uuid primary key, is_anonymous boolean not null default false,
+    banned_until timestamptz);
   create table public.town_profiles (
     user_id uuid primary key, display_name text, avatar_url text,
     onboarded_at timestamptz, created_at timestamptz not null default now());
@@ -103,6 +104,14 @@ test('anonymous accounts, nameless people and the caller never come back', async
   assert.deepEqual(await search('j'), []);
   assert.ok(!(await search('sam')).includes('Sam Anonymous'));
   assert.deepEqual(await search('\u200b'), []);
+});
+
+test('a banned account never comes back, until the ban is over', async () => {
+  await seed();
+  await db.exec(`update auth.users set banned_until = now() + interval '1 day' where id = '${id(2)}'`);
+  assert.ok(!(await search('sam')).includes('Sam Rivera'));
+  await db.exec(`update auth.users set banned_until = now() - interval '1 day' where id = '${id(2)}'`);
+  assert.ok((await search('sam')).includes('Sam Rivera'));
 });
 
 test('typed % and _ match themselves, not everyone', async () => {

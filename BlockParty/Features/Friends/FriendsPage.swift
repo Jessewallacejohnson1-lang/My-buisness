@@ -260,23 +260,13 @@ private struct FriendRow: View {
     }
 }
 
-/// A round face: a bundled town photo in a hairline ring, as Search's faces are drawn.
+/// A round face: a bundled town photo, drawn as a neighbour's face is.
 struct FriendFace: View {
     let photo: String
     let size: CGFloat
 
     var body: some View {
-        Circle()
-            .fill(Hue.fill)
-            .overlay {
-                if let url = Bundle.main.url(forResource: photo, withExtension: "jpg") {
-                    FeedCardURLPhoto(url: url, loadingFill: .clear)
-                }
-            }
-            .frame(width: size, height: size)
-            .clipShape(Circle())
-            .overlay(Circle().strokeBorder(Hue.ink.opacity(0.16), lineWidth: FriendsMetric.ring))
-            .accessibilityHidden(true)
+        NeighborFace(url: Bundle.main.url(forResource: photo, withExtension: "jpg")?.absoluteString, size: size)
     }
 }
 

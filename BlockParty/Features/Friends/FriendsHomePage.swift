@@ -13,13 +13,17 @@
 import SwiftUI
 
 extension FriendsMetric {
-    /// Facebook's friends-list row, measured.
-    static let neighborRow: CGFloat = 76
+    /// Facebook's friends-list photo, measured; its row is the inbox's 76 (`row`).
     static let neighborFace: CGFloat = 60
     static let resultsTop: CGFloat = 8
-    /// The neighbour's page: its head starts this far under the bar. (guessed)
-    static let headTop: CGFloat = 20
+    /// The neighbour's page: the photo starts this far under the bar, Instagram's 11 (±1)
+    /// on someone else's profile (BP app references/friends/ig-person-private.jpg).
+    static let headTop: CGFloat = 11
     static let noteTop: CGFloat = 18
+    /// Stand-in rows while a search is asked, and how wide their name bar is.
+    static let loadingRows = 3
+    static let loadingName: CGFloat = 140
+    static let loadingLine: CGFloat = 14
 }
 
 struct FriendsHomePage: View {
@@ -95,7 +99,22 @@ struct FriendsHomePage: View {
                 .foregroundStyle(Hue.inkSecondary)
                 .padding(.horizontal, FriendsMetric.side)
                 .padding(.top, FriendsMetric.noteTop)
-        case .idle, .loading, .none:
+        case .loading:
+            // Nothing found yet for these words: the rows' own shape, shimmering.
+            ForEach(0..<FriendsMetric.loadingRows, id: \.self) { _ in
+                HStack(spacing: FriendsMetric.avatarGap) {
+                    SkeletonBlock(cornerRadius: FriendsMetric.neighborFace / 2)
+                        .frame(width: FriendsMetric.neighborFace, height: FriendsMetric.neighborFace)
+                    SkeletonBlock(cornerRadius: FriendsMetric.loadingLine / 2)
+                        .frame(width: FriendsMetric.loadingName, height: FriendsMetric.loadingLine)
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, FriendsMetric.side)
+                .frame(height: FriendsMetric.row)
+                .shimmering()
+                .accessibilityHidden(true)
+            }
+        case .idle, .none:
             EmptyView()
         }
     }
@@ -119,25 +138,8 @@ struct NeighborPage: View {
         ZStack(alignment: .top) {
             Hue.paper.ignoresSafeArea()
             ScrollView {
-                VStack(spacing: 0) {
-                    ProfileAvatar(url: neighbor.avatarUrl, size: 104)
-                        .accessibilityHidden(true)
-                    Text(neighbor.displayName)
-                        .font(.display(26))
-                        .foregroundStyle(Hue.ink)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.8)
-                        .padding(.top, 12)
-                        .accessibilityAddTraits(.isHeader)
-                    if let since = neighbor.sinceLine {
-                        Text(since)
-                            .font(.sans(13))
-                            .foregroundStyle(Hue.inkSecondary)
-                            .padding(.top, 4)
-                    }
-                }
-                .frame(maxWidth: .infinity)
+                ProfileHead(url: neighbor.avatarUrl, name: neighbor.displayName, line: neighbor.sinceLine)
+                    .frame(maxWidth: .infinity)
                 .padding(.horizontal, FriendsMetric.side)
                 .padding(.top, SearchMetric.pageBar + FriendsMetric.headTop)
             }
@@ -153,7 +155,7 @@ struct NeighborRow: View {
     let neighbor: Neighbor
     var face: CGFloat = FriendsMetric.neighborFace
     var nameFont: Font = .sansSemibold(17)
-    var height: CGFloat = FriendsMetric.neighborRow
+    var height: CGFloat = FriendsMetric.row
 
     var body: some View {
         HStack(spacing: FriendsMetric.avatarGap) {

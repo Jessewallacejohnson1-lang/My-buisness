@@ -210,9 +210,11 @@ struct SearchPage: View {
         .onChange(of: opener.item?.id) { _, id in
             if id != nil { fieldFocused = false }
         }
-        // Neighbours are asked for as the words change, and again once an account logs in.
-        .onChange(of: model.words, initial: true) { model.people.search(model.words) }
-        .onChange(of: auth.accountKey) { model.people.search(model.words) }
+        // Neighbours are asked for as the words change, and again once an account logs in;
+        // only under the pills that show them.
+        .onChange(of: model.words, initial: true) { searchPeople() }
+        .onChange(of: model.chip) { searchPeople() }
+        .onChange(of: auth.accountKey) { searchPeople() }
         .signInSheet(isPresented: $signingIn)
     }
 
@@ -445,6 +447,10 @@ struct SearchPage: View {
         let q = model.words.trimmingCharacters(in: .whitespacesAndNewlines)
         if !q.isEmpty { model.remember(SearchModel.queryID(q)) }
         fieldFocused = false
+    }
+
+    private func searchPeople() {
+        model.people.search(model.chip == .all || model.chip == .people ? model.words : "")
     }
 
     private func cancel() {
@@ -744,6 +750,13 @@ private struct PeopleResults: View {
             }
         case .needsAccount:
             LogInToFindRow(font: .sansSemibold(14), action: logIn)
+        case .failed:
+            // The Town feed's words for a read that failed, as on the Friends page.
+            Text("Check your connection and try again.")
+                .font(.sans(13))
+                .foregroundStyle(Hue.inkSecondary)
+                .padding(.horizontal, SearchMetric.side)
+                .frame(height: SearchMetric.row)
         default:
             EmptyView()
         }
