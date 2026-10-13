@@ -44,10 +44,6 @@ struct FriendMenu: View {
         _relation = State(initialValue: relation)
     }
 
-    private var first: String {
-        person.displayName.split(separator: " ").first.map(String.init) ?? person.displayName
-    }
-
     /// `friend-menu`: "Friends since October 2026" (this month for a friendship made since the
     /// last read); anyone else, "Neighbor since".
     private var line: String? {
@@ -93,7 +89,7 @@ struct FriendMenu: View {
         .onAppear { book.menuOnScreen = true }
         .onDisappear { book.menuOnScreen = false }
         // `unfriend-confirm` and `block-confirm`, in Apple's alert.
-        .alert(asked == .block ? "Block \(first)?" : "Unfriend \(first)?",
+        .alert(asked == .block ? "Block \(person.firstName)?" : "Unfriend \(person.firstName)?",
                isPresented: Binding(get: { asking != nil }, set: { if !$0 { asking = nil } }),
                presenting: asking) { action in
             Button(action == .block ? "Block" : "Unfriend", role: .destructive) {
@@ -119,7 +115,7 @@ struct FriendMenu: View {
                     .frame(width: FriendsMetric.menuCircle, height: FriendsMetric.menuCircle)
                     .background(Hue.fill, in: Circle())
                     .accessibilityHidden(true)
-                Text(action == .block ? "Block \(first)" : "Unfriend \(first)")
+                Text(action == .block ? "Block \(person.firstName)" : "Unfriend \(person.firstName)")
                     .font(.sans(17))
                     .foregroundStyle(Hue.ink)
                 Spacer(minLength: 0)

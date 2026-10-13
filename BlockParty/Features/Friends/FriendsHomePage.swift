@@ -398,7 +398,7 @@ struct RelationButtons: View {
                 }
             case .friends:
                 // `friends-button`
-                face("Friends", ink: false, icon: "checkmark") { book.menu = person }
+                face("Friends", ink: false, icon: "checkmark", hint: "More options") { book.menu = person }
             case .blocked:
                 EmptyView()
             }
@@ -408,7 +408,7 @@ struct RelationButtons: View {
     }
 
     /// One button. VoiceOver hears whose it is: "Confirm, Sarah Lindgren".
-    private func face(_ title: String, ink: Bool, spoken: String? = nil, icon: String? = nil,
+    private func face(_ title: String, ink: Bool, spoken: String? = nil, icon: String? = nil, hint: String = "",
                       action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: FriendsMetric.iconGap) {
@@ -428,6 +428,7 @@ struct RelationButtons: View {
         }
         .buttonStyle(PressableStyle())
         .accessibilityLabel("\(spoken ?? title), \(person.displayName)")
+        .accessibilityHint(hint)
     }
 
     private func tap(_ action: FriendsBook.Action) {

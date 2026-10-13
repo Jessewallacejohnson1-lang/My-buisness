@@ -26,6 +26,9 @@ struct Neighbor: Identifiable, Hashable, Decodable {
     var friendsSince: String? = nil
     var id: String { userId }
 
+    /// "Sam" of "Sam Rivera", for the friend sheet's words.
+    var firstName: String { displayName.split(separator: " ").first.map(String.init) ?? displayName }
+
     /// "Neighbor since October 2026", as the neighbour's own Profile says it.
     var sinceLine: String? { ProfileModel.since(from: since).map { "Neighbor since \($0)" } }
 

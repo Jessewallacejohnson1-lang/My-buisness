@@ -213,9 +213,10 @@ final class FriendsBook {
                 }
             }
             // The read is the truth for everyone it returned whose tap is done. Taps on people
-            // it doesn't return (a request you sent, someone you only found) stay.
+            // it doesn't return (a request you sent, someone you only found) stay, and so does a
+            // block: a read that left before it landed must not bring them back.
             let read = Set(rows.map(\.neighbor.id))
-            chosen = chosen.filter { !read.contains($0.key) || writing.contains($0.key) }
+            chosen = chosen.filter { !read.contains($0.key) || writing.contains($0.key) || $0.value == .blocked }
             withAnimation(.easeInOut(duration: RealLifeActions.flip)) { page = next }
             loaded = true
             failed = false
@@ -230,7 +231,7 @@ final class FriendsBook {
         do {
             let people = try await readBlocked()
             let read = Set(people.map(\.id))
-            chosen = chosen.filter { !read.contains($0.key) || writing.contains($0.key) }
+            chosen = chosen.filter { !read.contains($0.key) || writing.contains($0.key) || $0.value == .blocked }
             withAnimation(.easeInOut(duration: RealLifeActions.flip)) { blockedRead = people }
             blockedLoaded = true
             blockedFailed = false
@@ -273,7 +274,11 @@ final class FriendsBook {
     /// Unblock. A tap on someone whose last tap is still being sent does nothing: the button
     /// already shows where it's going.
     func act(_ action: Action, _ person: Neighbor) {
-        guard !writing.contains(person.id) else { return }
+        guard !writing.contains(person.id) else {
+            // A Block never goes quietly unsent.
+            if action == .block { Haptics.error(); problem = .blockFailed(person.firstName) }
+            return
+        }
         let before = relation(person)
         let shown = Self.answer(to: action)
         Haptics.light()
@@ -302,7 +307,7 @@ final class FriendsBook {
         }
         if action == .block {
             Haptics.error()
-            problem = .blockFailed(person.displayName.split(separator: " ").first.map(String.init) ?? person.displayName)
+            problem = .blockFailed(person.firstName)
             return
         }
         try? await Task.sleep(for: flip)

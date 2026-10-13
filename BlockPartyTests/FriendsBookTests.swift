@@ -328,6 +328,33 @@ final class FriendsBookTests: XCTestCase {
         XCTAssertEqual(b.visible([Self.person("Sam")]), [], "still hidden from an older search result")
     }
 
+    /// The Friends page reads again when a page goes back after a block; a read that left
+    /// before the block landed still lists them, and must not bring them back.
+    func testAReadThatStillListsSomeoneYouBlockedKeepsThemHidden() async {
+        let server = Server()
+        server.rows = [("friend", Self.person("Sam", .friends))]
+        server.blocked = []
+        let b = book(server)
+        await b.refresh()
+        b.act(.block, Self.person("Sam", .friends))
+        await wait()
+        await b.refresh()
+        await b.refreshBlocked()
+        XCTAssertTrue(b.friends.isEmpty)
+        XCTAssertEqual(b.visible([Self.person("Sam", .friends)]), [])
+    }
+
+    func testABlockWhileAnotherTapIsBeingSentSaysItDidNotGo() async {
+        let server = Server()
+        server.delay = .milliseconds(200)
+        let b = book(server)
+        b.act(.add, Self.person("Ana Lee"))
+        b.act(.block, Self.person("Ana Lee", .sent))
+        XCTAssertEqual(b.problem, .blockFailed("Ana"))
+        await wait(.milliseconds(300))
+        XCTAssertEqual(server.writes, ["add Ana Lee"])
+    }
+
     func testAFailedBlockBringsThemBackAndSaysSoInWords() async {
         let server = Server()
         server.rows = [("friend", Self.person("Sam Rivera", .friends))]

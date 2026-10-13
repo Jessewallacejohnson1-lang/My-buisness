@@ -52,6 +52,8 @@ struct BlockedPage: View {
             }
             .padding(.top, FriendsMetric.resultsTop)
         }
+        // A read that failed is tried again by pulling down.
+        .refreshable { await book.refreshBlocked() }
         .safeAreaInset(edge: .top, spacing: 0) { bar }
         // `blocked-empty`: Apple's empty page, in the middle, once a read has said so.
         .overlay {
