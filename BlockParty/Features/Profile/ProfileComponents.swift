@@ -140,6 +140,8 @@ struct ProfileRow<Icon: View>: View {
                 .font(.sansSemibold(16))
                 .foregroundStyle(Hue.ink)
                 .frame(width: 26)
+                // The title says it; VoiceOver read the symbols' names first ("Bookmark, Bookmark, Saved").
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.sansMedium(16))
