@@ -17,6 +17,10 @@
 //      `event_rsvps` / `event_saves` / `event_likes`, `town_follows`).
 //    · `user_utility_prefs` — which utility tiles they chose, and in what order.
 //    · `app_events` — first-party product analytics (see BriefingAnalytics).
+//    · `feed_actions` — Town feed views (a card half on screen for 1 second) and opens
+//      of its Event page (`TownFeed`, ticket 20). Nobody can read the rows through the
+//      app, their own included; views are deleted after 60 days; they are used only for
+//      popularity per view and the new-item spot.
 //
 //  What holds across all of it: it is all FIRST-PARTY. Every row lives in Block
 //  Party's own Supabase project, no third-party SDK ships in the binary, nothing is

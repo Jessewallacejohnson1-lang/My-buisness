@@ -219,7 +219,11 @@ which holds `TodayTopBar` and the feed.
   holds it, so coming back to Town shows the list it left while it reads again; a failed read
   keeps the list and shows the bar's offline pill; a card goes when its `leaves_at` passes, and
   the feed reads again then and on return to the foreground. Its read is injected: live, DEBUG
-  `-town-samples`' sample events, or `-town-offline` (samples kept, every read failing).
+  `-town-samples`' sample events, or `-town-offline` (samples kept, every read failing). It
+  also records views and opens (ticket 20; `DECISIONS.md` 2026-10-13): `DailyFeedColumn`
+  reports each card crossing half on screen, the shell's Event page route reports an open
+  from the Town tab, and the shell sends a batch every 30 s and on going to the background.
+  Its sender is injected too: live, or nowhere for tests, previews and the sample modes.
 - **`RealLifeActions` is the app's one home for Going and Heart** `[test]` (`RealLifeActionsTests`;
   BP app `docs/plans/real-life-actions`, tickets 02 and 03; Save joins it in 04). `MainTabsView`
   holds it beside `TownFeed`, hands it to `TownFeed` (every list the feed takes sets each Event's
