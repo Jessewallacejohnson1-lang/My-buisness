@@ -6,10 +6,12 @@
 -- 20261013120100_feed_jobs.sql (pg_cron, which PGlite doesn't have).
 
 -- What the feed showed and what was opened. Insert-only through the API: the phone sends
--- the row's id (made on the phone, so a batch sent twice lands once), the event and the
--- action; who and when are set here. Nobody reads a row through the API, their own included.
+-- the event and the action; who and when are set here. Nobody reads a row through the API,
+-- their own included. A batch resent after a lost answer can land twice; the summary counts
+-- distinct people, so popularity doesn't move (a phone-made id with ignore-duplicates would
+-- need a select policy, which this table must not have).
 create table public.feed_actions (
-  id uuid primary key,
+  id uuid primary key default gen_random_uuid(),
   user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
   item_id uuid not null references public.club_events (id) on delete cascade,
   action text not null check (action in ('view', 'open')),
@@ -21,7 +23,7 @@ create index feed_actions_user_id_idx on public.feed_actions (user_id);
 
 alter table public.feed_actions enable row level security;
 revoke all on public.feed_actions from anon, authenticated;
-grant insert (id, item_id, action) on public.feed_actions to authenticated;
+grant insert (item_id, action) on public.feed_actions to authenticated;
 create policy "insert own feed actions" on public.feed_actions
   for insert to authenticated
   with check ((select auth.uid()) = user_id);

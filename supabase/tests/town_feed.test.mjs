@@ -520,28 +520,24 @@ test('views: a person inserts only their own, and nobody reads them back', async
   await reset();
   const event = await add('Trivia', '2026-10-09', { start_time: '7 PM' });
   await signIn(ME);
-  await db.query(`insert into public.feed_actions (id, item_id, action) values (gen_random_uuid(), $1, 'view')`, [event]);
-  await db.query(`insert into public.feed_actions (id, item_id, action) values (gen_random_uuid(), $1, 'open')`, [event]);
-  // A batch sent twice lands once: the phone made the id.
-  const twice = '00000000-0000-0000-0009-000000000001';
-  for (let i = 0; i < 2; i++)
-    await db.query(`insert into public.feed_actions (id, item_id, action) values ($1, $2, 'view')
-                    on conflict do nothing`, [twice, event]);
+  await db.query(`insert into public.feed_actions (item_id, action) values ($1, 'view')`, [event]);
+  await db.query(`insert into public.feed_actions (item_id, action) values ($1, 'open')`, [event]);
   await refused(`select * from public.feed_actions`);
   await refused(`insert into public.feed_actions (id, user_id, item_id, action)
                  values (gen_random_uuid(), $1, $2, 'view')`, [YOU, event]);
   await refused(`insert into public.feed_actions (id, item_id, action, at)
                  values (gen_random_uuid(), $1, 'view', now() - interval '1 year')`, [event]);
-  await refused(`insert into public.feed_actions (id, item_id, action) values (gen_random_uuid(), $1, 'like')`, [event]);
-  await refused(`insert into public.feed_actions (id, item_id, action)
-                 values (gen_random_uuid(), '00000000-0000-0000-0009-00000000dead', 'view')`);
+  await refused(`insert into public.feed_actions (item_id, action) values ($1, 'like')`, [event]);
+  await refused(`insert into public.feed_actions (id, item_id, action) values (gen_random_uuid(), $1, 'view')`, [event]);
+  await refused(`insert into public.feed_actions (item_id, action)
+                 values ('00000000-0000-0000-0009-00000000dead', 'view')`);
   await refused(`update public.feed_actions set action = 'open'`);
   await refused(`delete from public.feed_actions`);
   await db.exec(`set role anon; reset request.jwt.claim.sub`);
-  await refused(`insert into public.feed_actions (id, item_id, action) values (gen_random_uuid(), $1, 'view')`, [event]);
+  await refused(`insert into public.feed_actions (item_id, action) values ($1, 'view')`, [event]);
   await db.exec('reset role');
-  const { rows } = await db.query(`select user_id::text, action from public.feed_actions order by action, id`);
-  assert.deepEqual(rows, [{ user_id: ME, action: 'open' }, { user_id: ME, action: 'view' }, { user_id: ME, action: 'view' }]);
+  const { rows } = await db.query(`select user_id::text, action from public.feed_actions order by action`);
+  assert.deepEqual(rows, [{ user_id: ME, action: 'open' }, { user_id: ME, action: 'view' }]);
 });
 
 test('popularity per view lifts an event, and says popular when it leads', async () => {
