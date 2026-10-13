@@ -228,11 +228,14 @@ which holds `TodayTopBar` and the feed.
   heart in a screen's own state again** `[prose]`: the page used to, and the card behind it went
   stale; the card's heart reset on every refresh. A tap lays
   the choice over the base until a read agrees; writes run one at a time per Event and are never
-  cancelled, so the last tap is what the server ends with; a failure holds 600 ms, flips back,
-  then shakes and buzzes only while the screen that asked is open: the Event page for Going,
-  the card for Heart. The photo's double tap only ever hearts. Whether Join, the going line
+  cancelled, so the last tap is what the server ends with; the server's "no" holds 600 ms,
+  flips back, then shakes and buzzes only while the screen that asked is open: the Event page
+  for Going, the card for Heart. No answer at all (offline, timed out) is no "no": the tap
+  stays, is tried again (2, 4, 8, 10 s), and is kept on the phone for its account until a read
+  agrees, so it survives a relaunch; a "no" that comes that late flips back with no shake or
+  buzz (town-feed ticket 24). Test runs and sample modes keep nothing (`AuthStore.isTestRun`). The photo's double tap only ever hearts. Whether Join, the going line
   and the heart show is its `canAct` (an account, or a backend that needs none), not the card's. Writes are
-  injected: Supabase, or under DEBUG `-town-samples` nowhere and `-town-offline` always failing,
+  injected: Supabase, or under DEBUG `-town-samples` nowhere and `-town-offline` never answering (taps stay and keep trying),
   so a sample Join never reaches the live database. `RootView` gives the DEBUG preview roots
   outside the shell `RealLifeActions.preview`; a card or event page outside both would crash.
 - **When the order changes is ticket 11's** `[test]`: a fresh order only on pull to refresh, or
