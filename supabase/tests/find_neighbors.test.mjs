@@ -1,4 +1,5 @@
-// Fixed stories for search_neighbors (supabase/migrations/*_find_neighbors.sql),
+// Fixed stories for search_neighbors (supabase/migrations/*_find_neighbors.sql, re-created by
+// *_friend_requests.sql),
 // how a neighbour finds another by name (BP app docs/plans/friends, ticket 02), run in PGlite
 // like the Town feed's. Run: `npm install && npm test` in this folder. The schema below is the
 // subset of schema.sql the functions read, with is_real_account() taken from its own migration.
@@ -31,6 +32,12 @@ await db.exec(`
   create table public.town_profiles (
     user_id uuid primary key, display_name text, avatar_url text,
     onboarded_at timestamptz, created_at timestamptz not null default now());
+  -- What *_friend_requests.sql needs beside them.
+  create table public.town_follows (
+    id uuid primary key default gen_random_uuid(), follower_id uuid not null,
+    target_type text not null, target_id uuid not null, unique (follower_id, target_type, target_id));
+  create function public.get_feed_postings(limit_n integer default 30) returns int
+    language sql as $$ select 0 $$;
 
   -- The live rule (schema.sql): each person reads only their own row.
   alter table public.town_profiles enable row level security;
@@ -39,7 +46,7 @@ await db.exec(`
   grant select on all tables in schema public to anon, authenticated;
 `);
 await db.exec(realAccount);
-for (const sql of read('_find_neighbors.sql')) await db.exec(sql);
+for (const sql of [...read('_find_neighbors.sql'), ...read('_friend_requests.sql')]) await db.exec(sql);
 
 const id = (n) => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`;
 const ME = id(1);
