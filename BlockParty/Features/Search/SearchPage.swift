@@ -163,6 +163,9 @@ struct SearchPage: View {
     @FocusState private var fieldFocused: Bool
     @Namespace private var chipNS
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @EnvironmentObject private var auth: AuthStore
+    /// Log in, from the People section's `people-login` line.
+    @State private var signingIn = false
 
     private enum Mode: Hashable {
         case shelves, people, wall, groups(SearchItem.Kind), recents, results(SearchChip)
@@ -207,6 +210,10 @@ struct SearchPage: View {
         .onChange(of: opener.item?.id) { _, id in
             if id != nil { fieldFocused = false }
         }
+        // Neighbours are asked for as the words change, and again once an account logs in.
+        .onChange(of: model.words, initial: true) { model.people.search(model.words) }
+        .onChange(of: auth.accountKey) { model.people.search(model.words) }
+        .signInSheet(isPresented: $signingIn)
     }
 
     // MARK: Header
@@ -387,13 +394,16 @@ struct SearchPage: View {
             }
         case .results(let chip):
             let sections = model.results(for: model.words, in: chip)
-            if sections.isEmpty {
-                NothingFound()
+            let people = chip == .all || chip == .people ? model.people.state : .idle
+            if sections.isEmpty && !people.hasRows {
+                // Nothing here yet: wait for the neighbours' answer before saying so.
+                if people != .loading { NothingFound() }
             } else {
                 ForEach(sections, id: \.kind) { section in
                     if chip.resultKinds.count > 1 { SectionTitle(text: SearchPage.sectionTitle(section.kind)) }
                     ForEach(section.items) { ItemRow(item: $0) }
                 }
+                PeopleResults(state: people, titled: chip.resultKinds.count > 1) { signingIn = true }
             }
         }
     }
@@ -710,6 +720,33 @@ struct PhotoCard: View {
         opener.open(item, from: .init(
             logo: CGRect(x: box.midX - size / 2, y: box.midY - size / 2, width: size, height: size),
             box: box, radius: Radius.photoCard, shadow: logo.shadow, fades: true))
+    }
+}
+
+/// Neighbours for the words typed, after the places, so the rows above stay put when they
+/// arrive (BP app docs/plans/friends, ticket 02). An Anonymous account gets `people-login`.
+/// Never saved to Recent: a neighbour's name and photo stay off the phone.
+private struct PeopleResults: View {
+    let state: NeighborSearch.State
+    let titled: Bool
+    let logIn: () -> Void
+
+    var body: some View {
+        if state.hasRows, titled { SectionTitle(text: SearchPage.sectionTitle(.person)) }
+        switch state {
+        case .found(let people):
+            ForEach(people) { person in
+                NavigationLink(value: person) {
+                    NeighborRow(neighbor: person, face: SearchMetric.avatar, nameFont: .sansSemibold(14),
+                                height: SearchMetric.row)
+                }
+                .buttonStyle(RowPressStyle())
+            }
+        case .needsAccount:
+            LogInToFindRow(font: .sansSemibold(14), action: logIn)
+        default:
+            EmptyView()
+        }
     }
 }
 

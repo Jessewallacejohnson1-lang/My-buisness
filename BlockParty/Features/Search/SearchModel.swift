@@ -1,8 +1,9 @@
 //
 //  SearchModel.swift
 //  Block Party — what the Search tab holds: the Town's places from Supabase with their
-//  bundled logos, the city's parks and trails, the neighbour's recent searches, and,
-//  in DEBUG until their reads exist, sample neighbours, events and clubs.
+//  bundled logos, the city's parks and trails, the neighbour's recent searches, the
+//  neighbours found by name (`NeighborSearch`), and, in DEBUG until their reads exist,
+//  sample events and clubs.
 //
 //  Reference: Jesse's Search mockup v7 (claude.ai/artifact/Vqb74LLMXipRV8uhpefTo9) and
 //  its five Figma frames, 2026-10-02. Row orders, names and labels follow the mockup.
@@ -192,6 +193,9 @@ final class SearchModel {
     var searching = false
     /// Ids, newest first: an item's id, or `q:` and the words.
     private(set) var recentIDs: [String]
+    /// Neighbours for the typed words, asked of the server. Kept here, not on the page,
+    /// which is rebuilt on every tab switch while the words stay.
+    let people = NeighborSearch()
 
     private let defaults: UserDefaults
     private let fixed = SearchModel.parks() + SearchModel.samples()
@@ -355,17 +359,10 @@ final class SearchModel {
     }
 
     #if DEBUG
-    /// INVENTED, as Jesse asked (2026-10-02, "just mock it up"): neighbours, events and
-    /// clubs, until their reads exist. Neighbours' profiles are private to each person
-    /// today, and the Town has no events or clubs yet. Names and photos are the mockup's;
-    /// the faces are town photos, since there is no real face to show.
+    /// INVENTED, as Jesse asked (2026-10-02, "just mock it up"): events and clubs, until
+    /// their reads exist; the Town has none yet. Names and photos are the mockup's. People
+    /// are real now (`people`), found by name once something is typed.
     static func samples() -> [SearchItem] {
-        let people = [("Marlene Ostendorf", "memorial-park"), ("Bea Lindgren", "farmers-market"),
-                      ("Dale Brunner", "wobegon-trail"), ("Hal Pedersen", "rivers-bend-park"),
-                      ("Junie Okonkwo", "millstream-arts-festival"), ("Kesia Vue", "sju-arboretum-trail"),
-                      ("Marcus Whitefeather", "klinefelter-park-trail"), ("Maya Chen", "saint-bens"),
-                      ("Sam Rivera", "centennial-park")]
-            .map { name, photo in SearchItem(id: "u:\(name)", kind: .person, name: name, photo: .bundled(photo)) }
         let events = [("Rocktoberfest", "rocktoberfest", "Festivals"), ("Millstream Arts Festival", "millstream-arts-festival", "Festivals"),
                       ("Farmers Market", "farmers-market", "Markets")]
             .map { name, photo, group in
@@ -376,13 +373,13 @@ final class SearchModel {
             .map { name, photo in
                 SearchItem(id: "c:\(name)", kind: .club, name: name, sub: "Club", photo: .asset(photo), keywords: ["club"])
             }
-        return ranked(people) + ranked(events) + ranked(clubs)
+        return ranked(events) + ranked(clubs)
     }
 
-    /// INVENTED: the mockup's starting recents (Marlene, The Local Blend, "pumpkin",
-    /// Lee's Ace Hardware, Rocktoberfest), so the recents screen can be seen before any
-    /// searching. Only when nothing was ever saved.
-    static let sampleRecents = ["u:Marlene Ostendorf", "p:ChIJmTKJ0M9ZtFIRm7FAmBzwApc", "q:pumpkin",
+    /// INVENTED: the mockup's starting recents (The Local Blend, "pumpkin", Lee's Ace
+    /// Hardware, Rocktoberfest), so the recents screen can be seen before any searching.
+    /// Only when nothing was ever saved.
+    static let sampleRecents = ["p:ChIJmTKJ0M9ZtFIRm7FAmBzwApc", "q:pumpkin",
                                 "p:ChIJPZImC8ZZtFIR9_fV1pe_1B8", "e:Rocktoberfest"]
     #else
     static func samples() -> [SearchItem] { [] }

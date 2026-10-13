@@ -112,8 +112,11 @@ Town bar's leading control became a friends mark — and **You** mounts
   driven by one spring value (`LiveSpring`) so a drag can grab it mid-flight. Logos come
   from Storage through `places.search_logo` (`DECISIONS.md` 2026-10-02, moved 2026-10-08)
   and load through `POILogoCache`, the map pins' cache; restaurant and business
-  photos are Google's, each with its `PhotoCredit`. People, events and clubs are DEBUG
-  samples until their reads exist; a release build leaves those rows and pills out.
+  photos are Google's, each with its `PhotoCredit`. Events and clubs are DEBUG
+  samples until their reads exist; a release build leaves those rows and pills out. People
+  are real: typed words find neighbours with a real account and a name (`search_neighbors`),
+  listed after the places and never saved to Recent; the People row and pill wait for build
+  13's suggestions (BP app docs/plans/friends).
 - **Daily** (`Features/Daily/DailyPage.swift`) shows its page
   when it has something real to show and `BlankTab` otherwise: DEBUG shows a sample
   Spotlight, release keeps the placeholder until the Spotlight read exists. Its spec is
