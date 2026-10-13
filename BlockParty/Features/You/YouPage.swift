@@ -31,6 +31,8 @@ enum YouMetric {
     static let pillSide: CGFloat = 14
     static let peek: Duration = .seconds(2)
     static let photoIn: Double = 0.15
+    /// How far the name eases left as the pill closes over it (the mock's).
+    static let nameOut: CGFloat = 18
     /// The bar the photo sits in, and from it to the weekdays: the mock's.
     static let bar: CGFloat = 52
     static let calendarTop: CGFloat = 8
@@ -107,7 +109,7 @@ struct YouPage: View {
         }
         .navigationDestination(item: $pushed) { FeedEventDetailDestination(item: $0) }
         // An event page opened mid-peek: back on You, the photo is already there.
-        .onChange(of: pushed) { _, item in if item != nil { peek = nil } }
+        .onChange(of: pushed) { _, item in if item != nil { fold() } }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await model.refresh() } }
         }
@@ -167,6 +169,8 @@ struct YouPage: View {
             }
             .buttonStyle(PressableCardStyle())
             .accessibilityLabel("Your profile")
+            // Voice Control: "Tap Jesse" works while the name shows.
+            .accessibilityInputLabels(["Your profile", peek].compactMap { $0 })
             Spacer(minLength: 0)
         }
         .padding(.leading, YouMetric.photoEdge - (YouMetric.target - YouMetric.photo) / 2)
@@ -318,19 +322,27 @@ private struct YouBadge: View {
 
     var body: some View {
         HStack(spacing: 0) {
+            // Always here, so the photo loads during the peek: no width and unseen until the
+            // fold opens it up, then it comes in over the fold's last part.
+            YouPhoto(url: url)
+                .animation(Motion.smooth.delay(YouMetric.photoIn)) {
+                    $0.opacity(name == nil ? 1 : 0)
+                        .scaleEffect(name == nil || reduceMotion ? 1 : 0.6)
+                }
+                .frame(width: name == nil ? YouMetric.photo : 0, alignment: .leading)
             if let name {
                 Text(name)
                     .font(.sansSemibold(16))
                     .foregroundStyle(Hue.ink)
                     .lineLimit(1)
                     .padding(.horizontal, YouMetric.pillSide)
-                    .transition(reduceMotion ? .opacity : .move(edge: .leading).combined(with: .opacity))
-            } else {
-                YouPhoto(url: url)
-                    .transition(photoIn)
+                    // A one-letter name still makes a pill, not an upright oval.
+                    .frame(minWidth: YouMetric.pill)
+                    // The pill closes over it from the right as it eases left and fades.
+                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .offset(x: -YouMetric.nameOut)))
             }
         }
-        .frame(height: name == nil ? YouMetric.photo : YouMetric.pill)
+        .frame(minHeight: name == nil ? YouMetric.photo : YouMetric.pill)
         .clipShape(Capsule())
         .background {
             // The cards' white, hairline and shadow, gone as the photo comes in: by then the
@@ -341,11 +353,6 @@ private struct YouBadge: View {
                 .modifier(CardShadow())
                 .animation(Motion.smooth.delay(YouMetric.photoIn)) { $0.opacity(name == nil ? 0 : 1) }
         }
-    }
-
-    private var photoIn: AnyTransition {
-        let fade = reduceMotion ? AnyTransition.opacity : .opacity.combined(with: .scale(scale: 0.6))
-        return fade.animation(Motion.smooth.delay(YouMetric.photoIn))
     }
 }
 
