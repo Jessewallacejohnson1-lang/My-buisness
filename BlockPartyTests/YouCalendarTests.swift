@@ -148,7 +148,7 @@ final class YouCalendarTests: XCTestCase {
         let first = YouCalendar.firstDay(of: town("2026-10-14 12:00"))
         var fail = false
         let actions = RealLifeActions(signedIn: true, needsAccount: false, hold: .milliseconds(1), flip: .milliseconds(1),
-                                      setGoing: { _, _ in if fail { throw URLError(.notConnectedToInternet) } },
+                                      setGoing: { _, _ in if fail { throw SupabaseError(message: "no", status: 403) } },
                                       setHeart: { _, _ in }, setSave: { _, _ in }, knownEvents: { _ in [] })
         var card = FeedCardItem(row("card", "2026-10-20", "6 PM"))
         card.isJoined = false
@@ -201,7 +201,7 @@ final class YouCalendarTests: XCTestCase {
         var fail = false
         let actions = RealLifeActions(signedIn: true, needsAccount: false, hold: .milliseconds(1), flip: .milliseconds(1),
                                       setGoing: { _, _ in }, setHeart: { _, _ in },
-                                      setSave: { _, _ in if fail { throw URLError(.notConnectedToInternet) } },
+                                      setSave: { _, _ in if fail { throw SupabaseError(message: "no", status: 403) } },
                                       knownEvents: { _ in [] })
         let read = [saved("read", "2026-10-15", "6 PM")].compactMap(YouCalendar.event(from:))
         let card = FeedCardItem(row("card", "2026-10-20", "6 PM"))

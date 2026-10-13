@@ -72,14 +72,22 @@ final class AuthStore: ObservableObject, TokenProviding {
     /// those would add one to the live project, inside the same 30-an-hour limit
     /// Jesse's phone shares on this network.
     private static var makesAccounts: Bool {
-        let process = ProcessInfo.processInfo
-        if process.environment["XCTestConfigurationFilePath"] != nil { return false }
+        if isTestRun { return false }
         #if DEBUG
-        if process.arguments.contains("-ui-tests") || process.arguments.contains("-town-samples") {
-            return false
-        }
+        if ProcessInfo.processInfo.arguments.contains("-town-samples") { return false }
         #endif
         return true
+    }
+
+    /// A unit or UI test run: it must never act for whatever account the simulator
+    /// kept, so it makes no account and sends no tap kept from before (`RealLifeActions`).
+    static var isTestRun: Bool {
+        let process = ProcessInfo.processInfo
+        if process.environment["XCTestConfigurationFilePath"] != nil { return true }
+        #if DEBUG
+        if process.arguments.contains("-ui-tests") { return true }
+        #endif
+        return false
     }
 
     // MARK: - Flows (return a user-facing error string, nil on success)

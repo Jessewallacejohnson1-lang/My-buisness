@@ -7,10 +7,12 @@
 //  the same entry and always agree. A Town feed read sets each Event's base state; a
 //  tap lays the neighbour's choice over it at once, until a read agrees with it.
 //
-//  A write that fails turns the choice back the way the Event page always has: it
-//  holds 600 ms after the tap, flips back, and once the 0.18 s flip is done the screen
-//  that asked shakes and buzzes, but only while it is still open: the Event page for
-//  Going, the card for Heart, either for Save.
+//  A write the server says no to turns the choice back the way the Event page always
+//  has: it holds 600 ms after the tap, flips back, and once the 0.18 s flip is done the
+//  screen that asked shakes and buzzes, but only while it is still open: the Event page
+//  for Going, the card for Heart, either for Save. A write that gets no answer (offline,
+//  timed out) is no "no": the tap stays and is tried again until it lands, kept on the
+//  phone so it survives a relaunch (town-feed ticket 24).
 //
 
 import SwiftUI
@@ -40,9 +42,9 @@ final class RealLifeActions {
     private(set) var canAct: Bool
 
     /// What a neighbour does with an Event. Each keeps its own state, writes and shakes.
-    private enum Kind { case going, heart, save }
+    private enum Kind: Codable { case going, heart, save }
 
-    private struct Key: Hashable {
+    private struct Key: Hashable, Codable {
         let kind: Kind
         let id: String
     }
@@ -88,18 +90,39 @@ final class RealLifeActions {
     @ObservationIgnored private var movingUp = false
     /// Numbers each account, so a write the last one sent says nothing about this one.
     @ObservationIgnored private var account = 0
+    /// Being sent again after no answer, or brought back at launch. A "no" to one of
+    /// these comes long after the tap, so it turns back without the shake and buzz
+    /// (Jesse, 2026-10-13); VoiceOver still says it.
+    @ObservationIgnored private var late: Set<Key> = []
+
+    /// Taps not yet agreed by a read, kept on the phone for the account that made them.
+    private struct Waiting: Codable {
+        var owner: String
+        var taps: [Key: Bool]
+    }
+    private static let waitingKey = "bp.waitingTaps"
 
     private let needsAccount: Bool
     private let holdFor: Duration
     private let flipFor: Duration
+    /// The first wait before trying a write again after no answer; it doubles to five
+    /// times this (2, 4, 8, 10, 10 s in the app, as `RealtimeClient` reconnects).
+    private let retryFor: Duration
+    /// Where waiting taps are kept: nil keeps none (tests, sample and offline modes).
+    private let keep: UserDefaults?
+    /// The account a waiting tap belongs to.
+    private let owner: () -> String?
     private let setGoing: (_ eventID: String, _ going: Bool) async throws -> Void
     private let setHeart: (_ eventID: String, _ hearted: Bool) async throws -> Void
     private let setSave: (_ eventID: String, _ saved: Bool) async throws -> Void
     /// Which of these ids are Events. The phone's saved list holds Places too.
     private let knownEvents: (_ ids: [String]) async throws -> Set<String>
 
-    /// `hold` and `flip` come in here so tests run fast; the app passes the measured ones.
+    /// `hold`, `flip` and `retry` come in here so tests run fast; the app passes the
+    /// measured ones.
     init(signedIn: Bool, needsAccount: Bool, hold: Duration, flip: Duration,
+         retry: Duration = .seconds(2), keep: UserDefaults? = nil,
+         owner: @escaping () -> String? = { nil },
          setGoing: @escaping (_ eventID: String, _ going: Bool) async throws -> Void,
          setHeart: @escaping (_ eventID: String, _ hearted: Bool) async throws -> Void,
          setSave: @escaping (_ eventID: String, _ saved: Bool) async throws -> Void,
@@ -108,6 +131,9 @@ final class RealLifeActions {
         self.needsAccount = needsAccount
         self.holdFor = hold
         self.flipFor = flip
+        self.retryFor = retry
+        self.keep = keep
+        self.owner = owner
         self.setGoing = setGoing
         self.setHeart = setHeart
         self.setSave = setSave
@@ -169,9 +195,13 @@ final class RealLifeActions {
         }
         // Only the live backend needs an account: sample cards always offered Join, and
         // the Eyes pass must not hang on the live anonymous sign-in, limited per network.
+        // Waiting taps are kept only for real ones: never a sample's, and never in a test
+        // run, which could otherwise send a tap left on the simulator.
+        let keeps = backend == .live && !AuthStore.isTestRun
         self.init(signedIn: AuthStore.shared.isSignedIn, needsAccount: backend == .live,
-                  hold: Self.hold, flip: .seconds(Self.flip), setGoing: setGoing, setHeart: setHeart,
-                  setSave: setSave, knownEvents: knownEvents)
+                  hold: Self.hold, flip: .seconds(Self.flip),
+                  keep: keeps ? .standard : nil, owner: { AuthStore.shared.userId },
+                  setGoing: setGoing, setHeart: setHeart, setSave: setSave, knownEvents: knownEvents)
     }
 
     #if DEBUG
@@ -262,11 +292,17 @@ final class RealLifeActions {
             base[Key(kind: .going, id: card.id)] = Tally(on: card.isJoined, count: card.goingCount)
             base[Key(kind: .heart, id: card.id)] = Tally(on: card.isLiked, count: card.likeCount)
             base[Key(kind: .save, id: card.id)] = Tally(on: card.isSaved, count: 0)
+            // A tap still being sent (one kept from before a relaunch included) shows on
+            // You and in Saved too, before the server has it.
+            guard canAct else { continue }
+            if writers[Key(kind: .going, id: card.id)] != nil { goingTapped[card.id] = card }
+            if writers[Key(kind: .save, id: card.id)] != nil { savedTapped[card.id] = card }
         }
         for (key, choice) in chosen where writers[key] == nil && failedFrom[key] == nil {
             if base[key]?.on == choice || turnedBack.contains(key) { chosen[key] = nil }
         }
         turnedBack = []
+        save()
     }
 
     /// An Event's page is on screen. Only then does a failed Join or Save shake and buzz:
@@ -328,8 +364,10 @@ final class RealLifeActions {
         failedFrom = [:]
         turnedBack = []
         chosen = [:]
+        late = []
         goingTapped = [:]
         savedTapped = [:]
+        if signedIn { restore() }
     }
 
     // MARK: Inside
@@ -363,11 +401,46 @@ final class RealLifeActions {
 
     private func choose(_ key: Key, _ on: Bool) {
         turnedBack.remove(key)
+        late.remove(key)
         chosen[key] = on
         taps[key, default: 0] += 1
         tappedAt[key] = .now
         if writers[key] == nil {
             writers[key] = Task { await write(key) }
+        }
+        save()
+    }
+
+    /// Keeps every tap a read hasn't agreed with yet for this account, so a tap made
+    /// offline, or sent but not yet read back, still shows after a relaunch and is sent.
+    private func save() {
+        guard let keep, let owner = owner() else { return }
+        let taps = chosen.filter { !turnedBack.contains($0.key) && failedFrom[$0.key] == nil }
+        if taps.isEmpty {
+            keep.removeObject(forKey: Self.waitingKey)
+        } else if let data = try? JSONEncoder().encode(Waiting(owner: owner, taps: taps)) {
+            keep.set(data, forKey: Self.waitingKey)
+        }
+    }
+
+    /// Brings back this account's kept taps and sends them; another account's are
+    /// dropped, never sent under someone else's name. No animation: they were already
+    /// there before the relaunch.
+    private func restore() {
+        guard let keep, let data = keep.data(forKey: Self.waitingKey) else { return }
+        guard let waiting = try? JSONDecoder().decode(Waiting.self, from: data),
+              waiting.owner == owner() else {
+            keep.removeObject(forKey: Self.waitingKey)
+            return
+        }
+        var quiet = Transaction()
+        quiet.disablesAnimations = true
+        withTransaction(quiet) {
+            for (key, on) in waiting.taps { chosen[key] = on }
+        }
+        for key in waiting.taps.keys {
+            late.insert(key)
+            if writers[key] == nil { writers[key] = Task { await write(key) } }
         }
     }
 
@@ -376,10 +449,12 @@ final class RealLifeActions {
     }
 
     /// Writes the neighbour's latest choice until the server has it, one write at a
-    /// time. A failure a newer tap has overtaken just lets the loop write that tap.
+    /// time. A failure a newer tap has overtaken just lets the loop write that tap. No
+    /// answer at all waits and tries again; only the server's "no" turns back.
     private func write(_ key: Key) async {
         var written: Bool?
         var account = self.account
+        var retries = 0
         while let choice = chosen[key] {
             // A new account came mid-write: what the last one's writes did says nothing
             // about this one's, so its choice is written whatever it is.
@@ -396,10 +471,20 @@ final class RealLifeActions {
                 case .save: try await setSave(key.id, choice)
                 }
                 written = choice
+                retries = 0
             } catch {
                 Log.network("RealLifeActions: \(key.kind) \(choice) for \(key.id) failed: \(error.localizedDescription)")
                 // A newer tap, or a new account, overtook this write: no turn back.
                 guard tap == taps[key], account == self.account else { continue }
+                if error is URLError {
+                    // No answer (offline, timed out): the tap stays and is sent again.
+                    // A request that did land is safe to send twice: every call is
+                    // idempotent. A tap or a new account meanwhile is picked up above.
+                    late.insert(key)
+                    try? await Task.sleep(for: min(retryFor * (1 << min(retries, 3)), retryFor * 5))
+                    retries += 1
+                    continue
+                }
                 writers[key] = nil
                 turnBack(key, to: !choice)
                 return
@@ -420,11 +505,14 @@ final class RealLifeActions {
             // the two faces mid cross-fade (Jesse, 2026-09-27). A tap before then
             // cancels the shake.
             withAnimation(.easeInOut(duration: Self.flip)) { chosen[key] = wasOn }
+            save()
             try? await Task.sleep(for: flipFor)
             guard !Task.isCancelled, (open[key] ?? 0) > 0 else { return }
-            failures[key, default: 0] += 1
-            // Here, not in the view: Reduce Motion drops the shake, never the buzz.
-            Haptics.error()
+            if late.remove(key) == nil {
+                failures[key, default: 0] += 1
+                // Here, not in the view: Reduce Motion drops the shake, never the buzz.
+                Haptics.error()
+            }
             // The shake and the buzz are silent to VoiceOver; this says it.
             let words = switch key.kind {
             case .going: wasOn ? "Couldn't leave" : "Couldn't join"

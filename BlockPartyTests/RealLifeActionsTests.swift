@@ -14,8 +14,9 @@ final class RealLifeActionsTests: XCTestCase {
 
     private static let hold: Duration = .milliseconds(150)
     private static let flip: Duration = .milliseconds(90)
+    private static let retry: Duration = .milliseconds(20)
 
-    /// Records every write, and fails or takes its time when told to.
+    /// Records every write, and says no, gives no answer, or takes its time when told to.
     @MainActor
     private final class Server {
         var writes: [Bool] = []
@@ -25,40 +26,58 @@ final class RealLifeActionsTests: XCTestCase {
         /// The ids that are Events, for the phone's old saves, and how often they were asked.
         var events: Set<String> = []
         var lookups = 0
+        /// Answers "no" (a 403), the server refusing the write.
         var failing = false
+        /// Never answers, as with no network.
+        var offline = false
         var delay: Duration = .zero
+
+        private func answer() throws {
+            if offline { throw URLError(.notConnectedToInternet) }
+            if failing { throw SupabaseError(message: "no", status: 403) }
+        }
 
         func write(_ eventID: String, _ going: Bool) async throws {
             if delay > .zero { try? await Task.sleep(for: delay) }
             writes.append(going)
-            if failing { throw URLError(.notConnectedToInternet) }
+            try answer()
         }
 
         func heart(_ eventID: String, _ hearted: Bool) async throws {
             if delay > .zero { try? await Task.sleep(for: delay) }
             hearts.append(hearted)
-            if failing { throw URLError(.notConnectedToInternet) }
+            try answer()
         }
 
         func save(_ eventID: String, _ saved: Bool) async throws {
             if delay > .zero { try? await Task.sleep(for: delay) }
             saves.append("\(eventID) \(saved)")
-            if failing { throw URLError(.notConnectedToInternet) }
+            try answer()
         }
 
         /// Answers like `club_events`: only real Event ids, and only UUIDs reach it.
         func knownEvents(_ ids: [String]) async throws -> Set<String> {
             lookups += 1
             XCTAssertTrue(ids.allSatisfy { UUID(uuidString: $0) != nil }, "a non-UUID would fail the whole read")
-            if failing { throw URLError(.notConnectedToInternet) }
+            try answer()
             return events.intersection(ids)
         }
     }
 
-    private func actions(_ server: Server, signedIn: Bool = true) -> RealLifeActions {
+    private func actions(_ server: Server, signedIn: Bool = true, keep: UserDefaults? = nil,
+                         owner: @escaping () -> String? = { nil }) -> RealLifeActions {
         RealLifeActions(signedIn: signedIn, needsAccount: true, hold: Self.hold, flip: Self.flip,
+                        retry: Self.retry, keep: keep, owner: owner,
                         setGoing: server.write, setHeart: server.heart, setSave: server.save,
                         knownEvents: server.knownEvents)
+    }
+
+    /// A phone of its own for one test, emptied when it ends.
+    private func phoneStore() -> UserDefaults {
+        let name = "RealLifeActionsTests.\(UUID().uuidString)"
+        let store = UserDefaults(suiteName: name)!
+        addTeardownBlock { store.removePersistentDomain(forName: name) }
+        return store
     }
 
     private func card(id: String = "e1", going: Int = 4, joined: Bool = false,
@@ -387,19 +406,152 @@ final class RealLifeActionsTests: XCTestCase {
         XCTAssertEqual(actions.heart(item), .init(isHearted: false, count: 3))
     }
 
-    /// A heart that reached the server but lost its answer turns back; the next read,
-    /// which has it, is the truth, and nothing stays wrong until a relaunch.
-    func testAReadCorrectsAHeartThatLandedButLostItsAnswer() async throws {
+    /// A heart that reached the server but lost its answer stays hearted and is sent
+    /// again, which is safe; the next read, which has it, agrees.
+    func testAHeartThatLostItsAnswerStaysAndIsSentAgain() async throws {
         let server = Server()
-        server.failing = true
+        server.offline = true
         let actions = actions(server)
         let item = card(hearts: 3)
+        actions.cardOpened(item.id)
 
         actions.toggleHeart(item)
-        try await waitWhile(actions.heart(item).isHearted)
-        XCTAssertEqual(server.hearts, [true], "the server took it; only the answer was lost")
+        try await Task.sleep(for: (Self.hold + Self.flip) * 2)
+        XCTAssertTrue(actions.heart(item).isHearted, "no answer is no \"no\": it stays")
+        XCTAssertEqual(actions.heartFailureCount(item.id), 0)
+
+        server.offline = false
+        try await waitWhile(server.hearts.last != true || actions.heartFailureCount(item.id) > 0)
+        try await Task.sleep(for: Self.retry * 6)
         actions.read([card(hearts: 4, hearted: true)])
         XCTAssertEqual(actions.heart(item), .init(isHearted: true, count: 4))
+    }
+
+    // MARK: Offline (town-feed ticket 24)
+
+    /// Offline, a Join stays with no shake; back online it is sent, and a read agrees.
+    func testAnOfflineJoinStaysAndIsSentWhenBackOnline() async throws {
+        let server = Server()
+        server.offline = true
+        let actions = actions(server)
+        let item = card()
+        actions.pageOpened(item.id)
+
+        actions.toggleGoing(item)
+        try await Task.sleep(for: (Self.hold + Self.flip) * 2)
+        XCTAssertEqual(actions.going(item), .init(isGoing: true, count: 5), "stays Going")
+        XCTAssertEqual(actions.failureCount(item.id), 0, "no shake, no buzz")
+        XCTAssertFalse(server.writes.isEmpty, "it kept trying")
+
+        server.offline = false
+        server.writes = []
+        try await waitWhile(server.writes != [true])
+        XCTAssertEqual(server.writes, [true], "sent once it could be")
+        actions.read([card(going: 5, joined: true)])
+        XCTAssertEqual(actions.going(item), .init(isGoing: true, count: 5))
+        XCTAssertEqual(actions.failureCount(item.id), 0)
+    }
+
+    /// Join then Leave offline: only the last tap goes out once the network is back.
+    func testJoinThenLeaveOfflineSendsOnlyTheLeave() async throws {
+        let server = Server()
+        server.offline = true
+        let actions = actions(server)
+        let item = card()
+
+        actions.toggleGoing(item)
+        try await Task.sleep(for: .milliseconds(10))
+        actions.toggleGoing(item)
+        XCTAssertFalse(actions.going(item).isGoing)
+        try await Task.sleep(for: Self.retry * 3)
+
+        server.writes = []
+        server.offline = false
+        try await waitWhile(server.writes.isEmpty)
+        try await Task.sleep(for: Self.retry * 8)
+        XCTAssertEqual(server.writes, [false], "the Leave alone, which also undoes a Join that landed")
+        XCTAssertFalse(actions.going(item).isGoing)
+    }
+
+    /// A tap that waited offline and then gets the server's "no" flips back quietly: by
+    /// then the neighbour may be anywhere, so no shake and no buzz (Jesse, 2026-10-13).
+    func testALateNoTurnsBackWithoutAShake() async throws {
+        let server = Server()
+        server.offline = true
+        let actions = actions(server)
+        let item = card()
+        actions.pageOpened(item.id)
+
+        actions.toggleGoing(item)
+        try await Task.sleep(for: (Self.hold + Self.flip) * 2)
+        XCTAssertTrue(actions.going(item).isGoing)
+
+        server.offline = false
+        server.failing = true
+        try await waitWhile(actions.going(item).isGoing)
+        try await Task.sleep(for: Self.flip * 2)
+        XCTAssertEqual(actions.going(item), .init(isGoing: false, count: 4), "turned back")
+        XCTAssertEqual(actions.failureCount(item.id), 0, "no shake for a late no")
+    }
+
+    /// Taps made offline survive a relaunch: the next launch shows them once the account
+    /// is back, keeps them through the kept list's older read, and sends them.
+    func testOfflineTapsSurviveARelaunch() async throws {
+        let server = Server()
+        server.offline = true
+        let store = phoneStore()
+        let item = card()
+        let before = actions(server, keep: store, owner: { "anna" })
+
+        before.toggleGoing(item)
+        before.toggleSave(item)
+        try await Task.sleep(for: Self.retry * 2)
+        before.accountChanged(signedIn: false)  // the app is gone; its writes stop
+        try await Task.sleep(for: Self.retry * 8)
+
+        server.offline = false
+        server.writes = []
+        server.saves = []
+        let after = actions(server, keep: store, owner: { "anna" })
+        XCTAssertFalse(after.going(item).isGoing, "nothing until the account is back")
+        after.accountChanged(signedIn: true)
+        XCTAssertTrue(after.going(item).isGoing, "Going is back after the relaunch")
+        XCTAssertTrue(after.saved(item), "and so is the Save")
+
+        after.read([card()])  // the kept list, from before the taps
+        XCTAssertTrue(after.going(item).isGoing, "an older read doesn't undo a waiting tap")
+        XCTAssertEqual(Set(after.goingTapped.keys), [item.id], "You shows it too")
+        try await waitWhile(server.writes.isEmpty || server.saves.isEmpty)
+        XCTAssertEqual(server.writes, [true])
+        XCTAssertEqual(server.saves, ["e1 true"])
+
+        after.read([card(going: 5, joined: true)])
+        XCTAssertTrue(after.going(item).isGoing)
+    }
+
+    /// Another account never gets the last one's waiting taps: they're dropped, not sent.
+    func testAnotherAccountsWaitingTapsAreDroppedNotSent() async throws {
+        let server = Server()
+        server.offline = true
+        let store = phoneStore()
+        let item = card()
+        let before = actions(server, keep: store, owner: { "anna" })
+        before.toggleGoing(item)
+        try await Task.sleep(for: Self.retry * 2)
+        before.accountChanged(signedIn: false)
+        try await Task.sleep(for: Self.retry * 8)
+
+        server.offline = false
+        server.writes = []
+        let ben = actions(server, keep: store, owner: { "ben" })
+        ben.accountChanged(signedIn: true)
+        XCTAssertFalse(ben.going(item).isGoing, "not Ben's tap")
+        try await Task.sleep(for: Self.retry * 8)
+        XCTAssertEqual(server.writes, [], "never sent under Ben's name")
+
+        let annaAgain = actions(server, keep: store, owner: { "anna" })
+        annaAgain.accountChanged(signedIn: true)
+        XCTAssertFalse(annaAgain.going(item).isGoing, "dropped for good once another account came")
     }
 
     /// A read sets each Event's heart base: everyone's count and your own heart.
