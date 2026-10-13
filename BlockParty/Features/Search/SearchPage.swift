@@ -164,7 +164,8 @@ struct SearchPage: View {
     @Namespace private var chipNS
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @EnvironmentObject private var auth: AuthStore
-    /// Log in, from the People section's `people-login` line.
+    @Environment(FriendsBook.self) private var book
+    /// Log in, from the People section's `people-login` line or a friend button.
     @State private var signingIn = false
 
     private enum Mode: Hashable {
@@ -216,6 +217,9 @@ struct SearchPage: View {
         .onChange(of: model.chip) { searchPeople() }
         .onChange(of: auth.accountKey) { searchPeople() }
         .signInSheet(isPresented: $signingIn)
+        // People rows carry the friend button; a failed tap shakes only while Search is open.
+        .onAppear { book.screenOpened() }
+        .onDisappear { book.screenClosed() }
     }
 
     // MARK: Header
@@ -741,12 +745,9 @@ private struct PeopleResults: View {
         if state.hasRows, titled { SectionTitle(text: SearchPage.sectionTitle(.person)) }
         switch state {
         case .found(let people):
+            // Facebook's result with its button under the name, in Search's smaller sizes.
             ForEach(people) { person in
-                NavigationLink(value: person) {
-                    NeighborRow(neighbor: person, face: SearchMetric.avatar, nameFont: .sansSemibold(14),
-                                height: SearchMetric.row)
-                }
-                .buttonStyle(RowPressStyle())
+                ResultRow(person: person, face: SearchMetric.avatar, nameFont: .sansSemibold(14), logIn: logIn)
             }
         case .needsAccount:
             LogInToFindRow(font: .sansSemibold(14), action: logIn)

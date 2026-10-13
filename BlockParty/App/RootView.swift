@@ -332,6 +332,11 @@ struct MainTabsView: View {
     /// Each Event's Going for the session, which the Town feed's reads set and every
     /// card and event page reads, so they agree (BP app docs/plans/real-life-actions).
     @State private var actions: RealLifeActions
+    /// Friend requests, friends and the dot on the friends mark, kept here like `actions` so
+    /// a row and a person's page agree (BP app docs/plans/friends, ticket 03).
+    @State private var friendsBook = FriendsBook()
+    /// Edit profile, from a friend request refused for want of a name.
+    @State private var addingName = false
     /// The You tab's three weeks of Going, kept here like the Town feed's, so coming back
     /// to You shows the Calendar it left while it reads again behind it.
     @State private var you = YouModel()
@@ -416,6 +421,28 @@ struct MainTabsView: View {
         .background { CalendarFollower(sync: calendarSync) }
         // Outside the stack, so pushed pages and sheets read the same one.
         .environment(actions)
+        .environment(friendsBook)
+        // `friend-limit` and `friend-name-needed`, in Apple's alert.
+        .alert(friendsBook.problem == .limit ? "You've sent a lot of requests today. Try again tomorrow."
+                                             : "Add your name so neighbors know who's asking.",
+               isPresented: Binding(get: { friendsBook.problem != nil },
+                                    set: { if !$0 { friendsBook.problem = nil } }),
+               presenting: friendsBook.problem) { problem in
+            if problem == .nameNeeded {
+                Button("Cancel", role: .cancel) {}
+                Button("Add name") { addingName = true }
+            } else {
+                Button("OK", role: .cancel) {}
+            }
+        }
+        .sheet(isPresented: $addingName) { AddNameSheet() }
+        // The dot: read at launch and on coming back to the app (and on each visit to Town),
+        // and again for another account, or the same one logged in for real.
+        .task { await friendsBook.refreshDot() }
+        .onChange(of: auth.accountKey) {
+            friendsBook.reset()
+            Task { await friendsBook.refreshDot() }
+        }
         // The quiet account arrives after the first read: Join comes up at once, even on
         // an event page already open, and the feed reads again for who's going as this
         // account sees it. Here, not on the stack's root, which a pushed page covers.
@@ -427,6 +454,7 @@ struct MainTabsView: View {
             if old != nil { townFeed.accountChanged() }
             you.accountChanged()
             saves.accountChanged()
+
             Task { await townFeed.reload() }
             Task { await you.refresh() }
             Task { await actions.moveUp(.shared) }
@@ -445,6 +473,7 @@ struct MainTabsView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background { Task { await townFeed.send(always: true) } }
+            if phase == .active { Task { await friendsBook.refreshDot() } }
         }
         .onAppear {
             // DEBUG: `-open-friends` lands on the Friends page; `-open-friends-chat` on the
@@ -678,6 +707,7 @@ struct MainTabsView: View {
             : .spring(response: 0.44, dampingFraction: 0.86)) {
             tab = newTab
         }
+        if newTab == .town { Task { await friendsBook.refreshDot() } }
     }
 
     /// The coupled slide: incoming enters from the edge you're travelling toward,

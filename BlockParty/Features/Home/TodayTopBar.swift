@@ -164,6 +164,12 @@ private nonisolated enum TodayBarMetric {
     /// (`BP app/references/friends-icon/jesse.png`, SF's `person.2.fill`) is a crop
     /// with no scale, so the size is eyeballed against the bell (Jesse, 2026-09-29).
     static let friendsGlyphSize: CGFloat = 19
+    /// A new friend request's dot: Instagram's unread dot on its heart, measured at 7.5pt
+    /// (±0.5) with a 1.5pt ring, centred 2pt inside the icon's top right; ink, not red
+    /// (BP app references/friends/ig-heart-dot.jpg, docs/plans/friends ticket 03).
+    static let friendsDot: CGFloat = 7.5
+    static let friendsDotRing: CGFloat = 1.5
+    static let friendsDotInset: CGFloat = 2
     /// The bell, at its measured reference size (20.69pt tall — see
     /// `refs/chrome/REFERENCE-SPEC.md`).
     static let bellGlyphSize: CGFloat = 21
@@ -239,6 +245,8 @@ struct TodayTopBar: View {
     /// bar). Like every control here, the bar only reports the tap — the shell owns
     /// what opens.
     var onOpenFriends: () -> Void = {}
+    /// The friend requests' dot; absent in previews and demo screens.
+    @Environment(FriendsBook.self) private var friendsBook: FriendsBook?
     /// The map button → the town map. No longer the trailing control: it slid left
     /// to make room for the bell, and now sits between the mark and the bar's edge.
     var onOpenMap: () -> Void = {}
@@ -420,11 +428,26 @@ struct TodayTopBar: View {
     }
 
     /// Apple's own two-person mark: laid over the Reference it differs by ~1px of
-    /// antialiasing, so nothing here is traced.
+    /// antialiasing, so nothing here is traced. A new friend request puts a quiet dot on
+    /// it: no number, no push (`FriendsBook.dot`).
     private var friendsButton: some View {
-        glyphButton(label: "Friends", action: onOpenFriends) {
+        let dot = friendsBook?.dot == true
+        // `friends-dot-vo`
+        return glyphButton(label: dot ? "Friends, new friend request" : "Friends", action: onOpenFriends) {
             Image(systemName: "person.2.fill")
                 .font(.glyph(TodayBarMetric.friendsGlyphSize))
+                .overlay(alignment: .topTrailing) {
+                    if dot {
+                        let reach = TodayBarMetric.friendsDot / 2 + TodayBarMetric.friendsDotRing
+                        Circle()
+                            .fill(chromeFloating ? Hue.ink.onLightCanvas : Hue.ink)
+                            .frame(width: TodayBarMetric.friendsDot, height: TodayBarMetric.friendsDot)
+                            .padding(TodayBarMetric.friendsDotRing)
+                            .background(Circle().fill(chromeFloating ? Hue.surface : Hue.paper))
+                            .offset(x: reach - TodayBarMetric.friendsDotInset, y: TodayBarMetric.friendsDotInset - reach)
+                            .transition(.scale.combined(with: .opacity))
+                    }
+                }
                 .accessibilityHidden(true)
         }
     }

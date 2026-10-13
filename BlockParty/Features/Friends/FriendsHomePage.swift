@@ -1,9 +1,10 @@
 //
 //  FriendsHomePage.swift
-//  Block Party — the Friends page and a neighbour's page (BP app docs/plans/friends, ticket
-//  02). The Town bar's friends mark pushes the Friends page: a large title and Search's field,
-//  under the sample inbox's own top. Typing finds neighbours by name; a name opens their page.
-//  Requests and Your friends join it in ticket 03.
+//  Block Party — the Friends page and a neighbour's page (BP app docs/plans/friends, tickets
+//  02 and 03). The Town bar's friends mark pushes the Friends page: a large title and Search's
+//  field, under the sample inbox's own top, then the accepted lines, Requests and Your friends.
+//  Typing finds neighbours by name; a name opens their page; one button on every row and
+//  page follows where the two of you stand (`FriendsBook`).
 //
 //  Reference: Facebook's Friends screens (BP app references/friends): the friends-list row
 //  measured at a 60pt photo, 12pt gap, 17pt semibold name, 76pt apart. Mock Jesse said yes
@@ -24,15 +25,38 @@ extension FriendsMetric {
     static let loadingRows = 3
     static let loadingName: CGFloat = 140
     static let loadingLine: CGFloat = 14
+
+    // Ticket 03, off Facebook's Find friends and people search (BP app references/friends,
+    // 375pt frames at 1:1): a 92pt request photo, 36pt buttons 8pt apart, 20pt bold section
+    // titles, a 28pt face on the accepted line.
+    static let requestFace: CGFloat = 92
+    static let requestPad: CGFloat = 8
+    static let button: CGFloat = 36
+    static let buttonGap: CGFloat = 8
+    static let buttonTop: CGFloat = 6
+    static let buttonPad: CGFloat = 14
+    static let resultPad: CGFloat = 10
+    static let resultNameTop: CGFloat = 4
+    static let sectionTop: CGFloat = 16
+    static let sectionBottom: CGFloat = 8
+    static let acceptedFace: CGFloat = 28
+    static let acceptedPad: CGFloat = 12
+    /// A person's page: its button sits where Edit profile sits on your own Profile, at
+    /// least the mock's 132pt wide.
+    static let pageButtonTop: CGFloat = 14
+    static let pageButton: CGFloat = 132
 }
 
 struct FriendsHomePage: View {
     @EnvironmentObject private var auth: AuthStore
+    @Environment(FriendsBook.self) private var book
     @State private var search = NeighborSearch()
     @State private var words = Self.debugWords
     /// The large title has gone under the bar: the bar shows the small one.
     @State private var titleUnder = false
     @State private var signingIn = false
+
+    private var typing: Bool { !words.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -49,7 +73,7 @@ struct FriendsHomePage: View {
                         .padding(.horizontal, FriendsMetric.side)
                         .padding(.top, FriendsMetric.titleToField)
                         .padding(.bottom, FriendsMetric.resultsTop)
-                    results
+                    if typing { results } else { home }
                 }
                 .padding(.top, SearchMetric.pageBar)
             }
@@ -62,58 +86,88 @@ struct FriendsHomePage: View {
             // Drawn last so it sits over the rows, read first so Back comes first.
             FriendsTitleBar(title: "Friends", titleUnder: titleUnder).accessibilitySortPriority(1)
         }
-        // Nothing typed, or nobody found: Apple's empty page, in the middle of the screen.
+        // Nobody found, or no friends after a read that worked: Apple's empty page, in the
+        // middle of the screen.
         .overlay {
-            switch search.state {
-            case .idle:
+            if typing, search.state == .none {
+                ContentUnavailableView("No results found", systemImage: "magnifyingglass")
+                    .allowsHitTesting(false)
+            } else if !typing, search.state != .needsAccount, book.loaded, book.isEmpty {
                 ContentUnavailableView("No friends yet", systemImage: "person.2",
                                        description: Text("Search for neighbors you know and add them."))
                     .allowsHitTesting(false)
-            case .none:
-                ContentUnavailableView("No results found", systemImage: "magnifyingglass")
-                    .allowsHitTesting(false)
-            default:
-                EmptyView()
             }
         }
         .toolbar(.hidden, for: .navigationBar)
         .onChange(of: words, initial: true) { search.search(words) }
         // Logging in from the line below asks again, as the account that now asks.
-        .onChange(of: auth.accountKey) { search.search(words) }
+        .onChange(of: auth.accountKey) {
+            search.search(words)
+            Task { await book.refresh() }
+        }
+        // Read on every visit; once drawn, the dot clears and accepted lines count as seen.
+        .task {
+            await book.refresh()
+            await book.seen()
+        }
+        .onAppear { book.screenOpened() }
+        .onDisappear { book.screenClosed() }
         .signInSheet(isPresented: $signingIn)
+    }
+
+    /// Nothing typed: the accepted lines, Requests and Your friends, in one list keyed by
+    /// person, so a confirmed request slides down into Your friends.
+    @ViewBuilder private var home: some View {
+        if search.state == .needsAccount {
+            LogInToFindRow { signingIn = true }
+        } else if !book.loaded {
+            if book.failed { FailedLine() } else { LoadingRows() }
+        } else {
+            ForEach(rows) { row in
+                switch row {
+                case .accepted(let person): AcceptedLine(person: person)
+                case .title(let title): FriendsSectionTitle(text: title)
+                case .request(let person): RequestRow(person: person) { signingIn = true }
+                case .friend(let person):
+                    NavigationLink(value: person) { NeighborRow(neighbor: person) }
+                        .buttonStyle(RowPressStyle())
+                }
+            }
+        }
+    }
+
+    private enum Row: Identifiable {
+        case accepted(Neighbor), title(String), request(Neighbor), friend(Neighbor)
+
+        var id: String {
+            switch self {
+            case .accepted(let person): "accepted:" + person.id
+            case .title(let title): "title:" + title
+            // The same id in both sections: SwiftUI moves the row rather than swapping it.
+            case .request(let person), .friend(let person): person.id
+            }
+        }
+    }
+
+    private var rows: [Row] {
+        // `friends-sections`
+        var rows = book.page.accepted.map(Row.accepted)
+        let requests = book.requests, friends = book.friends
+        if !requests.isEmpty { rows += [.title("Requests")] + requests.map(Row.request) }
+        if !friends.isEmpty { rows += [.title("Your friends")] + friends.map(Row.friend) }
+        return rows
     }
 
     @ViewBuilder private var results: some View {
         switch search.state {
         case .found(let people):
-            ForEach(people) { person in
-                NavigationLink(value: person) { NeighborRow(neighbor: person) }
-                    .buttonStyle(RowPressStyle())
-            }
+            ForEach(people) { ResultRow(person: $0) { signingIn = true } }
         case .needsAccount:
             LogInToFindRow { signingIn = true }
         case .failed:
-            // The Town feed's words for a read that failed.
-            Text("Check your connection and try again.")
-                .font(.sans(15))
-                .foregroundStyle(Hue.inkSecondary)
-                .padding(.horizontal, FriendsMetric.side)
-                .padding(.top, FriendsMetric.noteTop)
+            FailedLine()
         case .loading:
-            // Nothing found yet for these words: the rows' own shape, shimmering.
-            ForEach(0..<FriendsMetric.loadingRows, id: \.self) { _ in
-                HStack(spacing: FriendsMetric.avatarGap) {
-                    SkeletonBlock(cornerRadius: FriendsMetric.neighborFace / 2)
-                        .frame(width: FriendsMetric.neighborFace, height: FriendsMetric.neighborFace)
-                    SkeletonBlock(cornerRadius: FriendsMetric.loadingLine / 2)
-                        .frame(width: FriendsMetric.loadingName, height: FriendsMetric.loadingLine)
-                    Spacer(minLength: 0)
-                }
-                .padding(.horizontal, FriendsMetric.side)
-                .frame(height: FriendsMetric.row)
-                .shimmering()
-                .accessibilityHidden(true)
-            }
+            LoadingRows()
         case .idle, .none:
             EmptyView()
         }
@@ -129,23 +183,251 @@ struct FriendsHomePage: View {
     }
 }
 
-/// A neighbour's page: their photo, name and Neighbor since, under the same head as your own
-/// Profile (Jesse, 2026-10-13), never their plans. Add friend joins it in ticket 03.
+/// The Town feed's words for a read that failed.
+private struct FailedLine: View {
+    var body: some View {
+        Text("Check your connection and try again.")
+            .font(.sans(15))
+            .foregroundStyle(Hue.inkSecondary)
+            .padding(.horizontal, FriendsMetric.side)
+            .padding(.top, FriendsMetric.noteTop)
+    }
+}
+
+/// Nothing read yet: the rows' own shape, shimmering.
+private struct LoadingRows: View {
+    var body: some View {
+        ForEach(0..<FriendsMetric.loadingRows, id: \.self) { _ in
+            HStack(spacing: FriendsMetric.avatarGap) {
+                SkeletonBlock(cornerRadius: FriendsMetric.neighborFace / 2)
+                    .frame(width: FriendsMetric.neighborFace, height: FriendsMetric.neighborFace)
+                SkeletonBlock(cornerRadius: FriendsMetric.loadingLine / 2)
+                    .frame(width: FriendsMetric.loadingName, height: FriendsMetric.loadingLine)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, FriendsMetric.side)
+            .frame(height: FriendsMetric.row)
+            .shimmering()
+            .accessibilityHidden(true)
+        }
+    }
+}
+
+/// Facebook's section title on its Friends page: 20pt bold.
+private struct FriendsSectionTitle: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.sansBold(20))
+            .foregroundStyle(Hue.ink)
+            .padding(.horizontal, FriendsMetric.side)
+            .padding(.top, FriendsMetric.sectionTop)
+            .padding(.bottom, FriendsMetric.sectionBottom)
+            .accessibilityAddTraits(.isHeader)
+    }
+}
+
+/// `friend-accepted`, Facebook's line: a small face, then "Sam Rivera accepted your friend
+/// request." It shows on the visit after they confirm, once.
+private struct AcceptedLine: View {
+    let person: Neighbor
+
+    var body: some View {
+        NavigationLink(value: person) {
+            HStack(spacing: FriendsMetric.avatarGap) {
+                NeighborFace(url: person.avatarUrl, size: FriendsMetric.acceptedFace)
+                Text("\(Text(person.displayName).font(.sansSemibold(15))) accepted your friend request.")
+                    .font(.sans(15))
+                    .foregroundStyle(Hue.ink)
+                    .multilineTextAlignment(.leading)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, FriendsMetric.side)
+            .padding(.vertical, FriendsMetric.acceptedPad)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(RowPressStyle())
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Hue.hairline).frame(height: FriendsMetric.hairline)
+                .padding(.horizontal, FriendsMetric.side)
+        }
+    }
+}
+
+/// Facebook's request row: a 92pt photo, the name, then Confirm and Delete under it. The
+/// face and name open the person; the buttons sit beside that link, not in it.
+private struct RequestRow: View {
+    let person: Neighbor
+    let logIn: () -> Void
+
+    var body: some View {
+        HStack(spacing: FriendsMetric.avatarGap) {
+            NavigationLink(value: person) {
+                NeighborFace(url: person.avatarUrl, size: FriendsMetric.requestFace)
+            }
+            .buttonStyle(DimStyle())
+            .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: FriendsMetric.lineGap) {
+                NavigationLink(value: person) { NameAndMutual(person: person) }
+                    .buttonStyle(DimStyle())
+                RelationButtons(person: person, logIn: logIn)
+                    .padding(.top, FriendsMetric.buttonTop)
+            }
+        }
+        .padding(.horizontal, FriendsMetric.side)
+        .padding(.vertical, FriendsMetric.requestPad)
+    }
+}
+
+/// A search result, Facebook's: the face, the name, and the button under the name. Search
+/// passes its own smaller sizes.
+struct ResultRow: View {
+    let person: Neighbor
+    var face: CGFloat = FriendsMetric.neighborFace
+    var nameFont: Font = .sansSemibold(17)
+    let logIn: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: FriendsMetric.avatarGap) {
+            NavigationLink(value: person) { NeighborFace(url: person.avatarUrl, size: face) }
+                .buttonStyle(DimStyle())
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: FriendsMetric.lineGap) {
+                NavigationLink(value: person) { NameAndMutual(person: person, nameFont: nameFont) }
+                    .buttonStyle(DimStyle())
+                RelationButtons(person: person, logIn: logIn)
+                    .padding(.top, FriendsMetric.buttonTop)
+            }
+            .padding(.top, FriendsMetric.resultNameTop)
+        }
+        .padding(.horizontal, FriendsMetric.side)
+        .padding(.vertical, FriendsMetric.resultPad)
+    }
+}
+
+/// The name, and the friends you share under it when there are any.
+private struct NameAndMutual: View {
+    let person: Neighbor
+    var nameFont: Font = .sansSemibold(17)
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: FriendsMetric.lineGap) {
+            Text(person.displayName)
+                .font(nameFont)
+                .foregroundStyle(Hue.ink)
+                .lineLimit(1)
+            if let mutual = person.mutualLine {
+                Text(mutual)
+                    .font(.sans(15))
+                    .foregroundStyle(Hue.inkSecondary)
+                    .lineLimit(1)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+}
+
+/// The one button that follows where you two stand (ticket 03): Add friend; Request sent
+/// with Cancel; Confirm and Delete when they asked you; Friends, a plain check and word
+/// until ticket 04 gives it the ••• sheet. Facebook's shape, black for blue (Jesse,
+/// 2026-10-13). On a row the buttons fill the row; on a person's page they sit centred.
+struct RelationButtons: View {
+    let person: Neighbor
+    var onPage = false
+    let logIn: () -> Void
+    @Environment(FriendsBook.self) private var book
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        let relation = book.relation(person)
+        Group {
+            switch relation {
+            case .stranger:
+                face("Add friend", ink: true) { tap(.add) }
+            case .sent:
+                // `friend-request-sent`: a row says Request sent over Cancel; a page, Cancel request.
+                if onPage {
+                    face("Cancel request", ink: false) { tap(.cancel) }
+                } else {
+                    VStack(alignment: .leading, spacing: FriendsMetric.lineGap) {
+                        Text("Request sent")
+                            .font(.sans(15))
+                            .foregroundStyle(Hue.inkSecondary)
+                        face("Cancel", ink: false) { tap(.cancel) }
+                    }
+                }
+            case .received:
+                // `friend-respond`
+                HStack(spacing: FriendsMetric.buttonGap) {
+                    face("Confirm", ink: true) { tap(.confirm) }
+                    face("Delete", ink: false) { tap(.delete) }
+                }
+            case .friends:
+                // `friends-button`
+                Label("Friends", systemImage: "checkmark")
+                    .font(.sansSemibold(15))
+                    .foregroundStyle(Hue.inkSecondary)
+                    .frame(height: FriendsMetric.button)
+            }
+        }
+        .turnBackShake(failures: book.failures[person.id] ?? 0, shakes: !reduceMotion)
+        .animation(.easeInOut(duration: reduceMotion ? 0.15 : RealLifeActions.flip), value: relation)
+    }
+
+    private func face(_ title: String, ink: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.sansSemibold(15))
+                .foregroundStyle(ink ? Hue.surface : Hue.ink)
+                .lineLimit(1)
+                .padding(.horizontal, FriendsMetric.buttonPad)
+                .frame(maxWidth: onPage ? nil : .infinity, minHeight: FriendsMetric.button)
+                .frame(minWidth: onPage ? FriendsMetric.pageButton : nil)
+                .background(ink ? Hue.ink : Hue.fill,
+                            in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                // 36pt drawn, 44pt to the finger.
+                .contentShape(Rectangle().inset(by: (FriendsMetric.button - SearchMetric.tapMin) / 2))
+        }
+        .buttonStyle(PressableStyle())
+    }
+
+    private func tap(_ action: FriendsBook.Action) {
+        guard !book.isAnonymous() else { logIn(); return }
+        book.act(action, person)
+    }
+}
+
+/// A neighbour's page: their photo, name, Neighbor since and the friends you share, under
+/// the same head as your own Profile (Jesse, 2026-10-13), and the one button. Never their
+/// plans.
 struct NeighborPage: View {
     let neighbor: Neighbor
+    @Environment(FriendsBook.self) private var book
+    @State private var signingIn = false
 
     var body: some View {
         ZStack(alignment: .top) {
             Hue.paper.ignoresSafeArea()
             ScrollView {
-                ProfileHead(url: neighbor.avatarUrl, name: neighbor.displayName, line: neighbor.sinceLine)
-                    .frame(maxWidth: .infinity)
+                VStack(spacing: 0) {
+                    ProfileHead(url: neighbor.avatarUrl, name: neighbor.displayName,
+                                line: [neighbor.sinceLine, neighbor.mutualLine].compactMap { $0 }
+                                    .joined(separator: "  ·  "))
+                    RelationButtons(person: neighbor, onPage: true) { signingIn = true }
+                        .padding(.top, FriendsMetric.pageButtonTop)
+                }
+                .frame(maxWidth: .infinity)
                 .padding(.horizontal, FriendsMetric.side)
                 .padding(.top, SearchMetric.pageBar + FriendsMetric.headTop)
             }
             FriendsTitleBar(title: neighbor.displayName, titleUnder: false).accessibilitySortPriority(1)
         }
         .toolbar(.hidden, for: .navigationBar)
+        .onAppear { book.screenOpened() }
+        .onDisappear { book.screenClosed() }
+        .signInSheet(isPresented: $signingIn)
     }
 }
 
@@ -160,10 +442,18 @@ struct NeighborRow: View {
     var body: some View {
         HStack(spacing: FriendsMetric.avatarGap) {
             NeighborFace(url: neighbor.avatarUrl, size: face)
-            Text(neighbor.displayName)
-                .font(nameFont)
-                .foregroundStyle(Hue.ink)
-                .lineLimit(1)
+            VStack(alignment: .leading, spacing: FriendsMetric.lineGap) {
+                Text(neighbor.displayName)
+                    .font(nameFont)
+                    .foregroundStyle(Hue.ink)
+                    .lineLimit(1)
+                if let mutual = neighbor.mutualLine {
+                    Text(mutual)
+                        .font(.sans(15))
+                        .foregroundStyle(Hue.inkSecondary)
+                        .lineLimit(1)
+                }
+            }
             Spacer(minLength: 0)
         }
         .padding(.horizontal, FriendsMetric.side)
@@ -218,6 +508,35 @@ struct LogInToFindRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(RowPressStyle())
+    }
+}
+
+/// Edit profile for a neighbour asked for their name before a request goes
+/// (`friend-name-needed`). It opens once their profile has loaded, so saving can't wipe
+/// interests it never read.
+struct AddNameSheet: View {
+    @StateObject private var model = ProfileModel()
+
+    var body: some View {
+        Group {
+            if model.loaded {
+                EditProfileView(model: model)
+            } else {
+                // The edit form's own shapes while the profile loads: the photo, the name.
+                VStack(spacing: FriendsMetric.loadingLine) {
+                    SkeletonBlock(cornerRadius: FriendsMetric.requestFace / 2)
+                        .frame(width: FriendsMetric.requestFace, height: FriendsMetric.requestFace)
+                    SkeletonBlock(cornerRadius: FriendsMetric.loadingLine / 2)
+                        .frame(width: FriendsMetric.loadingName, height: FriendsMetric.loadingLine)
+                }
+                .shimmering()
+                .padding(.top, FriendsMetric.requestFace)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .background(Hue.paper.ignoresSafeArea())
+                .accessibilityHidden(true)
+            }
+        }
+        .task { await model.load() }
     }
 }
 
