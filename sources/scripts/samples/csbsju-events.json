@@ -1,0 +1,240 @@
+[
+ {
+  "id": 4544146,
+  "title": "Free Art Prints from The Saint John's Bible",
+  "location": "Liturgical Press, Saint John's Road, Collegeville, MN, USA",
+  "calendar": {
+   "name": "Campus Events"
+  },
+  "start_date": "2026-10-14T13:00:00Z",
+  "end_date": "2026-10-14T21:30:00Z",
+  "all_day": false,
+  "recurrence_rule": "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;UNTIL=20261101T045959Z",
+  "start_day": null,
+  "end_day": null
+ },
+ {
+  "id": 4301560,
+  "title": "Academic Exploration Fair",
+  "location": "Gorecki Center at the College of Saint Benedict, College Avenue South, Saint Joseph, MN, USA",
+  "calendar": {
+   "name": "Campus Events"
+  },
+  "start_date": "2026-10-14T19:00:00Z",
+  "end_date": "2026-10-14T22:00:00Z",
+  "all_day": false,
+  "recurrence_rule": "",
+  "start_day": null,
+  "end_day": null
+ },
+ {
+  "id": 4247064,
+  "title": "Salvage",
+  "location": "Alice R. Rogers and Target Galleries, Saint Thomas Drive, Collegeville, MN, USA",
+  "calendar": {
+   "name": "Campus Events"
+  },
+  "start_date": "2026-10-14T19:00:00Z",
+  "end_date": "2026-10-15T01:00:00Z",
+  "all_day": false,
+  "recurrence_rule": "FREQ=WEEKLY;INTERVAL=1;UNTIL=20261025T045959Z;BYDAY=TU,WE,TH,FR,SA",
+  "start_day": null,
+  "end_day": null
+ },
+ {
+  "id": 4658379,
+  "title": "College of Saint Benedict Soccer vs Hamline - Senior Night",
+  "location": "St. Joseph, Minn., CSB Stadium",
+  "calendar": {
+   "name": "CSB Athletics"
+  },
+  "start_date": "2026-10-14T21:00:00Z",
+  "end_date": "2026-10-14T23:00:00Z",
+  "all_day": false,
+  "recurrence_rule": "",
+  "start_day": null,
+  "end_day": null
+ },
+ {
+  "id": 4066507,
+  "title": "Saint John's University Soccer vs UW-River Falls",
+  "location": "Collegeville, Minn., Haws Field",
+  "calendar": {
+   "name": "SJU Athletics"
+  },
+  "start_date": "2026-10-14T21:00:00Z",
+  "end_date": "2026-10-14T23:00:00Z",
+  "all_day": false,
+  "recurrence_rule": "",
+  "start_day": null,
+  "end_day": null
+ },
+ {
+  "id": 4362851,
+  "title": "Barre class",
+  "location": "Group Exercise Studio (Lower HCC)",
+  "calendar": {
+   "name": "CSB Athletics"
+  },
+  "start_date": "2026-10-14T21:30:00Z",
+  "end_date": "2026-10-14T22:30:00Z",
+  "all_day": false,
+  "recurrence_rule": "FREQ=WEEKLY;BYDAY=WE",
+  "start_day": null,
+  "end_day": null
+ },
+ {
+  "id": 4304965,
+  "title": "MEA Visit Days (Admission Event)",
+  "location": "",
+  "calendar": {
+   "name": "Campus Events"
+  },
+  "start_date": "2026-10-15T00:00:00Z",
+  "end_date": "2026-10-16T23:59:59.999999Z",
+  "all_day": true,
+  "recurrence_rule": "",
+  "start_day": "2026-10-15",
+  "end_day": "2026-10-16"
+ },
+ {
+  "id": 4544147,
+  "title": "Free Art Prints from The Saint John's Bible",
+  "location": "Liturgical Press, Saint John's Road, Collegeville, MN, USA",
+  "calendar": {
+   "name": "Campus Events"
+  },
+  "start_date": "2026-10-15T13:00:00Z",
+  "end_date": "2026-10-15T21:30:00Z",
+  "all_day": false,
+  "recurrence_rule": "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;UNTIL=20261101T045959Z",
+  "start_day": null,
+  "end_day": null
+ },
+ {
+  "id": 4693728,
+  "title": "Saint John's University Cross Country at George Oja Invitational",
+  "location": "Independence, Ore.",
+  "calendar": {
+   "name": "SJU Athletics"
+  },
+  "start_date": "2026-10-17T17:00:00Z",
+  "end_date": "2026-10-17T20:00:00Z",
+  "all_day": false,
+  "recurrence_rule": "",
+  "start_day": null,
+  "end_day": null
+ },
+ {
+  "id": 4143434,
+  "title": "College of Saint Benedict Dance Team  SJU Football vs Concordia - Halftime Performance (Homecoming)",
+  "location": "Collegeville, Minn., Clemens Stadium",
+  "calendar": {
+   "name": "CSB Athletics"
+  },
+  "start_date": "2026-10-17T18:00:00Z",
+  "end_date": "2026-10-17T21:00:00Z",
+  "all_day": false,
+  "recurrence_rule": "",
+  "start_day": null,
+  "end_day": null
+ },
+ {
+  "id": 4296080,
+  "title": "Saint John's University Football vs Concordia (Homecoming)",
+  "location": "Collegeville, Minn., Clemens Stadium",
+  "calendar": {
+   "name": "SJU Athletics"
+  },
+  "start_date": "2026-10-17T18:00:00Z",
+  "end_date": "2026-10-17T21:00:00Z",
+  "all_day": false,
+  "recurrence_rule": "",
+  "start_day": null,
+  "end_day": null
+ },
+ {
+  "id": 4545979,
+  "title": "Fix-It Clinic",
+  "location": "Clemens Library",
+  "calendar": {
+   "name": "Library"
+  },
+  "start_date": "2026-10-20T20:00:00Z",
+  "end_date": "2026-10-20T22:00:00Z",
+  "all_day": false,
+  "recurrence_rule": "",
+  "start_day": null,
+  "end_day": null
+ },
+ {
+  "id": 4362852,
+  "title": "Barre class",
+  "location": "Group Exercise Studio (Lower HCC)",
+  "calendar": {
+   "name": "CSB Athletics"
+  },
+  "start_date": "2026-10-21T21:30:00Z",
+  "end_date": "2026-10-21T22:30:00Z",
+  "all_day": false,
+  "recurrence_rule": "FREQ=WEEKLY;BYDAY=WE",
+  "start_day": null,
+  "end_day": null
+ },
+ {
+  "id": 4135166,
+  "title": "The Nolan Lecture",
+  "location": "Saint John's University, Abbey Plaza, Collegeville, MN, USA",
+  "calendar": {
+   "name": "School of Theology"
+  },
+  "start_date": "2026-10-30T21:00:00Z",
+  "end_date": "2026-10-31T22:00:00Z",
+  "all_day": false,
+  "recurrence_rule": "",
+  "start_day": null,
+  "end_day": null
+ },
+ {
+  "id": 4611423,
+  "title": "Christmas Craft Sale at Saint Scholastica Convent",
+  "location": "Saint Scholastica Convent, 20th Avenue Southeast, St. Cloud, MN, USA",
+  "calendar": {
+   "name": "St. Benedict's Monastery"
+  },
+  "start_date": "2026-11-06T15:00:00Z",
+  "end_date": "2026-11-06T22:00:00Z",
+  "all_day": false,
+  "recurrence_rule": "",
+  "start_day": null,
+  "end_day": null
+ },
+ {
+  "id": 1518016,
+  "title": "Homecoming 2026",
+  "location": "",
+  "calendar": {
+   "name": "Campus Events"
+  },
+  "start_date": "2026-10-17T00:00:00Z",
+  "end_date": "2026-10-17T23:59:59.999999Z",
+  "all_day": true,
+  "recurrence_rule": "",
+  "start_day": "2026-10-17",
+  "end_day": "2026-10-17"
+ },
+ {
+  "id": 4472417,
+  "title": "Alcuin and Clemens Library Closed",
+  "location": "Alcuin and Clemens Library",
+  "calendar": {
+   "name": "Library"
+  },
+  "start_date": "2026-11-25T00:00:00Z",
+  "end_date": "2026-11-28T23:59:59.999999Z",
+  "all_day": true,
+  "recurrence_rule": "",
+  "start_day": "2026-11-25",
+  "end_day": "2026-11-28"
+ }
+]

@@ -162,22 +162,29 @@ added_by: agent:claude
 sources:
   - url: https://kennedy.isd742.org/calendar
     kind: website
-    method: search_snippet
+    method: fetch
     trust: official
+    reader: finalsite-calendar
+    own_calendar: Kennedy Calendar
   - url: https://kennedy.isd742.org/kennedy-news
     kind: website
-    method: search_snippet
+    method: fetch
     trust: official
+    reader: finalsite-news
 ```
 Notes: PK-8, part of St. Cloud Area School District 742, and the only K-12 school in
 town — so this is the whole "School" category for St. Joe. Calendar and news are split
 across two pages and both matter: concerts and conferences land on the calendar, closings
 and announcements on the news page.
 
-**Both are `search_snippet`, not `fetch`, and that is not optional.** The first dry-run
-on 2026-09-22 came back `robots.txt disallows` for both URLs. A plain curl returns 200
-because it ignores robots; the runner reads it and refuses. Do not switch these back to
-`fetch` — the fix for a robots refusal is search_snippet, never a workaround (ADR-001).
+**Both were `search_snippet` until 2026-10-14**, after the first dry-run on 2026-09-22 came
+back `robots.txt disallows` for both URLs. Measured again on 2026-10-14 (ADR-012): robots.txt
+disallows `/fs/` (where the iCal and RSS exports live) and the story pages
+(`/kennedy-news/kennedy-news-stories/~…`), and allows `/calendar` and `/kennedy-news`, with
+`Crawl-delay: 5`. So both are read by `read_events.py` (watch-every-place ticket 10): the
+calendar page with `?cal_date=YYYY-MM-01` for this month and next, the news page for titles.
+The runner checks robots on every read, so a new refusal stops the read rather than being
+worked around (ADR-001). The calendar mixes Kennedy and District 742 events.
 
 ## College of Saint Benedict
 ```yaml
@@ -242,6 +249,79 @@ exists and is empty; it is deliberately not listed.
 
 Always append "MN" to any web search about this source or the results are St. Joseph,
 Missouri (ADR-006).
+
+## CSB/SJU events
+```yaml
+id: csbsju-events
+status: proposed
+tier: watched
+category: college
+added_by: agent:claude
+sources:
+  - url: https://my.csbsju.edu/api/v2/events/unauthenticated/?calendar=2,165,166,193,212,224
+    method: api
+    trust: official
+    reader: pathify
+```
+Notes: The joint calendar of the College of Saint Benedict (St. Joseph) and Saint John's
+University (Collegeville), on the campus portal that www.csbsju.edu now links its events to.
+The page is built by JavaScript; this is the public JSON it loads (no key; my.csbsju.edu has
+no robots file, its robots.txt answers with the portal's own page). Measured 2026-10-14.
+The calendars in the url are the public ones (Jesse, 2026-10-14): 2 Campus Events, 165 CSB
+Athletics, 166 SJU Athletics, 193 St. Benedict's Monastery, 212 School of Theology, 224
+Library. Left out: 174 Academic Calendar, 169 Admission, 168 Alum, 195 Benedictine Institute,
+221 CSLE (student life) and 220 Study Abroad. The full list is at
+`/api/v2/events/unauthenticated/calendars/`. Home games only; the reader drops away games,
+rec-center classes and halftime shows, and shows a repeating event once, at its next date.
+
+## Minnesota 511
+```yaml
+id: mn-511
+status: proposed
+tier: watched
+category: gov
+added_by: agent:claude
+sources:
+  - url: https://511mn.org/api/graphql
+    method: api
+    trust: official
+    reader: cars511
+    around: [45.5647, -94.3183]
+    miles: 10
+```
+Notes: MnDOT's road reports (construction, closures, maintenance) within 10 miles of St.
+Joseph (Jesse, 2026-10-14): St. Cloud, Sartell, Waite Park, Avon, Cold Spring, Collegeville.
+Road work is News. 511mn.org is a map app; this is the GraphQL address it loads (robots.txt
+disallows only `/images/`). One call lists the reports in the box, one per report gives its
+start. It carries state and federal highways, rarely county roads. MnDOT's WZDx work-zone
+feed (`https://mn.carsprogram.org/carsapi_v1/api/wzdx`, no key, no robots file) answered on
+2026-10-14 after timing out in research; it has end dates but terse wording, so 511's own
+words are read instead.
+
+## Stearns County
+```yaml
+id: stearns-county
+status: proposed
+tier: watched
+category: gov
+added_by: agent:claude
+sources:
+  - url: https://content.civicplus.com/api/content/mn-stearnscounty/
+    method: api
+    trust: official
+    reader: civicplus-hcms
+    token_page: https://www.stearnscountymn.gov/
+    news_category: 9f78411d-ed77-410c-ba41-975de2699f4d
+    event_category: 47839bbc-950e-4018-82f1-bb1c6b5920c1
+```
+Notes: County news, public notices and events. The county's site (CivicPlus "Evolve") loads
+them from CivicPlus's content service, which needs the read-only token every visitor's page
+carries as `window.hcmsClientToken` (client `mn-stearnscounty:default`, read scopes only).
+Jesse said yes on 2026-10-14; the reader takes it fresh from the home page each run and never
+stores it. stearnscountymn.gov's robots.txt asks for `Crawl-delay: 20`; content.civicplus.com
+disallows nothing. The old `/rss.aspx` answers 404. Kept: news and notices from the last 7
+days, and events only in St. Joseph's ZIP code (most county meetings are in Waite Park and
+St. Cloud).
 
 ## JoeTown
 ```yaml

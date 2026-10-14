@@ -13,7 +13,7 @@ Usage:
   python3 run.py --write              # prod: needs SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY
 """
 import argparse, hashlib, html, json, os, re, sys, time
-import urllib.request, urllib.robotparser, urllib.error, urllib.parse
+import urllib.request, urllib.error, urllib.parse
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
@@ -41,24 +41,64 @@ def to_text(raw):
     return "\n".join(ln for ln in lines if ln)
 
 
-_robots = {}          # host -> RobotFileParser or None (None = no restrictions known)
+_robots = {}          # host -> robots rules, or None (None = no restrictions known)
 _crawl_delay = {}     # host -> seconds requested by robots.txt
 _last_hit = {}        # host -> monotonic time of the last request, for crawl-delay
+STAY_OUT = [(False, "/")]
+
+
+def parse_robots(text, agent="blockpartybot"):
+    """The rules that apply to us, as (allow, path pattern) pairs (RFC 9309 s2.2).
+
+    The groups naming our product token, else every `*` group, combined. Python's
+    RobotFileParser keeps only the first `*` group, and Finalsite sites (Kennedy) put
+    their page exclusions in a second one, so it missed them.
+    """
+    groups, cur = [], None
+    for raw in text.splitlines():
+        key, _, value = raw.split("#", 1)[0].partition(":")
+        key, value = key.strip().lower(), value.strip()
+        if key == "user-agent":
+            if cur is None or cur["rules"] or cur["closed"]:
+                cur = {"agents": set(), "rules": [], "closed": False}
+                groups.append(cur)
+            cur["agents"].add(value.lower())
+        elif cur is not None and key in ("allow", "disallow"):
+            cur["closed"] = True
+            if value:
+                cur["rules"].append((key == "allow", value))
+        elif cur is not None and key:
+            cur["closed"] = True    # Crawl-delay and the like end the user-agent lines
+    mine = [g for g in groups if agent in g["agents"]] or [g for g in groups if "*" in g["agents"]]
+    return [r for g in mine for r in g["rules"]]
+
+
+def allowed(rules, path):
+    """RFC 9309 s2.2.2: the longest matching rule wins, Allow on a tie; `*` is any run of
+    characters and a final `$` ends the path. No match means allowed."""
+    if path == "/robots.txt":
+        return True
+    best_len, best = -1, True
+    for allow, pattern in rules:
+        rx = re.escape(pattern).replace(r"\*", ".*")
+        rx = rx[:-2] + "$" if rx.endswith(r"\$") else rx
+        if re.match(rx, path) and (len(pattern) > best_len or (len(pattern) == best_len and allow)):
+            best_len, best = len(pattern), allow
+    return best
 
 
 def _load_robots(base):
     """Read robots.txt with OUR user-agent, and follow RFC 9309 on failure.
 
-    RobotFileParser.read() uses urllib's default user-agent, which some WAFs reject —
-    and it turns any 401/403 into disallow_all. stjosephchamber.com was written off as
-    blocking us on exactly that path: its robots.txt says `User-agent: *` with a
+    urllib's RobotFileParser.read() uses urllib's default user-agent, which some WAFs
+    reject, and turns any 401/403 into disallow-all. stjosephchamber.com was written off
+    as blocking us on exactly that path: its robots.txt says `User-agent: *` with a
     Crawl-delay and NO Disallow, and its pages serve us HTTP 200 all day. The 403s were
     throttling, because we were ignoring the crawl delay it asked for.
 
     RFC 9309 s2.3.1: 4xx means no robots.txt exists, and a crawler may access the site;
     5xx and network failures mean unknown, and we stay out. That is the rule here.
     """
-    rp = urllib.robotparser.RobotFileParser()
     req = urllib.request.Request(base + "/robots.txt", headers={"User-Agent": UA})
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
@@ -70,12 +110,9 @@ def _load_robots(base):
             # delay rather than zero: stjosephchamber.com serves robots.txt sometimes
             # and 403s it other times, and the 403s are what happen when we go too fast.
             return None, UNKNOWN_ROBOTS_DELAY
-        rp.disallow_all = True      # 5xx: server is unwell, do not crawl it
-        return rp, 0.0
+        return STAY_OUT, 0.0        # 5xx: server is unwell, do not crawl it
     except Exception:
-        rp.disallow_all = True      # unreachable: unknown, so stay out
-        return rp, 0.0
-    rp.parse(text.splitlines())
+        return STAY_OUT, 0.0        # unreachable: unknown, so stay out
     delay = 0.0
     for line in text.splitlines():
         if line.lower().startswith("crawl-delay:"):
@@ -83,7 +120,7 @@ def _load_robots(base):
                 delay = max(delay, float(line.split(":", 1)[1].strip()))
             except ValueError:
                 pass
-    return rp, delay
+    return parse_robots(text), delay
 
 
 def robots_ok(url):
@@ -95,8 +132,8 @@ def robots_ok(url):
         # lands milliseconds later and a crawl-delay host answers 403 — which is what
         # made stjosephchamber.com look like it was blocking us.
         _last_hit[p.netloc] = time.monotonic()
-    rp = _robots[base]
-    return rp is None or rp.can_fetch(UA, url)
+    rules = _robots[base]
+    return rules is None or allowed(rules, (p.path or "/") + (f"?{p.query}" if p.query else ""))
 
 
 def _respect_crawl_delay(url):
@@ -113,11 +150,13 @@ def _respect_crawl_delay(url):
     _last_hit[host] = time.monotonic()
 
 
-def fetch(url):
+def fetch(url, data=None, headers=None):
+    """GET, or POST when `data` is given (511's GraphQL). Robots and Crawl-delay either way."""
     if not robots_ok(url):
         raise RuntimeError("robots.txt disallows -> switch method to search_snippet")
     _respect_crawl_delay(url)
-    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "text/html,*/*"})
+    req = urllib.request.Request(url, data=data,
+                                 headers={"User-Agent": UA, "Accept": "text/html,*/*", **(headers or {})})
     with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
         body = r.read(MAX_BYTES + 1)
         if len(body) > MAX_BYTES:

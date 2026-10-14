@@ -1,0 +1,67 @@
+{
+ "data": {
+  "mapFeaturesQuery": {
+   "mapFeatures": [
+    {
+     "title": "I-94 eastbound: Construction work.",
+     "tooltip": "I-94 eastbound: Construction work.",
+     "uri": "event/CARSx-149782",
+     "__typename": "Event",
+     "features": [
+      {
+       "id": "CARSx-149782-651953310",
+       "geometry": {
+        "type": "Point",
+        "coordinates": [
+         -94.05842,
+         45.41226
+        ]
+       },
+       "properties": {
+        "icon": {
+         "url": "/images/tg_warning_routine.svg",
+         "scaledSize": {
+          "width": 20,
+          "height": 20
+         }
+        },
+        "zIndex": 111,
+        "priority": 5
+       }
+      }
+     ]
+    },
+    {
+     "title": "MN 55 in both directions: Road closed.",
+     "tooltip": "MN 55 in both directions: Road closed, because of construction work, because the bridge is closed,, <strong>Please follow the Minnesota DOT-recommended detour around the closure. See map for detour(s)</strong>.",
+     "uri": "event/CARSx-142773",
+     "__typename": "Event",
+     "features": [
+      {
+       "id": "CARSx-142773-2893109152",
+       "geometry": {
+        "type": "Point",
+        "coordinates": [
+         -94.72975,
+         45.37955
+        ]
+       },
+       "properties": {
+        "icon": {
+         "url": "/images/tg_closure_routine.svg",
+         "scaledSize": {
+          "width": 20,
+          "height": 20
+         }
+        },
+        "zIndex": 111,
+        "priority": 5
+       }
+      }
+     ]
+    }
+   ],
+   "error": null
+  }
+ }
+}

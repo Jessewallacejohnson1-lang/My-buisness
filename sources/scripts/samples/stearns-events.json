@@ -1,0 +1,294 @@
+{
+ "total": 4,
+ "items": [
+  {
+   "id": "b2406295-1f10-4462-a5b7-b9cfd097cd10",
+   "slug": "technical-evaluation-panel-meeting-0",
+   "data": {
+    "title": {
+     "en": "Technical Evaluation Panel Meeting"
+    },
+    "eventdate": {
+     "iv": {
+      "startDate": "2026-10-14T14:00:00Z",
+      "endDate": "2026-10-14T20:00:00Z",
+      "recurrence": {
+       "type": "None",
+       "interval": 1,
+       "until": null,
+       "occurrences": null
+      },
+      "multipleDays": false,
+      "allDay": false
+     }
+    },
+    "description": {
+     "en": "<p><a href=\"https://stearnscounty.civicweb.net/Portal/\" rel=\"noopener noreferrer\" target=\"_blank\"></a>If you have any questions, please contact the Environmental Services Department at 320-656-3613.</p><p>Meetings are held at the Stearns County Service Center, 3301 County Road 138, Waite Park, MN 56387 in Room 2112 and begin promptly at 9:00 a.m.</p>"
+    },
+    "location": {
+     "iv": {
+      "address1": "3301 Co Rd 138",
+      "address2": "",
+      "city": "Waite Park",
+      "state": "MN",
+      "zip": "56387-2046",
+      "latitude": 45.5513369,
+      "longitude": -94.26328910000001
+     }
+    }
+   },
+   "titles": {
+    "title": {
+     "en": "Technical Evaluation Panel Meeting"
+    }
+   },
+   "created": "2024-01-17T20:06:01Z",
+   "lastModified": "2025-12-15T17:22:34Z",
+   "status": "Published",
+   "statusColor": "#4caf50",
+   "contentTypeName": "event",
+   "contentTypeDisplayName": "Event",
+   "version": 5,
+   "contentTypeId": "740bd5c4-d040-4c00-9a31-863cf1cb2c62,event",
+   "tagsDeleted": [],
+   "tags": [
+    "all events",
+    "environmental services",
+    "meetings"
+   ],
+   "categories": [
+    {
+     "id": "47839bbc-950e-4018-82f1-bb1c6b5920c1",
+     "name": "Home Events"
+    }
+   ],
+   "permissionSet": {
+    "id": "94aef923-d6c5-4d20-9890-35ba48deb12d",
+    "name": "CPWeb-Environmental Services",
+    "version": 0,
+    "lastModified": "1970-01-01T00:00:00Z",
+    "_links": {}
+   },
+   "isEncrypted": false,
+   "emailAddresses": []
+  },
+  {
+   "id": "3b475447-c572-41bf-b39c-94b25a38cad3",
+   "slug": "household-hazardous-waste-mobile-unit-collection-elrosa",
+   "data": {
+    "title": {
+     "en": "Household Hazardous Waste Mobile Unit Collection - Elrosa"
+    },
+    "eventdate": {
+     "iv": {
+      "startDate": "2026-10-14T15:00:00Z",
+      "endDate": "2026-10-14T22:00:00Z",
+      "from": "2026-10-14T15:00:00.000Z",
+      "to": "2026-10-14T22:00:00Z",
+      "multipleDays": false,
+      "allDay": false
+     }
+    },
+    "description": {
+     "en": "<p id=\"isPasted\">You&rsquo;ll start to spot our green Household Hazardous Waste mobile trucks driving in communities around Stearns County. They&rsquo;re out and about collecting environmentally hazardous products homeowners want to get rid of, such as paints, cleaners, poisons, fuels, automotive chemicals, garden and pool chemicals, fluorescent bulbs, Christmas bulbs, car seats, adhesives, aerosols, and many other products that can&rsquo;t be thrown into the garbage.</p><p>Check out Stearns County Household Hazardous Waste Mobile collection schedule:</p><table style=\"width: 100%; height: 1332px;\"><thead><tr><th>Date</th><th>City</th><th>Location</th><th>Time</th></tr></thead><tbody><tr style=\"height: 32px;\"><td style=\"width: 25.0000%;\">Wednesday, April 8, 2026</td><td style=\"width: 25.0000%;\">Belgrade</td><td style=\"width: 25.0000%;\">Walker Ave/Martin Street<br></td><td style=\"width: 25.0000%;\">10:00 a.m. - 5:00 p.m.<br></td></tr><tr><td style=\"width: 25.0000%;\">Wednesday, April 15, 2026</td><td style=\"width: 25.0000%;\">St. Martin</td><td style=\"width: 25.0000%;\">St. Martin Church, 119 Maine St, St Martin<br></td><td style=\"width: 25.0000%;\">10:00 a.m. - 5:00 p.m.</td></tr><tr><td style=\"width: 25.0000%;\">Saturday, April 25, 2026</td><td style=\"width: 25.0000%;\">Paynesville</td><td style=\"width: 25.0000%;\">Koronis Civic Arena, 28780 Koronis Dr, Paynesville<br></td><td style=\"width: 25.0000%;\">8:00 - 11:00 a.m.</td></tr><tr><td style=\"width: 25.0000%;\">Wednesday, May 6, 2026</td><td style=\"width: 25.0000%;\">Greenwald</td><td style=\"width: 25.0000%;\">Greenwald Rec Building, 121 N 4th St W, Greenwald<br></td><td style=\"width: 25.0000%;\">10:00 a.m. - 5:00 p.m.<br></td></tr><tr><td style=\"width: 25.0000%;\">Wednesday, May 13, 2026</td><td style=\"width: 25.0000%;\">Sauk Centre</td><td style=\"width: 25.0000%;\">Hockey Arena, 818 Centre St, Sauk Centre<br></td><td style=\"width: 25.0000%;\">10:00 a.m. - 5:00 p.m.<br></td></tr><tr><td style=\"width: 25.0000%;\">Wednesday, May 20, 2026</td><td style=\"width: 25.0000%;\">Melrose</td><td style=\"width: 25.0000%;\">405 N 2nd Ave E SE, Melrose (Parking lot North of fire hall)<br></td><td style=\"width: 25.0000%;\">10:00 a.m. - 5:00 p.m.<br></td></tr><tr><td style=\"width: 25.0000%;\">Wednesday, May 27, 2026</td><td style=\"width: 25.0000%;\">St. Anthony</td><td style=\"width: 25.0000%;\">St. Anthony Church, 24326 Trobec St., Albany<br></td><td style=\"width: 25.0000%;\">10:00 a.m. - 5:00 p.m.<br></td></tr><tr><td style=\"width: 25.0000%;\">Wednesday, June 17, 2026</td><td style=\"width: 25.0000%;\">Holdingford</td><td style=\"width: 25.0000%;\">Holdingford School SW Lot, 900 5th St, Holdingford<br></td><td style=\"width: 25.0000%;\">10:00 a.m. - 5:00 p.m.<br></td></tr><tr><td style=\"width: 25.0000%;\">Wednesday, June 24, 2026</td><td style=\"width: 25.0000%;\">Marty</td><td style=\"width: 25.0000%;\">Holy Cross School, 10651 Co Rd 8, Kimball<br></td><td style=\"width: 25.0000%;\">10:00 a.m. - 5:00 p.m.<br></td></tr><tr><td style=\"width: 25.0000%;\">Wednesday, July 1, 2026</td><td style=\"width: 25.0000%;\">St. Stephen</td><td style=\"width: 25.0000%;\">City/Fire Hall, 2 6th Ave SE, St Stephen<br></td><td style=\"width: 25.0000%;\">10:00 a.m. - 5:00 p.m.<br></td></tr><tr><td style=\"width: 25.0000%;\">Wednesday, July 8, 2026</td><td style=\"width: 25.0000%;\">Brooten</td><td style=\"width: 25.0000%;\">Hatton St near the Brooten pavilion, Brooten<br></td><td style=\"width: 25.0000%;\">10:00 a.m. - 5:00 p.m.<br></td></tr><tr><td style=\"width: 25.0000%;\">Wednesday, July 15, 2026</td><td style=\"width: 25.0000%;\">Clear Lake</td><td style=\"width: 25.0000%;\">8670 1st Ave W, Clear Lake (Lot under water tower)<br></td><td style=\"width: 25.0000%;\">2:00 - 5:00 p.m.</td></tr><tr><td style=\"width: 25.0000%;\">Wednesday, July 29, 2026</td><td style=\"width: 25.0000%;\">Freeport</td><td style=\"width: 25.0000%;\">Freeport Community Center, 307 7th St SE, Freeport<br></td><td style=\"width: 25.0000%;\">10:00 a.m. - 5:00 p.m.<br></td></tr><tr><td style=\"width: 25.0000%;\">Wednesday, August 5, 2026</td><td style=\"width: 25.0000%;\">Padua</td><td style=\"width: 25.0000%;\">33945 Co Hwy 18, Sauk Centre (South of Padua Pub lot)<br></td><td style=\"width: 25.0000%;\">10:00 a.m. - 5:00 p.m.<br></td></tr><tr><td style=\"width: 25.0000%;\">Wednesday, August 12, 2026</td><td style=\"width: 25.0000%;\">Eden Valley</td><td style=\"width: 25.0000%;\">300 Smith St, Eden Valley (in front of public works)<br></td><td style=\"width: 25.0000%;\">10:00 a.m. - 5:00 p.m.<br></td></tr><tr><td style=\"width: 25.0000%;\">Wednesday, August 19, 2026</td><td style=\"width: 25.0000%;\">Sauk Centre</td><td style=\"width: 25.0000%;\">Hockey Arena, 818 Centre St, Sauk Centre<br></td><td style=\"width: 25.0000%;\">10:00 a.m. - 5:00 p.m.<br></td></tr><tr><td style=\"width: 25.0000%;\">Wednesday, August 26, 2026</td><td style=\"width: 25.0000%;\">Richmond</td><td style=\"width: 25.0000%;\">River Lakes Arena, 319 Central Ave S, Richmond<br></td><td style=\"width: 25.0000%;\">10:00 a.m. - 5:00 p.m.<br></td></tr><tr><td style=\"width: 25.0000%;\">Wednesday, September 2, 2026</td><td style=\"width: 25.0000%;\">Roscoe</td><td style=\"width: 25.0000%;\">St. Agnes Church, 100 Lillie Avenue, Roscoe<br></td><td style=\"width: 25.0000%;\">10:00 a.m. - 5:00 p.m.<br></td></tr><tr><td style=\"width: 25.0000%;\">Saturday, September 19, 2026</td><td style=\"width: 25.0000%;\">Kimball</td><td style=\"width: 25.0000%;\">A.M. Maus and Sons, 21 Maus Dr, Kimball<br></td><td style=\"width: 25.0000%;\">8:00 - 11:00 a.m.<br></td></tr><tr><td style=\"width: 25.0000%;\">Wednesday, September 23, 2026</td><td style=\"width: 25.0000%;\">Albany</td><td style=\"width: 25.0000%;\">Our Savior Lutheran Church, 840 Lake Ave, Albany<br></td><td style=\"width: 25.0000%;\">10:00 a.m. - 5:00 p.m.<br></td></tr><tr><td style=\"width: 25.0000%;\">Wednesday, September 30, 2026</td><td style=\"width: 25.0000%;\">St. Francis</td><td style=\"width: 25.0000%;\">St. Francis Church, 44055 State Hwy 238, Freeport<br></td><td style=\"width: 25.0000%;\">10:00 a.m. - 5:00 p.m.<br></td></tr><tr><td style=\"width: 25.0000%;\">Wednesday, October 7, 2026</td><td style=\"width: 25.0000%;\">St. Nicholas</td><td style=\"width: 25.0000%;\">St. Nicholas Church, 15862 Co Rd 165, Watkins<br></td><td style=\"width: 25.0000%;\">10:00 a.m. - 5:00 p.m.<br></td></tr><tr><td style=\"width: 25.0000%;\">Wednesday, October 14, 2026</td><td style=\"width: 25.0000%;\">Elrosa</td><td style=\"width: 25.0000%;\">St. Peter and Paul Catholic Church, 302 State Street, Elrosa<br></td><td style=\"width: 25.0000%;\">10:00 a.m. - 5:00 p.m.<br></td></tr><tr><td style=\"width: 25.0000%;\">Wednesday, October 21, 2026</td><td style=\"width: 25.0000%;\">Fairhaven</td><td style=\"width: 25.0000%;\">Fairhaven Town Hall, 5205 Co Rd 44, South Haven<br></td><td style=\"width: 25.0000%;\">10:00 a.m. - 5:00 p.m.<br></td></tr></tbody></table>"
+    }
+   },
+   "titles": {
+    "title": {
+     "en": "Household Hazardous Waste Mobile Unit Collection - Elrosa"
+    }
+   },
+   "created": "2026-02-25T16:45:54Z",
+   "lastModified": "2026-02-25T17:25:43Z",
+   "status": "Published",
+   "statusColor": "#4caf50",
+   "contentTypeName": "event",
+   "contentTypeDisplayName": "Event",
+   "version": 4,
+   "contentTypeId": "740bd5c4-d040-4c00-9a31-863cf1cb2c62,event",
+   "tagsDeleted": [],
+   "tags": [
+    "all events",
+    "community"
+   ],
+   "categories": [
+    {
+     "id": "47839bbc-950e-4018-82f1-bb1c6b5920c1",
+     "name": "Home Events"
+    }
+   ],
+   "permissionSet": {
+    "id": "8d820cea-124e-4b6c-b391-c9b922c01f66",
+    "name": "CPWeb-County Administration",
+    "version": 0,
+    "lastModified": "1970-01-01T00:00:00Z",
+    "_links": {}
+   },
+   "notificationDetails": {
+    "subject": "A modification to a Event has been made!",
+    "smsMessage": "A modification to a Event has been made!"
+   },
+   "isEncrypted": false,
+   "emailAddresses": []
+  },
+  {
+   "id": "5a8dfe6d-e819-4e07-ad46-ce50c8c88b07",
+   "slug": "park-commission-meeting-48",
+   "data": {
+    "title": {
+     "en": "Park Commission Meeting"
+    },
+    "eventdate": {
+     "iv": {
+      "startDate": "2026-10-14T23:00:00Z",
+      "endDate": "2026-10-15T01:00:00Z",
+      "recurrence": {
+       "id": "c6f0a55e-0deb-447d-97fe-d154065a6a71",
+       "type": "Monthly",
+       "interval": 1,
+       "occurrences": null,
+       "dayOfMonth": null,
+       "offset": "Second",
+       "until": "2026-12-09T06:00:00Z",
+       "totalEventsCreated": 11,
+       "weekdays": [
+        "Wednesday"
+       ]
+      },
+      "from": "2026-02-12T00:00:00.000Z",
+      "to": "2026-02-12T02:00:00.000Z",
+      "multipleDays": false,
+      "allDay": false
+     }
+    },
+    "description": {
+     "en": "<p>Please note that the 10/14/26 &nbsp;Parks Commission Meeting will be held on site at the Kraemer Lake-Wildwood County Park. Agendas and Minutes are posted on the <a href=\"https://stearnscounty.civicweb.net/Portal/\" style=\"box-sizing: border-box;  user-select: auto;font-variant-ligatures: normal;font-variant-caps: normal;  orphans: 2;widows: 2;-webkit-text-stroke-width: 0px;word-spacing:0px;\" data-pasted=\"true\">Stearns County Meetings on Demand</a>. &nbsp;</p>"
+    },
+    "location": {
+     "iv": {
+      "address1": "29709 Kipper Road",
+      "address2": "",
+      "city": "St Joseph",
+      "state": "MN",
+      "zip": "56374",
+      "latitude": 45.5366007,
+      "longitude": -94.2421482,
+      "_geoPoint": {
+       "type": "Point",
+       "coordinates": [
+        -94.2421482,
+        45.5366007
+       ]
+      }
+     }
+    }
+   },
+   "titles": {
+    "title": {
+     "en": "Park Commission Meeting"
+    }
+   },
+   "created": "2025-12-12T19:31:04Z",
+   "lastModified": "2026-10-02T16:19:23Z",
+   "status": "Published",
+   "statusColor": "#4caf50",
+   "contentTypeName": "event",
+   "contentTypeDisplayName": "Event",
+   "version": 5,
+   "contentTypeId": "740bd5c4-d040-4c00-9a31-863cf1cb2c62,event",
+   "tagsDeleted": [],
+   "tags": [
+    "all events",
+    "meetings"
+   ],
+   "categories": [
+    {
+     "id": "83a6c1a4-d207-4d93-af45-7aa3dd783db2",
+     "name": "Parks"
+    },
+    {
+     "id": "47839bbc-950e-4018-82f1-bb1c6b5920c1",
+     "name": "Home Events"
+    },
+    {
+     "id": "d2b672ee-de40-4881-9c59-46ea0e24d315",
+     "name": "Residents"
+    }
+   ],
+   "permissionSet": {
+    "id": "fc1e22ee-3bd1-4691-ab8a-b7972bc201c3",
+    "name": "CPWeb-Parks",
+    "version": 0,
+    "lastModified": "1970-01-01T00:00:00Z",
+    "_links": {}
+   },
+   "notificationDetails": {
+    "subject": "A modification to a Event has been made!",
+    "smsMessage": "A modification to a Event has been made!"
+   },
+   "isEncrypted": false,
+   "emailAddresses": []
+  },
+  {
+   "id": "83df15b2-f25e-4b18-ae32-3fd8f69113ed",
+   "slug": "closed-for-veterans-day-1",
+   "data": {
+    "title": {
+     "en": "Closed for Veterans Day "
+    },
+    "eventdate": {
+     "iv": {
+      "startDate": "2026-11-11T14:00:00Z",
+      "endDate": "2026-11-11T22:30:00Z",
+      "recurrence": {
+       "type": "None",
+       "interval": 1,
+       "occurrences": null,
+       "until": null,
+       "weekdays": [],
+       "offset": null,
+       "dayOfMonth": null
+      },
+      "multipleDays": false,
+      "allDay": false
+     }
+    },
+    "description": {
+     "en": "<p>Stearns County Offices will be closed in observance of the holiday. A full list of observed holidays can be found on the <a href=\"https://www.stearnscountymn.gov/944/Business-Hours\">Stearns County website.</a></p>"
+    }
+   },
+   "titles": {
+    "title": {
+     "en": "Closed for Veterans Day "
+    }
+   },
+   "created": "2025-12-30T17:34:59Z",
+   "lastModified": "2025-12-30T17:35:03Z",
+   "status": "Published",
+   "statusColor": "#4caf50",
+   "contentTypeName": "event",
+   "contentTypeDisplayName": "Event",
+   "version": 3,
+   "contentTypeId": "740bd5c4-d040-4c00-9a31-863cf1cb2c62,event",
+   "tagsDeleted": [],
+   "tags": [
+    "all events"
+   ],
+   "categories": [
+    {
+     "id": "47839bbc-950e-4018-82f1-bb1c6b5920c1",
+     "name": "Home Events"
+    }
+   ],
+   "permissionSet": {
+    "id": "8d820cea-124e-4b6c-b391-c9b922c01f66",
+    "name": "CPWeb-County Administration",
+    "version": 0,
+    "lastModified": "1970-01-01T00:00:00Z",
+    "_links": {}
+   },
+   "isEncrypted": false,
+   "emailAddresses": []
+  }
+ ]
+}

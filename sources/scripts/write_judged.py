@@ -102,7 +102,7 @@ TEAM = set("jv varsity junior reserve freshman sophomore boys girls men women me
 # shelter" and "Millstream Park shelter" are two places.
 PLACE_STOP = STOP | set("st saint joseph collegeville mn minnesota united states usa county road rd street "
                         "ave avenue east west north south suite park shelter hall center centre building "
-                        "room gym lot parking map".split())
+                        "room gym lot parking map theater theatre".split())
 INTERESTS_SWIFT = Path(__file__).resolve().parents[2] / "BlockParty" / "Backend" / "Interests.swift"
 
 
@@ -140,7 +140,9 @@ def same_event(a, b):
 
 
 def real_uid(uid):
-    return bool(uid) and not str(uid).startswith("page:")
+    """The source's own id. "page:" is made up here from the start and title; "board:" is the
+    town board row an event was moved from (ticket 01), not anything its source gave it."""
+    return bool(uid) and not str(uid).startswith(("page:", "board:"))
 
 
 def own_ids_differ(g, source, uid):
@@ -594,6 +596,12 @@ def t_merge_near_miss_kept_apart():
     assert len(run(levels)["events"]) == 2, "JV and varsity are two games"
     one_source = [item(source_uid="a1"), item(source_uid="a2", title="Plant Bingo night")]
     assert len(run(one_source)["events"]) == 2, "a source's own two ids are two events"
+    board = listed(title="School Board meeting", event_date="2026-10-21", start_time="6:30 PM",
+                   location="Colman Theatre, Benedicta Arts Center", source_name="Kennedy", source_uid="board:532f")
+    feed = item(title="School Board Meeting", start="2026-10-21T18:30:00-05:00", place="Colman Theater",
+                source_name="Kennedy", source_uid="877641_2026-10-21")
+    r2 = run([feed], [board])
+    assert r2["events"][0]["id"] == board["id"] and outcome(r2, 0) == "merged", "a board copy is not the source's own id"
     assert any("kept apart" in n and "City Council Work Session" in n for n in r["notes"]), r["notes"]
 
 

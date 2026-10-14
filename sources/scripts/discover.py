@@ -76,7 +76,7 @@ TOWNS = {
         "zips": ["56374"],
         # Words in an address that put it in another town despite a 56374 ZIP. The City's
         # calendar lists Saint John's events as "St. Joseph MN 56374"; its mail goes to
-        # Collegeville (ADR-019). read_events.py skips these.
+        # Collegeville (ADR-019). read_events.py keeps them: a St. Joseph source posted them.
         "elsewhere": ["Saint John's University", "Abbey Plaza", "Collegeville"],
         # South, west, north, east. Covers the city plus the immediate fringe, because
         # Milk & Honey is out on County Road 51 and still very much St. Joe.
