@@ -58,7 +58,9 @@ THE RULES
   Re-read: an item with the same source and uid (its own, or "page:<start>:<title words>" when
     the source has none) updates its event instead of adding it twice. Status only ever goes
     pending -> approved on a found event the writer left pending; an admin's approve or
-    decline, and a misread sent back for review, stand.
+    decline stands, except a decline for a misread (any review_reason but not_event): when
+    the source changes its title, date, time or place, it goes back to pending for another
+    look, the same rule as read_events (Jesse, 2026-10-14).
   Show-from day (the event-lead-time rule, moved here from the skill): the event date minus
     14 days (everyday), 28 (notable) or 56 (big). With sign-ups closing, it lands at least a
     week before they close: size up if that does it, else the deadline minus 7 days. A re-read
@@ -356,6 +358,10 @@ def plan(items, existing, today, interests, town=TOWNS["st-joseph-mn"]):
             primary = min(g["items"], key=lambda e: (not items[e[0]].get("sure") is True,
                                                      items[e[0]]["trust"] != "official"))
             g["status"] = "approved" if ok else "pending"
+        if (old and primary and old["status"] == "rejected" and old.get("review_reason") not in (None, "not_event")
+                and any(primary[1]["row"].get(k) != old.get(k)
+                        for k in ("title", "event_date", "start_time", "all_day", "location"))):
+            g["status"] = "pending"  # a misread its source changed gets another look, as in read_events
         if primary:
             row = dict(primary[1]["row"], status="approved" if ok else "pending")
             if old:
@@ -416,7 +422,12 @@ def to_sql(result, today):
             "  shows_from = case when club_events.event_date is distinct from excluded.event_date\n"
             "      or club_events.shows_from is null then excluded.shows_from else club_events.shows_from end,\n"
             "  status = case when club_events.status = 'pending' and club_events.review_reason is null\n"
-            "      and excluded.status = 'approved' then 'approved' else club_events.status end;\n")
+            "      and excluded.status = 'approved' then 'approved'\n"
+            "    when club_events.status = 'rejected'\n"
+            "      and club_events.review_reason is distinct from 'not_event' and club_events.review_reason is not null\n"
+            "      and (club_events.title, club_events.event_date, club_events.start_time, club_events.all_day, club_events.location)\n"
+            "          is distinct from (excluded.title, excluded.event_date, excluded.start_time, excluded.all_day, excluded.location)\n"
+            "    then 'pending' else club_events.status end;\n")
     if mentions:
         sql.append(
             "\n-- 2. Every mention (ADR-021), counted toward the two-mention rule next time.\n"
@@ -608,11 +619,23 @@ def t_reread_updates():
     assert "on conflict on constraint club_events_source_uid_key do update" in sql
 
 
+def t_misread_comes_back():
+    """Like read_events: a decline for a misread goes back to Review when the source changes it."""
+    base = dict(title="Plant Bingo", event_date="2026-10-23", start_time="4 PM", location="Milk & Honey Ciders",
+                source_name="Milk & Honey Ciders", source_uid="page:2026-10-24T1600:bingo-plant")
+    moved = run([item()], [listed(status="rejected", review_reason="wrong_when", **base)])
+    assert moved["events"][0]["status"] == "pending", moved["events"][0]["status"]
+    not_event = run([item()], [listed(status="rejected", review_reason="not_event", **base)])
+    assert not_event["events"][0]["status"] == "rejected", "not an event stays declined"
+    sql = to_sql(run([item()]), TODAY)
+    assert "review_reason is distinct from 'not_event'" in sql and "then 'pending'" in sql, "the SQL does the same"
+
+
 def t_admin_status_kept():
+    same = run([item()])["events"][0]["row"]  # the source re-reads it unchanged
     for st, reason in (("rejected", "wrong_when"), ("approved", None), ("pending", "wrong_place")):
-        old = listed(status=st, review_reason=reason, title="Plant Bingo", event_date="2026-10-24",
-                     start_time="4 PM", location="Milk & Honey Ciders", source_name="Milk & Honey Ciders",
-                     source_uid="page:2026-10-24T1600:bingo-plant")
+        old = listed(status=st, review_reason=reason, **{k: same[k] for k in (
+            "title", "event_date", "start_time", "all_day", "location", "source_name", "source_uid")})
         r = run([item()], [old])
         assert r["events"][0]["status"] == st, (st, r["events"][0]["status"])
     sql = to_sql(run([item()]), TODAY)
@@ -684,7 +707,7 @@ def t_interest_list_is_the_apps():
 
 
 TESTS = [t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_secondhand_needs_two, t_unsure_held, t_merge_true_pair,
-         t_merge_near_miss_kept_apart, t_reread_updates, t_admin_status_kept, t_show_from_by_size,
+         t_merge_near_miss_kept_apart, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_show_from_by_size,
          t_interest_checked, t_area, t_past_and_invalid_skipped, t_sql_is_one_safe_transaction]
 
 
