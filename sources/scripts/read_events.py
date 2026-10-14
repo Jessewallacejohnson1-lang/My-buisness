@@ -7,8 +7,9 @@ Crawl-delay obeyed, ADR-014), and keeps what is an event in the town in the next
 
   - News is not an event (ADR-021): "City Offices Closed" and the like are counted, not kept.
     The town board takes news; nothing writes it there yet.
-  - In-town only for now (ADR-021): an address with another ZIP, or naming a place the town
-    file says is elsewhere (Saint John's mail goes to Collegeville, ADR-019), is skipped.
+  - Every feed here belongs to an active St. Joseph entry, so its events are kept wherever they
+    happen (Jesse, 2026-10-14: what St. Joseph, its schools and colleges or an approved place
+    posts can be added; amends ADR-021's in-town-only rule). The place keeps its own address.
 
 Dry-run by default (ADR-009): prints what it found. `--sql FILE` writes one upsert for
 public.club_events. Found events go in as `approved` and show straight away: Jesse,
@@ -81,13 +82,6 @@ def clock(dt):
     return f"{h} {dt.strftime('%p')}" if dt.minute == 0 else f"{h}:{dt.strftime('%M %p')}"
 
 
-def outside(location, town):
-    zips = set(re.findall(r"\b(5\d{4})\b", location))
-    if zips and not zips & set(town["zips"]):
-        return True
-    return any(w.lower() in location.lower() for w in town.get("elsewhere", ()))
-
-
 def bare_town(location, town):
     """A location naming only the town ("St. Joseph MN 56374") says nowhere to go: the
     card would print the town as if it were the place, so it is written as no place."""
@@ -119,8 +113,6 @@ def to_event(ev, source_name, feed_url, town, today):
     if NEWS.search(title):
         return None, "news"
     location = unescape(ev.get("LOCATION", ("", ""))[1])
-    if outside(location, town):
-        return None, "out of town"
     if bare_town(location, town):
         location = ""
     end = when(ev["DTEND"])[0] if "DTEND" in ev and not all_day else None
@@ -180,7 +172,8 @@ def selftest():
     assert row["start_time"] == "3:30 PM" and row["event_date"] == "2026-12-07", row
     assert row["location"] == "610 County Rd 2 St. Joseph MN 56374", row["location"]
     assert row["description"] == "Groceries, cheap" and row["end_at"].startswith("2026-12-07T17:30:00-06:00")
-    assert got[1] == (None, "news") and got[2] == (None, "out of town"), got
+    assert got[1] == (None, "news"), got
+    assert got[2][0]["location"].startswith("Saint John's University"), "a St. Joseph source's event is kept wherever it is"
     assert got[3][0]["location"] is None, got[3]
     assert clock(datetime(2026, 1, 1, 18, 0)) == "6 PM"
     assert page_url({"UID": ("", "2447"), "URL": ("", "/common/modules/iCalendar/iCalendar.aspx?feed=calendar&catID=25")},

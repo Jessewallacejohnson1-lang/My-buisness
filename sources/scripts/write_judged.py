@@ -24,7 +24,9 @@ THE JUDGED ITEM: the contract the judge (ticket 05) produces, one JSON object pe
   town         the town it happens in ("St. Joseph", "Collegeville", "St. Cloud")
   area         "town" (St. Joseph's ZIP codes) | "campus" (any CSB/SJU event, Collegeville and
                athletics included) | "game" (a high school game played within 20 miles of St.
-               Joseph) | "outside" (anything else; skipped)
+               Joseph) | "announced" (posted by a St. Joseph source: the City, its schools and
+               colleges, or an approved place, wherever it happens; Jesse, 2026-10-14) |
+               "outside" (anything else; skipped)
   source_name  the registry entry's name ("Milk & Honey Ciders")
   source_url   a link a person can open: the event's own page when it has one, else the page read
   source_uid   the source's own id for it when it has one (an iCal UID, the City's EID)
@@ -62,7 +64,7 @@ THE RULES
     week before they close: size up if that does it, else the deadline minus 7 days. A re-read
     keeps a day already set unless the date moved.
   Interest: checked against Interests.all; one not on the list is dropped and named.
-  Area: town, campus and game are kept; outside is skipped, and so is "town" when the item's
+  Area: town, campus, game and announced are kept; outside is skipped, and so is "town" when the item's
     own town or ZIP says otherwise. Outside St. Joseph, the place line carries its town
     ("Saint John's Abbey Arboretum, Collegeville"). Past events and unreadable items are
     skipped one by one, with the reason in the summary.
@@ -87,7 +89,7 @@ from read_events import LOCAL, clock
 from discover import TOWNS
 
 LEAD = {"everyday": 14, "notable": 28, "big": 56}
-AREAS = {"town", "campus", "game", "outside"}
+AREAS = {"town", "campus", "game", "announced", "outside"}
 # The registry's trust words (ADR-001); "secondhand" is the spec's word for squishy.
 TRUST = {"official": "official", "secondhand": "squishy", "squishy": "squishy"}
 NEWS_CATEGORIES = {"announcement", "road", "school", "campus", "business"}
@@ -198,7 +200,7 @@ def skip_reason(it, town):
     if it.get("trust") not in TRUST:
         return "invalid: trust must be official or secondhand"
     if it.get("area") not in AREAS:
-        return "invalid: area must be town, campus, game or outside"
+        return "invalid: area must be town, campus, game, announced or outside"
     # ponytail: "campus" and "game" are the judge's word; nothing here checks CSB/SJU or the
     # 20 miles. Ticket 11's list of nearby schools can check games when it exists.
     if it["area"] == "outside":
@@ -643,9 +645,12 @@ def t_area():
     game = item(title="Cathedral vs Sartell football", start="2026-10-23T19:00:00-05:00", place="Cathedral High School",
                 town="St. Cloud", area="game", source_name="Sartell-St. Stephen Schools", interest="sports_leagues")
     away = item(title="Waite Park fair", area="outside", town="Waite Park")
-    r = run([campus, game, away])
+    zoo = item(title="Family Zoo Day", start="2026-10-17T10:00:00-05:00", place="Hemker Park & Zoo",
+               town="Freeport", area="announced", source_name="City of St. Joseph")
+    r = run([campus, game, away, zoo])
     locs = [g["row"]["location"] for g in r["events"]]
-    assert locs == ["Saint John's Abbey Arboretum, Collegeville", "Cathedral High School, St. Cloud"], locs
+    assert locs == ["Saint John's Abbey Arboretum, Collegeville", "Cathedral High School, St. Cloud",
+                    "Hemker Park & Zoo, Freeport"], locs
     named = run([dict(game, place="Sartell High School", town="Sartell")])
     assert named["events"][0]["row"]["location"] == "Sartell High School", "already names its town"
     assert outcome(r, 2) == "skipped" and "outside" in r["outcomes"][2][1]
