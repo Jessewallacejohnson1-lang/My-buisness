@@ -9,7 +9,7 @@ create table if not exists public.event_mentions (
   source_name text not null,
   source_url  text not null,
   source_uid  text,
-  trust       text not null check (trust in ('official', 'secondhand')),
+  trust       text not null check (trust in ('official', 'squishy')),  -- the registry's words (ADR-001)
   sure        boolean not null,
   first_seen  timestamptz not null default now(),
   last_seen   timestamptz not null default now(),

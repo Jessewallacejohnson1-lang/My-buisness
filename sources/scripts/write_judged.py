@@ -29,9 +29,11 @@ THE JUDGED ITEM: the contract the judge (ticket 05) produces, one JSON object pe
   source_url   a link a person can open: the event's own page when it has one, else the page read
   source_uid   the source's own id for it when it has one (an iCal UID, the City's EID)
   trust        "official": the city, county, 511, the schools, the colleges, a place's own
-               site or own social page | "secondhand": anyone else (Newsleaders, a town group)
+               site or own social page | "secondhand": anyone else (Newsleaders, a town group).
+               The registry's word for secondhand, "squishy", works too; mentions store that.
   sure         true | false: false when the judge doubts the date, the place, or that it is real
-  size         events: "everyday" | "notable" | "big" (sources/CONTEXT.md, Event size)
+  size         events: "everyday" | "notable" | "big" (sources/CONTEXT.md, Event size); when
+               unsure, the smaller size. Anything else is sized everyday and named.
   signup_by    events, optional: the date sign-ups or tickets close
   interest     events: one id from Interests.all (BlockParty/Backend/Interests.swift), or null
                when none fits (a council meeting)
@@ -44,10 +46,13 @@ THE RULES
   Trust: published (events `approved`, news `published`) on one sure official mention, or on
     sure mentions from two different secondhand sources. Otherwise an event waits as `pending`
     in the Review queue and news stays in `staging`; both are named in the summary.
-  Merging: same place, start within an hour, shared title words = one Event. Checked against
-    the events already in the list and this morning's items; every mention is kept
-    (event_mentions) and counts toward the two-mention rule. A pair short of that stays two
-    events: a duplicate stays visible, a wrong merge hides a real event (ADR-021).
+  Merging: same place, start within an hour, shared title words = one Event. Shared means
+    one title's words all sit inside the other's, with the same team words (JV, varsity,
+    girls...); a source's own two ids are always two events. Checked against the events
+    already in the list and this morning's items; every mention is kept (event_mentions) and
+    counts toward the two-mention rule. A pair short of that stays two events, and one on the
+    same day at the same place or under the same title is named for Jesse to settle: a
+    duplicate stays visible, a wrong merge hides a real event (ADR-021).
   Re-read: an item with the same source and uid (its own, or "page:<start>:<title words>" when
     the source has none) updates its event instead of adding it twice. Status only ever goes
     pending -> approved on a found event the writer left pending; an admin's approve or
@@ -57,8 +62,10 @@ THE RULES
     week before they close: size up if that does it, else the deadline minus 7 days. A re-read
     keeps a day already set unless the date moved.
   Interest: checked against Interests.all; one not on the list is dropped and named.
-  Area: town, campus and game are kept; outside is skipped. Outside St. Joseph, the place line
-    carries its town ("Saint John's Abbey Arboretum, Collegeville"). Past events are skipped.
+  Area: town, campus and game are kept; outside is skipped, and so is "town" when the item's
+    own town or ZIP says otherwise. Outside St. Joseph, the place line carries its town
+    ("Saint John's Abbey Arboretum, Collegeville"). Past events and unreadable items are
+    skipped one by one, with the reason in the summary.
 
 EXISTING (--existing): JSON rows of the events already in the list, from this select:
   select e.id, e.status, e.title, e.event_date, e.start_time, e.all_day, e.location,
@@ -81,8 +88,12 @@ from discover import TOWNS
 
 LEAD = {"everyday": 14, "notable": 28, "big": 56}
 AREAS = {"town", "campus", "game", "outside"}
+# The registry's trust words (ADR-001); "secondhand" is the spec's word for squishy.
+TRUST = {"official": "official", "secondhand": "squishy", "squishy": "squishy"}
 NEWS_CATEGORIES = {"announcement", "road", "school", "campus", "business"}
 STOP = set("a an and at by for from in of on the to with".split())
+# Words that tell two games at one place apart; both titles must carry the same ones.
+TEAM = set("jv varsity junior reserve freshman sophomore boys girls men women mens womens".split())
 # Words that name the town or a kind of spot rather than which place: "Centennial Park
 # shelter" and "Millstream Park shelter" are two places.
 PLACE_STOP = STOP | set("st saint joseph collegeville mn minnesota united states usa county road rd street "
@@ -103,7 +114,9 @@ def words(text, stop=STOP):
 
 
 def same_title(a, b):
-    return bool(a and b) and (a <= b or b <= a or len(a & b) / len(a | b) >= 0.5)
+    """One title's words all inside the other's ("Plant Bingo" in "Plant Bingo night"), and
+    the same team words: "football" vs "volleyball", "JV" vs none, stay two events."""
+    return bool(a and b) and (a <= b or b <= a) and a & TEAM == b & TEAM
 
 
 def same_place(a, b):
@@ -122,6 +135,17 @@ def same_event(a, b):
     return within_hour(a, b) and same_place(a["place"], b["place"]) and same_title(a["title"], b["title"])
 
 
+def real_uid(uid):
+    return bool(uid) and not str(uid).startswith("page:")
+
+
+def own_ids_differ(g, source, uid):
+    """The source itself gave the two their own ids: two events, however alike."""
+    seen = ([g["old"]] if g["old"] else []) + g["mentions"]
+    return real_uid(uid) and any(m["source_name"] == source and real_uid(m.get("source_uid"))
+                                 and m["source_uid"] != uid for m in seen)
+
+
 def town_key(name):
     t = re.sub(r"[^a-z ]", "", (name or "").lower().replace("saint", "st"))
     return " ".join(w for w in t.split() if w not in ("mn", "minnesota"))
@@ -135,6 +159,8 @@ def place_line(place, town, home):
 
 
 def parse_clock(text):
+    # ponytail: reads "7 PM", "6:30 pm", "12 PM". A listed start like "7-9 PM" or "noon" reads
+    # as no time, so that event merges only with all-day items; add forms if they show up.
     m = re.fullmatch(r"\s*(\d{1,2})(?::(\d\d))?\s*([AP])\.?M\.?\s*", text or "", re.I)
     return m and time(int(m[1]) % 12 + (12 if m[3].upper() == "P" else 0), int(m[2] or 0))
 
@@ -155,40 +181,55 @@ def show_from(day, size, signup_by):
     return shown
 
 
-def checked(it, today, home):
-    """The fields every item needs, or why it is skipped. Items are model output: check all."""
+def skip_reason(it, town):
+    """Why an item can't be used, or None. Items are model output: one bad item is skipped,
+    never the whole morning."""
+    if not isinstance(it, dict):
+        return "invalid: not a JSON object"
     for k in ("title", "source_name", "source_url"):
         if not isinstance(it.get(k), str) or not it[k].strip():
             return f"invalid: no {k}"
+    for k in ("kind", "trust", "area", "start", "end", "place", "town", "blurb", "size",
+              "signup_by", "interest", "category"):
+        if it.get(k) is not None and not isinstance(it[k], str):
+            return f"invalid: {k} must be text"
     if it.get("kind") not in ("event", "news"):
         return "invalid: kind must be event or news"
-    if it.get("trust") not in ("official", "secondhand"):
+    if it.get("trust") not in TRUST:
         return "invalid: trust must be official or secondhand"
     if it.get("area") not in AREAS:
         return "invalid: area must be town, campus, game or outside"
+    # ponytail: "campus" and "game" are the judge's word; nothing here checks CSB/SJU or the
+    # 20 miles. Ticket 11's list of nearby schools can check games when it exists.
     if it["area"] == "outside":
         return f"outside the area ({it.get('town') or 'no town'})"
+    zips = set(re.findall(r"\b(5\d{4})\b", it.get("place") or ""))
+    if it["area"] == "town" and (it.get("town") and town_key(it["town"]) != town_key(town["label"])
+                                 or zips and not zips & set(town["zips"])):
+        return f"outside the area (marked town, but in {it.get('town')} {' '.join(sorted(zips))})".replace(" )", ")")
     return None
 
 
-def when(it):
-    """(local day, local naive datetime or None for all day)."""
-    start = str(it.get("start") or "")
-    if it.get("all_day") or re.fullmatch(r"\d{4}-\d\d-\d\d", start):
+def when(start, all_day=False):
+    """(local day, local naive datetime or None for all day) from the contract's start."""
+    if all_day or re.fullmatch(r"\d{4}-\d\d-\d\d", start):
         return date.fromisoformat(start[:10]), None
-    dt = datetime.fromisoformat(start)
+    return local(start).date(), local(start).replace(tzinfo=None)
+
+
+def local(stamp):
+    dt = datetime.fromisoformat(stamp)
     if dt.tzinfo is None:
-        raise ValueError("start needs an offset")
-    local = dt.astimezone(LOCAL)
-    return local.date(), local.replace(tzinfo=None)
+        raise ValueError(f"{stamp!r} needs an offset")
+    return dt.astimezone(LOCAL)
 
 
 def event_of(it, today, interests, home, notes):
     try:
-        day, at = when(it)
-        end = None if at is None or not it.get("end") else datetime.fromisoformat(it["end"])
+        day, at = when(it.get("start") or "", it.get("all_day"))
+        end = None if at is None or not it.get("end") else local(it["end"])
         signup = it.get("signup_by") and date.fromisoformat(it["signup_by"])
-    except (TypeError, ValueError) as e:
+    except ValueError as e:
         return None, f"invalid: unreadable date ({e})"
     if day < today:
         return None, "past"
@@ -202,6 +243,9 @@ def event_of(it, today, interests, home, notes):
         interest = None
     title = it["title"].strip()
     tw = words(title)
+    # ponytail: a source with no ids of its own gets one from the start and title, so when its
+    # page moves an event to another day the moved one is added and the old one stays. Fix
+    # by reading a whole page's events as a set when sources like that start moving dates.
     uid = str(it.get("source_uid") or "").strip() or \
         f"page:{day}{at.strftime('T%H%M') if at else ''}:{'-'.join(sorted(tw))}"
     row = {"status": None, "title": title, "event_date": day.isoformat(),
@@ -214,9 +258,23 @@ def event_of(it, today, interests, home, notes):
     return {"row": row, "facts": facts}, None
 
 
+def news_of(it):
+    start = it.get("start")
+    try:
+        day, at = when(start, it.get("all_day")) if start else (None, None)
+    except ValueError as e:
+        return None, f"invalid: unreadable date ({e})"
+    return {"title": it["title"].strip(), "blurb": (it.get("blurb") or "").strip() or None,
+            "category": it.get("category") if it.get("category") in NEWS_CATEGORIES else "announcement",
+            "source_name": it["source_name"].strip(), "source_url": it["source_url"].strip(),
+            # The board's tiers as the old curator wrote them: 1 the City, 1.5 Newsleaders.
+            "tier": 1 if it["trust"] == "official" else 1.5, "status": None,
+            "starts_at": day and (at or datetime.combine(day, time())).replace(tzinfo=LOCAL).isoformat()}, None
+
+
 def mention(it, uid):
     return {"source_name": it["source_name"].strip(), "source_url": it["source_url"].strip(),
-            "source_uid": uid, "trust": it["trust"], "sure": it.get("sure") is True, "new": True}
+            "source_uid": uid, "trust": TRUST[it["trust"]], "sure": it.get("sure") is True, "new": True}
 
 
 def trusted(mentions):
@@ -227,43 +285,48 @@ def trusted(mentions):
     return False, "secondhand, one mention" if sure else "unsure"
 
 
-def plan(items, existing, today, interests, home="St. Joseph"):
+def group(old=None, facts=None):
+    return {"id": old and old["id"], "old": old, "facts": facts or listed_facts(old), "items": [],
+            "row": None, "mentions": [dict(m) for m in (old or {}).get("mentions") or []]}
+
+
+def plan(items, existing, today, interests, town=TOWNS["st-joseph-mn"]):
     """Judged items + the events already listed -> what to write, and each item's outcome."""
+    home = town["label"]
     out = {"events": [], "news": [], "outcomes": [None] * len(items), "notes": []}
-    groups, by_uid = [], {}
-    for row in existing:
-        g = {"id": row["id"], "listed": row, "facts": listed_facts(row), "items": [], "row": None,
-             "mentions": [dict(m) for m in row.get("mentions") or []]}
-        groups.append(g)
-        for m in [row] + g["mentions"]:
+    groups, by_uid, news = [group(row) for row in existing], {}, {}
+    for g in groups:
+        for m in [g["old"]] + g["mentions"]:
             if m.get("source_uid"):
                 by_uid[(m["source_name"], m["source_uid"])] = g
-    news = {}
     for i, it in enumerate(items):
-        why = checked(it, today, home)
+        why = skip_reason(it, town)
+        if not why and it["kind"] == "news":
+            n, why = news_of(it)
+        elif not why:
+            ev, why = event_of(it, today, interests, home, out["notes"])
         if why:
             out["outcomes"][i] = ("skipped", why)
         elif it["kind"] == "news":
             ok, why = trusted([mention(it, None)])
-            start = it.get("start")
-            n = {"title": it["title"].strip(), "blurb": (it.get("blurb") or "").strip() or None,
-                 "category": it.get("category") if it.get("category") in NEWS_CATEGORIES else "announcement",
-                 "source_name": it["source_name"].strip(), "source_url": it["source_url"].strip(),
-                 "tier": 1 if it["trust"] == "official" else 1.5,
-                 "status": "published" if ok else "staging", "starts_at": start or None}
+            n["status"] = "published" if ok else "staging"
             # ponytail: secondhand News waits in staging for Jesse; publishing it on a second
             # mention needs News mentions kept too. Add with the Town feed's news card.
             news[(n["title"].lower(), n["source_name"], n["starts_at"])] = n
             out["outcomes"][i] = ("news", "") if ok else ("news held", why)
         else:
-            ev, why = event_of(it, today, interests, home, out["notes"])
-            if why:
-                out["outcomes"][i] = ("skipped", why)
-                continue
             key = (ev["row"]["source_name"], ev["row"]["source_uid"])
-            g = by_uid.get(key) or next((g for g in groups if same_event(g["facts"], ev["facts"])), None)
+            g = by_uid.get(key) or next((g for g in groups if same_event(g["facts"], ev["facts"])
+                                         and not own_ids_differ(g, *key)), None)
             if g is None:
-                g = {"id": None, "listed": None, "facts": ev["facts"], "items": [], "row": None, "mentions": []}
+                near = [g for g in groups if g["facts"]["day"] == ev["facts"]["day"] and (
+                    same_place(g["facts"]["place"], ev["facts"]["place"])
+                    or same_title(g["facts"]["title"], ev["facts"]["title"]))]
+                for o in near:
+                    other = o["old"]["title"] if o["old"] else o["items"][0][1]["row"]["title"]
+                    out["notes"].append(f"kept apart: {ev['row']['title']!r} and {other!r} on "
+                                        f"{ev['row']['event_date']}; if they are one event, Jesse settles it")
+                g = group(facts=ev["facts"])
                 groups.append(g)
             by_uid[key] = g
             g["items"].append((i, ev))
@@ -276,14 +339,16 @@ def plan(items, existing, today, interests, home="St. Joseph"):
         if not g["items"]:
             continue
         ok, why = trusted(g["mentions"])
-        listed = g["listed"]
-        if listed:
-            own = (listed["source_name"], listed.get("source_uid"))
-            primary = next(((i, ev) for i, ev in g["items"]
-                            if (ev["row"]["source_name"], ev["row"]["source_uid"]) == own), None)
-            g["status"] = listed["status"]
-            if (ok and listed["status"] == "pending" and listed.get("review_reason") is None
-                    and listed.get("found", True)):
+        old = g["old"]
+        if old:
+            # The listed row's own source re-reading it: by the same uid, or (no ids on that
+            # source) the same event a little reworded or retimed. It keeps its uid.
+            mine = [(i, ev) for i, ev in g["items"] if ev["row"]["source_name"] == old["source_name"]]
+            primary = next(((i, ev) for i, ev in mine if ev["row"]["source_uid"] == old.get("source_uid")),
+                           next(((i, ev) for i, ev in mine if not real_uid(ev["row"]["source_uid"])
+                                 and not real_uid(old.get("source_uid")) and old.get("source_uid")), None))
+            g["status"] = old["status"]
+            if ok and old["status"] == "pending" and old.get("review_reason") is None and old.get("found", True):
                 g["status"] = "approved"
         else:
             primary = min(g["items"], key=lambda e: (not items[e[0]].get("sure") is True,
@@ -291,16 +356,18 @@ def plan(items, existing, today, interests, home="St. Joseph"):
             g["status"] = "approved" if ok else "pending"
         if primary:
             row = dict(primary[1]["row"], status="approved" if ok else "pending")
-            if listed and listed.get("shows_from") and str(listed["event_date"])[:10] == row["event_date"]:
-                row["shows_from"] = str(listed["shows_from"])[:10]
-            row["category"] = (listed or {}).get("category") or row["category"]
+            if old:
+                row["source_uid"] = old["source_uid"]
+                if old.get("shows_from") and str(old["event_date"])[:10] == row["event_date"]:
+                    row["shows_from"] = str(old["shows_from"])[:10]
+                row["category"] = old.get("category") or row["category"]
             g["row"] = row
         for i, ev in g["items"]:
-            if listed:
-                detail = f"into {listed['title']!r} {str(listed['event_date'])[:10]} (already listed" + \
+            if old:
+                detail = f"into {old['title']!r} {str(old['event_date'])[:10]} (already listed" + \
                          (", same source)" if (i, ev) == primary else ")")
-                if g["status"] != listed["status"]:
-                    detail += f"; this mention publishes it"
+                if g["status"] != old["status"]:
+                    detail += "; this mention publishes it"
                 elif g["status"] != "approved":
                     detail += f"; stays {g['status']}"
                 out["outcomes"][i] = ("merged", detail)
@@ -320,7 +387,7 @@ def to_sql(result, today):
                         {"event_source_name": g["row"]["source_name"], "event_source_uid": g["row"]["source_uid"]}))
                 for g in result["events"] for m in g["mentions"] if m.get("new")]
     upgrades = [g["id"] for g in result["events"]
-                if g["listed"] and not g["row"] and g["status"] != g["listed"]["status"]]
+                if g["old"] and not g["row"] and g["status"] != g["old"]["status"]]
     payloads = [json.dumps(p, ensure_ascii=False, default=str) for p in (events, mentions, upgrades, result["news"])]
     tag = "j" + secrets.token_hex(8)
     assert not any(f"${tag}$" in p for p in payloads)
@@ -387,14 +454,15 @@ def to_sql(result, today):
 
 def report(items, r):
     for i, (it, (what, detail)) in enumerate(zip(items, r["outcomes"])):
+        it = it if isinstance(it, dict) else {}
         print(f"  {i + 1:>2} {what:<10} {str(it.get('start') or '')[:10]:<10}  "
               f"{str(it.get('title'))[:46]:<46} {detail}")
     counts = {}
     for what, _ in r["outcomes"]:
         counts[what] = counts.get(what, 0) + 1
     print(f"[judged] {len(items)} items: " + ", ".join(f"{n} {w}" for w, n in sorted(counts.items())))
-    new = sum(1 for g in r["events"] if not g["listed"])
-    reread = sum(1 for g in r["events"] if g["listed"] and g["row"])
+    new = sum(1 for g in r["events"] if not g["old"])
+    reread = sum(1 for g in r["events"] if g["old"] and g["row"])
     print(f"[judged] the SQL would add {new} events, update {reread} already listed, "
           f"add mentions to {len(r['events']) - new - reread} more, and write {len(r['news'])} news")
     for n in r["notes"]:
@@ -455,6 +523,7 @@ def t_secondhand_needs_two():
     r = run([one])
     assert r["events"][0]["status"] == "pending" and outcome(r, 0) == "held", r["outcomes"]
     assert "one mention" in r["outcomes"][0][1]
+    assert run([dict(one, trust="squishy")])["events"][0]["mentions"][0]["trust"] == "squishy"
     same_source_twice = run([one, dict(one, source_url="https://thenewsleaders.com/b")])
     assert same_source_twice["events"][0]["status"] == "pending", "one source twice is not two mentions"
     two = item(source_name="Joetown town group", trust="secondhand", source_url="https://facebook.com/x",
@@ -504,6 +573,15 @@ def t_merge_near_miss_kept_apart():
     assert len(run(later)["events"]) == 2, "two hours apart"
     no_place = [item(), item(source_name="City", place="")]
     assert len(run(no_place)["events"]) == 2, "an unknown place is not the same place"
+    game = dict(place="Sartell High School", town="Sartell", area="game", start="2026-10-23T19:00:00-05:00")
+    two_sports = [item(title="Sartell vs Tech football", **game), item(title="Sartell vs Tech volleyball", source_name="SRT", **game)]
+    assert len(run(two_sports)["events"]) == 2, "football and volleyball are two games"
+    levels = [item(title="Sartell vs Tech football", **game),
+              item(title="Sartell vs Tech JV football", source_name="SRT", **dict(game, start="2026-10-23T18:00:00-05:00"))]
+    assert len(run(levels)["events"]) == 2, "JV and varsity are two games"
+    one_source = [item(source_uid="a1"), item(source_uid="a2", title="Plant Bingo night")]
+    assert len(run(one_source)["events"]) == 2, "a source's own two ids are two events"
+    assert any("kept apart" in n and "City Council Work Session" in n for n in r["notes"]), r["notes"]
 
 
 def t_reread_updates():
@@ -516,6 +594,12 @@ def t_reread_updates():
     assert len(r["events"]) == 1 and g["id"] == old["id"] and g["row"]["source_uid"] == "2336", g
     assert g["row"]["event_date"] == "2026-12-14" and g["row"]["shows_from"] == "2026-11-30", g["row"]
     assert outcome(r, 0) == "merged" and "same source" in r["outcomes"][0][1]
+    mine = listed(title="Plant Bingo", event_date="2026-10-24", start_time="4 PM", location="Milk & Honey Ciders",
+                  source_name="Milk & Honey Ciders", source_uid="page:2026-10-24T1600:bingo-plant")
+    r2 = run([item(title="Plant Bingo for Angel Reins", start="2026-10-24T16:30:00-05:00")], [mine])
+    g = r2["events"][0]
+    assert g["id"] == mine["id"] and g["row"]["source_uid"] == mine["source_uid"], g
+    assert g["row"]["start_time"] == "4:30 PM" and "same source" in r2["outcomes"][0][1], (g["row"], r2["outcomes"])
     # The same page read twice the same morning, no uid: one event.
     assert len(run([item(), item()])["events"]) == 1
     sql = to_sql(r, TODAY)
@@ -565,13 +649,20 @@ def t_area():
     named = run([dict(game, place="Sartell High School", town="Sartell")])
     assert named["events"][0]["row"]["location"] == "Sartell High School", "already names its town"
     assert outcome(r, 2) == "skipped" and "outside" in r["outcomes"][2][1]
+    r = run([item(town="St. Cloud"), item(place="Cool Spot, 101 Division St, St. Cloud, MN 56301")])
+    assert [o[0] for o in r["outcomes"]] == ["skipped", "skipped"], r["outcomes"]
     bare = run([item(place="St. Joseph, MN 56374")])
     assert bare["events"][0]["row"]["location"] is None, "a place naming only the town is no place"
 
 
 def t_past_and_invalid_skipped():
-    r = run([item(start="2026-10-13T19:00:00-05:00"), item(trust="maybe"), item(start="next Friday")])
-    assert [o[0] for o in r["outcomes"]] == ["skipped"] * 3 and not r["events"], r["outcomes"]
+    bad = [item(start="2026-10-13T19:00:00-05:00"), item(trust="maybe"), item(start="next Friday"),
+           item(end="2026-10-24T18:30:00"), item(area=["town"]), item(place=7), "not an object",
+           item(kind="news", start="next Friday"), item(size=["big"])]
+    r = run(bad + [item()])
+    assert [o[0] for o in r["outcomes"]] == ["skipped"] * len(bad) + ["published"], r["outcomes"]
+    news = run([item(kind="news", title="No school", start="2026-10-15")])["news"][0]
+    assert news["starts_at"] == "2026-10-15T00:00:00-05:00", news
 
 
 def t_sql_is_one_safe_transaction():
@@ -584,7 +675,7 @@ def t_sql_is_one_safe_transaction():
 
 def t_interest_list_is_the_apps():
     ids = interest_ids()
-    assert len(ids) == 18 and {"live_music", "families_kids", "trails_hiking"} <= set(ids), ids
+    assert {"live_music", "families_kids", "trails_hiking", "volunteering"} <= set(ids), ids
 
 
 TESTS = [t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_secondhand_needs_two, t_unsure_held, t_merge_true_pair,
@@ -617,13 +708,18 @@ def main():
         return selftest()
     if not args.items or not args.existing:
         ap.error("needs the judged items and --existing (the merge rule checks the list)")
-    items = [json.loads(ln) for ln in Path(args.items).read_text().splitlines() if ln.strip()]
+    items = []
+    for ln in Path(args.items).read_text().splitlines():
+        try:
+            items.append(json.loads(ln)) if ln.strip() else None
+        except ValueError:
+            items.append(f"unreadable line: {ln[:60]}")
     existing = json.loads(Path(args.existing).read_text())
     interests = interest_ids()
     if not interests:
         sys.exit(f"no interests read from {INTERESTS_SWIFT}: has Interests.all changed shape?")
     today = date.fromisoformat(args.today) if args.today else datetime.now(LOCAL).date()
-    r = plan(items, existing, today, interests, TOWNS[args.town]["label"])
+    r = plan(items, existing, today, interests, TOWNS[args.town])
     report(items, r)
     if args.sql:
         Path(args.sql).write_text(to_sql(r, today))
