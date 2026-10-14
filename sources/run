@@ -1,0 +1,11 @@
+#!/bin/sh
+# The daily routine: validate, fetch every `method: fetch` source, hash, snapshot what
+# changed, report. Dry-run by default; --write needs SUPABASE_URL and the service key
+# in the environment (ADR-009).
+#
+# run.py finds the repo root by walking up from the working directory rather than
+# taking a --root flag, so cd there first.
+set -eu
+here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+cd "$(dirname -- "$here")"
+exec python3 "$here/scripts/run.py" "$@"

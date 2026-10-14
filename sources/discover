@@ -1,0 +1,9 @@
+#!/bin/sh
+# Build the town roster from OpenStreetMap and the local directories, and report what
+# the registry is missing (ADR-010). Writes `proposed` entries only; promotes nothing.
+#
+# The Overpass result is cached 7 days under .runs/cache/ — pass --refresh to re-fetch.
+# Overpass is donated infrastructure; the full query costs it over a minute.
+set -eu
+here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+exec python3 "$here/scripts/discover.py" --root "$(dirname -- "$here")" "$@"

@@ -1,0 +1,6 @@
+#!/bin/sh
+# Validate every sources/*.md: yaml parses, ids unique, required keys, enums valid.
+# Exit non-zero on any error. Run after every registry edit (ADR-007).
+set -eu
+here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+exec python3 "$here/scripts/validate.py" "$(dirname -- "$here")"
