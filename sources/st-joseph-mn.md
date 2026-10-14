@@ -253,7 +253,7 @@ Missouri (ADR-006).
 ## CSB/SJU events
 ```yaml
 id: csbsju-events
-status: proposed
+status: active
 tier: watched
 category: college
 added_by: agent:claude
@@ -277,7 +277,7 @@ rec-center classes and halftime shows, and shows a repeating event once, at its 
 ## Minnesota 511
 ```yaml
 id: mn-511
-status: proposed
+status: active
 tier: watched
 category: gov
 added_by: agent:claude
@@ -301,7 +301,7 @@ words are read instead.
 ## Stearns County
 ```yaml
 id: stearns-county
-status: proposed
+status: active
 tier: watched
 category: gov
 added_by: agent:claude

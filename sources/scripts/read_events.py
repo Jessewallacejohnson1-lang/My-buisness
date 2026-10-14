@@ -167,6 +167,9 @@ CAMPUS_HOSTS = {"Campus Events": "CSB/SJU Campus Events", "CSB Athletics": "CSB 
                 "School of Theology": "Saint John's School of Theology"}
 CAMPUS_INTERESTS = {"CSB Athletics": "sports_leagues", "SJU Athletics": "sports_leagues",
                     "Library": "books", "St. Benedict's Monastery": "faith"}
+# Campus Events also lists what only students go to: career workshops and fairs (Jesse, 2026-10-14).
+STUDENT_ONLY = re.compile(r"admission event|networking workshop|charting conversations|employer tabling|"
+                          r"johnnie development institute|\bJDI\b|exploration fair|study session", re.I)
 HOME_GAME = re.compile(r"\b(st\.?|saint) joseph\b|collegeville", re.I)
 # ponytail: SJU's own building names, for a place with no town in it. A building not listed
 # reads as St. Joseph; add it here when one shows up wrong.
@@ -198,8 +201,8 @@ def pathify_items(rows, entry, src, today):
         if "Athletics" in cal and ("group exercise" in place.lower() or "dance team" in title.lower()
                                    or not HOME_GAME.search(place)):
             continue  # a rec-center class, a halftime show or an away game
-        if "admission event" in title.lower():
-            continue  # a visit day for students thinking of coming
+        if STUDENT_ONLY.search(title):
+            continue  # a visit day, a career workshop: for students, not neighbours
         if r.get("recurrence_rule"):
             if (cal, title) in series:
                 continue  # a repeating event shows once, at its next date
@@ -474,11 +477,11 @@ def t_pathify():
     src = {"url": "https://my.csbsju.edu/api/v2/events/unauthenticated/?calendar=2,165,166,193,212,224"}
     got = pathify_items(json.loads(sample("csbsju-events.json")), {"_name": "CSB/SJU events"}, src, TODAY)
     titles = [i["title"] for i in got]
-    assert len(got) == 11 and titles.count("Free Art Prints from The Saint John's Bible") == 1, titles
-    assert not any(w in t for t in titles for w in ("Barre", "Oja", "Dance Team", "Admission")), \
-        "classes, away games, halftime shows, visit days"
-    fair = next(i for i in got if i["title"] == "Academic Exploration Fair")
-    assert fair["start"] == "2026-10-14T14:00:00-05:00" and fair["town"] == "St. Joseph" and fair["interest"] is None
+    assert len(got) == 10 and titles.count("Free Art Prints from The Saint John's Bible") == 1, titles
+    assert not any(w in t for t in titles for w in ("Barre", "Oja", "Dance Team", "Admission", "Exploration Fair")), \
+        "classes, away games, halftime shows, visit days, career fairs"
+    salvage = next(i for i in got if i["title"] == "Salvage")
+    assert salvage["start"] == "2026-10-14T14:00:00-05:00" and salvage["town"] == "Collegeville" and salvage["interest"] is None
     football = next(i for i in got if "Football" in i["title"])
     assert (football["town"], football["interest"], football["source_name"]) == ("Collegeville", "sports_leagues", "SJU Athletics")
     homecoming = next(i for i in got if i["title"] == "Homecoming 2026")
