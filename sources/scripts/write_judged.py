@@ -6,11 +6,13 @@ and the spec's Area rule, which amends ADR-019 and ADR-021's in-town rule).
 
 The part of the morning job that needs no model: saved pages in, Events and News out, and
 this is everything after the judge. Dry-run by default (ADR-009): prints what each item
-becomes. `--sql FILE` writes the SQL the live write runs, as one transaction; this script
-never touches the database itself. The SQL needs the event_mentions table
-(supabase/migrations/20261014150000_event_mentions.sql) applied first.
+becomes. How the writes land lives in the database, in public.apply_judged
+(supabase/migrations/20261015120000_apply_judged.sql): `--apply` calls it with this
+morning's writes over the service role key (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in
+the environment), `--sql FILE` writes the same call as SQL to run by hand.
 
   python3 sources/scripts/write_judged.py judged.jsonl --existing existing.json [--sql out.sql]
+  python3 sources/scripts/write_judged.py judged.jsonl --existing db --apply
   python3 sources/scripts/write_judged.py --selftest
 
 THE JUDGED ITEM: the contract the judge (ticket 05) produces, one JSON object per line.
@@ -74,15 +76,9 @@ THE RULES
     ("Saint John's Abbey Arboretum, Collegeville"). Past events and unreadable items are
     skipped one by one, with the reason in the summary.
 
-EXISTING (--existing): JSON rows of the events already in the list, from this select:
-  select e.id, e.status, e.title, e.event_date, e.start_time, e.all_day, e.location,
-         e.source_name, e.source_uid, e.category, e.shows_from, e.review_reason,
-         e.club_id is null and e.submitted_by is null as found,
-         coalesce((select json_agg(json_build_object('source_name', m.source_name,
-           'source_url', m.source_url, 'source_uid', m.source_uid, 'trust', m.trust, 'sure', m.sure))
-           from public.event_mentions m where m.event_id = e.id), '[]') as mentions
-  from public.club_events e
-  where e.kind = 'event' and e.event_date >= (now() at time zone 'America/Chicago')::date - 1;
+EXISTING (--existing): the events already in the list, from yesterday on, with their
+  mentions: `db` reads them over the service role key; a file holds the JSON that
+  `select public.listed_for_writer()` returns.
 """
 
 import argparse, json, re, secrets, sys
@@ -91,6 +87,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from read_events import LOCAL, clock
+from run import Supabase
 from discover import TOWNS
 
 LEAD = {"everyday": 14, "notable": 28, "big": 56}
@@ -107,6 +104,7 @@ PLACE_STOP = STOP | set("st saint joseph collegeville mn minnesota united states
                         "ave avenue east west north south suite park shelter hall center centre building "
                         "room gym lot parking map theater theatre".split())
 INTERESTS_SWIFT = Path(__file__).resolve().parents[2] / "BlockParty" / "Backend" / "Interests.swift"
+WRITES = Path(__file__).resolve().parents[2] / "supabase" / "migrations" / "20261015120000_apply_judged.sql"
 
 
 def interest_ids(swift=INTERESTS_SWIFT):
@@ -468,8 +466,8 @@ def plan(items, existing, today, interests, town=TOWNS["st-joseph-mn"]):
     return out
 
 
-def to_sql(result, today):
-    """The live write: one transaction, every payload dollar-quoted, every status guarded."""
+def payloads(result):
+    """This morning's writes, as public.apply_judged takes them."""
     events = [g["row"] for g in result["events"] if g["row"]]
     mentions = [dict({k: v for k, v in m.items() if k != "new"},
                      **({"event_id": g["id"]} if g["id"] else
@@ -477,73 +475,30 @@ def to_sql(result, today):
                 for g in result["events"] for m in g["mentions"] if m.get("new")]
     upgrades = [g["id"] for g in result["events"]
                 if g["old"] and not g["row"] and g["status"] != g["old"]["status"]]
-    payloads = [json.dumps(p, ensure_ascii=False, default=str) for p in (events, mentions, upgrades, result["news"])]
+    return json.loads(json.dumps({"p_events": events, "p_mentions": mentions, "p_upgrades": upgrades,
+                                  "p_news": result["news"]}, ensure_ascii=False, default=str))
+
+
+def to_sql(result, today):
+    """The same writes as one call to run by hand, every payload dollar-quoted."""
+    p = payloads(result)
+    texts = [json.dumps(p[k], ensure_ascii=False) for k in ("p_events", "p_mentions", "p_upgrades", "p_news")]
     tag = "j" + secrets.token_hex(8)
-    assert not any(f"${tag}$" in p for p in payloads)
-    ev, mn, up, nw = (f"${tag}${p}${tag}$::jsonb" for p in payloads)
-    sql = [f"-- write_judged.py, {today}: {len(events)} events, {len(mentions)} mentions, "
-           f"{len(upgrades)} published by a new mention, {len(result['news'])} news.\n"
-           "-- Run only after Jesse's yes, and after the event_mentions migration is applied.\n"
-           "begin;\n"]
-    if events:
-        sql.append(
-            "\n-- 1. New found events, and re-reads of ones already listed (same source and uid).\n"
-            "insert into public.club_events (status, kind, title, event_date, start_time, end_at, all_day,\n"
-            "  location, description, source_name, source_url, source_uid, category, shows_from)\n"
-            "select x.status, 'event', x.title, x.event_date, x.start_time, x.end_at, x.all_day, x.location,\n"
-            "  x.description, x.source_name, x.source_url, x.source_uid, x.category, x.shows_from\n"
-            f"from jsonb_to_recordset({ev}) as x(status text, title text, event_date date,\n"
-            "  start_time text, end_at timestamptz, all_day boolean, location text, description text,\n"
-            "  source_name text, source_url text, source_uid text, category text, shows_from date)\n"
-            "on conflict on constraint club_events_source_uid_key do update set\n"
-            "  title = excluded.title, event_date = excluded.event_date, start_time = excluded.start_time,\n"
-            "  end_at = excluded.end_at, all_day = excluded.all_day, location = excluded.location,\n"
-            "  description = excluded.description, source_url = excluded.source_url,\n"
-            "  category = coalesce(club_events.category, excluded.category),\n"
-            "  shows_from = case when club_events.event_date is distinct from excluded.event_date\n"
-            "      or club_events.shows_from is null then excluded.shows_from else club_events.shows_from end,\n"
-            "  status = case when club_events.status = 'pending' and club_events.review_reason is null\n"
-            "      and excluded.status = 'approved' then 'approved'\n"
-            "    when club_events.status = 'rejected'\n"
-            "      and club_events.review_reason is distinct from 'not_event' and club_events.review_reason is not null\n"
-            "      and (club_events.title, club_events.event_date, club_events.start_time, club_events.all_day, club_events.location)\n"
-            "          is distinct from (excluded.title, excluded.event_date, excluded.start_time, excluded.all_day, excluded.location)\n"
-            "    then 'pending' else club_events.status end;\n")
-    if mentions:
-        sql.append(
-            "\n-- 2. Every mention (ADR-021), counted toward the two-mention rule next time.\n"
-            "insert into public.event_mentions (event_id, source_name, source_url, source_uid, trust, sure)\n"
-            "select e.id, x.source_name, x.source_url, x.source_uid, x.trust, x.sure\n"
-            f"from jsonb_to_recordset({mn}) as x(event_id uuid, event_source_name text,\n"
-            "  event_source_uid text, source_name text, source_url text, source_uid text, trust text, sure boolean)\n"
-            "join public.club_events e on e.id = x.event_id\n"
-            "  or (x.event_id is null and e.source_name = x.event_source_name and e.source_uid = x.event_source_uid)\n"
-            "on conflict (event_id, source_name, source_url) do update set source_uid = excluded.source_uid,\n"
-            "  trust = excluded.trust, sure = excluded.sure, last_seen = now();\n")
-    if upgrades:
-        sql.append(
-            "\n-- 3. Listed events a new mention publishes: pending -> approved, never an admin's call.\n"
-            "update public.club_events e set status = 'approved'\n"
-            f"from jsonb_array_elements_text({up}) as x(id)\n"
-            "where e.id = x.id::uuid and e.status = 'pending' and e.review_reason is null\n"
-            "  and e.club_id is null and e.submitted_by is null;\n")
-    if result["news"]:
-        sql.append(
-            "\n-- 4. News for the town board's store, with its publish time.\n"
-            "insert into public.board_items (title, blurb, category, source_name, source_url, tier, status,\n"
-            "  starts_at, published_at, fetched_at)\n"
-            "select x.title, x.blurb, x.category, x.source_name, x.source_url, x.tier, x.status, x.starts_at,\n"
-            "  case when x.status = 'published' then now() end, now()\n"
-            f"from jsonb_to_recordset({nw}) as x(title text, blurb text, category text, source_name text,\n"
-            "  source_url text, tier numeric, status text, starts_at timestamptz)\n"
-            "on conflict (lower(title), source_name, coalesce(starts_at, '-infinity'::timestamptz)) do update set\n"
-            "  blurb = excluded.blurb, source_url = excluded.source_url, fetched_at = now(),\n"
-            "  status = case when board_items.status = 'staging' and excluded.status = 'published'\n"
-            "    then 'published' else board_items.status end,\n"
-            "  published_at = case when board_items.status = 'staging' and excluded.status = 'published'\n"
-            "    then now() else board_items.published_at end;\n")
-    sql.append("\ncommit;\n")
-    return "".join(sql)
+    assert not any(f"${tag}$" in t for t in texts)
+    args = ",\n  ".join(f"${tag}${t}${tag}$::jsonb" for t in texts)
+    return (f"-- write_judged.py, {today}: {len(p['p_events'])} events, {len(p['p_mentions'])} mentions, "
+            f"{len(p['p_upgrades'])} published by a new mention, {len(p['p_news'])} news.\n"
+            "-- Run only after Jesse's yes. The rules live in public.apply_judged.\n"
+            f"select public.apply_judged(\n  {args});\n")
+
+
+def apply(result):
+    """The live write, over the service role key: one call, all or nothing."""
+    return Supabase().call("POST", "rpc/apply_judged", payloads(result))
+
+
+def listed_in_db():
+    return Supabase().call("POST", "rpc/listed_for_writer", {})
 
 
 def report(items, r):
@@ -702,8 +657,7 @@ def t_reread_updates():
     assert g["row"]["start_time"] == "4:30 PM" and "same source" in r2["outcomes"][0][1], (g["row"], r2["outcomes"])
     # The same page read twice the same morning, no uid: one event.
     assert len(run([item(), item()])["events"]) == 1
-    sql = to_sql(r, TODAY)
-    assert "on conflict on constraint club_events_source_uid_key do update" in sql
+    assert "on conflict on constraint club_events_source_uid_key do update" in WRITES.read_text()
 
 
 def t_misread_comes_back():
@@ -714,8 +668,8 @@ def t_misread_comes_back():
     assert moved["events"][0]["status"] == "pending", moved["events"][0]["status"]
     not_event = run([item()], [listed(status="rejected", review_reason="not_event", **base)])
     assert not_event["events"][0]["status"] == "rejected", "not an event stays declined"
-    sql = to_sql(run([item()]), TODAY)
-    assert "review_reason is distinct from 'not_event'" in sql and "then 'pending'" in sql, "the SQL does the same"
+    sql = WRITES.read_text()
+    assert "review_reason is distinct from 'not_event'" in sql and "then 'pending'" in sql, "the database does the same"
 
 
 def t_admin_status_kept():
@@ -725,7 +679,7 @@ def t_admin_status_kept():
             "title", "event_date", "start_time", "all_day", "location", "source_name", "source_uid")})
         r = run([item()], [old])
         assert r["events"][0]["status"] == st, (st, r["events"][0]["status"])
-    sql = to_sql(run([item()]), TODAY)
+    sql = WRITES.read_text().split("-- 1. New found events")[1]
     assert "when club_events.status = 'pending' and club_events.review_reason is null" in sql
     assert "status = 'approved'" not in sql.split("on conflict")[0], "insert never forces approved over a row"
 
@@ -780,12 +734,17 @@ def t_past_and_invalid_skipped():
     assert news["starts_at"] == "2026-10-15T00:00:00-05:00", news
 
 
-def t_sql_is_one_safe_transaction():
+def t_writes_are_one_safe_call():
     r = run([item(blurb="$$ drop table x; $$"), item(kind="news", title="Closed Monday", start=None)])
+    p = payloads(r)
+    assert [len(p[k]) for k in ("p_events", "p_mentions", "p_upgrades", "p_news")] == [1, 1, 0, 1], p
+    assert p["p_events"][0]["description"] == "$$ drop table x; $$", "the payload carries text as data"
     sql = to_sql(r, TODAY)
-    assert sql.lstrip().startswith("--") and "\nbegin;\n" in sql and sql.rstrip().endswith("commit;"), sql[:200]
-    assert "insert into public.event_mentions" in sql and "insert into public.board_items" in sql
-    assert "on conflict (lower(title), source_name, coalesce(starts_at, '-infinity'::timestamptz))" in sql
+    assert sql.lstrip().startswith("--") and "select public.apply_judged(" in sql and sql.count("::jsonb") == 4, sql[:200]
+    db = WRITES.read_text()
+    assert "insert into public.event_mentions" in db and "insert into public.board_items" in db
+    assert "on conflict (lower(title), source_name, coalesce(starts_at, '-infinity'::timestamptz))" in db
+    assert "from public, anon, authenticated" in db and "to service_role" in db, "only the service role may write"
 
 
 def t_interest_list_is_the_apps():
@@ -859,7 +818,7 @@ def t_wording():
 
 TESTS = [t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_secondhand_needs_two, t_unsure_held, t_merge_true_pair,
          t_merge_near_miss_kept_apart, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_show_from_by_size,
-         t_interest_checked, t_area, t_past_and_invalid_skipped, t_sql_is_one_safe_transaction]
+         t_interest_checked, t_area, t_past_and_invalid_skipped, t_writes_are_one_safe_call]
 
 
 def selftest():
@@ -877,10 +836,11 @@ def selftest():
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("items", nargs="?", help="the judged items, one JSON object per line")
-    ap.add_argument("--existing", help="JSON rows of the events already in the list (select above)")
+    ap.add_argument("--existing", help="'db', or a JSON file of the events already in the list")
     ap.add_argument("--today", help="YYYY-MM-DD; default today in Chicago")
     ap.add_argument("--town", default="st-joseph-mn")
-    ap.add_argument("--sql", help="write the SQL the live write runs to this file")
+    ap.add_argument("--sql", help="write the live write as SQL to this file")
+    ap.add_argument("--apply", action="store_true", help="write to the database (service role key in the environment)")
     ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args()
     if args.selftest:
@@ -893,7 +853,7 @@ def main():
             items.append(json.loads(ln)) if ln.strip() else None
         except ValueError:
             items.append(f"unreadable line: {ln[:60]}")
-    existing = json.loads(Path(args.existing).read_text())
+    existing = listed_in_db() if args.existing == "db" else json.loads(Path(args.existing).read_text())
     interests = interest_ids()
     if not interests:
         sys.exit(f"no interests read from {INTERESTS_SWIFT}: has Interests.all changed shape?")
@@ -903,6 +863,8 @@ def main():
     if args.sql:
         Path(args.sql).write_text(to_sql(r, today))
         print(f"[judged] SQL for the live write: {args.sql} (not run)")
+    if args.apply:
+        print(f"[judged] written: {json.dumps(apply(r))}")
 
 
 if __name__ == "__main__":

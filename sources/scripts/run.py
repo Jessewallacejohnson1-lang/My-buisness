@@ -9,6 +9,7 @@ Usage:
   python3 run.py                      # dry-run, active entries
   python3 run.py --only krewe         # one entry
   python3 run.py --town st-joseph-mn  # one town
+  python3 run.py --tier watched       # only watched entries (the morning job)
   python3 run.py --include-proposed   # also test proposed entries (never with --write)
   python3 run.py --write              # prod: needs SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY
 """
@@ -206,6 +207,7 @@ def main():
     ap.add_argument("--include-proposed", action="store_true")
     ap.add_argument("--only", help="entry id")
     ap.add_argument("--town", help="e.g. st-joseph-mn")
+    ap.add_argument("--tier", help="only entries of this tier, e.g. watched")
     ap.add_argument("--workers", type=int, default=6)
     a = ap.parse_args()
     if a.write and a.include_proposed:
@@ -221,7 +223,8 @@ def main():
     statuses = {"active", "proposed"} if a.include_proposed else {"active"}
     picked = [e for e in entries if e["status"] in statuses
               and (not a.only or e["id"] == a.only)
-              and (not a.town or e["_town"] == a.town)]
+              and (not a.town or e["_town"] == a.town)
+              and (not a.tier or e.get("tier", "listed") == a.tier)]
     if not picked:
         sys.exit("Nothing selected. Check --only/--town, or entries are still status: proposed.")
 
