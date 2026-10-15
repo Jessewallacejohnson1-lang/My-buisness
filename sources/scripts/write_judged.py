@@ -7,7 +7,7 @@ and the spec's Area rule, which amends ADR-019 and ADR-021's in-town rule).
 The part of the morning job that needs no model: saved pages in, Events and News out, and
 this is everything after the judge. Dry-run by default (ADR-009): prints what each item
 becomes. How the writes land lives in the database, in public.apply_judged
-(supabase/migrations/20261015120000_apply_judged.sql): `--apply` calls it with this
+(supabase/migrations/20261015200100_apply_judged_cancelled.sql): `--apply` calls it with this
 morning's writes over the service role key (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in
 the environment), `--sql FILE` writes the same call as SQL to run by hand.
 
@@ -45,6 +45,13 @@ THE JUDGED ITEM: the contract the judge (ticket 05) produces, one JSON object pe
   category     news: "announcement" (default) | "road" | "school" | "campus" | "business"
   blurb        one line
 
+THE SCHEDULE LINE: a reader that has some sources' whole schedules adds one more line, only on a
+morning every one of those sources was read (read_events.py, the league's high school games):
+  {"kind": "schedule", "uid_prefix": "mshsl:", "from": "2026-10-15", "through": "2026-11-12",
+   "sources": ["Sartell High School", ...]}
+  A found event listed from one of those sources, with an id starting uid_prefix and a date from
+  `from` to `through`, that no item this morning matches has been called off.
+
 THE RULES
   Wording: every title and place is tidied (tidy_title, tidy_place) to the title-and-place
     skill's rules before anything else, so a card reads the same whichever source found it.
@@ -71,13 +78,16 @@ THE RULES
     week before they close: size up if that does it, else the deadline minus 7 days. A re-read
     keeps a day already set unless the date moved.
   Interest: checked against Interests.all; one not on the list is dropped and named.
+  Cancelled (Jesse, 2026-10-15): an event its schedule dropped (THE SCHEDULE LINE) is kept and
+    marked cancelled, never deleted; its title starts "Cancelled: " until the app shows a tag, and
+    the Town feed leaves it out unless someone Hearted it. Back on the schedule, it is restored.
   Area: town, campus, game and announced are kept; outside is skipped, and so is "town" when the item's
     own town or ZIP says otherwise. Outside St. Joseph, the place line carries its town
     ("Saint John's Abbey Arboretum, Collegeville"). Past events and unreadable items are
     skipped one by one, with the reason in the summary.
 
-EXISTING (--existing): the events already in the list, from yesterday on, with their
-  mentions: `db` reads them over the service role key; a file holds the JSON that
+EXISTING (--existing): the events already in the list, from yesterday on (cancelled ones
+  included, with cancelled_at), with their mentions: `db` reads them over the service role key; a file holds the JSON that
   `select public.listed_for_writer()` returns.
 """
 
@@ -99,12 +109,13 @@ STOP = set("a an and at by for from in of on the to with".split())
 # Words that tell two games at one place apart; both titles must carry the same ones.
 TEAM = set("jv varsity junior reserve freshman sophomore boys girls men women mens womens".split())
 # Words that name the town or a kind of spot rather than which place: "Centennial Park
-# shelter" and "Millstream Park shelter" are two places.
+# shelter" and "Millstream Park shelter" are two places, and so are "St. Cloud Apollo High
+# School" and "St. Cloud Tech High School".
 PLACE_STOP = STOP | set("st saint joseph collegeville mn minnesota united states usa county road rd street "
                         "ave avenue east west north south suite park shelter hall center centre building "
-                        "room gym lot parking map theater theatre".split())
+                        "room gym lot parking map theater theatre high middle intermediate elementary school".split())
 INTERESTS_SWIFT = Path(__file__).resolve().parents[2] / "BlockParty" / "Backend" / "Interests.swift"
-WRITES = Path(__file__).resolve().parents[2] / "supabase" / "migrations" / "20261015120000_apply_judged.sql"
+WRITES = Path(__file__).resolve().parents[2] / "supabase" / "migrations" / "20261015200100_apply_judged_cancelled.sql"
 
 
 def interest_ids(swift=INTERESTS_SWIFT):
@@ -281,8 +292,8 @@ def skip_reason(it, town):
         return "invalid: trust must be official or secondhand"
     if it.get("area") not in AREAS:
         return "invalid: area must be town, campus, game, announced or outside"
-    # ponytail: "campus" and "game" are the judge's word; nothing here checks CSB/SJU or the
-    # 20 miles. Ticket 11's list of nearby schools can check games when it exists.
+    # ponytail: "campus" and "game" are the reader's or judge's word; nothing here checks
+    # CSB/SJU or the 20 miles. read_events.py's NEARBY venues decide the league's games.
     if it["area"] == "outside":
         return f"outside the area ({it.get('town') or 'no town'})"
     zips = set(re.findall(r"\b(5\d{4})\b", it.get("place") or ""))
@@ -376,13 +387,19 @@ def group(old=None, facts=None, home="St. Joseph MN"):
 def plan(items, existing, today, interests, town=TOWNS["st-joseph-mn"]):
     """Judged items + the events already listed -> what to write, and each item's outcome."""
     home = town["label"]
-    out = {"events": [], "news": [], "outcomes": [None] * len(items), "notes": []}
+    out = {"events": [], "news": [], "outcomes": [None] * len(items), "notes": [], "cancelled": [], "restored": []}
+    schedules = []
     groups, by_uid, news = [group(row, home=home) for row in existing], {}, {}
     for g in groups:
         for m in [g["old"]] + g["mentions"]:
             if m.get("source_uid"):
                 by_uid[(m["source_name"], m["source_uid"])] = g
     for i, it in enumerate(items):
+        if isinstance(it, dict) and it.get("kind") == "schedule":
+            schedules.append(it)
+            out["outcomes"][i] = ("schedule", f"{len(it.get('sources') or [])} schedules read whole, "
+                                              f"{it.get('from')} to {it.get('through')}")
+            continue
         why = skip_reason(it, town)
         if not why and it["kind"] == "news":
             n, why = news_of(it)
@@ -402,9 +419,10 @@ def plan(items, existing, today, interests, town=TOWNS["st-joseph-mn"]):
             g = by_uid.get(key) or next((g for g in groups if same_event(g["facts"], ev["facts"])
                                          and not own_ids_differ(g, *key)), None)
             if g is None:
+                # Two of one source's own ids are two events; nothing for Jesse to settle.
                 near = [g for g in groups if g["facts"]["day"] == ev["facts"]["day"] and (
                     same_place(g["facts"]["place"], ev["facts"]["place"])
-                    or same_title(g["facts"]["title"], ev["facts"]["title"]))]
+                    or same_title(g["facts"]["title"], ev["facts"]["title"])) and not own_ids_differ(g, *key)]
                 for o in near:
                     other = o["old"]["title"] if o["old"] else o["items"][0][1]["row"]["title"]
                     out["notes"].append(f"kept apart: {ev['row']['title']!r} and {other!r} on "
@@ -463,6 +481,20 @@ def plan(items, existing, today, interests, town=TOWNS["st-joseph-mn"]):
             else:
                 out["outcomes"][i] = ("merged", f"with #{primary[0] + 1} {primary[1]['row']['title']!r}")
         out["events"].append(g)
+
+    for g in groups:
+        old = g["old"]
+        if not old or not old.get("found", True):
+            continue
+        if g["items"]:
+            if old.get("cancelled_at"):
+                out["restored"].append(old)
+            continue
+        day, uid = str(old["event_date"])[:10], str(old.get("source_uid") or "")
+        if not old.get("cancelled_at") and any(
+                uid.startswith(s.get("uid_prefix") or "\0") and old["source_name"] in (s.get("sources") or ())
+                and str(s.get("from")) <= day <= str(s.get("through")) for s in schedules):
+            out["cancelled"].append(old)
     return out
 
 
@@ -476,18 +508,25 @@ def payloads(result):
     upgrades = [g["id"] for g in result["events"]
                 if g["old"] and not g["row"] and g["status"] != g["old"]["status"]]
     return json.loads(json.dumps({"p_events": events, "p_mentions": mentions, "p_upgrades": upgrades,
-                                  "p_news": result["news"]}, ensure_ascii=False, default=str))
+                                  "p_news": result["news"],
+                                  "p_cancelled": [o["id"] for o in result.get("cancelled", [])],
+                                  "p_restored": [o["id"] for o in result.get("restored", [])]},
+                                 ensure_ascii=False, default=str))
+
+
+KEYS = ("p_events", "p_mentions", "p_upgrades", "p_news", "p_cancelled", "p_restored")
 
 
 def to_sql(result, today):
     """The same writes as one call to run by hand, every payload dollar-quoted."""
     p = payloads(result)
-    texts = [json.dumps(p[k], ensure_ascii=False) for k in ("p_events", "p_mentions", "p_upgrades", "p_news")]
+    texts = [json.dumps(p[k], ensure_ascii=False) for k in KEYS]
     tag = "j" + secrets.token_hex(8)
     assert not any(f"${tag}$" in t for t in texts)
     args = ",\n  ".join(f"${tag}${t}${tag}$::jsonb" for t in texts)
     return (f"-- write_judged.py, {today}: {len(p['p_events'])} events, {len(p['p_mentions'])} mentions, "
-            f"{len(p['p_upgrades'])} published by a new mention, {len(p['p_news'])} news.\n"
+            f"{len(p['p_upgrades'])} published by a new mention, {len(p['p_news'])} news, "
+            f"{len(p['p_cancelled'])} cancelled, {len(p['p_restored'])} back on.\n"
             "-- Run only after Jesse's yes. The rules live in public.apply_judged.\n"
             f"select public.apply_judged(\n  {args});\n")
 
@@ -505,7 +544,7 @@ def report(items, r):
     for i, (it, (what, detail)) in enumerate(zip(items, r["outcomes"])):
         it = it if isinstance(it, dict) else {}
         print(f"  {i + 1:>2} {what:<10} {str(it.get('start') or '')[:10]:<10}  "
-              f"{str(it.get('title'))[:46]:<46} {detail}")
+              f"{str(it.get('title') or it.get('kind'))[:46]:<46} {detail}")
     counts = {}
     for what, _ in r["outcomes"]:
         counts[what] = counts.get(what, 0) + 1
@@ -514,6 +553,10 @@ def report(items, r):
     reread = sum(1 for g in r["events"] if g["old"] and g["row"])
     print(f"[judged] the SQL would add {new} events, update {reread} already listed, "
           f"add mentions to {len(r['events']) - new - reread} more, and write {len(r['news'])} news")
+    for o in r["cancelled"]:
+        print(f"[cancelled] {str(o['event_date'])[:10]} {o['title']!r}: gone from its schedule")
+    for o in r["restored"]:
+        print(f"[back on] {str(o['event_date'])[:10]} {o['title']!r}")
     for n in r["notes"]:
         print(f"[note] {n}")
 
@@ -672,6 +715,40 @@ def t_misread_comes_back():
     assert "review_reason is distinct from 'not_event'" in sql and "then 'pending'" in sql, "the database does the same"
 
 
+def t_cancelled():
+    """A found event its schedule dropped is kept and marked cancelled; back on the schedule, it
+    is restored (Jesse, 2026-10-15)."""
+    game = dict(title="Sartell Volleyball vs ROCORI", event_date="2026-10-20", start_time="7 PM",
+                location="ROCORI High School, Cold Spring", source_name="ROCORI High School",
+                source_uid="mshsl:153:rocori|sartell:1")
+    line = {"kind": "schedule", "uid_prefix": "mshsl:", "from": "2026-10-14", "through": "2026-11-11",
+            "sources": ["ROCORI High School", "Sartell High School"]}
+    gone = listed(**game)
+    r = run([line], [gone])
+    assert [o["id"] for o in r["cancelled"]] == [gone["id"]] and outcome(r, 0) == "schedule", r
+    assert payloads(r)["p_cancelled"] == [gone["id"]] and not r["events"], "kept: nothing written but the mark"
+    for other in (dict(game, source_uid="2336"), dict(game, source_name="City of St. Joseph"),
+                  dict(game, event_date="2026-11-20"), dict(game, found=False),
+                  dict(game, cancelled_at="2026-10-15T11:00:00Z")):
+        assert not run([line], [listed(**other)])["cancelled"], other
+    assert not run([], [gone])["cancelled"], "no schedule line, a school not read: nothing called off"
+    back = listed(**dict(game, title="Cancelled: Sartell Volleyball vs ROCORI", cancelled_at="2026-10-15T11:00:00Z"))
+    seen = item(title="Sartell Volleyball vs ROCORI", start="2026-10-20T19:00:00-05:00", end=None, place="ROCORI High School",
+                town="Cold Spring", area="game", source_name="ROCORI High School", source_uid=game["source_uid"],
+                interest="sports_leagues", size="everyday")
+    r = run([seen, line], [back])
+    assert not r["cancelled"] and [o["id"] for o in r["restored"]] == [back["id"]], r
+    g = r["events"][0]
+    assert g["id"] == back["id"] and g["row"]["title"] == "Sartell Volleyball vs ROCORI", g
+    merged = listed(**dict(back, source_name="Sartell High School"))  # back on, under the other school's name
+    r = run([seen, line], [merged])
+    assert r["events"][0]["id"] == merged["id"] and r["restored"] == [merged], "the cancelled title doesn't stop the merge"
+    db = WRITES.read_text()
+    assert "cancelled_at = null,\n    shows_from" in db, "a re-read by its own source restores it"
+    assert "set cancelled_at = now(), title = 'Cancelled: ' || e.title" in db and "regexp_replace(e.title, '^Cancelled: ', '')" in db
+    assert not re.search(r"\bdelete\s+from\b", db, re.I), "never deleted"
+
+
 def t_admin_status_kept():
     same = run([item()])["events"][0]["row"]  # the source re-reads it unchanged
     for st, reason in (("rejected", "wrong_when"), ("approved", None), ("pending", "wrong_place")):
@@ -737,10 +814,10 @@ def t_past_and_invalid_skipped():
 def t_writes_are_one_safe_call():
     r = run([item(blurb="$$ drop table x; $$"), item(kind="news", title="Closed Monday", start=None)])
     p = payloads(r)
-    assert [len(p[k]) for k in ("p_events", "p_mentions", "p_upgrades", "p_news")] == [1, 1, 0, 1], p
+    assert [len(p[k]) for k in KEYS] == [1, 1, 0, 1, 0, 0], p
     assert p["p_events"][0]["description"] == "$$ drop table x; $$", "the payload carries text as data"
     sql = to_sql(r, TODAY)
-    assert sql.lstrip().startswith("--") and "select public.apply_judged(" in sql and sql.count("::jsonb") == 4, sql[:200]
+    assert sql.lstrip().startswith("--") and "select public.apply_judged(" in sql and sql.count("::jsonb") == 6, sql[:200]
     db = WRITES.read_text()
     assert "insert into public.event_mentions" in db and "insert into public.board_items" in db
     assert "on conflict (lower(title), source_name, coalesce(starts_at, '-infinity'::timestamptz))" in db
@@ -817,7 +894,7 @@ def t_wording():
 
 
 TESTS = [t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_secondhand_needs_two, t_unsure_held, t_merge_true_pair,
-         t_merge_near_miss_kept_apart, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_show_from_by_size,
+         t_merge_near_miss_kept_apart, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size,
          t_interest_checked, t_area, t_past_and_invalid_skipped, t_writes_are_one_safe_call]
 
 

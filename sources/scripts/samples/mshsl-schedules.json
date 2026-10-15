@@ -1,0 +1,440 @@
+{
+"sartell": [
+{
+"event_date": "8/22/2026",
+"event_time": "9:00 AM",
+"opponent": "Girls soccer scrimmage",
+"location": "Kasson-Mantorville High School",
+"scores": "",
+"w_l": "",
+"school_name": "",
+"mshsl_activity_id": 142
+},
+{
+"event_date": "8/27/2026",
+"event_time": "7:00 PM",
+"opponent": "Anoka",
+"location": "Sartell High School",
+"scores": "2-2",
+"w_l": "T",
+"school_name": "Sartell",
+"mshsl_activity_id": 142
+},
+{
+"event_date": "8/31/2026",
+"event_time": "6:15 PM",
+"opponent": "Little Falls",
+"location": "Belle Prairie Athletic Complex",
+"scores": "2-6",
+"w_l": "L",
+"school_name": "Sartell",
+"mshsl_activity_id": 142
+},
+{
+"event_date": "9/1/2026",
+"event_time": "7:00 PM",
+"opponent": "Willmar",
+"location": "Sartell High School",
+"scores": "9-0",
+"w_l": "W",
+"school_name": "Sartell",
+"mshsl_activity_id": 142
+},
+{
+"event_date": "9/3/2026",
+"event_time": "7:00 PM",
+"opponent": "Grand Rapids",
+"location": "Sartell High School",
+"scores": "3-0",
+"w_l": "W",
+"school_name": "Sartell",
+"mshsl_activity_id": 142
+},
+{
+"event_date": "9/8/2026",
+"event_time": "5:00 PM",
+"opponent": "Moorhead",
+"location": "Sartell High School",
+"scores": "8-4",
+"w_l": "W",
+"school_name": "Sartell",
+"mshsl_activity_id": 142
+},
+{
+"event_date": "9/10/2026",
+"event_time": "5:00 PM",
+"opponent": "Brainerd",
+"location": "Brainerd High School",
+"scores": "1-7",
+"w_l": "L",
+"school_name": "Sartell",
+"mshsl_activity_id": 142
+},
+{
+"event_date": "9/15/2026",
+"event_time": "5:30 PM",
+"opponent": "St. Cloud",
+"location": "St. Cloud Apollo High School",
+"scores": "3-0",
+"w_l": "W",
+"school_name": "Sartell",
+"mshsl_activity_id": 142
+},
+{
+"event_date": "9/17/2026",
+"event_time": "5:00 PM",
+"opponent": "Bemidji",
+"location": "Sartell High School",
+"scores": "0-2",
+"w_l": "L",
+"school_name": "Sartell",
+"mshsl_activity_id": 142
+},
+{
+"event_date": "9/21/2026",
+"event_time": "7:00 PM",
+"opponent": "Detroit Lakes",
+"location": "Rotary Soccer Complex",
+"scores": "3-2",
+"w_l": "W",
+"school_name": "Sartell",
+"mshsl_activity_id": 142
+},
+{
+"event_date": "9/22/2026",
+"event_time": "7:00 PM",
+"opponent": "ROCORI",
+"location": "ROCORI High School",
+"scores": "2-0",
+"w_l": "W",
+"school_name": "Sartell",
+"mshsl_activity_id": 142
+},
+{
+"event_date": "9/24/2026",
+"event_time": "7:00 PM",
+"opponent": "Fergus Falls",
+"location": "Sartell High School",
+"scores": "5-0",
+"w_l": "W",
+"school_name": "Sartell",
+"mshsl_activity_id": 142
+},
+{
+"event_date": "9/28/2026",
+"event_time": "5:00 PM",
+"opponent": "Becker",
+"location": "Sartell High School",
+"scores": "4-3",
+"w_l": "W",
+"school_name": "Sartell",
+"mshsl_activity_id": 142
+},
+{
+"event_date": "9/29/2026",
+"event_time": "7:00 PM",
+"opponent": "Alexandria Area",
+"location": "Sartell High School",
+"scores": "2-6",
+"w_l": "L",
+"school_name": "Sartell",
+"mshsl_activity_id": 142
+},
+{
+"event_date": "10/3/2026",
+"event_time": "1:00 PM",
+"opponent": "Benilde-St. Margaret's",
+"location": "Benilde-St. Margaret's School",
+"scores": "0-8",
+"w_l": "L",
+"school_name": "Sartell",
+"mshsl_activity_id": 142
+},
+{
+"event_date": "10/6/2026",
+"event_time": "7:00 PM",
+"opponent": "Sauk Rapids-Rice",
+"location": "Sartell High School",
+"scores": "6-0",
+"w_l": "W",
+"school_name": "Sartell",
+"mshsl_activity_id": 142
+},
+{
+"event_date": "10/8/2026",
+"event_time": "7:00 PM",
+"opponent": "Monticello",
+"location": "Monticello High School",
+"scores": "0-1",
+"w_l": "L",
+"school_name": "Sartell",
+"mshsl_activity_id": 142
+},
+{
+"event_date": "10/13/2026",
+"event_time": "5:00 PM",
+"opponent": "Willmar",
+"location": "Sartell High School",
+"scores": "9-0",
+"w_l": "W",
+"school_name": "Sartell",
+"mshsl_activity_id": 142
+},
+{
+"event_date": "10/15/2026",
+"event_time": "7:00 PM",
+"opponent": "St. Cloud",
+"location": "Sartell High School",
+"scores": "",
+"w_l": "",
+"school_name": "Sartell",
+"mshsl_activity_id": 142
+},
+{
+"event_date": "10/21/2026",
+"event_time": "6:00 PM",
+"opponent": "Robbinsdale Cooper",
+"location": "Robbinsdale Cooper High School",
+"scores": "",
+"w_l": "",
+"school_name": "Sartell",
+"mshsl_activity_id": 128
+},
+{
+"event_date": "10/20/2026",
+"event_time": "6:00 PM",
+"opponent": "St. Cloud Tech",
+"location": "St. Cloud Tech High School",
+"scores": "",
+"w_l": "",
+"school_name": "Sartell",
+"mshsl_activity_id": 146
+},
+{
+"event_date": "10/29/2026",
+"event_time": "6:00 PM",
+"opponent": "Central Lakes Conference Diving Meet",
+"location": "Sartell High School",
+"scores": "",
+"w_l": "",
+"school_name": "",
+"mshsl_activity_id": 146
+},
+{
+"event_date": "10/29/2026",
+"event_time": "6:00 PM",
+"opponent": "Central Lakes Conference JV Diving Meet",
+"location": "Sartell High School",
+"scores": "",
+"w_l": "",
+"school_name": "",
+"mshsl_activity_id": 146
+},
+{
+"event_date": "10/31/2026",
+"event_time": "1:00 PM",
+"opponent": "Central Lakes Conference Meet",
+"location": "Sartell High School",
+"scores": "",
+"w_l": "",
+"school_name": "",
+"mshsl_activity_id": 146
+},
+{
+"event_date": "11/12/2026",
+"event_time": "12:00 AM",
+"opponent": "Section 6A Girls Swim Meet",
+"location": "St. Cloud Tech High School",
+"scores": "",
+"w_l": "",
+"school_name": "",
+"mshsl_activity_id": 146
+}
+],
+"tech": [
+{
+"event_date": "9/15/2026",
+"event_time": "5:30 PM",
+"opponent": "Sartell",
+"location": "St. Cloud Apollo High School",
+"scores": "0-3",
+"w_l": "L",
+"school_name": "St. Cloud",
+"mshsl_activity_id": 142
+},
+{
+"event_date": "10/15/2026",
+"event_time": "7:00 PM",
+"opponent": "Sartell",
+"location": "Sartell High School",
+"scores": "",
+"w_l": "",
+"school_name": "St. Cloud",
+"mshsl_activity_id": 142
+},
+{
+"event_date": "10/20/2026",
+"event_time": "6:00 PM",
+"opponent": "Sartell",
+"location": "St. Cloud Tech High School",
+"scores": "",
+"w_l": "",
+"school_name": "St. Cloud Tech",
+"mshsl_activity_id": 146
+},
+{
+"event_date": "11/12/2026",
+"event_time": "12:00 AM",
+"opponent": "Section 6A Girls Swim Meet",
+"location": "St. Cloud Tech High School",
+"scores": "",
+"w_l": "",
+"school_name": "",
+"mshsl_activity_id": 146
+}
+],
+"cathedral": [
+{
+"event_date": "10/26/2026",
+"event_time": "7:00 PM",
+"opponent": "vs",
+"location": "St. Cloud Cathedral High School",
+"scores": "",
+"w_l": "",
+"school_name": "",
+"mshsl_activity_id": 153
+},
+{
+"event_date": "11/2/2026",
+"event_time": "12:00 AM",
+"opponent": "Osakis",
+"location": "St Cloud State University",
+"scores": "",
+"w_l": "",
+"school_name": "TBD",
+"mshsl_activity_id": 153
+},
+{
+"event_date": "11/2/2026",
+"event_time": "6:00 PM",
+"opponent": "Pequot Lakes",
+"location": "St Cloud State University",
+"scores": "",
+"w_l": "",
+"school_name": "TBD",
+"mshsl_activity_id": 153
+},
+{
+"event_date": "11/2/2026",
+"event_time": "7:00 PM",
+"opponent": "vs",
+"location": "St Cloud State University",
+"scores": "",
+"w_l": "",
+"school_name": "",
+"mshsl_activity_id": 153
+}
+],
+"holdingford": [
+{
+"event_date": "10/15/2026",
+"event_time": "9:00 AM",
+"opponent": "Brandon-Evansville",
+"location": "Upsala High School",
+"scores": "2-0",
+"w_l": "W",
+"school_name": "Holdingford",
+"mshsl_activity_id": 153
+},
+{
+"event_date": "10/15/2026",
+"event_time": "9:00 AM",
+"opponent": "Upsala",
+"location": "Upsala High School",
+"scores": "1-2",
+"w_l": "L",
+"school_name": "Mille Lacs",
+"mshsl_activity_id": 153
+},
+{
+"event_date": "10/15/2026",
+"event_time": "9:00 AM",
+"opponent": "Upsala MEA Varsity Volleyball Tournament",
+"location": "Upsala High School",
+"scores": "",
+"w_l": "",
+"school_name": "",
+"mshsl_activity_id": 153
+},
+{
+"event_date": "10/15/2026",
+"event_time": "9:00 AM",
+"opponent": "Osakis",
+"location": "Upsala High School",
+"scores": "0-2",
+"w_l": "L",
+"school_name": "Bertha-Hewitt",
+"mshsl_activity_id": 153
+},
+{
+"event_date": "10/15/2026",
+"event_time": "10:00 AM",
+"opponent": "Upsala",
+"location": "Upsala High School",
+"scores": "",
+"w_l": "",
+"school_name": "Ashby",
+"mshsl_activity_id": 153
+},
+{
+"event_date": "10/15/2026",
+"event_time": "10:00 AM",
+"opponent": "Milaca",
+"location": "Upsala High School",
+"scores": "0-2",
+"w_l": "L",
+"school_name": "Brandon-Evansville",
+"mshsl_activity_id": 153
+},
+{
+"event_date": "10/15/2026",
+"event_time": "10:00 AM",
+"opponent": "Bertha-Hewitt",
+"location": "Upsala High School",
+"scores": "",
+"w_l": "",
+"school_name": "Aitkin",
+"mshsl_activity_id": 153
+},
+{
+"event_date": "10/15/2026",
+"event_time": "11:00 AM",
+"opponent": "Milaca",
+"location": "Upsala High School",
+"scores": "",
+"w_l": "",
+"school_name": "Holdingford",
+"mshsl_activity_id": 153
+},
+{
+"event_date": "10/15/2026",
+"event_time": "11:00 AM",
+"opponent": "Mille Lacs",
+"location": "Upsala High School",
+"scores": "",
+"w_l": "",
+"school_name": "Ashby",
+"mshsl_activity_id": 153
+},
+{
+"event_date": "10/15/2026",
+"event_time": "11:00 AM",
+"opponent": "Osakis",
+"location": "Upsala High School",
+"scores": "",
+"w_l": "",
+"school_name": "Aitkin",
+"mshsl_activity_id": 153
+}
+]
+}

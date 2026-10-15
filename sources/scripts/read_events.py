@@ -2,7 +2,7 @@
 """
 read_events.py: the registry's sources that need no model, read exactly and handed to
 write_judged.py as judged items (ADR-013, ADR-021; BP app docs/plans/watch-every-place,
-ticket 10).
+tickets 10 and 11).
 
 Calendar feeds, and sites whose pages are built by JavaScript (a plain fetch of the page
 reads almost nothing), are read from the data itself by a small reader per kind of site:
@@ -20,6 +20,9 @@ exact dates, no model. A source is read when its entry is active and it names a 
   civicplus-hcms      CivicPlus's content service: news, notices and events, read with the
                       read-only token the county's own page gives every visitor, taken fresh
                       each run and never stored (Stearns County; Jesse, 2026-10-14)
+  mshsl               the Minnesota State High School League's schedule data for one school
+                      (`league_id`, `team` as the league names it): varsity games, meets and
+                      tournaments in the next four weeks at venues within 20 miles (NEARBY)
 
 Every request goes through run.py's fetch, so robots rules and Crawl-delay are obeyed on
 every run, not only on the day a reader was written (ADR-014). A source that fails is named
@@ -33,12 +36,16 @@ home games only (no away games, rec-center classes or halftime shows), and a rep
 event once, at its next date. 511: road work as News. Stearns County: news and notices from
 the last 7 days, and events only in the town (ADR-019). Every St. Joseph source's events
 are kept wherever they happen (the spec's Area rule, amending ADR-021's in-town-only rule).
+High school games (Jesse, 2026-10-14): played within 20 miles, whichever schools play; the same
+game from both teams is one Event, a tournament day one Event; playoff games are notable; a
+playoff game with no opponent yet waits. On a morning every school was read, a game gone from
+the schedules is marked cancelled by the writer (Jesse, 2026-10-15).
 
 Dry-run by default (ADR-009): prints what each reader found. `--items FILE` writes the
 judged items, one per line, for the writer, which merges them with what is already listed
 and writes the SQL; it sets each event's show-from day too:
 
-  python3 sources/scripts/read_events.py --items items.jsonl [--include-proposed]
+  python3 sources/scripts/read_events.py --items items.jsonl [--include-proposed] [--reader mshsl]
   python3 sources/scripts/write_judged.py items.jsonl --existing existing.json --sql out.sql
   python3 sources/scripts/read_events.py --selftest
 """
@@ -410,17 +417,213 @@ def read_hcms(src, entry, today):
     return hcms_items(json.loads(news), json.loads(events), entry, src, today, TOWNS[entry["_town"]])
 
 
+# High school games: the Minnesota State High School League -------------------------------
+
+# Games are read four weeks ahead: the longest lead time a game gets (a notable one).
+GAME_DAYS = 28
+LEAGUE = "https://www.mshsl.org"
+# Venues within 20 miles of St. Joseph as the league writes them: (town, the school whose
+# building it is, by its registry name). Measured 2026-10-14 and 2026-10-15 from Google Maps
+# listings. A venue not listed counts as outside and is named in the dry run: measure it and
+# add it here. Left out on purpose: Eden Valley-Watkins Football Field (20.3 mi), Stone
+# Creek Golf Course (Foley, 21.5), Upsala High School (20.5).
+NEARBY = {
+    "Albany High School": ("Albany", "Albany High School"),
+    "College of Saint Benedict": ("St. Joseph", None),
+    "College of St. Benedict": ("St. Joseph", None),
+    "Eden Valley-Watkins High School": ("Eden Valley", "Eden Valley-Watkins High School"),
+    "Holdingford High School": ("Holdingford", "Holdingford High School"),
+    "Kimball Area High School": ("Kimball", "Kimball Area High School"),
+    "Kimball Golf Club": ("Kimball", None),
+    "Municipal Athletic Complex": ("St. Cloud", None),
+    "Powder Ridge": ("Kimball", None),
+    "Radio Tower Field": ("Collegeville", None),
+    "River Lakes Arena": ("Richmond", None),
+    "River Lakes Civic Arena": ("Richmond", None),
+    "River Oaks Golf Course": ("Cold Spring", None),
+    "Riverview Intermediate School": ("Sartell", "Sartell High School"),
+    "ROCORI High School": ("Cold Spring", "ROCORI High School"),
+    "Royalton High School": ("Royalton", "Royalton High School"),
+    "Saint John's University": ("Collegeville", None),
+    "Sartell High School": ("Sartell", "Sartell High School"),
+    "Sauk Rapids Arena East": ("Sauk Rapids", None),
+    "Sauk Rapids-Rice High School": ("Sauk Rapids", "Sauk Rapids-Rice High School"),
+    "Sauk Rapids-Rice Middle School": ("Sauk Rapids", "Sauk Rapids-Rice High School"),
+    "Scheels Athletic Complex": ("Sartell", None),
+    "St Cloud State University": ("St. Cloud", None),
+    "St John's University - Gagliardi Field and Skalicky Seasonal Dome": ("Collegeville", None),
+    "St. Cloud Apollo High School": ("St. Cloud", "Apollo High School"),
+    "St. Cloud Cathedral High School": ("St. Cloud", "Cathedral High School"),
+    "St. Cloud Municipal Athletic Complex": ("St. Cloud", None),
+    "St. Cloud Tech High School": ("St. Cloud", "Tech High School"),
+    "St. John's Prep": ("Collegeville", "St. John's Prep"),
+    "Sta-Fit Gym": ("St. Cloud", None),
+    "Sta-Fit Sartell": ("Sartell", None),
+    "The King's Academy": ("Waite Park", None),
+    "Warner Lake": ("Clearwater", None),
+    "Whitney Recreation Center": ("St. Cloud", None),
+    "Whitney Sports Complex": ("St. Cloud", None),
+}
+NOT_GAMES = re.compile(r"^(music|robotics|speech|visual arts|one act play|debate|cheerleading|clay target)", re.I)
+ONE_GENDER = {"Volleyball", "Gymnastics", "Softball"}
+SPORT_WORDS = {"Cross Country Running": "Cross Country", "Swimming and Diving": "Swim",
+               "Nordic Ski Racing": "Nordic Skiing", "Track and Field": "Track"}
+# A row naming an event rather than an opponent: a meet, a tournament, an invitational.
+NAMED = re.compile(r"\b(meet|tournament|tourney|invite|invitational|championships?|classic|jamboree|scrimmage|"
+                   r"relays|section|conference|true team|tri|triangular|quadrangular|individuals|race|festival|"
+                   r"showcase|state)\b", re.I)
+PLAYOFF = re.compile(r"\b(section|state|true team|championships?|playoffs?)\b", re.I)
+# The league lists varsity games; a row naming only a lower level, or a practice, is left out.
+LOWER = re.compile(r"\b(jv|junior varsity|c-?squad|b-?squad|9th|freshman|practice|tryouts?)\b", re.I)
+VARSITY = re.compile(r"\b(v|varsity)\b", re.I)
+# A playoff row before its teams are known.
+PLACEHOLDERS = {"", "vs", "tbd", "tba"}
+
+
+def league_sports(page, today):
+    """The school's own sports in season over the next four weeks, from its schedule page's
+    settings: {activity id: (sport family, title words)}, e.g. 142: ("Soccer", "Girls Soccer")."""
+    m = re.search(r'data-drupal-selector="drupal-settings-json">(.*?)</script>', page, re.S)
+    if not m:
+        raise RuntimeError("the league's page no longer carries its settings")
+    s = json.loads(m.group(1))
+    out = {}
+    for a in s["activitiesList"]:
+        season = s["activityDates"].get(str(a["id"]))
+        if NOT_GAMES.match(a["name"]) or not season or not (
+                season["start"] <= str(today + timedelta(GAME_DAYS)) and season["end"] >= str(today)):
+            continue
+        family, _, rest = a["name"].partition(", ")
+        family = SPORT_WORDS.get(family, family)
+        gender = rest if rest in ("Boys", "Girls") and family not in ONE_GENDER else ""
+        out[a["id"]] = (family, f"{gender} {family}".strip(), season["start"], season["end"])
+    return out
+
+
+def short_team(name):
+    """The team as neighbours say it: "Apollo", not "St. Cloud Apollo"; "Kimball", not
+    "Kimball Area"; a co-op joined with a hyphen, since a title carries no slash."""
+    name = re.sub(r"^St\. Cloud (Apollo|Tech|Cathedral)$", r"\1", name.strip())
+    return re.sub(r"\s*/\s*", "-", re.sub(r" Area$", "", name))
+
+
+def league_listings(rows, sports, entry, src, today):
+    """One school's rows, every sport's whole season, as listings in the next four weeks.
+    A game is numbered by which meeting of the two teams it is in that sport's season, so
+    it keeps its id when it moves to another day."""
+    out, met = [], {}
+    team = src.get("team") or entry["_name"]
+    for r in sorted(rows, key=lambda r: (datetime.strptime(r["event_date"], "%m/%d/%Y"), r["event_time"])):
+        a = r["mshsl_activity_id"]
+        if a not in sports:
+            continue
+        day = datetime.strptime(r["event_date"], "%m/%d/%Y").date()
+        mine, other = (r.get("school_name") or "").strip() or team, (r.get("opponent") or "").strip()
+        named = bool(NAMED.search(other))
+        n = None
+        if not named and not {mine.lower(), other.lower()} & PLACEHOLDERS:
+            pair = (a, frozenset((mine.lower(), other.lower())))
+            n = met[pair] = met.get(pair, 0) + 1
+        if not today <= day <= today + timedelta(GAME_DAYS):
+            continue
+        family, words, *_ = sports[a]
+        out.append({"lister": entry["_name"], "page": src["url"], "activity": a, "family": family,
+                    "sport": words, "day": day, "time": r["event_time"].strip(), "team": mine,
+                    "opponent": other, "named": named, "venue": (r.get("location") or "").strip(), "n": n})
+    return out
+
+
+def league_start(day, clock_text):
+    """The league writes "7:00 PM"; "12:00 AM" is its no-time-yet."""
+    if clock_text in ("", "12:00 AM"):
+        return day.isoformat(), True
+    t = datetime.strptime(clock_text, "%I:%M %p").time()
+    return datetime.combine(day, t, LOCAL).isoformat(), False
+
+
+def games(listings, today):
+    """Every school's listings -> one judged item per game, meet or tournament day, and what
+    was left out. The same game from both teams (date, sport, venue and the two teams) is one
+    Event; a meet, or a day of tournament pool matches (three or more rows for one school), is
+    one Event per sport, venue and day. Kept only at a venue within 20 miles (NEARBY)."""
+    left = {"outside": 0, "waiting": 0, "lower": 0, "unplaced": set()}
+    kept = []
+    for l in listings:
+        if LOWER.search(l["opponent"]) and not VARSITY.search(l["opponent"]):
+            left["lower"] += 1
+        elif l["venue"] not in NEARBY:
+            left["outside"] += 1
+            if l["venue"].lower() not in PLACEHOLDERS:
+                left["unplaced"].add(l["venue"])
+        elif not l["named"] and l["n"] is None:
+            left["waiting"] += 1  # a playoff game with no opponent yet waits until it has one
+        else:
+            kept.append(l)
+    busy = {}
+    for l in kept:
+        k = (l["lister"], l["day"], l["activity"], l["venue"])
+        busy[k] = busy.get(k, 0) + 1
+    groups = {}
+    for l in kept:
+        meet = l["named"] or busy[(l["lister"], l["day"], l["activity"], l["venue"])] >= 3
+        key = (("meet", l["family"]) if meet else ("game", l["activity"], frozenset((l["team"], l["opponent"])))) \
+            + (l["day"], l["venue"])
+        groups.setdefault(key, []).append(l)
+
+    items = []
+    for key, ls in groups.items():
+        town, home = NEARBY[ls[0]["venue"]]
+        own = [l for l in ls if l["lister"] == home]
+        first = (own or sorted(ls, key=lambda l: l["lister"]))[0]
+        host = home or first["lister"]
+        if key[0] == "meet":
+            name = next((l["opponent"] for l in sorted(ls, key=lambda l: (not l["named"], l["lister"]))
+                         if l["named"]), f"{short_team(first['team'])} {first['sport']} Tournament")
+            if not re.search(rf"\b({re.escape(first['family'])}|swim|dive|diving|ski|xc|cc)\b", name, re.I):
+                name = re.sub(r"\b(Meet|Invite|Invitational)\b", lambda m: f"{first['family']} {m[1]}", name, count=1) \
+                    if re.search(r"\b(Meet|Invite|Invitational)\b", name) else f"{name}: {first['sport']}"
+            title, uid = name, f"mshsl:meet:{first['family'].lower()}:{first['day']}:{first['venue'].lower()}"
+            when = min(ls, key=lambda l: league_start(l["day"], l["time"])[::-1])  # timed first, earliest
+        else:
+            us, them = first["team"], first["opponent"]
+            if not own and home:  # read from the visitors' schedule: the home team goes first
+                us, them = them, us
+            title = f"{short_team(us)} {first['sport']} vs {short_team(them)}"
+            pair = "|".join(sorted(t.lower() for t in (first["team"], first["opponent"])))
+            uid, when = f"mshsl:{first['activity']}:{pair}:{first['n']}", first
+        start, all_day = league_start(when["day"], when["time"])
+        items.append({"kind": "event", "title": title, "start": start, "end": None, "all_day": all_day,
+                      "place": first["venue"], "town": town, "area": "game", "source_name": host,
+                      "source_url": first["page"], "source_uid": uid, "trust": "official", "sure": True,
+                      "size": "notable" if PLAYOFF.search(title) else "everyday", "interest": "sports_leagues",
+                      "blurb": None})
+    return sorted(items, key=lambda i: (i["start"], i["title"])), left
+
+
+def read_league(src, entry, today):
+    """One school's listings: its page (for its sports and their seasons), then each sport in
+    season, the whole season, so a game keeps its number. games() turns them into items."""
+    sports = league_sports(fetch(src["url"])[1], today)
+    rows = []
+    for a, (_, _, start, end) in sports.items():
+        rows += json.loads(fetch(f"{LEAGUE}/api/team-data/schedule/{src['league_id']}/varsity/{a}"
+                                 f"?start_date={start}&end_date={end}")[1])
+    return [{"listing": l} for l in league_listings(rows, sports, entry, src, today)]
+
+
 # The run ---------------------------------------------------------------------------------
 
 READERS = {"ical": read_ical, "pathify": read_pathify, "cars511": read_roads,
            "finalsite-calendar": read_finalsite_calendar, "finalsite-news": read_finalsite_news,
-           "civicplus-hcms": read_hcms}
+           "civicplus-hcms": read_hcms, "mshsl": read_league}
 
 
 def read_all(entries, today, readers=READERS):
     """Every reader source of these entries. One that fails is named in the summary and
-    never stops the others."""
-    items, summary = [], []
+    never stops the others. The schools' listings become games once every school is read,
+    since both teams list the same game; on a morning every school was read, a schedule
+    line tells the writer the list is whole, so a game missing from it was called off."""
+    items, summary, listings = [], [], []
     for e in entries:
         for s in e.get("sources") or []:
             name = s.get("reader") or ("ical" if s.get("kind") == "ical" else None)
@@ -429,11 +632,24 @@ def read_all(entries, today, readers=READERS):
             row = {"source": e["_name"], "reader": name, "url": s["url"], "items": 0, "error": None}
             try:
                 got = readers[name](s, e, today)
-                items += got
+                listings += [g["listing"] for g in got if "listing" in g]
+                items += [g for g in got if "listing" not in g]
                 row["items"] = len(got)
             except Exception as ex:  # a site down or changed is a line in the summary
                 row["error"] = f"{type(ex).__name__}: {ex}"[:300]
             summary.append(row)
+    schools = [r for r in summary if r["reader"] == "mshsl"]
+    if schools:
+        found, left = games(listings, today)
+        items += found
+        if not any(r["error"] for r in schools):
+            items.append({"kind": "schedule", "uid_prefix": "mshsl:", "from": today.isoformat(),
+                          "through": (today + timedelta(GAME_DAYS)).isoformat(),
+                          "sources": sorted(r["source"] for r in schools)})
+        summary.append({"source": "High school games", "reader": "games", "url": LEAGUE, "items": len(found),
+                        "error": None, "note": f"{left['outside']} listings outside 20 miles, {left['waiting']} "
+                        f"waiting for an opponent, {left['lower']} lower levels; venues outside or not yet measured: "
+                        + (", ".join(sorted(left["unplaced"])) or "none")})
     return items, summary
 
 
@@ -573,6 +789,85 @@ def t_county():
     assert url.endswith("/mn-stearnscounty/news?%24top=20&%24skip=0&%24orderby=data%2FDate%2Fiv%20desc&%24filter=a%20eq%20b"), url
 
 
+LEAGUE_DAY = date(2026, 10, 15)
+SCHOOLS = {"sartell": ("Sartell High School", 504, "Sartell"), "tech": ("Tech High School", 537, "St. Cloud Tech"),
+           "cathedral": ("Cathedral High School", 535, "St. Cloud Cathedral"),
+           "holdingford": ("Holdingford High School", 246, "Holdingford")}
+
+
+def league_sample(change=lambda school, r: r):
+    """The saved schedules (read 2026-10-15) as every school's listings."""
+    sports, out = league_sports(sample("mshsl-page.html"), LEAGUE_DAY), []
+    for school, rows in json.loads(sample("mshsl-schedules.json")).items():
+        name, league_id, team = SCHOOLS[school]
+        src = {"url": f"{LEAGUE}/group/{league_id}/full-schedule", "league_id": league_id, "team": team}
+        out += league_listings([change(school, dict(r)) for r in rows], sports, {"_name": name}, src, LEAGUE_DAY)
+    return out
+
+
+def t_league():
+    sports = league_sports(sample("mshsl-page.html"), LEAGUE_DAY)
+    assert sorted(sports) == [128, 133, 142, 146, 153], "in season within four weeks; baseball, boys swim, music not"
+    assert [sports[a][1] for a in (142, 153, 146)] == ["Girls Soccer", "Volleyball", "Girls Swim"], sports
+    got, left = games(league_sample(), LEAGUE_DAY)
+    rows = {i["title"]: i for i in got}
+    assert list(rows) == ["Sartell Girls Soccer vs St. Cloud", "Tech Girls Swim vs Sartell",
+                          "Central Lakes Conference Diving Meet", "Central Lakes Conference Swim Meet",
+                          "Section 6A Girls Swim Meet"], list(rows)
+    soccer = rows["Sartell Girls Soccer vs St. Cloud"]
+    assert (soccer["start"], soccer["place"], soccer["town"], soccer["source_name"], soccer["area"]) == (
+        "2026-10-15T19:00:00-05:00", "Sartell High School", "Sartell", "Sartell High School", "game"), soccer
+    assert soccer["source_uid"] == "mshsl:142:sartell|st. cloud:2", "the second meeting this season"
+    assert soccer["source_url"] == f"{LEAGUE}/group/504/full-schedule" and soccer["interest"] == "sports_leagues"
+    assert rows["Tech Girls Swim vs Sartell"]["source_name"] == "Tech High School", "the home school hosts"
+    section = rows["Section 6A Girls Swim Meet"]
+    assert (section["start"], section["all_day"], section["size"]) == ("2026-11-12", True, "notable"), section
+    assert (left["lower"], left["waiting"]) == (1, 4), "the JV diving meet; a vs and three TBD playoff rows"
+    assert "Robbinsdale Cooper High School" in left["unplaced"] and "Upsala High School" in left["unplaced"]
+    # Read only from the visitors' schedule, the home team still goes first.
+    visitors = [l for l in league_sample() if l["lister"] == "Tech High School" and l["activity"] == 142]
+    only = games(visitors, LEAGUE_DAY)[0]
+    assert [(i["title"], i["source_name"]) for i in only] == [("Sartell Girls Soccer vs St. Cloud", "Sartell High School")]
+    assert only[0]["source_uid"] == soccer["source_uid"]
+
+
+def t_league_tournament_and_moves():
+    home = league_sample(lambda s, r: dict(r, location="Holdingford High School") if s == "holdingford" else r)
+    day = [i for i in games(home, LEAGUE_DAY)[0] if "Volleyball" in i["title"]]
+    assert [(i["title"], i["start"], i["source_name"]) for i in day] == [
+        ("Upsala MEA Varsity Volleyball Tournament", "2026-10-15T09:00:00-05:00", "Holdingford High School")], day
+    moved = league_sample(lambda s, r: dict(r, event_date="10/16/2026", event_time="5:00 PM")
+                          if r["event_date"] == "10/15/2026" and r["mshsl_activity_id"] == 142 else r)
+    soccer = next(i for i in games(moved, LEAGUE_DAY)[0] if "Soccer" in i["title"])
+    assert (soccer["start"], soccer["source_uid"]) == ("2026-10-16T17:00:00-05:00", "mshsl:142:sartell|st. cloud:2"), \
+        "a moved game keeps its id, so the writer moves its Event"
+    assert league_start(LEAGUE_DAY, "12:00 AM") == ("2026-10-15", True)
+
+
+def t_league_schedule_line():
+    def school(s, e, t):
+        return [{"listing": l} for l in league_sample() if l["lister"] == e["_name"]]
+    def down(*_):
+        raise TimeoutError("the league took too long")
+    entries = [{"_name": n, "sources": [{"url": "u", "reader": "mshsl"}]} for n in ("Tech High School", "Sartell High School")]
+    items, summary = read_all(entries, LEAGUE_DAY, {"mshsl": school})
+    line = items[-1]
+    assert line == {"kind": "schedule", "uid_prefix": "mshsl:", "from": "2026-10-15", "through": "2026-11-12",
+                    "sources": ["Sartell High School", "Tech High School"]}, line
+    assert [s["reader"] for s in summary] == ["mshsl", "mshsl", "games"] and "outside 20 miles" in summary[-1]["note"]
+    items, _ = read_all(entries, LEAGUE_DAY, {"mshsl": lambda s, e, t: down() if e["_name"] == "Tech High School" else school(s, e, t)})
+    assert not [i for i in items if i["kind"] == "schedule"], "a school not read: no game is called off this morning"
+    assert any(i["title"] == "Sartell Girls Soccer vs St. Cloud" for i in items), "the other school's games still come"
+
+
+def t_nearby_hosts_are_registry_schools():
+    names = {e["_name"]: s for e in load(find_root(Path(__file__).resolve().parent))[0] for s in e.get("sources") or []
+             if s.get("reader") == "mshsl"}
+    hosts = {h for _, h in NEARBY.values() if h}
+    assert hosts <= set(names), hosts - set(names)
+    assert len(names) == 12 and all(s.get("league_id") and s.get("team") for s in names.values()), names
+
+
 def t_failure_in_summary():
     def boom(*_):
         raise TimeoutError("the site took too long")
@@ -591,7 +886,8 @@ def t_items_fit_the_writer():
              + finalsite_calendar_items(sample("kennedy-calendar.html"), "u", entry, {}, TODAY)
              + finalsite_news_items(sample("kennedy-news.html"), "u", entry, {})
              + hcms_items(json.loads(sample("stearns-news.json")), json.loads(sample("stearns-events.json")),
-                          {"_name": "Stearns County"}, {"token_page": "u"}, TODAY, TOWNS["st-joseph-mn"]))
+                          {"_name": "Stearns County"}, {"token_page": "u"}, TODAY, TOWNS["st-joseph-mn"])
+             + games(league_sample(), LEAGUE_DAY)[0])
     r = plan(items, [], TODAY, interest_ids())
     bad = [(i["title"], o) for i, o in zip(items, r["outcomes"]) if o[0] == "skipped"]
     assert not bad and not [n for n in r["notes"] if "kept apart" not in n], (bad, r["notes"])
@@ -599,10 +895,13 @@ def t_items_fit_the_writer():
     assert rows["SJU Football vs Concordia: Homecoming"]["location"] == "Clemens Stadium, Collegeville"
     assert rows["Fix-It Clinic"]["location"] == "Clemens Library", "St. Joseph needs no town on its place line"
     assert rows["Christmas Craft Sale at Saint Scholastica Convent"]["location"] == "Saint Scholastica Convent, St. Cloud"
+    assert rows["Tech Girls Swim vs Sartell"]["location"] == "St. Cloud Tech High School", "the venue already names its town"
+    assert rows["Sartell Girls Soccer vs St. Cloud"]["category"] == "sports_leagues"
 
 
-TESTS = [t_robots, t_ical, t_pathify, t_roads, t_kennedy_calendar, t_kennedy_news, t_county, t_failure_in_summary,
-         t_items_fit_the_writer]
+TESTS = [t_robots, t_ical, t_pathify, t_roads, t_kennedy_calendar, t_kennedy_news, t_county, t_league,
+         t_league_tournament_and_moves, t_league_schedule_line, t_nearby_hosts_are_registry_schools,
+         t_failure_in_summary, t_items_fit_the_writer]
 
 
 def selftest():
@@ -625,6 +924,7 @@ def main():
     ap.add_argument("--include-proposed", action="store_true",
                     help="also read proposed entries: a dry run to look at, never a live write (ADR-008)")
     ap.add_argument("--today", help="YYYY-MM-DD; default today in Chicago")
+    ap.add_argument("--reader", help="read only the sources with this reader, e.g. mshsl")
     ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args()
     if args.selftest:
@@ -632,16 +932,19 @@ def main():
 
     today = date.fromisoformat(args.today) if args.today else datetime.now(LOCAL).date()
     statuses = {"active", "proposed"} if args.include_proposed else {"active"}
-    entries = [e for e in load(find_root(args.root))[0]
-               if e.get("_town") == args.town and e.get("status") in statuses]
+    entries = [dict(e, sources=[s for s in e.get("sources") or [] if not args.reader or s.get("reader") == args.reader])
+               for e in load(find_root(args.root))[0] if e.get("_town") == args.town and e.get("status") in statuses]
     items, summary = read_all(entries, today)
-    for i in sorted(items, key=lambda i: (i["source_name"], i.get("start") or "")):
+    shown = [i for i in items if i["kind"] != "schedule"]
+    for i in sorted(shown, key=lambda i: (i["source_name"], i.get("start") or "")):
         print(f"  {i['kind']:<5} {str(i.get('start') or '')[:16]:<16}  {i['title'][:50]:<50} | "
               f"{i['source_name'][:26]:<26} | {(i.get('place') or '')[:36]}")
     for s in summary:
         print(f"[read] {'FAILED' if s['error'] else 'ok':<6} {s['source']} ({s['reader']}): "
-              + (s["error"] or f"{s['items']} items"))
-    print(f"[read] {len(items)} items from {sum(not s['error'] for s in summary)} of {len(summary)} sources")
+              + (s["error"] or f"{s['items']} items") + (f"; {s['note']}" if s.get("note") else ""))
+    print(f"[read] {len(shown)} items from {sum(not s['error'] for s in summary)} of {len(summary)} sources")
+    if len(shown) < len(items):
+        print("[read] every school was read: games missing from their schedules will be marked cancelled")
     if args.include_proposed:
         print("[read] proposed entries included: a dry run to look at, not for a live write (ADR-008)")
     if args.items:

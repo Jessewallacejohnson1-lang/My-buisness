@@ -21,6 +21,11 @@ skill covers the calls the code can't make.
 - **Games:** `<School> <Sport> vs <Opponent>`, then `: <name>` when the game has one ("CSB
   Soccer vs Hamline: Senior Night"). Keep the team's level words (JV, varsity, girls,
   boys): the merge rule tells games apart by them.
+- **High school teams as neighbours say them:** "Apollo", "Tech", "Cathedral" (not "St. Cloud
+  Apollo"), "Kimball" (not "Kimball Area"); a co-op joined with a hyphen ("Sartell-Sauk
+  Rapids"); "Girls Swim", and no "Girls" on volleyball. A meet or tournament keeps its own name,
+  with its sport when the name lacks one ("Central Lakes Conference Swim Meet"). Two long team
+  names may run past 40 characters; both stay whole (read_events.py writes these).
 - **The colleges are CSB and SJU.** Both together are "CSB SJU", written with a space only
   (Jesse, 2026-10-14). When the host line already names both, leave them out of the title.
   Host names follow the same rule: "CSB SJU Campus Events".

@@ -200,8 +200,9 @@ def main():
         keys = [match_key(e["_name"])] + [match_key(a) for a in (e.get("aka") or [])]
         keys += [aliases[k][0] for k in keys if k in aliases]
         keys = list(dict.fromkeys(keys))
-        if set(keys) & skip or NOT_A_PLACE.search(e["_name"]) or e.get("category") in ("town", "festival", "vendors"):
-            continue    # the town itself, an event or a kiosk: a source, not a place
+        if set(keys) & skip or NOT_A_PLACE.search(e["_name"]) or \
+                e.get("category") in ("town", "festival", "vendors", "nearby-school"):
+            continue    # the town itself, an event, a kiosk or a school nearby: a source, not a place
         hit = next((by_key[k] for k in keys if k in by_key), None)
         if hit is None:
             hit = {"name": e["_name"], "key": match_key(e["_name"]), "display_key": norm(e["_name"]),

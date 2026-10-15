@@ -349,6 +349,246 @@ robots and must use `search_snippet`. `joetown.org` is a Squarespace site whose 
 lists AI user-agents in the same group as `User-agent: *`, so the standard rules apply
 and `fetch` is allowed. Checked 2026-09-22 — re-check if a run ever reports a refusal.
 
+# Nearby high schools
+
+<!--
+High school games played within 20 miles of St. Joseph belong in its Town feed (Jesse,
+2026-10-14; BP app docs/plans/watch-every-place, ticket 11): St. Joseph has no high school of
+its own, so its families follow the teams nearby. These schools are outside the town's ZIP
+codes, so they are sources for St. Joseph's feed, not places in it (category `nearby-school`,
+which verification skips).
+
+One source covers them all: the Minnesota State High School League's own schedule data,
+varsity only. `reader: mshsl` reads the school's page for its sports and their seasons, then
+each sport in season, and keeps games at venues within 20 miles (`NEARBY` in
+scripts/read_events.py). robots.txt (www.mshsl.org) allows `/group/` and `/api/` and asks no
+Crawl-delay; measured 2026-10-14 and re-checked by every run. About 100 requests a morning in
+the fall. JV and younger teams' schedules are on Bound and Arbiter Live, which both refuse
+bots. King's Academy (Waite Park, 4.8 miles) is left out: its own games aren't in the league's
+data and its site's schedule page is empty. Research: BP app
+docs/plans/watch-every-place/assets/03-high-school-sports.md.
+-->
+
+## St. John's Prep
+```yaml
+id: st-johns-prep
+status: proposed
+tier: watched
+category: nearby-school
+place_type: School / college
+added_by: agent:claude
+aka: ["Saint John's Preparatory School"]
+sources:
+  - url: https://www.mshsl.org/group/542/full-schedule
+    method: api
+    trust: official
+    reader: mshsl
+    league_id: 542
+    team: St. John's Prep
+```
+Notes: Collegeville, 3.6 miles from St. Joseph. "St. John's Prep" is how the league names the team.
+
+## Apollo High School
+```yaml
+id: apollo-high-school
+status: proposed
+tier: watched
+category: nearby-school
+place_type: School / college
+added_by: agent:claude
+sources:
+  - url: https://www.mshsl.org/group/635/full-schedule
+    method: api
+    trust: official
+    reader: mshsl
+    league_id: 635
+    team: St. Cloud Apollo
+```
+Notes: St. Cloud, 5.2 miles from St. Joseph. "St. Cloud Apollo" is how the league names the team.
+
+## Tech High School
+```yaml
+id: tech-high-school
+status: proposed
+tier: watched
+category: nearby-school
+place_type: School / college
+added_by: agent:claude
+aka: ["Technical High School"]
+sources:
+  - url: https://www.mshsl.org/group/537/full-schedule
+    method: api
+    trust: official
+    reader: mshsl
+    league_id: 537
+    team: St. Cloud Tech
+```
+Notes: St. Cloud, 6.4 miles from St. Joseph. "St. Cloud Tech" is how the league names the team.
+
+## Cathedral High School
+```yaml
+id: cathedral-high-school
+status: proposed
+tier: watched
+category: nearby-school
+place_type: School / college
+added_by: agent:claude
+sources:
+  - url: https://www.mshsl.org/group/535/full-schedule
+    method: api
+    trust: official
+    reader: mshsl
+    league_id: 535
+    team: St. Cloud Cathedral
+```
+Notes: St. Cloud, 7.5 miles from St. Joseph. "St. Cloud Cathedral" is how the league names the team.
+
+## Sartell High School
+```yaml
+id: sartell-high-school
+status: proposed
+tier: watched
+category: nearby-school
+place_type: School / college
+added_by: agent:claude
+sources:
+  - url: https://www.mshsl.org/group/504/full-schedule
+    method: api
+    trust: official
+    reader: mshsl
+    league_id: 504
+    team: Sartell
+```
+Notes: Sartell, 8.0 miles from St. Joseph. "Sartell" is how the league names the team.
+
+## ROCORI High School
+```yaml
+id: rocori-high-school
+status: proposed
+tier: watched
+category: nearby-school
+place_type: School / college
+added_by: agent:claude
+sources:
+  - url: https://www.mshsl.org/group/491/full-schedule
+    method: api
+    trust: official
+    reader: mshsl
+    league_id: 491
+    team: ROCORI
+```
+Notes: Cold Spring, 8.7 miles from St. Joseph. "ROCORI" is how the league names the team.
+
+## Sauk Rapids-Rice High School
+```yaml
+id: sauk-rapids-rice-high-school
+status: proposed
+tier: watched
+category: nearby-school
+place_type: School / college
+added_by: agent:claude
+sources:
+  - url: https://www.mshsl.org/group/506/full-schedule
+    method: api
+    trust: official
+    reader: mshsl
+    league_id: 506
+    team: Sauk Rapids-Rice
+```
+Notes: Sauk Rapids, 9.8 miles from St. Joseph. "Sauk Rapids-Rice" is how the league names the team.
+
+## Albany High School
+```yaml
+id: albany-high-school
+status: proposed
+tier: watched
+category: nearby-school
+place_type: School / college
+added_by: agent:claude
+aka: ["Albany Area Secondary School"]
+sources:
+  - url: https://www.mshsl.org/group/8/full-schedule
+    method: api
+    trust: official
+    reader: mshsl
+    league_id: 8
+    team: Albany
+```
+Notes: Albany, 12.6 miles from St. Joseph. "Albany" is how the league names the team.
+
+## Holdingford High School
+```yaml
+id: holdingford-high-school
+status: proposed
+tier: watched
+category: nearby-school
+place_type: School / college
+added_by: agent:claude
+sources:
+  - url: https://www.mshsl.org/group/246/full-schedule
+    method: api
+    trust: official
+    reader: mshsl
+    league_id: 246
+    team: Holdingford
+```
+Notes: Holdingford, 13.7 miles from St. Joseph. "Holdingford" is how the league names the team.
+
+## Kimball Area High School
+```yaml
+id: kimball-area-high-school
+status: proposed
+tier: watched
+category: nearby-school
+place_type: School / college
+added_by: agent:claude
+sources:
+  - url: https://www.mshsl.org/group/284/full-schedule
+    method: api
+    trust: official
+    reader: mshsl
+    league_id: 284
+    team: Kimball Area
+```
+Notes: Kimball, 17.4 miles from St. Joseph. "Kimball Area" is how the league names the team.
+
+## Royalton High School
+```yaml
+id: royalton-high-school
+status: proposed
+tier: watched
+category: nearby-school
+place_type: School / college
+added_by: agent:claude
+aka: ["Royalton Middle/High School"]
+sources:
+  - url: https://www.mshsl.org/group/497/full-schedule
+    method: api
+    trust: official
+    reader: mshsl
+    league_id: 497
+    team: Royalton
+```
+Notes: Royalton, 18.3 miles from St. Joseph. "Royalton" is how the league names the team.
+
+## Eden Valley-Watkins High School
+```yaml
+id: eden-valley-watkins-high-school
+status: proposed
+tier: watched
+category: nearby-school
+place_type: School / college
+added_by: agent:claude
+sources:
+  - url: https://www.mshsl.org/group/152/full-schedule
+    method: api
+    trust: official
+    reader: mshsl
+    league_id: 152
+    team: Eden Valley-Watkins
+```
+Notes: Eden Valley, 19.8 miles from St. Joseph. "Eden Valley-Watkins" is how the league names the team.
+
 # Vendors and artists
 
 ## St. Joseph Farmers' Market
