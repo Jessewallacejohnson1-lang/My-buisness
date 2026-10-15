@@ -213,6 +213,9 @@ not re-tier on its own.
   (ADR-009).
 - **Run `sources/validate` after every edit.** It is instant, and it is the only thing between
   a typo and a broken 6am run.
+- **Run `python3 sources/scripts/check_flags.py` after editing `sources/models/flag.md` or
+  changing the cheap model.** It reads the saved test pages three times and must catch at
+  least 9 of 10 of what the better model found (Jesse, 2026-10-13).
 - **Measure coverage with `sources/discover`, not by counting entries.** ADR-010 measures
   against an external roster — Overture, OpenStreetMap, a Google Maps sweep and the local
   directories — so the number that matters is how many places exist that the registry
