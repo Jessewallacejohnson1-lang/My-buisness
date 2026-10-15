@@ -180,8 +180,9 @@ def caps(text):
     return " ".join(w.capitalize() if len(w) >= 4 else w for w in text.split(" "))
 
 
-def tidy_title(title, host=""):
-    """The card's title, short and plain (the skill's rules); tidying it twice changes nothing."""
+def tidy_title(title, host="", event=True):
+    """The card's title, short and plain (the skill's rules); tidying it twice changes nothing.
+    A News title keeps its subtitle: there it is often the news itself."""
     t = title.strip()
     if len(t) > 2 and t[0] in '"“' and t[-1] in '"”' and not re.search(r'["“”]', t[1:-1]):
         t = t[1:-1]
@@ -195,14 +196,15 @@ def tidy_title(title, host=""):
     t = re.sub(r"\s*\((?:\$|as needed\b|virtual\b|online\b)[^)]*\)", "", t, flags=re.I)  # price, a note
     t = re.sub(r"\s*\([A-Z]{2,6}\)", "", t)                                       # "(FOC)"
     t = re.sub(rf"\s*\([^)]*\b(?:through|until|{WEEKDAYS})\b[^)]*\)", "", t, flags=re.I)  # the schedule
-    t = re.sub(r"\s+\(([^()]+)\)$", r": \1", t)                                      # "(Homecoming)"
+    t = re.sub(r"\s+\(([^()]+)\)$", r" - \1", t)                                     # "(Homecoming)"
     t = re.sub(r"\s*[•·\-–—]\s*(?:virtual|online)$", "", t, flags=re.I)
     t = re.sub(r"^(?:19|20)\d\d\s+|\s+(?:19|20)\d\d$", "", t)                       # the card shows the date
-    t = re.sub(r"(?<!\d)\s+[-–—]\s+(?!\d)", ": ", t)
+    head, *rest = re.split(r"(?<!\d)\s+[-–—]\s+(?!\d)", t)                            # one colon, then commas
+    t = head + (": " + ", ".join(rest) if rest else "")
     t = re.sub(r"\s*@\s*(?:The\b)?", lambda m: " at the" if "The" in m[0] else " at ", t)
     t = re.sub(r"\s*[/+]\s*", " ", t)                                                # no slash in a title
     t = re.sub(r"\s+:", ":", re.sub(r"\s{2,}", " ", t)).strip(" :,-–")
-    if len(t) > TITLE_MAX and ": " in t and len(t.split(": ", 1)[0]) >= 12:
+    if event and len(t) > TITLE_MAX and ": " in t and len(t.split(": ", 1)[0]) >= 12:
         t = t.split(": ", 1)[0]  # the name, not its subtitle
     return t or title.strip()
 
@@ -347,7 +349,7 @@ def news_of(it):
         day, at = when(start, it.get("all_day")) if start else (None, None)
     except ValueError as e:
         return None, f"invalid: unreadable date ({e})"
-    return {"title": tidy_title(it["title"], it["source_name"]), "blurb": (it.get("blurb") or "").strip() or None,
+    return {"title": tidy_title(it["title"], it["source_name"], event=False), "blurb": (it.get("blurb") or "").strip() or None,
             "category": it.get("category") if it.get("category") in NEWS_CATEGORIES else "announcement",
             "source_name": it["source_name"].strip(), "source_url": it["source_url"].strip(),
             # The board's tiers as the old curator wrote them: 1 the City, 1.5 Newsleaders.
@@ -812,6 +814,8 @@ WORDING = [  # (title, host, place) as read on 2026-10-14 -> (title, place) on t
     ("Joint Planning Board (as needed)", "City of St. Joseph", "75 Callaway Street East St. Joseph MN 56374",
      "Joint Planning Board", "75 Callaway Street East"),
     ("Festival of Cultures (FOC)", "CSB/SJU Campus Events", "", "Festival of Cultures", ""),
+    ("No School - Teacher Workshop (Half Day - Morning)", "Kennedy Community School", "",
+     "No School: Teacher Workshop, Half Day, Morning", ""),
     ("Farmers' Market final day (Fridays through Oct 16)", "St. Joseph Farmers' Market", "", "Farmers' Market final day", ""),
     ("“The Ladder of Divine Graces”", "Saint Benedict's Monastery", "", "The Ladder of Divine Graces", ""),
     ("Advent Sacred Pause • Virtual", "Saint Benedict's Monastery", "", "Advent Sacred Pause", ""),
@@ -844,6 +848,8 @@ def t_wording():
     assert [(g["row"]["title"], g["row"]["location"]) for g in r["events"]] == [
         ("Advent Sacred Pause", "Online"), ("CSB Soccer vs Hamline", "CSB Stadium")], r["events"]
     assert r["events"][0]["row"]["source_uid"].endswith(":advent-pause-sacred-virtual"), "the id keeps the source's words"
+    news = run([item(kind="news", title="Farmers' Market — National Farmers Market Week, every stall open", start=None)])
+    assert news["news"][0]["title"] == "Farmers' Market: National Farmers Market Week, every stall open", news["news"]
     reworded = listed(title="College of Saint Benedict Soccer vs Hamline", event_date="2026-10-25", start_time="4 PM",
                       location="St. Joseph, Minn., CSB Stadium", source_name="CSB/SJU", source_uid="board:x")
     assert run([item(title="CSB Soccer vs Hamline", start="2026-10-25T16:00:00-05:00", place="CSB Stadium",
