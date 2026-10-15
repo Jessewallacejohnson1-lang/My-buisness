@@ -13,8 +13,9 @@ Usage:
   python3 run.py --include-proposed   # also test proposed entries (never with --write)
   python3 run.py --write              # prod: needs SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY
 """
-import argparse, hashlib, html, json, os, re, sys, time
+import argparse, hashlib, html, json, os, re, sys, threading, time
 import urllib.request, urllib.error, urllib.parse
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
@@ -45,7 +46,10 @@ def to_text(raw):
 _robots = {}          # host -> robots rules, or None (None = no restrictions known)
 _crawl_delay = {}     # host -> seconds requested by robots.txt
 _last_hit = {}        # host -> monotonic time of the last request, for crawl-delay
+_unreadable = {}      # host -> why its robots.txt could not be read this run
+_host_lock = defaultdict(threading.Lock)  # one request at a time per host
 STAY_OUT = [(False, "/")]
+RETRY_WAIT = 5.0      # seconds before the one retry of a dropped connection
 
 
 def parse_robots(text, agent="blockpartybot"):
@@ -102,7 +106,7 @@ def _load_robots(base):
     """
     req = urllib.request.Request(base + "/robots.txt", headers={"User-Agent": UA})
     try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
+        with _open(req) as r:
             text = r.read(MAX_BYTES).decode("utf-8", "replace")
     except urllib.error.HTTPError as e:
         if 400 <= e.code < 500:
@@ -111,8 +115,10 @@ def _load_robots(base):
             # delay rather than zero: stjosephchamber.com serves robots.txt sometimes
             # and 403s it other times, and the 403s are what happen when we go too fast.
             return None, UNKNOWN_ROBOTS_DELAY
+        _unreadable[base] = f"HTTP {e.code}"
         return STAY_OUT, 0.0        # 5xx: server is unwell, do not crawl it
-    except Exception:
+    except Exception as e:
+        _unreadable[base] = str(e)[:120]
         return STAY_OUT, 0.0        # unreachable: unknown, so stay out
     delay = 0.0
     for line in text.splitlines():
@@ -151,19 +157,38 @@ def _respect_crawl_delay(url):
     _last_hit[host] = time.monotonic()
 
 
+def _open(req):
+    """urlopen, with one retry after a dropped connection. stjosephmn.gov resets some
+    connections outright (2026-10-15); an HTTP answer is never retried."""
+    try:
+        return urllib.request.urlopen(req, timeout=TIMEOUT)
+    except urllib.error.HTTPError:
+        raise
+    except (urllib.error.URLError, ConnectionError, TimeoutError):
+        time.sleep(RETRY_WAIT)
+        return urllib.request.urlopen(req, timeout=TIMEOUT)
+
+
 def fetch(url, data=None, headers=None):
-    """GET, or POST when `data` is given (511's GraphQL). Robots and Crawl-delay either way."""
-    if not robots_ok(url):
-        raise RuntimeError("robots.txt disallows -> switch method to search_snippet")
-    _respect_crawl_delay(url)
-    req = urllib.request.Request(url, data=data,
-                                 headers={"User-Agent": UA, "Accept": "text/html,*/*", **(headers or {})})
-    with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
-        body = r.read(MAX_BYTES + 1)
-        if len(body) > MAX_BYTES:
-            body = body[:MAX_BYTES]
-        charset = r.headers.get_content_charset() or "utf-8"
-        return r.status, body.decode(charset, errors="replace")
+    """GET, or POST when `data` is given (511's GraphQL). Robots and Crawl-delay either way,
+    and one request at a time to any one host: parallel requests made stjosephmn.gov drop
+    connections, which then read as a robots refusal."""
+    p = urlparse(url)
+    with _host_lock[p.netloc]:
+        if not robots_ok(url):
+            why = _unreadable.get(f"{p.scheme}://{p.netloc}")
+            if why:
+                raise RuntimeError(f"robots.txt could not be read ({why}); staying out this run, try again next run")
+            raise RuntimeError("robots.txt disallows -> switch method to search_snippet")
+        _respect_crawl_delay(url)
+        req = urllib.request.Request(url, data=data,
+                                     headers={"User-Agent": UA, "Accept": "text/html,*/*", **(headers or {})})
+        with _open(req) as r:
+            body = r.read(MAX_BYTES + 1)
+            if len(body) > MAX_BYTES:
+                body = body[:MAX_BYTES]
+            charset = r.headers.get_content_charset() or "utf-8"
+            return r.status, body.decode(charset, errors="replace")
 
 
 class Supabase:

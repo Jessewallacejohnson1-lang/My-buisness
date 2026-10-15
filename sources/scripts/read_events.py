@@ -458,6 +458,15 @@ def t_robots():
     assert allowed(longest, "/a/b/c") and not allowed(longest, "/a/x") and not allowed(longest, "/cal/x.ics")
     assert parse_robots("User-agent: BlockPartyBot\nDisallow: /a\n\nUser-agent: *\nDisallow: /\n") == [(False, "/a")]
     assert allowed(parse_robots("<!doctype html><html>a portal page</html>"), "/api/x"), "no rules: allowed"
+    import run
+    run._robots["https://down.example"], run._unreadable["https://down.example"] = run.STAY_OUT, "[Errno 104] reset"
+    run._robots["https://no.example"] = run.STAY_OUT
+    for url, said in (("https://down.example/x", "could not be read"), ("https://no.example/x", "disallows")):
+        try:
+            run.fetch(url)
+            raise AssertionError(f"{url} was fetched")
+        except RuntimeError as e:
+            assert said in str(e), (url, str(e))
 
 
 def t_ical():
