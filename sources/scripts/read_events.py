@@ -165,6 +165,8 @@ CAMPUS_HOSTS = {"Campus Events": "CSB/SJU Campus Events", "CSB Athletics": "CSB 
                 "SJU Athletics": "SJU Athletics", "Library": "CSB/SJU Libraries",
                 "St. Benedict's Monastery": "Saint Benedict's Monastery",
                 "School of Theology": "Saint John's School of Theology"}
+# A calendar whose events are at home gives only the street address; the card names the place.
+CAMPUS_HOMES = {"St. Benedict's Monastery": ("104 Chapel Lane", "Saint Benedict's Monastery")}
 CAMPUS_INTERESTS = {"CSB Athletics": "sports_leagues", "SJU Athletics": "sports_leagues",
                     "Library": "books", "St. Benedict's Monastery": "faith"}
 # Campus Events also lists what only students go to: career workshops and fairs (Jesse, 2026-10-14).
@@ -198,6 +200,9 @@ def pathify_items(rows, entry, src, today):
     for r in sorted(rows, key=lambda r: r["start_date"]):
         cal = (r.get("calendar") or {}).get("name") or ""
         title, place = r["title"].strip(), re.sub(r",\s*USA$", "", (r.get("location") or "").strip())
+        address, home_name = CAMPUS_HOMES.get(cal, (None, None))
+        if address and place.startswith(address):
+            place = home_name
         if "Athletics" in cal and ("group exercise" in place.lower() or "dance team" in title.lower()
                                    or not HOME_GAME.search(place)):
             continue  # a rec-center class, a halftime show or an away game
@@ -490,6 +495,10 @@ def t_pathify():
     assert (closed["kind"], closed["category"], closed["start"]) == ("news", "campus", "2026-11-25"), closed
     sale = next(i for i in got if "Craft Sale" in i["title"])
     assert (sale["town"], sale["interest"], sale["source_name"]) == ("St. Cloud", "faith", "Saint Benedict's Monastery")
+    home = pathify_items([{"id": 1, "title": "Rainbow Support Evening", "location": "104 Chapel Lane, Saint Joseph, MN, USA",
+                           "calendar": {"name": "St. Benedict's Monastery"}, "start_date": "2026-11-13T01:00:00Z",
+                           "all_day": False}], {"_name": "x"}, src, TODAY)[0]
+    assert (home["place"], home["town"]) == ("Saint Benedict's Monastery", "St. Joseph"), home
     assert next(i for i in got if "Fix-It" in i["title"])["interest"] == "books"
     assert got[0]["source_url"].startswith("https://my.csbsju.edu/public/events/") and got[0]["area"] == "campus"
     url = pathify_url(src["url"], TODAY)
@@ -576,11 +585,11 @@ def t_items_fit_the_writer():
                           {"_name": "Stearns County"}, {"token_page": "u"}, TODAY, TOWNS["st-joseph-mn"]))
     r = plan(items, [], TODAY, interest_ids())
     bad = [(i["title"], o) for i, o in zip(items, r["outcomes"]) if o[0] == "skipped"]
-    assert not bad and not r["notes"], (bad, r["notes"])
+    assert not bad and not [n for n in r["notes"] if "kept apart" not in n], (bad, r["notes"])
     rows = {g["row"]["title"]: g["row"] for g in r["events"]}
-    assert rows["Saint John's University Football vs Concordia (Homecoming)"]["location"] == "Collegeville, Minn., Clemens Stadium"
+    assert rows["SJU Football vs Concordia: Homecoming"]["location"] == "Clemens Stadium, Collegeville"
     assert rows["Fix-It Clinic"]["location"] == "Clemens Library", "St. Joseph needs no town on its place line"
-    assert rows["Christmas Craft Sale at Saint Scholastica Convent"]["location"].endswith("St. Cloud, MN")
+    assert rows["Christmas Craft Sale at Saint Scholastica Convent"]["location"] == "Saint Scholastica Convent, St. Cloud"
 
 
 TESTS = [t_robots, t_ical, t_pathify, t_roads, t_kennedy_calendar, t_kennedy_news, t_county, t_failure_in_summary,

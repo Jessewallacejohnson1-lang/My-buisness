@@ -15,12 +15,13 @@ never touches the database itself. The SQL needs the event_mentions table
 
 THE JUDGED ITEM: the contract the judge (ticket 05) produces, one JSON object per line.
   kind         "event" | "news"
-  title        short, the way a neighbour would say it
+  title        the event's own name, the way a neighbour would say it (.claude/skills/title-and-place)
   start        ISO 8601 with offset ("2026-10-24T16:00:00-05:00"), or a date ("2026-11-09")
                when all_day. Required for an event; optional for news (the day it is about).
   end          optional, the same form
   all_day      true | false (default false)
-  place        where, as the page says it ("Milk & Honey Ciders, 11738 County Road 51"); "" if not said
+  place        the venue's name ("Clemens Stadium"), an address only when nothing names the place,
+               "Online" for a webinar; "" if not said (.claude/skills/title-and-place)
   town         the town it happens in ("St. Joseph", "Collegeville", "St. Cloud")
   area         "town" (St. Joseph's ZIP codes) | "campus" (any CSB/SJU event, Collegeville and
                athletics included) | "game" (a high school game played within 20 miles of St.
@@ -43,6 +44,8 @@ THE JUDGED ITEM: the contract the judge (ticket 05) produces, one JSON object pe
   blurb        one line
 
 THE RULES
+  Wording: every title and place is tidied (tidy_title, tidy_place) to the title-and-place
+    skill's rules before anything else, so a card reads the same whichever source found it.
   Event or News: an Event becomes a found event in public.club_events; News goes to
     public.board_items, the town board's store, with a publish time.
   Trust: published (events `approved`, news `published`) on one sure official mention, or on
@@ -157,6 +160,78 @@ def town_key(name):
     return " ".join(w for w in t.split() if w not in ("mn", "minnesota"))
 
 
+# Title and place wording (.claude/skills/title-and-place). Every posting passes through here,
+# from the readers and the judge alike, so a card reads the same whoever found it.
+COLLEGES = ((re.compile(r"\bCollege of (?:Saint|St\.?) Benedict(?:'s)?\b"), "CSB"),
+            (re.compile(r"\b(?:Saint|St\.?) John'?s University\b"), "SJU"))
+# Both colleges at once are "CSB SJU": no slash, no "and" (Jesse, 2026-10-14).
+BOTH = re.compile(r"\bCSB\s*(?:/|\+|&|\band\b)\s*SJU\b", re.I)
+ONLINE = re.compile(r"\b(virtual|webinar|zoom)\b", re.I)
+STREET = re.compile(r"^\d|\b(avenue|ave|street|st|road|rd|drive|dr|lane|ln|plaza|boulevard|blvd|way|highway|hwy|"
+                    r"court|ct|parkway|pkwy)\.?(\s+(north|south|east|west|[nsew]|[ns][ew]|(north|south)(east|west)))?$", re.I)
+WEEKDAYS = r"(mon|tues|wednes|thurs|fri|satur|sun)days?"
+TITLE_MAX = 40
+
+
+def caps(text):
+    """ALL CAPS reads as shouting: a text written all in capitals gets ordinary capitals."""
+    if text.upper() != text or not re.search(r"[A-Z]{4}", text):
+        return text
+    return " ".join(w.capitalize() if len(w) >= 4 else w for w in text.split(" "))
+
+
+def tidy_title(title, host=""):
+    """The card's title, short and plain (the skill's rules); tidying it twice changes nothing."""
+    t = title.strip()
+    if len(t) > 2 and t[0] in '"“' and t[-1] in '"”' and not re.search(r'["“”]', t[1:-1]):
+        t = t[1:-1]
+    t = caps(t)
+    for college, short in COLLEGES:
+        t = college.sub(short, t)
+    t = BOTH.sub("CSB SJU", t)
+    if "CSB" in host and "SJU" in host:
+        t = re.sub(r"^CSB SJU\s+", "", t)  # the host line already names both colleges
+    t = re.sub(r"\bbenefiting\b", "for", t, flags=re.I)
+    t = re.sub(r"\s*\((?:\$|as needed\b|virtual\b|online\b)[^)]*\)", "", t, flags=re.I)  # price, a note
+    t = re.sub(r"\s*\([A-Z]{2,6}\)", "", t)                                       # "(FOC)"
+    t = re.sub(rf"\s*\([^)]*\b(?:through|until|{WEEKDAYS})\b[^)]*\)", "", t, flags=re.I)  # the schedule
+    t = re.sub(r"\s+\(([^()]+)\)$", r": \1", t)                                      # "(Homecoming)"
+    t = re.sub(r"\s*[•·\-–—]\s*(?:virtual|online)$", "", t, flags=re.I)
+    t = re.sub(r"^(?:19|20)\d\d\s+|\s+(?:19|20)\d\d$", "", t)                       # the card shows the date
+    t = re.sub(r"(?<!\d)\s+[-–—]\s+(?!\d)", ": ", t)
+    t = re.sub(r"\s*@\s*(?:The\b)?", lambda m: " at the" if "The" in m[0] else " at ", t)
+    t = re.sub(r"\s*[/+]\s*", " ", t)                                                # no slash in a title
+    t = re.sub(r"\s+:", ":", re.sub(r"\s{2,}", " ", t)).strip(" :,-–")
+    if len(t) > TITLE_MAX and ": " in t and len(t.split(": ", 1)[0]) >= 12:
+        t = t.split(": ", 1)[0]  # the name, not its subtitle
+    return t or title.strip()
+
+
+def tidy_place(place, home="St. Joseph MN"):
+    """The place line's venue: a named place before its street, no state or ZIP, and no town
+    inside the home town (place_line adds any other town)."""
+    p = ", ".join(caps(s.strip()) for s in (place or "").split(","))
+    for college, short in COLLEGES:
+        p = college.sub(short, p)
+    p = re.sub(r"\s+at the (CSB|SJU)\b", "", p)
+    p = re.sub(r"\s+-\s+", ", ", p)
+    games = re.fullmatch(r"([A-Z][\w.' ]*?),\s*Minn\.?(?:\s*[,/]\s*(.+))?", p)  # "St. Joseph, Minn., CSB Stadium"
+    if games:
+        p = f"{games[2]}, {games[1]}" if games[2] else games[1]
+    p = re.sub(r"[\s,]+(?:USA|United States)$", "", p)
+    p = re.sub(r"[\s,]+(?:MN|Minn\.?|Minnesota)(?:\s+\d{5}(?:-\d{4})?)?$", "", p)
+    p = re.sub(r"[\s,]+\d{5}(?:-\d{4})?$", "", p)
+    parts = [s.strip() for s in p.split(",") if s.strip()]
+    if parts and not parts[0][0].isdigit():
+        parts = parts[:1] + [s for s in parts[1:] if not STREET.search(s)]
+    name = re.sub(r"\s+MN$", "", home)
+    rest = re.sub(r"^(?:St\.?|Saint)\s+", "", name)
+    lead = r"(?:St\.?|Saint)\s+" if rest != name else ""
+    trailing = re.compile(r"[\s,]+" + lead + re.escape(rest) + "$", re.I)
+    p = ", ".join(parts)
+    return trailing.sub("", p) or p
+
+
 def place_line(place, town, home):
     loc = place.strip() if words(place, PLACE_STOP) else ""
     if town_key(town) != town_key(home) and town_key(town) not in town_key(loc):
@@ -171,11 +246,12 @@ def parse_clock(text):
     return m and time(int(m[1]) % 12 + (12 if m[3].upper() == "P" else 0), int(m[2] or 0))
 
 
-def listed_facts(row):
+def listed_facts(row, home="St. Joseph MN"):
     day = date.fromisoformat(str(row["event_date"])[:10])
     t = None if row.get("all_day") else parse_clock(row.get("start_time"))
     return {"day": day, "at": t and datetime.combine(day, t),
-            "place": words(row.get("location"), PLACE_STOP), "title": words(row["title"])}
+            "place": words(tidy_place(row.get("location"), home), PLACE_STOP),
+            "title": words(tidy_title(row["title"], row.get("source_name") or ""))}
 
 
 def show_from(day, size, signup_by):
@@ -247,20 +323,21 @@ def event_of(it, today, interests, home, notes):
     if interest is not None and interest not in interests:
         notes.append(f"interest {interest!r} is not on the list ({it['title']!r}): left empty")
         interest = None
-    title = it["title"].strip()
-    tw = words(title)
+    title, place = tidy_title(it["title"], it["source_name"]), tidy_place(it.get("place"), home)
+    online = ONLINE.search(it["title"]) or place.lower() in ("online", "virtual")
     # ponytail: a source with no ids of its own gets one from the start and title, so when its
     # page moves an event to another day the moved one is added and the old one stays. Fix
     # by reading a whole page's events as a set when sources like that start moving dates.
+    # The id comes from the title as the source wrote it, so rewording never orphans a row.
     uid = str(it.get("source_uid") or "").strip() or \
-        f"page:{day}{at.strftime('T%H%M') if at else ''}:{'-'.join(sorted(tw))}"
+        f"page:{day}{at.strftime('T%H%M') if at else ''}:{'-'.join(sorted(words(it['title'])))}"
     row = {"status": None, "title": title, "event_date": day.isoformat(),
            "start_time": at and clock(at), "end_at": end and end.isoformat(), "all_day": at is None,
-           "location": place_line(it.get("place") or "", it.get("town") or home, home),
+           "location": "Online" if online else place_line(place, it.get("town") or home, home),
            "description": (it.get("blurb") or "").strip()[:1000] or None,
            "source_name": it["source_name"].strip(), "source_url": it["source_url"].strip(),
            "source_uid": uid, "category": interest, "shows_from": show_from(day, size, signup).isoformat()}
-    facts = {"day": day, "at": at, "place": words(it.get("place"), PLACE_STOP), "title": tw}
+    facts = {"day": day, "at": at, "place": words(place, PLACE_STOP), "title": words(title)}
     return {"row": row, "facts": facts}, None
 
 
@@ -270,7 +347,7 @@ def news_of(it):
         day, at = when(start, it.get("all_day")) if start else (None, None)
     except ValueError as e:
         return None, f"invalid: unreadable date ({e})"
-    return {"title": it["title"].strip(), "blurb": (it.get("blurb") or "").strip() or None,
+    return {"title": tidy_title(it["title"], it["source_name"]), "blurb": (it.get("blurb") or "").strip() or None,
             "category": it.get("category") if it.get("category") in NEWS_CATEGORIES else "announcement",
             "source_name": it["source_name"].strip(), "source_url": it["source_url"].strip(),
             # The board's tiers as the old curator wrote them: 1 the City, 1.5 Newsleaders.
@@ -291,8 +368,8 @@ def trusted(mentions):
     return False, "secondhand, one mention" if sure else "unsure"
 
 
-def group(old=None, facts=None):
-    return {"id": old and old["id"], "old": old, "facts": facts or listed_facts(old), "items": [],
+def group(old=None, facts=None, home="St. Joseph MN"):
+    return {"id": old and old["id"], "old": old, "facts": facts or listed_facts(old, home), "items": [],
             "row": None, "mentions": [dict(m) for m in (old or {}).get("mentions") or []]}
 
 
@@ -300,7 +377,7 @@ def plan(items, existing, today, interests, town=TOWNS["st-joseph-mn"]):
     """Judged items + the events already listed -> what to write, and each item's outcome."""
     home = town["label"]
     out = {"events": [], "news": [], "outcomes": [None] * len(items), "notes": []}
-    groups, by_uid, news = [group(row) for row in existing], {}, {}
+    groups, by_uid, news = [group(row, home=home) for row in existing], {}, {}
     for g in groups:
         for m in [g["old"]] + g["mentions"]:
             if m.get("source_uid"):
@@ -714,7 +791,67 @@ def t_interest_list_is_the_apps():
     assert {"live_music", "families_kids", "trails_hiking", "volunteering"} <= set(ids), ids
 
 
-TESTS = [t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_secondhand_needs_two, t_unsure_held, t_merge_true_pair,
+WORDING = [  # (title, host, place) as read on 2026-10-14 -> (title, place) on the card
+    ("College of Saint Benedict Soccer vs Hamline - Senior Night", "CSB Athletics", "St. Joseph, Minn., CSB Stadium",
+     "CSB Soccer vs Hamline: Senior Night", "CSB Stadium"),
+    ("Saint John's University Football vs Concordia (Homecoming)", "SJU Athletics", "Collegeville, Minn., Clemens Stadium",
+     "SJU Football vs Concordia: Homecoming", "Clemens Stadium, Collegeville"),
+    ("Saint John's University Rugby vs North Dakota State - SJU Red", "SJU Athletics", "Collegeville, Minn. / Radio Towers",
+     "SJU Rugby vs North Dakota State: SJU Red", "Radio Towers, Collegeville"),
+    ("Saint John's University Basketball vs St. Cloud State (Exhibition)", "SJU Athletics", "Collegeville, Minn., Sexton Arena",
+     "SJU Basketball vs St. Cloud State", "Sexton Arena, Collegeville"),
+    ("CSB+SJU Jazz Ensemble", "CSB/SJU", "Colman Theatre, Benedicta Arts Center",
+     "Jazz Ensemble", "Colman Theatre, Benedicta Arts Center"),
+    ("CSB/SJU Jazz Ensemble", "City of St. Joseph", "", "CSB SJU Jazz Ensemble", ""),
+    ("CSB and SJU Choir", "City of St. Joseph", "", "CSB SJU Choir", ""),
+    ("Homecoming 2026", "CSB/SJU Campus Events", "", "Homecoming", ""),
+    ("2026 Clemens Lecture", "CSB/SJU Campus Events", "Benedicta Arts Center, College Avenue South, Saint Joseph, MN",
+     "Clemens Lecture", "Benedicta Arts Center"),
+    ("Plant Bingo benefiting Angel Reins Stable ($30)", "Milk & Honey Ciders", "Milk & Honey Ciders, 11738 County Road 51",
+     "Plant Bingo for Angel Reins Stable", "Milk & Honey Ciders"),
+    ("Joint Planning Board (as needed)", "City of St. Joseph", "75 Callaway Street East St. Joseph MN 56374",
+     "Joint Planning Board", "75 Callaway Street East"),
+    ("Festival of Cultures (FOC)", "CSB/SJU Campus Events", "", "Festival of Cultures", ""),
+    ("Farmers' Market final day (Fridays through Oct 16)", "St. Joseph Farmers' Market", "", "Farmers' Market final day", ""),
+    ("“The Ladder of Divine Graces”", "Saint Benedict's Monastery", "", "The Ladder of Divine Graces", ""),
+    ("Advent Sacred Pause • Virtual", "Saint Benedict's Monastery", "", "Advent Sacred Pause", ""),
+    ("Popcorn Fridays @ The Learning Commons", "CSB/SJU Libraries", "Learning Commons", "Popcorn Fridays at the Learning Commons",
+     "Learning Commons"),
+    ("Biology/Biochemistry Exploration Fair", "CSB/SJU Campus Events", "", "Biology Biochemistry Exploration Fair", ""),
+    ("What it Means to Be a Two-Spirit Influencer: A Story of Social Media and Community", "CSB/SJU Campus Events",
+     "Gorecki Center at the College of Saint Benedict, College Avenue South, Saint Joseph, MN",
+     "What it Means to Be a Two-Spirit Influencer", "Gorecki Center"),
+    ("CSB Figure Skating Club Performance", "CSB/SJU Campus Events", "MUNICIPAL ATHLETIC COMPLEX, Veterans Drive, St. Cloud, MN",
+     "CSB Figure Skating Club Performance", "Municipal Athletic Complex, St. Cloud"),
+    ("Free Art Prints from The Saint John's Bible", "CSB/SJU Campus Events", "Liturgical Press, Saint John's Road, Collegeville, MN, USA",
+     "Free Art Prints from The Saint John's Bible", "Liturgical Press, Collegeville"),
+    ("Park Commission Meeting", "Stearns County", "29709 Kipper Road, St Joseph", "Park Commission Meeting", "29709 Kipper Road"),
+    ("Fare for All", "City of St. Joseph", "610 County Rd 2 St. Joseph MN 56374", "Fare for All", "610 County Rd 2"),
+    ("The Nolan Lecture", "Saint John's School of Theology", "Saint John's University, Abbey Plaza, Collegeville, MN",
+     "The Nolan Lecture", "SJU, Collegeville"),
+]
+
+
+def t_wording():
+    for title, host, place, want_title, want_place in WORDING:
+        got = (tidy_title(title, host), tidy_place(place))
+        assert got == (want_title, want_place), (title, got)
+        assert (tidy_title(got[0], host), tidy_place(got[1])) == got, f"tidying twice changes {title!r}"
+        assert "/" not in got[0], got
+    r = run([item(title="Advent Sacred Pause • Virtual", place="104 Chapel Lane, Saint Joseph, MN"),
+             item(title="College of Saint Benedict Soccer vs Hamline", place="St. Joseph, Minn., CSB Stadium",
+                  start="2026-10-25T16:00:00-05:00", source_name="CSB Athletics")])
+    assert [(g["row"]["title"], g["row"]["location"]) for g in r["events"]] == [
+        ("Advent Sacred Pause", "Online"), ("CSB Soccer vs Hamline", "CSB Stadium")], r["events"]
+    assert r["events"][0]["row"]["source_uid"].endswith(":advent-pause-sacred-virtual"), "the id keeps the source's words"
+    reworded = listed(title="College of Saint Benedict Soccer vs Hamline", event_date="2026-10-25", start_time="4 PM",
+                      location="St. Joseph, Minn., CSB Stadium", source_name="CSB/SJU", source_uid="board:x")
+    assert run([item(title="CSB Soccer vs Hamline", start="2026-10-25T16:00:00-05:00", place="CSB Stadium",
+                     source_name="CSB Athletics", source_uid="9")], [reworded])["events"][0]["id"] == reworded["id"], \
+        "a reworded copy still merges with the source's own words"
+
+
+TESTS = [t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_secondhand_needs_two, t_unsure_held, t_merge_true_pair,
          t_merge_near_miss_kept_apart, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_show_from_by_size,
          t_interest_checked, t_area, t_past_and_invalid_skipped, t_sql_is_one_safe_transaction]
 
