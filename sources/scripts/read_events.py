@@ -161,8 +161,8 @@ def read_ical(src, entry, today):
 # CSB/SJU: Pathify ------------------------------------------------------------------------
 
 # Each campus calendar names who is hosting, because the card shows it as the host.
-CAMPUS_HOSTS = {"Campus Events": "CSB/SJU Campus Events", "CSB Athletics": "CSB Athletics",
-                "SJU Athletics": "SJU Athletics", "Library": "CSB/SJU Libraries",
+CAMPUS_HOSTS = {"Campus Events": "CSB SJU Campus Events", "CSB Athletics": "CSB Athletics",
+                "SJU Athletics": "SJU Athletics", "Library": "CSB SJU Libraries",
                 "St. Benedict's Monastery": "Saint Benedict's Monastery",
                 "School of Theology": "Saint John's School of Theology"}
 # A calendar whose events are at home gives only the street address; the card names the place.
@@ -223,7 +223,7 @@ def pathify_items(rows, entry, src, today):
         out.append(judged(entry, src, kind="news" if news else "event", category="campus" if news else None,
                           title=title, start=start, end=end, all_day=bool(r.get("all_day")),
                           place=place, town=campus_town(place), area="campus",
-                          source_name=CAMPUS_HOSTS.get(cal, f"CSB/SJU {cal}"), interest=CAMPUS_INTERESTS.get(cal),
+                          source_name=CAMPUS_HOSTS.get(cal, f"CSB SJU {cal}"), interest=CAMPUS_INTERESTS.get(cal),
                           source_url=f"{site.scheme}://{site.netloc}/public/events/{r['id']}",
                           source_uid=str(r["id"])))
     return out
@@ -480,7 +480,7 @@ def t_ical():
 
 def t_pathify():
     src = {"url": "https://my.csbsju.edu/api/v2/events/unauthenticated/?calendar=2,165,166,193,212,224"}
-    got = pathify_items(json.loads(sample("csbsju-events.json")), {"_name": "CSB/SJU events"}, src, TODAY)
+    got = pathify_items(json.loads(sample("csbsju-events.json")), {"_name": "CSB SJU events"}, src, TODAY)
     titles = [i["title"] for i in got]
     assert len(got) == 10 and titles.count("Free Art Prints from The Saint John's Bible") == 1, titles
     assert not any(w in t for t in titles for w in ("Barre", "Oja", "Dance Team", "Admission", "Exploration Fair")), \

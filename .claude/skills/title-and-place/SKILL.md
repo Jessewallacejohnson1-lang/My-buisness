@@ -23,6 +23,7 @@ skill covers the calls the code can't make.
   boys): the merge rule tells games apart by them.
 - **The colleges are CSB and SJU.** Both together are "CSB SJU", written with a space only
   (Jesse, 2026-10-14). When the host line already names both, leave them out of the title.
+  Host names follow the same rule: "CSB SJU Campus Events".
 - **Plain characters.** Words joined by spaces or a colon; the title stays free of slashes.
 - **One fact per spot.** The date, time, host, place, year and price live in their own spots
   (a price goes in the blurb), so the title holds the name alone.
@@ -46,7 +47,7 @@ skill covers the calls the code can't make.
 |---|---|
 | College of Saint Benedict Soccer vs Hamline - Senior Night · St. Joseph, Minn., CSB Stadium | CSB Soccer vs Hamline: Senior Night · CSB Stadium |
 | Saint John's University Football vs Concordia (Homecoming) · Collegeville, Minn., Clemens Stadium | SJU Football vs Concordia: Homecoming · Clemens Stadium, Collegeville |
-| CSB+SJU Jazz Ensemble (host CSB/SJU) | Jazz Ensemble |
+| CSB+SJU Jazz Ensemble (host CSB SJU) | Jazz Ensemble |
 | Homecoming 2026 | Homecoming |
 | Plant Bingo benefiting Angel Reins Stable ($30) | Plant Bingo for Angel Reins Stable |
 | Koch Chair in Catholic Thought and Teaching Presents the Reverend Daniel G. Groody | Rev. Daniel Groody: Koch Chair Lecture |

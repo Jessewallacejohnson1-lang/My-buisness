@@ -581,7 +581,7 @@ def item(**kw):
 def listed(**kw):
     base = {"id": "11111111-1111-1111-1111-111111111111", "status": "approved", "title": "Banff Mountain Film Festival",
             "event_date": "2026-12-04", "start_time": "7 PM", "all_day": False, "location": "Saint John's University",
-            "source_name": "CSB/SJU Outdoor U", "source_uid": "board:f2c7", "shows_from": "2026-11-06",
+            "source_name": "CSB SJU Outdoor U", "source_uid": "board:f2c7", "shows_from": "2026-11-06",
             "review_reason": None, "found": True}
     base.update(kw)
     return base
@@ -802,32 +802,32 @@ WORDING = [  # (title, host, place) as read on 2026-10-14 -> (title, place) on t
      "SJU Rugby vs North Dakota State: SJU Red", "Radio Towers, Collegeville"),
     ("Saint John's University Basketball vs St. Cloud State (Exhibition)", "SJU Athletics", "Collegeville, Minn., Sexton Arena",
      "SJU Basketball vs St. Cloud State", "Sexton Arena, Collegeville"),
-    ("CSB+SJU Jazz Ensemble", "CSB/SJU", "Colman Theatre, Benedicta Arts Center",
+    ("CSB+SJU Jazz Ensemble", "CSB SJU", "Colman Theatre, Benedicta Arts Center",
      "Jazz Ensemble", "Colman Theatre, Benedicta Arts Center"),
     ("CSB/SJU Jazz Ensemble", "City of St. Joseph", "", "CSB SJU Jazz Ensemble", ""),
     ("CSB and SJU Choir", "City of St. Joseph", "", "CSB SJU Choir", ""),
-    ("Homecoming 2026", "CSB/SJU Campus Events", "", "Homecoming", ""),
-    ("2026 Clemens Lecture", "CSB/SJU Campus Events", "Benedicta Arts Center, College Avenue South, Saint Joseph, MN",
+    ("Homecoming 2026", "CSB SJU Campus Events", "", "Homecoming", ""),
+    ("2026 Clemens Lecture", "CSB SJU Campus Events", "Benedicta Arts Center, College Avenue South, Saint Joseph, MN",
      "Clemens Lecture", "Benedicta Arts Center"),
     ("Plant Bingo benefiting Angel Reins Stable ($30)", "Milk & Honey Ciders", "Milk & Honey Ciders, 11738 County Road 51",
      "Plant Bingo for Angel Reins Stable", "Milk & Honey Ciders"),
     ("Joint Planning Board (as needed)", "City of St. Joseph", "75 Callaway Street East St. Joseph MN 56374",
      "Joint Planning Board", "75 Callaway Street East"),
-    ("Festival of Cultures (FOC)", "CSB/SJU Campus Events", "", "Festival of Cultures", ""),
+    ("Festival of Cultures (FOC)", "CSB SJU Campus Events", "", "Festival of Cultures", ""),
     ("No School - Teacher Workshop (Half Day - Morning)", "Kennedy Community School", "",
      "No School: Teacher Workshop, Half Day, Morning", ""),
     ("Farmers' Market final day (Fridays through Oct 16)", "St. Joseph Farmers' Market", "", "Farmers' Market final day", ""),
     ("“The Ladder of Divine Graces”", "Saint Benedict's Monastery", "", "The Ladder of Divine Graces", ""),
     ("Advent Sacred Pause • Virtual", "Saint Benedict's Monastery", "", "Advent Sacred Pause", ""),
-    ("Popcorn Fridays @ The Learning Commons", "CSB/SJU Libraries", "Learning Commons", "Popcorn Fridays at the Learning Commons",
+    ("Popcorn Fridays @ The Learning Commons", "CSB SJU Libraries", "Learning Commons", "Popcorn Fridays at the Learning Commons",
      "Learning Commons"),
-    ("Biology/Biochemistry Exploration Fair", "CSB/SJU Campus Events", "", "Biology Biochemistry Exploration Fair", ""),
-    ("What it Means to Be a Two-Spirit Influencer: A Story of Social Media and Community", "CSB/SJU Campus Events",
+    ("Biology/Biochemistry Exploration Fair", "CSB SJU Campus Events", "", "Biology Biochemistry Exploration Fair", ""),
+    ("What it Means to Be a Two-Spirit Influencer: A Story of Social Media and Community", "CSB SJU Campus Events",
      "Gorecki Center at the College of Saint Benedict, College Avenue South, Saint Joseph, MN",
      "What it Means to Be a Two-Spirit Influencer", "Gorecki Center"),
-    ("CSB Figure Skating Club Performance", "CSB/SJU Campus Events", "MUNICIPAL ATHLETIC COMPLEX, Veterans Drive, St. Cloud, MN",
+    ("CSB Figure Skating Club Performance", "CSB SJU Campus Events", "MUNICIPAL ATHLETIC COMPLEX, Veterans Drive, St. Cloud, MN",
      "CSB Figure Skating Club Performance", "Municipal Athletic Complex, St. Cloud"),
-    ("Free Art Prints from The Saint John's Bible", "CSB/SJU Campus Events", "Liturgical Press, Saint John's Road, Collegeville, MN, USA",
+    ("Free Art Prints from The Saint John's Bible", "CSB SJU Campus Events", "Liturgical Press, Saint John's Road, Collegeville, MN, USA",
      "Free Art Prints from The Saint John's Bible", "Liturgical Press, Collegeville"),
     ("Park Commission Meeting", "Stearns County", "29709 Kipper Road, St Joseph", "Park Commission Meeting", "29709 Kipper Road"),
     ("Fare for All", "City of St. Joseph", "610 County Rd 2 St. Joseph MN 56374", "Fare for All", "610 County Rd 2"),
@@ -851,7 +851,7 @@ def t_wording():
     news = run([item(kind="news", title="Farmers' Market — National Farmers Market Week, every stall open", start=None)])
     assert news["news"][0]["title"] == "Farmers' Market: National Farmers Market Week, every stall open", news["news"]
     reworded = listed(title="College of Saint Benedict Soccer vs Hamline", event_date="2026-10-25", start_time="4 PM",
-                      location="St. Joseph, Minn., CSB Stadium", source_name="CSB/SJU", source_uid="board:x")
+                      location="St. Joseph, Minn., CSB Stadium", source_name="CSB SJU", source_uid="board:x")
     assert run([item(title="CSB Soccer vs Hamline", start="2026-10-25T16:00:00-05:00", place="CSB Stadium",
                      source_name="CSB Athletics", source_uid="9")], [reworded])["events"][0]["id"] == reworded["id"], \
         "a reworded copy still merges with the source's own words"

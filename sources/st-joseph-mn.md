@@ -250,7 +250,7 @@ exists and is empty; it is deliberately not listed.
 Always append "MN" to any web search about this source or the results are St. Joseph,
 Missouri (ADR-006).
 
-## CSB/SJU events
+## CSB SJU events
 ```yaml
 id: csbsju-events
 status: active
