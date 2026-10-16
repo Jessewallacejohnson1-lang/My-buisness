@@ -14,7 +14,7 @@ const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
 // hearts (real-life actions, ticket 03), saves and own-row reads (ticket 19), with the
 // counting helpers it reads.
 const files = readdirSync(migrations)
-  .filter((f) => /_(town_feed(_[a-z]+)?|action_counts)\.sql$/.test(f)).sort();
+  .filter((f) => /_(town_feed(_[a-z]+)*|action_counts)\.sql$/.test(f)).sort();
 // (Views, ticket 20: the table, its summary and the clean-up load with town_feed_views; the
 // pg_cron jobs in feed_jobs don't, since PGlite has no pg_cron.)
 const playground = JSON.parse(readFileSync(join(here, 'town_feed_playground.json'), 'utf8'));
@@ -117,7 +117,8 @@ async function signIn(id, interests = []) {
 // Rows at a Town time ("2026-10-08 12:00"), Central time either side of DST.
 async function feed(at) {
   const { rows } = await db.query(
-    `select title, event_date::text as day, recurrence, rsvpd, leaves_at, reason, reason_name, score
+    `select title, event_date::text as day, recurrence, rsvpd, leaves_at, reason, reason_name, score,
+            cancelled
      from public.get_town_feed(($1::timestamp at time zone 'America/Chicago'))`, [at]);
   return rows;
 }
@@ -286,7 +287,7 @@ test('a called-off event leaves the feed unless someone Hearted it, and then is 
   await reset();
   await add('Bake sale', '2026-10-09', { start_time: '11 AM' });
   // Today, a picked interest and new: it would lead the feed if it were on.
-  const off = await add('Cancelled: Sartell Volleyball vs ROCORI', '2026-10-08',
+  const off = await add('Sartell Volleyball vs ROCORI', '2026-10-08',
                         { start_time: '7 PM', source_name: 'ROCORI High School', category: 'sports_leagues',
                           created_at: '2026-10-07 12:00-05' });
   await db.query(`update public.club_events set cancelled_at = now() where id = $1`, [off]);
@@ -296,13 +297,15 @@ test('a called-off event leaves the feed unless someone Hearted it, and then is 
   await db.query(`insert into public.event_likes (event_id, user_id) values ($1, $2)`,
                  [off, '00000000-0000-0000-0000-0000000000c4']);
   await signIn(ME, ['sports_leagues']);
-  assert.deepEqual((await feed('2026-10-08 12:00')).map((r) => [r.title, r.reason]),
-                   [['Bake sale', 'tomorrow'], ['Cancelled: Sartell Volleyball vs ROCORI', 'today']]);
+  // It says it's called off, so the card shows the Canceled tag (ticket 12).
+  assert.deepEqual((await feed('2026-10-08 12:00')).map((r) => [r.title, r.reason, r.cancelled]),
+                   [['Bake sale', 'tomorrow', false], ['Sartell Volleyball vs ROCORI', 'today', true]]);
   // Back on its schedule, it is an event like any other again.
   await db.exec('reset role');
-  await db.query(`update public.club_events set cancelled_at = null, title = 'Sartell Volleyball vs ROCORI' where id = $1`, [off]);
+  await db.query(`update public.club_events set cancelled_at = null where id = $1`, [off]);
   await signIn(ME, ['sports_leagues']);
-  assert.equal((await feed('2026-10-08 12:00'))[0].title, 'Sartell Volleyball vs ROCORI');
+  const [first] = await feed('2026-10-08 12:00');
+  assert.deepEqual([first.title, first.cancelled], ['Sartell Volleyball vs ROCORI', false]);
 });
 
 // ---- The recipe (ticket 18): each neighbour's own order, by the playground's weights ----

@@ -13,7 +13,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
 // The function, then its re-creation with counts from the private helpers (town-feed ticket 19).
 const files = readdirSync(migrations)
-  .filter((f) => /_(my_going(_[a-z]+)?|my_saves|action_counts)\.sql$/.test(f)).sort();
+  .filter((f) => /_(my_going(_[a-z]+)*|my_saves|action_counts)\.sql$/.test(f)).sort();
 
 const db = await PGlite.create();
 await db.exec(`
@@ -30,7 +30,8 @@ await db.exec(`
     status text not null default 'approved', title text not null, event_date date,
     start_time text, created_at timestamptz not null default now(), location text,
     image_url text, kind text not null default 'event', category text,
-    end_at timestamptz, all_day boolean not null default false, source_name text);
+    end_at timestamptz, all_day boolean not null default false, source_name text,
+    cancelled_at timestamptz);
   create table public.event_rsvps (
     id uuid primary key default gen_random_uuid(), event_id uuid not null,
     user_id uuid not null, created_at timestamptz not null default now());
@@ -84,7 +85,7 @@ async function going(user, eventId) {
 async function mine(from, to, as = ME) {
   await db.exec(`set role authenticated; set request.jwt.claim.sub = '${as}'`);
   const { rows } = await db.query(
-    `select title, event_date::text as day, club_name, going_count
+    `select title, event_date::text as day, club_name, going_count, cancelled
      from public.get_my_going($1::date, $2::date)`, [from, to]);
   await db.exec('reset role');
   return rows;
@@ -149,6 +150,17 @@ test('signed out reads nothing', async () => {
   assert.equal(rows.length, 0);
 });
 
+test('a called-off Event still comes back, saying so: the app tells the people Going', async () => {
+  await reset();
+  const game = await add('Sartell Volleyball vs ROCORI', '2026-10-20');
+  await going(ME, game);
+  await going(ME, await add('Trivia night', '2026-10-21'));
+  await db.query('update public.club_events set cancelled_at = now() where id = $1', [game]);
+  const rows = await mine('2026-10-11', '2026-10-31');
+  assert.deepEqual(rows.map((r) => [r.title, r.cancelled]),
+                   [['Sartell Volleyball vs ROCORI', true], ['Trivia night', false]]);
+});
+
 // get_my_saves: Profile's Saved list (BP app docs/plans/you-tab, ticket 04).
 
 async function save(user, eventId) {
@@ -158,7 +170,7 @@ async function save(user, eventId) {
 async function saved(from, as = ME) {
   await db.exec(`set role authenticated; set request.jwt.claim.sub = '${as}'`);
   const { rows } = await db.query(
-    `select title, event_date::text as day, going, going_count from public.get_my_saves($1::date)`, [from]);
+    `select title, event_date::text as day, going, going_count, cancelled from public.get_my_saves($1::date)`, [from]);
   await db.exec('reset role');
   return rows;
 }
@@ -201,6 +213,17 @@ test('saves: says whether the caller is Going', async () => {
   await going(NEIGHBOUR, trivia);
   const rows = await saved('2026-10-12');
   assert.deepEqual(rows.map((r) => [r.title, r.going]), [['Trivia night', false], ['Fall market', true]]);
+});
+
+test('saves: says whether the Event is called off', async () => {
+  await reset();
+  const game = await add('Sartell Volleyball vs ROCORI', '2026-10-20');
+  await save(ME, game);
+  await save(ME, await add('Trivia night', '2026-10-21'));
+  await db.query('update public.club_events set cancelled_at = now() where id = $1', [game]);
+  const rows = await saved('2026-10-12');
+  assert.deepEqual(rows.map((r) => [r.title, r.cancelled]),
+                   [['Sartell Volleyball vs ROCORI', true], ['Trivia night', false]]);
 });
 
 test('saves: ordered by day, then title', async () => {

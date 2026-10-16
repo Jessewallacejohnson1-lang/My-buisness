@@ -7,7 +7,7 @@ and the spec's Area rule, which amends ADR-019 and ADR-021's in-town rule).
 The part of the morning job that needs no model: saved pages in, Events and News out, and
 this is everything after the judge. Dry-run by default (ADR-009): prints what each item
 becomes. How the writes land lives in the database, in public.apply_judged
-(supabase/migrations/20261015200100_apply_judged_cancelled.sql): `--apply` calls it with this
+(supabase/migrations/20261016090200_apply_judged_title_kept.sql): `--apply` calls it with this
 morning's writes over the service role key (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in
 the environment), `--sql FILE` writes the same call as SQL to run by hand.
 
@@ -79,8 +79,9 @@ THE RULES
     keeps a day already set unless the date moved.
   Interest: checked against Interests.all; one not on the list is dropped and named.
   Cancelled (Jesse, 2026-10-15): an event its schedule dropped (THE SCHEDULE LINE) is kept and
-    marked cancelled, never deleted; its title starts "Cancelled: " until the app shows a tag, and
-    the Town feed leaves it out unless someone Hearted it. Back on the schedule, it is restored.
+    marked cancelled, never deleted; its title stays as written (the app shows a Canceled tag,
+    ticket 12), and the Town feed leaves it out unless someone Hearted it. Back on the schedule,
+    it is restored.
   Area: town, campus, game and announced are kept; outside is skipped, and so is "town" when the item's
     own town or ZIP says otherwise. Outside St. Joseph, the place line carries its town
     ("Saint John's Abbey Arboretum, Collegeville"). Past events and unreadable items are
@@ -115,7 +116,7 @@ PLACE_STOP = STOP | set("st saint joseph collegeville mn minnesota united states
                         "ave avenue east west north south suite park shelter hall center centre building "
                         "room gym lot parking map theater theatre high middle intermediate elementary school".split())
 INTERESTS_SWIFT = Path(__file__).resolve().parents[2] / "BlockParty" / "Backend" / "Interests.swift"
-WRITES = Path(__file__).resolve().parents[2] / "supabase" / "migrations" / "20261015200100_apply_judged_cancelled.sql"
+WRITES = Path(__file__).resolve().parents[2] / "supabase" / "migrations" / "20261016090200_apply_judged_title_kept.sql"
 
 
 def interest_ids(swift=INTERESTS_SWIFT):
@@ -745,7 +746,8 @@ def t_cancelled():
     assert r["events"][0]["id"] == merged["id"] and r["restored"] == [merged], "the cancelled title doesn't stop the merge"
     db = WRITES.read_text()
     assert "cancelled_at = null,\n    shows_from" in db, "a re-read by its own source restores it"
-    assert "set cancelled_at = now(), title = 'Cancelled: ' || e.title" in db and "regexp_replace(e.title, '^Cancelled: ', '')" in db
+    assert "set cancelled_at = now()\n" in db and "set cancelled_at = null\n" in db, "only the mark changes"
+    assert "'Cancelled: ' ||" not in db, "the title stays as written: the app shows the tag (ticket 12)"
     assert not re.search(r"\bdelete\s+from\b", db, re.I), "never deleted"
 
 

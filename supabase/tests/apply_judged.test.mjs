@@ -1,6 +1,7 @@
 // Stories for the morning writer's database half (supabase/migrations/*_apply_judged*.sql), run
 // in PGlite: a found event its schedule dropped is marked cancelled, never deleted, and comes
-// back when its source lists it again (BP app docs/plans/watch-every-place, ticket 11). Run:
+// back when its source lists it again (BP app docs/plans/watch-every-place, ticket 11); its
+// title stays as written, since the app shows the Canceled tag (ticket 12). Run:
 // `npm install && npm test` in this folder. The tables are the subset the functions write.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -27,6 +28,15 @@ test('a dropped game is marked cancelled once, and restored by a re-read or anot
   await db.exec(migration('20261015120000_apply_judged.sql'));
   await db.exec('alter table public.club_events add column if not exists cancelled_at timestamptz;');
   await db.exec(migration('20261015200100_apply_judged_cancelled.sql'));
+  // Titles marked before ticket 12 lose "Cancelled: "; a title someone wrote that way stays.
+  await db.exec(`insert into public.club_events (title, cancelled_at, source_name, source_uid) values
+    ('Cancelled: Apollo Football vs Tech', now(), 'Apollo High School', 'x1');
+    insert into public.club_events (title, cancelled_at, submitted_by) values
+    ('Cancelled: the knitting circle''s own wording', now(), gen_random_uuid());`);
+  await db.exec(migration('20261016090200_apply_judged_title_kept.sql'));
+  assert.deepEqual((await db.query('select title from public.club_events order by title')).rows.map((r) => r.title),
+                   ['Apollo Football vs Tech', "Cancelled: the knitting circle's own wording"]);
+  await db.exec('delete from public.club_events');
 
   const game = (day) => [{ status: 'approved', title: 'Sartell Volleyball vs ROCORI', event_date: day,
     start_time: '7 PM', end_at: null, all_day: false, location: 'ROCORI High School, Cold Spring',
@@ -42,7 +52,7 @@ test('a dropped game is marked cancelled once, and restored by a re-read or anot
   assert.equal((await apply(game('2026-10-20'), [], [], [])).events, 1);
   const { rows: [{ id }] } = await db.query('select id from public.club_events');
   assert.equal((await apply([], [], [], [], [id], [])).cancelled, 1);
-  assert.deepEqual(await row(), [{ title: 'Cancelled: Sartell Volleyball vs ROCORI', day: '2026-10-20', off: true }]);
+  assert.deepEqual(await row(), [{ title: 'Sartell Volleyball vs ROCORI', day: '2026-10-20', off: true }]);
   assert.equal((await apply([], [], [], [], [id], [])).cancelled, 0, 'marked once');
   // Its own source lists it again, a day later: the re-read restores and moves it.
   await apply(game('2026-10-21'), [], [], [], [], []);
