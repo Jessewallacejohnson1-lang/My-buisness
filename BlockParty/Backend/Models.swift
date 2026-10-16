@@ -92,6 +92,9 @@ nonisolated struct UpcomingEvent: Identifiable, Hashable {
     var isAllDay: Bool = false
     /// Who announced a found event (ADR-021), shown where a club's name would be.
     var sourceName: String? = nil
+    /// Called off: its source's schedule dropped it (`club_events.cancelled_at`, BP app
+    /// docs/plans/watch-every-place, ticket 12). Rows from before the reads said so are on.
+    var cancelled: Bool = false
 }
 
 /// One row of `get_town_feed` (`supabase/migrations/*_town_feed*.sql`): an event, how its

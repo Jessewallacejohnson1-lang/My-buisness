@@ -182,6 +182,8 @@ struct FeedEventDetailDestination: View {
                     GeometryReader { proxy in
                         heroPhotos
                             .frame(width: proxy.size.width, height: proxy.size.height + Metric.heroUnderlap)
+                            // Called off: grey, as on its card (Jesse, 2026-10-15).
+                            .grayscale(item.cancelled ? 1 : 0)
                     }
                 }
                 .visualEffect { content, proxy in
@@ -189,7 +191,19 @@ struct FeedEventDetailDestination: View {
                     return content.scaleEffect(1 + pull / max(proxy.size.height, 1), anchor: .bottom)
                 }
                 // After the stretch, so they stay put at the hero's bottom corners, unscaled.
-                .overlay(alignment: .bottomLeading) { credit }
+                .overlay(alignment: .bottomLeading) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        // Called off (ticket 12): the card's tag, its bottom level with the
+                        // counter's, or just above the credit when there is one.
+                        if item.cancelled {
+                            CanceledTag()
+                                .feedCardPhotoTypeShadow()
+                                .padding(.leading, Metric.inset)
+                                .padding(.bottom, creditName == nil ? Metric.counterBottom : 8)
+                        }
+                        credit
+                    }
+                }
                 .overlay(alignment: .bottomTrailing) { counter }
                 .transition(.opacity)
         }
@@ -262,15 +276,20 @@ struct FeedEventDetailDestination: View {
     /// the counter's (`PhotoCredit` pads itself `edgeInset`).
     @ViewBuilder
     private var credit: some View {
-        let page = photoPage ?? 0
-        if photos.indices.contains(page), let url = photos[page].url, isShown(url),
-           let credit = photos[page].attribution {
+        if let credit = creditName {
             PhotoCredit(names: [credit])
                 .padding(.leading, Metric.inset - PhotoCredit.edgeInset)
                 .padding(.bottom, Metric.counterBottom - PhotoCredit.edgeInset)
                 // The carousel says it, with the photo's number.
                 .accessibilityHidden(true)
         }
+    }
+
+    /// Whose photo is on screen, once it is: nil before, and for a photo with no credit.
+    private var creditName: String? {
+        let page = photoPage ?? 0
+        guard photos.indices.contains(page), let url = photos[page].url, isShown(url) else { return nil }
+        return photos[page].attribution
     }
 
     /// "Photo 2 of 2, by Ada Lovelace": where VoiceOver is in the carousel, and whose
@@ -530,16 +549,27 @@ struct FeedEventDetailDestination: View {
 
             Spacer(minLength: 0)
 
-            // Optimistic: it answers at once, and a write that fails turns it back
-            // (`RealLifeActions`), with a shake.
-            Button {
-                joinTappedAt = failures
-                actions.toggleGoing(item)
-            } label: { joinFace(going.isGoing) }
-                .buttonStyle(FeedCardJoinPressStyle(reduceMotion: reduceMotion))
-                .turnBackShake(failures: failures, shakes: joinShakes(failures))
-                .accessibilityLabel(going.isGoing ? "Going" : "Join")
-                .accessibilityAddTraits(going.isGoing ? .isSelected : [])
+            if item.cancelled && !going.isGoing {
+                // Called off: nobody new joins (Meetup's greyed button). Someone Going
+                // keeps Going below, so they can still leave it.
+                Text("Canceled")
+                    .font(.sansSemibold(17))
+                    .foregroundStyle(Hue.inkSecondary)
+                    .frame(width: Metric.joinSize.width, height: Metric.joinSize.height)
+                    .background(Hue.fill, in: Capsule())
+                    .transition(.opacity)
+            } else {
+                // Optimistic: it answers at once, and a write that fails turns it back
+                // (`RealLifeActions`), with a shake.
+                Button {
+                    joinTappedAt = failures
+                    actions.toggleGoing(item)
+                } label: { joinFace(going.isGoing) }
+                    .buttonStyle(FeedCardJoinPressStyle(reduceMotion: reduceMotion))
+                    .turnBackShake(failures: failures, shakes: joinShakes(failures))
+                    .accessibilityLabel(going.isGoing ? "Going" : "Join")
+                    .accessibilityAddTraits(going.isGoing ? .isSelected : [])
+            }
         }
         .animation(joinMorph, value: going.isGoing)
         .animation(joinMorph, value: going.count)

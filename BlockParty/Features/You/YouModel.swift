@@ -164,22 +164,24 @@ enum YouCalendar {
 
     /// The Going on the Calendar: the read's, and the Events tapped Going this session
     /// that fall in the `days` from `first` (the three weeks; a year for the iPhone
-    /// Calendar), each once (the read's details win), only those still Going; by day, a
-    /// day's timed Events soonest first and then its untimed ones, then by title.
+    /// Calendar), each once (the read's details win), only those still Going and not called
+    /// off (Jesse, 2026-10-15: a cancelled one leaves, and `CancelNotice` says so once); by
+    /// day, a day's timed Events soonest first and then its untimed ones, then by title.
     static func going(read: [DailyEvent], tapped: [FeedCardItem], isGoing: (FeedCardItem) -> Bool,
                       first: Date, days: Int = length) -> [DailyEvent] {
         let end = calendar.date(byAdding: .day, value: days, to: first) ?? first
         return merged(read, tapped)
-            .filter { isGoing($0.item) && $0.starts >= first && $0.starts < end }
+            .filter { isGoing($0.item) && !$0.item.cancelled && $0.starts >= first && $0.starts < end }
             .sorted { order($0) < order($1) }
     }
 
     /// Profile's Saved list (ticket 04), the same way: the read's and the Events saved this
-    /// session, each once, only those still saved and not over by `now`, in the Calendar's order.
+    /// session, each once, only those still saved, not called off and not over by `now`, in the
+    /// Calendar's order.
     static func saved(read: [DailyEvent], tapped: [FeedCardItem], isSaved: (FeedCardItem) -> Bool,
                       now: Date) -> [DailyEvent] {
         merged(read, tapped)
-            .filter { isSaved($0.item) && $0.ends > now }
+            .filter { isSaved($0.item) && !$0.item.cancelled && $0.ends > now }
             .sorted { order($0) < order($1) }
     }
 
@@ -235,6 +237,9 @@ enum YouCalendar {
         func day(_ offset: Int) -> Date? {
             calendar.date(byAdding: .day, value: offset, to: today).flatMap { $0 >= first && $0 <= last ? $0 : nil }
         }
+        // `-town-cancelled`: today's coffee is called off, so the You tab leaves it out
+        // and the app opens on the alert (ticket 12).
+        let cancelledSample = ProcessInfo.processInfo.arguments.contains("-town-cancelled")
         let rows: [(Int, String, String, String?, String, EventCategory)] = [
             (-3, "10 AM", "Fall colors hike", "sju-arboretum-trail", "Saint John's Arboretum", .outdoors),
             (-1, "7 PM", "Trivia night", "bad-habit-brewing", "Bad Habit Brewing", .food),
@@ -251,7 +256,8 @@ enum YouCalendar {
             let photo = row.3.flatMap { Bundle.main.url(forResource: $0, withExtension: "jpg") }
             return UpcomingEvent(id: "you-sample-\(index)", title: row.2, eventDate: Town.day(date),
                                  startTime: row.1, location: row.4, goingCount: 3, createdAt: "",
-                                 imageUrl: photo?.absoluteString, rsvpd: true, category: row.5)
+                                 imageUrl: photo?.absoluteString, rsvpd: true, category: row.5,
+                                 cancelled: index == 2 && cancelledSample)
         }
     }
     #endif

@@ -73,7 +73,8 @@ extension FeedCardItem {
             eventDate: event.eventDate,
             startTime: time,
             location: location,
-            category: event.category == .other ? nil : event.category
+            category: event.category == .other ? nil : event.category,
+            cancelled: event.cancelled
         )
     }
 

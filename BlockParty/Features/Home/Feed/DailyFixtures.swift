@@ -231,6 +231,8 @@ enum DailyFixtures {
         let day = reason ?? (hoursUntil < 18 ? "today" : hoursUntil < 42 ? "tomorrow" : "soon")
         item.why = FeedCardMenu.line(reason: day, name: reasonName)
         item.score = score
+        // `-town-cancelled`: the first card is called off, for the Canceled tag (ticket 12).
+        item.cancelled = id == "e1" && ProcessInfo.processInfo.arguments.contains("-town-cancelled")
         return TownFeedEntry(card: item, leavesAt: now.addingTimeInterval((hoursUntil + 2) * 3600))
     }
 

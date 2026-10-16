@@ -293,6 +293,8 @@ struct FeedEventCard: View {
                 imageContent
                     .frame(width: proxy.size.width, height: proxy.size.height)
                     .clipped()
+                    // Called off: the photo goes grey (Jesse, 2026-10-15).
+                    .grayscale(item.cancelled ? 1 : 0)
 
                 if displayImage.isPhoto {
                     FeedCardPhotoScrim(imageHeight: proxy.size.height)
@@ -351,6 +353,10 @@ struct FeedEventCard: View {
 
     private var imageCopy: some View {
         VStack(alignment: .leading, spacing: 4) {
+            if item.cancelled {
+                CanceledTag().padding(.bottom, 4)
+            }
+
             Text(item.title)
                 // 28, the `.title` step. 22 measured ~20% smaller than the Apple News
                 // reference relative to card width, and the token scale has nothing
@@ -620,5 +626,20 @@ private struct PhotoDoubleTap: UIGestureRecognizerRepresentable {
 
     func handleUIGestureRecognizerAction(_ recognizer: Recognizer, context: Context) {
         if recognizer.state == .ended { onDoubleTap(context.converter.localLocation) }
+    }
+}
+
+/// Called off (ticket 12): a white capsule with ink words, over the photo above the card's
+/// title and at the Event page photo's bottom-left (Jesse's pick, 2026-10-15; References:
+/// Partiful's card, Meetup's event page). White and ink in both appearances, like the
+/// page's round buttons over a photo (taste.md). The shadow comes from where it sits.
+struct CanceledTag: View {
+    var body: some View {
+        Text("Canceled")
+            .font(.sansSemibold(13))
+            .foregroundStyle(Hue.ink.onLightCanvas)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 3)
+            .background(Hue.surface.onLightCanvas, in: Capsule())
     }
 }

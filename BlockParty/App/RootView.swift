@@ -347,6 +347,9 @@ struct MainTabsView: View {
     /// Your Going in your iPhone Calendar, kept up to date from here while its switch in
     /// Profile is on (BP app docs/plans/you-tab, ticket 05).
     @State private var calendarSync = CalendarSync()
+    /// The alert when an Event you're Going to is called off, once, on opening the app
+    /// (BP app docs/plans/watch-every-place, ticket 12).
+    @State private var cancelNotice = CancelNotice()
     /// The sample friends inbox and its chats, unreached until messaging (BP app
     /// docs/plans/friends), kept here so an opened chat stays read when the inbox comes back.
     @State private var friendsModel = FriendsModel()
@@ -438,6 +441,14 @@ struct MainTabsView: View {
         } message: { problem in
             if let message = problem.message { Text(message) }
         }
+        // An Event you're Going to was called off, in Apple's alert with OK alone (Jesse,
+        // 2026-10-15). Told only on OK, so one that couldn't show comes back next time.
+        .alert(CancelNotice.title(cancelNotice.showing),
+               isPresented: Binding(get: { !cancelNotice.showing.isEmpty }, set: { _ in })) {
+            Button("OK", role: .cancel) { cancelNotice.ok() }
+        } message: {
+            Text(CancelNotice.message(cancelNotice.showing))
+        }
         // The friend sheet, from a friend's •••, anyone's page and the Friends button (ticket 04).
         .sheet(item: Binding(get: { friendsBook.menu }, set: { friendsBook.menu = $0 })) { person in
             FriendMenu(person: person, relation: friendsBook.relation(person)).environment(friendsBook)
@@ -465,10 +476,13 @@ struct MainTabsView: View {
             Task { await townFeed.reload() }
             Task { await you.refresh() }
             Task { await actions.moveUp(.shared) }
+            Task { await cancelNotice.check() }
         }
         // Event saves this phone kept before they moved to the server go up once, at
         // launch with an account or when one arrives (above).
         .task { await actions.moveUp(.shared) }
+        // Called off since you last looked: at launch, on coming back, and for a new account.
+        .task { await cancelNotice.check() }
         // The Town feed's views and opens go up every 30 seconds, from the shell so it
         // runs on any tab and under a pushed page (ticket 20); the DEBUG demo screens
         // outside the shell never send.
@@ -480,7 +494,10 @@ struct MainTabsView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background { Task { await townFeed.send(always: true) } }
-            if phase == .active { Task { await friendsBook.refreshDot() } }
+            if phase == .active {
+                Task { await friendsBook.refreshDot() }
+                Task { await cancelNotice.check() }
+            }
         }
         .onAppear {
             // DEBUG: `-open-friends` lands on the Friends page; `-open-friends-chat` on the

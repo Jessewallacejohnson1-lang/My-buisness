@@ -150,7 +150,7 @@ struct CommunityAPI {
         let t = await readToken()
         let uid = auth.userId
         let (data, _) = try await SupabaseHTTP.rest("club_events",
-            query: "select=*,clubs(name)&status=eq.approved&kind=eq.event&event_date=eq.\(date)\(Self.realOnly)&order=start_time.asc",
+            query: "select=*,clubs(name)&status=eq.approved&kind=eq.event&event_date=eq.\(date)\(Self.realOnly)&cancelled_at=is.null&order=start_time.asc",
             accessToken: t)
         let events: [RawEvent] = try decode(data)
         var joined = Set<String>()
@@ -208,6 +208,7 @@ struct CommunityAPI {
             let heartCount: Int?
             let hearted: Bool?
             let saved: Bool?
+            let cancelled: Bool?
         }
         /// The admin's breakdown, or nil when it doesn't decode: a score never costs the
         /// feed.
@@ -226,7 +227,8 @@ struct CommunityAPI {
                                       clubName: row.clubName,
                                       category: EventCategory.from(row.category),
                                       endAt: DateHelpers.timestamp(row.endAt),
-                                      isAllDay: row.allDay, sourceName: row.sourceName)
+                                      isAllDay: row.allDay, sourceName: row.sourceName,
+                                      cancelled: row.cancelled ?? false)
             return TownFeedRow(event: event, recurrence: row.recurrence, leavesAt: leavesAt,
                                reason: row.reason, reasonName: row.reasonName, score: row.score?.value,
                                heartCount: row.heartCount ?? 0, hearted: row.hearted ?? false,
@@ -465,6 +467,7 @@ struct CommunityAPI {
             let createdAt: String
             let goingCount: Int
             let going: Bool?
+            let cancelled: Bool?
         }
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -476,7 +479,8 @@ struct CommunityAPI {
                           clubName: row.clubName,
                           category: EventCategory.from(row.category),
                           endAt: DateHelpers.timestamp(row.endAt),
-                          isAllDay: row.allDay, sourceName: row.sourceName)
+                          isAllDay: row.allDay, sourceName: row.sourceName,
+                          cancelled: row.cancelled ?? false)
         }
     }
 
