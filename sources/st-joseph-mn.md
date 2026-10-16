@@ -47,6 +47,14 @@ sources:
     kind: website
     method: fetch
     trust: official
+  - url: https://krewemn.com/saint-joseph-krewe-restaurant-events
+    kind: website
+    method: fetch
+    trust: official
+  - url: https://krewemn.com/saint-joseph-krewe-restaurant-happy-hours-specials
+    kind: website
+    method: fetch
+    trust: official
   - url: https://www.facebook.com/krewerestaurant/
     kind: facebook
     method: search_snippet
@@ -55,6 +63,7 @@ sources:
 Notes: Cajun/Creole, in the 24 North Lofts building on College Ave N. The site is the
 menu and hours; day-to-day specials and one-off nights go up on Facebook, which is why
 both are listed. Named in the skill's own examples, so treat it as a flagship entry.
+Events and specials pages added 2026-10-16: the page picker found them, Jesse said yes.
 
 ## The Local Blend
 ```yaml
