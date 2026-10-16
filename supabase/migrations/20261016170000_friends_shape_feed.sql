@@ -1,0 +1,277 @@
+-- Friends shape the feed (BP app docs/plans/town-feed, ticket 28; Jesse, 2026-10-16). An Event
+-- a friend is Going to rises (+4 a friend, at most two counted) and its card names them, unless
+-- they turned off "Show my plans to friends". A friend's Going is read per Event, only for
+-- Events not over yet, through one helper, never as a list of what a friend is doing (friends
+-- spec: "you can't track people's whole agenda"). A friend's save or Heart lifts nothing.
+-- get_town_feed is 20261016090000_town_feed_cancelled_flag.sql line for line but for the friend
+-- term, the friend reason's name and the new last column, `friends_going`. A new column changes
+-- the return type, so it is dropped and made again.
+
+-- On by default (friends spec, story 30): the Friends builds showed nobody's plans, so this is
+-- the first build where it hides anything. Each neighbour writes their own row.
+alter table public.town_profiles add column if not exists plans_to_friends boolean not null default true;
+
+-- The caller's friends Going to each of these Events: how many, and the newest three Going
+-- (first name and photo). A friend counts only when others may find them (`private.findable`:
+-- real, not banned, named, no block either way) and they show their plans to friends. Only
+-- Events not over yet by the clock, never by the feed's `p_now`, which a caller can set: a
+-- friend's past plans stay theirs.
+create or replace function private.friends_going(p_events uuid[])
+returns table (event_id uuid, friends int, people jsonb)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with mine as (
+    select case when f.a = auth.uid() then f.b else f.a end as friend
+    from private.friendships f
+    where auth.uid() in (f.a, f.b)
+  ),
+  going as (
+    select r.event_id, r.user_id, r.created_at,
+           (regexp_split_to_array(btrim(p.display_name), '\s+'))[1] as name,
+           -- Only a photo in their own folder of our avatars bucket (friends ticket 02).
+           case when p.avatar_url like 'https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/avatars/'
+                                       || p.user_id::text || '/%' then p.avatar_url end as photo
+    from mine m
+    join public.event_rsvps r on r.user_id = m.friend and r.event_id = any (p_events)
+    join public.club_events e on e.id = r.event_id
+    join public.town_profiles p on p.user_id = m.friend
+    where p.plans_to_friends
+      and private.findable(m.friend)
+      and coalesce(e.end_at, (e.event_date + 1)::timestamp at time zone 'America/Chicago') > now()
+  ),
+  ranked as (
+    select g.*, row_number() over (partition by g.event_id order by g.created_at desc, g.user_id) as n
+    from going g
+  )
+  select r.event_id, count(*)::int,
+         jsonb_agg(jsonb_build_object('name', r.name, 'photo', r.photo) order by r.n) filter (where r.n <= 3)
+  from ranked r
+  group by r.event_id
+$$;
+
+-- The Town feed runs as its caller, signed out too (an unknown caller has no friends).
+revoke execute on function private.friends_going(uuid[]) from public;
+grant execute on function private.friends_going(uuid[]) to anon, authenticated;
+
+drop function if exists public.get_town_feed(timestamptz);
+
+create function public.get_town_feed(p_now timestamptz default now())
+returns table (
+  id uuid,
+  title text,
+  event_date date,
+  start_time text,
+  location text,
+  image_url text,
+  category text,
+  club_name text,
+  source_name text,
+  end_at timestamptz,
+  all_day boolean,
+  created_at timestamptz,
+  going_count int,
+  rsvpd boolean,
+  recurrence text,
+  leaves_at timestamptz,
+  reason text,
+  reason_name text,
+  score jsonb,
+  heart_count int,
+  hearted boolean,
+  saved boolean,
+  cancelled boolean,
+  friends_going jsonb
+)
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  with weights as (
+    -- The playground's starting weights (ticket 09). Changing one is a migration.
+    select '{"interest":3,"friend":4,"follow":3,"popular":2,"size":1.5,"soonHalf":7,"newHalf":24,"acted":0.4,"notInterested":0.3,"meeting":0.3,"repeatHost":0.5,"maxRun":3,"newSpot":4}'::jsonb as w
+  ),
+  town as (
+    select 'America/Chicago'::text as zone,
+           (p_now at time zone 'America/Chicago')::date as today
+  ),
+  me as (
+    select coalesce((select p.interests from public.town_profiles p where p.user_id = auth.uid()),
+                    '{}'::text[]) as interests
+  ),
+  real_events as (
+    select e.*,
+           coalesce(e.club_id::text, e.source_name, e.submitted_by::text, '') as host,
+           lower(btrim(e.title)) || '|' || coalesce(e.club_id::text, e.source_name, e.submitted_by::text, '')
+             || case when e.cancelled_at is not null then '|off' else '' end as series,
+           -- The free-text start: "7 PM", "7:00 PM", "7pm", "noon", "19:00".
+           case
+             when e.all_day then null
+             when lower(btrim(e.start_time)) = 'noon' then 720
+             when lower(btrim(e.start_time)) = 'midnight' then 0
+             when m12 is not null and m12[1]::int between 1 and 12 and coalesce(m12[2], '0')::int < 60
+               then (m12[1]::int % 12) * 60 + coalesce(m12[2], '0')::int + case when m12[3] = 'p' then 720 else 0 end
+             when m24 is not null and m24[1]::int < 24 and m24[2]::int < 60
+               then m24[1]::int * 60 + m24[2]::int
+           end as start_minutes
+    from public.club_events e
+    cross join lateral (select
+      regexp_match(lower(btrim(e.start_time)), '^(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?$') as m12,
+      regexp_match(btrim(e.start_time), '^(\d{1,2}):(\d{2})(?::\d{2})?$') as m24) t
+    cross join town
+    where e.status = 'approved'
+      and e.kind = 'event'
+      and e.event_date is not null
+      and (e.submitted_by is not null or e.source_name is not null)
+      -- The window a series' wording reads, plus anything still running.
+      and (e.event_date >= town.today - 60 or e.end_at > p_now)
+      -- Called off: out of the feed, unless someone Hearted it (Jesse, 2026-10-15).
+      and (e.cancelled_at is null or private.heart_count(e.id) > 0)
+  ),
+  timed as (
+    select r.*,
+           (r.event_date + make_interval(mins => r.start_minutes)) at time zone town.zone as starts_at,
+           coalesce(
+             r.end_at,
+             (r.event_date + make_interval(mins => r.start_minutes)) at time zone town.zone + interval '2 hours',
+             (r.event_date + 1)::timestamp at time zone town.zone
+           ) as leaves_at
+    from real_events r, town
+  ),
+  labels as (
+    select t.series, public.town_feed_series_label(array_agg(t.event_date)) as recurrence
+    from timed t, town
+    where t.event_date >= town.today - 60
+    group by t.series
+  ),
+  next_up as (
+    select t.*,
+           row_number() over (partition by t.series order by t.event_date, t.starts_at nulls first, t.id) as nth,
+           exists (select 1 from public.event_rsvps r where r.event_id = t.id and r.user_id = auth.uid())
+             as going,
+           exists (select 1 from public.event_saves s where s.event_id = t.id and s.user_id = auth.uid())
+             as saved
+    from timed t
+    where t.leaves_at > p_now
+  ),
+  shown as (
+    select e.*,
+           coalesce(e.starts_at, e.event_date::timestamp at time zone town.zone) as sort_at,
+           e.event_date - town.today as days_off,
+           greatest(0, extract(epoch from coalesce(e.starts_at, e.event_date::timestamp at time zone town.zone) - p_now) / 86400)
+             as days_away,
+           case when e.event_date - e.shows_from >= 50 then 3
+                when e.event_date - e.shows_from >= 25 then 2
+                else 1 end as size,
+           (select array_agg(x order by x) from unnest(array[e.category]) x where x = any(me.interests)) as matched
+    from next_up e, town, me
+    where e.nth = 1
+      and town.today >= coalesce(e.shows_from, e.event_date - 14)
+  ),
+  counted as (
+    -- Going counted once (every account's, from the private helper), the people who saw it
+    -- in the feed, from the summary refreshed every 10 minutes, and the caller's friends Going.
+    select s.*,
+           private.going_count(s.id) as going_n,
+           coalesce(st.viewers, 0) as viewers,
+           coalesce(fg.friends, 0) as friends_n,
+           coalesce(fg.people, '[]'::jsonb) as friends_people
+    from shown s
+    left join private.feed_item_stats st on st.item_id = s.id
+    -- Friends Going (ticket 28): asked once for every shown Event.
+    left join private.friends_going(array(select x.id from shown x)) fg on fg.event_id = s.id
+  ),
+  scored as (
+    select c.*,
+           (w->>'interest')::float8 * least(coalesce(array_length(c.matched, 1), 0), 2) as interest_pts,
+           -- Friends Going (ticket 28): +4 each, at most two counted, as interests are
+           -- (Jesse, 2026-10-16).
+           (w->>'friend')::float8 * least(c.friends_n, 2) as friend_pts,
+           0::float8 as follow_pts,   -- follows: ticket 27
+           -- Popularity per view (ticket 20), the playground's formula: Going per person
+           -- who saw it, with a floor of 20 so one early Going can't look huge. Nothing
+           -- until someone has seen it in the feed: per view needs a view.
+           case when c.viewers > 0
+                then (w->>'popular')::float8 * least(c.going_n::float8 / greatest(c.viewers, 20) * 10, 3)
+                else 0 end as popular_pts,
+           -- Where its rate sits among this read's events someone has seen: 'popular' as
+           -- the reason needs the top quarter, popular compared with other events (Jesse,
+           -- 2026-10-13). An unseen event has no rate, so it takes no rank.
+           case when c.viewers > 0
+                then cume_dist() over (partition by c.viewers > 0
+                                       order by c.going_n::float8 / greatest(c.viewers, 20))
+                else 0 end as rate_rank,
+           (w->>'size')::float8 * (c.size - 1) as size_pts,
+           power(0.5, c.days_away / (w->>'soonHalf')::float8) as soon,
+           case when c.going or c.saved then (w->>'acted')::float8 else 1 end as acted
+    from counted c, weights
+  ),
+  totals as (
+    select c.*,
+           -- Called off and still here (Hearted): never promoted, so it goes last.
+           case when c.cancelled_at is null
+                then (1 + c.interest_pts + c.friend_pts + c.follow_pts + c.popular_pts + c.size_pts) * c.soon * c.acted
+                else 0 end as base,
+           -- New: under 2 days old with under 30 viewers and not acted on.
+           c.created_at > p_now - interval '2 days' and c.viewers < 30 and not c.going and not c.saved
+             and c.cancelled_at is null as fresh,
+           -- 'popular' as the reason needs at least 3 people Going and the top quarter by
+           -- Going per viewer (Jesse, 2026-10-13); its points count either way.
+           (select r.code from (values ('friend', c.friend_pts, 1), ('follow', c.follow_pts, 2),
+                                       ('interest', c.interest_pts, 3),
+                                       ('popular', case when c.going_n >= 3 and c.rate_rank > 0.75
+                                                        then c.popular_pts else 0 end, 4),
+                                       ('size', c.size_pts, 5)) r(code, pts, ord)
+            where r.pts >= 1 and c.cancelled_at is null
+            order by r.pts desc, r.ord limit 1) as lift
+    from scored c
+  ),
+  placed as (
+    select p.*
+    from (select array_agg(t.id order by t.sort_at, t.title, t.id) as ids,
+                 array_agg('event'::text order by t.sort_at, t.title, t.id) as kinds,
+                 array_agg(t.host order by t.sort_at, t.title, t.id) as hosts,
+                 array_agg(t.base order by t.sort_at, t.title, t.id) as scores,
+                 array_agg(t.fresh order by t.sort_at, t.title, t.id) as fresh
+          from totals t) a,
+         weights,
+         private.town_feed_place(a.ids, a.kinds, a.hosts, a.scores, a.fresh,
+                                (w->>'maxRun')::int, (w->>'repeatHost')::float8, (w->>'newSpot')::int) p
+  )
+  select e.id, e.title, e.event_date, e.start_time, e.location, e.image_url, e.category,
+         c.name, e.source_name, e.end_at, e.all_day, e.created_at,
+         e.going_n,
+         e.going,
+         l.recurrence,
+         e.leaves_at,
+         case when p.moved then 'new'
+              else coalesce(e.lift, case when e.days_off <= 0 then 'today' when e.days_off = 1 then 'tomorrow' else 'soon' end)
+         end,
+         case when p.moved then null
+              when e.lift = 'interest' then e.matched[1]
+              when e.lift = 'friend' then e.friends_people->0->>'name' end,
+         case when public.is_admin() then jsonb_build_object(
+           'interest', e.interest_pts, 'friend', e.friend_pts, 'follow', e.follow_pts,
+           'popular', e.popular_pts, 'viewers', e.viewers, 'size', e.size_pts, 'sizeStep', e.size,
+           'daysAway', round(e.days_away::numeric, 2), 'soon', round(e.soon::numeric, 4),
+           'acted', e.acted, 'spacing', p.spacing, 'newSpot', p.moved,
+           'total', round((e.base * p.spacing)::numeric, 4),
+           'spot', p.spot, 'of', count(*) over ())
+         end,
+         private.heart_count(e.id),
+         exists (select 1 from public.event_likes h where h.event_id = e.id and h.user_id = auth.uid()),
+         e.saved,
+         e.cancelled_at is not null,
+         -- Up to three friends Going, newest Going first: first name and photo (ticket 28).
+         e.friends_people
+  from totals e
+  join placed p on p.id = e.id
+  left join public.clubs c on c.id = e.club_id
+  left join labels l on l.series = e.series
+  order by p.spot;
+$$;
+
+grant execute on function public.get_town_feed(timestamptz) to anon, authenticated;

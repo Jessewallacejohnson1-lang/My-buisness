@@ -3,7 +3,7 @@
 // folder. The schema below is the subset of schema.sql the function reads.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
@@ -15,7 +15,11 @@ const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
 // hearts (real-life actions, ticket 03), saves and own-row reads (ticket 19), with the
 // counting helpers it reads.
 const files = creating(migrations, ['public.get_town_feed', 'public.town_feed_series_label',
-  'private.town_feed_place', 'private.going_count', 'private.heart_count']);
+  'private.town_feed_place', 'private.going_count', 'private.heart_count', 'private.friends_going']);
+// Friends (ticket 28) read the Friends builds' rule for who may be shown, as it is now.
+const findable = readdirSync(migrations).filter((f) => f.endsWith('_unfriend_and_block.sql'))
+  .map((f) => readFileSync(join(migrations, f), 'utf8'))[0]
+  .match(/create or replace function private\.findable\(p_user uuid\)[\s\S]*?\$\$;/)[0];
 // (Views, ticket 20: the table, its summary and the clean-up load with town_feed_views; the
 // pg_cron jobs in feed_jobs don't, since PGlite has no pg_cron.)
 const playground = JSON.parse(readFileSync(join(here, 'town_feed_playground.json'), 'utf8'));
@@ -26,7 +30,8 @@ await db.exec(`
   create role anon; create role authenticated;
   create schema auth;
   grant usage on schema auth to anon, authenticated;
-  create table auth.users (id uuid primary key);
+  create table auth.users (id uuid primary key, is_anonymous boolean not null default false,
+    banned_until timestamptz);
   create function auth.uid() returns uuid language sql stable as
     $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
   -- The admin, for the score breakdown: on when a story sets test.admin.
@@ -51,7 +56,14 @@ await db.exec(`
     user_id uuid not null, created_at timestamptz not null default now(),
     unique (event_id, user_id));
   create table public.town_profiles (
-    user_id uuid primary key, interests text[] not null default '{}'::text[]);
+    user_id uuid primary key, interests text[] not null default '{}'::text[],
+    display_name text, avatar_url text);
+  -- The Friends builds' tables (friend_requests, unfriend_and_block), as they are live.
+  create schema if not exists private;
+  create table private.friendships (a uuid not null, b uuid not null, requested_by uuid not null,
+    created_at timestamptz not null default now(), primary key (a, b), check (a < b));
+  create table private.blocks (blocker_id uuid not null, blocked_id uuid not null,
+    created_at timestamptz not null default now(), primary key (blocker_id, blocked_id));
   create index event_rsvps_event_idx on public.event_rsvps (event_id);
   create index event_rsvps_user_id_idx on public.event_rsvps (user_id);
   create index event_saves_user_id_idx on public.event_saves (user_id);
@@ -79,6 +91,7 @@ await db.exec(`
   -- table that must not be read has to revoke it: copied here, so the revoke is tested.
   alter default privileges in schema public grant all on tables to anon, authenticated;
 `);
+await db.exec(findable);
 for (const f of files) await db.exec(readFileSync(join(migrations, f), 'utf8'));
 
 const CITY = 'City of St. Joseph';
@@ -89,7 +102,8 @@ async function reset() {
                  refresh materialized view private.feed_item_stats;
                  delete from public.event_rsvps; delete from public.club_events;
                  delete from public.event_saves; delete from public.event_likes;
-                 delete from public.town_profiles;
+                 delete from public.town_profiles; delete from private.friendships;
+                 delete from private.blocks;
                  reset request.jwt.claim.sub; reset test.admin;`);
 }
 
@@ -119,7 +133,7 @@ async function signIn(id, interests = []) {
 async function feed(at) {
   const { rows } = await db.query(
     `select title, event_date::text as day, recurrence, rsvpd, leaves_at, reason, reason_name, score,
-            cancelled
+            cancelled, going_count, friends_going
      from public.get_town_feed(($1::timestamp at time zone 'America/Chicago'))`, [at]);
   return rows;
 }
@@ -425,6 +439,103 @@ test("nobody reads who is Going, saved or hearted: only their own rows, and the 
   assert.deepEqual(rows.map((r) => r.nspname), ['private', 'private']);
 });
 
+// Friends shape the feed (ticket 28). The helper names friends only on Events not over by the
+// clock, so these stories date their Events from today rather than the fixed week above.
+const day = (n) => new Date(Date.now() + n * 86400000).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+const nowTown = () => new Date().toLocaleString('sv-SE', { timeZone: 'America/Chicago' }).slice(0, 16);
+const [ANNA, BEN, CAL, DEE] = ['c1', 'c2', 'c3', 'c4'].map((x) => `00000000-0000-0000-0000-0000000000${x}`);
+const PHOTO = `https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/avatars/${ANNA}/me.jpg`;
+
+async function neighbour(id, name, { photo = null, plans = true, anonymous = false } = {}) {
+  await db.exec('reset role');
+  await db.query(`insert into auth.users (id, is_anonymous) values ($1, $2)
+                  on conflict (id) do update set is_anonymous = excluded.is_anonymous`, [id, anonymous]);
+  await db.query(`insert into public.town_profiles (user_id, display_name, avatar_url, plans_to_friends)
+                  values ($1, $2, $3, $4)`, [id, name, photo, plans]);
+}
+async function befriend(x, y) {
+  await db.exec('reset role');
+  const [a, b] = [x, y].sort();
+  await db.query(`insert into private.friendships (a, b, requested_by) values ($1, $2, $1)`, [a, b]);
+}
+async function goes(event, who, at = null) {
+  await db.exec('reset role');
+  await db.query(`insert into public.event_rsvps (event_id, user_id, created_at)
+                  values ($1, $2, coalesce($3::timestamptz, now()))`, [event, who, at]);
+}
+
+test('a friend Going lifts an Event and names them, newest Going first; two friends count at most', async () => {
+  await reset();
+  const quiz = await add('Quiz night', day(2), { start_time: '7 PM' });
+  await add('Craft fair', day(2), { start_time: '9 AM' });
+  await neighbour(ANNA, 'Anna  Lee', { photo: PHOTO });
+  await neighbour(BEN, 'Ben Ortiz');
+  await neighbour(CAL, 'Cal Ruiz', { photo: 'https://example.com/cal.jpg' });
+  for (const f of [ANNA, BEN, CAL]) await befriend(ME, f);
+  await goes(quiz, BEN, '2026-10-01 10:00-05');
+  await goes(quiz, CAL, '2026-10-02 10:00-05');
+  await goes(quiz, ANNA, '2026-10-03 10:00-05');
+  await signIn(ME);
+  const rows = await feed(nowTown());
+  assert.deepEqual(rows.map((r) => r.title), ['Quiz night', 'Craft fair']);
+  assert.deepEqual([rows[0].reason, rows[0].reason_name, rows[0].going_count], ['friend', 'Anna', 3]);
+  // A photo counts only from the friend's own folder of our bucket.
+  assert.deepEqual(rows[0].friends_going, [{ name: 'Anna', photo: PHOTO }, { name: 'Cal', photo: null },
+                                           { name: 'Ben', photo: null }]);
+  assert.deepEqual(rows[1].friends_going, []);
+  await db.exec(`set test.admin = 'on'`);
+  assert.equal((await feed(nowTown()))[0].score.friend, 8);
+});
+
+test("a friend who hides their plans, a blocked friend and a stranger only count", async () => {
+  await reset();
+  const quiz = await add('Quiz night', day(3), { start_time: '7 PM' });
+  await neighbour(ANNA, 'Anna Lee', { plans: false });
+  await neighbour(BEN, 'Ben Ortiz');
+  await neighbour(CAL, 'Cal Ruiz', { anonymous: true });
+  await neighbour(DEE, 'Dee Park');
+  for (const f of [ANNA, BEN, CAL]) await befriend(ME, f);
+  await db.query(`insert into private.blocks (blocker_id, blocked_id) values ($1, $2)`, [BEN, ME]);
+  for (const who of [ANNA, BEN, CAL, DEE]) await goes(quiz, who);
+  await signIn(ME);
+  const [row] = await feed(nowTown());
+  assert.deepEqual([row.reason === 'friend', row.friends_going, row.going_count], [false, [], 4]);
+});
+
+test("a friend's save or Heart lifts nothing", async () => {
+  await reset();
+  const quiz = await add('Quiz night', day(3), { start_time: '7 PM' });
+  await neighbour(ANNA, 'Anna Lee');
+  await befriend(ME, ANNA);
+  await db.query(`insert into public.event_saves (event_id, user_id) values ($1, $2)`, [quiz, ANNA]);
+  await db.query(`insert into public.event_likes (event_id, user_id) values ($1, $2)`, [quiz, ANNA]);
+  await signIn(ME);
+  await db.exec(`set test.admin = 'on'`);
+  const [row] = await feed(nowTown());
+  assert.deepEqual([row.reason === 'friend', row.friends_going, row.score.friend], [false, [], 0]);
+});
+
+test("a friend's past plans stay theirs, whatever clock the caller gives the feed", async () => {
+  await reset();
+  const club = await add('Book club', day(-3), { start_time: '7 PM' });
+  await neighbour(ANNA, 'Anna Lee');
+  await befriend(ME, ANNA);
+  await goes(club, ANNA);
+  await signIn(ME);
+  const rows = await feed(`${day(-4)} 12:00`);
+  assert.deepEqual(rows.map((r) => [r.title, r.friends_going, r.reason === 'friend']), [['Book club', [], false]]);
+});
+
+test('signed out or Anonymous, nobody has friends', async () => {
+  await reset();
+  const quiz = await add('Quiz night', day(3), { start_time: '7 PM' });
+  await neighbour(ANNA, 'Anna Lee');
+  await goes(quiz, ANNA);
+  await db.exec(`set role anon`);
+  const [row] = await feed(nowTown());
+  assert.deepEqual([row.friends_going, row.going_count], [[], 1]);
+});
+
 test('the same host is spaced out: each further item from it counts half', async () => {
   await reset();
   await add('Cafe 1', '2026-10-09', { start_time: '8 AM', source_name: 'Cafe' });
@@ -694,6 +805,16 @@ test('the feed is read in under 100 ms with 5,000 people', async () => {
   assert.ok(n >= 45000, `${n} Going rows`);
   const { rows: [{ h }] } = await db.query(`select count(*)::int h from public.event_likes`);
   assert.ok(h >= 45000, `${h} hearts`);
+  // The reader has 200 friends, named and Going to things (ticket 28).
+  await db.exec(`
+    insert into auth.users (id) select user_id from public.town_profiles on conflict do nothing;
+    update public.town_profiles set display_name = 'Neighbour ' || right(user_id::text, 4);
+    insert into private.friendships (a, b, requested_by)
+    select least(r, f), greatest(r, f), r
+    from (select '00000000-0000-0000-0001-000000000042'::uuid r) x,
+         (select user_id f from public.town_profiles
+          where user_id <> '00000000-0000-0000-0001-000000000042' order by user_id limit 200) y;
+    analyze;`);
   await signIn('00000000-0000-0000-0001-000000000042');
   await feed('2026-10-08 12:00'); // warm up
   const times = [];
