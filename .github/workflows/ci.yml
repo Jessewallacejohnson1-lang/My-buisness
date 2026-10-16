@@ -144,10 +144,11 @@ jobs:
 
       # The database stories run the migrations in PGlite (Postgres compiled to WASM): no
       # Docker, no live data. They ran only when an agent remembered (BP app retro,
-      # 2026-10-16). Node comes with the runner.
+      # 2026-10-16). Node comes with the runner; package.json pins PGlite exactly and the
+      # lock file stays out of git, so install rather than ci.
       - name: Database stories
         working-directory: supabase/tests
-        run: npm ci && npm test
+        run: npm install --no-audit --no-fund && npm test
 
       # The registry's validator and the morning job's self-tests, all offline. PyYAML is
       # the registry's one dependency; the runner's system Python refuses pip installs.
