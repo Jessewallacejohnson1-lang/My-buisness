@@ -68,10 +68,13 @@ final class CancelNotice {
     }
 
     /// Each Event's name and when, as its card says it: "Music in Millstream Park, Tonight · 7 PM".
+    /// The when never breaks across lines: a long name wraps after its comma instead of
+    /// leaving "8 AM" alone on the next line (the first build's alert did).
     static func message(_ events: [UpcomingEvent]) -> String {
         events.map { event in
             let item = FeedCardItem(event)
-            return [item.title, item.whenLine?.text].compactMap { $0 }.joined(separator: ", ")
+            let when = item.whenLine?.text.replacingOccurrences(of: " ", with: "\u{00A0}")
+            return [item.title, when].compactMap { $0 }.joined(separator: ", ")
         }.joined(separator: "\n")
     }
 }

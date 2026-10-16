@@ -124,8 +124,11 @@ final class CancelNoticeTests: XCTestCase {
                                        event("Sartell Volleyball vs ROCORI", cancelled: true)], told: [])
         XCTAssertEqual(one.count, 1)
         XCTAssertEqual(CancelNotice.title(one), "Event canceled")
-        XCTAssertTrue(CancelNotice.message(one).hasPrefix("Sartell Volleyball vs ROCORI, "))
-        XCTAssertTrue(CancelNotice.message(one).hasSuffix("7 PM"), CancelNotice.message(one))
+        let message = CancelNotice.message(one)
+        XCTAssertTrue(message.hasPrefix("Sartell Volleyball vs ROCORI, "), message)
+        XCTAssertTrue(message.hasSuffix("7\u{00A0}PM"), message)
+        XCTAssertFalse(message.dropFirst("Sartell Volleyball vs ROCORI, ".count).contains(" "),
+                       "the when stays on one line")
 
         let two = CancelNotice.toTell([event("game", cancelled: true), event("hike", cancelled: true, time: nil)],
                                       told: [])
