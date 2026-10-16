@@ -818,7 +818,7 @@ def t_place_entry():
                    "Picnic in the Park": "centennial-park", "Family Zoo Day": "city-of-st-joseph"}, ids
     assert [n for n in r["notes"] if "not in the registry" in n] == [
         "place not in the registry: 'Hemker Park & Zoo' (City of St. Joseph's picture stands in)"], r["notes"]
-    assert "place_entry_id = excluded.place_entry_id" in WRITES.read_text(), "the database keeps it"
+    assert "place_entry_id = coalesce(excluded.place_entry_id" in WRITES.read_text(), "the database keeps it"
 
 
 def t_area():

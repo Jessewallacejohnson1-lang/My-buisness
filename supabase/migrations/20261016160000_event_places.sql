@@ -38,7 +38,9 @@ begin
     title = excluded.title, event_date = excluded.event_date, start_time = excluded.start_time,
     end_at = excluded.end_at, all_day = excluded.all_day, location = excluded.location,
     description = excluded.description, source_url = excluded.source_url,
-    place_entry_id = excluded.place_entry_id,
+    -- coalesce: a writer from before place_entry_id (the cloud routine until this is pushed)
+    -- must not wipe a place already set.
+    place_entry_id = coalesce(excluded.place_entry_id, club_events.place_entry_id),
     category = coalesce(club_events.category, excluded.category),
     -- On its source's list again: not called off.
     cancelled_at = null,
