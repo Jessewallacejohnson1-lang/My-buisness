@@ -16,7 +16,7 @@ test('the story below loads every migration that makes the writer\'s functions',
   assert.deepEqual(creating(new URL('../migrations', import.meta.url).pathname,
                             ['public.apply_judged', 'public.listed_for_writer']),
                    ['20261015120000_apply_judged.sql', '20261015200100_apply_judged_cancelled.sql',
-                    '20261016090200_apply_judged_title_kept.sql']);
+                    '20261016090200_apply_judged_title_kept.sql', '20261016160000_event_places.sql']);
 });
 
 test('a dropped game is marked cancelled once, and restored by a re-read or another mention', async () => {
@@ -70,6 +70,17 @@ test('a dropped game is marked cancelled once, and restored by a re-read or anot
   await apply([], [], [], [], [id], []);
   assert.equal((await apply([], [], [], [], [], [id])).restored, 1);
   assert.deepEqual(await row(), [{ title: 'Sartell Volleyball vs ROCORI', day: '2026-10-21', off: false }]);
+
+  // Every found event knows the place it is at (Jesse, 2026-10-16), and a writer from before
+  // place_entry_id, re-reading it, leaves the place alone.
+  await db.exec('create table public.places (id uuid primary key default gen_random_uuid(), name text);');
+  await db.exec(migration('20261016160000_event_places.sql'));
+  const placed = (day) => game(day).map((g) => ({ ...g, place_entry_id: 'rocori-high-school' }));
+  await apply(placed('2026-10-21'), [], [], []);
+  const place = async () => (await db.query('select place_entry_id as p from public.club_events')).rows[0].p;
+  assert.equal(await place(), 'rocori-high-school');
+  await apply(game('2026-10-21'), [], [], []);
+  assert.equal(await place(), 'rocori-high-school', 'an older writer keeps the place');
 
   const { rows: [{ n }] } = await db.query(`select count(*)::int as n from pg_proc where proname = 'apply_judged'`);
   assert.equal(n, 1, 'one apply_judged, no second one with four lists');
