@@ -204,6 +204,8 @@ def pick(entry, url):
     except Exception as ex:
         refused = "disallows" in str(ex)  # a robots.txt that won't load is a site that won't
         return {**row, "state": "refused" if refused else "broken", "why": str(ex)[:120]}
+    if "cloudflare" in urlparse(final_url.get(url, url)).netloc:  # sent to a bot check's help page
+        return {**row, "state": "refused", "why": "the site sends bots to a Cloudflare check"}
     if len(to_text(page)) < 200:
         return {**row, "state": "empty", "why": "the page is built by JavaScript, so a plain fetch reads almost nothing"}
     try:

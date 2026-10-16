@@ -55,8 +55,9 @@ the feed shows, and lifts ADR-021's in-town-only rule.
 
 ## Consequences
 
-- St. Joseph goes from 25 watched places to 235 (Jesse approved 212 on 2026-10-15; two were left
-  listed after the noise check: a Vrbo rental listing and a parked domain). Most are
+- St. Joseph goes from 25 watched places to 234 (Jesse approved 212 on 2026-10-15; three were left
+  listed after the noise check: a Vrbo rental listing, a parked domain and a site behind a
+  Cloudflare bot check). Most are
   shops and trades whose pages rarely change, so a normal morning still reads dozens of
   pages, not hundreds.
 - 71 places with a website stay `listed` because their sites can't be read; the approval

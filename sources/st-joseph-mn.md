@@ -2068,15 +2068,15 @@ Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2
 ```yaml
 id: la-playette
 status: active
-tier: watched
+tier: listed
 added_by: agent:discover
 sources:
-  - url: https://help.liveeditaurora.com/cloudflare
+  - url: http://laplayettebar.com
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
+Notes: Not watched (2026-10-15): its site sends bots to a Cloudflare check, so a polite fetch never reaches the page. Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted.
 
 ## The Middy
 ```yaml
