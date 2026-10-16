@@ -136,3 +136,48 @@ def validate(entries):
                 if key in s and s[key] not in ENUMS[key]:
                     errs.append(f"{where} source[{i}]: bad {key} {s[key]!r}")
     return errs
+
+
+# Where an event happens, as a registry entry (BP app docs/plans/place-photos): the key that
+# picks the place's photo or logo for the event's card.
+STREET_WORDS = {"street": "st", "saint": "st", "avenue": "ave", "road": "rd", "drive": "dr", "lane": "ln",
+                "east": "e", "west": "w", "north": "n", "south": "s", "theatre": "theater", "county": "co"}
+
+
+def place_key(text):
+    """A place line or name reduced to what tells places apart: the part before its first comma
+    (the town comes after it), saint/street spelled one way, no leading "the", letters and digits."""
+    t = (text or "").lower().split(",")[0].replace("’", "'")
+    t = " ".join(STREET_WORDS.get(w, w) for w in re.findall(r"[a-z0-9']+", t))
+    return re.sub(r"[^a-z0-9]", "", re.sub(r"^the ", "", t))
+
+
+# A town is no one place: an address that reads only "St Joseph" must not claim every "St. Joseph
+# ..." place line (Bloom Styling's did, 2026-10-16).
+TOWN_KEYS = {"stjoseph", "collegeville", "stcloud", "sartell", "waitepark", "avon", "coldspring", "albany",
+             "freeport", "saukrapids", "stjosephmn", "minnesota", "mn"}
+
+
+def place_index(entries):
+    """Every name, other name (`aka`), venue and address an entry answers to -> its id."""
+    index = {}
+    for e in entries:
+        if e.get("status") == "retired":
+            continue
+        for name in [e["_name"], *(e.get("aka") or []), *(e.get("venues") or []), e.get("address")]:
+            if name and place_key(name) and place_key(name) not in TOWN_KEYS:
+                index.setdefault(place_key(name), e["id"])
+    return index
+
+
+def place_for(place, poster, index):
+    """(entry id, True) for the place an event happens at: its place line matched whole, or the
+    longest known name inside it ("Centennial Park shelter"). Otherwise (the poster's id, False):
+    the entry that published the event stands in, so the card still gets a picture."""
+    key = place_key(place)
+    if key in index:
+        return index[key], True
+    inside = [k for k in index if len(k) >= 8 and k in key]
+    if inside:
+        return index[max(inside, key=len)], True
+    return index.get(place_key(poster)), False

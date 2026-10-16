@@ -38,6 +38,7 @@ next entry's name.
 ## Krewe
 ```yaml
 id: krewe
+aka: ["Krewe Restaurant"]
 status: active
 tier: watched
 category: restaurant
@@ -141,6 +142,7 @@ found; the site is flavors and hours, so this is a low-frequency source.
 ## Flour & Flower Bakery
 ```yaml
 id: flour-and-flower
+aka: ["Flour & Flower"]
 status: active
 tier: submitted
 category: bakery
@@ -198,6 +200,8 @@ worked around (ADR-001). The calendar mixes Kennedy and District 742 events.
 ## College of Saint Benedict
 ```yaml
 id: csb
+aka: ["CSB"]
+venues: ["Claire Lynch Hall", "Gorecki Center", "Gorecki Dining and Conference Center", "Haehn Campus Center", "Clemens Fieldhouse", "CSB Stadium", "CSB Mall"]
 status: active
 tier: watched
 category: college
@@ -259,9 +263,51 @@ exists and is empty; it is deliberately not listed.
 Always append "MN" to any web search about this source or the results are St. Joseph,
 Missouri (ADR-006).
 
+## Saint John's University
+```yaml
+id: sju
+status: proposed
+tier: listed
+category: college
+place_type: School / college
+added_by: agent:claude
+aka: ["SJU", "Saint John's Campus", "Saint John's School of Theology"]
+venues: ["Sexton Arena", "Clemens Stadium", "Warner Palaestra", "Warner Palaestra Pool", "Great Hall",
+  "Alcuin Library", "Learning Commons", "Alcuin Learning Commons", "Saint John's Abbey Arboretum",
+  "Outdoor U", "Stephen B. Humphrey Theater", "New Science Center", "Alice R. Rogers and Target Gallery",
+  "Alice R. Rogers and Target Galleries"]
+sources:
+  - url: https://www.csbsju.edu/
+    kind: website
+    method: fetch
+    trust: official
+```
+Notes: Proposed 2026-10-16 so events at SJU's buildings show a Saint John's picture (`venues`).
+Its events already arrive through `csbsju-events` and `activities-athletic-sju`; this entry
+publishes nothing.
+
+## Saint John's Abbey
+```yaml
+id: saint-johns-abbey
+status: proposed
+tier: listed
+category: church
+place_type: Church
+added_by: agent:claude
+venues: ["Saint John's Abbey Church", "Saint John's Pottery Studio", "Liturgical Press"]
+address: 2850 Abbey Plaza
+sources:
+  - url: https://saintjohnsabbey.org/
+    kind: website
+    method: fetch
+    trust: official
+```
+Notes: Proposed 2026-10-16 so events at the Abbey show its picture (`venues`). Publishes nothing.
+
 ## CSB SJU events
 ```yaml
 id: csbsju-events
+aka: ["CSB SJU Campus Events"]
 status: active
 tier: watched
 category: college
@@ -401,6 +447,7 @@ Notes: Collegeville, 3.6 miles from St. Joseph. "St. John's Prep" is how the lea
 ## Apollo High School
 ```yaml
 id: apollo-high-school
+aka: ["St. Cloud Apollo High School"]
 status: active
 tier: watched
 category: nearby-school
@@ -424,7 +471,7 @@ tier: watched
 category: nearby-school
 place_type: School / college
 added_by: agent:claude
-aka: ["Technical High School"]
+aka: ["Technical High School", "St. Cloud Tech High School"]
 sources:
   - url: https://www.mshsl.org/group/537/full-schedule
     method: api
@@ -492,6 +539,7 @@ Notes: Cold Spring, 8.7 miles from St. Joseph. "ROCORI" is how the league names 
 ## Sauk Rapids-Rice High School
 ```yaml
 id: sauk-rapids-rice-high-school
+venues: ["Sauk Rapids-Rice Middle School"]
 status: active
 tier: watched
 category: nearby-school
@@ -685,6 +733,7 @@ that is the town, not a gap in the harvest (ADR-010).
 ## AMS Tax and Accounting Solutions
 ```yaml
 id: accounting-ams-solutions-tax
+aka: ["AMS Tax & Accounting Solutions, PA"]
 status: active
 tier: listed
 category: banking-finance
@@ -715,6 +764,7 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56394, -94.289
 ## American Legion Post 328
 ```yaml
 id: 328-american-legion-post
+aka: ["St. Joseph American Legion", "John Kuebelbeck American Legion Post 328"]
 status: active
 tier: listed
 added_by: agent:discover
@@ -774,6 +824,7 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56496, -94.317
 ## Benedicta Arts Center
 ```yaml
 id: arts-benedicta-center
+venues: ["Colman Theater", "Escher Auditorium", "Gorecki Gallery", "Benedict and Dorothy Gorecki Gallery"]
 status: active
 tier: listed
 category: amenity=arts_centre
@@ -837,6 +888,7 @@ Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2
 ## CSB Athletic Activities
 ```yaml
 id: activities-athletic-csb
+aka: ["CSB Athletics"]
 status: active
 tier: watched
 added_by: agent:discover
@@ -954,6 +1006,7 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56053, -94.321
 ## Clemens Library
 ```yaml
 id: clemens-library
+aka: ["Clemens and Alcuin Libraries", "Clemens and Alcuin Library", "CSB SJU Libraries"]
 status: active
 tier: listed
 category: amenity=library
@@ -969,6 +1022,7 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56036, -94.320
 ## Coborn's
 ```yaml
 id: coborns
+aka: ["Coborn's Grocery Store", "Coborn's Pharmacy"]
 status: active
 tier: listed
 category: shop=supermarket
@@ -1491,6 +1545,7 @@ Notes: Proposed by discovery on 2026-09-24 from osm, www.joetown.org. Mapped at 
 ## Newsleaders of St. Joseph and Sartell-St. Stephen
 ```yaml
 id: joseph-newsleaders-of-sartell-st-st-step
+aka: ["The Newsleaders"]
 status: active
 tier: watched
 category: newspaper
@@ -1556,6 +1611,7 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56874, -94.301
 ## Obbink Distillery
 ```yaml
 id: distillery-obbink
+aka: ["Obbink Distilling"]
 status: active
 tier: watched
 added_by: agent:discover
@@ -1703,6 +1759,7 @@ Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was 
 ## SJU Athletic Activities
 ```yaml
 id: activities-athletic-sju
+aka: ["SJU Athletics"]
 status: active
 tier: watched
 added_by: agent:discover
@@ -1822,6 +1879,7 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56564, -94.321
 ## Sal's Bar and Grill
 ```yaml
 id: bar-grill-sals
+aka: ["Sal's Bar & Grill"]
 status: active
 tier: watched
 category: amenity=bar
@@ -1841,6 +1899,8 @@ Notes: Proposed by discovery on 2026-09-24 from osm, stjosephchamber.com, www.jo
 ## Sisters of the Order of Saint Benedict
 ```yaml
 id: benedict-of-of-order-sisters-st
+aka: ["Saint Benedict's Monastery"]
+venues: ["Saint Scholastica Convent"]
 status: active
 tier: watched
 category: nonprofits-charities
@@ -1948,6 +2008,7 @@ Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — 
 ## St. Joseph Vet Clinic
 ```yaml
 id: clinic-joseph-st-vet
+aka: ["St. Joseph Veterinary Clinic"]
 status: active
 tier: listed
 category: amenity=veterinary
@@ -2067,6 +2128,7 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56414, -94.321
 ## The House Food & Tap
 ```yaml
 id: food-house-tap
+aka: ["The House Food and Tap"]
 status: active
 tier: watched
 added_by: agent:discover
@@ -2144,6 +2206,7 @@ Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was 
 ## Tiremaxx/Mid-State Wholesale Tire
 ```yaml
 id: mid-state-tire-tiremaxx-wholesale
+aka: ["TireMaxx Service Centers"]
 status: active
 tier: listed
 category: automotive
@@ -2173,6 +2236,7 @@ Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2
 ## Uptown Styles Hair Salon
 ```yaml
 id: hair-salon-styles-uptown
+aka: ["Uptown Styles"]
 status: active
 tier: listed
 category: shop=hairdresser
@@ -2275,6 +2339,7 @@ Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com, www.joetown
 ## W|R Home Company
 ```yaml
 id: home-r-w
+aka: ["W|R Home Co."]
 status: active
 tier: watched
 added_by: agent:discover
@@ -2401,7 +2466,7 @@ category: "flowers_and_gifts_store"
 place_type: "Business"
 address: "38 E Birch St"
 phone: "3202532298"
-aka: ["All Occasion Floral and Gifts featuring DJ's Flower Bar & Tea"]
+aka: ["All Occasion Floral and Gifts featuring DJ's Flower Bar & Tea", "All Occasion Floral & Gifts"]
 added_by: agent:town-verify
 sources:
   - url: https://www.saukrapidsflorist.com/
@@ -3252,7 +3317,7 @@ category: "personal_or_beauty_service"
 place_type: "Business"
 address: "235 Cedar St E"
 phone: "+13203630200"
-aka: ["Aveda"]
+aka: ["Aveda", "Cedar Street Salon & Spa"]
 added_by: agent:town-verify
 sources:
   - url: https://www.aveda.com
@@ -3287,7 +3352,7 @@ category: "diagnostics_imaging_or_lab_service"
 place_type: "Business"
 address: "1360 Elm St E"
 phone: "3203637765"
-aka: ["Centracare Clinic", "Christopher Thompson, MD", "Dr. Thomas J. Newton, MD", "Katrina Wherry, MD", "Newton Thomas MD", "Sean Wherry, MD", "St. Joe Clinic"]
+aka: ["Centracare Clinic", "Christopher Thompson, MD", "Dr. Thomas J. Newton, MD", "Katrina Wherry, MD", "Newton Thomas MD", "Sean Wherry, MD", "St. Joe Clinic", "CentraCare - St. Joseph Clinic"]
 added_by: agent:town-verify
 sources:
   - url: http://www.centracare.com/locations/profile/?id=11
@@ -3574,7 +3639,7 @@ category: "dental_clinic"
 place_type: "Business"
 address: "26 2nd Ave NW"
 phone: "(320) 363-4468"
-aka: ["Contardo, Michael F DDS", "Laser Dentistry- Dr. Contardo"]
+aka: ["Contardo, Michael F DDS", "Laser Dentistry- Dr. Contardo", "Laser Dentistry"]
 added_by: agent:town-verify
 sources:
   - url: https://www.laserdentistrymn.com/
@@ -4976,7 +5041,7 @@ tier: listed
 place_type: "Business"
 address: "26 E Birch St"
 phone: "3203630007"
-aka: ["KIA Insurance Inc"]
+aka: ["KIA Insurance Inc", "Insurance Advisors"]
 added_by: agent:town-verify
 sources:
   - url: http://www.divingrates.com/
@@ -5749,7 +5814,7 @@ category: "dental_clinic"
 place_type: "Business"
 address: "1514 E Minnesota St"
 phone: "+13203637729"
-aka: ["Dr. Curt Cotton", "Milbert Kelsey K DDS", "Styles & Cotton Dental Office", "Styles Dr, Cotton Dr & Milbert Dr..."]
+aka: ["Dr. Curt Cotton", "Milbert Kelsey K DDS", "Styles & Cotton Dental Office", "Styles Dr, Cotton Dr & Milbert Dr...", "Milbert Johnson Family Dentistry"]
 added_by: agent:town-verify
 sources:
   - url: https://www.stjoedds.com/
@@ -8327,6 +8392,8 @@ Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submi
 ## St. Joseph Government Center
 ```yaml
 id: st-joseph-government-center
+aka: ["City Hall", "St. Joseph City Hall"]
+address: 75 Callaway St E
 status: proposed
 tier: listed
 place_type: "Government"

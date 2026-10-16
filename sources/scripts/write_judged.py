@@ -53,6 +53,10 @@ morning every one of those sources was read (read_events.py, the league's high s
   `from` to `through`, that no item this morning matches has been called off.
 
 THE RULES
+  Place (Jesse, 2026-10-16): every event row carries place_entry_id, the registry entry it happens
+    at, so its card shows that place's photo or logo: the place line matched to a name, `aka`,
+    `venues` or address (registry.place_for), else the entry that posted it. A place line the
+    registry doesn't know is named in the summary.
   Wording: every title and place is tidied (tidy_title, tidy_place) to the title-and-place
     skill's rules before anything else, so a card reads the same whichever source found it.
   Event or News: an Event becomes a found event in public.club_events; News goes to
@@ -100,6 +104,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from read_events import LOCAL, clock
 from run import Supabase
 from discover import TOWNS
+import registry
 
 LEAD = {"everyday": 14, "notable": 28, "big": 56}
 AREAS = {"town", "campus", "game", "announced", "outside"}
@@ -321,6 +326,17 @@ def local(stamp):
     return dt.astimezone(LOCAL)
 
 
+_PLACES = None
+
+
+def places():
+    """The registry's place names, read once: every event is tagged with where it happens."""
+    global _PLACES
+    if _PLACES is None:
+        _PLACES = registry.place_index(registry.load(Path(__file__).resolve().parents[2])[0])
+    return _PLACES
+
+
 def event_of(it, today, interests, home, notes):
     try:
         day, at = when(it.get("start") or "", it.get("all_day"))
@@ -344,6 +360,9 @@ def event_of(it, today, interests, home, notes):
     # page moves an event to another day the moved one is added and the old one stays. Fix
     # by reading a whole page's events as a set when sources like that start moving dates.
     # The id comes from the title as the source wrote it, so rewording never orphans a row.
+    entry, found = registry.place_for(place, it["source_name"], places())
+    if place and not found and not online:
+        notes.append(f"place not in the registry: {place!r} ({it['source_name']}'s picture stands in)")
     uid = str(it.get("source_uid") or "").strip() or \
         f"page:{day}{at.strftime('T%H%M') if at else ''}:{'-'.join(sorted(words(it['title'])))}"
     row = {"status": None, "title": title, "event_date": day.isoformat(),
@@ -351,7 +370,8 @@ def event_of(it, today, interests, home, notes):
            "location": "Online" if online else place_line(place, it.get("town") or home, home),
            "description": (it.get("blurb") or "").strip()[:1000] or None,
            "source_name": it["source_name"].strip(), "source_url": it["source_url"].strip(),
-           "source_uid": uid, "category": interest, "shows_from": show_from(day, size, signup).isoformat()}
+           "source_uid": uid, "category": interest, "shows_from": show_from(day, size, signup).isoformat(),
+           "place_entry_id": entry}
     facts = {"day": day, "at": at, "place": words(place, PLACE_STOP), "title": words(title)}
     return {"row": row, "facts": facts}, None
 
@@ -785,6 +805,22 @@ def t_interest_checked():
     assert any("music_arts" in n for n in r["notes"]), r["notes"]
 
 
+def t_place_entry():
+    arena = item(title="SJU Hockey vs Augsburg", place="Sexton Arena", town="Collegeville", area="campus",
+                 source_name="SJU Athletics", interest="sports_leagues")
+    shelter = item(title="Picnic in the Park", place="Centennial Park shelter", source_name="City of St. Joseph",
+                   source_url="https://www.stjosephmn.gov/")
+    zoo = item(title="Family Zoo Day", place="Hemker Park & Zoo", town="Freeport", area="announced",
+               source_name="City of St. Joseph", source_url="https://www.stjosephmn.gov/")
+    r = run([item(), arena, shelter, zoo])
+    ids = {g["row"]["title"]: g["row"]["place_entry_id"] for g in r["events"]}
+    assert ids == {"Plant Bingo": "milk-and-honey-ciders", "SJU Hockey vs Augsburg": "sju",
+                   "Picnic in the Park": "centennial-park", "Family Zoo Day": "city-of-st-joseph"}, ids
+    assert [n for n in r["notes"] if "not in the registry" in n] == [
+        "place not in the registry: 'Hemker Park & Zoo' (City of St. Joseph's picture stands in)"], r["notes"]
+    assert "place_entry_id = excluded.place_entry_id" in WRITES.read_text(), "the database keeps it"
+
+
 def t_area():
     campus = item(title="Animal Tracking", start="2027-01-09T13:00:00-06:00", place="Saint John's Abbey Arboretum",
                   town="Collegeville", area="campus", source_name="City of St. Joseph")
@@ -898,7 +934,7 @@ def t_wording():
         "a reworded copy still merges with the source's own words"
 
 
-TESTS = [t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_secondhand_needs_two, t_unsure_held, t_merge_true_pair,
+TESTS = [t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_secondhand_needs_two, t_unsure_held, t_merge_true_pair,
          t_merge_near_miss_kept_apart, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size,
          t_interest_checked, t_area, t_past_and_invalid_skipped, t_writes_are_one_safe_call]
 

@@ -102,6 +102,7 @@ what keeps an entry written in 2026 readable in 2030.
 | `tier` | no (defaults to `listed`) | What the entry is *for*, and how often it is checked. See [tier values](#tier-adr-011). |
 | `aka` | no | Other names this place is known by. Discovery treats them as already held, so the same place stops being proposed under a second name every month. This is how a human settles "Kennedy Elementary is Kennedy Community School" permanently — no rule can work that out. |
 | — | — | *Roster-side twin:* discovery's per-town `aliases` list folds two **candidate** names into one before either becomes an entry (Sal's Bar / Sal's Bar and Grill). `aka` settles a candidate against an entry that already exists; `aliases` settles two candidates against each other. |
+| `venues` | no | Buildings, rooms and fields inside this place that events name as their place ("Sexton Arena" at Saint John's). An event held at one shows this place's picture. Not other names for the place itself: those are `aka`. |
 | `place_type` | no | `Business`, `Community group`, `Church`, `School / college`, `Government` or `Park / historic`. Set by verification so "businesses only" is a filter, not a second list. |
 | `address`, `phone` | no | Where the place is and how to reach it, from a non-Google source only (ADR-016). Verification's drafts fill them in. |
 | `entity` | no (defaults to `place`) | What kind of thing this is. The registry lists **places**; events live in their own table and are what a place's sources produce (ADR-013). |
