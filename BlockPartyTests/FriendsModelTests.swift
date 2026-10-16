@@ -108,6 +108,26 @@ final class ProfilePlansSwitchTests: XCTestCase {
         XCTAssertEqual(refusing.plansFailures, 1, "and shaken once")
     }
 
+    /// Off then On, tapped while the first write is out: one write at a time, and the server
+    /// ends where the switch does.
+    func testQuickTapsAreSentInOrderAndTheLastOneWins() async {
+        var written: [Bool] = []
+        let model = ProfileModel(writePlans: { on in
+            try await Task.sleep(for: .milliseconds(50))
+            written.append(on)
+        })
+        model.plansToFriends = true
+        let first = Task { await model.setPlansToFriends(false) }
+        try? await Task.sleep(for: .milliseconds(10))
+        await model.setPlansToFriends(true)
+        await model.setPlansToFriends(false)
+        await model.setPlansToFriends(true)
+        await first.value
+        XCTAssertEqual(model.plansToFriends, true)
+        XCTAssertEqual(written, [false, true], "one write at a time; the server ends On, as the switch shows")
+        XCTAssertEqual(model.plansFailures, 0)
+    }
+
     func testBeforeTheServerSaysNothingIsWritten() async {
         var written: [Bool] = []
         let model = ProfileModel(writePlans: { written.append($0) })

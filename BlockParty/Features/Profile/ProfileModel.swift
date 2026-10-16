@@ -17,8 +17,8 @@ final class ProfileModel: ObservableObject {
     @Published var email: String?
     @Published var sinceLabel: String?
     @Published var isAdmin = false
-    /// "Show my plans to friends" (town-feed 28): nil until the server row says, so the switch
-    /// waits rather than showing a guess.
+    /// "Show my plans to friends" (town-feed 28): nil until the server row says. Till then the
+    /// switch shows the default, On, greyed, and can't be changed.
     @Published var plansToFriends: Bool?
     /// Counts writes that failed and flipped the switch back; each one shakes it.
     @Published private(set) var plansFailures = 0
@@ -31,6 +31,7 @@ final class ProfileModel: ObservableObject {
     private var profiles: ProfileAPI { ProfileAPI(auth: auth) }
     private var storage: Storage { Storage(auth: auth) }
     private var writePlans: ((Bool) async throws -> Void)?
+    private var plansWriting = false
 
     // Default arg is nil (not `.shared`) so the main-actor singleton is only
     // touched inside this @MainActor init body — no cross-isolation warning.
@@ -114,20 +115,31 @@ final class ProfileModel: ObservableObject {
 
     func signOut() async { await auth.signOut() }
 
-    /// The switch answers at once; a write the server refuses flips it back, then shakes it
-    /// with an error buzz (taste.md, 2026-09-27), as the Calendar switch does.
+    /// The switch answers at once. One write at a time: taps made while one is out are sent
+    /// as their latest value when it returns, so the server ends where the switch does. A
+    /// write the server refuses flips the switch back, unless a newer tap moved it, then
+    /// shakes it with an error buzz (taste.md, 2026-09-27), as the Calendar switch does.
     func setPlansToFriends(_ on: Bool) async {
-        guard let was = plansToFriends, was != on else { return }
+        guard let shown = plansToFriends, shown != on else { return }
         plansToFriends = on
-        do {
-            if let writePlans { try await writePlans(on) } else { try await profiles.setPlansToFriends(on) }
-        } catch {
-            withAnimation(.easeInOut(duration: RealLifeActions.flip)) { plansToFriends = was }
-            try? await Task.sleep(for: .seconds(RealLifeActions.flip))
-            plansFailures += 1
-            Haptics.error()
-            // The shake and the buzz are silent to VoiceOver; this says it.
-            AccessibilityNotification.Announcement("Couldn't change that. Try again.").post()
+        guard !plansWriting else { return }
+        plansWriting = true
+        defer { plansWriting = false }
+        var saved = shown
+        while let want = plansToFriends, want != saved {
+            do {
+                if let writePlans { try await writePlans(want) } else { try await profiles.setPlansToFriends(want) }
+                saved = want
+            } catch {
+                guard plansToFriends == want else { continue }
+                withAnimation(.easeInOut(duration: RealLifeActions.flip)) { plansToFriends = saved }
+                try? await Task.sleep(for: .seconds(RealLifeActions.flip))
+                plansFailures += 1
+                Haptics.error()
+                // The shake and the buzz are silent to VoiceOver; this says it.
+                AccessibilityNotification.Announcement("Couldn't change that. Try again.").post()
+                return
+            }
         }
     }
 

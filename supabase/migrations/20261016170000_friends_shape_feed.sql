@@ -30,7 +30,8 @@ as $$
   ),
   going as (
     select r.event_id, r.user_id, r.created_at,
-           (regexp_split_to_array(btrim(p.display_name), '\s+'))[1] as name,
+           -- The first word that starts with a letter: "🎉 Anna Lee" is Anna.
+           (regexp_match(p.display_name, '[[:alpha:]][^[:space:]]*'))[1] as name,
            -- Only a photo in their own folder of our avatars bucket (friends ticket 02).
            case when p.avatar_url like 'https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/avatars/'
                                        || p.user_id::text || '/%' then p.avatar_url end as photo

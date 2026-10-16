@@ -468,7 +468,7 @@ test('a friend Going lifts an Event and names them, newest Going first; two frie
   await reset();
   const quiz = await add('Quiz night', day(2), { start_time: '7 PM' });
   await add('Craft fair', day(2), { start_time: '9 AM' });
-  await neighbour(ANNA, 'Anna  Lee', { photo: PHOTO });
+  await neighbour(ANNA, '🎉 Anna  Lee', { photo: PHOTO });
   await neighbour(BEN, 'Ben Ortiz');
   await neighbour(CAL, 'Cal Ruiz', { photo: 'https://example.com/cal.jpg' });
   for (const f of [ANNA, BEN, CAL]) await befriend(ME, f);
