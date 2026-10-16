@@ -104,6 +104,26 @@ private extension FeedCardFacepile {
     }
 }
 
+/// The neighbour's friends Going (town-feed 28), as Facebook's event card leads its count with
+/// a friend's face: 24pt circles overlapping by 8pt like the pile above, each friend's photo or
+/// their own initial, never a stand-in. The line beside them says who; the faces are hidden
+/// from VoiceOver.
+struct FriendFaces: View {
+    let friends: [FeedFriend]
+    var ring: Color = Hue.paper
+
+    var body: some View {
+        HStack(spacing: -8) {
+            ForEach(Array(friends.prefix(3).enumerated()), id: \.offset) { index, friend in
+                FeedAuthorAvatar(url: friend.photo, name: friend.name, side: 24, initialSize: 10)
+                    .overlay(Circle().strokeBorder(ring, lineWidth: 1.5))
+                    .zIndex(Double(3 - index))
+            }
+        }
+        .accessibilityHidden(true)
+    }
+}
+
 /// A feed author's profile picture: the poster of a posting, the host of an event.
 ///
 /// Always a circle (Jesse, 2026-09-19). The photo-less case is their initial on an
@@ -114,6 +134,7 @@ struct FeedAuthorAvatar: View {
     let url: URL?
     let name: String
     var side: CGFloat = 32
+    var initialSize: CGFloat = 14
 
     var body: some View {
         ZStack {
@@ -124,7 +145,7 @@ struct FeedAuthorAvatar: View {
                     .frame(width: side, height: side)
             } else {
                 Text(initial)
-                    .font(.sansSemibold(14))
+                    .font(.sansSemibold(initialSize))
                     .foregroundStyle(Hue.ink)
             }
         }

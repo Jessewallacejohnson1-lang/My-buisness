@@ -113,6 +113,15 @@ nonisolated struct TownFeedRow: Hashable {
     var heartCount = 0
     var hearted = false
     var saved = false
+    /// Up to three of the caller's friends Going, newest Going first (town-feed 28).
+    var friendsGoing: [FeedFriend] = []
+}
+
+/// A friend Going to an Event, as the Town feed names them: first name, and their photo when
+/// they have one in our bucket. Only friends who show their plans to friends (town-feed 28).
+nonisolated struct FeedFriend: Hashable, Sendable {
+    let name: String
+    let photo: URL?
 }
 
 /// The points behind a card's place in the Town feed, as `get_town_feed` sends them to
@@ -310,4 +319,6 @@ struct TownProfile: Decodable {
     let avatarUrl: String?
     let interests: [String]
     let onboardedAt: String?
+    /// "Show my plans to friends" (town-feed 28): nil when the read didn't carry it.
+    var plansToFriends: Bool? = nil
 }

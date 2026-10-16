@@ -116,6 +116,8 @@ enum DailyFixtures {
                 // The one card with a score, so the Eyes pass shows the admin's sheet
                 // beside everyone else's.
                 reason: "interest", reasonName: "live_music",
+                // Two of the sample friends (`Neighbor.samples`) Going (town-feed 28).
+                friends: [("Sam", "centennial-park"), ("Marlene", "memorial-park")],
                 score: FeedScore(interest: 3, friend: 0, follow: 0, popular: 0, size: 1.5,
                                  sizeStep: 2, daysAway: 0.25, soon: 0.98, acted: 1, spacing: 1,
                                  newSpot: false, total: 5.39, spot: 1, of: 6),
@@ -128,6 +130,7 @@ enum DailyFixtures {
                 photo: true, hoursUntil: 40, going: 128,
                 category: .food,
                 description: "Produce, eggs, honey and bread in the church parking lot.",
+                friends: [("Dale", nil)],
                 now: now
             ),
             event(
@@ -207,7 +210,8 @@ enum DailyFixtures {
         chip: String, meta: String, photo: Bool,
         hoursUntil: Double, going: Int,
         category: EventCategory? = nil, description: String? = nil,
-        reason: String? = nil, reasonName: String? = nil, score: FeedScore? = nil, now: Date
+        reason: String? = nil, reasonName: String? = nil,
+        friends: [(name: String, photo: String?)] = [], score: FeedScore? = nil, now: Date
     ) -> TownFeedEntry {
         var item = FeedCardItem(
             id: id,
@@ -231,6 +235,10 @@ enum DailyFixtures {
         let day = reason ?? (hoursUntil < 18 ? "today" : hoursUntil < 42 ? "tomorrow" : "soon")
         item.why = FeedCardMenu.line(reason: day, name: reasonName)
         item.score = score
+        item.friendsGoing = friends.map { friend in
+            FeedFriend(name: friend.name,
+                       photo: friend.photo.flatMap { Bundle.main.url(forResource: $0, withExtension: "jpg") })
+        }
         // `-town-cancelled`: the first card and the photo-less council meeting are called
         // off, for the Canceled tag on a photo and with none (ticket 12).
         item.cancelled = ["e1", "e5"].contains(id) && ProcessInfo.processInfo.arguments.contains("-town-cancelled")

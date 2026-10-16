@@ -244,7 +244,10 @@ final class RealLifeActions {
     /// The card's going line: only for someone who may act, and never at zero, as the
     /// Event page never shows a zero count (taste.md, 2026-10-04: fewer words).
     func goingLine(_ item: FeedCardItem) -> String? {
-        canAct ? YourDayLogic.goingLabel(for: going(item).count) : nil
+        guard canAct else { return nil }
+        let going = going(item)
+        return YourDayLogic.goingLabel(for: going.count, friends: item.friendsGoing.map(\.name),
+                                       youGoing: going.isGoing)
     }
 
     func failureCount(_ eventID: String) -> Int {

@@ -23,7 +23,7 @@ struct ProfileAPI {
     func getMyProfile() async throws -> TownProfile? {
         let t = try await token()
         let (data, _) = try await SupabaseHTTP.rest("town_profiles",
-            query: "select=user_id,display_name,avatar_url,interests,onboarded_at&limit=1",
+            query: "select=user_id,display_name,avatar_url,interests,onboarded_at,plans_to_friends&limit=1",
             accessToken: t)
         let rows: [TownProfile] = try decode(data)
         return rows.first
@@ -53,5 +53,15 @@ struct ProfileAPI {
         _ = try await SupabaseHTTP.rest("town_profiles", method: "POST",
             query: "on_conflict=user_id", accessToken: t, body: body,
             prefer: "resolution=merge-duplicates,return=minimal")
+    }
+
+    /// "Show my plans to friends" (town-feed 28): only that column of the caller's own row, so
+    /// a tap never touches their name or photo.
+    func setPlansToFriends(_ on: Bool) async throws {
+        let t = try await token()
+        guard let uid = auth.userId else { throw SupabaseError(message: "Your session ended. Sign in and try again.", status: 401) }
+        let body = try JSONSerialization.data(withJSONObject: ["plans_to_friends": on])
+        _ = try await SupabaseHTTP.rest("town_profiles", method: "PATCH", query: "user_id=eq.\(uid)",
+                                        accessToken: t, body: body, prefer: "return=minimal")
     }
 }

@@ -309,6 +309,7 @@ final class TownFeed {
         card.likeCount = row.heartCount
         card.isLiked = row.hearted
         card.isSaved = row.saved
+        card.friendsGoing = row.friendsGoing
         return TownFeedEntry(card: card, leavesAt: row.leavesAt)
     }
 }

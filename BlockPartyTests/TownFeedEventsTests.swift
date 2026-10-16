@@ -102,6 +102,31 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertNil(cards[2].score)
     }
 
+    /// Friends Going (town-feed 28) come through with the reason that names the first of them;
+    /// a feed kept on disk before the column existed still reads, with none.
+    func testFriendsGoingReachTheCardAndAnOlderKeptFeedStillReads() throws {
+        let json = """
+        [{"id":"e1","title":"Quiz night","event_date":"2026-10-12","start_time":"7 PM",
+          "location":null,"image_url":null,"category":null,"club_name":null,
+          "source_name":"Bad Habit","end_at":null,"all_day":false,
+          "created_at":"2026-10-06T16:08:20+00:00","going_count":12,"rsvpd":false,
+          "recurrence":null,"leaves_at":"2026-10-13T02:00:00+00:00",
+          "reason":"friend","reason_name":"Anna","score":null,
+          "friends_going":[{"name":"Anna","photo":"https://example.com/anna.jpg"},{"name":"Ben","photo":null}]},
+         {"id":"e2","title":"Bake sale","event_date":"2026-10-08","start_time":"11 AM",
+          "location":null,"image_url":null,"category":null,"club_name":null,
+          "source_name":"Parish","end_at":null,"all_day":false,
+          "created_at":"2026-10-06T16:08:20+00:00","going_count":3,"rsvpd":false,
+          "recurrence":null,"leaves_at":"2026-10-08T18:00:00+00:00",
+          "reason":"today","reason_name":null,"score":null}]
+        """
+        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.entry($0).card }
+        XCTAssertEqual(cards[0].friendsGoing, [FeedFriend(name: "Anna", photo: URL(string: "https://example.com/anna.jpg")),
+                                               FeedFriend(name: "Ben", photo: nil)])
+        XCTAssertEqual(cards[0].why, "Anna is going")
+        XCTAssertEqual(cards[1].friendsGoing, [])
+    }
+
     /// Every reason the database sends has a line; one this app doesn't know has none,
     /// so a newer database never puts a wrong line on an older app.
     func testEachReasonHasItsLine() {

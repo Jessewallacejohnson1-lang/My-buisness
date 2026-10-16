@@ -418,7 +418,9 @@ struct FeedEventCard: View {
 
     private func socialRow(_ goingLine: String) -> some View {
         HStack(spacing: 8) {
-            if !item.goingAvatars.isEmpty {
+            if !item.friendsGoing.isEmpty {
+                FriendFaces(friends: item.friendsGoing)
+            } else if !item.goingAvatars.isEmpty {
                 FeedCardFacepile(
                     neighborAvatars: item.goingAvatars,
                     goingCount: actions.going(item).count,

@@ -17,6 +17,11 @@ final class ProfileModel: ObservableObject {
     @Published var email: String?
     @Published var sinceLabel: String?
     @Published var isAdmin = false
+    /// "Show my plans to friends" (town-feed 28): nil until the server row says, so the switch
+    /// waits rather than showing a guess.
+    @Published var plansToFriends: Bool?
+    /// Counts writes that failed and flipped the switch back; each one shakes it.
+    @Published private(set) var plansFailures = 0
 
     // Lifecycle
     @Published var loading = false
@@ -25,10 +30,22 @@ final class ProfileModel: ObservableObject {
     private let auth: AuthStore
     private var profiles: ProfileAPI { ProfileAPI(auth: auth) }
     private var storage: Storage { Storage(auth: auth) }
+    private var writePlans: ((Bool) async throws -> Void)?
 
     // Default arg is nil (not `.shared`) so the main-actor singleton is only
     // touched inside this @MainActor init body — no cross-isolation warning.
-    init(auth: AuthStore? = nil) { self.auth = auth ?? .shared }
+    // `writePlans` stands in for the server in tests.
+    init(auth: AuthStore? = nil, writePlans: ((Bool) async throws -> Void)? = nil) {
+        self.auth = auth ?? .shared
+        self.writePlans = writePlans
+        #if DEBUG
+        // `-town-samples`: the switch shows on and its taps write nowhere, as Join's do.
+        if writePlans == nil, ProcessInfo.processInfo.arguments.contains("-town-samples") {
+            plansToFriends = true
+            self.writePlans = { _ in }
+        }
+        #endif
+    }
 
     // MARK: - Load
 
@@ -54,6 +71,7 @@ final class ProfileModel: ObservableObject {
             interestIds = p.interests
             Interests.set(p.interests)
             sinceLabel = ProfileModel.since(from: p.onboardedAt)
+            plansToFriends = p.plansToFriends ?? true
         }
 
         loading = false
@@ -95,6 +113,23 @@ final class ProfileModel: ObservableObject {
     }
 
     func signOut() async { await auth.signOut() }
+
+    /// The switch answers at once; a write the server refuses flips it back, then shakes it
+    /// with an error buzz (taste.md, 2026-09-27), as the Calendar switch does.
+    func setPlansToFriends(_ on: Bool) async {
+        guard let was = plansToFriends, was != on else { return }
+        plansToFriends = on
+        do {
+            if let writePlans { try await writePlans(on) } else { try await profiles.setPlansToFriends(on) }
+        } catch {
+            withAnimation(.easeInOut(duration: RealLifeActions.flip)) { plansToFriends = was }
+            try? await Task.sleep(for: .seconds(RealLifeActions.flip))
+            plansFailures += 1
+            Haptics.error()
+            // The shake and the buzz are silent to VoiceOver; this says it.
+            AccessibilityNotification.Announcement("Couldn't change that. Try again.").post()
+        }
+    }
 
     // MARK: - Helpers
 

@@ -546,13 +546,22 @@ struct FeedEventDetailDestination: View {
         return HStack(spacing: 12) {
             // `goingLabel` is nil at zero: never "0 going". Called off: none, which would
             // read as if it were still on (Jesse, 2026-10-15).
-            if !item.cancelled, let going = YourDayLogic.goingLabel(for: going.count) {
-                Text(going)
-                    .font(.sans(17))
-                    .monospacedDigit()
-                    .foregroundStyle(Hue.inkSecondary)
-                    .contentTransition(.numericText())
-                    .transition(.opacity)
+            // Friends Going lead it, with their faces, as on the card (town-feed 28); a long
+            // line takes a second line rather than pushing Join.
+            if !item.cancelled,
+               let line = YourDayLogic.goingLabel(for: going.count, friends: item.friendsGoing.map(\.name),
+                                                  youGoing: going.isGoing) {
+                HStack(spacing: 8) {
+                    if !item.friendsGoing.isEmpty { FriendFaces(friends: item.friendsGoing) }
+                    Text(line)
+                        .font(.sans(17))
+                        .monospacedDigit()
+                        .foregroundStyle(Hue.inkSecondary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .contentTransition(.numericText())
+                }
+                .transition(.opacity)
             }
 
             Spacer(minLength: 0)

@@ -85,3 +85,34 @@ final class FriendsModelTests: XCTestCase {
         XCTAssertEqual(Set(samples.map(\.id)).count, samples.count, "ids are unique")
     }
 }
+
+/// "Show my plans to friends" in Profile (town-feed 28): it answers at once, a refused write
+/// flips it back and shakes it, and it waits for the server's answer before it can be used.
+@MainActor
+final class ProfilePlansSwitchTests: XCTestCase {
+    private struct Refused: Error {}
+
+    func testTheSwitchAnswersAtOnceAndAWriteThatFailsFlipsItBack() async {
+        var written: [Bool] = []
+        let model = ProfileModel(writePlans: { written.append($0) })
+        model.plansToFriends = true
+        await model.setPlansToFriends(false)
+        XCTAssertEqual(model.plansToFriends, false)
+        XCTAssertEqual(written, [false])
+        XCTAssertEqual(model.plansFailures, 0)
+
+        let refusing = ProfileModel(writePlans: { _ in throw Refused() })
+        refusing.plansToFriends = true
+        await refusing.setPlansToFriends(false)
+        XCTAssertEqual(refusing.plansToFriends, true, "flipped back")
+        XCTAssertEqual(refusing.plansFailures, 1, "and shaken once")
+    }
+
+    func testBeforeTheServerSaysNothingIsWritten() async {
+        var written: [Bool] = []
+        let model = ProfileModel(writePlans: { written.append($0) })
+        await model.setPlansToFriends(false)
+        XCTAssertNil(model.plansToFriends)
+        XCTAssertEqual(written, [])
+    }
+}

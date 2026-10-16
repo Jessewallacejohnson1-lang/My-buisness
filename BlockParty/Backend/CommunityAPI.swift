@@ -209,6 +209,12 @@ struct CommunityAPI {
             let hearted: Bool?
             let saved: Bool?
             let cancelled: Bool?
+            /// Optional, so a feed kept on disk before town-feed 28 still decodes.
+            let friendsGoing: [Friend]?
+        }
+        struct Friend: Decodable {
+            let name: String
+            let photo: String?
         }
         /// The admin's breakdown, or nil when it doesn't decode: a score never costs the
         /// feed.
@@ -232,7 +238,10 @@ struct CommunityAPI {
             return TownFeedRow(event: event, recurrence: row.recurrence, leavesAt: leavesAt,
                                reason: row.reason, reasonName: row.reasonName, score: row.score?.value,
                                heartCount: row.heartCount ?? 0, hearted: row.hearted ?? false,
-                               saved: row.saved ?? false)
+                               saved: row.saved ?? false,
+                               friendsGoing: (row.friendsGoing ?? []).map {
+                                   FeedFriend(name: $0.name, photo: $0.photo.flatMap(URL.init(string:)))
+                               })
         }
     }
 

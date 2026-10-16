@@ -214,6 +214,18 @@ final class RealLifeActionsTests: XCTestCase {
         XCTAssertEqual(actions.goingLine(fresher), "7 going")
     }
 
+    /// Friends lead the card's line (town-feed 28), and your own Join puts you first at once.
+    func testTheGoingLineNamesFriendsAndYouOnceYouJoin() async throws {
+        let server = Server()
+        let actions = actions(server)
+        var item = card(going: 3)
+        item.friendsGoing = [FeedFriend(name: "Anna", photo: nil)]
+        actions.read([item])
+        XCTAssertEqual(actions.goingLine(item), "Anna and 2 others are going")
+        actions.toggleGoing(item)
+        XCTAssertEqual(actions.goingLine(item), "You, Anna and 2 others are going")
+    }
+
     /// A read sets each Event's base. A choice the read agrees with is done; one it
     /// doesn't agree with yet stays, counted from the read's number.
     func testAFeedReadReplacesTheBase() async throws {

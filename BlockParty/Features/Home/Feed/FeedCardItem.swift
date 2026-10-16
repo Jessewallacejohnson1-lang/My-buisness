@@ -21,6 +21,9 @@ struct FeedCardItem: Identifiable, Hashable {
     /// `RealLifeActions.going`, which lays the neighbour's own taps over this.
     let goingCount: Int
     let goingAvatars: [URL]
+    /// The neighbour's friends Going, newest first, at most three (town-feed 28): their
+    /// faces and names lead the going line on the card and the Event page.
+    var friendsGoing: [FeedFriend] = []
     var likeCount: Int
     var isLiked: Bool
     var isSaved: Bool
