@@ -117,9 +117,11 @@ final class TownFeed {
             return
         }
         #endif
-        // A test run never records views for whatever account the simulator kept.
-        self.init(read: Self.live, kept: Self.keptOnDisk, actions: actions,
-                  send: AuthStore.isTestRun ? { _ in } : Self.sendLive)
+        // A test run never records views for whatever account the simulator kept. Typed on
+        // its own line: Xcode 26.6's compiler gave up on the closure-or-function choice
+        // written inline (GitHub's check, red from 2026-10-13).
+        let send: ([FeedAction]) async throws -> Void = AuthStore.isTestRun ? { _ in } : Self.sendLive
+        self.init(read: Self.live, kept: Self.keptOnDisk, actions: actions, send: send)
     }
 
     /// The cards still on, in the database's order. The admin's Score names each card's
