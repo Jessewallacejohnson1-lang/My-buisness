@@ -1483,16 +1483,21 @@ Notes: Proposed by discovery on 2026-09-24 from osm, www.joetown.org. Mapped at 
 ```yaml
 id: joseph-newsleaders-of-sartell-st-st-step
 status: active
-tier: listed
-category: advertising-marketing
+tier: watched
+category: newspaper
 added_by: agent:discover
 sources:
-  - url: TODO
-    kind: website
-    method: submission
-    trust: official
+  - url: https://thenewsleaders.com/category/news/st-joseph/feed/
+    kind: rss
+    method: fetch
+    trust: squishy
 ```
-Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Watched since 2026-10-16: one of the old town board curator's sites, kept when it retired
+(watch-every-place 07; Jesse, 2026-10-13). The St. Joseph section's feed, read like a page by the
+morning job (ADR-022). A newspaper reports on others, so its mentions are secondhand (`squishy`):
+an event it alone reports needs a second mention, and the judge writes its own one-line blurb,
+never the article's text. Anthropic's WebFetch gets a 403 here; the registry's polite fetcher
+reads the feed. Proposed by discovery on 2026-09-24 from stjosephchamber.com.
 
 ## Nichols WD
 ```yaml
