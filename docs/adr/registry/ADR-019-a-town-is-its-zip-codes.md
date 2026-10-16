@@ -1,6 +1,7 @@
 # ADR-019 — A town is its ZIP codes
 
-**Status:** Accepted
+**Status:** Accepted for which file a place belongs in; which events the Town feed shows is
+widened by [ADR-022](ADR-022-every-place-with-a-website-is-watched.md).
 **Date:** 2026-10-02
 **Depends on:** [ADR-006](ADR-006-one-file-per-town.md)
 

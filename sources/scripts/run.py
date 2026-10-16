@@ -33,14 +33,53 @@ UNKNOWN_ROBOTS_DELAY = 10.0
 NOW = datetime.now(timezone.utc)
 
 
+FEED = re.compile(r"<(rss|feed|rdf:RDF)\b")
+FEED_ITEM = re.compile(r"(?is)<(item|entry)\b.*?</\1>")
+
+
+def feed_text(raw):
+    """An RSS or Atom feed as its items, one block each with its date, so a model reading it
+    keeps the dates. The channel's own build time is left out: it changes on every request."""
+    blocks = []
+    for m in FEED_ITEM.finditer(raw):
+        item = m.group(0)
+
+        def tag(*names):
+            for n in names:
+                t = re.search(rf"(?is)<{n}\b[^>]*>(.*?)</{n}>", item)
+                if t:
+                    return re.sub(r"(?s)<!\[CDATA\[(.*?)\]\]>", r"\1", t.group(1)).strip()
+            return ""
+        href = re.search(r'<link[^>]+href=["\']([^"\']+)', item)
+        lines = [to_text(html.unescape(tag("title"))), tag("pubDate", "published", "updated", "dc:date"),
+                 tag("link") or (href.group(1) if href else ""),
+                 to_text(html.unescape(tag("description", "summary", "content:encoded", "content")))[:600]]
+        blocks.append("\n".join(ln for ln in lines if ln))
+    return "\n\n".join(blocks)
+
+
 def to_text(raw):
     """HTML -> plain text good enough for hashing + an LLM reading the snapshot."""
+    head = raw[:600]
+    if FEED.search(head) and "<html" not in head.lower():
+        return feed_text(raw)
     s = re.sub(r"(?is)<(script|style|noscript|svg|head)[^>]*>.*?</\1>", " ", raw)
     s = re.sub(r"(?i)<br\s*/?>|</(p|div|li|h[1-6]|tr|section|article)>", "\n", s)
     s = re.sub(r"(?s)<[^>]+>", " ", s)
     s = html.unescape(s)
     lines = [re.sub(r"[ \t\r\f\v]+", " ", ln).strip() for ln in s.split("\n")]
     return "\n".join(ln for ln in lines if ln)
+
+
+# A time to the second is the page's own clock ("Page generated at 10/16/2026, 3:45:36 AM",
+# a feed's build time), never news, so it is left out of the fingerprint with its date. The
+# snapshot a model reads keeps it.
+STAMP = re.compile(r"(?:(?:\w{3},?\s+)?\d{1,2}\s+\w{3}\s+\d{4}\s+|\d{1,4}[/-]\d{1,2}[/-]\d{1,4}[,T ]?\s*)?"
+                   r"\b\d{1,2}:\d{2}:\d{2}(?:\.\d+)?\s*(?:[AP]M\b)?\s*(?:Z|[+-]\d{2}:?\d{2})?", re.I)
+
+
+def fingerprint(text):
+    return hashlib.sha256(STAMP.sub("", text).encode()).hexdigest()
 
 
 _robots = {}          # host -> robots rules, or None (None = no restrictions known)
@@ -220,8 +259,11 @@ class Supabase:
                   prefer="resolution=merge-duplicates,return=minimal")
 
     def state(self):
-        rows = self.call("GET", "sources?select=entry_id,url,last_hash") or []
-        return {f"{r['entry_id']}|{r['url']}": r.get("last_hash") for r in rows}
+        """Yesterday's fingerprints, and which pages were ever checked (a cleared fingerprint
+        forces a read; a page never checked is new and only gets its starting copy)."""
+        rows = self.call("GET", "sources?select=entry_id,url,last_hash,last_checked_at") or []
+        return ({f"{r['entry_id']}|{r['url']}": r.get("last_hash") for r in rows},
+                {f"{r['entry_id']}|{r['url']}" for r in rows if r.get("last_checked_at")})
 
     def record(self, entry_id, url, fields):
         q = f"sources?entry_id=eq.{entry_id}&url=eq.{urllib.parse.quote(url, safe='')}"
@@ -274,10 +316,11 @@ def main():
                                               if k not in ("url", "kind", "method", "trust")}}}
                 for e in entries for s in e["sources"] if not is_todo(s["url"])]
         db.upsert_registry(rows)
-        prev = db.state()
+        prev, seen = db.state()
         print(f"synced {len(rows)} source rows")
     else:
         prev = json.loads(local_state_path.read_text()) if local_state_path.exists() else {}
+        seen = set(prev)
 
     jobs, agent_tasks, skipped = [], [], []
     for e in picked:
@@ -303,7 +346,7 @@ def main():
         try:
             status, raw = fetch(ref["url"])
             text = to_text(raw)
-            h = hashlib.sha256(text.encode()).hexdigest()
+            h = fingerprint(text)
             changed = prev.get(key) != h
             fname = f"{ref['entry_id']}--{hashlib.md5(ref['url'].encode()).hexdigest()[:6]}.md"
             if changed:
@@ -311,7 +354,7 @@ def main():
                     f"---\nentry_id: {ref['entry_id']}\nurl: {ref['url']}\nfetched_at: {NOW.isoformat()}\n"
                     f"hash: {h}\ntrust: {ref['trust']}\n---\n\n{text}\n", encoding="utf-8")
             return {**ref, "ok": True, "http": status, "hash": h, "changed": changed,
-                    "first_seen": key not in prev, "snapshot": fname if changed else None,
+                    "first_seen": key not in seen, "snapshot": fname if changed else None,
                     "chars": len(text), "secs": round(time.time() - t0, 1)}
         except Exception as ex:
             return {**ref, "ok": False, "error": str(ex)[:300], "secs": round(time.time() - t0, 1)}

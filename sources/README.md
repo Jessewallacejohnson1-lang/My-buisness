@@ -159,7 +159,7 @@ independent — a `listed` entry can be `proposed`, `active`, `paused` or `retir
 
 | Value | What it is | Publishes | How it is promoted | Cadence |
 | --- | --- | --- | --- | --- |
-| `watched` | A real URL whose content changes — events, hours, announcements | yes | per entry, by Jesse | every run |
+| `watched` | A real URL whose content changes — events, hours, announcements | yes | by Jesse, one approval page per batch (ADR-022) | every run |
 | `listed` | The place exists: name, location, category. Nothing to fetch | no | **batch, by category** | re-verified quarterly |
 | `submitted` | No web presence; the owner tells Block Party directly | yes | per entry, by Jesse | when something arrives |
 
@@ -167,9 +167,10 @@ independent — a `listed` entry can be `proposed`, `active`, `paused` or `retir
 is the exact property ADR-008 was protecting. The worst case for a bad `listed` entry is
 a wrong pin on a map — visible, and cheap to fix.
 
-An entry moving from `listed` to `watched` crosses the publishing line, so it needs
-per-entry review even if it was originally batch-approved. Discovery flags those; it does
-not re-tier on its own.
+An entry moving from `listed` to `watched` crosses the publishing line, so Jesse sees each
+one before it moves: `find_calendars.py --pick` chooses up to three pages per place, Jesse
+unticks what he doesn't trust on one approval page, and `find_calendars.py --promote` applies
+his ticks (ADR-022). Discovery never re-tiers on its own.
 
 ---
 

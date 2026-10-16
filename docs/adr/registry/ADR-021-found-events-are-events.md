@@ -1,6 +1,7 @@
 # ADR-021 — Found events are events: one list, reviewed first, merged only when certain
 
-**Status:** Accepted
+**Status:** Accepted; its in-town-events-only rule is lifted by
+[ADR-022](ADR-022-every-place-with-a-website-is-watched.md).
 **Date:** 2026-10-06
 **Decided by:** Jesse, 2026-10-06, in a grilling session on events from sources.
 **Settles:** the three items in [PARKED.md](PARKED.md): staging, event dedupe, recurring

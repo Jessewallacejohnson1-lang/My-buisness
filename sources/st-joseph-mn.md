@@ -116,16 +116,16 @@ event series, so the events page is the right source rather than the homepage.
 ```yaml
 id: jupiter-moon
 status: active
-tier: listed
+tier: watched
 category: dessert
 added_by: agent:claude
 sources:
-  - url: https://www.jupitermoonicecream.com/
+  - url: https://www.jupitermoonicecream.com/events
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Two locations, St. Joseph and St. Cloud — anything pulled from here needs
+Notes: Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). Two locations, St. Joseph and St. Cloud — anything pulled from here needs
 checking for which one it refers to before it becomes a St. Joe posting. No events page
 found; the site is flavors and hours, so this is a low-frequency source.
 
@@ -781,7 +781,7 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.55921, -94.321
 ```yaml
 id: bo-diddleys
 status: active
-tier: listed
+tier: watched
 category: amenity=fast_food
 added_by: agent:discover
 sources:
@@ -790,42 +790,46 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56522, -94.31836. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56522, -94.31836. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Brenny Transportation
 ```yaml
 id: brenny-transportation
 status: active
-tier: listed
+tier: watched
 category: transportation-logistics
 added_by: agent:discover
 sources:
-  - url: https://brennytransportation.com/
-    kind: website
+  - url: https://brennytransportation.com/feed/
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com, www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com, www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Bruno Press
 ```yaml
 id: bruno-press
 status: active
-tier: listed
+tier: watched
 added_by: agent:discover
 sources:
-  - url: https://www.mcbrunopress.com
+  - url: https://www.mcbrunopress.com/bpevents
+    kind: website
+    method: fetch
+    trust: official
+  - url: https://www.mcbrunopress.com/blog
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## CSB Athletic Activities
 ```yaml
 id: activities-athletic-csb
 status: active
-tier: listed
+tier: watched
 added_by: agent:discover
 sources:
   - url: https://gobennies.com
@@ -833,7 +837,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## CSB Events and Catering
 ```yaml
@@ -883,7 +887,7 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56699, -94.323
 ```yaml
 id: central-mn-realty
 status: active
-tier: listed
+tier: watched
 added_by: agent:discover
 sources:
   - url: https://www.centralmnrealty.com/
@@ -891,7 +895,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## China One
 ```yaml
@@ -987,7 +991,7 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56839, -94.297
 ```yaml
 id: consumer-directions
 status: active
-tier: listed
+tier: watched
 added_by: agent:discover
 sources:
   - url: https://consumerdirections.info/
@@ -995,7 +999,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Daisy A Day
 ```yaml
@@ -1061,7 +1065,7 @@ Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was 
 ```yaml
 id: ceiling-floor-to
 status: active
-tier: listed
+tier: watched
 added_by: agent:discover
 sources:
   - url: https://www.floortoceilingmn.com/
@@ -1069,7 +1073,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Floral Arts Inc.
 ```yaml
@@ -1105,16 +1109,16 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56507, -94.318
 ```yaml
 id: golden-hour-tanning
 status: active
-tier: listed
+tier: watched
 category: hospitality-tourism
 added_by: agent:discover
 sources:
-  - url: https://www.goldenhourtanning.org/
+  - url: https://www.goldenhourwellnessmn.com/blog
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com, www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com, www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Groundsman LLC
 ```yaml
@@ -1149,7 +1153,7 @@ Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — 
 ```yaml
 id: hedtke-insurance
 status: active
-tier: listed
+tier: watched
 added_by: agent:discover
 sources:
   - url: https://www.statefarm.com/agent/us/mn/saint-joseph/amy-hedtke-8jzc2b342al
@@ -1157,7 +1161,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Holiday
 ```yaml
@@ -1208,16 +1212,16 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56484, -94.318
 ```yaml
 id: jolie-olies-shoppe-sweet
 status: active
-tier: listed
+tier: watched
 category: shop=bakery
 added_by: agent:discover
 sources:
-  - url: https://www.jolieolies.com/
-    kind: website
+  - url: https://jolieolies.com/feed
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56506, -94.31790. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56506, -94.31790. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Justina Massage
 ```yaml
@@ -1238,15 +1242,19 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56454, -94.319
 ```yaml
 id: kpower-yoga
 status: active
-tier: listed
+tier: watched
 added_by: agent:discover
 sources:
-  - url: https://kpoweryogastudio.com/
+  - url: https://kpoweryogastudio.com/feed/
+    kind: rss
+    method: fetch
+    trust: official
+  - url: https://kpoweryogastudio.com/events/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Kay's Kitchen
 ```yaml
@@ -1297,16 +1305,16 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.55721, -94.303
 ```yaml
 id: kwik-trip
 status: active
-tier: listed
+tier: watched
 category: amenity=fuel
 added_by: agent:discover
 sources:
-  - url: https://www.kwiktrip.com/locator/store?id=147
+  - url: https://www.kwiktrip.com/savings/daily-deals
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56700, -94.32239. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56700, -94.32239. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## La Jam
 ```yaml
@@ -1460,16 +1468,16 @@ Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — 
 ```yaml
 id: market-minnesota-street
 status: active
-tier: listed
+tier: watched
 category: shop=greengrocer
 added_by: agent:discover
 sources:
-  - url: https://mnstreetmarket.com
-    kind: website
+  - url: https://mnstreetmarket.com/feed/
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from osm, www.joetown.org. Mapped at 45.56463, -94.31911. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from osm, www.joetown.org. Mapped at 45.56463, -94.31911. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Newsleaders of St. Joseph and Sartell-St. Stephen
 ```yaml
@@ -1520,30 +1528,30 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.57285, -94.311
 ```yaml
 id: auto-oreilly-parts
 status: active
-tier: listed
+tier: watched
 category: shop=car_parts
 added_by: agent:discover
 sources:
-  - url: https://locations.oreillyauto.com/mn/saintjoseph/autoparts-5771.html
+  - url: https://locations.oreillyauto.com/en-us/mn/saintjoseph/autoparts-5771.html
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56874, -94.30113. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56874, -94.30113. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Obbink Distillery
 ```yaml
 id: distillery-obbink
 status: active
-tier: listed
+tier: watched
 added_by: agent:discover
 sources:
-  - url: https://www.obbinkdistilling.com
+  - url: https://www.obbinkdistilling.com/events-1
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Ocean Tobacco
 ```yaml
@@ -1609,7 +1617,7 @@ Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was 
 ```yaml
 id: insurance-pierce
 status: active
-tier: listed
+tier: watched
 added_by: agent:discover
 sources:
   - url: https://www.pierceinsurance.com/
@@ -1617,7 +1625,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## River of Life Church
 ```yaml
@@ -1638,7 +1646,7 @@ Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was 
 ```yaml
 id: alzheimers-for-rock
 status: active
-tier: listed
+tier: watched
 added_by: agent:discover
 sources:
   - url: https://www.rock4alz.com
@@ -1646,7 +1654,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Rodeway Inn
 ```yaml
@@ -1682,15 +1690,15 @@ Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was 
 ```yaml
 id: activities-athletic-sju
 status: active
-tier: listed
+tier: watched
 added_by: agent:discover
 sources:
-  - url: https://gojohnnies.com
+  - url: https://gojohnnies.com/calendar
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Sacred Heart Chapel
 ```yaml
@@ -1741,16 +1749,16 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56621, -94.310
 ```yaml
 id: joseph-market-meat-st
 status: active
-tier: listed
+tier: watched
 category: shop=butcher
 added_by: agent:discover
 sources:
-  - url: https://stjosephmeatmarket.com
+  - url: https://stjosephmeatmarket.com/specials
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from osm, www.joetown.org. Mapped at 45.56529, -94.31973. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from osm, www.joetown.org. Mapped at 45.56529, -94.31973. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Saint Joseph Park & Ride
 ```yaml
@@ -1786,7 +1794,7 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56173, -94.316
 ```yaml
 id: joseph-office-post-st
 status: active
-tier: listed
+tier: watched
 category: amenity=post_office
 added_by: agent:discover
 sources:
@@ -1795,37 +1803,45 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56564, -94.32153. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56564, -94.32153. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Sal's Bar and Grill
 ```yaml
 id: bar-grill-sals
 status: active
-tier: listed
+tier: watched
 category: amenity=bar
 added_by: agent:discover
 sources:
-  - url: https://salsbarstjoe.com
-    kind: website
+  - url: https://salsbarstjoe.com/events/?ical=1
+    kind: ical
+    method: fetch
+    trust: official
+  - url: https://salsbarstjoe.com/feed/
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from osm, stjosephchamber.com, www.joetown.org. Mapped at 45.56454, -94.32060. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from osm, stjosephchamber.com, www.joetown.org. Mapped at 45.56454, -94.32060. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Sisters of the Order of Saint Benedict
 ```yaml
 id: benedict-of-of-order-sisters-st
 status: active
-tier: listed
+tier: watched
 category: nonprofits-charities
 added_by: agent:discover
 sources:
-  - url: https://sbm.osb.org/
-    kind: website
+  - url: https://sbm.osb.org/events/?ical=1
+    kind: ical
+    method: fetch
+    trust: official
+  - url: https://sbm.osb.org/feed/
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com, www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com, www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Speedway
 ```yaml
@@ -1891,7 +1907,7 @@ Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was 
 ```yaml
 id: health-joseph-st-wellness
 status: active
-tier: listed
+tier: watched
 added_by: agent:discover
 sources:
   - url: https://stjoewellness.com/
@@ -1899,7 +1915,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## St. Joseph Joes
 ```yaml
@@ -1964,7 +1980,7 @@ Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was 
 ```yaml
 id: subway
 status: active
-tier: listed
+tier: watched
 category: amenity=fast_food
 added_by: agent:discover
 sources:
@@ -1973,21 +1989,21 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56811, -94.32049. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56811, -94.32049. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Sunny Mary Meadow
 ```yaml
 id: mary-meadow-sunny
 status: active
-tier: listed
+tier: watched
 added_by: agent:discover
 sources:
-  - url: https://sunnymarymeadow.com/
+  - url: https://sunnymarymeadow.com/events/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Taco John's
 ```yaml
@@ -2008,7 +2024,7 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56811, -94.320
 ```yaml
 id: bed-breakfast-estates
 status: active
-tier: listed
+tier: watched
 category: tourism=guest_house
 added_by: agent:discover
 sources:
@@ -2017,7 +2033,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from osm, www.joetown.org. Mapped at 45.56510, -94.31650. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from osm, www.joetown.org. Mapped at 45.56510, -94.31650. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## The House
 ```yaml
@@ -2038,59 +2054,63 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56414, -94.321
 ```yaml
 id: food-house-tap
 status: active
-tier: listed
+tier: watched
 added_by: agent:discover
 sources:
-  - url: https://www.thehousefoodandtap.com/
+  - url: https://www.thehousefoodandtap.com/happenings
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## The La Playette
 ```yaml
 id: la-playette
 status: active
-tier: listed
+tier: watched
 added_by: agent:discover
 sources:
-  - url: http://laplayettebar.com
+  - url: https://help.liveeditaurora.com/cloudflare
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## The Middy
 ```yaml
 id: middy
 status: active
-tier: listed
+tier: watched
 category: amenity=pub
 added_by: agent:discover
 sources:
-  - url: https://visitstcloud.com/dine/the-middy/
+  - url: https://visitstcloud.com/feed/
+    kind: rss
+    method: fetch
+    trust: official
+  - url: https://visitstcloud.com/events/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from osm, www.joetown.org. Mapped at 45.56472, -94.31871. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from osm, www.joetown.org. Mapped at 45.56472, -94.31871. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## The Wandering Cow
 ```yaml
 id: cow-wandering
 status: active
-tier: listed
+tier: watched
 category: amenity=ice_cream
 added_by: agent:discover
 sources:
-  - url: https://wanderingcowmn.com/
-    kind: website
+  - url: https://wanderingcowmn.com/feed/
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from osm, www.joetown.org. Mapped at 45.56515, -94.31794. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from osm, www.joetown.org. Mapped at 45.56515, -94.31794. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Thomsen’s Garden Center
 ```yaml
@@ -2126,7 +2146,7 @@ Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was 
 ```yaml
 id: bus-service-trobecs
 status: active
-tier: listed
+tier: watched
 added_by: agent:discover
 sources:
   - url: https://www.trobecsbus.com/
@@ -2134,7 +2154,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Uptown Styles Hair Salon
 ```yaml
@@ -2163,7 +2183,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Not watched (2026-10-15): its page is a Vrbo rental listing that shows a different layout on every load, so it would read as changed every morning with nothing to find. Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted.
 
 ## Wacosa
 ```yaml
@@ -2184,29 +2204,29 @@ Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was 
 ```yaml
 id: well
 status: active
-tier: listed
+tier: watched
 added_by: agent:discover
 sources:
-  - url: https://wellandcomn.com/
-    kind: website
+  - url: https://wellandcomn.com/feed/
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## White Peony Boutique
 ```yaml
 id: boutique-peony-white
 status: active
-tier: listed
+tier: watched
 added_by: agent:discover
 sources:
-  - url: https://whitepeonyboutique.com/
+  - url: https://whitepeonyboutique.com/pages/events
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Williams Dingmann Funeral Homes
 ```yaml
@@ -2227,7 +2247,7 @@ Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was 
 ```yaml
 id: country-manor-of-woodcrest
 status: active
-tier: listed
+tier: watched
 category: healthcare-medical
 added_by: agent:discover
 sources:
@@ -2236,21 +2256,21 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com, www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com, www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## W|R Home Company
 ```yaml
 id: home-r-w
 status: active
-tier: listed
+tier: watched
 added_by: agent:discover
 sources:
-  - url: https://www.weatheredrevivals.com
+  - url: https://wrhomecompany.com/pages/events
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## 24 North: Lofts on College Avenue
 ```yaml
@@ -2273,8 +2293,8 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists
 ## 2nd Avenue Cuts
 ```yaml
 id: 2nd-avenue-cuts
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 address: "17 2nd Ave NW"
 phone: "3207611089"
@@ -2286,7 +2306,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## 7 Hills Staurolites
 ```yaml
@@ -2309,8 +2329,8 @@ Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submi
 ## Adam McArthur Agency LLC
 ```yaml
 id: adam-mcarthur-agency
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "financial_service"
 place_type: "Business"
 address: "15 E Minnesota St Ste 105A"
@@ -2318,51 +2338,51 @@ phone: "+13202519144"
 aka: ["Adam McArthur Agency LLC American Family Insurance"]
 added_by: agent:town-verify
 sources:
-  - url: https://www.amfam.com/agents/minnesota/saint-joseph/adam-mcarthur
+  - url: https://www.amfam.com/resources/articles
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Adara Home Health
 ```yaml
 id: adara-home-health
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "medical_service"
 place_type: "Business"
 address: "710 County Road 75 E Suite 104"
 phone: "+13202551882"
 added_by: agent:town-verify
 sources:
-  - url: https://adarahomehealth.com/
-    kind: website
+  - url: https://adarahomehealth.com/feed/
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.66). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.66). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Alderink Custom Landscaping
 ```yaml
 id: alderink-custom-landscaping
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
-  - url: http://www.youryardmn.com/
+  - url: https://www.youryardmn.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed. Named by its own website, http://www.youryardmn.com/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed. Named by its own website, http://www.youryardmn.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## All Occasion Floral and Gifts
 ```yaml
 id: all-occasion-floral-gifts
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "flowers_and_gifts_store"
 place_type: "Business"
 address: "38 E Birch St"
@@ -2370,12 +2390,12 @@ phone: "3202532298"
 aka: ["All Occasion Floral and Gifts featuring DJ's Flower Bar & Tea"]
 added_by: agent:town-verify
 sources:
-  - url: http://www.saukrapidsflorist.com/
+  - url: https://www.saukrapidsflorist.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Amcon Block & Precast
 ```yaml
@@ -2398,8 +2418,8 @@ Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-0
 ## American Manufacturing Co Group
 ```yaml
 id: american-manufacturing-group
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "technical_service"
 place_type: "Business"
 address: "736 19th Ave NE"
@@ -2407,44 +2427,44 @@ phone: "13203637273"
 aka: ["American Manufacturing Inc"]
 added_by: agent:town-verify
 sources:
-  - url: https://www.american-manufacturing.com
+  - url: https://www.american-manufacturing.com/company/news
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 9 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 9 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## American Technology Group
 ```yaml
 id: american-technology-group
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
-  - url: https://americantechnologygroup.com/
-    kind: website
+  - url: https://americantechnologygroup.com/feed/
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, https://americantechnologygroup.com/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, https://americantechnologygroup.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## AMI
 ```yaml
 id: ami
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 address: "30865 Kohler Court"
 phone: "(320) 363-4650"
 added_by: agent:town-verify
 sources:
-  - url: http://www.amiauction.com
+  - url: https://amiauction.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from lakesnwoods.com. Verified 2026-10-02: Live site amiauction.com shows the St. Joseph address and RV inventory photos dated 2025-2026.. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from lakesnwoods.com. Verified 2026-10-02: Live site amiauction.com shows the St. Joseph address and RV inventory photos dated 2025-2026.. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Ami Auction
 ```yaml
@@ -2467,8 +2487,8 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps li
 ## Amplified Electric
 ```yaml
 id: amplified-electric
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
@@ -2477,7 +2497,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, https://www.amplified-electric.com/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, https://www.amplified-electric.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Ams Electric, Inc.
 ```yaml
@@ -2497,71 +2517,75 @@ Notes: Proposed on 2026-10-05 from a Google Maps sweep. No URL was found, so thi
 ## Amy Johnson Realty
 ```yaml
 id: amy-johnson-realty
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
-  - url: https://amyjohnsonrealty.com/
-    kind: website
+  - url: https://amyjohnsonrealty.com/f.atom
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed. Named by its own website, https://amyjohnsonrealty.com/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed. Named by its own website, https://amyjohnsonrealty.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Anfinson Thompson & Company, Pa
 ```yaml
 id: anfinson-thompson-pa
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "financial_service"
 place_type: "Business"
 address: "710 County Road 75 E  Ste 102"
 phone: "13204412989"
 added_by: agent:town-verify
 sources:
-  - url: https://anfinsonthompson.com
+  - url: https://anfinsonthompson.com/feed/
+    kind: rss
+    method: fetch
+    trust: official
+  - url: https://anfinsonthompson.com/events/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-02: Firm's live website lists the St. Joseph office with staff and current phone.. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-02: Firm's live website lists the St. Joseph office with staff and current phone.. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Angela Larcom Counseling
 ```yaml
 id: angela-larcom-counseling
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "behavioral_or_mental_health_clinic"
 place_type: "Business"
 address: "1511 E Minnesota St"
 phone: "+13202603471"
 added_by: agent:town-verify
 sources:
-  - url: http://www.angelalarcomcounseling.com/
+  - url: https://www.angelalarcomcounseling.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Closed · Opens 8 AM Mon). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Closed · Opens 8 AM Mon). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Angel's Touch Massage
 ```yaml
 id: angels-touch-massage
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "wellness_service"
 place_type: "Business"
 address: "1511 E Minnesota St"
 phone: "+13203637460"
 added_by: agent:town-verify
 sources:
-  - url: http://www.angelstouchmassagemn.com/
+  - url: https://www.angelstouchmassagemn.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Anne Renee Bridal Co.
 ```yaml
@@ -2601,8 +2625,8 @@ Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submi
 ## Arlington Place of St Joseph
 ```yaml
 id: arlington-place-of-st-joseph
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "senior_living_facility"
 place_type: "Business"
 address: "21 16th Ave SE"
@@ -2610,66 +2634,66 @@ phone: "+13203631313"
 aka: ["Arlington Place Assisted Living"]
 added_by: agent:town-verify
 sources:
-  - url: http://www.arlingtonplacemn.com
+  - url: https://www.legacycarehome.com/blog-list
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open 24 hours). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open 24 hours). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Armor Animal Health
 ```yaml
 id: armor-animal-health
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
-  - url: https://www.armoranimalhealth.com/
+  - url: https://www.armoranimalhealth.com/blog.html
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed. Named by its own website, https://www.armoranimalhealth.com/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed. Named by its own website, https://www.armoranimalhealth.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Artisan Renovation & Design
 ```yaml
 id: artisan-renovation-design
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "building_or_construction_service"
 place_type: "Business"
 address: "34788 95th Ave"
 phone: "+13202491005"
 added_by: agent:town-verify
 sources:
-  - url: http://www.artisanrd.com/
-    kind: website
+  - url: https://www.artisanrd.com/blog-feed.xml
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Artistic Stone & Concrete
 ```yaml
 id: artistic-stone-concrete
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
-  - url: http://www.artisticstoneandconcrete.com/contact/
+  - url: https://www.artisticstoneandconcrete.com/contact
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, http://www.artisticstoneandconcrete.com/contact/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, http://www.artisticstoneandconcrete.com/contact/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Asphalt Surface Technologies Corp
 ```yaml
 id: asphalt-surface-technologies
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
@@ -2678,43 +2702,43 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4:30 AM Sat). Named by its own website, https://www.astechmn.com/contact (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4:30 AM Sat). Named by its own website, https://www.astechmn.com/contact (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Astech Corp
 ```yaml
 id: astech
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "b2b_service"
 place_type: "Business"
 address: "8348 Ridgewood Rd"
 phone: "3203638500"
 added_by: agent:town-verify
 sources:
-  - url: http://www.astechmn.com/
+  - url: https://www.astechmn.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.85). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.85). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Audio Video Extremes
 ```yaml
 id: audio-video-extremes
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "electronics_store"
 place_type: "Business"
 address: "718 19th Ave NE"
 phone: "+13202175877"
 added_by: agent:town-verify
 sources:
-  - url: http://audiovideoextremes.com/
+  - url: https://www.audiovideoextremes.com/blog
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Auto Body 2000
 ```yaml
@@ -2774,17 +2798,17 @@ Notes: Proposed on 2026-10-05 from lakesnwoods.com. Verified 2026-10-02: MN SOS 
 ## Baldwin Supply Company - St Cloud
 ```yaml
 id: baldwin-supply-st-cloud
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
-  - url: http://www.baldwinsupply.com/
+  - url: https://www.baldwinsupply.com/blog/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, http://www.baldwinsupply.com/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, http://www.baldwinsupply.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## The Barn
 ```yaml
@@ -2823,26 +2847,26 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists
 ## BDH Service & Performance Inc.
 ```yaml
 id: bdh-service-performance
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "professional_service"
 place_type: "Business"
 address: "7402 Ridgewood Rd"
 phone: "+13204920545"
 added_by: agent:town-verify
 sources:
-  - url: http://bdhservice.com/
+  - url: https://www.bdhservice.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Bee Line Auto & Sport
 ```yaml
 id: bee-line-auto-sport
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "auto_dealer"
 place_type: "Business"
 address: "8805 Ridgewood Ct"
@@ -2855,7 +2879,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Best-Way Fabricating
 ```yaml
@@ -2878,17 +2902,17 @@ Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. No URL was found, 
 ## Better Design Enterprises LLC
 ```yaml
 id: better-design-enterprises
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
-  - url: http://www.latchblocker.com/
+  - url: https://www.latchblocker.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, http://www.latchblocker.com/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, http://www.latchblocker.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Beumer Outdoors
 ```yaml
@@ -2965,8 +2989,8 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps li
 ## Bliss Direct Media
 ```yaml
 id: bliss-direct-media
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "professional_service"
 place_type: "Business"
 address: "641 15th Ave NE"
@@ -2978,7 +3002,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4:30 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4:30 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## The Bloom Room
 ```yaml
@@ -2998,8 +3022,8 @@ Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Goo
 ##  Bloom Styling & Events
 ```yaml
 id: bloom-styling-events
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 address: "St Joseph"
 phone: "+13202916307"
@@ -3011,49 +3035,49 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-02: Bloom Styling & Events website (copyright 2026) says it is based in St. Joseph and offers The Bloom Booth DSLR photo booth; nominated best new business 2026.. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-02: Bloom Styling & Events website (copyright 2026) says it is based in St. Joseph and offers The Bloom Booth DSLR photo booth; nominated best new business 2026.. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Blush Salon
 ```yaml
 id: blush-salon
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "personal_or_beauty_service"
 place_type: "Business"
 address: "106 2nd Ave NW"
 phone: "+13202678958"
 added_by: agent:town-verify
 sources:
-  - url: http://www.blushsalonmn.com/
+  - url: https://www.blushsalonmn.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 8 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 8 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Boulder Ridge Apartments
 ```yaml
 id: boulder-ridge-apartments
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "historic_site"
 place_type: "Business"
 address: "535 Northland Dr"
 phone: "+13203634900"
 added_by: agent:town-verify
 sources:
-  - url: http://www.boulderridgestjoseph.com/
+  - url: https://www.boulderridgestjoe.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.99). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.99). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Breth-zenzen Fire Protection
 ```yaml
 id: breth-zenzen-fire-protection
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "home_service"
 place_type: "Business"
 address: "8053 Sterling Dr  Ste 101"
@@ -3065,7 +3089,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.75). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.75). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Brinkman Excavating LLC
 ```yaml
@@ -3085,75 +3109,75 @@ Notes: Proposed on 2026-10-05 from a Google Maps sweep. No URL was found, so thi
 ## Brush & Roll Painting & Deck Refinishing
 ```yaml
 id: brush-roll-painting-deck-refinishing
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "home_service"
 place_type: "Business"
 address: "206 9th Ave SE"
 phone: "3204202625"
 added_by: agent:town-verify
 sources:
-  - url: https://brushandrollpainting.net/
+  - url: https://www.brushandrollpainting.net/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## BSN SPORTS
 ```yaml
 id: bsn-sports
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 aka: ["Game Day Athletic"]
 added_by: agent:town-verify
 sources:
-  - url: http://www.bsnsports.com/
+  - url: https://www.bsnsports.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 6 PM). Named by its own website, http://www.bsnsports.com/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 6 PM). Named by its own website, http://www.bsnsports.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Builders Millwork Inc.
 ```yaml
 id: builders-millwork
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
-  - url: https://buildersmillworkinc.com/
-    kind: website
+  - url: https://buildersmillworkinc.com/feed/
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, https://buildersmillworkinc.com/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, https://buildersmillworkinc.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## C & L Excavating Inc
 ```yaml
 id: c-l-excavating
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "home_service"
 place_type: "Business"
 address: "7939 Ridgewood Rd"
 phone: "13203631221"
 added_by: agent:town-verify
 sources:
-  - url: https://clexcavating.com
+  - url: https://www.clexcavating.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-02: Live website clexcavating.com with the same phone (320-363-1221) and St. Joseph address.. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-02: Live website clexcavating.com with the same phone (320-363-1221) and St. Joseph address.. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Capital Storage Rental of St Joseph
 ```yaml
 id: capital-storage-rental-of-st-joseph
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "storage_facility"
 place_type: "Business"
 address: "8850 Ridgewood Ct"
@@ -3161,36 +3185,36 @@ phone: "+13202533488"
 aka: ["Ridgewood Storage"]
 added_by: agent:town-verify
 sources:
-  - url: http://www.capitalstoragerental.com/
+  - url: https://www.capitalstoragerental.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open 24 hours). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open 24 hours). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Caribou Coffee
 ```yaml
 id: caribou-coffee
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "coffee_shop"
 place_type: "Business"
 address: "1500 Elm St E"
 phone: "+13203630011"
 added_by: agent:town-verify
 sources:
-  - url: https://locations.cariboucoffee.com/us/mn/st-joseph/1500-elm-st-east
+  - url: https://locations.cariboucoffee.com/us/mn/st.-joseph/1500-elm-st-east
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 7 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 7 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Carlson Crossing Townhomes
 ```yaml
 id: carlson-crossing-townhomes
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "real_estate_service"
 place_type: "Business"
 address: "912 E Baker St"
@@ -3203,7 +3227,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.59). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.59). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Cedar Street Salon and Spa
 ```yaml
@@ -3281,23 +3305,23 @@ Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-0
 ## Central Lakes Mutual Insurance Co
 ```yaml
 id: central-lakes-mutual-insurance
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
-  - url: http://www.clmutual.com/
+  - url: https://www.clmutual.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Closed · Opens 8 AM Mon). Named by its own website, http://www.clmutual.com/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Closed · Opens 8 AM Mon). Named by its own website, http://www.clmutual.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Central Minnesota Detailing
 ```yaml
 id: central-minnesota-detailing
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "automotive_service"
 place_type: "Business"
 address: "803 21st Ave NE #3"
@@ -3309,7 +3333,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-02: Live paid Wix site with services, phone and staff emails at this address (footer still says 2023).. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-02: Live paid Wix site with services, phone and staff emails at this address (footer still says 2023).. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Central Minnesota Prefinish
 ```yaml
@@ -3350,8 +3374,8 @@ Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-0
 ## Chiropractic Connection, PC
 ```yaml
 id: chiropractic-connection-pc
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "complementary_and_alternative_medicine"
 place_type: "Business"
 address: "709 County Road 75"
@@ -3359,18 +3383,18 @@ phone: "+13203634694"
 aka: ["Chiropractic Connection"]
 added_by: agent:town-verify
 sources:
-  - url: http://drschleper.com/
+  - url: https://www.drschleper.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Closed · Opens 7:30 AM Mon). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Closed · Opens 7:30 AM Mon). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## CMS Autobody
 ```yaml
 id: cms-autobody
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "automotive_service"
 place_type: "Business"
 address: "109 Cedar St E"
@@ -3378,12 +3402,12 @@ phone: "+13203637575"
 aka: ["CMS Auto Body"]
 added_by: agent:town-verify
 sources:
-  - url: https://cmsautobody0.wixsite.com/website
+  - url: https://cmsautobody0.wixsite.com/website/blog
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Cole Papers
 ```yaml
@@ -3424,43 +3448,43 @@ Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-0
 ## Collegeville Communities Llc
 ```yaml
 id: collegeville-communities
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "real_estate_service"
 place_type: "Business"
 address: "24 College Ave N"
 added_by: agent:town-verify
 sources:
-  - url: https://www.collegevillecu.com
-    kind: website
+  - url: https://www.collegevillecu.com/feed/
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.95). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.95). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Collegeville Orchards
 ```yaml
 id: collegeville-orchards
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "farm"
 place_type: "Business"
 address: "15517 Fruit Farm Rd"
 phone: "+13203567609"
 added_by: agent:town-verify
 sources:
-  - url: http://collegevilleorchardsmn.com/
+  - url: https://www.collegevilleorchardsmn.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-02: Official website advertises the 2026 season, 10AM-6PM, same phone.. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-02: Official website advertises the 2026 season, 10AM-6PM, same phone.. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Complete Coverage Rental LLC
 ```yaml
 id: complete-coverage-rental
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "event_or_party_service"
 place_type: "Business"
 address: "8274 Delta Cir"
@@ -3472,25 +3496,25 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 8 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 8 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Computer Repair Unlimited
 ```yaml
 id: computer-repair-unlimited
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "technical_service"
 place_type: "Business"
 address: "24 W Birch St"
 phone: "+13203098645"
 added_by: agent:town-verify
 sources:
-  - url: http://www.computerrepairunlimited.com/
+  - url: https://computerrepairunlimited.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open now). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open now). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Concrete Plus
 ```yaml
@@ -3530,8 +3554,8 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists
 ## Contardo Laser Dentistry
 ```yaml
 id: contardo-laser-dentistry
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "dental_clinic"
 place_type: "Business"
 address: "26 2nd Ave NW"
@@ -3539,12 +3563,12 @@ phone: "(320) 363-4468"
 aka: ["Contardo, Michael F DDS", "Laser Dentistry- Dr. Contardo"]
 added_by: agent:town-verify
 sources:
-  - url: http://www.laserdentistrymn.com
+  - url: https://www.laserdentistrymn.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.92). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Cost Cutters
 ```yaml
@@ -3567,8 +3591,8 @@ Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-0
 ## Crafted Skin Clinic
 ```yaml
 id: crafted-skin-clinic
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "wellness_service"
 place_type: "Business"
 address: "15 E Minnesota St #107"
@@ -3580,7 +3604,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Creamery Lofts
 ```yaml
@@ -3602,20 +3626,20 @@ Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submi
 ## Creations In Candles
 ```yaml
 id: creations-in-candles
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "flowers_and_gifts_store"
 place_type: "Business"
 address: "32716 Pamela Ln"
 phone: "+13203637557"
 added_by: agent:town-verify
 sources:
-  - url: http://www.creationsincandles.com
+  - url: https://www.creationsincandles.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-02: Creations in Candles, LLC is active with its 2026 annual renewal filed at this address; still listed with Mon-Sat hours.. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-02: Creations in Candles, LLC is active with its 2026 annual renewal filed at this address; still listed with Mon-Sat hours.. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Creative Custom Building LLC
 ```yaml
@@ -3635,17 +3659,17 @@ Notes: Proposed on 2026-10-05 from a Google Maps sweep. No URL was found, so thi
 ## Creekwood Acres
 ```yaml
 id: creekwood-acres
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
-  - url: http://www.floorguy.net/
-    kind: website
+  - url: https://floorguy.net/feed/
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed. Named by its own website, http://www.floorguy.net/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed. Named by its own website, http://www.floorguy.net/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Curtis Marketing Group
 ```yaml
@@ -3682,20 +3706,20 @@ Notes: Proposed on 2026-10-05 from a Google Maps sweep. No URL was found, so thi
 ## Cutters Lawn Service
 ```yaml
 id: cutters-lawn-service
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "home_service"
 place_type: "Business"
 address: "36271 County Road 2"
 phone: "(320) 333-8387"
 added_by: agent:town-verify
 sources:
-  - url: http://www.saintcloudmnlawncare.com
+  - url: https://www.saintcloudmnlawncare.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.77). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.77). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## D R Construction
 ```yaml
@@ -3769,38 +3793,38 @@ Notes: Proposed on 2026-10-05 from a Google Maps sweep. No URL was found, so thi
 ## Daniel Funeral Home
 ```yaml
 id: daniel-funeral-home
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "family_service"
 place_type: "Business"
 address: "120 College Ave S"
 phone: "+13203637783"
 added_by: agent:town-verify
 sources:
-  - url: http://www.danielfuneralhome.com/
+  - url: https://www.danielfuneralhome.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.92). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Darling Dog Care
 ```yaml
 id: darling-dog-care
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "animal_or_pet_service"
 place_type: "Business"
 address: "12463 Co Rd 160"
 phone: "+13204910522"
 added_by: agent:town-verify
 sources:
-  - url: http://www.darlingdogcare.com/
+  - url: https://darlingdogcare.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Closed · Opens 3 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Closed · Opens 3 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Dented K Auto Body
 ```yaml
@@ -3859,8 +3883,8 @@ Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-0
 ## Diesel Knight Repairs
 ```yaml
 id: diesel-knight-repairs
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
@@ -3869,7 +3893,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 7 PM). Named by its own website, https://www.dieselknightrepairs.com/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 7 PM). Named by its own website, https://www.dieselknightrepairs.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## DJ's Flower Bar & Tea
 ```yaml
@@ -3910,35 +3934,35 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-02: DKT Auto & Die
 ## Dovetail Design & Remodeling
 ```yaml
 id: dovetail-design-remodeling
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "home_service"
 place_type: "Business"
 address: "31820 Cedar Ridge Rd"
 phone: "+13205570043"
 added_by: agent:town-verify
 sources:
-  - url: http://www.dovetaildesignremodel.com/
-    kind: website
+  - url: https://dovetaildesignremodel.com/feed/
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-02: Live website with 2026 copyright; Dovetail Kitchen Designs, LLC active at this address; CMBA member.. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-02: Live website with 2026 copyright; Dovetail Kitchen Designs, LLC active at this address; CMBA member.. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## DPF Alternatives St Joseph MN
 ```yaml
 id: dpf-alternatives-st-joseph-mn
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
-  - url: https://dpfalternatives.com/locations/st-joseph-mn
+  - url: https://dpfalternatives.com/blog
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, https://dpfalternatives.com/locations/st-joseph-mn (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, https://dpfalternatives.com/locations/st-joseph-mn (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Dr. Lisa Platt
 ```yaml
@@ -3975,8 +3999,8 @@ Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is
 ## DSL Saint Joseph
 ```yaml
 id: dsl-st-joseph
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 address: "21 College Ave N"
 phone: "2183034404"
@@ -3987,25 +4011,25 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.85). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.85). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Ehlinger Lawn Service
 ```yaml
 id: ehlinger-lawn-service
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "home_service"
 place_type: "Business"
 address: "8232 Delta Cir"
 phone: "+13202509337"
 added_by: agent:town-verify
 sources:
-  - url: http://www.EhlingerLawn.com/
-    kind: website
+  - url: https://ehlingerlawn.com/feed/
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Elite Refrigeration Heating & Air Conditioning
 ```yaml
@@ -4047,53 +4071,53 @@ Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submi
 ## EmptyPageStudios
 ```yaml
 id: emptypagestudios
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "media_service"
 place_type: "Business"
 address: "602 2nd Ave NE"
 phone: "+13204202105"
 added_by: agent:town-verify
 sources:
-  - url: http://www.EmptyPageStudios.com/
+  - url: https://www.emptypagestudios.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 10 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 10 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Exclusive Bat Proofing
 ```yaml
 id: exclusive-bat-proofing
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
-  - url: https://www.batproof.com/
-    kind: website
+  - url: https://www.batproof.com/feed/
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, https://www.batproof.com/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, https://www.batproof.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Executive Express
 ```yaml
 id: executive-express
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "travel_and_transportation"
 place_type: "Business"
 address: "1111 Elm St E"
 phone: "+13202532226"
 added_by: agent:town-verify
 sources:
-  - url: http://www.ExecutiveExpress.biz/
+  - url: https://www.executiveexpress.biz/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Exponential Chiropractic Healing Center
 ```yaml
@@ -4117,20 +4141,20 @@ Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-0
 ## Fabral
 ```yaml
 id: fabral
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "supplier_or_distributor"
 place_type: "Business"
 address: "600 15th Ave"
 phone: "+19295217326"
 added_by: agent:town-verify
 sources:
-  - url: http://www.fabral.com
+  - url: https://fabral.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-02: Fabral's own contact page lists the St. Joseph, MN plant among its eight current facilities.. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-02: Fabral's own contact page lists the St. Joseph, MN plant among its eight current facilities.. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Fieldstone Farm
 ```yaml
@@ -4170,56 +4194,56 @@ Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is
 ## Fine Line Entertainment
 ```yaml
 id: fine-line-entertainment
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "event_or_party_service"
 place_type: "Business"
 address: "109 17th Ave SE"
 phone: "+13204286064"
 added_by: agent:town-verify
 sources:
-  - url: http://finelineentertainment.net/
+  - url: https://finelineentertainment.net/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Finken Companies
 ```yaml
 id: finken-companies
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "home_service"
 place_type: "Business"
 address: "628 19th Ave NE"
 phone: "+17634935288"
 added_by: agent:town-verify
 sources:
-  - url: https://www.finkens.com
+  - url: https://finkens.com/blog
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.55). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.55). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Five Star Transport Solutions
 ```yaml
 id: five-star-transport-solutions
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "travel_service"
 place_type: "Business"
 address: "617 19th Ave NE"
 phone: "3204334391"
 added_by: agent:town-verify
 sources:
-  - url: https://www.fivestarlogistics.com/
+  - url: https://fivestarlogistics.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Flaten Taxidermy
 ```yaml
@@ -4242,35 +4266,35 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists
 ## Forest Mushrooms
 ```yaml
 id: forest-mushrooms
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "food_and_beverage_store"
 place_type: "Business"
 address: "14715 Co Rd 51"
 phone: "+13203637956"
 added_by: agent:town-verify
 sources:
-  - url: http://www.forestmushrooms.com
+  - url: https://www.forestmushrooms.com/pages/news-stories
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-02: Live website with customer reviews dated through September 2026; corporation active at this address.. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-02: Live website with customer reviews dated through September 2026; corporation active at this address.. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## FORM Charge
 ```yaml
 id: form-charge
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
-  - url: https://www.formcharge.com/
+  - url: https://www.formcharge.com/blogs/golf-cart-charger-knowledge/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4:30 PM). Named by its own website, https://www.formcharge.com/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4:30 PM). Named by its own website, https://www.formcharge.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Frontgate Inc.
 ```yaml
@@ -4293,8 +4317,8 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps li
 ## Full Circle - Photo Booth
 ```yaml
 id: full-circle-photo-booth
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
@@ -4303,13 +4327,13 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 2 AM). Named by its own website, https://www.full360mn.com/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 2 AM). Named by its own website, https://www.full360mn.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Full Circle Water
 ```yaml
 id: full-circle-water
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "b2b_service"
 place_type: "Business"
 address: "30801 Pearl Dr"
@@ -4317,12 +4341,12 @@ phone: "3205294035"
 aka: ["Avista"]
 added_by: agent:town-verify
 sources:
-  - url: https://fullcirclewater.com/
-    kind: website
+  - url: https://fullcirclewater.com/feed/
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## G & A Builders Inc
 ```yaml
@@ -4396,8 +4420,8 @@ Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. No URL was found, 
 ## GM Drilling
 ```yaml
 id: gm-drilling
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "home_service"
 place_type: "Business"
 address: "8914 Ridgewood Ct"
@@ -4405,12 +4429,12 @@ phone: "3203637453"
 aka: ["G M Drilling"]
 added_by: agent:town-verify
 sources:
-  - url: https://www.gmdrilling.com/
-    kind: website
+  - url: https://www.gmdrilling.com/feed/rss2
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Gold Country Trucking
 ```yaml
@@ -4433,50 +4457,54 @@ Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submi
 ## Golden Hill Doodles
 ```yaml
 id: golden-hill-doodles
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "animal_or_pet_service"
 place_type: "Business"
 address: "10474 Norway Rd"
 phone: "3202605717"
 added_by: agent:town-verify
 sources:
-  - url: https://goldenhilldoodlesofmn.com/
+  - url: https://www.goldenhilldoodlesofmn.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 10 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 10 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Golden Rule Real Estate
 ```yaml
 id: golden-rule-real-estate
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
-  - url: https://www.goldenrulerealestateservices.com/contact-us/
-    kind: website
+  - url: https://goldenrulerealestateservices.com/feed/
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed. Named by its own website, https://www.goldenrulerealestateservices.com/contact-us/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed. Named by its own website, https://www.goldenrulerealestateservices.com/contact-us/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Goodin Company
 ```yaml
 id: goodin
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
-  - url: https://www.goodinco.com/
+  - url: https://www.goodinco.com/resources/events
+    kind: website
+    method: fetch
+    trust: official
+  - url: https://www.goodinco.com/resources/news
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open now). Named by its own website, https://www.goodinco.com/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open now). Named by its own website, https://www.goodinco.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Graceview Estates
 ```yaml
@@ -4496,38 +4524,38 @@ Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Goo
 ## Grandview Buildings
 ```yaml
 id: grandview-buildings
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "hardware_home_and_garden_store"
 place_type: "Business"
 address: "8850 Ridgewood Ct"
 phone: "3203634435"
 added_by: agent:town-verify
 sources:
-  - url: http://grandviewbuildings.com/
+  - url: https://www.grandviewbuildings.com/blog
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 2 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 2 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Granite City Gymnastics
 ```yaml
 id: granite-city-gymnastics
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "sport_or_fitness_facility"
 place_type: "Business"
 address: "922 21st Ave NE"
 phone: "+13202513547"
 added_by: agent:town-verify
 sources:
-  - url: http://www.granitecitygymnastics.com/
+  - url: https://www.granitecitygymnastics.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 1.0). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 1.0). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Granite City Motor Car
 ```yaml
@@ -4550,26 +4578,26 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps li
 ## Granite City Window Cleaning Inc
 ```yaml
 id: granite-city-window-cleaning
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "home_service"
 place_type: "Business"
 address: "Polar Ct"
 phone: "3202176319"
 added_by: agent:town-verify
 sources:
-  - url: http://granitecitywindow.com/
-    kind: website
+  - url: https://granitecitywindow.com/feed/
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.85). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.85). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Granite Services Llc
 ```yaml
 id: granite-services
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "supplier_or_distributor"
 place_type: "Business"
 address: "30736 Pearl Dr"
@@ -4581,7 +4609,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-02: Live website with same phone, St. Joseph chamber member; current listings (Yelp updated March 2026) show it moved down Pearl Drive.. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-02: Live website with same phone, St. Joseph chamber member; current listings (Yelp updated March 2026) show it moved down Pearl Drive.. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Greg Muehring Construction
 ```yaml
@@ -4621,20 +4649,20 @@ Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submi
 ## Gutter Shutter of St. Cloud
 ```yaml
 id: gutter-shutter-of-st-cloud
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "home_service"
 place_type: "Business"
 address: "8856 Ridgewood Ct"
 phone: "3205601100"
 added_by: agent:town-verify
 sources:
-  - url: https://www.guttershutterofstcloud.com/?utm_source=yext&utm_medium=local&utm_campaign=yextlisting&y_source=1_NjA1ODM0OTYtNDgzLWxvY2F0aW9uLndlYnNpdGU%3D
+  - url: https://www.guttershutterofstcloud.com/about-us/news-and-events.html
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4:30 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4:30 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Hair by Hanna
 ```yaml
@@ -4672,17 +4700,17 @@ Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Goo
 ## HCo 2.0
 ```yaml
 id: hco-2-0
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
-  - url: https://hcowoodworks.com/
-    kind: website
+  - url: https://hcowoodworks.com/feed/
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Closed · Opens 8 AM Mon). Named by its own website, https://hcowoodworks.com/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Closed · Opens 8 AM Mon). Named by its own website, https://hcowoodworks.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## HD Specialties LLC
 ```yaml
@@ -4702,38 +4730,38 @@ Notes: Proposed on 2026-10-05 from a Google Maps sweep. No URL was found, so thi
 ## Hdc Development Co
 ```yaml
 id: hdc-development
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "building_or_construction_service"
 place_type: "Business"
 address: "703 19th Ave NE"
 phone: "13203634733"
 added_by: agent:town-verify
 sources:
-  - url: https://www.hdcdevelopment.com
-    kind: website
+  - url: https://www.hdcdevelopment.com/feed/
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.65). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.65). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Heartland Door Sales Inc
 ```yaml
 id: heartland-door-sales
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "home_service"
 place_type: "Business"
 address: "30489 Pearl Dr."
 phone: "3203637423"
 added_by: agent:town-verify
 sources:
-  - url: http://heartlanddoorsales.com/
+  - url: https://www.heartlanddoorsales.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-02: Own website (c) 2026 with the same address and phone.. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-02: Own website (c) 2026 with the same address and phone.. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Heim-kins Rescued Treasures
 ```yaml
@@ -4771,44 +4799,44 @@ Notes: Proposed on 2026-10-05 from a Google Maps sweep. No URL was found, so thi
 ## Heirborn Kennels
 ```yaml
 id: heirborn-kennels
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "animal_or_pet_service"
 place_type: "Business"
 address: "28982 Kelp Rd"
 phone: "+13207615856"
 added_by: agent:town-verify
 sources:
-  - url: http://heirbornkennel.com/
+  - url: http://heirbornkennels.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Her Hair Studio
 ```yaml
 id: her-hair-studio
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "personal_or_beauty_service"
 place_type: "Business"
 address: "21 1st Ave NW"
 phone: "+13204433899"
 added_by: agent:town-verify
 sources:
-  - url: http://www.herhairstudiomn.com/
+  - url: https://www.herhairstudiomn.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 7 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 7 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Hi-tec Electric
 ```yaml
 id: hi-tec-electric
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "home_service"
 place_type: "Business"
 address: "833 19th Ave NE"
@@ -4820,75 +4848,75 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Holistic Flower Farm
 ```yaml
 id: holistic-flower-farm
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "flowers_and_gifts_store"
 place_type: "Business"
 address: "33026 Nettle Rd"
 added_by: agent:town-verify
 sources:
-  - url: http://holisticflowerfarm.com/
+  - url: https://www.holisticflowerfarm.com/events
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-05: Own website is live with a current events page (Mondays at the St. Cloud VA farmers market) and names the Nettle Rd farm.. Named by holisticflowerfarm.com (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-05: Own website is live with a current events page (Mondays at the St. Cloud VA farmers market) and names the Nettle Rd farm.. Named by holisticflowerfarm.com (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Huls Bros Trucking Inc
 ```yaml
 id: huls-bros-trucking
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "travel_and_transportation"
 place_type: "Business"
 address: "13266 Collegeville Rd"
 phone: "+13203637915"
 added_by: agent:town-verify
 sources:
-  - url: https://hulstrucking.com/
-    kind: website
+  - url: https://hulstrucking.com/feed/
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 10 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 10 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## illuminet, LLC
 ```yaml
 id: illuminet
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "b2b_office_and_professional_service"
 place_type: "Business"
 address: "38 E Birch St"
 phone: "+13203330865"
 added_by: agent:town-verify
 sources:
-  - url: https://myilluminet.com/
-    kind: website
+  - url: https://myilluminet.com/feed/
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Iman Carrier, Inc.
 ```yaml
 id: iman-carrier
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
-  - url: https://safer.fmcsa.dot.gov/query.asp
+  - url: https://safer.fmcsa.dot.gov/missing.aspx
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, https://safer.fmcsa.dot.gov/query.asp (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, https://safer.fmcsa.dot.gov/query.asp (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Impressions Hair Studio
 ```yaml
@@ -5018,8 +5046,8 @@ Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is
 ## JK Monuments LLC*
 ```yaml
 id: jk-monuments
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "family_service"
 place_type: "Business"
 address: "34194 83rd Ave"
@@ -5031,13 +5059,13 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Joe's Auto Parts
 ```yaml
 id: joes-auto-parts
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
@@ -5046,7 +5074,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, http://www.joesautowrecking.com/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, http://www.joesautowrecking.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Joe's Auto Wrecking
 ```yaml
@@ -5135,8 +5163,8 @@ Notes: Proposed on 2026-10-05 from a Google Maps sweep. No URL was found, so thi
 ## K&A Autobody
 ```yaml
 id: k-autobody
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "automotive_service"
 place_type: "Business"
 address: "30659 Pearl Dr #2"
@@ -5148,7 +5176,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## K & L Lawncare
 ```yaml
@@ -5170,38 +5198,38 @@ Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submi
 ## K Welz Counseling and Coaching
 ```yaml
 id: k-welz-counseling-coaching
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "behavioral_or_mental_health_clinic"
 place_type: "Business"
 address: "1511 E Minnesota St"
 phone: "+13202161654"
 added_by: agent:town-verify
 sources:
-  - url: https://kwelz.clientsecure.me/#home
+  - url: "https://kwelz.clientsecure.me/#home"
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## KD Performance Horses
 ```yaml
 id: kd-performance-horses
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "animal_or_pet_service"
 place_type: "Business"
 address: "12564 County Road 160"
 phone: "+13202606519"
 added_by: agent:town-verify
 sources:
-  - url: http://www.kdperformancehorses.com/
+  - url: https://www.kdperformancehorses.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Keltic Konstruction
 ```yaml
@@ -5219,31 +5247,31 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Not watched (2026-10-15): its website is a parked domain (a Porkbun placeholder), so there is nothing to read. Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
 
 ## King of Hearths
 ```yaml
 id: king-of-hearths
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "home_service"
 place_type: "Business"
 address: "8646 Ridgewood Rd"
 phone: "+13203634671"
 added_by: agent:town-verify
 sources:
-  - url: http://thekingofhearths.com/
+  - url: https://www.tccmaterials.com/about/news/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## King's Kennels
 ```yaml
 id: kings-kennels
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "animal_or_pet_service"
 place_type: "Business"
 address: "14797 325th St"
@@ -5255,13 +5283,13 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-02: Live website taking reservations at same address and phone; Yelp listing updated June 2026.. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-02: Live website taking reservations at same address and phone; Yelp listing updated June 2026.. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Klein Builders
 ```yaml
 id: klein-builders
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "building_or_construction_service"
 place_type: "Business"
 address: "15703 Fruit Farm Rd"
@@ -5273,28 +5301,28 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Knife River
 ```yaml
 id: knife-river
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
-  - url: https://www.kniferiver.com/
-    kind: website
+  - url: https://www.kniferiver.com/feed/
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open now). Named by its own website, https://www.kniferiver.com/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open now). Named by its own website, https://www.kniferiver.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Kostreba Appliance Services Center
 ```yaml
 id: kostreba-appliance-services-center
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "home_service"
 place_type: "Business"
 address: "545 8th Ave NE"
@@ -5307,22 +5335,22 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.95). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.95). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Kraft Mechanical St Cloud
 ```yaml
 id: kraft-mechanical-st-cloud
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
-  - url: https://www.kraftcm.com/
-    kind: website
+  - url: https://kraftcm.com/feed/
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4 PM). Named by its own website, https://www.kraftcm.com/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4 PM). Named by its own website, https://www.kraftcm.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Kwik Trip #575
 ```yaml
@@ -5495,37 +5523,41 @@ Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-0
 ## Mainstay
 ```yaml
 id: mainstay
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "financial_service"
 place_type: "Business"
 address: "235 Cedar St E Ste 103"
 phone: "+13203586000"
 added_by: agent:town-verify
 sources:
-  - url: http://www.mainstayinsure.com/
+  - url: https://mainstayinsure.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Making Creative Connections
 ```yaml
 id: making-creative-connections
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "arts_crafts_and_hobby_store"
 place_type: "Business"
 phone: "+13202823669"
 added_by: agent:town-verify
 sources:
-  - url: https://www.creativememories.com/user/sarahblommer
+  - url: https://creativememories.com/pages/events
+    kind: website
+    method: fetch
+    trust: official
+  - url: https://creativememories.com/collections/deals
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-02: Sarah Blommer's LinkedIn (Sept 2026) lists her as a current Creative Memories advisor in St. Joseph, and her advisor link still works (made-up advisor links 404); the business name itself shows up nowhere.. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-02: Sarah Blommer's LinkedIn (Sept 2026) lists her as a current Creative Memories advisor in St. Joseph, and her advisor link still works (made-up advisor links 404); the business name itself shows up nowhere.. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Marissa's Manes
 ```yaml
@@ -5598,17 +5630,17 @@ Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submi
 ## Mathew Hall Components
 ```yaml
 id: mathew-hall-components
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
-  - url: https://www.simonson-lumber.com/
-    kind: website
+  - url: https://simonson-lumber.com/feed/
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, https://www.simonson-lumber.com/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, https://www.simonson-lumber.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Mattressota
 ```yaml
@@ -5697,8 +5729,8 @@ Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submi
 ## Milbert, Johnson & Cotton Family Dentistry
 ```yaml
 id: milbert-johnson-cotton-family-dentistry
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "dental_clinic"
 place_type: "Business"
 address: "1514 E Minnesota St"
@@ -5706,12 +5738,12 @@ phone: "+13203637729"
 aka: ["Dr. Curt Cotton", "Milbert Kelsey K DDS", "Styles & Cotton Dental Office", "Styles Dr, Cotton Dr & Milbert Dr..."]
 added_by: agent:town-verify
 sources:
-  - url: http://www.stjoedds.com/
+  - url: https://www.stjoedds.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Closed · Opens 7:30 AM Mon). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Closed · Opens 7:30 AM Mon). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Mill Stream Village
 ```yaml
@@ -5734,44 +5766,44 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps li
 ## Millan Brothers Construction Inc.
 ```yaml
 id: millan-brothers-construction
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "building_or_construction_service"
 place_type: "Business"
 address: "109 Iris Ln E"
 phone: "+13209053499"
 added_by: agent:town-verify
 sources:
-  - url: http://millanbrothers.com/
+  - url: https://millanbrothers.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-02: Live website, copyright 2026, with current projects and hours.. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-02: Live website, copyright 2026, with current projects and hours.. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Millstream Communications
 ```yaml
 id: millstream-communications
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "park"
 place_type: "Business"
 address: "710 County Road 75"
 phone: "+13203634562"
 added_by: agent:town-verify
 sources:
-  - url: http://www.dgcoursereview.com/course.php?id=1561
+  - url: https://www.dgcoursereview.com/events/week/2026/42/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Minnesota Association of Farm Mutual Insurance Companies
 ```yaml
 id: minnesota-association-of-farm-mutual-ins
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "social_or_community_service"
 place_type: "Business"
 address: "601 Elm St E E"
@@ -5779,12 +5811,12 @@ phone: "+13202710909"
 aka: ["Minnesota Assn of Farm Mutual", "Minnesota Association of Farm Mutual"]
 added_by: agent:town-verify
 sources:
-  - url: http://www.mafmic.org/
+  - url: https://www.mafmic.org/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Closed · Opens 8 AM Mon). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Closed · Opens 8 AM Mon). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Minnesota Home Improvements
 ```yaml
@@ -5825,17 +5857,17 @@ Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is
 ## MinnWebb
 ```yaml
 id: minnwebb
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
-  - url: http://www.minnwebb.com/
+  - url: https://www.minnwebb.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 12 AM). Named by its own website, http://www.minnwebb.com/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 12 AM). Named by its own website, http://www.minnwebb.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Mission Nutrition
 ```yaml
@@ -5929,25 +5961,25 @@ Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is
 ## NAMI Solutions, Inc.
 ```yaml
 id: nami-solutions
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 address: "30593 Pearl Dr Ste 3"
 phone: "3202305297"
 added_by: agent:town-verify
 sources:
-  - url: http://www.namisolutions.com/
+  - url: https://www.namisolutions.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.96). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.96). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Neighbors Route 75
 ```yaml
 id: neighbors-route-75
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "restaurant"
 place_type: "Business"
 address: "2010 County Road 75"
@@ -5955,12 +5987,12 @@ phone: "+13205570268"
 aka: ["Neighbors Route 75 Bar and Grill", "Stonehouse Tavern & Eatery"]
 added_by: agent:town-verify
 sources:
-  - url: http://Neighborsroute75.com/
+  - url: https://neighborsbarandgrill.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 10 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 10 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## North Central Distributing
 ```yaml
@@ -6033,8 +6065,8 @@ Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is
 ## The Oaks on 20th
 ```yaml
 id: oaks-on-20th
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
@@ -6043,7 +6075,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, https://www.prairielakesmanagement.com/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, https://www.prairielakesmanagement.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## The Oasis Bar and Pit
 ```yaml
@@ -6084,17 +6116,17 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists
 ## Opie's Gold
 ```yaml
 id: opies-gold
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
-  - url: https://opiesgold.com/about-us/
-    kind: website
+  - url: https://www.opiesgold.com/feed/rss2
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open now). Named by its own website, https://opiesgold.com/about-us/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open now). Named by its own website, https://opiesgold.com/about-us/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Opus Motorcar Company
 ```yaml
@@ -6117,20 +6149,20 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists
 ## Outlet Bait & Tackle
 ```yaml
 id: outlet-bait-tackle
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "sporting_goods_store"
 place_type: "Business"
 address: "641 15th Ave NE"
 phone: "+18002665134"
 added_by: agent:town-verify
 sources:
-  - url: https://www.overstockbait.com/
+  - url: https://bass365.com/blogs/news
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.52). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.52). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Paquin Seasonal/Self Storage
 ```yaml
@@ -6153,8 +6185,8 @@ Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submi
 ## Party Bus
 ```yaml
 id: party-bus
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "rental_service"
 place_type: "Business"
 address: "205 Hickory St E"
@@ -6166,7 +6198,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-02: Own website (c) 2026 with phone 320-293-0670; directory lists 205 Hickory St NE, St. Joseph.. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-02: Own website (c) 2026 with phone 320-293-0670; directory lists 205 Hickory St NE, St. Joseph.. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Patents Minnesota
 ```yaml
@@ -6222,8 +6254,8 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists
 ## Paul Kollmann Monuments, LLC
 ```yaml
 id: paul-kollmann-monuments
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "family_service"
 place_type: "Business"
 address: "1403 E Minnesota St"
@@ -6235,7 +6267,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.72). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.72). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Peaceful Village Imports Inc.
 ```yaml
@@ -6256,20 +6288,20 @@ Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is
 ## the Perfect Fit
 ```yaml
 id: perfect-fit
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "gym"
 place_type: "Business"
 address: "32 1st Ave NW"
 phone: "3208287788"
 added_by: agent:town-verify
 sources:
-  - url: https://www.theperfectfitmn.com/
+  - url: https://stjoewellness.com/mat-services/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Closes soon · 1 PM · Opens 10 AM Mon). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Closes soon · 1 PM · Opens 10 AM Mon). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Petrek Law Office
 ```yaml
@@ -6328,8 +6360,8 @@ Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. No URL was found, 
 ## Powerhouse Outdoor Equipment
 ```yaml
 id: powerhouse-outdoor-equipment
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "sporting_goods_store"
 place_type: "Business"
 address: "207 Cedar St E"
@@ -6337,27 +6369,27 @@ phone: "+13203637478"
 aka: ["Powerhouse Inc"]
 added_by: agent:town-verify
 sources:
-  - url: http://www.powerhouse.cc/
+  - url: https://www.powerhouse.cc/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Prairie Supply, Inc.
 ```yaml
 id: prairie-supply
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
-  - url: https://www.prairiesupply.com/
+  - url: https://www.prairiesupply.com/news/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4 PM). Named by its own website, https://www.prairiesupply.com/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4 PM). Named by its own website, https://www.prairiesupply.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## PrairieScapes
 ```yaml
@@ -6380,8 +6412,8 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists
 ## Precise Heating, A/C, Plumbing & Refrigeration
 ```yaml
 id: precise-heating-c-plumbing-refrigeration
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "home_service"
 place_type: "Business"
 address: "628 19th Ave NE"
@@ -6389,18 +6421,18 @@ phone: "13203637401"
 aka: ["Precise Refrigeration", "Precise Refrigeration Heating"]
 added_by: agent:town-verify
 sources:
-  - url: https://precisemn.com
-    kind: website
+  - url: https://precisemn.com/feed/
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open 24 hours). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open 24 hours). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Precision Motorsports
 ```yaml
 id: precision-motorsports
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "vehicle_parts_store"
 place_type: "Business"
 address: "109 Cedar St E"
@@ -6413,13 +6445,13 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 6 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 6 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Premier Stone Design
 ```yaml
 id: premier-stone-design
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "home_service"
 place_type: "Business"
 address: "2050 Jasmine Ct"
@@ -6431,7 +6463,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Closes soon · 1 PM · Opens 8 AM Mon). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Closes soon · 1 PM · Opens 8 AM Mon). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Pristine Environmental
 ```yaml
@@ -6454,38 +6486,38 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps li
 ## Pro-Tech Forklift Service Inc.
 ```yaml
 id: pro-tech-forklift-service
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "vehicle_dealer"
 place_type: "Business"
 address: "32653 County Road 2"
 phone: "3203637474"
 added_by: agent:town-verify
 sources:
-  - url: http://protechforklift1.com/
-    kind: website
+  - url: https://www.protechforklift1.com/feed/rss2
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-02: Google Maps listing (via Composio search), same address and phone, open, 20 reviews. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-02: Google Maps listing (via Composio search), same address and phone, open, 20 reviews. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Promotional Resources
 ```yaml
 id: promotional-resources
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "professional_service"
 place_type: "Business"
 address: "702 19th Ave NE"
 phone: "+18663630177"
 added_by: agent:town-verify
 sources:
-  - url: http://www.promotionalresourcesinc.net/
+  - url: https://promotionalresourcesinc.net/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Closed · Opens 8 AM Mon). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Closed · Opens 8 AM Mon). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Protrim of Central Minnesota
 ```yaml
@@ -6507,8 +6539,8 @@ Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is
 ## Quill & Disc
 ```yaml
 id: quill-disc
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "legal_service"
 place_type: "Business"
 address: "30844 1st Ave NE"
@@ -6520,7 +6552,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## R J's Auto Repair
 ```yaml
@@ -6574,23 +6606,23 @@ Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is
 ## Renner Roofing Inc.
 ```yaml
 id: renner-roofing
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
-  - url: http://rennerroofingmn.com/
-    kind: website
+  - url: https://www.rennerroofingmn.com/feed/
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, http://rennerroofingmn.com/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, http://rennerroofingmn.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Restoring Hope Individual & Family Therapy LLC
 ```yaml
 id: restoring-hope-individual-family-therapy
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
@@ -6599,7 +6631,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Closed · Opens 10 AM Mon). Named by its own website, https://www.restoringhopetherapyllc.com/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Closed · Opens 10 AM Mon). Named by its own website, https://www.restoringhopetherapyllc.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Riff City Guitar & Music Company
 ```yaml
@@ -6622,56 +6654,56 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists
 ## Rivers Bend Cottage Homes
 ```yaml
 id: rivers-bend-cottage-homes
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "apartment"
 place_type: "Business"
 address: "209 Keystone Ct"
 phone: "3206569324"
 added_by: agent:town-verify
 sources:
-  - url: http://www.riversbendmn.com/
-    kind: website
+  - url: https://www.athomeapartments.com/feed/
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Roadway Sport-N-Trailer
 ```yaml
 id: roadway-sport-n-trailer
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "vehicle_dealer"
 place_type: "Business"
 address: "9 17th Ave SE"
 phone: "+13203638430"
 added_by: agent:town-verify
 sources:
-  - url: http://www.roadwaysport-n-trailer.com/
+  - url: https://www.roadwaysport-n-trailer.com/closeouts-specials.html
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Rockhouse Productions
 ```yaml
 id: rockhouse-productions
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "media_service"
 place_type: "Business"
 address: "23 W Minnesota St"
 phone: "+13203631000"
 added_by: agent:town-verify
 sources:
-  - url: http://www.rockhousepro.com/
+  - url: https://www.rockhousepro.com/community-events
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.92). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Rocky Acre Gardens
 ```yaml
@@ -6711,8 +6743,8 @@ Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is
 ## Roger Tamm Photography
 ```yaml
 id: roger-tamm-photography
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "professional_service"
 place_type: "Business"
 address: "203 Cedar St E"
@@ -6725,31 +6757,31 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Rolling Ridge Wedding & Event Center
 ```yaml
 id: rolling-ridge-wedding-event-center
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "event_or_party_service"
 place_type: "Business"
 address: "31101 Co Rd 133"
 phone: "+13202577755"
 added_by: agent:town-verify
 sources:
-  - url: http://www.RollingRidgeEvents.com/
+  - url: https://rollingridgeevents.com/blog
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open 24 hours). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open 24 hours). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Rosenberger Cleaning Services LLC
 ```yaml
 id: rosenberger-cleaning-services
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
@@ -6758,7 +6790,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open 24 hours). Named by its own website, https://www.rosenbergercs.com/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open 24 hours). Named by its own website, https://www.rosenbergercs.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Rosie's Gyps Ranch
 ```yaml
@@ -6799,8 +6831,8 @@ Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-0
 ## Rothstein Christmas Tree Farm
 ```yaml
 id: rothstein-christmas-tree-farm
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "farm"
 place_type: "Business"
 address: "29765 156th Ave"
@@ -6812,25 +6844,25 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Rpm Athletics
 ```yaml
 id: rpm-athletics
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "manufacturer"
 place_type: "Business"
 address: "30753 Pearl Dr"
 phone: "13205570707"
 added_by: agent:town-verify
 sources:
-  - url: http://rpmtf.com
+  - url: https://www.rpmtf.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Russell Eyecare & Associates
 ```yaml
@@ -6853,20 +6885,20 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists
 ## Rustic River Gear
 ```yaml
 id: rustic-river-gear
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "fashion_and_apparel_store"
 place_type: "Business"
 address: "636 19th Ave NE"
 phone: "3203631065"
 added_by: agent:town-verify
 sources:
-  - url: http://www.rusticrivergear.com/
+  - url: https://www.rusticrivergear.com/blog
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 3:30 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 3:30 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Sam's Outdoor & More
 ```yaml
@@ -6889,8 +6921,8 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists
 ## Scenic Specialties Landscape Professionals
 ```yaml
 id: scenic-specialties-landscape-professiona
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "home_service"
 place_type: "Business"
 address: "31101 County Road 133"
@@ -6898,63 +6930,63 @@ phone: "+13203637479"
 aka: ["Pond Shop", "Scenic Specialties Landscape"]
 added_by: agent:town-verify
 sources:
-  - url: http://www.scenicspecialties.com/
-    kind: website
+  - url: https://www.scenicspecialties.com/feed/
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-02: Live website with a 2026 footer and news posts from January 2026, at the same address.. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-02: Live website with a 2026 footer and news posts from January 2026, at the same address.. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Scherer Trucking and Sons
 ```yaml
 id: scherer-trucking-sons
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "travel_and_transportation"
 place_type: "Business"
 address: "1007 E Minnesota St"
 phone: "+13203638846"
 added_by: agent:town-verify
 sources:
-  - url: http://www.scherertrucking.com
+  - url: https://scherertrucking.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4:30 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4:30 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Schwegel's Landscaping & Tree Service
 ```yaml
 id: schwegels-landscaping-tree-service
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
-  - url: http://www.schwegelsllc.com/
+  - url: https://schwegelsllc.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 7 PM). Named by its own website, http://www.schwegelsllc.com/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 7 PM). Named by its own website, http://www.schwegelsllc.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Scott Investigation
 ```yaml
 id: scott-investigation
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "financial_service"
 place_type: "Business"
 address: "9047 Crestview Dr"
 phone: "(320) 363-7559"
 added_by: agent:town-verify
 sources:
-  - url: http://www.piscott.com
+  - url: https://www.piscott.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Seed to Glass
 ```yaml
@@ -6991,8 +7023,8 @@ Notes: Proposed on 2026-10-05 from a Google Maps sweep. No URL was found, so thi
 ## Sentry Bank
 ```yaml
 id: sentry-bank
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "bank_or_credit_union"
 place_type: "Business"
 address: "400 4th Ave NE"
@@ -7000,18 +7032,18 @@ phone: "+13203637721"
 aka: ["First State Bank of St. Joseph"]
 added_by: agent:town-verify
 sources:
-  - url: https://mysentrybank.com/about-us/contact/
+  - url: https://mysentrybank.com/about/blog/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5:30 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5:30 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Serenity Place on 7th
 ```yaml
 id: serenity-place-on-7th
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "senior_living_facility"
 place_type: "Business"
 address: "329 7th Ave SE"
@@ -7023,24 +7055,24 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open 24 hours). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open 24 hours). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Shamrock Leathers
 ```yaml
 id: shamrock-leathers
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 address: "9722 320th Street"
 phone: "(320) 363-7441"
 added_by: agent:town-verify
 sources:
-  - url: http://www.shamrockleathers.com
+  - url: https://www.shamrockleathers.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from lakesnwoods.com. Verified 2026-10-02: Active Shopify store at shamrockleathers.com selling trapshooting gear; Yelp listing at same address updated August 2026.. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from lakesnwoods.com. Verified 2026-10-02: Active Shopify store at shamrockleathers.com selling trapshooting gear; Yelp listing at same address updated August 2026.. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Sisters & Company
 ```yaml
@@ -7082,8 +7114,8 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-02: Its Square web
 ## Snap Fitness
 ```yaml
 id: snap-fitness
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "gym"
 place_type: "Business"
 address: "708 Elm St E"
@@ -7091,12 +7123,12 @@ phone: "+13203637757"
 aka: ["Snap Fitness St. Joseph", "St. Joseph, MN"]
 added_by: agent:town-verify
 sources:
-  - url: https://www.snapfitness.com/us/gyms/st-joseph-mn/?utm_source=fb&utm_medium=yext
+  - url: https://www.snapfitness.com/us/blog
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open 24 hours). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open 24 hours). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Sojourn Counseling Group
 ```yaml
@@ -7135,56 +7167,56 @@ Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-0
 ## Sound Connection
 ```yaml
 id: sound-connection
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "automotive_service"
 place_type: "Business"
 address: "8055 County Road 75"
 phone: "3202711916"
 added_by: agent:town-verify
 sources:
-  - url: http://soundconnectioninc.com/
+  - url: https://www.soundconnectioninc.com/pages/blog
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.97). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.97). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Spectrum Supply Co
 ```yaml
 id: spectrum-supply
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "hardware_home_and_garden_store"
 place_type: "Business"
 address: "700 15th Ave NE"
 phone: "3202533305"
 added_by: agent:town-verify
 sources:
-  - url: http://dacotahpaper.com/
+  - url: https://dacotahpaper.com/blog/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## St. Cloud Acoustics
 ```yaml
 id: st-cloud-acoustics
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "hardware_home_and_garden_store"
 place_type: "Business"
 address: "833 19th Ave NE"
 phone: "8552082830"
 added_by: agent:town-verify
 sources:
-  - url: http://stcloudacoustics.com/
+  - url: https://www.stcloudacoustics.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.93). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.93). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## St Joe Mini-Storage
 ```yaml
@@ -7259,8 +7291,8 @@ Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submi
 ## St Joseph Plumbing Heating & Irrigation
 ```yaml
 id: st-joseph-plumbing-heating-irrigation
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "home_service"
 place_type: "Business"
 address: "217 16th Ave SE"
@@ -7273,7 +7305,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open now). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open now). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## St. Stephen Storage
 ```yaml
@@ -7331,8 +7363,8 @@ Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is
 ## StorageLink
 ```yaml
 id: storagelink
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
@@ -7341,49 +7373,49 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 10 PM). Named by its own website, https://www.storagelink.net/locations/saint-joseph-mn-56374/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 10 PM). Named by its own website, https://www.storagelink.net/locations/saint-joseph-mn-56374/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Strack Construction Co Inc
 ```yaml
 id: strack-construction
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "building_or_construction_service"
 place_type: "Business"
 address: "715 15th Ave NE"
 phone: "13202515933"
 added_by: agent:town-verify
 sources:
-  - url: https://strackco.com
-    kind: website
+  - url: https://strackco.com/feed/
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Straight And Square Distributing Llc
 ```yaml
 id: straight-square-distributing
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "vehicle_parts_store"
 place_type: "Business"
 address: "30659 Pearl Dr  Ste 3"
 phone: "13203634107"
 added_by: agent:town-verify
 sources:
-  - url: http://www.straight-square.com
+  - url: https://straight-square.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.75). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.75). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Styledbykyliep
 ```yaml
 id: styledbykyliep
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
@@ -7392,13 +7424,13 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Closed · Opens 10 AM Mon). Named by its own website, https://styledbykyliep.glossgenius.com/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Closed · Opens 10 AM Mon). Named by its own website, https://styledbykyliep.glossgenius.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Sunset Manufacturing / Sunset Equipment
 ```yaml
 id: sunset-manufacturing-sunset-equipment
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "b2b_service"
 place_type: "Business"
 address: "417 1st Ave NE"
@@ -7406,12 +7438,12 @@ phone: "18003283841"
 aka: ["Sunset Equipment And Supply", "Sunset Equipment Supply", "Sunset Equipment and Supply", "Sunset Manufacturing Co"]
 added_by: agent:town-verify
 sources:
-  - url: http://www.sunset-eq.com
+  - url: https://www.sunset-eq.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4:30 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4:30 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## T & R Glass & Woodworks
 ```yaml
@@ -7434,8 +7466,8 @@ Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-0
 ## Tamarack Materials
 ```yaml
 id: tamarack-materials
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "hardware_home_and_garden_store"
 place_type: "Business"
 address: "31068 County Road 133"
@@ -7443,36 +7475,36 @@ phone: "3203634442"
 aka: ["Tamarack Materials Northland"]
 added_by: agent:town-verify
 sources:
-  - url: http://tamarackmaterials.com/
+  - url: https://tamarackmaterials.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Tanner Systems Inc
 ```yaml
 id: tanner-systems
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "manufacturer"
 place_type: "Business"
 address: "625 19th Ave NE"
 phone: "+18004616454"
 added_by: agent:town-verify
 sources:
-  - url: http://www.tannersystems.com/
+  - url: https://tannersystems.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.92). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Tastefully Simple Independent Consultant Lori Tiffany
 ```yaml
 id: tastefully-simple-independent-consultant
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "professional_service"
 place_type: "Business"
 address: "9634 Wildwood Dr"
@@ -7485,13 +7517,13 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.92). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## TCC Materials
 ```yaml
 id: tcc-materials
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "manufacturer"
 place_type: "Business"
 address: "8646 Ridgewood Rd"
@@ -7499,12 +7531,12 @@ phone: "13203634671"
 aka: ["Borgert Products Inc", "Bremix"]
 added_by: agent:town-verify
 sources:
-  - url: https://www.borgertproducts.com
-    kind: website
+  - url: https://www.tccmaterials.com/feed/
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Teddy Bear Family Daycare
 ```yaml
@@ -7576,20 +7608,20 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists
 ## Traut Companies
 ```yaml
 id: traut-companies
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "water_utility_provider"
 place_type: "Business"
 address: "32640 County Road 133"
 phone: "+13202515090"
 added_by: agent:town-verify
 sources:
-  - url: http://www.trautcompanies.com/
-    kind: website
+  - url: https://trautcompanies.com/feed/
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Truck Accessories Direct
 ```yaml
@@ -7630,53 +7662,57 @@ Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submi
 ## True Freedom Physical Therapy
 ```yaml
 id: true-freedom-physical-therapy
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
-  - url: https://truefreedomphysicaltherapy.com/
+  - url: https://www.truefreedomphysicaltherapy.com/blog-feed.xml
+    kind: rss
+    method: fetch
+    trust: official
+  - url: https://www.truefreedomphysicaltherapy.com/event-registration
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, https://truefreedomphysicaltherapy.com/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, https://truefreedomphysicaltherapy.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Two Bits Mens Grooming Salon
 ```yaml
 id: two-bits-mens-grooming-salon
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "personal_or_beauty_service"
 place_type: "Business"
 address: "21 1st Ave NW"
 phone: "+13204692861"
 added_by: agent:town-verify
 sources:
-  - url: http://www.twobitsgrooming.com/
+  - url: https://www.twobitsgrooming.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 3 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 3 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Underground Water Locating
 ```yaml
 id: underground-water-locating
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 address: "28391 Kelp Road"
 phone: "(320) 363-7564"
 aka: ["James Kuebelbeck Water Loc Service"]
 added_by: agent:town-verify
 sources:
-  - url: http://www.undergroundwaterlocating.com
+  - url: https://undergroundwaterlocating.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from lakesnwoods.com. Verified 2026-10-02: Google Maps listing (via Composio search), same address and phone, listed open. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from lakesnwoods.com. Verified 2026-10-02: Google Maps listing (via Composio search), same address and phone, listed open. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Unwind
 ```yaml
@@ -7751,33 +7787,33 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists
 ## Viking Log Furniture
 ```yaml
 id: viking-log-furniture
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 aka: ["Viking Industries"]
 added_by: agent:town-verify
 sources:
-  - url: https://www.vikinglogfurniture.com/
+  - url: https://vikinglogfurniture.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4:30 PM). Named by its own website, https://www.vikinglogfurniture.com/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4:30 PM). Named by its own website, https://www.vikinglogfurniture.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Vista Apartments
 ```yaml
 id: vista-apartments
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
-  - url: http://www.move2vista.com/
+  - url: https://www.move2vista.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, http://www.move2vista.com/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, http://www.move2vista.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Von Meyer Publishing Inc
 ```yaml
@@ -7800,20 +7836,20 @@ Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is
 ## W Gohman Construction Co
 ```yaml
 id: w-gohman-construction
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "home_service"
 place_type: "Business"
 address: "815 County Road 75"
 phone: "+13203637781"
 added_by: agent:town-verify
 sources:
-  - url: http://www.wgohman.com/
-    kind: website
+  - url: https://wgohman.com/feed/
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Watab Inc-Environmental
 ```yaml
@@ -7853,8 +7889,8 @@ Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is
 ## Wendy Loso
 ```yaml
 id: wendy-loso
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "real_estate_service"
 place_type: "Business"
 address: "111 College Ave N"
@@ -7862,45 +7898,45 @@ phone: "+13209805920"
 aka: ["Wendy Loso Central MN Realty"]
 added_by: agent:town-verify
 sources:
-  - url: http://wendyloso.com/
+  - url: https://www.centralmnrealty.com/team/wendy-loso/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open 24 hours). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open 24 hours). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## West Apartments
 ```yaml
 id: west-apartments
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "real_estate_service"
 place_type: "Business"
 address: "710 County Road 75"
 phone: "+13202711222"
 added_by: agent:town-verify
 sources:
-  - url: http://east-westrealty.com
+  - url: https://east-westrealty.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.5). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.5). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## West Suburban Tree Care
 ```yaml
 id: west-suburban-tree-care
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "Business"
 added_by: agent:town-verify
 sources:
-  - url: https://westsuburbantreecare.com/
+  - url: https://www.westsuburbantreecare.com/specials/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 7 PM). Named by its own website, https://westsuburbantreecare.com/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 7 PM). Named by its own website, https://westsuburbantreecare.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Whitby Gift Shop & Gallery
 ```yaml
@@ -7923,8 +7959,8 @@ Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is
 ## The Whole You Wellness Collective
 ```yaml
 id: whole-you-wellness-collective
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "complementary_and_alternative_medicine"
 place_type: "Business"
 address: "32 1st Ave NW #72"
@@ -7937,7 +7973,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-02: Live website lists the St. Joseph address, founder Trisha Kubasek and current services.. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-02: Live website lists the St. Joseph address, founder Trisha Kubasek and current services.. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Wildwood Ranch Maple Syrup
 ```yaml
@@ -7975,44 +8011,44 @@ Notes: Proposed on 2026-10-05 from a Google Maps sweep. No URL was found, so thi
 ## Winters Family Chiropractic
 ```yaml
 id: winters-family-chiropractic
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "complementary_and_alternative_medicine"
 place_type: "Business"
 address: "1511 E Minnesota St"
 phone: "+13202020284"
 added_by: agent:town-verify
 sources:
-  - url: https://wintersfamilychiro.com/
+  - url: https://www.wintersfamilychiro.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Closes soon · 1 PM · Opens 12 PM Wed). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Closes soon · 1 PM · Opens 12 PM Wed). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Yamry Construction
 ```yaml
 id: yamry-construction
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "home_service"
 place_type: "Business"
 address: "33117 CR-2"
 phone: "+13203634159"
 added_by: agent:town-verify
 sources:
-  - url: http://yamryconstruction.com/
-    kind: website
+  - url: https://yamryconstruction.com/feed/
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 7 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 7 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Grey Face Rescue & Retirement
 ```yaml
 id: grey-face-rescue-retirement
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "animal_or_pet_service"
 place_type: "Community group"
 address: "30593 Pearl Dr"
@@ -8024,25 +8060,29 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Closed · Opens 5 PM Mon). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Closed · Opens 5 PM Mon). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## St Joe Rod and Gun Club
 ```yaml
 id: st-joe-rod-gun-club
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "social_or_community_service"
 place_type: "Community group"
 address: "29495 Kraemer Lake Rd"
 aka: ["St. Joe Rod and Gun Club boat launch"]
 added_by: agent:town-verify
 sources:
-  - url: http://stjoerodandgunclub.org/
-    kind: website
+  - url: https://stjoerodandgunclub.org/events/?ical=1
+    kind: ical
+    method: fetch
+    trust: official
+  - url: https://stjoerodandgunclub.org/feed/
+    kind: rss
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 9 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 9 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## St. Joseph Community Food Shelf
 ```yaml
@@ -8116,20 +8156,20 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists
 ## Resurrection Lutheran Church
 ```yaml
 id: resurrection-lutheran-church
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "christian_place_of_worship"
 place_type: "Church"
 address: "610 Stearns 2 County"
 phone: "+13203634232"
 added_by: agent:town-verify
 sources:
-  - url: http://rlcstjoe.com/
+  - url: https://rlcstjoe.com/calendar/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 1.0). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 1.0). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## St John the Baptist Parish
 ```yaml
@@ -8171,8 +8211,8 @@ Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submi
 ## Kidstop
 ```yaml
 id: kidstop
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "coffee_shop"
 place_type: "School / college"
 address: "1300 Jade Rd"
@@ -8180,12 +8220,16 @@ phone: "(320) 363-4737"
 aka: ["Kids Stop"]
 added_by: agent:town-verify
 sources:
-  - url: http://bgcmn.org/
+  - url: https://www.bgcmn.org/events/
+    kind: website
+    method: fetch
+    trust: official
+  - url: https://www.bgcmn.org/news/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.92). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Lillian Leonard Primary
 ```yaml
@@ -8208,25 +8252,29 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists
 ## Meyer Farm Project
 ```yaml
 id: meyer-farm-project
-status: proposed
-tier: listed
+status: active
+tier: watched
 place_type: "School / college"
 address: "29482 Co Rd 121"
 phone: "+13208280019"
 added_by: agent:town-verify
 sources:
-  - url: http://meyerfarmproject.com/
+  - url: https://meyerfarmproject.com/feed/
+    kind: rss
+    method: fetch
+    trust: official
+  - url: https://meyerfarmproject.com/events/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.78). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.78). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## St. Joseph Catholic School
 ```yaml
 id: st-joseph-catholic-school
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "place_of_learning"
 place_type: "School / college"
 address: "32 W Minnesota St"
@@ -8234,12 +8282,16 @@ phone: "+13203637769"
 aka: ["St Joseph Laboratory School", "St. Joseph Laboratory School"]
 added_by: agent:town-verify
 sources:
-  - url: https://ccsprek12.org/elementary/sjcs
+  - url: https://ccsprek12.org/events
+    kind: website
+    method: fetch
+    trust: official
+  - url: https://ccsprek12.org/news
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.96). Unreviewed — tier `listed`, so it publishes nothing until promoted. 2026-10-14: the old address, stjosephparish.org, now forwards to a parish in Seattle; the school's page is on Catholic Community Schools' site. Its events are at ccsprek12.org/events, shared by every Catholic Community School, so that page is not added here.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.96). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). 2026-10-14: the old address, stjosephparish.org, now forwards to a parish in Seattle; the school's page is on Catholic Community Schools' site. Its events are at ccsprek12.org/events, shared by every Catholic Community School, so that page is not added here.
 
 ## City of St. Joseph Dog Park
 ```yaml
@@ -8445,8 +8497,8 @@ Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submi
 ## St Joseph Manufactured Home Community
 ```yaml
 id: st-joseph-manufactured-home-community
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "real_estate_service"
 place_type: "Park / historic"
 address: "407 1st Ave NW"
@@ -8459,13 +8511,13 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.85). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.85). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## St. Joseph Trailhead of Lake Wobegon Trail
 ```yaml
 id: st-joseph-trailhead-of-lake-wobegon-trai
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: "sports_and_recreation"
 place_type: "Park / historic"
 address: "605 1st Ave NE"
@@ -8473,12 +8525,12 @@ phone: "+13202939364"
 aka: ["Lake Wobegon Trail"]
 added_by: agent:town-verify
 sources:
-  - url: http://lakewobegontrail.com/
+  - url: https://lakewobegontrail.com/events/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.98). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.98). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## St. Wendel Tamarack Bog Scientific & Natural Area
 ```yaml

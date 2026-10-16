@@ -15,9 +15,11 @@ So this walks every entry that has a real URL and asks four questions of each si
      fetch source and probably a human to confirm it carries real dates.
   4. Does it link a Facebook page?  Recorded, not fetched. That is Apify's job.
 
-It writes findings, never entries. Promoting a place from `listed` to `watched` crosses
-the publishing line and stays a per-entry decision (ADR-011), so the output is a report
-for a human, not a registry edit.
+By default it writes findings, never entries. Promoting a place from `listed` to `watched`
+crosses the publishing line, so that takes Jesse's approval (ADR-022):
+
+  --pick      up to three pages per listed place -> .runs/picks.json, for his approval page
+  --promote   his ticks (the approval page's saved choices) applied to the registry file
 
 Politeness: reuses run.py's fetch, so robots.txt and Crawl-delay are obeyed
 (ADR-014). One page per site — this does not crawl.
@@ -47,6 +49,8 @@ NEWS_WORDS = re.compile(r"^\W*(our |latest |weekly |daily )?(specials?|deals|hap
 NEWS_PATH = re.compile(r"/(specials?|happy-hour|news|blog|announcements?|bulletins?|updates)(/|$|\.)", re.I)
 NOT_A_PAGE = re.compile(r"\.(pdf|jpe?g|png|gif|docx?|zip|mp4)(\?|$)|^(mailto|tel|javascript):", re.I)
 GCAL = re.compile(r'calendar\.google\.com/calendar/(?:u/\d+/)?embed\?[^"\']*?src=([^&"\']+)', re.I)
+# An entry's yaml block (group 2) and the Notes line after its fence (group 4), as registry.py reads it.
+ENTRY_BLOCK = re.compile(r"^(##\s+.+?\s*\n+```ya?ml\n)(.*?)(\n```)(\nNotes:[^\n]*)?", re.M | re.S)
 CANONICAL = re.compile(r'<link[^>]+rel=["\']canonical["\'][^>]*href=["\']([^"\']+)["\']', re.I)
 
 
@@ -262,6 +266,72 @@ def pick_all(root, workers=8):
     print(f"report: {out}")
 
 
+UNREVIEWED = "Unreviewed — tier `listed`, so it publishes nothing until promoted."
+PROMOTED = "Watched since {day}: Jesse approved it in one batch with its picked pages (ADR-022)."
+PLAIN_URL = re.compile(r"[A-Za-z0-9:/._~%?&=+@!$,;*()\-]+")
+
+
+def yaml_url(u):
+    return u if PLAIN_URL.fullmatch(u) else json.dumps(u)
+
+
+def source_lines(s):
+    lines = [f"  - url: {yaml_url(s['url'])}"]
+    lines += [f"    {k}: {v}" for k, v in s.items() if k != "url"]
+    return lines
+
+
+def promote_block(block, entry, pages):
+    """One entry's yaml block, made watched and active, its website replaced by its picked pages.
+    Other sources (a Facebook page) stay; every other key stays as written."""
+    trust = next((s.get("trust") for s in entry["sources"] if s.get("kind", "website") == "website"), None) or "official"
+    kept = [s for s in entry["sources"] if looks_social(s.get("url", "")) or s.get("method") != "fetch"]
+    sources = [{"url": g["url"], "kind": g["kind"], "method": "fetch", "trust": trust} for g in pages] + kept
+    head = block.split("\nsources:", 1)[0].splitlines()
+    head = [("status: active" if ln.startswith("status:") else "tier: watched" if ln.startswith("tier:") else ln)
+            for ln in head]
+    if not any(ln.startswith("tier:") for ln in head):
+        head.insert(next(i for i, ln in enumerate(head) if ln.startswith("status:")) + 1, "tier: watched")
+    return "\n".join(head + ["sources:"] + [ln for src in sources for ln in source_lines(src)])
+
+
+def promote(root, picks, choices, day):
+    """Jesse's approval page, applied: every ticked place he can read becomes watched and active
+    with its picked pages (ADR-022). Unticked places and unreadable sites stay listed."""
+    off_places, off_pages = set(choices.get("unticked_places", [])), set(choices.get("unticked_pages", []))
+    want = {r["id"]: [g for g in r["pages"] if f"{r['id']}|{g['url']}" not in off_pages]
+            for r in picks if r["state"] == "ok" and r["id"] not in off_places}
+    want = {k: v for k, v in want.items() if v}
+    entries = {e["id"]: e for e in load(root)[0]}
+    done = 0
+    for rel in sorted({entries[i]["_file"] for i in want if i in entries}):
+        done += promote_file(Path(root) / rel, want, entries, day)
+    print(f"[promote] {done} places watched and active; {len(want) - done} not found")
+
+
+def promote_file(path, want, entries, day):
+    text = path.read_text(encoding="utf-8")
+    out, at, done = [], 0, 0
+    for m in ENTRY_BLOCK.finditer(text):
+        eid = re.search(r"^id:\s*(\S+)", m.group(2), re.M)
+        if not eid or eid.group(1) not in want:
+            continue
+        e = entries[eid.group(1)]
+        out.append(text[at:m.start(2)])
+        out.append(promote_block(m.group(2), e, want[eid.group(1)]))
+        notes = m.group(4) or ""
+        line = PROMOTED.format(day=day)
+        # A hand-written note runs over several lines, so the line goes first, never mid-sentence.
+        notes = (notes.replace(UNREVIEWED, line) if UNREVIEWED in notes
+                 else notes.replace("Notes: ", "Notes: " + line + " ", 1) if notes.strip() else "\nNotes: " + line)
+        out.append(m.group(3) + notes)
+        at = m.end()
+        done += 1
+    out.append(text[at:])
+    path.write_text("".join(out), encoding="utf-8")
+    return done
+
+
 def selftest():
     page = """<head><link rel="alternate" type="application/rss+xml" href="/comments/feed/"></head>
     <a href="/about">About</a><a href="https://x.com/events/">Events</a><a href="/news/">News</a>
@@ -295,6 +365,15 @@ def selftest():
     checks.append((got == "https://x.com/events/", "the events list, not one event on it"))
     checks.append((not EVENT_WORDS.search("Show supplies") and EVENT_WORDS.search("Upcoming Events"),
                    "a word counts only as the whole menu label"))
+    block = "id: bar\nstatus: proposed\ntier: listed\ncategory: amenity=bar\nadded_by: agent:discover\nsources:\n  - url: https://bar.com\n    kind: website\n    method: fetch\n    trust: official"
+    entry = {"sources": [{"url": "https://bar.com", "kind": "website", "method": "fetch", "trust": "official"},
+                         {"url": "https://www.facebook.com/bar", "kind": "facebook", "method": "search_snippet", "trust": "official"}]}
+    got = promote_block(block, entry, [{"url": "https://bar.com/events/?ical=1", "kind": "ical"},
+                                       {"url": "https://bar.com/a b", "kind": "website"}])
+    checks.append((got.splitlines()[1:3] == ["status: active", "tier: watched"] and "category: amenity=bar" in got
+                   and "  - url: https://bar.com/events/?ical=1\n    kind: ical\n    method: fetch\n    trust: official" in got
+                   and '  - url: "https://bar.com/a b"' in got and "https://www.facebook.com/bar" in got
+                   and "url: https://bar.com\n" not in got, "a promoted entry: watched, active, its picked pages, Facebook kept"))
     bad = [m for ok, m in checks if not ok]
     print(f"{len(checks) - len(bad)} passed, {len(bad)} failed" + "".join(f"\n  FAILED {m}" for m in bad))
     sys.exit(1 if bad else 0)
@@ -305,6 +384,8 @@ def main():
     ap.add_argument("--root", default=".")
     ap.add_argument("--limit", type=int, default=0, help="stop after N sites (testing)")
     ap.add_argument("--pick", action="store_true", help="up to three pages per listed place -> .runs/picks.json")
+    ap.add_argument("--promote", metavar="CHOICES_JSON",
+                    help="apply Jesse's approval page (.runs/picks.json + his ticks) to the registry file")
     ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args()
     if args.selftest:
@@ -313,6 +394,10 @@ def main():
     root = find_root(args.root)
     if args.pick:
         return pick_all(root)
+    if args.promote:
+        from datetime import date
+        picks = json.loads((Path(root) / ".runs" / "picks.json").read_text())
+        return promote(root, picks, json.loads(Path(args.promote).read_text()), date.today().isoformat())
     entries, _ = load(root)
 
     targets = []

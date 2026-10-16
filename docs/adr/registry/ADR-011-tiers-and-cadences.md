@@ -1,6 +1,8 @@
 # ADR-011 — Tiers set what an entry is for, and how often it is checked
 
-**Status:** Accepted
+**Status:** Accepted; the per-entry promotion to `watched` is amended by
+[ADR-022](ADR-022-every-place-with-a-website-is-watched.md): every place with a readable
+website is watched, approved by Jesse in one batch.
 **Date:** 2026-09-23
 **Depends on:** [ADR-010](ADR-010-completeness-is-the-goal.md)
 

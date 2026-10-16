@@ -29,22 +29,26 @@ from check_flags import batches, message
 import write_judged
 
 SCRIPTS = Path(__file__).resolve().parent
-FEEDS = {"ical", "rss"}
+FEEDS = {"ical"}  # the feed reader's; an RSS feed is posts, read like a page (run.py keeps their dates)
 
 
 def to_model(entry, source):
-    """A changed page goes to the cheap model only when no reader or feed covers it."""
+    """A changed page goes to the cheap model only when no reader or calendar feed covers it.
+    An RSS feed has no reader: its items are a place's posts, which the judge has to sort like
+    any page (watch-every-place 06, amending the spec's feeds-never-a-model rule)."""
     return (entry.get("tier", "listed") == "watched" and not source.get("reader")
             and source.get("kind") not in FEEDS and source.get("method") == "fetch")
 
 
 def pages_to_read(changed, entries):
-    """run.py's changed pages, as the batches want them: an id, the URL, the text."""
+    """run.py's changed pages, as the batches want them: an id, the URL, the text. A page seen
+    for the first time only gets its starting copy (Jesse, 2026-10-15), so a batch of newly
+    watched places doesn't send hundreds of pages to the model at once."""
     by_source = {(e["id"], s.get("url")): (e, s) for e in entries for s in e.get("sources") or []}
     out = []
     for c in changed:
         e, s = by_source.get((c["entry_id"], c["url"]), (None, None))
-        if e and to_model(e, s) and c.get("snapshot"):
+        if e and to_model(e, s) and c.get("snapshot") and not c.get("first_seen"):
             out.append({"file": Path(c["snapshot"]).stem, "url": c["url"], "snapshot": c["snapshot"],
                         "entry_id": e["id"], "name": e["_name"], "category": e.get("category"),
                         "trust": s.get("trust") or "official"})
@@ -92,6 +96,7 @@ def prepare(today, out):
     (out / "existing.json").write_text(json.dumps(write_judged.listed_in_db(), indent=1, default=str))
 
     summary = {"today": str(today), "fetched": report["fetched"], "changed": len(report["changed"]),
+               "first_seen": sum(1 for c in report["changed"] if c.get("first_seen")),
                "to_read": len(pages), "batches": len(list((out / "batches").iterdir())),
                "failed": [f"{f['entry_id']} {f['url']}: {f['error']}" for f in report["failed"]],
                "readers": readers, "interests": write_judged.interest_ids()}
@@ -123,7 +128,8 @@ def summary_lines(prep, items, result, written):
         count[what] = count.get(what, 0) + 1
     held = [it["title"] for it, (what, _) in zip(items, result["outcomes"]) if what in ("held", "news held")]
     lines = [f"Morning watch, {prep['today']}",
-             f"- Pages: {prep['fetched']} fetched, {prep['changed']} changed, {prep['to_read']} read by the cheap model",
+             f"- Pages: {prep['fetched']} fetched, {prep['changed']} changed, {prep['to_read']} read by the cheap model"
+             + (f", {prep['first_seen']} new kept as a starting copy" if prep.get("first_seen") else ""),
              f"- Events: {count.get('published', 0)} new, {count.get('merged', 0)} already listed, "
              f"{count.get('held', 0)} held for Jesse",
              f"- News: {count.get('news', 0)} kept, {count.get('news held', 0)} held for Jesse",
@@ -154,11 +160,17 @@ def selftest():
                {"id": "kennedy", "_name": "Kennedy", "tier": "watched",
                 "sources": [{"url": "https://k/calendar", "method": "fetch", "reader": "finalsite-calendar"}]},
                {"id": "shop", "_name": "Shop", "tier": "listed",
-                "sources": [{"url": "https://s/", "method": "fetch"}]}]
-    changed = [{"entry_id": e["id"], "url": e["sources"][0]["url"], "snapshot": f"{e['id']}--abc123.md"} for e in entries]
+                "sources": [{"url": "https://s/", "method": "fetch"}]},
+               {"id": "sals", "_name": "Sal's", "tier": "watched",
+                "sources": [{"url": "https://sals/feed/", "method": "fetch", "kind": "rss"}]},
+               {"id": "new", "_name": "New place", "tier": "watched",
+                "sources": [{"url": "https://n/events", "method": "fetch"}]}]
+    changed = [{"entry_id": e["id"], "url": e["sources"][0]["url"], "snapshot": f"{e['id']}--abc123.md",
+                "first_seen": e["id"] == "new"} for e in entries]
     pages = pages_to_read(changed, entries)
     checks = [
-        ([p["entry_id"] for p in pages] == ["milk"], "only a watched page no reader or feed covers"),
+        ([p["entry_id"] for p in pages] == ["milk", "sals"],
+         "only watched pages no reader or calendar feed covers, never one seen for the first time"),
         (pages[0]["file"] == "milk--abc123" and pages[0]["name"] == "Milk & Honey Ciders", "named by its snapshot"),
     ]
     tmp = Path(__file__).resolve().parents[2] / ".runs" / "morning-selftest.md"
@@ -171,9 +183,17 @@ def selftest():
     result = {"outcomes": [("published", ""), ("held", "unsure"), ("news", ""), ("merged", "into x")]}
     items = [{"title": "Plant Bingo"}, {"title": "Maybe a sale"}, {"title": "Closed Monday"}, {"title": "Fare for All"}]
     lines = summary_lines(prep, items, result, {"events": 2})
+    checks.append((summary_lines({**prep, "first_seen": 2}, items, result, None)[1].endswith(", 2 new kept as a starting copy"),
+                   "the summary counts new pages kept as a starting copy"))
     checks.append((lines[2] == "- Events: 1 new, 1 already listed, 1 held for Jesse" and "- Held: Maybe a sale" in lines
                    and "- Source failed: x https://x: HTTP 403" in lines
                    and "- Reader failed: Stearns County (civicplus-hcms): TimeoutError" in lines, "the summary names what failed"))
+    from run import fingerprint
+    checks.append((fingerprint("Trivia Oct 24 7:00 PM\nPage generated at 10/16/2026, 3:45:35 AM")
+                   == fingerprint("Trivia Oct 24 7:00 PM\nPage generated at 10/17/2026, 3:48:48 AM")
+                   and fingerprint("Wed, 14 Oct 2026 11:47:19 -0600\nFish fry") == fingerprint("Thu, 15 Oct 2026 06:01:02 -0600\nFish fry")
+                   and fingerprint("Trivia Oct 24 7:00 PM") != fingerprint("Trivia Oct 24 8:00 PM"),
+                   "a page's own clock doesn't change its fingerprint; an event's time does"))
     failed = [why for ok, why in checks if not ok]
     for why in failed:
         print(f"FAIL {why}")
