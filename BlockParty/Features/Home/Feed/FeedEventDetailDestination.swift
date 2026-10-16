@@ -544,8 +544,9 @@ struct FeedEventDetailDestination: View {
         let going = actions.going(item)
         let failures = actions.failureCount(item.id)
         return HStack(spacing: 12) {
-            // `goingLabel` is nil at zero: never "0 going".
-            if let going = YourDayLogic.goingLabel(for: going.count) {
+            // `goingLabel` is nil at zero: never "0 going". Called off: none, which would
+            // read as if it were still on (Jesse, 2026-10-15).
+            if !item.cancelled, let going = YourDayLogic.goingLabel(for: going.count) {
                 Text(going)
                     .font(.sans(17))
                     .monospacedDigit()

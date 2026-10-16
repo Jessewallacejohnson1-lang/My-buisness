@@ -101,7 +101,9 @@ struct FeedEventCard: View {
                     imageSection
                         .padding(.top, showsHostRow ? 10 : 0)
 
-                    if let goingLine = actions.goingLine(item) {
+                    // Called off: no going line, which would read as if it were still on
+                    // (Jesse, 2026-10-15).
+                    if !item.cancelled, let goingLine = actions.goingLine(item) {
                         socialRow(goingLine)
                             .padding(.top, 10)
                             .padding(.horizontal, DailyFeedMetric.contentInset)
