@@ -274,7 +274,7 @@ added_by: agent:claude
 aka: ["SJU", "Saint John's Campus", "Saint John's School of Theology"]
 venues: ["Sexton Arena", "Clemens Stadium", "Warner Palaestra", "Warner Palaestra Pool", "Great Hall",
   "Alcuin Library", "Learning Commons", "Alcuin Learning Commons", "Saint John's Abbey Arboretum",
-  "Outdoor U", "Stephen B. Humphrey Theater", "New Science Center", "Alice R. Rogers and Target Gallery",
+  "Outdoor U", "Haws Field", "Stephen B. Humphrey Theater", "New Science Center", "Alice R. Rogers and Target Gallery",
   "Alice R. Rogers and Target Galleries"]
 sources:
   - url: https://www.csbsju.edu/

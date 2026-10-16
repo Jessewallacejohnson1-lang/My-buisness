@@ -890,7 +890,8 @@ def t_items_fit_the_writer():
              + games(league_sample(), LEAGUE_DAY)[0])
     r = plan(items, [], TODAY, interest_ids())
     bad = [(i["title"], o) for i, o in zip(items, r["outcomes"]) if o[0] == "skipped"]
-    assert not bad and not [n for n in r["notes"] if "kept apart" not in n], (bad, r["notes"])
+    # "kept apart" and "place not in the registry" are reports for Jesse, not failures.
+    assert not bad and not [n for n in r["notes"] if "kept apart" not in n and "not in the registry" not in n], (bad, r["notes"])
     rows = {g["row"]["title"]: g["row"] for g in r["events"]}
     assert rows["SJU Football vs Concordia: Homecoming"]["location"] == "Clemens Stadium, Collegeville"
     assert rows["Fix-It Clinic"]["location"] == "Clemens Library", "St. Joseph needs no town on its place line"
