@@ -14,7 +14,10 @@ source is a line in the summary; carry on with the rest.
    values stay out of every command's output and your answer. Without them, stop and say so.
 2. **Prepare.** Run `python3 sources/scripts/morning.py prepare`. It fetches every watched page
    the polite way, reads the feeds and data sources, and writes the changed pages in batches
-   to `.runs/morning/batches/`. Done when it prints its `[morning] fetched …` line.
+   to `.runs/morning/batches/`. Done when it prints its `[morning] fetched …` line. It takes
+   about 10 minutes, so give the command a 900000 ms timeout. Run it once only: a second run
+   finds nothing changed and loses the morning's pages. Its counts are in
+   `.runs/morning/prepare.json` if you need them again.
 3. **The cheap model reads.** For each batch file, start one helper on the cheap model (Haiku),
    all at once, each with this prompt: "Read `sources/models/flag.md` and follow it for the
    pages in `.runs/morning/batches/batch-N.txt`. Answer with the JSON lines only." Write every
