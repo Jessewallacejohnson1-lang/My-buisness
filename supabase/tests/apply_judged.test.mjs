@@ -7,8 +7,17 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
+import { creating } from './migrations.mjs';
 
 const migration = (f) => readFileSync(new URL(`../migrations/${f}`, import.meta.url), 'utf8');
+
+test('the story below loads every migration that makes the writer\'s functions', () => {
+  // A new one fails here until the story applies it, rather than testing the old functions.
+  assert.deepEqual(creating(new URL('../migrations', import.meta.url).pathname,
+                            ['public.apply_judged', 'public.listed_for_writer']),
+                   ['20261015120000_apply_judged.sql', '20261015200100_apply_judged_cancelled.sql',
+                    '20261016090200_apply_judged_title_kept.sql']);
+});
 
 test('a dropped game is marked cancelled once, and restored by a re-read or another mention', async () => {
   const db = await PGlite.create();

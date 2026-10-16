@@ -116,7 +116,10 @@ PLACE_STOP = STOP | set("st saint joseph collegeville mn minnesota united states
                         "ave avenue east west north south suite park shelter hall center centre building "
                         "room gym lot parking map theater theatre high middle intermediate elementary school".split())
 INTERESTS_SWIFT = Path(__file__).resolve().parents[2] / "BlockParty" / "Backend" / "Interests.swift"
-WRITES = Path(__file__).resolve().parents[2] / "supabase" / "migrations" / "20261016090200_apply_judged_title_kept.sql"
+# The newest migration that makes public.apply_judged: the self-tests read the SQL the database
+# runs today, whatever the file is called.
+WRITES = max(p for p in (Path(__file__).resolve().parents[2] / "supabase" / "migrations").glob("*.sql")
+             if re.search(r"create\s+(or\s+replace\s+)?function\s+public\.apply_judged\s*\(", p.read_text(), re.I))
 
 
 def interest_ids(swift=INTERESTS_SWIFT):

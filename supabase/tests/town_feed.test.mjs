@@ -3,18 +3,19 @@
 // folder. The schema below is the subset of schema.sql the function reads.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
+import { creating } from './migrations.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
 // The function as first built, then each file that re-creates it: the recipe (ticket 18),
 // hearts (real-life actions, ticket 03), saves and own-row reads (ticket 19), with the
 // counting helpers it reads.
-const files = readdirSync(migrations)
-  .filter((f) => /_(town_feed(_[a-z]+)*|action_counts)\.sql$/.test(f)).sort();
+const files = creating(migrations, ['public.get_town_feed', 'public.town_feed_series_label',
+  'private.town_feed_place', 'private.going_count', 'private.heart_count']);
 // (Views, ticket 20: the table, its summary and the clean-up load with town_feed_views; the
 // pg_cron jobs in feed_jobs don't, since PGlite has no pg_cron.)
 const playground = JSON.parse(readFileSync(join(here, 'town_feed_playground.json'), 'utf8'));

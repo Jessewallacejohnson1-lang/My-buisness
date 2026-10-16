@@ -4,16 +4,17 @@
 // this folder. The schema below is the subset of schema.sql the function reads.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
+import { creating } from './migrations.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
 // The function, then its re-creation with counts from the private helpers (town-feed ticket 19).
-const files = readdirSync(migrations)
-  .filter((f) => /_(my_going(_[a-z]+)*|my_saves|action_counts)\.sql$/.test(f)).sort();
+const files = creating(migrations, ['public.get_my_going', 'public.get_my_saves',
+  'private.going_count', 'private.heart_count']);
 
 const db = await PGlite.create();
 await db.exec(`
