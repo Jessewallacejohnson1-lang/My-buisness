@@ -23,19 +23,31 @@ Politeness: reuses run.py's fetch, so robots.txt and Crawl-delay are obeyed
 (ADR-014). One page per site — this does not crawl.
 """
 
-import argparse, json, re, sys
+import argparse, html, json, re, sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from urllib.parse import urljoin, urlparse
+from urllib.parse import unquote, urljoin, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from registry import find_root, load, is_todo
-from run import fetch
+from run import fetch, to_text, final_url
 
 ICAL = re.compile(r'href=["\']([^"\']*(?:\.ics|ical|iCalendar|feed=calendar)[^"\']*)["\']', re.I)
 FEED = re.compile(r'<link[^>]+type=["\']application/(?:rss|atom)\+xml["\'][^>]*>', re.I)
 HREF = re.compile(r'href=["\']([^"\']+)["\']', re.I)
 EVENTPAGE = re.compile(r'href=["\']([^"\']*/(?:events?|calendar|shows?|whats-?on|happenings)/?[^"\']*)["\']', re.I)
 FACEBOOK = re.compile(r'href=["\'](https?://(?:www\.)?facebook\.com/[^"\'?#]+)["\']', re.I)
+# The page picker (watch-every-place 06): a link counts by its path or by the words on it.
+ANCHOR = re.compile(r'<a\b[^>]*?href=["\']([^"\'#]+)["\'][^>]*>(.*?)</a>', re.I | re.S)
+# Words count only as a whole menu label ("Events", "Upcoming events"), never inside one
+# ("Show supplies", "Special orders", "Radio show").
+EVENT_WORDS = re.compile(r"^\W*(upcoming |our |all |community )?(events?|calendar|events? calendar|shows?|what'?s on|happenings|live music)\W*$", re.I)
+EVENT_PATH = re.compile(r"/(events?|calendar|shows?|whats-?on|happenings)(/|$|\.)", re.I)
+NEWS_WORDS = re.compile(r"^\W*(our |latest |weekly |daily )?(specials?|deals|happy hour|news|blog|announcements?|bulletins?|updates|news (&|and) events)\W*$", re.I)
+NEWS_PATH = re.compile(r"/(specials?|happy-hour|news|blog|announcements?|bulletins?|updates)(/|$|\.)", re.I)
+NOT_A_PAGE = re.compile(r"\.(pdf|jpe?g|png|gif|docx?|zip|mp4)(\?|$)|^(mailto|tel|javascript):", re.I)
+GCAL = re.compile(r'calendar\.google\.com/calendar/(?:u/\d+/)?embed\?[^"\']*?src=([^&"\']+)', re.I)
+CANONICAL = re.compile(r'<link[^>]+rel=["\']canonical["\'][^>]*href=["\']([^"\']+)["\']', re.I)
 
 
 def looks_social(u):
@@ -107,13 +119,200 @@ def scan(url, verify=True):
     return out
 
 
+def bare(host):
+    return host.lower().removeprefix("www.")
+
+
+def links(url, page):
+    """The page's own links, first one first: (url, words on it). Same site only, pages only."""
+    hosts = {bare(urlparse(url).netloc)}
+    canon = CANONICAL.search(page)
+    if canon:
+        hosts.add(bare(urlparse(urljoin(url, canon.group(1))).netloc))
+    seen, out = set(), []
+    for href, inner in ANCHOR.findall(page):
+        href = html.unescape(href.strip())
+        if NOT_A_PAGE.search(href):
+            continue
+        try:
+            full = urljoin(url, href).split("#")[0]
+            host = bare(urlparse(full).netloc)
+        except ValueError:  # a hand-typed link like http://[phonenumber]
+            continue
+        if host not in hosts or full.rstrip("/") == url.rstrip("/") or full in seen:
+            continue
+        seen.add(full)
+        out.append((full, re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", inner))).strip()))
+    return out
+
+
+def first_match(found, words, path):
+    """The first link whose whole label says it, else the shortest whose path does (the list,
+    not one event on it)."""
+    said = [u for u, t in found if t and words.search(t)]
+    pathed = sorted((u for u, _ in found if path.search(urlparse(u).path)), key=lambda u: len(urlparse(u).path))
+    return (said or pathed or [None])[0]
+
+
+def readable(u):
+    """A picked page has to load and carry text: one built by JavaScript reads as nothing."""
+    try:
+        _st, page = fetch(u)
+    except Exception:
+        return False
+    return len(to_text(page)) >= 200
+
+
+def pick_from(url, page, ical_events=verify_ical, feed_items=verify_feed, loads=readable):
+    """Up to three pages for a place (Jesse, 2026-10-14): its feed first, then its events page,
+    then a specials or news page, else the homepage. An iCal feed stands in for the events page
+    it feeds, so a place with one doesn't get that page read by a model too."""
+    picks = []
+    host = urlparse(url).netloc
+    icals = [urljoin(url, m) for m in ICAL.findall(page)]
+    icals += [f"https://calendar.google.com/calendar/ical/{unquote(m)}/public/basic.ics"
+              for m in GCAL.findall(page)]
+    ical = next((u for u in dict.fromkeys(icals) if ical_events(u) > 0), None)
+    if ical:
+        picks.append({"url": ical, "why": "calendar feed", "kind": "ical"})
+    feeds = [urljoin(url, HREF.search(t).group(1)) for t in FEED.findall(page) if HREF.search(t)]
+    feed = next((u for u in dict.fromkeys(feeds) if "comments" not in u and feed_items(u, host) > 0), None)
+    if feed:
+        picks.append({"url": feed, "why": "news feed", "kind": "rss"})
+    found = links(url, page)
+    events = None if ical else first_match(found, EVENT_WORDS, EVENT_PATH)
+    if events and loads(events):
+        picks.append({"url": events, "why": "events page", "kind": "website"})
+    news = first_match([(u, t) for u, t in found if u != events], NEWS_WORDS, NEWS_PATH)
+    if news and not feed and loads(news):
+        picks.append({"url": news, "why": "specials or news page", "kind": "website"})
+    if not picks:
+        picks.append({"url": url, "why": "homepage", "kind": "website"})
+    return picks[:3]
+
+
+def pick(entry, url):
+    """One place: its picked pages, or why its site can't be read."""
+    row = {"id": entry["id"], "name": entry["_name"], "category": entry.get("category"),
+           "status": entry["status"], "url": url}
+    try:
+        _st, page = fetch(url)
+    except Exception as ex:
+        refused = "disallows" in str(ex)  # a robots.txt that won't load is a site that won't
+        return {**row, "state": "refused" if refused else "broken", "why": str(ex)[:120]}
+    if len(to_text(page)) < 200:
+        return {**row, "state": "empty", "why": "the page is built by JavaScript, so a plain fetch reads almost nothing"}
+    try:
+        pages = pick_from(final_url.get(url, url), page)
+        return {**row, "state": "ok", "pages": [{**p, "url": final_url.get(p["url"], p["url"])} for p in pages]}
+    except Exception as ex:  # one odd site is named, never stops the run
+        return {**row, "state": "broken", "why": f"picking failed: {str(ex)[:100]}"}
+
+
+def page_key(u):
+    p = urlparse(u)
+    return bare(p.netloc) + p.path.rstrip("/") + (f"?{p.query}" if p.query else "")
+
+
+def mark_same(rows, watched):
+    """A place whose pages sit on a watched place's website, or are all pages another place
+    already has, would be read twice: it gets `same_as` and starts unticked."""
+    seen = {}
+    for r in sorted((r for r in rows if r["state"] == "ok"), key=lambda r: r["name"]):
+        keys = [page_key(p["url"]) for p in r["pages"]]
+        host = next((watched[bare(urlparse(p["url"]).netloc)] for p in r["pages"]
+                     if bare(urlparse(p["url"]).netloc) in watched), None)
+        if host:
+            r["same_as"] = host
+        elif all(k in seen for k in keys):
+            r["same_as"] = seen[keys[0]]
+        else:
+            for k in keys:
+                seen.setdefault(k, r["name"])
+
+
+def pick_all(root, workers=8):
+    """Every listed place with a website (watched ones already have their pages)."""
+    entries, _ = load(root)
+    watched = {bare(urlparse(s["url"]).netloc): e["_name"] for e in entries if e.get("tier") == "watched"
+               for s in e.get("sources") or [] if s.get("url") and not is_todo(s["url"]) and not looks_social(s["url"])}
+    targets = []
+    for e in entries:
+        if e.get("tier", "listed") != "listed":
+            continue
+        web = [s["url"] for s in e.get("sources") or [] if s.get("url") and not is_todo(s["url"])
+               and not looks_social(s["url"]) and s.get("kind") not in ("ical", "rss")]
+        if web:
+            targets.append((e, web[0]))
+    print(f"[pick] {len(targets)} places with a website", flush=True)
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        rows = list(pool.map(lambda t: pick(*t), targets))
+    mark_same(rows, watched)
+    out = Path(root) / ".runs" / "picks.json"
+    out.parent.mkdir(exist_ok=True)
+    out.write_text(json.dumps(rows, indent=1))
+    by = {}
+    for r in rows:
+        by[r["state"]] = by.get(r["state"], 0) + 1
+    whys = {}
+    for r in rows:
+        for p in r.get("pages", []):
+            whys[p["why"]] = whys.get(p["why"], 0) + 1
+    print(f"[pick] {by} | pages {whys} | same site twice {sum('same_as' in r for r in rows)}")
+    print(f"report: {out}")
+
+
+def selftest():
+    page = """<head><link rel="alternate" type="application/rss+xml" href="/comments/feed/"></head>
+    <a href="/about">About</a><a href="https://x.com/events/">Events</a><a href="/news/">News</a>
+    <a href="mailto:a@b.c">Mail</a><a href="http://[phonenumber]">Call</a><a href="https://other.com/calendar">Calendar</a>"""
+    url = "https://www.x.com/"
+    no = lambda *a: 0
+    checks = []
+    got = pick_from(url, page, no, no, lambda u: True)
+    checks.append(([p["why"] for p in got] == ["events page", "specials or news page"], "events, then news"))
+    checks.append((got[0]["url"] == "https://x.com/events/", "same site with or without www"))
+    got = pick_from(url, page + '<a href="/cal.ics">iCal</a>', lambda u: 3, no, lambda u: True)
+    checks.append(([p["why"] for p in got] == ["calendar feed", "specials or news page"],
+                   "a calendar feed stands in for its events page"))
+    got = pick_from(url, "<a href='/about'>About us</a>", no, no, lambda u: True)
+    checks.append((got == [{"url": url, "why": "homepage", "kind": "website"}], "nothing found: the homepage"))
+    got = pick_from(url, page, no, no, lambda u: False)
+    checks.append(([p["why"] for p in got] == ["homepage"], "a page that won't load isn't picked"))
+    embed = '<iframe src="https://calendar.google.com/calendar/embed?src=abc%40group.calendar.google.com&ctz=x">'
+    got = pick_from(url, embed, lambda u: 1, no, lambda u: True)
+    checks.append((got[0]["url"] == "https://calendar.google.com/calendar/ical/abc@group.calendar.google.com/public/basic.ics",
+                   "an embedded Google Calendar becomes its public feed"))
+    rows = [{"name": "B Park", "state": "ok", "pages": [{"url": "https://city.gov/calendar"}]},
+            {"name": "A Park", "state": "ok", "pages": [{"url": "http://www.city.gov/calendar/"}]},
+            {"name": "Shop", "state": "ok", "pages": [{"url": "https://shop.com/"}]},
+            {"name": "Campus office", "state": "ok", "pages": [{"url": "https://www.college.edu/news/"}]}]
+    mark_same(rows, {"college.edu": "College"})
+    checks.append(([r.get("same_as") for r in rows] == ["A Park", None, None, "College"],
+                   "same pages twice, or a watched place's website, start unticked"))
+    got = first_match([("https://x.com/event/summer-benefit/", "Gala"), ("https://x.com/events/", "See all")],
+                      EVENT_WORDS, EVENT_PATH)
+    checks.append((got == "https://x.com/events/", "the events list, not one event on it"))
+    checks.append((not EVENT_WORDS.search("Show supplies") and EVENT_WORDS.search("Upcoming Events"),
+                   "a word counts only as the whole menu label"))
+    bad = [m for ok, m in checks if not ok]
+    print(f"{len(checks) - len(bad)} passed, {len(bad)} failed" + "".join(f"\n  FAILED {m}" for m in bad))
+    sys.exit(1 if bad else 0)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--root", default=".")
     ap.add_argument("--limit", type=int, default=0, help="stop after N sites (testing)")
+    ap.add_argument("--pick", action="store_true", help="up to three pages per listed place -> .runs/picks.json")
+    ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args()
+    if args.selftest:
+        selftest()
 
     root = find_root(args.root)
+    if args.pick:
+        return pick_all(root)
     entries, _ = load(root)
 
     targets = []

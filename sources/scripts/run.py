@@ -48,6 +48,7 @@ _crawl_delay = {}     # host -> seconds requested by robots.txt
 _last_hit = {}        # host -> monotonic time of the last request, for crawl-delay
 _unreadable = {}      # host -> why its robots.txt could not be read this run
 _host_lock = defaultdict(threading.Lock)  # one request at a time per host
+final_url = {}         # url -> where it landed after redirects (the page picker's same-site check)
 STAY_OUT = [(False, "/")]
 RETRY_WAIT = 5.0      # seconds before the one retry of a dropped connection
 
@@ -184,6 +185,7 @@ def fetch(url, data=None, headers=None):
         req = urllib.request.Request(url, data=data,
                                      headers={"User-Agent": UA, "Accept": "text/html,*/*", **(headers or {})})
         with _open(req) as r:
+            final_url[url] = r.geturl()
             body = r.read(MAX_BYTES + 1)
             if len(body) > MAX_BYTES:
                 body = body[:MAX_BYTES]
