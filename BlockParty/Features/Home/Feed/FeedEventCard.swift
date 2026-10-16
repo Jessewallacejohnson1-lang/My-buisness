@@ -632,14 +632,17 @@ private struct PhotoDoubleTap: UIGestureRecognizerRepresentable {
 /// Called off (ticket 12): a white capsule with ink words, over the photo above the card's
 /// title and at the Event page photo's bottom-left (Jesse's pick, 2026-10-15; References:
 /// Partiful's card, Meetup's event page). White and ink in both appearances, like the
-/// page's round buttons over a photo (taste.md). The shadow comes from where it sits.
+/// page's round buttons over a photo (taste.md). The shadow comes from where it sits. On the
+/// page's paper, with no photo, it turns over: paper words on ink.
 struct CanceledTag: View {
+    var onPhoto = true
+
     var body: some View {
         Text("Canceled")
             .font(.sansSemibold(13))
-            .foregroundStyle(Hue.ink.onLightCanvas)
+            .foregroundStyle(onPhoto ? Hue.ink.onLightCanvas : Hue.paper)
             .padding(.horizontal, 10)
             .padding(.vertical, 3)
-            .background(Hue.surface.onLightCanvas, in: Capsule())
+            .background(onPhoto ? Hue.surface.onLightCanvas : Hue.ink, in: Capsule())
     }
 }

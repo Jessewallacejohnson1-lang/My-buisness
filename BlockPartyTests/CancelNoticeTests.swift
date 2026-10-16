@@ -11,6 +11,8 @@ import XCTest
 @MainActor
 final class CancelNoticeTests: XCTestCase {
     private var keep: UserDefaults!
+    /// Before every sample Event: Thursday 2026-10-15, noon in the Town.
+    private let now = DateHelpers.timestamp("2026-10-15T17:00:00Z")!
 
     override func setUp() {
         super.setUp()
@@ -76,19 +78,20 @@ final class CancelNoticeTests: XCTestCase {
     func testToldOnceAndOnlyAfterOK() async {
         let rows = [event("game", cancelled: true), event("trivia", cancelled: false)]
         let notice = CancelNotice(read: { rows }, keep: keep)
-        await notice.check()
+        await notice.check(now: now)
         XCTAssertEqual(notice.showing.map(\.id), ["game"], "only the called-off one")
 
         // Opened again before OK (a sheet was up, the app was closed): still to tell.
         let again = CancelNotice(read: { rows }, keep: keep)
-        await again.check()
+        await again.check(now: now)
         XCTAssertEqual(again.showing.map(\.id), ["game"])
 
         again.ok()
         XCTAssertTrue(again.showing.isEmpty)
-        await again.check()
+        XCTAssertEqual(again.said.map(\.id), ["game"], "the fading alert keeps its words")
+        await again.check(now: now)
         let later = CancelNotice(read: { rows }, keep: keep)
-        await later.check()
+        await later.check(now: now)
         XCTAssertTrue(again.showing.isEmpty && later.showing.isEmpty, "told for good")
     }
 
@@ -97,31 +100,42 @@ final class CancelNoticeTests: XCTestCase {
     func testCalledOffAgainIsNotToldTwice() async {
         var rows = [event("game", cancelled: true)]
         let notice = CancelNotice(read: { rows }, keep: keep)
-        await notice.check()
+        await notice.check(now: now)
         notice.ok()
         rows = [event("game", cancelled: false)]
-        await notice.check()
+        await notice.check(now: now)
         rows = [event("game", cancelled: true)]
-        await notice.check()
+        await notice.check(now: now)
         XCTAssertTrue(notice.showing.isEmpty)
     }
 
     func testAFailedReadTellsNothingAndAShownAlertStays() async {
         let failing = CancelNotice(read: { throw URLError(.notConnectedToInternet) }, keep: keep)
-        await failing.check()
+        await failing.check(now: now)
         XCTAssertTrue(failing.showing.isEmpty)
 
         var rows = [event("game", cancelled: true)]
         let notice = CancelNotice(read: { rows }, keep: keep)
-        await notice.check()
+        await notice.check(now: now)
         rows = [event("game", cancelled: true), event("hike", cancelled: true)]
-        await notice.check()
+        await notice.check(now: now)
         XCTAssertEqual(notice.showing.map(\.id), ["game"], "the alert up isn't swapped under the finger")
+
+        // Left untold (it may have been behind a sheet): the next open asks again, with both.
+        notice.away()
+        await notice.check(now: now)
+        XCTAssertEqual(notice.showing.map(\.id), ["game", "hike"])
     }
 
-    func testTheAlertNamesEachEventOnceWithItsWhen() {
-        let one = CancelNotice.toTell([event("Sartell Volleyball vs ROCORI", cancelled: true),
-                                       event("Sartell Volleyball vs ROCORI", cancelled: true)], told: [])
+    /// One already over by the time the app opens isn't worth an alert.
+    func testAnEventAlreadyOverIsNotTold() {
+        let over = event("coffee", cancelled: true, day: "2026-10-15", time: "8 AM")
+        let later = event("game", cancelled: true)
+        XCTAssertEqual(CancelNotice.toTell([over, later], told: [], now: now).map(\.id), ["game"])
+    }
+
+    func testTheAlertNamesEachEventWithItsWhen() {
+        let one = CancelNotice.toTell([event("Sartell Volleyball vs ROCORI", cancelled: true)], told: [], now: now)
         XCTAssertEqual(one.count, 1)
         XCTAssertEqual(CancelNotice.title(one), "Event canceled")
         let message = CancelNotice.message(one)
@@ -131,7 +145,7 @@ final class CancelNoticeTests: XCTestCase {
                        "the when stays on one line")
 
         let two = CancelNotice.toTell([event("game", cancelled: true), event("hike", cancelled: true, time: nil)],
-                                      told: [])
+                                      told: [], now: now)
         XCTAssertEqual(CancelNotice.title(two), "2 events canceled")
         XCTAssertEqual(CancelNotice.message(two).split(separator: "\n").count, 2)
     }

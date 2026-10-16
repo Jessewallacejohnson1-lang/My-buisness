@@ -1,8 +1,10 @@
 -- The Town feed says which events are called off, so a card Hearted before its event was
 -- cancelled shows the Canceled tag (BP app docs/plans/watch-every-place, ticket 12; Jesse,
 -- 2026-10-15). get_town_feed is 20261015200000_town_feed_cancelled.sql line for line but for
--- the new last column, `cancelled`. A new column changes the return type, so it is dropped
--- and made again.
+-- the new last column, `cancelled`, and a series key that keeps a called-off date apart from
+-- the series' live dates: the "Cancelled: " title prefix used to, and without it a Hearted
+-- called-off date would stand in for next week's. A new column changes the return type, so
+-- it is dropped and made again.
 drop function if exists public.get_town_feed(timestamptz);
 
 create function public.get_town_feed(p_now timestamptz default now())
@@ -52,7 +54,7 @@ as $$
     select e.*,
            coalesce(e.club_id::text, e.source_name, e.submitted_by::text, '') as host,
            lower(btrim(e.title)) || '|' || coalesce(e.club_id::text, e.source_name, e.submitted_by::text, '')
-             as series,
+             || case when e.cancelled_at is not null then '|off' else '' end as series,
            -- The free-text start: "7 PM", "7:00 PM", "7pm", "noon", "19:00".
            case
              when e.all_day then null

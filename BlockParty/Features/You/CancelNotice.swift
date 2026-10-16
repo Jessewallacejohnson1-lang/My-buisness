@@ -12,8 +12,11 @@ import Foundation
 
 @Observable
 final class CancelNotice {
-    /// The called-off Events the alert names; empty when there's nothing to tell.
+    /// The called-off Events to tell; empty when there's nothing to.
     private(set) var showing: [UpcomingEvent] = []
+    /// What the alert says: the last `showing`, kept while the alert fades after OK so its
+    /// words don't change on the way out.
+    private(set) var said: [UpcomingEvent] = []
 
     private let read: () async throws -> [UpcomingEvent]
     private let keep: UserDefaults
@@ -43,9 +46,10 @@ final class CancelNotice {
 
     /// Reads your Going and puts up what's newly called off. A failed read waits for the
     /// next open; an alert already up is left as it is.
-    func check() async {
+    func check(now: Date = Date()) async {
         guard let going = try? await read(), showing.isEmpty else { return }
-        showing = Self.toTell(going, told: told)
+        showing = Self.toTell(going, told: told, now: now)
+        if !showing.isEmpty { said = showing }
     }
 
     /// OK: told, for good.
@@ -54,12 +58,19 @@ final class CancelNotice {
         showing = []
     }
 
+    /// The app left with the alert untold (it may never have shown, behind a sheet or the
+    /// map): the next open asks again.
+    func away() {
+        showing = []
+    }
+
     private var told: Set<String> { Set(keep.stringArray(forKey: Self.toldKey) ?? []) }
 
-    /// The called-off Events in `going` not told yet, each once, in the read's order.
-    static func toTell(_ going: [UpcomingEvent], told: Set<String>) -> [UpcomingEvent] {
-        var seen = told
-        return going.filter { $0.cancelled && seen.insert($0.id).inserted }
+    /// The called-off Events in `going` not told yet and not over by `now`, in the read's order.
+    static func toTell(_ going: [UpcomingEvent], told: Set<String>, now: Date) -> [UpcomingEvent] {
+        going.filter { event in
+            event.cancelled && !told.contains(event.id) && (YouCalendar.event(from: event).map { $0.ends > now } ?? true)
+        }
     }
 
     /// "Event canceled", or "2 events canceled".

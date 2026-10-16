@@ -733,7 +733,7 @@ def t_cancelled():
                   dict(game, cancelled_at="2026-10-15T11:00:00Z")):
         assert not run([line], [listed(**other)])["cancelled"], other
     assert not run([], [gone])["cancelled"], "no schedule line, a school not read: nothing called off"
-    back = listed(**dict(game, title="Cancelled: Sartell Volleyball vs ROCORI", cancelled_at="2026-10-15T11:00:00Z"))
+    back = listed(**dict(game, cancelled_at="2026-10-15T11:00:00Z"))
     seen = item(title="Sartell Volleyball vs ROCORI", start="2026-10-20T19:00:00-05:00", end=None, place="ROCORI High School",
                 town="Cold Spring", area="game", source_name="ROCORI High School", source_uid=game["source_uid"],
                 interest="sports_leagues", size="everyday")
@@ -743,7 +743,7 @@ def t_cancelled():
     assert g["id"] == back["id"] and g["row"]["title"] == "Sartell Volleyball vs ROCORI", g
     merged = listed(**dict(back, source_name="Sartell High School"))  # back on, under the other school's name
     r = run([seen, line], [merged])
-    assert r["events"][0]["id"] == merged["id"] and r["restored"] == [merged], "the cancelled title doesn't stop the merge"
+    assert r["events"][0]["id"] == merged["id"] and r["restored"] == [merged], "a cancelled one still merges"
     db = WRITES.read_text()
     assert "cancelled_at = null,\n    shows_from" in db, "a re-read by its own source restores it"
     assert "set cancelled_at = now()\n" in db and "set cancelled_at = null\n" in db, "only the mark changes"

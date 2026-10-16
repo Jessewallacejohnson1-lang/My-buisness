@@ -387,13 +387,20 @@ struct FeedEventDetailDestination: View {
 
     private var sheet: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(item.title)
-                .font(.eventDisplay(28))
-                .lineSpacing(Metric.titleLineSpacing)
-                .foregroundStyle(Hue.ink)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityAddTraits(.isHeader)
-                .padding(.top, Metric.titleTop)
+            VStack(alignment: .leading, spacing: 8) {
+                // Called off with no photo to carry the tag: it sits over the title instead.
+                if item.cancelled && !hasHero {
+                    CanceledTag(onPhoto: false)
+                }
+
+                Text(item.title)
+                    .font(.eventDisplay(28))
+                    .lineSpacing(Metric.titleLineSpacing)
+                    .foregroundStyle(Hue.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+            }
+            .padding(.top, Metric.titleTop)
 
             if let category = Self.categoryText(item.category) {
                 Text(category)
@@ -552,12 +559,18 @@ struct FeedEventDetailDestination: View {
             if item.cancelled && !going.isGoing {
                 // Called off: nobody new joins (Meetup's greyed button). Someone Going
                 // keeps Going below, so they can still leave it.
-                Text("Canceled")
-                    .font(.sansSemibold(17))
-                    .foregroundStyle(Hue.inkSecondary)
-                    .frame(width: Metric.joinSize.width, height: Metric.joinSize.height)
-                    .background(Hue.fill, in: Capsule())
-                    .transition(.opacity)
+                // Still squishes under the finger, like everything that looks pressable
+                // (taste.md), and does nothing.
+                Button {} label: {
+                    Text("Canceled")
+                        .font(.sansSemibold(17))
+                        .foregroundStyle(Hue.inkSecondary)
+                        .frame(width: Metric.joinSize.width, height: Metric.joinSize.height)
+                        .background(Hue.fill, in: Capsule())
+                }
+                .buttonStyle(FeedCardJoinPressStyle(reduceMotion: reduceMotion))
+                .accessibilityRemoveTraits(.isButton)
+                .transition(.opacity)
             } else {
                 // Optimistic: it answers at once, and a write that fails turns it back
                 // (`RealLifeActions`), with a shake.

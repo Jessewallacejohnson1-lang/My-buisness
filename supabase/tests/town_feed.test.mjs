@@ -308,6 +308,18 @@ test('a called-off event leaves the feed unless someone Hearted it, and then is 
   assert.deepEqual([first.title, first.cancelled], ['Sartell Volleyball vs ROCORI', false]);
 });
 
+test("a Hearted called-off date never stands in for its series' next live one", async () => {
+  await reset();
+  const off = await add('Trivia night', '2026-10-08', { start_time: '7 PM' });
+  await add('Trivia night', '2026-10-15', { start_time: '7 PM' });
+  await db.query(`update public.club_events set cancelled_at = now() where id = $1`, [off]);
+  await db.query(`insert into public.event_likes (event_id, user_id) values ($1, $2)`,
+                 [off, '00000000-0000-0000-0000-0000000000c4']);
+  await signIn(ME);
+  assert.deepEqual((await feed('2026-10-08 12:00')).map((r) => [r.day, r.cancelled]),
+                   [['2026-10-15', false], ['2026-10-08', true]]);
+});
+
 // ---- The recipe (ticket 18): each neighbour's own order, by the playground's weights ----
 
 const YOU = '00000000-0000-0000-0000-00000000000b';

@@ -237,8 +237,8 @@ enum YouCalendar {
         func day(_ offset: Int) -> Date? {
             calendar.date(byAdding: .day, value: offset, to: today).flatMap { $0 >= first && $0 <= last ? $0 : nil }
         }
-        // `-town-cancelled`: today's coffee is called off, so the You tab leaves it out
-        // and the app opens on the alert (ticket 12).
+        // `-town-cancelled`: Rocktoberfest, three days on, is called off, so the You tab
+        // leaves it out and the app opens on the alert (ticket 12).
         let cancelledSample = ProcessInfo.processInfo.arguments.contains("-town-cancelled")
         let rows: [(Int, String, String, String?, String, EventCategory)] = [
             (-3, "10 AM", "Fall colors hike", "sju-arboretum-trail", "Saint John's Arboretum", .outdoors),
@@ -257,7 +257,7 @@ enum YouCalendar {
             return UpcomingEvent(id: "you-sample-\(index)", title: row.2, eventDate: Town.day(date),
                                  startTime: row.1, location: row.4, goingCount: 3, createdAt: "",
                                  imageUrl: photo?.absoluteString, rsvpd: true, category: row.5,
-                                 cancelled: index == 2 && cancelledSample)
+                                 cancelled: index == 4 && cancelledSample)
         }
     }
     #endif

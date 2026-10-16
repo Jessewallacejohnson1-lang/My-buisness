@@ -442,12 +442,13 @@ struct MainTabsView: View {
             if let message = problem.message { Text(message) }
         }
         // An Event you're Going to was called off, in Apple's alert with OK alone (Jesse,
-        // 2026-10-15). Told only on OK, so one that couldn't show comes back next time.
-        .alert(CancelNotice.title(cancelNotice.showing),
+        // 2026-10-15). Told only on OK; leaving the app untold asks again on the next open,
+        // so one that couldn't show (behind a sheet or the map) comes back.
+        .alert(CancelNotice.title(cancelNotice.said),
                isPresented: Binding(get: { !cancelNotice.showing.isEmpty }, set: { _ in })) {
             Button("OK", role: .cancel) { cancelNotice.ok() }
         } message: {
-            Text(CancelNotice.message(cancelNotice.showing))
+            Text(CancelNotice.message(cancelNotice.said))
         }
         // The friend sheet, from a friend's •••, anyone's page and the Friends button (ticket 04).
         .sheet(item: Binding(get: { friendsBook.menu }, set: { friendsBook.menu = $0 })) { person in
@@ -493,7 +494,10 @@ struct MainTabsView: View {
             }
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .background { Task { await townFeed.send(always: true) } }
+            if phase == .background {
+                Task { await townFeed.send(always: true) }
+                cancelNotice.away()
+            }
             if phase == .active {
                 Task { await friendsBook.refreshDot() }
                 Task { await cancelNotice.check() }
