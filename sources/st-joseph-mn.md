@@ -366,13 +366,14 @@ Crawl-delay; measured 2026-10-14 and re-checked by every run. About 100 requests
 the fall. JV and younger teams' schedules are on Bound and Arbiter Live, which both refuse
 bots. King's Academy (Waite Park, 4.8 miles) is left out: its own games aren't in the league's
 data and its site's schedule page is empty. Research: BP app
-docs/plans/watch-every-place/assets/03-high-school-sports.md.
+docs/plans/watch-every-place/assets/03-high-school-sports.md. Jesse switched all 12 on for the
+first live write on 2026-10-15.
 -->
 
 ## St. John's Prep
 ```yaml
 id: st-johns-prep
-status: proposed
+status: active
 tier: watched
 category: nearby-school
 place_type: School / college
@@ -391,7 +392,7 @@ Notes: Collegeville, 3.6 miles from St. Joseph. "St. John's Prep" is how the lea
 ## Apollo High School
 ```yaml
 id: apollo-high-school
-status: proposed
+status: active
 tier: watched
 category: nearby-school
 place_type: School / college
@@ -409,7 +410,7 @@ Notes: St. Cloud, 5.2 miles from St. Joseph. "St. Cloud Apollo" is how the leagu
 ## Tech High School
 ```yaml
 id: tech-high-school
-status: proposed
+status: active
 tier: watched
 category: nearby-school
 place_type: School / college
@@ -428,7 +429,7 @@ Notes: St. Cloud, 6.4 miles from St. Joseph. "St. Cloud Tech" is how the league 
 ## Cathedral High School
 ```yaml
 id: cathedral-high-school
-status: proposed
+status: active
 tier: watched
 category: nearby-school
 place_type: School / college
@@ -446,7 +447,7 @@ Notes: St. Cloud, 7.5 miles from St. Joseph. "St. Cloud Cathedral" is how the le
 ## Sartell High School
 ```yaml
 id: sartell-high-school
-status: proposed
+status: active
 tier: watched
 category: nearby-school
 place_type: School / college
@@ -464,7 +465,7 @@ Notes: Sartell, 8.0 miles from St. Joseph. "Sartell" is how the league names the
 ## ROCORI High School
 ```yaml
 id: rocori-high-school
-status: proposed
+status: active
 tier: watched
 category: nearby-school
 place_type: School / college
@@ -482,7 +483,7 @@ Notes: Cold Spring, 8.7 miles from St. Joseph. "ROCORI" is how the league names 
 ## Sauk Rapids-Rice High School
 ```yaml
 id: sauk-rapids-rice-high-school
-status: proposed
+status: active
 tier: watched
 category: nearby-school
 place_type: School / college
@@ -500,7 +501,7 @@ Notes: Sauk Rapids, 9.8 miles from St. Joseph. "Sauk Rapids-Rice" is how the lea
 ## Albany High School
 ```yaml
 id: albany-high-school
-status: proposed
+status: active
 tier: watched
 category: nearby-school
 place_type: School / college
@@ -519,7 +520,7 @@ Notes: Albany, 12.6 miles from St. Joseph. "Albany" is how the league names the 
 ## Holdingford High School
 ```yaml
 id: holdingford-high-school
-status: proposed
+status: active
 tier: watched
 category: nearby-school
 place_type: School / college
@@ -537,7 +538,7 @@ Notes: Holdingford, 13.7 miles from St. Joseph. "Holdingford" is how the league 
 ## Kimball Area High School
 ```yaml
 id: kimball-area-high-school
-status: proposed
+status: active
 tier: watched
 category: nearby-school
 place_type: School / college
@@ -555,7 +556,7 @@ Notes: Kimball, 17.4 miles from St. Joseph. "Kimball Area" is how the league nam
 ## Royalton High School
 ```yaml
 id: royalton-high-school
-status: proposed
+status: active
 tier: watched
 category: nearby-school
 place_type: School / college
@@ -574,7 +575,7 @@ Notes: Royalton, 18.3 miles from St. Joseph. "Royalton" is how the league names 
 ## Eden Valley-Watkins High School
 ```yaml
 id: eden-valley-watkins-high-school
-status: proposed
+status: active
 tier: watched
 category: nearby-school
 place_type: School / college
