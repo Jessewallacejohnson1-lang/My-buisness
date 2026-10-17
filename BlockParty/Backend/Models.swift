@@ -134,6 +134,15 @@ nonisolated struct PlacePicture: Decodable, Hashable, Sendable {
     }
 }
 
+/// A row on a business's page in Search (`places.links`, BP app docs/plans/place-photos): its
+/// website or one of its social pages. Strings, so a link the app doesn't know never costs the
+/// place list; `BusinessPage.rows` keeps the ones it can draw.
+nonisolated struct PlaceLink: Decodable, Hashable, Sendable {
+    /// website, facebook or instagram.
+    let kind: String
+    let url: String
+}
+
 /// One row of `get_town_feed` (`supabase/migrations/*_town_feed*.sql`): an event, how its
 /// series repeats ("Every Tuesday"; nil for a one-off or no clear pattern), when it
 /// leaves the Town feed, why it's there (the recipe's top reason and the one name it

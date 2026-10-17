@@ -1,8 +1,11 @@
 //
 //  BusinessPage.swift
 //  Block Party — a business opened from its logo in Search. Its backdrop grows out of
-//  the tile, the logo flies to the top right, and its Google Maps photos rise in a grid,
-//  row by row. Back, or a drag down on the coloured band, sends it home the way it came.
+//  the tile, the logo flies to the top right, and its page rises: laid out like the Event
+//  page (Jesse, 2026-10-17), the photos Block Party saved of it swiping at the top under the
+//  logo, then its name, what it is, its street, its own words and its links. With no photo
+//  the logo lands in the middle of the top, as an Event page draws a place it has no photo of.
+//  Back, or a drag down on the band under the clock, sends it home the way it came.
 //
 //  Everything runs off one progress value (0 closed, 1 open), stepped by a spring that
 //  always starts from where it is, so the page can stop and turn around anywhere and a
@@ -160,8 +163,63 @@ struct BusinessPage: View {
     var body: some View {
         if let item = opener.item, let logo = item.logo, let source = opener.source {
             BusinessPageBody(item: item, logo: logo, source: source, opener: opener)
+                // A new business starts on its first photo, at the top.
+                .id(item.id)
         }
     }
+
+    /// A row under the page's About: the glyph, its words, what it opens.
+    struct LinkRow: Hashable {
+        let glyph: String
+        let text: String
+        let url: URL
+    }
+
+    /// The links a page draws, website first, then Facebook, then Instagram, one of each: a
+    /// website by its name without "www." ("krewemn.com"), a social page by the app's. A kind it
+    /// doesn't know, or an address that isn't a web page, is left out.
+    static func rows(_ links: [PlaceLink]) -> [LinkRow] {
+        ["website", "facebook", "instagram"].compactMap { kind in
+            guard let link = links.first(where: { $0.kind == kind }),
+                  let url = URL(string: link.url), ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+                  let host = url.host(), !host.isEmpty
+            else { return nil }
+            switch kind {
+            case "website": return LinkRow(glyph: "globe", text: host.hasPrefix("www.") ? String(host.dropFirst(4)) : host, url: url)
+            case "facebook": return LinkRow(glyph: "f.circle", text: "Facebook", url: url)
+            default: return LinkRow(glyph: "camera", text: "Instagram", url: url)
+            }
+        }
+    }
+
+    /// Where the logo rests beside a photo: the top right, as before (the mockup's 76 pt, 10 pt
+    /// in, its middle 29 pt under the safe area).
+    static func corner(width: CGFloat, top: CGFloat) -> CGRect {
+        let side = SearchMetric.bizLogo
+        return CGRect(x: width - SearchMetric.bizLogoRight - side, y: top + SearchMetric.bizLogoCenter - side / 2,
+                      width: side, height: side)
+    }
+
+    /// Where it rests with no photo: where the Event page draws a place's logo in a hero it has no
+    /// photo for (`FeedCardPlaceLogo`, 29% down a hero as tall as the photos and the sheet's
+    /// underlap, at most 43% of it), so the two pages agree.
+    static func middle(width: CGFloat) -> CGRect {
+        let m = FeedEventDetailDestination.Metric.self
+        let hero = width / m.heroAspect + m.heroUnderlap
+        let top = hero * 0.29, room = hero - top - 8
+        let side = min(hero * 0.43, width * 0.4, room)
+        return CGRect(x: (width - side) / 2, y: top + (room - side) / 2, width: side, height: side)
+    }
+}
+
+/// What the page's scroll tells the logo over it: how far down the page is, and whether a photo
+/// is left for it to rest beside (none, and it sits in the middle of the top instead).
+@MainActor @Observable
+private final class PageState {
+    var scrollY: CGFloat = 0
+    var hasPhotos: Bool
+
+    init(hasPhotos: Bool) { self.hasPhotos = hasPhotos }
 }
 
 private struct BusinessPageBody: View {
@@ -169,98 +227,256 @@ private struct BusinessPageBody: View {
     let logo: SearchLogo
     let source: BusinessOpener.Source
     let opener: BusinessOpener
-    /// nil while Google is being asked.
-    @State private var photos: [PlacePhoto]?
-    @State private var dragFrom: CGFloat?
+    @State private var page: PageState
+
+    init(item: SearchItem, logo: SearchLogo, source: BusinessOpener.Source, opener: BusinessOpener) {
+        self.item = item
+        self.logo = logo
+        self.source = source
+        self.opener = opener
+        _page = State(initialValue: PageState(hasPhotos: !item.photos.isEmpty))
+    }
 
     var body: some View {
-        // Measured inside the safe area, drawn over the whole screen: a reader that
-        // ignores the safe area reports no insets, and the bar needs the top one.
+        // Measured inside the safe area, drawn over the whole screen: a reader that ignores the
+        // safe area reports no insets, and the page needs the top one. Nothing here reads the
+        // spring, so each of its frames redraws only the parts that move.
         GeometryReader { geo in
-            let p = opener.progress.value
-            let c = min(max(p, 0), 1)
             let insets = geo.safeAreaInsets
             let full = CGSize(width: geo.size.width + insets.leading + insets.trailing,
                               height: geo.size.height + insets.top + insets.bottom)
             let frame = geo.frame(in: .global)
             let origin = CGPoint(x: frame.minX - insets.leading, y: frame.minY - insets.top)
-            let top = insets.top
-            let screen = CGRect(origin: .zero, size: full)
-            let box = source.box.offsetBy(dx: -origin.x, dy: -origin.y)
-            let from = source.logo.offsetBy(dx: -origin.x, dy: -origin.y)
-            let side = SearchMetric.bizLogo
-            let dock = CGRect(x: full.width - SearchMetric.bizLogoRight - side,
-                              y: top + SearchMetric.bizLogoCenter - side / 2, width: side, height: side)
-            let gridTop = top + SearchMetric.bizGridTop
 
             ZStack(alignment: .topLeading) {
                 // The backdrop grows out of the card it came from.
-                SearchBackdrop(colors: logo.backdrop)
-                    .clipShape(RoundedClip(rect: lerp(box, screen, c), radius: lerp(source.radius, 0, c)))
-                    .opacity(source.radius > 0 && !source.fades ? 1 : min(1, c * 4))
+                GrowingBackdrop(colors: logo.backdrop, box: source.box.offsetBy(dx: -origin.x, dy: -origin.y),
+                                radius: source.radius, fades: source.fades,
+                                screen: CGRect(origin: .zero, size: full), progress: opener.progress)
 
-                photoGrid(width: full.width, travel: full.height - gridTop, p: p)
-                    .padding(.top, gridTop)
-                    .opacity(p > 0.001 ? 1 : 0)
+                Rising(progress: opener.progress, travel: full.height) {
+                    BusinessPageContent(item: item, page: page, size: full)
+                }
 
-                // The band above the photos: drag it down to send the page home.
-                Color.clear
-                    .frame(height: gridTop)
-                    .frame(maxWidth: .infinity)
-                    .contentShape(Rectangle())
-                    .gesture(drag)
+                CloseBand(opener: opener, page: page, height: insets.top + SearchMetric.bizBand)
 
-                backButton
-                    .opacity(min(max(p * 2 - 1, 0), 1))
-                    .scaleEffect(lerp(SearchMetric.bizBackFrom, 1, c))
-                    .offset(x: SearchMetric.bizBackLeft, y: top + SearchMetric.bizBackTop)
+                BackCircle(opener: opener, top: insets.top)
 
-                // The logo flies to the top right. Mid-flight it lifts: its shadow
-                // stretches and fades a little, and settles as it docks.
-                let lift = sin(.pi * c)
-                let flying = lerp(from, dock, p)
-                CastLogo(logo: logo, side: flying.width, shadow: source.shadow,
-                         stretch: 1 + lift * SearchMetric.liftStretch, strength: 1 - lift * SearchMetric.liftFade)
-                    .offset(x: flying.minX, y: flying.minY)
-                    .opacity(source.fades ? min(1, c * 4) : 1)
-                    .allowsHitTesting(false)
-                    .accessibilityLabel(item.name)
+                FlyingLogo(logo: logo, source: source, from: source.logo.offsetBy(dx: -origin.x, dy: -origin.y),
+                           corner: BusinessPage.corner(width: full.width, top: insets.top),
+                           middle: BusinessPage.middle(width: full.width), progress: opener.progress, page: page)
             }
             .frame(width: full.width, height: full.height, alignment: .topLeading)
             .offset(x: -insets.leading, y: -insets.top)
+            .accessibilityElement(children: .contain)
         }
         .ignoresSafeArea(.keyboard)
         .allowsHitTesting(opener.isOpen)
         // Over the whole screen: VoiceOver stays on the business, not the rows behind it.
         .accessibilityAddTraits(opener.isOpen ? .isModal : [])
-        .task(id: item.id) {
-            photos = nil
-            photos = await item.googlePhotos().all
+    }
+}
+
+/// The page itself, laid out like the Event page (`FeedEventDetailDestination`): its photos at
+/// the top, and a sheet over their bottom edge with its name, what it is, its street, its About
+/// and its links. Every row is absent when its data is.
+private struct BusinessPageContent: View {
+    let item: SearchItem
+    let page: PageState
+    let size: CGSize
+
+    @State private var photoPage: Int? = 0
+    /// Photos whose bitmaps are on screen: until then a photo shimmers, and its credit waits.
+    @State private var shown: Set<URL> = []
+    /// Photos that could not be loaded leave the pager, so a failure never holds a skeleton.
+    @State private var failed: Set<URL> = []
+
+    private typealias Metric = FeedEventDetailDestination.Metric
+
+    private var photos: [PlacePicture] { item.photos.filter { !failed.contains($0.url) } }
+
+    var body: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 0) {
+                hero
+                sheet
+            }
+        }
+        .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, y in
+            page.scrollY = y
+        }
+        .onChange(of: photos.isEmpty) { _, none in page.hasPhotos = !none }
+    }
+
+    /// As tall as the Event page's: 303/393 of the width, the photos running on under the
+    /// sheet's corners. With no photo it stays clear: the backdrop and the logo fill it.
+    private var hero: some View {
+        Color.clear
+            .aspectRatio(Metric.heroAspect, contentMode: .fit)
+            .overlay(alignment: .top) {
+                if !photos.isEmpty {
+                    GeometryReader { proxy in
+                        PhotoPager(urls: photos.map(\.url), page: $photoPage, shown: $shown, value: photoValue) { url in
+                            failed.insert(url)
+                            photoPage = min(photoPage ?? 0, max(photos.count - 1, 0))
+                        }
+                        .frame(width: proxy.size.width, height: proxy.size.height + Metric.heroUnderlap)
+                    }
+                }
+            }
+            // Pulling the page down past its top stretches the photo from its bottom edge, as on
+            // the Event page.
+            .visualEffect { content, proxy in
+                let pull = max(0, proxy.frame(in: .scrollView(axis: .vertical)).minY)
+                return content.scaleEffect(1 + pull / max(proxy.size.height, 1), anchor: .bottom)
+            }
+            .overlay(alignment: .bottomLeading) { credit }
+            .overlay(alignment: .bottomTrailing) { counter }
+    }
+
+    /// The photo on screen's credit, once it is drawn: the site it came from, or a free photo's
+    /// author and licence. Bottom left, as on the Event page; the counter has the right.
+    @ViewBuilder private var credit: some View {
+        let index = photoPage ?? 0
+        if photos.indices.contains(index), PhotoPager.isShown(photos[index].url, in: shown),
+           let credit = photos[index].creditLine {
+            PhotoCredit(names: [credit])
+                .padding(.leading, Metric.inset - PhotoCredit.edgeInset)
+                .padding(.bottom, Metric.counterBottom - PhotoCredit.edgeInset)
+                // With two or more photos the pager says it, with the photo's number.
+                .accessibilityHidden(photos.count >= 2)
         }
     }
 
-    private var backButton: some View {
-        Button { opener.close() } label: {
-            Image(systemName: "chevron.left")
-                .font(.glyph(18, weight: .semibold))
-                .foregroundStyle(Hue.ink)
-                .frame(width: SearchMetric.bizBack, height: SearchMetric.bizBack)
-                .background(Hue.surface, in: Circle())
-                .mapFloatShadow()
+    @ViewBuilder private var counter: some View {
+        if let text = FeedEventDetailDestination.counterText(page: photoPage ?? 0, count: photos.count) {
+            PhotoCounter(text: text)
+                .padding(.trailing, Metric.inset)
+                .padding(.bottom, Metric.counterBottom)
         }
-        .buttonStyle(SquishStyle())
-        .accessibilityLabel("Back")
+    }
+
+    /// "Photo 2 of 2, by krewemn.com".
+    private var photoValue: String {
+        let index = photoPage ?? 0
+        let credit = photos.indices.contains(index) ? photos[index].creditLine : nil
+        return "Photo \(index + 1) of \(photos.count)" + (credit.map { ", by \($0)" } ?? "")
+    }
+
+    private var sheet: some View {
+        let rows = BusinessPage.rows(item.links)
+        return VStack(alignment: .leading, spacing: 0) {
+            Text(item.name)
+                .font(.eventDisplay(28))
+                .lineSpacing(Metric.titleLineSpacing)
+                .foregroundStyle(Hue.ink)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+                .padding(.top, Metric.titleTop)
+
+            if let sub = item.sub {
+                Text(sub)
+                    .font(.sans(17))
+                    .foregroundStyle(Hue.inkSecondary)
+                    .padding(.top, Metric.categoryTop)
+            }
+
+            if let street = item.street {
+                InfoPill(glyph: "mappin", text: street, url: DayScheduleLogic.directionsURL(forPlace: street),
+                         hint: "Opens in Maps", glyphBox: SearchMetric.bizGlyphBox)
+                    .padding(.top, Metric.pillTop)
+            }
+
+            if let about = item.about {
+                AboutSection(text: about)
+                    .padding(.top, Metric.aboutTop)
+            }
+
+            if !rows.isEmpty {
+                VStack(spacing: SearchMetric.bizLinkGap) {
+                    ForEach(rows, id: \.self) { row in
+                        InfoPill(glyph: row.glyph, text: row.text, url: row.url, hint: "Opens outside Block Party",
+                                 glyphBox: SearchMetric.bizGlyphBox, leaves: true)
+                    }
+                }
+                .padding(.top, item.about != nil ? SearchMetric.bizLinksTop
+                         : item.street != nil ? SearchMetric.bizLinkGap : Metric.pillTop)
+            }
+        }
+        .padding(.horizontal, Metric.inset)
+        .padding(.bottom, SearchMetric.tabBarClearance)
+        // Paper to the bottom of the screen, however little the page says.
+        .frame(maxWidth: .infinity, minHeight: size.height - size.width / Metric.heroAspect, alignment: .topLeading)
+        .background(
+            Hue.paper,
+            in: UnevenRoundedRectangle(topLeadingRadius: Metric.sheetCorner, topTrailingRadius: Metric.sheetCorner,
+                                       style: .continuous)
+        )
+    }
+}
+
+/// The backdrop, growing out of the card it came from into the whole screen.
+private struct GrowingBackdrop: View {
+    let colors: [Color]
+    let box: CGRect
+    let radius: CGFloat
+    let fades: Bool
+    let screen: CGRect
+    let progress: LiveSpring
+
+    var body: some View {
+        let c = min(max(progress.value, 0), 1)
+        SearchBackdrop(colors: colors)
+            .clipShape(RoundedClip(rect: lerp(box, screen, c), radius: lerp(radius, 0, c)))
+            .opacity(radius > 0 && !fades ? 1 : min(1, c * 4))
+    }
+}
+
+/// The page rises from below as it opens and sinks back as it closes.
+private struct Rising<Content: View>: View {
+    let progress: LiveSpring
+    let travel: CGFloat
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        let p = progress.value
+        content
+            .offset(y: p >= 1 ? 0 : (1 - max(p, 0)) * travel)
+            .opacity(p > 0.001 ? 1 : 0)
+    }
+}
+
+/// The band under the clock and Back: a drag down on it sends the page home, following the
+/// finger. Only while the page is at its top (scrolled, its words are under the band and scroll
+/// instead), and only for a drag that sets off up or down.
+private struct CloseBand: View {
+    let opener: BusinessOpener
+    let page: PageState
+    let height: CGFloat
+    @State private var dragFrom: CGFloat?
+    @State private var sideways = false
+
+    var body: some View {
+        Color.clear
+            .frame(height: height)
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+            .gesture(drag)
+            .allowsHitTesting(page.scrollY <= 1)
     }
 
     private var drag: some Gesture {
-        DragGesture(minimumDistance: 0, coordinateSpace: .global)
+        DragGesture(minimumDistance: SearchMetric.bizDragStart, coordinateSpace: .global)
             .onChanged { value in
+                if dragFrom == nil, abs(value.translation.width) > abs(value.translation.height) { sideways = true }
+                guard !sideways else { return }
                 let from = dragFrom ?? opener.progress.value
                 dragFrom = from
                 opener.progress.set(min(max(from - value.translation.height / SearchMetric.bizDrag, 0), SearchMetric.bizOverDrag))
             }
             .onEnded { value in
-                dragFrom = nil
+                defer { dragFrom = nil; sideways = false }
+                guard dragFrom != nil else { return }
                 let speed = -value.velocity.height / SearchMetric.bizDrag
                 if value.velocity.height > SearchMetric.bizFlick || opener.progress.value < SearchMetric.bizKeepOpen {
                     opener.close(velocity: speed)
@@ -269,72 +485,55 @@ private struct BusinessPageBody: View {
                 }
             }
     }
-
-    /// The photos rise from below, a row at a time, growing slightly as they come.
-    private func photoGrid(width: CGFloat, travel: CGFloat, p: CGFloat) -> some View {
-        let gap = SearchMetric.bizGridGap
-        let tile = (width - gap * 2) / 3
-        let tiles = Self.tiles(photos)
-        return ScrollView(showsIndicators: false) {
-            LazyVGrid(columns: Array(repeating: GridItem(.fixed(tile), spacing: gap), count: 3), spacing: gap) {
-                ForEach(tiles.indices, id: \.self) { i in
-                    let lag = Double(i / 3) * SearchMetric.bizRowLag
-                    let local = max(0, (p - lag) / (1 - lag))
-                    BusinessPhotoTile(tile: tiles[i], index: i, logo: logo)
-                        .frame(width: tile, height: tile)
-                        .clipped()
-                        .scaleEffect(p >= 1 ? 1 : lerp(SearchMetric.bizRiseScale, 1, min(local, 1)))
-                        .offset(y: p >= 1 ? 0 : (1 - local) * travel)
-                }
-            }
-            .padding(.bottom, SearchMetric.tabBarClearance)
-        }
-        .scrollDisabled(p < 1)
-    }
-
-    enum Tile { case loading, photo(PlacePhoto), none }
-
-    /// Nine waiting tiles while Google is asked; then its photos, or the mockup's 15
-    /// blank tiles in the logo's colour when it has none.
-    static func tiles(_ photos: [PlacePhoto]?) -> [Tile] {
-        guard let photos else { return Array(repeating: .loading, count: SearchMetric.bizLoadingTiles) }
-        return photos.isEmpty ? Array(repeating: .none, count: SearchMetric.bizBlankTiles) : photos.map { .photo($0) }
-    }
-
 }
 
-private struct BusinessPhotoTile: View {
-    let tile: BusinessPageBody.Tile
-    let index: Int
-    let logo: SearchLogo
-    @State private var shown = false
-    @State private var failed = false
+/// The Event page's Back circle, where the Event page has it, fading and growing in as the page
+/// opens. It stays put while the page scrolls under it.
+private struct BackCircle: View {
+    let opener: BusinessOpener
+    let top: CGFloat
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        ZStack {
-            switch tile {
-            case .loading:
-                Hue.ink.opacity(SearchMetric.bizTileShade).shimmering()
-            case .photo(let photo) where !failed:
-                let url = GooglePlacesService.shared.photoURL(name: photo.name, maxWidth: SearchMetric.bizPhotoPixels)
-                Hue.ink.opacity(SearchMetric.bizTileShade)
-                FeedCardURLPhoto(url: url, onReady: { withAnimation(.easeOut(duration: 0.2)) { shown = true } },
-                                 onFailure: { failed = true }, loadingFill: .clear)
-                // A photo already decoded elsewhere draws at once: so does its credit.
-                if shown || FeedCardImageLoader.shared.largest(for: url) != nil {
-                    PhotoCredit(names: photo.attributions)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-                }
-            case .photo, .none:
-                Hue.hsl(logo.hue, logo.chroma ? 26 : 8, 80 - Double((index * 7) % 9))
-                Image(systemName: "photo")
-                    .font(.glyph(24, weight: .light))
-                    .foregroundStyle(Hue.ink.opacity(0.22))
-                    .accessibilityHidden(true)
-            }
-        }
-        // A photo reads as its credit ("Photo by …"); a blank tile reads as nothing.
-        .accessibilityElement(children: .combine)
+        let p = opener.progress.value
+        let m = FeedEventDetailDestination.Metric.self
+        let pad = (m.tapBox - m.button) / 2
+        FeedEventDetailDestination.circleButton(glyph: Image(systemName: "arrow.left"), label: "Back",
+                                                reduceMotion: reduceMotion) { opener.close() }
+            .opacity(min(max(p * 2 - 1, 0), 1))
+            .scaleEffect(lerp(SearchMetric.bizBackFrom, 1, min(max(p, 0), 1)))
+            .offset(x: m.inset - pad, y: top + m.buttonTop - pad)
+            // VoiceOver reads it first, as it sits.
+            .accessibilitySortPriority(1)
+    }
+}
+
+/// The logo flies from where it was tapped to its corner, or to the middle of the top when the
+/// business has no photo. Mid-flight it lifts: its shadow stretches and fades a little, and
+/// settles as it lands. Open, it scrolls away with the photos.
+private struct FlyingLogo: View {
+    let logo: SearchLogo
+    let source: BusinessOpener.Source
+    let from: CGRect
+    let corner: CGRect
+    let middle: CGRect
+    let progress: LiveSpring
+    let page: PageState
+
+    var body: some View {
+        let p = progress.value
+        let c = min(max(p, 0), 1)
+        let lift = sin(.pi * c)
+        let flying = lerp(from, page.hasPhotos ? corner : middle, p)
+        CastLogo(logo: logo, side: flying.width, shadow: source.shadow,
+                 stretch: 1 + lift * SearchMetric.liftStretch, strength: 1 - lift * SearchMetric.liftFade)
+            .offset(x: flying.minX, y: flying.minY - max(0, page.scrollY) * c)
+            .opacity(source.fades ? min(1, c * 4) : 1)
+            // Every photo failed after it landed: it moves to the middle, not jumps.
+            .animation(Motion.smooth, value: page.hasPhotos)
+            .allowsHitTesting(false)
+            // The page's title says the name.
+            .accessibilityHidden(true)
     }
 }
 

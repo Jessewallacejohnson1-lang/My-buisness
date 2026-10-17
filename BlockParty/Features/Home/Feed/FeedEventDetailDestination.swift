@@ -25,7 +25,6 @@ struct FeedEventDetailDestination: View {
     let inSheet: Bool
 
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.openURL) private var openURL
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Going and Save, shared with the card behind the page (`RealLifeActions`).
     @Environment(RealLifeActions.self) private var actions
@@ -40,11 +39,6 @@ struct FeedEventDetailDestination: View {
     /// Photos that could not be loaded. They leave the carousel, so a failure never
     /// holds a skeleton on screen.
     @State private var failedPhotos: Set<URL> = []
-    @State private var aboutExpanded = false
-    /// The About's height in full and at four lines, so "Read more" shows only when
-    /// the clamp actually cuts something.
-    @State private var aboutFullHeight: CGFloat = 0
-    @State private var aboutClampedHeight: CGFloat = 0
     /// `actions.failureCount` when Join was last tapped. Equal means the neighbour has
     /// tapped since the last failed turn back, so its shake stops.
     @State private var joinTappedAt = 0
@@ -54,8 +48,9 @@ struct FeedEventDetailDestination: View {
         self.inSheet = inSheet
     }
 
-    /// Sizes off the Reference, in points. Measured 2026-09-26 on the original PNG.
-    private enum Metric {
+    /// Sizes off the Reference, in points. Measured 2026-09-26 on the original PNG. A business's
+    /// page in Search takes the same (`BusinessPage`, Jesse 2026-10-17: like the Event page).
+    enum Metric {
         /// Screen top to the sheet's edge: 303 of 393 pt. Other widths keep the
         /// ratio, so 324 pt on a 420 pt phone (guessed).
         static let heroAspect: CGFloat = 393.0 / 303.0
@@ -82,8 +77,6 @@ struct FeedEventDetailDestination: View {
         static let pillHeight: CGFloat = 44
         static let pillInset: CGFloat = 15
         static let pinBox: CGFloat = 10.7
-        /// The About clamps at four lines.
-        static let aboutLines = 4
         /// The bottom bar: 16 pt above and below a 111 x 48 pt Join.
         static let barPadding: CGFloat = 16
         static let joinSize = CGSize(width: 111, height: 48)
@@ -98,7 +91,6 @@ struct FeedEventDetailDestination: View {
         static let whenTop: CGFloat = 14
         static let pillTop: CGFloat = 17.3
         static let aboutTop: CGFloat = 33
-        static let bodyTop: CGFloat = 12.7
         static let clockGap: CGFloat = 4.5
         static let pinGap: CGFloat = 8
         /// Paper under the last row, above the bottom bar (guessed).
@@ -220,56 +212,9 @@ struct FeedEventDetailDestination: View {
             // down, 150 pt tall on a 420 pt phone).
             if let logo = heroLogo { FeedCardPlaceLogo(logo: logo, topShare: 0.29, sideShare: 0.43) }
         } else {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 0) {
-                    ForEach(Array(photos.enumerated()), id: \.offset) { index, photo in
-                        heroPhoto(photo)
-                            .containerRelativeFrame(.horizontal)
-                            .id(index)
-                    }
-                }
-                .scrollTargetLayout()
-            }
-            .scrollTargetBehavior(.paging)
-            .scrollPosition(id: $photoPage)
-            .scrollDisabled(photos.count < 2)
-            // For VoiceOver the carousel is one adjustable element: swipe up or down
-            // for the next or previous photo. One photo has nothing to adjust.
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Photos")
-            .accessibilityValue(photoValue)
-            .accessibilityAdjustableAction { direction in
-                let page = photoPage ?? 0
-                let next = direction == .increment ? page + 1 : page - 1
-                guard photos.indices.contains(next) else { return }
-                withAnimation(Motion.smooth) { photoPage = next }
-            }
-            .accessibilityHidden(photos.count < 2)
+            PhotoPager(urls: photos.compactMap(\.url), page: $photoPage, shown: $shownPhotos,
+                       value: photoValue, onFailure: drop)
         }
-    }
-
-    @ViewBuilder
-    private func heroPhoto(_ photo: FeedCardImageSource) -> some View {
-        if let url = photo.url {
-            let shown = isShown(url)
-            FeedCardURLPhoto(url: url, onReady: { shownPhotos.insert(url) }, onFailure: { drop(url) })
-                .frame(maxHeight: .infinity)
-                .clipped()
-                .overlay {
-                    if !shown {
-                        SkeletonBlock(cornerRadius: 0)
-                            .shimmering()
-                            .transition(.opacity)
-                    }
-                }
-                .animation(Motion.smooth, value: shown)
-                .accessibilityHidden(true)
-        }
-    }
-
-    /// Drawn already (by its card, at another size) counts as shown: no skeleton.
-    private func isShown(_ url: URL) -> Bool {
-        shownPhotos.contains(url) || FeedCardImageLoader.shared.largest(for: url) != nil
     }
 
     /// The credit shows wherever its photo does (a site, or a free photo's author and
@@ -292,7 +237,8 @@ struct FeedEventDetailDestination: View {
     /// Whose photo is on screen, once it is: nil before, and for a photo with no credit.
     private var creditName: String? {
         let page = photoPage ?? 0
-        guard photos.indices.contains(page), let url = photos[page].url, isShown(url) else { return nil }
+        guard photos.indices.contains(page), let url = photos[page].url,
+              PhotoPager.isShown(url, in: shownPhotos) else { return nil }
         return photos[page].attribution
     }
 
@@ -307,20 +253,9 @@ struct FeedEventDetailDestination: View {
     @ViewBuilder
     private var counter: some View {
         if let text = Self.counterText(page: photoPage ?? 0, count: photos.count) {
-            // 13: the Reference's digits stand 9 pt tall.
-            Text(text)
-                .font(.sansSemibold(13))
-                .monospacedDigit()
-                .foregroundStyle(.white)
-                .frame(minWidth: Metric.counterSize.width, minHeight: Metric.counterSize.height)
-                // The Reference's chip is ink at about 55% over a light photo.
-                // Black rather than `Hue.ink` so it stays dark in the dark ramp,
-                // like `PhotoCredit`.
-                .background(.black.opacity(0.55), in: Capsule())
+            PhotoCounter(text: text)
                 .padding(.trailing, Metric.inset)
                 .padding(.bottom, Metric.counterBottom)
-                // The carousel says it, with the credit.
-                .accessibilityHidden(true)
                 .transition(.opacity)
         }
     }
@@ -370,6 +305,16 @@ struct FeedEventDetailDestination: View {
     private func circleButton(
         glyph: some View,
         label: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Self.circleButton(glyph: glyph, label: label, reduceMotion: reduceMotion, action: action)
+    }
+
+    /// The same circle on a business's page in Search (`BusinessPage`).
+    static func circleButton(
+        glyph: some View,
+        label: String,
+        reduceMotion: Bool,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
@@ -428,12 +373,14 @@ struct FeedEventDetailDestination: View {
             }
 
             if let place = Self.placeText(item) {
-                locationPill(place)
+                // Opens Apple Maps on the venue, the same search Your Day's "Directions" opens.
+                InfoPill(glyph: "mappin", text: place, url: DayScheduleLogic.directionsURL(forPlace: place),
+                         hint: "Opens in Maps")
                     .padding(.top, Metric.pillTop)
             }
 
             if let about = Self.aboutText(item.description) {
-                aboutSection(about)
+                AboutSection(text: about)
                     .padding(.top, Metric.aboutTop)
             }
         }
@@ -449,97 +396,6 @@ struct FeedEventDetailDestination: View {
             )
         )
         .padding(.top, hasHero ? 0 : Metric.buttonTop + Metric.button + Metric.noPhotoGap)
-    }
-
-    /// Opens Apple Maps on the venue, the same search Your Day's "Directions" opens.
-    private func locationPill(_ place: String) -> some View {
-        Button {
-            if let url = DayScheduleLogic.directionsURL(forPlace: place) { openURL(url) }
-        } label: {
-            HStack(spacing: Metric.pinGap) {
-                // SF Symbols has no filled teardrop like the Reference's; this is its pin.
-                Image(systemName: "mappin")
-                    .frame(width: Metric.pinBox)
-                Text(place)
-                    .lineLimit(1)
-                Spacer(minLength: 0)
-            }
-            .font(.sans(15))
-            .foregroundStyle(Hue.ink)
-            .padding(.horizontal, Metric.pillInset)
-            .frame(height: Metric.pillHeight)
-            .background(Hue.fill, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(FeedCardPressStyle())
-        .accessibilityLabel(place)
-        .accessibilityHint("Opens in Maps")
-    }
-
-    private func aboutSection(_ about: String) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("About")
-                .font(.sansBold(20))
-                .foregroundStyle(Hue.ink)
-                .accessibilityAddTraits(.isHeader)
-
-            // The text itself switches at once; only the box around it moves. Letting the
-            // text animate cross-faded the two layouts, and a "lem" fragment floated at the
-            // old place while it collapsed (independent review). Opening, the box uncovers
-            // the lines; closing, it shuts over the space they leave.
-            Text(about)
-                .font(.sans(17))
-                .foregroundStyle(Hue.ink)
-                .lineLimit(aboutExpanded ? nil : Metric.aboutLines)
-                .animation(nil, value: aboutExpanded)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background { aboutProbe(about) }
-                .frame(height: aboutBoxHeight, alignment: .top)
-                .clipped()
-                .padding(.top, Metric.bodyTop)
-
-            // Its own line, in ink, and only when four lines really cut the text.
-            if aboutFullHeight > aboutClampedHeight + 1 {
-                Button {
-                    withAnimation(Motion.smooth) { aboutExpanded.toggle() }
-                } label: {
-                    Text(aboutExpanded ? "Show less" : "Read more")
-                        .font(.sansSemibold(17))
-                        .foregroundStyle(Hue.ink)
-                        .animation(nil, value: aboutExpanded)
-                        // 12 pt round the 20.3 pt line: a 44.3 pt target (measured with
-                        // AXe; 11 gave 42.3).
-                        .contentShape(Rectangle().inset(by: -12))
-                }
-                .buttonStyle(FeedCardJoinPressStyle(reduceMotion: reduceMotion))
-            }
-        }
-    }
-
-    /// The About's box: the full text's height open, four lines' shut. nil until the
-    /// probe has measured, so the first frame lays out naturally.
-    private var aboutBoxHeight: CGFloat? {
-        guard aboutFullHeight > 0 else { return nil }
-        return aboutExpanded ? aboutFullHeight : aboutClampedHeight
-    }
-
-    /// The About set twice out of sight, in full and at four lines, to learn whether
-    /// the clamp cuts it. Text measuring text: nothing here reads the scroll.
-    private func aboutProbe(_ about: String) -> some View {
-        ZStack(alignment: .top) {
-            Text(about)
-                .font(.sans(17))
-                .fixedSize(horizontal: false, vertical: true)
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { aboutFullHeight = $0 }
-            Text(about)
-                .font(.sans(17))
-                .lineLimit(Metric.aboutLines)
-                .fixedSize(horizontal: false, vertical: true)
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { aboutClampedHeight = $0 }
-        }
-        .hidden()
-        .accessibilityHidden(true)
     }
 
     // MARK: The bar
