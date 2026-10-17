@@ -38,8 +38,9 @@ Read these first:
    - `trust`: the page's trust (`squishy` means `secondhand`).
    - `sure`: false when the page leaves the date, time or place in doubt, contradicts itself,
      or may be about another town (a chain's promotion, a business with two locations).
-   - Events: `size`, `signup_by` when sign-ups or tickets close, `interest` (one id from the
-     list, or null when none fits). News: `category` (`announcement`, `road`, `school`,
+   - Events: `size`, `signup_by` when sign-ups or tickets close, `closed: true` when nobody
+     can still go (sign-ups or tickets closed, sold out, registration full, members or
+     invitation only), `interest` (one id from the list, or null when none fits). News: `category` (`announcement`, `road`, `school`,
      `campus` or `business`). Both: `blurb`, one line in plain words.
 
 ## Event size
@@ -55,7 +56,8 @@ the show-from day: 2, 4 or 8 weeks before.
   a food drive, a church or school dinner, play or concert, a community sale, an open house.
 - **big:** an event people plan around: a town festival, a parade or a fair, a multi-day event,
   an annual signature event that brings people from other towns, anything with tickets,
-  registration or volunteer sign-ups that fill up.
+  registration or volunteer sign-ups that sell out. Tickets alone make an event notable, not
+  big: a ticketed concert is notable (Jesse, 2026-10-17).
 - When unsure, the smaller size: an event shown too early pushes this week's down the feed.
 
 ## Done

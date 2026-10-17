@@ -40,6 +40,8 @@ THE JUDGED ITEM: the contract the judge (ticket 05) produces, one JSON object pe
   size         events: "everyday" | "notable" | "big" (sources/CONTEXT.md, Event size); when
                unsure, the smaller size. Anything else is sized everyday and named.
   signup_by    events, optional: the date sign-ups or tickets close
+  closed       events, optional: true when nobody can still go (sign-ups or tickets closed, sold
+               out, registration full, members or invitation only)
   interest     events: one id from Interests.all (BlockParty/Backend/Interests.swift), or null
                when none fits (a council meeting)
   category     news: "announcement" (default) | "road" | "school" | "campus" | "business"
@@ -80,7 +82,9 @@ THE RULES
   Show-from day (the event-lead-time rule, moved here from the skill): the event date minus
     14 days (everyday), 28 (notable) or 56 (big). With sign-ups closing, it lands at least a
     week before they close: size up if that does it, else the deadline minus 7 days. A re-read
-    keeps a day already set unless the date moved.
+    keeps a day already set unless the date moved. Kept out (Jesse, 2026-10-17: "if your not
+    able ot signup or go dont recommend it"): an event marked closed, or whose sign-ups closed
+    before today, shows from the day after it ends, so the Town feed never shows it.
   Interest: checked against Interests.all; one not on the list is dropped and named.
   Cancelled (Jesse, 2026-10-15): an event its schedule dropped (THE SCHEDULE LINE) is kept and
     marked cancelled, never deleted; its title stays as written (the app shows a Canceled tag,
@@ -295,6 +299,8 @@ def skip_reason(it, town):
               "signup_by", "interest", "category"):
         if it.get(k) is not None and not isinstance(it[k], str):
             return f"invalid: {k} must be text"
+    if it.get("closed") not in (None, True, False):
+        return "invalid: closed must be true or false"
     if it.get("kind") not in ("event", "news"):
         return "invalid: kind must be event or news"
     if it.get("trust") not in TRUST:
@@ -355,6 +361,14 @@ def event_of(it, today, interests, home, notes):
         notes.append(f"interest {interest!r} is not on the list ({it['title']!r}): left empty")
         interest = None
     title, place = tidy_title(it["title"], it["source_name"]), tidy_place(it.get("place"), home)
+    # ponytail: kept out only as it is first listed. A listed event whose sign-ups close later
+    # keeps its day (apply_judged keeps a day already set); the event-lead-time skill's pass
+    # takes it out. Make a kept-out day win in apply_judged if that pass keeps finding them.
+    if it.get("closed") is True or (signup and signup < today):
+        shows = (end.date() if end and end.date() > day else day) + timedelta(1)
+        notes.append(f"kept out of the Town feed, nobody can still go: {title!r} {day}")
+    else:
+        shows = show_from(day, size, signup)
     online = ONLINE.search(it["title"]) or place.lower() in ("online", "virtual")
     # ponytail: a source with no ids of its own gets one from the start and title, so when its
     # page moves an event to another day the moved one is added and the old one stays. Fix
@@ -370,7 +384,7 @@ def event_of(it, today, interests, home, notes):
            "location": "Online" if online else place_line(place, it.get("town") or home, home),
            "description": (it.get("blurb") or "").strip()[:1000] or None,
            "source_name": it["source_name"].strip(), "source_url": it["source_url"].strip(),
-           "source_uid": uid, "category": interest, "shows_from": show_from(day, size, signup).isoformat(),
+           "source_uid": uid, "category": interest, "shows_from": shows.isoformat(),
            "place_entry_id": entry}
     facts = {"day": day, "at": at, "place": words(place, PLACE_STOP), "title": words(title)}
     return {"row": row, "facts": facts}, None
@@ -790,12 +804,25 @@ def t_show_from_by_size():
     for size, day in (("everyday", "2026-10-10"), ("notable", "2026-09-26"), ("big", "2026-08-29")):
         r = run([item(size=size)])
         assert r["events"][0]["row"]["shows_from"] == day, (size, r["events"][0]["row"]["shows_from"])
-    r = run([item(size="notable", signup_by="2026-09-30")])
+    # Run in August, so these sign-ups are still open.
+    r = plan([item(size="notable", signup_by="2026-09-30")], [], date(2026, 8, 1), INTERESTS)
     assert r["events"][0]["row"]["shows_from"] == "2026-08-29", "sized up to big to land a week before sign-up closes"
-    r = run([item(size="notable", signup_by="2026-08-30")])
+    r = plan([item(size="notable", signup_by="2026-08-30")], [], date(2026, 8, 1), INTERESTS)
     assert r["events"][0]["row"]["shows_from"] == "2026-08-23", "even big misses it: the deadline minus a week"
     r = run([item(size="huge")])
     assert r["events"][0]["row"]["shows_from"] == "2026-10-10" and "size" in " ".join(r["notes"])
+
+
+def t_kept_out_when_nobody_can_go():
+    r = run([item(closed=True)])
+    assert r["events"][0]["row"]["shows_from"] == "2026-10-25" and "kept out" in " ".join(r["notes"])
+    r = run([item(signup_by="2026-10-13")])
+    assert r["events"][0]["row"]["shows_from"] == "2026-10-25", "sign-ups closed yesterday"
+    r = run([item(signup_by="2026-10-14")])
+    assert r["events"][0]["row"]["shows_from"] == "2026-09-26", "sign-ups close today: still open"
+    r = run([item(closed=True, end="2026-10-26T12:00:00-05:00")])
+    assert r["events"][0]["row"]["shows_from"] == "2026-10-27", "a multi-day event: the day after it ends"
+    assert run([item(closed="yes")])["outcomes"][0] == ("skipped", "invalid: closed must be true or false")
 
 
 def t_interest_checked():
@@ -935,7 +962,7 @@ def t_wording():
 
 
 TESTS = [t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_secondhand_needs_two, t_unsure_held, t_merge_true_pair,
-         t_merge_near_miss_kept_apart, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size,
+         t_merge_near_miss_kept_apart, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
          t_interest_checked, t_area, t_past_and_invalid_skipped, t_writes_are_one_safe_call]
 
 
