@@ -510,12 +510,14 @@ test("a host you've been into lifts its other Events and is named; routine busin
   await tap('event_likes', fair, YOU, '2026-10-04 12:00');
   await tap('event_likes', meetingLastWeek, YOU, '2026-10-01 19:00');
   await tap('event_likes', zoo, YOU, '2026-10-07 12:00');
+  await tap('event_rsvps', zoo, YOU, '2026-10-07 12:00');
   await signIn(YOU);
   await db.exec(`set test.admin = 'on'`);
   const rows = Object.fromEntries((await feed('2026-10-08 12:00')).map((r) => [r.title, r]));
-  // The craft fair you hearted lifts the Zoo day; the Zoo day's own heart doesn't count for it.
-  assert.deepEqual([rows['Zoo day'].reason, rows['Zoo day'].reason_name, rows['Zoo day'].score.tapped],
-                   ['tapped', CITY, 2]);
+  // The craft fair you hearted lifts the Zoo day; the Zoo day's own taps don't count for it, and
+  // being Going still lowers it as ever.
+  assert.deepEqual([rows['Zoo day'].reason, rows['Zoo day'].reason_name, rows['Zoo day'].score.tapped,
+                    rows['Zoo day'].score.acted], ['tapped', CITY, 2, 0.4]);
   assert.equal(rows['Council meeting'].score.tapped, 0, 'a council meeting never rises');
   assert.equal(rows['Bingo'].score.tapped, 0, 'a host you never tapped');
 });
@@ -710,7 +712,7 @@ test('signed out, the public key gets the same recipe with no personal terms', a
                    [['Fair', 'size', null], ['Concert', 'soon', null]]);
 });
 
-test("the playground's sample week gives the playground's top 8 for each of its four people", async () => {
+test("the playground's sample week gives the playground's whole order for each of its four people", async () => {
   await reset();
   const id = {};
   for (const e of playground.events) {
@@ -740,8 +742,8 @@ test("the playground's sample week gives the playground's top 8 for each of its 
     for (const h of p.hearted)
       await db.query(`insert into public.event_likes (event_id, user_id) values ($1, $2)`, [id[h], person]);
     await signIn(person, p.interests);
-    const rows = (await feed(playground.now)).slice(0, 8);
-    assert.deepEqual(rows.map((r) => byTitle[r.title]), p.top8, p.name);
+    const rows = await feed(playground.now);
+    assert.deepEqual(rows.map((r) => byTitle[r.title]), p.order, p.name);
     assert.deepEqual(rows.map((r) => [r.reason, r.reason_name]), p.why.map(code), p.name);
   }
 });
