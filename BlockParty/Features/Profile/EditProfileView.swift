@@ -185,7 +185,7 @@ struct EditProfileView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Interests").font(.mono(11)).tracking(1.5).foregroundStyle(Hue.inkSecondary)
             if interests.isEmpty {
-                Text("Choose a few to see events, clubs, and trails that match.")
+                Text("Choose a few to see events, groups, and trails that match.")
                     .font(.sans(14)).foregroundStyle(Hue.inkSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {

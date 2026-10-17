@@ -132,7 +132,7 @@ struct CommunityAPI {
         let (data, _) = try await SupabaseHTTP.rest("clubs", method: "POST", accessToken: t,
                                                     body: try body(b), prefer: "return=representation")
         let rows: [ClubRow] = try decode(data)
-        guard let row = rows.first else { throw SupabaseError(message: "The server didn't return the new club. Refresh before posting it again.", status: nil) }
+        guard let row = rows.first else { throw SupabaseError(message: "The server didn't return the new group. Refresh before posting it again.", status: nil) }
         return row
     }
 

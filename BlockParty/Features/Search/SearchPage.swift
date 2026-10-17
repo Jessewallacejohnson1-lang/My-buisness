@@ -373,7 +373,7 @@ struct SearchPage: View {
             shelf(.business, "Businesses")
             shelf(.restaurant, "Restaurants")
             shelf(.coffee, "Coffee")
-            shelf(.club, "Clubs")
+            shelf(.club, "Groups")
         case .people:
             Color.clear.frame(height: SearchMetric.peopleTop)
             ForEach(model.row(.person)) { ItemRow(item: $0) }
@@ -435,7 +435,7 @@ struct SearchPage: View {
         case .restaurant: "Restaurants"
         case .coffee: "Coffee"
         case .event: "Events"
-        case .club: "Clubs"
+        case .club: "Groups"
         case .park: "Parks"
         }
     }

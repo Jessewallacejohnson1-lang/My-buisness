@@ -142,7 +142,7 @@ enum SearchChip: CaseIterable, Hashable {
         case .people: "People"
         case .businesses: "Businesses"
         case .events: "Events"
-        case .clubs: "Clubs"
+        case .clubs: "Groups"
         case .parks: "Parks"
         }
     }
@@ -369,9 +369,9 @@ final class SearchModel {
                 SearchItem(id: "e:\(name)", kind: .event, name: name, sub: "Event", photo: .bundled(photo),
                            group: group, keywords: ["event", "festival", group.lowercased()])
             }
-        let clubs = [("Book Club", "interest-books"), ("Morning Pages", "interest-coffee"), ("Riverside Potluck", "interest-dining")]
+        let clubs = [("Book Group", "interest-books"), ("Morning Pages", "interest-coffee"), ("Riverside Potluck", "interest-dining")]
             .map { name, photo in
-                SearchItem(id: "c:\(name)", kind: .club, name: name, sub: "Club", photo: .asset(photo), keywords: ["club"])
+                SearchItem(id: "c:\(name)", kind: .club, name: name, sub: "Group", photo: .asset(photo), keywords: ["group", "club"])
             }
         return ranked(events) + ranked(clubs)
     }

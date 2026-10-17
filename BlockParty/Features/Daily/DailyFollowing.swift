@@ -115,10 +115,10 @@ struct DailyFollowing: Identifiable {
                     photo: "sacred-heart-chapel", place: "Saint Benedict's Monastery", starts: at(15), ends: at(16),
                     category: .musicArts, description: "Sit in on the choirs getting ready for Sunday."))),
             DailyFollowing(
-                id: "follow-3", name: "St. Joseph Running Club", avatar: photo("klinefelter-park-trail"),
+                id: "follow-3", name: "St. Joseph Running Group", avatar: photo("klinefelter-park-trail"),
                 what: "has a group run.",
                 opens: .event(DailyEvent.sample(
-                    id: "daily-f3", title: "Group run", host: "St. Joseph Running Club",
+                    id: "daily-f3", title: "Group run", host: "St. Joseph Running Group",
                     photo: "centennial-park", place: "Klinefelter Park", starts: at(17.5), ends: at(18.5),
                     category: .sports, description: "Three or five miles at an easy pace. Everyone welcome."))),
             DailyFollowing(

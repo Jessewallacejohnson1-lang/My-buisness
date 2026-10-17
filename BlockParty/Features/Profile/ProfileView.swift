@@ -316,7 +316,7 @@ struct AboutBlockPartySheet: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Close About Block Party")
             }
-            Text("Block Party puts today's events, the town calendar, and a live map of St. Joseph in one place. Neighbors can share events, clubs, and trails.")
+            Text("Block Party puts today's events, the town calendar, and a live map of St. Joseph in one place. Neighbors can share events, groups, and trails.")
                 .font(.sans(16)).foregroundStyle(Hue.inkSecondary).lineSpacing(4)
                 .fixedSize(horizontal: false, vertical: true)
             Text(versionLine).font(.monoMedium(13)).monospacedDigit().foregroundStyle(Hue.inkSecondary)
