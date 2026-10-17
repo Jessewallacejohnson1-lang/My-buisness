@@ -3098,7 +3098,7 @@ sources:
 ```
 Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed. Named by its own website, https://www.sunnymarymeadow.com/bloomroom (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
 
-##  Bloom Styling & Events
+## Bloom Styling & Events
 ```yaml
 id: bloom-styling-events
 status: active
@@ -8630,3 +8630,21 @@ sources:
     trust: official
 ```
 Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.85). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+
+## A New Direction
+```yaml
+id: new-direction
+status: proposed
+tier: listed
+category: "social_or_community_service"
+place_type: "Community group"
+address: "1140 Elm St E"
+phone: "+13202576058"
+added_by: agent:town-verify
+sources:
+  - url: http://anewdirection.info/
+    kind: website
+    method: fetch
+    trust: official
+```
+Notes: Proposed on 2026-10-17 from overture. Verified 2026-10-17: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.

@@ -23,6 +23,10 @@ It is a different crawler reaching a site that allows crawlers.
 
 Output is `<census runs>/cache/chamber.json` (discover.RUNS), which is exactly what `discover.py`'s
 `collect_chamber` already reads as its cache — so discovery needs no change.
+
+`--harvest` keeps pages it already saved, so a failed harvest resumes. For a fresh member
+list, delete `<census runs>/cache/chamber/*.md` first. Firecrawl spends credits: ask Jesse
+before a harvest.
 """
 
 import argparse, json, re, subprocess, sys, time
@@ -42,7 +46,8 @@ def firecrawl(url, tries=2):
     for attempt in range(tries):
         try:
             r = subprocess.run(["composio", "execute", "FIRECRAWL_SCRAPE", "-d", payload],
-                               capture_output=True, text=True, timeout=180)
+                               capture_output=True, text=True, timeout=180,
+                               stdin=subprocess.DEVNULL)
             data = json.loads(r.stdout)
         except Exception as ex:
             print(f"    call failed: {type(ex).__name__} {ex}", flush=True)

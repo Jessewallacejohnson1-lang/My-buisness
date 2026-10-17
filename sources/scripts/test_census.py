@@ -7,7 +7,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from discover import in_town, merge, zip_of
+from discover import collect_chamber, in_town, merge, near_duplicates, placed_elsewhere, zip_of
+from maps import answered
 
 
 def rec(name, source="overture", **kw):
@@ -54,5 +55,58 @@ r = merge([rec("Kwik Trip #147", address="200 2nd Ave NW"),
           known_distinct=[("Kwik Trip #147", "Kwik Trip #575")])
 everything = [" ".join([p["name"], *p.get("aka", [])]) for p in r]
 assert len(r) == 2 and not any("147" in e and "575" in e for e in everything), everything
+
+# A no-ZIP sighting (a chamber member) of a place every source with a ZIP puts in another
+# town belongs to that town; one also seen in town stays.
+recs = [rec("Wacosa", source="stjosephchamber.com"),
+        rec("Wacosa", address="2700 1st St N, St Cloud, MN 56303"),
+        rec("Coborn's", source="stjosephchamber.com"),
+        rec("Coborn's", address="1 Main St, St Cloud, MN 56301"),
+        rec("Coborn's", address="1500 Elm St E, St Joseph, MN 56374")]
+away = placed_elsewhere(recs, ["56374"])
+kept = [r for r in recs if in_town(r, ["56374"], away)]
+assert [r["source"] for r in kept] == ["stjosephchamber.com", "overture"] and \
+    {r["name"] for r in kept} == {"Coborn's"}, kept
+
+# One address, overlapping names, different phones: two places (2026-10-17).
+r = merge([rec("Consumer Directions", address="1140 Elm St E Ste A", phone="3202578333"),
+           rec("A New Direction", address="1140 Elm St E", phone="+13202576058")])
+assert len(r) == 2, names(r)
+
+# A merge keeps the name it started with; it used to take whatever it absorbed last.
+r = merge([rec("Omega Force Appliance Repair", address="545 8th Ave NE", phone="17633906267"),
+           rec("Kostreba Appliance Services Center", address="545 8th Ave NE",
+               phone="+17633906267")])
+assert len(r) == 1 and r[0]["name"] == "Omega Force Appliance Repair" and \
+    r[0]["aka"] == ["Kostreba Appliance Services Center"], r
+assert merge([rec(" Bloom Styling & Events")])[0]["name"] == "Bloom Styling & Events"
+
+# The town's own name is no distinctive word: two Avon places on one phone stay two.
+r = merge([rec("City of Avon", phone="320-356-7922"),
+           rec("Avon Police Department", phone="320-356-7922")], town_words=["avon"])
+assert len(r) == 2, names(r)
+
+# Places sharing a phone, or a street and a word, are asked about. A phone shared by
+# more than three places is a switchboard and asks nothing.
+roster = merge([rec("Patents Minnesota", phone="3203637296"),
+                rec("Quill & Disc", phone="3203637296"),
+                rec("AMI", address="30865 Kohler Rd"), rec("Ami Auction", address="30865 Kohler Rd"),
+                *(rec(n, phone="320-363-7201") for n in
+                  ("City Hall", "Police", "Fire Station", "Klinefelter Park"))])
+asked = set(near_duplicates(roster))
+assert asked == {("same phone", "Patents Minnesota", "Quill & Disc"),
+                 ("same street", "AMI", "Ami Auction")}, asked
+
+# A failed map search is no answer, so the next run asks again.
+assert not answered('{"successful": false, "error": "getaddrinfo ENOTFOUND backend.composio.dev"}')
+assert not answered("Error: network unreachable")
+assert answered('{"successful": true, "data": {"results": {}}}')
+
+# The chamber reader knows one site; another town's chamber gets the plain reader.
+try:
+    collect_chamber("https://avonchamber.com/members/", Path("/nonexistent"))
+    raise AssertionError("read another town's chamber as St. Joseph's")
+except RuntimeError as ex:
+    assert "stjosephchamber.com" in str(ex), ex
 
 print("census rules OK")

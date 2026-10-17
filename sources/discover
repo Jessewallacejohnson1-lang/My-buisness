@@ -1,10 +1,8 @@
 #!/bin/sh
-# Build the town roster from OpenStreetMap and the local directories, and report what
-# the registry is missing (ADR-010). Writes `proposed` entries only; promotes nothing.
-#
-# The Overpass result is cached 7 days under ~/Documents/town-census/.runs/cache/ — pass
-# --refresh to re-fetch.
-# Overpass is donated infrastructure; the full query costs it over a minute.
+# Build a town's roster (Overture, OpenStreetMap, a Google Maps sweep, the town's
+# directories) and report what the registry is missing (ADR-010). Writes no entries;
+# verify drafts them. Answers are saved under ~/Documents/town-census/.runs/cache/;
+# --refresh re-fetches them. Usage and flags: discover --help.
 set -eu
 here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 exec python3 "$here/scripts/discover.py" --root "$(dirname -- "$here")" "$@"
