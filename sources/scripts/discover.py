@@ -1136,7 +1136,7 @@ def main():
 
     # A stable path beside the timestamped run, so the newest lists are findable without
     # knowing today's timestamp. The dated folders stay as the history.
-    latest = RUNS / "latest"
+    latest = RUNS / f"latest-{town['id']}"
     try:
         if latest.is_symlink() or latest.exists():
             latest.unlink()

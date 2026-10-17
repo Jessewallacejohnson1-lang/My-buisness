@@ -19,7 +19,9 @@ The cheapest proof is tried first:
   4. Whatever is left goes to research-needed.json for research agents, and its verdict
      stays Unknown until they answer.
 
-Every verdict, researched or not, is reused until it is --cadence-days old.
+Every verdict is reused until it is --cadence-days old. Then a researched place goes
+back to research (a listing never undoes research), except a researched Closed, which
+stands until --fresh. The roster is discover's newest for the town (<census runs>/latest-<town>).
 
 A place only Google knows about also needs a non-Google source before it can be
 proposed (ADR-016). Its own website, read politely through run.fetch, is checked here;
@@ -48,7 +50,6 @@ from discover import (RUNS, TOWNS, GOOGLE, NOT_A_PLACE, build_alias_map, entry_m
                       match_key, norm, phone_key, street_key, _names_overlap)
 from registry import find_root, load
 
-CURRENT_LISTINGS = {"stjosephchamber.com", "www.joetown.org"}
 TYPES = ["Business", "Community group", "Church", "School / college", "Government",
          "Park / historic"]
 
@@ -83,8 +84,9 @@ def place_type(p, overrides):
 
 # --- evidence ----------------------------------------------------------------------------
 
-def from_listings(p):
-    """Step 2: what the sightings themselves say."""
+def from_listings(p, current):
+    """Step 2: what the sightings themselves say. `current`: the town's directories that
+    are kept up to date."""
     open_ev, closed_ev = [], []
     for s in p["signals"]:
         src = s["source"]
@@ -96,7 +98,7 @@ def from_listings(p):
             open_ev.append(f"Google Maps lists it, not closed{hours}")
         elif src == "overture" and (s.get("confidence") or 0) >= 0.5:
             open_ev.append(f"Overture lists it open (confidence {s['confidence']})")
-        elif src in CURRENT_LISTINGS:
+        elif src in current:
             open_ev.append(f"current listing on {src}")
     if open_ev:
         # Prefer a listing with hours, then the local directories, then Overture.
@@ -108,11 +110,11 @@ def from_listings(p):
     return None
 
 
-def from_maps_lookup(p, town, cache_dir):
+def from_maps_lookup(p, town, cache_dir, refresh=False):
     """Step 3: ask the map about this one place by name."""
     import maps
     try:
-        res = maps.search(f"{p['name']} {town['label']} {town['zips'][0]}", cache_dir)
+        res = maps.search(f"{p['name']} {town['label']} {town['zips'][0]}", cache_dir, refresh=refresh)
     except Exception as ex:
         return {"verdict": "Unknown", "evidence": f"map lookup failed: {ex}", "how": "error"}
     phones = {phone_key(s.get("phone")) for s in p["signals"]} - {None}
@@ -178,6 +180,21 @@ def load_research(folder, aliases, today):
     return out
 
 
+def prior(r, old, today, days, fresh):
+    """What one place starts from: research answer `r`, else its last verdict `old`, or
+    None to work it out from the listings. A listing never undoes research: once research
+    is too old (or under --fresh) the place goes back to research, its last answer as the
+    hint. A researched Closed stands until --fresh."""
+    if r:
+        if not fresh and (r["verdict"] == "Closed" or still_good(r, today, days)):
+            return r
+        return {"verdict": "Unknown", "how": "needs-research",
+                "evidence": f"re-check: on {r['checked']} research said {r['verdict']}: {r.get('evidence', '')}"}
+    if not fresh and still_good(old, today, days):
+        return old
+    return None
+
+
 def still_good(v, today, days):
     """A verdict is reused until it is `days` old; a lookup that failed or still waits on
     research is tried again every run."""
@@ -215,6 +232,15 @@ def selftest():
                    "a failed lookup is tried again"))
     checks.append((not still_good({"how": "needs-research", "checked": "2026-12-31"}, today, 90),
                    "a place waiting on research waits again"))
+    shut = {"verdict": "Closed", "how": "research", "checked": "2026-01-01", "evidence": "razed"}
+    seen = {"verdict": "Open", "how": "research", "checked": "2026-01-01", "evidence": "posts"}
+    listed = {"verdict": "Open", "how": "listing", "checked": "2026-01-01"}
+    checks.append((prior(shut, listed, today, 90, False) is shut, "a researched Closed stands"))
+    got = prior(seen, listed, today, 90, False)
+    checks.append((got["how"] == "needs-research" and "said Open" in got["evidence"],
+                   "old research goes back to research, not to the listings"))
+    checks.append((prior(shut, None, today, 90, True)["how"] == "needs-research", "--fresh re-checks a Closed"))
+    checks.append((prior(None, listed, today, 90, False) is None, "an old listing verdict is worked out again"))
     bad = [m for ok, m in checks if not ok]
     print(f"{len(checks) - len(bad)} passed, {len(bad)} failed" + "".join(f"\n  FAILED {m}" for m in bad))
     sys.exit(1 if bad else 0)
@@ -243,10 +269,17 @@ def main():
     out = Path(args.out).expanduser() if args.out else work
     out.mkdir(parents=True, exist_ok=True)
 
-    roster = json.loads((RUNS / "latest" / "roster.json").read_text())
+    latest = RUNS / f"latest-{args.town}"
+    if not (latest / "roster.json").exists():
+        sys.exit(f"no roster for {args.town} in {RUNS}: run sources/discover --town {args.town} first")
+    roster = json.loads((latest / "roster.json").read_text())
     entries = [e for e in load(root)[0] if e.get("_town") == args.town]
     aliases = build_alias_map(town.get("aliases"))
     today = date.today()
+    roster_day = date.fromtimestamp((latest / "roster.json").stat().st_mtime)
+    if (today - roster_day).days >= args.cadence_days:
+        print(f"[verify] the roster is {(today - roster_day).days} days old, so its listings are too: "
+              f"run sources/discover --town {args.town} --refresh first")
     research = load_research(work / "research", aliases, today)
     store_f = work / "verdicts.json"
     store = json.loads(store_f.read_text()) if store_f.exists() else {}
@@ -277,25 +310,29 @@ def main():
         if "registry" not in hit["sources"]:
             hit["sources"].append("registry")
 
-    lost = sorted(r["name"] for k, r in research.items() if k not in by_key)
+    # Answers written for this roster whose name finds no place (older ones are places the
+    # roster has since dropped, such as businesses that left town).
+    lost = sorted(r["name"] for k, r in research.items()
+                  if k not in by_key and r["research_file"][:10] >= roster_day.isoformat())
     if lost:
         print(f"[verify] {len(lost)} research answers match no place, so they count for nothing "
-              f"(their name must be the input's exact name): {', '.join(lost[:8])}")
+              f"(give each the input's name): {', '.join(lost)}")
+    current = {urlparse(d["url"]).netloc for d in town["directories"] if not d.get("stale")}
     research_needed = []
     for p in roster:
         if looks_like_event(p["name"]):
             p["event"] = True
             continue
         old = store.get(p["key"])
-        if not args.fresh and still_good(research.get(p["key"]), today, args.cadence_days):
-            v = research[p["key"]]
-        elif not args.fresh and still_good(old, today, args.cadence_days):
-            v = old
-        else:
-            v = from_listings(p)
-            if v is None:
-                v = ({"verdict": "Unknown", "how": "needs-research", "evidence": "offline"}
-                     if args.offline else from_maps_lookup(p, town, RUNS / "cache" / "maps" / args.town))
+        v = prior(research.get(p["key"]), old, today, args.cadence_days, args.fresh)
+        if v is None:
+            v = from_listings(p, current)
+        if v is None:
+            # A verdict that has expired had its map answer cached as long ago: ask again.
+            expired = bool(old) and old.get("how") not in ("needs-research", "error")
+            v = ({"verdict": "Unknown", "how": "needs-research", "evidence": "offline"}
+                 if args.offline else from_maps_lookup(p, town, RUNS / "cache" / "maps" / args.town,
+                                                       refresh=args.fresh or expired))
         v = dict(v, checked=v.get("checked") or today.isoformat())
         store[p["key"]] = v
         p["v"] = v
@@ -373,7 +410,7 @@ def main():
             why = (p["v"].get("evidence") if p["status"] == "Unknown"
                    else "open, but only Google knows it")
             w.writerow([p["name"], p["type"], why, g(p, "address"), g(p, "phone")])
-    pairs = json.loads((RUNS / "latest" / "same-place.json").read_text())
+    pairs = json.loads((latest / "same-place.json").read_text())
     with open(out / "same-place.csv", "w", newline="") as fh:
         w = csv.writer(fh)
         w.writerow(["Place A", "Place B", "Similarity", "Same place? (yes / no)"])
