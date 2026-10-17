@@ -1,0 +1,32 @@
+# Tag: the interests an Event is about
+
+You give each Event of one town every interest it is about, from a fixed list. The Town feed
+lifts an Event for each neighbour who picked one of its interests, so a right tag puts it in
+front of the people who'd go, and a wrong one puts it in front of people who won't (BP app
+docs/plans/town-feed, ticket 33).
+
+Each message gives the interest list, then the Events, one JSON object per line: its `id`,
+`title`, `host` (who puts it on), `place`, `about` (the start of its description, often
+empty) and `category` (one interest the writer already gave it, or null).
+
+## How to tag
+
+- Tag what the Event is about, as a neighbour would say it: a trivia night at a taproom is
+  `breweries`; a fall concert by the college choir is `live_music`; a fish fry at a church is
+  `dining` and `faith`; a 5K fun run for a school is `fitness_yoga` and `families_kids`.
+- As many interests as it is really about, and no more: most Events have one or two, a few
+  have three or four. Every extra tag shows the Event to people who may not care, so leave
+  out what is only nearby or possible ("people might bring kids" is not `families_kids`).
+- `families_kids` means made for children or families: story time, a kids' craft, trick or
+  treat, a family day. A school's board meeting is not.
+- Games of any sport, at any level, are `sports_leagues`.
+- Meetings of a city council, board or commission fit no interest: an empty list.
+- Keep the writer's `category` when it fits, and add to it; drop it only when it is wrong.
+- Only ids from the list. When nothing fits, an empty list.
+
+## What to write
+
+One JSON object per Event, one per line, in the order given, and nothing else: no prose and
+no code fences.
+
+{"id": "<the Event's id>", "interests": ["live_music", "dining"]}

@@ -9,26 +9,36 @@ docs/plans/watch-every-place, ticket 05). The routine's steps are sources/models
             the events already listed for the judge
   write     merge the feed items with the judge's items, write them (public.apply_judged
             over the service role key) and print the morning's summary
+  untagged  lay out the Events no tagger has read yet, upcoming or still running, in batches
+            of 40 for the cheap model (town-feed ticket 33; sources/models/tag.md)
+  tag       write the cheap model's tags (.runs/morning/tags.jsonl) onto those Events: only
+            ids from the shared interest list, and an Event's first interest becomes its
+            category when it has none
 
 Everything lands in .runs/morning/. Both steps need SUPABASE_URL and
 SUPABASE_SERVICE_ROLE_KEY in the environment; `write --dry-run` writes nothing.
 
   python3 sources/scripts/morning.py prepare [--today YYYY-MM-DD]
   python3 sources/scripts/morning.py write [--dry-run]
+  python3 sources/scripts/morning.py untagged
+  python3 sources/scripts/morning.py tag [--dry-run]
   python3 sources/scripts/morning.py --selftest
 """
 
 import argparse, json, re, shutil, subprocess, sys
 from datetime import date, datetime
 from pathlib import Path
+from urllib.parse import quote
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from registry import find_root, load
 from read_events import LOCAL
 from check_flags import batches, message
 import write_judged
+from run import Supabase
 
 SCRIPTS = Path(__file__).resolve().parent
+TAG_BATCH = 40
 FEEDS = {"ical"}  # the feed reader's; an RSS feed is posts, read like a page (run.py keeps their dates)
 
 
@@ -152,6 +162,61 @@ def write(out, dry_run, today):
     print("\n".join(summary_lines(prep, items, result, written)))
 
 
+def to_tag(today):
+    """Approved Events no tagger has read, still to come or still running, as the tagger reads them."""
+    rows = Supabase().call("GET", "club_events?select=id,title,location,description,category,source_name,clubs(name)"
+                           "&status=eq.approved&kind=eq.event&interests_tagged_at=is.null"
+                           f"&or={quote(f'(event_date.gte.{today},end_at.gte.{today})')}&order=event_date&limit=1000")
+    return [{"id": r["id"], "title": r["title"], "host": (r.get("clubs") or {}).get("name") or r.get("source_name") or "",
+             "place": r.get("location") or "", "about": " ".join((r.get("description") or "").split())[:300],
+             "category": r.get("category")} for r in rows]
+
+
+def tag_message(events, interests):
+    return ("Interests: " + ", ".join(interests) + "\n\nEvents:\n"
+            + "\n".join(json.dumps(e, ensure_ascii=False) for e in events) + "\n")
+
+
+def untagged(out, today):
+    tag_dir = out / "tag"
+    if tag_dir.exists():
+        shutil.rmtree(tag_dir)
+    tag_dir.mkdir(parents=True)
+    events, interests = to_tag(today), write_judged.interest_ids()
+    for i in range(0, len(events), TAG_BATCH):
+        (tag_dir / f"batch-{i // TAG_BATCH + 1}.txt").write_text(tag_message(events[i:i + TAG_BATCH], interests))
+    (tag_dir / "events.json").write_text(json.dumps(events, indent=1, ensure_ascii=False))
+    print(f"[morning] {len(events)} events to tag in {len(list(tag_dir.glob('batch-*.txt')))} batches ({tag_dir})")
+
+
+def plan_tags(lines, events, known):
+    """The cheap model's lines as writes: only Events it was given, only known interests, each
+    once, in the model's order. An Event it didn't answer stays untagged for tomorrow."""
+    given, known, writes = {e["id"]: e for e in events}, set(known), {}
+    for ln in lines:
+        if not isinstance(ln, dict) or ln.get("id") not in given or not isinstance(ln.get("interests"), list):
+            continue
+        tags = list(dict.fromkeys(t for t in ln["interests"] if t in known))
+        write = {"interests": tags}
+        if not given[ln["id"]].get("category") and tags:
+            write["category"] = tags[0]
+        writes[ln["id"]] = write
+    return writes
+
+
+def tag(out, dry_run):
+    events = json.loads((out / "tag" / "events.json").read_text())
+    writes = plan_tags(read_items(out / "tags.jsonl"), events, write_judged.interest_ids())
+    if not dry_run:
+        db, now = Supabase(), datetime.now(LOCAL).isoformat()
+        for event_id, write in writes.items():
+            db.call("PATCH", f"club_events?id=eq.{event_id}", {**write, "interests_tagged_at": now},
+                    prefer="return=minimal")
+    empty = sum(1 for w in writes.values() if not w["interests"])
+    print(f"[morning] tagged {len(writes)} events ({empty} with no interest), "
+          f"{len(events) - len(writes)} left for tomorrow" + (" (dry run: nothing written)" if dry_run else ""))
+
+
 def selftest():
     entries = [{"id": "milk", "_name": "Milk & Honey Ciders", "tier": "watched", "category": "cidery",
                 "sources": [{"url": "https://m/events", "method": "fetch", "trust": "official"}]},
@@ -202,6 +267,17 @@ def selftest():
                    and fingerprint("Wed, 14 Oct 2026 11:47:19 -0600\nFish fry") == fingerprint("Thu, 15 Oct 2026 06:01:02 -0600\nFish fry")
                    and fingerprint("Trivia Oct 24 7:00 PM") != fingerprint("Trivia Oct 24 8:00 PM"),
                    "a page's own clock doesn't change its fingerprint; an event's time does"))
+    events = [{"id": "e1", "category": None}, {"id": "e2", "category": "live_music"}, {"id": "e3", "category": None}]
+    writes = plan_tags([{"id": "e1", "interests": ["dining", "faith", "dining", "made_up"]},
+                        {"id": "e2", "interests": ["breweries", "live_music"]}, {"id": "zz", "interests": ["dining"]},
+                        "unreadable line: {", {"id": "e3"}], events, ["dining", "faith", "breweries", "live_music"])
+    checks.append((writes == {"e1": {"interests": ["dining", "faith"], "category": "dining"},
+                              "e2": {"interests": ["breweries", "live_music"]}},
+                   "tags keep known interests once each, fill an empty category, and skip Events not given or not answered"))
+    checks.append((plan_tags([{"id": "e1", "interests": []}], events, ["dining"]) == {"e1": {"interests": []}},
+                   "an Event nothing fits is tagged with none, so it isn't read again"))
+    checks.append(("Interests: dining, faith" in tag_message([{"id": "e1"}], ["dining", "faith"]),
+                   "each batch carries the interest list"))
     failed = [why for ok, why in checks if not ok]
     for why in failed:
         print(f"FAIL {why}")
@@ -211,18 +287,25 @@ def selftest():
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("step", nargs="?", choices=["prepare", "write"])
+    ap.add_argument("step", nargs="?", choices=["prepare", "write", "untagged", "tag"])
     ap.add_argument("--today", help="YYYY-MM-DD; default today in Chicago")
-    ap.add_argument("--dry-run", action="store_true", help="write: print what would be written, write nothing")
+    ap.add_argument("--dry-run", action="store_true", help="write, tag: print what would be written, write nothing")
     ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args()
     if args.selftest:
         return selftest()
     if not args.step:
-        ap.error("prepare or write")
+        ap.error("prepare, write, untagged or tag")
     today = date.fromisoformat(args.today) if args.today else datetime.now(LOCAL).date()
     out = find_root() / ".runs" / "morning"
-    prepare(today, out) if args.step == "prepare" else write(out, args.dry_run, today)
+    if args.step == "prepare":
+        prepare(today, out)
+    elif args.step == "write":
+        write(out, args.dry_run, today)
+    elif args.step == "untagged":
+        untagged(out, today)
+    else:
+        tag(out, args.dry_run)
 
 
 if __name__ == "__main__":

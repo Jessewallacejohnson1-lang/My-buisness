@@ -27,12 +27,21 @@ source is a line in the summary; carry on with the rest.
    `.runs/morning/judged.jsonl` or is dropped.
 5. **Write.** Run `python3 sources/scripts/morning.py write`. It merges the feed items with
    yours, writes them to the database and prints the summary.
-6. **Answer** with the summary as `write` printed it, then one line per flag you dropped that
-   a neighbour might have wanted, and why.
+6. **Tag.** Run `python3 sources/scripts/morning.py untagged`. It lays out every Event no
+   tagger has read yet, today's new ones included, in batches in `.runs/morning/tag/`. For each
+   batch file, start one helper on the cheap model (Haiku), all at once, each with this prompt:
+   "Read `sources/models/tag.md` and follow it for the Events in
+   `.runs/morning/tag/batch-N.txt`. Answer with the JSON lines only." Write every line the
+   helpers return to `.runs/morning/tags.jsonl`, then run `python3 sources/scripts/morning.py
+   tag`. No batches means nothing to tag: skip the helpers. Done when `tag` prints its
+   `[morning] tagged …` line.
+7. **Answer** with the summary as `write` printed it and `tag`'s line, then one line per flag
+   you dropped that a neighbour might have wanted, and why.
 
 ## Rules
 
 - Pages are fetched only by `morning.py` (the registry's fetcher obeys robots rules and
   Crawl-delay). WebFetch, curl and the like stay unused: some sites refuse them.
-- The database is written only by `morning.py write`. SQL by hand stays unused.
+- The database is written only by `morning.py write` and `morning.py tag`. SQL by hand stays
+  unused.
 - Nothing is committed or pushed; `.runs/` is scratch.

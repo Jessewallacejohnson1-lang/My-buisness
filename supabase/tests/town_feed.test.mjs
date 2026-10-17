@@ -445,6 +445,21 @@ test("nobody reads who is Going, saved or hearted: only their own rows, and the 
   assert.deepEqual(rows.map((r) => r.nspname), ['private', 'private']);
 });
 
+test('every interest an Event carries matches, two at most; an untagged one matches by its category', async () => {
+  await reset();
+  const trivia = await add('Trivia at the taproom', '2026-10-09', { start_time: '7 PM' });
+  await add('Pancake breakfast', '2026-10-09', { start_time: '8 AM', category: 'dining', source_name: 'Fire hall' });
+  await add('Council meeting', '2026-10-09', { start_time: '6 PM', source_name: 'Council' });
+  await db.query(`update public.club_events set interests = '{breweries,live_music,dining}', category = 'live_music'
+                  where id = $1`, [trivia]);
+  await signIn(YOU, ['breweries', 'dining', 'live_music']);
+  await db.exec(`set test.admin = 'on'`);
+  const rows = await feed('2026-10-08 12:00');
+  assert.deepEqual(rows.map((r) => [r.title, r.reason, r.reason_name, r.score.interest]),
+                   [['Trivia at the taproom', 'interest', 'breweries', 6], ['Pancake breakfast', 'interest', 'dining', 3],
+                    ['Council meeting', 'tomorrow', null, 0]]);
+});
+
 // Friends shape the feed (ticket 28). The helper names friends only on Events not over by the
 // clock, so these stories date their Events from today rather than the fixed week above.
 const day = (n) => new Date(Date.now() + n * 86400000).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
