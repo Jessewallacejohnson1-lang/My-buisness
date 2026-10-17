@@ -10,9 +10,9 @@
 //  A write the server says no to turns the choice back the way the Event page always
 //  has: it holds 600 ms after the tap, flips back, and once the 0.18 s flip is done the
 //  screen that asked shakes and buzzes, but only while it is still open: the Event page
-//  for Going, the card for Heart, either for Save. A write that gets no answer (offline,
-//  timed out) is no "no": the tap stays and is tried again until it lands, kept on the
-//  phone so it survives a relaunch (town-feed ticket 24).
+//  or the card for Going, the card for Heart, the page or a bookmark for Save. A write
+//  that gets no answer (offline, timed out) is no "no": the tap stays and is tried again
+//  until it lands, kept on the phone so it survives a relaunch (town-feed ticket 24).
 //
 
 import SwiftUI
@@ -34,8 +34,8 @@ final class RealLifeActions {
     /// failed 15 ms after the tap (measured 2026-09-26), about one frame. (guessed)
     static let hold: Duration = .milliseconds(600)
 
-    /// How long Join takes to turn from one face to the other, both ways: the card's
-    /// join morph (`FeedEventCardJoinButton`), in seconds. A heart turns back as fast.
+    /// How long Join takes to turn from one face to the other, both ways, in seconds: the
+    /// Event page's Join and the card's RSVP pill. A heart turns back as fast.
     static let flip: TimeInterval = 0.18
 
     /// May act: has an account, or writes go nowhere and need none (`Backend`).
@@ -83,8 +83,8 @@ final class RealLifeActions {
     /// Numbers each tap, so a failure that a newer tap has overtaken is not a turn back.
     @ObservationIgnored private var taps: [Key: Int] = [:]
     @ObservationIgnored private var tappedAt: [Key: ContinuousClock.Instant] = [:]
-    /// Which screens that shake are on screen: Event pages for Going, cards for Heart,
-    /// both for Save.
+    /// Which screens that shake are on screen: Event pages for Going and Save, cards for
+    /// Going and Heart, bookmarks for Save.
     @ObservationIgnored private var open: [Key: Int] = [:]
     /// The phone's old saves are moving up (`moveUp`): once at a time.
     @ObservationIgnored private var movingUp = false
@@ -197,7 +197,12 @@ final class RealLifeActions {
             }
             knownEvents = { try await CommunityAPI(auth: AuthStore.shared).knownEventIDs($0) }
         case .samples:
-            setGoing = { _, _ in }
+            // With `-town-refuse` the server says no to every Join, so the hold, the turn
+            // back and the shake can be recorded on the card and the page.
+            let refuses = ProcessInfo.processInfo.arguments.contains("-town-refuse")
+            setGoing = { _, _ in
+                if refuses { throw SupabaseError(message: "refused (-town-refuse)", status: 403) }
+            }
             setHeart = { _, _ in }
             setSave = { _, _ in }
             knownEvents = { _ in [] }
@@ -241,13 +246,13 @@ final class RealLifeActions {
         return Heart(isHearted: tally.on, count: tally.count)
     }
 
-    /// The card's going line: only for someone who may act, and never at zero, as the
-    /// Event page never shows a zero count (taste.md, 2026-10-04: fewer words).
-    func goingLine(_ item: FeedCardItem) -> String? {
+    /// What the card's RSVP area says (`RSVPWords`): only for someone who may act, as Join
+    /// never showed without an account.
+    func rsvp(_ item: FeedCardItem) -> RSVPWords? {
         guard canAct else { return nil }
         let going = going(item)
-        return YourDayLogic.goingLabel(for: going.count, friends: item.friendsGoing.map(\.name),
-                                       youGoing: going.isGoing)
+        return .make(isGoing: going.isGoing, count: going.count,
+                     friends: item.friendsGoing.map(\.name), cancelled: item.cancelled)
     }
 
     func failureCount(_ eventID: String) -> Int {
@@ -332,13 +337,24 @@ final class RealLifeActions {
         for kind in [Kind.going, .save] { close(Key(kind: kind, id: eventID)) }
     }
 
-    /// An Event's card is on screen. Only then does a failed Heart or Save shake and buzz.
+    /// An Event's Town card is on screen. Only then does a failed Heart or RSVP shake and
+    /// buzz there. It has no bookmark (rsvp-and-groups 01).
     func cardOpened(_ eventID: String) {
-        for kind in [Kind.heart, .save] { open[Key(kind: kind, id: eventID), default: 0] += 1 }
+        for kind in [Kind.heart, .going] { open[Key(kind: kind, id: eventID), default: 0] += 1 }
     }
 
     func cardClosed(_ eventID: String) {
-        for kind in [Kind.heart, .save] { close(Key(kind: kind, id: eventID)) }
+        for kind in [Kind.heart, .going] { close(Key(kind: kind, id: eventID)) }
+    }
+
+    /// A bookmark off the Event page is on screen (Daily's Suggestions): a failed Save may
+    /// shake it.
+    func bookmarkOpened(_ eventID: String) {
+        open[Key(kind: .save, id: eventID), default: 0] += 1
+    }
+
+    func bookmarkClosed(_ eventID: String) {
+        close(Key(kind: .save, id: eventID))
     }
 
     /// Saves this phone kept before saves moved to the server (`SavedStore`): once there

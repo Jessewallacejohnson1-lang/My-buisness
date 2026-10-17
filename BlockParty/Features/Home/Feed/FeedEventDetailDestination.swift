@@ -642,7 +642,7 @@ struct FeedEventDetailDestination: View {
         !reduceMotion && joinTappedAt != failures
     }
 
-    /// The card's join morph (`FeedEventCardJoinButton`), both ways, rollback included.
+    /// Join's flip (`RealLifeActions.flip`), the card's RSVP pill's too, both ways, rollback included.
     private var joinMorph: Animation {
         .easeInOut(duration: reduceMotion ? 0.15 : RealLifeActions.flip)
     }

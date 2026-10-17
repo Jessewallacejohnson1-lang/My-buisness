@@ -30,15 +30,15 @@ final class EventCardPhotoTapTests: XCTestCase {
         app.launch()
     }
 
-    /// The first event card's link: host row, photo and going line.
+    /// The first event card's link: host row and photo.
     private func firstCardLink() -> XCUIElement {
         let link = app.buttons["event-card-link"].firstMatch
         XCTAssertTrue(link.waitForExistence(timeout: 10), "no event card on Town")
         return link
     }
 
-    /// The link's middle is its photo: the host row above and the going line below
-    /// are each well under a fifth of its height.
+    /// The link's middle is its photo: the host row above is well under a fifth of its
+    /// height.
     private func photo(of link: XCUIElement) -> XCUICoordinate {
         link.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
     }

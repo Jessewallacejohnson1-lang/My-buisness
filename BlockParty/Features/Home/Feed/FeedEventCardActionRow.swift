@@ -23,6 +23,8 @@ struct FeedEventCardActionRow: View {
     /// The heart and its count. Off while the person can't act yet (no account), as
     /// Join is (Jesse, 2026-10-11).
     var showsHeart = true
+    /// The bookmark. Off on the Town card, where RSVP took its place (2026-10-17).
+    var showsSave = true
     /// Each failed heart turned back while the card was open (`RealLifeActions`) shakes
     /// the heart once.
     var heartFailures = 0
@@ -79,7 +81,9 @@ struct FeedEventCardActionRow: View {
 
             Spacer(minLength: 12)
 
-            saveButton
+            if showsSave {
+                saveButton
+            }
         }
         .frame(height: Metric.rowHeight)
         .onChange(of: autoplayStep) { _, step in
