@@ -13,7 +13,7 @@ Usage:
   python3 run.py --include-proposed   # also test proposed entries (never with --write)
   python3 run.py --write              # prod: needs SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY
 """
-import argparse, hashlib, html, json, os, re, sys, threading, time
+import argparse, hashlib, html, json, os, re, socket, sys, threading, time, zlib
 import urllib.request, urllib.error, urllib.parse
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
@@ -86,7 +86,10 @@ _robots = {}          # host -> robots rules, or None (None = no restrictions kn
 _crawl_delay = {}     # host -> seconds requested by robots.txt
 _last_hit = {}        # host -> monotonic time of the last request, for crawl-delay
 _unreadable = {}      # host -> why its robots.txt could not be read this run
-_host_lock = defaultdict(threading.Lock)  # one request at a time per host
+_host_lock = defaultdict(threading.Lock)  # one request at a time per server (see server_of)
+_server = {}          # host -> the server address it resolves to
+_server_hit = {}      # server -> monotonic time of its last request
+SERVER_GAP = 1.0      # seconds between two requests to one server
 final_url = {}         # url -> where it landed after redirects (the page picker's same-site check)
 STAY_OUT = [(False, "/")]
 RETRY_WAIT = 5.0      # seconds before the one retry of a dropped connection
@@ -209,12 +212,39 @@ def _open(req):
         return urllib.request.urlopen(req, timeout=TIMEOUT)
 
 
+def server_of(host):
+    """Many small sites share one server (Weebly, Wix, GoDaddy), so politeness is per server,
+    not per name: on 2026-10-17 four Weebly sites fetched side by side answered 429 and three
+    sites on one shared address reset the connection."""
+    if host not in _server:
+        try:
+            _server[host] = socket.gethostbyname(host.split(":")[0])
+        except OSError:
+            _server[host] = host
+    return _server[host]
+
+
+def decoded(body, encoding):
+    """Some servers send gzip although nobody asked (fabral.com, fivestarlogistics.com), which
+    read as binary noise and changed fingerprint on every run. A cut-off body still decodes."""
+    if body[:2] == b"\x1f\x8b" or encoding == "gzip":
+        return zlib.decompressobj(31).decompress(body)
+    if encoding == "deflate":
+        return zlib.decompressobj().decompress(body)
+    return body
+
+
 def fetch(url, data=None, headers=None):
     """GET, or POST when `data` is given (511's GraphQL). Robots and Crawl-delay either way,
-    and one request at a time to any one host: parallel requests made stjosephmn.gov drop
-    connections, which then read as a robots refusal."""
+    and one request at a time to any one server, a second apart: parallel requests made
+    stjosephmn.gov drop connections, which then read as a robots refusal."""
     p = urlparse(url)
-    with _host_lock[p.netloc]:
+    server = server_of(p.netloc)
+    with _host_lock[server]:
+        wait = SERVER_GAP - (time.monotonic() - _server_hit.get(server, -SERVER_GAP))
+        if wait > 0:
+            time.sleep(wait)
+        _server_hit[server] = time.monotonic()
         if not robots_ok(url):
             why = _unreadable.get(f"{p.scheme}://{p.netloc}")
             if why:
@@ -228,6 +258,10 @@ def fetch(url, data=None, headers=None):
             body = r.read(MAX_BYTES + 1)
             if len(body) > MAX_BYTES:
                 body = body[:MAX_BYTES]
+            try:
+                body = decoded(body, (r.headers.get("Content-Encoding") or "").lower())
+            except zlib.error:
+                pass  # not compressed after all: read it as it came
             charset = r.headers.get_content_charset() or "utf-8"
             return r.status, body.decode(charset, errors="replace")
 

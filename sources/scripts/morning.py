@@ -188,6 +188,14 @@ def selftest():
     checks.append((lines[2] == "- Events: 1 new, 1 already listed, 1 held for Jesse" and "- Held: Maybe a sale" in lines
                    and "- Source failed: x https://x: HTTP 403" in lines
                    and "- Reader failed: Stearns County (civicplus-hcms): TimeoutError" in lines, "the summary names what failed"))
+    import gzip, run as runner
+    checks.append((runner.decoded(gzip.compress(b"Trivia Oct 24"), "") == b"Trivia Oct 24"
+                   and runner.decoded(gzip.compress(b"Trivia Oct 24" * 50)[:60], "gzip").startswith(b"Trivia")
+                   and runner.decoded(b"<html>plain</html>", "") == b"<html>plain</html>",
+                   "a gzip body is decoded, even unasked or cut off"))
+    runner._server.update({"a.weebly-site.com": "199.34.228.77", "b.weebly-site.com": "199.34.228.77"})
+    checks.append((runner.server_of("a.weebly-site.com") == runner.server_of("b.weebly-site.com"),
+                   "two sites on one server share its one-at-a-time lock"))
     from run import fingerprint
     checks.append((fingerprint("Trivia Oct 24 7:00 PM\nPage generated at 10/16/2026, 3:45:35 AM")
                    == fingerprint("Trivia Oct 24 7:00 PM\nPage generated at 10/17/2026, 3:48:48 AM")
