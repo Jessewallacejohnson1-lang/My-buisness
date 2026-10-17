@@ -478,6 +478,20 @@ test("one interest can't flood the feed: each further Event on the same interest
                    [[1, 1], [1, 0.7], [1, 0.49], [1, 0.343], [1, 0.2401], [1, 0.1681]]);
 });
 
+test("how much an Event draws the town out is everyone's starting point: 0, 1.5 or 3 points, 2 when not rated", async () => {
+  await reset();
+  const fair = await add('Art fair', '2026-10-09', { start_time: '10 AM', source_name: 'Arts council' });
+  const council = await add('Council meeting', '2026-10-09', { start_time: '9 AM', source_name: 'City' });
+  await add('Book sale', '2026-10-09', { start_time: '11 AM', source_name: 'Library' });
+  await db.query(`update public.club_events set draw = 3 where id = $1`, [fair]);
+  await db.query(`update public.club_events set draw = 1 where id = $1`, [council]);
+  await db.exec(`set test.admin = 'on'`);
+  const rows = await feed('2026-10-08 12:00');
+  assert.deepEqual(rows.map((r) => [r.title, r.score.draw]),
+                   [['Art fair', 3], ['Book sale', 1.5], ['Council meeting', 0]]);
+  assert.ok(rows.every((r) => r.reason !== 'draw'), 'the draw is never the reason a card gives');
+});
+
 // Friends shape the feed (ticket 28). The helper names friends only on Events not over by the
 // clock, so these stories date their Events from today rather than the fixed week above.
 const day = (n) => new Date(Date.now() + n * 86400000).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
@@ -621,8 +635,8 @@ test('the score breakdown is filled for the admin and null for everyone else', a
   await db.exec(`set test.admin = 'on'`);
   const { score } = (await feed('2026-10-08 12:00'))[0];
   assert.deepEqual(score, {
-    interest: 3, friend: 0, follow: 0, popular: 0, viewers: 0, size: 0, sizeStep: 1, daysAway: 1,
-    soon: 0.9057, acted: 1, spacing: 1, topicSpacing: 1, newSpot: false, total: 3.6229, spot: 1, of: 1,
+    interest: 3, friend: 0, follow: 0, popular: 0, viewers: 0, size: 0, sizeStep: 1, draw: 1.5, daysAway: 1,
+    soon: 0.9057, acted: 1, spacing: 1, topicSpacing: 1, newSpot: false, total: 4.9815, spot: 1, of: 1,
   });
 });
 

@@ -1,9 +1,10 @@
-# Tag: the interests an Event is about
+# Tag: the interests an Event is about, and how much it draws
 
-You give each Event of one town every interest it is about, from a fixed list. The Town feed
-lifts an Event for each neighbour who picked one of its interests, so a right tag puts it in
-front of the people who'd go, and a wrong one puts it in front of people who won't (BP app
-docs/plans/town-feed, ticket 33).
+You give each Event of one town every interest it is about, from a fixed list, and how much it
+draws a town's neighbours out. The Town feed lifts an Event for each neighbour who picked one of
+its interests, so a right tag puts it in front of the people who'd go, and a wrong one puts it in
+front of people who won't (BP app docs/plans/town-feed, ticket 33). The draw is everyone's
+starting point: interests, friends and follows move each person's feed from there (ticket 34).
 
 Each message gives the interest list, then the Events, one JSON object per line: its `id`,
 `title`, `host` (who puts it on), `place`, `about` (the start of its description, often
@@ -24,9 +25,22 @@ empty) and `category` (one interest the writer already gave it, or null).
 - Keep the writer's `category` when it fits, and add to it; drop it only when it is wrong.
 - Only ids from the list. When nothing fits, an empty list.
 
+## How much it draws
+
+The `draw` is how many neighbours would make a point of going, not whether it's worthy:
+
+- **3**: an outing many would plan around. A festival, fair, homecoming, parade, big concert,
+  holiday market, a fundraiser dinner the town turns out for, a big game.
+- **2**: a normal public event for whoever's into it. A class, talk, trivia night, recital,
+  service open to visitors, club night, a regular game, a sale.
+- **1**: routine business most people skip. City council, board, commission and committee
+  meetings, school picture retakes, "the trimester ends", staff or members-only dates.
+
+When unsure, 2.
+
 ## What to write
 
 One JSON object per Event, one per line, in the order given, and nothing else: no prose and
 no code fences.
 
-{"id": "<the Event's id>", "interests": ["live_music", "dining"]}
+{"id": "<the Event's id>", "interests": ["live_music", "dining"], "draw": 2}
