@@ -168,7 +168,7 @@ struct FeedEventDetailDestination: View {
     /// A place we have no photo of fills the hero with its logo on its backdrop, as its
     /// card does (Jesse, 2026-10-16).
     private var heroLogo: SearchLogo? {
-        photos.isEmpty ? (item.image.logo ?? item.place?.logo) : nil
+        photos.isEmpty ? item.place?.logo : nil
     }
 
     private var hasHero: Bool { !photos.isEmpty || heroLogo != nil }
@@ -283,8 +283,9 @@ struct FeedEventDetailDestination: View {
             PhotoCredit(names: [credit])
                 .padding(.leading, Metric.inset - PhotoCredit.edgeInset)
                 .padding(.bottom, Metric.counterBottom - PhotoCredit.edgeInset)
-                // The carousel says it, with the photo's number.
-                .accessibilityHidden(true)
+                // With two or more photos the carousel says it, with the photo's number;
+                // with one, the carousel is hidden, so the credit speaks for itself.
+                .accessibilityHidden(photos.count >= 2)
         }
     }
 

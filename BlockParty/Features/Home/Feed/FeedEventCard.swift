@@ -234,6 +234,8 @@ struct FeedEventCard: View {
     /// The words over the picture: white over a photo or ink, ink over a logo's light
     /// backdrop (as Search sets them).
     private var onLogo: Bool { displayImage.logo != nil }
+    /// The words' height over the picture, so a logo stays in the room above them.
+    @State private var copyHeight: CGFloat = 0
 
     private var imageSection: some View {
         GeometryReader { proxy in
@@ -295,7 +297,7 @@ struct FeedEventCard: View {
                              onReady: { withAnimation(motionIsReduced ? nil : Motion.smooth) { shownPhoto = url } },
                              onFailure: { failedPhoto = url })
         } else if let logo = displayImage.logo {
-            FeedCardPlaceLogo(logo: logo)
+            FeedCardPlaceLogo(logo: logo, bottomClear: copyHeight + 16)
         } else {
             Rectangle().fill(Hue.ink)
         }
@@ -306,7 +308,8 @@ struct FeedEventCard: View {
     private var imageCopy: some View {
         VStack(alignment: .leading, spacing: 4) {
             if item.cancelled {
-                CanceledTag().padding(.bottom, 4)
+                // Ink on a logo's light backdrop, where the white tag would vanish.
+                CanceledTag(onPhoto: !onLogo).padding(.bottom, 4)
             }
 
             Text(item.title)
@@ -354,6 +357,7 @@ struct FeedEventCard: View {
         }
         // None on ink words over a logo's light backdrop.
         .feedCardPhotoTypeShadow(onLogo ? 0 : 1)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { copyHeight = $0 }
     }
 
     /// Recurrence and place, under the when line. Date and time have their own line

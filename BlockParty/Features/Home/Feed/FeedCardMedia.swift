@@ -259,34 +259,42 @@ extension FeedCardImageSource {
     /// A place's logo as Search draws it, on its backdrop with ink words over it.
     var logo: SearchLogo? {
         guard case .placeLogo(let picture) = self else { return nil }
-        let row = SearchLogo.Row(url: picture.url, hue: picture.hue ?? 0, chroma: picture.hue != nil)
+        // A grey logo gets Search's studio hue, as on the logo wall.
+        let row = SearchLogo.Row(url: picture.url, hue: picture.hue ?? Hue.searchStudioHue, chroma: picture.hue != nil)
         return SearchLogo(placeId: picture.url.absoluteString, row: row)
     }
-
-    /// Whether the card renders the ink fallback treatment (flat ink, big title).
-    var isFallback: Bool { self == .fallback }
 }
 
 /// A place we have no photo of, where its photo would be: its logo on its Search backdrop,
-/// the logo's own shadow cast on it, centred in the top part of the frame so the words
-/// below sit clear of it (Jesse, 2026-10-16: B). Sizes are picked, not measured: on a card
-/// half the frame's height, at most 40% of its width, 8% down; the event page passes its
-/// own, so the logo clears the clock and the round buttons above it.
+/// the logo's own shadow cast on it, centred in the room above the words over it, so a long
+/// title never runs over it (Jesse, 2026-10-16: B). Sizes are picked, not measured: at most
+/// half the frame's height and 40% of its width; the event page passes its own, so the logo
+/// clears the clock and the round buttons above it.
 struct FeedCardPlaceLogo: View {
     let logo: SearchLogo
-    /// Share of the frame's height the logo stands below its top edge.
-    var topShare: CGFloat = 0.08
-    /// Share of the frame's height the logo is tall, when that is under 40% of its width.
+    /// Share of the frame's height kept clear above the logo.
+    var topShare: CGFloat = 0.06
+    /// Share of the frame's height the logo is tall at most.
     var sideShare: CGFloat = 0.5
+    /// How much of the frame's bottom the words over it take, kept clear.
+    var bottomClear: CGFloat = 0
+
+    /// Under this the logo would be a smudge, so the backdrop shows alone.
+    private static let smallest: CGFloat = 40
+    private static let gap: CGFloat = 8
 
     var body: some View {
         GeometryReader { proxy in
-            let side = min(proxy.size.height * sideShare, proxy.size.width * 0.4)
+            let top = proxy.size.height * topShare
+            let room = proxy.size.height - top - bottomClear - Self.gap
+            let side = min(proxy.size.height * sideShare, proxy.size.width * 0.4, room)
             ZStack(alignment: .top) {
                 SearchBackdrop(colors: logo.backdrop)
                 SearchFloor()
-                CastLogo(logo: logo, side: side)
-                    .padding(.top, proxy.size.height * topShare)
+                if side >= Self.smallest {
+                    CastLogo(logo: logo, side: side)
+                        .padding(.top, top + (room - side) / 2)
+                }
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
