@@ -462,6 +462,22 @@ test("every interest the tagger gave an Event matches, two at most; an untagged 
                     ['Council meeting', 'tomorrow', null, 0]]);
 });
 
+test("one interest can't flood the feed: each further Event on the same interest counts x 0.7", async () => {
+  await reset();
+  // Six games from six schools at the same hour, and two other things a little later.
+  for (let n = 1; n <= 6; n++)
+    await add(`Game ${n}`, '2026-10-09', { start_time: '6 PM', category: 'sports_leagues', source_name: `School ${n}` });
+  await add('Book club', '2026-10-09', { start_time: '7 PM', category: 'books', source_name: 'Library' });
+  await add('Choir concert', '2026-10-09', { start_time: '7 PM', category: 'live_music', source_name: 'Arts center' });
+  await db.exec(`set test.admin = 'on'`);
+  const rows = await feed('2026-10-08 12:00');
+  assert.deepEqual(rows.map((r) => r.title.startsWith('Game') ? 'game' : r.title),
+                   ['game', 'Book club', 'Choir concert', 'game', 'game', 'game', 'game', 'game'],
+                   'by host alone the six games would lead; a second game is worth less than the book club');
+  assert.deepEqual(rows.filter((r) => r.title.startsWith('Game')).map((r) => [r.score.spacing, Number(r.score.topicSpacing.toFixed(4))]),
+                   [[1, 1], [1, 0.7], [1, 0.49], [1, 0.343], [1, 0.2401], [1, 0.1681]]);
+});
+
 // Friends shape the feed (ticket 28). The helper names friends only on Events not over by the
 // clock, so these stories date their Events from today rather than the fixed week above.
 const day = (n) => new Date(Date.now() + n * 86400000).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
@@ -573,9 +589,9 @@ test('never more than 3 of one kind in a row while another kind is left', async 
   // drives the placing step the feed uses directly.
   const ids = [1, 2, 3, 4, 5].map((n) => `00000000-0000-0000-0000-00000000010${n}`);
   const { rows } = await db.query(
-    `select id, spot from private.town_feed_place($1::uuid[], $2::text[], $3::text[], $4::float8[],
-       $5::boolean[], 3, 0.5, 4) order by spot`,
-    [ids, ['event', 'event', 'event', 'event', 'post'], ['a', 'b', 'c', 'd', 'e'],
+    `select id, spot from private.town_feed_place($1::uuid[], $2::text[], $3::text[], $4::text[], $5::float8[],
+       $6::boolean[], 3, 0.5, 1, 4) order by spot`,
+    [ids, ['event', 'event', 'event', 'event', 'post'], ['a', 'b', 'c', 'd', 'e'], [null, null, null, null, null],
      [5, 4, 3, 2, 1], [false, false, false, false, false]]);
   assert.deepEqual(rows.map((r) => r.id), [ids[0], ids[1], ids[2], ids[4], ids[3]]);
 });
@@ -606,7 +622,7 @@ test('the score breakdown is filled for the admin and null for everyone else', a
   const { score } = (await feed('2026-10-08 12:00'))[0];
   assert.deepEqual(score, {
     interest: 3, friend: 0, follow: 0, popular: 0, viewers: 0, size: 0, sizeStep: 1, daysAway: 1,
-    soon: 0.9057, acted: 1, spacing: 1, newSpot: false, total: 3.6229, spot: 1, of: 1,
+    soon: 0.9057, acted: 1, spacing: 1, topicSpacing: 1, newSpot: false, total: 3.6229, spot: 1, of: 1,
   });
 });
 

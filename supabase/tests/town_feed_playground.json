@@ -182,9 +182,9 @@
     "choir",
     "trivia",
     "crawfish",
-    "blendmusic",
-    "karaoke",
-    "ride"
+    "ride",
+    "dogpark",
+    "fallfest"
    ],
    "why": [
     "Big in town",
@@ -192,9 +192,9 @@
     "Big in town",
     "Happening today",
     "Happening tomorrow",
-    "Happening tomorrow",
-    "Happening tomorrow",
-    "Coming up soon"
+    "Coming up soon",
+    "Coming up soon",
+    "Big in town"
    ]
   },
   {
@@ -214,9 +214,9 @@
     "karaoke",
     "emptybowls",
     "gym",
-    "choir",
     "fallfest",
-    "trivia"
+    "trivia",
+    "crawfish"
    ],
    "why": [
     "Matches Families & kids",
@@ -224,9 +224,9 @@
     "Matches Live music",
     "New in town",
     "Matches Families & kids",
-    "Matches Live music",
     "Matches Festivals & fairs",
-    "Happening today"
+    "Happening today",
+    "Happening tomorrow"
    ]
   },
   {
@@ -247,8 +247,8 @@
     "emptybowls",
     "choir",
     "crawfish",
-    "blendmusic",
-    "karaoke"
+    "ride",
+    "dogpark"
    ],
    "why": [
     "Matches Games & trivia",
@@ -257,8 +257,8 @@
     "Big in town",
     "Big in town",
     "Matches Restaurants & dining",
-    "Happening tomorrow",
-    "Happening tomorrow"
+    "Coming up soon",
+    "Coming up soon"
    ]
   },
   {
@@ -278,9 +278,9 @@
     "familyday",
     "choir",
     "trivia",
-    "foodshelf",
     "crawfish",
-    "blendmusic"
+    "dogpark",
+    "fallfest"
    ],
    "why": [
     "Matches Volunteering & service",
@@ -288,9 +288,9 @@
     "Big in town",
     "Big in town",
     "Happening today",
-    "Matches Volunteering & service",
     "Happening tomorrow",
-    "Happening tomorrow"
+    "Coming up soon",
+    "Big in town"
    ]
   }
  ]
