@@ -5866,20 +5866,20 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-02: Live website, 
 ```yaml
 id: millstream-communications
 status: active
-tier: watched
-category: "park"
+tier: listed
+category: "electronics_store"
 place_type: "Business"
 address: "710 County Road 75"
 phone: "+13203634562"
 aka: ["Verizon Wireless Zone"]
 added_by: agent:town-verify
 sources:
-  - url: https://www.dgcoursereview.com/events/week/2026/42/
+  - url: TODO
     kind: website
-    method: fetch
+    method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). Listed again 2026-10-17 (Jesse): its one page was dgcoursereview.com's weekly disc golf calendar for the whole country, which Overture gave this company by mistake (category "park"), so nothing is read for it until its own site is known. It wrote no events.
 
 ## Minnesota Association of Farm Mutual Insurance Companies
 ```yaml
