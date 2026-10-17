@@ -1,7 +1,8 @@
 #!/bin/bash
 #
-# Installs the pre-commit hook into THIS checkout. Git hooks are per-clone and
-# are not committed, so every worktree needs this run once.
+# Installs the pre-commit hook into THIS checkout, and the pre-push hook into the repo's
+# common git dir, which every worktree shares (so one run covers every checkout and every
+# chat). Git hooks are not committed, so the pre-commit hook needs this run once per worktree.
 #
 # Which directory git actually reads for hooks depends on core.hooksPath:
 #
@@ -63,3 +64,51 @@ HOOK
 
 chmod +x "$target"
 echo "installed $target"
+
+# The pre-push hook: every push to main first runs the checks GitHub's quick jobs run
+# (scripts/ci_checks.sh), on the exact commit being pushed. It lives in the common dir, shared
+# by every worktree; this machine's global hook (core.hooksPath) chains to it there.
+push_target="$(git rev-parse --path-format=absolute --git-common-dir)/hooks/pre-push"
+if [ -e "$push_target" ] && ! grep -q '# bp-ci-managed-hook' "$push_target" 2>/dev/null; then
+    echo "refusing to overwrite an existing pre-push hook at $push_target" >&2
+    exit 1
+fi
+mkdir -p "$(dirname "$push_target")"
+cat > "$push_target" <<'HOOK'
+#!/bin/bash
+# bp-ci-managed-hook
+# A push to main runs the checks GitHub's quick jobs run (scripts/ci_checks.sh) on the commit
+# being pushed, in a scratch copy, and stops the push when one fails (BP app retro, 2026-10-17).
+# Commits from before the script existed pass through. Emergency only: git push --no-verify.
+set -uo pipefail
+zero=0000000000000000000000000000000000000000
+cache="${HOME}/Library/Caches/bp-ci"
+status=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+    [ "$remote_ref" = "refs/heads/main" ] || continue
+    [ "$local_sha" = "$zero" ] && continue
+    git cat-file -e "$local_sha:scripts/ci_checks.sh" 2>/dev/null || continue
+    tree=$(mktemp -d /tmp/bp-push-check.XXXXXX)
+    git archive "$local_sha" | tar -x -C "$tree"
+    # One node_modules for every push, kept until PGlite's pinned version changes.
+    pkg=$(git show "$local_sha:supabase/tests/package.json" | shasum | cut -c1-12)
+    if [ ! -d "$cache/$pkg/node_modules" ]; then
+        mkdir -p "$cache/$pkg" && cp "$tree/supabase/tests/package.json" "$cache/$pkg/"
+        (cd "$cache/$pkg" && npm install --no-audit --no-fund --silent >/dev/null 2>&1) || rm -rf "$cache/$pkg"
+    fi
+    echo "pre-push: running GitHub's quick checks on ${local_sha:0:7} before it goes to main (about 30 s)" >&2
+    if BP_CI_NODE_MODULES="$cache/$pkg/node_modules" bash "$tree/scripts/ci_checks.sh" > "$tree.log" 2>&1; then
+        echo "pre-push: checks passed" >&2
+        rm -f "$tree.log"
+    else
+        echo "pre-push: a check failed, so ${local_sha:0:7} was not pushed. The end of the log:" >&2
+        tail -25 "$tree.log" >&2
+        echo "Full log: $tree.log. Run it yourself: bash scripts/ci_checks.sh" >&2
+        status=1
+    fi
+    rm -rf "$tree"
+done
+exit $status
+HOOK
+chmod +x "$push_target"
+echo "installed $push_target"
