@@ -33,13 +33,9 @@ struct FeedEventDetailDestination: View {
     @State private var saveTappedAt = 0
     /// The bookmark tapped with no account yet opens sign in (Jesse, 2026-10-12).
     @State private var signInShown = false
-    /// The venue's photo, once `FeedCardVenuePhoto` has looked it up.
-    @State private var venuePhoto: FeedCardImageSource?
-    /// True until that lookup answers. Starts false when the answer is already known.
-    @State private var venuePending: Bool
     @State private var photoPage: Int? = 0
     /// Photos whose bitmaps are on screen. Until then a page shows the skeleton,
-    /// and a Google photo's credit waits for its photo.
+    /// and a photo's credit waits for its photo.
     @State private var shownPhotos: Set<URL> = []
     /// Photos that could not be loaded. They leave the carousel, so a failure never
     /// holds a skeleton on screen.
@@ -56,15 +52,6 @@ struct FeedEventDetailDestination: View {
     init(item: FeedCardItem, inSheet: Bool = false) {
         self.item = item
         self.inSheet = inSheet
-        // Known already (nothing to look up, or looked up before, as on a second push):
-        // the first frame draws it, so a cached venue photo never flashes a skeleton
-        // (docs/rules/design.md, "Don't flash").
-        var known: FeedCardImageSource?? = .some(nil)
-        if let query = Self.venueQuery(for: item) {
-            known = FeedCardVenuePhoto.known(name: query.name, hint: query.hint)
-        }
-        _venuePhoto = State(initialValue: known.flatMap { $0 })
-        _venuePending = State(initialValue: known == nil)
     }
 
     /// Sizes off the Reference, in points. Measured 2026-09-26 on the original PNG.
@@ -152,8 +139,6 @@ struct FeedEventDetailDestination: View {
         // the swipe back off; `SwipeBack` (RootView) turns it back on.
         .toolbar(.hidden, for: .navigationBar)
         .animation(Motion.smooth, value: photos.count)
-        .animation(Motion.smooth, value: venuePending)
-        .task { await resolveVenuePhoto() }
         .signInSheet(isPresented: $signInShown)
         // A failed Join or Save shakes and buzzes only while its page is open: the buzz
         // used to land on Town after a pop. Leaving never cancels the write itself.
@@ -164,10 +149,29 @@ struct FeedEventDetailDestination: View {
     // MARK: Photos
 
     private var photos: [FeedCardImageSource] {
-        Self.photoList(event: item.image, venue: venuePhoto.map { [$0] } ?? [], failed: failedPhotos)
+        Self.photoList(event: item.image, venue: venue, failed: failedPhotos)
     }
 
-    private var hasHero: Bool { !photos.isEmpty || venuePending }
+    /// The place's own photo after the event's: saved by Block Party, so nothing is looked up.
+    private var venue: [FeedCardImageSource] {
+        #if DEBUG
+        // UI tests only: a second bundled photo, so the carousel is there to swipe over
+        // with no network (`EventCardPhotoTapTests`).
+        if ProcessInfo.processInfo.arguments.contains("-event-page-two-photos"),
+           let url = Bundle.main.url(forResource: "centennial-park", withExtension: "jpg") {
+            return [.eventPhoto(url)]
+        }
+        #endif
+        return item.place.map { [$0] } ?? []
+    }
+
+    /// A place we have no photo of fills the hero with its logo on its backdrop, as its
+    /// card does (Jesse, 2026-10-16).
+    private var heroLogo: SearchLogo? {
+        photos.isEmpty ? (item.image.logo ?? item.place?.logo) : nil
+    }
+
+    private var hasHero: Bool { !photos.isEmpty || heroLogo != nil }
 
     /// The visible hero is exactly 303/393 of the width; the photos draw on
     /// `heroUnderlap` further, under the sheet. Pulling the page down past its top
@@ -212,10 +216,7 @@ struct FeedEventDetailDestination: View {
     @ViewBuilder
     private var heroPhotos: some View {
         if photos.isEmpty {
-            // Only while the venue lookup is out. If it finds nothing, the hero goes.
-            SkeletonBlock(cornerRadius: 0)
-                .shimmering()
-                .accessibilityLabel("Loading photo")
+            if let logo = heroLogo { FeedCardPlaceLogo(logo: logo) }
         } else {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 0) {
@@ -269,8 +270,8 @@ struct FeedEventDetailDestination: View {
         shownPhotos.contains(url) || FeedCardImageLoader.shared.largest(for: url) != nil
     }
 
-    /// Google's terms: the credit shows wherever its photo does, and only once the
-    /// photo itself is on screen. It names the photo the counter counts, from outside
+    /// The credit shows wherever its photo does (a site, or a free photo's author and
+    /// licence), and only once the photo itself is on screen. It names the photo the counter counts, from outside
     /// the carousel like the counter, so the pull-down stretch leaves it in place.
     /// Bottom left, because the counter owns bottom right; its chip edges line up with
     /// the counter's (`PhotoCredit` pads itself `edgeInset`).
@@ -649,26 +650,6 @@ struct FeedEventDetailDestination: View {
         photoPage = min(photoPage ?? 0, max(photos.count - 1, 0))
     }
 
-    // MARK: Venue lookup
-
-    private func resolveVenuePhoto() async {
-        #if DEBUG
-        // UI tests only: a second bundled photo in place of Google's, so the carousel
-        // is there to swipe over with no network (`EventCardPhotoTapTests`).
-        if ProcessInfo.processInfo.arguments.contains("-event-page-two-photos"),
-           let url = Bundle.main.url(forResource: "centennial-park", withExtension: "jpg") {
-            venuePhoto = .eventPhoto(url)
-            venuePending = false
-            return
-        }
-        #endif
-        guard venuePending, let query = Self.venueQuery(for: item) else { return }
-        let resolved = await FeedCardVenuePhoto.resolve(name: query.name, hint: query.hint)
-        guard !Task.isCancelled else { return }
-        venuePhoto = resolved
-        venuePending = false
-    }
-
     // MARK: Pure rules (EventDetailPageTests)
 
     /// The hero's photos: the event's own first, then the venue's, the same picture
@@ -712,14 +693,5 @@ struct FeedEventDetailDestination: View {
               !trimmed.isEmpty
         else { return nil }
         return trimmed
-    }
-
-    /// The venue to ask Google about: a card's pending lookup, or the where line with
-    /// the title as a hint. Whether Google can be asked at all (a `KnownVenues` anchor)
-    /// is `GooglePlacesService`'s rule; `FeedCardVenuePhoto.known` answers "no" at once
-    /// when it can't, so the page never waits on a lookup that can't happen.
-    private static func venueQuery(for item: FeedCardItem) -> (name: String, hint: String?)? {
-        if case .venueLookup(let name, let hint) = item.image { return (name, hint) }
-        return placeText(item).map { ($0, item.title) }
     }
 }

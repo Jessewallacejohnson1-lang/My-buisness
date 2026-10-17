@@ -58,9 +58,7 @@ struct TodayFeedPreview: View {
                 likes: 2
             ),
             // No imageURL, on purpose: every real club_events row has image_url NULL,
-            // so this is the production path — a lazy venue lookup against a real
-            // St. Joe venue. Lets the resolved Places photo + its ToS attribution be
-            // verified headlessly, without auth (see FeedCardVenuePhoto).
+            // so a card like this shows its place's saved picture, or ink.
             posting(
                 "preview-recurring-nearest",
                 title: "Friday Trail Walk",

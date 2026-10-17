@@ -95,6 +95,43 @@ nonisolated struct UpcomingEvent: Identifiable, Hashable {
     /// Called off: its source's schedule dropped it (`club_events.cancelled_at`, BP app
     /// docs/plans/watch-every-place, ticket 12). Rows from before the reads said so are on.
     var cancelled: Bool = false
+    /// The picture of where it happens, from the photos Block Party keeps itself
+    /// (`public.place_picture`): nil for an event at no known place, and on rows read
+    /// before the feeds sent it.
+    var placePicture: PlacePicture? = nil
+}
+
+/// Where an event happens, as a picture (`public.place_picture`, BP app
+/// docs/plans/place-photos): the place's own photo, or its logo when we have no photo of
+/// it. Saved once in Block Party's Storage, so showing it costs no lookup (Jesse,
+/// 2026-10-16, MEMORY.md).
+nonisolated struct PlacePicture: Decodable, Hashable, Sendable {
+    enum Kind: String, Decodable, Sendable { case photo, logo }
+
+    let url: URL
+    let kind: Kind
+    /// A freely licensed photo's author and licence ("Tomruen · CC BY-SA 4.0"); nil for a
+    /// photo from the place's own website, which is credited to that site.
+    var credit: String? = nil
+    /// The page the photo came from.
+    var site: URL? = nil
+    /// A logo's backdrop hue, as Search's (`SearchLogo`); nil for a black, white or grey one.
+    var hue: Double? = nil
+
+    /// What the photo's chip says: its author and licence, else the site's name without
+    /// "www.". nil for a logo.
+    var creditLine: String? {
+        guard kind == .photo else { return nil }
+        if let credit, !credit.isEmpty { return credit }
+        guard let host = site?.host() else { return nil }
+        return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+    }
+
+    /// One that doesn't decode is no picture: a bad row never costs the feed.
+    struct Lenient: Decodable, Hashable {
+        let value: PlacePicture?
+        init(from decoder: Decoder) { value = try? PlacePicture(from: decoder) }
+    }
 }
 
 /// One row of `get_town_feed` (`supabase/migrations/*_town_feed*.sql`): an event, how its

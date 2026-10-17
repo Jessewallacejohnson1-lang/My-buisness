@@ -43,6 +43,9 @@ struct FeedCardItem: Identifiable, Hashable {
     /// Called off (`UpcomingEvent.cancelled`): the card and its page show the Canceled tag
     /// over a grey photo, and the You tab leaves it out (Jesse, 2026-10-15).
     var cancelled = false
+    /// The picture of where it happens (`PlacePicture`): the card's picture when the event
+    /// has no photo of its own, and the event page's second one when it has.
+    var place: FeedCardImageSource? = nil
 
     var shareTime: String? {
         if let startTime { return startTime }
@@ -214,19 +217,22 @@ struct FeedCardActionState: Equatable {
     }
 }
 
-/// What sits behind a feed card's title.
-///
-/// `venueLookup` is an INTENT, not an image: no first-party photo exists, but the
-/// posting names a place we can ask Google Places about. It stays unresolved here
-/// because `FeedCardItem`'s init is synchronous and a Places lookup is async AND
-/// billed — resolving during the feed load would spend a call on every card,
-/// including the ones nobody scrolls to. The card resolves it lazily when it
-/// appears (`FeedEventCard.resolveVenuePhoto`), landing on `.placesPhoto`; until
-/// then — and forever if the venue can't be confidently identified — the card
-/// renders the `fallback` treatment.
+/// What sits behind a feed card's title: the event's own photo, else the photo or logo of
+/// the place it happens at (`PlacePicture`, saved once by Block Party, so a card costs no
+/// lookup), else flat ink.
 enum FeedCardImageSource: Hashable {
     case eventPhoto(URL)
-    case placesPhoto(URL, attribution: String)
-    case venueLookup(name: String, hint: String?)
+    /// A place's photo and the chip that credits it (a site, or an author and licence).
+    case placePhoto(URL, credit: String?)
+    /// A place we have no photo of: its logo on its Search backdrop (Jesse, 2026-10-16),
+    /// drawn as `logo`.
+    case placeLogo(PlacePicture)
     case fallback
+
+    nonisolated init(_ picture: PlacePicture) {
+        switch picture.kind {
+        case .photo: self = .placePhoto(picture.url, credit: picture.creditLine)
+        case .logo: self = .placeLogo(picture)
+        }
+    }
 }

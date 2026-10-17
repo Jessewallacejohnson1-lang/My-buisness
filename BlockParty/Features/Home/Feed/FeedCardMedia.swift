@@ -231,42 +231,60 @@ extension View {
     /// Soft ink halo for white type sitting directly on a photograph. The scrim does
     /// most of the work; this catches what a scrim can't — a bright patch landing
     /// exactly under a letterform.
-    func feedCardPhotoTypeShadow() -> some View {
-        shadow(color: .black.opacity(0.35), radius: 6, y: 1)
+    func feedCardPhotoTypeShadow(_ strength: Double = 1) -> some View {
+        shadow(color: .black.opacity(0.35 * strength), radius: 6, y: 1)
     }
 }
 
 extension FeedCardImageSource {
-    /// The photograph's address; nil for the two cases that are not a photo yet.
+    /// The photograph's address; nil for a logo and for ink.
     var url: URL? {
         switch self {
-        case .eventPhoto(let url), .placesPhoto(let url, _): url
-        case .venueLookup, .fallback: nil
+        case .eventPhoto(let url), .placePhoto(let url, _): url
+        case .placeLogo, .fallback: nil
         }
     }
 
-    /// Whether a photograph is on screen. An unresolved `venueLookup` is not one yet —
-    /// the card shows the fallback treatment until (and unless) it resolves.
-    var isPhoto: Bool {
-        switch self {
-        case .eventPhoto, .placesPhoto: true
-        case .venueLookup, .fallback: false
-        }
-    }
+    /// Whether a photograph is on screen.
+    var isPhoto: Bool { url != nil }
 
-    /// Google ToS: a Places photo's author attributions must be displayed wherever the
-    /// image appears. nil when there are none, so no empty caption capsule renders.
+    /// The chip a place's photo carries wherever it shows: the site it came from, or a
+    /// free photo's author and licence (MEMORY.md, 2026-10-16). nil when there is none, so
+    /// no empty capsule renders.
     var attribution: String? {
-        guard case .placesPhoto(_, let attribution) = self, !attribution.isEmpty
-        else { return nil }
-        return attribution
+        guard case .placePhoto(_, let credit?) = self, !credit.isEmpty else { return nil }
+        return credit
+    }
+
+    /// A place's logo as Search draws it, on its backdrop with ink words over it.
+    var logo: SearchLogo? {
+        guard case .placeLogo(let picture) = self else { return nil }
+        let row = SearchLogo.Row(url: picture.url, hue: picture.hue ?? 0, chroma: picture.hue != nil)
+        return SearchLogo(placeId: picture.url.absoluteString, row: row)
     }
 
     /// Whether the card renders the ink fallback treatment (flat ink, big title).
-    var isFallback: Bool {
-        switch self {
-        case .venueLookup, .fallback: true
-        case .eventPhoto, .placesPhoto: false
+    var isFallback: Bool { self == .fallback }
+}
+
+/// A place we have no photo of, where its photo would be: its logo on its Search backdrop,
+/// the logo's own shadow cast on it, centred in the top part of the frame so the words
+/// below sit clear of it (Jesse, 2026-10-16: B). The size is picked, not measured: half the
+/// frame's height, at most 40% of its width.
+struct FeedCardPlaceLogo: View {
+    let logo: SearchLogo
+
+    var body: some View {
+        GeometryReader { proxy in
+            let side = min(proxy.size.height * 0.5, proxy.size.width * 0.4)
+            ZStack(alignment: .top) {
+                SearchBackdrop(colors: logo.backdrop)
+                SearchFloor()
+                CastLogo(logo: logo, side: side)
+                    .padding(.top, proxy.size.height * 0.08)
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
         }
+        .accessibilityHidden(true)
     }
 }

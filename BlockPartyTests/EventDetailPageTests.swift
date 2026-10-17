@@ -27,24 +27,97 @@ final class EventDetailPageTests: XCTestCase {
         XCTAssertEqual(item.image, .eventPhoto(Self.photoURL))
         XCTAssertNil(item.description, "Your Day events carry no description, so About hides")
 
-        // No photo of its own: the venue is looked up, the title only a hint.
+        // No photo of its own and no saved place picture: ink. Nothing is looked up.
         let noPhoto = FeedCardItem(event(imageUrl: nil))
-        XCTAssertEqual(noPhoto.image, .venueLookup(name: "Millstream Park", hint: "Neighborhood walk"))
+        XCTAssertEqual(noPhoto.image, .fallback)
+        XCTAssertNil(noPhoto.place)
 
         // `.other` is the fallback for a null column, not a category: nothing fills in.
         XCTAssertNil(FeedCardItem(event(imageUrl: nil, category: .other)).category)
     }
 
+    /// Where it happens, as the feeds send it (`public.place_picture`): its saved photo
+    /// with the site or the author that credits it, else its logo on its backdrop.
+    func testThePlacesPictureIsTheCardsWhenTheEventHasNone() {
+        let site = URL(string: "https://www.stjosephmn.gov/")!
+        let photo = PlacePicture(url: Self.url("hall"), kind: .photo, site: site)
+        var withPhoto = event(imageUrl: nil)
+        withPhoto.placePicture = photo
+        let card = FeedCardItem(withPhoto)
+        XCTAssertEqual(card.image, .placePhoto(Self.url("hall"), credit: "stjosephmn.gov"), "its site, without www.")
+        XCTAssertEqual(card.image.attribution, "stjosephmn.gov")
+
+        let commons = PlacePicture(url: Self.url("abbey"), kind: .photo, credit: "Bobak Ha'Eri · CC BY 3.0", site: site)
+        XCTAssertEqual(commons.creditLine, "Bobak Ha'Eri · CC BY 3.0", "a free photo names its author, not the site")
+
+        // Its own photo leads; the place's photo is the page's second.
+        var both = event(imageUrl: Self.photoURL.absoluteString)
+        both.placePicture = photo
+        let bothCard = FeedCardItem(both)
+        XCTAssertEqual(bothCard.image, .eventPhoto(Self.photoURL))
+        XCTAssertEqual(bothCard.place, card.image)
+
+        var withLogo = event(imageUrl: nil)
+        withLogo.placePicture = PlacePicture(url: Self.url("sals"), kind: .logo, hue: 7)
+        let logo = FeedCardItem(withLogo).image.logo
+        XCTAssertEqual(logo?.url, Self.url("sals"))
+        XCTAssertEqual(logo?.hue, 7)
+        XCTAssertEqual(logo?.chroma, true)
+        XCTAssertNil(FeedCardItem(withLogo).image.url, "a logo is not a photo")
+        XCTAssertNil(PlacePicture(url: Self.url("x"), kind: .logo).creditLine, "a logo has no credit")
+        withLogo.placePicture = PlacePicture(url: Self.url("grey"), kind: .logo)
+        XCTAssertEqual(FeedCardItem(withLogo).image.logo?.chroma, false, "no hue: a grey backdrop")
+    }
+
+    /// A picture that doesn't decode costs only the picture, never the feed, and a feed
+    /// kept from before the place picture still reads.
+    func testTheFeedsSendThePlacesPictureAndABadOneCostsNothing() throws {
+        let feed = """
+        [{"id":"e1","title":"City Council Meeting","event_date":"2026-10-19","start_time":"6 PM",
+          "location":null,"image_url":null,"category":null,"club_name":null,"source_name":"City of St. Joseph",
+          "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,
+          "rsvpd":false,"recurrence":null,"leaves_at":"2026-10-20T01:00:00+00:00",
+          "place_picture":{"url":"https://example.com/joetown.webp","kind":"logo","hue":24}},
+         {"id":"e2","title":"Bake sale","event_date":"2026-10-21","start_time":null,
+          "location":null,"image_url":null,"category":null,"club_name":null,"source_name":"City of St. Joseph",
+          "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,
+          "rsvpd":false,"recurrence":null,"leaves_at":"2026-10-22T05:00:00+00:00",
+          "place_picture":{"kind":"poster"}},
+         {"id":"e3","title":"Fall Festival","event_date":"2026-10-21","start_time":null,
+          "location":null,"image_url":null,"category":null,"club_name":null,"source_name":"City of St. Joseph",
+          "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,
+          "rsvpd":false,"recurrence":null,"leaves_at":"2026-10-22T05:00:00+00:00"}]
+        """
+        let rows = try CommunityAPI.townFeedRows(from: Data(feed.utf8))
+        XCTAssertEqual(rows.count, 3)
+        XCTAssertEqual(rows[0].event.placePicture?.kind, .logo)
+        XCTAssertEqual(rows[0].event.placePicture?.hue, 24)
+        XCTAssertNil(rows[1].event.placePicture, "an unreadable picture is none")
+        XCTAssertNil(rows[2].event.placePicture, "a kept feed from before has none")
+
+        let going = """
+        [{"id":"e1","title":"Plant Bingo","event_date":"2026-10-24","start_time":"4 PM",
+          "location":"Milk & Honey Ciders","image_url":null,"category":null,"club_name":null,
+          "source_name":"Milk & Honey Ciders","end_at":null,"all_day":false,
+          "created_at":"2026-10-06T16:08:20+00:00","going_count":1,
+          "place_picture":{"url":"https://example.com/orchard.webp","kind":"photo","credit":null,
+                           "site":"https://www.milkandhoneyciders.com/events"}}]
+        """
+        let event = try XCTUnwrap(CommunityAPI.myGoingRows(from: Data(going.utf8)).first)
+        XCTAssertEqual(FeedCardItem(event).image.attribution, "milkandhoneyciders.com")
+    }
+
     func testPhotoListPutsEventPhotoFirstDedupesAndCapsAtThree() {
         let event = FeedCardImageSource.eventPhoto(Self.photoURL)
-        let venue = FeedCardImageSource.placesPhoto(Self.url("park"), attribution: "Ada Lovelace")
+        let venue = FeedCardImageSource.placePhoto(Self.url("park"), credit: "Ada Lovelace")
         let page = FeedEventDetailDestination.self
 
         XCTAssertEqual(page.photoList(event: event, venue: [venue]), [event, venue],
                        "the event's own photo leads, the venue's follows")
-        XCTAssertEqual(page.photoList(event: .venueLookup(name: "Millstream Park", hint: nil), venue: [venue]),
-                       [venue], "an unresolved lookup is not a photo")
-        XCTAssertEqual(page.photoList(event: event, venue: [.placesPhoto(Self.photoURL, attribution: "Ada")]),
+        let logo = FeedCardItem({ var e = self.event(imageUrl: nil)
+            e.placePicture = PlacePicture(url: Self.url("sals"), kind: .logo); return e }()).image
+        XCTAssertEqual(page.photoList(event: logo, venue: [venue]), [venue], "a logo is not a photo")
+        XCTAssertEqual(page.photoList(event: event, venue: [.placePhoto(Self.photoURL, credit: "Ada")]),
                        [event], "the same picture twice is shown once")
 
         let more = (1...3).map { FeedCardImageSource.eventPhoto(Self.url("\($0)")) }
@@ -55,7 +128,7 @@ final class EventDetailPageTests: XCTestCase {
 
     func testAPhotoThatFailsToLoadLeavesTheListAndTheCounter() {
         let event = FeedCardImageSource.eventPhoto(Self.photoURL)
-        let venue = FeedCardImageSource.placesPhoto(Self.url("park"), attribution: "Ada Lovelace")
+        let venue = FeedCardImageSource.placePhoto(Self.url("park"), credit: "Ada Lovelace")
         let page = FeedEventDetailDestination.self
 
         let list = page.photoList(event: event, venue: [venue], failed: [Self.url("park")])
@@ -75,14 +148,6 @@ final class EventDetailPageTests: XCTestCase {
 
         XCTAssertNil(GooglePlacesService.mediaRequest(for: Self.photoURL).value(forHTTPHeaderField: "X-Ios-Bundle-Identifier"),
                      "only Google gets the header")
-    }
-
-    /// A place Google can't be asked about (no `KnownVenues` anchor) is a known "no
-    /// photo" at once, so the page starts without a hero instead of a skeleton.
-    func testAVenueWithNoAnchorIsKnownToHaveNoPhoto() {
-        let known = FeedCardVenuePhoto.known(name: "Somebody's back yard", hint: "Garage sale")
-        XCTAssertTrue(known != nil, "known without a lookup")
-        XCTAssertNil(known.flatMap { $0 }, "and known to have no photo")
     }
 
     /// The page's hero (420.33 pt on iPhone Air) asks for the same decode as its card

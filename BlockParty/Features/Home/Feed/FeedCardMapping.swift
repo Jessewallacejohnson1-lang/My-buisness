@@ -22,11 +22,7 @@ extension FeedCardItem {
             title: posting.title,
             dateChip: Self.dateChip(from: posting.eventDate),
             metaLine: metadata,
-            image: Self.imageSource(
-                imageUrl: posting.imageUrl,
-                location: location,
-                title: posting.title
-            ),
+            image: Self.imageSource(imageUrl: posting.imageUrl, title: posting.title, place: nil),
             recurrence: recurrence,
             hostName: posting.posterName,
             hostAvatar: Self.nonempty(posting.posterAvatar).flatMap(URL.init(string:)),
@@ -51,17 +47,14 @@ extension FeedCardItem {
     init(_ event: UpcomingEvent, recurrence: String? = nil) {
         let time = Self.nonempty(event.startTime)
         let location = Self.nonempty(event.location)
+        let place = event.placePicture.map(FeedCardImageSource.init)
 
         self.init(
             id: event.id,
             title: event.title,
             dateChip: Self.dateChip(from: event.eventDate),
             metaLine: [time, location].compactMap { $0 }.joined(separator: " · "),
-            image: Self.imageSource(
-                imageUrl: event.imageUrl,
-                location: location,
-                title: event.title
-            ),
+            image: Self.imageSource(imageUrl: event.imageUrl, title: event.title, place: place),
             recurrence: recurrence,
             hostName: Self.nonempty(event.clubName) ?? Self.nonempty(event.sourceName) ?? "",
             goingCount: event.goingCount,
@@ -74,7 +67,8 @@ extension FeedCardItem {
             startTime: time,
             location: location,
             category: event.category == .other ? nil : event.category,
-            cancelled: event.cancelled
+            cancelled: event.cancelled,
+            place: place
         )
     }
 
@@ -107,40 +101,29 @@ extension FeedCardItem {
         return formatter.string(from: date).uppercased()
     }
 
-    /// The same three-tier cascade Activities uses (`ActivityImage.has(event:)`):
-    /// an organizer's own photo → a bundled, human-verified `KnownLocalPhoto` →
-    /// the *intent* to look the venue up live (resolving here would be an async,
-    /// billed Google call per posting on every feed load — see `FeedCardImageSource`).
+    /// An organizer's own photo, then a bundled, human-verified `KnownLocalPhoto` for its
+    /// title, then the place's saved photo or logo (`place`), then flat ink. Nothing here
+    /// asks Google: venue photos come from our own store (MEMORY.md, 2026-10-16).
     ///
-    /// The bundled tier matters: `bestScenicPhoto` is geometry-only and can surface a
-    /// poor Google match (a highway sign for the "Downtown St. Joseph" locality behind
-    /// Millstream Arts Festival). `KnownLocalPhoto` is exactly the set of human-vetted
-    /// overrides for that, and the feed used to skip it, so those cards went to Places
-    /// and could look bad. Bundled photos carry no Google attribution, so they ride
-    /// `.eventPhoto` like an organizer's photo.
-    ///
-    /// Which string is the venue: an event's title says what is happening, not where,
-    /// so the venue name is its `location` when it has one and the title is only a hint
-    /// for the KnownVenues lookup. A posting with neither is the genuinely-nothing case.
+    /// The bundled tier stays because it is exactly the set of human-vetted photos for
+    /// events by name (Millstream Arts Festival), and bundled photos carry no credit, so
+    /// they ride `.eventPhoto` like an organizer's photo.
     private static func imageSource(
         imageUrl: String?,
-        location: String?,
-        title: String
+        title: String,
+        place: FeedCardImageSource?
     ) -> FeedCardImageSource {
         if let raw = nonempty(imageUrl), let url = URL(string: raw) {
             return .eventPhoto(url)
         }
 
-        let title = nonempty(title)
-
-        if let title,
+        if let title = nonempty(title),
            let slug = KnownLocalPhoto.name(forTitle: title),
            let url = Bundle.main.url(forResource: slug, withExtension: "jpg") {
             return .eventPhoto(url)
         }
 
-        guard let venue = location ?? title else { return .fallback }
-        return .venueLookup(name: venue, hint: location != nil ? title : nil)
+        return place ?? .fallback
     }
 
 }

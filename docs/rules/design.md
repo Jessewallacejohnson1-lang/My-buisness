@@ -150,15 +150,22 @@ and `DECISIONS.md` win wherever they disagree.
   deleted on 2026-09-21 because it had begun covering content that was already on screen: a
   slow network dropped a dark screen over a finished one. **A tab still fetching shows its
   own skeleton, for as long as it takes.** Do not reintroduce a readiness gate.
-- **Imagery comes from the Google Places Photo API at runtime — that is the default, not a
-  fallback.** `[prose]` Photography is the main colour-bearing venue content layer, and
-  hand-curating it does not scale. Resolve it live through **`FeedCardVenuePhoto`** (feed
-  cards, the event page) or `VenueInfoView` (the map), backed by
-  `GooglePlacesService.confidentPhoto(name:coordinate:)` or `confidentPhoto(forFreeText:hint:)`,
-  and load it through `FeedCardURLPhoto`, whose loader sends the bundle-id header the key
-  checks (a bare `AsyncImage` gets a 403).
-  Do **not** reach for a bundled image because a photo is missing — first check whether the
-  venue resolves.
+- **An event's picture is the photo Block Party keeps of its place, saved once, not a Google
+  lookup.** `[prose]` (Jesse, 2026-10-16; MEMORY.md: Google at runtime cost about $40,000 a
+  month at 10,000 users.) Each found event carries the registry entry it happens at
+  (`club_events.place_entry_id`, set by the morning writer); `public.place_picture` picks that
+  place's live photo from `public.place_photos`, else its logo, and the three card reads
+  (`get_town_feed`, `get_my_going`, `get_my_saves`) send it as `place_picture`. The app maps it
+  to `FeedCardImageSource.placePhoto` (with its credit chip: the site, or a free photo's author
+  and licence) or `.placeLogo` (the logo on its Search backdrop, ink words), after an
+  organizer's own photo and `KnownLocalPhoto`, and before ink. Photos come from the place's own
+  website or freely licensed sources, picked by a person, shown before the owner replies and
+  taken down on request; a refresh only proposes a swap (`status = 'proposed'`), Jesse's yes
+  makes it live. The pipeline is BP app `~/Documents/designs/artifacts/place-photos/`.
+- **The Google Places Photo API is still the map's** (`VenueInfoView`), through
+  `GooglePlacesService.confidentPhoto(name:coordinate:)`, loaded through `FeedCardURLPhoto`,
+  whose loader sends the bundle-id header the key checks (a bare `AsyncImage` gets a 403).
+  The rules below hold for that path until it moves to the saved photos too.
   - **Locked Rule A is the trust gate, not a formality.** `[prose]` A photo is shown only
     when Google's text-search match clears a **name-aligned, tiered radius** around the
     curated coordinate: **90 m** when the names merely align, **400 m** on an exact name,
@@ -182,8 +189,8 @@ and `DECISIONS.md` win wherever they disagree.
     `Resources/Images` plus a `KnownLocalPhoto` entry, sourced from city or owner-supplied
     material (never a Google photo), recording the source and any permission caveat in the
     code comment.
-- **Business logos are an OFFLINE pipeline, not runtime** `[prose]` — contrast the live photo
-  path above. Every logo lives in Storage, one folder per business:
+- **Business logos are an OFFLINE pipeline, not runtime** `[prose]`, like the saved place
+  photos above. Every logo lives in Storage, one folder per business:
   `places/<town>/<place_id>/logo-<hash>.webp` (Search's cut-out or 3D render, via
   `places.search_logo`) and `pin-<hash>.png` (the same logo on a white 256 px square, via
   `places.logo_url`, for the map's pins and the town rain); a pin with none falls back to its

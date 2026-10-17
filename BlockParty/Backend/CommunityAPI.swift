@@ -211,6 +211,7 @@ struct CommunityAPI {
             let cancelled: Bool?
             /// Optional, so a feed kept on disk before town-feed 28 still decodes.
             let friendsGoing: [Friend]?
+            let placePicture: PlacePicture.Lenient?
         }
         struct Friend: Decodable {
             let name: String
@@ -234,7 +235,8 @@ struct CommunityAPI {
                                       category: EventCategory.from(row.category),
                                       endAt: DateHelpers.timestamp(row.endAt),
                                       isAllDay: row.allDay, sourceName: row.sourceName,
-                                      cancelled: row.cancelled ?? false)
+                                      cancelled: row.cancelled ?? false,
+                                      placePicture: row.placePicture?.value)
             return TownFeedRow(event: event, recurrence: row.recurrence, leavesAt: leavesAt,
                                reason: row.reason, reasonName: row.reasonName, score: row.score?.value,
                                heartCount: row.heartCount ?? 0, hearted: row.hearted ?? false,
@@ -477,6 +479,7 @@ struct CommunityAPI {
             let goingCount: Int
             let going: Bool?
             let cancelled: Bool?
+            let placePicture: PlacePicture.Lenient?
         }
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -489,7 +492,8 @@ struct CommunityAPI {
                           category: EventCategory.from(row.category),
                           endAt: DateHelpers.timestamp(row.endAt),
                           isAllDay: row.allDay, sourceName: row.sourceName,
-                          cancelled: row.cancelled ?? false)
+                          cancelled: row.cancelled ?? false,
+                          placePicture: row.placePicture?.value)
         }
     }
 

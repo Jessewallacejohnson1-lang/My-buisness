@@ -414,39 +414,6 @@ final class GooglePlacesService {
         return request
     }
 
-    // MARK: Confident-match photo for free text (events, trails, clubs)
-
-    /// Like `confidentPhoto(name:coordinate:)`, but for a free-text venue name that
-    /// has no curated coordinate of its own (a community-submitted trail, event, or
-    /// club). Only attempts a match when `title`/`hint` resolves against KnownVenues
-    /// — Rule A needs an independent, human-verified coordinate to check Google's
-    /// text-search result against, and KnownVenues is the only source of one outside
-    /// the fixed MapSpots set. No KnownVenues match → nil, never a guess.
-    func confidentPhoto(forFreeText title: String, hint: String?) async -> ConfidentPhoto? {
-        // Location FIRST via the shared rule (`KnownVenues.anchor`): `title` IS the venue
-        // (a `location`), `hint` is the item's own name and only rescues a location the
-        // table doesn't know. The old code concatenated the two and matched the first
-        // keyword anywhere in the combined string, which let an event title hijack the
-        // anchor away from its location (Millstream Arts Festival → Millstream Park,
-        // 1,025 m off, card blanked). See `KnownVenues.anchor(location:named:)`.
-        guard let coord = Self.freeTextAnchor(title, hint: hint) else { return nil }
-        return await confidentPhoto(name: title, coordinate: coord)
-    }
-
-    /// What `confidentPhoto(forFreeText:hint:)` already knows, with no network call:
-    /// `.some(nil)` when there is nothing to check (no KnownVenues anchor) or a
-    /// finished lookup found no photo, `.some(photo)` when one found it, and nil when
-    /// only the lookup can tell. The event page reads it so a venue it has already
-    /// shown draws in its first frame instead of flashing a skeleton.
-    func knownConfidentPhoto(forFreeText title: String, hint: String?) -> ConfidentPhoto?? {
-        guard let coord = Self.freeTextAnchor(title, hint: hint) else { return .some(nil) }
-        return confidentPhotoCache[Self.photoKey(name: title, coordinate: coord)]
-    }
-
-    private static func freeTextAnchor(_ title: String, hint: String?) -> CLLocationCoordinate2D? {
-        KnownVenues.anchor(location: title, named: hint ?? title)
-    }
-
     /// Name + coordinate: a generic reused label ("Community Room") can resolve to
     /// different curated coordinates per caller, and each must run its own Rule A check
     /// rather than inherit the first caller's result.

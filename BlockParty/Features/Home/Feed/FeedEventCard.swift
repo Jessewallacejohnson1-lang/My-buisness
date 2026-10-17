@@ -55,8 +55,10 @@ struct FeedEventCard: View {
     /// sizes. The same trade `PostingCard`'s header already makes: a clipped line is
     /// worse than a taller card.
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @State private var resolvedVenuePhoto: ResolvedVenuePhoto?
-    @State private var venuePhotoDecoded = false
+    /// The photo whose bitmap is on screen: its credit waits for it.
+    @State private var shownPhoto: URL?
+    /// A photo that could not be loaded (taken down, or offline): the card turns to ink.
+    @State private var failedPhoto: URL?
     @State private var commentState: FeedCommentState
     @State private var commentsPresented = false
     @State private var menuPresented = false
@@ -153,7 +155,6 @@ struct FeedEventCard: View {
         // by the Event page, it turns back without a shake or a buzz.
         .onAppear { actions.cardOpened(item.id) }
         .onDisappear { actions.cardClosed(item.id) }
-        .task(id: item.image) { await resolveVenuePhoto() }
         .task { await runDebugAutoplay() }
         .task { await openMenuForDebug() }
     }
@@ -216,78 +217,23 @@ struct FeedEventCard: View {
 
     // MARK: - Image
 
-    /// A resolved venue photo, tagged with the lookup that produced it — so a card
-    /// whose item changed under it can tell "already resolved" from "someone else's
-    /// photo" without ever flashing the wrong venue.
-    private struct ResolvedVenuePhoto {
-        let lookup: FeedCardImageSource
-        let image: FeedCardImageSource
-    }
-
-    /// The source whose bitmap the hero LOADS. As soon as the venue resolves the
-    /// download starts here — even while the typography still shows the fallback (see
-    /// `displayImage`), so the photo decodes behind the flat-ink beat, not after it.
-    private var loadedSource: FeedCardImageSource {
-        guard case .venueLookup = item.image else { return item.image }
-        guard let resolved = resolvedVenuePhoto, resolved.lookup == item.image
-        else { return .fallback }
-        return resolved.image
-    }
-
-    /// What the card's TYPOGRAPHY and scrim reflect. A resolved venue photo only
-    /// counts once its bitmap has actually decoded (`venuePhotoDecoded`), so the card
-    /// never sits in the half-state the 0.25 s ease was meant to prevent: a scrim
-    /// gradient over an undownloaded flat-ink frame. Every non-`venueLookup` source
-    /// is already final and shows immediately.
+    /// What the card shows: its picture, or ink once that picture has failed to load.
     private var displayImage: FeedCardImageSource {
-        guard case .venueLookup = item.image else { return item.image }
-        guard venuePhotoDecoded, let resolved = resolvedVenuePhoto, resolved.lookup == item.image
-        else { return .fallback }
-        return resolved.image
+        if let url = item.image.url, url == failedPhoto { return .fallback }
+        return item.image
     }
 
-    /// The photographer credit for the photo currently on screen, in the array form
-    /// `PhotoCredit` takes. Empty unless a Places photo is actually displayed, so the
-    /// credit can never render over the ink fallback.
+    /// The credit for the photo on screen, in the array form `PhotoCredit` takes. Empty
+    /// until the photo itself has decoded, so a credit never sits on ink.
     private var creditNames: [String] {
-        guard let attribution = displayImage.attribution else { return [] }
-        return [attribution]
+        guard let url = displayImage.url, url == shownPhoto, let credit = displayImage.attribution
+        else { return [] }
+        return [credit]
     }
 
-    /// The one place the feed spends a billed Google call. It runs from `.task`, so a
-    /// card that never scrolls into view never costs anything, and `GooglePlacesService`
-    /// caches + coalesces, so cards sharing a venue share one round-trip. A venue that
-    /// can't be confidently identified simply stays on the fallback — no gray box, no
-    /// spinner, no retry loop.
-    private func resolveVenuePhoto() async {
-        guard case .venueLookup(let name, let hint) = item.image else { return }
-        // Same venue as the last appearance — displayImage is already showing it, so
-        // don't drop it and re-render the fallback for a frame on the way back in.
-        guard resolvedVenuePhoto?.lookup != item.image else { return }
-
-        // A genuinely new venue — its photo hasn't decoded yet, so the card holds the
-        // fallback until this lookup's bitmap is ready (see markVenuePhotoDecoded).
-        venuePhotoDecoded = false
-
-        let lookup = item.image
-        let resolved = await FeedCardVenuePhoto.resolve(name: name, hint: hint)
-        guard !Task.isCancelled, let resolved else { return }
-
-        // No animation here: this only starts the download — imageContent shows the same
-        // flat ink meanwhile. The single visible transition runs on decode, below.
-        resolvedVenuePhoto = ResolvedVenuePhoto(lookup: lookup, image: resolved)
-    }
-
-    /// The resolved photo's bitmap has decoded and is on screen: flip the card's
-    /// typography + scrim to photo-mode in one animation, joined to the cross-fade the
-    /// image itself runs (`FeedCardDownsampledPhoto`) — so there is no hard cut and no
-    /// undesigned half-state on the way in.
-    private func markVenuePhotoDecoded() {
-        guard !venuePhotoDecoded else { return }
-        withAnimation(motionIsReduced ? nil : .easeOut(duration: 0.25)) {
-            venuePhotoDecoded = true
-        }
-    }
+    /// The words over the picture: white over a photo or ink, ink over a logo's light
+    /// backdrop (as Search sets them).
+    private var onLogo: Bool { displayImage.logo != nil }
 
     private var imageSection: some View {
         GeometryReader { proxy in
@@ -344,8 +290,12 @@ struct FeedEventCard: View {
 
     @ViewBuilder
     private var imageContent: some View {
-        if let url = loadedSource.url {
-            FeedCardURLPhoto(url: url, onReady: markVenuePhotoDecoded)
+        if let url = displayImage.url {
+            FeedCardURLPhoto(url: url,
+                             onReady: { withAnimation(motionIsReduced ? nil : Motion.smooth) { shownPhoto = url } },
+                             onFailure: { failedPhoto = url })
+        } else if let logo = displayImage.logo {
+            FeedCardPlaceLogo(logo: logo)
         } else {
             Rectangle().fill(Hue.ink)
         }
@@ -372,7 +322,7 @@ struct FeedEventCard: View {
                 // which reads airy next to the reference's ~1.1em. Negative spacing
                 // is how this codebase has always tightened a heading.
                 .lineSpacing(-2)
-                .foregroundStyle(.white)
+                .foregroundStyle(onLogo ? Hue.ink : .white)
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -383,7 +333,7 @@ struct FeedEventCard: View {
                     // Never truncated: this is the part people need.
                     Text(when.text)
                         .font(.sansSemibold(15))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(onLogo ? Hue.ink : .white)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityLabel(when.spoken)
                 }
@@ -391,7 +341,7 @@ struct FeedEventCard: View {
                 if !metaSummary.isEmpty {
                     Text(metaSummary)
                         .font(.sans(13))
-                        .foregroundStyle(.white.opacity(0.85))
+                        .foregroundStyle(onLogo ? Hue.inkSecondary : .white.opacity(0.85))
                         // Unbounded at accessibility sizes, not two lines: measured
                         // 2026-09-22, "7pm · Millstream Park" still clipped at two, and
                         // it was the LAST finding left on Town at both AX3 and AX5. A
@@ -402,7 +352,8 @@ struct FeedEventCard: View {
                 }
             }
         }
-        .feedCardPhotoTypeShadow()
+        // None on ink words over a logo's light backdrop.
+        .feedCardPhotoTypeShadow(onLogo ? 0 : 1)
     }
 
     /// Recurrence and place, under the when line. Date and time have their own line

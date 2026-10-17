@@ -71,7 +71,7 @@ struct FeedCardGallery: View {
                 title: "Sunset Picnic by the River",
                 dateChip: "SAT JUL 25",
                 metaLine: "7 PM · Rivers Bend Park",
-                image: .placesPhoto(riversBend, attribution: "Photo: Jane D."),
+                image: .placePhoto(riversBend, credit: "Photo: Jane D."),
                 recurrence: nil,
                 hostName: "Rivers Bend Neighbours",
                 hostAvatar: nil,
