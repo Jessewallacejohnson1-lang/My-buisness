@@ -13,7 +13,7 @@ import { creating } from './migrations.mjs';
 const here = dirname(fileURLToPath(import.meta.url));
 const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
 // The function, then its re-creation with counts from the private helpers (town-feed ticket 19).
-const files = creating(migrations, ['public.get_my_going', 'public.get_my_saves',
+const files = creating(migrations, ['public.get_my_going', 'public.place_picture', 'public.get_my_saves',
   'private.going_count', 'private.heart_count']);
 
 const db = await PGlite.create();
@@ -32,7 +32,11 @@ await db.exec(`
     start_time text, created_at timestamptz not null default now(), location text,
     image_url text, kind text not null default 'event', category text,
     end_at timestamptz, all_day boolean not null default false, source_name text,
-    cancelled_at timestamptz);
+    cancelled_at timestamptz, place_entry_id text);
+  -- Where events happen, with their pictures (place-photos): the app's places rows, then the
+  -- photos Block Party keeps (loaded from their migrations below).
+  create table public.places (id uuid primary key default gen_random_uuid(), name text, entry_id text,
+    logo_url text, search_logo jsonb);
   create table public.event_rsvps (
     id uuid primary key default gen_random_uuid(), event_id uuid not null,
     user_id uuid not null, created_at timestamptz not null default now());
@@ -57,6 +61,10 @@ await db.exec(`
   create policy "read clubs" on public.clubs for select to public using (true);
   grant select on all tables in schema public to anon, authenticated;
 `);
+for (const f of ['20261016150000_place_photos.sql', '20261016170000_place_photo_kind.sql'])
+  await db.exec(readFileSync(join(migrations, f), 'utf8'));
+// Supabase gives anon and authenticated each new public table; the setup's grant ran before it.
+await db.exec('grant select on public.place_photos to anon, authenticated');
 for (const f of files) await db.exec(readFileSync(join(migrations, f), 'utf8'));
 
 const CITY = 'City of St. Joseph';
@@ -255,4 +263,20 @@ test('saves: signed out reads nothing', async () => {
   const { rows } = await db.query(`select * from public.get_my_saves('2026-10-12')`);
   await db.exec('reset role');
   assert.equal(rows.length, 0);
+});
+
+test("your Going and your saves carry each event's place picture", async () => {
+  await reset();
+  await db.exec(`insert into public.place_photos (entry_id, url, source_url, kind, status)
+                 values ('krewe', 'https://x/food.webp', 'https://krewemn.com/', 'photo', 'live')`);
+  const id = await add('Trivia', '2026-10-09');
+  await db.query(`update public.club_events set place_entry_id = 'krewe' where id = $1`, [id]);
+  await going(ME, id);
+  await db.query('insert into public.event_saves (event_id, user_id) values ($1, $2)', [id, ME]);
+  await db.exec(`set role authenticated; set request.jwt.claim.sub = '${ME}'`);
+  const g = (await db.query(`select place_picture from public.get_my_going('2026-10-01', '2026-10-31')`)).rows;
+  const s = (await db.query(`select place_picture from public.get_my_saves('2026-10-01')`)).rows;
+  await db.exec('reset role; delete from public.place_photos;');
+  assert.equal(g[0].place_picture.url, 'https://x/food.webp');
+  assert.equal(s[0].place_picture.url, 'https://x/food.webp');
 });

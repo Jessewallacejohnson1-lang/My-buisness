@@ -14,7 +14,7 @@ const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
 // The function as first built, then each file that re-creates it: the recipe (ticket 18),
 // hearts (real-life actions, ticket 03), saves and own-row reads (ticket 19), with the
 // counting helpers it reads.
-const files = creating(migrations, ['public.get_town_feed', 'public.town_feed_series_label',
+const files = creating(migrations, ['public.get_town_feed', 'public.place_picture', 'public.town_feed_series_label',
   'private.town_feed_place', 'private.going_count', 'private.heart_count', 'private.friends_going']);
 // Friends (ticket 28) read the Friends builds' rule for who may be shown, as it is now.
 const findable = readdirSync(migrations).filter((f) => f.endsWith('_unfriend_and_block.sql'))
@@ -44,7 +44,11 @@ await db.exec(`
     start_time text, created_at timestamptz not null default now(), location text,
     image_url text, kind text not null default 'event', category text,
     end_at timestamptz, all_day boolean not null default false,
-    source_name text, shows_from date);
+    source_name text, shows_from date, place_entry_id text);
+  -- Where events happen, with their pictures (place-photos): the app's places rows, then the
+  -- photos Block Party keeps (loaded from their migrations below).
+  create table public.places (id uuid primary key default gen_random_uuid(), name text, entry_id text,
+    logo_url text, search_logo jsonb);
   create table public.event_rsvps (
     id uuid primary key default gen_random_uuid(), event_id uuid not null,
     user_id uuid not null, created_at timestamptz not null default now());
@@ -92,6 +96,8 @@ await db.exec(`
   alter default privileges in schema public grant all on tables to anon, authenticated;
 `);
 await db.exec(findable);
+for (const f of ['20261016150000_place_photos.sql', '20261016170000_place_photo_kind.sql'])
+  await db.exec(readFileSync(join(migrations, f), 'utf8'));
 for (const f of files) await db.exec(readFileSync(join(migrations, f), 'utf8'));
 
 const CITY = 'City of St. Joseph';
@@ -829,4 +835,38 @@ test('the feed is read in under 100 ms with 5,000 people', async () => {
   // 2026-10-16), so its budget is 2.5x too.
   const budget = process.env.CI ? 250 : 100;
   assert.ok(times[2] < budget, `median ${times[2].toFixed(1)} ms, budget ${budget}`);
+});
+
+test("each event carries its place's picture: a photo before a logo, else the place's own logo", async () => {
+  await reset();
+  await db.exec(`delete from public.place_photos; delete from public.places;
+    insert into public.place_photos (entry_id, url, source_url, position, kind, status, hue) values
+      ('krewe', 'https://x/logo.webp', 'https://krewemn.com/', 0, 'logo', 'live', 20),
+      ('krewe', 'https://x/food.webp', 'https://krewemn.com/', 1, 'photo', 'live', null),
+      ('krewe', 'https://x/old.webp', 'https://krewemn.com/', 0, 'photo', 'retired', null),
+      ('kennedy', 'https://x/k.webp', 'https://kennedy.isd742.org/', 0, 'logo', 'live', 220);
+    insert into public.places (name, entry_id, logo_url, search_logo) values
+      ('Sal''s Bar & Grill', 'sals', 'https://x/pin.png', '{"url":"https://x/sals.webp","hue":7,"chroma":true}'),
+      ('Coborn''s', 'coborns', 'https://x/coborns-pin.png', null),
+      ('Grey Co', 'grey', null, '{"url":"https://x/grey.webp","hue":40,"chroma":false}');`);
+  const pick = async (id) => (await db.query('select public.place_picture($1) as p', [id])).rows[0].p;
+  assert.deepEqual(await pick('krewe'), { url: 'https://x/food.webp', kind: 'photo', credit: null,
+                                          site: 'https://krewemn.com/' }, 'a photo wins over a logo in an earlier slot');
+  assert.deepEqual(await pick('kennedy'), { url: 'https://x/k.webp', kind: 'logo', hue: 220 });
+  assert.deepEqual(await pick('sals'), { url: 'https://x/sals.webp', kind: 'logo', hue: 7 }, "Search's cut-out");
+  assert.deepEqual(await pick('coborns'), { url: 'https://x/coborns-pin.png', kind: 'logo', hue: null }, 'else the pin');
+  assert.deepEqual(await pick('grey'), { url: 'https://x/grey.webp', kind: 'logo', hue: null }, 'a grey logo has no hue');
+  assert.equal(await pick('nowhere'), null);
+  assert.equal(await pick(null), null);
+
+  await db.query(`insert into public.club_events (title, event_date, source_name, place_entry_id, created_at)
+                  values ('Trivia', '2026-10-09', 'Krewe', 'krewe', '2026-09-01 12:00-05'),
+                         ('Walk', '2026-10-09', $1, null, '2026-09-01 12:00-05')`, [CITY]);
+  await db.exec('set role anon');
+  const { rows } = await db.query(`select title, place_picture
+    from public.get_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago')) order by title`);
+  await db.exec('reset role');
+  assert.deepEqual(rows.map((r) => [r.title, r.place_picture?.url ?? null]),
+                   [['Trivia', 'https://x/food.webp'], ['Walk', null]], 'signed out too');
+  await db.exec('delete from public.place_photos; delete from public.places;');
 });
