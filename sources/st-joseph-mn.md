@@ -2771,7 +2771,7 @@ Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Goo
 ## Asphalt Surface Technologies Corp
 ```yaml
 id: asphalt-surface-technologies
-status: active
+status: retired
 tier: watched
 place_type: "Business"
 added_by: agent:town-verify
@@ -2781,7 +2781,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4:30 AM Sat). Named by its own website, https://www.astechmn.com/contact (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4:30 AM Sat). Named by its own website, https://www.astechmn.com/contact (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). Retired 2026-10-17 on Jesse's yes: the same place as `astech` (ASTECH is Asphalt Surface Technologies: same address, phone and website); its name is in that entry's aka.
 
 ## Astech Corp
 ```yaml
@@ -2792,6 +2792,7 @@ category: "b2b_service"
 place_type: "Business"
 address: "8348 Ridgewood Rd"
 phone: "3203638500"
+aka: ["Asphalt Surface Technologies Corp"]
 added_by: agent:town-verify
 sources:
   - url: https://www.astechmn.com/
@@ -3820,7 +3821,7 @@ Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is
 ## Dan DeMark Realtor
 ```yaml
 id: dan-demark-realtor
-status: proposed
+status: retired
 tier: listed
 category: "real_estate_service"
 place_type: "Business"
@@ -3833,7 +3834,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open 24 hours). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open 24 hours). Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-10-17 on Jesse's yes: the same place as `golden-rule-real-estate` (an agent of Golden Rule Real Estate: same phone and office); its name is in that entry's aka.
 
 ## Dancing Bears Company B&B
 ```yaml
@@ -4557,6 +4558,7 @@ id: golden-rule-real-estate
 status: active
 tier: watched
 place_type: "Business"
+aka: ["Dan DeMark Realtor"]
 added_by: agent:town-verify
 sources:
   - url: https://goldenrulerealestateservices.com/feed/
@@ -5869,6 +5871,7 @@ category: "park"
 place_type: "Business"
 address: "710 County Road 75"
 phone: "+13203634562"
+aka: ["Verizon Wireless Zone"]
 added_by: agent:town-verify
 sources:
   - url: https://www.dgcoursereview.com/events/week/2026/42/
@@ -6282,7 +6285,7 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-02: Own website (c
 ## Patents Minnesota
 ```yaml
 id: patents-minnesota
-status: proposed
+status: retired
 tier: listed
 category: "legal_service"
 place_type: "Business"
@@ -6295,7 +6298,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.85). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.85). Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-10-17 on Jesse's yes: the same place as `quill-disc` (the same patent firm: same phone and street); its name is in that entry's aka.
 
 ## Patricia A. Martini, MA
 ```yaml
@@ -6624,6 +6627,7 @@ category: "legal_service"
 place_type: "Business"
 address: "30844 1st Ave NE"
 phone: "3206403271"
+aka: ["Patents Minnesota"]
 added_by: agent:town-verify
 sources:
   - url: http://quilldisc.com/
@@ -7832,7 +7836,7 @@ Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submi
 ## Verizon Wireless Zone
 ```yaml
 id: verizon-wireless-zone
-status: proposed
+status: retired
 tier: listed
 category: "electronics_store"
 place_type: "Business"
@@ -7845,7 +7849,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.85). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.85). Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-10-17 on Jesse's yes: the same place as `millstream-communications` (Millstream Communications runs this store: same phone and building); its name is in that entry's aka.
 
 ## Victory Nutrition
 ```yaml
