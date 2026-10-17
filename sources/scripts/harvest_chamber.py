@@ -12,7 +12,7 @@ regex, fetch again. Sixteen hours later the block was still in place.
 Two things follow, and both are the point of this file.
 
 **Harvest and parse are separate steps.** `--harvest` fetches each page ONCE and writes
-the raw result to `.runs/cache/chamber/`. `--parse` reads those files and produces the
+the raw result to `<census runs>/cache/chamber/`. `--parse` reads those files and produces the
 member list with no network at all. Getting the extraction wrong now costs nothing, which
 is the mistake that cost us the site.
 
@@ -21,12 +21,14 @@ is the mistake that cost us the site.
 and is not a browser impersonation, which ADR-014 bans and which this site 403s anyway.
 It is a different crawler reaching a site that allows crawlers.
 
-Output is `.runs/cache/chamber.json`, which is exactly what `discover.py`'s
+Output is `<census runs>/cache/chamber.json` (discover.RUNS), which is exactly what `discover.py`'s
 `collect_chamber` already reads as its cache — so discovery needs no change.
 """
 
 import argparse, json, re, subprocess, sys, time
 from pathlib import Path
+
+from discover import RUNS
 
 DIRECTORY = "https://stjosephchamber.com/member-directory/"
 CATEGORY = re.compile(r'https://stjosephchamber\.com/member/category/[a-z0-9-]+/')
@@ -122,16 +124,14 @@ def parse(cache_dir, out_json):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--root", default=".")
     ap.add_argument("--harvest", action="store_true", help="fetch pages (network)")
     ap.add_argument("--parse", action="store_true", help="parse saved pages (no network)")
     args = ap.parse_args()
-    root = Path(args.root).resolve()
-    cache_dir = root / ".runs" / "cache" / "chamber"
+    cache_dir = RUNS / "cache" / "chamber"
     if args.harvest:
         harvest(cache_dir)
     if args.parse or not args.harvest:
-        parse(cache_dir, root / ".runs" / "cache" / "chamber.json")
+        parse(cache_dir, RUNS / "cache" / "chamber.json")
 
 
 if __name__ == "__main__":

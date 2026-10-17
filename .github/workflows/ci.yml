@@ -158,6 +158,6 @@ jobs:
           python3 -c 'import yaml' 2>/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq python3-yaml; }
           sh sources/validate
           python3 sources/scripts/test_census.py
-          for s in check_flags find_calendars morning read_events write_judged; do
+          for s in check_flags find_calendars morning read_events verify write_judged; do
             python3 "sources/scripts/$s.py" --selftest
           done

@@ -26,7 +26,7 @@ Attribution: OpenStreetMap data is ODbL. Any surface built on this roster owes
 OSM-derived rows stay identifiable.
 """
 
-import argparse, html, json, re, subprocess, sys, time, unicodedata
+import argparse, html, json, os, re, subprocess, sys, time, unicodedata
 import urllib.error
 from datetime import datetime, timezone
 from difflib import SequenceMatcher
@@ -37,6 +37,11 @@ import urllib.request
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from registry import find_root, load
 from run import fetch, UA
+
+# The census's working files (cached map, Overpass and chamber answers, rosters, verdicts,
+# research) live outside every checkout, so a run from any worktree finds the research
+# done before. `.runs/` belongs to one checkout and is gone with it.
+RUNS = Path(os.environ.get("BP_CENSUS_RUNS", "~/Documents/town-census/.runs")).expanduser()
 
 # Overpass is a free, donated, frequently-overloaded service. 504s are routine and mean
 # "busy", not "broken", so try the mirrors in turn before giving up.
@@ -297,7 +302,9 @@ TOWNS = {
         "not_places": [
             "Saint Patrick Hall", "St John's Game Refuge", "Saint John's Arboretum",
             "Haws Field - Home of @Johnnie_Soccer", "St Cloud Area Warehouse Space For Rent",
-            "Saint John's Senate",
+            "Saint John's Senate", "Saint John's University", "Saint John's Abbey",
+            # Watched for their events, not places in town (watch-every-place, 2026-10).
+            "CSB SJU events", "Minnesota 511", "Stearns County",
             'Blue Rhino Propane Exchange',
             'Catholic Charities',
             'Coinme',
@@ -568,7 +575,7 @@ def collect_chamber(url, cache=None, max_age_days=30, refresh=False,
     # host that has already said no.
     raise RuntimeError(
         "chamber cache missing or stale, and this IP is blocked by stjosephchamber.com. "
-        "Run: python3 sources/scripts/harvest_chamber.py --root . --harvest --parse")
+        "Run: python3 sources/scripts/harvest_chamber.py --harvest --parse")
 
     _status, index = fetch_patiently(url)  # unreachable; kept for when the block lifts
     cats = sorted(set(CHAMBER_CATEGORY.findall(index)))
@@ -1024,9 +1031,9 @@ def in_town(rec, zips):
     return z in zips
 
 
-def build_roster(town, root, refresh=False):
+def build_roster(town, refresh=False):
     """Every collector, filtered to the town and merged. Returns (roster, notes)."""
-    cache = Path(root) / ".runs" / "cache"
+    cache = RUNS / "cache"
     records, notes = [], []
     collectors = [
         ("osm", lambda: collect_osm(town["bbox"], town.get("osm_min_elements", 1),
@@ -1103,7 +1110,7 @@ def main():
     root = find_root(args.root)
     entries, _ = load(root)
     have = registry_keys([e for e in entries if e.get("_town") == args.town])
-    roster, notes = build_roster(town, root, refresh=args.refresh)
+    roster, notes = build_roster(town, refresh=args.refresh)
 
     def held(r):
         return r["key"] in have or any(match_key(a) in have for a in r.get("aka", ()))
@@ -1114,7 +1121,7 @@ def main():
     dupes = near_duplicates(roster, town.get("known_distinct", ()))
 
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    out_dir = Path(root) / ".runs" / f"discover-{stamp}"
+    out_dir = RUNS / f"discover-{stamp}"
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "roster.json").write_text(json.dumps(roster, indent=1, ensure_ascii=False))
     (out_dir / "missing.json").write_text(json.dumps(
@@ -1129,7 +1136,7 @@ def main():
 
     # A stable path beside the timestamped run, so the newest lists are findable without
     # knowing today's timestamp. The dated folders stay as the history.
-    latest = Path(root) / ".runs" / "latest"
+    latest = RUNS / "latest"
     try:
         if latest.is_symlink() or latest.exists():
             latest.unlink()

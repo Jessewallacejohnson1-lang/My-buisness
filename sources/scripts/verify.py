@@ -9,13 +9,17 @@ Unknown — and the evidence behind it. Unknown is never a guess (sources/CONTEX
 The cheapest proof is tried first:
 
   1. Research already done: verdicts from research agents in
-     .runs/verify/<town>/research/*.json. They weighed the conflicts, so they win.
+     <census runs>/verify/<town>/research/*.json. They weighed the conflicts, so they win.
+     Files load by the date their name starts with; a `-review` file loads last on its
+     date, so a correction beats the batch it corrects, and newer research beats both.
   2. A current listing: Overture (open, confidence >= 0.5), a Google Maps listing not
      marked closed, the chamber, or the town directory. A "permanently closed" flag with
      no current listing is Closed.
   3. A Google Maps lookup by name (ADR-016 allows Google to say whether a place is open).
   4. Whatever is left goes to research-needed.json for research agents, and its verdict
      stays Unknown until they answer.
+
+Every verdict, researched or not, is reused until it is --cadence-days old.
 
 A place only Google knows about also needs a non-Google source before it can be
 proposed (ADR-016). Its own website, read politely through run.fetch, is checked here;
@@ -25,7 +29,9 @@ The Minnesota Secretary of State's site (mblsportal.sos.mn.gov) has robots.txt
 `Disallow: /` (measured 2026-10-04), so this script never fetches it. Filings count only
 through search snippets, which research agents read (ADR-012).
 
-Outputs, in --out (default .runs/verify/<town>/):
+The census runs folder is discover.RUNS (~/Documents/town-census/.runs).
+
+Outputs, in --out (default <census runs>/verify/<town>/):
   places.csv     every place: type, status, proof
   retire.csv     registry entries verification found closed, moved or renamed
   outreach.csv   places nobody could settle online, and Google-only places unconfirmed
@@ -38,7 +44,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from discover import (TOWNS, GOOGLE, NOT_A_PLACE, build_alias_map, entry_md, looks_like_event,
+from discover import (RUNS, TOWNS, GOOGLE, NOT_A_PLACE, build_alias_map, entry_md, looks_like_event,
                       match_key, norm, phone_key, street_key, _names_overlap)
 from registry import find_root, load
 
@@ -151,39 +157,97 @@ def confirm_off_google(p):
 
 # --- main --------------------------------------------------------------------------------
 
-def load_research(folder, aliases):
+def load_research(folder, aliases, today):
     out = {}
-    for f in sorted(folder.glob("*.json")):
-        for c in json.loads(f.read_text()):
+    order = lambda f: (f.name[:10], f.stem.endswith("-review"), f.name)
+    for f in sorted(folder.glob("*.json"), key=order):
+        try:
+            rows = json.loads(f.read_text())
+        except ValueError:
+            print(f"[verify] skipped {f.name}: not finished JSON (a batch still writing?)")
+            continue
+        try:
+            made = date.fromisoformat(f.name[:10]).isoformat()
+        except ValueError:
+            made = today.isoformat()
+        for c in rows:
             k = match_key(c["name"])
             if k in aliases and aliases[k][0] != k:
                 continue    # an old name folded into another place; its verdict was the old name's
-            out[k] = dict(c, how="research", research_file=f.name)
+            out[k] = dict(c, how="research", research_file=f.name, checked=c.get("checked") or made)
     return out
+
+
+def still_good(v, today, days):
+    """A verdict is reused until it is `days` old; a lookup that failed or still waits on
+    research is tried again every run."""
+    return bool(v) and v.get("how") not in ("needs-research", "error") and \
+        (today - date.fromisoformat(v["checked"])).days < days
+
+
+def selftest():
+    import tempfile
+    checks = []
+    with tempfile.TemporaryDirectory() as tmp:
+        d = Path(tmp)
+        files = {"2026-10-04-1.json": [{"name": "Mattressota", "verdict": "Open"}],
+                 "2026-10-05-review.json": [{"name": "Mattressota", "verdict": "Unknown"},
+                                            {"name": "Heinen", "verdict": "Unknown"}],
+                 "2026-10-05-sweep.json": [{"name": "Mattressota", "verdict": "Open"},
+                                           {"name": "Bo Diddleys", "verdict": "Open", "checked": "2026-10-01"}],
+                 "2026-11-01-1.json": [{"name": "Heinen", "verdict": "Open"}]}
+        for name, rows in files.items():
+            (d / name).write_text(json.dumps(rows))
+        (d / "2026-11-02-2.json").write_text('[{"name": "Half wri')
+        got = load_research(d, {}, date(2026, 11, 3))
+        v = lambda n: got[match_key(n)]
+        checks.append((v("Mattressota")["verdict"] == "Unknown", "a review beats the batch of its own date"))
+        checks.append((v("Heinen")["verdict"] == "Open", "newer research beats an older review"))
+        checks.append((v("Mattressota")["checked"] == "2026-10-05", "an answer is dated by its file"))
+        checks.append((v("Bo Diddleys")["checked"] == "2026-10-01", "an answer's own date wins"))
+        checks.append((len(got) == 3, "a half-written file is skipped, not fatal"))
+    today = date(2027, 1, 1)
+    checks.append((still_good({"how": "research", "checked": "2026-10-04"}, today, 90),
+                   "research 89 days old is reused"))
+    checks.append((not still_good({"how": "research", "checked": "2026-10-03"}, today, 90),
+                   "research 90 days old is checked again"))
+    checks.append((not still_good({"how": "error", "checked": "2026-12-31"}, today, 90),
+                   "a failed lookup is tried again"))
+    checks.append((not still_good({"how": "needs-research", "checked": "2026-12-31"}, today, 90),
+                   "a place waiting on research waits again"))
+    bad = [m for ok, m in checks if not ok]
+    print(f"{len(checks) - len(bad)} passed, {len(bad)} failed" + "".join(f"\n  FAILED {m}" for m in bad))
+    sys.exit(1 if bad else 0)
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--town", default="st-joseph-mn")
     ap.add_argument("--root", default=".")
-    ap.add_argument("--out", help="folder for the spreadsheets (default .runs/verify/<town>)")
-    ap.add_argument("--fresh", action="store_true", help="ignore verdicts newer than --cadence-days")
+    ap.add_argument("--out", help="folder for the spreadsheets (default <census runs>/verify/<town>)")
+    ap.add_argument("--fresh", action="store_true", help="re-check every place, researched ones too")
     ap.add_argument("--cadence-days", type=int, default=90,
                     help="re-check a verdict once it is this old (ADR-011: listed = quarterly)")
     ap.add_argument("--offline", action="store_true", help="no map lookups or website checks")
+    ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args()
+    if args.selftest:
+        selftest()
 
+    if args.town not in TOWNS:
+        sys.exit(f"no discovery config for town {args.town!r}: add its block to TOWNS in discover.py")
     town = dict(TOWNS[args.town], id=args.town)
     root = find_root(args.root)
-    work = root / ".runs" / "verify" / args.town
+    work = RUNS / "verify" / args.town
     (work / "research").mkdir(parents=True, exist_ok=True)
     out = Path(args.out).expanduser() if args.out else work
     out.mkdir(parents=True, exist_ok=True)
 
-    roster = json.loads((root / ".runs" / "latest" / "roster.json").read_text())
+    roster = json.loads((RUNS / "latest" / "roster.json").read_text())
     entries = [e for e in load(root)[0] if e.get("_town") == args.town]
     aliases = build_alias_map(town.get("aliases"))
-    research = load_research(work / "research", aliases)
+    today = date.today()
+    research = load_research(work / "research", aliases, today)
     store_f = work / "verdicts.json"
     store = json.loads(store_f.read_text()) if store_f.exists() else {}
     overrides = town.get("place_types", {})
@@ -213,24 +277,25 @@ def main():
         if "registry" not in hit["sources"]:
             hit["sources"].append("registry")
 
-    today = date.today()
+    lost = sorted(r["name"] for k, r in research.items() if k not in by_key)
+    if lost:
+        print(f"[verify] {len(lost)} research answers match no place, so they count for nothing "
+              f"(their name must be the input's exact name): {', '.join(lost[:8])}")
     research_needed = []
     for p in roster:
         if looks_like_event(p["name"]):
             p["event"] = True
             continue
         old = store.get(p["key"])
-        fresh = old and not args.fresh and old.get("how") != "needs-research" and \
-            (today - date.fromisoformat(old["checked"])).days < args.cadence_days
-        if p["key"] in research:
+        if not args.fresh and still_good(research.get(p["key"]), today, args.cadence_days):
             v = research[p["key"]]
-        elif fresh:
+        elif not args.fresh and still_good(old, today, args.cadence_days):
             v = old
         else:
             v = from_listings(p)
             if v is None:
                 v = ({"verdict": "Unknown", "how": "needs-research", "evidence": "offline"}
-                     if args.offline else from_maps_lookup(p, town, root / ".runs" / "cache" / "maps" / args.town))
+                     if args.offline else from_maps_lookup(p, town, RUNS / "cache" / "maps" / args.town))
         v = dict(v, checked=v.get("checked") or today.isoformat())
         store[p["key"]] = v
         p["v"] = v
@@ -287,7 +352,8 @@ def main():
                         g(p, "website"), (p.get("entry") or {}).get("status", ""),
                         ", ".join(s for s in p["sources"] if s != "registry"),
                         v.get("evidence", ""), v.get("source_url", ""), v.get("checked", "")])
-    retire = [p for p in places if p.get("entry") and p["v"]["verdict"] in ("Closed", "Moved", "Renamed")
+    retire = [p for p in places if p.get("entry") and p["entry"]["status"] != "retired"
+              and p["v"]["verdict"] in ("Closed", "Moved", "Renamed")
               # an entry already carrying the new name has nothing left to change
               and not (p["v"]["verdict"] == "Renamed" and
                        match_key(p["entry"]["name"]) == match_key(p["v"].get("current_name") or ""))]
@@ -307,7 +373,7 @@ def main():
             why = (p["v"].get("evidence") if p["status"] == "Unknown"
                    else "open, but only Google knows it")
             w.writerow([p["name"], p["type"], why, g(p, "address"), g(p, "phone")])
-    pairs = json.loads((root / ".runs" / "latest" / "same-place.json").read_text())
+    pairs = json.loads((RUNS / "latest" / "same-place.json").read_text())
     with open(out / "same-place.csv", "w", newline="") as fh:
         w = csv.writer(fh)
         w.writerow(["Place A", "Place B", "Similarity", "Same place? (yes / no)"])
@@ -348,7 +414,7 @@ def main():
 
     from collections import Counter
     print(f"[verify] {len(places)} places; {len(research_needed)} need research "
-          f"(.runs/verify/{args.town}/research-needed.json)")
+          f"({work / 'research-needed.json'})")
     for t in TYPES:
         c = Counter(p["status"] for p in places if p["type"] == t)
         if c:

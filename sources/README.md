@@ -228,6 +228,10 @@ his ticks (ADR-022). Discovery never re-tiers on its own.
   is proposed (ADR-016); a place is the organisation, not the building (ADR-017). Agents
   write `proposed` entries only; promoting and retiring stay with Jesse (ADR-008). The
   `town-discovery` and `town-verify` skills are the playbook.
+- **The census keeps its working files in `~/Documents/town-census/.runs`**, not in a
+  checkout's `.runs/`: the research behind its verdicts took days of searching and is
+  reused for 90 days, so it can't vanish with a worktree (ADR-009: what is worth keeping
+  is written somewhere else). `BP_CENSUS_RUNS` points it elsewhere.
 
 ---
 
