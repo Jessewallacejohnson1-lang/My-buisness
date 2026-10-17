@@ -837,7 +837,7 @@ test('the feed is read in under 100 ms with 5,000 people', async () => {
   assert.ok(times[2] < budget, `median ${times[2].toFixed(1)} ms, budget ${budget}`);
 });
 
-test("each event carries its place's picture: a photo before a logo, else the place's own logo", async () => {
+test("each event carries its place's picture: a photo before a logo, else the place's Search logo", async () => {
   await reset();
   await db.exec(`delete from public.place_photos; delete from public.places;
     insert into public.place_photos (entry_id, url, source_url, position, kind, status, hue) values
@@ -854,7 +854,7 @@ test("each event carries its place's picture: a photo before a logo, else the pl
                                           site: 'https://krewemn.com/' }, 'a photo wins over a logo in an earlier slot');
   assert.deepEqual(await pick('kennedy'), { url: 'https://x/k.webp', kind: 'logo', hue: 220 });
   assert.deepEqual(await pick('sals'), { url: 'https://x/sals.webp', kind: 'logo', hue: 7 }, "Search's cut-out");
-  assert.deepEqual(await pick('coborns'), { url: 'https://x/coborns-pin.png', kind: 'logo', hue: null }, 'else the pin');
+  assert.equal(await pick('coborns'), null, "never the map pin's logo on its white square");
   assert.deepEqual(await pick('grey'), { url: 'https://x/grey.webp', kind: 'logo', hue: null }, 'a grey logo has no hue');
   assert.equal(await pick('nowhere'), null);
   assert.equal(await pick(null), null);

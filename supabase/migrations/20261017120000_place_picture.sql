@@ -2,8 +2,9 @@
 -- lookup on every phone each time the app opens (BP app docs/plans/place-photos, step 3;
 -- Jesse, 2026-10-16, iOS MEMORY.md). public.place_picture(entry) picks one for the place an
 -- event happens at (club_events.place_entry_id): its live photo with the lowest position,
--- else its live logo, else the logo the app's places row has for it (Search's cut-out, else
--- the map pin's); null when there is none. The three reads that build event cards (the Town
+-- else its live logo, else the logo Search shows for it (places.search_logo, the cut-out; never
+-- the map pin's, a logo on a white square that looked like a blank card); null when there is
+-- none. The three reads that build event cards (the Town
 -- feed, your Going, your saves) send it as a new last column, `place_picture`
 -- (20261017120100_town_feed_place_picture.sql, 20261017120200_my_going_place_picture.sql).
 --
@@ -28,12 +29,12 @@ as $$
        from public.place_photos p
       where p.entry_id = p_entry_id and p.status = 'live' and p.kind = 'logo'
       order by p.position limit 1),
-    (select jsonb_build_object('url', coalesce(pl.search_logo->>'url', pl.logo_url), 'kind', 'logo',
+    (select jsonb_build_object('url', pl.search_logo->>'url', 'kind', 'logo',
               'hue', case when coalesce((pl.search_logo->>'chroma')::boolean, true)
                           then (pl.search_logo->>'hue')::numeric end)
        from public.places pl
-      where pl.entry_id = p_entry_id and coalesce(pl.search_logo->>'url', pl.logo_url) is not null
-      order by pl.search_logo is null, pl.name limit 1))
+      where pl.entry_id = p_entry_id and pl.search_logo->>'url' is not null
+      order by pl.name limit 1))
 $$;
 
 grant execute on function public.place_picture(text) to anon, authenticated;

@@ -147,7 +147,7 @@ STREET_WORDS = {"street": "st", "saint": "st", "avenue": "ave", "road": "rd", "d
 def place_key(text):
     """A place line or name reduced to what tells places apart: the part before its first comma
     (the town comes after it), saint/street spelled one way, no leading "the", letters and digits."""
-    t = (text or "").lower().split(",")[0].replace("’", "'")
+    t = (text or "").lower().split(",")[0].replace("’", "'").replace("&", " and ")
     t = " ".join(STREET_WORDS.get(w, w) for w in re.findall(r"[a-z0-9']+", t))
     return re.sub(r"[^a-z0-9]", "", re.sub(r"^the ", "", t))
 
