@@ -269,19 +269,24 @@ extension FeedCardImageSource {
 
 /// A place we have no photo of, where its photo would be: its logo on its Search backdrop,
 /// the logo's own shadow cast on it, centred in the top part of the frame so the words
-/// below sit clear of it (Jesse, 2026-10-16: B). The size is picked, not measured: half the
-/// frame's height, at most 40% of its width.
+/// below sit clear of it (Jesse, 2026-10-16: B). Sizes are picked, not measured: on a card
+/// half the frame's height, at most 40% of its width, 8% down; the event page passes its
+/// own, so the logo clears the clock and the round buttons above it.
 struct FeedCardPlaceLogo: View {
     let logo: SearchLogo
+    /// Share of the frame's height the logo stands below its top edge.
+    var topShare: CGFloat = 0.08
+    /// Share of the frame's height the logo is tall, when that is under 40% of its width.
+    var sideShare: CGFloat = 0.5
 
     var body: some View {
         GeometryReader { proxy in
-            let side = min(proxy.size.height * 0.5, proxy.size.width * 0.4)
+            let side = min(proxy.size.height * sideShare, proxy.size.width * 0.4)
             ZStack(alignment: .top) {
                 SearchBackdrop(colors: logo.backdrop)
                 SearchFloor()
                 CastLogo(logo: logo, side: side)
-                    .padding(.top, proxy.size.height * 0.08)
+                    .padding(.top, proxy.size.height * topShare)
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
         }

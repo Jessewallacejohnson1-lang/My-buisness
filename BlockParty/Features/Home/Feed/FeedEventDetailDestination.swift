@@ -216,7 +216,9 @@ struct FeedEventDetailDestination: View {
     @ViewBuilder
     private var heroPhotos: some View {
         if photos.isEmpty {
-            if let logo = heroLogo { FeedCardPlaceLogo(logo: logo) }
+            // Under the clock and between the round buttons, clear of the sheet (picked: 101 pt
+            // down, 150 pt tall on a 420 pt phone).
+            if let logo = heroLogo { FeedCardPlaceLogo(logo: logo, topShare: 0.29, sideShare: 0.43) }
         } else {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 0) {
