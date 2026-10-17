@@ -115,6 +115,10 @@ Jesse's direction for a specific screen sits in that screen's own file, reached 
 
 ## Data and backend
 
+- 2026-10-17 — Before a migration that drops and remakes a database function, fetch and copy
+  that function from the newest migration on `origin/main` that makes it, then apply. Another
+  chat had remade `get_town_feed` for friends the evening before; a copy of the older version
+  took the friends lift out of the live Town feed for 2 minutes (18:48–18:51 UTC).
 - 2026-10-16 — Venue photos come from our own store, not Google at runtime. Real photos
   picked from each place's website (or shot by us) are saved once in the `places` bucket and
   `public.place_photos`, keyed by registry entry id. **Supersedes** `docs/rules/design.md`'s
