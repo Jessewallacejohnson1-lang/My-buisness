@@ -74,7 +74,7 @@ final class TownFeedEventsTests: XCTestCase {
           "reason":"interest","reason_name":"live_music",
           "score":{"interest":3,"friend":0,"follow":0,"popular":0,"size":1.5,"sizeStep":2,
                    "daysAway":2.12,"soon":0.8105,"acted":1,"spacing":0.5,"newSpot":false,
-                   "total":1.8236,"spot":2,"of":5},
+                   "total":1.8236,"spot":2,"of":5,"tapped":2,"draw":1.5,"topicSpacing":0.7},
           "heart_count":4,"hearted":true},
          {"id":"e2","title":"Bake sale","event_date":"2026-10-08","start_time":"11 AM",
           "location":null,"image_url":null,"category":null,"club_name":null,
@@ -94,6 +94,13 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(cards[0].score?.spot, 2)
         XCTAssertEqual(cards[0].score?.spacing, 0.5)
         XCTAssertEqual(cards[0].score?.sizeStep, 2)
+        // The newer terms (town-feed 30, 34, 32), and none from a breakdown read before them.
+        XCTAssertEqual([cards[0].score?.tapped, cards[0].score?.draw, cards[0].score?.topicSpacing], [2, 1.5, 0.7])
+        let older = try JSONDecoder().decode(FeedScore.self, from: Data("""
+            {"interest":0,"friend":0,"follow":0,"popular":0,"size":0,"sizeStep":1,"daysAway":1,"soon":1,
+             "acted":1,"spacing":1,"newSpot":false,"total":1,"spot":1,"of":1}
+            """.utf8))
+        XCTAssertNil(older.tapped)
         XCTAssertNil(cards[1].score)
         // Everyone's hearts, and whether you hearted it (ticket 03).
         XCTAssertEqual(cards[0].likeCount, 4)
@@ -135,6 +142,9 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(FeedCardMenu.line(reason: "tomorrow", name: nil), "Happening tomorrow")
         XCTAssertEqual(FeedCardMenu.line(reason: "soon", name: nil), "Coming up soon")
         XCTAssertEqual(FeedCardMenu.line(reason: "friend", name: "Sam"), "Sam is going")
+        XCTAssertEqual(FeedCardMenu.line(reason: "tapped", name: "Sal's Bar and Grill"),
+                       "You've been into Sal's Bar and Grill lately")
+        XCTAssertNil(FeedCardMenu.line(reason: "tapped", name: nil))
         XCTAssertNil(FeedCardMenu.line(reason: "friend", name: nil))
         XCTAssertNil(FeedCardMenu.line(reason: "something-new", name: nil))
     }

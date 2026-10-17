@@ -195,7 +195,8 @@
     "Coming up soon",
     "Coming up soon",
     "Coming up soon"
-   ]
+   ],
+   "hearted": []
   },
   {
    "name": "Live music and families",
@@ -227,7 +228,8 @@
     "Happening today",
     "Happening tomorrow",
     "Coming up soon"
-   ]
+   ],
+   "hearted": []
   },
   {
    "name": "Three friends going out",
@@ -259,7 +261,8 @@
     "Coming up soon",
     "Coming up soon",
     "Matches Restaurants & dining"
-   ]
+   ],
+   "hearted": []
   },
   {
    "name": "Follows the City, muted a host",
@@ -291,6 +294,9 @@
     "Happening tomorrow",
     "Coming up soon",
     "Coming up soon"
+   ],
+   "hearted": [
+    "emptybowls"
    ]
   }
  ]

@@ -492,6 +492,54 @@ test("how much an Event draws the town out is everyone's starting point: 0, 1.5 
   assert.ok(rows.every((r) => r.reason !== 'draw'), 'the draw is never the reason a card gives');
 });
 
+// Hosts you've been into (ticket 30): your own taps, `at` a Town time, before you sign in.
+async function tap(table, event, who, at) {
+  await db.exec('reset role');
+  await db.query(`insert into public.${table} (event_id, user_id, created_at)
+                  values ($1, $2, ($3::timestamp at time zone 'America/Chicago'))`, [event, who, at]);
+}
+
+test("a host you've been into lifts its other Events and is named; routine business neither lifts nor rises", async () => {
+  await reset();
+  const fair = await add('Craft fair', '2026-10-04', { start_time: '10 AM' });
+  const zoo = await add('Zoo day', '2026-10-09', { start_time: '10 AM' });
+  const council = await add('Council meeting', '2026-10-09', { start_time: '9 AM' });
+  const meetingLastWeek = await add('Planning commission', '2026-10-01', { start_time: '6 PM' });
+  await add('Bingo', '2026-10-09', { start_time: '11 AM', source_name: "Sal's" });
+  await db.query(`update public.club_events set draw = 1 where id in ($1, $2)`, [council, meetingLastWeek]);
+  await tap('event_likes', fair, YOU, '2026-10-04 12:00');
+  await tap('event_likes', meetingLastWeek, YOU, '2026-10-01 19:00');
+  await tap('event_likes', zoo, YOU, '2026-10-07 12:00');
+  await signIn(YOU);
+  await db.exec(`set test.admin = 'on'`);
+  const rows = Object.fromEntries((await feed('2026-10-08 12:00')).map((r) => [r.title, r]));
+  // The craft fair you hearted lifts the Zoo day; the Zoo day's own heart doesn't count for it.
+  assert.deepEqual([rows['Zoo day'].reason, rows['Zoo day'].reason_name, rows['Zoo day'].score.tapped],
+                   ['tapped', CITY, 2]);
+  assert.equal(rows['Council meeting'].score.tapped, 0, 'a council meeting never rises');
+  assert.equal(rows['Bingo'].score.tapped, 0, 'a host you never tapped');
+});
+
+test('two tapped Events give 3, one Event tapped three ways counts once, 90 days back and no further', async () => {
+  await reset();
+  const zoo = await add('Zoo day', '2026-10-09', { start_time: '10 AM' });
+  const market = await add('Market', '2026-07-25', { start_time: '8 AM' });
+  const parade = await add('Parade', '2026-08-01', { start_time: '11 AM' });
+  const spring = await add('Spring fling', '2026-06-20', { start_time: '1 PM' });
+  for (const t of ['event_rsvps', 'event_saves', 'event_likes']) await tap(t, market, YOU, '2026-07-25 09:00');
+  const OTHER = '00000000-0000-0000-0000-0000000000c9';
+  await tap('event_likes', parade, OTHER, '2026-08-01 12:00');
+  await tap('event_likes', spring, YOU, '2026-06-20 14:00');
+  await signIn(YOU);
+  await db.exec(`set test.admin = 'on'`);
+  const tapped = async () => (await feed('2026-10-08 12:00')).find((r) => r.title === 'Zoo day').score.tapped;
+  assert.equal(await tapped(), 2, "75 days back counts, three ways is one Event, a neighbour's heart and 110 days back don't");
+  await tap('event_likes', parade, YOU, '2026-08-01 12:00');
+  await signIn(YOU);
+  await db.exec(`set test.admin = 'on'`);
+  assert.equal(await tapped(), 3, 'two other Events of its host');
+});
+
 // Friends shape the feed (ticket 28). The helper names friends only on Events not over by the
 // clock, so these stories date their Events from today rather than the fixed week above.
 const day = (n) => new Date(Date.now() + n * 86400000).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
@@ -635,7 +683,7 @@ test('the score breakdown is filled for the admin and null for everyone else', a
   await db.exec(`set test.admin = 'on'`);
   const { score } = (await feed('2026-10-08 12:00'))[0];
   assert.deepEqual(score, {
-    interest: 3, friend: 0, follow: 0, popular: 0, viewers: 0, size: 0, sizeStep: 1, draw: 1.5, daysAway: 1,
+    interest: 3, friend: 0, follow: 0, popular: 0, viewers: 0, size: 0, sizeStep: 1, draw: 1.5, tapped: 0, daysAway: 1,
     soon: 0.9057, acted: 1, spacing: 1, topicSpacing: 1, newSpot: false, total: 4.9815, spot: 1, of: 1,
   });
 });
@@ -679,6 +727,7 @@ test("the playground's sample week gives the playground's top 8 for each of its 
   const byTitle = Object.fromEntries(playground.events.map((e) => [e.title, e.id]));
   // The playground's why() line, as the code and name the app turns into words.
   const code = (why) => why.startsWith('Matches ') ? ['interest', why.slice(8)]
+    : why.startsWith("You've been into ") ? ['tapped', why.slice(17, -7)]
     : { 'New in town': ['new', null], 'Big in town': ['size', null], 'Happening today': ['today', null],
         'Happening tomorrow': ['tomorrow', null], 'Coming up soon': ['soon', null] }[why];
   for (const [n, p] of playground.people.entries()) {
@@ -688,6 +737,8 @@ test("the playground's sample week gives the playground's top 8 for each of its 
       await db.query(`insert into public.event_rsvps (event_id, user_id) values ($1, $2)`, [id[g], person]);
     for (const s of p.saved)
       await db.query(`insert into public.event_saves (event_id, user_id) values ($1, $2)`, [id[s], person]);
+    for (const h of p.hearted)
+      await db.query(`insert into public.event_likes (event_id, user_id) values ($1, $2)`, [id[h], person]);
     await signIn(person, p.interests);
     const rows = (await feed(playground.now)).slice(0, 8);
     assert.deepEqual(rows.map((r) => byTitle[r.title]), p.top8, p.name);
