@@ -1,7 +1,8 @@
 -- Events carry every interest they're about (BP app docs/plans/town-feed, ticket 33; Jesse,
 -- 2026-10-17: "unlimited amount of interests unless there's a problem"). The morning job's tagger
 -- (the cheap model, Haiku: sources/models/tag.md) fills `interests` once per Event and stamps
--- `interests_tagged_at`, so it never reads an Event twice; `category` stays the writer's one
+-- `interests_tagged_at`, so it never reads an Event twice. Once tagged, an Event matches by its
+-- tags alone, so the tagger can drop a wrong one; until then by `category`, the writer's one
 -- interest, which the Event page shows. The recipe still counts two matches at most, so an
 -- Event tagged broadly reaches more people, never higher.
 -- get_town_feed is 20261017120100_town_feed_place_picture.sql line for line but for `matched`;
@@ -119,9 +120,10 @@ as $$
            case when e.event_date - e.shows_from >= 50 then 3
                 when e.event_date - e.shows_from >= 25 then 2
                 else 1 end as size,
-           -- Every interest the Event carries (ticket 33), its writer's one included; an Event the
-           -- tagger hasn't reached yet matches by that one alone.
-           (select array_agg(x order by x) from (select distinct unnest(e.interests || e.category) x) d
+           -- Every interest the tagger gave the Event (ticket 33); one it hasn't reached yet
+           -- matches by its writer's one.
+           (select array_agg(x order by x)
+            from unnest(case when e.interests_tagged_at is not null then e.interests else array[e.category] end) x
             where x = any(me.interests)) as matched
     from next_up e, town, me
     where e.nth = 1
