@@ -17,7 +17,8 @@ duplicating it. `[prose]`
 Git hooks are per-clone, not per-repo — no worktree in this workspace has the pre-commit
 hook until you run it there. `[prose]` Run `bash scripts/install-git-hooks.sh` once per
 checkout. It refuses a commit whose generated `AGENTS.md`/`CLAUDE.md` have drifted from
-`rules/`. CI checks the same thing and is not bypassable, so skipping this install is
+`rules/`, and installs a pre-push hook shared by every worktree that runs GitHub's quick checks
+(`scripts/ci_checks.sh`) on whatever is pushed to main. CI checks the same thing and is not bypassable, so skipping this install is
 survivable but slower — the drift surfaces at push time instead of commit time.
 
 A new worktree has no `BlockParty/Config/` (ignored; it holds the Google Places and Mapbox

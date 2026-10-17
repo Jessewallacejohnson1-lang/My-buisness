@@ -20,6 +20,10 @@ MN**. It is a **native port of the Expo / React Native app** in a separate repo 
   backend-twins — schema, RLS and query semantics match `@hygge/core` in the Expo repo.
   **Keep design tokens and query behaviour in sync with that repo** `[prose]`; each Swift
   source that ports a JS file says so in its header.
+- **A migration goes live through `scripts/apply_migration.py <file> --apply`** `[script]`, after
+  Jesse's yes. It refuses a branch behind main, a taken version, and a function that is different
+  live from main's newest copy: another chat applied a change that isn't on main, and remaking
+  the function from the repo would undo it (2026-10-17, the friends lift).
 
 ### Three-repo rule
 
