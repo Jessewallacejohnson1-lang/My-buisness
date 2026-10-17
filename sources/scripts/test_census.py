@@ -7,7 +7,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from discover import collect_chamber, in_town, merge, near_duplicates, placed_elsewhere, zip_of
+from discover import (changes_since, collect_chamber, in_town, merge, near_duplicates,
+                      placed_elsewhere, zip_of)
 from maps import answered
 
 
@@ -108,5 +109,13 @@ try:
     raise AssertionError("read another town's chamber as St. Joseph's")
 except RuntimeError as ex:
     assert "stjosephchamber.com" in str(ex), ex
+
+# A run says what it changed against the last one.
+old = merge([rec("Sal's Bar"), rec("Krewe")])
+new = merge([rec("Sal's Bar"), rec("Bello Cucina")])
+assert changes_since(old, new) == ["+ Bello Cucina", "- Krewe"], changes_since(old, new)
+new = merge([rec("Sal's Bar", address="1 Main St"), rec("Sal's Bar and Grill", address="1 Main St")])
+assert changes_since(old, new) == ["- Krewe", "= Sal's Bar now also: Sal's Bar and Grill"], \
+    changes_since(old, new)
 
 print("census rules OK")

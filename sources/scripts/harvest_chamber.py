@@ -24,9 +24,11 @@ It is a different crawler reaching a site that allows crawlers.
 Output is `<census runs>/cache/chamber.json` (discover.RUNS), which is exactly what `discover.py`'s
 `collect_chamber` already reads as its cache — so discovery needs no change.
 
-`--harvest` keeps pages it already saved, so a failed harvest resumes. For a fresh member
-list, delete `<census runs>/cache/chamber/*.md` first. Firecrawl spends credits: ask Jesse
-before a harvest.
+`--harvest` keeps pages it already saved, so a failed harvest resumes. A fresh member list,
+on Jesse's yes only (Firecrawl spends credits, one per page, 23 pages in 2026-09): copy
+`chamber.json` aside, delete `<census runs>/cache/chamber/*.md`, run `--harvest --parse`
+(`--harvest` alone does not parse), and compare the member count with the old list: a page
+that failed to harvest is simply missing from the new one.
 """
 
 import argparse, json, re, subprocess, sys, time

@@ -309,6 +309,10 @@ TOWNS = {
             ("Creekwood Acres", "TMT Integrity Flooring LLC"),
             ("Full Circle Water", "Pristine Environmental"),
             ("Kwik Trip #147", "Kwik Trip #575"),
+            # Rosie's Gyps Ranch is the Krebsbachs' Gypsy Vanner ranch; KD Performance
+            # Horses is the trainer working there. Overture gave the ranch KD's phone and
+            # website (2026-10-17).
+            ("KD Performance Horses", "Rosie's Gyps Ranch"),
             # Jesse, 2026-10-17: two places at one address, with different phones.
             ("Consumer Directions", "A New Direction"),
             # Same phone or street, different organisations (2026-10-17): one owner's
@@ -438,10 +442,9 @@ TOWNS = {
         },
         "directories": [
             {"id": "joetown", "url": "https://www.joetown.org/explore"},
-            # Readable after all (ADR-014). It was written off as blocking us because
-            # RobotFileParser read robots.txt with urllib's default user-agent, got a
-            # throttling 403, and turned that into disallow-all. Its robots.txt actually
-            # permits everyone and asks for Crawl-delay: 10, which the fetcher now obeys.
+            # Its robots.txt permits everyone and asks for Crawl-delay: 10 (ADR-014), but
+            # this Mac's IP has been blocked since 2026-09-23, so the members come from
+            # the list harvest_chamber.py saved (collect_chamber).
             {"id": "chamber", "url": "https://stjosephchamber.com/member-directory/",
              "collector": "chamber"},
             # An old, undated town directory (274 entries in 2026-10). Partly stale, but it
@@ -454,7 +457,7 @@ TOWNS = {
         # The fix for a robots block is search_snippet, never a workaround (ADR-001).
         # Nothing is agent-only for this town any more. stjosephmn.gov is fetchable
         # (ADR-012) and its /9/Business page holds permits and zoning, not a business
-        # list; the chamber is fetchable too (ADR-014).
+        # list; the chamber permits robots (ADR-014) and is read from a saved list.
         "agent_only": [],
     }
 }
@@ -582,7 +585,9 @@ def collect_chamber(url, cache):
     if not cache.exists():
         raise RuntimeError("no saved chamber list: python3 sources/scripts/harvest_chamber.py "
                            "--harvest --parse (Firecrawl credits, ask Jesse first)")
-    age = (time.time() - cache.stat().st_mtime) / 86400
+    # Age from the harvested pages: a re-parse rewrites chamber.json and its date.
+    pages = cache.parent / "chamber" / "_index.md"
+    age = (time.time() - (pages if pages.exists() else cache).stat().st_mtime) / 86400
     print(f"[discover] chamber: saved list, {age:.0f} days old"
           + (" (a fresh one needs harvest_chamber.py and Jesse's yes)" if age > 90 else ""))
     return json.loads(cache.read_text())
@@ -1122,6 +1127,18 @@ def town_words(town):
     return norm(town["label"]).split()
 
 
+def changes_since(old, new):
+    """What a run changed against the last one: places come and gone, other names gained."""
+    o, n = {p["key"]: p for p in old}, {p["key"]: p for p in new}
+    out = [f"+ {n[k]['name']}" for k in n.keys() - o.keys()]
+    out += [f"- {o[k]['name']}" for k in o.keys() - n.keys()]
+    for k in n.keys() & o.keys():
+        gained = set(n[k].get("aka", [])) - set(o[k].get("aka", []))
+        if gained:
+            out.append(f"= {n[k]['name']} now also: {', '.join(sorted(gained))}")
+    return sorted(out, key=lambda line: line[2:])
+
+
 def registry_keys(entries):
     have = {match_key(e["_name"]) for e in entries}
     have |= {match_key(e.get("id", "").replace("-", " ")) for e in entries}
@@ -1180,6 +1197,8 @@ def main():
     # A stable path beside the timestamped run, so the newest lists are findable without
     # knowing today's timestamp. The dated folders stay as the history.
     latest = RUNS / f"latest-{town['id']}"
+    before = latest / "roster.json"
+    changed = changes_since(json.loads(before.read_text()), roster) if before.exists() else None
     try:
         if latest.is_symlink() or latest.exists():
             latest.unlink()
@@ -1198,6 +1217,11 @@ def main():
     if dupes:
         print(f"  {len(dupes)} possible duplicate pair(s) — NOT merged, settle by hand "
               f"(same-place.json)")
+    if changed is not None:
+        print(f"since the last run: {len(changed)} change(s)" if changed else
+              "since the last run: nothing changed")
+        for line in changed:
+            print(f"  {line}")
     print(f"next: sources/verify --town {args.town}   (roster: {out_dir / 'roster.json'})")
 
 
