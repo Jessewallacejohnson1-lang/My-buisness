@@ -115,6 +115,13 @@ Jesse's direction for a specific screen sits in that screen's own file, reached 
 
 ## Data and backend
 
+- 2026-10-16 — Venue photos come from our own store, not Google at runtime. Real photos
+  picked from each place's website (or shot by us) are saved once in the `places` bucket and
+  `public.place_photos`, keyed by registry entry id. **Supersedes** `docs/rules/design.md`'s
+  "Google Places Photo API at runtime is the default": that rule cost about $40,000 a month
+  at 10,000 users. Website photos show without waiting for the owner's OK, credited, and
+  come down on request. A refresh only proposes a new photo; Jesse's yes swaps it. Every
+  automated event shows its place's photo, else the place's logo.
 - Supabase anon key ships in the app for reads. The service role key is server-side only
   and never enters the client, a screenshot, or a commit.
 - Both repos share one Supabase project. Logic belongs in Supabase and edge functions —
