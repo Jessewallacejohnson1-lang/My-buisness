@@ -99,6 +99,40 @@ struct CommunityAPI {
         return try decode(data)
     }
 
+    /// The photos Block Party keeps of each place (`public.place_photos`, live rows readable with
+    /// the public key), by registry entry, cover first: Search's cards and business pages draw
+    /// them, so showing one costs no lookup (MEMORY.md, 2026-10-16). Logos stay out; Search has its own.
+    func getPlacePhotos() async throws -> [String: [PlacePicture]] {
+        // ponytail: one read of every town's live photos (183 on 2026-10-17); Supabase answers at
+        // most 1,000 rows, so past that read this town's entries' photos, or page through them.
+        let t = await readToken()
+        let (data, _) = try await SupabaseHTTP.rest(
+            "place_photos",
+            query: "select=entry_id,url,kind,credit,site:source_url&status=eq.live&kind=eq.photo&order=position.asc",
+            accessToken: t)
+        return try Self.placePhotos(from: data)
+    }
+
+    /// A row that doesn't decode is that one photo gone, never the rest.
+    nonisolated static func placePhotos(from data: Data) throws -> [String: [PlacePicture]] {
+        struct Row: Decodable {
+            let entry: String?
+            let picture: PlacePicture?
+            private enum Keys: String, CodingKey { case entryId }
+            init(from decoder: Decoder) throws {
+                entry = try? decoder.container(keyedBy: Keys.self).decode(String.self, forKey: .entryId)
+                picture = try? PlacePicture(from: decoder)
+            }
+        }
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        var photos: [String: [PlacePicture]] = [:]
+        for row in try decoder.decode([Row].self, from: data) {
+            if let entry = row.entry, let picture = row.picture { photos[entry, default: []].append(picture) }
+        }
+        return photos
+    }
+
     // MARK: - Clubs
 
     func joinClub(_ clubId: String) async throws {

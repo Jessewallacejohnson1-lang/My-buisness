@@ -134,6 +134,15 @@ nonisolated struct PlacePicture: Decodable, Hashable, Sendable {
     }
 }
 
+/// A row on a business's page in Search (`places.links`, BP app docs/plans/place-photos): its
+/// website or one of its social pages. Strings, so a link the app doesn't know never costs the
+/// place list; `BusinessPage.rows` keeps the ones it can draw.
+nonisolated struct PlaceLink: Decodable, Hashable, Sendable {
+    /// website, facebook or instagram.
+    let kind: String
+    let url: String
+}
+
 /// One row of `get_town_feed` (`supabase/migrations/*_town_feed*.sql`): an event, how its
 /// series repeats ("Every Tuesday"; nil for a one-off or no clear pattern), when it
 /// leaves the Town feed, why it's there (the recipe's top reason and the one name it
@@ -181,6 +190,12 @@ nonisolated struct FeedScore: Decodable, Hashable, Sendable {
     /// a read that keeps the order on screen can leave different from the database's.
     var spot: Int
     var of: Int
+    /// Newer terms, absent from a breakdown read before them: points for a host you've been
+    /// into (town-feed 30), for how much it draws the town out (34), and the multiplier for an
+    /// interest placed again (32).
+    var tapped: Double? = nil
+    var draw: Double? = nil
+    var topicSpacing: Double? = nil
 }
 
 struct AgendaEvent: Identifiable, Hashable {

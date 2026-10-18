@@ -100,6 +100,8 @@ struct FeedCardMenu: View {
         case "new": return "New in town"
         case "friend": return name.map { "\($0) is going" }
         case "follow": return name.map { "You follow \($0)" }
+        // Instagram's "Your algorithm" says "Lately you've been into ..." (town-feed 30).
+        case "tapped": return name.map { "You've been into \($0) lately" }
         case "interest":
             let label = Interests.all.first { $0.id == name }?.label ?? name
             return label.map { "Matches \($0)" }
@@ -134,12 +136,15 @@ private struct ScoreBox: View {
             row("Your interests", "+" + Self.number(score.interest), idle: score.interest == 0)
             row("Friends going", "+" + Self.number(score.friend), idle: score.friend == 0)
             row("You follow the host", "+" + Self.number(score.follow), idle: score.follow == 0)
+            row("Host you've been into", "+" + Self.number(score.tapped ?? 0), idle: (score.tapped ?? 0) == 0)
             row("Popular in town", "+" + Self.number(score.popular), idle: score.popular == 0)
             row((score.sizeStep == 3 ? "Big" : score.sizeStep == 2 ? "Medium" : "Small") + " event",
                 "+" + Self.number(score.size), idle: score.size == 0)
+            row("Draws the town out", "+" + Self.number(score.draw ?? 0), idle: (score.draw ?? 0) == 0)
             row(startsIn, "×" + Self.number(score.soon), idle: score.soon == 1)
             row("You're going or saved it", "×" + Self.number(score.acted), idle: score.acted == 1)
             row(sameHost, "×" + Self.number(score.spacing), idle: score.spacing == 1)
+            row("Same interest again", "×" + Self.number(score.topicSpacing ?? 1), idle: (score.topicSpacing ?? 1) == 1)
 
             Rectangle().fill(Hue.hairline).frame(height: 1)
             Text("Place \(score.spot) of \(score.of) in your feed" + (score.newSpot ? ", moved up as new" : ""))

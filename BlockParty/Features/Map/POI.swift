@@ -27,6 +27,13 @@ struct POI: Identifiable, Decodable, Hashable {
     /// Search's logo for this place (`places.search_logo`): its file in Storage and how
     /// Search shows it. nil for a place with no logo in Search.
     var searchLogo: SearchLogo.Row? = nil
+    /// Its registry entry (`places.entry_id`, sources/<town>-mn.md), which its saved photos are
+    /// kept under. nil for a place not in the registry yet.
+    var entryId: String? = nil
+    /// Its page in Search, until the business has its own account: its own website's
+    /// description (`places.about`) and its website and social pages (`places.links`).
+    var about: String? = nil
+    var links: [PlaceLink]? = nil
 
     var coordinate: CLLocationCoordinate2D { .init(latitude: lat, longitude: lon) }
 

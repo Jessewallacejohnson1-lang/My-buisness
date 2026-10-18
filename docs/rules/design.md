@@ -164,7 +164,12 @@ and `DECISIONS.md` win wherever they disagree.
   website or freely licensed sources, picked by a person, shown before the owner replies and
   taken down on request; a refresh only proposes a swap (`status = 'proposed'`), Jesse's yes
   makes it live. The pipeline is BP app `~/Documents/designs/artifacts/place-photos/`.
-- **The Google Places Photo API is still the map's** (`VenueInfoView`), through
+  Search reads the same store (place-photos ticket 01): `CommunityAPI.getPlacePhotos` by
+  `places.entry_id`, the cover on a food card with its credit chip, every photo on a business's
+  page, and a park's by its `CityParks` id before its bundled photo. A place with none shows its
+  logo on its backdrop, else its kind's glyph; Search asks Google for nothing.
+- **The Google Places Photo API is still the map's** (`VenueInfoView`, until place-photos
+  ticket 02), through
   `GooglePlacesService.confidentPhoto(name:coordinate:)`, loaded through `FeedCardURLPhoto`,
   whose loader sends the bundle-id header the key checks (a bare `AsyncImage` gets a 403).
   The rules below hold for that path until it moves to the saved photos too.

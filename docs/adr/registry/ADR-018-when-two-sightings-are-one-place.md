@@ -1,6 +1,10 @@
 # ADR-018 — When two sightings are one place
 
 **Status:** Accepted
+**Amended 2026-10-17:** the street rule also needs the two phones not to disagree, after
+Consumer Directions and A New Direction (one address, two phones) were merged. The town's
+own name is never a distinctive word. And the **same place?** list now also carries places
+that share a phone, or a street and a distinctive word, but were not merged.
 **Date:** 2026-10-02
 **Depends on:** [ADR-010](ADR-010-completeness-is-the-goal.md),
 [ADR-017](ADR-017-a-place-is-the-organisation.md)
