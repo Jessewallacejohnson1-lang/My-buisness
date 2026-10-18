@@ -20,13 +20,13 @@ nonisolated struct RSVPWords: Equatable {
     var second: String?
     /// The second line is "Can't go?", a button that leaves.
     var canLeave: Bool
-    /// nil: no pill (called off while Going: nobody to invite to it).
-    var pill: Pill?
+    /// The pill. Called off, it says "Canceled", Going or not (Jesse, 2026-10-17).
+    var pill: Pill
 
     static func make(isGoing: Bool, count: Int, friends: [String], cancelled: Bool) -> RSVPWords {
         if isGoing {
             return RSVPWords(top: "You're going!", second: "Can't go?", canLeave: true,
-                             pill: cancelled ? nil : .invite)
+                             pill: cancelled ? .canceled : .invite)
         }
         if cancelled { return RSVPWords(top: nil, second: nil, canLeave: false, pill: .canceled) }
         // Never fewer than the friends it names.
@@ -35,20 +35,22 @@ nonisolated struct RSVPWords: Equatable {
                          canLeave: false, pill: .rsvp)
     }
 
-    /// Facebook's words, picked at Check-in 1 (Jesse, 2026-10-17): "Avery is going", "Sam and
-    /// Marlene are going", "Sam and 2 other friends are going". Newest Going first.
+    /// Facebook's words (Jesse, 2026-10-17): "Avery is going", "Sam and Marlene are going",
+    /// "Sam and 2 friends are going", short enough to sit beside the pill on a 402 pt phone.
+    /// Newest Going first.
     private static func friendsLine(_ friends: [String]) -> String? {
         switch friends.count {
         case 0: nil
         case 1: "\(friends[0]) is going"
         case 2: "\(friends[0]) and \(friends[1]) are going"
-        default: "\(friends[0]) and \(friends.count - 1) other friends are going"
+        default: "\(friends[0]) and \(friends.count - 1) friends are going"
         }
     }
 }
 
-/// The Town card's RSVP area, under the photo: friends' faces, the words, and the pill.
-/// A called-off card shows no pill, so with nobody to say "You're going!" to it shows nothing.
+/// The Town card's RSVP area, under the photo: friends' faces, the words, and the pill. A
+/// called-off card's pill is red and says "Canceled" (Jesse, 2026-10-17); it squishes like
+/// every pill and does nothing.
 struct CardRSVPArea: View {
     let item: FeedCardItem
     let words: RSVPWords
@@ -74,7 +76,10 @@ struct CardRSVPArea: View {
     var body: some View {
         let going = actions.going(item)
         HStack(spacing: 8) {
-            faces(count: going.count)
+            // Faces only beside words: a called-off card with no "You're going!" has none.
+            if words.top != nil {
+                faces(count: going.count)
+            }
 
             VStack(alignment: .leading, spacing: 1) {
                 if let top = words.top {
@@ -108,14 +113,18 @@ struct CardRSVPArea: View {
 
             Spacer(minLength: 12)
 
-            if let pill = words.pill, pill != .canceled {
+            if words.pill == .canceled {
+                Button {} label: { pillFace(.canceled) }
+                    .buttonStyle(MeetupPillStyle(fill: Hue.canceled))
+                    .accessibilityRemoveTraits(.isButton)
+            } else {
                 let failures = actions.failureCount(item.id)
                 Button {
-                    if pill == .invite { onInvite?() } else { toggle() }
-                } label: { pillFace(pill) }
+                    if words.pill == .invite { onInvite?() } else { toggle() }
+                } label: { pillFace(words.pill) }
                     .buttonStyle(MeetupPillStyle())
                     .turnBackShake(failures: failures, shakes: !reduceMotion && tappedAt != failures)
-                    .accessibilityLabel(pill == .invite ? "Invite" : "RSVP")
+                    .accessibilityLabel(words.pill == .invite ? "Invite" : "RSVP")
                     .accessibilityValue(going.isGoing ? "Going" : "")
             }
         }
@@ -137,7 +146,9 @@ struct CardRSVPArea: View {
 
     private func pillFace(_ pill: RSVPWords.Pill) -> some View {
         HStack(spacing: Metric.glyphGap) {
-            if pill == .invite {
+            if pill == .canceled {
+                Text("Canceled")
+            } else if pill == .invite {
                 FeedActionGlyphView(glyph: .send, size: Metric.sendSide)
                 Text("Invite")
             } else {

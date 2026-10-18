@@ -817,6 +817,9 @@ over a database change ("yes", Check-in 1): no live migration, no new Storage pa
   don't "fix" it to 12pt corners or to `Hue.ink`.
 - **The Town card has no bookmark.** RSVP took its place; saving stays on the Event page and
   Daily's Suggestions, and Saved, Daily's filter and the feed's order still read it.
+- **Called off: a red "Canceled" pill, no tag on the photo** (Jesse at Check-in 2). The photo
+  still goes black and white; the pill is Apple's red (`Hue.canceled`, `.systemRed`), the
+  app's second red after `heart`, for this pill only. The Event page follows in ticket 02.
 
 ## Decided 2026-10-13 — views and popularity per view (town-feed ticket 20)
 

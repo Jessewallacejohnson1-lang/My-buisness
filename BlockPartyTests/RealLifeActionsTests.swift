@@ -6,6 +6,7 @@
 //  the same.
 //
 
+import SwiftUI
 import XCTest
 @testable import BlockParty
 
@@ -788,14 +789,14 @@ final class RSVPWordsTests: XCTestCase {
             ("a friend", false, 41, ["Avery"], false, notGoing("41 going", "Avery is going")),
             ("two friends", false, 41, ["Sam", "Marlene"], false, notGoing("41 going", "Sam and Marlene are going")),
             ("three friends", false, 41, ["Sam", "Marlene", "Dale"], false,
-             notGoing("41 going", "Sam and 2 other friends are going")),
+             notGoing("41 going", "Sam and 2 friends are going")),
             ("never fewer than the friends named", false, 0, ["Avery"], false, notGoing("1 going", "Avery is going")),
             ("going", true, 42, [], false, going),
             ("going with friends", true, 42, ["Avery"], false, going),
             ("going, the only one", true, 1, [], false, going),
             ("called off", false, 41, ["Avery"], true, RSVPWords(top: nil, second: nil, canLeave: false, pill: .canceled)),
-            ("called off while going: can still leave", true, 42, [], true,
-             RSVPWords(top: "You're going!", second: "Can't go?", canLeave: true, pill: nil)),
+            ("called off while going: can still leave, the pill says Canceled", true, 42, [], true,
+             RSVPWords(top: "You're going!", second: "Can't go?", canLeave: true, pill: .canceled)),
         ]
         for (name, isGoing, count, friends, cancelled, want) in table {
             XCTAssertEqual(RSVPWords.make(isGoing: isGoing, count: count, friends: friends, cancelled: cancelled),
@@ -808,5 +809,6 @@ final class RSVPWordsTests: XCTestCase {
         XCTAssertEqual(Hue.pillTop.hexString, "#3A3A3C")
         XCTAssertEqual(Hue.pillDeep.hexString, "#29292B")
         XCTAssertEqual(Hue.pillBottom.hexString, "#353439")
+        XCTAssertEqual(Hue.canceled.hexString, Color(uiColor: .systemRed).hexString, "Canceled is Apple's own red")
     }
 }

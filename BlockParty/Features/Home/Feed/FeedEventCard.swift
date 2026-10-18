@@ -112,9 +112,8 @@ struct FeedEventCard: View {
             .gesture(FeedTouchDownTracker(isPressed: $linkPressed))
 
             // RSVP under the photo (rsvp-and-groups 01; Figma "Meetup depth": 12 pt below the
-            // photo, 2 pt above the row). Called off with nobody going: nothing, which would
-            // read as if it were still on (Jesse, 2026-10-15).
-            if let rsvp = actions.rsvp(item), rsvp.top != nil || (rsvp.pill != nil && rsvp.pill != .canceled) {
+            // photo, 2 pt above the row). Called off, a red "Canceled" pill and no count.
+            if let rsvp = actions.rsvp(item) {
                 CardRSVPArea(item: item, words: rsvp, onInvite: onShare)
                     .padding(.top, 12)
                     .padding(.horizontal, DailyFeedMetric.contentInset)
@@ -145,10 +144,6 @@ struct FeedEventCard: View {
                 onSend: onComment
             )
         }
-        // Called off while Going, "Can't go?" takes the RSVP area away: it fades and the card
-        // closes up over Join's flip, never a jump.
-        .animation(.easeInOut(duration: motionIsReduced ? 0.15 : RealLifeActions.flip),
-                   value: actions.rsvp(item) == nil || actions.rsvp(item)?.top == nil)
         // On screen: a heart or RSVP that fails may shake here. Scrolled away or covered
         // by the Event page, it turns back without a shake or a buzz.
         .onAppear { actions.cardOpened(item.id) }
@@ -304,12 +299,9 @@ struct FeedEventCard: View {
     // MARK: - Copy over the photograph
 
     private var imageCopy: some View {
+        // Called off: the photo goes black and white and the red pill under it says so; no
+        // tag over the photo (Jesse, 2026-10-17).
         VStack(alignment: .leading, spacing: 4) {
-            if item.cancelled {
-                // Ink on a logo's light backdrop, where the white tag would vanish.
-                CanceledTag(onPhoto: !onLogo).padding(.bottom, 4)
-            }
-
             Text(item.title)
                 // 28, the `.title` step. 22 measured ~20% smaller than the Apple News
                 // reference relative to card width, and the token scale has nothing
@@ -563,9 +555,10 @@ private struct PhotoDoubleTap: UIGestureRecognizerRepresentable {
     }
 }
 
-/// Called off (ticket 12): a white capsule with ink words, over the photo above the card's
-/// title and at the Event page photo's bottom-left (Jesse's pick, 2026-10-15; References:
-/// Partiful's card, Meetup's event page). White and ink in both appearances, like the
+/// Called off (ticket 12): a white capsule with ink words at the Event page photo's
+/// bottom-left (Jesse's pick, 2026-10-15; References: Partiful's card, Meetup's event page).
+/// The card dropped it for a red "Canceled" pill on 2026-10-17; the page follows in
+/// rsvp-and-groups ticket 02. White and ink in both appearances, like the
 /// page's round buttons over a photo (taste.md). The shadow comes from where it sits. On the
 /// page's paper, with no photo, it turns over: paper words on ink.
 struct CanceledTag: View {

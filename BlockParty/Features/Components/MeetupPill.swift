@@ -18,9 +18,20 @@
 import SwiftUI
 
 struct MeetupPillStyle: ButtonStyle {
+    /// Meetup's charcoal, lit from above, with its line of light inside the top.
+    private var charcoal: some ShapeStyle {
+        LinearGradient(stops: [.init(color: Hue.pillTop, location: 0),
+                               .init(color: Hue.pillDeep, location: 0.27),
+                               .init(color: Hue.pillBottom, location: 1)],
+                       startPoint: .top, endPoint: .bottom)
+            .shadow(.inner(color: Hue.pillRim, radius: 0, x: 0, y: 1))
+    }
+
     /// The Town card's pill: 38 pt tall, at least 100 wide.
     var height: CGFloat = 38
     var minWidth: CGFloat = 100
+    /// A flat fill in place of Meetup's charcoal: red for a called-off Event (`Hue.canceled`).
+    var fill: Color?
 
     static let pressedScale: CGFloat = 0.97
     /// Words (and glyph) 20 pt in from each end.
@@ -43,11 +54,7 @@ struct MeetupPillStyle: ButtonStyle {
             .frame(height: height)
             .background {
                 Capsule()
-                    .fill(LinearGradient(stops: [.init(color: Hue.pillTop, location: 0),
-                                                 .init(color: Hue.pillDeep, location: 0.27),
-                                                 .init(color: Hue.pillBottom, location: 1)],
-                                         startPoint: .top, endPoint: .bottom)
-                        .shadow(.inner(color: Hue.pillRim, radius: 0, x: 0, y: 1)))
+                    .fill(fill.map(AnyShapeStyle.init) ?? AnyShapeStyle(charcoal))
                     .animation(press) { $0.meetupPillDepth(pressed: pressed) }
             }
             .contentShape(Capsule().inset(by: min(0, (height - Self.minTarget) / 2)))

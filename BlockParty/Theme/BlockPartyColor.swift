@@ -221,6 +221,9 @@ nonisolated enum Hue {
     static let pillBottom    = Color(hex: 0x353439)
     /// The 1 pt line of light along the pill's inside top: white at 8%.
     static let pillRim       = Color(hex: 0xFFFFFF, alpha: 0.08)
+    /// A called-off Event's pill, which says "Canceled" (Jesse, 2026-10-17): Apple's own red.
+    /// The second red after `heart`, and for this one pill only.
+    static let canceled      = Color(uiColor: .systemRed)
 
     // MARK: Search (the tab's Reference: Jesse's mockup v7 and its Figma frames, 2026-10-02)
 
