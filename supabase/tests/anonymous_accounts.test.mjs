@@ -43,6 +43,8 @@ await db.exec(`
     event_id uuid not null, user_id uuid not null);
   create table public.event_saves (event_id uuid not null, user_id uuid not null,
     primary key (event_id, user_id));
+  create table public.club_members (id uuid primary key default gen_random_uuid(),
+    club_id uuid not null, user_id uuid not null, unique (club_id, user_id));
   create table public.town_profiles (user_id uuid primary key, display_name text, avatar_url text);
   create table storage.objects (id uuid primary key default gen_random_uuid(),
     bucket_id text not null, name text not null);
@@ -54,6 +56,7 @@ await db.exec(`
   alter table public.event_rsvps enable row level security;
   alter table public.event_likes enable row level security;
   alter table public.event_saves enable row level security;
+  alter table public.club_members enable row level security;
   alter table public.town_profiles enable row level security;
   alter table storage.objects enable row level security;
   create policy "submit events" on public.club_events for insert to public
@@ -77,6 +80,11 @@ await db.exec(`
     with check (auth.uid() = user_id);
   create policy "own likes delete" on public.event_likes for delete to public
     using (auth.uid() = user_id);
+  create policy "join club" on public.club_members for insert to public
+    with check (user_id = auth.uid());
+  create policy "leave club" on public.club_members for delete to public
+    using (user_id = auth.uid());
+  create policy "read memberships" on public.club_members for select to authenticated using (true);
   create policy "town_profiles_insert_own" on public.town_profiles for insert to public
     with check (auth.uid() = user_id);
   create policy "town_profiles_update_own" on public.town_profiles for update to public
@@ -127,6 +135,25 @@ test('an anonymous account can add and remove its own save', async () => {
   await allowed(`delete from public.event_saves where event_id = $1 and user_id = $2`, [event, ANON_USER]);
   assert.equal((await db.query(`select count(*)::int n from public.event_saves`)).rows[0].n, 0);
   await denied(`insert into public.event_saves (event_id, user_id) values ($1, $2)`, [event, REAL_USER]);
+});
+
+test('an anonymous account can join and leave a group, never for someone else', async () => {
+  // rsvp-and-groups 06: Join group writes its own club_members row; leaving deletes it.
+  await as('authenticated', ANON_USER, true);
+  const club = '00000000-0000-0000-0000-00000000c001';
+  await allowed(`insert into public.club_members (club_id, user_id) values ($1, $2)`, [club, ANON_USER]);
+  assert.equal((await db.query(`select count(*)::int n from public.club_members`)).rows[0].n, 1);
+  await allowed(`delete from public.club_members where club_id = $1 and user_id = $2`, [club, ANON_USER]);
+  assert.equal((await db.query(`select count(*)::int n from public.club_members`)).rows[0].n, 0);
+  await denied(`insert into public.club_members (club_id, user_id) values ($1, $2)`, [club, REAL_USER]);
+  await as('authenticated', REAL_USER, false);
+  await allowed(`insert into public.club_members (club_id, user_id) values ($1, $2)`, [club, REAL_USER]);
+  await as('authenticated', ANON_USER, true);
+  await allowed(`delete from public.club_members where club_id = $1`, [club]);
+  await db.exec('reset role');
+  assert.equal((await db.query(`select count(*)::int n from public.club_members`)).rows[0].n, 1,
+    "deleting someone else's membership removes nothing");
+  await db.query('delete from public.club_members');
 });
 
 test('an anonymous account keeps its own profile name, but no photo link', async () => {

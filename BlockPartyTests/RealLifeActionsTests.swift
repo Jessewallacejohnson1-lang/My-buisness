@@ -24,6 +24,8 @@ final class RealLifeActionsTests: XCTestCase {
         var hearts: [Bool] = []
         /// Each save written, as "<event id> <saved>".
         var saves: [String] = []
+        /// Each join or leave written, as "<group id> <member>".
+        var memberships: [String] = []
         /// The ids that are Events, for the phone's old saves, and how often they were asked.
         var events: Set<String> = []
         var lookups = 0
@@ -56,6 +58,12 @@ final class RealLifeActionsTests: XCTestCase {
             try answer()
         }
 
+        func member(_ groupID: String, _ member: Bool) async throws {
+            if delay > .zero { try? await Task.sleep(for: delay) }
+            memberships.append("\(groupID) \(member)")
+            try answer()
+        }
+
         /// Answers like `club_events`: only real Event ids, and only UUIDs reach it.
         func knownEvents(_ ids: [String]) async throws -> Set<String> {
             lookups += 1
@@ -70,7 +78,7 @@ final class RealLifeActionsTests: XCTestCase {
         RealLifeActions(signedIn: signedIn, needsAccount: true, hold: Self.hold, flip: Self.flip,
                         retry: Self.retry, keep: keep, owner: owner,
                         setGoing: server.write, setHeart: server.heart, setSave: server.save,
-                        knownEvents: server.knownEvents)
+                        setMember: server.member, knownEvents: server.knownEvents)
     }
 
     /// A phone of its own for one test, emptied when it ends.
@@ -764,6 +772,119 @@ final class RealLifeActionsTests: XCTestCase {
         await actions(server, signedIn: false).moveUp(store)
         XCTAssertEqual(server.saves, [])
         XCTAssertEqual(store.ids, [Self.event])
+    }
+
+    // MARK: Being in a group (rsvp-and-groups 06)
+
+    private static let groupID = "8d2c4b6a-1e3f-4a5b-9c7d-0e1f2a3b4c5d"
+
+    private func group(members: Int = 4, joined: Bool = false) -> TownGroup {
+        var group = TownGroup(id: Self.groupID, name: "Lions Club", memberCount: members)
+        group.joined = joined
+        return group
+    }
+
+    func testJoiningAGroupShowsAtOnceAndCountsYou() async throws {
+        let server = Server()
+        let actions = actions(server)
+        let lions = group()
+
+        actions.toggleMember(lions)
+        XCTAssertEqual(actions.member(lions), .init(isMember: true, count: 5), "in at once, counting you")
+        try await Task.sleep(for: Self.hold * 3)
+        XCTAssertEqual(server.memberships, ["\(Self.groupID) true"])
+        XCTAssertEqual(actions.member(lions), .init(isMember: true, count: 5), "a join that lands stays")
+        XCTAssertEqual(actions.memberFailureCount(lions.id), 0)
+        XCTAssertEqual(server.writes, [], "no Going written")
+    }
+
+    /// As a failed RSVP: it holds for the hold, turns back, and shakes the open Group page once
+    /// the flip is done.
+    func testAFailedJoinOfAGroupHoldsThenTurnsBackThenShakesOnce() async throws {
+        let server = Server()
+        server.failing = true
+        let actions = actions(server)
+        let lions = group()
+        actions.pageOpened(lions.id)
+
+        let tapped = ContinuousClock.now
+        actions.toggleMember(lions)
+        try await waitWhile(actions.member(lions).isMember)
+        XCTAssertGreaterThanOrEqual(ContinuousClock.now - tapped, Self.hold, "turned back before it could be seen")
+        XCTAssertEqual(actions.member(lions), .init(isMember: false, count: 4), "back to Join group, count and all")
+        try await waitWhile(actions.memberFailureCount(lions.id) == 0)
+        XCTAssertEqual(actions.memberFailureCount(lions.id), 1, "one turn back, one shake")
+        XCTAssertEqual(actions.failureCount(lions.id), 0, "nothing else shakes")
+    }
+
+    func testLeavingAGroupAndTheLastTapWins() async throws {
+        let server = Server()
+        server.delay = .milliseconds(30)
+        let actions = actions(server)
+        let lions = group(members: 6, joined: true)
+
+        actions.toggleMember(lions)
+        XCTAssertEqual(actions.member(lions), .init(isMember: false, count: 5), "Leave group? takes you out at once")
+        try await Task.sleep(for: .milliseconds(5))
+        actions.toggleMember(lions)
+        XCTAssertEqual(actions.member(lions), .init(isMember: true, count: 6))
+        try await Task.sleep(for: .milliseconds(150))
+        XCTAssertEqual(server.memberships, ["\(Self.groupID) false", "\(Self.groupID) true"],
+                       "the join lands after the leave, never before")
+        XCTAssertTrue(actions.member(lions).isMember)
+    }
+
+    /// A groups read sets the base; a join it doesn't agree with yet stays, counted from the read's
+    /// number. A Town feed read says nothing of groups.
+    func testAGroupsReadReplacesTheBase() async throws {
+        let server = Server()
+        server.delay = .milliseconds(40)
+        let actions = actions(server)
+        let pushed = group(members: 4)
+
+        actions.toggleMember(pushed)
+        actions.read([group(members: 9)])
+        XCTAssertEqual(actions.member(pushed), .init(isMember: true, count: 10),
+                       "a read from before the write lands keeps the join, on the read's count")
+        try await Task.sleep(for: .milliseconds(100))
+
+        actions.read([card()])
+        XCTAssertEqual(actions.member(pushed), .init(isMember: true, count: 10), "a Town read leaves it be")
+        actions.read([group(members: 10, joined: true)])
+        XCTAssertEqual(actions.member(pushed), .init(isMember: true, count: 10), "the read agrees")
+        actions.read([group(members: 3)])
+        XCTAssertEqual(actions.member(pushed), .init(isMember: false, count: 3), "once agreed, the next read is the truth")
+    }
+
+    func testNoAccountMeansNoJoin() async throws {
+        let server = Server()
+        let actions = actions(server, signedIn: false)
+        let lions = group()
+
+        actions.toggleMember(lions)
+        XCTAssertFalse(actions.member(lions).isMember)
+        try await Task.sleep(for: Self.hold)
+        XCTAssertEqual(server.memberships, [])
+    }
+
+    /// A join made offline is kept on the phone, shown after a relaunch and sent.
+    func testAnOfflineJoinSurvivesARelaunch() async throws {
+        let server = Server()
+        server.offline = true
+        let store = phoneStore()
+        let before = launched(server, store, as: "anna")
+
+        before.toggleMember(group())
+        try await Task.sleep(for: Self.retry * 2)
+        before.accountChanged(signedIn: false)
+        try await Task.sleep(for: Self.retry * 8)
+
+        server.offline = false
+        server.memberships = []
+        let after = launched(server, store, as: "anna")
+        XCTAssertTrue(after.member(group()).isMember, "still in after the relaunch")
+        try await waitWhile(server.memberships.isEmpty)
+        XCTAssertEqual(server.memberships, ["\(Self.groupID) true"])
     }
 
     /// Polls every 5 ms until `condition` is false, for at most 5 s.

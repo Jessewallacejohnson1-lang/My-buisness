@@ -257,6 +257,7 @@ struct MainTabsView: View {
         let actions = RealLifeActions()
         _actions = State(initialValue: actions)
         _townFeed = State(initialValue: TownFeed(actions: actions))
+        _searchModel = State(initialValue: SearchModel(actions: actions))
     }
 
     /// DEBUG-only: `-open-map` raises the map cover on launch. It replaces the old
@@ -324,8 +325,8 @@ struct MainTabsView: View {
 
     @State private var expandedPlace: Place?
     /// Search's places and recents, kept across tab switches so the tab doesn't fetch
-    /// the Town's places again each time it comes back.
-    @State private var searchModel = SearchModel()
+    /// the Town's places again each time it comes back. Its groups reads tell `actions`.
+    @State private var searchModel: SearchModel
     /// The Town feed's events, kept here for the same reason: coming back to Town shows
     /// the list it left while it reads again behind it.
     @State private var townFeed: TownFeed
@@ -477,6 +478,8 @@ struct MainTabsView: View {
             you.accountChanged()
             saves.accountChanged()
             Task { await townFeed.reload() }
+            // Whether you're in each group is this account's, once Search has read them.
+            if searchModel.groupsLoaded { Task { await searchModel.readGroupsAgain() } }
             Task { await you.refresh() }
             Task { await actions.moveUp(.shared) }
             Task { await cancelNotice.check() }
