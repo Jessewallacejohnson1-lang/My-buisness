@@ -246,7 +246,7 @@ struct SaveBookmarkButton: View {
         .accessibilityLabel(saved ? "Remove from saved" : "Save for later")
         .signInSheet(isPresented: $signInShown)
         // On screen: a save that fails may shake here.
-        .onAppear { actions.cardOpened(item.id) }
-        .onDisappear { actions.cardClosed(item.id) }
+        .onAppear { actions.bookmarkOpened(item.id) }
+        .onDisappear { actions.bookmarkClosed(item.id) }
     }
 }

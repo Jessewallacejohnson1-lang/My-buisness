@@ -209,6 +209,22 @@ nonisolated enum Hue {
     /// indicator needs, and #C06A96 is 5.04:1.
     static let accent        = Color(light: 0x8E3B6B, dark: 0xC06A96)
 
+    // MARK: The Meetup pill (RSVP and Invite; Jesse picked Meetup's black, 2026-10-17)
+
+    /// The pill's fill, lit from above, measured off Meetup's iOS pills at 3x down a column
+    /// clear of the word (Figma "Meetup depth"): lighter at the top edge, darkest a quarter
+    /// of the way down, a little lighter at the bottom. Charcoal, not `ink`: pure ink hides
+    /// both the light and the shadow. The same in both appearances while dark mode waits
+    /// (iOS MEMORY.md, 2026-09-24); they get dark values when it returns.
+    static let pillTop       = Color(hex: 0x3A3A3C)
+    static let pillDeep      = Color(hex: 0x29292B)
+    static let pillBottom    = Color(hex: 0x353439)
+    /// The 1 pt line of light along the pill's inside top: white at 8%.
+    static let pillRim       = Color(hex: 0xFFFFFF, alpha: 0.08)
+    /// A called-off Event's pill, which says "Canceled" (Jesse, 2026-10-17): Apple's own red.
+    /// The second red after `heart`, and for this one pill only.
+    static let canceled      = Color(uiColor: .systemRed)
+
     // MARK: Search (the tab's Reference: Jesse's mockup v7 and its Figma frames, 2026-10-02)
 
     /// The search field's grey: iOS's own search-field fill, #767680 at 12%.

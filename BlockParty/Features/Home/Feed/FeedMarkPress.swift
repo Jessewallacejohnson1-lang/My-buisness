@@ -1,6 +1,8 @@
 //
 //  FeedMarkPress.swift
-//  Block Party — the "+" press, the one feed press allowed to be felt.
+//  Block Party — the press allowed to be felt: it began as the card's "+" (deleted with
+//  the + itself for RSVP, 2026-10-17) and is now the Event page's buttons' and, at 97%,
+//  the Meetup pill's (`MeetupPillStyle`).
 //
 //  `FeedMotion` owns the feed's motion vocabulary and its Reduce Motion contract;
 //  everything there is deliberately quiet (`quietPress` = 0.985). The "+" is the
@@ -56,5 +58,19 @@ nonisolated enum FeedMarkPress {
         reduceMotion
             ? FeedMotion.pressAnimation(reduceMotion: true)
             : .spring(response: response, dampingFraction: dampingFraction)
+    }
+}
+
+/// The press most of the app's buttons share: the Event page's, Daily's bookmark and
+/// "Can't go?". Its numbers and its Reduce-Motion branch are `FeedMarkPress`'s, so the
+/// cross-fade fallback is the same one the rest of the feed uses.
+struct FeedCardJoinPressStyle: ButtonStyle {
+    let reduceMotion: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(FeedMarkPress.scale(isPressed: configuration.isPressed, reduceMotion: reduceMotion))
+            .opacity(FeedMarkPress.opacity(isPressed: configuration.isPressed, reduceMotion: reduceMotion))
+            .animation(FeedMarkPress.animation(reduceMotion: reduceMotion), value: configuration.isPressed)
     }
 }

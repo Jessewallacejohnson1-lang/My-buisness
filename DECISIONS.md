@@ -806,6 +806,21 @@ over a database change ("yes", Check-in 1): no live migration, no new Storage pa
   read keep and sign-out clears, read once per visit so a late name never pops in. No
   saved name: the photo alone.
 
+## Decided 2026-10-17 — RSVP is Meetup's charcoal pill (rsvp-and-groups 01)
+
+- **A capsule, and not ink, on purpose.** `Radius.button` says a button is never a pill and
+  DESIGN.md says buttons are ink; Jesse picked Meetup's black and its depth for RSVP, Invite
+  and Join group (BP app `docs/plans/rsvp-and-groups/SPEC.md`, Figma "Meetup depth"). The
+  fill is charcoal lit from above (`Hue.pillTop`, `pillDeep`, `pillBottom`), with a 1 pt
+  line of light inside the top (`pillRim`) and two shadows (`meetupPillDepth`). Pure ink
+  hid the light and the shadow. `MeetupPillStyle` in `Features/Components/MeetupPill.swift`;
+  don't "fix" it to 12pt corners or to `Hue.ink`.
+- **The Town card has no bookmark.** RSVP took its place; saving stays on the Event page and
+  Daily's Suggestions, and Saved, Daily's filter and the feed's order still read it.
+- **Called off: a red "Canceled" pill, no tag on the photo** (Jesse at Check-in 2). The photo
+  still goes black and white; the pill is Apple's red (`Hue.canceled`, `.systemRed`), the
+  app's second red after `heart`, for this pill only. The Event page follows in ticket 02.
+
 ## Decided 2026-10-13 — views and popularity per view (town-feed ticket 20)
 
 - **`feed_actions`** (event, action, who, when): insert-only for the signed-in caller, no

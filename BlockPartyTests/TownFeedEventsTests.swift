@@ -177,7 +177,7 @@ final class TownFeedEventsTests: XCTestCase {
         going = 5
         await town.reload(at: now)
         XCTAssertEqual(actions.going(pushed).count, 5)
-        XCTAssertEqual(actions.goingLine(town.cards[0]), "5 going")
+        XCTAssertEqual(actions.rsvp(town.cards[0])?.top, "5 going")
 
         // Offline at launch: the kept list is all there is, and it sets the base too.
         let offlineActions = RealLifeActions(signedIn: true, needsAccount: true, hold: .zero, flip: .zero,

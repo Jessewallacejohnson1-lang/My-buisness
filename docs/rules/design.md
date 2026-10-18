@@ -36,6 +36,8 @@ build time, and the colour half has no backstop. A human eye is the only check f
     body copy. **Not saved:** a saved bookmark is the brand yellow (below) since
     2026-09-27.
   - **`statusTint`** #FDECE8 — the pin-detail status card's wash and nothing else.
+  - **`canceled`** — Apple's red (`.systemRed`), for a called-off Event's "Canceled" pill and
+    nothing else (Jesse, 2026-10-17; `DECISIONS.md`).
   - **`heart`** #FF3040 — a liked heart and nothing else: state, not chrome. Pass it *into*
     `glyphIcon(_:filled:tint:)`, which sets `foregroundStyle` closer to the glyph; an
     outer style silently loses.

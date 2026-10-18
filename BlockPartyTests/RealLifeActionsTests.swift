@@ -6,6 +6,7 @@
 //  the same.
 //
 
+import SwiftUI
 import XCTest
 @testable import BlockParty
 
@@ -211,19 +212,23 @@ final class RealLifeActionsTests: XCTestCase {
 
         actions.toggleGoing(pushed)
         XCTAssertEqual(actions.going(fresher), .init(isGoing: true, count: 7), "a Join on the page shows on the card")
-        XCTAssertEqual(actions.goingLine(fresher), "7 going")
+        XCTAssertEqual(actions.rsvp(fresher)?.top, "You're going!", "and the card's RSVP area says so")
     }
 
-    /// Friends lead the card's line (town-feed 28), and your own Join puts you first at once.
-    func testTheGoingLineNamesFriendsAndYouOnceYouJoin() async throws {
+    /// The RSVP area counts and names friends (town-feed 28), and says "You're going!" the
+    /// instant you RSVP, with Invite in the pill (rsvp-and-groups 01).
+    func testTheRSVPAreaNamesFriendsThenSaysYoureGoing() async throws {
         let server = Server()
         let actions = actions(server)
         var item = card(going: 3)
         item.friendsGoing = [FeedFriend(name: "Anna", photo: nil)]
         actions.read([item])
-        XCTAssertEqual(actions.goingLine(item), "Anna and 2 others are going")
+        XCTAssertEqual(actions.rsvp(item), RSVPWords(top: "3 going", second: "Anna is going", canLeave: false, pill: .rsvp))
         actions.toggleGoing(item)
-        XCTAssertEqual(actions.goingLine(item), "You, Anna and 2 others are going")
+        XCTAssertEqual(actions.rsvp(item), RSVPWords(top: "You're going!", second: "Can't go?", canLeave: true, pill: .invite))
+        XCTAssertEqual(actions.going(item).count, 4, "the count includes you")
+        actions.toggleGoing(item)
+        XCTAssertEqual(actions.rsvp(item)?.top, "3 going", "Can't go? takes you off in one tap")
     }
 
     /// A read sets each Event's base. A choice the read agrees with is done; one it
@@ -256,12 +261,13 @@ final class RealLifeActionsTests: XCTestCase {
         XCTAssertFalse(actions.going(item).isGoing)
         try await Task.sleep(for: Self.hold)
         XCTAssertEqual(server.writes, [])
-        XCTAssertNil(actions.goingLine(item), "no account: no going line")
+        XCTAssertNil(actions.rsvp(item), "no account: no RSVP area, as Join never showed without one")
 
         actions.accountChanged(signedIn: true)
-        XCTAssertTrue(actions.canAct, "the quiet account arrives: Join comes up")
-        XCTAssertEqual(actions.goingLine(item), "2 going")
-        XCTAssertNil(actions.goingLine(card(going: 0)), "never at zero")
+        XCTAssertTrue(actions.canAct, "the quiet account arrives: RSVP comes up")
+        XCTAssertEqual(actions.rsvp(item)?.top, "2 going")
+        XCTAssertEqual(actions.rsvp(card(going: 0)), RSVPWords(top: nil, second: nil, canLeave: false, pill: .rsvp),
+                       "never a count at zero: RSVP alone")
     }
 
     /// The account changes while a write is out (the quiet account replacing a cleared
@@ -345,9 +351,9 @@ final class RealLifeActionsTests: XCTestCase {
         XCTAssertEqual(actions.failureCount(item.id), 0, "Join doesn't shake for a heart")
     }
 
-    /// Each kind shakes only on its own screen: a failed heart on the card, a failed Join
-    /// on the Event page. Neither shakes the other's screen, or a closed one.
-    func testAHeartAndAJoinShakeOnlyTheirOwnScreen() async throws {
+    /// Each kind shakes only where its control is: a failed heart on the card; a failed Join
+    /// on the Event page and, since RSVP came to the card (rsvp-and-groups 01), on the card.
+    func testAHeartAndAJoinShakeOnlyWhereTheirControlIs() async throws {
         let server = Server()
         server.failing = true
         let actions = actions(server)
@@ -364,7 +370,12 @@ final class RealLifeActionsTests: XCTestCase {
         actions.toggleGoing(item)
         try await Task.sleep(for: (Self.hold + Self.flip) * 3)
         XCTAssertFalse(actions.going(item).isGoing)
-        XCTAssertEqual(actions.failureCount(item.id), 0, "page closed: no Join shake on the card")
+        XCTAssertEqual(actions.failureCount(item.id), 1, "the card's RSVP shakes and buzzes as Join does")
+        actions.cardClosed(item.id)
+
+        actions.toggleGoing(item)
+        try await Task.sleep(for: (Self.hold + Self.flip) * 3)
+        XCTAssertEqual(actions.failureCount(item.id), 1, "card and page closed: no shake")
     }
 
     /// The photo's double tap hearts and never un-hearts.
@@ -626,13 +637,20 @@ final class RealLifeActionsTests: XCTestCase {
         XCTAssertEqual(actions.saveFailureCount(item.id), 0)
     }
 
-    /// A failed save turns back like Join, and shakes the card or the page that is open.
+    /// A failed save turns back like Join, and shakes the bookmark or the page that is open.
+    /// The Town card has no bookmark (rsvp-and-groups 01), so it never shakes for one.
     func testAFailedSaveTurnsBackThenCountsOneFailure() async throws {
         let server = Server()
         server.failing = true
         let actions = actions(server)
         let item = card()
         actions.cardOpened(item.id)
+        actions.toggleSave(item)
+        try await Task.sleep(for: (Self.hold + Self.flip) * 3)
+        XCTAssertFalse(actions.saved(item), "turned back")
+        XCTAssertEqual(actions.saveFailureCount(item.id), 0, "no bookmark on the Town card: no shake there")
+        actions.cardClosed(item.id)
+        actions.bookmarkOpened(item.id)
 
         actions.toggleSave(item)
         try await waitWhile(actions.saved(item))
@@ -641,7 +659,7 @@ final class RealLifeActionsTests: XCTestCase {
         XCTAssertEqual(actions.saveFailureCount(item.id), 1, "one turn back, one shake")
         XCTAssertEqual(actions.heartFailureCount(item.id), 0, "the heart never shakes for it")
 
-        actions.cardClosed(item.id)
+        actions.bookmarkClosed(item.id)
         actions.pageOpened(item.id)
         actions.toggleSave(item)
         try await waitWhile(actions.saveFailureCount(item.id) == 1)
@@ -752,5 +770,45 @@ final class RealLifeActionsTests: XCTestCase {
         while condition(), ContinuousClock.now - start < .seconds(5) {
             try await Task.sleep(for: .milliseconds(5))
         }
+    }
+}
+
+/// What the RSVP area says (`RSVPWords`, rsvp-and-groups 01): one rule for the Town card and
+/// the Event page, through every Going, count, friends and called-off case.
+@MainActor
+final class RSVPWordsTests: XCTestCase {
+    func testTheWordsAndThePillForEveryCase() {
+        let going = RSVPWords(top: "You're going!", second: "Can't go?", canLeave: true, pill: .invite)
+        func notGoing(_ top: String?, _ second: String? = nil) -> RSVPWords {
+            RSVPWords(top: top, second: second, canLeave: false, pill: .rsvp)
+        }
+        let table: [(String, Bool, Int, [String], Bool, RSVPWords)] = [
+            ("nobody yet: RSVP alone", false, 0, [], false, notGoing(nil)),
+            ("one going", false, 1, [], false, notGoing("1 going")),
+            ("many going", false, 41, [], false, notGoing("41 going")),
+            ("a friend", false, 41, ["Avery"], false, notGoing("41 going", "Avery is going")),
+            ("two friends", false, 41, ["Sam", "Marlene"], false, notGoing("41 going", "Sam and Marlene are going")),
+            ("three friends", false, 41, ["Sam", "Marlene", "Dale"], false,
+             notGoing("41 going", "Sam and 2 friends are going")),
+            ("never fewer than the friends named", false, 0, ["Avery"], false, notGoing("1 going", "Avery is going")),
+            ("going", true, 42, [], false, going),
+            ("going with friends", true, 42, ["Avery"], false, going),
+            ("going, the only one", true, 1, [], false, going),
+            ("called off", false, 41, ["Avery"], true, RSVPWords(top: nil, second: nil, canLeave: false, pill: .canceled)),
+            ("called off while going: can still leave, the pill says Canceled", true, 42, [], true,
+             RSVPWords(top: "You're going!", second: "Can't go?", canLeave: true, pill: .canceled)),
+        ]
+        for (name, isGoing, count, friends, cancelled, want) in table {
+            XCTAssertEqual(RSVPWords.make(isGoing: isGoing, count: count, friends: friends, cancelled: cancelled),
+                           want, name)
+        }
+    }
+
+    /// The pill's colours are tokens, exactly the Figma page's (Meetup's pills, measured at 3x).
+    func testThePillIsMeetupsCharcoal() {
+        XCTAssertEqual(Hue.pillTop.hexString, "#3A3A3C")
+        XCTAssertEqual(Hue.pillDeep.hexString, "#29292B")
+        XCTAssertEqual(Hue.pillBottom.hexString, "#353439")
+        XCTAssertEqual(Hue.canceled.hexString, Color(uiColor: .systemRed).hexString, "Canceled is Apple's own red")
     }
 }

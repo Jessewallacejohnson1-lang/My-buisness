@@ -153,12 +153,13 @@ enum DailyFixtures {
                 now: now
             ),
             // No description and no category (none fits a council meeting), so the
-            // event page's About and category rows hide.
+            // event page's About and category rows hide. Nobody going yet, so its card
+            // shows RSVP alone (rsvp-and-groups 01).
             event(
                 id: "e5", title: "City Council — regular meeting",
                 host: "City of St. Joseph", hostAvatar: false,
                 chip: "TUE", meta: "6pm · City Hall",
-                photo: false, hoursUntil: 20, going: 3,
+                photo: false, hoursUntil: 20, going: 0,
                 now: now
             ),
             event(

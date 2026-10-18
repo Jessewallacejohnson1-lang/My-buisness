@@ -67,10 +67,8 @@ struct FeedEventCard: View {
     /// The link's press, so the whole card squishes. Set on touch-down by
     /// `FeedTouchDownTracker`, the one writer.
     @State private var linkPressed = false
-    /// Going, Heart and Save, shared with the event page, so a Join there shows here at once.
+    /// Going and Heart, shared with the event page, so a Join there shows here at once.
     @Environment(RealLifeActions.self) private var actions
-    /// A bookmark tapped with no account yet opens sign in (Jesse, 2026-10-12).
-    @State private var signInShown = false
 
     init(
         item: FeedCardItem,
@@ -93,8 +91,9 @@ struct FeedEventCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Host, photo and going line are one link to the event's page. The
-            // action row stays outside it, so its own buttons keep their own taps.
+            // Host and photo are one link to the event's page. The RSVP area and the
+            // action row stay outside it, so their own buttons keep their own taps and
+            // pressing them never squishes the card.
             NavigationLink(value: item) {
                 VStack(alignment: .leading, spacing: 0) {
                     hostRow
@@ -102,21 +101,7 @@ struct FeedEventCard: View {
 
                     imageSection
                         .padding(.top, showsHostRow ? 10 : 0)
-
-                    // Called off: no going line, which would read as if it were still on
-                    // (Jesse, 2026-10-15).
-                    if !item.cancelled, let goingLine = actions.goingLine(item) {
-                        socialRow(goingLine)
-                            .padding(.top, 10)
-                            .padding(.horizontal, DailyFeedMetric.contentInset)
-                            .transition(.opacity)
-                    }
                 }
-                // A Join turned back after the page has gone changes the line with
-                // nobody touching the card: it rolls, as the page's count does, rather
-                // than jumping.
-                .animation(motionIsReduced ? .easeInOut(duration: 0.15) : Motion.smooth,
-                           value: actions.going(item).count)
                 .contentShape(Rectangle())
             }
             .buttonStyle(FeedCardLinkStyle())
@@ -125,6 +110,15 @@ struct FeedEventCard: View {
             // tap holds the link's own press until it fails, so the card squishes the
             // moment a finger lands, photo included.
             .gesture(FeedTouchDownTracker(isPressed: $linkPressed))
+
+            // RSVP under the photo (rsvp-and-groups 01; Figma "Meetup depth": 12 pt below the
+            // photo, 2 pt above the row). Called off, a red "Canceled" pill and no count.
+            if let rsvp = actions.rsvp(item) {
+                CardRSVPArea(item: item, words: rsvp, onInvite: onShare)
+                    .padding(.top, 12)
+                    .padding(.horizontal, DailyFeedMetric.contentInset)
+                    .transition(.opacity)
+            }
 
             actionRow
                 .padding(.top, 2)
@@ -150,8 +144,7 @@ struct FeedEventCard: View {
                 onSend: onComment
             )
         }
-        .signInSheet(isPresented: $signInShown)
-        // On screen: a heart or save that fails may shake here. Scrolled away or covered
+        // On screen: a heart or RSVP that fails may shake here. Scrolled away or covered
         // by the Event page, it turns back without a shake or a buzz.
         .onAppear { actions.cardOpened(item.id) }
         .onDisappear { actions.cardClosed(item.id) }
@@ -306,12 +299,9 @@ struct FeedEventCard: View {
     // MARK: - Copy over the photograph
 
     private var imageCopy: some View {
+        // Called off: the photo goes black and white and the red pill under it says so; no
+        // tag over the photo (Jesse, 2026-10-17).
         VStack(alignment: .leading, spacing: 4) {
-            if item.cancelled {
-                // Ink on a logo's light backdrop, where the white tag would vanish.
-                CanceledTag(onPhoto: !onLogo).padding(.bottom, 4)
-            }
-
             Text(item.title)
                 // 28, the `.title` step. 22 measured ~20% smaller than the Apple News
                 // reference relative to card width, and the token scale has nothing
@@ -369,56 +359,33 @@ struct FeedEventCard: View {
             .joined(separator: " · ")
     }
 
-    // MARK: - Social
+    // MARK: - Actions
 
-    private func socialRow(_ goingLine: String) -> some View {
-        HStack(spacing: 8) {
-            if !item.friendsGoing.isEmpty {
-                FriendFaces(friends: item.friendsGoing)
-            } else if !item.goingAvatars.isEmpty {
-                FeedCardFacepile(
-                    neighborAvatars: item.goingAvatars,
-                    goingCount: actions.going(item).count,
-                    reduceMotion: motionIsReduced
-                )
-            }
-
-            Text(goingLine)
-                .font(.sans(13))
-                .contentTransition(.numericText())
-                .foregroundStyle(Hue.inkSecondary)
-                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
-                .layoutPriority(1)
-        }
-        .frame(minHeight: 24)
-    }
-
+    /// The heart and send. No bookmark: RSVP took its place on the card, and saving stays on
+    /// the Event page (Jesse, 2026-10-17).
     private var actionRow: some View {
         FeedEventCardActionRow(
             kind: actionKind,
             showsHeart: actions.canAct,
+            showsSave: false,
             heartFailures: actions.heartFailureCount(item.id),
-            saveFailures: actions.saveFailureCount(item.id),
             state: rowState,
             reduceMotion: motionIsReduced,
             autoplayStep: autoplayStep,
             onLike: nil,
-            onSave: { _ in if !actions.canAct { signInShown = true } },
+            onSave: nil,
             onComment: { commentsPresented = true },
             onShare: onShare
         )
     }
 
-    /// The row's heart and bookmark are the shared ones (`RealLifeActions`), kept on the
-    /// server.
+    /// The row's heart is the shared one (`RealLifeActions`), kept on the server.
     private var rowState: Binding<FeedCardActionState> {
         Binding {
             let heart = actions.heart(item)
-            return FeedCardActionState(likeCount: heart.count, isLiked: heart.isHearted,
-                                       isSaved: actions.saved(item))
+            return FeedCardActionState(likeCount: heart.count, isLiked: heart.isHearted, isSaved: false)
         } set: { new in
             if new.isLiked != actions.heart(item).isHearted { actions.toggleHeart(item) }
-            if new.isSaved != actions.saved(item) { actions.toggleSave(item) }
         }
     }
 
@@ -588,9 +555,10 @@ private struct PhotoDoubleTap: UIGestureRecognizerRepresentable {
     }
 }
 
-/// Called off (ticket 12): a white capsule with ink words, over the photo above the card's
-/// title and at the Event page photo's bottom-left (Jesse's pick, 2026-10-15; References:
-/// Partiful's card, Meetup's event page). White and ink in both appearances, like the
+/// Called off (ticket 12): a white capsule with ink words at the Event page photo's
+/// bottom-left (Jesse's pick, 2026-10-15; References: Partiful's card, Meetup's event page).
+/// The card dropped it for a red "Canceled" pill on 2026-10-17; the page follows in
+/// rsvp-and-groups ticket 02. White and ink in both appearances, like the
 /// page's round buttons over a photo (taste.md). The shadow comes from where it sits. On the
 /// page's paper, with no photo, it turns over: paper words on ink.
 struct CanceledTag: View {

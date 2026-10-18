@@ -73,6 +73,23 @@ extension View {
         shadow(color: .black.opacity(pressed ? 0.30 : 0), radius: 16, x: 0, y: 18)
     }
 
+    // MARK: The Meetup pill (`MeetupPillStyle`)
+
+    /// The pill's two shadows (Figma "Meetup depth"): black 30%, 1.5 pt down, 3 pt blur where
+    /// it touches the page, and black 22%, 8 pt down, 24 pt blur that lifts it. Pressed they
+    /// pull in, to 1 pt / 2 pt and 3 pt / 10 pt at 16%. Each falls from its own copy of the
+    /// capsule, so the wide one doesn't blur the tight one too. Figma's blur is twice
+    /// SwiftUI's radius.
+    func meetupPillDepth(pressed: Bool) -> some View {
+        background {
+            ZStack {
+                Capsule().shadow(color: .black.opacity(0.30), radius: pressed ? 1 : 1.5, x: 0, y: pressed ? 1 : 1.5)
+                Capsule().shadow(color: .black.opacity(pressed ? 0.16 : 0.22), radius: pressed ? 5 : 12,
+                                 x: 0, y: pressed ? 3 : 8)
+            }
+        }
+    }
+
     // MARK: Map shadows (soft, diffuse — no hard dark edges)
 
     /// Floating chrome button: y=2, blur=8, 10% opacity (spec §8 — one clean elevation).
