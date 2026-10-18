@@ -53,23 +53,6 @@ nonisolated enum YourDayLogic {
         return "in \(hours) \(hours == 1 ? "hr" : "hrs")"
     }
 
-    /// With friends Going it names them, Facebook's way (words page `card-friend-going`):
-    /// "Anna is going", "Anna and Ben are going", "Anna and 11 others are going", and you
-    /// first when you're Going too, "You and Anna are going". `count` is everyone Going,
-    /// you included; `friends` the friends' first names, newest Going first.
-    static func goingLabel(for count: Int, friends: [String] = [], youGoing: Bool = false) -> String? {
-        guard let first = friends.first else { return count > 0 ? "\(count) going" : nil }
-        // Never fewer than the people the line names.
-        let total = max(count, friends.count + (youGoing ? 1 : 0))
-        func others(_ n: Int) -> String { n == 1 ? "1 other" : "\(n) others" }
-        if youGoing {
-            return total == 2 ? "You and \(first) are going" : "You, \(first) and \(others(total - 2)) are going"
-        }
-        if total == 1 { return "\(first) is going" }
-        if total == 2, friends.count > 1 { return "\(first) and \(friends[1]) are going" }
-        return "\(first) and \(others(total - 1)) are going"
-    }
-
     /// PRODUCT RULE: nil, never "Location TBD". A blank location is a fact we do
     /// not have, and a card that says nothing about place is honest.
     static func placeText(for event: UpcomingEvent) -> String? {

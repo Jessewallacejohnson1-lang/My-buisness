@@ -40,8 +40,8 @@ struct FeedCardItem: Identifiable, Hashable {
     var why: String? = nil
     /// The points behind the card's place; the database sends them to the admin only.
     var score: FeedScore? = nil
-    /// Called off (`UpcomingEvent.cancelled`): the card and its page show the Canceled tag
-    /// over a grey photo, and the You tab leaves it out (Jesse, 2026-10-15).
+    /// Called off (`UpcomingEvent.cancelled`): the card and its page show a red Canceled pill
+    /// and a black-and-white photo (Jesse, 2026-10-17), and the You tab leaves it out.
     var cancelled = false
     /// The picture of where it happens (`PlacePicture`): the card's picture when the event
     /// has no photo of its own, and the event page's second one when it has.

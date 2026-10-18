@@ -1,16 +1,17 @@
 //
 //  RSVPArea.swift
-//  Block Party — RSVP on the Town card (BP app docs/plans/rsvp-and-groups, ticket 01): the
-//  going words at the left, Meetup's pill at the right, as the Figma page "Meetup depth"
-//  draws it. One tap and you're Going: "You're going!", "Can't go?" under it to leave, and
-//  the pill becomes Invite. Going itself is `RealLifeActions`'.
+//  Block Party — RSVP on the Town card and in the Event page's floating bar (BP app
+//  docs/plans/rsvp-and-groups, tickets 01 and 02): the going words at the left, Meetup's pill
+//  at the right, as the Figma page "Meetup depth" draws it. One tap and you're Going:
+//  "You're going!", "Can't go?" under it to leave, and the pill becomes Invite. Going itself
+//  is `RealLifeActions`'.
 //
 
 import SwiftUI
 
-/// What the RSVP area says and which pill it shows: one rule for the Town card and, from
-/// ticket 02, the Event page's bar (its grey Canceled pill), from an Event's Going, its
-/// count, the friends going and whether it's called off (`RSVPWordsTests`).
+/// What the RSVP area says and which pill it shows: one rule for the Town card and the Event
+/// page's bar, from an Event's Going, its count, the friends going and whether it's called
+/// off (`RSVPWordsTests`).
 nonisolated struct RSVPWords: Equatable {
     enum Pill: Equatable { case rsvp, invite, canceled }
 
@@ -48,24 +49,36 @@ nonisolated struct RSVPWords: Equatable {
     }
 }
 
-/// The Town card's RSVP area, under the photo: friends' faces, the words, and the pill. A
-/// called-off card's pill is red and says "Canceled" (Jesse, 2026-10-17); it squishes like
-/// every pill and does nothing.
-struct CardRSVPArea: View {
+/// The RSVP area: friends' faces (the card's only), the words, and the pill. A called-off
+/// Event's pill is red and says "Canceled" (Jesse, 2026-10-17); it squishes like every pill
+/// and does nothing.
+struct RSVPArea: View {
+    /// The Town card's, under the photo, or the Event page's, inside its floating capsule.
+    enum Size {
+        case card, page
+
+        /// Words 15 and 13 pt on the card, 17 and 15 in the Event page's bar (Figma "Meetup depth").
+        var top: CGFloat { self == .card ? 15 : 17 }
+        var second: CGFloat { self == .card ? 13 : 15 }
+        /// The pill: 38 pt tall and at least 100 wide on the card, 46 and 131 on the page.
+        var pillHeight: CGFloat { self == .card ? 38 : 46 }
+        var pillMinWidth: CGFloat { self == .card ? 100 : 131 }
+        /// The glyph's box is the word's size plus one (16 and 18 pt on the Figma page); Apple's
+        /// calendar at 13 pt draws about 13 x 12, the size of the card's, so 14.6 for the page's.
+        var send: CGFloat { top + 1 }
+        var calendar: CGFloat { self == .card ? 13 : 14.6 }
+        /// "Can't go?"'s line (16 and 18 pt), grown to a 44 pt target.
+        var leaveReach: CGFloat { self == .card ? -14 : -13 }
+    }
+
     let item: FeedCardItem
     let words: RSVPWords
+    var size: Size = .card
     /// The card's send: Invite opens the same invite card.
     let onInvite: (() -> Void)?
 
-    /// The card's pill: 15 pt words, a 16 pt glyph 7 pt from them (Figma "Meetup depth").
-    private enum Metric {
-        static let glyphGap: CGFloat = 7
-        static let sendSide: CGFloat = 16
-        /// Apple's calendar at 13 pt draws about 13 x 12 pt, the size of the Figma page's.
-        static let calendar: CGFloat = 13
-        /// "Can't go?"'s 16 pt line, grown to a 44 pt target.
-        static let leaveReach: CGFloat = -14
-    }
+    /// The glyph sits 7 pt from the word (Figma "Meetup depth").
+    private static let glyphGap: CGFloat = 7
 
     @Environment(RealLifeActions.self) private var actions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -76,8 +89,10 @@ struct CardRSVPArea: View {
     var body: some View {
         let going = actions.going(item)
         HStack(spacing: 8) {
-            // Faces only beside words: a called-off card with no "You're going!" has none.
-            if words.top != nil {
+            // Faces only beside words: a called-off card with no "You're going!" has none. The
+            // Event page's bar has none: beside its 17 pt words they cut the friends' names
+            // short (Jesse, 2026-10-18).
+            if size == .card, words.top != nil {
                 faces(count: going.count)
             }
 
@@ -85,7 +100,7 @@ struct CardRSVPArea: View {
                 if let top = words.top {
                     // A count rolls; "You're going!" cross-fades in, as its own line.
                     Text(top)
-                        .font(.sansBold(15))
+                        .font(.sansBold(size.top))
                         .foregroundStyle(Hue.ink)
                         .monospacedDigit()
                         .contentTransition(.numericText())
@@ -95,15 +110,15 @@ struct CardRSVPArea: View {
                     if words.canLeave {
                         Button(action: toggle) {
                             Text(second)
-                                .font(.sansSemibold(13))
+                                .font(.sansSemibold(size.second))
                                 .foregroundStyle(Hue.inkSecondary)
-                                .contentShape(Rectangle().inset(by: Metric.leaveReach))
+                                .contentShape(Rectangle().inset(by: size.leaveReach))
                         }
                         .buttonStyle(FeedCardJoinPressStyle(reduceMotion: reduceMotion))
                         .accessibilityHint("Takes you off the going list")
                     } else {
                         Text(second)
-                            .font(.sans(13))
+                            .font(.sans(size.second))
                             .foregroundStyle(Hue.inkSecondary)
                     }
                 }
@@ -115,14 +130,14 @@ struct CardRSVPArea: View {
 
             if words.pill == .canceled {
                 Button {} label: { pillFace(.canceled) }
-                    .buttonStyle(MeetupPillStyle(fill: Hue.canceled))
+                    .buttonStyle(MeetupPillStyle(height: size.pillHeight, minWidth: size.pillMinWidth, fill: Hue.canceled))
                     .accessibilityRemoveTraits(.isButton)
             } else {
                 let failures = actions.failureCount(item.id)
                 Button {
                     if words.pill == .invite { onInvite?() } else { toggle() }
                 } label: { pillFace(words.pill) }
-                    .buttonStyle(MeetupPillStyle())
+                    .buttonStyle(MeetupPillStyle(height: size.pillHeight, minWidth: size.pillMinWidth))
                     .turnBackShake(failures: failures, shakes: !reduceMotion && tappedAt != failures)
                     .accessibilityLabel(words.pill == .invite ? "Invite" : "RSVP")
                     .accessibilityValue(going.isGoing ? "Going" : "")
@@ -145,21 +160,21 @@ struct CardRSVPArea: View {
     }
 
     private func pillFace(_ pill: RSVPWords.Pill) -> some View {
-        HStack(spacing: Metric.glyphGap) {
+        HStack(spacing: Self.glyphGap) {
             if pill == .canceled {
                 Text("Canceled")
             } else if pill == .invite {
-                FeedActionGlyphView(glyph: .send, size: Metric.sendSide)
+                FeedActionGlyphView(glyph: .send, size: size.send)
                 Text("Invite")
             } else {
                 // Apple's calendar, white, where Meetup's page draws one (Jesse, 2026-10-17).
                 Image(systemName: "calendar")
-                    .font(.glyph(Metric.calendar, weight: .semibold))
+                    .font(.glyph(size.calendar, weight: .semibold))
                     .accessibilityHidden(true)
                 Text("RSVP")
             }
         }
-        .font(.sansSemibold(15))
+        .font(.sansSemibold(size.top))
     }
 
     /// RSVP and "Can't go?" both flip Going; a write the server refuses turns back and shakes the pill.

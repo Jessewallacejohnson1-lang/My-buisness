@@ -90,6 +90,17 @@ extension View {
         }
     }
 
+    /// The Event page's white RSVP bar (Figma "Meetup depth"): black 10%, 2 pt down, 6 pt blur,
+    /// and black 8%, 10 pt down, 30 pt blur, each from its own copy of the capsule.
+    func meetupBarDepth() -> some View {
+        background {
+            ZStack {
+                Capsule().shadow(color: .black.opacity(0.10), radius: 3, x: 0, y: 2)
+                Capsule().shadow(color: .black.opacity(0.08), radius: 15, x: 0, y: 10)
+            }
+        }
+    }
+
     // MARK: Map shadows (soft, diffuse — no hard dark edges)
 
     /// Floating chrome button: y=2, blur=8, 10% opacity (spec §8 — one clean elevation).

@@ -4,10 +4,10 @@
 //
 //  Laid out to the Fresha venue page Jesse picked (`references/fresha-venue-detail.png`,
 //  1180 px at 393 pt, 3.0 px a point): a photo carousel under three round buttons, a
-//  sheet over its bottom edge with the title, category, when and where, an About that
-//  clamps at four lines, and a bar along the bottom with the going count and Join.
-//  Every size in `Metric` is measured off that screen; the few it could not give are
-//  marked guessed.
+//  sheet over its bottom edge with the title, category, when and where, and an About that
+//  clamps at four lines. Every size in `Metric` is measured off that screen; the few it
+//  could not give are marked guessed. Over it floats Meetup's white capsule with the RSVP
+//  words and pill the Town card has (rsvp-and-groups 02, Figma "Meetup depth").
 //
 //  Town pushes this onto the shell's stack; Your Day shows it as a sheet, where the
 //  back arrow becomes a close "x". The system bar stays hidden either way.
@@ -28,7 +28,8 @@ struct FeedEventDetailDestination: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Going and Save, shared with the card behind the page (`RealLifeActions`).
     @Environment(RealLifeActions.self) private var actions
-    /// `actions.saveFailureCount` when the bookmark was last tapped, as `joinTappedAt`.
+    /// `actions.saveFailureCount` when the bookmark was last tapped: equal means a tap since the
+    /// last failed turn back, so its shake stops (as the RSVP pill's, `RSVPArea`).
     @State private var saveTappedAt = 0
     /// The bookmark tapped with no account yet opens sign in (Jesse, 2026-10-12).
     @State private var signInShown = false
@@ -39,9 +40,6 @@ struct FeedEventDetailDestination: View {
     /// Photos that could not be loaded. They leave the carousel, so a failure never
     /// holds a skeleton on screen.
     @State private var failedPhotos: Set<URL> = []
-    /// `actions.failureCount` when Join was last tapped. Equal means the neighbour has
-    /// tapped since the last failed turn back, so its shake stops.
-    @State private var joinTappedAt = 0
 
     init(item: FeedCardItem, inSheet: Bool = false) {
         self.item = item
@@ -77,9 +75,17 @@ struct FeedEventDetailDestination: View {
         static let pillHeight: CGFloat = 44
         static let pillInset: CGFloat = 15
         static let pinBox: CGFloat = 10.7
-        /// The bottom bar: 16 pt above and below a 111 x 48 pt Join.
-        static let barPadding: CGFloat = 16
-        static let joinSize = CGSize(width: 111, height: 48)
+        /// The RSVP bar, Meetup's floating capsule measured off its iOS screen at 3x: 57 pt
+        /// tall, 20 pt from the sides (`inset`), the words 24 pt in, the pill 5.5 pt from the end.
+        /// Its bottom is 35 pt above the screen's: 1 pt above the 34 pt home-bar inset (Jesse,
+        /// 2026-10-18; the Figma page's 74 pt counted Mobbin's 40 pt caption strip).
+        static let barHeight: CGFloat = 57
+        static let barWordsInset: CGFloat = 24
+        static let barPillInset: CGFloat = 5.5
+        static let barBottom: CGFloat = 1
+        /// Meetup's fade to the page under the bar starts 115 pt above the screen's bottom,
+        /// 23 pt above the capsule's top (Jesse, 2026-10-18).
+        static let fadeAboveBar: CGFloat = 23
 
         // Vertical rhythm, tuned so the rendered baselines land on the
         // Reference's: title cap-top 28 pt under the sheet edge, 36 pt title
@@ -93,7 +99,8 @@ struct FeedEventDetailDestination: View {
         static let aboutTop: CGFloat = 33
         static let clockGap: CGFloat = 4.5
         static let pinGap: CGFloat = 8
-        /// Paper under the last row, above the bottom bar (guessed).
+        /// Paper under the last row, above the RSVP bar (guessed): with the bar's 57 + 1 pt
+        /// inset, the last line rests just above the fade.
         static let contentBottom: CGFloat = 24
     }
 
@@ -119,10 +126,12 @@ struct FeedEventDetailDestination: View {
         .accessibilityElement(children: .contain)
         // Whether the person may act is the module's, not the card's the page was opened
         // with: on first launch the quiet account can arrive while the page is open, and
-        // the bar comes up then.
+        // the bar comes up then. An inset, so the page scrolls under the capsule and its last
+        // line stops clear of it. Not `.safeAreaBar`: it let iOS recolour the Town bar
+        // (2026-09-24); the bar brings its own fade.
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if actions.canAct {
-                bottomBar
+            if let words = actions.rsvp(item) {
+                rsvpBar(words)
                     .transition(reduceMotion ? .opacity : .move(edge: .bottom))
             }
         }
@@ -178,7 +187,8 @@ struct FeedEventDetailDestination: View {
                     GeometryReader { proxy in
                         heroPhotos
                             .frame(width: proxy.size.width, height: proxy.size.height + Metric.heroUnderlap)
-                            // Called off: grey, as on its card (Jesse, 2026-10-15).
+                            // Called off: black and white, as on its card, with no tag over it
+                            // (Jesse, 2026-10-17).
                             .grayscale(item.cancelled ? 1 : 0)
                     }
                 }
@@ -187,19 +197,7 @@ struct FeedEventDetailDestination: View {
                     return content.scaleEffect(1 + pull / max(proxy.size.height, 1), anchor: .bottom)
                 }
                 // After the stretch, so they stay put at the hero's bottom corners, unscaled.
-                .overlay(alignment: .bottomLeading) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        // Called off (ticket 12): the card's tag, its bottom level with the
-                        // counter's, or just above the credit when there is one.
-                        if item.cancelled {
-                            CanceledTag()
-                                .feedCardPhotoTypeShadow()
-                                .padding(.leading, Metric.inset)
-                                .padding(.bottom, creditName == nil ? Metric.counterBottom : 8)
-                        }
-                        credit
-                    }
-                }
+                .overlay(alignment: .bottomLeading) { credit }
                 .overlay(alignment: .bottomTrailing) { counter }
                 .transition(.opacity)
         }
@@ -331,20 +329,13 @@ struct FeedEventDetailDestination: View {
 
     private var sheet: some View {
         VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: 8) {
-                // Called off with no photo to carry the tag: it sits over the title instead.
-                if item.cancelled && !hasHero {
-                    CanceledTag(onPhoto: false)
-                }
-
-                Text(item.title)
-                    .font(.eventDisplay(28))
-                    .lineSpacing(Metric.titleLineSpacing)
-                    .foregroundStyle(Hue.ink)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityAddTraits(.isHeader)
-            }
-            .padding(.top, Metric.titleTop)
+            Text(item.title)
+                .font(.eventDisplay(28))
+                .lineSpacing(Metric.titleLineSpacing)
+                .foregroundStyle(Hue.ink)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+                .padding(.top, Metric.titleTop)
 
             if let category = Self.categoryText(item.category) {
                 Text(category)
@@ -395,107 +386,28 @@ struct FeedEventDetailDestination: View {
 
     // MARK: The bar
 
-    private var bottomBar: some View {
-        let going = actions.going(item)
-        let failures = actions.failureCount(item.id)
-        return HStack(spacing: 12) {
-            // `goingLabel` is nil at zero: never "0 going". Called off: none, which would
-            // read as if it were still on (Jesse, 2026-10-15).
-            // Friends Going lead it, with their faces, as on the card (town-feed 28); a long
-            // line takes a second line rather than pushing Join.
-            if !item.cancelled,
-               let line = YourDayLogic.goingLabel(for: going.count, friends: item.friendsGoing.map(\.name),
-                                                  youGoing: going.isGoing) {
-                HStack(spacing: 8) {
-                    if !item.friendsGoing.isEmpty { FriendFaces(friends: item.friendsGoing) }
-                    Text(line)
-                        .font(.sans(17))
-                        .monospacedDigit()
-                        .foregroundStyle(Hue.inkSecondary)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .contentTransition(.numericText())
-                }
-                .transition(.opacity)
+    /// Meetup's white capsule floating over the page, with the card's RSVP words and pill
+    /// (`RSVPArea`); Invite opens the invite card the top share does. Under it the page fades
+    /// to paper, as Meetup's does, so words never run hard into its edge or the home bar.
+    private func rsvpBar(_ words: RSVPWords) -> some View {
+        RSVPArea(item: item, words: words, size: .page) { ShareCenter.shared.present(.event(item)) }
+            .padding(.leading, Metric.barWordsInset)
+            .padding(.trailing, Metric.barPillInset)
+            .frame(height: Metric.barHeight)
+            .background {
+                Capsule()
+                    .fill(Hue.surface)
+                    .overlay { Capsule().strokeBorder(Hue.hairline, lineWidth: 1) }
+                    .meetupBarDepth()
             }
-
-            Spacer(minLength: 0)
-
-            if item.cancelled && !going.isGoing {
-                // Called off: nobody new joins (Meetup's greyed button). Someone Going
-                // keeps Going below, so they can still leave it.
-                // Still squishes under the finger, like everything that looks pressable
-                // (taste.md), and does nothing.
-                Button {} label: {
-                    Text("Canceled")
-                        .font(.sansSemibold(17))
-                        .foregroundStyle(Hue.inkSecondary)
-                        .frame(width: Metric.joinSize.width, height: Metric.joinSize.height)
-                        .background(Hue.fill, in: Capsule())
-                }
-                .buttonStyle(FeedCardJoinPressStyle(reduceMotion: reduceMotion))
-                .accessibilityRemoveTraits(.isButton)
-                .transition(.opacity)
-            } else {
-                // Optimistic: it answers at once, and a write that fails turns it back
-                // (`RealLifeActions`), with a shake.
-                Button {
-                    joinTappedAt = failures
-                    actions.toggleGoing(item)
-                } label: { joinFace(going.isGoing) }
-                    .buttonStyle(FeedCardJoinPressStyle(reduceMotion: reduceMotion))
-                    .turnBackShake(failures: failures, shakes: joinShakes(failures))
-                    .accessibilityLabel(going.isGoing ? "Going" : "Join")
-                    .accessibilityAddTraits(going.isGoing ? .isSelected : [])
+            .padding(.horizontal, Metric.inset)
+            .padding(.bottom, Metric.barBottom)
+            .background {
+                LinearGradient(colors: [Hue.paper.opacity(0), Hue.paper], startPoint: .top, endPoint: .bottom)
+                    .padding(.top, -Metric.fadeAboveBar)
+                    .ignoresSafeArea(edges: .bottom)
+                    .allowsHitTesting(false)
             }
-        }
-        .animation(joinMorph, value: going.isGoing)
-        .animation(joinMorph, value: going.count)
-        .padding(.horizontal, Metric.inset)
-        .padding(.vertical, Metric.barPadding)
-        .background(Hue.paper.ignoresSafeArea(edges: .bottom))
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(Hue.hairline)
-                .frame(height: 1)
-        }
-    }
-
-    /// Join is the Reference's black capsule. Going inverts it the way the card's join
-    /// button inverts when joined: a white face, a hairline edge and an ink check. The
-    /// Reference has no Going state, so this look is guessed.
-    private func joinFace(_ isGoing: Bool) -> some View {
-        // A ZStack, not a Group: a Group hands the capsule below to each branch, so the
-        // morph drew two capsules, and the one fading out stayed put while the shake
-        // moved the other (the eyes pass, 2026-09-27). One capsule; only the words swap.
-        ZStack {
-            if isGoing {
-                Label("Going", systemImage: "checkmark")
-                    .labelStyle(.titleAndIcon)
-            } else {
-                Text("Join")
-            }
-        }
-        .font(.sansSemibold(17))
-        .foregroundStyle(isGoing ? Hue.ink : Hue.surface)
-        .frame(width: Metric.joinSize.width, height: Metric.joinSize.height)
-        .background {
-            Capsule()
-                .fill(isGoing ? Hue.surface : Hue.ink)
-                .overlay { Capsule().strokeBorder(isGoing ? Hue.hairline : .clear, lineWidth: 1) }
-        }
-    }
-
-    /// Whether the last failed turn back may still shake Join. Reduce Motion: never
-    /// (the error buzz still comes, from `RealLifeActions`). A tap since then: no, so a
-    /// tap mid-shake stops it and acts at once.
-    private func joinShakes(_ failures: Int) -> Bool {
-        !reduceMotion && joinTappedAt != failures
-    }
-
-    /// Join's flip (`RealLifeActions.flip`), the card's RSVP pill's too, both ways, rollback included.
-    private var joinMorph: Animation {
-        .easeInOut(duration: reduceMotion ? 0.15 : RealLifeActions.flip)
     }
 
     /// Takes a photo that failed out of the carousel and keeps the page in range.
