@@ -2,7 +2,8 @@
 
 Every picture Block Party shows for a place is a photo it saved once (BP app docs/plans/place-photos).
 Once a month you check each live photo against the page it came from and propose a replacement for
-each stale one. Nothing changes in the app: a proposal waits for Jesse's yes on his review page. You
+each stale one, and re-read every place that still has no real photo for one it may have gained
+(Jesse, 2026-10-18). Nothing changes in the app: a proposal waits for Jesse's yes on his review page. You
 run it in the cloud, in a fresh copy of this repository. Work through the steps in order; a place
 that fails is a line in the answer, and you carry on with the rest.
 
@@ -16,20 +17,20 @@ that fails is a line in the answer, and you carry on with the rest.
    reads about 120 pages politely and takes up to half an hour. In January, April, July and October
    also run `check --logos` after it, and report its stale logos in the answer without proposing:
    a logo is picked by hand. Done when `check` prints its `… checked against … pages` line.
-3. **Find replacements.** No stale photos: skip to step 6. Otherwise run
-   `python3 sources/scripts/place_photos.py candidates`. For each stale photo it downloads the
-   pictures on its page now and draws them, numbered, on `.runs/photos/sheet-<n>.png`.
-4. **Pick by eye.** Open every sheet with the Read tool and look at each candidate. Pick at most one
-   per stale photo: a real photo of the place, its people or its own work. Stock photos, textures,
-   ads, banners, screenshots, maps, logos and other organisations' pictures are not real photos;
-   an owner's headshot counts but is weaker than the place. Nothing real on the sheet means no
-   proposal for that one; say so in the answer.
-5. **Propose.** For each pick run `python3 sources/scripts/place_photos.py propose <row id> <n>`
-   (the row id is in the sheet's heading). It saves the picture as a proposal in the same slot;
-   the app never shows a proposal.
-6. **Answer** with `check`'s line; then one line per stale photo: the place, why it is stale
-   (changed, page gone, over a year old) and what you proposed or why nothing; then, if you made
-   any proposals, "Swaps waiting for Jesse: N".
+3. **Find candidates.** Run `python3 sources/scripts/place_photos.py candidates`, with a 1800000 ms
+   timeout. For each stale photo and each place still without a real photo it downloads the
+   pictures on their pages now and draws them, numbered, on `.runs/photos/sheet-<n>.png`; each
+   block's heading carries its key (a row id, or the place's entry id) and why it is there.
+4. **Pick by eye.** Open every sheet with the Read tool, at most four at a time, and look at each
+   candidate. Pick at most one per block: a real photo of the place, its people or its own work.
+   Stock photos, textures, ads, banners, screenshots, maps, logos, clip art and other
+   organisations' pictures are not real photos; an owner's headshot counts but is weaker than the
+   place. Nothing real in a block means no proposal for it.
+5. **Propose.** For each pick run `python3 sources/scripts/place_photos.py propose <key> <n>`. It
+   saves the picture as a proposal; the app never shows a proposal.
+6. **Answer** with `check`'s line; then one line per stale photo (the place, why it is stale, what
+   you proposed or why nothing); then the places without a photo you proposed one for; then, if
+   you made any proposals, "Swaps waiting for Jesse: N".
 
 ## Rules
 

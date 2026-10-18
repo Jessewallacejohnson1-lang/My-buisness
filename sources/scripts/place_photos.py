@@ -5,10 +5,12 @@ place-photos skill imports its picture-finding from here, so there is one copy.
 
     python3 sources/scripts/place_photos.py check [--logos]      every live photo (or logo) against its page:
                                                                   .runs/photos/check.json, the stale ones printed
-    python3 sources/scripts/place_photos.py candidates           each stale photo's page, its pictures downloaded
-                                                                  and drawn on .runs/photos/sheet-<n>.png
-    python3 sources/scripts/place_photos.py propose <row id> <n> candidate n saved as a proposal in place of that
-                                                                  live row; the app shows none until Jesse's yes
+    python3 sources/scripts/place_photos.py candidates           the pages of each stale photo and of every place
+                                                                  still without a real photo, their pictures drawn
+                                                                  on .runs/photos/sheet-<n>.png
+    python3 sources/scripts/place_photos.py propose <key> <n>    candidate n saved as a proposal: <key> is a stale
+                                                                  row's id (it takes that slot) or an entry id (a
+                                                                  first photo); the app shows none until Jesse's yes
     python3 sources/scripts/place_photos.py --selftest
 
 `check` reads and `propose` writes with SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (the morning job's
@@ -332,34 +334,65 @@ def check(logos=False, rows=None):
     return out
 
 
-def candidates(names=None):
-    """For each stale photo in check.json: the pictures on its page now (or, for a free photo, Commons'
-    for the place's name), downloaded as .runs/photos/<row id>/c<n>.png, the stale one and the place's
-    other live photos left out; all drawn on numbered contact sheets."""
+def without_photo(entries):
+    """Every place people see that still has no real photo (Jesse, 2026-10-18: re-read every month, the
+    first pass missed some): app places and the places upcoming found events happen at, each with
+    its pages (the app's website and the registry's)."""
+    places = api('GET', '/rest/v1/places?select=entry_id,links&entry_id=not.is.null')
+    events = api('GET', f'/rest/v1/club_events?select=place_entry_id&source_uid=not.is.null'
+                        f'&event_date=gte.{date.today()}&place_entry_id=not.is.null')
+    have = {r['entry_id'] for r in api('GET', '/rest/v1/place_photos?select=entry_id&kind=eq.photo'
+                                              '&status=in.(live,proposed)')}
+    sites = {}
+    for p in places:
+        sites.setdefault(p['entry_id'], []).extend(l['url'] for l in p['links'] or [] if l.get('kind') == 'website')
+    for e in {r['place_entry_id'] for r in events}:
+        sites.setdefault(e, [])
+    out = []
+    for eid in sorted(set(sites) - have):
+        e = entries.get(eid, {})
+        pages = sites[eid] + [s['url'] for s in e.get('sources') or []
+                              if s.get('kind') == 'website' and s.get('url', 'TODO') != 'TODO']
+        out.append({'entry_id': eid, 'pages': list(dict.fromkeys(pages))})
+    return out
+
+
+def candidates():
+    """For each stale photo in check.json, the pictures on its page now (for a free photo, Commons' for
+    the place's name), and for each place still without a real photo, the pictures on its pages;
+    downloaded as .runs/photos/<key>/c<n>.png (the place's live photos left out) and drawn on numbered
+    contact sheets. <key> is the stale row's id, or the entry id of a place with no photo."""
+    import registry
+    entries = {e['id']: e for e in registry.load(registry.find_root(Path(__file__).parent))[0]}
+    names = {k: e['_name'] for k, e in entries.items()}
     stale = [r for r in json.loads((OUT / 'check.json').read_text()) if r['verdict'] != 'ok']
-    if names is None:
-        import registry
-        names = {e['id']: e['_name'] for e in registry.load(registry.find_root(Path(__file__).parent))[0]}
+    jobs = [{'key': str(r['id']), 'entry_id': r['entry_id'], 'position': r['position'], 'verdict': r['verdict'],
+             'hash': r['hash'], 'pages': [r['source_url']]} for r in stale]
+    jobs += [{'key': w['entry_id'], 'entry_id': w['entry_id'], 'position': None, 'verdict': 'no photo yet',
+              'hash': None, 'pages': w['pages']} for w in without_photo(entries)]
     live = api('GET', '/rest/v1/place_photos?select=entry_id,url&status=in.(live,proposed)')
     result = {}
-    for r in stale:
-        folder = OUT / str(r['id'])
+    for r in jobs:
+        folder = OUT / r['key']
         folder.mkdir(parents=True, exist_ok=True)
-        known = [r['hash']]
+        known = [r['hash']] if r['hash'] is not None else []
         for x in live:
             if x['entry_id'] == r['entry_id']:
                 with urllib.request.urlopen(x['url'], timeout=30) as f:
                     known.append(dhash(Image.open(io.BytesIO(f.read()))))
         found, why = [], None
-        try:
-            if 'commons.wikimedia.org' in r['source_url']:
-                found = commons(f"{names.get(r['entry_id'], r['entry_id'])} Minnesota")
-            else:
-                _, html = run.fetch(r['source_url'])
-                found = [{'url': u, 'page': r['source_url'], 'source': 'site'}
-                         for u in photo_urls(from_page(html, run.final_url.get(r['source_url'], r['source_url'])))[:12]]
-        except Exception as x:
-            why = str(x)[:80]
+        for page in r['pages']:
+            try:
+                if 'commons.wikimedia.org' in page:
+                    found += commons(f"{names.get(r['entry_id'], r['entry_id'])} Minnesota")
+                else:
+                    _, html = run.fetch(page)
+                    found += [{'url': u, 'page': page, 'source': 'site'}
+                              for u in photo_urls(from_page(html, run.final_url.get(page, page)))[:12]]
+            except Exception as x:
+                why = str(x)[:80]
+        if not r['pages']:
+            why = 'no website to read'
         cands = []
         for f in found:
             n = len(cands) + 1
@@ -372,11 +405,15 @@ def candidates(names=None):
                 (folder / f'c{n}.png').unlink()
                 continue
             cands.append({**f, 'n': n, 'px': [w, h], 'kind': kind(im)})
-        result[str(r['id'])] = {'entry_id': r['entry_id'], 'name': names.get(r['entry_id'], r['entry_id']),
-                                'position': r['position'], 'verdict': r['verdict'], 'why': why, 'cands': cands}
+        result[r['key']] = {'entry_id': r['entry_id'], 'name': names.get(r['entry_id'], r['entry_id']),
+                            'position': r['position'], 'verdict': r['verdict'], 'why': why, 'cands': cands}
     (OUT / 'candidates.json').write_text(json.dumps(result, indent=1, ensure_ascii=False))
     files = sheets(result)
-    print(f"{len(result)} stale photos; {sum(1 for v in result.values() if v['cands'])} with candidates; sheets:", *files)
+    print(f"{len(stale)} stale photos, {len(jobs) - len(stale)} places without a photo; "
+          f"{sum(1 for v in result.values() if v['cands'])} with candidates; sheets:", *files)
+    for k, v in result.items():
+        if not v['cands']:
+            print(f"  {v['name']} ({k}): nothing found" + (f" ({v['why']})" if v['why'] else ''))
     return result
 
 
@@ -392,7 +429,7 @@ def sheets(result, per=6, cols=5):
         d = ImageDraw.Draw(sheet)
         y = 10
         for rid, v in chunk:
-            label(d, (gap, y + 4), f"{v['name']}  (row {rid}, {v['verdict']})", font(20), cols * (tw + gap))
+            label(d, (gap, y + 4), f"{v['name']}  (key {rid}, {v['verdict']})", font(20), cols * (tw + gap))
             y += 34
             for i, c in enumerate(v['cands']):
                 x, cy = gap + (i % cols) * (tw + gap), y + (i // cols) * (th + 24)
@@ -411,12 +448,17 @@ def sheets(result, per=6, cols=5):
     return files
 
 
-def propose(row_id, n):
-    """Candidate n of a stale row, uploaded and saved as a proposal in the same slot: status 'proposed',
-    which the app never reads. Jesse's yes on the review page swaps it in (the skill's `swap`)."""
-    v = json.loads((OUT / 'candidates.json').read_text())[str(row_id)]
+def propose(key, n):
+    """Candidate n, uploaded and saved as a proposal (status 'proposed', which the app never reads): a
+    stale row's in that row's slot, a first photo after the place's live rows. Jesse's yes on the
+    review page swaps it in (the skill's `swap`)."""
+    v = json.loads((OUT / 'candidates.json').read_text())[str(key)]
     c = next(x for x in v['cands'] if x['n'] == n)
-    data = webp(Image.open(OUT / str(row_id) / f'c{n}.png'))
+    if v['position'] is None:  # a first photo: the next free slot (a live logo keeps its own)
+        taken = [r['position'] for r in api('GET', f"/rest/v1/place_photos?select=position&entry_id=eq.{v['entry_id']}"
+                                                   '&status=in.(live,proposed)')]
+        v['position'] = max(taken) + 1 if taken else 0
+    data = webp(Image.open(OUT / str(key) / f'c{n}.png'))
     path = f"{TOWN}/{v['entry_id']}/photo-{hashlib.sha1(data).hexdigest()[:10]}.webp"
     try:
         api('POST', f'/storage/v1/object/places/{urllib.parse.quote(path)}', data,
@@ -427,7 +469,8 @@ def propose(row_id, n):
     api('POST', '/rest/v1/place_photos', [{'entry_id': v['entry_id'], 'town': TOWN, 'url': public_url(path),
                                            'source_url': c['page'], 'position': v['position'], 'status': 'proposed',
                                            'kind': 'photo', 'credit': credit(c)}], {'Prefer': 'return=minimal'})
-    print(f"{v['entry_id']}: proposed in place of row {row_id} (position {v['position']})")
+    print(f"{v['entry_id']}: proposed" + (f" in place of row {key}" if str(key).isdigit() else ' as its first photo')
+          + f" (position {v['position']})")
 
 
 # --- Self-test ------------------------------------------------------------------------------------
@@ -491,6 +534,6 @@ if __name__ == '__main__':
     elif a == ['candidates']:
         candidates()
     elif a[:1] == ['propose'] and len(a) == 3:
-        propose(int(a[1]), int(a[2]))
+        propose(a[1], int(a[2]))
     else:
         sys.exit(__doc__)
