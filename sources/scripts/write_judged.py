@@ -839,12 +839,15 @@ def t_place_entry():
                    source_url="https://www.stjosephmn.gov/")
     zoo = item(title="Family Zoo Day", place="Hemker Park & Zoo", town="Freeport", area="announced",
                source_name="City of St. Joseph", source_url="https://www.stjosephmn.gov/")
-    r = run([item(), arena, shelter, zoo])
+    band = item(title="Band in the Park", place="Lakeside Bandshell", source_name="City of St. Joseph",
+                source_url="https://www.stjosephmn.gov/", start="2026-10-25T18:00:00-05:00")
+    r = run([item(), arena, shelter, zoo, band])
     ids = {g["row"]["title"]: g["row"]["place_entry_id"] for g in r["events"]}
     assert ids == {"Plant Bingo": "milk-and-honey-ciders", "SJU Hockey vs Augsburg": "sju",
-                   "Picnic in the Park": "centennial-park", "Family Zoo Day": "city-of-st-joseph"}, ids
+                   "Picnic in the Park": "centennial-park", "Family Zoo Day": "hemker-park-zoo",
+                   "Band in the Park": "city-of-st-joseph"}, ids
     assert [n for n in r["notes"] if "not in the registry" in n] == [
-        "place not in the registry: 'Hemker Park & Zoo' (City of St. Joseph's picture stands in)"], r["notes"]
+        "place not in the registry: 'Lakeside Bandshell' (City of St. Joseph's picture stands in)"], r["notes"]
     assert "place_entry_id = coalesce(excluded.place_entry_id" in WRITES.read_text(), "the database keeps it"
 
 
