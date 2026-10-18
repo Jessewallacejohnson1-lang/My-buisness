@@ -1,7 +1,7 @@
 //
 //  MeetupPill.swift
-//  Block Party — Meetup's charcoal pill: RSVP and Invite on the Town card (BP app
-//  docs/plans/rsvp-and-groups), and Join group after it.
+//  Block Party — Meetup's charcoal pill: RSVP and Invite on the Town card and in the Event
+//  page's bar (BP app docs/plans/rsvp-and-groups), and Join group after it.
 //
 //  Every number is the Figma page "Meetup depth" (Jesse, 2026-10-17), measured off
 //  Meetup's iOS pills at 3x. Not one flat black: lit from above (`Hue.pillTop` to

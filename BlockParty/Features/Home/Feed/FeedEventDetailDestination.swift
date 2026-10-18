@@ -58,7 +58,7 @@ struct FeedEventDetailDestination: View {
         /// How far the photo runs on under the sheet: the corner, so no paper
         /// shows through the curve (guessed).
         static let heroUnderlap: CGFloat = sheetCorner
-        /// Content, buttons, counter, pill and Join all sit 20 pt in from the edge.
+        /// Content, buttons, counter, pill and the RSVP bar all sit 20 pt in from the edge.
         static let inset: CGFloat = 20
         /// The round buttons: 36 pt circles in 44 pt tap boxes, their tops 13.5 pt
         /// under the safe area. Share and save sit 44 pt apart, centre to centre.
@@ -335,6 +335,8 @@ struct FeedEventDetailDestination: View {
                 .foregroundStyle(Hue.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
+                // Called off, VoiceOver says so with the title: the bar's red pill comes last.
+                .accessibilityValue(item.cancelled ? "Canceled" : "")
                 .padding(.top, Metric.titleTop)
 
             if let category = Self.categoryText(item.category) {
@@ -393,7 +395,9 @@ struct FeedEventDetailDestination: View {
         RSVPArea(item: item, words: words, size: .page) { ShareCenter.shared.present(.event(item)) }
             .padding(.leading, Metric.barWordsInset)
             .padding(.trailing, Metric.barPillInset)
-            .frame(height: Metric.barHeight)
+            // 57 pt at the default text size; larger text grows it rather than spilling out.
+            .padding(.vertical, Metric.barPillInset)
+            .frame(minHeight: Metric.barHeight)
             .background {
                 Capsule()
                     .fill(Hue.surface)

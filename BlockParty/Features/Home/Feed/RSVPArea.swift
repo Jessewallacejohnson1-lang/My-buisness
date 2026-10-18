@@ -83,7 +83,7 @@ struct RSVPArea: View {
     @Environment(RealLifeActions.self) private var actions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    /// `actions.failureCount` at the last tap, as the Event page's Join: a tap mid-shake stills it.
+    /// `actions.failureCount` at the last tap: a tap mid-shake stills it.
     @State private var tappedAt = 0
 
     var body: some View {
@@ -117,9 +117,12 @@ struct RSVPArea: View {
                         .buttonStyle(FeedCardJoinPressStyle(reduceMotion: reduceMotion))
                         .accessibilityHint("Takes you off the going list")
                     } else {
+                        // Shrinks a little before it cuts: "Sam and Marlene are going" needs 187 pt
+                        // at the page's 15 pt, and a 402 pt phone leaves 174 beside the pill.
                         Text(second)
                             .font(.sans(size.second))
                             .foregroundStyle(Hue.inkSecondary)
+                            .minimumScaleFactor(0.9)
                     }
                 }
             }
@@ -143,7 +146,7 @@ struct RSVPArea: View {
                     .accessibilityValue(going.isGoing ? "Going" : "")
             }
         }
-        // The pill turns into Invite and the words cross-fade over Join's flip, both ways,
+        // The pill turns into Invite and the words cross-fade over `RealLifeActions.flip`, both ways,
         // a failed RSVP's turn back included; a count that moves rolls.
         .animation(.easeInOut(duration: reduceMotion ? 0.15 : RealLifeActions.flip), value: going.isGoing)
         .animation(reduceMotion ? .easeInOut(duration: 0.15) : Motion.smooth, value: going.count)

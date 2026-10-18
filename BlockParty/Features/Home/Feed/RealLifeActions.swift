@@ -34,8 +34,8 @@ final class RealLifeActions {
     /// failed 15 ms after the tap (measured 2026-09-26), about one frame. (guessed)
     static let hold: Duration = .milliseconds(600)
 
-    /// How long Join takes to turn from one face to the other, both ways, in seconds: the
-    /// Event page's Join and the card's RSVP pill. A heart turns back as fast.
+    /// How long the RSVP pill takes to turn from one face to the other, both ways, in seconds,
+    /// on the card and in the Event page's bar. A heart turns back as fast.
     static let flip: TimeInterval = 0.18
 
     /// May act: has an account, or writes go nowhere and need none (`Backend`).
