@@ -206,9 +206,10 @@ struct GroupPage: View {
                     .padding(.top, Metric.sectionBodyTop)
             }
 
-            if !group.meetings.isEmpty {
+            let meetings = Self.upcoming(group.meetings)
+            if !meetings.isEmpty {
                 section("Coming up")
-                ForEach(Array(group.meetings.enumerated()), id: \.offset) { _, meeting in
+                ForEach(Array(meetings.enumerated()), id: \.offset) { _, meeting in
                     meetingRow(meeting)
                         .padding(.top, Metric.rowTop)
                 }
@@ -286,7 +287,7 @@ struct GroupPage: View {
         }
     }
 
-    // MARK: Words (GroupPageTests)
+    // MARK: Words (SearchModelTests)
 
     /// "Book club · St. Joseph": the town alone when the group doesn't say what kind it is.
     static func kindLine(_ group: TownGroup) -> String {
@@ -298,6 +299,12 @@ struct GroupPage: View {
     static func whenLine(_ group: TownGroup) -> String? {
         let parts = [nonempty(group.schedule), nonempty(group.location)].compactMap { $0 }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// The get-togethers from today on: the groups are read once a launch, so one can pass while the app stays open.
+    static func upcoming(_ meetings: [TownGroup.Meeting], today: Date = Date()) -> [TownGroup.Meeting] {
+        let day = Town.day(today)
+        return meetings.filter { $0.day >= day }
     }
 
     /// Never "0 members".

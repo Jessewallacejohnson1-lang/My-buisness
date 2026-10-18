@@ -153,3 +153,17 @@ test('meetings: months off, no time, where, and nothing for no rules', async () 
     [['2026-11-01', '08:30', 'Heritage Hall'], ['2026-11-09', null, null], ['2026-12-06', '08:30', 'Heritage Hall']]);
   assert.deepEqual(await meetings(null, '2026-10-18'), []);
 });
+
+test('a mistyped rule costs only itself, never the shelf', async () => {
+  const m = await meetings([
+    { what: 'Days not a list', days: 'tue', time: '18:00' },
+    { what: 'Week not a number', days: ['tue'], weeks: ['first'], time: '18:00' },
+    { what: 'Month not a number', days: ['wed'], weeks: [1], time: 1800, months_off: ['june'] },
+    'not a rule',
+    { what: 'Meeting', days: ['tue'], weeks: [1, 3], time: '18:00' }], '2026-10-18');
+  assert.deepEqual(m.map((x) => `${x.day} ${x.what} ${x.time}`), [
+    '2026-10-20 Meeting 18:00', '2026-11-03 Meeting 18:00', '2026-11-04 Month not a number null'],
+    'days not a list and weeks not numbers give nothing; a month not a number is skipped; a time not text is no time');
+  await db.query("update public.clubs set meets = '[{\"days\": \"tue\"}]' where name = 'Laundry Love'");
+  assert.equal((await groups(null)).length, 14, 'one bad rule, every group still reads');
+});

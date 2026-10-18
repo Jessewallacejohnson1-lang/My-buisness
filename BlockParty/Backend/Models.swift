@@ -87,9 +87,9 @@ nonisolated struct TownGroup: Decodable, Hashable, Identifiable, Sendable {
         location = try? c.decodeIfPresent(String.self, forKey: .location)
         about = try? c.decodeIfPresent(String.self, forKey: .about)
         pageUrl = try? c.decodeIfPresent(String.self, forKey: .pageUrl)
-        photos = ((try? c.decodeIfPresent([PlacePicture.Lenient].self, forKey: .photos)) ?? [])
+        photos = ((try? c.decodeIfPresent([Lenient<PlacePicture>].self, forKey: .photos)) ?? [])
             .compactMap(\.value).filter { $0.kind == .photo }
-        logo = (try? c.decodeIfPresent(PlacePicture.Lenient.self, forKey: .logo))?.value
+        logo = (try? c.decodeIfPresent(Lenient<PlacePicture>.self, forKey: .logo))?.value
         meetings = ((try? c.decodeIfPresent([Lenient<Meeting>].self, forKey: .meetings)) ?? []).compactMap(\.value)
         memberCount = (try? c.decodeIfPresent(Int.self, forKey: .memberCount)) ?? 0
         joined = (try? c.decodeIfPresent(Bool.self, forKey: .joined)) ?? false

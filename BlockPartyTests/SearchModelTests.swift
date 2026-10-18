@@ -301,6 +301,11 @@ final class SearchModelTests: XCTestCase {
         XCTAssertEqual(GroupPage.meetingLine(.init(what: "Parish breakfast", day: "2026-11-01", time: "08:30", place: "Heritage Hall")),
                        "Sun, Nov 1 · 8:30 AM · Heritage Hall")
         XCTAssertEqual(GroupPage.meetingLine(.init(what: "Bingo", day: "2026-10-26", time: "12:00")), "Mon, Oct 26 · 12 PM")
+        let lions = [TownGroup.Meeting(what: "Meeting", day: "2026-10-20", time: "18:00"),
+                     TownGroup.Meeting(what: "Meeting", day: "2026-11-03", time: "18:00")]
+        let oct21 = YourDayLogic.townDay("2026-10-21")!
+        XCTAssertEqual(GroupPage.upcoming(lions, today: oct21).map(\.day), ["2026-11-03"], "one that passed while the app stayed open goes")
+        XCTAssertEqual(GroupPage.upcoming(lions, today: YourDayLogic.townDay("2026-10-20")!).count, 2, "today's stays")
         XCTAssertEqual(GroupPage.tile("2026-10-20").month, "OCT")
         XCTAssertEqual(GroupPage.tile("2026-10-20").day, "20")
     }
