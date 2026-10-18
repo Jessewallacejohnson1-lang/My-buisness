@@ -181,6 +181,12 @@ nonisolated struct FeedScore: Decodable, Hashable, Sendable {
     /// a read that keeps the order on screen can leave different from the database's.
     var spot: Int
     var of: Int
+    /// Newer terms, absent from a breakdown read before them: points for a host you've been
+    /// into (town-feed 30), for how much it draws the town out (34), and the multiplier for an
+    /// interest placed again (32).
+    var tapped: Double? = nil
+    var draw: Double? = nil
+    var topicSpacing: Double? = nil
 }
 
 struct AgendaEvent: Identifiable, Hashable {
