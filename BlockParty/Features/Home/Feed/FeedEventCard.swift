@@ -145,6 +145,10 @@ struct FeedEventCard: View {
                 onSend: onComment
             )
         }
+        // Called off while Going, "Can't go?" takes the RSVP area away: it fades and the card
+        // closes up over Join's flip, never a jump.
+        .animation(.easeInOut(duration: motionIsReduced ? 0.15 : RealLifeActions.flip),
+                   value: actions.rsvp(item) == nil || actions.rsvp(item)?.top == nil)
         // On screen: a heart or RSVP that fails may shake here. Scrolled away or covered
         // by the Event page, it turns back without a shake or a buzz.
         .onAppear { actions.cardOpened(item.id) }

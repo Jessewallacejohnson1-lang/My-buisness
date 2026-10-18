@@ -25,11 +25,17 @@ struct MeetupPillStyle: ButtonStyle {
     static let pressedScale: CGFloat = 0.97
     /// Words (and glyph) 20 pt in from each end.
     static let sidePadding: CGFloat = 20
+    /// The tap area reaches past the pill to Apple's 44 pt (the card's pill is 38 tall).
+    static let minTarget: CGFloat = 44
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeBody(configuration: Configuration) -> some View {
         let pressed = configuration.isPressed
+        // The press spring moves only the sink and the shadows. The words swap on their
+        // caller's timing, so the pill turns into Invite with the words beside it, not on
+        // the spring (the review's frames, 2026-10-17).
+        let press = FeedMarkPress.animation(reduceMotion: reduceMotion)
         return configuration.label
             .foregroundStyle(.white)
             .padding(.horizontal, Self.sidePadding)
@@ -42,11 +48,12 @@ struct MeetupPillStyle: ButtonStyle {
                                                  .init(color: Hue.pillBottom, location: 1)],
                                          startPoint: .top, endPoint: .bottom)
                         .shadow(.inner(color: Hue.pillRim, radius: 0, x: 0, y: 1)))
-                    .meetupPillDepth(pressed: pressed)
+                    .animation(press) { $0.meetupPillDepth(pressed: pressed) }
             }
-            .contentShape(Capsule())
-            .scaleEffect(pressed && !reduceMotion ? Self.pressedScale : 1)
-            .opacity(FeedMotion.pressOpacity(isPressed: pressed, reduceMotion: reduceMotion))
-            .animation(FeedMarkPress.animation(reduceMotion: reduceMotion), value: pressed)
+            .contentShape(Capsule().inset(by: min(0, (height - Self.minTarget) / 2)))
+            .animation(press) {
+                $0.scaleEffect(pressed && !reduceMotion ? Self.pressedScale : 1)
+                    .opacity(FeedMotion.pressOpacity(isPressed: pressed, reduceMotion: reduceMotion))
+            }
     }
 }

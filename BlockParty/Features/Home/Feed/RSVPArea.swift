@@ -8,9 +8,9 @@
 
 import SwiftUI
 
-/// What the RSVP area says and which pill it shows: one rule for the Town card and the
-/// Event page, from an Event's Going, its count, the friends going and whether it's called
-/// off (`RSVPWordsTests`).
+/// What the RSVP area says and which pill it shows: one rule for the Town card and, from
+/// ticket 02, the Event page's bar (its grey Canceled pill), from an Event's Going, its
+/// count, the friends going and whether it's called off (`RSVPWordsTests`).
 nonisolated struct RSVPWords: Equatable {
     enum Pill: Equatable { case rsvp, invite, canceled }
 
@@ -95,6 +95,7 @@ struct CardRSVPArea: View {
                                 .contentShape(Rectangle().inset(by: Metric.leaveReach))
                         }
                         .buttonStyle(FeedCardJoinPressStyle(reduceMotion: reduceMotion))
+                        .accessibilityHint("Takes you off the going list")
                     } else {
                         Text(second)
                             .font(.sans(13))

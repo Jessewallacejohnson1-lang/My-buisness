@@ -28,8 +28,6 @@ struct FeedEventCardActionRow: View {
     /// Each failed heart turned back while the card was open (`RealLifeActions`) shakes
     /// the heart once.
     var heartFailures = 0
-    /// The same for a failed save, on the bookmark.
-    var saveFailures = 0
     @Binding var state: FeedCardActionState
     let reduceMotion: Bool
     let autoplayStep: Int
@@ -44,8 +42,6 @@ struct FeedEventCardActionRow: View {
     /// `heartFailures` at the last tap: a tap mid-shake stills it and acts at once.
     @State private var heartTappedAt = 0
     @State private var bookmarkGeneration = 0
-    /// `saveFailures` at the last tap, as `heartTappedAt`.
-    @State private var saveTappedAt = 0
 
     /// Instagram's feed action row, measured off a capture (Jesse, 2026-09-20):
     /// a 24pt glyph, its count right beside it, and 16pt of air between one control
@@ -164,7 +160,6 @@ struct FeedEventCardActionRow: View {
             .contentShape(actionShape)
         }
         .buttonStyle(.plain)
-        .turnBackShake(failures: saveFailures, shakes: !reduceMotion && saveTappedAt != saveFailures)
         .accessibilityLabel(state.isSaved ? "Saved" : "Save")
         .accessibilityAddTraits(state.isSaved ? .isSelected : [])
     }
@@ -265,7 +260,6 @@ struct FeedEventCardActionRow: View {
     }
 
     private func performSaveTap() {
-        saveTappedAt = saveFailures
         bookmarkGeneration += 1
         let generation = bookmarkGeneration
 
