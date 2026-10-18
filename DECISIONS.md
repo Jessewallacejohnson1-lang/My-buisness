@@ -808,11 +808,16 @@ over a database change ("yes", Check-in 1): no live migration, no new Storage pa
 
 ## Decided 2026-10-18 — the Event page's RSVP bar floats (rsvp-and-groups 02)
 
-- **Meetup's white capsule, 35 pt above the screen's bottom** (Jesse at Check-in 1), not the
+- **Meetup's capsule, 35 pt above the screen's bottom** (Jesse at Check-in 1), not the
   Figma page's 74 pt: that number was measured on a Mobbin export, which adds a 40 pt caption
-  strip under the screen. 20 pt from the sides, 57 pt tall, a hairline and two soft shadows
-  (`meetupBarDepth`); inside, the card's `RSVPArea` at the page's size (17 and 15 pt words,
-  the 46 pt pill), with no friends' faces: beside 17 pt words they cut the names short.
+  strip under the screen. 20 pt from the sides, 57 pt tall; inside, the card's `RSVPArea` at
+  the page's size (17 and 15 pt words, the 46 pt pill) with the friends' faces.
+- **A little glass** (Jesse at Check-in 2: "slightly glass just like meetups"): Apple's
+  Liquid Glass over a white layer at 60%, the tab bar's way of keeping glass light, so the
+  words behind show through blurred and faint, as Meetup's do.
+- **Fewer words in the bar** (`RSVPWords.make(bar:)`): no "Can't go?" (Jesse at Check-in 2;
+  leaving stays on the Town card), and beside the faces the friends' names alone, "Sam and
+  Marlene": with "are going" the line didn't fit beside the faces on a 402 pt phone.
 - **An inset, not `.safeAreaBar`.** `.safeAreaInset` lets the page scroll under the capsule
   and stop its last line clear of it; `.safeAreaBar` let iOS recolour the Town bar over
   photos (2026-09-24). The page fades to paper under the bar from 115 pt above the bottom,

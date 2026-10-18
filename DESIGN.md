@@ -260,7 +260,7 @@ for Jesse, not a licence to ship coloured status chips.
 ## Bans (this project)
 
 - No accent colour of any kind. No coral, no cream/linen/sand body background, no green primary button — all retired.
-- No pill-shaped buttons; buttons are rounded squares at `Radius.button`. Recorded exceptions: Meetup's charcoal pill for RSVP, Invite and Join group (`MeetupPillStyle`, `DECISIONS.md` 2026-10-17) and the Event page's floating white RSVP capsule (`DECISIONS.md` 2026-10-18).
+- No pill-shaped buttons; buttons are rounded squares at `Radius.button`. Recorded exceptions: Meetup's charcoal pill for RSVP, Invite and Join group (`MeetupPillStyle`, `DECISIONS.md` 2026-10-17) and the Event page's floating glass RSVP capsule (`DECISIONS.md` 2026-10-18).
 - No fabricated counts or seeded demo data in any surface.
 - No AI-drawn mascots/illustrations as final art (real photos or vector UI only).
 - No decorative gradient text, no side-stripe accent borders, no nested cards.
