@@ -2,7 +2,8 @@
 //  SearchModelTests.swift
 //  BlockPartyTests — the Search tab's data: the bundled logos, how the Town's places
 //  split into rows and in what order, the photos Block Party saved of them and what a
-//  business's page shows, typed search, the recents, and the backdrop's colour maths.
+//  business's page shows, the Town's groups and what a Group page says, typed search, the
+//  recents, and the backdrop's colour maths.
 //
 
 import XCTest
@@ -218,6 +219,90 @@ final class SearchModelTests: XCTestCase {
         XCTAssertEqual(model.row(.business).map(\.name), ["Bruno Press", "White Peony Boutique"])
         XCTAssertEqual(model.row(.park).first?.group, "Parks")
         XCTAssertEqual(model.row(.park).last?.group, "Trails")
+    }
+
+    // MARK: Groups (BP app rsvp-and-groups 05)
+
+    /// A `get_groups` row as Supabase sends it: a bad photo or meeting is left out, never the group.
+    func testGroupsRowDecodes() throws {
+        let json = """
+        [{"id": "g1", "name": "St. Joseph Lions Club", "kind": "Service club", "schedule": "1st and 3rd Tuesdays at 6 PM",
+          "location": "Lions Building, Millstream Park", "about": "Supper at 6.", "page_url": "https://e-clubhouse.org/sites/stjosephmn/",
+          "photos": [{"url": "https://x/lions-1.webp", "kind": "photo", "credit": null, "site": "https://e-clubhouse.org/"},
+                     {"kind": "photo"}],
+          "logo": null,
+          "meetings": [{"what": "Meeting", "day": "2026-10-20", "time": "18:00", "where": null}, {"day": "2026-11-03"}],
+          "member_count": 2, "joined": true},
+         {"id": "g2", "name": "Sons of the American Legion", "kind": null, "schedule": null, "location": null, "about": null,
+          "page_url": null, "photos": [], "logo": {"url": "https://x/sal.webp", "kind": "logo", "hue": null},
+          "meetings": [], "member_count": 0, "joined": false}]
+        """
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let groups = try decoder.decode([TownGroup].self, from: Data(json.utf8))
+        XCTAssertEqual(groups[0].photos.map(\.url.lastPathComponent), ["lions-1.webp"], "the photo with no address is dropped")
+        XCTAssertEqual(groups[0].photos.first?.creditLine, "e-clubhouse.org")
+        XCTAssertEqual(groups[0].meetings, [TownGroup.Meeting(what: "Meeting", day: "2026-10-20", time: "18:00")])
+        XCTAssertEqual(groups[0].pageUrl, "https://e-clubhouse.org/sites/stjosephmn/")
+        XCTAssertEqual([groups[0].memberCount, groups[1].memberCount], [2, 0])
+        XCTAssertTrue(groups[0].joined)
+        XCTAssertEqual(groups[1].logo?.kind, .logo)
+        XCTAssertNil(groups[1].kind)
+    }
+
+    /// Search's Groups row, in the server's order: the cover photo, else the logo on its backdrop
+    /// (a grey one on the studio hue), else what kind of thing it is; and no made-up samples.
+    func testGroupsReachTheShelf() {
+        let model = SearchModel(defaults: defaults)
+        XCTAssertTrue(model.isLoading(.club), "a skeleton row until they're read")
+        XCTAssertTrue(model.row(.club).isEmpty, "the made-up Book Group, Morning Pages and Potluck are gone")
+        model.show([
+            TownGroup(id: "b", name: "Book Discussion Group", kind: "Book club", photos: [picture("church")]),
+            TownGroup(id: "s", name: "Sons of the American Legion",
+                      logo: PlacePicture(url: URL(string: "https://x/sal.webp")!, kind: .logo)),
+            TownGroup(id: "w", name: "St. Joseph Women of Today", kind: "Service club"),
+        ])
+        XCTAssertFalse(model.isLoading(.club))
+        let row = model.row(.club)
+        XCTAssertEqual(row.map(\.name), ["Book Discussion Group", "Sons of the American Legion", "St. Joseph Women of Today"])
+        XCTAssertEqual(row[0].photo, .saved(picture("church")))
+        XCTAssertNil(row[0].logo)
+        XCTAssertEqual(row[1].logo?.chroma, false)
+        XCTAssertNil(row[1].photo)
+        XCTAssertEqual(row[2].glyph, "person.2")
+        XCTAssertEqual(row.map(\.id), ["g:b", "g:s", "g:w"])
+        XCTAssertEqual(row[0].townGroup?.id, "b", "it opens its Group page")
+        XCTAssertFalse(row[0].opens, "not the business page")
+        XCTAssertTrue(model.chips.contains(.clubs))
+        XCTAssertEqual(model.results(for: "book", in: .clubs).first?.items.first?.name, "Book Discussion Group")
+    }
+
+    /// What a Group page says: never "0 members", the town after the kind, when and where in one line.
+    func testGroupPageWords() {
+        XCTAssertNil(GroupPage.membersText(0))
+        XCTAssertEqual(GroupPage.membersText(1), "1 member")
+        XCTAssertEqual(GroupPage.membersText(12), "12 members")
+        var group = TownGroup(id: "b", name: "Book Discussion Group", kind: "Book club")
+        XCTAssertEqual(GroupPage.kindLine(group), "Book club · St. Joseph")
+        XCTAssertNil(GroupPage.whenLine(group))
+        group.schedule = "1st Tuesdays at 9:30 AM"
+        group.location = "Fireside Room, Resurrection Lutheran"
+        XCTAssertEqual(GroupPage.whenLine(group), "1st Tuesdays at 9:30 AM · Fireside Room, Resurrection Lutheran")
+        group.kind = nil
+        XCTAssertEqual(GroupPage.kindLine(group), "St. Joseph")
+    }
+
+    /// A Coming up row: its date tile, then the day, the time when the group says one, and a place
+    /// only when it isn't the group's usual one.
+    func testGroupMeetingWords() {
+        XCTAssertEqual(GroupPage.meetingLine(.init(what: "Meeting", day: "2026-10-20", time: "18:00")), "Tue, Oct 20 · 6 PM")
+        XCTAssertEqual(GroupPage.meetingLine(.init(what: "Book discussion", day: "2026-11-03", time: "09:30")), "Tue, Nov 3 · 9:30 AM")
+        XCTAssertEqual(GroupPage.meetingLine(.init(what: "Meeting", day: "2026-11-09")), "Mon, Nov 9", "the Knights give no time")
+        XCTAssertEqual(GroupPage.meetingLine(.init(what: "Parish breakfast", day: "2026-11-01", time: "08:30", place: "Heritage Hall")),
+                       "Sun, Nov 1 · 8:30 AM · Heritage Hall")
+        XCTAssertEqual(GroupPage.meetingLine(.init(what: "Bingo", day: "2026-10-26", time: "12:00")), "Mon, Oct 26 · 12 PM")
+        XCTAssertEqual(GroupPage.tile("2026-10-20").month, "OCT")
+        XCTAssertEqual(GroupPage.tile("2026-10-20").day, "20")
     }
 
     /// Typing finds by name and by kind of place; the Businesses pill takes food too.

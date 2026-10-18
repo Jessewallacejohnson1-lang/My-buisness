@@ -697,7 +697,7 @@ struct PhotoCard: View {
     @State private var photoFrame = FrameBox()
 
     var body: some View {
-        Button(action: tap) {
+        OpenButton(item: item, style: SquishStyle(), tap: tap) {
             VStack(alignment: .leading, spacing: 0) {
                 SearchPhoto(item: item)
                     .frame(maxWidth: .infinity)
@@ -719,7 +719,6 @@ struct PhotoCard: View {
             .frame(width: width)
             .frame(maxWidth: width == nil ? .infinity : nil, alignment: .leading)
         }
-        .buttonStyle(SquishStyle())
     }
 
     /// A restaurant or coffee shop with a logo opens its page from the photo: the
@@ -779,6 +778,27 @@ private struct SectionTitle: View {
     }
 }
 
+/// What a card or row does when tapped: a group's pushes its Group page and is remembered as a
+/// recent; anything else runs `tap`, which remembers it itself.
+private struct OpenButton<Label: View, Style: ButtonStyle>: View {
+    let item: SearchItem
+    let style: Style
+    let tap: () -> Void
+    @ViewBuilder let label: () -> Label
+    @Environment(SearchModel.self) private var model
+
+    var body: some View {
+        if let group = item.townGroup {
+            NavigationLink(value: group, label: label)
+                .buttonStyle(style)
+                .simultaneousGesture(TapGesture().onEnded { model.remember(item.id) })
+        } else {
+            Button(action: tap, label: label)
+                .buttonStyle(style)
+        }
+    }
+}
+
 /// A result, a recent, or a neighbour: picture, name, and what it is.
 struct ItemRow: View {
     let item: SearchItem
@@ -789,7 +809,7 @@ struct ItemRow: View {
 
     var body: some View {
         ZStack(alignment: .trailing) {
-            Button(action: tap) {
+            OpenButton(item: item, style: RowPressStyle(), tap: tap) {
                 HStack(spacing: SearchMetric.rowGap) {
                     avatar
                         .frame(width: SearchMetric.avatar, height: SearchMetric.avatar)
@@ -812,7 +832,6 @@ struct ItemRow: View {
                 .frame(height: SearchMetric.row)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(RowPressStyle())
             if removable { RemoveButton(name: item.name) { forget() } }
         }
     }
@@ -921,9 +940,8 @@ struct NothingFound: View {
     }
 }
 
-/// A place, event or club's picture: bundled, from the asset catalog, or one Block Party saved
-/// of the place, with its credit. A place with none shows its logo on its backdrop, else what
-/// kind of place it is.
+/// A place, event or group's picture: bundled, or one Block Party saved of it, with its credit.
+/// One with none shows its logo on its backdrop, else what kind of thing it is.
 struct SearchPhoto: View {
     let item: SearchItem
 
@@ -934,8 +952,6 @@ struct SearchPhoto: View {
                 switch item.photo {
                 case .bundled(let name):
                     if let url = Bundle.main.url(forResource: name, withExtension: "jpg") { FeedCardURLPhoto(url: url, loadingFill: .clear) }
-                case .asset(let name):
-                    Image(name).resizable().scaledToFill()
                 case .saved(let picture):
                     SavedPhoto(item: item, picture: picture)
                 case nil:

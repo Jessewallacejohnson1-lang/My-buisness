@@ -173,6 +173,18 @@ extension SharePayload {
         .event(title: item.title, dateLabel: item.dateChip, time: item.shareTime, location: item.shareLocation)
     }
 
+    /// A group, from its Group page: what it is, when and where it meets, and its own page.
+    static func group(_ group: TownGroup) -> SharePayload {
+        let detail = GroupPage.whenLine(group)
+        var text = "Come to \(group.name) with me"
+        if let detail { text += ": \(detail)" }
+        if let page = group.pageUrl { text += ". \(page)" }
+        text += ". Shared from Block Party."
+        return SharePayload(title: "Share this group", shareText: text, includesImage: true) {
+            PlaceShareCard(name: group.name, categoryLabel: GroupPage.kindLine(group), detail: detail)
+        }
+    }
+
     /// A place off the town map (the pin-detail sheet's share action). `detail`
     /// is the place's real address or curated blurb — omitted when absent, never
     /// invented.

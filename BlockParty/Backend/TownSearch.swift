@@ -66,7 +66,7 @@ enum TownSearch {
     /// Ranked suggestions for a non-empty query, grouped place → happening → concept.
     static func suggestions(query: String,
                             events: [UpcomingEvent],
-                            clubs: [ClubView],
+                            clubs: [TownGroup],
                             trails: [Trail],
                             parks: [Park]) -> [Suggestion] {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -104,9 +104,9 @@ enum TownSearch {
             }
         }
         for c in clubs {
-            if let s = score(q, name: c.name, extra: [c.host ?? "", c.vibe ?? "", c.schedule ?? "", c.location ?? ""], aliases: []) {
+            if let s = score(q, name: c.name, extra: [c.kind ?? "", c.schedule ?? "", c.location ?? ""], aliases: []) {
                 happenings.append(Suggestion(id: "club:\(c.id)", icon: "person.2.fill",
-                                             title: c.name, subtitle: c.schedule ?? c.location ?? c.vibe,
+                                             title: c.name, subtitle: c.schedule ?? c.location ?? c.kind,
                                              group: .happening,
                                              action: .runSearch(term: c.name, filter: .clubs), score: s))
             }

@@ -421,6 +421,8 @@ struct MainTabsView: View {
                 }
                 // A neighbour's page, from any name or face: the Friends page or Search.
                 .navigationDestination(for: Neighbor.self) { NeighborPage(neighbor: $0) }
+                // A group's page, from Search's Groups shelf (rsvp-and-groups 05).
+                .navigationDestination(for: TownGroup.self) { GroupPage(group: $0) }
         }
         // The iPhone Calendar follows the Going (ticket 05).
         .background { CalendarFollower(sync: calendarSync) }

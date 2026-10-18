@@ -2,8 +2,8 @@
 //  SearchModel.swift
 //  Block Party — what the Search tab holds: the Town's places from Supabase with their
 //  logos and the photos Block Party saved of them, the city's parks and trails, the neighbour's recent searches, the
-//  neighbours found by name (`NeighborSearch`), and, in DEBUG until their reads exist,
-//  sample events and clubs.
+//  neighbours found by name (`NeighborSearch`), the Town's groups (`get_groups`), and, in DEBUG
+//  until their read exists, sample events.
 //
 //  Reference: Jesse's Search mockup v7 (claude.ai/artifact/Vqb74LLMXipRV8uhpefTo9) and
 //  its five Figma frames, 2026-10-02. Row orders, names and labels follow the mockup.
@@ -23,8 +23,6 @@ struct SearchItem: Identifiable, Hashable {
     enum Photo: Hashable {
         /// A photo in `Resources/Images`, by base name.
         case bundled(String)
-        /// An image in the asset catalog.
-        case asset(String)
         /// One Block Party saved of the place (`public.place_photos`), drawn with its credit.
         case saved(PlacePicture)
 
@@ -52,6 +50,8 @@ struct SearchItem: Identifiable, Hashable {
     var street: String? = nil
     var about: String? = nil
     var links: [PlaceLink] = []
+    /// A group opens onto its Group page (BP app rsvp-and-groups 05).
+    var townGroup: TownGroup? = nil
 
     /// A business or food place with a logo opens onto its own page of photos; the
     /// logo flies there (Jesse, 2026-10-04: restaurants and coffee open like logos).
@@ -64,6 +64,7 @@ struct SearchItem: Identifiable, Hashable {
         case .business: "storefront"
         case .coffee: "cup.and.saucer"
         case .restaurant: "fork.knife"
+        case .club: "person.2"
         default: "photo"
         }
     }
@@ -176,6 +177,9 @@ final class SearchModel {
     /// The last places and saved photos read, so a retry reads only what is missing.
     private var pois: [POI] = []
     private var savedPhotos: [String: [PlacePicture]]?
+    /// The Town's groups, in `get_groups`' order, and whether they have been read.
+    private(set) var groups: [SearchItem] = []
+    private(set) var groupsLoaded = false
     /// What the tab was showing, kept across tab switches as Instagram keeps it.
     var chip = SearchChip.all
     var words = ""
@@ -197,24 +201,26 @@ final class SearchModel {
         recentIDs = defaults.stringArray(forKey: Self.recentsKey) ?? Self.sampleRecents
     }
 
-    var items: [SearchItem] { places + fixed }
+    var items: [SearchItem] { places + groups + fixed }
 
     /// Reads the Town's places and the photos saved of them, together, so a card's photo never
-    /// lands after its logo; tries again while the tab is open (2 s, 4 s, … 30 s apart) until
-    /// both are in: offline, the rows wait as skeletons rather than vanish, and places read
-    /// without their photos show their logos until a retry brings the photos.
+    /// lands after its logo, and the Town's groups beside them; tries again while the tab is open
+    /// (2 s, 4 s, … 30 s apart) until all are in: offline, the rows wait as skeletons rather than
+    /// vanish, and places read without their photos show their logos until a retry brings the photos.
     func load() async {
         let api = CommunityAPI(auth: AuthStore.shared)
         var wait = 2.0
-        while !(placesLoaded && photosLoaded) && !Task.isCancelled {
-            let needPlaces = !placesLoaded, needPhotos = !photosLoaded
+        while !(placesLoaded && photosLoaded && groupsLoaded) && !Task.isCancelled {
+            let needPlaces = !placesLoaded, needPhotos = !photosLoaded, needGroups = !groupsLoaded
             async let readPlaces = needPlaces ? try? await api.getPlaces() : nil
             async let readPhotos = needPhotos ? try? await api.getPlacePhotos() : nil
-            let (newPlaces, newPhotos) = await (readPlaces, readPhotos)
+            async let readGroups = needGroups ? try? await api.getGroups() : nil
+            let (newPlaces, newPhotos, newGroups) = await (readPlaces, readPhotos, readGroups)
             if let newPlaces { pois = newPlaces }
             if let newPhotos { savedPhotos = newPhotos }
             if newPlaces != nil || (newPhotos != nil && placesLoaded) { show(pois, photos: savedPhotos) }
-            if placesLoaded && photosLoaded { return }
+            if let newGroups { show(newGroups) }
+            if placesLoaded && photosLoaded && groupsLoaded { return }
             try? await Task.sleep(for: .seconds(wait))
             wait = min(wait * 2, 30)
         }
@@ -229,6 +235,11 @@ final class SearchModel {
         POILogoCache.shared.prefetch(places.compactMap(\.logo?.url))
     }
 
+    func show(_ groups: [TownGroup]) {
+        self.groups = Self.groups(from: groups)
+        groupsLoaded = true
+    }
+
     // MARK: Rows
 
     /// One kind's row, in order. Businesses show only with a logo: the row is logos, each
@@ -239,7 +250,7 @@ final class SearchModel {
 
     /// Whether a kind's row is still waiting on Supabase.
     func isLoading(_ kind: SearchItem.Kind) -> Bool {
-        !placesLoaded && [.business, .restaurant, .coffee].contains(kind)
+        (!placesLoaded && [.business, .restaurant, .coffee].contains(kind)) || (!groupsLoaded && kind == .club)
     }
 
     /// The pills worth showing: All, and every filter with something behind it.
@@ -365,6 +376,18 @@ final class SearchModel {
         return ranked(parks + trails)
     }
 
+    /// The Town's groups as Search shows them, in the server's order: the cover photo, else the logo on
+    /// its backdrop, else what kind of thing it is.
+    static func groups(from groups: [TownGroup]) -> [SearchItem] {
+        ranked(groups.map { group in
+            SearchItem(id: "g:\(group.id)", kind: .club, name: group.name, sub: group.kind,
+                       logo: group.photos.isEmpty ? group.logo.flatMap { FeedCardImageSource($0).logo } : nil,
+                       photo: group.photos.first.map { .saved($0) },
+                       keywords: ["group"] + [group.kind, group.location].compactMap { $0 },
+                       townGroup: group)
+        })
+    }
+
     /// Fixed lists keep the order they are written in.
     static func ranked(_ items: [SearchItem]) -> [SearchItem] {
         items.enumerated().map { i, item in
@@ -375,9 +398,8 @@ final class SearchModel {
     }
 
     #if DEBUG
-    /// INVENTED, as Jesse asked (2026-10-02, "just mock it up"): events and clubs, until
-    /// their reads exist; the Town has none yet. Names and photos are the mockup's. People
-    /// are real now (`people`), found by name once something is typed.
+    /// INVENTED, as Jesse asked (2026-10-02, "just mock it up"): events, until their read
+    /// exists. Names and photos are the mockup's. People and groups are real now.
     static func samples() -> [SearchItem] {
         let events = [("Rocktoberfest", "rocktoberfest", "Festivals"), ("Millstream Arts Festival", "millstream-arts-festival", "Festivals"),
                       ("Farmers Market", "farmers-market", "Markets")]
@@ -385,11 +407,7 @@ final class SearchModel {
                 SearchItem(id: "e:\(name)", kind: .event, name: name, sub: "Event", photo: .bundled(photo),
                            group: group, keywords: ["event", "festival", group.lowercased()])
             }
-        let clubs = [("Book Group", "interest-books"), ("Morning Pages", "interest-coffee"), ("Riverside Potluck", "interest-dining")]
-            .map { name, photo in
-                SearchItem(id: "c:\(name)", kind: .club, name: name, sub: "Group", photo: .asset(photo), keywords: ["group", "club"])
-            }
-        return ranked(events) + ranked(clubs)
+        return ranked(events)
     }
 
     /// INVENTED: the mockup's starting recents (The Local Blend, "pumpkin", Lee's Ace

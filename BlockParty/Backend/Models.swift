@@ -27,20 +27,73 @@ struct ClubRow: Codable, Identifiable, Hashable {
     let createdAt: String
 }
 
-/// ClubRow + member_count + joined (both derived from club_members).
-struct ClubView: Identifiable, Hashable {
-    let row: ClubRow
-    var memberCount: Int
-    var joined: Bool
+/// One group as `get_groups` sends it (supabase/migrations/*_groups.sql, BP app
+/// docs/plans/rsvp-and-groups ticket 05): what the Search tab's Groups shelf and a Group page
+/// show. Its pictures are worked out on the server: its own photos, else its meeting place's,
+/// and a logo for when there is none. A photo or meeting that doesn't decode is left out; it
+/// never costs the group.
+nonisolated struct TownGroup: Decodable, Hashable, Identifiable, Sendable {
+    /// A get-together `get_groups` worked out from the group's meeting rules.
+    struct Meeting: Decodable, Hashable, Sendable {
+        let what: String
+        /// The town day, "2026-10-20".
+        let day: String
+        /// "18:00"; nil when the group doesn't say.
+        var time: String? = nil
+        /// Only when it isn't the group's usual place.
+        var place: String? = nil
 
-    var id: String { row.id }
-    var name: String { row.name }
-    var host: String? { row.host }
-    var schedule: String? { row.schedule }
-    var location: String? { row.location }
-    var vibe: String? { row.vibe }
-    var about: String? { row.description }
-    var expectations: String? { row.expectations }
+        private enum CodingKeys: String, CodingKey { case what, day, time, place = "where" }
+    }
+
+    let id: String
+    let name: String
+    var kind: String? = nil
+    var schedule: String? = nil
+    var location: String? = nil
+    var about: String? = nil
+    var pageUrl: String? = nil
+    var photos: [PlacePicture] = []
+    var logo: PlacePicture? = nil
+    var meetings: [Meeting] = []
+    var memberCount = 0
+    var joined = false
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, kind, schedule, location, about, pageUrl, photos, logo, meetings, memberCount, joined
+    }
+
+    init(id: String, name: String, kind: String? = nil, photos: [PlacePicture] = [], logo: PlacePicture? = nil,
+         meetings: [Meeting] = [], memberCount: Int = 0) {
+        self.id = id
+        self.name = name
+        self.kind = kind
+        self.photos = photos
+        self.logo = logo
+        self.meetings = meetings
+        self.memberCount = memberCount
+    }
+
+    init(from decoder: Decoder) throws {
+        struct Lenient<T: Decodable>: Decodable {
+            let value: T?
+            init(from decoder: Decoder) { value = try? T(from: decoder) }
+        }
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        kind = try? c.decodeIfPresent(String.self, forKey: .kind)
+        schedule = try? c.decodeIfPresent(String.self, forKey: .schedule)
+        location = try? c.decodeIfPresent(String.self, forKey: .location)
+        about = try? c.decodeIfPresent(String.self, forKey: .about)
+        pageUrl = try? c.decodeIfPresent(String.self, forKey: .pageUrl)
+        photos = ((try? c.decodeIfPresent([PlacePicture.Lenient].self, forKey: .photos)) ?? [])
+            .compactMap(\.value).filter { $0.kind == .photo }
+        logo = (try? c.decodeIfPresent(PlacePicture.Lenient.self, forKey: .logo))?.value
+        meetings = ((try? c.decodeIfPresent([Lenient<Meeting>].self, forKey: .meetings)) ?? []).compactMap(\.value)
+        memberCount = (try? c.decodeIfPresent(Int.self, forKey: .memberCount)) ?? 0
+        joined = (try? c.decodeIfPresent(Bool.self, forKey: .joined)) ?? false
+    }
 }
 
 /// A timeline row: a club event, for the map's Today list and search.

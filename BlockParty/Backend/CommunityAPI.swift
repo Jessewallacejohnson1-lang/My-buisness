@@ -135,6 +135,15 @@ struct CommunityAPI {
 
     // MARK: - Clubs
 
+    /// Every approved group, in the shelf's order, with its pictures, next get-togethers and
+    /// member count (`get_groups`, BP app rsvp-and-groups 05). Signed out, it reads with the
+    /// public key and every group says not joined.
+    func getGroups() async throws -> [TownGroup] {
+        let (data, _) = try await SupabaseHTTP.rest("rpc/get_groups", method: "POST",
+                                                    accessToken: await readToken(), body: Data("{}".utf8))
+        return try decode(data)
+    }
+
     func joinClub(_ clubId: String) async throws {
         let t = try await token()
         let uid = try await uidOrThrow()

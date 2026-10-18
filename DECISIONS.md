@@ -821,6 +821,23 @@ over a database change ("yes", Check-in 1): no live migration, no new Storage pa
   still goes black and white; the pill is Apple's red (`Hue.canceled`, `.systemRed`), the
   app's second red after `heart`, for this pill only. The Event page follows in ticket 02.
 
+## Decided 2026-10-18 — groups are real, with a page of their own (rsvp-and-groups 05)
+
+- **One read, `get_groups`** (`supabase/migrations/*_groups.sql`): approved groups only, in the
+  shelf's order (members, then a photo, then a logo, then name), with their pictures, their next
+  three get-togethers, the member count (`private.member_count`, so the public key sees it too)
+  and whether you're in. Android calls the same function.
+- **A group's pictures live in `place_photos` under its own key**, `clubs.entry_id`, which starts
+  `group-` (`group-st-joseph-lions-club`) so it never meets a registry place's id. Its own photos
+  come first, then its logo; with none, its meeting place's (`clubs.place_entry_id`). A logo takes
+  the slot after the photos: `place_photos_one_per_slot` is one live row per position, whatever
+  the kind.
+- **Coming up is worked out, not stored.** `clubs.meets` holds rules (weekday, weeks of the month,
+  time, months off) and `group_meetings` turns them into the next dates, so the page never goes
+  stale. A meeting a group skips for a holiday still shows; dated exceptions wait until a
+  calendar needs one.
+- **Join group draws but doesn't join yet** (ticket 06). It squishes like every pill.
+
 ## Decided 2026-10-13 — views and popularity per view (town-feed ticket 20)
 
 - **`feed_actions`** (event, action, who, when): insert-only for the signed-in caller, no
