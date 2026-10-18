@@ -8790,3 +8790,20 @@ sources:
     trust: official
 ```
 Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every event place). An app place (Search) that had no entry; its Google Maps listing names this website. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+
+## Joetown Smashburger
+```yaml
+id: joetown-smashburger
+status: proposed
+tier: listed
+category: "restaurant"
+place_type: "Business"
+address: "13 2nd Ave NW"
+added_by: agent:place-photos
+sources:
+  - url: TODO
+    kind: website
+    method: submission
+    trust: official
+```
+Notes: Proposed on 2026-10-18 for BP app place-photos 04: an app place (Search) that had no entry. One of four restaurants inside The House (13 2nd Ave NW), each run on its own (Jesse, 2026-10-18); Google Maps lists only The House Food and Tap there. Unreviewed — tier `listed`, so it publishes nothing until promoted.
