@@ -116,7 +116,8 @@ nonisolated enum SearchMetric {
     static let shineShoulderAt: CGFloat = 0.36
     static let shineFadeAt: CGFloat = 0.7
 
-    // The business page (`BusinessPage`).
+    // The business page (`BusinessPage`). Laid out with the Event page's sizes
+    // (`FeedEventDetailDestination.Metric`); these are its own.
     static let openResponse: CGFloat = 0.5
     static let openDamping: CGFloat = 0.84
     static let closeResponse: CGFloat = 0.4
@@ -125,15 +126,12 @@ nonisolated enum SearchMetric {
     static let bizLogo: CGFloat = 76
     static let bizLogoRight: CGFloat = 10
     static let bizLogoCenter: CGFloat = 29
-    static let bizBack: CGFloat = 44
-    static let bizBackLeft: CGFloat = 16
-    static let bizBackTop: CGFloat = 7
     static let bizBackFrom: CGFloat = 0.6
-    static let bizGridTop: CGFloat = 69
-    static let bizGridGap: CGFloat = 2
-    /// Each row of photos starts this much later than the one above it.
-    static let bizRowLag: Double = 0.07
-    static let bizRiseScale: CGFloat = 0.94
+    /// The band under the safe area's top that a drag down closes the page from.
+    static let bizBand: CGFloat = 69
+    /// A drag on the band counts once it has gone this far, so it can tell up and down from
+    /// sideways.
+    static let bizDragStart: CGFloat = 10
     /// A finger drag this long closes the page from fully open.
     static let bizDrag: CGFloat = 520
     static let bizOverDrag: CGFloat = 1.04
@@ -142,10 +140,12 @@ nonisolated enum SearchMetric {
     static let bizKeepOpen: CGFloat = 0.6
     static let liftStretch: CGFloat = 1.6
     static let liftFade: Double = 0.25
-    static let bizLoadingTiles = 9
-    static let bizBlankTiles = 15
-    static let bizTileShade: Double = 0.06
-    static let bizPhotoPixels = 400
+    /// The address and link rows' glyph box: wide enough for the globe, so every row's words
+    /// start together (picked).
+    static let bizGlyphBox: CGFloat = 16
+    /// Between link rows, and from the About to the first (picked).
+    static let bizLinkGap: CGFloat = 10
+    static let bizLinksTop: CGFloat = 24
 }
 
 /// A row's whole list, pushed from its title.
@@ -829,9 +829,9 @@ struct ItemRow: View {
                     .animation(nil, value: opener.isAway(item))
             }
             .clipShape(RoundedRectangle(cornerRadius: Radius.searchField, style: .continuous))
-        } else if item.photo == nil || item.photo == .google {
-            // No logo, and a Google photo would need its photographer's credit on it,
-            // with no room for one at this size: what kind of place it is instead.
+        } else if item.photo?.credited ?? true {
+            // No logo, and a saved photo carries its credit, with no room for one at this
+            // size: what kind of place it is instead.
             RoundedRectangle(cornerRadius: Radius.searchField, style: .continuous)
                 .fill(Hue.fill)
                 .overlay {
@@ -921,9 +921,9 @@ struct NothingFound: View {
     }
 }
 
-/// A place, event or club's picture: bundled, from the asset catalog, or Google's with
-/// its photographer's credit. Waits as a shimmering block, and falls back to the logo
-/// on its backdrop when Google has nothing.
+/// A place, event or club's picture: bundled, from the asset catalog, or one Block Party saved
+/// of the place, with its credit. A place with none shows its logo on its backdrop, else what
+/// kind of place it is.
 struct SearchPhoto: View {
     let item: SearchItem
 
@@ -936,49 +936,58 @@ struct SearchPhoto: View {
                     if let url = Bundle.main.url(forResource: name, withExtension: "jpg") { FeedCardURLPhoto(url: url, loadingFill: .clear) }
                 case .asset(let name):
                     Image(name).resizable().scaledToFill()
-                case .google:
-                    GooglePhoto(item: item)
+                case .saved(let picture):
+                    SavedPhoto(item: item, picture: picture)
                 case nil:
-                    EmptyView()
+                    NoPhoto(item: item)
                 }
             }
             .clipped()
     }
 }
 
-private struct GooglePhoto: View {
+/// A photo Block Party saved of the place: shimmering until it is on screen, then credited (the
+/// site it came from, or a free photo's author and licence). One that can't load leaves the
+/// place looking like a place with no photo.
+private struct SavedPhoto: View {
     let item: SearchItem
-    @State private var photo: PlacePhoto?
-    @State private var asked = false
+    let picture: PlacePicture
     @State private var shown = false
+    @State private var failed = false
+
+    var body: some View {
+        if failed {
+            NoPhoto(item: item)
+        } else {
+            // A photo already decoded elsewhere draws at once: so does its credit.
+            let ready = shown || FeedCardImageLoader.shared.largest(for: picture.url) != nil
+            ZStack {
+                if !ready { Rectangle().fill(Hue.fill).shimmering() }
+                FeedCardURLPhoto(url: picture.url, onReady: { withAnimation(.easeOut(duration: 0.2)) { shown = true } },
+                                 onFailure: { failed = true }, loadingFill: .clear)
+                if ready, let credit = picture.creditLine {
+                    PhotoCredit(names: [credit])
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                }
+            }
+        }
+    }
+}
+
+/// No photo: the logo on its backdrop, else what kind of place it is.
+private struct NoPhoto: View {
+    let item: SearchItem
 
     var body: some View {
         ZStack {
-            if let photo {
-                let url = GooglePlacesService.shared.photoURL(name: photo.name, maxWidth: 600)
-                FeedCardURLPhoto(url: url, onReady: { withAnimation(.easeOut(duration: 0.2)) { shown = true } },
-                                 onFailure: { self.photo = nil }, loadingFill: .clear)
-                // A photo already decoded elsewhere draws at once: so does its credit.
-                if shown || FeedCardImageLoader.shared.largest(for: url) != nil {
-                    PhotoCredit(names: photo.attributions)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-                }
-            } else if asked {
-                if let logo = item.logo {
-                    SearchBackdrop(colors: logo.backdrop)
-                    CastLogo(logo: logo, side: SearchMetric.logoOnTile)
-                } else {
-                    Image(systemName: item.glyph)
-                        .font(.glyph(28, weight: .light))
-                        .foregroundStyle(Hue.inkSecondary)
-                }
+            if let logo = item.logo {
+                SearchBackdrop(colors: logo.backdrop)
+                CastLogo(logo: logo, side: SearchMetric.logoOnTile)
             } else {
-                Rectangle().fill(Hue.fill).shimmering()
+                Image(systemName: item.glyph)
+                    .font(.glyph(28, weight: .light))
+                    .foregroundStyle(Hue.inkSecondary)
             }
-        }
-        .task(id: item.id) {
-            photo = await item.googlePhotos().best
-            asked = true
         }
     }
 }

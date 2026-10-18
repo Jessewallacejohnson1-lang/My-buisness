@@ -1,7 +1,7 @@
 //
 //  SearchModel.swift
 //  Block Party — what the Search tab holds: the Town's places from Supabase with their
-//  bundled logos, the city's parks and trails, the neighbour's recent searches, the
+//  logos and the photos Block Party saved of them, the city's parks and trails, the neighbour's recent searches, the
 //  neighbours found by name (`NeighborSearch`), and, in DEBUG until their reads exist,
 //  sample events and clubs.
 //
@@ -9,7 +9,6 @@
 //  its five Figma frames, 2026-10-02. Row orders, names and labels follow the mockup.
 //
 
-import CoreLocation
 import SwiftUI
 import UIKit
 
@@ -26,51 +25,37 @@ struct SearchItem: Identifiable, Hashable {
         case bundled(String)
         /// An image in the asset catalog.
         case asset(String)
-        /// Google Maps, cleared by Locked Rule A against the name and coordinate.
-        case google
+        /// One Block Party saved of the place (`public.place_photos`), drawn with its credit.
+        case saved(PlacePicture)
+
+        /// A saved photo carries its credit wherever it shows (MEMORY.md, 2026-10-16).
+        var credited: Bool {
+            if case .saved = self { true } else { false }
+        }
     }
 
     let id: String
     let kind: Kind
     /// As shown: "Krewe", not "Krewe Restaurant".
     let name: String
-    /// As Google knows it, for the photo lookup's name check.
-    var fullName: String? = nil
     var sub: String? = nil
     var logo: SearchLogo? = nil
     var photo: Photo? = nil
     /// The heading it sits under on its filter: Parks or Trails, Festivals or Markets.
     var group: String? = nil
     var keywords: [String] = []
-    var lat: Double? = nil
-    var lon: Double? = nil
-    /// Google's own place id, when Supabase carries one (`ChIJ…`).
-    var googleId: String? = nil
     /// Its place on its row: the mockup's order first, then by name.
     var rank = Int.max
-
-    var coordinate: CLLocationCoordinate2D? {
-        guard let lat, let lon else { return nil }
-        return CLLocationCoordinate2D(latitude: lat, longitude: lon)
-    }
+    /// What its business page shows (`BusinessPage`, like the Event page: Jesse, 2026-10-17):
+    /// every photo Block Party saved of it, cover first, its street, its own words, its links.
+    var photos: [PlacePicture] = []
+    var street: String? = nil
+    var about: String? = nil
+    var links: [PlaceLink] = []
 
     /// A business or food place with a logo opens onto its own page of photos; the
     /// logo flies there (Jesse, 2026-10-04: restaurants and coffee open like logos).
     var opens: Bool { [.business, .restaurant, .coffee].contains(kind) && logo != nil }
-
-    /// Its photos from Google Maps, shared by its card and its business page. With a
-    /// Google id it asks for the photos alone (the cheap tier); without one, its name
-    /// and coordinate must clear Locked Rule A first. Empty when there are none or the
-    /// ask failed.
-    func googlePhotos() async -> PlacePhotos {
-        let places = GooglePlacesService.shared
-        if let googleId, let photos = await places.photos(placeId: googleId) { return photos }
-        if googleId == nil, let coordinate,
-           let details = await places.confidentDetails(name: fullName ?? name, coordinate: coordinate) {
-            return PlacePhotos(all: details.photos, best: details.photo)
-        }
-        return PlacePhotos(all: [], best: nil)
-    }
 
     /// What kind of place it is, drawn where there is no logo and no photo.
     var glyph: String {
@@ -186,6 +171,11 @@ enum SearchRecent: Identifiable {
 final class SearchModel {
     private(set) var places: [SearchItem] = []
     private(set) var placesLoaded = false
+    /// Whether the saved photos have been read; until then a retry reads them again.
+    private(set) var photosLoaded = false
+    /// The last places and saved photos read, so a retry reads only what is missing.
+    private var pois: [POI] = []
+    private var savedPhotos: [String: [PlacePicture]]?
     /// What the tab was showing, kept across tab switches as Instagram keeps it.
     var chip = SearchChip.all
     var words = ""
@@ -198,7 +188,7 @@ final class SearchModel {
     let people = NeighborSearch()
 
     private let defaults: UserDefaults
-    private let fixed = SearchModel.parks() + SearchModel.samples()
+    private var fixed = SearchModel.parks() + SearchModel.samples()
     static let recentsKey = "search.recents"
     static let recentsMax = 8
 
@@ -209,23 +199,33 @@ final class SearchModel {
 
     var items: [SearchItem] { places + fixed }
 
-    /// Reads the Town's places, trying again while the tab is open (2 s, 4 s, … 30 s
-    /// apart) until it can: offline, the rows wait as skeletons rather than vanish.
+    /// Reads the Town's places and the photos saved of them, together, so a card's photo never
+    /// lands after its logo; tries again while the tab is open (2 s, 4 s, … 30 s apart) until
+    /// both are in: offline, the rows wait as skeletons rather than vanish, and places read
+    /// without their photos show their logos until a retry brings the photos.
     func load() async {
+        let api = CommunityAPI(auth: AuthStore.shared)
         var wait = 2.0
-        while !placesLoaded && !Task.isCancelled {
-            if let pois = try? await CommunityAPI(auth: AuthStore.shared).getPlaces() {
-                show(pois)
-                return
-            }
+        while !(placesLoaded && photosLoaded) && !Task.isCancelled {
+            let needPlaces = !placesLoaded, needPhotos = !photosLoaded
+            async let readPlaces = needPlaces ? try? await api.getPlaces() : nil
+            async let readPhotos = needPhotos ? try? await api.getPlacePhotos() : nil
+            let (newPlaces, newPhotos) = await (readPlaces, readPhotos)
+            if let newPlaces { pois = newPlaces }
+            if let newPhotos { savedPhotos = newPhotos }
+            if newPlaces != nil || (newPhotos != nil && placesLoaded) { show(pois, photos: savedPhotos) }
+            if placesLoaded && photosLoaded { return }
             try? await Task.sleep(for: .seconds(wait))
             wait = min(wait * 2, 30)
         }
     }
 
-    func show(_ pois: [POI]) {
-        places = Self.places(from: pois)
+    /// `photos` by registry entry; nil when they couldn't be read.
+    func show(_ pois: [POI], photos: [String: [PlacePicture]]? = [:]) {
+        places = Self.places(from: pois, photos: photos ?? [:])
+        fixed = Self.parks(photos: photos ?? [:]) + Self.samples()
         placesLoaded = true
+        photosLoaded = photos != nil
         POILogoCache.shared.prefetch(places.compactMap(\.logo?.url))
     }
 
@@ -301,19 +301,32 @@ final class SearchModel {
 
     static let coffeeTypes: Set<String> = ["coffee_shop", "cafe", "bakery"]
 
-    static func places(from pois: [POI]) -> [SearchItem] {
+    /// `photos`: what Block Party saved of each place, by registry entry (`places.entry_id`). A
+    /// food card shows the cover; a business shows its logo on the row, its photos on its page.
+    static func places(from pois: [POI], photos: [String: [PlacePicture]] = [:]) -> [SearchItem] {
         pois.map { poi in
             let key = poi.placeId ?? poi.id
             let logo = poi.searchLogo.map { SearchLogo(placeId: key, row: $0) }
             let type = poi.primaryType ?? ""
             let kind: SearchItem.Kind = poi.family == .business ? .business
                 : coffeeTypes.contains(type) ? .coffee : .restaurant
-            return SearchItem(id: "p:\(key)", kind: kind, name: shown(poi.name), fullName: poi.name,
-                              sub: label(type), logo: logo, photo: kind == .business ? nil : .google,
+            let saved = poi.entryId.flatMap { photos[$0] } ?? []
+            return SearchItem(id: "p:\(key)", kind: kind, name: shown(poi.name), sub: label(type), logo: logo,
+                              photo: kind == .business ? nil : saved.first.map { .saved($0) },
                               keywords: [type.replacingOccurrences(of: "_", with: " ")],
-                              lat: poi.lat, lon: poi.lon, googleId: key.hasPrefix("ChIJ") ? key : poi.googlePlaceId,
-                              rank: logo?.rank ?? .max)
+                              rank: logo?.rank ?? .max, photos: saved, street: street(poi.address),
+                              about: nonempty(poi.about), links: poi.links ?? [])
         }
+    }
+
+    /// An address's first part, its street: "21 1st Ave NW" of "21 1st Ave NW, St. Joseph, MN 56374".
+    static func street(_ address: String?) -> String? {
+        nonempty(address?.split(separator: ",", maxSplits: 1).first.map(String.init))
+    }
+
+    private static func nonempty(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
+        return trimmed
     }
 
     /// The name on a card: the mockup drops what only repeats the kind of place.
@@ -333,12 +346,15 @@ final class SearchModel {
         return first.uppercased() + type.dropFirst().replacingOccurrences(of: "_", with: " ")
     }
 
-    /// The city's parks, and the trails the app has a bundled photo of.
-    static func parks() -> [SearchItem] {
+    /// The city's parks, and the trails the app has a bundled photo of. A park's photo is one
+    /// Block Party saved of it (by the park's id, BP app place-photos 04), else its bundled
+    /// one; with neither, Search shows what kind of place it is (Jesse, 2026-10-17).
+    static func parks(photos: [String: [PlacePicture]] = [:]) -> [SearchItem] {
         let parks = CityParks.all.map { park in
-            SearchItem(id: "k:\(park.id)", kind: .park, name: park.title, sub: "Park",
-                       photo: KnownLocalPhoto.name(forTitle: park.title).map { .bundled($0) } ?? .google,
-                       group: "Parks", keywords: ["park"] + park.features, lat: park.lat, lon: park.lon)
+            let photo: SearchItem.Photo? = photos[park.id]?.first.map { .saved($0) }
+                ?? KnownLocalPhoto.name(forTitle: park.title).map { .bundled($0) }
+            return SearchItem(id: "k:\(park.id)", kind: .park, name: park.title, sub: "Park", photo: photo,
+                              group: "Parks", keywords: ["park"] + park.features)
         }
         let trails = [("Lake Wobegon Trail", "wobegon-trail"), ("Saint John's Abbey Arboretum", "sju-arboretum-trail"),
                       ("Stella Maris Chapel Trail", "chapel-trail-stella-maris"), ("Boardwalk Loop Trail", "boardwalk-loop-trail")]

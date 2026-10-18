@@ -1,8 +1,8 @@
 //
 //  SearchModelTests.swift
 //  BlockPartyTests — the Search tab's data: the bundled logos, how the Town's places
-//  split into rows and in what order, typed search, the recents, and the backdrop's
-//  colour maths.
+//  split into rows and in what order, the photos Block Party saved of them and what a
+//  business's page shows, typed search, the recents, and the backdrop's colour maths.
 //
 
 import XCTest
@@ -19,9 +19,14 @@ final class SearchModelTests: XCTestCase {
     }
 
     private func poi(_ placeId: String, _ name: String, _ family: PlaceFamily, _ type: String,
-                     logo: SearchLogo.Row? = nil) -> POI {
+                     logo: SearchLogo.Row? = nil, entry: String? = nil) -> POI {
         POI(id: UUID().uuidString, placeId: placeId, name: name, lat: 45.56, lon: -94.32, family: family,
-            primaryType: type, types: [type], address: nil, logoUrl: nil, searchLogo: logo)
+            primaryType: type, types: [type], address: nil, logoUrl: nil, searchLogo: logo, entryId: entry)
+    }
+
+    private func picture(_ name: String, site: String = "https://www.krewemn.com/", credit: String? = nil) -> PlacePicture {
+        PlacePicture(url: URL(string: "https://x.supabase.co/places/\(name).webp")!, kind: .photo, credit: credit,
+                     site: URL(string: site))
     }
 
     private func logo(wall: Bool? = nil) -> SearchLogo.Row {
@@ -72,26 +77,131 @@ final class SearchModelTests: XCTestCase {
         XCTAssertEqual(Set(model.row(.coffee).map(\.name)), ["The Local Blend", "Flour & Flower"])
         XCTAssertEqual(model.row(.restaurant).map(\.name), ["Krewe"])
         XCTAssertEqual(model.row(.restaurant).first?.sub, "Cajun")
-        XCTAssertEqual(model.row(.restaurant).first?.fullName, "Krewe Restaurant")
         XCTAssertEqual(SearchModel.label("print_shop"), "Print shop")
         XCTAssertTrue(model.chips.contains(.businesses))
     }
 
-    /// A local place whose Google id was found asks Google by that id; restaurants and
-    /// coffee shops with a logo open their page as a business does.
-    func testGoogleIdsAndWhatOpens() {
-        var bruno = poi("stjoe-bruno-press", "Bruno Press", .business, "print_shop", logo: logo())
-        bruno.googlePlaceId = "ChIJbruno"
+    /// Restaurants and coffee shops with a logo open their page as a business does.
+    func testWhatOpens() {
         let items = SearchModel.places(from: [
-            bruno,
             poi("ChIJmTKJ0M9ZtFIRm7FAmBzwApc", "The Local Blend", .food, "coffee_shop", logo: logo()),
             poi("stjoe-krewe", "Krewe Restaurant", .food, "cajun_restaurant"),
         ])
+        XCTAssertEqual(items.first { $0.name == "The Local Blend" }?.opens, true)
+        XCTAssertEqual(items.first { $0.name == "Krewe" }?.opens, false, "no logo, nothing to fly")
+    }
+
+    /// A food card shows the cover Block Party saved of its place, found by its registry entry;
+    /// a business keeps its logo on the row and its photos for its page; a place with none, or
+    /// not in the registry, has no photo, so its card shows its logo (no Google lookup).
+    func testSavedPhotosReachCardsAndPages() {
+        let photos = ["krewe": [picture("food-1"), picture("food-2")], "bruno-press": [picture("press")]]
+        let items = SearchModel.places(from: [
+            poi("stjoe-krewe", "Krewe Restaurant", .food, "cajun_restaurant", entry: "krewe"),
+            poi("stjoe-bruno-press", "Bruno Press", .business, "print_shop", logo: logo(), entry: "bruno-press"),
+            poi("stjoe-gary", "Gary's Pizza", .food, "pizza_restaurant", logo: logo(), entry: "garys-pizza"),
+            poi("stjoe-smash", "Joetown Smashburger", .food, "restaurant", logo: logo()),
+        ], photos: photos)
         func named(_ name: String) -> SearchItem? { items.first { $0.name == name } }
-        XCTAssertEqual(named("Bruno Press")?.googleId, "ChIJbruno")
-        XCTAssertEqual(named("The Local Blend")?.googleId, "ChIJmTKJ0M9ZtFIRm7FAmBzwApc")
-        XCTAssertEqual(named("The Local Blend")?.opens, true)
-        XCTAssertEqual(named("Krewe")?.opens, false, "no logo, nothing to fly")
+        XCTAssertEqual(named("Krewe")?.photo, .saved(picture("food-1")), "the cover")
+        XCTAssertEqual(named("Krewe")?.photos.count, 2)
+        XCTAssertEqual(named("Krewe")?.photo?.credited, true)
+        XCTAssertNil(named("Bruno Press")?.photo, "the row shows its logo")
+        XCTAssertEqual(named("Bruno Press")?.photos, [picture("press")])
+        XCTAssertNil(named("Gary's Pizza")?.photo)
+        XCTAssertNil(named("Joetown Smashburger")?.photo, "not in the registry yet")
+    }
+
+    /// A park's saved photo comes first, then its bundled one; with neither it has no photo
+    /// (Jesse, 2026-10-17: the tree mark until one is saved). Nothing asks Google.
+    func testParksTakeSavedThenBundledPhotos() {
+        let parks = SearchModel.parks(photos: ["centennial-park": [picture("centennial")]])
+        func photo(_ title: String) -> SearchItem.Photo? { parks.first { $0.name == title }?.photo }
+        XCTAssertEqual(photo("Centennial Park"), .saved(picture("centennial")))
+        XCTAssertEqual(photo("Memorial Park"), .bundled("memorial-park"))
+        XCTAssertTrue(parks.contains { $0.name == "Northland Park" })
+        XCTAssertNil(photo("Northland Park"))
+    }
+
+    /// A places row carries what its page shows: its entry, its own words and its links.
+    func testPlacesRowCarriesItsPage() throws {
+        let json = """
+        [{"id": "a", "place_id": "ChIJ-krewe", "name": "Krewe Restaurant", "lat": 45.5, "lon": -94.3,
+          "family": "food", "primary_type": "cajun_restaurant", "types": [], "address": "24 College Ave N Ste 104, St Joseph, MN 56374, USA",
+          "logo_url": null, "search_logo": null, "entry_id": "krewe", "about": "  Southern cooking.  ",
+          "links": [{"kind": "website", "url": "https://krewemn.com/"}, {"kind": "rss", "url": "https://krewemn.com/feed"}]},
+         {"id": "b", "place_id": "stjoe-plain", "name": "Plain Shop", "lat": 45.5, "lon": -94.3,
+          "family": "business", "primary_type": null, "types": [], "address": null, "logo_url": null,
+          "search_logo": null}]
+        """
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let items = SearchModel.places(from: try decoder.decode([POI].self, from: Data(json.utf8)))
+        XCTAssertEqual(items[0].street, "24 College Ave N Ste 104")
+        XCTAssertEqual(items[0].about, "Southern cooking.")
+        XCTAssertEqual(items[0].links.count, 2, "kept as sent; the page picks what it can draw")
+        XCTAssertNil(items[1].street)
+        XCTAssertNil(items[1].about)
+        XCTAssertTrue(items[1].links.isEmpty, "a row from before the page had links")
+        XCTAssertNil(SearchModel.street("  , St. Joseph"))
+    }
+
+    /// The saved photos read: grouped by entry, cover first as sent, credited to their site or
+    /// their author; a row that doesn't decode is only that photo gone.
+    func testPlacePhotosRead() throws {
+        let json = """
+        [{"entry_id": "krewe", "url": "https://x/food-1.webp", "kind": "photo", "credit": null, "site": "https://www.krewemn.com/"},
+         {"entry_id": "krewe", "url": "https://x/food-2.webp", "kind": "photo", "credit": null, "site": "https://www.krewemn.com/"},
+         {"entry_id": "sju", "url": "https://x/abbey.webp", "kind": "photo", "credit": "Tomruen · CC BY-SA 4.0", "site": null},
+         {"entry_id": "bad", "url": 7, "kind": "photo"},
+         {"url": "https://x/orphan.webp", "kind": "photo"}]
+        """
+        let photos = try CommunityAPI.placePhotos(from: Data(json.utf8))
+        XCTAssertEqual(Set(photos.keys), ["krewe", "sju"])
+        XCTAssertEqual(photos["krewe"]?.map(\.url.lastPathComponent), ["food-1.webp", "food-2.webp"])
+        XCTAssertEqual(photos["krewe"]?.first?.creditLine, "krewemn.com")
+        XCTAssertEqual(photos["sju"]?.first?.creditLine, "Tomruen · CC BY-SA 4.0")
+    }
+
+    /// Places read without their photos show, and say so, so the next try reads the photos.
+    func testPlacesWithoutTheirPhotos() {
+        let model = SearchModel(defaults: defaults)
+        model.show([poi("stjoe-krewe", "Krewe Restaurant", .food, "cajun_restaurant", entry: "krewe")], photos: nil)
+        XCTAssertTrue(model.placesLoaded)
+        XCTAssertFalse(model.photosLoaded)
+        XCTAssertNil(model.row(.restaurant).first?.photo)
+        model.show([poi("stjoe-krewe", "Krewe Restaurant", .food, "cajun_restaurant", entry: "krewe")],
+                   photos: ["krewe": [picture("food-1")]])
+        XCTAssertTrue(model.photosLoaded)
+        XCTAssertEqual(model.row(.restaurant).first?.photo, .saved(picture("food-1")))
+    }
+
+    /// A business's page draws its website by name, then Facebook, then Instagram, one of each,
+    /// and nothing it can't open.
+    func testBusinessPageLinkRows() {
+        let rows = BusinessPage.rows([
+            PlaceLink(kind: "instagram", url: "https://www.instagram.com/krewe/"),
+            PlaceLink(kind: "facebook", url: "https://www.facebook.com/krewerestaurant/"),
+            PlaceLink(kind: "website", url: "https://www.krewemn.com/"),
+            PlaceLink(kind: "website", url: "https://other.example/"),
+            PlaceLink(kind: "rss", url: "https://krewemn.com/feed"),
+        ])
+        XCTAssertEqual(rows.map(\.text), ["krewemn.com", "Facebook", "Instagram"])
+        XCTAssertEqual(rows.map(\.glyph), ["globe", "f.circle", "camera"])
+        XCTAssertEqual(rows.first?.url.absoluteString, "https://www.krewemn.com/")
+        XCTAssertTrue(BusinessPage.rows([PlaceLink(kind: "website", url: "mailto:a@b.c"),
+                                         PlaceLink(kind: "facebook", url: "not a url")]).isEmpty)
+    }
+
+    /// The logo rests top right beside a photo, and with none where the Event page draws a
+    /// place's logo in a hero it has no photo for: 150 pt, 101 pt down, on a 420 pt phone.
+    func testWhereTheLogoRests() {
+        let corner = BusinessPage.corner(width: 420, top: 68)
+        XCTAssertEqual(corner, CGRect(x: 334, y: 59, width: 76, height: 76))
+        let middle = BusinessPage.middle(width: 420)
+        XCTAssertEqual(middle.width, 149.5, accuracy: 0.5)
+        XCTAssertEqual(middle.midX, 210, accuracy: 0.01)
+        XCTAssertEqual(middle.minY, 145.6, accuracy: 0.5)
     }
 
     /// The mockup's order first (the 3D logos lead), then by name.
