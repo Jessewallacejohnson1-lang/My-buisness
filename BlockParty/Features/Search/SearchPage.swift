@@ -478,7 +478,7 @@ struct SearchPage: View {
     private static var debugSearching: Bool {
         ProcessInfo.processInfo.arguments.contains("-search-focus") || debugWords != nil
     }
-    /// `-search-chip <all|people|businesses|events|clubs|parks>`: opens on that filter.
+    /// `-search-chip <all|people|businesses|events|groups|parks>`: opens on that filter.
     private static var debugChip: SearchChip? {
         debugArg("-search-chip").flatMap { name in SearchChip.allCases.first { $0.title.lowercased() == name } }
     }
