@@ -43,16 +43,22 @@ jobs:
         id: sim
         run: |
           set -euo pipefail
-          echo "Destinations xcodebuild accepts for this scheme:"
-          xcodebuild -showdestinations -project BlockParty.xcodeproj -scheme BlockParty 2>/dev/null \
-            | grep 'platform:iOS Simulator' | grep -v placeholder || true
-          udid="$(xcodebuild -showdestinations -project BlockParty.xcodeproj -scheme BlockParty 2>/dev/null \
-                  | grep 'platform:iOS Simulator' \
-                  | grep -v placeholder \
-                  | grep 'name:iPhone' \
-                  | head -1 \
-                  | sed -E 's/.*id:([0-9A-Fa-f-]+).*/\1/')"
+          # Once (2026-10-17) xcodebuild listed no simulator at all on a fresh runner and the
+          # rerun found plenty: the simulator service can still be starting. Ask three times.
+          udid=""
+          for attempt in 1 2 3; do
+            xcrun simctl list devices available >/dev/null 2>&1 || true
+            dests="$(xcodebuild -showdestinations -project BlockParty.xcodeproj -scheme BlockParty 2>/dev/null \
+                     | grep 'platform:iOS Simulator' | grep -v placeholder || true)"
+            echo "Destinations xcodebuild accepts for this scheme (try $attempt):"
+            echo "$dests"
+            udid="$(echo "$dests" | grep 'name:iPhone' | head -1 \
+                    | sed -E 's/.*id:([0-9A-Fa-f-]+).*/\1/' || true)"
+            [ -n "$udid" ] && break
+            [ "$attempt" -lt 3 ] && sleep 20
+          done
           if [ -z "$udid" ]; then
+            xcrun simctl list runtimes || true
             echo "::error::No iPhone simulator on this runner satisfies the app's deployment target"
             exit 1
           fi

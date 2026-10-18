@@ -51,8 +51,11 @@ final class EventCardPhotoTapTests: XCTestCase {
             .first { $0.frame.minY >= link.frame.maxY }
     }
 
-    /// Pushed = Town's card is no longer on screen to be tapped.
-    private func waitForPush(from link: XCUIElement, timeout: TimeInterval) -> Bool {
+    /// Pushed = Town's card is no longer on screen to be tapped. A push waits out the
+    /// photo's double-tap window first, and GitHub's runner can be far slower than a Mac:
+    /// on 2026-10-17 one look-up of the card took 31 s there, and the page wasn't up 2 s
+    /// after the tap. The wait ends as soon as the page is up, so a long one costs nothing.
+    private func waitForPush(from link: XCUIElement, timeout: TimeInterval = 15) -> Bool {
         let gone = NSPredicate(format: "exists == false OR hittable == false")
         let expectation = XCTNSPredicateExpectation(predicate: gone, object: link)
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
@@ -74,7 +77,7 @@ final class EventCardPhotoTapTests: XCTestCase {
 
         photo(of: link).tap()
 
-        XCTAssertTrue(waitForPush(from: link, timeout: 3), "a single tap on the photo did not push the event page")
+        XCTAssertTrue(waitForPush(from: link), "a single tap on the photo did not push the event page")
     }
 
     /// The event page hides the navigation bar, and UIKit then turns its edge swipe off.
@@ -89,16 +92,19 @@ final class EventCardPhotoTapTests: XCTestCase {
         // Across the top bar, clear of the card, whose link would take the touch.
         edgeSwipe(atHeight: 0.12)
         link.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.05)).tap()
-        XCTAssertTrue(waitForPush(from: link, timeout: 3), "a swipe at the root froze the stack")
+        XCTAssertTrue(waitForPush(from: link), "a swipe at the root froze the stack")
 
         // The carousel only scrolls with two photos; `-event-page-two-photos` gives it two.
         let twoPhotos = app.descendants(matching: .any)
             .matching(NSPredicate(format: "value BEGINSWITH 'Photo 1 of 2'")).firstMatch
         XCTAssertTrue(twoPhotos.waitForExistence(timeout: 10), "no two-photo carousel to swipe over")
 
+        // The pop itself is quick; checking for it is not. On GitHub's runner each look at the
+        // screen can take seconds, and on 2026-10-17 the page popped but the one look a 4 s
+        // wait had room for came before the Town card was back.
         edgeSwipe(atHeight: 0.22)
         let back = NSPredicate(format: "exists == true AND hittable == true")
-        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: back, object: link)], timeout: 4),
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: back, object: link)], timeout: 15),
                        .completed, "an edge swipe on the hero did not pop the page")
     }
 
