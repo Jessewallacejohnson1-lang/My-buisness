@@ -5,21 +5,23 @@ discover.py — build the town roster, and report what the registry is missing.
 ADR-010 makes completeness the goal and says coverage is measured against an external
 count of what exists, never against what we already hold. This is that external count.
 
-It reads four kinds of source and merges them into one roster:
+It reads these sources, keeps what sits in the town's ZIP codes (ADR-019), and merges
+them into one roster:
 
-  * OpenStreetMap, via the Overpass API — the only machine-readable full-coverage list.
-  * Local directory pages (joetown.org/explore, the chamber member directory) — curated,
-    and better than OSM at knowing which places are actually trading.
-  * Pages that disallow robots — reported as agent tasks, never fetched (ADR-001).
-  * The registry itself, to subtract what we already have.
+  * Overture Maps places and OpenStreetMap (Overpass), both free and storable.
+  * A Google Maps sweep, one search per category, through Composio (maps.py). Google may
+    show that a place exists; it never names one (ADR-016).
+  * The town's own directory pages (joetown.org/explore, the chamber, an old town
+    directory), and the registry itself, to subtract what we already have.
 
-It writes `proposed` entries ONLY, and never touches an existing entry. Per ADR-008 an
-agent may not set `active`; per ADR-010 Jesse promotes `listed` entries in batches.
+It writes no entries. Its outputs (roster.json, missing.json, same-place.json, events.md)
+go to RUNS/discover-<stamp>/, linked from RUNS/latest-<town>; verify.py reads them and
+drafts the entries.
 
-Dedupe is deliberately timid. Names that normalise to exactly the same string are merged.
-Anything merely SIMILAR is reported as a possible duplicate for a human to settle and is
-NOT merged — a wrongly merged pair silently deletes a business from the town, which is
-the one failure mode this whole script exists to prevent.
+Dedupe is deliberately timid (ADR-018). Sightings merge only on certainty; anything
+merely SIMILAR is reported as a possible duplicate for a human to settle and is NOT
+merged — a wrongly merged pair silently deletes a business from the town, which is the
+one failure mode this whole script exists to prevent.
 
 Attribution: OpenStreetMap data is ODbL. Any surface built on this roster owes
 "© OpenStreetMap contributors". The `source` field on every record carries provenance so
@@ -27,7 +29,6 @@ OSM-derived rows stay identifiable.
 """
 
 import argparse, html, json, os, re, subprocess, sys, time, unicodedata
-import urllib.error
 from datetime import datetime, timezone
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -103,7 +104,6 @@ TOWNS = {
         # Most of these were settled by hand on 2026-10-02 and confirmed by Jesse. College
         # offices, teams and buildings fold into the college (Q15 of that session).
         "aliases": [
-            ['The Wandering Cow', 'Wandering Cow Ice Cream'],
             ["Sal's Bar and Grill", "Sal's Bar", 'Sals Bar and Grill'],
             ['Amy Hedtke State Farm', 'Amy Hedtke', 'Hedtke Insurance', 'State Farm',
              'Amy Hedtke - State Farm Insurance Agent'],
@@ -129,10 +129,11 @@ TOWNS = {
              'CSB/ SJU History Department', 'CSB Senate',
              'Gorecki Dining and Conference Center',
              'Gorecki Center at the College of Saint Benedict',
-             "Saint Benedict's College Clemens Field House", 'Autumns photography',
+             "Saint Benedict's College Clemens Field House",
              'Benedict and Dorothy Gorecki Gallery', 'Buhl Elizabeth a PhD',
              'CLAIRE LYNCH HALL', "CSB WOMEN'S SOCCER", 'Luetmer Apartment',
-             'Square One Global', 'Well-Being Center - Student Health Services'],
+             'Square One Global', 'Well-Being Center - Student Health Services',
+             "College of St. Benedict & St. John's University ESSS Department"],
             ['Benedicta Arts Center', 'Escher Auditorium',
              'CSB and SJU Fine Arts Programming'],
             ['Daisy A Day Floral & Gift', 'Daisy A Day'],
@@ -236,7 +237,7 @@ TOWNS = {
             ['TCC Materials', 'Tcc Materials', 'Bremix', 'Borgert Products Inc'],
             ['Collegeville Brokerage', 'Collegeville Development Group',
              'Jon Petters Collegeville Brokerage'],
-            ['Hansen and Company Woodworks', 'A Cab Custom Woodworking'],
+            ['Hansen and Company Woodworks', 'A Cab Custom Woodworking', 'HCo 2.0'],
             ['Carlson Crossing Townhomes', 'Cloverdale Townhouses'],
             ['Insurance Advisors: St. Joseph', 'KIA Insurance Inc'],
             ['Auto Color & Industrial Supply', 'Autocolor & Bumper Supply'],
@@ -248,6 +249,7 @@ TOWNS = {
              "All Occasion Floral and Gifts featuring DJ's Flower Bar & Tea"],
             ['AMS Tax and Accounting Solutions', 'AMS Tax & Accounting Solutions PA'],
             ['BL Grafx', 'B L GrafX LLC'],
+            # Campus Park Villas was renamed Cedar Trail Apartments (verify, 2026-10-02).
             ['Cedar Trails Apartments', 'Cedar Trail Apartments',
              'Campus Park Villas & Townhomes'],
             ['Chiropractic Connection, PC', 'Chiropractic Connection'],
@@ -256,7 +258,6 @@ TOWNS = {
              'DANCING PINES SUITE at Dancing Pines Retreat • A Luxury Log Home & Pet Friendly.',
              'DANCING PINES SUITE near SJU, CSB Wobegon Trail',
              'Log Bear Den at Dancing Pines Retreat • A Luxury Log Home & Pet Friendly.',
-             'LOG BEAR DEN near SJU, CSB Wobegon Trail. Relaxing. Romantic. Refined. Rustic.',
              'LOG BEAR DEN near SJU, CSB Wobegon Trail. Relaxing. Romantic. Refined. Rustic.'],
             ['Edward Jones - Financial Advisor: Beau Hanowski',
              'Edward Jones - Financial Advisor: Beau Hanowski, CFP®'],
@@ -283,6 +284,19 @@ TOWNS = {
              'Urban Oasis: Cozy 2-bedroom apartment in the center of Saint Joseph'],
             ['Well & Company', 'WELL & Company St. Joseph'],
             ['Wendy Loso', 'Wendy Loso Central MN Realty'],
+            # One organisation each: same phone and street, and a shared website or a
+            # rename verify confirmed (2026-10-17). An agent folds into its firm (Q15).
+            ['Astech Corp', 'Asphalt Surface Technologies Corp'],
+            ['Ami Auction', 'AMI'],
+            ['Little Shop Welding & Repair', 'Little Shop Welding, LLC'],
+            ['Emerald Companies', 'Emerald Lawn Care'],
+            ['Thunder Valley Classic Cars Inc.', 'Thunder Valley Performance'],
+            ['TMT Integrity Flooring, LLC', 'TMT Vintage LLC'],
+            ['Quill & Disc', 'Patents Minnesota'],
+            ['Millstream Communications', 'Verizon Wireless Zone'],
+            ['Golden Rule Real Estate', 'Dan DeMark Realtor'],
+            ['Bloom Styling & Events', 'The Bloom Booth'],
+            ['Kostreba Appliance Services Center', 'Omega Force Appliance Repair'],
         ],
         # Pairs confirmed DISTINCT by a human, so the duplicate report stops asking.
         # Recurring false positives train people to skim the report, which is how a real
@@ -295,6 +309,50 @@ TOWNS = {
             ("Creekwood Acres", "TMT Integrity Flooring LLC"),
             ("Full Circle Water", "Pristine Environmental"),
             ("Kwik Trip #147", "Kwik Trip #575"),
+            # Rosie's Gyps Ranch is the Krebsbachs' Gypsy Vanner ranch; KD Performance
+            # Horses is the trainer working there. Overture gave the ranch KD's phone and
+            # website (2026-10-17).
+            ("KD Performance Horses", "Rosie's Gyps Ranch"),
+            # Jesse, 2026-10-17: two places at one address, with different phones.
+            ("Consumer Directions", "A New Direction"),
+            # Same phone or street, different organisations (2026-10-17): one owner's
+            # several businesses, tenants of one building, a shop inside a store, a
+            # complex and its manager, chair-renting stylists, a successor in a spot.
+            ("Clemens Perk Coffee Shop", "College of Saint Benedict"),
+            ("Clemens Perk Coffee Shop", "Clemens Library"),
+            ("College of Saint Benedict", "On A Lark College Store"),
+            ("Saint Benedict's Monastery", "St Benedicts Art & Heritage"),
+            ("Coborn's", "Caribou Coffee"),
+            ("Coborn's", "Coborn's Liquor"),
+            ("Sunny Mary Meadow", "The Bloom Room"),
+            ("Central Canvas Manufacturing", "Rustic River Gear"),
+            ("W Gohman Construction", "Artistic Stone & Concrete"),
+            ("Mill Stream Village", "Collegeville Brokerage"),
+            ("West Apartments", "East-west Realty"),
+            ("the Perfect Fit", "St. Joseph Health and Wellness Center"),
+            ("St. Joseph Health and Wellness Center", "The Whole You Wellness Collective"),
+            ("St Joseph Laundromat", "St Joe Mini-Storage"),
+            ("St Joseph Laundromat", "St Joe Sand & Gravel"),
+            ("St Joe Mini-Storage", "St Joe Sand & Gravel"),
+            ("PrairieScapes", "Steve's Landscape Service"),
+            ("Frontgate Inc.", "Five Star Transport Solutions"),
+            ("Grandview Buildings", "Minnesota Home Improvements"),
+            ("King of Hearths", "TCC Materials"),
+            ("Amcon Block & Precast", "TCC Materials"),
+            ("HD Specialties LLC", "Semi Legal Service"),
+            ("Uptown Styles Hair Salon", "Hair by Hanna"),
+            ("Uptown Styles Hair Salon", "Hair By Mel LLC"),
+            ("Hair by Hanna", "Hair By Mel LLC"),
+            ("Kraemer Lake-Wildwood County Park", "Wildwood Ranch Maple Syrup"),
+            ("Adara Home Health", "Home Town Title"),
+            ("Kostreba Appliance Services Center", "DKT Auto & Diesel Repair"),
+            ("Metro Plumbing & Heating, Inc.", "One Hour Heating & Air Conditioning"),
+            ("Yamry Construction", "Charlie Walker Construction"),
+            ("Riff City Guitar & Music Company", "Barrett’s Music"),
+            ("Restoring Hope Individual & Family Therapy LLC", "True Freedom Physical Therapy"),
+            ("K Welz Counseling and Coaching", "Angela Larcom Counseling"),
+            ("Midnight Graphix", "Midnight Warehouse"),
+            ("Central Lakes Mutual Insurance Co", "St. Joseph Mutual Insurance Company"),
         ],
         # Names that are not places in this town: events, kiosks, store counters, and
         # Saint John's buildings. Google gives Saint John's a St. Joseph 56374 address,
@@ -381,14 +439,12 @@ TOWNS = {
             'US Army Reserve Training': 'Government',
             'Wacosa': 'Community group',
             'Whitby Gift Shop & Gallery': 'Business',
-            'City of St. Joseph Archery Range': 'Park / historic',
         },
         "directories": [
             {"id": "joetown", "url": "https://www.joetown.org/explore"},
-            # Readable after all (ADR-014). It was written off as blocking us because
-            # RobotFileParser read robots.txt with urllib's default user-agent, got a
-            # throttling 403, and turned that into disallow-all. Its robots.txt actually
-            # permits everyone and asks for Crawl-delay: 10, which the fetcher now obeys.
+            # Its robots.txt permits everyone and asks for Crawl-delay: 10 (ADR-014), but
+            # this Mac's IP has been blocked since 2026-09-23, so the members come from
+            # the list harvest_chamber.py saved (collect_chamber).
             {"id": "chamber", "url": "https://stjosephchamber.com/member-directory/",
              "collector": "chamber"},
             # An old, undated town directory (274 entries in 2026-10). Partly stale, but it
@@ -401,7 +457,7 @@ TOWNS = {
         # The fix for a robots block is search_snippet, never a workaround (ADR-001).
         # Nothing is agent-only for this town any more. stjosephmn.gov is fetchable
         # (ADR-012) and its /9/Business page holds permits and zoning, not a business
-        # list; the chamber is fetchable too (ADR-014).
+        # list; the chamber permits robots (ADR-014) and is read from a saved list.
         "agent_only": [],
     }
 }
@@ -514,106 +570,27 @@ def _osm_records(data, min_elements, where):
     return out
 
 
-CHAMBER_CATEGORY = re.compile(r'href="(https://stjosephchamber\.com/member/category/[^"]+/)"')
-CHAMBER_MEMBER = re.compile(
-    r'href="(https://stjosephchamber\.com/member/(?!category/)[^"/]+/)"[^>]*>(.*?)</a>', re.S)
+def collect_chamber(url, cache):
+    """The St. Joseph Chamber's members, from the list harvest_chamber.py saved.
 
-
-def fetch_patiently(url, tries=2, base_wait=30):
-    """fetch() with backoff on 403.
-
-    Two tries, not four. When this host decides to throttle it applies a cooldown far
-    longer than any backoff we would sit through, so extra retries add load to a small
-    chamber's server and change nothing. Give up early and let the next run pick it up.
-
-    stjosephchamber.com answers 200 when approached at its stated pace and 403 when it
-    decides you are going too fast — the same URL, minutes apart. A 403 here is a
-    "slow down", not a "go away": its robots.txt has no Disallow at all. So back off
-    and try again rather than recording the source as blocked, which is the mistake
-    that hid this directory for two days.
+    stjosephchamber.com has blocked this Mac's IP since 2026-09-23 (we ignored its
+    Crawl-delay while iterating on a parser), so discovery never fetches it. It reads the
+    saved list, however old, and says how old: dropping it would silently lose 31 members,
+    11 of them on no other list. A fresh list goes through Firecrawl, which spends credits,
+    so it waits for Jesse (harvest_chamber.py).
     """
-    last = None
-    for attempt in range(tries):
-        try:
-            return fetch(url)
-        except urllib.error.HTTPError as ex:
-            if ex.code != 403:
-                raise
-            last = ex
-            if attempt < tries - 1:
-                wait = base_wait * (attempt + 1)
-                print(f"[discover] 403 from {urlparse(url).netloc}, waiting {wait}s "
-                      f"(attempt {attempt + 2}/{tries})")
-                time.sleep(wait)
-    raise last
-
-
-def collect_chamber(url, cache=None, max_age_days=30, refresh=False,
-                    budget_seconds=600):
-    """Two levels: the directory lists categories, each category lists its members.
-
-    The directory page itself carries only category names and counts — the member list
-    is rendered client-side, so fetching the one page yields nothing. The category pages
-    DO carry their members in the HTML, so this walks them. 22 categories at the
-    Crawl-delay: 10 the site asks for is about four minutes; it is a monthly job.
-    """
-    # 22 category pages at Crawl-delay 10, plus backoff when the host pushes back, is
-    # minutes not seconds. Cache it for a month: chamber membership moves slowly and this
-    # is a monthly job. --refresh forces the walk.
-    if cache and not refresh and cache.exists():
-        age = (datetime.now(timezone.utc).timestamp() - cache.stat().st_mtime) / 86400
-        if age < max_age_days:
-            print(f"[discover] chamber: using cache, {age:.1f}d old (--refresh to re-walk)")
-            return json.loads(cache.read_text())
-
-    deadline = time.monotonic() + budget_seconds
-    # Our IP is BLOCKED by this host — earned on 2026-09-23 by ignoring its
-    # Crawl-delay while iterating parser code against the live site, and still in
-    # force a day later. Direct fetching is therefore not the route any more:
-    # `harvest_chamber.py --harvest` pulls the pages through Firecrawl and writes the
-    # cache this function reads. Fail with that instruction rather than hammering a
-    # host that has already said no.
-    raise RuntimeError(
-        "chamber cache missing or stale, and this IP is blocked by stjosephchamber.com. "
-        "Run: python3 sources/scripts/harvest_chamber.py --harvest --parse")
-
-    _status, index = fetch_patiently(url)  # unreachable; kept for when the block lifts
-    cats = sorted(set(CHAMBER_CATEGORY.findall(index)))
-    print(f"[discover] chamber: walking {len(cats)} categories at the site's stated pace",
-          flush=True)
-    out, seen = [], set()
-    for cat in cats:
-        slug = cat.rstrip("/").rsplit("/", 1)[-1]
-        if time.monotonic() > deadline:
-            # Partial beats nothing, and beats grinding. A run that sat in backoff for
-            # 14 minutes without finishing one category is the site telling us to come
-            # back later, not a problem to push through.
-            print(f"[discover] chamber: {budget_seconds}s budget spent, stopping with "
-                  f"{len(out)} members — rerun later for the rest", flush=True)
-            break
-        try:
-            _st, page = fetch_patiently(cat)
-        except Exception as ex:
-            print(f"[discover] chamber category {slug}: {ex}")
-            continue
-        for href, anchor in CHAMBER_MEMBER.findall(page):
-            name = re.sub(r"\s+", " ", TAGS.sub(" ", html.unescape(anchor))).strip()
-            if len(re.sub(r"[^A-Za-z0-9]", "", name)) < 3 or len(name) > 60:
-                continue
-            k = norm(name)
-            if not k or k in seen:
-                continue
-            seen.add(k)
-            out.append({"name": name, "category": slug, "website": None,
-                        "lat": None, "lon": None, "source": "stjosephchamber.com"})
-        print(f"[discover]   {slug}: {len(out)} members so far", flush=True)
-    # Only cache a COMPLETE walk. Caching a partial one for a month would freeze the
-    # roster at whatever the throttle happened to allow that afternoon.
-    if cache and out and time.monotonic() <= deadline:
-        cache.parent.mkdir(parents=True, exist_ok=True)
-        cache.write_text(json.dumps(out))
-    return out
-
+    if urlparse(url).netloc != "stjosephchamber.com":
+        raise RuntimeError(f"the chamber reader knows only stjosephchamber.com; give {url} "
+                           f"the plain directory reader (no collector)")
+    if not cache.exists():
+        raise RuntimeError("no saved chamber list: python3 sources/scripts/harvest_chamber.py "
+                           "--harvest --parse (Firecrawl credits, ask Jesse first)")
+    # Age from the harvested pages: a re-parse rewrites chamber.json and its date.
+    pages = cache.parent / "chamber" / "_index.md"
+    age = (time.time() - (pages if pages.exists() else cache).stat().st_mtime) / 86400
+    print(f"[discover] chamber: saved list, {age:.0f} days old"
+          + (" (a fresh one needs harvest_chamber.py and Jesse's yes)" if age > 90 else ""))
+    return json.loads(cache.read_text())
 
 LINK = re.compile(r'<a\b[^>]*href="(https?://[^"]+)"[^>]*>(.*?)</a>', re.S | re.I)
 TAGS = re.compile(r"<[^>]+>")
@@ -825,19 +802,23 @@ def build_alias_map(groups):
 FIELDS = ("category", "website", "phone", "address", "lat", "lon")
 
 
-def merge(records, aliases=None, known_distinct=(), stale=()):
+def merge(records, aliases=None, known_distinct=(), stale=(), town_words=()):
     """Collapse sightings of one place into one roster record (ADR-018).
 
     Two sightings merge when their names fold to the same key, when they share a phone
-    number, or when they share a street number and street and their names clearly
-    overlap. Anything less certain is left for near_duplicates() to ask about.
+    number and a distinctive word, or when they share a street number and street, their
+    names clearly overlap and their phones don't disagree. Anything less certain is left
+    for near_duplicates() to ask about. The town's own name is never a distinctive word:
+    "City of Avon" and "Avon Police Department" share a phone and are two places.
 
     Fields come from non-Google sightings first (ADR-016); Google's own values are kept
     under `google` for the working list and are never written into an entry.
     """
     aliases = aliases or {}
+    generic = GENERIC | set(town_words)
     by_key = {}
     for r in records:
+        r = dict(r, name=" ".join(r["name"].split()))   # Overture names can carry spaces
         k = match_key(r["name"])
         seen_as = r["name"]
         if k in aliases:
@@ -886,12 +867,15 @@ def merge(records, aliases=None, known_distinct=(), stale=()):
         for x in range(len(g)):
             for y in range(x + 1, len(g)):
                 a, b = places[g[x]], places[g[y]]
-                if _share_word(a, b) and not _streets_conflict(a, b):
+                if _share_word(a, b, generic) and not _streets_conflict(a, b):
                     pairs.append((g[x], g[y]))
+    # One address holds several businesses, and "Consumer Directions" and "A New
+    # Direction" at 1140 Elm St E overlap just enough by name: different phones say two.
     for g in by_street.values():
         for x in range(len(g)):
             for y in range(x + 1, len(g)):
-                if _names_overlap(places[g[x]], places[g[y]]):
+                a, b = places[g[x]], places[g[y]]
+                if _names_overlap(a, b) and not _phones_conflict(a, b, stale):
                     pairs.append((g[x], g[y]))
     members = {i: {places[i]["key"]} for i in range(len(places))}
     for i, j in pairs:
@@ -935,8 +919,9 @@ def _absorb(cur, r):
             if r.get(f) is not None and cur["google"].get(f) is None:
                 cur["google"][f] = r[f]
         return
-    if set(cur["sources"]) - {src} <= GOOGLE and not cur.get("aliased"):
-        # The first non-Google sighting names the place (ADR-016).
+    if all(s["source"] in GOOGLE for s in cur["signals"][:-1]) and not cur.get("aliased"):
+        # The first non-Google sighting names the place (ADR-016). Only the first: a
+        # later one renamed the place to whatever it absorbed last.
         cur["name"], cur["display_key"] = r["name"], norm(r["name"])
     for f in FIELDS:
         if cur.get(f) is None and r.get(f) not in (None, ""):
@@ -948,14 +933,21 @@ GENERIC = set("st saint joseph mn minnesota cloud of inc llc co company corp ser
               "center centre group shop store the and park parks lake md dds dr pa phd".split())
 
 
-def _share_word(a, b):
-    return bool((set(a["key"].split()) & set(b["key"].split())) - GENERIC)
+def _share_word(a, b, generic=GENERIC):
+    return bool((set(a["key"].split()) & set(b["key"].split())) - generic)
 
 
 def _streets_conflict(a, b):
     sa = {street_key(s.get("address")) for s in a["signals"]} - {None}
     sb = {street_key(s.get("address")) for s in b["signals"]} - {None}
     return bool(sa and sb and not sa & sb)
+
+
+def _phones_conflict(a, b, stale=()):
+    def phones(p):
+        return {phone_key(s.get("phone")) for s in p["signals"] if s["source"] not in stale}
+    pa, pb = phones(a) - {None}, phones(b) - {None}
+    return bool(pa and pb and not pa & pb)
 
 
 def _names_overlap(a, b):
@@ -965,7 +957,7 @@ def _names_overlap(a, b):
     return SequenceMatcher(None, a["display_key"], b["display_key"]).ratio() >= 0.75
 
 
-def near_duplicates(roster, known_distinct=()):
+def near_duplicates(roster, known_distinct=(), stale=(), town_words=()):
     """Report pairs a human should look at. Never merged automatically."""
     out, keys = [], [r["key"] for r in roster]
     toks = [set(k.split()) for k in keys]
@@ -989,7 +981,32 @@ def near_duplicates(roster, known_distinct=()):
             ratio = SequenceMatcher(None, a, b).ratio()
             if ratio >= NEAR_DUPLICATE:
                 out.append((round(ratio, 3), roster[i]["name"], roster[j]["name"]))
-    return sorted(out, reverse=True)
+    out.sort(reverse=True)
+    # Places that share a phone, or a street spot and a distinctive word, but were too
+    # unsure to merge (ADR-018): one owner's two businesses, or one business renamed.
+    # A phone shared by more than three places is a switchboard (city hall), not a clue.
+    asked = {frozenset(p[1:]) for p in out}
+    generic = GENERIC | set(town_words)
+    for why, field, key in (("same phone", "phone", phone_key),
+                            ("same street", "address", street_key)):
+        groups = {}
+        for i, p in enumerate(roster):
+            for s in p["signals"]:
+                if key(s.get(field)) and not (field == "phone" and s["source"] in stale):
+                    groups.setdefault(key(s[field]), set()).add(i)
+        for g in groups.values():
+            if field == "phone" and len(g) > 3:
+                continue
+            for i in sorted(g):
+                for j in sorted(g):
+                    a, b = roster[i], roster[j]
+                    if i >= j or frozenset((a["key"], b["key"])) in settled or \
+                            frozenset((a["name"], b["name"])) in asked or \
+                            (field == "address" and not _share_word(a, b, generic)):
+                        continue
+                    asked.add(frozenset((a["name"], b["name"])))
+                    out.append((why, a["name"], b["name"]))
+    return out
 
 
 def entry_md(rec, added_by="agent:discover", note=""):
@@ -1021,14 +1038,32 @@ def entry_md(rec, added_by="agent:discover", note=""):
     return "\n".join(lines)
 
 
-def in_town(rec, zips):
+def in_town(rec, zips, elsewhere=(), aliases=None):
     """ADR-019. A sighting with a ZIP belongs to the town that lists it. One without a
-    ZIP stays only if it came from a town-scoped source (the OSM box, a town directory):
-    a map result with no address is a service-area business that could be anywhere."""
+    ZIP stays only if it came from a town-scoped source (the OSM box, a town directory),
+    and no source with a ZIP puts the place in another town only (`elsewhere`, from
+    placed_elsewhere): the chamber lists Wacosa and the St. Cloud Area Chamber as
+    members. A map result with no address is a service-area business that could be
+    anywhere."""
     z = rec.get("zip") or zip_of(rec.get("address"))
     if z is None:
-        return rec["source"] not in GOOGLE
+        return rec["source"] not in GOOGLE and place_key(rec, aliases) not in elsewhere
     return z in zips
+
+
+def place_key(rec, aliases=None):
+    k = match_key(rec["name"])
+    return (aliases or {}).get(k, (k,))[0]
+
+
+def placed_elsewhere(records, zips, aliases=None):
+    """Keys of places whose every sighting with a ZIP carries another town's."""
+    here, away = set(), set()
+    for r in records:
+        z = r.get("zip") or zip_of(r.get("address"))
+        if z:
+            (here if z in zips else away).add(place_key(r, aliases))
+    return away - here
 
 
 def build_roster(town, refresh=False):
@@ -1047,21 +1082,23 @@ def build_roster(town, refresh=False):
             town["label"], town["sweep_ll"], cache / "maps" / town["id"], refresh=refresh)))
     for d in town["directories"]:
         if d.get("collector") == "chamber":
-            fn = (lambda d=d: collect_chamber(d["url"], cache=cache / "chamber.json",
-                                              refresh=refresh))
+            fn = lambda d=d: collect_chamber(d["url"], cache / "chamber.json")
         elif d.get("collector") == "lakesnwoods":
             fn = lambda d=d: collect_lakesnwoods(d["url"])
         else:
             fn = lambda d=d: collect_directory(d["url"])
         collectors.append((d["id"], fn))
     town_key = match_key(re.sub(r"\s+[A-Z]{2}$", "", town["label"]))
+    aliases = build_alias_map(town.get("aliases"))
+    got_by = []
     for name, fn in collectors:
         try:
-            got = fn()
+            got_by.append((name, [r for r in fn() if r.get("name")]))
         except Exception as ex:
             notes.append(f"{name}: FAILED ({ex})")
-            continue
-        kept = [r for r in got if r.get("name") and in_town(r, town["zips"])
+    elsewhere = placed_elsewhere([r for _, got in got_by for r in got], town["zips"], aliases)
+    for name, got in got_by:
+        kept = [r for r in got if in_town(r, town["zips"], elsewhere, aliases)
                 # Overture's box is wider than the town, so a row with no ZIP needs the
                 # town's own name as its locality (Rockville parks came in without one).
                 and not (r["source"] == "overture" and not r.get("zip") and
@@ -1076,10 +1113,30 @@ def build_roster(town, refresh=False):
                and not NOT_A_PLACE.search(f"{r['name']} {r.get('category') or ''}")
                and (r.get("category") or "") not in ("lake", "river", "body_of_water")
                and not re.search(r"\bLake$", r["name"])]
-    stale = {urlparse(d["url"]).netloc for d in town["directories"] if d.get("stale")}
-    roster = merge(records, build_alias_map(town.get("aliases")),
-                   town.get("known_distinct", ()), stale)
+    roster = merge(records, aliases, town.get("known_distinct", ()), stale_hosts(town),
+                   town_words(town))
     return roster, notes
+
+
+def stale_hosts(town):
+    return {urlparse(d["url"]).netloc for d in town["directories"] if d.get("stale")}
+
+
+def town_words(town):
+    """The town's name ("avon"), never a distinctive word between two of its places."""
+    return norm(town["label"]).split()
+
+
+def changes_since(old, new):
+    """What a run changed against the last one: places come and gone, other names gained."""
+    o, n = {p["key"]: p for p in old}, {p["key"]: p for p in new}
+    out = [f"+ {n[k]['name']}" for k in n.keys() - o.keys()]
+    out += [f"- {o[k]['name']}" for k in o.keys() - n.keys()]
+    for k in n.keys() & o.keys():
+        gained = set(n[k].get("aka", [])) - set(o[k].get("aka", []))
+        if gained:
+            out.append(f"= {n[k]['name']} now also: {', '.join(sorted(gained))}")
+    return sorted(out, key=lambda line: line[2:])
 
 
 def registry_keys(entries):
@@ -1099,7 +1156,8 @@ def main():
     ap.add_argument("--town", default="st-joseph-mn")
     ap.add_argument("--root", default=".")
     ap.add_argument("--refresh", action="store_true",
-                    help="ignore cached Overpass, Overture and map answers and re-fetch")
+                    help="re-fetch Overpass, Overture and every map search (~240 Composio "
+                         "calls); the chamber's saved list is kept either way")
     args = ap.parse_args()
 
     town = TOWNS.get(args.town)
@@ -1109,7 +1167,8 @@ def main():
 
     root = find_root(args.root)
     entries, _ = load(root)
-    have = registry_keys([e for e in entries if e.get("_town") == args.town])
+    entries = [e for e in entries if e.get("_town") == args.town]
+    have = registry_keys(entries)
     roster, notes = build_roster(town, refresh=args.refresh)
 
     def held(r):
@@ -1118,7 +1177,8 @@ def main():
     events = [r for r in missing if looks_like_event(r["name"])]
     places = [r for r in missing if not looks_like_event(r["name"])]
     google_only = [r for r in places if set(r["sources"]) <= GOOGLE]
-    dupes = near_duplicates(roster, town.get("known_distinct", ()))
+    dupes = near_duplicates(roster, town.get("known_distinct", ()), stale_hosts(town),
+                            town_words(town))
 
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     out_dir = RUNS / f"discover-{stamp}"
@@ -1137,6 +1197,8 @@ def main():
     # A stable path beside the timestamped run, so the newest lists are findable without
     # knowing today's timestamp. The dated folders stay as the history.
     latest = RUNS / f"latest-{town['id']}"
+    before = latest / "roster.json"
+    changed = changes_since(json.loads(before.read_text()), roster) if before.exists() else None
     try:
         if latest.is_symlink() or latest.exists():
             latest.unlink()
@@ -1155,6 +1217,11 @@ def main():
     if dupes:
         print(f"  {len(dupes)} possible duplicate pair(s) — NOT merged, settle by hand "
               f"(same-place.json)")
+    if changed is not None:
+        print(f"since the last run: {len(changed)} change(s)" if changed else
+              "since the last run: nothing changed")
+        for line in changed:
+            print(f"  {line}")
     print(f"next: sources/verify --town {args.town}   (roster: {out_dir / 'roster.json'})")
 
 

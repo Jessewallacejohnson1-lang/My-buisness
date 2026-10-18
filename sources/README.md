@@ -188,9 +188,10 @@ his ticks (ADR-022). Discovery never re-tiers on its own.
   `stjosephmn.gov` was marked blocked for weeks and is not — its robots.txt blocks
   `/admin`, `/search`, `/map` and `/currentevents`, and nothing else. That mistake cost
   the registry the city's calendar feeds until 2026-09-23. `joetownmn.com` does block and
-  stays `search_snippet`. `stjosephchamber.com` returns **403 to any non-browser client**,
-  so robots.txt cannot even be read — that is a server refusing us, not a robots rule, and
-  retrying with a browser user-agent to get past it is forbidden.
+  stays `search_snippet`. `stjosephchamber.com` permits crawlers but has blocked this
+  Mac's IP since 2026-09-23 (next rule), so discovery reads the member list
+  `scripts/harvest_chamber.py` saved through Firecrawl; retrying with a browser user-agent
+  to get past it is forbidden.
   `mblsportal.sos.mn.gov` (Minnesota Secretary of State filings) has `Disallow: /` for
   every agent (measured 2026-10-04): never fetched; filings count only as search snippets.
 - **A 403 usually means "slow down", not "go away" (ADR-014).** `stjosephchamber.com` was
