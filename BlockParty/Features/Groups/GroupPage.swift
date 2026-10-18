@@ -7,7 +7,7 @@
 //  Event page's round back and share buttons; a sheet over their bottom edge with the name, what
 //  kind of group and the town, when and where it meets, its members (from one up), About, its
 //  next get-togethers and its own website; and Meetup's charcoal Join group pill floating at the
-//  bottom. Joining is ticket 06: the pill squishes and does nothing yet.
+//  bottom, which joins in one tap (ticket 06, `RealLifeActions`).
 //
 //  PRODUCT RULE: never a zero count or a placeholder. Every row is absent when its data is.
 //
@@ -19,6 +19,11 @@ struct GroupPage: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    /// Being in the group, shared with every screen that shows it (`RealLifeActions`).
+    @Environment(RealLifeActions.self) private var actions
+    /// `actions.memberFailureCount` at the last tap: a tap mid-shake stills it (as `RSVPArea`'s).
+    @State private var tappedAt = 0
     @State private var photoPage: Int? = 0
     /// Photos whose bitmaps are on screen: until then a photo shimmers, and its credit waits.
     @State private var shownPhotos: Set<URL> = []
@@ -70,10 +75,21 @@ struct GroupPage: View {
                 .accessibilitySortPriority(1)
         }
         .accessibilityElement(children: .contain)
-        // An inset, so the page scrolls under the pill and its last line stops clear of it.
-        .safeAreaInset(edge: .bottom, spacing: 0) { joinBar }
+        // An inset, so the page scrolls under the pill and its last line stops clear of it. Only
+        // for someone who may act, as the Event page's RSVP bar: it comes up when the quiet
+        // account arrives.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if actions.canAct {
+                joinBar
+                    .transition(reduceMotion ? .opacity : .move(edge: .bottom))
+            }
+        }
+        .animation(Motion.smooth, value: actions.canAct)
         // Hidden, never `navigationBarBackButtonHidden`: `SwipeBack` (RootView) keeps the swipe.
         .toolbar(.hidden, for: .navigationBar)
+        // A failed join shakes and buzzes only while the page is open.
+        .onAppear { actions.pageOpened(group.id) }
+        .onDisappear { actions.pageClosed(group.id) }
     }
 
     // MARK: Pictures
@@ -189,12 +205,15 @@ struct GroupPage: View {
                     .padding(.top, Metric.whenTop)
             }
 
-            if let members = Self.membersText(group.memberCount) {
+            // Counts you the instant you join: the line fades in and the number rolls.
+            if let members = Self.membersText(actions.member(group).count) {
                 Text(members)
                     .font(.sansSemibold(15))
                     .foregroundStyle(Hue.ink)
                     .monospacedDigit()
+                    .contentTransition(.numericText())
                     .padding(.top, Metric.membersTop)
+                    .transition(.opacity)
             }
 
             if let about = Self.nonempty(group.about) {
@@ -224,6 +243,7 @@ struct GroupPage: View {
         .padding(.horizontal, Event.inset)
         .padding(.bottom, Event.contentBottom)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .animation(reduceMotion ? .easeInOut(duration: 0.15) : Motion.smooth, value: actions.member(group).count)
         .background(Hue.paper, in: UnevenRoundedRectangle(topLeadingRadius: Event.sheetCorner,
                                                          topTrailingRadius: Event.sheetCorner, style: .continuous))
         .padding(.top, hasHero ? 0 : Event.buttonTop + Event.button + Event.noPhotoGap)
@@ -268,16 +288,68 @@ struct GroupPage: View {
 
     // MARK: Join group
 
-    /// Meetup's charcoal pill over a fade to the page. It squishes like every pill and does
-    /// nothing yet: joining is ticket 06.
+    /// Meetup's charcoal pill over a fade to the page. One tap joins: "You're in!" at once, the pill
+    /// shrinks into Invite at the right and the Event page's glass bar comes up around it, with
+    /// "Leave group?" under the words (Jesse, 2026-10-18: inside the group you can leave), over the
+    /// RSVP pill's 0.18 s, both ways. It stays one button, so VoiceOver keeps its place. Reduce
+    /// Motion: the two cross-fade. A join the server refuses holds, turns back, then shakes.
     private var joinBar: some View {
-        Button {} label: {
-            Text("Join group")
-                .font(.sansSemibold(17))
-                .frame(maxWidth: .infinity)
+        let isMember = actions.member(group).isMember
+        let failures = actions.memberFailureCount(group.id)
+        let size = RSVPArea.Size.page
+        return HStack(spacing: 0) {
+            if isMember {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("You're in!")
+                        .font(.sansBold(size.top))
+                        .foregroundStyle(Hue.ink)
+                    RSVPArea.leave("Leave group?", size: size, hint: "Takes you out of the group",
+                                   reduceMotion: reduceMotion, action: toggle)
+                }
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                .layoutPriority(1)
+                .transition(.opacity)
+                Spacer(minLength: 12)
+            }
+            Button {
+                if isMember { ShareCenter.shared.present(.group(group)) } else { toggle() }
+            } label: {
+                // Both faces stay inside the pill and cross-fade as it shrinks; a face swapped
+                // out stayed where the wide pill had been, outside the small one.
+                ZStack {
+                    Text("Join group")
+                        .opacity(isMember ? 0 : 1)
+                    HStack(spacing: RSVPArea.glyphGap) { RSVPArea.invite(size) }
+                        .opacity(isMember ? 1 : 0)
+                }
+                .font(.sansSemibold(size.top))
+                .frame(maxWidth: isMember ? nil : .infinity)
+            }
+            .buttonStyle(MeetupPillStyle(height: isMember ? size.pillHeight : Metric.pillHeight,
+                                         minWidth: size.pillMinWidth))
+            .turnBackShake(failures: failures, shakes: !reduceMotion && tappedAt != failures)
+            .accessibilityLabel(isMember ? "Invite" : "Join group")
+            .accessibilityValue(isMember ? "Joined" : "")
         }
-        .buttonStyle(MeetupPillStyle(height: Metric.pillHeight))
-        .padding(.horizontal, Metric.pillSide)
+        // In the group: the Event page's capsule (`FeedEventDetailDestination.rsvpBar`), the words 24 pt
+        // in, the pill 5.5 pt from its end, 57 pt tall, a little glass over a white layer.
+        .padding(.leading, isMember ? Event.barWordsInset : 0)
+        .padding(.trailing, isMember ? Event.barPillInset : 0)
+        .padding(.vertical, isMember ? Event.barPillInset : 0)
+        .frame(minHeight: isMember ? Event.barHeight : nil)
+        // The whole capsule takes a touch: a tap between the words and the pill once opened the
+        // group's website, under the bar.
+        .contentShape(Capsule())
+        .glassEffect(isMember ? .regular : .identity, in: Capsule())
+        .background {
+            Capsule()
+                .fill(Hue.surface.opacity(isMember ? Event.barWhite : 0))
+                .allowsHitTesting(false)
+        }
+        .padding(.horizontal, isMember ? Event.inset : Metric.pillSide)
+        // Reduce Motion: the pill doesn't travel; the two bars swap by fading.
+        .id(reduceMotion ? isMember : false)
+        .animation(.easeInOut(duration: reduceMotion ? 0.15 : RealLifeActions.flip), value: isMember)
         .padding(.bottom, Metric.pillBottom)
         .background {
             LinearGradient(colors: [Hue.paper.opacity(0), Hue.paper], startPoint: .top, endPoint: .bottom)
@@ -285,6 +357,13 @@ struct GroupPage: View {
                 .ignoresSafeArea(edges: .bottom)
                 .allowsHitTesting(false)
         }
+    }
+
+    /// Join group and "Leave group?" both flip being in it; a write the server refuses turns back
+    /// and shakes the pill.
+    private func toggle() {
+        tappedAt = actions.memberFailureCount(group.id)
+        actions.toggleMember(group)
     }
 
     // MARK: Words (SearchModelTests)

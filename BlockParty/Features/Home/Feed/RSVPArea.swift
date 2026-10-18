@@ -83,7 +83,7 @@ struct RSVPArea: View {
     let onInvite: (() -> Void)?
 
     /// The glyph sits 7 pt from the word (Figma "Meetup depth").
-    private static let glyphGap: CGFloat = 7
+    static let glyphGap: CGFloat = 7
 
     @Environment(RealLifeActions.self) private var actions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -111,14 +111,8 @@ struct RSVPArea: View {
                 }
                 if let second = words.second {
                     if words.canLeave {
-                        Button(action: toggle) {
-                            Text(second)
-                                .font(.sansSemibold(size.second))
-                                .foregroundStyle(Hue.inkSecondary)
-                                .contentShape(Rectangle().inset(by: size.leaveReach))
-                        }
-                        .buttonStyle(FeedCardJoinPressStyle(reduceMotion: reduceMotion))
-                        .accessibilityHint("Takes you off the going list")
+                        Self.leave(second, size: size, hint: "Takes you off the going list",
+                                   reduceMotion: reduceMotion, action: toggle)
                     } else {
                         // Shrinks a little before it cuts: a 402 pt phone leaves the Event page's bar
                         // 125 pt beside the faces and the pill, and "Sam and 2 friends" needs 125.
@@ -165,13 +159,32 @@ struct RSVPArea: View {
         }
     }
 
+    /// "Can't go?", and the Group page's "Leave group?": quiet words that undo, grown to a 44 pt target.
+    static func leave(_ words: String, size: Size, hint: String, reduceMotion: Bool,
+                      action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(words)
+                .font(.sansSemibold(size.second))
+                .foregroundStyle(Hue.inkSecondary)
+                .contentShape(Rectangle().inset(by: size.leaveReach))
+        }
+        .buttonStyle(FeedCardJoinPressStyle(reduceMotion: reduceMotion))
+        .accessibilityHint(hint)
+    }
+
+    /// Invite's face, the send glyph before the word; the Group page's pill shows it too.
+    @ViewBuilder
+    static func invite(_ size: Size) -> some View {
+        FeedActionGlyphView(glyph: .send, size: size.send)
+        Text("Invite")
+    }
+
     private func pillFace(_ pill: RSVPWords.Pill) -> some View {
         HStack(spacing: Self.glyphGap) {
             if pill == .canceled {
                 Text("Canceled")
             } else if pill == .invite {
-                FeedActionGlyphView(glyph: .send, size: size.send)
-                Text("Invite")
+                Self.invite(size)
             } else {
                 // Apple's calendar, white, where Meetup's page draws one (Jesse, 2026-10-17).
                 Image(systemName: "calendar")

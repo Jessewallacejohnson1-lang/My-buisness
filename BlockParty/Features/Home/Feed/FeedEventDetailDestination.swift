@@ -401,6 +401,9 @@ struct FeedEventDetailDestination: View {
             // 57 pt at the default text size; larger text grows it rather than spilling out.
             .padding(.vertical, Metric.barPillInset)
             .frame(minHeight: Metric.barHeight)
+            // The whole capsule takes a touch, so one between the words and the pill never reaches
+            // the page under it (rsvp-and-groups 06 found a Group page's link opening that way).
+            .contentShape(Capsule())
             // A little glass, as Meetup's (Jesse at Check-in 2): the words behind it show through
             // blurred and faint. Apple's Liquid Glass over a white layer that keeps it light,
             // the tab bar's way (RootView), since the glass alone darkens over dark content.
