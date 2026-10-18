@@ -242,7 +242,7 @@ enum DailyFixtures {
                        photo: friend.photo.flatMap { Bundle.main.url(forResource: $0, withExtension: "jpg") })
         }
         // `-town-cancelled`: the first card and the photo-less council meeting are called
-        // off, for the Canceled tag on a photo and with none (ticket 12).
+        // off, for the red Canceled pill on a card and an Event page with a photo and with none.
         item.cancelled = ["e1", "e5"].contains(id) && ProcessInfo.processInfo.arguments.contains("-town-cancelled")
         return TownFeedEntry(card: item, leavesAt: now.addingTimeInterval((hoursUntil + 2) * 3600))
     }

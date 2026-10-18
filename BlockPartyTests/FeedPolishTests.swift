@@ -123,11 +123,6 @@ final class FeedPlaceholderRuleTests: XCTestCase {
         XCTAssertFalse(timeless.dateAndTime.hasSuffix(", "))
     }
 
-    func testZeroGoingCountStillRendersNothing() {
-        XCTAssertNil(YourDayLogic.goingLabel(for: 0))
-        XCTAssertEqual(YourDayLogic.goingLabel(for: 3), "3 going")
-    }
-
     private func event(
         date: String = "2033-05-18",
         time: String? = "7:00 PM",

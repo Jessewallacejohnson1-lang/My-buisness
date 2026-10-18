@@ -806,6 +806,26 @@ over a database change ("yes", Check-in 1): no live migration, no new Storage pa
   read keep and sign-out clears, read once per visit so a late name never pops in. No
   saved name: the photo alone.
 
+## Decided 2026-10-18 — the Event page's RSVP bar floats (rsvp-and-groups 02)
+
+- **Meetup's capsule, 35 pt above the screen's bottom** (Jesse at Check-in 1), not the
+  Figma page's 74 pt: that number was measured on a Mobbin export, which adds a 40 pt caption
+  strip under the screen. 20 pt from the sides, 57 pt tall; inside, the card's `RSVPArea` at
+  the page's size (17 and 15 pt words, the 46 pt pill) with the friends' faces.
+- **A little glass** (Jesse at Check-in 2: "slightly glass just like meetups"): Apple's
+  Liquid Glass over a white layer at 60%, the tab bar's way of keeping glass light, so the
+  words behind show through blurred and faint, as Meetup's do.
+- **Fewer words in the bar** (`RSVPWords.make(bar:)`): no "Can't go?" (Jesse at Check-in 2;
+  leaving stays on the Town card), and beside the faces the friends' names alone, "Sam and
+  Marlene": with "are going" the line didn't fit beside the faces on a 402 pt phone.
+- **An inset, not `.safeAreaBar`.** `.safeAreaInset` lets the page scroll under the capsule
+  and stop its last line clear of it; `.safeAreaBar` let iOS recolour the Town bar over
+  photos (2026-09-24). The page fades to paper under the bar from 115 pt above the bottom,
+  as Meetup's does, drawn by the bar itself.
+- **No Canceled tag.** A called-off page shows the red pill in the bar and the photo in black
+  and white, as the card does; `CanceledTag` is deleted, and so is `YourDayLogic.goingLabel`,
+  whose only reader was the old bar.
+
 ## Decided 2026-10-17 — RSVP is Meetup's charcoal pill (rsvp-and-groups 01)
 
 - **A capsule, and not ink, on purpose.** `Radius.button` says a button is never a pill and
@@ -819,7 +839,7 @@ over a database change ("yes", Check-in 1): no live migration, no new Storage pa
   Daily's Suggestions, and Saved, Daily's filter and the feed's order still read it.
 - **Called off: a red "Canceled" pill, no tag on the photo** (Jesse at Check-in 2). The photo
   still goes black and white; the pill is Apple's red (`Hue.canceled`, `.systemRed`), the
-  app's second red after `heart`, for this pill only. The Event page follows in ticket 02.
+  app's second red after `heart`, for this pill only. The Event page followed in ticket 02.
 
 ## Decided 2026-10-18 — groups are real, with a page of their own (rsvp-and-groups 05)
 

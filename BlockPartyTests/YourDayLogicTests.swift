@@ -143,31 +143,6 @@ final class YourDayLogicTests: XCTestCase {
         XCTAssertEqual(visibleEventIDs, ["event-1", "event-2", "event-3"])
     }
 
-    func testZeroGoingCountProducesNoRenderedLabel() {
-        XCTAssertNil(YourDayLogic.goingLabel(for: 0))
-        XCTAssertNil(YourDayLogic.goingLabel(for: -1))
-        XCTAssertEqual(YourDayLogic.goingLabel(for: 1), "1 going")
-        XCTAssertEqual(YourDayLogic.goingLabel(for: 8), "8 going")
-    }
-
-    /// Friends Going are named, Facebook's way (town-feed 28, words page `card-friend-going`).
-    func testFriendsGoingAreNamedAndEveryoneElseIsANumber() {
-        XCTAssertEqual(YourDayLogic.goingLabel(for: 1, friends: ["Anna"]), "Anna is going")
-        XCTAssertEqual(YourDayLogic.goingLabel(for: 2, friends: ["Anna", "Ben"]), "Anna and Ben are going")
-        XCTAssertEqual(YourDayLogic.goingLabel(for: 2, friends: ["Anna"]), "Anna and 1 other are going")
-        XCTAssertEqual(YourDayLogic.goingLabel(for: 12, friends: ["Anna", "Ben"]), "Anna and 11 others are going")
-        XCTAssertEqual(YourDayLogic.goingLabel(for: 12, friends: ["Anna", "Ben", "Cal"]), "Anna and 11 others are going")
-        // You Going too come first.
-        XCTAssertEqual(YourDayLogic.goingLabel(for: 2, friends: ["Anna"], youGoing: true), "You and Anna are going")
-        XCTAssertEqual(YourDayLogic.goingLabel(for: 3, friends: ["Anna"], youGoing: true), "You, Anna and 1 other are going")
-        XCTAssertEqual(YourDayLogic.goingLabel(for: 12, friends: ["Anna", "Ben"], youGoing: true),
-                       "You, Anna and 10 others are going")
-        // A count behind the names never counts fewer people than it names.
-        XCTAssertEqual(YourDayLogic.goingLabel(for: 0, friends: ["Anna"]), "Anna is going")
-        XCTAssertEqual(YourDayLogic.goingLabel(for: 1, friends: ["Anna"], youGoing: true), "You and Anna are going")
-        XCTAssertEqual(YourDayLogic.goingLabel(for: 5, youGoing: true), "5 going", "no friends: the number, as before")
-    }
-
     // MARK: - Your Day: today only, town time
     //
     // Every case below is driven by an injected `FixedDateProvider`. Nothing here
