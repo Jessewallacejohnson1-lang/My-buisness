@@ -24,28 +24,33 @@ nonisolated struct RSVPWords: Equatable {
     /// The pill. Called off, it says "Canceled", Going or not (Jesse, 2026-10-17).
     var pill: Pill
 
-    static func make(isGoing: Bool, count: Int, friends: [String], cancelled: Bool) -> RSVPWords {
+    /// `bar`: the Event page's floating bar says less (Jesse at rsvp-and-groups 02's Check-in 2):
+    /// no "Can't go?" (leaving stays on the Town card), and beside the friends' faces only
+    /// their names, which fit by its bigger words where "… are going" didn't.
+    static func make(isGoing: Bool, count: Int, friends: [String], cancelled: Bool, bar: Bool = false) -> RSVPWords {
         if isGoing {
-            return RSVPWords(top: "You're going!", second: "Can't go?", canLeave: true,
+            return RSVPWords(top: "You're going!", second: bar ? nil : "Can't go?", canLeave: !bar,
                              pill: cancelled ? .canceled : .invite)
         }
         if cancelled { return RSVPWords(top: nil, second: nil, canLeave: false, pill: .canceled) }
         // Never fewer than the friends it names.
         let total = max(count, friends.count)
-        return RSVPWords(top: total > 0 ? "\(total) going" : nil, second: friendsLine(friends),
+        return RSVPWords(top: total > 0 ? "\(total) going" : nil, second: friendsLine(friends, bar: bar),
                          canLeave: false, pill: .rsvp)
     }
 
     /// Facebook's words (Jesse, 2026-10-17): "Avery is going", "Sam and Marlene are going",
-    /// "Sam and 2 friends are going", short enough to sit beside the pill on a 402 pt phone.
-    /// Newest Going first.
-    private static func friendsLine(_ friends: [String]) -> String? {
+    /// "Sam and 2 friends are going", short enough to sit beside the pill on a 402 pt phone;
+    /// in the Event page's bar the names alone. Newest Going first.
+    private static func friendsLine(_ friends: [String], bar: Bool) -> String? {
+        let names: String
         switch friends.count {
-        case 0: nil
-        case 1: "\(friends[0]) is going"
-        case 2: "\(friends[0]) and \(friends[1]) are going"
-        default: "\(friends[0]) and \(friends.count - 1) friends are going"
+        case 0: return nil
+        case 1: names = friends[0]
+        case 2: names = "\(friends[0]) and \(friends[1])"
+        default: names = "\(friends[0]) and \(friends.count - 1) friends"
         }
+        return bar ? names : names + (friends.count == 1 ? " is going" : " are going")
     }
 }
 
@@ -89,10 +94,8 @@ struct RSVPArea: View {
     var body: some View {
         let going = actions.going(item)
         HStack(spacing: 8) {
-            // Faces only beside words: a called-off card with no "You're going!" has none. The
-            // Event page's bar has none: beside its 17 pt words they cut the friends' names
-            // short (Jesse, 2026-10-18).
-            if size == .card, words.top != nil {
+            // Faces only beside words: a called-off card with no "You're going!" has none.
+            if words.top != nil {
                 faces(count: going.count)
             }
 
@@ -117,8 +120,8 @@ struct RSVPArea: View {
                         .buttonStyle(FeedCardJoinPressStyle(reduceMotion: reduceMotion))
                         .accessibilityHint("Takes you off the going list")
                     } else {
-                        // Shrinks a little before it cuts: "Sam and Marlene are going" needs 187 pt
-                        // at the page's 15 pt, and a 402 pt phone leaves 174 beside the pill.
+                        // Shrinks a little before it cuts: a 402 pt phone leaves the Event page's bar
+                        // 125 pt beside the faces and the pill, and "Sam and 2 friends" needs 125.
                         Text(second)
                             .font(.sans(size.second))
                             .foregroundStyle(Hue.inkSecondary)

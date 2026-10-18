@@ -227,6 +227,8 @@ final class RealLifeActionsTests: XCTestCase {
         actions.toggleGoing(item)
         XCTAssertEqual(actions.rsvp(item), RSVPWords(top: "You're going!", second: "Can't go?", canLeave: true, pill: .invite))
         XCTAssertEqual(actions.going(item).count, 4, "the count includes you")
+        XCTAssertEqual(actions.rsvp(item, bar: true), RSVPWords(top: "You're going!", second: nil, canLeave: false, pill: .invite),
+                       "the Event page's bar reads the same Going, in fewer words")
         actions.toggleGoing(item)
         XCTAssertEqual(actions.rsvp(item)?.top, "3 going", "Can't go? takes you off in one tap")
     }
@@ -800,6 +802,28 @@ final class RSVPWordsTests: XCTestCase {
         ]
         for (name, isGoing, count, friends, cancelled, want) in table {
             XCTAssertEqual(RSVPWords.make(isGoing: isGoing, count: count, friends: friends, cancelled: cancelled),
+                           want, name)
+        }
+    }
+
+    /// The Event page's bar says less (Jesse at rsvp-and-groups 02's Check-in 2): no "Can't go?",
+    /// and beside the friends' faces only their names, so they fit by the bigger words.
+    func testTheEventPageBarSaysLess() {
+        func bar(_ top: String?, _ second: String? = nil, pill: RSVPWords.Pill = .rsvp) -> RSVPWords {
+            RSVPWords(top: top, second: second, canLeave: false, pill: pill)
+        }
+        let table: [(String, Bool, Int, [String], Bool, RSVPWords)] = [
+            ("nobody yet: RSVP alone", false, 0, [], false, bar(nil)),
+            ("many going", false, 41, [], false, bar("41 going")),
+            ("a friend", false, 41, ["Avery"], false, bar("41 going", "Avery")),
+            ("two friends", false, 41, ["Sam", "Marlene"], false, bar("41 going", "Sam and Marlene")),
+            ("three friends", false, 41, ["Sam", "Marlene", "Dale"], false, bar("41 going", "Sam and 2 friends")),
+            ("going: no Can't go?", true, 42, ["Avery"], false, bar("You're going!", pill: .invite)),
+            ("called off", false, 41, ["Avery"], true, bar(nil, pill: .canceled)),
+            ("called off while going", true, 42, [], true, bar("You're going!", pill: .canceled)),
+        ]
+        for (name, isGoing, count, friends, cancelled, want) in table {
+            XCTAssertEqual(RSVPWords.make(isGoing: isGoing, count: count, friends: friends, cancelled: cancelled, bar: true),
                            want, name)
         }
     }

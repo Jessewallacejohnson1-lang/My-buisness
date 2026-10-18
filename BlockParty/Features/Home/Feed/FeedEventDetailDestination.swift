@@ -83,6 +83,9 @@ struct FeedEventDetailDestination: View {
         static let barWordsInset: CGFloat = 24
         static let barPillInset: CGFloat = 5.5
         static let barBottom: CGFloat = 1
+        /// The white layer under the bar's glass (picked on the eyes sim against Meetup's
+        /// frosting: the words behind show at about 5%).
+        static let barWhite: Double = 0.6
         /// Meetup's fade to the page under the bar starts 115 pt above the screen's bottom,
         /// 23 pt above the capsule's top (Jesse, 2026-10-18).
         static let fadeAboveBar: CGFloat = 23
@@ -130,7 +133,7 @@ struct FeedEventDetailDestination: View {
         // line stops clear of it. Not `.safeAreaBar`: it let iOS recolour the Town bar
         // (2026-09-24); the bar brings its own fade.
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if let words = actions.rsvp(item) {
+            if let words = actions.rsvp(item, bar: true) {
                 rsvpBar(words)
                     .transition(reduceMotion ? .opacity : .move(edge: .bottom))
             }
@@ -388,7 +391,7 @@ struct FeedEventDetailDestination: View {
 
     // MARK: The bar
 
-    /// Meetup's white capsule floating over the page, with the card's RSVP words and pill
+    /// Meetup's capsule floating over the page, with the card's RSVP words and pill
     /// (`RSVPArea`); Invite opens the invite card the top share does. Under it the page fades
     /// to paper, as Meetup's does, so words never run hard into its edge or the home bar.
     private func rsvpBar(_ words: RSVPWords) -> some View {
@@ -398,11 +401,14 @@ struct FeedEventDetailDestination: View {
             // 57 pt at the default text size; larger text grows it rather than spilling out.
             .padding(.vertical, Metric.barPillInset)
             .frame(minHeight: Metric.barHeight)
+            // A little glass, as Meetup's (Jesse at Check-in 2): the words behind it show through
+            // blurred and faint. Apple's Liquid Glass over a white layer that keeps it light,
+            // the tab bar's way (RootView), since the glass alone darkens over dark content.
+            .glassEffect(.regular, in: Capsule())
             .background {
                 Capsule()
-                    .fill(Hue.surface)
-                    .overlay { Capsule().strokeBorder(Hue.hairline, lineWidth: 1) }
-                    .meetupBarDepth()
+                    .fill(Hue.surface.opacity(Metric.barWhite))
+                    .allowsHitTesting(false)
             }
             .padding(.horizontal, Metric.inset)
             .padding(.bottom, Metric.barBottom)

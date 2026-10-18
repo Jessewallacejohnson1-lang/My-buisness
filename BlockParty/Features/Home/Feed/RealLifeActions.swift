@@ -248,11 +248,12 @@ final class RealLifeActions {
 
     /// What the card's RSVP area says (`RSVPWords`): only for someone who may act, as Join
     /// never showed without an account.
-    func rsvp(_ item: FeedCardItem) -> RSVPWords? {
+    /// `bar`: the Event page's, in fewer words.
+    func rsvp(_ item: FeedCardItem, bar: Bool = false) -> RSVPWords? {
         guard canAct else { return nil }
         let going = going(item)
         return .make(isGoing: going.isGoing, count: going.count,
-                     friends: item.friendsGoing.map(\.name), cancelled: item.cancelled)
+                     friends: item.friendsGoing.map(\.name), cancelled: item.cancelled, bar: bar)
     }
 
     func failureCount(_ eventID: String) -> Int {
