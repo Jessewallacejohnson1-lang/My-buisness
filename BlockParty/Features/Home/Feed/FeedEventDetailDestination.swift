@@ -264,16 +264,18 @@ struct FeedEventDetailDestination: View {
 
     private var topButtons: some View {
         HStack(spacing: 0) {
-            circleButton(
+            Self.circleButton(
                 glyph: Image(systemName: inSheet ? "xmark" : "arrow.left"),
-                label: inSheet ? "Close" : "Back"
+                label: inSheet ? "Close" : "Back",
+                reduceMotion: reduceMotion
             ) { dismiss() }
 
             Spacer(minLength: 0)
 
             // The card's share reveal. 15, not the row's 17: the Reference's share
             // mark is 14 x 17 pt.
-            circleButton(glyph: Image(systemName: "square.and.arrow.up").font(.sansSemibold(15)), label: "Share") {
+            Self.circleButton(glyph: Image(systemName: "square.and.arrow.up").font(.sansSemibold(15)), label: "Share",
+                              reduceMotion: reduceMotion) {
                 ShareCenter.shared.present(.event(item))
             }
 
@@ -281,7 +283,8 @@ struct FeedEventDetailDestination: View {
             // (Jesse, 2026-09-24) inside the ink outline, so it reads on the white circle.
             let saved = actions.saved(item)
             let failures = actions.saveFailureCount(item.id)
-            circleButton(glyph: BookmarkGlyph(saved: saved), label: saved ? "Saved" : "Save", action: toggleSave)
+            Self.circleButton(glyph: BookmarkGlyph(saved: saved), label: saved ? "Saved" : "Save",
+                              reduceMotion: reduceMotion, action: toggleSave)
                 .turnBackShake(failures: failures, shakes: !reduceMotion && saveTappedAt != failures)
                 .accessibilityAddTraits(saved ? .isSelected : [])
         }
@@ -302,14 +305,6 @@ struct FeedEventDetailDestination: View {
     /// its colour from what is under it and went dark with white glyphs over a dark
     /// photo, even with the scheme pinned (measured 2026-09-26), and chrome never takes
     /// its colour from what is under it (taste.md).
-    private func circleButton(
-        glyph: some View,
-        label: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        Self.circleButton(glyph: glyph, label: label, reduceMotion: reduceMotion, action: action)
-    }
-
     /// The same circle on a business's page in Search (`BusinessPage`).
     static func circleButton(
         glyph: some View,

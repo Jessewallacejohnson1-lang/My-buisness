@@ -103,6 +103,8 @@ struct CommunityAPI {
     /// the public key), by registry entry, cover first: Search's cards and business pages draw
     /// them, so showing one costs no lookup (MEMORY.md, 2026-10-16). Logos stay out; Search has its own.
     func getPlacePhotos() async throws -> [String: [PlacePicture]] {
+        // ponytail: one read of every town's live photos (183 on 2026-10-17); Supabase answers at
+        // most 1,000 rows, so past that read this town's entries' photos, or page through them.
         let t = await readToken()
         let (data, _) = try await SupabaseHTTP.rest(
             "place_photos",

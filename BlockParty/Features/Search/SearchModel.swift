@@ -173,6 +173,9 @@ final class SearchModel {
     private(set) var placesLoaded = false
     /// Whether the saved photos have been read; until then a retry reads them again.
     private(set) var photosLoaded = false
+    /// The last places and saved photos read, so a retry reads only what is missing.
+    private var pois: [POI] = []
+    private var savedPhotos: [String: [PlacePicture]]?
     /// What the tab was showing, kept across tab switches as Instagram keeps it.
     var chip = SearchChip.all
     var words = ""
@@ -204,10 +207,13 @@ final class SearchModel {
         let api = CommunityAPI(auth: AuthStore.shared)
         var wait = 2.0
         while !(placesLoaded && photosLoaded) && !Task.isCancelled {
-            async let readPlaces = try? api.getPlaces()
-            async let readPhotos = try? api.getPlacePhotos()
-            let (pois, photos) = await (readPlaces, readPhotos)
-            if let pois { show(pois, photos: photos) }
+            let needPlaces = !placesLoaded, needPhotos = !photosLoaded
+            async let readPlaces = needPlaces ? try? await api.getPlaces() : nil
+            async let readPhotos = needPhotos ? try? await api.getPlacePhotos() : nil
+            let (newPlaces, newPhotos) = await (readPlaces, readPhotos)
+            if let newPlaces { pois = newPlaces }
+            if let newPhotos { savedPhotos = newPhotos }
+            if newPlaces != nil || (newPhotos != nil && placesLoaded) { show(pois, photos: savedPhotos) }
             if placesLoaded && photosLoaded { return }
             try? await Task.sleep(for: .seconds(wait))
             wait = min(wait * 2, 30)

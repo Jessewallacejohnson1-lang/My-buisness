@@ -80,7 +80,6 @@ struct NearbyPlace: Identifiable {
     var id: String { placeId }
 }
 
-/// A place's photos (up to 10, Google's order) and the most scenic of them.
 /// A photo cleared by Locked Rule A's confidence check — safe to display.
 struct ConfidentPhoto {
     let photoName: String           // pass to photoURL(name:maxWidth:)

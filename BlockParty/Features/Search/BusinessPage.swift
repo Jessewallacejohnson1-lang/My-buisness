@@ -272,8 +272,10 @@ private struct BusinessPageBody: View {
         }
         .ignoresSafeArea(.keyboard)
         .allowsHitTesting(opener.isOpen)
-        // Over the whole screen: VoiceOver stays on the business, not the rows behind it.
+        // Over the whole screen: VoiceOver stays on the business, not the rows behind it, and
+        // its two-finger scrub sends the page home.
         .accessibilityAddTraits(opener.isOpen ? .isModal : [])
+        .accessibilityAction(.escape) { opener.close() }
     }
 }
 
@@ -405,13 +407,15 @@ private struct BusinessPageContent: View {
         }
         .padding(.horizontal, Metric.inset)
         .padding(.bottom, SearchMetric.tabBarClearance)
-        // Paper to the bottom of the screen, however little the page says.
+        // Paper to the bottom of the screen, however little the page says, and a screen further,
+        // so pushing the page up past its end never shows the backdrop under it.
         .frame(maxWidth: .infinity, minHeight: size.height - size.width / Metric.heroAspect, alignment: .topLeading)
-        .background(
-            Hue.paper,
-            in: UnevenRoundedRectangle(topLeadingRadius: Metric.sheetCorner, topTrailingRadius: Metric.sheetCorner,
-                                       style: .continuous)
-        )
+        .background(alignment: .top) {
+            UnevenRoundedRectangle(topLeadingRadius: Metric.sheetCorner, topTrailingRadius: Metric.sheetCorner,
+                                   style: .continuous)
+                .fill(Hue.paper)
+                .padding(.bottom, -size.height)
+        }
     }
 }
 
