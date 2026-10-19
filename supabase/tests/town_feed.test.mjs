@@ -52,7 +52,7 @@ await db.exec(`
     start_time text, created_at timestamptz not null default now(), location text,
     image_url text, kind text not null default 'event', category text,
     end_at timestamptz, all_day boolean not null default false,
-    source_name text, shows_from date, place_entry_id text);
+    source_name text, shows_from date, place_entry_id text, description text);
   -- Where events happen, with their pictures (place-photos): the app's places rows, then the
   -- photos Block Party keeps (loaded from their migrations below).
   create table public.places (id uuid primary key default gen_random_uuid(), name text, entry_id text,
@@ -985,6 +985,19 @@ test("each event carries its place's picture: a photo before a logo, else the pl
   await db.exec('delete from public.place_photos; delete from public.places;');
 });
 
+test('each event carries its own description, for the Event page\'s About', async () => {
+  await reset();
+  const fair = await add('Fall fair', '2026-10-09');
+  await add('Council meeting', '2026-10-09');
+  await db.query(`update public.club_events set description = 'Apple cider and a hay ride.' where id = $1`, [fair]);
+  await db.exec('set role anon');
+  const { rows } = await db.query(`select title, description
+    from public.get_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago')) order by title`);
+  await db.exec('reset role');
+  assert.deepEqual(rows.map((r) => [r.title, r.description]),
+                   [['Council meeting', null], ['Fall fair', 'Apple cider and a hay ride.']]);
+});
+
 test("a group's Event names the group and whether you're in it; found ones by its site or its name at its place", async () => {
   await reset();
   const GROUP = '00000000-0000-0000-0000-0000000000c1', QUILTS = '00000000-0000-0000-0000-0000000000c2';
@@ -994,7 +1007,7 @@ test("a group's Event names the group and whether you're in it; found ones by it
       ($3, 'Book Club', 'pending', 'cidery')`, [GROUP, QUILTS, PENDING]);
   // The live migration's own line gives the Rod and Gun Club its website.
   await db.exec(`update public.clubs set entry_id = 'group-st-joe-rod-and-gun-club' where id = '${GROUP}'`);
-  await db.exec(readFileSync(join(migrations, '20261019170000_group_join_on_cards.sql'), 'utf8')
+  await db.exec(readFileSync(join(migrations, '20261019180000_group_join_on_cards.sql'), 'utf8')
     .match(/update public\.clubs set own_entry_id[^;]*;/)[0]);
   await db.query(`insert into public.sources (entry_id, url, name) values
       ('st-joe-rod-gun-club', 'https://stjoerodandgunclub.org/events/?ical=1', 'St Joe Rod and Gun Club'),

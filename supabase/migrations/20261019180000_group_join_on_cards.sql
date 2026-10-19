@@ -5,8 +5,8 @@
 -- Worked out as the feed reads, not stored in club_events.club_id: apply_judged counts an Event as
 -- the morning job's own only while club_id is null, so a stored group would stop it going live or
 -- showing Canceled. Neighbours' own postings are never matched.
--- get_town_feed is 20261017200000_tapped_hosts.sql line for line but for the clubs join and two
--- new columns, club_id and in_club; ranking still keys hosts on coalesce(club_id, source_name).
+-- get_town_feed is 20261019171500_town_feed_description.sql line for line but for the clubs join
+-- and two new columns, club_id and in_club; ranking still keys hosts on coalesce(club_id, source_name).
 
 alter table public.clubs add column if not exists own_entry_id text;
 comment on column public.clubs.own_entry_id is
@@ -62,6 +62,7 @@ returns table (
   cancelled boolean,
   friends_going jsonb,
   place_picture jsonb,
+  description text,
   club_id uuid,
   in_club boolean
 )
@@ -289,6 +290,7 @@ as $$
          -- Up to three friends Going, newest Going first: first name and photo (ticket 28).
          e.friends_people,
          public.place_picture(e.place_entry_id),
+         e.description,
          -- The approved group putting it on, and whether the caller is in it (rsvp-and-groups 07).
          case when c.status = 'approved' then c.id end,
          coalesce(c.status = 'approved' and auth.uid() is not null
