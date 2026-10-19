@@ -2,9 +2,9 @@
 //  RSVPArea.swift
 //  Block Party — RSVP on the Town card and in the Event page's floating bar (BP app
 //  docs/plans/rsvp-and-groups, tickets 01 and 02): the going words at the left, Meetup's pill
-//  at the right, as the Figma page "Meetup depth" draws it. One tap and you're Going:
-//  "You're going!", "Can't go?" under it to leave, and the pill becomes Invite. Going itself
-//  is `RealLifeActions`'.
+//  at the right, as the Figma page "Meetup depth" draws it. One tap on Attend and you're Going:
+//  "You're going!", "Can't go?" under it to leave, a check on the pill's calendar, and then the
+//  pill becomes Invite. Going itself is `RealLifeActions`'.
 //
 
 import SwiftUI
@@ -52,6 +52,12 @@ nonisolated struct RSVPWords: Equatable {
         }
         return bar ? names : names + (friends.count == 1 ? " is going" : " are going")
     }
+
+    /// The pill on screen: Attend, its calendar checked, while a tap's check shows, then Invite
+    /// (Jesse at attend-pill's Check-in 1, 2026-10-19). A called-off pill stays Canceled.
+    func shownPill(checking: Bool) -> Pill {
+        checking && pill == .invite ? .rsvp : pill
+    }
 }
 
 /// The RSVP area: friends' faces (the card's only), the words, and the pill. A called-off
@@ -90,9 +96,12 @@ struct RSVPArea: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// `actions.failureCount` at the last tap: a tap mid-shake stills it.
     @State private var tappedAt = 0
+    /// Attend was just tapped: its calendar shows the check for `RealLifeActions.checkHold`.
+    @State private var checking = false
 
     var body: some View {
         let going = actions.going(item)
+        let pill = words.shownPill(checking: checking)
         HStack(spacing: 8) {
             // Faces only beside words: a called-off card with no "You're going!" has none.
             if words.top != nil {
@@ -128,25 +137,38 @@ struct RSVPArea: View {
 
             Spacer(minLength: 12)
 
-            if words.pill == .canceled {
+            if pill == .canceled {
                 Button {} label: { pillFace(.canceled) }
                     .buttonStyle(MeetupPillStyle(height: size.pillHeight, minWidth: size.pillMinWidth, fill: Hue.canceled))
                     .accessibilityRemoveTraits(.isButton)
             } else {
                 let failures = actions.failureCount(item.id)
                 Button {
-                    if words.pill == .invite { onInvite?() } else { toggle() }
-                } label: { pillFace(words.pill) }
+                    // A tap while the check shows does nothing: Invite isn't up yet.
+                    if checking { return }
+                    if pill == .invite { onInvite?() } else { attend() }
+                } label: { pillFace(pill) }
                     .buttonStyle(MeetupPillStyle(height: size.pillHeight, minWidth: size.pillMinWidth))
                     .turnBackShake(failures: failures, shakes: !reduceMotion && tappedAt != failures)
-                    .accessibilityLabel(words.pill == .invite ? "Invite" : "RSVP")
+                    .accessibilityLabel(pill == .invite ? "Invite" : "Attend")
                     .accessibilityValue(going.isGoing ? "Going" : "")
             }
         }
         // The pill turns into Invite and the words cross-fade over `RealLifeActions.flip`, both ways,
-        // a failed RSVP's turn back included; a count that moves rolls.
+        // a failed Attend's turn back included; a count that moves rolls.
         .animation(.easeInOut(duration: reduceMotion ? 0.15 : RealLifeActions.flip), value: going.isGoing)
+        .animation(.easeInOut(duration: reduceMotion ? 0.15 : RealLifeActions.flip), value: checking)
         .animation(reduceMotion ? .easeInOut(duration: 0.15) : Motion.smooth, value: going.count)
+        // The check holds, then Invite comes up. Changed only after the sleep, so it never cancels itself.
+        .task(id: checking) {
+            guard checking else { return }
+            try? await Task.sleep(for: RealLifeActions.checkHold)
+            checking = false
+        }
+        // Left, or a refused write turned back: plain Attend again.
+        .onChange(of: going.isGoing) { _, isGoing in
+            if !isGoing { checking = false }
+        }
     }
 
     /// Friends' faces lead, as on Facebook's event card (town-feed 28), else neighbours' photos.
@@ -186,17 +208,25 @@ struct RSVPArea: View {
             } else if pill == .invite {
                 Self.invite(size)
             } else {
-                // Apple's calendar, white, where Meetup's page draws one (Jesse, 2026-10-17).
-                Image(systemName: "calendar")
+                // Apple's calendar, white, where Meetup's page draws one (Jesse, 2026-10-17). A tap
+                // swaps in Apple's checked twin, its badge drawn in by Magic Replace (2026-10-19).
+                Image(systemName: checking ? "calendar.badge.checkmark" : "calendar")
                     .font(.glyph(size.calendar, weight: .semibold))
+                    .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace.magic(fallback: .downUp.byLayer)))
                     .accessibilityHidden(true)
-                Text("RSVP")
+                Text("Attend")
             }
         }
         .font(.sansSemibold(size.top))
     }
 
-    /// RSVP and "Can't go?" both flip Going; a write the server refuses turns back and shakes the pill.
+    /// Attend: Going, and the calendar's check shows before Invite comes up.
+    private func attend() {
+        checking = true
+        toggle()
+    }
+
+    /// Attend and "Can't go?" both flip Going; a write the server refuses turns back and shakes the pill.
     private func toggle() {
         tappedAt = actions.failureCount(item.id)
         actions.toggleGoing(item)
