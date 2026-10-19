@@ -291,8 +291,8 @@ struct GroupPage: View {
     /// Meetup's charcoal pill over a fade to the page. One tap joins: "You're in!" at once, the pill
     /// shrinks into Invite at the right and the Event page's glass bar comes up around it, with
     /// "Leave group?" under the words (Jesse, 2026-10-18: inside the group you can leave), over the
-    /// RSVP pill's 0.18 s, both ways. It stays one button, so VoiceOver keeps its place. Reduce
-    /// Motion: the two cross-fade. A join the server refuses holds, turns back, then shakes.
+    /// RSVP pill's 0.18 s, both ways. It stays one button, so VoiceOver keeps its place. A join
+    /// the server refuses holds, turns back, then shakes.
     private var joinBar: some View {
         let isMember = actions.member(group).isMember
         let failures = actions.memberFailureCount(group.id)
@@ -347,8 +347,8 @@ struct GroupPage: View {
                 .allowsHitTesting(false)
         }
         .padding(.horizontal, isMember ? Event.inset : Metric.pillSide)
-        // Reduce Motion: the pill doesn't travel; the two bars swap by fading.
-        .id(reduceMotion ? isMember : false)
+        // Reduce Motion: shorter, as the RSVP pill (`RSVPArea`); swapping the bar for a cross-fade
+        // would rebuild the button and lose VoiceOver's place.
         .animation(.easeInOut(duration: reduceMotion ? 0.15 : RealLifeActions.flip), value: isMember)
         .padding(.bottom, Metric.pillBottom)
         .background {
