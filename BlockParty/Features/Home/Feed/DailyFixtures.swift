@@ -132,6 +132,9 @@ enum DailyFixtures {
                 category: .food,
                 description: "Produce, eggs, honey and bread in the church parking lot.",
                 friends: [("Dale", nil)],
+                // A photo Block Party saved of the place, so its credit and Report photo show
+                // on fixed data (BP app backlog 03).
+                credit: "Resurrection Lutheran",
                 now: now
             ),
             event(
@@ -213,14 +216,15 @@ enum DailyFixtures {
         hoursUntil: Double, going: Int,
         category: EventCategory? = nil, description: String? = nil,
         reason: String? = nil, reasonName: String? = nil,
-        friends: [(name: String, photo: String?)] = [], score: FeedScore? = nil, now: Date
+        friends: [(name: String, photo: String?)] = [], score: FeedScore? = nil, credit: String? = nil,
+        now: Date
     ) -> TownFeedEntry {
         var item = FeedCardItem(
             id: id,
             title: title,
             dateChip: chip,
             metaLine: meta,
-            image: photo ? Self.photoURL(id) : .fallback,
+            image: photo ? Self.photoURL(id, credit: credit) : .fallback,
             recurrence: nil,
             hostName: host,
             hostAvatar: hostAvatar ? Self.avatarURL(id) : nil,
@@ -267,7 +271,8 @@ enum DailyFixtures {
         "rivers-bend-park",
     ]
 
-    private static func photoURL(_ seed: String) -> FeedCardImageSource {
+    /// With a credit, the photo is one Block Party saved of the place, not the event's own.
+    private static func photoURL(_ seed: String, credit: String? = nil) -> FeedCardImageSource {
         // "p7" / "e3" → 7 / 3. Stable, readable, and a missing suffix lands on 0.
         // Events start halfway down the list so a posting and an event never open
         // the feed showing the same photograph.
@@ -276,7 +281,7 @@ enum DailyFixtures {
         guard let url = Bundle.main.url(forResource: name, withExtension: "jpg") else {
             return .fallback
         }
-        return .eventPhoto(url)
+        return credit.map { .placePhoto(url, credit: $0) } ?? .eventPhoto(url)
     }
 
     /// Reuses the same bundled set for faces. There are no portrait assets in the
