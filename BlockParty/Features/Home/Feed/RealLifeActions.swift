@@ -337,7 +337,7 @@ final class RealLifeActions {
 
     /// Join or leave a group, shown at once, turned back the same way as Join.
     func toggleMember(_ group: TownGroup) {
-        toggle(Key(kind: .member, id: group.id), from: member(group).isMember)
+        toggleMember(groupID: group.id, inGroup: group.joined)
     }
 
     /// Join or leave a Town card's group, the same entry as its Group page's.

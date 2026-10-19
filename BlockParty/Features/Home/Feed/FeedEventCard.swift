@@ -141,8 +141,9 @@ struct FeedEventCard: View {
         }
         // Over the host row's end, outside the link: pressing it neither squishes nor
         // opens the card.
-        .overlay(alignment: .topTrailing) { menuButton }
+        // Join first: the ••• wins where their touch areas meet, and VoiceOver reads Join first.
         .overlay(alignment: .topTrailing) { groupJoin }
+        .overlay(alignment: .topTrailing) { menuButton }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         // The whole card answers the link's press, action row included, so no gap
@@ -234,10 +235,13 @@ struct FeedEventCard: View {
             }
             .buttonStyle(MeetupPillStyle(height: Self.groupPillHeight, minWidth: 0, light: isMember,
                                          sidePadding: Self.groupPillSide))
-            .turnBackShake(failures: failures, shakes: !motionIsReduced && groupTappedAt != failures)
+            // Only the card the tap came from shakes: the group's failures are every card's.
+            .turnBackShake(failures: failures, shakes: !motionIsReduced && joinedHere && groupTappedAt != failures)
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { groupPillWidth = $0 }
             .animation(.easeInOut(duration: motionIsReduced ? 0.15 : RealLifeActions.flip), value: isMember)
             .accessibilityLabel("\(isMember ? "Joined" : "Join") \(item.hostName)")
+            // Joined does nothing but squish, so VoiceOver doesn't offer it as a button.
+            .accessibilityRemoveTraits(isMember ? .isButton : [])
             // Centred on the 32 pt host row, 10 pt before the dots.
             .padding(.top, (Self.hostAvatarSide - Self.groupPillHeight) / 2)
             .padding(.trailing, DailyFeedMetric.contentInset + (item.why == nil ? 0 : Self.menuDots + Self.groupPillGap))
