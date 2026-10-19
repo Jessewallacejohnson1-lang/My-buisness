@@ -58,8 +58,10 @@ ALT = re.compile(r'\balt\s*=\s*["\']([^"\']*)["\']', re.I)
 BG = re.compile(r'url\(\s*["\']?([^"\')]+?' + EXT + r')["\']?\s*\)', re.I)
 SHARE_KEYS = ('og:image', 'og:image:url', 'og:image:secure_url', 'twitter:image', 'twitter:image:src')
 NOT_PHOTO = re.compile(r'logo|icon|favicon|sprite|badge|placeholder|blank|spacer|avatar|emoji|gravatar|arrow|button|'
-                       r'loader|pixel|1x1|facebook|instagram|twitter|youtube|linkedin|pinterest|google|yelp|tripadvisor|'
+                       r'loader|pixel|1x1|facebook|instagram|twitter|youtube|linkedin|pinterest|google(?!usercontent)|yelp|tripadvisor|'
                        r'bbb|visa|mastercard|paypal|apple-pay|seal|award|cookie', re.I)
+# Google Sites serve every photo from lh*.googleusercontent.com with no extension, and the link dies within
+# minutes: such a picture is downloaded right after its page is read (St. Joseph Farmers' Market, 2026-10-19).
 # File names (or alt text) that usually mean the place itself, tried before the rest of the page
 PLACE_WORDS = re.compile(r'interior|exterior|inside|outside|store|shop|front|building|location|dining|patio|room|'
                          r'team|staff|about|space|venue|crew|owner|family|lobby|office|bar|kitchen|cafe|restaurant|park',
@@ -585,6 +587,9 @@ def selftest():
         ("a lazy, extension-less <img> counts; its alt text sorts and filters it",
          photo_urls(civic) == ['https://city.gov/ImageRepository/Document?documentID=1641',
                                'https://city.gov/ImageRepository/Document?documentID=2616']),
+        ("a Google Sites photo counts, Google's own badge does not",
+         photo_urls([('https://lh3.googleusercontent.com/sitesv/AAbc=w1280', ''), ('https://x.com/google-badge.png', '')]) ==
+         ['https://lh3.googleusercontent.com/sitesv/AAbc=w1280']),
         ('?ver= on a .jpg is one file', len(photo_urls([('https://x.com/a.jpg?ver=1', ''), ('https://x.com/a.jpg?ver=2', '')])) == 1),
         ('a resized WordPress copy becomes its original',
          photo_urls([('https://x.com/wp-content/uploads/p-300x200.jpg', '')]) == ['https://x.com/wp-content/uploads/p.jpg']),
