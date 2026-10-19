@@ -556,7 +556,8 @@ def propose(key, n):
             raise
     api('POST', '/rest/v1/place_photos', [{'entry_id': v['entry_id'], 'town': TOWN, 'url': public_url(path),
                                            'source_url': c['page'], 'position': v['position'], 'status': 'proposed',
-                                           'kind': 'photo', 'credit': credit(c)}], {'Prefer': 'return=minimal'})
+                                           'kind': 'photo', 'credit': credit(c), 'proposed_by': 'the monthly refresh'}],
+        {'Prefer': 'return=minimal'})
     print(f"{v['entry_id']}: proposed" + (f" in place of row {key}" if str(key).isdigit() else ' as its first photo')
           + f" (position {v['position']})")
 
