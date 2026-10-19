@@ -40,9 +40,9 @@ extension FeedCardItem {
 
     /// A Your Day event as a card item, so Town and Your Day open the one event
     /// page. Same image cascade as a posting (`imageSource`), so an event without
-    /// its own photo still falls back to a venue lookup. No description:
-    /// `UpcomingEvent` carries none, so the page's About hides. `.other` is the
-    /// fallback for a null category column, so it maps to no category at all.
+    /// its own photo still falls back to a venue lookup. Its description is the page's
+    /// About. `.other` is the fallback for a null category column, so it maps to no
+    /// category at all.
     /// `recurrence` is how its series repeats ("Every Tuesday"), from `get_town_feed`.
     init(_ event: UpcomingEvent, recurrence: String? = nil) {
         let time = Self.nonempty(event.startTime)
@@ -66,6 +66,7 @@ extension FeedCardItem {
             eventDate: event.eventDate,
             startTime: time,
             location: location,
+            description: event.description,
             category: event.category == .other ? nil : event.category,
             cancelled: event.cancelled,
             place: place
