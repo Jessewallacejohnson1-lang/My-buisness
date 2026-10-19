@@ -57,17 +57,19 @@ struct PhotoCredit: View {
             EmptyView()
         } else if let report {
             Menu {
-                Section("Photo from \(credit)") {
+                Section(credit.contains(" · ") ? "Photo by \(credit)" : "Photo from \(credit)") {
                     Button(role: .destructive) { openURL(report.mail) } label: {
                         Label("Report photo", systemImage: "exclamationmark.bubble")
                     }
                 }
             } label: {
-                chip.contentShape(Rectangle())
+                // 44 pt tall to the touch; the overlays pin it bottom left, so the chip stays put.
+                chip.frame(minHeight: 44, alignment: .bottomLeading).contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Report photo")
             .accessibilityValue(spoken ? "Photo by \(credit)" : "")
+            .accessibilityInputLabels([Text("Report photo"), Text(credit)])
         } else {
             chip
                 .allowsHitTesting(false)

@@ -136,7 +136,7 @@ struct FeedEventCard: View {
         .animation(FeedMotion.pressAnimation(reduceMotion: motionIsReduced), value: linkPressed)
         .sheet(isPresented: $menuPresented) {
             if let why = item.why {
-                FeedCardMenu(why: why, score: item.score, report: item.image.report(place: item.whereLine))
+                FeedCardMenu(why: why, score: item.score, report: displayImage.report(place: item.whereLine))
             }
         }
         .sheet(isPresented: $commentsPresented) {
