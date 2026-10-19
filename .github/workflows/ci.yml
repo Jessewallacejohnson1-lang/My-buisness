@@ -152,11 +152,13 @@ jobs:
       - name: Database stories
         run: bash scripts/ci_checks.sh db
 
-      # The registry's validator and the morning job's self-tests, all offline. PyYAML is
-      # the registry's dependency and Pillow the place photos script's; the runner's system
-      # Python refuses pip installs.
+      # The registry's validator and the morning job's self-tests, all offline. Their libraries
+      # are listed in sources/scripts/ci-packages.txt (import name, Ubuntu package); the runner's
+      # system Python refuses pip installs.
       - name: Registry and morning job self-tests
         run: |
           set -euo pipefail
-          python3 -c 'import yaml, PIL' 2>/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq python3-yaml python3-pil; }
+          list=sources/scripts/ci-packages.txt
+          python3 -c "import $(awk '!/^#/ && NF {print $1}' $list | paste -sd, -)" 2>/dev/null ||
+            { sudo apt-get update -qq && sudo apt-get install -y -qq $(awk '!/^#/ && NF {print $2}' $list); }
           bash scripts/ci_checks.sh registry
