@@ -61,7 +61,9 @@ NOT_PHOTO = re.compile(r'logo|icon|favicon|sprite|badge|placeholder|blank|spacer
                        r'loader|pixel|1x1|facebook|instagram|twitter|youtube|linkedin|pinterest|google(?!usercontent)|yelp|tripadvisor|'
                        r'bbb|visa|mastercard|paypal|apple-pay|seal|award|cookie', re.I)
 # Google Sites serve every photo from lh*.googleusercontent.com with no extension, and the link dies within
-# minutes: such a picture is downloaded right after its page is read (St. Joseph Farmers' Market, 2026-10-19).
+# minutes (St. Joseph Farmers' Market, 2026-10-19). That host's robots.txt doesn't answer, so the polite
+# fetch waits 10 s between its pictures: they go first, before the page's other pictures.
+EXPIRING = re.compile(r'googleusercontent\.com/', re.I)
 # File names (or alt text) that usually mean the place itself, tried before the rest of the page
 PLACE_WORDS = re.compile(r'interior|exterior|inside|outside|store|shop|front|building|location|dining|patio|room|'
                          r'team|staff|about|space|venue|crew|owner|family|lobby|office|bar|kitchen|cafe|restaurant|park',
@@ -128,7 +130,8 @@ def photo_urls(found):
         if key not in seen and not NOT_PHOTO.search(u) and not NOT_PHOTO.search(alt):
             seen.add(key)
             out.append((u, alt))
-    out.sort(key=lambda x: not (PLACE_WORDS.search(x[0].rsplit('/', 1)[-1]) or PLACE_WORDS.search(x[1])))
+    out.sort(key=lambda x: (not EXPIRING.search(x[0]),
+                            not (PLACE_WORDS.search(x[0].rsplit('/', 1)[-1]) or PLACE_WORDS.search(x[1]))))
     return [u for u, _ in out]
 
 
@@ -587,9 +590,10 @@ def selftest():
         ("a lazy, extension-less <img> counts; its alt text sorts and filters it",
          photo_urls(civic) == ['https://city.gov/ImageRepository/Document?documentID=1641',
                                'https://city.gov/ImageRepository/Document?documentID=2616']),
-        ("a Google Sites photo counts, Google's own badge does not",
-         photo_urls([('https://lh3.googleusercontent.com/sitesv/AAbc=w1280', ''), ('https://x.com/google-badge.png', '')]) ==
-         ['https://lh3.googleusercontent.com/sitesv/AAbc=w1280']),
+        ("a Google Sites photo counts and goes first (its link dies in minutes), Google's own badge does not",
+         photo_urls([('https://x.com/shop-front.jpg', ''), ('https://lh3.googleusercontent.com/sitesv/AAbc=w1280', ''),
+                     ('https://x.com/google-badge.png', '')]) ==
+         ['https://lh3.googleusercontent.com/sitesv/AAbc=w1280', 'https://x.com/shop-front.jpg']),
         ('?ver= on a .jpg is one file', len(photo_urls([('https://x.com/a.jpg?ver=1', ''), ('https://x.com/a.jpg?ver=2', '')])) == 1),
         ('a resized WordPress copy becomes its original',
          photo_urls([('https://x.com/wp-content/uploads/p-300x200.jpg', '')]) == ['https://x.com/wp-content/uploads/p.jpg']),
