@@ -33,7 +33,8 @@ sure mention at its source's trust, sized everyday (it shows two weeks ahead), w
 interest only where the calendar says what it is: games Sports & leagues, the library
 Library & books, the Monastery Faith. CSB/SJU: the public calendars named in the registry,
 home games only (no away games, rec-center classes or halftime shows), and a repeating
-event once, at its next date. 511: road work as News. Stearns County: news and notices from
+event once, at its next date, with its calendar's description but a game's (only its title and
+links; Jesse, 2026-10-19). 511: road work as News. Stearns County: news and notices from
 the last 7 days, and events only in the town (ADR-019). Every St. Joseph source's events
 are kept wherever they happen (the spec's Area rule, amending ADR-021's in-town-only rule).
 High school games (Jesse, 2026-10-14): played within 20 miles, whichever schools play; the same
@@ -180,6 +181,8 @@ CAMPUS_INTERESTS = {"CSB Athletics": "sports_leagues", "SJU Athletics": "sports_
 STUDENT_ONLY = re.compile(r"admission event|networking workshop|charting conversations|employer tabling|"
                           r"johnnie development institute|\bJDI\b|exploration fair|study session", re.I)
 HOME_GAME = re.compile(r"\b(st\.?|saint) joseph\b|collegeville", re.I)
+# A link with its label ("Streaming Video: https://..."): all a game's description adds to its title.
+LINKS = re.compile(r"(?:[A-Z][\w ]{0,20}:\s*)?https?://\S+")
 # ponytail: SJU's own building names, for a place with no town in it. A building not listed
 # reads as St. Joseph; add it here when one shows up wrong.
 SJU = re.compile(r"collegeville|\bsju\b|saint john'?s|st\.? john'?s|alcuin|learning commons|\bquad\b|sexton|"
@@ -192,11 +195,20 @@ def campus_town(place):
     return "St. Joseph" if re.fullmatch(r"(st\.?|saint) joseph", town, re.I) else town
 
 
+def campus_blurb(markup, title):
+    """The calendar's own description, for the Event page's About (Jesse, 2026-10-19), or None
+    when it says nothing the title doesn't: a game's is its title and the links to its stream
+    and tickets, and a game shows no About."""
+    text = plain(markup)
+    rest = LINKS.sub(" ", text.replace(" ".join(title.split()), " ", 1))
+    return text if len(rest.split()) >= 4 else None
+
+
 def pathify_url(url, today):
     after, before = (datetime.combine(d, time(), LOCAL).astimezone(timezone.utc)
                      for d in (today, today + timedelta(days=DAYS_AHEAD)))
     fields = "".join(f"&field={f}" for f in ("id", "title", "start_date", "end_date", "all_day", "start_day",
-                                             "calendar__name", "recurrence_rule", "location"))
+                                             "calendar__name", "recurrence_rule", "location", "description"))
     return (f"{url}{'&' if '?' in url else '?'}in_range_after={after:%Y-%m-%dT%H:%M:%SZ}"
             f"&in_range_before={before:%Y-%m-%dT%H:%M:%SZ}{fields}&paginate=false&published=true")
 
@@ -230,6 +242,7 @@ def pathify_items(rows, entry, src, today):
         out.append(judged(entry, src, kind="news" if news else "event", category="campus" if news else None,
                           title=title, start=start, end=end, all_day=bool(r.get("all_day")),
                           place=place, town=campus_town(place), area="campus",
+                          blurb=campus_blurb(r.get("description"), title),
                           source_name=CAMPUS_HOSTS.get(cal, f"CSB SJU {cal}"), interest=CAMPUS_INTERESTS.get(cal),
                           source_url=f"{site.scheme}://{site.netloc}/public/events/{r['id']}",
                           source_uid=str(r["id"])))
@@ -728,6 +741,16 @@ def t_pathify():
     assert got[0]["source_url"].startswith("https://my.csbsju.edu/public/events/") and got[0]["area"] == "campus"
     url = pathify_url(src["url"], TODAY)
     assert "calendar=2,165,166,193,212,224&in_range_after=2026-10-14T05:00:00Z&in_range_before=2027-01-12T06:00:00Z" in url, url
+    assert "&field=description&" in url, url
+    game = "Saint John's University Football vs Gustavus Adolphus"
+    assert campus_blurb(f"<p>{game}</p><p>Streaming Video: <a href='x'>https://www.miacsportsnetwork.com/saintjohns/</a>"
+                        "</p><p>Tickets: https://tickets.csbsju.edu/event/sju-football</p>", game) is None, \
+        "a game's description is its title and its links"
+    assert campus_blurb("College of Saint Benedict Dance Team  SJU Football vs Gustavus",
+                        "College of Saint Benedict Dance Team  SJU Football vs Gustavus") is None
+    assert campus_blurb("", "Perler Beads") is None and campus_blurb(None, "Perler Beads") is None
+    assert campus_blurb("<p>Join Purl &amp; Looped&mdash;the chillest knitting club!&nbsp;</p>", "Purl & Looped") \
+        == "Join Purl & Looped—the chillest knitting club!", "the organizer's words, as plain text"
 
 
 def t_roads():
