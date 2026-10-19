@@ -283,10 +283,22 @@ def public_url(path):
 
 # --- The monthly check ----------------------------------------------------------------------------
 
-def check(logos=False, rows=None):
+def deadline(minutes):
+    """When a timed part stops starting new work (None: never); a part's work then has 3 minutes to end."""
+    return time.monotonic() + minutes * 60 if minutes else None
+
+
+def late(stop, grace=0):
+    return stop is not None and time.monotonic() > stop + grace
+
+
+def check(logos=False, rows=None, minutes=None):
     """Every live photo (or logo) against its page: .runs/photos/check.json, one row each with its
-    verdict. Changes nothing. `rows` lets the skill pass its own read of the table."""
+    verdict. Changes nothing. `rows` lets the skill pass its own read of the table. With `minutes`, it
+    reads pages for about that long and saves them (.runs/photos/pages-<kind>.json); run it again
+    until it prints its summary (a cloud command must end within 10 minutes)."""
     kind_ = 'logo' if logos else 'photo'
+    stop = deadline(minutes)
     if rows is None:
         rows = api('GET', f'/rest/v1/place_photos?select=id,entry_id,position,url,source_url,credit,added_at'
                           f'&status=eq.live&kind=eq.{kind_}&order=entry_id,position')
@@ -294,16 +306,25 @@ def check(logos=False, rows=None):
     rows = [r for r in rows if r not in skipped]
     tmp = OUT / 'check'
     tmp.mkdir(parents=True, exist_ok=True)
+    saved_f = OUT / f'pages-{kind_}.json'
+    saved = json.loads(saved_f.read_text()) if saved_f.exists() else {}
+    if saved.get('day') != str(date.today()):
+        saved = {'day': str(date.today()), 'hashes': {}, 'pages': {}, 'tries': {}}
     for r in rows:
-        with urllib.request.urlopen(r['url'], timeout=30) as f:
-            r['hash'] = dhash(Image.open(io.BytesIO(f.read())))
+        if str(r['id']) not in saved['hashes']:
+            with urllib.request.urlopen(r['url'], timeout=30) as f:
+                saved['hashes'][str(r['id'])] = dhash(Image.open(io.BytesIO(f.read())))
+        r['hash'] = saved['hashes'][str(r['id'])]
     pages = {}
     for r in rows:
         pages.setdefault(r['source_url'], []).append(r)
 
     def read(item):
-        """(page, its pictures' fingerprints or None, why, whether every picture answered)"""
+        """(page, its pictures' fingerprints or None, why, whether every picture answered); None when
+        the part's time ran out first."""
         n, (page, mine) = item
+        if late(stop):
+            return None
         try:
             _, html = run.fetch(page)
             base = run.final_url.get(page, page)
@@ -314,6 +335,12 @@ def check(logos=False, rows=None):
         urls = (logo_urls(html, base)[:6] if logos else []) + photo_urls(from_page(html, base))
         hashes, failed = [], 0
         for i, u in enumerate(urls):
+            if late(stop, 180):
+                if saved['tries'].get(page):  # its second part out of time too: what it read stands
+                    failed += 1
+                    break
+                saved['tries'][page] = 1
+                return None  # read again in the next part
             if i == 40:
                 failed += 1  # a page with this many pictures: the rest stay unread
                 break
@@ -333,12 +360,20 @@ def check(logos=False, rows=None):
             if all(any(same_picture(r['hash'], h) for h in hashes) for r in mine):
                 break  # every saved picture from this page is found: no need to read the rest
         return page, hashes, f'{failed} pictures did not answer' if failed else None, not failed
+    todo = [(n, item) for n, item in enumerate(pages.items()) if item[0] not in saved['pages']]
     with cf.ThreadPoolExecutor(6) as pool:
-        read_pages = {page: rest for page, *rest in pool.map(read, enumerate(pages.items()))}
+        for got in pool.map(read, todo):
+            if got:
+                saved['pages'][got[0]] = got[1:]
+    saved_f.write_text(json.dumps(saved))
+    left = [p for p in pages if p not in saved['pages']]
+    if left:
+        print(f"{len(pages) - len(left)} of {len(pages)} pages read; run check{' --logos' if logos else ''} again")
+        return None
     today = date.today()
     out = []
     for r in rows:
-        hashes, why, complete = read_pages[r['source_url']]
+        hashes, why, complete = saved['pages'][r['source_url']]
         out.append({k: r[k] for k in ('id', 'entry_id', 'position', 'url', 'source_url', 'credit', 'added_at', 'hash')}
                    | {'kind': kind_, 'verdict': verdict(r, hashes, today, complete), 'why': why})
     by = Counter(o['verdict'] for o in out)
@@ -376,11 +411,13 @@ def without_photo(entries):
     return out
 
 
-def candidates():
+def candidates(minutes=None):
     """For each stale photo in check.json, the pictures on its page now (for a free photo, Commons' for
     the place's name), and for each place still without a real photo, the pictures on its pages;
     downloaded as .runs/photos/<key>/c<n>.png (the place's live photos left out) and drawn on numbered
-    contact sheets. <key> is the stale row's id, or the entry id of a place with no photo."""
+    contact sheets. <key> is the stale row's id, or the entry id of a place with no photo. With
+    `minutes`, like check: run it again until it draws the sheets."""
+    stop = deadline(minutes)
     import registry
     entries = {e['id']: e for e in registry.load(registry.find_root(Path(__file__).parent))[0]}
     names = {k: e['_name'] for k, e in entries.items()}
@@ -390,8 +427,15 @@ def candidates():
     jobs += [{'key': w['entry_id'], 'entry_id': w['entry_id'], 'position': None, 'verdict': 'no photo yet',
               'hash': None, 'pages': w['pages']} for w in without_photo(entries)]
     live = api('GET', '/rest/v1/place_photos?select=entry_id,url&status=in.(live,proposed)')
-    result = {}
+    done_f = OUT / 'candidates.json'
+    result = json.loads(done_f.read_text()) if done_f.exists() else {}
+    if result.get('_day') != str(date.today()):
+        result = {'_day': str(date.today())}
     for r in jobs:
+        if r['key'] in result:
+            continue
+        if late(stop):
+            break
         folder = OUT / r['key']
         folder.mkdir(parents=True, exist_ok=True)
         known = [r['hash']] if r['hash'] is not None else []
@@ -426,7 +470,13 @@ def candidates():
             cands.append({**f, 'n': n, 'px': [w, h], 'kind': kind(im)})
         result[r['key']] = {'entry_id': r['entry_id'], 'name': names.get(r['entry_id'], r['entry_id']),
                             'position': r['position'], 'verdict': r['verdict'], 'why': why, 'cands': cands}
-    (OUT / 'candidates.json').write_text(json.dumps(result, indent=1, ensure_ascii=False))
+        done_f.write_text(json.dumps(result, indent=1, ensure_ascii=False))
+    done_f.write_text(json.dumps(result, indent=1, ensure_ascii=False))
+    left = [r for r in jobs if r['key'] not in result]
+    if left:
+        print(f'{len(jobs) - len(left)} of {len(jobs)} read; run candidates again')
+        return None
+    result = {k: v for k, v in result.items() if not k.startswith('_')}
     files = sheets(result)
     print(f"{len(stale)} stale photos, {len(jobs) - len(stale)} places without a photo; "
           f"{sum(1 for v in result.values() if v['cands'])} with candidates; sheets:", *files)
@@ -471,7 +521,7 @@ def propose(key, n):
     """Candidate n, uploaded and saved as a proposal (status 'proposed', which the app never reads): a
     stale row's in that row's slot, a first photo after the place's live rows. Jesse's yes on the
     review page swaps it in (the skill's `swap`)."""
-    v = json.loads((OUT / 'candidates.json').read_text())[str(key)]
+    v = json.loads((OUT / 'candidates.json').read_text())[str(key)]  # KeyError: not a key on the sheets
     c = next(x for x in v['cands'] if x['n'] == n)
     if v['position'] is None:  # a first photo: the next free slot (a live logo keeps its own)
         taken = [r['position'] for r in api('GET', f"/rest/v1/place_photos?select=position&entry_id=eq.{v['entry_id']}"
@@ -550,9 +600,9 @@ if __name__ == '__main__':
     if a == ['--selftest']:
         selftest()
     elif a[:1] == ['check']:
-        check('--logos' in a)
+        check('--logos' in a, minutes=6)  # each part ends within 9 minutes: the cloud stops a command at 10
     elif a == ['candidates']:
-        candidates()
+        candidates(minutes=6)
     elif a[:1] == ['propose'] and len(a) == 3:
         propose(a[1], int(a[2]))
     else:
