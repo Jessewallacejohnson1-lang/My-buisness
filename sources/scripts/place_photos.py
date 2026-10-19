@@ -547,7 +547,8 @@ def propose(key, n):
                                                    '&status=in.(live,proposed)')]
         v['position'] = max(taken) + 1 if taken else 0
     data = webp(Image.open(OUT / str(key) / f'c{n}.png'))
-    path = f"{TOWN}/{v['entry_id']}/photo-{hashlib.sha1(data).hexdigest()[:10]}.webp"
+    width, height = Image.open(io.BytesIO(data)).size  # the Town card takes the photo's shape before it loads
+    path =f"{TOWN}/{v['entry_id']}/photo-{hashlib.sha1(data).hexdigest()[:10]}.webp"
     try:
         api('POST', f'/storage/v1/object/places/{urllib.parse.quote(path)}', data,
             {'Content-Type': 'image/webp', 'x-upsert': 'false', 'cache-control': 'max-age=31536000'})
@@ -556,7 +557,8 @@ def propose(key, n):
             raise
     api('POST', '/rest/v1/place_photos', [{'entry_id': v['entry_id'], 'town': TOWN, 'url': public_url(path),
                                            'source_url': c['page'], 'position': v['position'], 'status': 'proposed',
-                                           'kind': 'photo', 'credit': credit(c), 'proposed_by': 'the monthly refresh'}],
+                                           'kind': 'photo', 'credit': credit(c), 'proposed_by': 'the monthly refresh',
+                                           'width': width, 'height': height}],
         {'Prefer': 'return=minimal'})
     print(f"{v['entry_id']}: proposed" + (f" in place of row {key}" if str(key).isdigit() else ' as its first photo')
           + f" (position {v['position']})")
