@@ -10,8 +10,11 @@ on:
   pull_request:
   workflow_dispatch:
 
+# A newer push cancels a branch's running check, except on main: there every push gets a
+# group of its own, so each ship's own run gives its verdict (four main runs in a row were
+# cancelled on 2026-10-19, and bp-build's ci_wait.sh waits on its own sha's run).
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -94,21 +97,28 @@ jobs:
 
       # No -testPlan flag: the shared scheme already points at BlockParty.xctestplan,
       # and naming it again is just another thing that can go stale.
+      # Built once, then the unit tests, then the UI tests. A UI test that fails gets one
+      # more try before the run goes red: EventCardPhotoTapTests failed twice on 2026-10-19
+      # with no app change between green runs. Unit tests get no retry.
       # Piped through xcbeautify only when the runner has it, so a runner image
       # change cannot fail the build for a cosmetic reason.
       - name: Build and test
         run: |
           set -euo pipefail
-          run_tests() {
-            xcodebuild test \
+          xcb() {
+            xcodebuild "$@" \
               -project BlockParty.xcodeproj \
               -scheme BlockParty \
               -destination "id=${{ steps.sim.outputs.udid }}" \
-              -resultBundlePath TestResults.xcresult \
               CODE_SIGNING_ALLOWED=NO
           }
+          run_tests() {
+            xcb build-for-testing
+            xcb test-without-building -only-testing:BlockPartyTests -resultBundlePath Unit.xcresult
+            xcb test-without-building -only-testing:BlockPartyUITests -resultBundlePath UI.xcresult \
+              -retry-tests-on-failure -test-iterations 2
+          }
           if command -v xcbeautify >/dev/null 2>&1; then
-            set -o pipefail
             run_tests | xcbeautify
           else
             run_tests
@@ -119,7 +129,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: xcresult
-          path: TestResults.xcresult
+          path: |
+            Unit.xcresult
+            UI.xcresult
           retention-days: 7
 
   rules:
