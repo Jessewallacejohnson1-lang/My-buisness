@@ -4,7 +4,7 @@ stale one. The monthly photo refresh (sources/models/photos.md) runs it in the c
 place-photos skill imports its picture-finding from here, so there is one copy.
 
     python3 sources/scripts/place_photos.py check [--logos]      every live photo (or logo) against its page:
-                                                                  .runs/photos/check.json, the stale ones printed
+                                                                  .runs/photos/check-<kind>.json, stale ones printed
     python3 sources/scripts/place_photos.py candidates           the pages of each stale photo and of every place
                                                                   still without a real photo, their pictures drawn
                                                                   on .runs/photos/sheet-<n>.png
@@ -217,6 +217,16 @@ def dhash(im, n=8):
     return sum(1 << i for i in range(n * n) if g[i // n * (n + 1) + i % n] > g[i // n * (n + 1) + i % n + 1])
 
 
+def drawn(im):
+    """A logo's drawn part: on white, the blank border (or a square's padding) trimmed. A saved logo
+    is cut off its page and squared, so only this part matches the file on the page."""
+    im = im.convert('RGBA')
+    flat = Image.new('RGB', im.size, 'white')
+    flat.paste(im, mask=im.getchannel('A'))
+    box = ImageOps.invert(flat.convert('L')).point(lambda v: 255 if v > 24 else 0).getbbox()
+    return flat.crop(box) if box else flat
+
+
 def same_picture(a, b):
     return bin(a ^ b).count('1') <= 10
 
@@ -293,7 +303,7 @@ def late(stop, grace=0):
 
 
 def check(logos=False, rows=None, minutes=None):
-    """Every live photo (or logo) against its page: .runs/photos/check.json, one row each with its
+    """Every live photo (or logo) against its page: .runs/photos/check-<kind>.json, one row each with its
     verdict. Changes nothing. `rows` lets the skill pass its own read of the table. With `minutes`, it
     reads pages for about that long and saves them (.runs/photos/pages-<kind>.json); run it again
     until it prints its summary (a cloud command must end within 10 minutes)."""
@@ -313,7 +323,8 @@ def check(logos=False, rows=None, minutes=None):
     for r in rows:
         if str(r['id']) not in saved['hashes']:
             with urllib.request.urlopen(r['url'], timeout=30) as f:
-                saved['hashes'][str(r['id'])] = dhash(Image.open(io.BytesIO(f.read())))
+                im = Image.open(io.BytesIO(f.read()))
+                saved['hashes'][str(r['id'])] = dhash(drawn(im) if logos else im)
         r['hash'] = saved['hashes'][str(r['id'])]
     pages = {}
     for r in rows:
@@ -347,7 +358,8 @@ def check(logos=False, rows=None, minutes=None):
             for attempt in (1, 2):  # a slow server gets a second try
                 try:
                     download(u, tmp / f'{n}-{i}.png')
-                    hashes.append(dhash(Image.open(tmp / f'{n}-{i}.png')))
+                    im = Image.open(tmp / f'{n}-{i}.png')
+                    hashes.append(dhash(drawn(im) if logos else im))
                     break
                 except urllib.error.HTTPError as x:
                     if x.code in (404, 410):
@@ -359,6 +371,8 @@ def check(logos=False, rows=None, minutes=None):
                     failed += attempt == 2
             if all(any(same_picture(r['hash'], h) for h in hashes) for r in mine):
                 break  # every saved picture from this page is found: no need to read the rest
+        if not hashes:  # a page built in the browser shows a plain read no pictures: that proves nothing
+            return page, hashes, 'no pictures readable on the page', False
         return page, hashes, f'{failed} pictures did not answer' if failed else None, not failed
     todo = [(n, item) for n, item in enumerate(pages.items()) if item[0] not in saved['pages']]
     with cf.ThreadPoolExecutor(6) as pool:
@@ -384,7 +398,7 @@ def check(logos=False, rows=None, minutes=None):
         if o['verdict'] != 'ok':
             print(f"  {o['verdict']:8} {o['entry_id']} (row {o['id']}, {kind_} {o['position']}) {o['source_url']}"
                   + (f" ({o['why']})" if o['why'] else ''))
-    (OUT / 'check.json').write_text(json.dumps(out, indent=1))
+    (OUT / f'check-{kind_}.json').write_text(json.dumps(out, indent=1))
     return out
 
 
@@ -412,7 +426,7 @@ def without_photo(entries):
 
 
 def candidates(minutes=None):
-    """For each stale photo in check.json, the pictures on its page now (for a free photo, Commons' for
+    """For each stale photo in check-photo.json, the pictures on its page now (for a free photo, Commons' for
     the place's name), and for each place still without a real photo, the pictures on its pages;
     downloaded as .runs/photos/<key>/c<n>.png (the place's live photos left out) and drawn on numbered
     contact sheets. <key> is the stale row's id, or the entry id of a place with no photo. With
@@ -421,7 +435,7 @@ def candidates(minutes=None):
     import registry
     entries = {e['id']: e for e in registry.load(registry.find_root(Path(__file__).parent))[0]}
     names = {k: e['_name'] for k, e in entries.items()}
-    stale = [r for r in json.loads((OUT / 'check.json').read_text()) if r['verdict'] in ('changed', 'gone', 'old')]
+    stale = [r for r in json.loads((OUT / 'check-photo.json').read_text()) if r['verdict'] in ('changed', 'gone', 'old')]
     jobs = [{'key': str(r['id']), 'entry_id': r['entry_id'], 'position': r['position'], 'verdict': r['verdict'],
              'hash': r['hash'], 'pages': [r['source_url']]} for r in stale]
     jobs += [{'key': w['entry_id'], 'entry_id': w['entry_id'], 'position': None, 'verdict': 'no photo yet',
@@ -556,6 +570,11 @@ def selftest():
     red = Image.new('RGBA', (120, 60), (220, 30, 30, 255))
     rnd = random.Random(1)
     noise = Image.frombytes('RGB', (64, 64), bytes(rnd.randrange(256) for _ in range(64 * 64 * 3)))
+    logo_on_white = Image.new('RGB', (400, 200), 'white')
+    ImageDraw.Draw(logo_on_white).rectangle([60, 40, 340, 160], fill=(200, 30, 40))
+    ImageDraw.Draw(logo_on_white).ellipse([150, 70, 250, 130], fill=(20, 20, 90))
+    squared_cut = Image.new('RGBA', (500, 500), (0, 0, 0, 0))
+    squared_cut.paste(logo_on_white.crop((60, 40, 341, 161)).convert('RGBA').resize((420, 181)), (40, 160))
     checks = [
         ("a page gives its share picture, img, srcset's biggest, background, lazy src",
          all(f'https://x.com/{u}' in urls for u in ('share.jpg', 'a/storefront.jpg', 's-1200.jpg', 'bg.webp', 'team-1.png',
@@ -585,6 +604,8 @@ def selftest():
          and max(Image.open(io.BytesIO(webp(Image.new('RGB', (4000, 3000))))).size) == 1600),
         ('a free photo is credited Author · Licence, a site photo not at all',
          credit({'author': 'Tomruen', 'licence': 'CC BY-SA 4.0'}) == 'Tomruen · CC BY-SA 4.0' and credit({}) is None),
+        ('a logo cut out and squared is still the logo on its white page',
+         same_picture(dhash(drawn(logo_on_white)), dhash(drawn(squared_cut)))),
         ('a Facebook or Instagram page is skipped, a website is not',
          bool(SOCIAL.search('www.facebook.com')) and bool(SOCIAL.search('instagram.com')) and not SOCIAL.search('myfacebookfan.com')),
     ]

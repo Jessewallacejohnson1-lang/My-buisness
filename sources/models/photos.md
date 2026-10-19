@@ -32,7 +32,8 @@ that fails is a line in the answer, and you carry on with the rest.
    saves the picture as a proposal; the app never shows a proposal.
 6. **Answer** with `check`'s line; then one line per stale photo (the place, why it is stale, what
    you proposed or why nothing); then the places without a photo you proposed one for; then, if
-   you made any proposals, "Swaps waiting for Jesse: N".
+   you made any proposals, "Swaps waiting for Jesse: N". With any proposals, also send Jesse one push
+   notification saying how many swaps wait on his review page; none otherwise.
 
 ## Rules
 
