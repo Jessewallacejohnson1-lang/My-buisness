@@ -181,8 +181,6 @@ CAMPUS_INTERESTS = {"CSB Athletics": "sports_leagues", "SJU Athletics": "sports_
 STUDENT_ONLY = re.compile(r"admission event|networking workshop|charting conversations|employer tabling|"
                           r"johnnie development institute|\bJDI\b|exploration fair|study session", re.I)
 HOME_GAME = re.compile(r"\b(st\.?|saint) joseph\b|collegeville", re.I)
-# A link with its label ("Streaming Video: https://..."): all a game's description adds to its title.
-LINKS = re.compile(r"(?:[A-Z][\w ]{0,20}:\s*)?https?://\S+")
 # ponytail: SJU's own building names, for a place with no town in it. A building not listed
 # reads as St. Joseph; add it here when one shows up wrong.
 SJU = re.compile(r"collegeville|\bsju\b|saint john'?s|st\.? john'?s|alcuin|learning commons|\bquad\b|sexton|"
@@ -195,13 +193,14 @@ def campus_town(place):
     return "St. Joseph" if re.fullmatch(r"(st\.?|saint) joseph", town, re.I) else town
 
 
-def campus_blurb(markup, title):
-    """The calendar's own description, for the Event page's About (Jesse, 2026-10-19), or None
-    when it says nothing the title doesn't: a game's is its title and the links to its stream
-    and tickets, and a game shows no About."""
-    text = plain(markup)
-    rest = LINKS.sub(" ", text.replace(" ".join(title.split()), " ", 1))
-    return text if len(rest.split()) >= 4 else None
+def campus_blurb(markup, cal):
+    """The calendar's own description as plain text, a line to each paragraph, for the Event
+    page's About (Jesse, 2026-10-19). None for a game: an Athletics calendar's description is
+    only the title and the links to its stream and tickets, and a game shows no About."""
+    if "Athletics" in cal:
+        return None
+    paras = (plain(p) for p in re.split(r"</p>|<br\s*/?>", markup or "", flags=re.I))
+    return "\n".join(p for p in paras if p) or None
 
 
 def pathify_url(url, today):
@@ -242,7 +241,7 @@ def pathify_items(rows, entry, src, today):
         out.append(judged(entry, src, kind="news" if news else "event", category="campus" if news else None,
                           title=title, start=start, end=end, all_day=bool(r.get("all_day")),
                           place=place, town=campus_town(place), area="campus",
-                          blurb=campus_blurb(r.get("description"), title),
+                          blurb=campus_blurb(r.get("description"), cal),
                           source_name=CAMPUS_HOSTS.get(cal, f"CSB SJU {cal}"), interest=CAMPUS_INTERESTS.get(cal),
                           source_url=f"{site.scheme}://{site.netloc}/public/events/{r['id']}",
                           source_uid=str(r["id"])))
@@ -742,15 +741,13 @@ def t_pathify():
     url = pathify_url(src["url"], TODAY)
     assert "calendar=2,165,166,193,212,224&in_range_after=2026-10-14T05:00:00Z&in_range_before=2027-01-12T06:00:00Z" in url, url
     assert "&field=description&" in url, url
-    game = "Saint John's University Football vs Gustavus Adolphus"
-    assert campus_blurb(f"<p>{game}</p><p>Streaming Video: <a href='x'>https://www.miacsportsnetwork.com/saintjohns/</a>"
-                        "</p><p>Tickets: https://tickets.csbsju.edu/event/sju-football</p>", game) is None, \
-        "a game's description is its title and its links"
-    assert campus_blurb("College of Saint Benedict Dance Team  SJU Football vs Gustavus",
-                        "College of Saint Benedict Dance Team  SJU Football vs Gustavus") is None
-    assert campus_blurb("", "Perler Beads") is None and campus_blurb(None, "Perler Beads") is None
-    assert campus_blurb("<p>Join Purl &amp; Looped&mdash;the chillest knitting club!&nbsp;</p>", "Purl & Looped") \
-        == "Join Purl & Looped—the chillest knitting club!", "the organizer's words, as plain text"
+    assert campus_blurb("<p>SJU Football vs Gustavus</p><p>Tickets: https://tickets.csbsju.edu/x</p>",
+                        "SJU Athletics") is None, "a game shows no About"
+    assert campus_blurb("", "Library") is None and campus_blurb(None, "Library") is None
+    assert campus_blurb("<p class='a'><span>Join Purl &amp; Looped&mdash;the chillest knitting club!</span></p>\n"
+                        "<p>&nbsp;</p><p>Monday, 4pm<br/>All are Welcome!</p>", "Library") \
+        == "Join Purl & Looped—the chillest knitting club!\nMonday, 4pm\nAll are Welcome!", \
+        "the organizer's words as plain text, a line to each paragraph"
 
 
 def t_roads():

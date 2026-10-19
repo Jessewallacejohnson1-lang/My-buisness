@@ -206,6 +206,13 @@ def caps(text):
     return " ".join(w.capitalize() if len(w) >= 4 else w for w in text.split(" "))
 
 
+def clip(text, n):
+    """At most n characters, cut at a word with "…" when it runs over: an Event page's About
+    never stops mid-word."""
+    text = (text or "").strip()
+    return text if len(text) <= n else text[:n - 1].rsplit(None, 1)[0] + "…"
+
+
 def tidy_title(title, host="", event=True):
     """The card's title, short and plain (the skill's rules); tidying it twice changes nothing.
     A News title keeps its subtitle: there it is often the news itself."""
@@ -386,7 +393,7 @@ def event_of(it, today, interests, home, notes):
     row = {"status": None, "title": title, "event_date": day.isoformat(),
            "start_time": at and clock(at), "end_at": end and end.isoformat(), "all_day": at is None,
            "location": "Online" if online else place_line(place, it.get("town") or home, home),
-           "description": (it.get("blurb") or "").strip()[:1000] or None,
+           "description": clip(it.get("blurb"), 1000) or None,
            "source_name": it["source_name"].strip(), "source_url": it["source_url"].strip(),
            "source_uid": uid, "category": interest, "shows_from": shows.isoformat(),
            "place_entry_id": entry}
@@ -605,6 +612,14 @@ def report(items, r):
 
 INTERESTS = ["live_music", "families_kids", "breweries", "farmers_market", "art_exhibits", "sports_leagues"]
 TODAY = date(2026, 10, 14)
+
+
+def t_description_cut_at_a_word():
+    long = "word " * 300
+    got = run([item(blurb=long)])["events"][0]["row"]["description"]
+    assert len(got) <= 1000 and got.endswith("word…"), got[-20:]
+    assert run([item(blurb="  Bring a chair.\n")])["events"][0]["row"]["description"] == "Bring a chair."
+    assert run([item(blurb=None)])["events"][0]["row"]["description"] is None
 
 
 def item(**kw):
@@ -983,7 +998,8 @@ def t_wording():
 
 TESTS = [t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_secondhand_needs_two, t_unsure_held, t_merge_true_pair,
          t_merge_near_miss_kept_apart, t_same_time_no_place, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
-         t_interest_checked, t_area, t_past_and_invalid_skipped, t_writes_are_one_safe_call]
+         t_interest_checked, t_area, t_past_and_invalid_skipped, t_writes_are_one_safe_call,
+         t_description_cut_at_a_word]
 
 
 def selftest():
