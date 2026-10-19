@@ -221,12 +221,14 @@ def same_picture(a, b):
     return bin(a ^ b).count('1') <= 10
 
 
-def verdict(row, page_hashes, today):
-    """ok, gone (its page didn't open), changed (the picture isn't on it any more) or old (over a year)."""
+def verdict(row, page_hashes, today, complete=True):
+    """ok; gone (its page answers 404 or 410); changed (every picture on the page was read and none is
+    it); old (over a year); or unsure (the page or some of its pictures didn't answer, so the photo may
+    be among them: a slow city site timed out 16 times on 2026-10-18 and each looked "changed")."""
     if page_hashes is None:
-        return 'gone'
+        return 'gone' if complete else 'unsure'
     if not any(same_picture(row['hash'], h) for h in page_hashes):
-        return 'changed'
+        return 'changed' if complete else 'unsure'
     return 'old' if (today - date.fromisoformat(row['added_at'][:10])).days > STALE_DAYS else 'ok'
 
 
@@ -300,32 +302,49 @@ def check(logos=False, rows=None):
         pages.setdefault(r['source_url'], []).append(r)
 
     def read(item):
+        """(page, its pictures' fingerprints or None, why, whether every picture answered)"""
         n, (page, mine) = item
         try:
             _, html = run.fetch(page)
             base = run.final_url.get(page, page)
+        except urllib.error.HTTPError as x:
+            return page, None, f'HTTP {x.code}', x.code in (404, 410)
         except Exception as x:
-            return page, None, str(x)[:80]
+            return page, None, str(x)[:80], False
         urls = (logo_urls(html, base)[:6] if logos else []) + photo_urls(from_page(html, base))
-        hashes = []
-        for i, u in enumerate(urls[:40]):
-            try:
-                download(u, tmp / f'{n}-{i}.png')
-                hashes.append(dhash(Image.open(tmp / f'{n}-{i}.png')))
-            except Exception:
-                continue
+        hashes, failed = [], 0
+        for i, u in enumerate(urls):
+            if i == 40:
+                failed += 1  # a page with this many pictures: the rest stay unread
+                break
+            for attempt in (1, 2):  # a slow server gets a second try
+                try:
+                    download(u, tmp / f'{n}-{i}.png')
+                    hashes.append(dhash(Image.open(tmp / f'{n}-{i}.png')))
+                    break
+                except urllib.error.HTTPError as x:
+                    if x.code in (404, 410):
+                        break  # a dead picture link: that picture is gone
+                    failed += attempt == 2
+                except RuntimeError:
+                    break  # robots refuses it, or an SVG: never one of the photos
+                except Exception:
+                    failed += attempt == 2
             if all(any(same_picture(r['hash'], h) for h in hashes) for r in mine):
                 break  # every saved picture from this page is found: no need to read the rest
-        return page, hashes, None
+        return page, hashes, f'{failed} pictures did not answer' if failed else None, not failed
     with cf.ThreadPoolExecutor(6) as pool:
-        read_pages = {page: (hashes, err) for page, hashes, err in pool.map(read, enumerate(pages.items()))}
+        read_pages = {page: rest for page, *rest in pool.map(read, enumerate(pages.items()))}
     today = date.today()
-    out = [{k: r[k] for k in ('id', 'entry_id', 'position', 'url', 'source_url', 'credit', 'added_at', 'hash')}
-           | {'kind': kind_, 'verdict': verdict(r, read_pages[r['source_url']][0], today), 'why': read_pages[r['source_url']][1]}
-           for r in rows]
+    out = []
+    for r in rows:
+        hashes, why, complete = read_pages[r['source_url']]
+        out.append({k: r[k] for k in ('id', 'entry_id', 'position', 'url', 'source_url', 'credit', 'added_at', 'hash')}
+                   | {'kind': kind_, 'verdict': verdict(r, hashes, today, complete), 'why': why})
     by = Counter(o['verdict'] for o in out)
     print(f"{len(out)} live {kind_}s checked against {len(pages)} pages: {by['ok']} ok, {by['changed']} changed, "
-          f"{by['gone']} page gone, {by['old']} over a year old; {len(skipped)} skipped (walk or social)")
+          f"{by['gone']} page gone, {by['old']} over a year old, {by['unsure']} unsure (their page or pictures "
+          f"didn't answer); {len(skipped)} skipped (walk or social)")
     for o in out:
         if o['verdict'] != 'ok':
             print(f"  {o['verdict']:8} {o['entry_id']} (row {o['id']}, {kind_} {o['position']}) {o['source_url']}"
@@ -365,7 +384,7 @@ def candidates():
     import registry
     entries = {e['id']: e for e in registry.load(registry.find_root(Path(__file__).parent))[0]}
     names = {k: e['_name'] for k, e in entries.items()}
-    stale = [r for r in json.loads((OUT / 'check.json').read_text()) if r['verdict'] != 'ok']
+    stale = [r for r in json.loads((OUT / 'check.json').read_text()) if r['verdict'] in ('changed', 'gone', 'old')]
     jobs = [{'key': str(r['id']), 'entry_id': r['entry_id'], 'position': r['position'], 'verdict': r['verdict'],
              'hash': r['hash'], 'pages': [r['source_url']]} for r in stale]
     jobs += [{'key': w['entry_id'], 'entry_id': w['entry_id'], 'position': None, 'verdict': 'no photo yet',
@@ -506,10 +525,11 @@ def selftest():
         ('a flat fill is a graphic, noise is a photo', kind(red) == 'graphic' and kind(noise) == 'photo'),
         ('a resized, recompressed copy is the same picture; another picture is not',
          same_picture(dhash(noise), dhash(noise.resize((300, 300)))) and not same_picture(dhash(noise), dhash(red))),
-        ('a photo is ok, changed, gone or old',
-         [verdict({'hash': 5, 'added_at': a}, h, date(2026, 10, 18)) for a, h in
-          [('2026-10-01', [5]), ('2026-10-01', [2 ** 40 - 1]), ('2026-10-01', None), ('2025-09-01', [5])]] ==
-         ['ok', 'changed', 'gone', 'old']),
+        ('a photo is ok, changed, gone, old, or unsure when its page or pictures did not all answer',
+         [verdict({'hash': 5, 'added_at': a}, h, date(2026, 10, 18), c) for a, h, c in
+          [('2026-10-01', [5], True), ('2026-10-01', [2 ** 40 - 1], True), ('2026-10-01', None, True),
+           ('2025-09-01', [5], True), ('2026-10-01', [2 ** 40 - 1], False), ('2026-10-01', None, False)]] ==
+         ['ok', 'changed', 'gone', 'old', 'unsure', 'unsure']),
         ('a logo is saved square, a photo at most 1600 px',
          Image.open(io.BytesIO(webp(red, logo=True))).size[0] == Image.open(io.BytesIO(webp(red, logo=True))).size[1]
          and max(Image.open(io.BytesIO(webp(Image.new('RGB', (4000, 3000))))).size) == 1600),

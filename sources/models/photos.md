@@ -16,7 +16,8 @@ that fails is a line in the answer, and you carry on with the rest.
 2. **Check.** Run `python3 sources/scripts/place_photos.py check`, with a 1800000 ms timeout: it
    reads about 120 pages politely and takes up to half an hour. In January, April, July and October
    also run `check --logos` after it, and report its stale logos in the answer without proposing:
-   a logo is picked by hand. Done when `check` prints its `… checked against … pages` line.
+   a logo is picked by hand. A photo marked unsure (its page or some pictures didn't answer) gets no
+   proposal: name it in the answer. Done when `check` prints its `… checked against … pages` line.
 3. **Find candidates.** Run `python3 sources/scripts/place_photos.py candidates`, with a 1800000 ms
    timeout. For each stale photo and each place still without a real photo it downloads the
    pictures on their pages now and draws them, numbered, on `.runs/photos/sheet-<n>.png`; each
