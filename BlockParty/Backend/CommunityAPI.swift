@@ -255,6 +255,9 @@ struct CommunityAPI {
             /// Optional, so a feed kept on disk before town-feed 28 still decodes.
             let friendsGoing: [Friend]?
             let placePicture: PlacePicture.Lenient?
+            /// Optional, so a feed kept on disk before rsvp-and-groups 07 still decodes.
+            let clubId: String?
+            let inClub: Bool?
         }
         struct Friend: Decodable {
             let name: String
@@ -286,7 +289,8 @@ struct CommunityAPI {
                                saved: row.saved ?? false,
                                friendsGoing: (row.friendsGoing ?? []).map {
                                    FeedFriend(name: $0.name, photo: $0.photo.flatMap(URL.init(string:)))
-                               })
+                               },
+                               groupID: row.clubId, inGroup: row.inClub ?? false)
         }
     }
 

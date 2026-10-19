@@ -244,6 +244,13 @@ enum DailyFixtures {
         // `-town-cancelled`: the first card and the photo-less council meeting are called
         // off, for the red Canceled pill on a card and an Event page with a photo and with none.
         item.cancelled = ["e1", "e5"].contains(id) && ProcessInfo.processInfo.arguments.contains("-town-cancelled")
+        // `-town-group`: the first card is the St. Joe Rod and Gun Club's, the real group's id, so
+        // its Join and the club's Group page in Search are one (rsvp-and-groups 07).
+        if id == "e1" && ProcessInfo.processInfo.arguments.contains("-town-group") {
+            item.hostName = "St. Joe Rod and Gun Club"
+            item.hostAvatar = nil
+            item.groupID = "2e8db1f0-2090-407d-885f-b9fb7e8e01b4"
+        }
         return TownFeedEntry(card: item, leavesAt: now.addingTimeInterval((hoursUntil + 2) * 3600))
     }
 

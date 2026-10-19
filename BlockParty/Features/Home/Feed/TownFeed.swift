@@ -310,6 +310,8 @@ final class TownFeed {
         card.isLiked = row.hearted
         card.isSaved = row.saved
         card.friendsGoing = row.friendsGoing
+        card.groupID = row.groupID
+        card.inGroup = row.inGroup
         return TownFeedEntry(card: card, leavesAt: row.leavesAt)
     }
 }

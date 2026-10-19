@@ -304,6 +304,13 @@ final class RealLifeActions {
         return Member(isMember: tally.on, count: tally.count)
     }
 
+    /// Whether the neighbour is in a Town card's group (rsvp-and-groups 07): the last groups read's,
+    /// else the Town feed's (`inGroup`), with their own choice over it. The card shows no count.
+    func member(groupID: String, inGroup: Bool) -> Member {
+        let tally = tally(Key(kind: .member, id: groupID), else: Tally(on: inGroup, count: 0))
+        return Member(isMember: tally.on, count: tally.count)
+    }
+
     func memberFailureCount(_ groupID: String) -> Int {
         failures[Key(kind: .member, id: groupID)] ?? 0
     }
@@ -331,6 +338,11 @@ final class RealLifeActions {
     /// Join or leave a group, shown at once, turned back the same way as Join.
     func toggleMember(_ group: TownGroup) {
         toggle(Key(kind: .member, id: group.id), from: member(group).isMember)
+    }
+
+    /// Join or leave a Town card's group, the same entry as its Group page's.
+    func toggleMember(groupID: String, inGroup: Bool) {
+        toggle(Key(kind: .member, id: groupID), from: member(groupID: groupID, inGroup: inGroup).isMember)
     }
 
     /// The photo's double tap: hearts, never un-hearts (taste.md, 2026-09-27). One
@@ -382,14 +394,16 @@ final class RealLifeActions {
         for kind in [Kind.going, .save, .member] { close(Key(kind: kind, id: id)) }
     }
 
-    /// An Event's Town card is on screen. Only then does a failed Heart or RSVP shake and
-    /// buzz there. It has no bookmark (rsvp-and-groups 01).
-    func cardOpened(_ eventID: String) {
+    /// An Event's Town card is on screen. Only then does a failed Heart, RSVP or Join (its
+    /// group's, rsvp-and-groups 07) shake and buzz there. It has no bookmark (rsvp-and-groups 01).
+    func cardOpened(_ eventID: String, group groupID: String? = nil) {
         for kind in [Kind.heart, .going] { open[Key(kind: kind, id: eventID), default: 0] += 1 }
+        if let groupID { open[Key(kind: .member, id: groupID), default: 0] += 1 }
     }
 
-    func cardClosed(_ eventID: String) {
+    func cardClosed(_ eventID: String, group groupID: String? = nil) {
         for kind in [Kind.heart, .going] { close(Key(kind: kind, id: eventID)) }
+        if let groupID { close(Key(kind: .member, id: groupID)) }
     }
 
     /// A bookmark off the Event page is on screen (Daily's Suggestions): a failed Save may

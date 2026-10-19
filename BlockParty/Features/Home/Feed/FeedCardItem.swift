@@ -46,6 +46,10 @@ struct FeedCardItem: Identifiable, Hashable {
     /// The picture of where it happens (`PlacePicture`): the card's picture when the event
     /// has no photo of its own, and the event page's second one when it has.
     var place: FeedCardImageSource? = nil
+    /// The approved group putting it on, as the Town feed names it, and whether the read said
+    /// you're in it: a card shows Join beside the group's name when you aren't (rsvp-and-groups 07).
+    var groupID: String? = nil
+    var inGroup = false
 
     var shareTime: String? {
         if let startTime { return startTime }

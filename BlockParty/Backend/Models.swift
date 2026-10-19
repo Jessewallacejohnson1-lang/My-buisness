@@ -214,6 +214,9 @@ nonisolated struct TownFeedRow: Hashable {
     var saved = false
     /// Up to three of the caller's friends Going, newest Going first (town-feed 28).
     var friendsGoing: [FeedFriend] = []
+    /// The approved group putting it on, and whether the caller is in it (rsvp-and-groups 07).
+    var groupID: String? = nil
+    var inGroup = false
 }
 
 /// A friend Going to an Event, as the Town feed names them: first name, and their photo when
