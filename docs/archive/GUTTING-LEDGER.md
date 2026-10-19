@@ -233,10 +233,24 @@ down-migration, and the data is gone regardless.
 
 ---
 
+## 2026-10-19 — the parked Horizon card
+
+Kept parked on 2026-09-17 (above), unmounted since, and opened only by two DEBUG galleries.
+Deleted in BP app backlog 03: `BlockParty/Features/Home/Feed/Modules/Horizon/` (14 files, ~3,700
+lines: `HorizonCard`, the solar model `SolarSky`/`SolarTable`, `TimeAxis`, `HorizonDay`, the
+palette, the backdrop, `ScrubModel`/`ScrubHaptics`, the scrub seam and the galleries), its seven
+test files and `HorizonCopyTests`, the `-horizon-*` gallery and demo flags and the `-BPMock*`
+lane. Its unchecked device scrub pass and a 2026-11-01 daylight-saving fix in `SolarTable` went
+with it. The Day Schedule sheet and the Your Day logic it reads stay.
+
+**Recover:** `git checkout 2035917 -- BlockParty/Features/Home/Feed/Modules/Horizon` and the test
+files named in the commit that deleted them.
+
+---
+
 ## Recovering something from a round
 
 1. Find the commit that removed it: `git log --oneline --diff-filter=D -- <path>`
 2. Restore the file at its last living state: `git checkout <commit>^ -- <path>`
-3. Re-register it if it is a **test** file — the test target uses an explicit source list in
-   `project.pbxproj` (4 entries), so a restored test file does not run until it is added back.
-   App-target sources under `BlockParty/` are file-system synchronized and need no registration.
+3. Nothing to register: `BlockParty/`, `BlockPartyTests/` and `BlockPartyUITests/` are all
+   file-system synchronized (the test folders since 2026-10-19), so a restored file builds.

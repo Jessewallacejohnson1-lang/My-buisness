@@ -82,15 +82,6 @@ struct RootView: View {
                 // preview loader supplies local data, so this bypasses auth and
                 // onboarding without changing either production flow.
                 MainTabsView()
-            } else if ProcessInfo.processInfo.arguments.contains("-horizon-sky-gallery")
-                        || ProcessInfo.processInfo.arguments.contains("-horizon-card-gallery") {
-                // Preview the Your Day horizon card at the eight spec test times
-                // (bypassing the auth gate) so sky continuity, bloom shape, the
-                // seam and the rail can be verified headlessly. `-horizon-sky-gallery`
-                // is sky only; `-horizon-card-gallery` adds the busy-fixture rail.
-                // Pair either with `-horizon-sky-gallery-page 2` for the
-                // afternoon/night half.
-                HorizonSkyGallery()
             } else if ProcessInfo.processInfo.arguments.contains("-feed-card-gallery") {
                 // Preview the static feed-card states full-screen (bypassing the auth
                 // gate) so the component can be verified headlessly.
