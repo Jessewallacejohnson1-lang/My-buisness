@@ -81,6 +81,12 @@ def plain(markup):
     return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", markup or ""))).strip()
 
 
+def said(text):
+    """The text, or None when it says nothing but a link: the City's feed gives each event's
+    page as its description, and an Event page's About is never a bare link (Jesse, 2026-10-19)."""
+    return text if text and re.sub(r"https?://\S+", "", text).strip() else None
+
+
 def utc_local(stamp):
     return datetime.fromisoformat(stamp.replace("Z", "+00:00")).astimezone(LOCAL)
 
@@ -157,7 +163,7 @@ def ical_items(text, entry, src, today):
                           start=start.isoformat(), end=end and end.isoformat(), all_day=all_day,
                           # "St. Joseph MN 56374" alone is no place; the writer drops it.
                           place=unescape(ev.get("LOCATION", ("", ""))[1]),
-                          blurb=unescape(ev.get("DESCRIPTION", ("", ""))[1]) or None,
+                          blurb=said(unescape(ev.get("DESCRIPTION", ("", ""))[1])),
                           source_url=page_url(ev, src["url"]), source_uid=ev["UID"][1].strip()))
     return out
 
@@ -630,6 +636,11 @@ READERS = {"ical": read_ical, "pathify": read_pathify, "cars511": read_roads,
            "civicplus-hcms": read_hcms, "mshsl": read_league}
 
 
+def reader_of(src):
+    """The reader a source names, or ical for an iCal feed, which names none."""
+    return src.get("reader") or ("ical" if src.get("kind") == "ical" else None)
+
+
 def read_all(entries, today, readers=READERS):
     """Every reader source of these entries. One that fails is named in the summary and
     never stops the others. The schools' listings become games once every school is read,
@@ -638,7 +649,7 @@ def read_all(entries, today, readers=READERS):
     items, summary, listings = [], [], []
     for e in entries:
         for s in e.get("sources") or []:
-            name = s.get("reader") or ("ical" if s.get("kind") == "ical" else None)
+            name = reader_of(s)
             if not name:
                 continue
             row = {"source": e["_name"], "reader": name, "url": s["url"], "items": 0, "error": None}
@@ -710,6 +721,11 @@ def t_ical():
     assert (fare["start"], fare["end"]) == ("2026-12-07T15:30:00-06:00", "2026-12-07T17:30:00-06:00"), fare
     assert fare["place"] == "610 County Rd 2 St. Joseph MN 56374" and fare["blurb"] == "Groceries, cheap"
     assert fare["source_url"] == "https://www.stjosephmn.gov/Calendar.aspx?EID=7" and fare["source_uid"] == "7"
+    linked = ical_items("BEGIN:VEVENT\r\nUID:11\r\nSUMMARY:Council\r\nDTSTART:20261207T180000\r\n"
+                        "DESCRIPTION:https://www.stjosephmn.gov/calendar.aspx?EID=2354\r\nEND:VEVENT\r\n",
+                        CITY, src, date(2026, 10, 6))[0]
+    assert linked["blurb"] is None, "a description that is only a link is none"
+    assert said("See https://x.org for more") == "See https://x.org for more"
     assert (closed["kind"], closed["start"], closed["all_day"]) == ("news", "2026-11-26", True), closed
     assert film["place"].startswith("Saint John's University"), "a St. Joseph source's event is kept wherever it is"
     assert clock(datetime(2026, 1, 1, 18, 0)) == "6 PM"
@@ -953,7 +969,7 @@ def main():
 
     today = date.fromisoformat(args.today) if args.today else datetime.now(LOCAL).date()
     statuses = {"active", "proposed"} if args.include_proposed else {"active"}
-    entries = [dict(e, sources=[s for s in e.get("sources") or [] if not args.reader or s.get("reader") == args.reader])
+    entries = [dict(e, sources=[s for s in e.get("sources") or [] if not args.reader or reader_of(s) == args.reader])
                for e in load(find_root(args.root))[0] if e.get("_town") == args.town and e.get("status") in statuses]
     items, summary = read_all(entries, today)
     shown = [i for i in items if i["kind"] != "schedule"]
