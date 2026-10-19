@@ -92,7 +92,7 @@ final class ProfileModel: ObservableObject {
         // A newly picked photo must upload successfully; otherwise we'd save a
         // profile that silently dropped the avatar the user chose.
         var newUrl = avatarUrl
-        if let image, let data = image.jpegData(compressionQuality: 0.85), let uid = auth.userId {
+        if let image, let data = Self.avatarJPEG(image), let uid = auth.userId {
             guard let uploaded = await storage.uploadAvatar(data, userId: uid) else { return false }
             newUrl = uploaded
         }
@@ -111,6 +111,26 @@ final class ProfileModel: ObservableObject {
         avatarUrl = newUrl
         interestIds = interests
         return true
+    }
+
+    /// The photo as it uploads: its middle square, at most 400 px a side, as a JPEG. Every
+    /// avatar is a circle filled from the middle, and the largest, Edit Profile's 132 pt well,
+    /// is 396 px at 3x; the full camera image was 4.7 MB (BP app backlog 03). Drawn, not
+    /// cropped as a bitmap, so a photo taken with the phone turned stays upright, and a small
+    /// one is never enlarged.
+    nonisolated static func avatarJPEG(_ image: UIImage) -> Data? {
+        let short = min(image.size.width, image.size.height)
+        guard short > 0 else { return nil }
+        let side = min(400, (short * image.scale).rounded(.down))
+        let k = side / short
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = true
+        let square = UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: format).image { _ in
+            let w = image.size.width * k, h = image.size.height * k
+            image.draw(in: CGRect(x: (side - w) / 2, y: (side - h) / 2, width: w, height: h))
+        }
+        return square.jpegData(compressionQuality: 0.85)
     }
 
     func signOut() async { await auth.signOut() }
