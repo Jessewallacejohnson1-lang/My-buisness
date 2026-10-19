@@ -24,10 +24,13 @@ that fails is a line in the answer, and you carry on with the rest.
    pictures on their pages now and draws them, numbered, on `.runs/photos/sheet-<n>.png`; each
    block's heading carries its key (a row id, or the place's entry id) and why it is there.
 4. **Pick by eye.** Open every sheet with the Read tool, at most four at a time, and look at each
-   candidate. Pick at most one per block: a real photo of the place, its people or its own work.
-   Stock photos, textures, ads, banners, screenshots, maps, logos, clip art and other
-   organisations' pictures are not real photos; an owner's headshot counts but is weaker than the
-   place. Nothing real in a block means no proposal for it.
+   candidate. Pick at most one per block: a real photo of this place, its people or its own work,
+   the one that best shows the place (its storefront, room or team before a detail). These are not
+   real photos and get no proposal: stock photos (posed models, a smiling couple, a generic
+   handshake), a chain's photo used at every store, a realtor's houses for sale, textures, ads,
+   banners, screenshots, maps, logos, clip art, and another person's or organisation's picture.
+   An owner's headshot counts but is weaker than the place. When no candidate is clearly real,
+   propose nothing for that block: Jesse sees every proposal, and a wrong one costs his time.
 5. **Propose.** For each pick run `python3 sources/scripts/place_photos.py propose <key> <n>`. It
    saves the picture as a proposal; the app never shows a proposal.
 6. **Answer** with `check`'s line; then one line per stale photo (the place, why it is stale, what
