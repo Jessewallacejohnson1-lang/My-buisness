@@ -170,6 +170,21 @@ nonisolated struct PlacePicture: Decodable, Hashable, Sendable {
     var site: URL? = nil
     /// A logo's backdrop hue, as Search's (`SearchLogo`); nil for a black, white or grey one.
     var hue: Double? = nil
+    /// The photo's size in pixels, so a card takes its shape before it loads (BP app
+    /// docs/plans/event-card, ticket 01); nil for a logo.
+    var width: Int? = nil
+    var height: Int? = nil
+
+    private enum CodingKeys: String, CodingKey {
+        case url, kind, credit, site, hue
+        case width = "w", height = "h"
+    }
+
+    /// Width over height; nil without a size.
+    var aspect: Double? {
+        guard let width, let height, width > 0, height > 0 else { return nil }
+        return Double(width) / Double(height)
+    }
 
     /// What the photo's chip says: its author and licence, else the site's name without
     /// "www.". nil for a logo.

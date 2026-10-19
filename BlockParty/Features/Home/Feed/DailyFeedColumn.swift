@@ -21,9 +21,9 @@ nonisolated enum DailyFeedMetric {
     /// (Jesse, 2026-09-20: Instagram's feed, which is what a posting is).
     static let contentInset: CGFloat = 16
 
-    /// The corner on every Town feed card's picture — postings and events alike.
-    /// Square on purpose (Jesse, 2026-09-24: straight-edged cards). Still applied as
-    /// a clip because the like-burst heart exits through this edge.
+    /// The corner on a posting's picture. Square on purpose (Jesse, 2026-09-24:
+    /// straight-edged cards). Still applied as a clip because the like-burst heart exits
+    /// through this edge. An event's picture is inset with `Radius.card` since 2026-10-19.
     static let mediaRadius: CGFloat = 0
 
 }
@@ -146,8 +146,10 @@ struct DailyFeedSkeleton: View {
                     }
                     .padding(.horizontal, DailyFeedMetric.contentInset)
 
-                    SkeletonBlock(cornerRadius: DailyFeedMetric.mediaRadius)
+                    // Each card takes its photo's shape; 3:2 is the one it has without a size.
+                    SkeletonBlock(cornerRadius: Radius.card)
                         .aspectRatio(3.0 / 2.0, contentMode: .fit)
+                        .padding(.horizontal, DailyFeedMetric.contentInset)
                         .padding(.top, 10)
 
                     // The heart, share and bookmark row: no shapes, its height only.

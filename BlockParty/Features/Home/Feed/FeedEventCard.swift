@@ -9,9 +9,11 @@
 //
 //  The card has no container of its own: no fill, no border, no shadow. The only
 //  edge on screen is the PICTURE's: it is inset by `contentInset` like everything
-//  else on the card and carries a real corner, so an event reads as a cut card sunk
-//  into the page rather than a photo running off both bezels (Jesse, 2026-09-19 —
-//  postings still run edge to edge, which is what now tells the two kinds apart).
+//  else on the card, carries a 20pt corner and takes the photo's own shape, so an
+//  event reads as a cut card sunk into the page rather than a photo running off both
+//  bezels. The day and time ride a white chip on its top left; the title and place
+//  stay over it; going, Attend, the heart and send sit under it (Jesse, 2026-10-19,
+//  BP app docs/plans/event-card; postings still run edge to edge).
 //
 //  The headline face is the SYSTEM face (`.sansBold`), not the display face: Apple
 //  News sets its headlines in SF, and that is the reference Jesse gave.
@@ -32,10 +34,6 @@ struct FeedEventCard: View {
     /// Daily feed passes `.event`, which drops comments but keeps the heart.
     let actionKind: FeedActionKind
     let debugAutoplay: Bool
-
-    /// The photo's shape. Apple News runs its lead image at roughly 3:2; this card
-    /// used to be 5:4, which is most of a phone screen per event.
-    private static let mediaAspect: CGFloat = 3.0 / 2.0
 
     /// The host avatar. An avatar beside a name is a mark at a size the row is drawn
     /// around, not text, so it does not scale.
@@ -313,14 +311,21 @@ struct FeedEventCard: View {
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
-        // Square at accessibility sizes: the headline, when and where lines are set
-        // over the picture, and at AX5 they outgrew a 3:2 frame and ran up over the
-        // host row (measured 2026-09-24).
-        .aspectRatio(dynamicTypeSize.isAccessibilitySize ? 1 : Self.mediaAspect, contentMode: .fit)
+        // The photo's own shape, known before it loads (`cardAspect`), so the card never
+        // jumps when it lands. Square at accessibility sizes: the headline and where line
+        // are set over the picture, and at AX5 they outgrew a 3:2 frame and ran up over
+        // the host row (measured 2026-09-24).
+        .aspectRatio(dynamicTypeSize.isAccessibilitySize ? 1 : CGFloat(displayImage.cardAspect), contentMode: .fit)
         .frame(maxWidth: .infinity)
         // INSIDE the clip — the picture's own edge is what takes the heart away.
         .feedCardLikeBurst(likeBurst, reduceMotion: motionIsReduced)
-        .clipShape(RoundedRectangle(cornerRadius: DailyFeedMetric.mediaRadius, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+        .overlay(alignment: .topLeading) {
+            if let when = item.whenLine {
+                PhotoChip(text: when.text, spoken: when.spoken)
+                    .padding(PhotoChip.inset)
+            }
+        }
         .overlay(alignment: .bottom) {
             // Copy and the ToS credit share ONE bottom-aligned row, so the copy's
             // available width is derived from the credit's measured width instead of a
@@ -349,6 +354,7 @@ struct FeedEventCard: View {
         // photo opens the page `PhotoDoubleTap.window` after the finger lifts, and a
         // double tap likes without opening it (`EventCardPhotoTapTests`).
         .gesture(PhotoDoubleTap { performImageLike(at: $0) })
+        .padding(.horizontal, DailyFeedMetric.contentInset)
     }
 
     @ViewBuilder
@@ -387,18 +393,8 @@ struct FeedEventCard: View {
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
 
+            // The day and time left these lines for the chip (2026-10-19).
             VStack(alignment: .leading, spacing: 2) {
-                if let when = item.whenLine {
-                    // The second thing you read, so it gets weight and full white,
-                    // not a colour (the yellow banner lost its place to the photo).
-                    // Never truncated: this is the part people need.
-                    Text(when.text)
-                        .font(.sansSemibold(15))
-                        .foregroundStyle(onLogo ? Hue.ink : .white)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityLabel(when.spoken)
-                }
-
                 if !metaSummary.isEmpty {
                     Text(metaSummary)
                         .font(.sans(13))
@@ -418,8 +414,9 @@ struct FeedEventCard: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { copyHeight = $0 }
     }
 
-    /// Recurrence and place, under the when line. Date and time have their own line
-    /// now, which replaced the yellow date banner (Jesse, 2026-09-24).
+    /// Recurrence and place, under the title. Date and time ride the chip on the photo
+    /// (Jesse, 2026-10-19), which replaced their line, which replaced the yellow date
+    /// banner (2026-09-24).
     private var metaSummary: String {
         [item.recurrence, item.whereLine]
             .compactMap { $0 }
