@@ -32,7 +32,7 @@ await db.exec(`
     start_time text, created_at timestamptz not null default now(), location text,
     image_url text, kind text not null default 'event', category text,
     end_at timestamptz, all_day boolean not null default false, source_name text,
-    cancelled_at timestamptz, place_entry_id text);
+    cancelled_at timestamptz, place_entry_id text, description text);
   -- Where events happen, with their pictures (place-photos): the app's places rows, then the
   -- photos Block Party keeps (loaded from their migrations below).
   create table public.places (id uuid primary key default gen_random_uuid(), name text, entry_id text,
@@ -279,4 +279,18 @@ test("your Going and your saves carry each event's place picture", async () => {
   await db.exec('reset role; delete from public.place_photos;');
   assert.equal(g[0].place_picture.url, 'https://x/food.webp');
   assert.equal(s[0].place_picture.url, 'https://x/food.webp');
+});
+
+test('your Going and your saves carry each event\'s description', async () => {
+  await reset();
+  const id = await add('Trivia', '2026-10-09');
+  await db.query(`update public.club_events set description = 'Teams of up to six.' where id = $1`, [id]);
+  await going(ME, id);
+  await db.query('insert into public.event_saves (event_id, user_id) values ($1, $2)', [id, ME]);
+  await db.exec(`set role authenticated; set request.jwt.claim.sub = '${ME}'`);
+  const g = (await db.query(`select description from public.get_my_going('2026-10-01', '2026-10-31')`)).rows;
+  const s = (await db.query(`select description from public.get_my_saves('2026-10-01')`)).rows;
+  await db.exec('reset role');
+  assert.equal(g[0].description, 'Teams of up to six.');
+  assert.equal(s[0].description, 'Teams of up to six.');
 });
