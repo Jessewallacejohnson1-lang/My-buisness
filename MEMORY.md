@@ -115,9 +115,10 @@ Jesse's direction for a specific screen sits in that screen's own file, reached 
 
 ## Data and backend
 
-- 2026-10-19 — Two Events with the same date, start time and place are one Event (Jesse), even when
-  the source lists them twice under different ids: the City's calendar sent six St. Joseph meetings
-  twice (Council Oct 19 and Nov 2, EDA Oct 20, Park Board Oct 26).
+- 2026-10-19 — Two Events with the same date, start time and place are one Event (Jesse). No place on
+  either counts as the same place when the titles match (`write_judged.same_event`): the City's
+  calendar feed and its web page each listed six St. Joseph meetings without one (Council Oct 19 and
+  Nov 2, EDA Oct 20, Park Board Oct 26).
 - 2026-10-17 — Before a migration that drops and remakes a database function, fetch and copy
   that function from the newest migration on `origin/main` that makes it, then apply. Another
   chat had remade `get_town_feed` for friends the evening before; a copy of the older version

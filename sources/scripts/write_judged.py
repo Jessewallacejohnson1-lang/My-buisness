@@ -68,7 +68,9 @@ THE RULES
     in the Review queue and news stays in `staging`; both are named in the summary.
   Merging: same place, start within an hour, shared title words = one Event. Shared means
     one title's words all sit inside the other's, with the same team words (JV, varsity,
-    girls...); a source's own two ids are always two events. Checked against the events
+    girls...); a source's own two ids are always two events. With no place on either, the
+    same date and start time to the minute and shared title words are one Event (Jesse,
+    2026-10-19: the City's calendar feed and its web page both listed six meetings, no place). Checked against the events
     already in the list and this morning's items; every mention is kept (event_mentions) and
     counts toward the two-mention rule. A pair short of that stays two events, and one on the
     same day at the same place or under the same title is named for Jesse to settle: a
@@ -161,6 +163,8 @@ def within_hour(a, b):
 
 
 def same_event(a, b):
+    if not a["place"] and not b["place"] and a["at"] is not None:
+        return a["at"] == b["at"] and same_title(a["title"], b["title"])
     return within_hour(a, b) and same_place(a["place"], b["place"]) and same_title(a["title"], b["title"])
 
 
@@ -720,6 +724,19 @@ def t_merge_near_miss_kept_apart():
     assert any("kept apart" in n and "City Council Work Session" in n for n in r["notes"]), r["notes"]
 
 
+def t_same_time_no_place():
+    feed = listed(id="33333333-3333-3333-3333-333333333333", title="City Council Meeting", event_date="2026-10-19",
+                  start_time="6 PM", location=None, source_name="City of St. Joseph", source_uid="2310")
+    page = item(title="City Council Meeting", start="2026-10-19T18:00:00-05:00", end=None, place="",
+                source_name="City of St. Joseph", interest=None, size="everyday")
+    r = run([page], [feed])
+    assert len(r["events"]) == 1 and r["events"][0]["id"] == feed["id"], "the page's copy of a feed meeting is one Event"
+    work = dict(page, title="City Council Work Session")
+    assert run([work], [feed])["events"][0]["id"] is None, "another title at the same time stays apart"
+    later = dict(page, start="2026-10-19T18:30:00-05:00")
+    assert run([later], [feed])["events"][0]["id"] is None, "half an hour later, with no place to go on, stays apart"
+
+
 def t_reread_updates():
     old = listed(title="Fare for All", event_date="2026-12-07", start_time="3:30 PM", location="610 County Rd 2",
                  source_name="City of St. Joseph", source_uid="2336", shows_from="2026-11-23")
@@ -965,7 +982,7 @@ def t_wording():
 
 
 TESTS = [t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_secondhand_needs_two, t_unsure_held, t_merge_true_pair,
-         t_merge_near_miss_kept_apart, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
+         t_merge_near_miss_kept_apart, t_same_time_no_place, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
          t_interest_checked, t_area, t_past_and_invalid_skipped, t_writes_are_one_safe_call]
 
 
