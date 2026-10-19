@@ -9,7 +9,7 @@ that fails is a line in the answer, and you carry on with the rest.
 
 ## Steps
 
-1. **Ready the tools.** Run `python3 -c "import yaml, PIL" || pip install --quiet pyyaml pillow`.
+1. **Ready the tools.** Run `python3 -c "import yaml, PIL" || python3 -m pip install --quiet pyyaml pillow`.
    Check that `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set with
    `test -n "$SUPABASE_URL" && test -n "$SUPABASE_SERVICE_ROLE_KEY" && echo keys set`; their values
    stay out of every command's output and your answer. Without them, stop and say so.
