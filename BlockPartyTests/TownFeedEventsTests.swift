@@ -134,6 +134,31 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(cards[1].friendsGoing, [])
     }
 
+    /// A group's Event (rsvp-and-groups 07) carries the group and whether you're in it, for the
+    /// card's Join; a feed kept on disk before the columns existed reads with no group.
+    func testAGroupsEventCarriesItsGroupAndAnOlderKeptFeedStillReads() throws {
+        let json = """
+        [{"id":"e1","title":"Monthly Meeting","event_date":"2026-10-19","start_time":"7 PM",
+          "location":null,"image_url":null,"category":null,"club_name":"St. Joe Rod and Gun Club",
+          "source_name":"St Joe Rod and Gun Club","end_at":null,"all_day":false,
+          "created_at":"2026-10-06T16:08:20+00:00","going_count":0,"rsvpd":false,
+          "recurrence":null,"leaves_at":"2026-10-20T02:00:00+00:00","reason":"today","reason_name":null,
+          "score":null,"club_id":"6f1c2c43-6b4b-4a4e-9f43-1f2d3c4b5a69","in_club":true},
+         {"id":"e2","title":"Bake sale","event_date":"2026-10-19","start_time":"11 AM",
+          "location":null,"image_url":null,"category":null,"club_name":null,
+          "source_name":"Parish","end_at":null,"all_day":false,
+          "created_at":"2026-10-06T16:08:20+00:00","going_count":3,"rsvpd":false,
+          "recurrence":null,"leaves_at":"2026-10-19T18:00:00+00:00",
+          "reason":"today","reason_name":null,"score":null}]
+        """
+        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.entry($0).card }
+        XCTAssertEqual(cards[0].groupID, "6f1c2c43-6b4b-4a4e-9f43-1f2d3c4b5a69")
+        XCTAssertTrue(cards[0].inGroup)
+        XCTAssertEqual(cards[0].hostName, "St. Joe Rod and Gun Club", "the group's own name")
+        XCTAssertNil(cards[1].groupID)
+        XCTAssertFalse(cards[1].inGroup)
+    }
+
     /// Every reason the database sends has a line; one this app doesn't know has none,
     /// so a newer database never puts a wrong line on an older app.
     func testEachReasonHasItsLine() {

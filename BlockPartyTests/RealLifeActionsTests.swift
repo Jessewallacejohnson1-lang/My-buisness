@@ -856,6 +856,50 @@ final class RealLifeActionsTests: XCTestCase {
         XCTAssertEqual(actions.member(pushed), .init(isMember: false, count: 3), "once agreed, the next read is the truth")
     }
 
+    /// Join on a Town card (rsvp-and-groups 07) is the Group page's join: one entry, so the two
+    /// always agree. The card has no count; the page counts you on its own number.
+    func testJoiningFromATownCardIsTheGroupPagesJoin() async throws {
+        let server = Server()
+        let actions = actions(server)
+
+        XCTAssertFalse(actions.member(groupID: Self.groupID, inGroup: false).isMember)
+        actions.toggleMember(groupID: Self.groupID, inGroup: false)
+        XCTAssertTrue(actions.member(groupID: Self.groupID, inGroup: false).isMember, "Joined at once")
+        XCTAssertEqual(actions.member(group(members: 4)), .init(isMember: true, count: 5), "the Group page agrees")
+        try await Task.sleep(for: Self.hold * 3)
+        XCTAssertEqual(server.memberships, ["\(Self.groupID) true"])
+    }
+
+    /// The feed's word holds until a groups read, which then wins: it knows the count too.
+    func testACardTakesTheFeedsWordUntilAGroupsRead() {
+        let actions = actions(Server())
+        XCTAssertTrue(actions.member(groupID: Self.groupID, inGroup: true).isMember)
+        actions.read([group(joined: false)])
+        XCTAssertFalse(actions.member(groupID: Self.groupID, inGroup: true).isMember)
+    }
+
+    /// A refused join from a card turns back and shakes the card while it's on screen; scrolled
+    /// away, it turns back with no shake.
+    func testAFailedJoinFromACardShakesOnlyWhileTheCardIsOnScreen() async throws {
+        let server = Server()
+        server.failing = true
+        let actions = actions(server)
+        let event = card()
+        actions.cardOpened(event.id, group: Self.groupID)
+
+        actions.toggleMember(groupID: Self.groupID, inGroup: false)
+        try await waitWhile(actions.member(groupID: Self.groupID, inGroup: false).isMember)
+        try await waitWhile(actions.memberFailureCount(Self.groupID) == 0)
+        XCTAssertEqual(actions.memberFailureCount(Self.groupID), 1)
+        XCTAssertEqual(actions.failureCount(event.id), 0, "the RSVP pill stays still")
+
+        actions.cardClosed(event.id, group: Self.groupID)
+        actions.toggleMember(groupID: Self.groupID, inGroup: false)
+        try await waitWhile(actions.member(groupID: Self.groupID, inGroup: false).isMember)
+        try await Task.sleep(for: Self.flip * 2)
+        XCTAssertEqual(actions.memberFailureCount(Self.groupID), 1, "no shake off screen")
+    }
+
     func testNoAccountMeansNoJoin() async throws {
         let server = Server()
         let actions = actions(server, signedIn: false)

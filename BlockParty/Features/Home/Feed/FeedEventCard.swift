@@ -48,7 +48,16 @@ struct FeedEventCard: View {
     private static let menuGlyph: CGFloat = 20
     private static let menuDotsInset: CGFloat = 14.5
     /// Kept clear at the end of the host row so a long name stops short of the dots.
-    private static let menuRoom: CGFloat = 15 + 8
+    private static let menuRoom: CGFloat = menuDots + 8
+    private static let menuDots: CGFloat = 15
+
+    /// Join beside a group's name (rsvp-and-groups 07): the Figma page's Club pill ("Meetup
+    /// depth"), 30 pt tall, 16 pt in from each end, 10 pt before the •••. Its 14 pt word snaps
+    /// to 15 (`.sans`), the card's RSVP word.
+    private static let groupPillHeight: CGFloat = 30
+    private static let groupPillSide: CGFloat = 16
+    private static let groupPillGap: CGFloat = 10
+    private static let groupPillWord: CGFloat = 15
 
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     /// Read so the card's one-line labels can take a second line at accessibility
@@ -69,6 +78,12 @@ struct FeedEventCard: View {
     @State private var linkPressed = false
     /// Going and Heart, shared with the event page, so a Join there shows here at once.
     @Environment(RealLifeActions.self) private var actions
+    /// Joined from this card: it keeps saying Joined after a read that says you're in.
+    @State private var joinedHere = false
+    /// `actions.memberFailureCount` at the last Join: a tap mid-shake stills it (as `RSVPArea`'s).
+    @State private var groupTappedAt = 0
+    /// The Join pill's width, which the host's name stops short of.
+    @State private var groupPillWidth: CGFloat = 0
 
     init(
         item: FeedCardItem,
@@ -126,6 +141,8 @@ struct FeedEventCard: View {
         }
         // Over the host row's end, outside the link: pressing it neither squishes nor
         // opens the card.
+        // Join first: the ••• wins where their touch areas meet, and VoiceOver reads Join first.
+        .overlay(alignment: .topTrailing) { groupJoin }
         .overlay(alignment: .topTrailing) { menuButton }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
@@ -148,8 +165,8 @@ struct FeedEventCard: View {
         }
         // On screen: a heart or RSVP that fails may shake here. Scrolled away or covered
         // by the Event page, it turns back without a shake or a buzz.
-        .onAppear { actions.cardOpened(item.id) }
-        .onDisappear { actions.cardClosed(item.id) }
+        .onAppear { actions.cardOpened(item.id, group: item.groupID) }
+        .onDisappear { actions.cardClosed(item.id, group: item.groupID) }
         .task { await runDebugAutoplay() }
         .task { await openMenuForDebug() }
     }
@@ -175,10 +192,59 @@ struct FeedEventCard: View {
 
                 Spacer(minLength: 8)
             }
-            .padding(.trailing, item.why == nil ? 0 : Self.menuRoom)
+            .padding(.trailing, hostRowRoom)
             .accessibilityElement(children: .combine)
         } else if item.why != nil {
             Color.clear.frame(height: Self.hostAvatarSide)
+        }
+    }
+
+    /// Kept clear at the host row's end: the •••, and Join with its gap.
+    private var hostRowRoom: CGFloat {
+        let menu = item.why == nil ? 0 : Self.menuRoom
+        guard showsGroupJoin else { return menu }
+        return (item.why == nil ? 8 : menu + Self.groupPillGap) + groupPillWidth
+    }
+
+    /// A group you weren't in when the feed read it, or joined here, or left since, once Join can
+    /// work: no Join before the account exists, as no RSVP.
+    private var showsGroupJoin: Bool {
+        guard let groupID = item.groupID, actions.canAct else { return false }
+        return !item.inGroup || joinedHere || !actions.member(groupID: groupID, inGroup: item.inGroup).isMember
+    }
+
+    /// Meetup's charcoal pill beside the group's name, outside the card's link, so pressing it
+    /// never squishes the card. One tap joins: it turns white, "Joined", over the RSVP pill's
+    /// 0.18 s, and the Group page agrees (one `RealLifeActions` entry). Joined only squishes:
+    /// leaving stays on the Group page (Jesse, 2026-10-19). A refused join holds, turns back, then
+    /// shakes.
+    @ViewBuilder
+    private var groupJoin: some View {
+        if showsGroupJoin, let groupID = item.groupID {
+            let isMember = actions.member(groupID: groupID, inGroup: item.inGroup).isMember
+            let failures = actions.memberFailureCount(groupID)
+            Button {
+                guard !isMember else { return }
+                groupTappedAt = failures
+                joinedHere = true
+                actions.toggleMember(groupID: groupID, inGroup: item.inGroup)
+            } label: {
+                Text(isMember ? "Joined" : "Join")
+                    .font(.sansSemibold(Self.groupPillWord))
+                    .contentTransition(.opacity)
+            }
+            .buttonStyle(MeetupPillStyle(height: Self.groupPillHeight, minWidth: 0, light: isMember,
+                                         sidePadding: Self.groupPillSide))
+            // Only the card the tap came from shakes: the group's failures are every card's.
+            .turnBackShake(failures: failures, shakes: !motionIsReduced && joinedHere && groupTappedAt != failures)
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { groupPillWidth = $0 }
+            .animation(.easeInOut(duration: motionIsReduced ? 0.15 : RealLifeActions.flip), value: isMember)
+            .accessibilityLabel("\(isMember ? "Joined" : "Join") \(item.hostName)")
+            // Joined does nothing but squish, so VoiceOver doesn't offer it as a button.
+            .accessibilityRemoveTraits(isMember ? .isButton : [])
+            // Centred on the 32 pt host row, 10 pt before the dots.
+            .padding(.top, (Self.hostAvatarSide - Self.groupPillHeight) / 2)
+            .padding(.trailing, DailyFeedMetric.contentInset + (item.why == nil ? 0 : Self.menuDots + Self.groupPillGap))
         }
     }
 
