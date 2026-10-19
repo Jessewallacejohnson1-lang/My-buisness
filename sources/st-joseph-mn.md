@@ -769,12 +769,12 @@ status: active
 tier: listed
 added_by: agent:discover
 sources:
-  - url: https://stjoelegion.weebly.com
+  - url: https://johnkuebelbeckpost328.org/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted. Website moved 2026-10-19: https://stjoelegion.weebly.com no longer opens; https://johnkuebelbeckpost328.org/ is its site now (place-photos 07, Jesse's yes).
 
 ## Amy Hedtke State Farm
 ```yaml
@@ -1382,16 +1382,16 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56700, -94.322
 ## La Jam
 ```yaml
 id: jam-la
-status: active
+status: retired
 tier: listed
 added_by: agent:discover
 sources:
-  - url: http://laplayettebar.com/service/calendar/view_event/15996
+  - url: TODO
     kind: website
-    method: fetch
+    method: submission
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-10-19 on Jesse's yes: La Jam is a yearly party at La Playette (`la-playette`), an event, not a place (ADR-013). Its page (http://laplayettebar.com/service/calendar/view_event/15996) died with laplayettebar.com's old host (place-photos 07).
 
 ## Lee's Ace Hardware
 ```yaml
@@ -2148,12 +2148,12 @@ status: active
 tier: listed
 added_by: agent:discover
 sources:
-  - url: http://laplayettebar.com
+  - url: https://laplayette.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Not watched (2026-10-15): its site sends bots to a Cloudflare check, so a polite fetch never reaches the page. Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Not watched (2026-10-15): its site sends bots to a Cloudflare check, so a polite fetch never reaches the page. Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted. Website moved 2026-10-19: http://laplayettebar.com no longer opens; https://laplayette.com/ is its site now (place-photos 07, Jesse's yes).
 
 ## The Middy
 ```yaml
@@ -2363,12 +2363,12 @@ address: "24 N College Ave"
 phone: "+13202573992"
 added_by: agent:town-verify
 sources:
-  - url: https://www.svngcre.com/apartments/24-north-lofts
+  - url: https://gcremn.com/24-north-lofts/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.94). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.94). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website moved 2026-10-19: https://www.svngcre.com/apartments/24-north-lofts no longer opens; https://gcremn.com/24-north-lofts/ is its site now (place-photos 07, Jesse's yes).
 
 ## 2nd Avenue Cuts
 ```yaml
@@ -2757,17 +2757,17 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps li
 ## Artistic Stone & Concrete
 ```yaml
 id: artistic-stone-concrete
-status: active
-tier: watched
+status: retired
+tier: listed
 place_type: "Business"
 added_by: agent:town-verify
 sources:
-  - url: https://www.artisticstoneandconcrete.com/contact
+  - url: TODO
     kind: website
-    method: fetch
+    method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, http://www.artisticstoneandconcrete.com/contact/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, http://www.artisticstoneandconcrete.com/contact/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). Retired 2026-10-19 on Jesse's yes: the same place as `w-gohman-construction`: W. Gohman Construction bought it in 2013 and it shares Gohman's address (815 County Road 75). Its site (https://www.artisticstoneandconcrete.com/contact) was taken over by a gambling page (place-photos 07).
 
 ## Asphalt Surface Technologies Corp
 ```yaml
@@ -2833,12 +2833,12 @@ phone: "+13203631116"
 aka: ["Autobody 2000 Inc"]
 added_by: agent:town-verify
 sources:
-  - url: http://autobody2011161494-422835.hibustudio.com/
+  - url: https://ab2k.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5:30 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5:30 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website moved 2026-10-19: http://autobody2011161494-422835.hibustudio.com/ no longer opens; https://ab2k.com/ is its site now (place-photos 07, Jesse's yes).
 
 ## Auto Color & Industrial Supply
 ```yaml
@@ -2869,12 +2869,12 @@ address: "13266 Collegeville Road"
 phone: "(320) 363-7915"
 added_by: agent:town-verify
 sources:
-  - url: http://www.avonaglime.com
+  - url: TODO
     kind: website
-    method: fetch
+    method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from lakesnwoods.com. Verified 2026-10-02: MN SOS assumed name 'Avon Ag Lime' (Huls Bros Trucking) active, renewed 4/29/2026 at this address; old avonaglime.com domain no longer resolves.. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from lakesnwoods.com. Verified 2026-10-02: MN SOS assumed name 'Avon Ag Lime' (Huls Bros Trucking) active, renewed 4/29/2026 at this address; old avonaglime.com domain no longer resolves.. Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: http://www.avonaglime.com no longer exists (no DNS record). The place stays (place-photos 07, Jesse's yes).
 
 ## Baldwin Supply Company - St Cloud
 ```yaml
@@ -2911,19 +2911,19 @@ Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submi
 ## Barrett’s Music
 ```yaml
 id: barretts-music
-status: proposed
+status: retired
 tier: listed
 category: "books_music_and_video_store"
 place_type: "Business"
 address: "708 Elm St E"
 added_by: agent:town-verify
 sources:
-  - url: https://barrettsmusic.com
+  - url: TODO
     kind: website
-    method: fetch
+    method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.75). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.75). Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-10-19 on Jesse's yes: closed its storefront on 2022-11-02 (the owners' Facebook post, mirrored by globuya.com). Its site (https://barrettsmusic.com) has no address (place-photos 07).
 
 ## BDH Service & Performance Inc.
 ```yaml
@@ -3023,12 +3023,12 @@ address: "8551 County Road 75"
 phone: "(320) 363-8228"
 added_by: agent:town-verify
 sources:
-  - url: http://www.birchwoodstandard.com
+  - url: TODO
     kind: website
-    method: fetch
+    method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: http://www.birchwoodstandard.com no longer exists (no DNS record). The place stays (place-photos 07, Jesse's yes).
 
 ## Birdie’s Pizza & Garden Bar
 ```yaml
@@ -3060,12 +3060,12 @@ phone: "+13202004893"
 aka: ["B L GrafX LLC"]
 added_by: agent:town-verify
 sources:
-  - url: http://blgrafx.com/
+  - url: TODO
     kind: website
-    method: fetch
+    method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 7 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 7 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: http://blgrafx.com/ no longer exists (no DNS record). The place stays (place-photos 07, Jesse's yes).
 
 ## Bliss Direct Media
 ```yaml
@@ -3322,12 +3322,12 @@ phone: "+13203630200"
 aka: ["Aveda", "Cedar Street Salon & Spa"]
 added_by: agent:town-verify
 sources:
-  - url: https://www.aveda.com
+  - url: https://cedarstreetsalonandspa.squarespace.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Closed · Opens 9 AM Mon). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Closed · Opens 9 AM Mon). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website moved 2026-10-19: https://www.aveda.com no longer opens; https://cedarstreetsalonandspa.squarespace.com/ is its site now (the old link was aveda.com's homepage, not the salon's) (place-photos 07, Jesse's yes).
 
 ## Cedar Trails Apartments
 ```yaml
@@ -3376,12 +3376,12 @@ phone: "+13203631065"
 aka: ["Central Canvas Mfg Inc", "Central Canvas Mfg. Inc"]
 added_by: agent:town-verify
 sources:
-  - url: https://wearepoparts.com
+  - url: TODO
     kind: website
-    method: fetch
+    method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.65). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.65). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: https://wearepoparts.com has no address, and was never this company's site. The place stays (place-photos 07, Jesse's yes).
 
 ## Central Lakes Mutual Insurance Co
 ```yaml
@@ -3445,12 +3445,12 @@ address: "33078 County Rd Ste 2"
 phone: "3202529799"
 added_by: agent:town-verify
 sources:
-  - url: http://www.chem-dry.net/stcloud.mn
+  - url: https://chemdryofstcloud.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-02: Live website chemdryofstcloud.com, current hours and reviews on Yelp/Birdeye at the same address and phone.. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-02: Live website chemdryofstcloud.com, current hours and reviews on Yelp/Birdeye at the same address and phone.. Unreviewed — tier `listed`, so it publishes nothing until promoted. Website moved 2026-10-19: http://www.chem-dry.net/stcloud.mn no longer opens; https://chemdryofstcloud.com/ is its site now (place-photos 07, Jesse's yes).
 
 ## Chiropractic Connection, PC
 ```yaml
@@ -3662,12 +3662,12 @@ address: "710 Highway 75 E Ste 6, St Joseph Business Center"
 phone: "3202714247"
 added_by: agent:town-verify
 sources:
-  - url: http://costcutters.regiscorp.com/salondetail/default.asp?salonid=16700
+  - url: TODO
     kind: website
-    method: fetch
+    method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.85). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.85). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: http://costcutters.regiscorp.com/salondetail/default.asp?salonid=16700 has no address. The place stays (place-photos 07, Jesse's yes).
 
 ## Crafted Skin Clinic
 ```yaml
@@ -3954,12 +3954,12 @@ address: "601 County Road 75 W"
 phone: "(320) 363-8338"
 added_by: agent:town-verify
 sources:
-  - url: http://diamondenergysystems.com
+  - url: TODO
     kind: website
-    method: fetch
+    method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: http://diamondenergysystems.com has no address (Installed Building Products bought the company in May 2026). The place stays (place-photos 07, Jesse's yes).
 
 ## Diesel Knight Repairs
 ```yaml
@@ -4005,12 +4005,12 @@ address: "545 8th Ave NE"
 phone: "+17632503039"
 added_by: agent:town-verify
 sources:
-  - url: http://dktautoanddiesel.com/
+  - url: TODO
     kind: website
-    method: fetch
+    method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-02: DKT Auto & Diesel Repair LLC formed April 2025 and is active with MN Secretary of State; has an active Facebook page and truck-service listings (its website is currently down).. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-02: DKT Auto & Diesel Repair LLC formed April 2025 and is active with MN Secretary of State; has an active Facebook page and truck-service listings (its website is currently down).. Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: http://dktautoanddiesel.com/ no longer exists (no DNS record). The place stays (place-photos 07, Jesse's yes).
 
 ## Dovetail Design & Remodeling
 ```yaml
@@ -4212,12 +4212,12 @@ phone: "+13203634573"
 aka: ["Brian Koltes", "Jerry Wetterling DC", "St. Joseph Family Chiropractic"]
 added_by: agent:town-verify
 sources:
-  - url: http://www.jlwchiro.com
+  - url: https://www.exponentialchiropractic.com/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Closes soon · 1 PM · Opens 9 AM Sat). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Closes soon · 1 PM · Opens 9 AM Sat). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website moved 2026-10-19: http://www.jlwchiro.com no longer opens; https://www.exponentialchiropractic.com/ is its site now (place-photos 07, Jesse's yes).
 
 ## Fabral
 ```yaml
@@ -4248,12 +4248,12 @@ address: "31746 Collegeville Rd"
 phone: "+13203630135"
 added_by: agent:town-verify
 sources:
-  - url: http://fieldstonefarmmn.com/
+  - url: TODO
     kind: website
-    method: fetch
+    method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: http://fieldstonefarmmn.com/ no longer exists (no DNS record). The place stays (place-photos 07, Jesse's yes).
 
 ## Fifth Gear Repair
 ```yaml
@@ -4337,12 +4337,12 @@ address: "11843 Co Rd 51"
 phone: "+13202600441"
 added_by: agent:town-verify
 sources:
-  - url: http://flatentaxidermy.com
+  - url: TODO
     kind: website
-    method: fetch
+    method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.58). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.58). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: http://flatentaxidermy.com no longer exists (no DNS record). The place stays (place-photos 07, Jesse's yes).
 
 ## Forest Mushrooms
 ```yaml
@@ -4455,12 +4455,12 @@ address: "10448 345th St"
 phone: "+13203210006"
 added_by: agent:town-verify
 sources:
-  - url: https://www.aandgcornmaze.com/
+  - url: TODO
     kind: website
-    method: fetch
+    method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.96). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.96). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: https://www.aandgcornmaze.com/ no longer exists (no DNS record); aandgcornmaze.co is gone too. The place stays (place-photos 07, Jesse's yes).
 
 ## Donabauer Taxidermy
 ```yaml
@@ -5047,12 +5047,12 @@ phone: "3203630007"
 aka: ["KIA Insurance Inc", "Insurance Advisors"]
 added_by: agent:town-verify
 sources:
-  - url: http://www.divingrates.com/
+  - url: TODO
     kind: website
-    method: fetch
+    method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4:30 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4:30 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: http://www.divingrates.com/ no longer exists (no DNS record), and was never this agency's site. The place stays (place-photos 07, Jesse's yes).
 
 ## Interstate Bearing Systems
 ```yaml
@@ -5203,12 +5203,12 @@ address: "1055 College Ave S"
 phone: "+13202586000"
 added_by: agent:town-verify
 sources:
-  - url: https://inhproperties.com/property/joe-town-apartments/
+  - url: https://www.rentcafe.com/apartments/mn/st-joseph/joetown-apartment-homes/default.aspx
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website moved 2026-10-19: https://inhproperties.com/property/joe-town-apartments/ no longer opens; https://www.rentcafe.com/apartments/mn/st-joseph/joetown-apartment-homes/default.aspx is its site now (the RentCafe listing published by its manager, INH Property Management) (place-photos 07, Jesse's yes).
 
 ## John Mondloch Remodeling
 ```yaml
@@ -5220,12 +5220,12 @@ address: "8046 Sterling Dr"
 phone: "3202591244"
 added_by: agent:town-verify
 sources:
-  - url: http://mondlochremodeling.com/
+  - url: TODO
     kind: website
-    method: fetch
+    method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.85). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.85). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: http://mondlochremodeling.com/ answers 404 on every page. The place stays (place-photos 07, Jesse's yes).
 
 ## Jon Mueller Roofing
 ```yaml
@@ -5750,12 +5750,12 @@ address: "545 8th Ave NE"
 phone: "13203637761"
 added_by: agent:town-verify
 sources:
-  - url: http://www.metroplumbingmn.com
+  - url: TODO
     kind: website
-    method: fetch
+    method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: http://www.metroplumbingmn.com no longer exists (no DNS record); the bare domain is a parked GoDaddy page. The place stays (place-photos 07, Jesse's yes).
 
 ## Midwest Deer Trees Nursery and Orchard LLC
 ```yaml
@@ -5838,12 +5838,12 @@ address: "308 College Ave N"
 phone: "+13203637656"
 added_by: agent:town-verify
 sources:
-  - url: http://www.millstreamvillage.net/
+  - url: TODO
     kind: website
-    method: fetch
+    method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 3 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 3 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: http://www.millstreamvillage.net/ no longer exists (no DNS record); it may now be GC Real Estate's "308 Cottages" (unconfirmed). The place stays (place-photos 07, Jesse's yes).
 
 ## Millan Brothers Construction Inc.
 ```yaml
@@ -5982,12 +5982,12 @@ phone: "3204295634"
 aka: ["24 HOUR SEMI TRUCK TOWING", "MN HEAVY TRUCK REPAIR"]
 added_by: agent:town-verify
 sources:
-  - url: https://mn-heavy-towing-llc.business.site/
+  - url: TODO
     kind: website
-    method: fetch
+    method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open 24 hours). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open 24 hours). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: https://mn-heavy-towing-llc.business.site/ is gone: Google closed its business.site sites. The place stays (place-photos 07, Jesse's yes).
 
 ## Morningside Townhomes
 ```yaml
@@ -6327,12 +6327,12 @@ address: "14724 325th Street"
 phone: "(320) 293-9585"
 added_by: agent:town-verify
 sources:
-  - url: https://www.paulsellsmn.com
+  - url: TODO
     kind: website
-    method: fetch
+    method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.77). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.77). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: https://www.paulsellsmn.com no longer exists (no DNS record). The place stays (place-photos 07, Jesse's yes).
 
 ## Paul Kollmann Monuments, LLC
 ```yaml
@@ -6397,12 +6397,12 @@ address: "710 County Road 75 E"
 phone: "+13202711113"
 added_by: agent:town-verify
 sources:
-  - url: https://www.petrekcriminallaw.com
+  - url: TODO
     kind: website
-    method: fetch
+    method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open now). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open now). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: https://www.petrekcriminallaw.com no longer exists (no DNS record). The place stays (place-photos 07, Jesse's yes).
 
 ## Phillipp Construction
 ```yaml
@@ -6720,7 +6720,7 @@ Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Goo
 ## Riff City Guitar & Music Company
 ```yaml
 id: riff-city-guitar-music
-status: proposed
+status: retired
 tier: listed
 category: "musical_instrument_and_pro_audio_store"
 place_type: "Business"
@@ -6728,12 +6728,12 @@ address: "708 Elm St E"
 phone: "18772607301"
 added_by: agent:town-verify
 sources:
-  - url: https://www.riffcityguitaroutlet.com
+  - url: TODO
     kind: website
-    method: fetch
+    method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-10-19 on Jesse's yes: closed in 2019 (WJON, 2019-10-22; Barrett's Music opened in its building). Its site (https://www.riffcityguitaroutlet.com) showed ads on a broken certificate (place-photos 07).
 
 ## Rivers Bend Cottage Homes
 ```yaml
@@ -6905,12 +6905,12 @@ phone: "3203637350"
 aka: ["Ross Nesbit Agencies St. Joseph"]
 added_by: agent:town-verify
 sources:
-  - url: http://www.rossnesbitagenciesstjoseph.com/
+  - url: https://nesbitagencies.com/contact/st-joseph-mn-insurance/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website moved 2026-10-19: http://www.rossnesbitagenciesstjoseph.com/ no longer opens; https://nesbitagencies.com/contact/st-joseph-mn-insurance/ is its site now (found by search; not opened from the Mac, whose network filter blocked it that day) (place-photos 07, Jesse's yes).
 
 ## Rothstein Christmas Tree Farm
 ```yaml
@@ -6959,12 +6959,12 @@ address: "15 E Minnesota St  Ste 107"
 phone: "13204334326"
 added_by: agent:town-verify
 sources:
-  - url: https://www.russelleyecaremn.com
+  - url: TODO
     kind: website
-    method: fetch
+    method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: https://www.russelleyecaremn.com no longer exists (no DNS record). The place stays (place-photos 07, Jesse's yes).
 
 ## Rustic River Gear
 ```yaml
@@ -6995,12 +6995,12 @@ address: "219 Cedar St E"
 phone: "+13205570090"
 added_by: agent:town-verify
 sources:
-  - url: https://samsoutdoorsllc.com/
+  - url: TODO
     kind: website
-    method: fetch
+    method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: https://samsoutdoorsllc.com/ answers 404 on every page. The place stays (place-photos 07, Jesse's yes).
 
 ## Scenic Specialties Landscape Professionals
 ```yaml
@@ -7347,12 +7347,12 @@ phone: "+13203634908"
 aka: ["St. Joseph Cold Spring Vet"]
 added_by: agent:town-verify
 sources:
-  - url: http://saintjosephequineclinic.com/
+  - url: https://www.cssjpvets.com/st-joseph-equine-clinic/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website moved 2026-10-19: http://saintjosephequineclinic.com/ no longer opens; https://www.cssjpvets.com/st-joseph-equine-clinic/ is its site now (found by search; not opened from the Mac, whose network filter blocked it that day) (place-photos 07, Jesse's yes).
 
 ## St Joseph Laundromat
 ```yaml
@@ -7861,12 +7861,12 @@ place_type: "Business"
 address: "14 College Ave N Ste B"
 added_by: agent:town-verify
 sources:
-  - url: https://victory-nutrition.business.site/
+  - url: TODO
     kind: website
-    method: fetch
+    method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.85). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.85). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: https://victory-nutrition.business.site/ is gone: Google closed its business.site sites. The place stays (place-photos 07, Jesse's yes).
 
 ## Viking Log Furniture
 ```yaml
@@ -7920,6 +7920,7 @@ Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is
 ## W Gohman Construction Co
 ```yaml
 id: w-gohman-construction
+aka: ["Artistic Stone & Concrete"]
 status: active
 tier: watched
 category: "home_service"
@@ -8267,12 +8268,12 @@ phone: "+13203632569"
 aka: ["St. John the Baptist Church"]
 added_by: agent:town-verify
 sources:
-  - url: https://stjohnthebaptistparish.org/
+  - url: https://www.benedictinecatholiccommunities.org/saint-john-the-baptist
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website moved 2026-10-19: https://stjohnthebaptistparish.org/ no longer opens; https://www.benedictinecatholiccommunities.org/saint-john-the-baptist is its site now (found by search; not opened from the Mac, whose network filter blocked it that day; the old domain's name servers stopped answering by 2026-10-16) (place-photos 07, Jesse's yes).
 
 ## Greater Minnesota Mentoring Academy
 ```yaml
@@ -8459,12 +8460,12 @@ phone: "+13202517942"
 aka: ["Saint Joseph Deers Office"]
 added_by: agent:town-verify
 sources:
-  - url: https://rapids-appointments-scheduler.dmdc.osd.mil
+  - url: TODO
     kind: website
-    method: fetch
+    method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Opens soon · 1 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Opens soon · 1 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: https://rapids-appointments-scheduler.dmdc.osd.mil no longer exists (no DNS record), and was a DoD ID-card appointment scheduler, never this place's site. The place stays (place-photos 07, Jesse's yes).
 
 ## City of St. Joseph Archery Range
 ```yaml
@@ -8556,12 +8557,12 @@ address: "104 Chapel Ln"
 phone: "+13203637098"
 added_by: agent:town-verify
 sources:
-  - url: http://www.cityseekr.com/st-joseph/museums-galleries/poi-haehn-museum-934496.html
+  - url: TODO
     kind: website
-    method: fetch
+    method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.95). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.95). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: http://www.cityseekr.com/st-joseph/museums-galleries/poi-haehn-museum-934496.html was a cityseekr.com directory page, never the museum's own, and is now filtered as a gambling site. The place stays (place-photos 07, Jesse's yes).
 
 ## St. Joseph Blockhouse
 ```yaml
