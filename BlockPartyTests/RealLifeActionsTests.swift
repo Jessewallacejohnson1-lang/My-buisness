@@ -993,6 +993,18 @@ final class RSVPWordsTests: XCTestCase {
         }
     }
 
+    /// After a tap on Attend the pill keeps Attend, its calendar checked, until the check's hold
+    /// ends, then shows Invite (attend-pill, 2026-10-19). Canceled never turns into Attend.
+    func testThePillHoldsAttendWhileTheCheckShows() {
+        let going = RSVPWords.make(isGoing: true, count: 42, friends: [], cancelled: false)
+        XCTAssertEqual(going.shownPill(checking: true), .rsvp, "the check shows on Attend")
+        XCTAssertEqual(going.shownPill(checking: false), .invite, "then Invite")
+        let notGoing = RSVPWords.make(isGoing: false, count: 41, friends: [], cancelled: false)
+        XCTAssertEqual(notGoing.shownPill(checking: false), .rsvp)
+        let calledOff = RSVPWords.make(isGoing: true, count: 42, friends: [], cancelled: true)
+        XCTAssertEqual(calledOff.shownPill(checking: true), .canceled)
+    }
+
     /// The pill's colours are tokens, exactly the Figma page's (Meetup's pills, measured at 3x).
     func testThePillIsMeetupsCharcoal() {
         XCTAssertEqual(Hue.pillTop.hexString, "#3A3A3C")

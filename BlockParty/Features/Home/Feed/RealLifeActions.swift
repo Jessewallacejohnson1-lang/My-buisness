@@ -46,6 +46,10 @@ final class RealLifeActions {
     /// on the card and in the Event page's bar. A heart turns back as fast.
     static let flip: TimeInterval = 0.18
 
+    /// How long Attend shows its calendar's check after the tap before the pill turns into
+    /// Invite (Jesse at attend-pill's Check-in 1, 2026-10-19: long enough to see the check).
+    static let checkHold: Duration = .milliseconds(750)
+
     /// May act: has an account, or writes go nowhere and need none (`Backend`).
     private(set) var canAct: Bool
 
