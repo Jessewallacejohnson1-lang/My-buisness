@@ -38,7 +38,14 @@ await db.exec(`
   -- The admin, for the score breakdown: on when a story sets test.admin.
   create function public.is_admin() returns boolean language sql stable as
     $$ select coalesce(current_setting('test.admin', true), '') = 'on' $$;
-  create table public.clubs (id uuid primary key default gen_random_uuid(), name text not null);
+  create table public.clubs (id uuid primary key default gen_random_uuid(), name text not null,
+    status text not null default 'approved', entry_id text, place_entry_id text,
+    created_at timestamptz not null default now());
+  create table public.club_members (id uuid primary key default gen_random_uuid(), club_id uuid not null,
+    user_id uuid not null, created_at timestamptz not null default now(), unique (club_id, user_id));
+  -- The source registry's pages (watch-every-place 02): no read rule for neighbours, as live.
+  create table public.sources (id uuid primary key default gen_random_uuid(), entry_id text not null,
+    url text, name text);
   create table public.club_events (
     id uuid primary key default gen_random_uuid(), club_id uuid, submitted_by uuid,
     status text not null default 'approved', title text not null, event_date date,
@@ -82,6 +89,9 @@ await db.exec(`
   alter table public.event_saves enable row level security;
   alter table public.event_likes enable row level security;
   alter table public.town_profiles enable row level security;
+  alter table public.club_members enable row level security;
+  alter table public.sources enable row level security;
+  create policy "read memberships" on public.club_members for select to authenticated using (true);
   create policy "read events" on public.club_events for select to public
     using (status = 'approved' or submitted_by = auth.uid() or is_admin());
   create policy "read rsvps" on public.event_rsvps for select to authenticated using (true);
@@ -110,7 +120,8 @@ async function reset() {
                  delete from public.event_rsvps; delete from public.club_events;
                  delete from public.event_saves; delete from public.event_likes;
                  delete from public.town_profiles; delete from private.friendships;
-                 delete from private.blocks;
+                 delete from private.blocks; delete from public.club_members;
+                 delete from public.clubs; delete from public.sources;
                  reset request.jwt.claim.sub; reset test.admin;`);
 }
 
@@ -972,4 +983,51 @@ test("each event carries its place's picture: a photo before a logo, else the pl
   assert.deepEqual(rows.map((r) => [r.title, r.place_picture?.url ?? null]),
                    [['Trivia', 'https://x/food.webp'], ['Walk', null]], 'signed out too');
   await db.exec('delete from public.place_photos; delete from public.places;');
+});
+
+test("a group's Event names the group and whether you're in it; found ones by its site or its name at its place", async () => {
+  await reset();
+  const GROUP = '00000000-0000-0000-0000-0000000000c1', QUILTS = '00000000-0000-0000-0000-0000000000c2';
+  const PENDING = '00000000-0000-0000-0000-0000000000c3';
+  await db.query(`insert into public.clubs (id, name, status, place_entry_id) values
+      ($1, 'Rod and Gun Club', 'approved', 'legion'), ($2, 'Stitch and Sip', 'approved', 'cidery'),
+      ($3, 'Book Club', 'pending', 'cidery')`, [GROUP, QUILTS, PENDING]);
+  // The live migration's own line gives the Rod and Gun Club its website.
+  await db.exec(`update public.clubs set entry_id = 'group-st-joe-rod-and-gun-club' where id = '${GROUP}'`);
+  await db.exec(readFileSync(join(migrations, '20261019170000_group_join_on_cards.sql'), 'utf8')
+    .match(/update public\.clubs set own_entry_id[^;]*;/)[0]);
+  await db.query(`insert into public.sources (entry_id, url, name) values
+      ('st-joe-rod-gun-club', 'https://stjoerodandgunclub.org/events/?ical=1', 'St Joe Rod and Gun Club'),
+      ('cidery', 'https://cidery.example/events', 'Milk & Honey Ciders')`);
+  const at = (title, more) => add(title, '2026-10-09', { start_time: '6 PM', ...more });
+  await at('Monthly Meeting', { source_name: 'St Joe Rod and Gun Club' });
+  const stitch = await at('Stitch and Sip', { source_name: 'Milk & Honey Ciders' });
+  const bingo = await at('Plant Bingo', { source_name: 'Milk & Honey Ciders' });
+  const posted = await at('Stitch and Sip', { source_name: null, submitted_by: ME });
+  const reading = await at('Book Club', { source_name: 'Milk & Honey Ciders' });
+  await db.query(`update public.club_events set place_entry_id = 'cidery' where id = any($1)`,
+                 [[stitch, bingo, posted, reading]]);
+  const posting = await at('Lions pancake breakfast', { source_name: null, submitted_by: ME });
+  await db.query('update public.club_events set club_id = $1 where id = $2', [GROUP, posting]);
+
+  const groups = async () => (await db.query(`select title, club_name, source_name, club_id, in_club
+    from public.get_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago'))
+    order by title, source_name nulls first`)).rows.map((r) => [r.title.trim(), r.club_name, r.club_id, r.in_club]);
+  await db.exec('set role anon');
+  assert.deepEqual(await groups(), [
+    ['Book Club', null, null, false],                 // a pending group is nobody's host
+    ['Lions pancake breakfast', 'Rod and Gun Club', GROUP, false],  // posted by the group
+    ['Monthly Meeting', 'Rod and Gun Club', GROUP, false],          // from the group's own site
+    ['Plant Bingo', null, null, false],               // the place's own Event
+    ['Stitch and Sip', null, null, false],            // a neighbour's posting with the name
+    ['Stitch and Sip', 'Stitch and Sip', QUILTS, false],            // its name at its place
+  ], 'signed out');
+
+  await signIn(ME);
+  await db.exec('reset role');
+  await db.query('insert into public.club_members (club_id, user_id) values ($1, $2)', [GROUP, ME]);
+  await db.exec('set role authenticated');
+  const mine = await groups();
+  assert.deepEqual(mine.filter((r) => r[2] === GROUP).map((r) => r[3]), [true, true], "you're in it");
+  assert.deepEqual(mine.filter((r) => r[2] === QUILTS).map((r) => r[3]), [false]);
 });
