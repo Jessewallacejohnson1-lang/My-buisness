@@ -37,11 +37,10 @@ A **single** test or class: append `-only-testing:BlockPartyTests/DateHelpersTes
   bp-build builds through its `xc.sh`, which takes it for it, in its one build folder
   `~/Documents/bp-build`. The XcodeBuildMCP build and test tools can't take the lock: don't
   use them while `pgrep -x xcodebuild` shows a build running.
-- **A new test file does not run until it is registered.** `[test]` The test targets
-  carry an explicit source list; a file under `BlockPartyTests/` or `BlockPartyUITests/`
-  is invisible to `xcodebuild test` until 4 `project.pbxproj` entries exist.
-  `TestRegistrationGuardTests` fails the suite in both directions. Register with the
-  `xcodeproj` gem or the Xcode GUI, never by hand, then confirm the executed count rose.
+- **A new test file joins its target by itself.** `[prose]` `BlockPartyTests/` and
+  `BlockPartyUITests/` are file-system-synchronized folders, like `BlockParty/` (2026-10-19):
+  a Swift file saved there compiles into its target with no `project.pbxproj` edit. Still
+  confirm the executed count rose.
 
 Raw shell tooling (a session with XcodeBuildMCP should prefer it — see `CLAUDE.md`):
 

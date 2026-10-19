@@ -609,11 +609,6 @@ final class YourDayLogicTests: XCTestCase {
 
 /// The Your Day RAIL's pure layer — copy, spoken text, the category colour map and
 /// the two numbers the 116pt ceiling depends on.
-///
-/// Deliberately appended to this already-registered file rather than added as a new
-/// one: the test target uses an EXPLICIT source list, so a new file is invisible to
-/// `xcodebuild test` until `project.pbxproj` is edited — and `project.pbxproj` is the
-/// likeliest file in the repo to collide with a parallel agent's work.
 final class YourDayRailSpecTests: XCTestCase {
 
     // MARK: - The count in the section header
