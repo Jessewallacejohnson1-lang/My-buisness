@@ -320,30 +320,28 @@ struct FeedEventCard: View {
         // INSIDE the clip — the picture's own edge is what takes the heart away.
         .feedCardLikeBurst(likeBurst, reduceMotion: motionIsReduced)
         .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
-        .overlay(alignment: .topLeading) {
-            if let when = item.whenLine {
-                PhotoChip(text: when.text, spoken: when.spoken)
-                    .padding(PhotoChip.inset)
+        // Along the top: the day and time on the left, the photo's credit on the right, so
+        // the title has the photo's whole width below (picked 2026-10-19: under the narrower
+        // inset card, a credit beside the title cut "Plant Bingo for Angel Reins" short).
+        .overlay(alignment: .top) {
+            HStack(alignment: .center, spacing: 8) {
+                if let when = item.whenLine {
+                    PhotoChip(text: when.text, spoken: when.spoken)
+                        .layoutPriority(1)
+                }
+                Spacer(minLength: 0)
+                PhotoCredit(names: creditNames)
             }
+            .padding(PhotoChip.inset)
         }
         .overlay(alignment: .bottom) {
-            // Copy and the ToS credit share ONE bottom-aligned row, so the copy's
-            // available width is derived from the credit's measured width instead of a
-            // hard-coded inset. They used to be two independent bottom overlays whose
-            // fixed insets guaranteed they overlapped ("Karry Rood" landing on the meta
-            // line).
-            HStack(alignment: .bottom, spacing: 8) {
+            HStack(alignment: .bottom, spacing: 0) {
                 imageCopy
-                if creditNames.isEmpty {
-                    // Without this the HStack shrinks to its content and the overlay
-                    // CENTRES it — a short headline ("Farmers Market") floated to the
-                    // middle of the photograph. The copy is ranged left off the
-                    // picture's bottom-left corner, always.
-                    Spacer(minLength: 0)
-                } else {
-                    Spacer(minLength: 8)
-                    PhotoCredit(names: creditNames)
-                }
+                // Without this the HStack shrinks to its content and the overlay CENTRES
+                // it — a short headline ("Farmers Market") floated to the middle of the
+                // photograph. The copy is ranged left off the picture's bottom-left
+                // corner, always.
+                Spacer(minLength: 0)
             }
             .padding(16)
         }
