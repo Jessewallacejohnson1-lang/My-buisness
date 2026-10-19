@@ -314,17 +314,6 @@ struct MainTabsView: View {
         #endif
     }
 
-    /// DEBUG-only: the word after a flag (`-open-event e2`); nil without it, and in release.
-    private static func debugValue(_ flag: String) -> String? {
-        #if DEBUG
-        let args = ProcessInfo.processInfo.arguments
-        guard let i = args.firstIndex(of: flag), i + 1 < args.count else { return nil }
-        return args[i + 1]
-        #else
-        return nil
-        #endif
-    }
-
     @State private var expandedPlace: Place?
     /// Search's places and recents, kept across tab switches so the tab doesn't fetch
     /// the Town's places again each time it comes back. Its groups reads tell `actions`.
@@ -520,7 +509,10 @@ struct MainTabsView: View {
             }
             // `-open-event <id>` pushes that Event's page once the Town feed has it (e1 to e7
             // under `-town-samples`, or a live id), so a photo check needn't scroll for it.
-            if let id = Self.debugValue("-open-event") {
+            #if DEBUG
+            let args = ProcessInfo.processInfo.arguments
+            if let i = args.firstIndex(of: "-open-event"), i + 1 < args.count {
+                let id = args[i + 1]
                 Task {
                     for _ in 0..<120 {
                         if let card = townFeed.entries?.first(where: { $0.card.id == id })?.card {
@@ -531,6 +523,7 @@ struct MainTabsView: View {
                     }
                 }
             }
+            #endif
         }
     }
 

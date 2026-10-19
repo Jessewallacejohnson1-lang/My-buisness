@@ -100,7 +100,7 @@ have matched any row.
 | write an animation, async code, a scroll view, a date calculation, or a helper the compiler might isolate | `docs/rules/swift-traps.md` |
 | commit, branch, push, or open a worktree | `docs/rules/git-worktrees.md` |
 | work on the map, its pins, or its realtime feed | `docs/rules/map.md` |
-| need a bundle id, a key, a project id, or a config file | `docs/rules/identifiers.md` |
+| need a bundle id, a key, a project id, a config file, or which Xcode and iOS the app builds for | `docs/rules/identifiers.md` |
 
 Read your row **before** you act, not after. Each file is complete on its own and none is
 optional once its row matches.

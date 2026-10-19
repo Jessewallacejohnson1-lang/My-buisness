@@ -52,8 +52,10 @@ Copy it from a checkout that has it: `ditto ~/Documents/bp-build/BlockParty/Conf
   XcodeBuildMCP build so the tool compiles the checkout you actually edited.
 - **`feat/upcoming-personal-insights` predates the Hygge→BlockParty folder rename.**
   `[prose]` It still exists on origin and needs a re-port, not a blind merge.
-- **A merge-conflict convention**, settled in the 2026-08-19 integration pass: `[prose]`
-  brand-asset PNG conflicts resolve to the Aug-12 lowercase "bp" render.
+- **Two merge-conflict conventions**: `[prose]` brand-asset PNG conflicts resolve to the Aug-12
+  lowercase "bp" render (the 2026-08-19 integration pass); and a branch from before 2026-10-19
+  that registered a test file in `project.pbxproj` takes main's side of that conflict, since the
+  test folders now add their files by themselves.
 
 Every `[hook]` guard above (and `sim-guard.sh`, `token-guard.sh` in the other leaves) honours
 `BP_GUARD_OFF=1` as an escape hatch — set it and say why when a guard is genuinely wrong for
