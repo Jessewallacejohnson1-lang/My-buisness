@@ -16,6 +16,10 @@
 //  If this test fails, do NOT add your file to the allowlist. Use a `Font` helper
 //  from `BlockPartyFont.swift`.
 //
+//  The same scan keeps hard-coded colours in the colour token layer
+//  (`testNoColourLiterals`): the token-guard hook refuses them only in edits made with
+//  Edit or Write, so a colour written any other way had no backstop.
+//
 
 import SwiftUI
 import XCTest
@@ -30,6 +34,36 @@ final class TypographyScalingGuardTests: XCTestCase {
     private static let allowlist: Set<String> = [
         "Theme/BlockPartyFont.swift",
     ]
+
+    /// The only files permitted a raw colour, and why (`docs/rules/design.md`, "Raw colour is
+    /// centralized by role"):
+    ///
+    /// - `BlockPartyColor.swift` is the colour token layer, where `Hue.*` is defined.
+    /// - `BasemapPalette.swift` is the map's own palette, hex strings for the Mapbox style.
+    /// - `POILogoCache.swift` draws the fallback art for a place with no logo.
+    private static let colourAllowlist: Set<String> = [
+        "Theme/BlockPartyColor.swift",
+        "Features/Map/BasemapPalette.swift",
+        "Features/Map/POILogoCache.swift",
+    ]
+
+    /// The same patterns `.claude/hooks/token-guard.sh` refuses.
+    private static var colourLiteral: Regex<Substring> { #/Color\(\s*\.sRGB\s*,|Color\(\s*red\s*:|Color\(\s*hue\s*:|UIColor\(\s*white\s*:|#[0-9A-Fa-f]{6}"|#colorLiteral\(/# }
+
+    /// A colour written at a call site, outside the token layer and the palettes above.
+    func testNoColourLiterals() throws {
+        let offenders = try scanSources(allowlist: Self.colourAllowlist) { line in
+            line.contains(Self.colourLiteral)
+        }
+        XCTAssertTrue(
+            offenders.isEmpty,
+            """
+            Hard-coded colours found. Colour comes from Hue.* in BlockParty/Theme/BlockPartyColor.swift; \
+            add a token there if it is genuinely new:
+            \(offenders.joined(separator: "\n"))
+            """
+        )
+    }
 
     /// `.system(size:` — a frozen system font. Never scales. Always wrong outside
     /// the token layer.
@@ -74,7 +108,8 @@ final class TypographyScalingGuardTests: XCTestCase {
     /// Walks the app sources and returns `path:line: text` for every line the
     /// predicate rejects, skipping the allowlist and skipping comments (the file
     /// headers in this codebase discuss these APIs at length by design).
-    private func scanSources(matching isOffending: (String) -> Bool) throws -> [String] {
+    private func scanSources(allowlist: Set<String> = TypographyScalingGuardTests.allowlist,
+                             matching isOffending: (String) -> Bool) throws -> [String] {
         let sources = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()      // BlockPartyTests
             .deletingLastPathComponent()      // repo root
@@ -90,7 +125,7 @@ final class TypographyScalingGuardTests: XCTestCase {
         var offenders: [String] = []
         for case let url as URL in walker where url.pathExtension == "swift" {
             let relative = url.path.replacingOccurrences(of: sources.path + "/", with: "")
-            if Self.allowlist.contains(relative) { continue }
+            if allowlist.contains(relative) { continue }
 
             let text = try String(contentsOf: url, encoding: .utf8)
             for (index, line) in text.components(separatedBy: .newlines).enumerated() {
