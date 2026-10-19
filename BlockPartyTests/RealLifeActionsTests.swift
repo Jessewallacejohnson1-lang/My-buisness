@@ -74,8 +74,9 @@ final class RealLifeActionsTests: XCTestCase {
     }
 
     private func actions(_ server: Server, signedIn: Bool = true, keep: UserDefaults? = nil,
+                         flip: Duration = RealLifeActionsTests.flip,
                          owner: @escaping () -> String? = { nil }) -> RealLifeActions {
-        RealLifeActions(signedIn: signedIn, needsAccount: true, hold: Self.hold, flip: Self.flip,
+        RealLifeActions(signedIn: signedIn, needsAccount: true, hold: Self.hold, flip: flip,
                         retry: Self.retry, keep: keep, owner: owner,
                         setGoing: server.write, setHeart: server.heart, setSave: server.save,
                         setMember: server.member, knownEvents: server.knownEvents)
@@ -115,10 +116,13 @@ final class RealLifeActionsTests: XCTestCase {
 
     /// A failed Join holds "Going" for the hold, turns back, and counts one failure only
     /// once the flip is done, so the page never shakes the two faces mid cross-fade.
+    /// The flip is a second long here: on a loaded Mac the 5 ms poll overslept the 90 ms
+    /// one and saw the shake already counted (BP app backlog 03).
     func testAFailedJoinHoldsThenTurnsBackThenCountsOneFailure() async throws {
         let server = Server()
         server.failing = true
-        let actions = actions(server)
+        let flip = Duration.seconds(1)
+        let actions = actions(server, flip: flip)
         let item = card()
         actions.pageOpened(item.id)
 
@@ -129,9 +133,8 @@ final class RealLifeActionsTests: XCTestCase {
         XCTAssertEqual(actions.going(item), .init(isGoing: false, count: 4), "back to Join, count and all")
         XCTAssertEqual(actions.failureCount(item.id), 0, "Join first: no shake while it turns back")
 
-        let flipped = ContinuousClock.now
         try await waitWhile(actions.failureCount(item.id) == 0)
-        XCTAssertGreaterThanOrEqual(ContinuousClock.now - flipped, Self.flip - .milliseconds(5))
+        XCTAssertGreaterThanOrEqual(ContinuousClock.now - tapped, Self.hold + flip, "shook before the flip was done")
         XCTAssertEqual(actions.failureCount(item.id), 1, "one turn back, one shake")
     }
 
