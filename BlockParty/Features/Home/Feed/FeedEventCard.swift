@@ -330,9 +330,15 @@ struct FeedEventCard: View {
                         .layoutPriority(1)
                 }
                 Spacer(minLength: 0)
+                // Without its own edge inset, so it sits as far in as the chip and, shorter
+                // than the chip, never moves the row when the photo lands and it appears.
                 PhotoCredit(names: creditNames)
+                    .padding(-PhotoCredit.edgeInset)
             }
+            .frame(minHeight: PhotoChip.height)
             .padding(PhotoChip.inset)
+            // VoiceOver reads the title first, then when.
+            .accessibilitySortPriority(-1)
         }
         .overlay(alignment: .bottom) {
             HStack(alignment: .bottom, spacing: 0) {
@@ -362,7 +368,7 @@ struct FeedEventCard: View {
                              onReady: { withAnimation(motionIsReduced ? nil : Motion.smooth) { shownPhoto = url } },
                              onFailure: { failedPhoto = url })
         } else if let logo = displayImage.logo {
-            FeedCardPlaceLogo(logo: logo, bottomClear: copyHeight + 16)
+            FeedCardPlaceLogo(logo: logo, topClear: PhotoChip.inset + PhotoChip.height, bottomClear: copyHeight + 16)
         } else {
             Rectangle().fill(Hue.ink)
         }
@@ -391,20 +397,17 @@ struct FeedEventCard: View {
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
 
-            // The day and time left these lines for the chip (2026-10-19).
-            VStack(alignment: .leading, spacing: 2) {
-                if !metaSummary.isEmpty {
-                    Text(metaSummary)
-                        .font(.sans(13))
-                        .foregroundStyle(onLogo ? Hue.inkSecondary : .white.opacity(0.85))
-                        // Unbounded at accessibility sizes, not two lines: measured
-                        // 2026-09-22, "7pm · Millstream Park" still clipped at two, and
-                        // it was the LAST finding left on Town at both AX3 and AX5. A
-                        // meta line that runs to three lines covers a little more of the
-                        // photograph; a clipped one loses the place.
-                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+            if !metaSummary.isEmpty {
+                Text(metaSummary)
+                    .font(.sans(13))
+                    .foregroundStyle(onLogo ? Hue.inkSecondary : .white.opacity(0.85))
+                    // Unbounded at accessibility sizes, not two lines: measured
+                    // 2026-09-22, "7pm · Millstream Park" still clipped at two, and
+                    // it was the LAST finding left on Town at both AX3 and AX5. A
+                    // meta line that runs to three lines covers a little more of the
+                    // photograph; a clipped one loses the place.
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         // None on ink words over a logo's light backdrop.

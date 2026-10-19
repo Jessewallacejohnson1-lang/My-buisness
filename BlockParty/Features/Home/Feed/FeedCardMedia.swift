@@ -291,6 +291,8 @@ struct FeedCardPlaceLogo: View {
     var topShare: CGFloat = 0.06
     /// Share of the frame's height the logo is tall at most.
     var sideShare: CGFloat = 0.5
+    /// How much of the frame's top a chip over it takes, kept clear.
+    var topClear: CGFloat = 0
     /// How much of the frame's bottom the words over it take, kept clear.
     var bottomClear: CGFloat = 0
 
@@ -300,7 +302,7 @@ struct FeedCardPlaceLogo: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let top = proxy.size.height * topShare
+            let top = max(proxy.size.height * topShare, topClear)
             let room = proxy.size.height - top - bottomClear - Self.gap
             let side = min(proxy.size.height * sideShare, proxy.size.width * 0.4, room)
             ZStack(alignment: .top) {

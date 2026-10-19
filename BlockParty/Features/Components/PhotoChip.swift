@@ -15,14 +15,17 @@ struct PhotoChip: View {
 
     /// From the photo's top left corner.
     static let inset: CGFloat = 10
-    private static let height: CGFloat = 30
+    static let height: CGFloat = 30
     private static let padding: CGFloat = 15
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         Text(text)
             .font(.sansMedium(14))
             .foregroundStyle(Hue.ink)
-            .lineLimit(1)
+            // A second line at accessibility sizes: the day and time are never cut.
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
             .padding(.horizontal, Self.padding)
             .frame(minHeight: Self.height)
             .background(Capsule().fill(Hue.surface))
