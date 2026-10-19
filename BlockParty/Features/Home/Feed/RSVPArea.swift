@@ -144,8 +144,9 @@ struct RSVPArea: View {
             } else {
                 let failures = actions.failureCount(item.id)
                 Button {
-                    // A tap while the check shows does nothing: Invite isn't up yet.
-                    if checking { return }
+                    // A tap while the check shows cuts it short: Invite comes up now (taste.md,
+                    // everything can be interrupted), without opening the invite card yet.
+                    if checking { checking = false; return }
                     if pill == .invite { onInvite?() } else { attend() }
                 } label: { pillFace(pill) }
                     .buttonStyle(MeetupPillStyle(height: size.pillHeight, minWidth: size.pillMinWidth))
