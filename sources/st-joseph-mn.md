@@ -201,7 +201,7 @@ worked around (ADR-001). The calendar mixes Kennedy and District 742 events.
 ```yaml
 id: csb
 aka: ["CSB"]
-venues: ["Claire Lynch Hall", "Gorecki Center", "Gorecki Dining and Conference Center", "Haehn Campus Center", "Clemens Fieldhouse", "CSB Stadium", "CSB Mall"]
+venues: ["Claire Lynch Hall", "Gorecki Center", "Gorecki Dining and Conference Center", "Haehn Campus Center", "Clemens Fieldhouse", "CSB Stadium", "CSB Mall", "Gorecki 204"]
 status: active
 tier: watched
 category: college
@@ -275,7 +275,7 @@ aka: ["SJU", "Saint John's Campus", "Saint John's School of Theology"]
 venues: ["Sexton Arena", "Clemens Stadium", "Warner Palaestra", "Warner Palaestra Pool", "Great Hall",
   "Alcuin Library", "Learning Commons", "Alcuin Learning Commons", "Saint John's Abbey Arboretum",
   "Outdoor U", "Haws Field", "Stephen B. Humphrey Theater", "New Science Center", "Alice R. Rogers and Target Gallery",
-  "Alice R. Rogers and Target Galleries"]
+  "Alice R. Rogers and Target Galleries", "SBH Auditorium", "Stephen B. Humphrey Auditorium", "Radio Towers"]
 sources:
   - url: https://www.csbsju.edu/
     kind: website
@@ -1868,6 +1868,7 @@ status: active
 tier: watched
 category: amenity=post_office
 added_by: agent:discover
+aka: ["United States Postal Service"]
 sources:
   - url: https://tools.usps.com/locations/details/1380378
     kind: website
@@ -7806,7 +7807,7 @@ category: "complementary_and_alternative_medicine"
 place_type: "Business"
 address: "19 Ash St E"
 phone: "+13203044873"
-aka: ["Unwind: Craniosacral, Myofascial, Lactation Clinic"]
+aka: ["Unwind: Craniosacral, Myofascial, Lactation Clinic", "Unwind: Collaborative Healing Center"]
 added_by: agent:town-verify
 sources:
   - url: TODO
@@ -8243,7 +8244,7 @@ status: active
 tier: watched
 category: "christian_place_of_worship"
 place_type: "Church"
-address: "610 Stearns 2 County"
+address: "610 County Road 2"
 phone: "+13203634232"
 added_by: agent:town-verify
 sources:
@@ -8652,3 +8653,157 @@ sources:
     trust: official
 ```
 Notes: Proposed on 2026-10-17 from overture. Verified 2026-10-17: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+
+## Hollow Park
+```yaml
+id: hollow-park
+status: proposed
+tier: listed
+category: "leisure=park"
+place_type: "Park / historic"
+address: "207 5th Ave NW"
+added_by: agent:place-photos
+sources:
+  - url: https://www.stjosephmn.gov/Facilities/Facility/Details/3
+    kind: website
+    method: fetch
+    trust: official
+```
+Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every event place). Search's city park (CityParks id hollow-park); its photo is saved under this id. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+
+## Monument Park
+```yaml
+id: monument-park
+status: proposed
+tier: listed
+category: "leisure=park"
+place_type: "Park / historic"
+address: "202 Birch St W"
+added_by: agent:place-photos
+sources:
+  - url: https://www.stjosephmn.gov/Facilities/Facility/Details/7
+    kind: website
+    method: fetch
+    trust: official
+```
+Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every event place). Search's city park (CityParks id monument-park); its photo is saved under this id. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+
+## Episcopal House of Prayer
+```yaml
+id: episcopal-house-of-prayer
+status: proposed
+tier: listed
+category: "religious_organization"
+place_type: "Church"
+address: "14215 Fruit Farm Road"
+added_by: agent:place-photos
+sources:
+  - url: http://ehouseofprayer.org/
+    kind: website
+    method: fetch
+    trust: official
+```
+Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every event place). Campus calendar events name only its address, "14215 Fruit Farm Road, Collegeville". Unreviewed — tier `listed`, so it publishes nothing until promoted.
+
+## St. Cloud Area School District 742
+```yaml
+id: st-cloud-area-school-district-742
+status: proposed
+tier: listed
+category: "gov"
+place_type: "School / college"
+address: "1201 2nd St S"
+aka: ["ISD 742", "District Administration Office"]
+added_by: agent:place-photos
+sources:
+  - url: https://www.isd742.org/
+    kind: website
+    method: fetch
+    trust: official
+```
+Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every event place). Kennedy Community School's school board meetings are held at its District Administration Office in Waite Park. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+
+## Scheels Athletic Complex
+```yaml
+id: scheels-athletic-complex
+status: proposed
+tier: listed
+category: "sports_complex"
+place_type: "Park / historic"
+address: "1109 1st St S"
+added_by: agent:place-photos
+sources:
+  - url: https://scheels-ac.com/
+    kind: website
+    method: fetch
+    trust: official
+```
+Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every event place). In Sartell; Sartell High School games are played here. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+
+## Municipal Athletic Complex
+```yaml
+id: municipal-athletic-complex
+status: proposed
+tier: listed
+category: "sports_complex"
+place_type: "Park / historic"
+address: "5001 Veterans Dr"
+added_by: agent:place-photos
+sources:
+  - url: http://www.stcloudmac.com/
+    kind: website
+    method: fetch
+    trust: official
+```
+Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every event place). In St. Cloud; campus athletics events are played here. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+
+## Hemker Park & Zoo
+```yaml
+id: hemker-park-zoo
+status: proposed
+tier: listed
+category: "zoo"
+place_type: "Park / historic"
+address: "26715 County Road 39"
+added_by: agent:place-photos
+sources:
+  - url: http://www.hemkerzoo.com/
+    kind: website
+    method: fetch
+    trust: official
+```
+Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every event place). In Freeport; a City of St. Joseph outing went here. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+
+## Sheryl Matters Massage
+```yaml
+id: sheryl-matters-massage
+status: proposed
+tier: listed
+category: "massage"
+place_type: "Business"
+address: "201 Pondview Ln E"
+added_by: agent:place-photos
+sources:
+  - url: http://www.sherylmattersmassage.com/
+    kind: website
+    method: fetch
+    trust: official
+```
+Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every event place). An app place (Search) that had no entry; its Google Maps listing names this website. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+
+## Joetown Smashburger
+```yaml
+id: joetown-smashburger
+status: proposed
+tier: listed
+category: "restaurant"
+place_type: "Business"
+address: "13 2nd Ave NW"
+added_by: agent:place-photos
+sources:
+  - url: TODO
+    kind: website
+    method: submission
+    trust: official
+```
+Notes: Proposed on 2026-10-18 for BP app place-photos 04: an app place (Search) that had no entry. One of four restaurants inside The House (13 2nd Ave NW), each run on its own (Jesse, 2026-10-18); Google Maps lists only The House Food and Tap there. Unreviewed — tier `listed`, so it publishes nothing until promoted.

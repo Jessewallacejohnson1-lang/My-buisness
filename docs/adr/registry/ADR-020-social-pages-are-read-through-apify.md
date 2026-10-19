@@ -1,6 +1,11 @@
 # ADR-020 — Social pages are read through Apify, on purpose
 
 **Status:** Accepted
+**Amended 2026-10-18 (Jesse):** a place's Facebook **cover photo** is treated like a photo
+from its own website: it can be shown as the place's picture before the place says yes,
+credited to its page and taken down on request, like every place photo. Its file is
+downloaded from Facebook's image server right after the Apify read, under this same
+exception. Posts, their photos and their words still wait for the place's yes.
 **Date:** 2026-10-05
 **Decided by:** Jesse, 2026-10-05, in a grilling session on how to use Apify. His reason:
 live posts from businesses are Block Party's essential feature, and taking them straight
@@ -41,7 +46,8 @@ account, and members posted for members.
 
 **What a place posts is used in two ways.** The facts (an event, a closure, a
 cancellation, a temporary closure) are taken from every place. The post itself, photo and
-words, is shown as a live post only once that place has said yes. A place that says yes
+words, is shown as a live post only once that place has said yes. The page's cover photo
+is the exception (amended above). A place that says yes
 connects through Meta's official connection rather than Apify.
 
 **What neighbours post is a tip, never content.** A town-group post is secondhand

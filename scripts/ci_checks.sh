@@ -34,7 +34,7 @@ for part in ${*:-rules db registry}; do
         registry)
             sh sources/validate
             python3 sources/scripts/test_census.py
-            for s in check_flags find_calendars morning read_events verify write_judged; do
+            for s in check_flags find_calendars morning place_photos read_events verify write_judged; do
                 python3 "sources/scripts/$s.py" --selftest
             done
             ;;
