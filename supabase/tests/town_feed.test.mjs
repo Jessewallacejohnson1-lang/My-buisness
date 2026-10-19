@@ -45,7 +45,7 @@ await db.exec(`
     start_time text, created_at timestamptz not null default now(), location text,
     image_url text, kind text not null default 'event', category text,
     end_at timestamptz, all_day boolean not null default false,
-    source_name text, shows_from date, place_entry_id text);
+    source_name text, shows_from date, place_entry_id text, description text);
   -- Where events happen, with their pictures (place-photos): the app's places rows, then the
   -- photos Block Party keeps (loaded from their migrations below).
   create table public.places (id uuid primary key default gen_random_uuid(), name text, entry_id text,
@@ -972,4 +972,17 @@ test("each event carries its place's picture: a photo before a logo, else the pl
   assert.deepEqual(rows.map((r) => [r.title, r.place_picture?.url ?? null]),
                    [['Trivia', 'https://x/food.webp'], ['Walk', null]], 'signed out too');
   await db.exec('delete from public.place_photos; delete from public.places;');
+});
+
+test('each event carries its own description, for the Event page\'s About', async () => {
+  await reset();
+  const fair = await add('Fall fair', '2026-10-09');
+  await add('Council meeting', '2026-10-09');
+  await db.query(`update public.club_events set description = 'Apple cider and a hay ride.' where id = $1`, [fair]);
+  await db.exec('set role anon');
+  const { rows } = await db.query(`select title, description
+    from public.get_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago')) order by title`);
+  await db.exec('reset role');
+  assert.deepEqual(rows.map((r) => [r.title, r.description]),
+                   [['Council meeting', null], ['Fall fair', 'Apple cider and a hay ride.']]);
 });
