@@ -9,6 +9,10 @@
 //  rewritten to abandon exactly that chip as illegible; promoting it here closes that
 //  gap so there is only one credit in the app.
 //
+//  On a page (the Event page, a business's, a group's) a saved place photo's credit is also
+//  where Report photo lives: a tap opens Apple's menu with it (BP app place-photos 06, Jesse,
+//  2026-10-19), and the neighbour's own mail app opens on an email to Block Party.
+//
 
 import SwiftUI
 
@@ -28,6 +32,13 @@ import SwiftUI
 /// loading/failed placeholder.
 struct PhotoCredit: View {
     let names: [String]
+    /// A saved place photo's report: the chip opens Apple's menu with Report photo.
+    var report: PhotoReport? = nil
+    /// Whether VoiceOver reads the credit here. A carousel of two or more already says it
+    /// with the photo's number, and the credit is read once.
+    var spoken = true
+
+    @Environment(\.openURL) private var openURL
 
     /// Type + chip metrics, kept together so the credit stays one considered object.
     private static let fontSize: CGFloat = 10
@@ -44,19 +55,66 @@ struct PhotoCredit: View {
     var body: some View {
         if names.isEmpty {
             EmptyView()
+        } else if let report {
+            Menu {
+                Section("Photo from \(credit)") {
+                    Button(role: .destructive) { openURL(report.mail) } label: {
+                        Label("Report photo", systemImage: "exclamationmark.bubble")
+                    }
+                }
+            } label: {
+                chip.contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Report photo")
+            .accessibilityValue(spoken ? "Photo by \(credit)" : "")
         } else {
-            Text(credit)
-                .font(.sansMedium(Self.fontSize))
-                .tracking(Self.tracking)
-                .foregroundStyle(.white)
-                .lineLimit(1)
-                .padding(.horizontal, Self.insetH)
-                .padding(.vertical, Self.insetV)
-                .background(.black.opacity(Self.scrimOpacity), in: Capsule())
-                .shadow(color: .black.opacity(0.25), radius: 4, y: 1)
-                .padding(Self.edgeInset)
+            chip
                 .allowsHitTesting(false)
                 .accessibilityLabel("Photo by \(credit)")
+                .accessibilityHidden(!spoken)
         }
+    }
+
+    /// The chip, with the edge inset round it (which a report's tap takes in too).
+    private var chip: some View {
+        Text(credit)
+            .font(.sansMedium(Self.fontSize))
+            .tracking(Self.tracking)
+            .foregroundStyle(.white)
+            .lineLimit(1)
+            .padding(.horizontal, Self.insetH)
+            .padding(.vertical, Self.insetV)
+            .background(.black.opacity(Self.scrimOpacity), in: Capsule())
+            .shadow(color: .black.opacity(0.25), radius: 4, y: 1)
+            .padding(Self.edgeInset)
+    }
+}
+
+/// A saved place photo someone wants taken down (BP app place-photos 06): an owner asking for
+/// their photo, or a neighbour who spots the wrong place's. Email, not a table (Jesse,
+/// 2026-10-18): it names the place and the exact photo, and the place-photos skill's retire
+/// step takes it from there.
+struct PhotoReport: Hashable {
+    let place: String?
+    let photo: URL
+
+    static let address = "contact@blockpartyapp.com"
+
+    /// The draft the neighbour's own mail app opens, Gmail included.
+    var mail: URL {
+        // "&" "=" "+" stay legal in a query, so a place called "Flour & Flower" would split
+        // its subject: encode them too.
+        let allowed = CharacterSet.urlQueryAllowed.subtracting(CharacterSet(charactersIn: "&=+?#"))
+        var parts = URLComponents()
+        parts.scheme = "mailto"
+        parts.path = Self.address
+        parts.percentEncodedQueryItems = [
+            ("subject", place.map { "Photo of \($0)" } ?? "A photo on Block Party"),
+            ("body", "Please take this photo off Block Party:\n\(photo.absoluteString)"),
+        ].map { URLQueryItem(name: $0, value: $1.addingPercentEncoding(withAllowedCharacters: allowed)) }
+        // ponytail: no mail app at all (Mail deleted, no default) and the tap does nothing;
+        // copy the address as a fallback if anyone hits it.
+        return parts.url ?? URL(string: "mailto:\(Self.address)")!
     }
 }

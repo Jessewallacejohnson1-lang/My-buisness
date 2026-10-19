@@ -224,6 +224,9 @@ nonisolated enum Hue {
     /// A called-off Event's pill, which says "Canceled" (Jesse, 2026-10-17): Apple's own red.
     /// The second red after `heart`, and for this one pill only.
     static let canceled      = Color(uiColor: .systemRed)
+    /// "Report photo" in a Town card's ••• sheet (BP app place-photos 06): Apple's own red, as
+    /// Instagram draws its Report and Apple's menu draws the same row on a page's photo.
+    static let report        = Color(uiColor: .systemRed)
 
     // MARK: Search (the tab's Reference: Jesse's mockup v7 and its Figma frames, 2026-10-02)
 

@@ -8,7 +8,9 @@
 //  measured off its frames: grey groups 16pt in from each side with 16pt corners, 51pt
 //  rows, a 22pt icon 20pt in and the label 22pt after it, 17pt text. The reason sits
 //  right at the top, not behind its own row (Jesse, 2026-10-10). Not interested, Mute
-//  and Report join as a group below it (tickets 21 and 22).
+//  and Report join as a group below it (tickets 21 and 22). A card showing a photo Block
+//  Party saved of its place starts that group with a red Report photo (BP app place-photos
+//  06), which opens the neighbour's mail app on an email to Block Party.
 //
 //  Apple's sheet carries it, so it drags down under the finger and can be stopped
 //  halfway; a solid surface keeps iOS 26 and 27 alike.
@@ -19,9 +21,12 @@ import SwiftUI
 struct FeedCardMenu: View {
     let why: String
     let score: FeedScore?
+    var report: PhotoReport? = nil
 
     @State private var height: CGFloat = 220
     @State private var editingInterests = false
+    @Environment(\.openURL) private var openURL
+    @Environment(\.dismiss) private var dismiss
 
     private enum Metric {
         static let rowHeight: CGFloat = 51
@@ -69,6 +74,31 @@ struct FeedCardMenu: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(RowPressStyle())
+            }
+
+            if let report {
+                group {
+                    Button {
+                        dismiss()
+                        openURL(report.mail)
+                    } label: {
+                        HStack(spacing: Metric.iconGap) {
+                            Image(systemName: "exclamationmark.bubble")
+                                .font(.sans(20))
+                                .frame(width: Metric.iconWidth)
+                            Text("Report photo")
+                                .font(.sans(17))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .foregroundStyle(Hue.report)
+                        .padding(.leading, Metric.rowLeading)
+                        .padding(.trailing, 16)
+                        .frame(minHeight: Metric.rowHeight)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(RowPressStyle())
+                }
+                .padding(.top, 12)
             }
 
             if let score {

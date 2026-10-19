@@ -222,16 +222,17 @@ struct FeedEventDetailDestination: View {
     /// licence), and only once the photo itself is on screen. It names the photo the counter counts, from outside
     /// the carousel like the counter, so the pull-down stretch leaves it in place.
     /// Bottom left, because the counter owns bottom right; its chip edges line up with
-    /// the counter's (`PhotoCredit` pads itself `edgeInset`).
+    /// the counter's (`PhotoCredit` pads itself `edgeInset`). A tap on it reports the photo
+    /// (BP app place-photos 06).
     @ViewBuilder
     private var credit: some View {
         if let credit = creditName {
-            PhotoCredit(names: [credit])
+            // With two or more photos the carousel says it, with the photo's number;
+            // with one, the carousel is hidden, so the credit speaks for itself.
+            PhotoCredit(names: [credit], report: photos[photoPage ?? 0].report(place: item.whereLine),
+                        spoken: photos.count < 2)
                 .padding(.leading, Metric.inset - PhotoCredit.edgeInset)
                 .padding(.bottom, Metric.counterBottom - PhotoCredit.edgeInset)
-                // With two or more photos the carousel says it, with the photo's number;
-                // with one, the carousel is hidden, so the credit speaks for itself.
-                .accessibilityHidden(photos.count >= 2)
         }
     }
 

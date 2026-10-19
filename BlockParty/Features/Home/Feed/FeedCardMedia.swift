@@ -256,6 +256,13 @@ extension FeedCardImageSource {
         return credit
     }
 
+    /// Report photo, for a photo Block Party saved of a place (BP app place-photos 06); nil
+    /// for the event's own photo, a logo and ink.
+    func report(place: String?) -> PhotoReport? {
+        guard case .placePhoto(let url, _) = self else { return nil }
+        return PhotoReport(place: place, photo: url)
+    }
+
     /// A place's logo as Search draws it, on its backdrop with ink words over it.
     var logo: SearchLogo? {
         guard case .placeLogo(let picture) = self else { return nil }

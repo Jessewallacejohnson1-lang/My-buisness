@@ -337,16 +337,17 @@ private struct BusinessPageContent: View {
     }
 
     /// The photo on screen's credit, once it is drawn: the site it came from, or a free photo's
-    /// author and licence. Bottom left, as on the Event page; the counter has the right.
+    /// author and licence. Bottom left, as on the Event page; the counter has the right. A tap
+    /// on it reports the photo (BP app place-photos 06).
     @ViewBuilder private var credit: some View {
         let index = photoPage ?? 0
         if photos.indices.contains(index), PhotoPager.isShown(photos[index].url, in: shown),
            let credit = photos[index].creditLine {
-            PhotoCredit(names: [credit])
+            // With two or more photos the pager says it, with the photo's number.
+            PhotoCredit(names: [credit], report: PhotoReport(place: item.name, photo: photos[index].url),
+                        spoken: photos.count < 2)
                 .padding(.leading, Metric.inset - PhotoCredit.edgeInset)
                 .padding(.bottom, Metric.counterBottom - PhotoCredit.edgeInset)
-                // With two or more photos the pager says it, with the photo's number.
-                .accessibilityHidden(photos.count >= 2)
         }
     }
 

@@ -183,6 +183,38 @@ final class EventDetailPageTests: XCTestCase {
         XCTAssertNil(page.placeText(FeedCardItem(event(imageUrl: nil, location: "  "))))
     }
 
+    /// Report photo opens the neighbour's own mail app with an email to Block Party naming the
+    /// place and the exact photo, so the place-photos skill's retire step needs nothing else
+    /// (BP app place-photos 06). A name with "&" in it stays in the subject.
+    func testAReportedPhotoMailsUsThePlaceAndTheExactPhoto() throws {
+        let photo = URL(string: "https://x.supabase.co/storage/v1/object/public/places/st-joseph/flour/photo-ab12.webp")!
+        let mail = PhotoReport(place: "Flour & Flower", photo: photo).mail
+        let parts = try XCTUnwrap(URLComponents(url: mail, resolvingAgainstBaseURL: false))
+        let query = Dictionary(uniqueKeysWithValues: (parts.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+
+        XCTAssertEqual(parts.scheme, "mailto")
+        XCTAssertEqual(parts.path, "contact@blockpartyapp.com")
+        XCTAssertEqual(query["subject"], "Photo of Flour & Flower")
+        XCTAssertEqual(query["body"], "Please take this photo off Block Party:\n\(photo.absoluteString)")
+        XCTAssertEqual(query.count, 2, "the & in the name doesn't split the subject")
+
+        XCTAssertEqual(
+            URLComponents(url: PhotoReport(place: nil, photo: photo).mail, resolvingAgainstBaseURL: false)?
+                .queryItems?.first { $0.name == "subject" }?.value,
+            "A photo on Block Party", "no place name, still a subject")
+    }
+
+    /// Only a photo Block Party saved of a place can be reported here; the event's own photo,
+    /// a logo and ink can't.
+    func testOnlyASavedPlacePhotoCanBeReported() {
+        let photo = Self.url("place")
+        XCTAssertEqual(FeedCardImageSource.placePhoto(photo, credit: "krewemn.com").report(place: "Krewe"),
+                       PhotoReport(place: "Krewe", photo: photo))
+        XCTAssertNil(FeedCardImageSource.eventPhoto(photo).report(place: "Krewe"))
+        XCTAssertNil(FeedCardImageSource.fallback.report(place: "Krewe"))
+        XCTAssertNil(FeedCardImageSource.placeLogo(PlacePicture(url: photo, kind: .logo)).report(place: "Krewe"))
+    }
+
     private static func url(_ name: String) -> URL {
         URL(string: "https://example.com/\(name).jpg")!
     }

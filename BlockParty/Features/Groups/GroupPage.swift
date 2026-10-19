@@ -131,15 +131,16 @@ struct GroupPage: View {
         }
     }
 
-    /// The photo on screen's credit, once it is drawn: the group's own site.
+    /// The photo on screen's credit, once it is drawn: the group's own site. A tap on it reports
+    /// the photo (BP app place-photos 06).
     @ViewBuilder private var credit: some View {
         let index = photoPage ?? 0
         if photos.indices.contains(index), PhotoPager.isShown(photos[index].url, in: shownPhotos),
            let credit = photos[index].creditLine {
-            PhotoCredit(names: [credit])
+            PhotoCredit(names: [credit], report: PhotoReport(place: group.name, photo: photos[index].url),
+                        spoken: photos.count < 2)
                 .padding(.leading, Event.inset - PhotoCredit.edgeInset)
                 .padding(.bottom, Event.counterBottom - PhotoCredit.edgeInset)
-                .accessibilityHidden(photos.count >= 2)
         }
     }
 
