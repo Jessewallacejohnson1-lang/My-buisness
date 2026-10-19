@@ -74,9 +74,9 @@ final class RealLifeActionsTests: XCTestCase {
     }
 
     private func actions(_ server: Server, signedIn: Bool = true, keep: UserDefaults? = nil,
-                         flip: Duration = RealLifeActionsTests.flip,
+                         flip: Duration? = nil,
                          owner: @escaping () -> String? = { nil }) -> RealLifeActions {
-        RealLifeActions(signedIn: signedIn, needsAccount: true, hold: Self.hold, flip: flip,
+        RealLifeActions(signedIn: signedIn, needsAccount: true, hold: Self.hold, flip: flip ?? Self.flip,
                         retry: Self.retry, keep: keep, owner: owner,
                         setGoing: server.write, setHeart: server.heart, setSave: server.save,
                         setMember: server.member, knownEvents: server.knownEvents)
