@@ -66,7 +66,7 @@ final class DynamicTypeAuditTests: XCTestCase {
     ///    and its unfinished states are what the auditor was reporting: "No plans
     ///    yet", "a neighbor", "Around town".
     static let notDevelopedYet: [Surface] = [
-        Surface(id: "daily", arguments: ["-open-tab", "daily"]),
+        Surface(id: "daily", arguments: ["-open-tab", "daily", "-daily-samples"]),
         Surface(id: "search", arguments: ["-open-tab", "search"]),
         Surface(id: "you", arguments: ["-open-tab", "you"]),
         Surface(id: "you-profile", arguments: ["-open-tab", "you", "-open-profile"]),

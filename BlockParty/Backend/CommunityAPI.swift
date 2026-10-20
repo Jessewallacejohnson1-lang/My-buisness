@@ -225,6 +225,16 @@ struct CommunityAPI {
         return rows
     }
 
+    /// Your Event of the day: today's standouts for you, one for each part of the day, worked
+    /// out by `get_event_of_the_day` (BP app daily-tab 14) from the morning's picks, in the
+    /// Town feed's own rows. Signed out, it reads with the public key, as the feed does.
+    func getEventOfTheDay() async throws -> [TownFeedRow] {
+        let (data, _) = try await SupabaseHTTP.rest("rpc/get_event_of_the_day", method: "POST",
+                                                    accessToken: await readToken(),
+                                                    body: Data("{}".utf8))
+        return try Self.townFeedRows(from: data)
+    }
+
     /// `get_town_feed`'s rows as events. A row whose `leaves_at` doesn't parse is
     /// dropped: it would have no moment to leave.
     static func townFeedRows(from data: Data) throws -> [TownFeedRow] {

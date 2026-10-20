@@ -15,6 +15,10 @@ docs/plans/watch-every-place, ticket 05). The routine's steps are sources/models
   tag       write the cheap model's tags (.runs/morning/tags.jsonl) onto those Events: only
             ids from the shared interest list, a draw of 1, 2 or 3, and an Event's first
             interest becomes its category when it has none
+  today     lay out today's Events as the Town feed takes them, for the routine's model to pick
+            the day's standouts (BP app docs/plans/daily-tab, ticket 14; sources/models/standouts.md)
+  standouts write the model's standouts (.runs/morning/standouts.jsonl) as today's
+            daily_standouts, best first, and print each with its reason
 
 Everything lands in .runs/morning/. Both steps need SUPABASE_URL and
 SUPABASE_SERVICE_ROLE_KEY in the environment; `write --dry-run` writes nothing.
@@ -23,6 +27,8 @@ SUPABASE_SERVICE_ROLE_KEY in the environment; `write --dry-run` writes nothing.
   python3 sources/scripts/morning.py write [--dry-run]
   python3 sources/scripts/morning.py untagged
   python3 sources/scripts/morning.py tag [--dry-run]
+  python3 sources/scripts/morning.py today
+  python3 sources/scripts/morning.py standouts [--dry-run]
   python3 sources/scripts/morning.py --selftest
 """
 
@@ -40,6 +46,8 @@ from run import Supabase
 
 SCRIPTS = Path(__file__).resolve().parent
 TAG_BATCH = 40
+TOWN = "st-joseph-mn"  # daily_standouts.town, as town_status names it
+STANDOUTS = 9
 FEEDS = {"ical"}  # the feed reader's; an RSS feed is posts, read like a page (run.py keeps their dates)
 
 
@@ -225,6 +233,73 @@ def tag(out, dry_run):
           f"{len(events) - len(writes)} left for tomorrow" + (" (dry run: nothing written)" if dry_run else ""))
 
 
+def todays_events(today):
+    """Today's Events as the Town feed takes them (approved, posted by a neighbour or found by a
+    source, not called off), with what the model weighs: interests, draw, Going and hearts. The
+    feed's function itself reads private helpers the service key can't reach."""
+    db = Supabase()
+    rows = db.call("GET", "club_events?select=id,title,start_time,all_day,location,source_name,description,"
+                          "interests,interests_tagged_at,category,draw,clubs(name)"
+                          f"&status=eq.approved&kind=eq.event&event_date=eq.{today}&cancelled_at=is.null"
+                          "&or=(submitted_by.not.is.null,source_name.not.is.null)&order=start_time") or []
+    if not rows:
+        return []
+    ids = ",".join(r["id"] for r in rows)
+    count = lambda table: [x["event_id"] for x in db.call("GET", f"{table}?select=event_id&event_id=in.({ids})") or []]
+    going, hearts = count("event_rsvps"), count("event_likes")
+    return [event_line(r, going.count(r["id"]), hearts.count(r["id"])) for r in rows]
+
+
+def event_line(row, going, hearts):
+    """One Event as the model reads it. Its interests are the tagger's, else its writer's one, as
+    the feed matches them."""
+    interests = row.get("interests") if row.get("interests_tagged_at") else [c for c in [row.get("category")] if c]
+    return {"id": row["id"], "title": row["title"],
+            "start": "all day" if row.get("all_day") else (row.get("start_time") or "no time given"),
+            "place": row.get("location") or "", "host": (row.get("clubs") or {}).get("name") or row.get("source_name") or "",
+            "interests": interests or [], "draw": row.get("draw"), "going": going, "hearts": hearts,
+            "about": " ".join((row.get("description") or "").split())[:300]}
+
+
+def lay_out_today(out, today):
+    out.mkdir(parents=True, exist_ok=True)
+    events = todays_events(today)
+    (out / "today.txt").write_text(f"Today: {today}\n\nEvents:\n"
+                                   + "".join(json.dumps(e, ensure_ascii=False) + "\n" for e in events))
+    print(f"[morning] {len(events)} events today for the standouts ({out / 'today.txt'})")
+
+
+def plan_standouts(lines, events, today):
+    """The model's lines as today's daily_standouts rows: only Events it was given, each once, with
+    a reason, best first (rank is the line's place), nine at most."""
+    given, rows = {e["id"] for e in events}, []
+    for ln in lines:
+        if not isinstance(ln, dict) or ln.get("id") not in given or any(r["event_id"] == ln["id"] for r in rows):
+            continue
+        why = " ".join(str(ln.get("why") or "").split())[:200]
+        if why and len(rows) < STANDOUTS:
+            rows.append({"town": TOWN, "day": str(today), "event_id": ln["id"], "rank": len(rows) + 1, "why": why})
+    return rows
+
+
+def standouts(out, dry_run, today):
+    # today.txt's Event lines, as the model read them.
+    events = [e for e in read_items(out / "today.txt") if isinstance(e, dict)]
+    rows = plan_standouts(read_items(out / "standouts.jsonl"), events, today)
+    # No usable line keeps whatever today has: with no rows Daily shows the Town feed's top pick.
+    if rows and not dry_run:
+        db = Supabase()
+        db.call("DELETE", f"daily_standouts?town=eq.{TOWN}&day=eq.{today}", prefer="return=minimal")
+        db.call("POST", "daily_standouts", rows, prefer="return=minimal")
+    print(f"[morning] standouts: {len(rows)} of {len(events)} events today"
+          + (" (dry run: nothing written)" if dry_run else "")
+          + ("" if rows or not events else "; none written, so Daily shows the Town feed's top pick"))
+    by_id = {e["id"]: e for e in events}
+    for r in rows:
+        e = by_id[r["event_id"]]
+        print(f"[morning] #{r['rank']} {e['title']} ({e['start']}): {r['why']}")
+
+
 def selftest():
     entries = [{"id": "milk", "_name": "Milk & Honey Ciders", "tier": "watched", "category": "cidery",
                 "sources": [{"url": "https://m/events", "method": "fetch", "trust": "official"}]},
@@ -286,6 +361,28 @@ def selftest():
                    "an Event nothing fits is tagged with none, so it isn't read again"))
     checks.append(("Interests: dining, faith" in tag_message([{"id": "e1"}], ["dining", "faith"]),
                    "each batch carries the interest list"))
+    today = [{"id": "g"}, {"id": "t"}, {"id": "b"}]
+    rows = plan_standouts([{"id": "g", "why": " Rivals,  under the lights "}, {"id": "zz", "why": "not today"},
+                           {"id": "t", "why": ""}, "unreadable line: {", {"id": "g", "why": "again"},
+                           {"id": "b", "why": "Bingo"}], today, "2026-10-20")
+    checks.append(([(r["event_id"], r["rank"], r["why"]) for r in rows] == [("g", 1, "Rivals, under the lights"), ("b", 2, "Bingo")]
+                   and rows[0]["town"] == "st-joseph-mn" and rows[0]["day"] == "2026-10-20",
+                   "standouts keep given Events once each with a reason, ranked in the model's order"))
+    many = [{"id": str(i)} for i in range(12)]
+    checks.append((len(plan_standouts([{"id": str(i), "why": "x"} for i in range(12)], many, "2026-10-20")) == STANDOUTS,
+                   "nine standouts at most"))
+    line = event_line({"id": "g", "title": "Home game", "all_day": False, "start_time": "7 PM", "location": "Field",
+                       "clubs": None, "source_name": "Sartell High School", "description": "  Rivals\n night  ",
+                       "interests": [], "interests_tagged_at": None, "category": "sports_leagues", "draw": 3}, 3, 1)
+    checks.append((line["interests"] == ["sports_leagues"] and line["host"] == "Sartell High School"
+                   and line["start"] == "7 PM" and line["about"] == "Rivals night" and line["draw"] == 3
+                   and (line["going"], line["hearts"]) == (3, 1),
+                   "an untagged Event's interest is its category, as the feed matches it"))
+    checks.append((event_line({"id": "x", "title": "Fair", "all_day": True, "interests": ["festivals"],
+                               "interests_tagged_at": "2026-10-20", "clubs": {"name": "Fair board"}}, 0, 0)
+                   == {"id": "x", "title": "Fair", "start": "all day", "place": "", "host": "Fair board",
+                       "interests": ["festivals"], "draw": None, "going": 0, "hearts": 0, "about": ""},
+                   "an all-day Event says so, and a group's name is its host"))
     failed = [why for ok, why in checks if not ok]
     for why in failed:
         print(f"FAIL {why}")
@@ -295,15 +392,15 @@ def selftest():
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("step", nargs="?", choices=["prepare", "write", "untagged", "tag"])
+    ap.add_argument("step", nargs="?", choices=["prepare", "write", "untagged", "tag", "today", "standouts"])
     ap.add_argument("--today", help="YYYY-MM-DD; default today in Chicago")
-    ap.add_argument("--dry-run", action="store_true", help="write, tag: print what would be written, write nothing")
+    ap.add_argument("--dry-run", action="store_true", help="write, tag, standouts: print what would be written, write nothing")
     ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args()
     if args.selftest:
         return selftest()
     if not args.step:
-        ap.error("prepare, write, untagged or tag")
+        ap.error("prepare, write, untagged, tag, today or standouts")
     today = date.fromisoformat(args.today) if args.today else datetime.now(LOCAL).date()
     out = find_root() / ".runs" / "morning"
     if args.step == "prepare":
@@ -312,6 +409,10 @@ def main():
         write(out, args.dry_run, today)
     elif args.step == "untagged":
         untagged(out, today)
+    elif args.step == "today":
+        lay_out_today(out, today)
+    elif args.step == "standouts":
+        standouts(out, args.dry_run, today)
     else:
         tag(out, args.dry_run)
 

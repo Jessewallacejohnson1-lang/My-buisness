@@ -7,13 +7,13 @@
 import SwiftUI
 
 extension DailyEvent {
-    /// Today's events that match your interests. There is no read for them yet, so a
-    /// release build gets none, which hides the section, and DEBUG gets the samples. When
-    /// the read exists, this is the one function that changes. A quiet day's standing
-    /// things (the trail, a park) wait for a real list of places (Jesse, 2026-10-05).
+    /// Today's events that match your interests. There is no read for them yet, so there
+    /// are none, which hides the section; DEBUG `-daily-samples` gets the samples. When the
+    /// read exists, this is the one function that changes. A quiet day's standing things
+    /// (the trail, a park) wait for a real list of places (Jesse, 2026-10-05).
     static func suggestions(now: Date) -> [DailyEvent] {
         #if DEBUG
-        return suggestionSamples(on: now)
+        return DailySamples.on ? suggestionSamples(on: now) : []
         #else
         return []
         #endif

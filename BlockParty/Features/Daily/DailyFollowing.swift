@@ -54,12 +54,12 @@ struct DailyFollowing: Identifiable {
         return formatter.localizedString(for: when, relativeTo: now)
     }
 
-    /// Today's from everyone you follow. There is no read for them yet, so a release
-    /// build gets none, which hides the section, and DEBUG gets the samples. When the
-    /// read exists, this is the one function that changes.
+    /// Today's from everyone you follow. There is no read for them yet, so there are none,
+    /// which hides the section; DEBUG `-daily-samples` gets the samples. When the read
+    /// exists, this is the one function that changes.
     static func today(now: Date) -> [DailyFollowing] {
         #if DEBUG
-        return samples(on: now)
+        return DailySamples.on ? samples(on: now) : []
         #else
         return []
         #endif

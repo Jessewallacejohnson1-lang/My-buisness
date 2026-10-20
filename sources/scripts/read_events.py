@@ -130,7 +130,13 @@ def when(prop):
     if v.endswith("Z"):
         return dt.replace(tzinfo=timezone.utc).astimezone(LOCAL), False
     tz = re.search(r"TZID=([^;:]+)", params)
-    return dt.replace(tzinfo=ZoneInfo(tz.group(1)) if tz else LOCAL), False
+    # A WordPress events plugin on a site left at UTC labels the town's own clock "UTC": Sal's feed
+    # said 18:30 UTC for its 6:30 PM bingo (2026-10-20). A real UTC time ends in Z.
+    # ponytail: every TZID=UTC feed reads as town time (the city's, the Monastery's and Rod & Gun's
+    # say America/Chicago); one that truly means UTC would read 5 to 6 hours late, so give it a
+    # registry flag if one shows up.
+    zone = tz and tz.group(1) not in ("UTC", "GMT", "Etc/UTC") and ZoneInfo(tz.group(1))
+    return dt.replace(tzinfo=zone or LOCAL), False
 
 
 def clock(dt):
@@ -158,7 +164,10 @@ def ical_items(text, entry, src, today):
         if not ahead(start if all_day else start.date(), today):
             continue
         title = unescape(ev.get("SUMMARY", ("", ""))[1])
-        end = when(ev["DTEND"])[0] if "DTEND" in ev and not all_day else None
+        end = when(ev["DTEND"])[0] if "DTEND" in ev else None
+        if all_day:  # an all-day DTEND is the day after the last; a run over days keeps its last day
+            last = end - timedelta(days=1) if end and not isinstance(end, datetime) else None
+            end = last if last and last > start else None
         out.append(judged(entry, src, kind="news" if NEWS.search(title) else "event", title=title,
                           start=start.isoformat(), end=end and end.isoformat(), all_day=all_day,
                           # "St. Joseph MN 56374" alone is no place; the writer drops it.
@@ -218,6 +227,19 @@ def pathify_url(url, today):
             f"&in_range_before={before:%Y-%m-%dT%H:%M:%SZ}{fields}&paginate=false&published=true")
 
 
+TITLE_CLOCK = re.compile(r"(\d{1,2})(?::(\d\d))?\s*([ap])\.?\s?m\b\.?", re.I)
+
+
+def title_clock(title, start, end):
+    """A title that opens with its own time beats the calendar's: "9 p.m. Student Mass" was
+    entered at 9 AM (2026-10-20), and Campus Ministry holds it at 9 PM."""
+    m = TITLE_CLOCK.match(title)
+    if not m:
+        return start, end
+    shift = start.replace(hour=int(m[1]) % 12 + (12 if m[3].lower() == "p" else 0), minute=int(m[2] or 0)) - start
+    return start + shift, end and end + shift
+
+
 def pathify_items(rows, entry, src, today):
     site = urlparse(src["url"])
     out, series = [], set()
@@ -237,10 +259,11 @@ def pathify_items(rows, entry, src, today):
                 continue  # a repeating event shows once, at its next date
             series.add((cal, title))
         if r.get("all_day"):
-            start, end = r.get("start_day") or r["start_date"][:10], None
+            start, last = r.get("start_day") or r["start_date"][:10], (r.get("end_date") or "")[:10]
+            end = last if last > start else None  # Festival of Cultures runs Nov 9 to 14
         else:
-            start = utc_local(r["start_date"]).isoformat()
-            end = r.get("end_date") and utc_local(r["end_date"]).isoformat()
+            at, until = title_clock(title, utc_local(r["start_date"]), r.get("end_date") and utc_local(r["end_date"]))
+            start, end = at.isoformat(), until and until.isoformat()
         if not ahead(date.fromisoformat(start[:10]), today):
             continue
         news = bool(NEWS.search(title))
@@ -731,6 +754,14 @@ def t_ical():
     assert (closed["kind"], closed["start"], closed["all_day"]) == ("news", "2026-11-26", True), closed
     assert film["place"].startswith("Saint John's University"), "a St. Joseph source's event is kept wherever it is"
     assert clock(datetime(2026, 1, 1, 18, 0)) == "6 PM"
+    sals = ical_items("BEGIN:VEVENT\r\nUID:12\r\nSUMMARY:Bingo Night\r\nDTSTART;TZID=UTC:20261020T183000\r\n"
+                      "DTEND;TZID=UTC:20261020T200000\r\nEND:VEVENT\r\n"
+                      "BEGIN:VEVENT\r\nUID:13\r\nSUMMARY:Fair week\r\nDTSTART;VALUE=DATE:20261109\r\n"
+                      "DTEND;VALUE=DATE:20261115\r\nEND:VEVENT\r\n", CITY, src, date(2026, 10, 6))
+    assert (sals[0]["start"], sals[0]["end"]) == ("2026-10-20T18:30:00-05:00", "2026-10-20T20:00:00-05:00"), \
+        "a feed's TZID=UTC is the town's clock (Sal's page says 6:30 pm)"
+    assert (sals[1]["start"], sals[1]["end"]) == ("2026-11-09", "2026-11-14"), "an all-day run keeps its last day"
+    assert when((";VALUE=DATE", "20261126"))[1] and when(("", "20261020T233000Z"))[0].hour == 18
 
 
 def t_pathify():
@@ -756,6 +787,16 @@ def t_pathify():
     assert (home["place"], home["town"]) == ("Saint Benedict's Monastery", "St. Joseph"), home
     assert next(i for i in got if "Fix-It" in i["title"])["interest"] == "books"
     assert got[0]["source_url"].startswith("https://my.csbsju.edu/public/events/") and got[0]["area"] == "campus"
+    mass, week = pathify_items([
+        {"id": 2, "title": "9 p.m. Student Mass", "location": "Saint John's Abbey and University Church",
+         "calendar": {"name": "Campus Events"}, "start_date": "2026-10-25T14:00:00Z", "end_date": "2026-10-25T15:00:00Z",
+         "all_day": False},
+        {"id": 3, "title": "Festival of Cultures", "location": "", "calendar": {"name": "Campus Events"},
+         "start_date": "2026-11-09T06:00:00Z", "start_day": "2026-11-09", "end_date": "2026-11-14T23:59:59.999999Z",
+         "all_day": True}], {"_name": "x"}, src, TODAY)
+    assert (mass["start"], mass["end"]) == ("2026-10-25T21:00:00-05:00", "2026-10-25T22:00:00-05:00"), mass
+    assert (week["start"], week["end"]) == ("2026-11-09", "2026-11-14"), week
+    assert title_clock("Unplugged at 7", datetime(2026, 1, 1, 9), None) == (datetime(2026, 1, 1, 9), None)
     url = pathify_url(src["url"], TODAY)
     assert "calendar=2,165,166,193,212,224&in_range_after=2026-10-14T05:00:00Z&in_range_before=2027-01-12T06:00:00Z" in url, url
     assert "&field=description&" in url, url
