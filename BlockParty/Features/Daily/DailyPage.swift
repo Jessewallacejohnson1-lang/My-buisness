@@ -381,7 +381,9 @@ private struct SpotlightCardFace: View {
 
     var body: some View {
         let lean = tilt.lean
-        Hue.fill
+        // Ink under the photo, as the photo's own loading fill: the white words read on it
+        // while it loads, and on a Spotlight with no photo at all.
+        Hue.ink
             .aspectRatio(DailyMetric.cardAspect, contentMode: .fit)
             .overlay {
                 if let photo { FeedCardURLPhoto(url: photo) }
