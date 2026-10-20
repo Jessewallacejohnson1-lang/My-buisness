@@ -242,36 +242,43 @@ struct EventOfTheDaySection: View {
     var body: some View {
         VStack(spacing: 0) {
             DailySectionLabel(title: "Event of the day", ink: Hue.ink)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .top, spacing: DailyMetric.eventGap) {
-                    ForEach(events) { event in
-                        EventOfTheDayCard(event: event, now: now)
-                            .containerRelativeFrame(.horizontal)
-                    }
-                }
-                // Every card as tall as the tallest, so a long title doesn't leave the
-                // others short in the row.
-                .fixedSize(horizontal: false, vertical: true)
-                .scrollTargetLayout()
+            // Only with no Spotlight: any guide here, even one at its own top, would move the
+            // yellow's edge off the Spotlight.
+            if marksYellowEdge {
+                row.alignmentGuide(.dailyYellowEdge) { $0[.top] + DailyMetric.eventLabelToCard + DailyMetric.yellowIntoCard }
+            } else {
+                row
             }
-            .contentMargins(.horizontal, DailyMetric.side, for: .scrollContent)
-            .scrollTargetBehavior(.viewAligned)
-            .scrollDisabled(events.count < 2)
-            // The cards' shadows reach past the row; don't cut them off.
-            .scrollClipDisabled()
-            .alignmentGuide(.dailyYellowEdge) { d in
-                marksYellowEdge ? d[.top] + DailyMetric.yellowIntoCard : d[.top]
-            }
-            .padding(.top, DailyMetric.eventLabelToCard)
         }
+    }
+
+    private var row: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(alignment: .top, spacing: DailyMetric.eventGap) {
+                ForEach(events) { event in
+                    EventOfTheDayCard(event: event, now: now)
+                        .containerRelativeFrame(.horizontal)
+                }
+            }
+            // Every card as tall as the tallest, so a long title doesn't leave the
+            // others short in the row.
+            .fixedSize(horizontal: false, vertical: true)
+            .scrollTargetLayout()
+        }
+        .contentMargins(.horizontal, DailyMetric.side, for: .scrollContent)
+        .scrollTargetBehavior(.viewAligned)
+        .scrollDisabled(events.count < 2)
+        // The cards' shadows reach past the row; don't cut them off.
+        .scrollClipDisabled()
+        .padding(.top, DailyMetric.eventLabelToCard)
     }
 }
 
 /// Airbnb's trip card: a rounded photo with a pill, a big title, a time line, a divider,
 /// and the place with Attend where Airbnb's grey button sits (Jesse, 2026-10-20). The card
-/// is one link to the Event page; Attend sits over it, outside the link, so its taps are its
-/// own and VoiceOver reads it after the card, while the link's press squishes the whole
-/// card, Attend included, as the Town card does.
+/// is one link to the Event page; Attend's row sits over it, outside the link, so the pill's
+/// taps are its own and VoiceOver reads it after the card, while the link's press squishes
+/// the whole card, Attend included, as the Town card does.
 private struct EventOfTheDayCard: View {
     let event: DailyEvent
     let now: Date
@@ -281,9 +288,9 @@ private struct EventOfTheDayCard: View {
 
     var body: some View {
         let rsvp = actions.rsvp(event.item)
-        let going = actions.going(event.item).isGoing
+        let going = rsvp != nil && actions.going(event.item).isGoing
         NavigationLink(value: event.item) {
-            EventOfTheDayFace(event: event, now: now, showsPlace: !going)
+            EventOfTheDayFace(event: event, now: now)
         }
         .buttonStyle(PressReport(pressed: $pressed))
         // The title first; drawn, the pill comes before it.
@@ -291,14 +298,31 @@ private struct EventOfTheDayCard: View {
                              event.timeLine, event.item.location]
             .compactMap { $0 }.joined(separator: ", "))
         .overlay(alignment: .bottom) {
-            if let rsvp {
-                // Going: "You're going!" over "Can't go?" where the place was, and Invite.
-                RSVPArea(item: event.item,
-                         words: going ? rsvp : RSVPWords(top: nil, second: nil, canLeave: false, pill: rsvp.pill),
-                         onInvite: { ShareCenter.shared.present(.event(event.item)) })
-                    .padding(.horizontal, DailyMetric.eventTextInset)
-                    .padding(.bottom, DailyMetric.eventRowBottom)
+            HStack(spacing: 12) {
+                if !going {
+                    // The place, as Airbnb's address sits by its button. A tap on it reaches the
+                    // link under it, and the card has already read it.
+                    Text(event.address)
+                        .font(.sans(13))
+                        .foregroundStyle(Hue.inkSecondary)
+                        .lineLimit(2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                        .transition(.opacity)
+                }
+                if let rsvp {
+                    // Going: "You're going!" over "Can't go?" where the place was, and Invite.
+                    RSVPArea(item: event.item,
+                             words: going ? rsvp : RSVPWords(top: nil, second: nil, canLeave: false, pill: rsvp.pill),
+                             onInvite: { ShareCenter.shared.present(.event(event.item)) })
+                        .fixedSize(horizontal: !going, vertical: false)
+                }
             }
+            .frame(minHeight: RSVPArea.Size.card.pillHeight)
+            .animation(.easeInOut(duration: reduceMotion ? 0.15 : RealLifeActions.flip), value: going)
+            .padding(.horizontal, DailyMetric.eventTextInset)
+            .padding(.bottom, DailyMetric.eventRowBottom)
         }
         .scaleEffect(pressed && !reduceMotion ? 0.97 : 1)
         .animation(.spring(response: 0.28, dampingFraction: 0.7), value: pressed)
@@ -318,18 +342,40 @@ private struct PressReport: ButtonStyle {
 private struct EventOfTheDayFace: View {
     let event: DailyEvent
     let now: Date
-    let showsPlace: Bool
+    /// The photo has decoded, so its credit may show.
+    @State private var photoShown = false
+
+    /// The event's own photo, else its place's, credited, else its place's logo (iOS
+    /// MEMORY.md, 2026-10-16), as the Town card shows them.
+    private var picture: FeedCardImageSource { event.item.image }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Hue.fill
                 .aspectRatio(DailyMetric.eventPhotoAspect, contentMode: .fit)
-                .overlay { if let url = event.photo { FeedCardURLPhoto(url: url) } }
+                .overlay {
+                    if let url = picture.url {
+                        FeedCardURLPhoto(url: url, onReady: { photoShown = true })
+                    } else if let logo = picture.logo {
+                        FeedCardPlaceLogo(logo: logo, topClear: PhotoChip.inset + PhotoChip.height)
+                    }
+                }
                 .clipShape(RoundedRectangle(cornerRadius: Radius.bento - DailyMetric.eventPhotoInset,
                                             style: .continuous))
-                .overlay(alignment: .topLeading) {
-                    PhotoChip(text: event.startsLabel(now: now)).padding(PhotoChip.inset)
+                .overlay(alignment: .top) {
+                    HStack(spacing: 8) {
+                        PhotoChip(text: event.startsLabel(now: now))
+                            .layoutPriority(1)
+                        Spacer(minLength: 0)
+                        PhotoCredit(names: photoShown ? [picture.attribution].compactMap { $0 } : [])
+                            .padding(-PhotoCredit.edgeInset)
+                    }
+                    .frame(minHeight: PhotoChip.height)
+                    .padding(PhotoChip.inset)
                 }
+                // Its full 3:2 whatever the row's height: a taller card in the row gives its
+                // room to the gap above the divider, never takes it from the photo.
+                .fixedSize(horizontal: false, vertical: true)
                 .padding(DailyMetric.eventPhotoInset)
             VStack(alignment: .leading, spacing: 0) {
                 Text(event.item.title)
@@ -340,21 +386,16 @@ private struct EventOfTheDayFace: View {
                     .font(.sans(15))
                     .foregroundStyle(Hue.inkSecondary)
                     .padding(.top, DailyMetric.eventTimeTop)
-                // In a row of cards the tallest sets the height: the divider and the place keep
-                // to the bottom, where Attend sits over them.
+                // In a row of cards the tallest sets the height: the divider and Attend's row
+                // keep to the bottom.
                 Spacer(minLength: 0)
                 Rectangle()
                     .fill(Hue.hairline)
                     .frame(height: 1)
                     .padding(.top, DailyMetric.eventDividerTop)
-                // The place, centred on Attend's row, as Airbnb's address sits by its button.
-                Text(event.address)
-                    .font(.sans(13))
-                    .foregroundStyle(Hue.inkSecondary)
-                    .lineLimit(2)
-                    .frame(minHeight: RSVPArea.Size.card.pillHeight, alignment: .leading)
-                    .opacity(showsPlace ? 1 : 0)
-                    .animation(.easeInOut(duration: RealLifeActions.flip), value: showsPlace)
+                // Attend's row: the place and the pill sit over it (`EventOfTheDayCard`).
+                Color.clear
+                    .frame(height: RSVPArea.Size.card.pillHeight)
                     .padding(.top, DailyMetric.eventRowTop)
             }
             .padding(.horizontal, DailyMetric.eventTextInset)
