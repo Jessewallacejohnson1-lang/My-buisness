@@ -48,8 +48,8 @@ final class EventDetailPageTests: XCTestCase {
         var withPhoto = event(imageUrl: nil)
         withPhoto.placePicture = photo
         let card = FeedCardItem(withPhoto)
-        XCTAssertEqual(card.image, .placePhoto(Self.url("hall"), credit: "stjosephmn.gov"), "its site, without www.")
-        XCTAssertEqual(card.image.attribution, "stjosephmn.gov")
+        XCTAssertEqual(card.image, .placePhoto(Self.url("hall"), credit: "stjosephmn"), "its site, without www. or .gov")
+        XCTAssertEqual(card.image.attribution, "stjosephmn")
 
         let commons = PlacePicture(url: Self.url("abbey"), kind: .photo, credit: "Bobak Ha'Eri · CC BY 3.0", site: site)
         XCTAssertEqual(commons.creditLine, "Bobak Ha'Eri · CC BY 3.0", "a free photo names its author, not the site")
@@ -112,7 +112,7 @@ final class EventDetailPageTests: XCTestCase {
           "description":"Plant bingo for Angel Reins Stable."}]
         """
         let event = try XCTUnwrap(CommunityAPI.myGoingRows(from: Data(going.utf8)).first)
-        XCTAssertEqual(FeedCardItem(event).image.attribution, "milkandhoneyciders.com")
+        XCTAssertEqual(FeedCardItem(event).image.attribution, "milkandhoneyciders")
         XCTAssertEqual(FeedCardItem(event).description, "Plant bingo for Angel Reins Stable.", "the You tab's page has its About")
     }
 

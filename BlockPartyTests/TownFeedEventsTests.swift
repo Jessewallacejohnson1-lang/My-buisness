@@ -62,6 +62,34 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertFalse(card.isLiked)
     }
 
+    /// A place photo's size reaches its card, which takes the photo's shape inside Instagram's
+    /// limits (BP app event-card 01): 4:5 at its tallest, 1.91:1 at its widest, 3:2 without a size.
+    func testAPlacePhotosSizeShapesItsCard() throws {
+        let json = """
+        [{"id":"e1","title":"Choir","event_date":"2026-10-19","start_time":"7 PM","location":null,
+          "image_url":null,"category":null,"club_name":null,"source_name":"CSB SJU",
+          "end_at":"2026-10-20T04:59:00+00:00","all_day":false,"created_at":"2026-10-06T16:08:20+00:00",
+          "going_count":0,"rsvpd":false,"recurrence":null,"leaves_at":"2026-10-20T04:59:00+00:00",
+          "place_picture":{"url":"https://x/hall.webp","kind":"photo","site":"https://csbsju.edu",
+                           "credit":null,"w":1600,"h":1067}}]
+        """
+        let card = TownFeed.entry(try CommunityAPI.townFeedRows(from: Data(json.utf8))[0]).card
+        XCTAssertEqual(card.image.cardAspect, 1600.0 / 1067.0, accuracy: 0.0001)
+
+        let photo = { (w: Int?, h: Int?) in
+            FeedCardImageSource(PlacePicture(url: URL(string: "https://x/p.webp")!, kind: .photo, width: w, height: h))
+        }
+        XCTAssertEqual(photo(1067, 1600).cardAspect, 0.8, accuracy: 0.0001, "taller than 4:5 is trimmed to 4:5")
+        XCTAssertEqual(photo(1080, 1350).cardAspect, 0.8, accuracy: 0.0001, "4:5 itself")
+        XCTAssertEqual(photo(1000, 1000).cardAspect, 1, accuracy: 0.0001, "square")
+        XCTAssertEqual(photo(1600, 500).cardAspect, 1.91, accuracy: 0.0001, "wider than 1.91:1 is trimmed")
+        XCTAssertEqual(photo(nil, nil).cardAspect, 1.5, accuracy: 0.0001, "no size: 3:2")
+        XCTAssertEqual(photo(0, 900).cardAspect, 1.5, accuracy: 0.0001, "a broken size: 3:2")
+        let logo = PlacePicture(url: URL(string: "https://x/logo.webp")!, kind: .logo, width: 1024, height: 1024)
+        XCTAssertEqual(FeedCardImageSource(logo).cardAspect, 1.5, accuracy: 0.0001, "a logo keeps 3:2")
+        XCTAssertEqual(FeedCardImageSource.fallback.cardAspect, 1.5, accuracy: 0.0001, "ink keeps 3:2")
+    }
+
     /// The recipe's columns (ticket 18): the reason becomes the card's line, and the
     /// admin's score comes through whole.
     func testTheRecipesReasonAndScoreReachTheCard() throws {

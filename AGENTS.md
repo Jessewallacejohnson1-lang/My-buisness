@@ -57,10 +57,9 @@ A change is not done until all four are true. Say which ones you ran.
 
 1. **It builds clean on the simulator** — no new warnings. `[prose]` The repo holds a
    0-warning bar; nothing enforces it but you.
-2. **Tests pass** `[ci]` — `BlockPartyTests`, on a **non-primary** simulator `[hook]`, with
-   a new test file **registered** `[test]` so it actually runs. That check is on
-   registration, not a count — confirm by hand that the **executed count rose**. Commands:
-   `docs/rules/build.md`.
+2. **Tests pass** `[ci]` — `BlockPartyTests`, on a **non-primary** simulator `[hook]`. A new
+   test file joins its target by itself; confirm by hand that the **executed count rose**.
+   Commands: `docs/rules/build.md`.
 3. **You screenshotted it** `[prose]` — launch on the sim with the right debug flag,
    capture, and show Jesse the actual screen. For a visual change, count pixels in the
    region you touched.
@@ -101,7 +100,7 @@ have matched any row.
 | write an animation, async code, a scroll view, a date calculation, or a helper the compiler might isolate | `docs/rules/swift-traps.md` |
 | commit, branch, push, or open a worktree | `docs/rules/git-worktrees.md` |
 | work on the map, its pins, or its realtime feed | `docs/rules/map.md` |
-| need a bundle id, a key, a project id, or a config file | `docs/rules/identifiers.md` |
+| need a bundle id, a key, a project id, a config file, or which Xcode and iOS the app builds for | `docs/rules/identifiers.md` |
 
 Read your row **before** you act, not after. Each file is complete on its own and none is
 optional once its row matches.
@@ -118,7 +117,7 @@ optional once its row matches.
 | What the product is for, and the Town feed's intended shape | `PRODUCT.md` |
 | The onboarding spec — locked rules, bans, Jesse's direction | `ONBOARDING.md` |
 | Product and launch strategy | `docs/playbook.md` |
-| Parked-but-tested code (utility row, horizon) | `BlockParty/Features/Civic/Parked/README.md` |
+| Parked-but-tested code (the utility row) | `BlockParty/Features/Civic/Parked/README.md` |
 | The pre-commit hook that catches a drifted `AGENTS.md`/`CLAUDE.md` — not installed by default, one run per checkout | `docs/rules/git-worktrees.md` |
 | A proposal to promote rules mined from the historical logs — 28 KB, awaiting Jesse's approval | `docs/archive/HARVEST-LEDGER.md` |
 | Checks that run once at the end of production, and what is already confirmed | `docs/SHIP-CHECKLIST.md` |

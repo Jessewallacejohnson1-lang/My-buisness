@@ -482,11 +482,7 @@ private enum HeaderBitmapError: Error {
 
 /// System / Light / Dark, the app's one preference. It lives in the town menu, which
 /// is what this bar's trailing ⋮ opens — so its rules are locked down beside the
-/// bar's, in a file the test target already compiles.
-///
-/// (A NEW file under `BlockPartyTests/` does not run until it is registered in four
-/// places in `project.pbxproj`; that has silently swallowed a suite here before. See
-/// CLAUDE.md.)
+/// bar's.
 @MainActor
 final class AppearancePreferenceTests: XCTestCase {
 

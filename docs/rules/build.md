@@ -18,7 +18,7 @@ xcodebuild test -project BlockParty.xcodeproj -scheme BlockParty \
   -destination 'platform=iOS Simulator,name=<sim>' CODE_SIGNING_ALLOWED=NO
 ```
 
-A **single** test or class: append `-only-testing:BlockPartyTests/DateHelpersTests/testAdminGate` (or `-only-testing:BlockPartyTests/DateHelpersTests`). Coverage now includes date/admin rules, the Today briefing contract/model/feel/live-payload parity/registry, utility-row providers/preferences/motion/contrast, town-timezone formatting, town-rain physics, the map polish pass (search matching, pin-detail copy, filter-chip semantics, sheet rubber-band math), the horizon layer (solar model, palette, day building, scrub math), and Your Day's realtime relevance filter. **The count is one per `func test` in `BlockPartyTests/` — read it, do not quote a number from here.** It moves under you in this repo: parallel sessions add suites to the same tree, so a figure written down is stale within the day. What matters is the invariant: the executed count must RISE when you add a test (see the registration trap below) and must not fall unless you deleted one on purpose. The horizon, Your Day, trivia and utility suites now test **unmounted** code — they are the proof those parked layers still work, so keep them green rather than deleting them with the surfaces they used to back. It is still mostly pure logic: visual map/feed/sheet/animation fidelity requires a clean 0-warning build plus simulator screenshots, and scroll/gesture behavior requires a real-device check.
+A **single** test or class: append `-only-testing:BlockPartyTests/DateHelpersTests/testAdminGate` (or `-only-testing:BlockPartyTests/DateHelpersTests`). Coverage now includes date/admin rules, the Today briefing contract/model/feel/live-payload parity/registry, utility-row providers/preferences/motion/contrast, town-timezone formatting, town-rain physics, the map polish pass (search matching, pin-detail copy, filter-chip semantics, sheet rubber-band math), and Your Day's realtime relevance filter. **The count is one per `func test` in `BlockPartyTests/` — read it, do not quote a number from here.** It moves under you in this repo: parallel sessions add suites to the same tree, so a figure written down is stale within the day. What matters is the invariant: the executed count must RISE when you add a test and must not fall unless you deleted one on purpose. The Your Day, trivia and utility suites now test **unmounted** code — they are the proof those parked layers still work, so keep them green rather than deleting them with the surfaces they used to back. It is still mostly pure logic: visual map/feed/sheet/animation fidelity requires a clean 0-warning build plus simulator screenshots, and scroll/gesture behavior requires a real-device check.
 
 - **Run tests on a non-primary simulator.** `[hook]` `xcodebuild test …
   CODE_SIGNING_ALLOWED=NO` replaces the installed app with the unsigned test host and
@@ -37,11 +37,10 @@ A **single** test or class: append `-only-testing:BlockPartyTests/DateHelpersTes
   bp-build builds through its `xc.sh`, which takes it for it, in its one build folder
   `~/Documents/bp-build`. The XcodeBuildMCP build and test tools can't take the lock: don't
   use them while `pgrep -x xcodebuild` shows a build running.
-- **A new test file does not run until it is registered.** `[test]` The test targets
-  carry an explicit source list; a file under `BlockPartyTests/` or `BlockPartyUITests/`
-  is invisible to `xcodebuild test` until 4 `project.pbxproj` entries exist.
-  `TestRegistrationGuardTests` fails the suite in both directions. Register with the
-  `xcodeproj` gem or the Xcode GUI, never by hand, then confirm the executed count rose.
+- **A new test file joins its target by itself.** `[prose]` `BlockPartyTests/` and
+  `BlockPartyUITests/` are file-system-synchronized folders, like `BlockParty/` (2026-10-19):
+  a Swift file saved there compiles into its target with no `project.pbxproj` edit. Still
+  confirm the executed count rose.
 
 Raw shell tooling (a session with XcodeBuildMCP should prefer it — see `CLAUDE.md`):
 

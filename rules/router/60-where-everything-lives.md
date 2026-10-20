@@ -10,7 +10,7 @@
 | What the product is for, and the Town feed's intended shape | `PRODUCT.md` |
 | The onboarding spec — locked rules, bans, Jesse's direction | `ONBOARDING.md` |
 | Product and launch strategy | `docs/playbook.md` |
-| Parked-but-tested code (utility row, horizon) | `BlockParty/Features/Civic/Parked/README.md` |
+| Parked-but-tested code (the utility row) | `BlockParty/Features/Civic/Parked/README.md` |
 | The pre-commit hook that catches a drifted `AGENTS.md`/`CLAUDE.md` — not installed by default, one run per checkout | `docs/rules/git-worktrees.md` |
 | A proposal to promote rules mined from the historical logs — 28 KB, awaiting Jesse's approval | `docs/archive/HARVEST-LEDGER.md` |
 | Checks that run once at the end of production, and what is already confirmed | `docs/SHIP-CHECKLIST.md` |

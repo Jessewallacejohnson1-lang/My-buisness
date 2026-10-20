@@ -240,7 +240,7 @@ extension FeedCardImageSource {
     /// The photograph's address; nil for a logo and for ink.
     var url: URL? {
         switch self {
-        case .eventPhoto(let url), .placePhoto(let url, _): url
+        case .eventPhoto(let url), .placePhoto(let url, _, _): url
         case .placeLogo, .fallback: nil
         }
     }
@@ -252,15 +252,23 @@ extension FeedCardImageSource {
     /// free photo's author and licence (MEMORY.md, 2026-10-16). nil when there is none, so
     /// no empty capsule renders.
     var attribution: String? {
-        guard case .placePhoto(_, let credit?) = self, !credit.isEmpty else { return nil }
+        guard case .placePhoto(_, let credit?, _) = self, !credit.isEmpty else { return nil }
         return credit
     }
 
     /// Report photo, for a photo Block Party saved of a place (BP app place-photos 06); nil
     /// for the event's own photo, a logo and ink.
     func report(place: String?) -> PhotoReport? {
-        guard case .placePhoto(let url, _) = self else { return nil }
+        guard case .placePhoto(let url, _, _) = self else { return nil }
         return PhotoReport(place: place, photo: url)
+    }
+
+    /// The card's shape, width over height: the photo's own, inside Instagram's limits (4:5
+    /// tall to 1.91:1 wide; Jesse, 2026-10-19, BP app docs/plans/event-card); 3:2 for a photo
+    /// of unknown size, a logo and ink.
+    var cardAspect: Double {
+        guard case .placePhoto(_, _, let aspect?) = self, aspect.isFinite, aspect > 0 else { return 3.0 / 2.0 }
+        return min(max(aspect, 4.0 / 5.0), 1.91)
     }
 
     /// A place's logo as Search draws it, on its backdrop with ink words over it.
@@ -283,6 +291,8 @@ struct FeedCardPlaceLogo: View {
     var topShare: CGFloat = 0.06
     /// Share of the frame's height the logo is tall at most.
     var sideShare: CGFloat = 0.5
+    /// How much of the frame's top a chip over it takes, kept clear.
+    var topClear: CGFloat = 0
     /// How much of the frame's bottom the words over it take, kept clear.
     var bottomClear: CGFloat = 0
 
@@ -292,7 +302,7 @@ struct FeedCardPlaceLogo: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let top = proxy.size.height * topShare
+            let top = max(proxy.size.height * topShare, topClear)
             let room = proxy.size.height - top - bottomClear - Self.gap
             let side = min(proxy.size.height * sideShare, proxy.size.width * 0.4, room)
             ZStack(alignment: .top) {

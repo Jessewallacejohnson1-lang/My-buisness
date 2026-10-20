@@ -132,9 +132,7 @@ nonisolated enum DailyMetric {
     /// `Radius.bento` (22) where Airbnb's is 24.
     static let eventPhotoInset: CGFloat = 8
     static let eventPhotoAspect: CGFloat = 3.0 / 2.0
-    static let eventChipInset: CGFloat = 10
-    static let eventChipHeight: CGFloat = 30
-    static let eventChipPadding: CGFloat = 15
+    // Its chip is `PhotoChip`, which the Town card shares since 2026-10-19.
     /// The text and the divider sit this far in from the card's edges.
     static let eventTextInset: CGFloat = 21
     /// Gaps between the text's frames, set so the glyphs sit the Reference's distances

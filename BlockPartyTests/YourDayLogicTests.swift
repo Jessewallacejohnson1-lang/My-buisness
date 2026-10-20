@@ -609,11 +609,6 @@ final class YourDayLogicTests: XCTestCase {
 
 /// The Your Day RAIL's pure layer — copy, spoken text, the category colour map and
 /// the two numbers the 116pt ceiling depends on.
-///
-/// Deliberately appended to this already-registered file rather than added as a new
-/// one: the test target uses an EXPLICIT source list, so a new file is invisible to
-/// `xcodebuild test` until `project.pbxproj` is edited — and `project.pbxproj` is the
-/// likeliest file in the repo to collide with a parallel agent's work.
 final class YourDayRailSpecTests: XCTestCase {
 
     // MARK: - The count in the section header
@@ -795,99 +790,6 @@ final class YourDayRailSpecTests: XCTestCase {
                 category: category
             )
         )
-    }
-}
-
-// MARK: - Horizon card copy: plain words, Apple hierarchy
-//
-// Appended to this registered file for the same pbxproj reason as
-// YourDayRailSpecTests above.
-
-final class HorizonCopyTests: XCTestCase {
-    func testPrimaryLineCountsPlansInPlainWords() {
-        XCTAssertEqual(HorizonCopy.primaryLine(yours: 5, open: 11), "5 plans today")
-        XCTAssertEqual(HorizonCopy.primaryLine(yours: 1, open: 0), "1 plan today")
-    }
-
-    func testZeroYoursWithOpenReadsNothingPlannedYet() {
-        XCTAssertEqual(HorizonCopy.primaryLine(yours: 0, open: 11), "Nothing planned yet")
-    }
-
-    func testBothZeroKeepsTheNothingPostedLineAlone() {
-        XCTAssertEqual(
-            HorizonCopy.primaryLine(yours: 0, open: 0), "Nothing posted for today yet.")
-        XCTAssertNil(HorizonCopy.secondaryLine(open: 0))
-    }
-
-    func testSecondaryLineCountsTheTownAndVanishesAtZero() {
-        XCTAssertEqual(HorizonCopy.secondaryLine(open: 11), "11 more around town")
-        XCTAssertEqual(HorizonCopy.secondaryLine(open: 1), "1 more around town")
-        XCTAssertNil(HorizonCopy.secondaryLine(open: 0))
-    }
-
-    func testCardAccessibilityLabelMirrorsTheVisibleWording() {
-        // No "Your day" prefix: the section header is its own VoiceOver
-        // element and already says it — the prefix made the swipe order
-        // read "Your day → Your day, 5 plans…" (review finding).
-        XCTAssertEqual(
-            HorizonCopy.cardAccessibilityLabel(yours: 5, open: 11),
-            "5 plans today, 11 more around town."
-        )
-        XCTAssertEqual(
-            HorizonCopy.cardAccessibilityLabel(yours: 0, open: 0),
-            "Nothing posted for today yet."
-        )
-        XCTAssertFalse(
-            HorizonCopy.cardAccessibilityLabel(yours: 3, open: 2)
-                .contains(YourDayRailCopy.header),
-            "the header speaks its own name; the card must not repeat it"
-        )
-    }
-
-    func testSeeAllLinkNamesTheCountAndVanishesAtZero() {
-        XCTAssertEqual(HorizonCopy.seeAllLink(16), "See all 16 ›")
-        XCTAssertEqual(HorizonCopy.seeAllLink(1), "See all 1 ›")
-        XCTAssertNil(HorizonCopy.seeAllLink(0), "no postings, nothing to link")
-        XCTAssertEqual(
-            HorizonCopy.seeAllLinkAccessibilityLabel(16),
-            "See all 16 of today's postings"
-        )
-    }
-
-    func testScrubAccessibilityValueSpeaksTimeThenNearestEvent() {
-        XCTAssertEqual(
-            HorizonCopy.scrubAccessibilityValue(
-                time: "2:30 PM", nearestTitle: "Farmers market", nearestTime: "3 PM"),
-            "2:30 PM. Nearest: Farmers market at 3 PM")
-        // An empty day speaks the time alone.
-        XCTAssertEqual(
-            HorizonCopy.scrubAccessibilityValue(
-                time: "2:30 PM", nearestTitle: nil, nearestTime: nil),
-            "2:30 PM")
-    }
-
-    func testScrubbingHintReplacesTheDoorThatWentQuiet() {
-        // Mid-session the card's tap deliberately does nothing, so the
-        // resting hint's promise ("Opens your day schedule") must not
-        // stand while scrubbing — the live hint teaches the steps and
-        // the escape way out instead.
-        XCTAssertNotEqual(
-            HorizonCopy.scrubbingAccessibilityHint, HorizonCopy.cardAccessibilityHint)
-        XCTAssertTrue(HorizonCopy.scrubbingAccessibilityHint.contains("two fingers"))
-        XCTAssertFalse(HorizonCopy.scrubbingAccessibilityHint.contains("!"))
-    }
-
-    func testVoiceHasNoExclamationMarksAnywhere() {
-        for text in [
-            HorizonCopy.primaryLine(yours: 5, open: 11),
-            HorizonCopy.primaryLine(yours: 0, open: 11),
-            HorizonCopy.primaryLine(yours: 0, open: 0),
-            HorizonCopy.secondaryLine(open: 11) ?? "",
-            HorizonCopy.cardAccessibilityLabel(yours: 3, open: 2),
-        ] {
-            XCTAssertFalse(text.contains("!"))
-            XCTAssertFalse(text.lowercased().contains("hygge"))
-        }
     }
 }
 

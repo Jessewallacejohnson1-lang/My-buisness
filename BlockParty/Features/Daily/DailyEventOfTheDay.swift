@@ -227,7 +227,9 @@ private struct EventOfTheDayCard: View {
                 .overlay { if let url = event.photo { FeedCardURLPhoto(url: url) } }
                 .clipShape(RoundedRectangle(cornerRadius: Radius.bento - DailyMetric.eventPhotoInset,
                                             style: .continuous))
-                .overlay(alignment: .topLeading) { pill.padding(DailyMetric.eventChipInset) }
+                .overlay(alignment: .topLeading) {
+                    PhotoChip(text: event.startsLabel(now: now)).padding(PhotoChip.inset)
+                }
                 .padding(DailyMetric.eventPhotoInset)
             VStack(alignment: .leading, spacing: 0) {
                 Text(event.item.title)
@@ -262,14 +264,5 @@ private struct EventOfTheDayCard: View {
                         .strokeBorder(Hue.hairline, lineWidth: 0.5)
                 }
         }
-    }
-
-    private var pill: some View {
-        Text(event.startsLabel(now: now))
-            .font(.sansMedium(14))
-            .foregroundStyle(Hue.ink)
-            .padding(.horizontal, DailyMetric.eventChipPadding)
-            .frame(minHeight: DailyMetric.eventChipHeight)
-            .background(Capsule().fill(Hue.surface))
     }
 }
