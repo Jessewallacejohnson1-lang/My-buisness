@@ -155,6 +155,70 @@ nonisolated struct UpcomingEvent: Identifiable, Hashable {
     /// The organizer's own words (`club_events.description`), the Event page's About: nil for
     /// an event without them (a game), and on rows read before the feeds sent them.
     var description: String? = nil
+    /// A game between two teams (BP app docs/plans/game-card, ticket 01): its Town card shows
+    /// the teams instead of a photo. nil for any other event, and on rows read before the feed
+    /// sent it.
+    var game: Game? = nil
+}
+
+/// A game between two teams, as `get_town_feed` sends it (`private.event_game`): the sport
+/// ("Girls Soccer"), its special night ("Homecoming") and both schools, the host's first.
+nonisolated struct Game: Decodable, Hashable, Sendable {
+    let sport: String
+    let occasion: String?
+    let teams: [Team]
+
+    nonisolated struct Team: Decodable, Hashable, Sendable {
+        let name: String
+        /// As neighbours say it ("Gustavus", not "Gustavus Adolphus").
+        let short: String
+        /// The school's logo in Block Party's Storage; nil until one is found (BP app
+        /// docs/plans/game-card): the card shows the first letter.
+        let logo: URL?
+        /// The school's color as 0xRRGGBB; nil until it's known, or misread.
+        let rgb: UInt32?
+
+        private enum CodingKeys: String, CodingKey { case name, short, logo, color }
+
+        init(name: String, short: String, logo: URL? = nil, rgb: UInt32? = nil) {
+            self.name = name
+            self.short = short
+            self.logo = logo
+            self.rgb = rgb
+        }
+
+        /// A logo or color that doesn't read is none: it never costs the card.
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            name = try c.decode(String.self, forKey: .name)
+            short = (try? c.decodeIfPresent(String.self, forKey: .short)) ?? name
+            logo = (try? c.decodeIfPresent(String.self, forKey: .logo)).flatMap(URL.init(string:))
+            rgb = (try? c.decodeIfPresent(String.self, forKey: .color)).flatMap(Self.rgb(hex:))
+        }
+
+        /// "#C20430" as 0xC20430; nil for anything else.
+        static func rgb(hex: String) -> UInt32? {
+            guard hex.count == 7, hex.first == "#" else { return nil }
+            return UInt32(hex.dropFirst(), radix: 16)
+        }
+
+        /// What the disc shows until the logo lands, or instead of one: the first letter.
+        var initial: String { short.first(where: \.isLetter).map { String($0).uppercased() } ?? "" }
+    }
+
+    /// The card's title as VoiceOver says it, naming the teams the discs show: "Football,
+    /// Saint John's versus Gustavus".
+    var spoken: String { "\(sport), \(teams.map(\.short).joined(separator: " versus "))" }
+
+    /// Only a game with exactly two teams: anything else is no game, and the card stays a
+    /// photo card.
+    struct Lenient: Decodable, Hashable {
+        let value: Game?
+        init(from decoder: Decoder) {
+            let game = try? Game(from: decoder)
+            value = game?.teams.count == 2 ? game : nil
+        }
+    }
 }
 
 /// Where an event happens, as a picture (`public.place_picture`, BP app
