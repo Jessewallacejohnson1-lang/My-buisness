@@ -132,6 +132,9 @@ def when(prop):
     tz = re.search(r"TZID=([^;:]+)", params)
     # A WordPress events plugin on a site left at UTC labels the town's own clock "UTC": Sal's feed
     # said 18:30 UTC for its 6:30 PM bingo (2026-10-20). A real UTC time ends in Z.
+    # ponytail: every TZID=UTC feed reads as town time (the city's, the Monastery's and Rod & Gun's
+    # say America/Chicago); one that truly means UTC would read 5 to 6 hours late, so give it a
+    # registry flag if one shows up.
     zone = tz and tz.group(1) not in ("UTC", "GMT", "Etc/UTC") and ZoneInfo(tz.group(1))
     return dt.replace(tzinfo=zone or LOCAL), False
 

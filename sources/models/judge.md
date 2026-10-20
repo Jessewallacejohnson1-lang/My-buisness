@@ -29,9 +29,9 @@ Read these first:
    - `start` and `end`: ISO 8601 with Chicago's offset, `-05:00` through Nov 1, 2026 and
      `-06:00` from Nov 1, 2026 to Mar 14, 2027; a date alone with `all_day: true` when the page
      gives no time. Give `end` whenever the page gives one ("10:00 am – 4:00 pm"), and never
-     guess one it doesn't. Something that runs over days ends on its last day ("lit Friday,
-     burning through Oct 25": `end` on Oct 25; all day, `end` is that date alone): the card
-     says Now the whole time (Jesse, 2026-10-20).
+     guess one it doesn't. Something that runs over days gives its last day alone as `end`
+     ("lit Friday at 4, burning through Oct 25": `"end": "2026-10-25"`), timed or all day, and
+     the card says Now the whole time (Jesse, 2026-10-20).
    - `area`: `town` when it happens in St. Joseph; `campus` for any CSB or SJU event; `game`
      for a high school game within 20 miles; `announced` for anything else a St. Joseph place
      posts, wherever it is. Every page here comes from a St. Joseph place, so nothing is

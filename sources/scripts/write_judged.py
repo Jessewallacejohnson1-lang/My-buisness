@@ -20,7 +20,8 @@ THE JUDGED ITEM: the contract the judge (ticket 05) produces, one JSON object pe
   title        the event's own name, the way a neighbour would say it (.claude/skills/title-and-place)
   start        ISO 8601 with offset ("2026-10-24T16:00:00-05:00"), or a date ("2026-11-09")
                when all_day. Required for an event; optional for news (the day it is about).
-  end          optional, the same form; an all-day run over days gives its last day ("2026-11-14")
+  end          optional, the same form; a run over days, timed or all day, gives its last day
+               alone ("2026-10-25"), and lasts until the midnight after it
   all_day      true | false (default false)
   place        the venue's name ("Clemens Stadium"), an address only when nothing names the place,
                "Online" for a webinar; "" if not said (.claude/skills/title-and-place)
@@ -403,14 +404,16 @@ def places():
 def event_of(it, today, interests, home, notes):
     try:
         day, at = when(it.get("start") or "", it.get("all_day"))
-        end = None if at is None or not it.get("end") else local(it["end"])
-        if end and end.time() == time(23, 59):
-            end = None  # a calendar's "until 11:59 PM" is how it says no end time
-        if at is None and it.get("end"):
-            # An all-day run over days (Festival of Cultures, Nov 9 to 14) lasts until the
-            # midnight after its last day, so the Town feed keeps it that long.
-            last = date.fromisoformat(it["end"][:10])
+        until = it.get("end") or ""
+        if re.fullmatch(r"\d{4}-\d\d-\d\d", until):
+            # A run over days gives its last day (the kiln, Oct 16 to 25; Festival of Cultures,
+            # Nov 9 to 14): it lasts until the midnight after, so the Town feed keeps it that long.
+            last = date.fromisoformat(until)
             end = datetime.combine(last + timedelta(1), time(), LOCAL) if last > day else None
+        else:
+            end = None if at is None or not until else local(until)
+            if end and end.time() == time(23, 59):
+                end = None  # a calendar's "until 11:59 PM" is how it says no end time
         signup = it.get("signup_by") and date.fromisoformat(it["signup_by"])
     except ValueError as e:
         return None, f"invalid: unreadable date ({e})"
@@ -685,6 +688,8 @@ def t_all_day_run_keeps_its_last_day():
     row = run([week])["events"][0]["row"]
     assert row["all_day"] and row["end_at"] == "2026-11-15T00:00:00-06:00", row
     assert run([dict(week, end="2026-11-09")])["events"][0]["row"]["end_at"] is None, "one day is no run"
+    kiln = run([item(title="Kiln Firing", start="2026-10-16T16:00:00-05:00", end="2026-10-25")])["events"][0]["row"]
+    assert kiln["end_at"] == "2026-10-26T00:00:00-05:00" and kiln["start_time"] == "4 PM", "a timed run ends after its last day"
 
 
 def t_city_meeting_end_and_place():
