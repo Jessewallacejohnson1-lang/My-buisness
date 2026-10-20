@@ -4,6 +4,7 @@
 //  card's shadow across the yellow, and the tilt.
 //
 
+import UIKit
 import XCTest
 @testable import BlockParty
 
@@ -16,6 +17,15 @@ final class DailyPageTests: XCTestCase {
         XCTAssertEqual(DailySpotlight.sample.photos.count, 2)
     }
     #endif
+
+    /// The Spotlight's three faces resolve by PostScript name. A wrong name falls back to
+    /// the system font with no error, and "Spotlight" would quietly lose the logo's look.
+    func testTheSpotlightFacesAreBundled() {
+        registerBlockPartyFonts()
+        for face in [Face.logoSerif, Face.eventHeadline, Face.displayMedium] {
+            XCTAssertNotNil(UIFont(name: face, size: 20), face)
+        }
+    }
 
     /// Morning throws the shadow right, dinner throws it left, both long; midday drops it
     /// short and straight down.

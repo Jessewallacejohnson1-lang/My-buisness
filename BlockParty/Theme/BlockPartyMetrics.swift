@@ -66,13 +66,6 @@ extension View {
         shadow(color: .black.opacity(0.07), radius: 3, x: 0, y: 1.5)
     }
 
-    /// The Spotlight's round photo, pressed: it rises toward the finger and casts its
-    /// own shadow on the card. At rest the low sun's shadow covers it, as in the depth
-    /// mockup Jesse picked (2026-10-01).
-    func portraitLift(pressed: Bool) -> some View {
-        shadow(color: .black.opacity(pressed ? 0.30 : 0), radius: 16, x: 0, y: 18)
-    }
-
     // MARK: The Meetup pill (`MeetupPillStyle`)
 
     /// The pill's two shadows (Figma "Meetup depth"): black 30%, 1.5 pt down, 3 pt blur where

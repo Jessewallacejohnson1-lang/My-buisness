@@ -4,7 +4,8 @@
 //
 //  Jost is the display, headline, and wordmark face; SF Pro stays the body, UI, and
 //  data face through the system helpers; BP Event Heading is scoped to the one role
-//  it was drawn for, the event headline (`eventDisplay`). Atkinson Hyperlegible Bold
+//  it was drawn for, the event headline (`eventDisplay`), and Fraunces Black to the
+//  one word that stands in for the logo (`logoSerif`). Atkinson Hyperlegible Bold
 //  remains bundled but is no longer referenced. Numbers keep tabular figures by
 //  pairing the mono helpers with `.monospacedDigit()` at the call site.
 //
@@ -37,6 +38,10 @@ enum Face {
 
     /// BP Event Heading — the event headline, and nothing else.
     static let eventHeadline  = "BPEventHeading-Regular"
+
+    /// Fraunces at Black, fully soft, its 144 pt cut: one static instance of the OFL
+    /// variable font (`Fraunces-OFL.txt`), made with fontTools' instancer.
+    static let logoSerif      = "Fraunces-144ptSuperSoftBlackNonWonky"
 }
 
 /// Register every bundled .ttf so its PostScript name resolves. Idempotent.
@@ -118,6 +123,19 @@ extension Font {
     /// character alone.
     static func eventDisplay(_ size: CGFloat, relativeTo style: TextStyle? = nil) -> Font {
         .custom(Face.eventHeadline, size: size, relativeTo: style ?? nearestTextStyle(to: size))
+    }
+
+    /// Jost Medium at an exact size, scaling against the nearest text style.
+    static func displayMedium(_ size: CGFloat, relativeTo style: TextStyle? = nil) -> Font {
+        .custom(Face.displayMedium, size: size, relativeTo: style ?? nearestTextStyle(to: size))
+    }
+
+    /// The logo's face for a word: Fraunces Black, soft. The logo itself is drawn art
+    /// with no font behind it; letter by letter this is the closest released face to
+    /// its heavy rounded serif. Scoped to Daily's "Spotlight" over the yellow (Jesse,
+    /// 2026-10-19).
+    static func logoSerif(_ size: CGFloat, relativeTo style: TextStyle? = nil) -> Font {
+        .custom(Face.logoSerif, size: size, relativeTo: style ?? nearestTextStyle(to: size))
     }
 
     // MARK: - UI / body — system

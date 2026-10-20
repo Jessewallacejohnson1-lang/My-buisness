@@ -17,7 +17,7 @@ struct DailySpotlight {
     /// What they do, or their business.
     var about: String
     var portrait: URL?
-    /// The photos under the name; the card shows the first two.
+    /// More photos, for the story page; the card shows `portrait` alone.
     var photos: [URL]
 
     /// Today's story. There is no backend for it yet, so a release build gets nil and the
@@ -33,8 +33,8 @@ struct DailySpotlight {
 
     #if DEBUG
     /// INVENTED: a made-up neighbour and business, over the warm photos from Jesse's
-    /// Reference (the onboarding interest images). A real Spotlight's round photo is the
-    /// person's face; the sample has no real face to show.
+    /// Reference (the onboarding interest images). A real Spotlight's photo is the
+    /// person; the sample has no real face to show.
     static let sample = DailySpotlight(
         name: "Marta Reyes",
         about: "Northside Coffee",
@@ -55,39 +55,47 @@ struct DailySpotlight {
     #endif
 }
 
-/// Sizes MEASURED from Jesse's Reference: the Host card, layout 02 of the Daily Layouts
-/// mockup (`references/daily-tab/spotlight-host-card-pick.png` in the BP app folder).
-/// The card's corner is the one departure: 26 there, `Radius.bento` here (Jesse, 2026-09-30).
-/// The yellow, the low sun and the tilt are the depth page Jesse picked on 2026-10-01
-/// (ideas "Yellow cover", "Low sun" and "Tilt"); their values were picked there, in a
-/// browser mockup, not measured from another app. Its CSS blurs are halved here: a
-/// SwiftUI shadow radius blurs about as much as a CSS blur twice its size.
+/// The Spotlight card's sizes are MEASURED from Jesse's Reference, App Store's card with
+/// its words over a blurred bottom (`references/spotlight-card/SPEC.md` in the BP app
+/// folder, 2026-10-19); its corner stays `Radius.bento` (Jesse, 2026-09-30). The low sun
+/// and the tilt are the depth page Jesse picked on 2026-10-01 (ideas "Low sun" and
+/// "Tilt"); their values were picked there, in a browser mockup, not measured from
+/// another app. Its CSS blurs are halved here: a SwiftUI shadow radius blurs about as
+/// much as a CSS blur twice its size.
 nonisolated enum DailyMetric {
     static let side: CGFloat = 18
-    /// The "Spotlight" label sits where the date line was, at the date line's spacing.
-    static let labelTop: CGFloat = 6
-    /// From the label to the top of the round photo.
-    static let labelToPortrait: CGFloat = 22
-    static let portrait: CGFloat = 120
-    static let portraitRing: CGFloat = 5
-    /// Card padding above the name: the photo's lower half, then 17.
-    static let cardTop: CGFloat = 77
-    static let cardInset: CGFloat = 18
-    /// Jost's line box is taller than the mockup's 1.15; this puts the name's glyphs
-    /// 6pt over the business line, as measured there.
-    static let nameBottom: CGFloat = -1.5
-    static let photosTop: CGFloat = 16
-    static let photoGap: CGFloat = 6
-    static let photoAspect: CGFloat = 4.0 / 3.0
-    /// Pressed, the round photo rises toward the finger while the card sinks.
-    static let portraitPressScale: CGFloat = 1.06
-    static let portraitPressRise: CGFloat = 5
+    /// "Spotlight" over the yellow in the logo's face, and from it to the card. Picked
+    /// in the Check-in mock (BP app `references/spotlight-card/mock.html`).
+    static let wordSize: CGFloat = 28
+    static let wordTracking: CGFloat = -0.6
+    static let wordToCard: CGFloat = 14
+    /// The photo is the card, 4:5 (picked on the drafts board).
+    static let cardAspect: CGFloat = 4.0 / 5.0
+    /// The words sit 16 in from the card's left edge, and the business line's baseline
+    /// 16 over its bottom edge, as App Store's do: Jost's descent is the other 5. The
+    /// name's baseline sits 11 over the business line's capitals, as App Store's title
+    /// over its subtitle: BP Event Heading's tall line box is all of that gap.
+    static let wordsInset: CGFloat = 16
+    static let wordsBottom: CGFloat = 11
+    static let nameToAbout: CGFloat = 0
+    /// The bottom fade starts this far over the name, as App Store's starts over its
+    /// label. The photo's blurred copy is solid by `fadeSolid` of the way down.
+    static let fadeAboveWords: CGFloat = 24
+    static let fadeSolid: CGFloat = 0.75
+    /// GUESSED: a still can't show App Store's blur, only that the photo's detail is gone
+    /// by the card's bottom edge.
+    static let fadeBlur: CGFloat = 10
+    /// Black at the card's bottom edge. App Store's darkens about 37%; our photos run
+    /// brighter than its art, so 45 (picked).
+    static let fadeShade: Double = 0.45
     /// Clears the floating tab bar: the same 96 the other tab scrollers reserve.
     static let tabBarClearance: CGFloat = 96
 
-    /// The yellow ends this far under the business line, so the card rides its edge.
-    static let yellowBelowAbout: CGFloat = 12
-    /// How far up the yellow reaches from its lower edge: under the clock, and past
+    /// The yellow fades into the page over `yellowFade`, ending this far into the card:
+    /// half the height the solid yellow took (Jesse, 2026-10-19).
+    static let yellowIntoCard: CGFloat = 72
+    static let yellowFade: CGFloat = 120
+    /// How far up the solid yellow reaches above the fade: under the clock, and past
     /// the longest pull, so pulling down never shows paper above it.
     static let yellowReach: CGFloat = 1600
     /// The clock's frosted edge comes in over this much scroll, as the Spotlight label
@@ -111,16 +119,14 @@ nonisolated enum DailyMetric {
     static let sunrise: Double = 6
     static let sunset: Double = 21
 
-    /// At a full lean: the card turns this many degrees, its shadow slides this far the
-    /// other way, and the round photo floats this far ahead of the card.
+    /// At a full lean: the card turns this many degrees and its shadow slides this far
+    /// the other way.
     static let tiltLean: Double = 8
     /// The mockup's 900pt camera for a card about 360pt wide; SwiftUI's default of 1
     /// puts the camera a card's width away, which turned a full lean into a skew.
     static let tiltPerspective: CGFloat = 0.4
     static let tiltShadowX: CGFloat = 16
     static let tiltShadowY: CGFloat = 12
-    static let tiltFloatX: CGFloat = 5
-    static let tiltFloatY: CGFloat = 4
 
     /// Event of the day, MEASURED from Jesse's Reference: Airbnb's "Apartment in New
     /// York" trip card (`airbnb-trip-5.jpg` in the Daily spec's reference assets, an
@@ -234,8 +240,17 @@ nonisolated enum DailyClock {
     }
 }
 
+/// The yellow easing out into the page: exact BP yellow above, the page's own colour
+/// below. Eased at both ends (smoothstep), since a straight ramp drew a line where it
+/// started, under the clock.
+private nonisolated enum DailyYellow {
+    static let fade: [Gradient.Stop] = stride(from: 0.0, through: 1.0, by: 0.125).map { t in
+        .init(color: Hue.brandDisc.mix(with: Hue.paper, by: t * t * (3 - 2 * t)), location: t)
+    }
+}
+
 private extension VerticalAlignment {
-    /// The yellow's lower edge, set by the Spotlight's business line.
+    /// The yellow fade's lower edge, set by the Spotlight card.
     nonisolated enum DailyYellowEdge: AlignmentID {
         static func defaultValue(in d: ViewDimensions) -> CGFloat { d[.top] }
     }
@@ -254,10 +269,14 @@ struct DailyPage: View {
             Hue.paper.ignoresSafeArea()
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 0) {
-                    DailySectionLabel(title: "Spotlight", ink: Hue.onBrandDisc)
-                        .padding(.top, DailyMetric.labelTop)
+                    // The logo's face, standing in for the small caps label (Jesse, 2026-10-19).
+                    Text("Spotlight")
+                        .font(.logoSerif(DailyMetric.wordSize))
+                        .tracking(DailyMetric.wordTracking)
+                        .foregroundStyle(Hue.onBrandDisc)
+                        .accessibilityAddTraits(.isHeader)
                     SpotlightCard(spotlight: spotlight, tilt: tilt)
-                        .padding(.top, DailyMetric.labelToPortrait)
+                        .padding(.top, DailyMetric.wordToCard)
                         .padding(.horizontal, DailyMetric.side)
                     TimelineView(.everyMinute) { context in
                         let now = DailyClock.now(context.date)
@@ -288,9 +307,12 @@ struct DailyPage: View {
                     Color.clear.frame(height: DailyMetric.tabBarClearance)
                 }
                 .background(alignment: Alignment(horizontal: .center, vertical: .dailyYellowEdge)) {
-                    Hue.brandDisc
-                        .frame(height: DailyMetric.yellowReach)
-                        .alignmentGuide(.dailyYellowEdge) { $0[.bottom] }
+                    VStack(spacing: 0) {
+                        Hue.brandDisc.frame(height: DailyMetric.yellowReach)
+                        LinearGradient(stops: DailyYellow.fade, startPoint: .top, endPoint: .bottom)
+                            .frame(height: DailyMetric.yellowFade)
+                    }
+                    .alignmentGuide(.dailyYellowEdge) { $0[.bottom] }
                 }
             }
             .onScrollGeometryChange(for: CGFloat.self) { geometry in
@@ -318,8 +340,8 @@ struct DailySectionLabel: View {
     }
 }
 
-/// The Host card: a white card lifted off the page, its round photo breaking out of the
-/// top edge, then the name, what they do, and two photos.
+/// The Spotlight card: the photo is the card, the name and business over a bottom fade
+/// where the photo blurs and darkens, as App Store's card sets its words.
 private struct SpotlightCard: View {
     let spotlight: DailySpotlight
     let tilt: PhoneTilt
@@ -334,7 +356,7 @@ private struct SpotlightCard: View {
 }
 
 /// The bouncier card press (the spec's "bouncy press"), telling the card inside that it
-/// is pressed so the round photo can rise while the card sinks.
+/// is pressed so its shadow can pull in as it sinks.
 private struct SpotlightPressStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         PressableCardStyle().makeBody(configuration: configuration)
@@ -350,95 +372,99 @@ private struct SpotlightCardFace: View {
     let spotlight: DailySpotlight
     let tilt: PhoneTilt
     @Environment(\.spotlightPressed) private var pressed
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The words' height, so the fade starts `fadeAboveWords` over the name however many
+    /// lines it takes.
+    @State private var wordsHeight: CGFloat = 0
+
+    private var photo: URL? { spotlight.portrait ?? spotlight.photos.first }
+    private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: Radius.bento, style: .continuous) }
 
     var body: some View {
         let lean = tilt.lean
-        let float = CGSize(width: lean.x * DailyMetric.tiltFloatX, height: lean.y * DailyMetric.tiltFloatY)
-        VStack(spacing: 0) {
-            Text(spotlight.name)
-                .font(.display(28))
-                .foregroundStyle(Hue.ink)
-                .multilineTextAlignment(.center)
-                .padding(.bottom, DailyMetric.nameBottom)
-            Text(spotlight.about)
-                .font(.sans(15))
-                .foregroundStyle(Hue.inkSecondary)
-                .multilineTextAlignment(.center)
-                .alignmentGuide(.dailyYellowEdge) { $0[.bottom] + DailyMetric.yellowBelowAbout }
-            if !spotlight.photos.isEmpty {
-                HStack(spacing: DailyMetric.photoGap) {
-                    ForEach(spotlight.photos.prefix(2), id: \.self) { url in
-                        Hue.fill
-                            .aspectRatio(DailyMetric.photoAspect, contentMode: .fit)
-                            .overlay(FeedCardURLPhoto(url: url))
-                            .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-                    }
+        Hue.fill
+            .aspectRatio(DailyMetric.cardAspect, contentMode: .fit)
+            .overlay {
+                if let photo { FeedCardURLPhoto(url: photo) }
+            }
+            .overlay { if let photo { fade(photo) } }
+            .overlay(alignment: .bottomLeading) { words }
+            .clipShape(shape)
+            .overlay { shape.strokeBorder(Hue.hairline, lineWidth: 0.5) }
+            // Shadows go on shapes alone: on the card they would also be cast by the words.
+            .background {
+                ZStack {
+                    sunShadow(lean: lean)
+                    shape.fill(Hue.surface).spotlightEdge()
                 }
-                .padding(.top, DailyMetric.photosTop)
             }
-        }
-        .padding(.top, DailyMetric.cardTop)
-        .padding([.horizontal, .bottom], DailyMetric.cardInset)
-        .frame(maxWidth: .infinity)
-        // Shadows go on shapes alone: on the stack they would also be cast by each
-        // photo and line of text, greying the card under them.
-        .background {
-            ZStack {
-                sunShadow(lean: lean, float: float)
-                RoundedRectangle(cornerRadius: Radius.bento, style: .continuous)
-                    .fill(Hue.surface)
-                    .spotlightEdge()
-                    .overlay {
-                        RoundedRectangle(cornerRadius: Radius.bento, style: .continuous)
-                            .strokeBorder(Hue.hairline, lineWidth: 0.5)
-                    }
-            }
-        }
-        .overlay(alignment: .top) {
-            portrait.offset(x: float.width, y: float.height - DailyMetric.portrait / 2)
-        }
-        .rotation3DEffect(.degrees(lean.x * DailyMetric.tiltLean), axis: (x: 0, y: 1, z: 0),
-                          perspective: DailyMetric.tiltPerspective)
-        .rotation3DEffect(.degrees(-lean.y * DailyMetric.tiltLean), axis: (x: 1, y: 0, z: 0),
-                          perspective: DailyMetric.tiltPerspective)
-        .padding(.top, DailyMetric.portrait / 2)
+            .frame(maxWidth: .infinity)
+            .alignmentGuide(.dailyYellowEdge) { $0[.top] + DailyMetric.yellowIntoCard }
+            .rotation3DEffect(.degrees(lean.x * DailyMetric.tiltLean), axis: (x: 0, y: 1, z: 0),
+                              perspective: DailyMetric.tiltPerspective)
+            .rotation3DEffect(.degrees(-lean.y * DailyMetric.tiltLean), axis: (x: 1, y: 0, z: 0),
+                              perspective: DailyMetric.tiltPerspective)
     }
 
-    /// One shadow for the card and its round photo together, thrown across the yellow by
-    /// the Town's sun and slid the other way by the lean. Its shapes sit exactly under
-    /// the card and the photo, so only the shadow shows.
-    private func sunShadow(lean: CGPoint, float: CGSize) -> some View {
+    private var words: some View {
+        VStack(alignment: .leading, spacing: DailyMetric.nameToAbout) {
+            Text(spotlight.name)
+                .font(.eventDisplay(28))
+                // The Town card's title, set the same way (`FeedEventCard.imageCopy`).
+                .lineSpacing(-2)
+                .lineLimit(3)
+                .foregroundStyle(.white)
+            // Jost Medium stands in for Airbnb's Cereal, which Airbnb doesn't license
+            // (Jesse picks the final face later, 2026-10-19).
+            Text(spotlight.about)
+                .font(.displayMedium(15))
+                .foregroundStyle(.white.opacity(0.85))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .feedCardPhotoTypeShadow()
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { wordsHeight = $0 }
+        .padding([.horizontal, .top], DailyMetric.wordsInset)
+        .padding(.bottom, DailyMetric.wordsBottom)
+    }
+
+    /// App Store's bottom fade: the photo's own blurred copy faded in from over the name,
+    /// and black deepening to the edge. Public SwiftUI, not the UIKit blur the Town bar
+    /// stacks: that blur blurs what is behind the view, and under a mask it kept the app
+    /// from going idle (`statusEdge`).
+    private func fade(_ photo: URL) -> some View {
+        let height = wordsHeight + DailyMetric.wordsBottom + DailyMetric.fadeAboveWords
+        return ZStack(alignment: .bottom) {
+            FeedCardURLPhoto(url: photo)
+                .blur(radius: DailyMetric.fadeBlur, opaque: true)
+                .mask(alignment: .bottom) {
+                    LinearGradient(stops: [.init(color: .clear, location: 0),
+                                           .init(color: .black, location: DailyMetric.fadeSolid)],
+                                   startPoint: .top, endPoint: .bottom)
+                        .frame(height: height)
+                }
+            LinearGradient(colors: [.black.opacity(0), .black.opacity(DailyMetric.fadeShade)],
+                           startPoint: .top, endPoint: .bottom)
+                .frame(height: height)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    /// One shadow for the card, thrown across the page by the Town's sun and slid the
+    /// other way by the lean. Its shape sits exactly under the card, so only the shadow
+    /// shows.
+    private func sunShadow(lean: CGPoint) -> some View {
         TimelineView(.everyMinute) { context in
             let sun = DailySun.shadow(hour: DailySun.hour(at: DailyClock.now(context.date)))
             let sink = pressed ? DailyMetric.sunPressed : 1
-            ZStack(alignment: .top) {
-                RoundedRectangle(cornerRadius: Radius.bento, style: .continuous)
-                Circle()
-                    .frame(width: DailyMetric.portrait, height: DailyMetric.portrait)
-                    .offset(x: float.width, y: float.height - DailyMetric.portrait / 2)
-            }
-            .foregroundStyle(Hue.surface)
-            .compositingGroup()
-            .shadow(color: .black.opacity(DailyMetric.sunOpacity),
-                    radius: sun.blur * sink,
-                    x: (sun.x - lean.x * DailyMetric.tiltShadowX) * sink,
-                    y: (sun.y - lean.y * DailyMetric.tiltShadowY) * sink)
-            .animation(Motion.select, value: pressed)
-            // Sunset and sunrise swing it a long way in one tick of the clock.
-            .animation(Motion.smooth, value: sun)
+            shape
+                .fill(Hue.surface)
+                .shadow(color: .black.opacity(DailyMetric.sunOpacity),
+                        radius: sun.blur * sink,
+                        x: (sun.x - lean.x * DailyMetric.tiltShadowX) * sink,
+                        y: (sun.y - lean.y * DailyMetric.tiltShadowY) * sink)
+                .animation(Motion.select, value: pressed)
+                // Sunset and sunrise swing it a long way in one tick of the clock.
+                .animation(Motion.smooth, value: sun)
         }
-    }
-
-    private var portrait: some View {
-        let rises = pressed && !reduceMotion
-        return FeedAuthorAvatar(url: spotlight.portrait, name: spotlight.name,
-                                side: DailyMetric.portrait - 2 * DailyMetric.portraitRing)
-            .padding(DailyMetric.portraitRing)
-            .background(Circle().fill(Hue.surface).portraitLift(pressed: rises))
-            .frame(width: DailyMetric.portrait, height: DailyMetric.portrait)
-            .scaleEffect(rises ? DailyMetric.portraitPressScale : 1, anchor: .bottom)
-            .offset(y: rises ? -DailyMetric.portraitPressRise : 0)
-            .animation(Motion.select, value: pressed)
     }
 }
