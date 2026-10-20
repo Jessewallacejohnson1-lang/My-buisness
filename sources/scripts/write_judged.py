@@ -20,7 +20,7 @@ THE JUDGED ITEM: the contract the judge (ticket 05) produces, one JSON object pe
   title        the event's own name, the way a neighbour would say it (.claude/skills/title-and-place)
   start        ISO 8601 with offset ("2026-10-24T16:00:00-05:00"), or a date ("2026-11-09")
                when all_day. Required for an event; optional for news (the day it is about).
-  end          optional, the same form
+  end          optional, the same form; an all-day run over days gives its last day ("2026-11-14")
   all_day      true | false (default false)
   place        the venue's name ("Clemens Stadium"), an address only when nothing names the place,
                "Online" for a webinar; "" if not said (.claude/skills/title-and-place)
@@ -406,6 +406,11 @@ def event_of(it, today, interests, home, notes):
         end = None if at is None or not it.get("end") else local(it["end"])
         if end and end.time() == time(23, 59):
             end = None  # a calendar's "until 11:59 PM" is how it says no end time
+        if at is None and it.get("end"):
+            # An all-day run over days (Festival of Cultures, Nov 9 to 14) lasts until the
+            # midnight after its last day, so the Town feed keeps it that long.
+            last = date.fromisoformat(it["end"][:10])
+            end = datetime.combine(last + timedelta(1), time(), LOCAL) if last > day else None
         signup = it.get("signup_by") and date.fromisoformat(it["signup_by"])
     except ValueError as e:
         return None, f"invalid: unreadable date ({e})"
@@ -673,6 +678,13 @@ def t_description_cut_at_a_word():
     assert len(got) <= 1000 and got.endswith("word…"), got[-20:]
     assert run([item(blurb="  Bring a chair.\n")])["events"][0]["row"]["description"] == "Bring a chair."
     assert run([item(blurb=None)])["events"][0]["row"]["description"] is None
+
+
+def t_all_day_run_keeps_its_last_day():
+    week = item(start="2026-11-09", end="2026-11-14", all_day=True, title="Festival of Cultures")
+    row = run([week])["events"][0]["row"]
+    assert row["all_day"] and row["end_at"] == "2026-11-15T00:00:00-06:00", row
+    assert run([dict(week, end="2026-11-09")])["events"][0]["row"]["end_at"] is None, "one day is no run"
 
 
 def t_city_meeting_end_and_place():
@@ -1102,7 +1114,7 @@ def t_game():
 TESTS = [t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_secondhand_needs_two, t_unsure_held, t_merge_true_pair,
          t_merge_near_miss_kept_apart, t_same_time_no_place, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
          t_interest_checked, t_area, t_past_and_invalid_skipped, t_writes_are_one_safe_call,
-         t_description_cut_at_a_word, t_city_meeting_end_and_place, t_game]
+         t_description_cut_at_a_word, t_city_meeting_end_and_place, t_game, t_all_day_run_keeps_its_last_day]
 
 
 def selftest():
