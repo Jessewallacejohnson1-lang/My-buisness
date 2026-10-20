@@ -160,7 +160,7 @@ final class SearchModelTests: XCTestCase {
         let photos = try CommunityAPI.placePhotos(from: Data(json.utf8))
         XCTAssertEqual(Set(photos.keys), ["krewe", "sju"])
         XCTAssertEqual(photos["krewe"]?.map(\.url.lastPathComponent), ["food-1.webp", "food-2.webp"])
-        XCTAssertEqual(photos["krewe"]?.first?.creditLine, "krewemn.com")
+        XCTAssertEqual(photos["krewe"]?.first?.creditLine, "krewemn")
         XCTAssertEqual(photos["sju"]?.first?.creditLine, "Tomruen · CC BY-SA 4.0")
     }
 
@@ -241,7 +241,7 @@ final class SearchModelTests: XCTestCase {
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         let groups = try decoder.decode([TownGroup].self, from: Data(json.utf8))
         XCTAssertEqual(groups[0].photos.map(\.url.lastPathComponent), ["lions-1.webp"], "the photo with no address is dropped")
-        XCTAssertEqual(groups[0].photos.first?.creditLine, "e-clubhouse.org")
+        XCTAssertEqual(groups[0].photos.first?.creditLine, "e-clubhouse")
         XCTAssertEqual(groups[0].meetings, [TownGroup.Meeting(what: "Meeting", day: "2026-10-20", time: "18:00")])
         XCTAssertEqual(groups[0].pageUrl, "https://e-clubhouse.org/sites/stjosephmn/")
         XCTAssertEqual([groups[0].memberCount, groups[1].memberCount], [2, 0])

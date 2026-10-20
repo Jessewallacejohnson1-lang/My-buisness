@@ -187,12 +187,15 @@ nonisolated struct PlacePicture: Decodable, Hashable, Sendable {
     }
 
     /// What the photo's chip says: its author and licence, else the site's name without
-    /// "www.". nil for a logo.
+    /// "www." or its ending ("krewemn", not "krewemn.com": Jesse, 2026-10-19, to keep the
+    /// chip small). nil for a logo.
     var creditLine: String? {
         guard kind == .photo else { return nil }
         if let credit, !credit.isEmpty { return credit }
         guard let host = site?.host() else { return nil }
-        return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+        let name = host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+        guard let dot = name.lastIndex(of: "."), dot != name.startIndex else { return name }
+        return String(name[..<dot])
     }
 
     /// One that doesn't decode is no picture: a bad row never costs the feed.

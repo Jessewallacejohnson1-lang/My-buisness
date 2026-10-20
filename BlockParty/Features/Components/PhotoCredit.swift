@@ -43,8 +43,8 @@ struct PhotoCredit: View {
     /// Type + chip metrics, kept together so the credit stays one considered object.
     private static let fontSize: CGFloat = 10
     private static let tracking: CGFloat = 0.2
-    private static let insetH: CGFloat = 7
-    private static let insetV: CGFloat = 4
+    private static let insetH: CGFloat = 5
+    private static let insetV: CGFloat = 2.5
     /// How far the credit's chip sits in from the photo's edge. The event page lines its
     /// counter up against it.
     static let edgeInset: CGFloat = 9
