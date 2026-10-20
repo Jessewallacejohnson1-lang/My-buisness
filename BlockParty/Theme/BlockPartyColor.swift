@@ -227,6 +227,9 @@ nonisolated enum Hue {
     /// "Report photo" in a Town card's ••• sheet (BP app place-photos 06): Apple's own red, as
     /// Instagram draws its Report and Apple's menu draws the same row on a page's photo.
     static let report        = Color(uiColor: .systemRed)
+    /// The dot before "Now" on a Town card whose event is on (Jesse, 2026-10-20: "use the word
+    /// now with green dot"): Apple's own green. A game's "Live" keeps Apple's red.
+    static let now           = Color(uiColor: .systemGreen)
 
     // MARK: Search (the tab's Reference: Jesse's mockup v7 and its Figma frames, 2026-10-02)
 

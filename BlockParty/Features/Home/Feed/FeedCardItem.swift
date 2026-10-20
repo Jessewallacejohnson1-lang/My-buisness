@@ -30,6 +30,9 @@ struct FeedCardItem: Identifiable, Hashable {
     var isJoined: Bool
     var eventDate: String? = nil
     var startTime: String? = nil
+    /// When it ends (`club_events.end_at`) and whether it's listed all day: what `isNow` reads.
+    var endAt: Date? = nil
+    var allDay = false
     var location: String? = nil
     /// The event page's About text and its grey category line. nil hides the row;
     /// nothing fills in for a missing value.
@@ -72,6 +75,23 @@ struct FeedCardItem: Identifiable, Hashable {
     /// The when line under the headline: date and start time.
     var whenLine: FeedWhenLine? {
         FeedWhenLine(eventDate: eventDate, startTime: shareTime, fallbackDate: dateChip)
+    }
+
+    /// On right now, so the card's chip says Now (Jesse, 2026-10-20): from its start to its end,
+    /// two hours when it gives no end (as the map's pins), and the whole of something that runs
+    /// over days (the Johanna Kiln, Oct 16 to 25). A one-day all-day listing gives no hours, so
+    /// it never is.
+    func isNow(at now: Date = .now, calendar: Calendar = FeedWhenLine.localCalendar) -> Bool {
+        guard !cancelled, let day = FeedWhenLine.day(from: eventDate, calendar: calendar) else { return false }
+        let minutes = startTime.map { DateHelpers.minutesOf($0) }.flatMap { $0 < 24 * 60 ? $0 : nil }
+        guard !allDay, let minutes,
+              let start = calendar.date(bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: day)
+        else {
+            guard let endAt, let nextDay = calendar.date(byAdding: .day, value: 1, to: day), endAt > nextDay
+            else { return false }
+            return now >= day && now < endAt
+        }
+        return now >= start && now < (endAt ?? start.addingTimeInterval(2 * 60 * 60))
     }
 
     /// The where line under the when line: just the venue, because the when line
@@ -183,7 +203,7 @@ struct FeedWhenLine: Equatable {
         }
     }
 
-    private static func day(from value: String?, calendar: Calendar) -> Date? {
+    static func day(from value: String?, calendar: Calendar) -> Date? {
         guard let parts = value?.split(separator: "-"), parts.count == 3,
               let year = Int(parts[0]), let month = Int(parts[1]), let day = Int(parts[2])
         else { return nil }

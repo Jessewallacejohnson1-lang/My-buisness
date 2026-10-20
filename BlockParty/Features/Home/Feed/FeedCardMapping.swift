@@ -65,6 +65,8 @@ extension FeedCardItem {
             isJoined: event.rsvpd,
             eventDate: event.eventDate,
             startTime: time,
+            endAt: event.endAt,
+            allDay: event.isAllDay,
             location: location,
             description: event.description,
             category: event.category == .other ? nil : event.category,

@@ -354,8 +354,20 @@ struct FeedEventCard: View {
         .overlay(alignment: .top) {
             HStack(alignment: .center, spacing: 8) {
                 if let when = item.whenLine {
-                    PhotoChip(text: when.text, spoken: when.spoken)
-                        .layoutPriority(1)
+                    // Turns to Now at the start minute while you look at it (event-card 04).
+                    TimelineView(.everyMinute) { context in
+                        let now = item.isNow(at: context.date)
+                        Group {
+                            if now {
+                                PhotoChip(text: "Now", spoken: "Happening now", dot: Hue.now)
+                            } else {
+                                PhotoChip(text: when.text, spoken: when.spoken)
+                            }
+                        }
+                        .transition(.opacity)
+                        .animation(motionIsReduced ? nil : Motion.smooth, value: now)
+                    }
+                    .layoutPriority(1)
                 }
                 Spacer(minLength: 0)
                 // Without its own edge inset, so it sits as far in as the chip and, shorter

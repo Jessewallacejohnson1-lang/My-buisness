@@ -1088,6 +1088,48 @@ final class FeedWhenLineTests: XCTestCase {
         XCTAssertNil(line("not-a-date", nil))
     }
 
+    private func card(_ date: String, _ time: String?, endAt: Date? = nil, allDay: Bool = false,
+                      cancelled: Bool = false) -> FeedCardItem {
+        FeedCardItem(id: "n", title: "N", dateChip: "", metaLine: "", image: .fallback, recurrence: nil,
+                     goingCount: 0, goingAvatars: [], likeCount: 0, isLiked: false, isSaved: false, isJoined: false,
+                     eventDate: date, startTime: time, endAt: endAt, allDay: allDay, cancelled: cancelled)
+    }
+
+    private func at(_ day: Int, _ hour: Int, _ minute: Int = 0, month: Int = 9) -> Date {
+        calendar.date(from: DateComponents(year: 2026, month: month, day: day, hour: hour, minute: minute))!
+    }
+
+    func testNowRunsFromTheStartToTheEnd() {
+        let prints = card("2026-09-24", "8 AM", endAt: at(24, 16, 30))
+        XCTAssertFalse(prints.isNow(at: at(24, 7, 59), calendar: calendar))
+        XCTAssertTrue(prints.isNow(at: at(24, 8), calendar: calendar))
+        XCTAssertTrue(prints.isNow(at: at(24, 16, 29), calendar: calendar))
+        XCTAssertFalse(prints.isNow(at: at(24, 16, 30), calendar: calendar), "over at its end")
+        XCTAssertFalse(card("2026-09-24", "8 AM", endAt: at(24, 16, 30), cancelled: true).isNow(at: at(24, 9), calendar: calendar))
+    }
+
+    func testNowLastsTwoHoursWithNoEnd() {
+        let concert = card("2026-09-24", "7:30 PM")
+        XCTAssertTrue(concert.isNow(at: at(24, 21, 29), calendar: calendar))
+        XCTAssertFalse(concert.isNow(at: at(24, 21, 30), calendar: calendar))
+    }
+
+    func testARunOverDaysIsNowTheWholeTime() {
+        let kiln = card("2026-09-16", "4 PM", endAt: at(26, 0))
+        XCTAssertFalse(kiln.isNow(at: at(16, 15, 59), calendar: calendar))
+        XCTAssertTrue(kiln.isNow(at: at(20, 3), calendar: calendar), "the kiln burns through the night")
+        XCTAssertFalse(kiln.isNow(at: at(26, 0), calendar: calendar))
+        let festival = card("2026-09-21", nil, endAt: at(27, 0), allDay: true)
+        XCTAssertTrue(festival.isNow(at: at(24, 10), calendar: calendar), "an all-day run over days")
+        XCTAssertFalse(festival.isNow(at: at(27, 0), calendar: calendar))
+    }
+
+    func testAOneDayAllDayListingIsNeverNow() {
+        XCTAssertFalse(card("2026-09-24", nil, allDay: true).isNow(at: at(24, 12), calendar: calendar))
+        XCTAssertFalse(card("2026-09-24", nil, endAt: at(25, 0), allDay: true).isNow(at: at(24, 12), calendar: calendar))
+        XCTAssertFalse(card("2026-09-24", "TBA").isNow(at: at(24, 12), calendar: calendar), "no time it can read")
+    }
+
     func testTheWhereLineNeverRepeatsTheTime() {
         let timeOnly = FeedCardItem(
             id: "t", title: "T", dateChip: "", metaLine: "7 PM",
