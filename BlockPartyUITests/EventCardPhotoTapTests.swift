@@ -80,6 +80,30 @@ final class EventCardPhotoTapTests: XCTestCase {
         XCTAssertTrue(waitForPush(from: link), "a single tap on the photo did not push the event page")
     }
 
+    /// A card with two photos swipes between them under the finger and never opens its page;
+    /// the dots under it say the second is up; a single tap then still opens the page; a drag
+    /// up that starts on the photo scrolls the feed (BP app event-card 02).
+    /// `-event-page-two-photos` gives the first card a second photo.
+    func testASwipeOnThePhotoPagesAndADragUpScrolls() {
+        let link = firstCardLink()
+        let dots = app.otherElements["card-photo-dots"].firstMatch
+        XCTAssertTrue(dots.waitForExistence(timeout: 10), "no dots under a two-photo card")
+        XCTAssertEqual(dots.label, "Photo 1 of 2")
+
+        link.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.55))
+            .press(forDuration: 0.05, thenDragTo: link.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.55)))
+        XCTAssertFalse(waitForPush(from: link, timeout: 2), "a swipe on the photo pushed the event page")
+        let second = NSPredicate(format: "label == 'Photo 2 of 2'")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: second, object: dots)], timeout: 5),
+                       .completed, "the swipe didn't bring the second photo up")
+
+        let top = link.frame.minY
+        link.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8))
+            .press(forDuration: 0.05, thenDragTo: link.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)))
+        XCTAssertFalse(waitForPush(from: link, timeout: 2), "a drag up on the photo pushed the event page")
+        XCTAssertLessThan(link.frame.minY, top - 50, "a drag up that started on the photo didn't scroll the feed")
+    }
+
     /// The event page hides the navigation bar, and UIKit then turns its edge swipe off.
     /// `SwipeBack` turns it back on and puts it ahead of the photo carousel, so an edge
     /// swipe that starts on the hero pops the page instead of rubber-banding the photos.

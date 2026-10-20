@@ -69,7 +69,8 @@ extension FeedCardItem {
             description: event.description,
             category: event.category == .other ? nil : event.category,
             cancelled: event.cancelled,
-            place: place
+            place: place,
+            placeMore: event.placePicture?.more.map(FeedCardImageSource.init) ?? []
         )
     }
 

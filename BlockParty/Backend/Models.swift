@@ -177,11 +177,17 @@ nonisolated struct PlacePicture: Decodable, Hashable, Sendable {
     /// docs/plans/event-card, ticket 01); nil for a logo.
     var width: Int? = nil
     var height: Int? = nil
+    /// The place's other live photos, after this cover, as they came (ticket 02): read
+    /// through `more`, so one that doesn't decode never costs the cover.
+    var others: [Lenient]? = nil
 
     private enum CodingKeys: String, CodingKey {
         case url, kind, credit, site, hue
-        case width = "w", height = "h"
+        case width = "w", height = "h", others = "more"
     }
+
+    /// The place's other photos, in order, for a card to swipe to and its Event page to show.
+    var more: [PlacePicture] { others?.compactMap(\.value) ?? [] }
 
     /// Width over height; nil without a size.
     var aspect: Double? {

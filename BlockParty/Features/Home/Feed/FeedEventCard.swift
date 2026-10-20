@@ -62,10 +62,12 @@ struct FeedEventCard: View {
     /// sizes. The same trade `PostingCard`'s header already makes: a clipped line is
     /// worse than a taller card.
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    /// The photo whose bitmap is on screen: its credit waits for it.
-    @State private var shownPhoto: URL?
-    /// A photo that could not be loaded (taken down, or offline): the card turns to ink.
+    /// The photos whose bitmaps are on screen: a credit waits for its photo.
+    @State private var shownPhotos: Set<URL> = []
+    /// A single photo that could not be loaded (taken down, or offline): the card turns to ink.
     @State private var failedPhoto: URL?
+    /// Which of a swiping card's photos is up (event-card 02).
+    @State private var photoPage: Int? = 0
     @State private var commentState: FeedCommentState
     @State private var commentsPresented = false
     @State private var menuPresented = false
@@ -124,11 +126,17 @@ struct FeedEventCard: View {
             // moment a finger lands, photo included.
             .gesture(FeedTouchDownTracker(isPressed: $linkPressed))
 
+            // Under a photo that swipes, the dots that say which one is up (Instagram's).
+            if swipes {
+                PageDots(count: cardPhotos.count, page: pageShown)
+            }
+
             // RSVP under the photo (rsvp-and-groups 01; Figma "Meetup depth": 12 pt below the
-            // photo, 2 pt above the row). Called off, a red "Canceled" pill and no count.
+            // photo, 2 pt above the row), or under the dots' row. Called off, a red "Canceled"
+            // pill and no count.
             if let rsvp = actions.rsvp(item) {
                 RSVPArea(item: item, words: rsvp, onInvite: onShare)
-                    .padding(.top, 12)
+                    .padding(.top, swipes ? 0 : 12)
                     .padding(.horizontal, DailyFeedMetric.contentInset)
                     .transition(.opacity)
             }
@@ -151,7 +159,7 @@ struct FeedEventCard: View {
         .animation(FeedMotion.pressAnimation(reduceMotion: motionIsReduced), value: linkPressed)
         .sheet(isPresented: $menuPresented) {
             if let why = item.why {
-                FeedCardMenu(why: why, score: item.score, report: displayImage.report(place: item.whereLine))
+                FeedCardMenu(why: why, score: item.score, report: currentPhoto.report(place: item.whereLine))
             }
         }
         .sheet(isPresented: $commentsPresented) {
@@ -282,10 +290,27 @@ struct FeedEventCard: View {
         return item.image
     }
 
+    /// The event's own photo and its place's, each once, at most three (the Event page shows
+    /// the same). Nothing leaves when it fails: it stays ink, so the card never shrinks.
+    private var cardPhotos: [FeedCardImageSource] { item.photos() }
+
+    /// Two or more photos swipe, under dots; one doesn't.
+    private var swipes: Bool {
+        FeedEventDetailDestination.counterText(page: 0, count: cardPhotos.count) != nil
+    }
+
+    private var pageShown: Int { min(photoPage ?? 0, max(cardPhotos.count - 1, 0)) }
+
+    /// The photo that's up: its credit shows, and the ••• menu reports it.
+    private var currentPhoto: FeedCardImageSource {
+        swipes ? cardPhotos[pageShown] : displayImage
+    }
+
     /// The credit for the photo on screen, in the array form `PhotoCredit` takes. Empty
     /// until the photo itself has decoded, so a credit never sits on ink.
     private var creditNames: [String] {
-        guard let url = displayImage.url, url == shownPhoto, let credit = displayImage.attribution
+        guard let url = currentPhoto.url, PhotoPager.isShown(url, in: shownPhotos),
+              let credit = currentPhoto.attribution
         else { return [] }
         return [credit]
     }
@@ -315,7 +340,8 @@ struct FeedEventCard: View {
         // jumps when it lands. Square at accessibility sizes: the headline and where line
         // are set over the picture, and at AX5 they outgrew a 3:2 frame and ran up over
         // the host row (measured 2026-09-24).
-        .aspectRatio(dynamicTypeSize.isAccessibilitySize ? 1 : CGFloat(displayImage.cardAspect), contentMode: .fit)
+        // The event's first photo sets it, failed or not, so the card keeps its height.
+        .aspectRatio(dynamicTypeSize.isAccessibilitySize ? 1 : CGFloat(item.image.cardAspect), contentMode: .fit)
         .frame(maxWidth: .infinity)
         // INSIDE the clip — the picture's own edge is what takes the heart away.
         .feedCardLikeBurst(likeBurst, reduceMotion: motionIsReduced)
@@ -363,9 +389,15 @@ struct FeedEventCard: View {
 
     @ViewBuilder
     private var imageContent: some View {
-        if let url = displayImage.url {
+        if swipes {
+            // The Event page's carousel: it pages under the finger. Waits on ink, and stays
+            // out of VoiceOver here: the card reads as one link, and its page has the carousel.
+            PhotoPager(urls: cardPhotos.compactMap(\.url), page: $photoPage, shown: $shownPhotos, value: "",
+                       onFailure: { _ in }, skeleton: false)
+                .accessibilityHidden(true)
+        } else if let url = displayImage.url {
             FeedCardURLPhoto(url: url,
-                             onReady: { withAnimation(motionIsReduced ? nil : Motion.smooth) { shownPhoto = url } },
+                             onReady: { _ = withAnimation(motionIsReduced ? nil : Motion.smooth) { shownPhotos.insert(url) } },
                              onFailure: { failedPhoto = url })
         } else if let logo = displayImage.logo {
             FeedCardPlaceLogo(logo: logo, topClear: PhotoChip.inset + PhotoChip.height, bottomClear: copyHeight + 16)
@@ -618,5 +650,31 @@ private struct PhotoDoubleTap: UIGestureRecognizerRepresentable {
 
     func handleUIGestureRecognizerAction(_ recognizer: Recognizer, context: Context) {
         if recognizer.state == .ended { onDoubleTap(context.converter.localLocation) }
+    }
+}
+
+/// Which of a card's photos is up: Instagram's dots under its carousel, 6 pt, 4 pt apart, in a
+/// 28 pt row, ink for the one up and ink at 18% for the rest (the approved Round 3 mock).
+private struct PageDots: View {
+    let count: Int
+    let page: Int
+
+    private static let side: CGFloat = 6
+    private static let gap: CGFloat = 4
+    private static let row: CGFloat = 28
+
+    var body: some View {
+        HStack(spacing: Self.gap) {
+            ForEach(0..<count, id: \.self) { index in
+                Circle()
+                    .fill(Hue.ink.opacity(index == page ? 1 : 0.18))
+                    .frame(width: Self.side, height: Self.side)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: Self.row)
+        .animation(Motion.smooth, value: page)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Photo \(page + 1) of \(count)")
+        .accessibilityIdentifier("card-photo-dots")
     }
 }

@@ -152,21 +152,9 @@ struct FeedEventDetailDestination: View {
 
     // MARK: Photos
 
+    /// The card's photos (`FeedCardItem.photos`): saved by Block Party, so nothing is looked up.
     private var photos: [FeedCardImageSource] {
-        Self.photoList(event: item.image, venue: venue, failed: failedPhotos)
-    }
-
-    /// The place's own photo after the event's: saved by Block Party, so nothing is looked up.
-    private var venue: [FeedCardImageSource] {
-        #if DEBUG
-        // UI tests only: a second bundled photo, so the carousel is there to swipe over
-        // with no network (`EventCardPhotoTapTests`).
-        if ProcessInfo.processInfo.arguments.contains("-event-page-two-photos"),
-           let url = Bundle.main.url(forResource: "centennial-park", withExtension: "jpg") {
-            return [.eventPhoto(url)]
-        }
-        #endif
-        return item.place.map { [$0] } ?? []
+        item.photos(failed: failedPhotos)
     }
 
     /// A place we have no photo of fills the hero with its logo on its backdrop, as its

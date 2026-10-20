@@ -18,6 +18,9 @@ struct PhotoPager: View {
     @Binding var shown: Set<URL>
     let value: String
     let onFailure: (URL) -> Void
+    /// A shimmer until each photo lands. Off on a Town card, which waits on ink so its white
+    /// title stays readable (`FeedCardURLPhoto`).
+    var skeleton = true
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -51,7 +54,7 @@ struct PhotoPager: View {
             .frame(maxHeight: .infinity)
             .clipped()
             .overlay {
-                if !isShown {
+                if skeleton && !isShown {
                     SkeletonBlock(cornerRadius: 0)
                         .shimmering()
                         .transition(.opacity)

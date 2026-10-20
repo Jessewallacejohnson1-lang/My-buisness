@@ -90,6 +90,30 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(FeedCardImageSource.fallback.cardAspect, 1.5, accuracy: 0.0001, "ink keeps 3:2")
     }
 
+    /// The place's other photos reach the card (BP app event-card 02): the card and its page
+    /// show the cover, then the rest in order, each once with its own credit; one that doesn't
+    /// decode is left out and the cover kept.
+    func testAPlacesOtherPhotosReachTheCardAndABadOneCostsNothing() throws {
+        let json = """
+        [{"id":"e1","title":"Choir","event_date":"2026-10-19","start_time":"7 PM","location":null,
+          "image_url":null,"category":null,"club_name":null,"source_name":"CSB SJU",
+          "end_at":"2026-10-20T04:59:00+00:00","all_day":false,"created_at":"2026-10-06T16:08:20+00:00",
+          "going_count":0,"rsvpd":false,"recurrence":null,"leaves_at":"2026-10-20T04:59:00+00:00",
+          "place_picture":{"url":"https://x/a.webp","kind":"photo","site":"https://csbsju.edu","credit":null,
+                           "w":1600,"h":1067,
+                           "more":[{"url":"https://x/b.webp","kind":"photo","site":"https://csbsju.edu",
+                                    "credit":"Ada Lovelace · CC BY 4.0","w":1067,"h":1600},
+                                   {"kind":"photo"},
+                                   {"url":"https://x/c.webp","kind":"photo","site":"https://www.sju.edu/x",
+                                    "credit":null}]}}]
+        """
+        let card = TownFeed.entry(try CommunityAPI.townFeedRows(from: Data(json.utf8))[0]).card
+        XCTAssertEqual(card.photos().compactMap { $0.url?.lastPathComponent }, ["a.webp", "b.webp", "c.webp"])
+        XCTAssertEqual(card.photos()[1].attribution, "Ada Lovelace · CC BY 4.0")
+        XCTAssertEqual(card.photos()[2].attribution, "sju")
+        XCTAssertEqual(card.image.cardAspect, 1600.0 / 1067.0, accuracy: 0.0001, "the cover sets the card's shape")
+    }
+
     /// The recipe's columns (ticket 18): the reason becomes the card's line, and the
     /// admin's score comes through whole.
     func testTheRecipesReasonAndScoreReachTheCard() throws {
