@@ -16,7 +16,8 @@ const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
 // hearts (real-life actions, ticket 03), saves and own-row reads (ticket 19), with the
 // counting helpers it reads.
 const files = creating(migrations, ['public.get_town_feed', 'public.place_picture', 'public.town_feed_series_label',
-  'private.town_feed_place', 'private.going_count', 'private.heart_count', 'private.friends_going']);
+  'private.town_feed_place', 'private.going_count', 'private.heart_count', 'private.friends_going',
+  'public.get_event_of_the_day']);
 // Friends (ticket 28) read the Friends builds' rule for who may be shown, as it is now.
 const findable = readdirSync(migrations).filter((f) => f.endsWith('_unfriend_and_block.sql'))
   .map((f) => readFileSync(join(migrations, f), 'utf8'))[0]
@@ -1047,4 +1048,112 @@ test("a group's Event names the group and whether you're in it; found ones by it
   const mine = await groups();
   assert.deepEqual(mine.filter((r) => r[2] === GROUP).map((r) => r[3]), [true, true], "you're in it");
   assert.deepEqual(mine.filter((r) => r[2] === QUILTS).map((r) => r[3]), [false]);
+});
+
+// Event of the day (BP app daily-tab 14): the morning job's standouts, one per part of the day for
+// each person, read from get_event_of_the_day.
+async function standouts(day, ids) {
+  await db.exec('reset role');
+  for (const [i, id] of ids.entries())
+    await db.query(`insert into public.daily_standouts (town, day, event_id, rank, why) values ('st-joseph-mn', $1, $2, $3, 'why')`,
+                   [day, id, i + 1]);
+}
+async function tagged(id, interests, draw = 2) {
+  await db.exec('reset role');
+  await db.query(`update public.club_events set interests = $2, interests_tagged_at = now(), draw = $3 where id = $1`,
+                 [id, interests, draw]);
+}
+const ofTheDay = async (at) => (await db.query(
+  `select title, rsvpd from public.get_event_of_the_day(($1::timestamp at time zone 'America/Chicago'))`, [at])).rows;
+const picks = async (at) => (await ofTheDay(at)).map((r) => r.title);
+
+async function busyFriday() {
+  await reset();
+  const e = {};
+  for (const [title, start, interests] of [
+    ['Pancake breakfast', '8 AM', ['dining']], ['Bird walk', '9 AM', ['trails_hiking']],
+    ['Fix-It Clinic', '2 PM', ['books']],
+    ['Home game', '7 PM', ['sports_leagues']], ['Theology on Tap', '8 PM', ['faith']],
+    ['Late show', '10 PM', ['live_music']]]) {
+    e[title] = await add(title, '2026-10-09', { start_time: start, source_name: title });
+    await tagged(e[title], interests);
+  }
+  // The job's order: the game is the Town's top pick. The late show isn't a standout.
+  await standouts('2026-10-09', [e['Home game'], e['Pancake breakfast'], e['Theology on Tap'], e['Bird walk'], e['Fix-It Clinic']]);
+  return e;
+}
+
+test('Event of the day: each part of the day gets the standout that fits you, else its top pick', async () => {
+  await busyFriday();
+  await db.exec('set role anon');
+  assert.deepEqual(await picks('2026-10-09 07:00'), ['Pancake breakfast', 'Fix-It Clinic', 'Home game'], 'signed out');
+  await signIn(ME, []);
+  assert.deepEqual(await picks('2026-10-09 07:00'), ['Pancake breakfast', 'Fix-It Clinic', 'Home game'], 'no interests');
+  await signIn(YOU, ['faith', 'trails_hiking']);
+  assert.deepEqual(await picks('2026-10-09 07:00'), ['Bird walk', 'Fix-It Clinic', 'Theology on Tap']);
+  await signIn(ME, ['sports_leagues', 'coffee']);
+  assert.deepEqual(await picks('2026-10-09 07:00'), ['Pancake breakfast', 'Fix-It Clinic', 'Home game']);
+});
+
+test("Event of the day: Going keeps your pick, and Going to another standout doesn't take its spot", async () => {
+  const e = await busyFriday();
+  await signIn(YOU, ['faith']);
+  await db.exec('reset role');
+  await db.query('insert into public.event_rsvps (event_id, user_id) values ($1, $3), ($2, $3)',
+                 [e['Theology on Tap'], e['Home game'], YOU]);
+  await db.exec('set role authenticated');
+  assert.deepEqual(await ofTheDay('2026-10-09 07:00'), [
+    { title: 'Pancake breakfast', rsvpd: false }, { title: 'Fix-It Clinic', rsvpd: false },
+    { title: 'Theology on Tap', rsvpd: true }]);
+});
+
+test('Event of the day: one that is over leaves, the next takes its spot, and none left is none', async () => {
+  await busyFriday();
+  await db.exec('set role anon');
+  // Breakfast leaves at 10; the bird walk is the morning's next best until 11.
+  assert.deepEqual(await picks('2026-10-09 10:30'), ['Bird walk', 'Fix-It Clinic', 'Home game']);
+  assert.deepEqual(await picks('2026-10-09 15:00'), ['Fix-It Clinic', 'Home game']);
+  assert.deepEqual(await picks('2026-10-09 21:30'), ['Theology on Tap']);
+  // Every standout is over; the late show is still on but the job didn't pick it.
+  assert.deepEqual(await picks('2026-10-09 22:30'), []);
+});
+
+test("Event of the day: a day the job wrote nothing is the feed's top Event, never routine business or a weekly regular", async () => {
+  await reset();
+  const council = await add('Council meeting', '2026-10-09', { start_time: '6 PM', source_name: 'City' });
+  await tagged(council, [], 1);
+  for (const d of ['2026-10-09', '2026-10-16', '2026-10-23']) await add('Trivia', d, { start_time: '7 PM', source_name: 'Taproom' });
+  const fair = await add('Fall fair', '2026-10-09', { start_time: '5 PM', source_name: 'Fair board' });
+  await tagged(fair, ['festivals'], 3);
+  const bake = await add('Bake sale', '2026-10-09', { start_time: '10 AM', source_name: 'Church' });
+  await tagged(bake, ['dining']);
+  // Yesterday's standouts don't count for today.
+  await standouts('2026-10-08', [bake]);
+  await db.exec('set role anon');
+  assert.deepEqual(await picks('2026-10-09 07:00'), ['Fall fair']);
+  // The feed lowers an Event you're Going to, so yours comes first and keeps the spot.
+  await signIn(ME, []);
+  await db.exec('reset role');
+  await db.query('insert into public.event_rsvps (event_id, user_id) values ($1, $2)', [bake, ME]);
+  await db.exec('set role authenticated');
+  assert.deepEqual(await picks('2026-10-09 07:00'), ['Bake sale']);
+  // Nothing on today but routine business and a regular: no Event of the day.
+  await db.exec('reset role');
+  await db.query('delete from public.club_events where id = any($1)', [[fair, bake]]);
+  await db.exec('set role anon');
+  assert.deepEqual(await picks('2026-10-09 07:00'), []);
+});
+
+test('Event of the day: neighbours read the standouts and never write them', async () => {
+  const e = await busyFriday();
+  await signIn(ME, []);
+  const { rows } = await db.query('select count(*)::int as n from public.daily_standouts');
+  assert.equal(rows[0].n, 5);
+  await refused(`insert into public.daily_standouts (town, day, event_id, rank, why) values ('st-joseph-mn', '2026-10-09', $1, 9, 'mine')`,
+                [e['Late show']]);
+  // A delete under the read rule finds no row it may touch.
+  await db.exec('set role authenticated');
+  await db.query('delete from public.daily_standouts');
+  await db.exec('reset role');
+  assert.equal((await db.query('select count(*)::int as n from public.daily_standouts')).rows[0].n, 5);
 });
