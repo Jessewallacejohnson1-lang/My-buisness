@@ -180,13 +180,6 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
 
         private enum CodingKeys: String, CodingKey { case name, short, logo, color }
 
-        init(name: String, short: String, logo: URL? = nil, rgb: UInt32? = nil) {
-            self.name = name
-            self.short = short
-            self.logo = logo
-            self.rgb = rgb
-        }
-
         /// A logo or color that doesn't read is none: it never costs the card.
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)

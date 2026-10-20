@@ -68,34 +68,13 @@ struct GameMatchup: View {
 private struct TeamColumn: View {
     let team: Game.Team
 
-    @ObservedObject private var logos = POILogoCache.shared
-
     var body: some View {
-        let image = team.logo.flatMap(logos.image(for:))
         VStack(spacing: GameMatchup.Metric.nameGap) {
-            ZStack {
-                Circle().fill(.white)
-                // The first letter until the logo lands, and for a school with none yet.
-                if image == nil {
-                    Text(team.initial)
-                        .font(.eventDisplay(34))
-                        .foregroundStyle(Hue.ink.onLightCanvas)
-                        .transition(.opacity)
-                }
-                if let image {
-                    Image(uiImage: image)
-                        .resizable()
-                        .interpolation(.high)
-                        .scaledToFit()
-                        .frame(width: GameMatchup.Metric.logo, height: GameMatchup.Metric.logo)
-                        .transition(.opacity)
-                }
-            }
-            .frame(width: GameMatchup.Metric.disc, height: GameMatchup.Metric.disc)
-            // The mock's two shadows: a tight one where it sits, a soft one under it.
-            .shadow(color: .black.opacity(0.18), radius: 1, y: 1)
-            .shadow(color: .black.opacity(0.22), radius: 11, y: 8)
-            .animation(Motion.smooth, value: image != nil)
+            TeamDisc(team: team, logoSide: GameMatchup.Metric.logo, letter: .eventDisplay(34))
+                .frame(width: GameMatchup.Metric.disc, height: GameMatchup.Metric.disc)
+                // The mock's two shadows: a tight one where it sits, a soft one under it.
+                .shadow(color: .black.opacity(0.18), radius: 1, y: 1)
+                .shadow(color: .black.opacity(0.22), radius: 11, y: 8)
 
             Text(team.short)
                 .font(.sansSemibold(13))
@@ -104,6 +83,50 @@ private struct TeamColumn: View {
                 .minimumScaleFactor(0.8)
         }
         .frame(width: GameMatchup.Metric.column)
+    }
+}
+
+/// A game's host row: the host school's logo where a host's photo goes, as the Reference
+/// draws it; its first letter until the logo lands.
+struct GameHostMark: View {
+    let team: Game.Team
+    let side: CGFloat
+
+    var body: some View {
+        TeamDisc(team: team, logoSide: side * 0.75, letter: .sansSemibold(14))
+            .frame(width: side, height: side)
+            .overlay(Circle().strokeBorder(Hue.hairline.onLightCanvas, lineWidth: 0.5))
+    }
+}
+
+/// A school's logo fitted on a white disc, or its first letter: while the logo loads, for a
+/// school with none yet, and for one that fails.
+private struct TeamDisc: View {
+    let team: Game.Team
+    let logoSide: CGFloat
+    let letter: Font
+
+    @ObservedObject private var logos = POILogoCache.shared
+
+    var body: some View {
+        let image = team.logo.flatMap(logos.image(for:))
+        ZStack {
+            Circle().fill(.white)
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFit()
+                    .frame(width: logoSide, height: logoSide)
+                    .transition(.opacity)
+            } else {
+                Text(team.initial)
+                    .font(letter)
+                    .foregroundStyle(Hue.ink.onLightCanvas)
+                    .transition(.opacity)
+            }
+        }
+        .animation(Motion.smooth, value: image != nil)
         .task(id: team.logo) { if let url = team.logo { logos.prefetch([url]) } }
     }
 }

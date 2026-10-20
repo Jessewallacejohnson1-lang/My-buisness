@@ -276,12 +276,18 @@ struct FeedEventCard: View {
         }
     }
 
+    @ViewBuilder
     private var hostAvatar: some View {
-        FeedAuthorAvatar(
-            url: item.hostAvatar,
-            name: item.hostName,
-            side: Self.hostAvatarSide
-        )
+        // A game's host is its first team: the school's logo, as the Reference draws it.
+        if item.hostAvatar == nil, let team = item.game?.teams.first, team.logo != nil {
+            GameHostMark(team: team, side: Self.hostAvatarSide)
+        } else {
+            FeedAuthorAvatar(
+                url: item.hostAvatar,
+                name: item.hostName,
+                side: Self.hostAvatarSide
+            )
+        }
     }
 
     // MARK: - Image

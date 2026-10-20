@@ -264,14 +264,20 @@ def team_id(name):
 
 def game_of(it, title):
     """{"sport", "teams", "occasion"} for a game between two teams, else None."""
-    if it.get("game"):
-        g = it["game"]
-        return {"sport": g["sport"], "teams": list(g["teams"]), "occasion": g.get("occasion")}
+    if "game" in it:
+        # From a reader, or the judge: whole or nothing, so one bad line never costs the morning.
+        g = it["game"] if isinstance(it["game"], dict) else {}
+        teams = g.get("teams")
+        ok = isinstance(g.get("sport"), str) and g["sport"].strip() and isinstance(teams, list) and len(teams) == 2 \
+            and all(isinstance(t, str) and t.strip() for t in teams)
+        occasion = g.get("occasion") if isinstance(g.get("occasion"), str) else None
+        return {"sport": g["sport"].strip(), "teams": [t.strip() for t in teams], "occasion": occasion} if ok else None
     host = CAMPUS_TEAMS.get(it["source_name"].strip())
     m = CAMPUS_GAME.match(title)
     if not host or not m or m["host"] != host[0] or NOT_A_TEAM.search(m["them"]):
         return None
-    return {"sport": m["sport"], "teams": [host[1], m["them"]], "occasion": m["night"]}
+    them = re.sub(r"^#\d+\s+", "", m["them"])  # "#21 Carleton": a ranking, not the team's name
+    return {"sport": m["sport"], "teams": [host[1], them], "occasion": m["night"]}
 
 
 def tidy_place(place, home="St. Joseph MN"):
@@ -1069,6 +1075,9 @@ def t_game():
         campus("CSB Swim and Dive vs Macalester", "CSB Athletics"),
         campus("CSB Cross Country vs Fall Finale", "CSB Athletics"),
         campus("SJU Cross Country vs Saint John's Fall Finale"),
+        campus("SJU Soccer vs #21 Carleton"),
+        item(title="Bad game line", game={"sport": "Soccer", "teams": ["Sartell"]}),
+        item(title="Pumpkin Carving", start="2026-10-25T12:00:00-05:00", game="Soccer"),
         item()])["events"]}
     game = lambda t: tuple(rows[t][k] for k in ("sport", "team_ids", "team_names", "occasion"))
     assert game("Sartell Girls Soccer vs Sauk Rapids-Rice") == (
@@ -1080,7 +1089,9 @@ def t_game():
     assert game("SJU Rugby vs North Dakota State: SJU Red")[1:] == (
         ["saint-johns", "north-dakota-state"], ["Saint John's", "North Dakota State"], "SJU Red")
     assert game("CSB Swim and Dive vs Macalester")[0] == "Swim and Dive", "a dual meet is two teams"
-    for meet in ("CSB Cross Country vs Fall Finale", "SJU Cross Country vs Saint John's Fall Finale", "Plant Bingo"):
+    assert game("SJU Soccer vs #21 Carleton")[1] == ["saint-johns", "carleton"], "a ranking is not the name"
+    for meet in ("CSB Cross Country vs Fall Finale", "SJU Cross Country vs Saint John's Fall Finale", "Plant Bingo",
+                 "Bad game line", "Pumpkin Carving"):
         assert game(meet) == (None, None, None, None), meet
     assert team_id("UW-River Falls") == "uw-river-falls" and team_id("St. Cloud State") == "st-cloud-state"
     sql = WRITES.read_text()
