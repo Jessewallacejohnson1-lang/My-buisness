@@ -121,6 +121,8 @@ struct FeedEventCard: View {
             }
             .buttonStyle(FeedCardLinkStyle())
             .accessibilityIdentifier("event-card-link")
+            // Which photo is up, read with the card: the pager and its dots stay out of VoiceOver.
+            .accessibilityValue(swipes ? "Photo \(pageShown + 1) of \(cardPhotos.count)" : "")
             // The press comes from the touch itself, not the link: the photo's double
             // tap holds the link's own press until it fails, so the card squishes the
             // moment a finger lands, photo included.
@@ -295,9 +297,7 @@ struct FeedEventCard: View {
     private var cardPhotos: [FeedCardImageSource] { item.photos() }
 
     /// Two or more photos swipe, under dots; one doesn't.
-    private var swipes: Bool {
-        FeedEventDetailDestination.counterText(page: 0, count: cardPhotos.count) != nil
-    }
+    private var swipes: Bool { cardPhotos.count > 1 }
 
     private var pageShown: Int { min(photoPage ?? 0, max(cardPhotos.count - 1, 0)) }
 
@@ -393,17 +393,13 @@ struct FeedEventCard: View {
 
     @ViewBuilder
     private var imageContent: some View {
-        if swipes {
-            // The Event page's carousel: it pages under the finger. Waits on ink, and stays
-            // out of VoiceOver here: the card reads as one link, and its page has the carousel.
-            PhotoPager(urls: cardPhotos.compactMap(\.url), page: $photoPage, shown: $shownPhotos, value: "",
-                       onFailure: { _ in }, skeleton: false)
-                .accessibilityHidden(true)
-        } else if let url = displayImage.url {
-            // One photo in the same pager, rubber-banding sideways: a sideways swipe used to
-            // open the Event page as if it were a tap (seen 2026-10-20).
-            PhotoPager(urls: [url], page: $photoPage, shown: $shownPhotos, value: "",
-                       onFailure: { failedPhoto = $0 }, skeleton: false, bounces: true)
+        if let url = displayImage.url {
+            // The Event page's carousel: it pages under the finger, and one photo rubber-bands
+            // (a sideways swipe used to open the Event page as if it were a tap, 2026-10-20).
+            // Waits on ink, and stays out of VoiceOver here: the card reads as one link, and its
+            // page has the carousel. A swiping card keeps a photo that fails, as ink.
+            PhotoPager(urls: swipes ? cardPhotos.compactMap(\.url) : [url], page: $photoPage, shown: $shownPhotos,
+                       value: "", onFailure: { if !swipes { failedPhoto = $0 } }, skeleton: false, bounces: true)
                 .accessibilityHidden(true)
         } else if let logo = displayImage.logo {
             FeedCardPlaceLogo(logo: logo, topClear: PhotoChip.inset + PhotoChip.height, bottomClear: copyHeight + 16)
@@ -679,8 +675,7 @@ private struct PageDots: View {
         }
         .frame(maxWidth: .infinity, minHeight: Self.row)
         .animation(Motion.smooth, value: page)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Photo \(page + 1) of \(count)")
-        .accessibilityIdentifier("card-photo-dots")
+        // The card's link says which photo is up.
+        .accessibilityHidden(true)
     }
 }

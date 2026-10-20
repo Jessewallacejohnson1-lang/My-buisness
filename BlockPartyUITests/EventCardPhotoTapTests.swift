@@ -86,15 +86,13 @@ final class EventCardPhotoTapTests: XCTestCase {
     /// `-event-page-two-photos` gives the first card a second photo.
     func testASwipeOnThePhotoPagesAndADragUpScrolls() {
         let link = firstCardLink()
-        let dots = app.otherElements["card-photo-dots"].firstMatch
-        XCTAssertTrue(dots.waitForExistence(timeout: 10), "no dots under a two-photo card")
-        XCTAssertEqual(dots.label, "Photo 1 of 2")
+        XCTAssertEqual(link.value as? String, "Photo 1 of 2", "the first card has no second photo to swipe to")
 
         link.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.55))
             .press(forDuration: 0.05, thenDragTo: link.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.55)))
         XCTAssertFalse(waitForPush(from: link, timeout: 2), "a swipe on the photo pushed the event page")
-        let second = NSPredicate(format: "label == 'Photo 2 of 2'")
-        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: second, object: dots)], timeout: 5),
+        let second = NSPredicate(format: "value == 'Photo 2 of 2'")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: second, object: link)], timeout: 5),
                        .completed, "the swipe didn't bring the second photo up")
 
         let top = link.frame.minY
@@ -102,6 +100,23 @@ final class EventCardPhotoTapTests: XCTestCase {
             .press(forDuration: 0.05, thenDragTo: link.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)))
         XCTAssertFalse(waitForPush(from: link, timeout: 2), "a drag up on the photo pushed the event page")
         XCTAssertLessThan(link.frame.minY, top - 50, "a drag up that started on the photo didn't scroll the feed")
+    }
+
+    /// A card with one photo: a sideways swipe on it rubber-bands and opens nothing (it used to
+    /// open the Event page as if it were a tap), and a tap then still opens the page.
+    func testASidewaysSwipeOnAOnePhotoCardOpensNothing() {
+        app.terminate()
+        app.launchArguments = ["-open-tab", "town", "-town-samples", "-ui-tests"]
+        app.launch()
+        let link = firstCardLink()
+        XCTAssertEqual(link.value as? String ?? "", "", "the first sample card has more than one photo")
+
+        link.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.55))
+            .press(forDuration: 0.05, thenDragTo: link.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.55)))
+        XCTAssertFalse(waitForPush(from: link, timeout: 2), "a sideways swipe on a one-photo card opened its page")
+
+        photo(of: link).tap()
+        XCTAssertTrue(waitForPush(from: link), "a tap after the swipe did not open the page")
     }
 
     /// The event page hides the navigation bar, and UIKit then turns its edge swipe off.
