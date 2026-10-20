@@ -72,12 +72,9 @@ nonisolated enum DailyMetric {
     /// The photo is the card, 4:5 (picked on the drafts board).
     static let cardAspect: CGFloat = 4.0 / 5.0
     /// The words sit 16 in from the card's left edge, and the business line's baseline
-    /// 16 over its bottom edge, as App Store's do: Jost's descent is the other 5. The
-    /// name's baseline sits 11 over the business line's capitals, as App Store's title
-    /// over its subtitle: BP Event Heading's tall line box is all of that gap.
+    /// 16 over its bottom edge, as App Store's do: Jost's descent is the other 5.
     static let wordsInset: CGFloat = 16
     static let wordsBottom: CGFloat = 11
-    static let nameToAbout: CGFloat = 0
     /// The bottom fade starts this far over the name, as App Store's starts over its
     /// label. The photo's blurred copy is solid by `fadeSolid` of the way down.
     static let fadeAboveWords: CGFloat = 24
@@ -375,6 +372,10 @@ private struct SpotlightCardFace: View {
     /// The words' height, so the fade starts `fadeAboveWords` over the name however many
     /// lines it takes.
     @State private var wordsHeight: CGFloat = 0
+    /// The photo once it has decoded. The fade's blurred copy waits for it, so it draws from
+    /// the cache instead of loading the same photo a second time alongside.
+    @State private var shownPhoto: URL?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var photo: URL? { spotlight.portrait ?? spotlight.photos.first }
     private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: Radius.bento, style: .continuous) }
@@ -386,9 +387,14 @@ private struct SpotlightCardFace: View {
         Hue.ink
             .aspectRatio(DailyMetric.cardAspect, contentMode: .fit)
             .overlay {
-                if let photo { FeedCardURLPhoto(url: photo) }
+                if let photo {
+                    // Faded in with the photo, as the Town card brings in its photo.
+                    FeedCardURLPhoto(url: photo, onReady: {
+                        withAnimation(reduceMotion ? nil : Motion.smooth) { shownPhoto = photo }
+                    })
+                }
             }
-            .overlay { if let photo { fade(photo) } }
+            .overlay { if let photo, photo == shownPhoto { fade(photo) } }
             .overlay(alignment: .bottomLeading) { words }
             .clipShape(shape)
             .overlay { shape.strokeBorder(Hue.hairline, lineWidth: 0.5) }
@@ -408,7 +414,9 @@ private struct SpotlightCardFace: View {
     }
 
     private var words: some View {
-        VStack(alignment: .leading, spacing: DailyMetric.nameToAbout) {
+        // No spacing: BP Event Heading's tall line box alone puts the name's baseline 11
+        // over the business line's capitals, as App Store's title sits over its subtitle.
+        VStack(alignment: .leading, spacing: 0) {
             Text(spotlight.name)
                 .font(.eventDisplay(28))
                 // The Town card's title, set the same way (`FeedEventCard.imageCopy`).
