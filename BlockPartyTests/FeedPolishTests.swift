@@ -1124,6 +1124,15 @@ final class FeedWhenLineTests: XCTestCase {
         XCTAssertFalse(festival.isNow(at: at(27, 0), calendar: calendar))
     }
 
+    func testNowIsInTheTownsTimeWhateverThePhoneIsSetTo() {
+        var pacific = calendar
+        pacific.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let workshop = card("2026-09-24", "10 AM", endAt: at(24, 16))
+        XCTAssertTrue(workshop.isNow(at: at(24, 10)), "10 AM in St. Joseph, wherever the phone thinks it is")
+        XCTAssertFalse(workshop.isNow(at: at(24, 9, 59)))
+        XCTAssertFalse(workshop.isNow(at: at(24, 10), calendar: pacific), "a Pacific calendar puts its start two hours later")
+    }
+
     func testAOneDayAllDayListingIsNeverNow() {
         XCTAssertFalse(card("2026-09-24", nil, allDay: true).isNow(at: at(24, 12), calendar: calendar))
         XCTAssertFalse(card("2026-09-24", nil, endAt: at(25, 0), allDay: true).isNow(at: at(24, 12), calendar: calendar))

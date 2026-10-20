@@ -80,8 +80,9 @@ struct FeedCardItem: Identifiable, Hashable {
     /// On right now, so the card's chip says Now (Jesse, 2026-10-20): from its start to its end,
     /// two hours when it gives no end (as the map's pins), and the whole of something that runs
     /// over days (the Johanna Kiln, Oct 16 to 25). A one-day all-day listing gives no hours, so
-    /// it never is.
-    func isNow(at now: Date = .now, calendar: Calendar = FeedWhenLine.localCalendar) -> Bool {
+    /// it never is. In the town's time, as its end is: a phone set to Pacific still sees a 10 AM
+    /// class turn Now at 10 in St. Joseph.
+    func isNow(at now: Date = .now, calendar: Calendar = Town.calendar) -> Bool {
         guard !cancelled, let day = FeedWhenLine.day(from: eventDate, calendar: calendar) else { return false }
         let minutes = startTime.map { DateHelpers.minutesOf($0) }.flatMap { $0 < 24 * 60 ? $0 : nil }
         guard !allDay, let minutes,
@@ -91,7 +92,7 @@ struct FeedCardItem: Identifiable, Hashable {
             else { return false }
             return now >= day && now < endAt
         }
-        return now >= start && now < (endAt ?? start.addingTimeInterval(2 * 60 * 60))
+        return now >= start && now < (endAt ?? start.addingTimeInterval(YourDayLogic.assumedEventDuration))
     }
 
     /// The where line under the when line: just the venue, because the when line

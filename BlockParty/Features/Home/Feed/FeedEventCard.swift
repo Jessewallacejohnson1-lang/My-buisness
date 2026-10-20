@@ -357,14 +357,17 @@ struct FeedEventCard: View {
                     // Turns to Now at the start minute while you look at it (event-card 04).
                     TimelineView(.everyMinute) { context in
                         let now = item.isNow(at: context.date)
-                        Group {
+                        // A ZStack, not a Group: a Group hands the transition to each chip, and
+                        // the one coming in never sees `now` change, so it would cut.
+                        ZStack(alignment: .leading) {
                             if now {
                                 PhotoChip(text: "Now", spoken: "Happening now", dot: Hue.now)
+                                    .transition(.opacity)
                             } else {
                                 PhotoChip(text: when.text, spoken: when.spoken)
+                                    .transition(.opacity)
                             }
                         }
-                        .transition(.opacity)
                         .animation(motionIsReduced ? nil : Motion.smooth, value: now)
                     }
                     .layoutPriority(1)
