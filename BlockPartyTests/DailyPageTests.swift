@@ -249,5 +249,11 @@ final class DailyPageTests: XCTestCase {
         model.accountChanged()
         XCTAssertNil(model.events)
         XCTAssertTrue(model.needsRead(now: noon))
+
+        // Offline with nothing read yet: none, so Daily shows its placeholder, and it reads again.
+        let offline = EventOfTheDay(read: { throw URLError(.notConnectedToInternet) })
+        await offline.refresh(now: noon)
+        XCTAssertEqual(offline.events?.count, 0)
+        XCTAssertTrue(offline.needsRead(now: noon))
     }
 }
