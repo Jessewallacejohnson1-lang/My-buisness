@@ -6454,10 +6454,20 @@ added_by: agent:town-verify
 sources:
   - url: https://www.powerhouse.cc/
     kind: website
-    method: fetch
+    method: search_snippet
+    trust: official
+  - url: https://www.facebook.com/pages/Powerhouse-Outdoor-Equipment/133545816696986/
+    kind: facebook
+    method: search_snippet
     trust: official
 ```
 Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
+Website moved to `search_snippet` on 2026-10-20 (Jesse's yes): the server refuses our client,
+not a robots rule. Its robots.txt answers 200 and allows us, but Cloudflare 403s
+`BlockPartyBot` on the home page, from the cloud routine every morning since 2026-10-15 and
+from the Mac on 2026-10-20. A browser user agent stays off the table (ADR-012, ADR-014).
+Facebook page added the same day: an Apify read (ADR-020) showed the census phone, street and
+website, and posts every few days (newest 2026-10-19), all Toro product posts so far.
 
 ## Prairie Supply, Inc.
 ```yaml
