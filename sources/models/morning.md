@@ -12,12 +12,18 @@ source is a line in the summary; carry on with the rest.
    that `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set with
    `test -n "$SUPABASE_URL" && test -n "$SUPABASE_SERVICE_ROLE_KEY" && echo keys set`; their
    values stay out of every command's output and your answer. Without them, stop and say so.
-2. **Prepare.** Run `python3 sources/scripts/morning.py prepare`. It fetches every watched page
-   the polite way, reads the feeds and data sources, and writes the changed pages in batches
-   to `.runs/morning/batches/`. Done when it prints its `[morning] fetched …` line. It takes
-   about 10 minutes, so give the command a 900000 ms timeout. Run it once only: a second run
-   finds nothing changed and loses the morning's pages. Its counts are in
-   `.runs/morning/prepare.json` if you need them again.
+2. **Prepare.** Start `(python3 sources/scripts/morning.py prepare; echo "prepare exit $?") >
+   /tmp/prepare.log 2>&1` with `run_in_background: true`. It fetches every watched page the
+   polite way, reads the feeds and data sources, and writes the changed pages in batches to
+   `.runs/morning/batches/`. It takes 10 to 20 minutes, longer than one Bash call may run, so
+   wait for it in the foreground 9 minutes at a time (timeout 600000 ms):
+   `for i in $(seq 36); do grep -q '^prepare exit' /tmp/prepare.log && break; sleep 15; done; tail -20 /tmp/prepare.log`.
+   Repeat that wait until `prepare exit` shows, without ending your turn in between. Don't wait
+   with `pgrep -f` (it finds the wait itself) or through a `tail` pipe (it prints nothing until
+   the end). Done when `prepare exit 0` shows under its `[morning] fetched …` line. A background
+   command is stopped at 30 minutes; a prepare that nears that needs splitting into parts. Run
+   it once only: a second run finds nothing changed and loses the morning's pages. Its counts
+   are in `.runs/morning/prepare.json` if you need them again.
 3. **The cheap model reads.** For each batch file, start one helper on the cheap model (Haiku),
    all at once, each with this prompt: "Read `sources/models/flag.md` and follow it for the
    pages in `.runs/morning/batches/batch-N.txt`. Answer with the JSON lines only." Write every

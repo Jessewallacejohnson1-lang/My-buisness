@@ -44,6 +44,9 @@ skill covers the calls the code can't make.
   the page or the host names the place at it, use the name: "104 Chapel Lane" is "Saint
   Benedict's Monastery".
 - **"Online"** for a webinar or virtual event.
+- **City Council and EDA meetings with no room listed are at "City Hall"** (Jesse, 2026-10-20). The
+  writer fills it in (`MEETS_AT`); the Park Board moves between City Hall and the parks, so it stays blank.
+- **No end at 11:59 PM:** that is a calendar's way of giving no end time, and the writer drops it.
 - **Room numbers and buildings stay** when they help someone find it ("Gorecki 204, CSB").
 
 ## Examples (read 2026-10-14)
