@@ -326,6 +326,8 @@ struct FeedEventCard: View {
             ZStack(alignment: .bottom) {
                 imageContent
                     .frame(width: proxy.size.width, height: proxy.size.height)
+                    // What a photo rubber-banding sideways shows beside it: the ink it loads on.
+                    .background(Hue.ink)
                     .clipped()
                     // Called off: the photo goes grey (Jesse, 2026-10-15).
                     .grayscale(item.cancelled ? 1 : 0)
@@ -360,6 +362,8 @@ struct FeedEventCard: View {
                 // than the chip, never moves the row when the photo lands and it appears.
                 PhotoCredit(names: creditNames)
                     .padding(-PhotoCredit.edgeInset)
+                    // Fades in with its photo, and across to the next one's on a swipe.
+                    .animation(motionIsReduced ? nil : Motion.smooth, value: creditNames)
             }
             .frame(minHeight: PhotoChip.height)
             .padding(PhotoChip.inset)
@@ -396,9 +400,11 @@ struct FeedEventCard: View {
                        onFailure: { _ in }, skeleton: false)
                 .accessibilityHidden(true)
         } else if let url = displayImage.url {
-            FeedCardURLPhoto(url: url,
-                             onReady: { _ = withAnimation(motionIsReduced ? nil : Motion.smooth) { shownPhotos.insert(url) } },
-                             onFailure: { failedPhoto = url })
+            // One photo in the same pager, rubber-banding sideways: a sideways swipe used to
+            // open the Event page as if it were a tap (seen 2026-10-20).
+            PhotoPager(urls: [url], page: $photoPage, shown: $shownPhotos, value: "",
+                       onFailure: { failedPhoto = $0 }, skeleton: false, bounces: true)
+                .accessibilityHidden(true)
         } else if let logo = displayImage.logo {
             FeedCardPlaceLogo(logo: logo, topClear: PhotoChip.inset + PhotoChip.height, bottomClear: copyHeight + 16)
         } else {

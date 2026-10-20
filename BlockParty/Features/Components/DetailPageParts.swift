@@ -21,6 +21,9 @@ struct PhotoPager: View {
     /// A shimmer until each photo lands. Off on a Town card, which waits on ink so its white
     /// title stays readable (`FeedCardURLPhoto`).
     var skeleton = true
+    /// One photo still rubber-bands sideways, so a sideways swipe moves it instead of reaching
+    /// what's under it: on a Town card, the link that opens the Event page (event-card 02).
+    var bounces = false
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -35,7 +38,8 @@ struct PhotoPager: View {
         }
         .scrollTargetBehavior(.paging)
         .scrollPosition(id: $page)
-        .scrollDisabled(urls.count < 2)
+        .scrollDisabled(urls.count < 2 && !bounces)
+        .scrollBounceBehavior(bounces ? .always : .basedOnSize, axes: .horizontal)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Photos")
         .accessibilityValue(value)
