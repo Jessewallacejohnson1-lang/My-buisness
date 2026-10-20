@@ -222,9 +222,9 @@ final class TownFeedEventsTests: XCTestCase {
          "going_count":0,"rsvpd":false,"recurrence":null,"leaves_at":"2026-10-17T20:00:00+00:00"\(game)}
         """ }
         let json = "[" + [
-            row("e1", #","game":{"sport":"Football","occasion":"Homecoming","teams":[{"name":"Saint John's","short":"Saint John's","logo":"https://x/sju.png","color":"#C20430"},{"name":"Concordia","short":"Concordia","logo":null,"color":"red"}]}"#),
-            row("e2", #","game":{"sport":"Football","occasion":null,"teams":[{"name":"Saint John's","short":"Saint John's"}]}"#),
-            row("e3", #","game":null"#),
+            row("e1", ##","game":{"sport":"Football","occasion":"Homecoming","teams":[{"name":"Saint John's","short":"Saint John's","logo":"https://x/sju.png","color":"#C20430"},{"name":"Concordia","short":"Concordia","logo":null,"color":"red"}]}"##),
+            row("e2", ##","game":{"sport":"Football","occasion":null,"teams":[{"name":"Saint John's","short":"Saint John's"}]}"##),
+            row("e3", ##","game":null"##),
             row("e4", ""),
         ].joined(separator: ",") + "]"
         let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.entry($0).card }
