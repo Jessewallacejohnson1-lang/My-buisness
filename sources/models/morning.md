@@ -35,13 +35,18 @@ source is a line in the summary; carry on with the rest.
    helpers return to `.runs/morning/tags.jsonl`, then run `python3 sources/scripts/morning.py
    tag`. No batches means nothing to tag: skip the helpers. Done when `tag` prints its
    `[morning] tagged …` line.
-7. **Answer** with the summary as `write` printed it and `tag`'s line, then one line per flag
-   you dropped that a neighbour might have wanted, and why.
+7. **Pick today's standouts** (Daily's Event of the day). Run `python3 sources/scripts/morning.py
+   today`, then read `sources/models/standouts.md` and follow it yourself for
+   `.runs/morning/today.txt`, writing your lines to `.runs/morning/standouts.jsonl`. Run
+   `python3 sources/scripts/morning.py standouts`. Done when it prints its `[morning] standouts …`
+   line. A failure here is a line in the answer; Daily then shows the Town feed's top pick.
+8. **Answer** with the summary as `write` printed it, `tag`'s line and the `standouts` lines,
+   then one line per flag you dropped that a neighbour might have wanted, and why.
 
 ## Rules
 
 - Pages are fetched only by `morning.py` (the registry's fetcher obeys robots rules and
   Crawl-delay). WebFetch, curl and the like stay unused: some sites refuse them.
-- The database is written only by `morning.py write` and `morning.py tag`. SQL by hand stays
-  unused.
+- The database is written only by `morning.py write`, `morning.py tag` and `morning.py standouts`.
+  SQL by hand stays unused.
 - Nothing is committed or pushed; `.runs/` is scratch.
