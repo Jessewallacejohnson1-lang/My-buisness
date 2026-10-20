@@ -187,6 +187,8 @@ final class EventOfTheDay {
     /// nil until the first read lands; Daily shows paper until then.
     private(set) var events: [DailyEvent]?
     @ObservationIgnored private var readAt: Date?
+    /// Numbers each read, so one an account change overtook never lands.
+    @ObservationIgnored private var latestRead = 0
     @ObservationIgnored private let read: () async throws -> [DailyEvent]
 
     static let rereadAfter: TimeInterval = 10 * 60
@@ -210,22 +212,31 @@ final class EventOfTheDay {
 
     func refresh(now: Date = Date()) async {
         guard needsRead(now: now) else { return }
+        latestRead += 1
+        let mine = latestRead
         do {
-            events = try await read()
+            let picks = try await read()
+            guard mine == latestRead else { return }
+            events = picks
             readAt = now
         } catch {
-            // Kept: a failed read leaves the last picks on screen and tries again next time.
+            // A failed read keeps the last picks and tries again next time; with none yet, Daily
+            // shows its placeholder rather than blank paper.
+            guard mine == latestRead, events == nil else { return }
+            events = []
         }
     }
 
     func needsRead(now: Date) -> Bool {
         guard let readAt, let events else { return true }
+        // (A failed first read leaves `events` empty and `readAt` nil: read again.)
         return now.timeIntervalSince(readAt) >= Self.rereadAfter || Town.day(readAt) != Town.day(now)
             || events.contains { $0.ends <= now }
     }
 
     /// A new account gets its own picks.
     func accountChanged() {
+        latestRead += 1
         events = nil
         readAt = nil
     }
@@ -324,12 +335,12 @@ private struct EventOfTheDayCard: View {
             .padding(.horizontal, DailyMetric.eventTextInset)
             .padding(.bottom, DailyMetric.eventRowBottom)
         }
-        .scaleEffect(pressed && !reduceMotion ? 0.97 : 1)
-        .animation(.spring(response: 0.28, dampingFraction: 0.7), value: pressed)
+        .scaleEffect(pressed && !reduceMotion ? PressableCardStyle.pressedScale : 1)
+        .animation(PressableCardStyle.press, value: pressed)
     }
 }
 
-/// The link's press, handed up to the card (`PressableCardStyle`'s numbers on the whole card).
+/// The link's press, handed up so the whole card squishes as `PressableCardStyle` does.
 private struct PressReport: ButtonStyle {
     @Binding var pressed: Bool
 

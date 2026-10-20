@@ -501,6 +501,8 @@ struct MainTabsView: View {
             if phase == .active {
                 Task { await friendsBook.refreshDot() }
                 Task { await cancelNotice.check() }
+                // Back the next morning on Daily: today's picks, not yesterday's.
+                if tab == .daily { Task { await eventOfTheDay.refresh() } }
             }
         }
         .onAppear {
@@ -1231,7 +1233,7 @@ struct TabBarCompactKey: PreferenceKey {
 /// What a reserved tab shows until its screen is built: the slot's name and the one
 /// line describing what will live there. Deliberately quiet — a named, empty room
 /// reads as reserved, where a bare screen reads as broken.
-private struct BlankTab: View {
+struct BlankTab: View {
     let tab: Tab
 
     var body: some View {

@@ -283,7 +283,16 @@ struct DailyPage: View {
         if spotlight != nil {
             page.following(tilt)
         } else {
-            page
+            // With no Spotlight, once nothing else is left today the page is the placeholder.
+            TimelineView(.everyMinute) { context in
+                let now = DailyClock.now(context.date)
+                if DailyEvent.showing(events, now: now, limit: 3).isEmpty
+                    && DailyEvent.suggestions(now: now).isEmpty && DailyFollowing.today(now: now).isEmpty {
+                    BlankTab(tab: .daily)
+                } else {
+                    page
+                }
+            }
         }
     }
 

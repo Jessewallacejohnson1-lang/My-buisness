@@ -1118,6 +1118,14 @@ test('Event of the day: one that is over leaves, the next takes its spot, and no
   assert.deepEqual(await picks('2026-10-09 22:30'), []);
 });
 
+test('Event of the day: a standout that repeats every week never shows, picked or not', async () => {
+  const e = await busyFriday();
+  // Theology on Tap turns out to be every Friday: it leaves the evening to the game, even for faith.
+  for (const d of ['2026-10-16', '2026-10-23']) await add('Theology on Tap', d, { start_time: '8 PM', source_name: 'Theology on Tap' });
+  await signIn(YOU, ['faith']);
+  assert.deepEqual(await picks('2026-10-09 07:00'), ['Pancake breakfast', 'Fix-It Clinic', 'Home game']);
+});
+
 test("Event of the day: a day the job wrote nothing is the feed's top Event, never routine business or a weekly regular", async () => {
   await reset();
   const council = await add('Council meeting', '2026-10-09', { start_time: '6 PM', source_name: 'City' });

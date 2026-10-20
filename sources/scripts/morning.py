@@ -264,7 +264,6 @@ def event_line(row, going, hearts):
 def lay_out_today(out, today):
     out.mkdir(parents=True, exist_ok=True)
     events = todays_events(today)
-    (out / "today.json").write_text(json.dumps(events, indent=1, ensure_ascii=False))
     (out / "today.txt").write_text(f"Today: {today}\n\nEvents:\n"
                                    + "".join(json.dumps(e, ensure_ascii=False) + "\n" for e in events))
     print(f"[morning] {len(events)} events today for the standouts ({out / 'today.txt'})")
@@ -284,7 +283,8 @@ def plan_standouts(lines, events, today):
 
 
 def standouts(out, dry_run, today):
-    events = json.loads((out / "today.json").read_text())
+    # today.txt's Event lines, as the model read them.
+    events = [e for e in read_items(out / "today.txt") if isinstance(e, dict)]
     rows = plan_standouts(read_items(out / "standouts.jsonl"), events, today)
     # No usable line keeps whatever today has: with no rows Daily shows the Town feed's top pick.
     if rows and not dry_run:

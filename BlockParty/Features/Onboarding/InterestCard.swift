@@ -85,9 +85,13 @@ struct InterestCard: View {
 struct PressableCardStyle: ButtonStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// Also Daily's Event of the day card's, which squishes from its link's press.
+    static let pressedScale: CGFloat = 0.97
+    static let press = Animation.spring(response: 0.28, dampingFraction: 0.7)
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.97 : 1)
-            .animation(.spring(response: 0.28, dampingFraction: 0.7), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? Self.pressedScale : 1)
+            .animation(Self.press, value: configuration.isPressed)
     }
 }
