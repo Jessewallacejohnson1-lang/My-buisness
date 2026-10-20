@@ -126,6 +126,9 @@ TEAM = set("jv varsity junior reserve freshman sophomore boys girls men women me
 PLACE_STOP = STOP | set("st saint joseph collegeville mn minnesota united states usa county road rd street "
                         "ave avenue east west north south suite park shelter hall center centre building "
                         "room gym lot parking map theater theatre high middle intermediate elementary school".split())
+# Meetings whose listing names no room, and where the host's agendas say they always meet
+# (read 2026-10-20). The Park Board moves between City Hall and the parks, so it stays blank.
+MEETS_AT = [("City of St. Joseph", re.compile(r"\b(City Council|Economic Development Authority)\b"), "City Hall")]
 INTERESTS_SWIFT = Path(__file__).resolve().parents[2] / "BlockParty" / "Backend" / "Interests.swift"
 # The newest migration that makes public.apply_judged: the self-tests read the SQL the database
 # runs today, whatever the file is called.
@@ -267,6 +270,13 @@ def tidy_place(place, home="St. Joseph MN"):
     return trailing.sub("", p) or p
 
 
+def meets_at(place, host, title):
+    """A meeting its host lists with no room is where it always meets (MEETS_AT)."""
+    if words(place, PLACE_STOP):
+        return place
+    return next((p for h, what, p in MEETS_AT if host.strip() == h and what.search(title)), place)
+
+
 def place_line(place, town, home):
     loc = place.strip() if words(place, PLACE_STOP) else ""
     if town_key(town) != town_key(home) and town_key(town) not in town_key(loc):
@@ -285,7 +295,8 @@ def listed_facts(row, home="St. Joseph MN"):
     day = date.fromisoformat(str(row["event_date"])[:10])
     t = None if row.get("all_day") else parse_clock(row.get("start_time"))
     return {"day": day, "at": t and datetime.combine(day, t),
-            "place": words(tidy_place(row.get("location"), home), PLACE_STOP),
+            "place": words(meets_at(tidy_place(row.get("location"), home), row.get("source_name") or "",
+                                    tidy_title(row["title"], row.get("source_name") or "")), PLACE_STOP),
             "title": words(tidy_title(row["title"], row.get("source_name") or ""))}
 
 
@@ -358,6 +369,8 @@ def event_of(it, today, interests, home, notes):
     try:
         day, at = when(it.get("start") or "", it.get("all_day"))
         end = None if at is None or not it.get("end") else local(it["end"])
+        if end and end.time() == time(23, 59):
+            end = None  # a calendar's "until 11:59 PM" is how it says no end time
         signup = it.get("signup_by") and date.fromisoformat(it["signup_by"])
     except ValueError as e:
         return None, f"invalid: unreadable date ({e})"
@@ -372,6 +385,7 @@ def event_of(it, today, interests, home, notes):
         notes.append(f"interest {interest!r} is not on the list ({it['title']!r}): left empty")
         interest = None
     title, place = tidy_title(it["title"], it["source_name"]), tidy_place(it.get("place"), home)
+    place = meets_at(place, it["source_name"], title)
     # ponytail: kept out only as it is first listed. A listed event whose sign-ups close later
     # keeps its day (apply_judged keeps a day already set); the event-lead-time skill's pass
     # takes it out. Make a kept-out day win in apply_judged if that pass keeps finding them.
@@ -622,6 +636,15 @@ def t_description_cut_at_a_word():
     assert run([item(blurb=None)])["events"][0]["row"]["description"] is None
 
 
+def t_city_meeting_end_and_place():
+    meeting = item(title="City Council Meeting", start="2026-11-02T18:00:00-06:00", end="2026-11-02T23:59:00-06:00",
+                   place="St. Joseph, MN 56374", source_name="City of St. Joseph", interest=None)
+    row = run([meeting])["events"][0]["row"]
+    assert row["end_at"] is None and row["location"] == "City Hall", row
+    assert run([dict(meeting, title="Park Board Meeting")])["events"][0]["row"]["location"] is None
+    assert run([item(place="")])["events"][0]["row"]["location"] is None, "only the city's own meetings"
+
+
 def item(**kw):
     base = {"kind": "event", "title": "Plant Bingo", "start": "2026-10-24T16:00:00-05:00",
             "end": "2026-10-24T18:30:00-05:00", "all_day": False,
@@ -748,8 +771,9 @@ def t_same_time_no_place():
     assert len(r["events"]) == 1 and r["events"][0]["id"] == feed["id"], "the page's copy of a feed meeting is one Event"
     work = dict(page, title="City Council Work Session")
     assert run([work], [feed])["events"][0]["id"] is None, "another title at the same time stays apart"
-    later = dict(page, start="2026-10-19T18:30:00-05:00")
-    assert run([later], [feed])["events"][0]["id"] is None, "half an hour later, with no place to go on, stays apart"
+    park = dict(feed, title="Park Board Meeting")  # a council meeting has City Hall to go on (MEETS_AT)
+    later = dict(page, title="Park Board Meeting", start="2026-10-19T18:30:00-05:00")
+    assert run([later], [park])["events"][0]["id"] is None, "half an hour later, with no place to go on, stays apart"
 
 
 def t_reread_updates():
@@ -999,7 +1023,7 @@ def t_wording():
 TESTS = [t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_secondhand_needs_two, t_unsure_held, t_merge_true_pair,
          t_merge_near_miss_kept_apart, t_same_time_no_place, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
          t_interest_checked, t_area, t_past_and_invalid_skipped, t_writes_are_one_safe_call,
-         t_description_cut_at_a_word]
+         t_description_cut_at_a_word, t_city_meeting_end_and_place]
 
 
 def selftest():
