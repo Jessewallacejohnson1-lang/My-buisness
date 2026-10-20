@@ -211,6 +211,38 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertFalse(cards[1].inGroup)
     }
 
+    /// A game (game-card 01) carries its sport, special night and both teams, the host's first,
+    /// each with its logo and color when known; a misread logo or color is none, and a game that
+    /// doesn't name two teams leaves the card a photo card. A feed kept from before reads too.
+    func testAGamesTeamsReachTheCardAndABadOneLeavesAPhotoCard() throws {
+        let row = { (id: String, game: String) in """
+        {"id":"\(id)","title":"SJU Football vs Concordia: Homecoming","event_date":"2026-10-17","start_time":"1 PM",
+         "location":"Clemens Stadium, Collegeville","image_url":null,"category":null,"club_name":null,
+         "source_name":"SJU Athletics","end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00",
+         "going_count":0,"rsvpd":false,"recurrence":null,"leaves_at":"2026-10-17T20:00:00+00:00"\(game)}
+        """ }
+        let json = "[" + [
+            row("e1", ##","game":{"sport":"Football","occasion":"Homecoming","teams":[{"name":"Saint John's","short":"Saint John's","logo":"https://x/sju.png","color":"#C20430"},{"name":"Concordia","short":"Concordia","logo":null,"color":"red"}]}"##),
+            row("e2", ##","game":{"sport":"Football","occasion":null,"teams":[{"name":"Saint John's","short":"Saint John's"}]}"##),
+            row("e3", ##","game":null"##),
+            row("e4", ""),
+        ].joined(separator: ",") + "]"
+        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.entry($0).card }
+        let game = try XCTUnwrap(cards[0].game)
+        XCTAssertEqual(game.sport, "Football")
+        XCTAssertEqual(game.occasion, "Homecoming")
+        XCTAssertEqual(game.teams.map(\.short), ["Saint John's", "Concordia"], "the host's team first")
+        XCTAssertEqual(game.teams[0].logo, URL(string: "https://x/sju.png"))
+        XCTAssertEqual(game.teams[0].rgb, 0xC20430)
+        XCTAssertNil(game.teams[1].rgb, "a color that isn't #RRGGBB is none")
+        XCTAssertEqual(game.teams.map(\.initial), ["S", "C"], "the disc's letter until a logo lands")
+        XCTAssertEqual(game.spoken, "Football, Saint John's versus Concordia")
+        XCTAssertNil(cards[1].game, "one team is no game")
+        XCTAssertNil(cards[2].game)
+        XCTAssertNil(cards[3].game, "a feed kept from before games")
+        XCTAssertEqual(cards.count, 4, "no row is lost to its game")
+    }
+
     /// Every reason the database sends has a line; one this app doesn't know has none,
     /// so a newer database never puts a wrong line on an older app.
     func testEachReasonHasItsLine() {

@@ -17,7 +17,7 @@ const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
 // counting helpers it reads.
 const files = creating(migrations, ['public.get_town_feed', 'public.place_picture', 'public.town_feed_series_label',
   'private.town_feed_place', 'private.going_count', 'private.heart_count', 'private.friends_going',
-  'public.get_event_of_the_day']);
+  'private.event_game', 'public.get_event_of_the_day']);
 // Friends (ticket 28) read the Friends builds' rule for who may be shown, as it is now.
 const findable = readdirSync(migrations).filter((f) => f.endsWith('_unfriend_and_block.sql'))
   .map((f) => readFileSync(join(migrations, f), 'utf8'))[0]
@@ -53,7 +53,11 @@ await db.exec(`
     start_time text, created_at timestamptz not null default now(), location text,
     image_url text, kind text not null default 'event', category text,
     end_at timestamptz, all_day boolean not null default false,
-    source_name text, shows_from date, place_entry_id text, description text);
+    source_name text, shows_from date, place_entry_id text, description text,
+    sport text, team_ids text[], occasion text);
+  -- The schools a game card names (game-card 01, 20261020120000_game_card.sql).
+  create table public.teams (id text primary key, name text not null, short_name text not null,
+    logo_url text, color text);
   -- Where events happen, with their pictures (place-photos): the app's places rows, then the
   -- photos Block Party keeps (loaded from their migrations below).
   create table public.places (id uuid primary key default gen_random_uuid(), name text, entry_id text,
@@ -122,7 +126,7 @@ async function reset() {
                  delete from public.event_saves; delete from public.event_likes;
                  delete from public.town_profiles; delete from private.friendships;
                  delete from private.blocks; delete from public.club_members;
-                 delete from public.clubs; delete from public.sources;
+                 delete from public.clubs; delete from public.sources; delete from public.teams;
                  reset request.jwt.claim.sub; reset test.admin;`);
 }
 
@@ -1001,6 +1005,33 @@ test('each event carries its own description, for the Event page\'s About', asyn
   await db.exec('reset role');
   assert.deepEqual(rows.map((r) => [r.title, r.description]),
                    [['Council meeting', null], ['Fall fair', 'Apple cider and a hay ride.']]);
+});
+
+test('a game carries its sport, special night and both teams, the host first; any other Event none', async () => {
+  await reset();
+  const game = await add('SJU Football vs Concordia: Homecoming', '2026-10-09');
+  const unseen = await add('Albany Volleyball vs Foley', '2026-10-09');
+  await add('Fall fair', '2026-10-09');
+  await db.exec(`insert into public.teams (id, name, short_name, logo_url, color) values
+    ('saint-johns', 'Saint John''s', 'Saint John''s', 'https://x/sju.png', '#C20430'),
+    ('concordia', 'Concordia', 'Concordia', null, null)`);
+  await db.query(`update public.club_events set sport = 'Football', team_ids = array['saint-johns', 'concordia'],
+    occasion = 'Homecoming' where id = $1`, [game]);
+  // A team the writer named but no row yet (it always adds one): its id stands in for its name.
+  await db.query(`update public.club_events set sport = 'Volleyball', team_ids = array['albany', 'foley'] where id = $1`,
+                 [unseen]);
+  await db.exec('set role anon');
+  const { rows } = await db.query(`select title, game
+    from public.get_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago')) order by title`);
+  await db.exec('reset role');
+  assert.deepEqual(rows.map((r) => [r.title, r.game]), [
+    ['Albany Volleyball vs Foley', { sport: 'Volleyball', occasion: null, teams: [
+      { name: 'albany', short: 'albany', logo: null, color: null },
+      { name: 'foley', short: 'foley', logo: null, color: null }] }],
+    ['Fall fair', null],
+    ['SJU Football vs Concordia: Homecoming', { sport: 'Football', occasion: 'Homecoming', teams: [
+      { name: "Saint John's", short: "Saint John's", logo: 'https://x/sju.png', color: '#C20430' },
+      { name: 'Concordia', short: 'Concordia', logo: null, color: null }] }]]);
 });
 
 test("a group's Event names the group and whether you're in it; found ones by its site or its name at its place", async () => {

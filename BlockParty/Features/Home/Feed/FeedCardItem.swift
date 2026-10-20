@@ -52,6 +52,8 @@ struct FeedCardItem: Identifiable, Hashable {
     /// you're in it: a card shows Join beside the group's name when you aren't (rsvp-and-groups 07).
     var groupID: String? = nil
     var inGroup = false
+    /// A game between two teams (game-card 01): the card draws the teams, not a photo.
+    var game: Game? = nil
 
     var shareTime: String? {
         if let startTime { return startTime }

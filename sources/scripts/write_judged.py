@@ -46,6 +46,9 @@ THE JUDGED ITEM: the contract the judge (ticket 05) produces, one JSON object pe
                when none fits (a council meeting)
   category     news: "announcement" (default) | "road" | "school" | "campus" | "business"
   blurb        one line
+  game         events, optional: a game between two teams, {"sport": "Girls Soccer", "teams": ["Sartell",
+               "St. Cloud"]}, the host's team first, as neighbours say them (read_events.py, the league's
+               games). CSB and SJU Athletics games need none: the writer reads them off the title.
 
 THE SCHEDULE LINE: a reader that has some sources' whole schedules adds one more line, only on a
 morning every one of those sources was read (read_events.py, the league's high school games):
@@ -245,6 +248,38 @@ def tidy_title(title, host="", event=True):
     return t or title.strip()
 
 
+# The game card (game-card 01): a game's sport, two teams and special night, for its card. CSB's
+# and SJU's Athletics calendars write games the title-and-place way, "SJU Football vs Concordia:
+# Homecoming"; the host's team is the college whose calendar it is.
+CAMPUS_TEAMS = {"SJU Athletics": ("SJU", "Saint John's"), "CSB Athletics": ("CSB", "Saint Benedict")}
+CAMPUS_GAME = re.compile(r"^(?P<host>CSB|SJU) (?P<sport>.+?) vs\.? (?P<them>.+?)(?:: (?P<night>.+))?$")
+# An opponent that names an event, not a team: a meet, a finale, a championship.
+NOT_A_TEAM = re.compile(r"\b(meet|finale|invitational|invite|championships?|tournament|classic|relays|open)\b", re.I)
+
+
+def team_id(name):
+    """A team's row in public.teams: its name as the schedules write it, as a slug."""
+    return re.sub(r"[^a-z0-9]+", "-", name.lower().replace("'", "")).strip("-")
+
+
+def game_of(it, title):
+    """{"sport", "teams", "occasion"} for a game between two teams, else None."""
+    if "game" in it:
+        # From a reader, or the judge: whole or nothing, so one bad line never costs the morning.
+        g = it["game"] if isinstance(it["game"], dict) else {}
+        teams = g.get("teams")
+        ok = isinstance(g.get("sport"), str) and g["sport"].strip() and isinstance(teams, list) and len(teams) == 2 \
+            and all(isinstance(t, str) and t.strip() for t in teams)
+        occasion = g.get("occasion") if isinstance(g.get("occasion"), str) else None
+        return {"sport": g["sport"].strip(), "teams": [t.strip() for t in teams], "occasion": occasion} if ok else None
+    host = CAMPUS_TEAMS.get(it["source_name"].strip())
+    m = CAMPUS_GAME.match(title)
+    if not host or not m or m["host"] != host[0] or NOT_A_TEAM.search(m["them"]):
+        return None
+    them = re.sub(r"^#\d+\s+", "", m["them"])  # "#21 Carleton": a ranking, not the team's name
+    return {"sport": m["sport"], "teams": [host[1], them], "occasion": m["night"]}
+
+
 def tidy_place(place, home="St. Joseph MN"):
     """The place line's venue: a named place before its street, no state or ZIP, and no town
     inside the home town (place_line adds any other town)."""
@@ -410,7 +445,11 @@ def event_of(it, today, interests, home, notes):
            "description": clip(it.get("blurb"), 1000) or None,
            "source_name": it["source_name"].strip(), "source_url": it["source_url"].strip(),
            "source_uid": uid, "category": interest, "shows_from": shows.isoformat(),
-           "place_entry_id": entry}
+           "place_entry_id": entry, "sport": None, "team_ids": None, "team_names": None, "occasion": None}
+    game = game_of(it, title)
+    if game:
+        row.update(sport=game["sport"], team_ids=[team_id(t) for t in game["teams"]], team_names=game["teams"],
+                   occasion=game["occasion"])
     facts = {"day": day, "at": at, "place": words(place, PLACE_STOP), "title": words(title)}
     return {"row": row, "facts": facts}, None
 
@@ -1020,10 +1059,50 @@ def t_wording():
         "a reworded copy still merges with the source's own words"
 
 
+def t_game():
+    """A game's sport, teams and special night, from the league's reader or a campus title (real
+    titles, 2026-10-20); a meet or a finale is no game."""
+    league = item(title="Sartell Girls Soccer vs Sauk Rapids-Rice", place="Sartell High School", town="Sartell",
+                  area="game", source_name="Sartell High School", source_url="https://www.mshsl.org/group/504/full-schedule",
+                  interest="sports_leagues", game={"sport": "Girls Soccer", "teams": ["Sartell", "Sauk Rapids-Rice"]})
+    campus = lambda title, host="SJU Athletics": item(title=title, place="Clemens Stadium", town="Collegeville",
+                                                      area="campus", source_name=host, interest="sports_leagues")
+    rows = {g["row"]["title"]: g["row"] for g in run([
+        league,
+        campus("Saint John's University Football vs Concordia (Homecoming)"),
+        campus("College of Saint Benedict Soccer vs Hamline - Senior Night", "CSB Athletics"),
+        campus("SJU Rugby vs North Dakota State: SJU Red"),
+        campus("CSB Swim and Dive vs Macalester", "CSB Athletics"),
+        campus("CSB Cross Country vs Fall Finale", "CSB Athletics"),
+        campus("SJU Cross Country vs Saint John's Fall Finale"),
+        campus("SJU Soccer vs #21 Carleton"),
+        item(title="Bad game line", game={"sport": "Soccer", "teams": ["Sartell"]}),
+        item(title="Pumpkin Carving", start="2026-10-25T12:00:00-05:00", game="Soccer"),
+        item()])["events"]}
+    game = lambda t: tuple(rows[t][k] for k in ("sport", "team_ids", "team_names", "occasion"))
+    assert game("Sartell Girls Soccer vs Sauk Rapids-Rice") == (
+        "Girls Soccer", ["sartell", "sauk-rapids-rice"], ["Sartell", "Sauk Rapids-Rice"], None)
+    assert game("SJU Football vs Concordia: Homecoming") == (
+        "Football", ["saint-johns", "concordia"], ["Saint John's", "Concordia"], "Homecoming")
+    assert game("CSB Soccer vs Hamline: Senior Night") == (
+        "Soccer", ["saint-benedict", "hamline"], ["Saint Benedict", "Hamline"], "Senior Night")
+    assert game("SJU Rugby vs North Dakota State: SJU Red")[1:] == (
+        ["saint-johns", "north-dakota-state"], ["Saint John's", "North Dakota State"], "SJU Red")
+    assert game("CSB Swim and Dive vs Macalester")[0] == "Swim and Dive", "a dual meet is two teams"
+    assert game("SJU Soccer vs #21 Carleton")[1] == ["saint-johns", "carleton"], "a ranking is not the name"
+    for meet in ("CSB Cross Country vs Fall Finale", "SJU Cross Country vs Saint John's Fall Finale", "Plant Bingo",
+                 "Bad game line", "Pumpkin Carving"):
+        assert game(meet) == (None, None, None, None), meet
+    assert team_id("UW-River Falls") == "uw-river-falls" and team_id("St. Cloud State") == "st-cloud-state"
+    sql = WRITES.read_text()
+    assert "sport = excluded.sport, team_ids = excluded.team_ids" in sql, "a game read wrong once clears"
+    assert "insert into public.teams (id, name, short_name)" in sql, "a new opponent gets its row"
+
+
 TESTS = [t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_secondhand_needs_two, t_unsure_held, t_merge_true_pair,
          t_merge_near_miss_kept_apart, t_same_time_no_place, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
          t_interest_checked, t_area, t_past_and_invalid_skipped, t_writes_are_one_safe_call,
-         t_description_cut_at_a_word, t_city_meeting_end_and_place]
+         t_description_cut_at_a_word, t_city_meeting_end_and_place, t_game]
 
 
 def selftest():

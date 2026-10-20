@@ -276,25 +276,33 @@ struct FeedEventCard: View {
         }
     }
 
+    @ViewBuilder
     private var hostAvatar: some View {
-        FeedAuthorAvatar(
-            url: item.hostAvatar,
-            name: item.hostName,
-            side: Self.hostAvatarSide
-        )
+        // A game's host is its first team: the school's logo, as the Reference draws it.
+        if item.hostAvatar == nil, let team = item.game?.teams.first, team.logo != nil {
+            GameHostMark(team: team, side: Self.hostAvatarSide)
+        } else {
+            FeedAuthorAvatar(
+                url: item.hostAvatar,
+                name: item.hostName,
+                side: Self.hostAvatarSide
+            )
+        }
     }
 
     // MARK: - Image
 
     /// What the card shows: its picture, or ink once that picture has failed to load.
     private var displayImage: FeedCardImageSource {
+        // A game draws its teams (`GameMatchup`), never its place's photo or logo.
+        if item.game != nil { return .fallback }
         if let url = item.image.url, url == failedPhoto { return .fallback }
         return item.image
     }
 
     /// The event's own photo and its place's, each once, at most three (the Event page shows
     /// the same). Nothing leaves when it fails: it stays ink, so the card never shrinks.
-    private var cardPhotos: [FeedCardImageSource] { item.photos() }
+    private var cardPhotos: [FeedCardImageSource] { item.game == nil ? item.photos() : [] }
 
     /// Two or more photos swipe, under dots; one doesn't.
     private var swipes: Bool { cardPhotos.count > 1 }
@@ -332,7 +340,8 @@ struct FeedEventCard: View {
                     // Called off: the photo goes grey (Jesse, 2026-10-15).
                     .grayscale(item.cancelled ? 1 : 0)
 
-                if displayImage.isPhoto {
+                // A game's white words need the shade as a photo's do.
+                if displayImage.isPhoto || item.game != nil {
                     FeedCardPhotoScrim(imageHeight: proxy.size.height)
                 }
             }
@@ -343,7 +352,10 @@ struct FeedEventCard: View {
         // are set over the picture, and at AX5 they outgrew a 3:2 frame and ran up over
         // the host row (measured 2026-09-24).
         // The event's first photo sets it, failed or not, so the card keeps its height.
-        .aspectRatio(dynamicTypeSize.isAccessibilitySize ? 1 : CGFloat(item.image.cardAspect), contentMode: .fit)
+        // A game keeps one shape, 5:4 (game-card 01).
+        .aspectRatio(dynamicTypeSize.isAccessibilitySize ? 1
+                     : item.game == nil ? CGFloat(item.image.cardAspect) : GameMatchup.Metric.aspect,
+                     contentMode: .fit)
         .frame(maxWidth: .infinity)
         // INSIDE the clip — the picture's own edge is what takes the heart away.
         .feedCardLikeBurst(likeBurst, reduceMotion: motionIsReduced)
@@ -393,7 +405,9 @@ struct FeedEventCard: View {
 
     @ViewBuilder
     private var imageContent: some View {
-        if let url = displayImage.url {
+        if let game = item.game {
+            GameMatchup(game: game)
+        } else if let url = displayImage.url {
             // The Event page's carousel: it pages under the finger, and one photo rubber-bands
             // (a sideways swipe used to open the Event page as if it were a tap, 2026-10-20).
             // Waits on ink, and stays out of VoiceOver here: the card reads as one link, and its
@@ -414,7 +428,8 @@ struct FeedEventCard: View {
         // Called off: the photo goes black and white and the red pill under it says so; no
         // tag over the photo (Jesse, 2026-10-17).
         VStack(alignment: .leading, spacing: 4) {
-            Text(item.title)
+            // A game's title is its sport alone; the teams are on the discs (game-card 01).
+            Text(item.game?.sport ?? item.title)
                 // 28, the `.title` step. 22 measured ~20% smaller than the Apple News
                 // reference relative to card width, and the token scale has nothing
                 // between the two (`nearestTextStyle` snaps 24–31 to `.title`).
@@ -430,6 +445,7 @@ struct FeedEventCard: View {
                 .foregroundStyle(onLogo ? Hue.ink : .white)
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
+                .accessibilityLabel(spokenTitle)
 
             if !metaSummary.isEmpty {
                 Text(metaSummary)
@@ -449,11 +465,17 @@ struct FeedEventCard: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { copyHeight = $0 }
     }
 
+    /// The title as VoiceOver says it: a game names its teams, which the discs show
+    /// ("Football, Saint John's versus Gustavus").
+    private var spokenTitle: String {
+        item.game?.spoken ?? item.title
+    }
+
     /// Recurrence and place, under the title. Date and time ride the chip on the photo
     /// (Jesse, 2026-10-19), which replaced their line, which replaced the yellow date
     /// banner (2026-09-24).
     private var metaSummary: String {
-        [item.recurrence, item.whereLine]
+        [item.game?.occasion, item.recurrence, item.whereLine]
             .compactMap { $0 }
             .filter { !$0.isEmpty }
             .joined(separator: " · ")

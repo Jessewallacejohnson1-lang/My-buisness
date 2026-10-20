@@ -269,6 +269,8 @@ struct CommunityAPI {
             /// Optional, so a feed kept on disk before rsvp-and-groups 07 still decodes.
             let clubId: String?
             let inClub: Bool?
+            /// A game's teams (game-card 01); one that doesn't decode leaves a photo card.
+            let game: Game.Lenient?
         }
         struct Friend: Decodable {
             let name: String
@@ -294,7 +296,7 @@ struct CommunityAPI {
                                       isAllDay: row.allDay, sourceName: row.sourceName,
                                       cancelled: row.cancelled ?? false,
                                       placePicture: row.placePicture?.value,
-                                      description: row.description)
+                                      description: row.description, game: row.game?.value)
             return TownFeedRow(event: event, recurrence: row.recurrence, leavesAt: leavesAt,
                                reason: row.reason, reasonName: row.reasonName, score: row.score?.value,
                                heartCount: row.heartCount ?? 0, hearted: row.hearted ?? false,
