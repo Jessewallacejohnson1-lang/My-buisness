@@ -336,6 +336,8 @@ struct MainTabsView: View {
     @State private var you = YouModel()
     /// Profile's Saved list (ticket 04), kept here the same way.
     @State private var saves = YouModel.saves()
+    /// Daily's Event of the day, kept here the same way (BP app daily-tab 14).
+    @State private var eventOfTheDay = EventOfTheDay()
     /// Your Going in your iPhone Calendar, kept up to date from here while its switch in
     /// Profile is on (BP app docs/plans/you-tab, ticket 05).
     @State private var calendarSync = CalendarSync()
@@ -468,10 +470,12 @@ struct MainTabsView: View {
             if old != nil { townFeed.accountChanged() }
             you.accountChanged()
             saves.accountChanged()
+            eventOfTheDay.accountChanged()
             Task { await townFeed.reload() }
             // Whether you're in each group is this account's, once Search has read them.
             if searchModel.groupsLoaded { Task { await searchModel.readGroupsAgain() } }
             Task { await you.refresh() }
+            Task { await eventOfTheDay.refresh() }
             Task { await actions.moveUp(.shared) }
             Task { await cancelNotice.check() }
         }
@@ -559,14 +563,20 @@ struct MainTabsView: View {
                                 cardNS: cardNS,
                                 townFeed: townFeed
                             )
-                        // Daily shows its page once it has something real to show;
-                        // until then it is a named, reserved slot.
+                        // Daily shows its page once it has something real to show: paper
+                        // while its first read is out, then the named, reserved slot when
+                        // there is nothing today.
                         case .daily:
-                            if let spotlight = DailySpotlight.today {
-                                DailyPage(spotlight: spotlight)
-                            } else {
-                                BlankTab(tab: .daily)
+                            Group {
+                                if DailySpotlight.today != nil || eventOfTheDay.events?.isEmpty == false {
+                                    DailyPage(spotlight: DailySpotlight.today, events: eventOfTheDay.events ?? [])
+                                } else if eventOfTheDay.events == nil {
+                                    Hue.paper.ignoresSafeArea()
+                                } else {
+                                    BlankTab(tab: .daily)
+                                }
                             }
+                            .task { await eventOfTheDay.refresh() }
                         case .search:   SearchPage(model: searchModel)
                         // Your three weeks; your photo at its top left opens Profile.
                         case .you:

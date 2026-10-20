@@ -26,18 +26,6 @@ struct DailyEvent: Identifiable {
         return nil
     }
 
-    /// Today's picks for you. An agent will pick them from the Town's events and your
-    /// interests; until that exists a release build gets none, which hides the section,
-    /// and DEBUG gets the samples. When the read exists, this is the one function
-    /// that changes.
-    static func today(now: Date) -> [DailyEvent] {
-        #if DEBUG
-        return samples(on: now)
-        #else
-        return []
-        #endif
-    }
-
     /// The card's time: "Now" while it's on, else when it starts ("9 AM", "7:30 PM"), in
     /// the Town's time. An untimed Event shows the organizer's own words, or "All day".
     /// Working words; Jesse writes the final ones.
@@ -120,9 +108,9 @@ struct DailyEvent: Identifiable {
         return item.hostName.isEmpty ? times : "\(times) · Hosted by \(item.hostName)"
     }
 
-    /// The card's address: the place, then the town.
+    /// The card's address: the place, then the town. A live Event has no town line.
     var address: String {
-        [item.location, town].compactMap { $0 }.joined(separator: "\n")
+        [item.location, town].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n")
     }
 
     #if DEBUG
@@ -176,11 +164,80 @@ struct DailyEvent: Identifiable {
     #endif
 }
 
+extension DailyEvent {
+    /// A row of `get_event_of_the_day` (the Town feed's own row) as Daily's card: the Town
+    /// card's item, from its start until it leaves the feed. Untimed or all day, it runs the
+    /// whole day, as the You tab reads it.
+    init?(row: TownFeedRow) {
+        var item = TownFeed.entry(row).card
+        if row.event.isAllDay { item.startTime = nil }
+        guard var event = YouCalendar.event(from: item) else { return nil }
+        event.ends = row.leavesAt
+        self = event
+    }
+}
+
+/// Daily's Event of the day: the read's picks, kept across tab switches and failed reads, as
+/// the You tab keeps its Going. The database works them out (`get_event_of_the_day`, BP app
+/// daily-tab 14) from the morning's standouts. Each read works out the whole Town feed on the
+/// server, so Daily reads again only after `rereadAfter`, on a new Town day, or once a pick is
+/// over, when the next one may take its spot.
+@MainActor @Observable
+final class EventOfTheDay {
+    /// nil until the first read lands; Daily shows paper until then.
+    private(set) var events: [DailyEvent]?
+    @ObservationIgnored private var readAt: Date?
+    @ObservationIgnored private let read: () async throws -> [DailyEvent]
+
+    static let rereadAfter: TimeInterval = 10 * 60
+
+    init(read: @escaping () async throws -> [DailyEvent]) {
+        self.read = read
+    }
+
+    /// The live read, or under DEBUG `-daily-samples` the three samples.
+    convenience init() {
+        #if DEBUG
+        if DailySamples.on {
+            self.init(read: { DailyEvent.samples(on: DailyClock.now(Date())) })
+            return
+        }
+        #endif
+        self.init(read: {
+            try await CommunityAPI(auth: AuthStore.shared).getEventOfTheDay().compactMap(DailyEvent.init(row:))
+        })
+    }
+
+    func refresh(now: Date = Date()) async {
+        guard needsRead(now: now) else { return }
+        do {
+            events = try await read()
+            readAt = now
+        } catch {
+            // Kept: a failed read leaves the last picks on screen and tries again next time.
+        }
+    }
+
+    func needsRead(now: Date) -> Bool {
+        guard let readAt, let events else { return true }
+        return now.timeIntervalSince(readAt) >= Self.rereadAfter || Town.day(readAt) != Town.day(now)
+            || events.contains { $0.ends <= now }
+    }
+
+    /// A new account gets its own picks.
+    func accountChanged() {
+        events = nil
+        readAt = nil
+    }
+}
+
 /// The section: its label, then the card, or on a busy day the cards in a row that
-/// the finger pages through, one card at a time, with the next one's edge showing.
+/// the finger pages through, one card at a time, with the next one's edge showing. With no
+/// Spotlight above it, its first card marks where the page's yellow fades out.
 struct EventOfTheDaySection: View {
     let events: [DailyEvent]
     let now: Date
+    var marksYellowEdge = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -188,15 +245,8 @@ struct EventOfTheDaySection: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .top, spacing: DailyMetric.eventGap) {
                     ForEach(events) { event in
-                        NavigationLink(value: event.item) {
-                            EventOfTheDayCard(event: event, now: now)
-                        }
-                        .buttonStyle(PressableCardStyle())
-                        // The title first; drawn, the pill comes before it.
-                        .accessibilityLabel([event.item.title, event.startsLabel(now: now),
-                                             event.timeLine, event.item.location]
-                            .compactMap { $0 }.joined(separator: ", "))
-                        .containerRelativeFrame(.horizontal)
+                        EventOfTheDayCard(event: event, now: now)
+                            .containerRelativeFrame(.horizontal)
                     }
                 }
                 // Every card as tall as the tallest, so a long title doesn't leave the
@@ -209,16 +259,66 @@ struct EventOfTheDaySection: View {
             .scrollDisabled(events.count < 2)
             // The cards' shadows reach past the row; don't cut them off.
             .scrollClipDisabled()
+            .alignmentGuide(.dailyYellowEdge) { d in
+                marksYellowEdge ? d[.top] + DailyMetric.yellowIntoCard : d[.top]
+            }
             .padding(.top, DailyMetric.eventLabelToCard)
         }
     }
 }
 
-/// Airbnb's trip card: a rounded photo with a pill, a big title, a time line, a
-/// divider and the address. The Reference's grey button waits (Jesse, 2026-10-02).
+/// Airbnb's trip card: a rounded photo with a pill, a big title, a time line, a divider,
+/// and the place with Attend where Airbnb's grey button sits (Jesse, 2026-10-20). The card
+/// is one link to the Event page; Attend sits over it, outside the link, so its taps are its
+/// own and VoiceOver reads it after the card, while the link's press squishes the whole
+/// card, Attend included, as the Town card does.
 private struct EventOfTheDayCard: View {
     let event: DailyEvent
     let now: Date
+    @Environment(RealLifeActions.self) private var actions
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pressed = false
+
+    var body: some View {
+        let rsvp = actions.rsvp(event.item)
+        let going = actions.going(event.item).isGoing
+        NavigationLink(value: event.item) {
+            EventOfTheDayFace(event: event, now: now, showsPlace: !going)
+        }
+        .buttonStyle(PressReport(pressed: $pressed))
+        // The title first; drawn, the pill comes before it.
+        .accessibilityLabel([event.item.title, event.startsLabel(now: now),
+                             event.timeLine, event.item.location]
+            .compactMap { $0 }.joined(separator: ", "))
+        .overlay(alignment: .bottom) {
+            if let rsvp {
+                // Going: "You're going!" over "Can't go?" where the place was, and Invite.
+                RSVPArea(item: event.item,
+                         words: going ? rsvp : RSVPWords(top: nil, second: nil, canLeave: false, pill: rsvp.pill),
+                         onInvite: { ShareCenter.shared.present(.event(event.item)) })
+                    .padding(.horizontal, DailyMetric.eventTextInset)
+                    .padding(.bottom, DailyMetric.eventRowBottom)
+            }
+        }
+        .scaleEffect(pressed && !reduceMotion ? 0.97 : 1)
+        .animation(.spring(response: 0.28, dampingFraction: 0.7), value: pressed)
+    }
+}
+
+/// The link's press, handed up to the card (`PressableCardStyle`'s numbers on the whole card).
+private struct PressReport: ButtonStyle {
+    @Binding var pressed: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .onChange(of: configuration.isPressed) { _, isPressed in pressed = isPressed }
+    }
+}
+
+private struct EventOfTheDayFace: View {
+    let event: DailyEvent
+    let now: Date
+    let showsPlace: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -240,19 +340,27 @@ private struct EventOfTheDayCard: View {
                     .font(.sans(15))
                     .foregroundStyle(Hue.inkSecondary)
                     .padding(.top, DailyMetric.eventTimeTop)
+                // In a row of cards the tallest sets the height: the divider and the place keep
+                // to the bottom, where Attend sits over them.
+                Spacer(minLength: 0)
                 Rectangle()
                     .fill(Hue.hairline)
                     .frame(height: 1)
                     .padding(.top, DailyMetric.eventDividerTop)
+                // The place, centred on Attend's row, as Airbnb's address sits by its button.
                 Text(event.address)
                     .font(.sans(13))
                     .foregroundStyle(Hue.inkSecondary)
-                    .padding(.top, DailyMetric.eventPlaceTop)
+                    .lineLimit(2)
+                    .frame(minHeight: RSVPArea.Size.card.pillHeight, alignment: .leading)
+                    .opacity(showsPlace ? 1 : 0)
+                    .animation(.easeInOut(duration: RealLifeActions.flip), value: showsPlace)
+                    .padding(.top, DailyMetric.eventRowTop)
             }
             .padding(.horizontal, DailyMetric.eventTextInset)
             .padding(.top, DailyMetric.eventTitleTop - DailyMetric.eventPhotoInset)
-            .padding(.bottom, DailyMetric.eventBottom)
-            Spacer(minLength: 0)
+            .padding(.bottom, DailyMetric.eventRowBottom)
+            .frame(maxHeight: .infinity, alignment: .top)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background {

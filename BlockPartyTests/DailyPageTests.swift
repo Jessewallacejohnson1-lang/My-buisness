@@ -183,4 +183,71 @@ final class DailyPageTests: XCTestCase {
         XCTAssertEqual(samples[3].spokenTime(now: town(11.25)), "15 minutes ago")
     }
     #endif
+
+    /// One row as `get_event_of_the_day` sends it (the Town feed's row), read by the feed's decoder.
+    private func eventOfTheDayRow(start: String?, allDay: Bool = false, leaves: String) throws -> TownFeedRow {
+        let json: [String: Any] = [
+            "id": "11111111-2222-3333-4444-555555555555", "title": "Sartell Boys Soccer vs ROCORI",
+            "event_date": "2026-10-20", "start_time": start ?? NSNull(), "location": "Sartell High School",
+            "image_url": NSNull(), "category": "sports_leagues", "club_name": NSNull(),
+            "source_name": "Sartell High School", "end_at": NSNull(), "all_day": allDay,
+            "created_at": "2026-10-01T12:00:00+00:00", "going_count": 2, "rsvpd": true,
+            "recurrence": NSNull(), "leaves_at": leaves]
+        let rows = try CommunityAPI.townFeedRows(from: JSONSerialization.data(withJSONObject: [json]))
+        return try XCTUnwrap(rows.first)
+    }
+
+    /// A pick becomes Daily's card: it starts at its own time in the Town, stays until it leaves
+    /// the feed, shows its place on one line, and keeps its Going.
+    func testAnEventOfTheDayRowIsDailysCard() throws {
+        // 7 PM in St. Joseph on Oct 20 is midnight UTC; the feed lets it go two hours on.
+        let row = try eventOfTheDayRow(start: "7 PM", leaves: "2026-10-21T02:00:00+00:00")
+        let event = try XCTUnwrap(DailyEvent(row: row))
+        XCTAssertEqual(event.starts, Date(timeIntervalSince1970: 1_792_540_800))
+        XCTAssertEqual(event.ends, Date(timeIntervalSince1970: 1_792_548_000))
+        XCTAssertTrue(event.timed)
+        XCTAssertEqual(event.address, "Sartell High School")
+        XCTAssertTrue(event.item.isJoined)
+    }
+
+    /// All day, it runs from the Town's midnight and its card shows no clock.
+    func testAnAllDayPickRunsTheWholeDay() throws {
+        let row = try eventOfTheDayRow(start: "9 AM", allDay: true, leaves: "2026-10-21T05:00:00+00:00")
+        let event = try XCTUnwrap(DailyEvent(row: row))
+        XCTAssertFalse(event.timed)
+        XCTAssertEqual(event.starts, Date(timeIntervalSince1970: 1_792_472_400))
+        XCTAssertEqual(event.startTime(now: event.starts), "All day")
+    }
+
+    /// Daily reads again only after 10 minutes, on a new Town day or once a pick is over, since
+    /// each read works the whole Town feed out on the server; a failed read keeps the picks.
+    @MainActor
+    func testEventOfTheDayReadsAgainOnlyWhenItMatters() async throws {
+        let pick = try XCTUnwrap(DailyEvent(row: eventOfTheDayRow(start: "7 PM", leaves: "2026-10-21T02:00:00+00:00")))
+        var reads = 0
+        var fails = false
+        let model = EventOfTheDay(read: {
+            reads += 1
+            if fails { throw URLError(.notConnectedToInternet) }
+            return [pick]
+        })
+        // Noon in St. Joseph on Oct 20.
+        let noon = Date(timeIntervalSince1970: 1_792_515_600)
+        await model.refresh(now: noon)
+        await model.refresh(now: noon.addingTimeInterval(9 * 60))
+        XCTAssertEqual(reads, 1)
+        fails = true
+        await model.refresh(now: noon.addingTimeInterval(10 * 60))
+        XCTAssertEqual(reads, 2)
+        XCTAssertEqual(model.events?.map(\.id), [pick.id], "a failed read keeps the picks")
+        fails = false
+        await model.refresh(now: noon.addingTimeInterval(11 * 60))
+        XCTAssertEqual(reads, 3)
+        // Over at 9 PM: the next one may take its spot.
+        await model.refresh(now: pick.ends)
+        XCTAssertEqual(reads, 4)
+        model.accountChanged()
+        XCTAssertNil(model.events)
+        XCTAssertTrue(model.needsRead(now: noon))
+    }
 }
