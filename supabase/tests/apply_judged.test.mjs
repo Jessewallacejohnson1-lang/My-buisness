@@ -16,7 +16,8 @@ test('the story below loads every migration that makes the writer\'s functions',
   assert.deepEqual(creating(new URL('../migrations', import.meta.url).pathname,
                             ['public.apply_judged', 'public.listed_for_writer']),
                    ['20261015120000_apply_judged.sql', '20261015200100_apply_judged_cancelled.sql',
-                    '20261016090200_apply_judged_title_kept.sql', '20261016160000_event_places.sql']);
+                    '20261016090200_apply_judged_title_kept.sql', '20261016160000_event_places.sql',
+                    '20261020120000_game_card.sql']);
 });
 
 test('a dropped game is marked cancelled once, and restored by a re-read or another mention', async () => {
@@ -81,6 +82,24 @@ test('a dropped game is marked cancelled once, and restored by a re-read or anot
   assert.equal(await place(), 'rocori-high-school');
   await apply(game('2026-10-21'), [], [], []);
   assert.equal(await place(), 'rocori-high-school', 'an older writer keeps the place');
+
+  // A game names its sport and two teams (game-card 01): a team it hasn't seen gets its row, no
+  // logo or color yet, and one already there keeps its own; a re-read without the game clears it.
+  await db.exec('create schema if not exists private;');
+  await db.exec(migration('20261020120000_game_card.sql'));
+  await db.exec(`insert into public.teams (id, name, short_name, color) values ('sartell', 'Sartell', 'Sartell', '#1A4C9C')`);
+  const teamed = (day) => placed(day).map((g) => ({ ...g, sport: 'Volleyball', team_ids: ['rocori', 'sartell'],
+    team_names: ['ROCORI', 'Sartell'], occasion: 'Senior Night' }));
+  await apply(teamed('2026-10-21'), [], [], []);
+  assert.deepEqual((await db.query(`select sport, team_ids, occasion from public.club_events`)).rows,
+                   [{ sport: 'Volleyball', team_ids: ['rocori', 'sartell'], occasion: 'Senior Night' }]);
+  assert.deepEqual((await db.query(`select id, name, short_name, color from public.teams order by id`)).rows,
+                   [{ id: 'rocori', name: 'ROCORI', short_name: 'ROCORI', color: null },
+                    { id: 'sartell', name: 'Sartell', short_name: 'Sartell', color: '#1A4C9C' }]);
+  await apply(placed('2026-10-21'), [], [], []);
+  assert.deepEqual((await db.query(`select sport, team_ids, occasion from public.club_events`)).rows,
+                   [{ sport: null, team_ids: null, occasion: null }], 'a game read wrong once clears');
+  await assert.rejects(db.exec(`update public.club_events set team_ids = array['a']`), /team_ids_pair/);
 
   const { rows: [{ n }] } = await db.query(`select count(*)::int as n from pg_proc where proname = 'apply_judged'`);
   assert.equal(n, 1, 'one apply_judged, no second one with four lists');

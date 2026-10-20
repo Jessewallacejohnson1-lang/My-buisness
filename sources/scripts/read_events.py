@@ -601,12 +601,14 @@ def games(listings, today):
                 name = re.sub(r"\b(Meet|Invite|Invitational)\b", lambda m: f"{first['family']} {m[1]}", name, count=1) \
                     if re.search(r"\b(Meet|Invite|Invitational)\b", name) else f"{name}: {first['sport']}"
             title, uid = name, f"mshsl:meet:{first['family'].lower()}:{first['day']}:{first['venue'].lower()}"
+            game = None
             when = min(ls, key=lambda l: league_start(l["day"], l["time"])[::-1])  # timed first, earliest
         else:
             us, them = first["team"], first["opponent"]
             if not own and home:  # read from the visitors' schedule: the home team goes first
                 us, them = them, us
             title = f"{short_team(us)} {first['sport']} vs {short_team(them)}"
+            game = {"sport": first["sport"], "teams": [short_team(us), short_team(them)]}
             pair = "|".join(sorted(t.lower() for t in (first["team"], first["opponent"])))
             uid, when = f"mshsl:{first['activity']}:{pair}:{first['n']}", first
         start, all_day = league_start(when["day"], when["time"])
@@ -614,7 +616,7 @@ def games(listings, today):
                       "place": first["venue"], "town": town, "area": "game", "source_name": host,
                       "source_url": first["page"], "source_uid": uid, "trust": "official", "sure": True,
                       "size": "notable" if PLAYOFF.search(title) else "everyday", "interest": "sports_leagues",
-                      "blurb": None})
+                      "blurb": None, **({"game": game} if game else {})})
     return sorted(items, key=lambda i: (i["start"], i["title"])), left
 
 
@@ -856,8 +858,12 @@ def t_league():
     assert soccer["source_uid"] == "mshsl:142:sartell|st. cloud:2", "the second meeting this season"
     assert soccer["source_url"] == f"{LEAGUE}/group/504/full-schedule" and soccer["interest"] == "sports_leagues"
     assert rows["Tech Girls Swim vs Sartell"]["source_name"] == "Tech High School", "the home school hosts"
+    # The game card's teams and sport (game-card 01), the host first, as neighbours say them.
+    assert soccer["game"] == {"sport": "Girls Soccer", "teams": ["Sartell", "St. Cloud"]}, soccer
+    assert rows["Tech Girls Swim vs Sartell"]["game"] == {"sport": "Girls Swim", "teams": ["Tech", "Sartell"]}
     section = rows["Section 6A Girls Swim Meet"]
     assert (section["start"], section["all_day"], section["size"]) == ("2026-11-12", True, "notable"), section
+    assert "game" not in section, "a meet names no two teams"
     assert (left["lower"], left["waiting"]) == (1, 4), "the JV diving meet; a vs and three TBD playoff rows"
     assert "Robbinsdale Cooper High School" in left["unplaced"] and "Upsala High School" in left["unplaced"]
     # Read only from the visitors' schedule, the home team still goes first.
