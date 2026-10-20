@@ -196,7 +196,12 @@ struct SearchPage: View {
         .navigationDestination(for: SearchShelf.self) { shelf in
             SearchShelfPage(shelf: shelf).environment(model)
         }
-        .task { await model.load() }
+        .task {
+            await model.load()
+            #if DEBUG
+            openDebugBusiness()
+            #endif
+        }
         .onAppear {
             opener.reduceMotion = reduceMotion
             #if DEBUG
@@ -474,6 +479,19 @@ struct SearchPage: View {
     }
     /// `-search-words <text>`: opens with those words typed.
     private static var debugWords: String? { debugArg("-search-words") }
+    /// Once a launch, so coming back to Search doesn't open it again.
+    private static var debugBusinessOpened = false
+    /// `-open-business <place id>` (with `-open-tab search`): opens that business's page once
+    /// Search has read it, its logo flying in from mid-screen as from a photo card, so a
+    /// place-photos check needn't find it on the wall (BP app backlog 03).
+    private func openDebugBusiness() {
+        guard !Self.debugBusinessOpened, let id = Self.debugArg("-open-business"),
+              let item = model.items.first(where: { $0.id == id || $0.id == "p:\(id)" }),
+              let logo = item.logo else { return }
+        Self.debugBusinessOpened = true
+        let size = SearchMetric.logoOnTile, rect = CGRect(x: 160, y: 400, width: size, height: size)
+        opener.open(item, from: .init(logo: rect, box: rect, radius: 0, shadow: logo.shadow, fades: true))
+    }
     /// `-search-focus`: opens on the recents, as after a tap on the field.
     private static var debugSearching: Bool {
         ProcessInfo.processInfo.arguments.contains("-search-focus") || debugWords != nil

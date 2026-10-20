@@ -24,8 +24,9 @@ Color(
 
 Write such calls on one line if you want the guard to see them. The hook is registered only
 for `Edit`/`Write`/`MultiEdit`, so a Swift file changed through `Bash` (a heredoc, `sed -i`)
-is never seen at all — `TypographyScalingGuardTests` backstops the font half of that gap at
-build time, and the colour half has no backstop. A human eye is the only check for either.
+is never seen at all — `TypographyScalingGuardTests` backstops that gap in the test run, for
+fonts and, since 2026-10-19, for colours (`testNoColourLiterals`, with its own short
+allowlist of the palettes named below). A call split across lines is still caught by neither.
 
 ## Design system (`BlockParty/Theme/`) — ported from the Expo app
 

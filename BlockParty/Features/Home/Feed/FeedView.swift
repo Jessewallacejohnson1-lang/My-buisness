@@ -164,9 +164,11 @@ struct FeedView: View {
         #endif
     }
 
+    /// `-feed-scrolled-y` alone jumps too: on its own it once did nothing (BP app backlog 03).
     private var forcedScroll: Bool {
         #if DEBUG
-        return ProcessInfo.processInfo.arguments.contains("-feed-scrolled")
+        let args = ProcessInfo.processInfo.arguments
+        return args.contains("-feed-scrolled") || args.contains("-feed-scrolled-y")
         #else
         return false
         #endif

@@ -5,6 +5,10 @@ check it before you type an identifier from memory.
 
 - **Bundle id and logging subsystem:** `Jesse.BlockParty`. `[prose]`
 - **Xcode project** `BlockParty.xcodeproj` · **scheme** `BlockParty` · **iOS deployment target 26.5** · Swift 5. `[prose]`
+- **Built with Xcode 27 and the iOS 27 SDK** (since 2026-09-27). `[prose]` An iOS 27-only API goes behind
+  `if #available(iOS 27, *)` with an iOS 26 fallback, since the app still runs on 26.5. Check a new API
+  in Xcode's `DocumentationSearch` or the `swiftui-whats-new-27` skill, not from memory. iOS 27 draws
+  Liquid Glass differently from 26, so a glass change is checked on both.
 - **Shared Supabase project id:** `lxdgwhvqjqmqliobwjpi` — the same project the Expo app uses, and the same one the Android port calls. `[prose]`
 
 ## Reference libraries

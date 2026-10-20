@@ -25,7 +25,11 @@ final class EventDetailPageTests: XCTestCase {
         XCTAssertEqual(item.category, .outdoors)
         XCTAssertEqual(item.hostName, "Wobegon Walkers", "the club is the host")
         XCTAssertEqual(item.image, .eventPhoto(Self.photoURL))
-        XCTAssertNil(item.description, "Your Day events carry no description, so About hides")
+        XCTAssertNil(item.description, "an event without the organizer's words has no About")
+
+        var described = event(imageUrl: nil)
+        described.description = "Bring water and a hat."
+        XCTAssertEqual(FeedCardItem(described).description, "Bring water and a hat.", "its words are the About")
 
         // No photo of its own and no saved place picture: ink. Nothing is looked up.
         let noPhoto = FeedCardItem(event(imageUrl: nil))
@@ -77,7 +81,8 @@ final class EventDetailPageTests: XCTestCase {
           "location":null,"image_url":null,"category":null,"club_name":null,"source_name":"City of St. Joseph",
           "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,
           "rsvpd":false,"recurrence":null,"leaves_at":"2026-10-20T01:00:00+00:00",
-          "place_picture":{"url":"https://example.com/joetown.webp","kind":"logo","hue":24}},
+          "place_picture":{"url":"https://example.com/joetown.webp","kind":"logo","hue":24},
+          "description":"Open to the public."},
          {"id":"e2","title":"Bake sale","event_date":"2026-10-21","start_time":null,
           "location":null,"image_url":null,"category":null,"club_name":null,"source_name":"City of St. Joseph",
           "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,
@@ -94,6 +99,8 @@ final class EventDetailPageTests: XCTestCase {
         XCTAssertEqual(rows[0].event.placePicture?.hue, 24)
         XCTAssertNil(rows[1].event.placePicture, "an unreadable picture is none")
         XCTAssertNil(rows[2].event.placePicture, "a kept feed from before has none")
+        XCTAssertEqual(rows[0].event.description, "Open to the public.")
+        XCTAssertNil(rows[2].event.description, "a kept feed from before the description still reads")
 
         let going = """
         [{"id":"e1","title":"Plant Bingo","event_date":"2026-10-24","start_time":"4 PM",
@@ -101,10 +108,12 @@ final class EventDetailPageTests: XCTestCase {
           "source_name":"Milk & Honey Ciders","end_at":null,"all_day":false,
           "created_at":"2026-10-06T16:08:20+00:00","going_count":1,
           "place_picture":{"url":"https://example.com/orchard.webp","kind":"photo","credit":null,
-                           "site":"https://www.milkandhoneyciders.com/events"}}]
+                           "site":"https://www.milkandhoneyciders.com/events"},
+          "description":"Plant bingo for Angel Reins Stable."}]
         """
         let event = try XCTUnwrap(CommunityAPI.myGoingRows(from: Data(going.utf8)).first)
         XCTAssertEqual(FeedCardItem(event).image.attribution, "milkandhoneyciders")
+        XCTAssertEqual(FeedCardItem(event).description, "Plant bingo for Angel Reins Stable.", "the You tab's page has its About")
     }
 
     func testPhotoListPutsEventPhotoFirstDedupesAndCapsAtThree() {

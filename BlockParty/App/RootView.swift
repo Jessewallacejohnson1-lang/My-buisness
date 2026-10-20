@@ -82,15 +82,6 @@ struct RootView: View {
                 // preview loader supplies local data, so this bypasses auth and
                 // onboarding without changing either production flow.
                 MainTabsView()
-            } else if ProcessInfo.processInfo.arguments.contains("-horizon-sky-gallery")
-                        || ProcessInfo.processInfo.arguments.contains("-horizon-card-gallery") {
-                // Preview the Your Day horizon card at the eight spec test times
-                // (bypassing the auth gate) so sky continuity, bloom shape, the
-                // seam and the rail can be verified headlessly. `-horizon-sky-gallery`
-                // is sky only; `-horizon-card-gallery` adds the busy-fixture rail.
-                // Pair either with `-horizon-sky-gallery-page 2` for the
-                // afternoon/night half.
-                HorizonSkyGallery()
             } else if ProcessInfo.processInfo.arguments.contains("-feed-card-gallery") {
                 // Preview the static feed-card states full-screen (bypassing the auth
                 // gate) so the component can be verified headlessly.
@@ -516,6 +507,23 @@ struct MainTabsView: View {
                 path.append(FriendsRoute.inbox)
                 path.append(FriendsRoute.chat(newest.id))
             }
+            // `-open-event <id>` pushes that Event's page once the Town feed has it (e1 to e7
+            // under `-town-samples`, or a live id), so a photo check needn't scroll for it.
+            #if DEBUG
+            let args = ProcessInfo.processInfo.arguments
+            if let i = args.firstIndex(of: "-open-event"), i + 1 < args.count {
+                let id = args[i + 1]
+                Task {
+                    for _ in 0..<120 {
+                        if let card = townFeed.entries?.first(where: { $0.card.id == id })?.card {
+                            path.append(card)
+                            return
+                        }
+                        try? await Task.sleep(for: .milliseconds(250))
+                    }
+                }
+            }
+            #endif
         }
     }
 
