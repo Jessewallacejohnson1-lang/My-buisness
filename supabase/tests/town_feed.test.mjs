@@ -957,6 +957,7 @@ test("each event carries its place's picture: a photo before a logo, else the pl
     insert into public.place_photos (entry_id, url, source_url, position, kind, status, hue, width, height) values
       ('krewe', 'https://x/logo.webp', 'https://krewemn.com/', 0, 'logo', 'live', 20, 1024, 1024),
       ('krewe', 'https://x/food.webp', 'https://krewemn.com/', 1, 'photo', 'live', null, 1600, 1067),
+      ('krewe', 'https://x/bar.webp', 'https://krewemn.com/menu', 2, 'photo', 'live', null, 1200, 1600),
       ('krewe', 'https://x/old.webp', 'https://krewemn.com/', 0, 'photo', 'retired', null, 1600, 900),
       ('kennedy', 'https://x/k.webp', 'https://kennedy.isd742.org/', 0, 'logo', 'live', 220, null, null);
     insert into public.places (name, entry_id, logo_url, search_logo) values
@@ -965,8 +966,10 @@ test("each event carries its place's picture: a photo before a logo, else the pl
       ('Grey Co', 'grey', null, '{"url":"https://x/grey.webp","hue":40,"chroma":false}');`);
   const pick = async (id) => (await db.query('select public.place_picture($1) as p', [id])).rows[0].p;
   assert.deepEqual(await pick('krewe'), { url: 'https://x/food.webp', kind: 'photo', credit: null,
-                                          site: 'https://krewemn.com/', w: 1600, h: 1067 },
-                   'a photo wins over a logo in an earlier slot, and brings its size');
+                                          site: 'https://krewemn.com/', w: 1600, h: 1067,
+                                          more: [{ url: 'https://x/bar.webp', kind: 'photo', credit: null,
+                                                   site: 'https://krewemn.com/menu', w: 1200, h: 1600 }] },
+                   "a photo wins over a logo in an earlier slot, brings its size and the place's other live photos");
   assert.deepEqual(await pick('kennedy'), { url: 'https://x/k.webp', kind: 'logo', hue: 220 });
   assert.deepEqual(await pick('sals'), { url: 'https://x/sals.webp', kind: 'logo', hue: 7 }, "Search's cut-out");
   assert.equal(await pick('coborns'), null, "never the map pin's logo on its white square");
