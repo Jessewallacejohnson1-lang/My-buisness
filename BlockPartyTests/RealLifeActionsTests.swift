@@ -974,6 +974,20 @@ final class RSVPWordsTests: XCTestCase {
         }
     }
 
+    /// Once a game's final is in (game-card 02): who went, in the past, and no pill, so Attend is
+    /// gone, for someone who went too; nobody, no words.
+    func testAGameThatIsOverSaysWhoWentAndOffersNothingToTap() {
+        func over(_ isGoing: Bool, _ count: Int, _ friends: [String], bar: Bool = false) -> RSVPWords {
+            RSVPWords.make(isGoing: isGoing, count: count, friends: friends, cancelled: false, bar: bar, over: true)
+        }
+        XCTAssertEqual(over(false, 212, []), RSVPWords(top: "212 went", second: nil, canLeave: false, pill: nil))
+        XCTAssertEqual(over(true, 212, []), RSVPWords(top: "212 went", second: nil, canLeave: false, pill: nil),
+                       "you went too: no You're going! and no Can't go?")
+        XCTAssertEqual(over(false, 40, ["Sam", "Marlene"]).second, "Sam and Marlene went")
+        XCTAssertEqual(over(false, 40, ["Avery"], bar: true).second, "Avery", "the bar: the names alone")
+        XCTAssertEqual(over(false, 0, []), RSVPWords(top: nil, second: nil, canLeave: false, pill: nil))
+    }
+
     /// The Event page's bar says less (Jesse at rsvp-and-groups 02's Check-in 2): no "Can't go?",
     /// and beside the friends' faces only their names, so they fit by the bigger words.
     func testTheEventPageBarSaysLess() {

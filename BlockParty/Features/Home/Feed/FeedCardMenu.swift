@@ -140,6 +140,7 @@ struct FeedCardMenu: View {
         case "today": return "Happening today"
         case "tomorrow": return "Happening tomorrow"
         case "soon": return "Coming up soon"
+        case "final": return "Final score"
         default: return nil
         }
     }

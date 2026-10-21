@@ -162,11 +162,32 @@ nonisolated struct UpcomingEvent: Identifiable, Hashable {
 }
 
 /// A game between two teams, as `get_town_feed` sends it (`private.event_game`): the sport
-/// ("Girls Soccer"), its special night ("Homecoming") and both schools, the host's first.
+/// ("Girls Soccer"), its special night ("Homecoming") and both schools, the host's first, and its
+/// final once it's in.
 nonisolated struct Game: Decodable, Hashable, Sendable {
     let sport: String
     let occasion: String?
     let teams: [Team]
+    /// The final score in `teams` order (BP app docs/plans/game-card, ticket 02); nil before it's in,
+    /// and for one that doesn't read, so the card stays VS.
+    let final: [Int]?
+
+    private enum CodingKeys: String, CodingKey { case sport, occasion, teams, final }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        sport = try c.decode(String.self, forKey: .sport)
+        occasion = try c.decodeIfPresent(String.self, forKey: .occasion)
+        teams = try c.decode([Team].self, forKey: .teams)
+        let final = (try? c.decodeIfPresent([Int].self, forKey: .final)) ?? nil
+        self.final = final.flatMap { $0.count == 2 && $0.allSatisfy { $0 >= 0 } ? $0 : nil }
+    }
+
+    /// The side with more, 0 or 1; nil before the final and on a tie, which fades neither side.
+    var winner: Int? {
+        guard let final, final[0] != final[1] else { return nil }
+        return final[0] > final[1] ? 0 : 1
+    }
 
     nonisolated struct Team: Decodable, Hashable, Sendable {
         let name: String
@@ -200,8 +221,11 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
     }
 
     /// The card's title as VoiceOver says it, naming the teams the discs show: "Football,
-    /// Saint John's versus Gustavus".
-    var spoken: String { "\(sport), \(teams.map(\.short).joined(separator: " versus "))" }
+    /// Saint John's versus Gustavus", and once it's over "Football, Saint John's 33, Concordia 23, final".
+    var spoken: String {
+        guard let final, teams.count == 2 else { return "\(sport), \(teams.map(\.short).joined(separator: " versus "))" }
+        return "\(sport), \(teams[0].short) \(final[0]), \(teams[1].short) \(final[1]), final"
+    }
 
     /// Only a game with exactly two teams: anything else is no game, and the card stays a
     /// photo card.

@@ -15,19 +15,27 @@ import SwiftUI
 nonisolated struct RSVPWords: Equatable {
     enum Pill: Equatable { case rsvp, invite, canceled }
 
-    /// "41 going" or "You're going!"; nil while nobody is going.
+    /// "41 going" or "You're going!", or once a game's final is in "212 went"; nil while nobody is going.
     var top: String?
     /// The friends going, or "Can't go?".
     var second: String?
     /// The second line is "Can't go?", a button that leaves.
     var canLeave: Bool
-    /// The pill. Called off, it says "Canceled", Going or not (Jesse, 2026-10-17).
-    var pill: Pill
+    /// The pill. Called off, it says "Canceled", Going or not (Jesse, 2026-10-17); none once a
+    /// game is over (game-card 02).
+    var pill: Pill?
 
     /// `bar`: the Event page's floating bar says less (Jesse at rsvp-and-groups 02's Check-in 2):
     /// no "Can't go?" (leaving stays on the Town card), and beside the friends' faces only
     /// their names, which fit by its bigger words where "… are going" didn't.
-    static func make(isGoing: Bool, count: Int, friends: [String], cancelled: Bool, bar: Bool = false) -> RSVPWords {
+    /// `over`: a game whose final is in, "212 went" and no pill, whoever went (game-card 02).
+    static func make(isGoing: Bool, count: Int, friends: [String], cancelled: Bool, bar: Bool = false,
+                     over: Bool = false) -> RSVPWords {
+        if over {
+            let total = max(count, friends.count)
+            return RSVPWords(top: total > 0 ? "\(total) went" : nil, second: friendsLine(friends, bar: bar, went: true),
+                             canLeave: false, pill: nil)
+        }
         if isGoing {
             return RSVPWords(top: "You're going!", second: bar ? nil : "Can't go?", canLeave: !bar,
                              pill: cancelled ? .canceled : .invite)
@@ -41,8 +49,9 @@ nonisolated struct RSVPWords: Equatable {
 
     /// Facebook's words (Jesse, 2026-10-17): "Avery is going", "Sam and Marlene are going",
     /// "Sam and 2 friends are going", short enough to sit beside the pill on a 402 pt phone;
-    /// in the Event page's bar the names alone. Newest Going first.
-    private static func friendsLine(_ friends: [String], bar: Bool) -> String? {
+    /// in the Event page's bar the names alone. Newest Going first. After a game, "Sam and
+    /// Marlene went".
+    private static func friendsLine(_ friends: [String], bar: Bool, went: Bool = false) -> String? {
         let names: String
         switch friends.count {
         case 0: return nil
@@ -50,12 +59,13 @@ nonisolated struct RSVPWords: Equatable {
         case 2: names = "\(friends[0]) and \(friends[1])"
         default: names = "\(friends[0]) and \(friends.count - 1) friends"
         }
-        return bar ? names : names + (friends.count == 1 ? " is going" : " are going")
+        if bar { return names }
+        return names + (went ? " went" : friends.count == 1 ? " is going" : " are going")
     }
 
     /// The pill on screen: Attend, its calendar checked, while a tap's check shows, then Invite
     /// (Jesse at attend-pill's Check-in 1, 2026-10-19). A called-off pill stays Canceled.
-    func shownPill(checking: Bool) -> Pill {
+    func shownPill(checking: Bool) -> Pill? {
         checking && pill == .invite ? .rsvp : pill
     }
 }
@@ -141,7 +151,7 @@ struct RSVPArea: View {
                 Button {} label: { pillFace(.canceled) }
                     .buttonStyle(MeetupPillStyle(height: size.pillHeight, minWidth: size.pillMinWidth, fill: Hue.canceled))
                     .accessibilityRemoveTraits(.isButton)
-            } else {
+            } else if let pill {
                 let failures = actions.failureCount(item.id)
                 Button {
                     // A tap while the check shows cuts it short: Invite comes up now (taste.md,
@@ -155,10 +165,14 @@ struct RSVPArea: View {
                     .accessibilityValue(going.isGoing ? "Going" : "")
             }
         }
+        // The pill's height with no pill too, so a game's "212 went" sits where its Attend did.
+        .frame(minHeight: size.pillHeight)
         // The pill turns into Invite and the words cross-fade over `RealLifeActions.flip`, both ways,
         // a failed Attend's turn back included; a count that moves rolls.
         .animation(.easeInOut(duration: reduceMotion ? 0.15 : RealLifeActions.flip), value: going.isGoing)
         .animation(.easeInOut(duration: reduceMotion ? 0.15 : RealLifeActions.flip), value: checking)
+        // A final that comes in while it's on screen fades Attend out and "went" in (game-card 02).
+        .animation(.easeInOut(duration: reduceMotion ? 0.15 : RealLifeActions.flip), value: words.pill)
         .animation(reduceMotion ? .easeInOut(duration: 0.15) : Motion.smooth, value: going.count)
         // The check holds, then Invite comes up. Changed only after the sleep, so it never cancels itself.
         .task(id: checking) {

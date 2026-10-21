@@ -76,7 +76,8 @@ struct FeedCardItem: Identifiable, Hashable {
 
     /// The when line under the headline: date and start time.
     var whenLine: FeedWhenLine? {
-        FeedWhenLine(eventDate: eventDate, startTime: shareTime, fallbackDate: dateChip)
+        // A game whose final is in shows its day alone, "Sat, Oct 17" (game-card 02).
+        FeedWhenLine(eventDate: eventDate, startTime: game?.final == nil ? shareTime : nil, fallbackDate: dateChip)
     }
 
     /// On right now, so the card's chip says Now (Jesse, 2026-10-20): from its start to its end,
@@ -85,7 +86,9 @@ struct FeedCardItem: Identifiable, Hashable {
     /// it never is. In the town's time, as its end is: a phone set to Pacific still sees a 10 AM
     /// class turn Now at 10 in St. Joseph.
     func isNow(at now: Date = .now, calendar: Calendar = Town.calendar) -> Bool {
-        guard !cancelled, let day = FeedWhenLine.day(from: eventDate, calendar: calendar) else { return false }
+        // A game whose final is in is over, whatever its hours say (game-card 02).
+        guard !cancelled, game?.final == nil,
+              let day = FeedWhenLine.day(from: eventDate, calendar: calendar) else { return false }
         let minutes = startTime.map { DateHelpers.minutesOf($0) }.flatMap { $0 < 24 * 60 ? $0 : nil }
         guard !allDay, let minutes,
               let start = calendar.date(bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: day)
@@ -94,7 +97,9 @@ struct FeedCardItem: Identifiable, Hashable {
             else { return false }
             return now >= day && now < endAt
         }
-        return now >= start && now < (endAt ?? start.addingTimeInterval(YourDayLogic.assumedEventDuration))
+        // A game runs three hours, as the Town feed keeps it (Jesse at game-card 02's Check-in 2).
+        let lasts = game == nil ? YourDayLogic.assumedEventDuration : 3 * 60 * 60
+        return now >= start && now < (endAt ?? start.addingTimeInterval(lasts))
     }
 
     /// The where line under the when line: just the venue, because the when line
