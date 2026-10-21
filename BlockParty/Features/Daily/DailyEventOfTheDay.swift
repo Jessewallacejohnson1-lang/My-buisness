@@ -125,22 +125,22 @@ struct DailyEvent: Identifiable {
         return [
             sample(id: "daily-e1", title: "Farmers Market", host: "Resurrection Lutheran",
                    photo: "farmers-market", place: "Resurrection Lutheran",
-                   starts: at(8), ends: at(12), category: .food,
+                   starts: at(8), ends: at(12), category: .food, what: "Market",
                    description: "Produce, eggs, honey and bread in the church parking lot."),
             sample(id: "daily-e2", title: "Abbey organ recital", host: "Saint John's Abbey",
                    photo: "saint-johns-abbey", place: "Saint John's Abbey",
-                   starts: at(16), ends: at(17), category: .musicArts,
+                   starts: at(16), ends: at(17), category: .musicArts, what: "Organ concert",
                    description: "An hour of Bach and a few newer pieces on the Abbey church organ. Open to everyone."),
             sample(id: "daily-e3", title: "Music in Millstream Park", host: "St. Joseph Parks & Rec",
                    photo: "memorial-park", place: "Millstream Park",
-                   starts: at(19), ends: at(21), category: .musicArts,
+                   starts: at(19), ends: at(21), category: .musicArts, what: "Concert",
                    description: "Bring a blanket or a lawn chair and find a spot on the grass by the river. A local bluegrass trio plays two sets."),
         ]
     }
 
     static func sample(id: String, title: String, host: String, photo: String,
                                place: String, starts: Date, ends: Date,
-                               category: EventCategory, description: String) -> DailyEvent {
+                               category: EventCategory, what: String? = nil, description: String) -> DailyEvent {
         let url = Bundle.main.url(forResource: photo, withExtension: "jpg")
         // The event page's when line reads these, so it shows the day and the time.
         let day = DateFormatter()
@@ -151,7 +151,7 @@ struct DailyEvent: Identifiable {
         time.locale = Locale(identifier: "en_US")
         time.timeZone = Town.timeZone
         time.dateFormat = "h:mm a"
-        let item = FeedCardItem(
+        var item = FeedCardItem(
             id: id, title: title, dateChip: "TODAY", metaLine: place,
             image: url.map { .eventPhoto($0) } ?? .fallback, recurrence: nil,
             hostName: host, goingCount: 0, goingAvatars: [],
@@ -159,6 +159,7 @@ struct DailyEvent: Identifiable {
             eventDate: day.string(from: starts), startTime: time.string(from: starts),
             location: place, description: description, category: category
         )
+        item.what = what
         return DailyEvent(item: item, starts: starts, ends: ends, town: "St. Joseph, MN")
     }
     #endif

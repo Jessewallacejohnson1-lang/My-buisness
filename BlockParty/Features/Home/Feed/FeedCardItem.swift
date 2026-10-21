@@ -57,6 +57,15 @@ struct FeedCardItem: Identifiable, Hashable {
     var inGroup = false
     /// A game between two teams (game-card 01): the card draws the teams, not a photo.
     var game: Game? = nil
+    /// What it is in one to three words ("Lecture"), the morning tagger's (event-card 05).
+    var what: String? = nil
+
+    /// The words as a card shows them, beside the title: none on a game, whose title is already its
+    /// sport, and none when the title already says them ("Christmas Craft Sale", "Craft sale").
+    var whatLine: String? {
+        guard game == nil, let what, !title.localizedCaseInsensitiveContains(what) else { return nil }
+        return what
+    }
 
     var shareTime: String? {
         if let startTime { return startTime }

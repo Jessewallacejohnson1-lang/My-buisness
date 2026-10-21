@@ -114,6 +114,34 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(card.image.cardAspect, 1600.0 / 1067.0, accuracy: 0.0001, "the cover sets the card's shape")
     }
 
+    /// What it is in a few words (event-card 05) reaches the card, which shows it beside the title
+    /// unless the title already says it or the card is a game, whose title is already its sport.
+    func testWhatItIsReachesTheCardBesideTheTitle() throws {
+        let json = """
+        [{"id":"e1","title":"Rev. Daniel Groody: Koch Chair Lecture","event_date":"2026-11-12","start_time":"7 PM",
+          "location":"Gorecki Center","image_url":null,"category":"faith","club_name":null,
+          "source_name":"CSB SJU Campus Events","end_at":null,"all_day":false,
+          "created_at":"2026-10-06T16:08:20+00:00","going_count":0,"rsvpd":false,
+          "recurrence":null,"leaves_at":"2026-11-13T03:00:00+00:00","what":"Talk"},
+         {"id":"e2","title":"Christmas Craft Sale","event_date":"2026-11-06","start_time":"9 AM",
+          "location":null,"image_url":null,"category":null,"club_name":null,
+          "source_name":"Saint Benedict's Monastery","end_at":null,"all_day":false,
+          "created_at":"2026-10-06T16:08:20+00:00","going_count":0,"rsvpd":false,
+          "recurrence":null,"leaves_at":"2026-11-06T17:00:00+00:00","what":"Craft sale"},
+         {"id":"e3","title":"Kiln Firing","event_date":"2026-11-06","start_time":"9 AM",
+          "location":null,"image_url":null,"category":null,"club_name":null,
+          "source_name":"CSB SJU Campus Events","end_at":null,"all_day":false,
+          "created_at":"2026-10-06T16:08:20+00:00","going_count":0,"rsvpd":false,
+          "recurrence":null,"leaves_at":"2026-11-06T17:00:00+00:00"}]
+        """
+        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.entry($0).card }
+        XCTAssertEqual(cards.map(\.what), ["Talk", "Craft sale", nil], "a feed read before the words still decodes")
+        XCTAssertEqual(cards.map(\.whatLine), ["Talk", nil, nil], "none when the title already says it")
+        var game = cards[0]
+        game.game = try JSONDecoder().decode(Game.self, from: Data(#"{"sport":"Football","teams":[]}"#.utf8))
+        XCTAssertNil(game.whatLine, "a game's title is already its sport")
+    }
+
     /// The recipe's columns (ticket 18): the reason becomes the card's line, and the
     /// admin's score comes through whole.
     func testTheRecipesReasonAndScoreReachTheCard() throws {
