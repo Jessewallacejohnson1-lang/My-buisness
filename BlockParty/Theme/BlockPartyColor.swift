@@ -164,19 +164,20 @@ nonisolated enum Hue {
     /// white/paper, except the top of the Daily page (Jesse, 2026-10-01).
     nonisolated static let brandYellowHex: UInt32 = 0xFCE804
 
-    /// The brand yellow at FULL strength, solid. Three uses: the Town bar's map disc
+    /// The brand yellow at FULL strength, solid. Four uses: the Town bar's map disc
     /// (2026-09-24), the fill of every saved bookmark, `BookmarkGlyph` (Jesse,
-    /// 2026-09-26/27), and the yellow ground at the top of the Daily page (Jesse,
-    /// 2026-10-01). The selected tab-bar icon was yellow from 2026-09-25 until the
-    /// Instagram bar made it ink (Jesse, 2026-09-27). It was the tab bar's Create disc
-    /// until Create was removed on 2026-09-24, which is why it is a disc token rather
-    /// than a map one. The map disc used to be glass tinted with the yellow at 68%
+    /// 2026-09-26/27), the yellow ground at the top of the Daily page (Jesse,
+    /// 2026-10-01), and the date on the Town's Event of the day poster, as DICE prints
+    /// its own (Jesse, 2026-10-19, BP app event-card 03). The selected tab-bar icon was
+    /// yellow from 2026-09-25 until the Instagram bar made it ink (Jesse, 2026-09-27). It
+    /// was the tab bar's Create disc until Create was removed on 2026-09-24, which is why
+    /// it is a disc token rather than a map one. The map disc used to be glass tinted with the yellow at 68%
     /// (`mapWash`, deleted 2026-09-24): a tint is not the brand yellow, and it went
     /// mustard over photos.
     ///
     /// DESIGN.md's "accents are small by rule" still holds: the map disc, the saved
-    /// bookmark and Daily's top are the three, each scoped in by Jesse. A fourth is his
-    /// call, not an agent's.
+    /// bookmark, Daily's top and the poster's date are the four, each scoped in by Jesse.
+    /// A fifth is his call, not an agent's.
     static let brandDisc     = Color(hex: brandYellowHex)
 
     /// Ink drawn ON `brandDisc`, pinned to the LIGHT ramp.
@@ -230,6 +231,9 @@ nonisolated enum Hue {
     /// The dot before "Now" on a Town card whose event is on (Jesse, 2026-10-20: "use the word
     /// now with green dot"): Apple's own green. A game's "Live" keeps Apple's red.
     static let now           = Color(uiColor: .systemGreen)
+    /// The Town's Event of the day poster, DICE's dark card (the approved Round 3 page, BP app
+    /// event-card 03), which its photo fades into. The same in both appearances: a poster.
+    static let poster        = Color(hex: 0x1A1A1A)
 
     // MARK: Search (the tab's Reference: Jesse's mockup v7 and its Figma frames, 2026-10-02)
 

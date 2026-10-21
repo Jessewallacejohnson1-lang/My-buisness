@@ -29,6 +29,8 @@ struct HomeView: View {
     var cardNS: Namespace.ID
     /// The shell's Town feed, kept across tab switches.
     var townFeed: TownFeed
+    /// The shell's Event of the day, Daily's, on top of the feed (BP app event-card 03).
+    var eventOfTheDay: EventOfTheDay
 
     @EnvironmentObject private var auth: AuthStore
 
@@ -39,7 +41,8 @@ struct HomeView: View {
             onOpenMap: onOpenMap,
             onOpenNotifications: onOpenNotifications,
             profileShown: profileShown,
-            townFeed: townFeed
+            townFeed: townFeed,
+            eventOfTheDay: eventOfTheDay
         )
     }
 }

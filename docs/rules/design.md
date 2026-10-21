@@ -52,6 +52,8 @@ allowlist of the palettes named below). A call split across lines is still caugh
     sheet and pin badge, and `SaveBookmarkButton`. Draw a new bookmark with it, never
     with a yellow at the call site. `mapWash`, the 68% translucent version that disc used to use, is still
     declared but no longer drawn — it went mustard over photographs.
+    The Town's Event of the day poster prints its date in `brandDisc`, as DICE does (Jesse,
+    2026-10-19, BP app event-card 03), on the poster's own dark, `Hue.poster`.
     **The one yellow ground** is the top of the Daily page (Jesse, 2026-10-01): `brandDisc`
     down to just under the Spotlight's business line. The status edge is gone at rest and fades
     in over the first 20pt of scroll (`statusEdge(opacity:)`): both its haze and its blur
@@ -101,7 +103,8 @@ allowlist of the palettes named below). A call split across lines is still caugh
   do not "fix" it), `tile` 16, `card` 20, and `bento` 22, deliberately outside the 12/16/20
   scale for large gradient slabs. `bento` and `Motion.bentoExpand`/`tilePress` have one
   consumer left after the strip-down; **keep them** — they are the spec the parked tiles are
-  rebuilt against. Plus one neutral `CardShadow` (black @ 6%) and the map shadows
+  rebuilt against. Search's measured radii (`searchField`, `logoTile`, `photoCard`) and the
+  Event of the day poster's DICE corner (`poster` 10) sit beside them. Plus one neutral `CardShadow` (black @ 6%) and the map shadows
   (`mapFloatShadow`, `mapSheetShadow`).
 
 **Raw colour is centralized by role, not banned outright.** `[prose]` Beyond
