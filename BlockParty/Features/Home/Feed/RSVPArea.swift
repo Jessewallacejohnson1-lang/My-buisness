@@ -200,8 +200,8 @@ struct RSVPArea: View {
 }
 
 /// Meetup's pill alone: Attend, its calendar's check for a moment after the tap, then Invite, or
-/// on Town a light grey round X that leaves (attend-x); a called-off Event's red Canceled. The RSVP area draws it at its right, the Town's Event of the
-/// day poster in its own row (event-card 03).
+/// on Town a light grey round X that leaves (attend-x); a called-off Event's red Canceled. The
+/// RSVP area draws it at its right, the Town's Event of the day poster in its own row (event-card 03).
 struct AttendPill: View {
     let item: FeedCardItem
     /// The pill they name (`RSVPWords.pill`).
@@ -243,16 +243,18 @@ struct AttendPill: View {
                     .buttonStyle(MeetupPillStyle(height: size.pillHeight, minWidth: x ? size.pillHeight : size.pillMinWidth,
                                                  grey: x, sidePadding: x ? 0 : 20))
                     .turnBackShake(failures: failures, shakes: !reduceMotion && tappedAt != failures)
-                    .accessibilityLabel(shown == .invite ? "Invite" : x ? "Can't go" : "Attend")
+                    // The X reads "Going" with how to leave, not "Can't go, Going" (the review).
+                    .accessibilityLabel(shown == .invite ? "Invite" : x ? "Going" : "Attend")
                     .accessibilityHint(x ? "Takes you off the going list" : "")
-                    .accessibilityValue(going.isGoing ? "Going" : "")
+                    .accessibilityValue(going.isGoing && !x ? "Going" : "")
             }
         }
-        // The pill turns into Invite over `RealLifeActions.flip`, both ways, a failed Attend's turn
-        // back included.
+        // The pill turns into Invite or the X over `RealLifeActions.flip`, both ways, a failed
+        // Attend's turn back included.
         .animation(.easeInOut(duration: reduceMotion ? 0.15 : RealLifeActions.flip), value: going.isGoing)
         .animation(.easeInOut(duration: reduceMotion ? 0.15 : RealLifeActions.flip), value: checking)
-        // The check holds, then Invite comes up. Changed only after the sleep, so it never cancels itself.
+        // The check holds, then Invite or the X comes up. Changed only after the sleep, so it never
+        // cancels itself.
         .task(id: checking) {
             guard checking else { return }
             try? await Task.sleep(for: RealLifeActions.checkHold)
