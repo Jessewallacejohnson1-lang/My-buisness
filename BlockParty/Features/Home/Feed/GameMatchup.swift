@@ -5,7 +5,8 @@
 //  Drawn instead of a photo for a game between two teams (BP app docs/plans/game-card,
 //  ticket 01; Jesse, 2026-10-20: "I want idea E", "keep names"; taste.md). X's and Apple
 //  Sports' game headers: the left team's color to 40% of the width, the right team's from
-//  60%, each logo on a white disc with the school's short name under it, VS between them.
+//  60%, each logo on a white disc with the school's short name under it, VS between them;
+//  once the final is in, the score in VS's place and the loser's side faded (ticket 02).
 //  The title, place line and day chip stay the card's own, over this.
 //
 
@@ -25,6 +26,10 @@ struct GameMatchup: View {
         static let gap: CGFloat = 22
         static let vsWidth: CGFloat = 50
         static let nameGap: CGFloat = 8
+        /// Once the final is in (ticket 02): the score takes a column of its own, 4 pt from the
+        /// teams, and the loser's side is at 55%.
+        static let scoreGap: CGFloat = 4
+        static let faded: Double = 0.55
     }
 
     var body: some View {
@@ -45,15 +50,25 @@ struct GameMatchup: View {
                                .init(color: fill(game.teams[1]), location: 1)],
                        startPoint: .leading, endPoint: .trailing)
             .overlay(alignment: .top) {
-                HStack(alignment: .top, spacing: Metric.gap) {
+                HStack(alignment: .top, spacing: game.final == nil ? Metric.gap : Metric.scoreGap) {
                     TeamColumn(team: game.teams[0])
-                    Text("VS")
-                        .font(.eventDisplay(26))
-                        .foregroundStyle(.white)
-                        .frame(width: Metric.vsWidth, height: Metric.disc)
+                        .opacity(game.winner == 1 ? Metric.faded : 1)
+                    if let final = game.final {
+                        FinalScore(final: final, winner: game.winner)
+                            .transition(.opacity)
+                    } else {
+                        Text("VS")
+                            .font(.eventDisplay(26))
+                            .foregroundStyle(.white)
+                            .frame(width: Metric.vsWidth, height: Metric.disc)
+                            .transition(.opacity)
+                    }
                     TeamColumn(team: game.teams[1])
+                        .opacity(game.winner == 0 ? Metric.faded : 1)
                 }
                 .padding(.top, Metric.rowTop)
+                // A refresh that brings the final cross-fades VS into it.
+                .animation(Motion.smooth, value: game.final)
             }
     }
 
@@ -61,6 +76,38 @@ struct GameMatchup: View {
     /// header. Ink as it is on paper: the card is the same in dark mode.
     private func fill(_ team: Game.Team) -> Color {
         team.rgb.map { Color(hex: $0) } ?? Hue.ink.onLightCanvas
+    }
+}
+
+/// The final where VS was: the score with the loser's number and its dash at 55% (a tie fades
+/// neither), over the "Final" pill (FotMob's full time; the mock's Picked row).
+private struct FinalScore: View {
+    let final: [Int]
+    let winner: Int?
+
+    var body: some View {
+        let faded = Color.white.opacity(GameMatchup.Metric.faded)
+        let home = String(final[0]), away = String(final[1])
+        let score: Text = switch winner {
+        case 0: Text("\(home)\(Text(" – \(away)").foregroundStyle(faded))")
+        case 1: Text("\(Text("\(home) – ").foregroundStyle(faded))\(away)")
+        default: Text("\(home) – \(away)")
+        }
+        VStack(spacing: 6) {
+            score
+                .font(.eventDisplay(34))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                // A basketball score ("102 – 98") still fits the column.
+                .minimumScaleFactor(0.7)
+            Text("Final")
+                .font(.sansSemibold(12))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 9)
+                .frame(height: 22)
+                .background(.white.opacity(0.22), in: Capsule())
+        }
+        .frame(width: GameMatchup.Metric.column, height: GameMatchup.Metric.disc)
     }
 }
 

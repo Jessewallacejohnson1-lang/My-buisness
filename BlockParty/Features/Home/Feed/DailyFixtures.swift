@@ -100,7 +100,38 @@ enum DailyFixtures {
     /// as `get_town_feed` sends them, each leaving two hours after it starts, as one
     /// with no end time does.
     static func townEntries(now: Date = Date()) -> [TownFeedEntry] {
-        sampleEvents(now: now).sorted { $0.leavesAt < $1.leavesAt }
+        let games = ProcessInfo.processInfo.arguments.contains("-town-games") ? gameSamples(now: now) : []
+        return games + sampleEvents(now: now).sorted { $0.leavesAt < $1.leavesAt }
+    }
+
+    /// `-town-games`: four games first, as `get_town_feed` sends them (game-card 02): SJU vs
+    /// Gustavus to come, the ticket's real finals SJU 33-23 Concordia and Sartell 6-0 Sauk
+    /// Rapids-Rice, and Sartell's 2-2 tie with Anoka, with the schools' saved logos and colors.
+    private static func gameSamples(now: Date) -> [TownFeedEntry] {
+        let storage = "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/"
+        let sju = ##"{"name":"Saint John's","short":"Saint John's","logo":"\##(storage)teams/saint-johns/logo-36d1a2aa13.png","color":"#C20430"}"##
+        let sartell = ##"{"name":"Sartell","short":"Sartell","logo":"\##(storage)st-joseph/sartell-high-school/logo-413105dbbc.webp","color":"#1A4C9C"}"##
+        let games: [(id: String, title: String, host: String, place: String, day: String, time: String?,
+                     hoursUntil: Double, went: Int, game: String)] = [
+            ("g1", "SJU Football vs Gustavus Adolphus", "SJU Athletics", "Clemens Stadium", "2026-10-31", "1 PM", 24 * 10, 84,
+             ##"{"sport":"Football","teams":[\##(sju),{"name":"Gustavus Adolphus","short":"Gustavus","logo":"\##(storage)teams/gustavus-adolphus/logo-11419c050d.png","color":"#000000"}]}"##),
+            ("g2", "SJU Football vs Concordia: Homecoming", "SJU Athletics", "Clemens Stadium", "2026-10-17", "1 PM", 4, 212,
+             ##"{"sport":"Football","occasion":"Homecoming","final":[33,23],"teams":[\##(sju),{"name":"Concordia","short":"Concordia","color":"#5E1027"}]}"##),
+            ("g3", "Sartell Girls Soccer vs Sauk Rapids-Rice", "Sartell High School", "Sartell High School", "2026-10-06", "5 PM", 4, 0,
+             ##"{"sport":"Girls Soccer","final":[6,0],"teams":[\##(sartell),{"name":"Sauk Rapids-Rice","short":"Sauk Rapids-Rice","logo":"\##(storage)st-joseph/sauk-rapids-rice-high-school/logo-d6430916a5.webp","color":"#0F5A32"}]}"##),
+            ("g4", "Sartell Girls Soccer vs Anoka", "Sartell High School", "Sartell High School", "2026-08-27", "5 PM", 4, 18,
+             ##"{"sport":"Girls Soccer","final":[2,2],"teams":[\##(sartell),{"name":"Anoka","short":"Anoka"}]}"##),
+        ]
+        return games.map { g in
+            let entry = event(id: g.id, title: g.title, host: g.host, hostAvatar: false, chip: "", meta: g.place,
+                              photo: false, hoursUntil: g.hoursUntil, going: g.went, now: now)
+            var card = entry.card
+            card.eventDate = g.day
+            card.startTime = g.time
+            card.location = g.place
+            card.game = try? JSONDecoder().decode(Game.self, from: Data(g.game.utf8))
+            return TownFeedEntry(card: card, leavesAt: entry.leavesAt)
+        }
     }
 
     private static func sampleEvents(now: Date) -> [TownFeedEntry] {
