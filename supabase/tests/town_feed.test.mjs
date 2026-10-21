@@ -1027,11 +1027,79 @@ test('a game carries its sport, special night and both teams, the host first; an
   assert.deepEqual(rows.map((r) => [r.title, r.game]), [
     ['Albany Volleyball vs Foley', { sport: 'Volleyball', occasion: null, teams: [
       { name: 'albany', short: 'albany', logo: null, color: null },
-      { name: 'foley', short: 'foley', logo: null, color: null }] }],
+      { name: 'foley', short: 'foley', logo: null, color: null }], final: null }],
     ['Fall fair', null],
     ['SJU Football vs Concordia: Homecoming', { sport: 'Football', occasion: 'Homecoming', teams: [
       { name: "Saint John's", short: "Saint John's", logo: 'https://x/sju.png', color: '#C20430' },
-      { name: 'Concordia', short: 'Concordia', logo: null, color: null }] }]]);
+      { name: 'Concordia', short: 'Concordia', logo: null, color: null }], final: null }]]);
+});
+
+test("a game's final rides its game, host first, and keeps its card a day past the game", async () => {
+  await reset();
+  const game = await add('Sartell Girls Soccer vs Sauk Rapids-Rice', '2026-10-06', { start_time: '5 PM' });
+  await add('Fall fair', '2026-10-07');
+  await db.query(`update public.club_events set sport = 'Girls Soccer', team_ids = array['sartell', 'sauk-rapids-rice']
+    where id = $1`, [game]);
+  const at = async (t) => (await db.query(`select title, game, leaves_at
+    from public.get_town_feed(($1::timestamp at time zone 'America/Chicago')) order by title`, [t])).rows;
+  // Over at 7 PM with no final yet: gone, as any Event.
+  assert.deepEqual((await at('2026-10-06 19:30')).map((r) => r.title), ['Fall fair']);
+  await db.query(`update public.club_events set final_score = array[6, 0] where id = $1`, [game]);
+  const [row] = (await at('2026-10-06 19:30')).filter((r) => r.game);
+  assert.deepEqual(row.game.final, [6, 0], 'in team_ids order, the host first');
+  assert.equal(row.leaves_at.toISOString(), '2026-10-08T00:00:00.000Z', 'a day past its 7 PM end');
+  assert.deepEqual((await at('2026-10-07 18:59')).map((r) => r.title), ['Fall fair', 'Sartell Girls Soccer vs Sauk Rapids-Rice']);
+  assert.deepEqual((await at('2026-10-07 19:01')).map((r) => r.title), ['Fall fair']);
+  await assert.rejects(db.query(`update public.club_events set final_score = array[1] where id = $1`, [game]),
+                       /club_events_final_score_pair/, 'two scores or none');
+});
+
+// The readers private.read_finals uses (20261021120000_game_finals.sql), on the sources' own JSON.
+const schedules = JSON.parse(readFileSync(join(here, '..', '..', 'sources', 'scripts', 'samples', 'mshsl-schedules.json'), 'utf8'));
+const csbHamline = JSON.parse(readFileSync(join(here, 'sidearm-csb-wsoc.json'), 'utf8'));
+const leagueFinal = async (rows, uid, day, teams) => (await db.query(
+  'select private.league_final($1::jsonb, $2, $3::date, $4::text[]) as f', [JSON.stringify(rows), uid, day, teams])).rows[0].f;
+const sidearmFinal = async (file, day, host) => (await db.query(
+  'select private.sidearm_final($1::jsonb, $2::date, $3) as f', [JSON.stringify(file), day, host])).rows[0].f;
+
+test("a high school final is read from its lister's schedule: its row that day, the score its W, L or T agrees with", async () => {
+  const sartell = schedules.sartell;
+  // Sartell 6-0 Sauk Rapids-Rice girls soccer, Oct 6: Sartell's own row, Sartell the host.
+  assert.deepEqual(await leagueFinal(sartell, 'mshsl:142:sartell|sauk rapids-rice:2', '2026-10-06',
+                                     ['sartell', 'sauk-rapids-rice']), [6, 0]);
+  // A loss: Sartell 0-2 Bemidji. The same row with Bemidji the host turns around.
+  assert.deepEqual(await leagueFinal(sartell, 'mshsl:142:bemidji|sartell:1', '2026-09-17', ['sartell', 'bemidji']), [0, 2]);
+  assert.deepEqual(await leagueFinal(sartell, 'mshsl:142:bemidji|sartell:1', '2026-09-17', ['bemidji', 'sartell']), [2, 0]);
+  assert.deepEqual(await leagueFinal(sartell, 'mshsl:142:anoka|sartell:1', '2026-08-27', ['sartell', 'anoka']), [2, 2], 'a tie');
+  assert.equal(await leagueFinal(sartell, 'mshsl:142:sartell|sauk rapids-rice:2', '2026-10-07',
+                                 ['sartell', 'sauk-rapids-rice']), null, 'another day');
+  // Tech's league name for itself is "St. Cloud": its row against Sartell (0-3) reads by the id's names.
+  assert.deepEqual(await leagueFinal(schedules.tech, 'mshsl:142:sartell|st. cloud:1', '2026-09-15', ['sartell', 'st-cloud']), [3, 0]);
+  const row = sartell.find((r) => r.event_date === '10/6/2026');
+  const one = (change) => [{ ...row, ...change }];
+  const uid = 'mshsl:142:sartell|sauk rapids-rice:2', teams = ['sartell', 'sauk-rapids-rice'];
+  assert.equal(await leagueFinal(one({ scores: '', w_l: '' }), uid, '2026-10-06', teams), null, 'not entered yet');
+  assert.equal(await leagueFinal(one({ w_l: 'L' }), uid, '2026-10-06', teams), null, 'a score its result disagrees with');
+  assert.equal(await leagueFinal([row, { ...row, scores: '1-0' }], uid, '2026-10-06', teams), null, 'two that day');
+  assert.equal(await leagueFinal({ error: 'down' }, uid, '2026-10-06', teams), null, 'not a schedule');
+  assert.deepEqual((await db.query(`select array_agg(private.team_slug(n) order by o) as s from unnest(
+    array['St. Cloud Apollo', 'Kimball Area', 'Apollo/Cathedral', 'St. John''s Prep', 'Sauk Rapids-Rice', 'St. Cloud'])
+    with ordinality u(n, o)`)).rows[0].s, ['apollo', 'kimball', 'apollo-cathedral', 'st-johns-prep', 'sauk-rapids-rice', 'st-cloud'],
+                   "the morning writer's team ids");
+});
+
+test("a college final is read from SIDEARM's file: complete, that day, the host first wherever it sits", async () => {
+  // CSB 3-0 Hamline, Oct 14, as the file read back on 2026-10-20.
+  assert.deepEqual(await sidearmFinal(csbHamline, '2026-10-14', 'benedict'), [3, 0]);
+  assert.equal(await sidearmFinal(csbHamline, '2026-10-15', 'benedict'), null, 'the next game not played yet');
+  const g = csbHamline.Game;
+  assert.equal(await sidearmFinal({ Game: { ...g, IsComplete: false } }, '2026-10-14', 'benedict'), null, 'still on');
+  assert.deepEqual(await sidearmFinal({ Game: { ...g, HomeTeam: g.VisitingTeam, VisitingTeam: g.HomeTeam } }, '2026-10-14', 'benedict'),
+                   [3, 0], 'the host as visitors');
+  assert.deepEqual(await sidearmFinal({ Game: { ...g, HomeTeam: { ...g.HomeTeam, Name: "#21 Saint John's", Score: 33 },
+                                                VisitingTeam: { ...g.VisitingTeam, Name: 'Concordia', Score: 23 } } },
+                                      '2026-10-14', 'john'), [33, 23], 'a ranked host');
+  assert.equal(await sidearmFinal(csbHamline, '2026-10-14', 'john'), null, 'neither side ours');
 });
 
 test("a group's Event names the group and whether you're in it; found ones by its site or its name at its place", async () => {
