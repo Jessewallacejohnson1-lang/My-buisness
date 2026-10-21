@@ -59,6 +59,9 @@ struct MeetupPillStyle: ButtonStyle {
             .padding(.horizontal, sidePadding)
             .frame(minWidth: minWidth)
             .frame(height: height)
+            // A face on its way out fades where it stood; the clip keeps it inside the pill as the
+            // pill shrinks into the X or grows back (attend-x's frames).
+            .clipShape(Capsule())
             .background {
                 Capsule()
                     .fill(fill.map(AnyShapeStyle.init) ?? AnyShapeStyle(charcoal))
@@ -69,9 +72,9 @@ struct MeetupPillStyle: ButtonStyle {
                         .fill(Hue.surface)
                         .overlay { Capsule().strokeBorder(Hue.hairline, lineWidth: 1) }
                 }
-                if grey {
-                    Capsule().fill(Hue.fill)
-                }
+                // Always there, so it shrinks and grows with the charcoal instead of popping in at
+                // the circle's size.
+                Capsule().fill(Hue.fill).opacity(grey ? 1 : 0)
             }
             .contentShape(Capsule().inset(by: min(0, (height - Self.minTarget) / 2)))
             .animation(press) {
