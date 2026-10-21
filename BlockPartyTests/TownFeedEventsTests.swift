@@ -498,12 +498,16 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(town.cards.map(\.id), ["newer"])
     }
 
-    /// The kept list reads back what was saved, and signing out clears it.
+    /// The kept list and the kept Event of the day read back what was saved, each its own, and
+    /// signing out clears both.
     func testTheKeptListIsClearedOnSignOut() {
         TownFeedCache.save(Data("[1]".utf8))
+        TownFeedCache.save(Data("[2]".utf8), .eventOfTheDay)
         XCTAssertEqual(TownFeedCache.load(), Data("[1]".utf8))
+        XCTAssertEqual(TownFeedCache.load(.eventOfTheDay), Data("[2]".utf8))
         TownFeedCache.clear()
         XCTAssertNil(TownFeedCache.load())
+        XCTAssertNil(TownFeedCache.load(.eventOfTheDay))
     }
 
     // MARK: Views and opens (ticket 20)

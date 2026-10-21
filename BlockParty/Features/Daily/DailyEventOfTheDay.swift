@@ -177,10 +177,11 @@ extension DailyEvent {
     }
 }
 
-/// Daily's Event of the day: the read's picks, kept across tab switches and failed reads, as
-/// the You tab keeps its Going. The database works them out (`get_event_of_the_day`, BP app
+/// Daily's Event of the day, and the Town feed's top (event-card 03): the read's picks, kept
+/// across tab switches and failed reads, as the You tab keeps its Going, and on disk, so a
+/// relaunch shows today's at once. The database works them out (`get_event_of_the_day`, BP app
 /// daily-tab 14) from the morning's standouts. Each read works out the whole Town feed on the
-/// server, so Daily reads again only after `rereadAfter`, on a new Town day, or once a pick is
+/// server, so it reads again only after `rereadAfter`, on a new Town day, or once a pick is
 /// over, when the next one may take its spot.
 @MainActor @Observable
 final class EventOfTheDay {
@@ -190,11 +191,15 @@ final class EventOfTheDay {
     /// Numbers each read, so one an account change overtook never lands.
     @ObservationIgnored private var latestRead = 0
     @ObservationIgnored private let read: () async throws -> [DailyEvent]
+    /// The picks the last session left on disk, asked for once, at the first read.
+    @ObservationIgnored private let kept: () -> [DailyEvent]?
+    @ObservationIgnored private var keptChecked = false
 
     static let rereadAfter: TimeInterval = 10 * 60
 
-    init(read: @escaping () async throws -> [DailyEvent]) {
+    init(read: @escaping () async throws -> [DailyEvent], kept: @escaping () -> [DailyEvent]? = { nil }) {
         self.read = read
+        self.kept = kept
     }
 
     /// The live read, or under DEBUG `-daily-samples` the three samples.
@@ -207,10 +212,19 @@ final class EventOfTheDay {
         #endif
         self.init(read: {
             try await CommunityAPI(auth: AuthStore.shared).getEventOfTheDay().compactMap(DailyEvent.init(row:))
+        }, kept: {
+            guard let data = TownFeedCache.load(.eventOfTheDay),
+                  let rows = try? CommunityAPI.townFeedRows(from: data) else { return nil }
+            return rows.compactMap(DailyEvent.init(row:))
         })
     }
 
     func refresh(now: Date = Date()) async {
+        // Today's kept picks show while the first read is out; yesterday's are all over.
+        if events == nil, !keptChecked {
+            keptChecked = true
+            if let kept = kept()?.filter({ $0.ends > now }), !kept.isEmpty { events = kept }
+        }
         guard needsRead(now: now) else { return }
         latestRead += 1
         let mine = latestRead
