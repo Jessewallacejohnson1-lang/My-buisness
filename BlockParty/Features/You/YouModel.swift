@@ -18,34 +18,44 @@ final class YouModel {
     private(set) var going: [DailyEvent]?
     /// The last read failed. With no list the page shows its retry; with one, it keeps it.
     private(set) var failed = false
+    /// The Town's groups, each saying whether the neighbour is in it (`get_groups`), nil until
+    /// the first read lands. The page shows the ones they're in (ticket 09).
+    private(set) var groups: [TownGroup]?
 
     /// Numbers each read, so only the newest one's answer is kept.
     @ObservationIgnored private var latestRead = 0
+    @ObservationIgnored private var latestGroups = 0
     private let read: (_ from: String, _ to: String) async throws -> [UpcomingEvent]
+    private let readGroups: () async throws -> [TownGroup]
 
     /// `read` takes the first and last Town days, "yyyy-MM-dd", both included.
-    init(read: @escaping (_ from: String, _ to: String) async throws -> [UpcomingEvent]) {
+    init(read: @escaping (_ from: String, _ to: String) async throws -> [UpcomingEvent],
+         groups: @escaping () async throws -> [TownGroup] = { [] }) {
         self.read = read
+        self.readGroups = groups
     }
 
     /// The live read, or under DEBUG `-town-samples` sample Going, so design work has
     /// photos on the Calendar and never reads the live database; `-town-offline` fails
-    /// every read.
+    /// every read. The groups are the Town's real ones under `-town-samples` too, as in
+    /// Search, where Join group then writes nowhere.
     convenience init() {
+        let groups = { try await CommunityAPI(auth: AuthStore.shared).getGroups() }
         #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
         if arguments.contains("-town-offline") {
-            self.init(read: { _, _ in throw URLError(.notConnectedToInternet) })
+            self.init(read: { _, _ in throw URLError(.notConnectedToInternet) },
+                      groups: { throw URLError(.notConnectedToInternet) })
             return
         }
         if arguments.contains("-town-samples") {
-            self.init(read: { _, _ in YouCalendar.samples(now: Date()) })
+            self.init(read: { _, _ in YouCalendar.samples(now: Date()) }, groups: groups)
             return
         }
         #endif
         self.init(read: { from, to in
             try await CommunityAPI(auth: AuthStore.shared).getMyGoing(from: from, to: to)
-        })
+        }, groups: groups)
     }
 
     /// Profile's Saved list (ticket 04), kept the same way: `get_my_saves` from this week's
@@ -88,10 +98,20 @@ final class YouModel {
         }
     }
 
-    /// A new account sees none of the last one's Going.
+    /// Reads the groups again behind whatever is on screen; a failed read keeps the last list.
+    func refreshGroups() async {
+        latestGroups += 1
+        let mine = latestGroups
+        guard let read = try? await readGroups(), mine == latestGroups else { return }
+        groups = read
+    }
+
+    /// A new account sees none of the last one's Going or groups.
     func accountChanged() {
         latestRead += 1
+        latestGroups += 1
         going = nil
+        groups = nil
         failed = false
     }
 }
@@ -218,6 +238,12 @@ enum YouCalendar {
                 .split(whereSeparator: \.isWhitespace).joined(separator: " ")
             return seen.insert(key).inserted
         }
+    }
+
+    /// The groups the neighbour is in, in the read's order, Search's shelf's (Jesse, ticket 09
+    /// Check-in 1). `isMember` lays this session's Join group and leave over the read.
+    static func groups(_ read: [TownGroup], isMember: (TownGroup) -> Bool) -> [TownGroup] {
+        read.filter(isMember)
     }
 
     static func place(of event: DailyEvent) -> String? {

@@ -322,6 +322,64 @@ final class YouCalendarTests: XCTestCase {
         XCTAssertNil(model.going)
     }
 
+    // MARK: Groups (ticket 09)
+
+    private func group(_ id: String, joined: Bool = false) -> TownGroup {
+        var group = TownGroup(id: id, name: id)
+        group.joined = joined
+        return group
+    }
+
+    /// The row shows the groups the neighbour is in, in the read's order (Search's shelf), and
+    /// none when they're in none.
+    func testGroupsShowTheOnesYoureInInSearchsOrder() {
+        let read = [group("legion", joined: true), group("lions"), group("yarnovers", joined: true)]
+        XCTAssertEqual(YouCalendar.groups(read, isMember: \.joined).map(\.id), ["legion", "yarnovers"])
+        XCTAssertEqual(YouCalendar.groups(read, isMember: { _ in false }).map(\.id), [])
+    }
+
+    /// A Join group anywhere adds its group at once and leaving takes it off, without a read;
+    /// one the server refuses shows, then turns back.
+    func testAJoinOrLeaveChangesGroupsAtOnce() async throws {
+        var fail = false
+        let actions = RealLifeActions(signedIn: true, needsAccount: false, hold: .milliseconds(1), flip: .milliseconds(1),
+                                      setGoing: { _, _ in }, setHeart: { _, _ in }, setSave: { _, _ in },
+                                      setMember: { _, _ in if fail { throw SupabaseError(message: "no", status: 403) } },
+                                      knownEvents: { _ in [] })
+        let read = [group("legion", joined: true), group("lions")]
+        actions.read(read)
+        func shown() -> [String] {
+            YouCalendar.groups(read, isMember: { actions.member($0).isMember }).map(\.id)
+        }
+        XCTAssertEqual(shown(), ["legion"])
+        actions.toggleMember(read[1])
+        XCTAssertEqual(shown(), ["legion", "lions"])
+        actions.toggleMember(read[0])
+        XCTAssertEqual(shown(), ["lions"])
+        try await Task.sleep(for: .milliseconds(50))
+        fail = true
+        actions.toggleMember(read[0])
+        XCTAssertEqual(shown(), ["legion", "lions"])
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertEqual(shown(), ["lions"])
+    }
+
+    /// The groups read fills the list and a failed one keeps it; a new account starts from none.
+    func testTheModelKeepsItsGroupsThroughAFailedRead() async {
+        var fail = false
+        let model = YouModel(read: { _, _ in [] }, groups: {
+            if fail { throw URLError(.notConnectedToInternet) }
+            return [self.group("legion", joined: true)]
+        })
+        await model.refreshGroups()
+        XCTAssertEqual(model.groups?.map(\.id), ["legion"])
+        fail = true
+        await model.refreshGroups()
+        XCTAssertEqual(model.groups?.map(\.id), ["legion"])
+        model.accountChanged()
+        XCTAssertNil(model.groups)
+    }
+
     #if DEBUG
     /// The samples sit in the three weeks around today, today busy, and their photos are bundled.
     func testSamplesFallInTheThreeWeeks() {
