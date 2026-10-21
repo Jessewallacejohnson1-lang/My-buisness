@@ -75,6 +75,8 @@ enum YouMetric {
     static let groupLogo: CGFloat = SearchMetric.avatarLogo
     /// Search's group icon, grown with the circle from its 17pt in a 44pt square.
     static let groupGlyph: CGFloat = 24
+    /// The Groups row fades in this long after Places starts moving down for it (picked).
+    static let groupsIn: Double = 0.15
 }
 
 struct YouPage: View {
@@ -123,7 +125,9 @@ struct YouPage: View {
     }
 
     private func page(now: Date, days: [Date], today: Date, day: Date, going: [DailyEvent]?) -> some View {
-        let groups = YouCalendar.groups(model.groups ?? [], isMember: { actions.member($0).isMember })
+        // The ones they're in, in the read's order, Search's shelf's (Jesse, ticket 09 Check-in 1),
+        // with this session's Join group and leave laid over it.
+        let groups = (model.groups ?? []).filter { actions.member($0).isMember }
         return ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
                 bar
@@ -139,10 +143,15 @@ struct YouPage: View {
                     .padding(.horizontal, YouMetric.side)
                 // Left out until they join one, as Places is.
                 if !groups.isEmpty {
-                    DailySectionLabel(title: "Groups", ink: Hue.ink)
-                        .padding(.top, YouMetric.calendarToLabel)
-                    YouGroups(groups: groups)
-                        .padding(.top, YouMetric.labelToCards)
+                    VStack(spacing: 0) {
+                        DailySectionLabel(title: "Groups", ink: Hue.ink)
+                            .padding(.top, YouMetric.calendarToLabel)
+                        YouGroups(groups: groups)
+                            .padding(.top, YouMetric.labelToCards)
+                    }
+                    // In once Places has made room, so the two never show over each other.
+                    .transition(.asymmetric(insertion: .opacity.animation(Motion.smooth.delay(YouMetric.groupsIn)),
+                                            removal: .opacity))
                 }
                 // Left out while there's nowhere to go, as on Daily.
                 let places = YouCalendar.places(going ?? [], now: now)
@@ -200,10 +209,10 @@ struct YouPage: View {
         }
     }
 
-    /// The groups again, and whether the neighbour is in each for every page that shows them.
+    /// The groups again, and, from a fresh read only, whether the neighbour is in each for
+    /// every page that shows them.
     private func refreshGroups() async {
-        await model.refreshGroups()
-        if let groups = model.groups { actions.read(groups) }
+        if let groups = await model.refreshGroups() { actions.read(groups) }
     }
 
     private func fold() {

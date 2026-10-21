@@ -330,51 +330,36 @@ final class YouCalendarTests: XCTestCase {
         return group
     }
 
-    /// The row shows the groups the neighbour is in, in the read's order (Search's shelf), and
-    /// none when they're in none.
-    func testGroupsShowTheOnesYoureInInSearchsOrder() {
-        let read = [group("legion", joined: true), group("lions"), group("yarnovers", joined: true)]
-        XCTAssertEqual(YouCalendar.groups(read, isMember: \.joined).map(\.id), ["legion", "yarnovers"])
-        XCTAssertEqual(YouCalendar.groups(read, isMember: { _ in false }).map(\.id), [])
-    }
-
-    /// A Join group anywhere adds its group at once and leaving takes it off, without a read;
-    /// one the server refuses shows, then turns back.
-    func testAJoinOrLeaveChangesGroupsAtOnce() async throws {
-        var fail = false
+    /// The row is the read's groups the neighbour is in, in its order: a Join group anywhere
+    /// adds one at once and leaving takes it off, without a read.
+    func testAJoinOrLeaveChangesGroupsAtOnce() {
         let actions = RealLifeActions(signedIn: true, needsAccount: false, hold: .milliseconds(1), flip: .milliseconds(1),
                                       setGoing: { _, _ in }, setHeart: { _, _ in }, setSave: { _, _ in },
-                                      setMember: { _, _ in if fail { throw SupabaseError(message: "no", status: 403) } },
                                       knownEvents: { _ in [] })
-        let read = [group("legion", joined: true), group("lions")]
+        let read = [group("legion", joined: true), group("lions"), group("yarnovers", joined: true)]
         actions.read(read)
-        func shown() -> [String] {
-            YouCalendar.groups(read, isMember: { actions.member($0).isMember }).map(\.id)
-        }
-        XCTAssertEqual(shown(), ["legion"])
+        func shown() -> [String] { read.filter { actions.member($0).isMember }.map(\.id) }
+        XCTAssertEqual(shown(), ["legion", "yarnovers"])
         actions.toggleMember(read[1])
-        XCTAssertEqual(shown(), ["legion", "lions"])
+        XCTAssertEqual(shown(), ["legion", "lions", "yarnovers"])
         actions.toggleMember(read[0])
-        XCTAssertEqual(shown(), ["lions"])
-        try await Task.sleep(for: .milliseconds(50))
-        fail = true
-        actions.toggleMember(read[0])
-        XCTAssertEqual(shown(), ["legion", "lions"])
-        try await Task.sleep(for: .milliseconds(200))
-        XCTAssertEqual(shown(), ["lions"])
+        XCTAssertEqual(shown(), ["lions", "yarnovers"])
     }
 
-    /// The groups read fills the list and a failed one keeps it; a new account starts from none.
+    /// The groups read fills the list and a failed one keeps it, but hands back nothing, so an
+    /// old list never overwrites who's in what; a new account starts from none.
     func testTheModelKeepsItsGroupsThroughAFailedRead() async {
         var fail = false
         let model = YouModel(read: { _, _ in [] }, groups: {
             if fail { throw URLError(.notConnectedToInternet) }
             return [self.group("legion", joined: true)]
         })
-        await model.refreshGroups()
+        let fresh = await model.refreshGroups()
+        XCTAssertEqual(fresh?.map(\.id), ["legion"])
         XCTAssertEqual(model.groups?.map(\.id), ["legion"])
         fail = true
-        await model.refreshGroups()
+        let failed = await model.refreshGroups()
+        XCTAssertNil(failed)
         XCTAssertEqual(model.groups?.map(\.id), ["legion"])
         model.accountChanged()
         XCTAssertNil(model.groups)

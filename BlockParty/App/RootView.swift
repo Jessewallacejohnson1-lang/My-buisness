@@ -475,6 +475,8 @@ struct MainTabsView: View {
             // Whether you're in each group is this account's, once Search has read them.
             if searchModel.groupsLoaded { Task { await searchModel.readGroupsAgain() } }
             Task { await you.refresh() }
+            // The You row's groups, this account's.
+            Task { if let groups = await you.refreshGroups() { actions.read(groups) } }
             Task { await eventOfTheDay.refresh() }
             Task { await actions.moveUp(.shared) }
             Task { await cancelNotice.check() }

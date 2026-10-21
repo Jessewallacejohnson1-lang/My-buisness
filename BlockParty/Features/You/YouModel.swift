@@ -99,11 +99,15 @@ final class YouModel {
     }
 
     /// Reads the groups again behind whatever is on screen; a failed read keeps the last list.
-    func refreshGroups() async {
+    /// Returns the fresh list, nil when the read failed or a newer one overtook it, so only a
+    /// fresh one tells `RealLifeActions` who's in what.
+    @discardableResult
+    func refreshGroups() async -> [TownGroup]? {
         latestGroups += 1
         let mine = latestGroups
-        guard let read = try? await readGroups(), mine == latestGroups else { return }
+        guard let read = try? await readGroups(), mine == latestGroups else { return nil }
         groups = read
+        return read
     }
 
     /// A new account sees none of the last one's Going or groups.
@@ -238,12 +242,6 @@ enum YouCalendar {
                 .split(whereSeparator: \.isWhitespace).joined(separator: " ")
             return seen.insert(key).inserted
         }
-    }
-
-    /// The groups the neighbour is in, in the read's order, Search's shelf's (Jesse, ticket 09
-    /// Check-in 1). `isMember` lays this session's Join group and leave over the read.
-    static func groups(_ read: [TownGroup], isMember: (TownGroup) -> Bool) -> [TownGroup] {
-        read.filter(isMember)
     }
 
     static func place(of event: DailyEvent) -> String? {
