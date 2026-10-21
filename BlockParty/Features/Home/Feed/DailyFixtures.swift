@@ -106,30 +106,27 @@ enum DailyFixtures {
 
     /// `-town-games`: four games first, as `get_town_feed` sends them (game-card 02): SJU vs
     /// Gustavus to come, the ticket's real finals SJU 33-23 Concordia and Sartell 6-0 Sauk
-    /// Rapids-Rice, and Sartell's 2-2 tie with Anoka, with the schools' saved logos and colors.
+    /// Rapids-Rice, and Sartell's 2-2 tie with Anoka, with the schools' saved logos and colors
+    /// (`Resources/Fixtures/town-games.json`: their colors are data, as the feed's are).
     private static func gameSamples(now: Date) -> [TownFeedEntry] {
-        let storage = "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/"
-        let sju = ##"{"name":"Saint John's","short":"Saint John's","logo":"\##(storage)teams/saint-johns/logo-36d1a2aa13.png","color":"#C20430"}"##
-        let sartell = ##"{"name":"Sartell","short":"Sartell","logo":"\##(storage)st-joseph/sartell-high-school/logo-413105dbbc.webp","color":"#1A4C9C"}"##
-        let games: [(id: String, title: String, host: String, place: String, day: String, time: String?,
-                     hoursUntil: Double, went: Int, game: String)] = [
-            ("g1", "SJU Football vs Gustavus Adolphus", "SJU Athletics", "Clemens Stadium", "2026-10-31", "1 PM", 24 * 10, 84,
-             ##"{"sport":"Football","teams":[\##(sju),{"name":"Gustavus Adolphus","short":"Gustavus","logo":"\##(storage)teams/gustavus-adolphus/logo-11419c050d.png","color":"#000000"}]}"##),
-            ("g2", "SJU Football vs Concordia: Homecoming", "SJU Athletics", "Clemens Stadium", "2026-10-17", "1 PM", 4, 212,
-             ##"{"sport":"Football","occasion":"Homecoming","final":[33,23],"teams":[\##(sju),{"name":"Concordia","short":"Concordia","color":"#5E1027"}]}"##),
-            ("g3", "Sartell Girls Soccer vs Sauk Rapids-Rice", "Sartell High School", "Sartell High School", "2026-10-06", "5 PM", 4, 0,
-             ##"{"sport":"Girls Soccer","final":[6,0],"teams":[\##(sartell),{"name":"Sauk Rapids-Rice","short":"Sauk Rapids-Rice","logo":"\##(storage)st-joseph/sauk-rapids-rice-high-school/logo-d6430916a5.webp","color":"#0F5A32"}]}"##),
-            ("g4", "Sartell Girls Soccer vs Anoka", "Sartell High School", "Sartell High School", "2026-08-27", "5 PM", 4, 18,
-             ##"{"sport":"Girls Soccer","final":[2,2],"teams":[\##(sartell),{"name":"Anoka","short":"Anoka"}]}"##),
-        ]
-        return games.map { g in
+        struct Sample: Decodable {
+            let id, title, host, place, day: String
+            let time: String?
+            let hoursUntil: Double
+            let went: Int
+            let game: Game
+        }
+        guard let url = Bundle.main.url(forResource: "town-games", withExtension: "json"),
+              let data = try? Data(contentsOf: url),
+              let samples = try? JSONDecoder().decode([Sample].self, from: data) else { return [] }
+        return samples.map { g in
             let entry = event(id: g.id, title: g.title, host: g.host, hostAvatar: false, chip: "", meta: g.place,
                               photo: false, hoursUntil: g.hoursUntil, going: g.went, now: now)
             var card = entry.card
             card.eventDate = g.day
             card.startTime = g.time
             card.location = g.place
-            card.game = try? JSONDecoder().decode(Game.self, from: Data(g.game.utf8))
+            card.game = g.game
             return TownFeedEntry(card: card, leavesAt: entry.leavesAt)
         }
     }
