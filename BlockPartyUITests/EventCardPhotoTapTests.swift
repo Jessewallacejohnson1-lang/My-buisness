@@ -61,6 +61,13 @@ final class EventCardPhotoTapTests: XCTestCase {
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
     }
 
+    /// The Event page is up: its own Back button shows. A drag up that scrolls Town's card
+    /// under the top bar leaves the card unhittable, which `waitForPush` would read as a push
+    /// (GitHub, a6a2298 and b0f753d, 2026-10-20).
+    private func pageOpened(timeout: TimeInterval) -> Bool {
+        app.buttons["Back"].waitForExistence(timeout: timeout)
+    }
+
     func testDoubleTapOnPhotoLikesAndDoesNotPush() throws {
         let link = firstCardLink()
         let like = try XCTUnwrap(likeButton(under: link), "no heart under the first card")
@@ -78,6 +85,7 @@ final class EventCardPhotoTapTests: XCTestCase {
         photo(of: link).tap()
 
         XCTAssertTrue(waitForPush(from: link), "a single tap on the photo did not push the event page")
+        XCTAssertTrue(pageOpened(timeout: 15), "the pushed page has no Back button for the swipe test to look for")
     }
 
     /// A card with two photos swipes between them under the finger and never opens its page;
@@ -90,15 +98,16 @@ final class EventCardPhotoTapTests: XCTestCase {
 
         link.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.55))
             .press(forDuration: 0.05, thenDragTo: link.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.55)))
-        XCTAssertFalse(waitForPush(from: link, timeout: 2), "a swipe on the photo pushed the event page")
+        XCTAssertFalse(pageOpened(timeout: 2), "a swipe on the photo pushed the event page")
+        // Ends as soon as the dots say so; GitHub's runner takes seconds over each look.
         let second = NSPredicate(format: "value == 'Photo 2 of 2'")
-        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: second, object: link)], timeout: 5),
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: second, object: link)], timeout: 15),
                        .completed, "the swipe didn't bring the second photo up")
 
         let top = link.frame.minY
         link.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8))
             .press(forDuration: 0.05, thenDragTo: link.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)))
-        XCTAssertFalse(waitForPush(from: link, timeout: 2), "a drag up on the photo pushed the event page")
+        XCTAssertFalse(pageOpened(timeout: 2), "a drag up on the photo pushed the event page")
         XCTAssertLessThan(link.frame.minY, top - 50, "a drag up that started on the photo didn't scroll the feed")
     }
 
