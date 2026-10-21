@@ -159,6 +159,10 @@ nonisolated struct UpcomingEvent: Identifiable, Hashable {
     /// the teams instead of a photo. nil for any other event, and on rows read before the feed
     /// sent it.
     var game: Game? = nil
+    /// Up to three of the caller's friends Going, newest Going first: only the You tab's read
+    /// sends them (`get_my_going`, BP app docs/plans/you-tab, ticket 07). The Town feed's ride
+    /// `TownFeedRow`.
+    var friendsGoing: [FeedFriend] = []
 }
 
 /// A game between two teams, as `get_town_feed` sends it (`private.event_game`): the sport

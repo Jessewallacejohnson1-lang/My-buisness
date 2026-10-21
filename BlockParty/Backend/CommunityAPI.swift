@@ -544,11 +544,17 @@ struct CommunityAPI {
             let cancelled: Bool?
             let placePicture: PlacePicture.Lenient?
             let description: String?
+            /// `get_my_going`'s only (you-tab 07); `get_my_saves` sends none.
+            let friendsGoing: [Friend]?
+        }
+        struct Friend: Decodable {
+            let name: String
+            let photo: String?
         }
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         return try decoder.decode([Row].self, from: data).map { row in
-            UpcomingEvent(id: row.id, title: row.title, eventDate: row.eventDate,
+            var event = UpcomingEvent(id: row.id, title: row.title, eventDate: row.eventDate,
                           startTime: row.startTime, location: row.location,
                           goingCount: row.goingCount, createdAt: row.createdAt,
                           imageUrl: row.imageUrl, rsvpd: row.going ?? true, saved: saved,
@@ -559,6 +565,10 @@ struct CommunityAPI {
                           cancelled: row.cancelled ?? false,
                           placePicture: row.placePicture?.value,
                           description: row.description)
+            event.friendsGoing = (row.friendsGoing ?? []).map {
+                FeedFriend(name: $0.name, photo: $0.photo.flatMap(URL.init(string:)))
+            }
+            return event
         }
     }
 

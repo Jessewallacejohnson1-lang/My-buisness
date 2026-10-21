@@ -405,6 +405,33 @@ final class YouCalendarTests: XCTestCase {
         XCTAssertTrue(rows[1].isAllDay)
     }
 
+    // MARK: Friends going with you (ticket 07)
+
+    /// The read's friends Going ride the Agenda card, first name and photo, newest first.
+    func testTheReadsFriendsGoingRideTheCard() throws {
+        let json = """
+        [{"id":"e1","title":"Quiz night","event_date":"2026-10-24","start_time":"7 PM",
+          "location":null,"image_url":null,"category":null,"club_name":null,
+          "source_name":"City of St. Joseph","end_at":null,"all_day":false,
+          "created_at":"2026-10-01T12:00:00+00:00","going_count":3,
+          "friends_going":[{"name":"Anna","photo":"https://x/anna.jpg"},{"name":"Ben","photo":null}]}]
+        """
+        let row = try XCTUnwrap(CommunityAPI.myGoingRows(from: Data(json.utf8)).first)
+        let card = try XCTUnwrap(YouCalendar.event(from: row)).item
+        XCTAssertEqual(card.friendsGoing.map(\.name), ["Anna", "Ben"])
+        XCTAssertEqual(card.friendsGoing.map(\.photo), [URL(string: "https://x/anna.jpg"), nil])
+    }
+
+    /// VoiceOver reads the friends after the time (words page `agenda-friends-vo`), then what an
+    /// open card adds; a card with none reads as before.
+    func testVoiceOverReadsTheFriendsWithTheCard() {
+        XCTAssertEqual(AgendaCards.spoken(title: "Trivia Night", when: "7 PM", friends: ["Anna", "Ben"], more: ""),
+                       "Trivia Night, 7 PM, Anna and Ben are going")
+        XCTAssertEqual(AgendaCards.spoken(title: "Trivia Night", when: "7 PM", friends: [],
+                                          more: "Until 9 PM, Bad Habit Brewing"),
+                       "Trivia Night, 7 PM, Until 9 PM, Bad Habit Brewing")
+    }
+
     // MARK: The name pill
 
     func testThePillShowsTheFirstNameOnly() {

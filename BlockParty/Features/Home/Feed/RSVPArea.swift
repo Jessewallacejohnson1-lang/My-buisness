@@ -51,7 +51,8 @@ nonisolated struct RSVPWords: Equatable {
     /// "Sam and 2 friends are going", short enough to sit beside the pill on a 402 pt phone;
     /// in the Event page's bar the names alone. Newest Going first. After a game, "Sam and
     /// Marlene went".
-    private static func friendsLine(_ friends: [String], bar: Bool, went: Bool = false) -> String? {
+    /// The You Agenda's VoiceOver reads it too (you-tab 07).
+    static func friendsLine(_ friends: [String], bar: Bool, went: Bool = false) -> String? {
         let names: String
         switch friends.count {
         case 0: return nil
