@@ -73,7 +73,8 @@ extension FeedCardItem {
             cancelled: event.cancelled,
             place: place,
             placeMore: event.placePicture?.more.map(FeedCardImageSource.init) ?? [],
-            game: event.game
+            game: event.game,
+            what: Self.nonempty(event.what)
         )
     }
 

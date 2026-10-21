@@ -5,8 +5,9 @@
 //
 //  The same pick Daily shows first (`EventOfTheDay`). Unlike a Town card it keeps one fixed
 //  shape: the photo square on top fading into the poster's dark, a white "Event of the day"
-//  chip on it, then the host, the title, the date in BP yellow, the place, the going line, and
-//  Attend with the heart and ••• inside the card. Going keeps it on top, saying You're going!.
+//  chip on it, then what it is in a word or two ("Lecture", where DICE writes "Popular"), the title,
+//  the date in BP yellow, the place, the going line, and Attend with the heart and ••• inside the
+//  card; the host is on the Event page (event-card 05). Going keeps it on top, saying You're going!.
 //
 //  The poster is one link to the Event page, which squishes on touch-down and takes a double
 //  tap on the photo as a like, as a Town card does. Its words sit over the link without taking
@@ -31,8 +32,6 @@ struct EventOfTheDayPoster: View {
         static let fade: [Gradient.Stop] = [.init(color: Hue.poster.opacity(0), location: 0.38),
                                             .init(color: Hue.poster.opacity(0.82), location: 0.78),
                                             .init(color: Hue.poster, location: 1)]
-        static let hostMark: CGFloat = 20
-        static let hostGap: CGFloat = 8
         static let titleTop: CGFloat = 6
         static let whenTop: CGFloat = 8
         static let placeTop: CGFloat = 1
@@ -138,15 +137,12 @@ struct EventOfTheDayPoster: View {
         let words = actions.rsvp(item, town: true)
         return VStack(alignment: .leading, spacing: 0) {
             Group {
-                if !item.hostName.isEmpty {
-                    HStack(spacing: Metric.hostGap) {
-                        FeedAuthorAvatar(url: item.hostAvatar, name: item.hostName,
-                                         side: Metric.hostMark, initialSize: 11)
-                        Text(item.hostName)
-                            .font(.sans(15))
-                            .lineLimit(1)
-                    }
-                    .padding(.bottom, Metric.titleTop)
+                // What it is, plain, as DICE sets "Popular" over its title; none yet, the title leads.
+                if let what = item.whatLine {
+                    Text(what)
+                        .font(.sans(15))
+                        .lineLimit(1)
+                        .padding(.bottom, Metric.titleTop)
                 }
                 Text(item.title)
                     .font(.eventDisplay(28))
@@ -300,10 +296,11 @@ struct EventOfTheDayPoster: View {
 
     // MARK: -
 
-    /// What VoiceOver reads for the link: what it is, then when and where, and who's going.
+    /// What VoiceOver reads for the link: what it is ("Lecture") and its name, then when and where, and
+    /// who's going.
     private var spoken: String {
         let when = item.isNow(at: now) ? "Happening now" : item.whenLine?.spoken
-        return ["Event of the day", item.title, when, item.whereLine, item.hostName,
+        return ["Event of the day", item.whatLine, item.title, when, item.whereLine,
                 actions.rsvp(item)?.top].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
     }
 

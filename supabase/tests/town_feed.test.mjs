@@ -1007,6 +1007,24 @@ test('each event carries its own description, for the Event page\'s About', asyn
                    [['Council meeting', null], ['Fall fair', 'Apple cider and a hay ride.']]);
 });
 
+test('each event says what it is in a few words, and the Event of the day says it too (event-card 05)', async () => {
+  await reset();
+  const talk = await add('Rev. Daniel Groody: Koch Chair Lecture', '2026-10-09', { start_time: '7 PM' });
+  await add('Fall fair', '2026-10-09', { start_time: '10 AM' });
+  await db.query(`update public.club_events set what = 'Lecture' where id = $1`, [talk]);
+  await assert.rejects(db.query(`update public.club_events set what = '  ' where id = $1`, [talk]), 'no blank words');
+  await assert.rejects(db.query(`update public.club_events set what = 'A very long way to say a lecture' where id = $1`, [talk]),
+                       'one to three words, 24 characters at most');
+  await db.exec('set role anon');
+  const { rows } = await db.query(`select title, what
+    from public.get_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago')) order by title`);
+  assert.deepEqual(rows.map((r) => [r.title, r.what]), [['Fall fair', null], ['Rev. Daniel Groody: Koch Chair Lecture', 'Lecture']]);
+  const day = (await db.query(`select title, what, game
+    from public.get_event_of_the_day(('2026-10-09 18:00'::timestamp at time zone 'America/Chicago'))`)).rows;
+  await db.exec('reset role');
+  assert.deepEqual(day.map((r) => [r.title, r.what, r.game?.final ?? null]), [['Rev. Daniel Groody: Koch Chair Lecture', 'Lecture', null]]);
+});
+
 test('a game carries its sport, special night and both teams, the host first; any other Event none', async () => {
   await reset();
   const game = await add('SJU Football vs Concordia: Homecoming', '2026-10-09');

@@ -42,7 +42,7 @@ source is a line in the summary; carry on with the rest.
    yours, gives the long titles their short ones, writes them to the database and prints the
    summary. A `[long title]` line in it names one still too long: say so in your answer.
 7. **Tag.** Run `python3 sources/scripts/morning.py untagged`. It lays out every Event no
-   tagger has read yet, today's new ones included, in batches in `.runs/morning/tag/`. For each
+   tagger has read yet or that has no words saying what it is, today's new ones included, in batches in `.runs/morning/tag/`. For each
    batch file, start one helper on the cheap model (Haiku), all at once, each with this prompt:
    "Read `sources/models/tag.md` and follow it for the Events in
    `.runs/morning/tag/batch-N.txt`. Answer with the JSON lines only." Write every line the

@@ -486,11 +486,12 @@ struct FeedEventCard: View {
         item.game?.spoken ?? item.title
     }
 
-    /// Recurrence and place, under the title. Date and time ride the chip on the photo
-    /// (Jesse, 2026-10-19), which replaced their line, which replaced the yellow date
-    /// banner (2026-09-24).
+    /// What it is, recurrence and place, under the title: "Lecture · Escher Auditorium". The words
+    /// lead and the place gives way at the end when it runs long (Jesse, event-card 05). Date and
+    /// time ride the chip on the photo (Jesse, 2026-10-19), which replaced their line, which
+    /// replaced the yellow date banner (2026-09-24).
     private var metaSummary: String {
-        [item.game?.occasion, item.recurrence, item.whereLine]
+        [item.whatLine, item.game?.occasion, item.recurrence, item.whereLine]
             .compactMap { $0 }
             .filter { !$0.isEmpty }
             .joined(separator: " · ")

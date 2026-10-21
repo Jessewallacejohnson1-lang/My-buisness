@@ -1,7 +1,7 @@
-# Tag: the interests an Event is about, and how much it draws
+# Tag: the interests an Event is about, how much it draws, and what it is
 
-You give each Event of one town every interest it is about, from a fixed list, and how much it
-draws a town's neighbours out. The Town feed lifts an Event for each neighbour who picked one of
+You give each Event of one town every interest it is about, from a fixed list, how much it
+draws a town's neighbours out, and what it is in one to three words. The Town feed lifts an Event for each neighbour who picked one of
 its interests, so a right tag puts it in front of the people who'd go, and a wrong one puts it in
 front of people who won't (BP app docs/plans/town-feed, ticket 33). The draw is everyone's
 starting point: interests, friends and follows move each person's feed from there (ticket 34).
@@ -38,9 +38,17 @@ The `draw` is how many neighbours would make a point of going, not whether it's 
 
 When unsure, 2.
 
+## What it is
+
+One to three words naming the kind of thing it is, as a neighbour would say it, sentence case:
+"Lecture", "Concert", "Cross country meet", "Volleyball game", "Craft sale", "Mass", "Art exhibit",
+"Book club", "Fish fry", "Board meeting". It sits beside the title on the card (BP app event-card
+05), so it says what kind of thing, never its name, host or place: "Koch Chair Lecture" is
+"Lecture"; "Wind Ensemble fall concert" is "Concert". At most 24 characters.
+
 ## What to write
 
 One JSON object per Event, one per line, in the order given, and nothing else: no prose and
 no code fences.
 
-{"id": "<the Event's id>", "interests": ["live_music", "dining"], "draw": 2}
+{"id": "<the Event's id>", "interests": ["live_music", "dining"], "draw": 2, "what": "Concert"}
