@@ -27,6 +27,10 @@ enum Radius {
     static let searchField: CGFloat = 10
     static let logoTile: CGFloat = 11
     static let photoCard: CGFloat = 13
+
+    /// The Town's Event of the day poster: DICE's card corner (the approved Round 3 page, BP app
+    /// event-card 03), tighter than a Town card's 20, as a printed poster's is.
+    static let poster: CGFloat = 10
 }
 
 /// The single elevation in the system — one soft, neutral lift. Everything else

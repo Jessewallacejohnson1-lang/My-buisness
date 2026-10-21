@@ -246,8 +246,9 @@ final class DailyPageTests: XCTestCase {
         // Over at 9 PM: the next one may take its spot.
         await model.refresh(now: pick.ends)
         XCTAssertEqual(reads, 4)
+        // A new account reads again at once, keeping these on screen until its own land.
         model.accountChanged()
-        XCTAssertNil(model.events)
+        XCTAssertEqual(model.events?.map(\.id), [pick.id])
         XCTAssertTrue(model.needsRead(now: noon))
 
         // Offline with nothing read yet: none, so Daily shows its placeholder, and it reads again.
@@ -255,5 +256,68 @@ final class DailyPageTests: XCTestCase {
         await offline.refresh(now: noon)
         XCTAssertEqual(offline.events?.count, 0)
         XCTAssertTrue(offline.needsRead(now: noon))
+    }
+
+    /// Today's kept picks show while the first read is out, so the Town poster lands with the
+    /// list (event-card 03); they stay when that read fails; picks that are over never show.
+    @MainActor
+    func testKeptPicksShowUntilTheReadLands() async throws {
+        let pick = try XCTUnwrap(DailyEvent(row: eventOfTheDayRow(start: "7 PM", leaves: "2026-10-21T02:00:00+00:00")))
+        let noon = Date(timeIntervalSince1970: 1_792_515_600)
+        var shownWhileReading: [String]?
+        var model: EventOfTheDay!
+        model = EventOfTheDay(read: {
+            shownWhileReading = model.events?.map(\.id)
+            throw URLError(.notConnectedToInternet)
+        }, kept: { [pick] })
+        await model.refresh(now: noon)
+        XCTAssertEqual(shownWhileReading, [pick.id])
+        XCTAssertEqual(model.events?.map(\.id), [pick.id], "a failed read keeps the kept picks")
+        XCTAssertTrue(model.needsRead(now: noon), "kept picks are no read")
+
+        // Kept from yesterday: all over, so none, and the read decides.
+        let stale = EventOfTheDay(read: { [] }, kept: { [pick] })
+        await stale.refresh(now: pick.ends)
+        XCTAssertEqual(stale.events?.count, 0)
+
+        // Yesterday's pick that runs on past midnight is still not today's.
+        var overnight = pick
+        overnight.ends = pick.starts.addingTimeInterval(2 * 86_400)
+        let nextDay = EventOfTheDay(read: { throw URLError(.notConnectedToInternet) }, kept: { [overnight] })
+        await nextDay.refresh(now: noon.addingTimeInterval(86_400))
+        XCTAssertEqual(nextDay.events?.count, 0)
+    }
+
+    /// The Town column opens on the Event of the day and leaves its card out below; with none,
+    /// it's the cards alone (event-card 03).
+    func testTheTownColumnOpensOnTheEventOfTheDay() throws {
+        let pick = try XCTUnwrap(DailyEvent(row: eventOfTheDayRow(start: "7 PM", leaves: "2026-10-21T02:00:00+00:00")))
+        func card(_ id: String) -> FeedCardItem {
+            FeedCardItem(id: id, title: id, dateChip: "", metaLine: "", image: .fallback, recurrence: nil,
+                         goingCount: 0, goingAvatars: [], likeCount: 0, isLiked: false, isSaved: false, isJoined: false)
+        }
+        let cards = [card("a"), card(pick.id), card("b")]
+        XCTAssertEqual(DailyFeedItem.town(cards, eventOfTheDay: pick).map(\.id),
+                       ["event-of-the-day:\(pick.id)", "event:a", "event:b"])
+        // The Score's place is where each sits on screen: the poster first, then the cards.
+        func scored(_ item: FeedCardItem) -> FeedCardItem {
+            var item = item
+            item.score = FeedScore(interest: 0, friend: 0, follow: 0, popular: 0, size: 0, sizeStep: 1, daysAway: 1,
+                                   soon: 0.9, acted: 1, spacing: 1, newSpot: false, total: 0.9, spot: 9, of: 9)
+            return item
+        }
+        var scoredPick = pick
+        scoredPick.item = scored(pick.item)
+        let places = DailyFeedItem.town(cards.map(scored), eventOfTheDay: scoredPick).map { item -> String in
+            switch item {
+            case .eventOfTheDay(let event): return "\(event.item.score?.spot ?? 0)/\(event.item.score?.of ?? 0)"
+            case .event(let card): return "\(card.score?.spot ?? 0)/\(card.score?.of ?? 0)"
+            case .posting: return ""
+            }
+        }
+        XCTAssertEqual(places, ["1/3", "2/3", "3/3"])
+        XCTAssertEqual(DailyFeedItem.town(cards, eventOfTheDay: pick).map(\.eventID), [pick.id, "a", "b"])
+        XCTAssertEqual(DailyFeedItem.town(cards, eventOfTheDay: nil).map(\.id),
+                       ["event:a", "event:\(pick.id)", "event:b"])
     }
 }

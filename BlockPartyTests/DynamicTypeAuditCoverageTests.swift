@@ -53,6 +53,7 @@ final class DynamicTypeAuditCoverageTests: XCTestCase {
         "FeedView.swift:$route": .notYetAudited(reason: "Feed detail routes. Needs a fixture-driven launch flag."),
         "FeedEventCard.swift:$commentsPresented": .notYetAudited(reason: "Event comments. User-generated text of any length — high priority."),
         "FeedEventCard.swift:$menuPresented": .notYetAudited(reason: "A Town feed card's ••• sheet. Three short lines and a row; its height follows its content. The admin's ten-row Score box has no scroll, so at the largest sizes it can run off the screen. Text-size checks wait for Jesse (MEMORY.md, 2026-09-24)."),
+        "EventOfTheDayPoster.swift:$menuPresented": .notYetAudited(reason: "The Town's Event of the day poster's ••• sheet: the same FeedCardMenu as a Town card's, waiting with it. Text-size checks wait for Jesse (MEMORY.md, 2026-09-24)."),
         "FeedCardMenu.swift:$editingInterests": .notYetAudited(reason: "Edit profile, opened from the ••• sheet: the same screen as ProfileView.swift:$editing, not yet audited either."),
         "PostingCard.swift:$commentsPresented": .notYetAudited(reason: "Post comments. Same as above."),
         "DayScheduleSheet.swift:$detailEvent": .notYetAudited(reason: "Day event detail. Reached from the Your Day sheet."),

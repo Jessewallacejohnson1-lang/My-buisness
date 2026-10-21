@@ -7,6 +7,9 @@
 //  `BriefingCache` keeps them, read back through the same decoding as a live read:
 //  a copy from before the function's columns changed just misses, never blocks.
 //
+//  The Event of the day's picks that top the feed are kept beside it, so the poster lands with
+//  the list rather than pushing it down a moment later (BP app event-card 03).
+//
 //  It holds the person's Going, so signing out clears it, as it does the briefing's.
 //  One file rather than one per account: the first read can run before the session
 //  is restored, and would look for the wrong account's file.
@@ -17,19 +20,25 @@
 import Foundation
 
 enum TownFeedCache {
-    private static var file: URL? {
+    /// The feed's list, or the Event of the day's picks (`get_event_of_the_day`).
+    enum Kind: String, CaseIterable {
+        case feed = "town-feed.json"
+        case eventOfTheDay = "event-of-the-day.json"
+    }
+
+    private static func file(_ kind: Kind) -> URL? {
         try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
                                      appropriateFor: nil, create: true)
-            .appendingPathComponent("town-feed.json")
+            .appendingPathComponent(kind.rawValue)
     }
 
     /// The last list saved, or nil when there is none.
-    static func load() -> Data? {
-        file.flatMap { try? Data(contentsOf: $0) }
+    static func load(_ kind: Kind = .feed) -> Data? {
+        file(kind).flatMap { try? Data(contentsOf: $0) }
     }
 
-    static func save(_ raw: Data) {
-        guard let file else { return }
+    static func save(_ raw: Data, _ kind: Kind = .feed) {
+        guard let file = file(kind) else { return }
         do {
             try raw.write(to: file, options: .atomic)
         } catch {
@@ -39,7 +48,9 @@ enum TownFeedCache {
     }
 
     static func clear() {
-        guard let file else { return }
-        try? FileManager.default.removeItem(at: file)
+        for kind in Kind.allCases {
+            guard let file = file(kind) else { continue }
+            try? FileManager.default.removeItem(at: file)
+        }
     }
 }

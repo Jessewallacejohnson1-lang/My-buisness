@@ -37,6 +37,8 @@ struct DailyFeedColumn: View {
     /// A card crossed half on screen, with its Event's id: the Town feed counts views
     /// (ticket 20). The system reports crossings only, so scrolling costs nothing.
     var onCardOnScreen: ((String, Bool) -> Void)? = nil
+    /// The clock the Event of the day poster reads ("Now"); the Town feed ticks it each minute.
+    var now = Date()
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var revealedIDs: Set<String> = []
@@ -61,7 +63,7 @@ struct DailyFeedColumn: View {
                             onReveal: { revealedIDs.insert(item.id) }
                         ))
                         .onScrollVisibilityChange(threshold: 0.5) { visible in
-                            if case .event(let event) = item { onCardOnScreen?(event.id, visible) }
+                            if let id = item.eventID { onCardOnScreen?(id, visible) }
                         }
                 }
             }
@@ -85,6 +87,8 @@ struct DailyFeedColumn: View {
                 onShare: { ShareCenter.shared.present(.event(event)) },
                 actionKind: .event
             )
+        case .eventOfTheDay(let event):
+            EventOfTheDayPoster(event: event, now: now)
         }
     }
 

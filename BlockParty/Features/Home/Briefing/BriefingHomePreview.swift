@@ -22,9 +22,10 @@ struct BriefingHomePreview: View {
     @Namespace private var cardNS
     @State private var expandedPlace: Place?
     @State private var townFeed = TownFeed()
+    @State private var eventOfTheDay = EventOfTheDay()
 
     var body: some View {
-        HomeView(expandedPlace: $expandedPlace, cardNS: cardNS, townFeed: townFeed)
+        HomeView(expandedPlace: $expandedPlace, cardNS: cardNS, townFeed: townFeed, eventOfTheDay: eventOfTheDay)
             .environmentObject(AuthStore.shared)
     }
 }

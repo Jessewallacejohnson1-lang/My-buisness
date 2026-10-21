@@ -336,7 +336,8 @@ struct MainTabsView: View {
     @State private var you = YouModel()
     /// Profile's Saved list (ticket 04), kept here the same way.
     @State private var saves = YouModel.saves()
-    /// Daily's Event of the day, kept here the same way (BP app daily-tab 14).
+    /// Daily's Event of the day, kept here the same way (BP app daily-tab 14), and the Town
+    /// feed's top (event-card 03).
     @State private var eventOfTheDay = EventOfTheDay()
     /// Your Going in your iPhone Calendar, kept up to date from here while its switch in
     /// Profile is on (BP app docs/plans/you-tab, ticket 05).
@@ -565,7 +566,8 @@ struct MainTabsView: View {
                                 onOpenNotifications: { showNotifications = true },
                                 expandedPlace: $expandedPlace,
                                 cardNS: cardNS,
-                                townFeed: townFeed
+                                townFeed: townFeed,
+                                eventOfTheDay: eventOfTheDay
                             )
                         // Daily shows its page once it has something real to show: paper
                         // while its first read is out, then the named, reserved slot when

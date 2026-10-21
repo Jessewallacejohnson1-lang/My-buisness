@@ -580,7 +580,7 @@ struct FeedEventCard: View {
 /// stopped the feed scrolling and turned a drag into a push (measured 2026-09-25),
 /// the pan-stealing `FeedMotion`'s header warns about. A slide past `slop` counts as
 /// letting go, so a drag that becomes a scroll releases the squish.
-private struct FeedTouchDownTracker: UIGestureRecognizerRepresentable {
+struct FeedTouchDownTracker: UIGestureRecognizerRepresentable {
     @Binding var isPressed: Bool
 
     /// UIKit's tap slop, the distance a tap stops being a tap.
@@ -626,7 +626,7 @@ private struct FeedTouchDownTracker: UIGestureRecognizerRepresentable {
 
 /// The •••'s press, as the approved Check-in 1 mock drew it: it shrinks to 0.88 over a
 /// faint disc on touch-down and springs back the way it went.
-private struct MenuPressStyle: ButtonStyle {
+struct MenuPressStyle: ButtonStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeBody(configuration: Configuration) -> some View {
@@ -638,7 +638,7 @@ private struct MenuPressStyle: ButtonStyle {
 }
 
 /// The link draws nothing on press: the card's squish comes from `FeedTouchDownTracker`.
-private struct FeedCardLinkStyle: ButtonStyle {
+struct FeedCardLinkStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
     }
@@ -648,7 +648,7 @@ private struct FeedCardLinkStyle: ButtonStyle {
 /// this to fail before it pushes, so the window IS a single tap's delay. SwiftUI's own
 /// double tap waited ~0.5 s after the finger lifted (measured 2026-09-25); this one
 /// fails `window` after it.
-private struct PhotoDoubleTap: UIGestureRecognizerRepresentable {
+struct PhotoDoubleTap: UIGestureRecognizerRepresentable {
     let onDoubleTap: (CGPoint) -> Void
 
     /// Longest gap between the first lift and the second touch that still counts as a

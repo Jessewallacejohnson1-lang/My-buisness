@@ -31,9 +31,17 @@ source is a line in the summary; carry on with the rest.
    write an empty `flags.jsonl` and go to step 5. Done when every batch has its helper's lines.
 4. **Judge.** Read `sources/models/judge.md` and follow it: every flag becomes an item in
    `.runs/morning/judged.jsonl` or is dropped.
-5. **Write.** Run `python3 sources/scripts/morning.py write`. It merges the feed items with
-   yours, writes them to the database and prints the summary.
-6. **Tag.** Run `python3 sources/scripts/morning.py untagged`. It lays out every Event no
+5. **Short titles.** Run `python3 sources/scripts/morning.py titles`. It lists every Event
+   title still over 40 characters (games aside) in `.runs/morning/titles.txt`: three lines don't
+   fit the Town's Event of the day poster. Give each a shorter one by
+   `.claude/skills/title-and-place`, 40 characters at most, never cut mid-word: keep the words a
+   neighbour would recognise ("Anniversary of the Dedication of Sacred Heart Chapel" is "Sacred
+   Heart Chapel Anniversary"). Write them to `.runs/morning/titles.json` as
+   `{"the long title": "the short one"}`. None listed: skip. Done when every listed title has one.
+6. **Write.** Run `python3 sources/scripts/morning.py write`. It merges the feed items with
+   yours, gives the long titles their short ones, writes them to the database and prints the
+   summary. A `[long title]` line in it names one still too long: say so in your answer.
+7. **Tag.** Run `python3 sources/scripts/morning.py untagged`. It lays out every Event no
    tagger has read yet, today's new ones included, in batches in `.runs/morning/tag/`. For each
    batch file, start one helper on the cheap model (Haiku), all at once, each with this prompt:
    "Read `sources/models/tag.md` and follow it for the Events in
@@ -41,12 +49,12 @@ source is a line in the summary; carry on with the rest.
    helpers return to `.runs/morning/tags.jsonl`, then run `python3 sources/scripts/morning.py
    tag`. No batches means nothing to tag: skip the helpers. Done when `tag` prints its
    `[morning] tagged …` line.
-7. **Pick today's standouts** (Daily's Event of the day). Run `python3 sources/scripts/morning.py
+8. **Pick today's standouts** (Daily's Event of the day). Run `python3 sources/scripts/morning.py
    today`, then read `sources/models/standouts.md` and follow it yourself for
    `.runs/morning/today.txt`, writing your lines to `.runs/morning/standouts.jsonl`. Run
    `python3 sources/scripts/morning.py standouts`. Done when it prints its `[morning] standouts …`
    line. A failure here is a line in the answer; Daily then shows the Town feed's top pick.
-8. **Answer** with the summary as `write` printed it, `tag`'s line and the `standouts` lines,
+9. **Answer** with the summary as `write` printed it, `tag`'s line and the `standouts` lines,
    then one line per flag you dropped that a neighbour might have wanted, and why.
 
 ## Rules

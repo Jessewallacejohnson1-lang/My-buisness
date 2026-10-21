@@ -42,6 +42,8 @@ struct FeedView: View {
     var profileShown = false
     /// The Town feed's events, held by the shell so a tab switch doesn't read them again.
     var townFeed: TownFeed
+    /// Your Event of the day, Daily's own (BP app event-card 03): the feed's top.
+    var eventOfTheDay: EventOfTheDay
 
     @StateObject private var controller: FeedController
     @Environment(\.scenePhase) private var scenePhase
@@ -73,7 +75,8 @@ struct FeedView: View {
         onOpenMap: @escaping () -> Void = {},
         onOpenNotifications: @escaping () -> Void = {},
         profileShown: Bool = false,
-        townFeed: TownFeed
+        townFeed: TownFeed,
+        eventOfTheDay: EventOfTheDay
     ) {
         self.auth = auth
         self.onOpenFriends = onOpenFriends
@@ -81,6 +84,7 @@ struct FeedView: View {
         self.onOpenNotifications = onOpenNotifications
         self.profileShown = profileShown
         self.townFeed = townFeed
+        self.eventOfTheDay = eventOfTheDay
         _entrance = State(initialValue: townFeed.returnY == 0)
 
         let briefing = BriefingModel()
@@ -192,15 +196,26 @@ struct FeedView: View {
                 // above the stream, not buried in it.
                 ZStack(alignment: .top) {
                     if townFeed.entries != nil {
-                        DailyFeedColumn(items: townFeed.cards.map { .event($0) },
-                                        entrance: entrance,
-                                        onCardOnScreen: { townFeed.cardOnScreen($0, $1) })
-                            // A card whose time is up goes, and a series' next date
-                            // comes in, rather than popping.
-                            .animation(Motion.smooth, value: townFeed.clock)
-                            // and back at the top, the finished ones held while scrolled down go.
-                            .animation(Motion.smooth, value: townFeed.holding)
-                            .transition(.opacity)
+                        // Your Event of the day on top, the one Daily shows first: when it's over
+                        // the next takes its place within the minute, and with none left it goes.
+                        // Scrolled down it holds as the list under it does, and moves on at the top.
+                        TimelineView(.everyMinute) { context in
+                            let now = townFeed.holding ? townFeed.heldClock : DailyClock.now(context.date)
+                            let top = DailyEvent.showing(eventOfTheDay.events ?? [], now: now, limit: 1).first
+                            DailyFeedColumn(items: DailyFeedItem.town(townFeed.cards, eventOfTheDay: top),
+                                            entrance: entrance,
+                                            onCardOnScreen: { townFeed.cardOnScreen($0, $1) },
+                                            now: now)
+                                // The poster comes, changes and goes, and the cards make room,
+                                // rather than popping.
+                                .animation(Motion.smooth, value: top?.id)
+                        }
+                        // A card whose time is up goes, and a series' next date
+                        // comes in, rather than popping.
+                        .animation(Motion.smooth, value: townFeed.clock)
+                        // and back at the top, the finished ones held while scrolled down go.
+                        .animation(Motion.smooth, value: townFeed.holding)
+                        .transition(.opacity)
                     } else if townFeed.failed {
                         FeedUnavailableBody(title: FeedStateCopy.townEventsUnavailable) {
                             Task { await townFeed.reload() }
@@ -334,6 +349,8 @@ struct FeedView: View {
         // so the events must not queue behind it. Coming back to the tab reads again
         // behind the list already showing.
         .task { await townFeed.refresh() }
+        // The Event of the day beside it, which reads again only when its picks may have moved.
+        .task { await eventOfTheDay.refresh() }
         // When a card's time is up it goes, and the feed reads again behind it.
         .task(id: townFeed.nextLeave) {
             guard let next = townFeed.nextLeave else { return }
@@ -346,6 +363,7 @@ struct FeedView: View {
             case .active:
                 townFeed.cameBack()
                 Task { await townFeed.refresh() }
+                Task { await eventOfTheDay.refresh() }
             case .background:
                 townFeed.left()
             default:

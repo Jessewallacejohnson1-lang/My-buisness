@@ -286,6 +286,25 @@ def game_of(it, title):
     return {"sport": m["sport"], "teams": [host[1], them], "occasion": m["night"]}
 
 
+def long_titles(items, existing=()):
+    """Event titles still over TITLE_MAX once tidied, for the morning job's model to shorten by
+    the title-and-place skill, never cut mid-word (Jesse, 2026-10-21: three lines don't fit the
+    Town's Event of the day poster). Games aside: two team names stay whole. An event already
+    listed with a short title keeps it (plan), so it isn't asked again."""
+    short = {(r.get("source_name"), r.get("source_uid")) for r in existing
+             if r.get("source_uid") and len(r.get("title") or "") <= TITLE_MAX}
+    out = []
+    for it in items:
+        if not isinstance(it, dict) or it.get("kind") != "event" or not isinstance(it.get("title"), str):
+            continue
+        source = str(it.get("source_name") or "").strip()
+        t = tidy_title(it["title"], source)
+        if len(t) > TITLE_MAX and not game_of(dict(it, source_name=source), t) and t not in out \
+                and (source, str(it.get("source_uid") or "").strip()) not in short:
+            out.append(t)
+    return out
+
+
 def tidy_place(place, home="St. Joseph MN"):
     """The place line's venue: a named place before its street, no state or ZIP, and no town
     inside the home town (place_line adds any other town)."""
@@ -414,7 +433,7 @@ def places():
     return _PLACES
 
 
-def event_of(it, today, interests, home, notes):
+def event_of(it, today, interests, home, notes, titles=None):
     try:
         day, at = when(it.get("start") or "", it.get("all_day"))
         until = it.get("end") or ""
@@ -441,6 +460,7 @@ def event_of(it, today, interests, home, notes):
         notes.append(f"interest {interest!r} is not on the list ({it['title']!r}): left empty")
         interest = None
     title, place = tidy_title(it["title"], it["source_name"]), tidy_place(it.get("place"), home)
+    title = (titles or {}).get(title, title)
     place = meets_at(place, it["source_name"], title)
     # ponytail: kept out only as it is first listed. A listed event whose sign-ups close later
     # keeps its day (apply_judged keeps a day already set); the event-lead-time skill's pass
@@ -508,8 +528,9 @@ def group(old=None, facts=None, home="St. Joseph MN"):
             "row": None, "mentions": [dict(m) for m in (old or {}).get("mentions") or []]}
 
 
-def plan(items, existing, today, interests, town=TOWNS["st-joseph-mn"]):
-    """Judged items + the events already listed -> what to write, and each item's outcome."""
+def plan(items, existing, today, interests, town=TOWNS["st-joseph-mn"], titles=None):
+    """Judged items + the events already listed -> what to write, and each item's outcome.
+    `titles`: this morning's shorter titles for long ones, {tidied title: short} (long_titles)."""
     home = town["label"]
     out = {"events": [], "news": [], "outcomes": [None] * len(items), "notes": [], "cancelled": [], "restored": []}
     schedules = []
@@ -528,7 +549,7 @@ def plan(items, existing, today, interests, town=TOWNS["st-joseph-mn"]):
         if not why and it["kind"] == "news":
             n, why = news_of(it)
         elif not why:
-            ev, why = event_of(it, today, interests, home, out["notes"])
+            ev, why = event_of(it, today, interests, home, out["notes"], titles)
         if why:
             out["outcomes"][i] = ("skipped", why)
         elif it["kind"] == "news":
@@ -579,6 +600,12 @@ def plan(items, existing, today, interests, town=TOWNS["st-joseph-mn"]):
             primary = min(g["items"], key=lambda e: (not items[e[0]].get("sure") is True,
                                                      items[e[0]]["trust"] != "official"))
             g["status"] = "approved" if ok else "pending"
+        if old and primary and len(primary[1]["row"]["title"]) > TITLE_MAX >= len(old.get("title") or "") \
+                and not primary[1]["row"]["sport"]:
+            # A title the morning job or Jesse shortened stays when its source sends the long one
+            # again (title-and-place: 40 at most). ponytail: a source that renames an event to
+            # another long title keeps the old short one; compare words if renames show up.
+            primary[1]["row"]["title"] = old["title"]
         if (old and primary and old["status"] == "rejected" and old.get("review_reason") not in (None, "not_event")
                 and any(primary[1]["row"].get(k) != old.get(k)
                         for k in ("title", "event_date", "start_time", "all_day", "location"))):
@@ -683,10 +710,31 @@ def report(items, r):
         print(f"[back on] {str(o['event_date'])[:10]} {o['title']!r}")
     for n in r["notes"]:
         print(f"[note] {n}")
+    for g in r["events"]:
+        if g["row"] and len(g["row"]["title"]) > TITLE_MAX and not g["row"]["sport"]:
+            print(f"[long title] {g['row']['title']!r}: over {TITLE_MAX}; give it a shorter one (title-and-place)")
 
 
 INTERESTS = ["live_music", "families_kids", "breweries", "farmers_market", "art_exhibits", "sports_leagues"]
 TODAY = date(2026, 10, 14)
+
+
+def t_long_titles_shortened_and_kept():
+    chapel = item(title="Anniversary of the Dedication of Sacred Heart Chapel", source_uid="sisters:1")
+    hockey = item(title="Sartell-Sauk Rapids Girls Hockey vs Fergus Falls", source_uid="mshsl:9",
+                  game={"sport": "Girls Hockey", "teams": ["Sartell-Sauk Rapids", "Fergus Falls"]})
+    assert long_titles([chapel, hockey, item()]) == [chapel["title"]], "a game's team names stay whole"
+    short = {chapel["title"]: "Sacred Heart Chapel Anniversary"}
+    assert run([chapel])["events"][0]["row"]["title"] == chapel["title"], "no short one given: as written"
+    got = plan([chapel], [], TODAY, INTERESTS, titles=short)["events"][0]["row"]["title"]
+    assert got == "Sacred Heart Chapel Anniversary", got
+    # Listed short already: not asked again, and its source's long title doesn't undo it.
+    old = listed(title="Sacred Heart Chapel Anniversary", event_date="2026-10-24", start_time="4 PM",
+                 location="Milk & Honey Ciders", source_name="Milk & Honey Ciders", source_uid="sisters:1")
+    assert long_titles([chapel], [old]) == []
+    assert run([chapel], [old])["events"][0]["row"]["title"] == "Sacred Heart Chapel Anniversary"
+    long_old = dict(old, title="Sartell-Sauk Rapids Girls Hockey vs Fergus Falls", source_uid="mshsl:9")
+    assert run([hockey], [long_old])["events"][0]["row"]["title"] == hockey["title"]
 
 
 def t_description_cut_at_a_word():
@@ -1155,7 +1203,8 @@ def t_game():
 TESTS = [t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_secondhand_needs_two, t_unsure_held, t_merge_true_pair,
          t_merge_near_miss_kept_apart, t_same_time_no_place, t_no_place_is_its_posters_own, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
          t_interest_checked, t_area, t_past_and_invalid_skipped, t_writes_are_one_safe_call,
-         t_description_cut_at_a_word, t_city_meeting_end_and_place, t_game, t_all_day_run_keeps_its_last_day]
+         t_description_cut_at_a_word, t_city_meeting_end_and_place, t_game, t_all_day_run_keeps_its_last_day,
+         t_long_titles_shortened_and_kept]
 
 
 def selftest():
