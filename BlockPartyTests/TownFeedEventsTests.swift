@@ -326,6 +326,18 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(town.cards.map(\.id), ["long"])
     }
 
+    /// Scrolled down, a card the read no longer has (called off, say) keeps its place too, and
+    /// leaves at the top with the finished ones.
+    func testACardTheReadDropsWaitsForTheTopToo() async {
+        let town = feed(answers: [entries(["a", "b"]), entries(["a"])])
+        await town.reload(at: now)
+        town.scrollY = 300
+        await town.refresh(at: now.addingTimeInterval(60))
+        XCTAssertEqual(town.cards.map(\.id), ["a", "b"])
+        town.scrollY = 0
+        XCTAssertEqual(town.cards.map(\.id), ["a"])
+    }
+
     /// The clock moves only once the read is done. The feed's leave timer is keyed on
     /// `nextLeave`, which the clock decides: moved first, it cancelled the timer's own
     /// read, so a series' next date never came in.
@@ -388,6 +400,7 @@ final class TownFeedEventsTests: XCTestCase {
         await town.reload(at: now)
         town.scrollY = 300
         town.left(at: now)
+        town.scrollY = 0  // another tab: the rebuilt screen starts at the top
         town.cameBack(at: now.addingTimeInterval(29 * 60))
         await town.refresh(at: now.addingTimeInterval(29 * 60))
         XCTAssertEqual(town.cards.map(\.id), ["a", "c"])
@@ -411,6 +424,7 @@ final class TownFeedEventsTests: XCTestCase {
         await town.reload(at: now)
         town.scrollY = 300
         town.left(at: now)
+        town.scrollY = 0  // another tab: the rebuilt screen starts at the top
         town.cameBack(at: now.addingTimeInterval(29 * 60))
         await town.refresh(at: now.addingTimeInterval(29 * 60))
         XCTAssertEqual(town.cards.map(\.id), ["a", "c"])

@@ -174,9 +174,6 @@ final class TownFeed {
     func cameBack(at now: Date = Date()) {
         guard let since = awaySince else { return }
         awaySince = nil
-        // Nobody had a finger on the list while away: what left goes now, and the hold
-        // starts again with the next scroll.
-        holding = false
         // Cards still half on screen start their second over.
         for id in onScreen.keys { onScreen[id] = now }
         cameBackAt = now
@@ -230,8 +227,11 @@ final class TownFeed {
                 viewed = []  // a new feed load: each card may count once more
             } else {
                 let byID = Dictionary(new.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-                // Scrolled down, a card the read no longer has keeps its place until the top.
-                entries = entries?.compactMap { byID[$0.id] ?? (holding ? $0 : nil) }
+                // Scrolled down, a card the read no longer has (called off, say) keeps its place,
+                // marked to leave at the top with the finished ones.
+                entries = entries?.compactMap {
+                    byID[$0.id] ?? (holding ? TownFeedEntry(card: $0.card, leavesAt: min($0.leavesAt, now)) : nil)
+                }
             }
             freshDue = false
             failed = false
