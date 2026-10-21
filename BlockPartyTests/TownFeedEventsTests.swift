@@ -312,6 +312,20 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(town.nextLeave, now.addingTimeInterval(5 * 3600))
     }
 
+    /// Scrolled down, a card whose time is up keeps its place, so nothing moves under the
+    /// finger, while the leave timer moves on; back at the top it goes (Jesse, 2026-10-21).
+    func testAFinishedCardWaitsForTheTopBeforeItLeaves() async {
+        let town = feed(answers: [[TownFeed.entry(row("short", leavesIn: 1)), TownFeed.entry(row("long", leavesIn: 5))],
+                                  [TownFeed.entry(row("long", leavesIn: 5))]])
+        await town.reload(at: now)
+        town.scrollY = 300
+        await town.refresh(at: now.addingTimeInterval(2 * 3600))
+        XCTAssertEqual(town.cards.map(\.id), ["short", "long"])
+        XCTAssertEqual(town.nextLeave, now.addingTimeInterval(5 * 3600), "the leave timer still moves on")
+        town.scrollY = 0
+        XCTAssertEqual(town.cards.map(\.id), ["long"])
+    }
+
     /// The clock moves only once the read is done. The feed's leave timer is keyed on
     /// `nextLeave`, which the clock decides: moved first, it cancelled the timer's own
     /// read, so a series' next date never came in.

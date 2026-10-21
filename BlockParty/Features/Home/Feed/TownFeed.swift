@@ -46,8 +46,20 @@ final class TownFeed {
     private(set) var clock = Date()
 
     /// How far down the screen is scrolled. Written by the screen as it scrolls; not
-    /// observed, so scrolling re-renders nothing.
-    @ObservationIgnored var scrollY: CGFloat = 0
+    /// observed, so scrolling re-renders nothing but the step on or off the top.
+    @ObservationIgnored var scrollY: CGFloat = 0 {
+        didSet {
+            guard atTop == holding else { return }
+            if !atTop { heldClock = clock }
+            holding = !atTop
+        }
+    }
+    /// Scrolled down from the top: nothing leaves the list under the finger. A card whose
+    /// time is up stays where it is until the top, a pull or a fresh order (Jesse,
+    /// 2026-10-21: at 7 PM a finished game above dropped out and the feed jumped).
+    private(set) var holding = false
+    /// The clock the list goes by while holding: where it was when the screen left the top.
+    @ObservationIgnored private var heldClock = Date()
     /// At the top is the only place a fresh order may replace the list.
     var atTop: Bool { scrollY <= 1 }
     /// Where the screen was when the feed went away, so coming back within 30 minutes
@@ -128,7 +140,7 @@ final class TownFeed {
     /// The cards still on, in the database's order. The admin's Score names each card's
     /// place as it is on screen, so it holds after a read that kept the order.
     var cards: [FeedCardItem] {
-        let on = (entries ?? []).filter { $0.leavesAt > clock }.map(\.card)
+        let on = (entries ?? []).filter { $0.leavesAt > (holding ? heldClock : clock) }.map(\.card)
         return on.enumerated().map { place, card in
             var card = card
             card.score?.spot = place + 1
@@ -162,6 +174,9 @@ final class TownFeed {
     func cameBack(at now: Date = Date()) {
         guard let since = awaySince else { return }
         awaySince = nil
+        // Nobody had a finger on the list while away: what left goes now, and the hold
+        // starts again with the next scroll.
+        holding = false
         // Cards still half on screen start their second over.
         for id in onScreen.keys { onScreen[id] = now }
         cameBackAt = now
@@ -215,7 +230,8 @@ final class TownFeed {
                 viewed = []  // a new feed load: each card may count once more
             } else {
                 let byID = Dictionary(new.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-                entries = entries?.compactMap { byID[$0.id] }
+                // Scrolled down, a card the read no longer has keeps its place until the top.
+                entries = entries?.compactMap { byID[$0.id] ?? (holding ? $0 : nil) }
             }
             freshDue = false
             failed = false

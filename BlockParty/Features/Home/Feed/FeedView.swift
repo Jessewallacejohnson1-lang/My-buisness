@@ -198,6 +198,8 @@ struct FeedView: View {
                             // A card whose time is up goes, and a series' next date
                             // comes in, rather than popping.
                             .animation(Motion.smooth, value: townFeed.clock)
+                            // and back at the top, the finished ones held while scrolled down go.
+                            .animation(Motion.smooth, value: townFeed.holding)
                             .transition(.opacity)
                     } else if townFeed.failed {
                         FeedUnavailableBody(title: FeedStateCopy.townEventsUnavailable) {
