@@ -1,0 +1,120 @@
+[
+ {
+  "id": "g1",
+  "title": "SJU Football vs Gustavus Adolphus",
+  "host": "SJU Athletics",
+  "place": "Clemens Stadium",
+  "day": "2026-10-31",
+  "time": "1 PM",
+  "hoursUntil": 240,
+  "went": 84,
+  "game": {
+   "sport": "Football",
+   "teams": [
+    {
+     "name": "Saint John's",
+     "short": "Saint John's",
+     "logo": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/saint-johns/logo-36d1a2aa13.png",
+     "color": "#C20430"
+    },
+    {
+     "name": "Gustavus Adolphus",
+     "short": "Gustavus",
+     "logo": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/gustavus-adolphus/logo-11419c050d.png",
+     "color": "#000000"
+    }
+   ]
+  }
+ },
+ {
+  "id": "g2",
+  "title": "SJU Football vs Concordia: Homecoming",
+  "host": "SJU Athletics",
+  "place": "Clemens Stadium",
+  "day": "2026-10-17",
+  "time": "1 PM",
+  "hoursUntil": 4,
+  "went": 212,
+  "game": {
+   "sport": "Football",
+   "occasion": "Homecoming",
+   "final": [
+    33,
+    23
+   ],
+   "teams": [
+    {
+     "name": "Saint John's",
+     "short": "Saint John's",
+     "logo": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/saint-johns/logo-36d1a2aa13.png",
+     "color": "#C20430"
+    },
+    {
+     "name": "Concordia",
+     "short": "Concordia",
+     "color": "#5E1027"
+    }
+   ]
+  }
+ },
+ {
+  "id": "g3",
+  "title": "Sartell Girls Soccer vs Sauk Rapids-Rice",
+  "host": "Sartell High School",
+  "place": "Sartell High School",
+  "day": "2026-10-06",
+  "time": "5 PM",
+  "hoursUntil": 4,
+  "went": 0,
+  "game": {
+   "sport": "Girls Soccer",
+   "final": [
+    6,
+    0
+   ],
+   "teams": [
+    {
+     "name": "Sartell",
+     "short": "Sartell",
+     "logo": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/st-joseph/sartell-high-school/logo-413105dbbc.webp",
+     "color": "#1A4C9C"
+    },
+    {
+     "name": "Sauk Rapids-Rice",
+     "short": "Sauk Rapids-Rice",
+     "logo": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/st-joseph/sauk-rapids-rice-high-school/logo-d6430916a5.webp",
+     "color": "#0F5A32"
+    }
+   ]
+  }
+ },
+ {
+  "id": "g4",
+  "title": "Sartell Girls Soccer vs Anoka",
+  "host": "Sartell High School",
+  "place": "Sartell High School",
+  "day": "2026-08-27",
+  "time": "5 PM",
+  "hoursUntil": 4,
+  "went": 18,
+  "game": {
+   "sport": "Girls Soccer",
+   "final": [
+    2,
+    2
+   ],
+   "teams": [
+    {
+     "name": "Sartell",
+     "short": "Sartell",
+     "logo": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/st-joseph/sartell-high-school/logo-413105dbbc.webp",
+     "color": "#1A4C9C"
+    },
+    {
+     "name": "Anoka",
+     "short": "Anoka"
+    }
+   ]
+  }
+ }
+]

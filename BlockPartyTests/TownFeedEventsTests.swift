@@ -243,6 +243,29 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(cards.count, 4, "no row is lost to its game")
     }
 
+    /// A game's final (game-card 02) reads in its teams' order, the winner is the side with more, a
+    /// tie has none, and a final that doesn't read is none, so the card stays VS.
+    func testAGamesFinalReadsInTeamOrderAndABadOneKeepsVS() throws {
+        func game(_ final: String) throws -> Game? {
+            let json = #"{"sport":"Football","teams":[{"name":"Saint John's"},{"name":"Concordia"}]"# + final + "}"
+            return try JSONDecoder().decode(Game.Lenient.self, from: Data(json.utf8)).value
+        }
+        let won = try XCTUnwrap(try game(#","final":[33,23]"#))
+        XCTAssertEqual(won.final, [33, 23])
+        XCTAssertEqual(won.winner, 0)
+        XCTAssertEqual(won.spoken, "Football, Saint John's 33, Concordia 23, final")
+        XCTAssertEqual(try game(#","final":[0,2]"#)?.winner, 1, "the host lost")
+        let tie = try XCTUnwrap(try game(#","final":[2,2]"#))
+        XCTAssertEqual(tie.final, [2, 2])
+        XCTAssertNil(tie.winner, "a tie fades neither side")
+        for bad in [#","final":null"#, #","final":[1]"#, #","final":[-1,3]"#, #","final":"33-23""#, ""] {
+            let kept = try XCTUnwrap(try game(bad), "the game stays: \(bad)")
+            XCTAssertNil(kept.final, bad)
+            XCTAssertNil(kept.winner, bad)
+            XCTAssertEqual(kept.spoken, "Football, Saint John's versus Concordia", bad)
+        }
+    }
+
     /// Every reason the database sends has a line; one this app doesn't know has none,
     /// so a newer database never puts a wrong line on an older app.
     func testEachReasonHasItsLine() {
@@ -250,6 +273,7 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(FeedCardMenu.line(reason: "size", name: nil), "Big in town")
         XCTAssertEqual(FeedCardMenu.line(reason: "tomorrow", name: nil), "Happening tomorrow")
         XCTAssertEqual(FeedCardMenu.line(reason: "soon", name: nil), "Coming up soon")
+        XCTAssertEqual(FeedCardMenu.line(reason: "final", name: nil), "Final score", "a game that's over (game-card 02)")
         XCTAssertEqual(FeedCardMenu.line(reason: "friend", name: "Sam"), "Sam is going")
         XCTAssertEqual(FeedCardMenu.line(reason: "tapped", name: "Sal's Bar and Grill"),
                        "You've been into Sal's Bar and Grill lately")

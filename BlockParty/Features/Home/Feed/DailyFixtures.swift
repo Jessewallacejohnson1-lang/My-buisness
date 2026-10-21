@@ -100,7 +100,35 @@ enum DailyFixtures {
     /// as `get_town_feed` sends them, each leaving two hours after it starts, as one
     /// with no end time does.
     static func townEntries(now: Date = Date()) -> [TownFeedEntry] {
-        sampleEvents(now: now).sorted { $0.leavesAt < $1.leavesAt }
+        let games = ProcessInfo.processInfo.arguments.contains("-town-games") ? gameSamples(now: now) : []
+        return games + sampleEvents(now: now).sorted { $0.leavesAt < $1.leavesAt }
+    }
+
+    /// `-town-games`: four games first, as `get_town_feed` sends them (game-card 02): SJU vs
+    /// Gustavus to come, the ticket's real finals SJU 33-23 Concordia and Sartell 6-0 Sauk
+    /// Rapids-Rice, and Sartell's 2-2 tie with Anoka, with the schools' saved logos and colors
+    /// (`Resources/Fixtures/town-games.json`: their colors are data, as the feed's are).
+    private static func gameSamples(now: Date) -> [TownFeedEntry] {
+        struct Sample: Decodable {
+            let id, title, host, place, day: String
+            let time: String?
+            let hoursUntil: Double
+            let went: Int
+            let game: Game
+        }
+        guard let url = Bundle.main.url(forResource: "town-games", withExtension: "json"),
+              let data = try? Data(contentsOf: url),
+              let samples = try? JSONDecoder().decode([Sample].self, from: data) else { return [] }
+        return samples.map { g in
+            let entry = event(id: g.id, title: g.title, host: g.host, hostAvatar: false, chip: "", meta: g.place,
+                              photo: false, hoursUntil: g.hoursUntil, going: g.went, now: now)
+            var card = entry.card
+            card.eventDate = g.day
+            card.startTime = g.time
+            card.location = g.place
+            card.game = g.game
+            return TownFeedEntry(card: card, leavesAt: entry.leavesAt)
+        }
     }
 
     private static func sampleEvents(now: Date) -> [TownFeedEntry] {
