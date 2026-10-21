@@ -40,6 +40,14 @@ enum DeclineReason: String, CaseIterable, Identifiable {
     }
 }
 
+/// A friend Going as `get_town_feed` and `get_my_going` send them: first name and photo
+/// (town-feed 28, you-tab 07).
+private struct FriendRow: Decodable {
+    let name: String
+    let photo: String?
+    var feed: FeedFriend { FeedFriend(name: name, photo: photo.flatMap(URL.init(string:))) }
+}
+
 struct CommunityAPI {
     let auth: any TokenProviding
 
@@ -265,7 +273,7 @@ struct CommunityAPI {
             let saved: Bool?
             let cancelled: Bool?
             /// Optional, so a feed kept on disk before town-feed 28 still decodes.
-            let friendsGoing: [Friend]?
+            let friendsGoing: [FriendRow]?
             let placePicture: PlacePicture.Lenient?
             let description: String?
             /// Optional, so a feed kept on disk before rsvp-and-groups 07 still decodes.
@@ -275,10 +283,6 @@ struct CommunityAPI {
             let game: Game.Lenient?
             /// What it is in one to three words (event-card 05).
             let what: String?
-        }
-        struct Friend: Decodable {
-            let name: String
-            let photo: String?
         }
         /// The admin's breakdown, or nil when it doesn't decode: a score never costs the
         /// feed.
@@ -306,9 +310,7 @@ struct CommunityAPI {
                                reason: row.reason, reasonName: row.reasonName, score: row.score?.value,
                                heartCount: row.heartCount ?? 0, hearted: row.hearted ?? false,
                                saved: row.saved ?? false,
-                               friendsGoing: (row.friendsGoing ?? []).map {
-                                   FeedFriend(name: $0.name, photo: $0.photo.flatMap(URL.init(string:)))
-                               },
+                               friendsGoing: (row.friendsGoing ?? []).map(\.feed),
                                groupID: row.clubId, inGroup: row.inClub ?? false)
         }
     }
@@ -547,11 +549,13 @@ struct CommunityAPI {
             let cancelled: Bool?
             let placePicture: PlacePicture.Lenient?
             let description: String?
+            /// `get_my_going`'s only (you-tab 07); `get_my_saves` sends none.
+            let friendsGoing: [FriendRow]?
         }
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         return try decoder.decode([Row].self, from: data).map { row in
-            UpcomingEvent(id: row.id, title: row.title, eventDate: row.eventDate,
+            var event = UpcomingEvent(id: row.id, title: row.title, eventDate: row.eventDate,
                           startTime: row.startTime, location: row.location,
                           goingCount: row.goingCount, createdAt: row.createdAt,
                           imageUrl: row.imageUrl, rsvpd: row.going ?? true, saved: saved,
@@ -562,6 +566,8 @@ struct CommunityAPI {
                           cancelled: row.cancelled ?? false,
                           placePicture: row.placePicture?.value,
                           description: row.description)
+            event.friendsGoing = (row.friendsGoing ?? []).map(\.feed)
+            return event
         }
     }
 

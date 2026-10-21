@@ -280,7 +280,7 @@ struct YouPage: View {
     private func agenda(going: [DailyEvent]?, day: Date, now: Date) -> some View {
         // "Nothing planned" is a working line; Jesse writes the final words.
         AgendaList(events: going.map { YouCalendar.on(day, $0) }, failed: model.failed,
-                   empty: "Nothing planned", loading: "Loading your plans", now: now,
+                   empty: "Nothing planned", loading: "Loading your plans", now: now, faces: true,
                    retry: { Task { await model.refresh() } }, open: { pushed = $0 })
             // A new day starts with every card closed.
             .id(day)

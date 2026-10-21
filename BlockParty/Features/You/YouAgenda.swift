@@ -41,6 +41,8 @@ struct AgendaList: View {
     let loading: String
     let now: Date
     var withDay = false
+    /// The friends Going on each card: the You Agenda's, not Saved's (ticket 07).
+    var faces = false
     let retry: () -> Void
     let open: (FeedCardItem) -> Void
 
@@ -53,7 +55,7 @@ struct AgendaList: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, YouMetric.emptyLine)
             } else {
-                AgendaCards(events: events, now: now, withDay: withDay, open: open)
+                AgendaCards(events: events, now: now, withDay: withDay, faces: faces, open: open)
             }
         } else if failed {
             FeedRetryButton(action: retry)
@@ -79,6 +81,7 @@ struct AgendaCards: View {
     let now: Date
     /// The time line says the day too ("Sat, Oct 17 · Noon"), for a list that spans days.
     var withDay = false
+    var faces = false
     let open: (FeedCardItem) -> Void
     @State private var openID: String?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -88,11 +91,20 @@ struct AgendaCards: View {
         VStack(spacing: AgendaMetric.rowGap) {
             ForEach(events) { event in
                 Button { tap(event) } label: {
-                    AgendaCard(event: event, now: now, withDay: withDay, open: openID == event.id)
+                    AgendaCard(event: event, now: now, withDay: withDay,
+                               friends: faces ? event.item.friendsGoing : [], open: openID == event.id)
                 }
                 .buttonStyle(PressableCardStyle())
             }
         }
+    }
+
+    /// What VoiceOver reads for a card, the words page's `agenda-friends-vo`: "Trivia Night,
+    /// 7 PM, Anna and Ben are going", the Town card's friends line after the time, then what an
+    /// open card adds.
+    static func spoken(title: String, when: String, friends: [String], more: String) -> String {
+        [title, when, RSVPWords.friendsLine(friends, bar: false), more]
+            .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
     }
 
     /// VoiceOver reads the whole card at once, so its first tap opens the page.
@@ -112,7 +124,11 @@ private struct AgendaCard: View {
     let event: DailyEvent
     let now: Date
     let withDay: Bool
+    /// Friends Going, the Town card's faces at the right of a closed card (ticket 07); an open
+    /// card's arrow takes their place (Jesse, ticket 07 Check-in 1).
+    let friends: [FeedFriend]
     let open: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let started = event.isOn(now)
@@ -152,6 +168,17 @@ private struct AgendaCard: View {
                 .opacity(open ? 1 : 0)
                 .scaleEffect(open ? 1 : 0.6)
         }
+        .overlay(alignment: .trailing) {
+            // A read that brings other friends fades the faces over, never pops them.
+            if !friends.isEmpty {
+                FriendFaces(friends: friends, ring: Hue.surface)
+                    .id(friends)
+                    .transition(.opacity)
+                    .padding(.trailing, AgendaMetric.textGap)
+                    .opacity(open ? 0 : 1)
+            }
+        }
+        .animation(reduceMotion ? nil : Motion.smooth, value: friends)
         // The lines an opening card adds start at their final place; this keeps them
         // inside the card while it grows to reach them.
         .clipShape(card)
@@ -162,7 +189,19 @@ private struct AgendaCard: View {
         }
         .contentShape(card)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel([event.item.title, when.spoken, more].joined(separator: ", "))
+        .accessibilityLabel(AgendaCards.spoken(title: event.item.title, when: when.spoken,
+                                               friends: friends.map(\.name), more: more))
+    }
+
+    /// What the closed title leaves on its right for the faces: their width and their inset from
+    /// the card's edge. The text already stops the card's inset short of that edge, so that much
+    /// is left between the title and the faces.
+    private var facesRoom: CGFloat {
+        guard !friends.isEmpty else { return 0 }
+        // `FriendFaces`, set in from the card's edge as far as the arrow, so they sit where it comes in.
+        let step = FriendFaces.side - FriendFaces.overlap
+        let faces = FriendFaces.side + step * CGFloat(min(friends.count, 3) - 1)
+        return faces + AgendaMetric.textGap
     }
 
     /// When it starts: "Now" while it's on, else its time, or with `withDay` the Town
@@ -192,7 +231,7 @@ private struct AgendaCard: View {
     private var title: some View {
         let text = Text(event.item.title).font(.sansSemibold(15)).foregroundStyle(Hue.ink)
         return ZStack(alignment: .topLeading) {
-            text.lineLimit(1).opacity(open ? 0 : 1)
+            text.lineLimit(1).padding(.trailing, facesRoom).opacity(open ? 0 : 1)
             text.fixedSize(horizontal: false, vertical: true)
                 .padding(.trailing, AgendaMetric.arrowRoom)
                 .frame(height: open ? nil : 0, alignment: .top)

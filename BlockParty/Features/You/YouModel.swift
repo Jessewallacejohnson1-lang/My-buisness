@@ -158,6 +158,8 @@ enum YouCalendar {
         var item = FeedCardItem(row)
         // An all-day Event shows no start time (schema.sql, `all_day`).
         if row.isAllDay { item.startTime = nil }
+        // Friends Going ride the card as the Town feed's do (ticket 07).
+        item.friendsGoing = row.friendsGoing
         return timed(item, day: row.eventDate, time: item.startTime, endAt: row.endAt)
     }
 
@@ -278,10 +280,18 @@ enum YouCalendar {
         return rows.enumerated().compactMap { index, row in
             guard let date = day(row.0) else { return nil }
             let photo = row.3.flatMap { Bundle.main.url(forResource: $0, withExtension: "jpg") }
-            return UpcomingEvent(id: "you-sample-\(index)", title: row.2, eventDate: Town.day(date),
-                                 startTime: row.1, location: row.4, goingCount: 3, createdAt: "",
-                                 imageUrl: photo?.absoluteString, rsvpd: true, category: row.5,
-                                 cancelled: index == 4 && cancelledSample)
+            var event = UpcomingEvent(id: "you-sample-\(index)", title: row.2, eventDate: Town.day(date),
+                                      startTime: row.1, location: row.4, goingCount: 3, createdAt: "",
+                                      imageUrl: photo?.absoluteString, rsvpd: true, category: row.5,
+                                      cancelled: index == 4 && cancelledSample)
+            // The coffee and the book club: two of the sample friends (`Neighbor.samples`), and one
+            // with no photo, who shows their initial (ticket 07).
+            let friends: [(String, String?)] = index == 2 ? [("Sam", "centennial-park"), ("Marlene", "memorial-park")]
+                : index == 3 ? [("Dale", nil)] : []
+            event.friendsGoing = friends.map { name, photo in
+                FeedFriend(name: name, photo: photo.flatMap { Bundle.main.url(forResource: $0, withExtension: "jpg") })
+            }
+            return event
         }
     }
     #endif

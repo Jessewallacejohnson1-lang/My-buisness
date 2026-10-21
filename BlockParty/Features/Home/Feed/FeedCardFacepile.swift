@@ -112,11 +112,15 @@ struct FriendFaces: View {
     let friends: [FeedFriend]
     /// The ring that parts the faces: the page under them (the poster's dark on event-card 03).
     var ring: Color = Hue.paper
+    /// Each face, and how far the next one tucks under it; the You Agenda's title makes room
+    /// by them (you-tab 07).
+    static let side: CGFloat = 24
+    static let overlap: CGFloat = 8
 
     var body: some View {
-        HStack(spacing: -8) {
+        HStack(spacing: -Self.overlap) {
             ForEach(Array(friends.prefix(3).enumerated()), id: \.offset) { index, friend in
-                FeedAuthorAvatar(url: friend.photo, name: friend.name, side: 24, initialSize: 10)
+                FeedAuthorAvatar(url: friend.photo, name: friend.name, side: Self.side, initialSize: 10)
                     .overlay(Circle().strokeBorder(ring, lineWidth: 1.5))
                     .zIndex(Double(3 - index))
             }

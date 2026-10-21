@@ -162,6 +162,10 @@ nonisolated struct UpcomingEvent: Identifiable, Hashable {
     /// What it is in one to three words, the morning tagger's ("Lecture"; BP app event-card 05).
     /// nil until it's tagged, and on rows read before the feed sent it.
     var what: String? = nil
+    /// Up to three of the caller's friends Going, newest Going first: only the You tab's read
+    /// sends them (`get_my_going`, BP app docs/plans/you-tab, ticket 07). The Town feed's ride
+    /// `TownFeedRow`.
+    var friendsGoing: [FeedFriend] = []
 }
 
 /// A game between two teams, as `get_town_feed` sends it (`private.event_game`): the sport
