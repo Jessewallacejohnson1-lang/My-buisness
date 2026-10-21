@@ -4,7 +4,7 @@
 // this folder. The schema below is the subset of schema.sql the function reads.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
@@ -15,6 +15,14 @@ const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
 // The function, then its re-creation with counts from the private helpers (town-feed ticket 19).
 const files = creating(migrations, ['public.get_my_going', 'public.place_picture', 'public.get_my_saves',
   'private.going_count', 'private.heart_count']);
+// Friends Going (you-tab 07) read the Town feed's helper and the Friends builds' rule for who may be
+// shown, as they are now: each function alone, cut from the file that makes it.
+const cut = (suffix, fn) => readdirSync(migrations).filter((f) => f.endsWith(suffix)).sort()
+  .map((f) => readFileSync(join(migrations, f), 'utf8'))
+  .map((sql) => sql.match(new RegExp(`create or replace function ${fn.replace('.', '\\.')}\\([\\s\\S]*?\\$\\$;`)))
+  .filter(Boolean).pop()[0];
+const findable = cut('_unfriend_and_block.sql', 'private.findable');
+const friendsGoing = cut('_friends_shape_feed.sql', 'private.friends_going');
 
 const db = await PGlite.create();
 await db.exec(`
@@ -22,6 +30,16 @@ await db.exec(`
   create role anon; create role authenticated;
   create schema auth;
   grant usage on schema auth to anon, authenticated;
+  create table auth.users (id uuid primary key, is_anonymous boolean not null default false,
+    banned_until timestamptz);
+  -- Neighbours and the Friends builds' tables (friend_requests, unfriend_and_block), as they are live.
+  create table public.town_profiles (user_id uuid primary key, display_name text, avatar_url text,
+    plans_to_friends boolean not null default true);
+  create schema if not exists private;
+  create table private.friendships (a uuid not null, b uuid not null, requested_by uuid not null,
+    created_at timestamptz not null default now(), primary key (a, b), check (a < b));
+  create table private.blocks (blocker_id uuid not null, blocked_id uuid not null,
+    created_at timestamptz not null default now(), primary key (blocker_id, blocked_id));
   create function auth.uid() returns uuid language sql stable as
     $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
   create function public.is_admin() returns boolean language sql stable as $$ select false $$;
@@ -65,6 +83,8 @@ for (const f of ['20261016150000_place_photos.sql', '20261016170000_place_photo_
   await db.exec(readFileSync(join(migrations, f), 'utf8'));
 // Supabase gives anon and authenticated each new public table; the setup's grant ran before it.
 await db.exec('grant select on public.place_photos to anon, authenticated');
+await db.exec(findable);
+await db.exec(friendsGoing);
 for (const f of files) await db.exec(readFileSync(join(migrations, f), 'utf8'));
 
 const CITY = 'City of St. Joseph';
@@ -73,7 +93,8 @@ const NEIGHBOUR = '00000000-0000-0000-0000-00000000000b';
 
 async function reset() {
   await db.exec(`reset role; delete from public.event_rsvps; delete from public.event_saves;
-                 delete from public.club_events;
+                 delete from public.club_events; delete from private.friendships;
+                 delete from public.town_profiles; delete from auth.users;
                  delete from public.clubs; reset request.jwt.claim.sub;`);
 }
 
@@ -279,6 +300,51 @@ test("your Going and your saves carry each event's place picture", async () => {
   await db.exec('reset role; delete from public.place_photos;');
   assert.equal(g[0].place_picture.url, 'https://x/food.webp');
   assert.equal(s[0].place_picture.url, 'https://x/food.webp');
+});
+
+// Friends Going (you-tab 07): the Town feed's helper decides who; its rules (plans off, blocked,
+// strangers, Events over, newest first) are town_feed.test.mjs's. These check the You tab carries them.
+const FRIEND = '00000000-0000-0000-0000-0000000000c1';
+const FRIEND_PHOTO = `https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/avatars/${FRIEND}/me.jpg`;
+// A Town day a few days from now, so the Event is never over when the stories run.
+const soon = () => new Date(Date.now() + 3 * 86400000).toLocaleDateString('sv-SE', { timeZone: 'America/Chicago' });
+
+async function friendsOn(day) {
+  await db.exec(`set role authenticated; set request.jwt.claim.sub = '${ME}'`);
+  const { rows } = await db.query(
+    `select title, friends_going from public.get_my_going($1::date, $1::date)`, [day]);
+  await db.exec('reset role');
+  return rows;
+}
+
+test('a friend Going to your plan rides it, first name and photo; nobody, an empty list', async () => {
+  await reset();
+  const day = soon();
+  const quiz = await add('Quiz night', day);
+  const fair = await add('Craft fair', day);
+  await db.query('insert into auth.users (id) values ($1)', [FRIEND]);
+  await db.query(`insert into public.town_profiles (user_id, display_name, avatar_url) values ($1, 'Anna Lee', $2)`,
+                 [FRIEND, FRIEND_PHOTO]);
+  await db.query('insert into private.friendships (a, b, requested_by) values ($1, $2, $1)', [ME, FRIEND]);
+  await going(ME, quiz);
+  await going(ME, fair);
+  await going(FRIEND, quiz);
+  assert.deepEqual((await friendsOn(day)).map((r) => [r.title, r.friends_going]),
+                   [['Craft fair', []], ['Quiz night', [{ name: 'Anna', photo: FRIEND_PHOTO }]]]);
+});
+
+test('a friend who leaves drops off on the next read', async () => {
+  await reset();
+  const day = soon();
+  const quiz = await add('Quiz night', day);
+  await db.query('insert into auth.users (id) values ($1)', [FRIEND]);
+  await db.query(`insert into public.town_profiles (user_id, display_name) values ($1, 'Anna Lee')`, [FRIEND]);
+  await db.query('insert into private.friendships (a, b, requested_by) values ($1, $2, $1)', [ME, FRIEND]);
+  await going(ME, quiz);
+  await going(FRIEND, quiz);
+  assert.equal((await friendsOn(day))[0].friends_going.length, 1);
+  await db.query('delete from public.event_rsvps where user_id = $1', [FRIEND]);
+  assert.deepEqual((await friendsOn(day))[0].friends_going, []);
 });
 
 test('your Going and your saves carry each event\'s description', async () => {
