@@ -276,14 +276,15 @@ final class RealLifeActions {
 
     /// What the card's RSVP area says (`RSVPWords`): only for someone who may act, as Join
     /// never showed without an account.
-    /// `bar`: the Event page's, in fewer words.
+    /// `bar`: the Event page's, in fewer words. `town`: the Town card's and poster's, whose pill
+    /// turns into the X that leaves.
     /// A game whose final is in says who went and offers nothing to tap; with nobody, nothing.
-    func rsvp(_ item: FeedCardItem, bar: Bool = false) -> RSVPWords? {
+    func rsvp(_ item: FeedCardItem, bar: Bool = false, town: Bool = false) -> RSVPWords? {
         guard canAct else { return nil }
         let going = going(item)
         let words = RSVPWords.make(isGoing: going.isGoing, count: going.count,
                                    friends: item.friendsGoing.map(\.name), cancelled: item.cancelled, bar: bar,
-                                   over: item.game?.final != nil)
+                                   town: town, over: item.game?.final != nil)
         return words.pill == nil && words.top == nil && words.second == nil ? nil : words
     }
 

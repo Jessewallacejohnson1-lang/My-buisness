@@ -4,7 +4,8 @@
 //  docs/plans/rsvp-and-groups, tickets 01 and 02): the going words at the left, Meetup's pill
 //  at the right, as the Figma page "Meetup depth" draws it. One tap on Attend and you're Going:
 //  "You're going!", "Can't go?" under it to leave, a check on the pill's calendar, and then the
-//  pill becomes Invite. Going itself is `RealLifeActions`'.
+//  pill becomes Invite; on Town it shrinks into a round X that leaves instead (attend-x). Going
+//  itself is `RealLifeActions`'.
 //
 
 import SwiftUI
@@ -13,7 +14,8 @@ import SwiftUI
 /// page's bar, from an Event's Going, its count, the friends going and whether it's called
 /// off (`RSVPWordsTests`).
 nonisolated struct RSVPWords: Equatable {
-    enum Pill: Equatable { case rsvp, invite, canceled }
+    /// `leave`: Town's round X, which takes you off the going list.
+    enum Pill: Equatable { case rsvp, invite, leave, canceled }
 
     /// "41 going" or "You're going!", or once a game's final is in "212 went"; nil while nobody is going.
     var top: String?
@@ -28,13 +30,19 @@ nonisolated struct RSVPWords: Equatable {
     /// `bar`: the Event page's floating bar says less (Jesse at rsvp-and-groups 02's Check-in 2):
     /// no "Can't go?" (leaving stays on the Town card), and beside the friends' faces only
     /// their names, which fit by its bigger words where "… are going" didn't.
+    /// `town`: the Town card and the poster on top of Town. Going, the pill turns into a round X
+    /// that leaves, so there's no "Can't go?"; sharing stays on the card's send (Jesse, 2026-10-21).
+    /// Called off, the pill says Canceled and "Can't go?" still leaves.
     /// `over`: a game whose final is in, "212 went" and no pill, whoever went (game-card 02).
     static func make(isGoing: Bool, count: Int, friends: [String], cancelled: Bool, bar: Bool = false,
-                     over: Bool = false) -> RSVPWords {
+                     town: Bool = false, over: Bool = false) -> RSVPWords {
         if over {
             let total = max(count, friends.count)
             return RSVPWords(top: total > 0 ? "\(total) went" : nil, second: friendsLine(friends, bar: bar, went: true),
                              canLeave: false, pill: nil)
+        }
+        if isGoing && town && !cancelled {
+            return RSVPWords(top: "You're going!", second: nil, canLeave: false, pill: .leave)
         }
         if isGoing {
             return RSVPWords(top: "You're going!", second: bar ? nil : "Can't go?", canLeave: !bar,
@@ -64,10 +72,13 @@ nonisolated struct RSVPWords: Equatable {
     }
 
     /// The pill on screen: Attend, its calendar checked, while a tap's check shows, then Invite
-    /// (Jesse at attend-pill's Check-in 1, 2026-10-19). A called-off pill stays Canceled.
+    /// or Town's X (Jesse at attend-pill's Check-in 1, 2026-10-19). A called-off pill stays Canceled.
     func shownPill(checking: Bool) -> Pill? {
-        checking && pill == .invite ? .rsvp : pill
+        checking && (pill == .invite || pill == .leave) ? .rsvp : pill
     }
+
+    /// "You're going!" is its own line, which cross-fades in over the count instead of rolling.
+    var goingLine: Bool { canLeave || pill == .leave }
 }
 
 /// The RSVP area: friends' faces (the card's only), the words, and the pill. A called-off
@@ -121,7 +132,7 @@ struct RSVPArea: View {
                         .foregroundStyle(Hue.ink)
                         .monospacedDigit()
                         .contentTransition(.numericText())
-                        .id(words.canLeave)
+                        .id(words.goingLine)
                 }
                 if let second = words.second {
                     if words.canLeave {
@@ -188,8 +199,8 @@ struct RSVPArea: View {
     }
 }
 
-/// Meetup's pill alone: Attend, its calendar's check for a moment after the tap, then Invite; a
-/// called-off Event's red Canceled. The RSVP area draws it at its right, the Town's Event of the
+/// Meetup's pill alone: Attend, its calendar's check for a moment after the tap, then Invite, or
+/// on Town a light grey round X that leaves (attend-x); a called-off Event's red Canceled. The RSVP area draws it at its right, the Town's Event of the
 /// day poster in its own row (event-card 03).
 struct AttendPill: View {
     let item: FeedCardItem
@@ -216,15 +227,24 @@ struct AttendPill: View {
             } else if let shown {
                 // (None once a game is over: nothing to tap, game-card 02.)
                 let failures = actions.failureCount(item.id)
+                let x = shown == .leave
                 Button {
-                    // A tap while the check shows cuts it short: Invite comes up now (taste.md,
-                    // everything can be interrupted), without opening the invite card yet.
+                    // A tap while the check shows cuts it short: Invite or the X comes up now
+                    // (taste.md, everything can be interrupted), without acting yet.
                     if checking { checking = false; return }
-                    if shown == .invite { onInvite?() } else { attend() }
+                    switch shown {
+                    case .invite: onInvite?()
+                    case .leave: toggleGoing()
+                    default: attend()
+                    }
                 } label: { face(shown) }
-                    .buttonStyle(MeetupPillStyle(height: size.pillHeight, minWidth: size.pillMinWidth))
+                    // The X is the pill shrunk to a circle its own height, light grey with an ink X
+                    // (Jesse at attend-x's Check-in 1, 2026-10-21).
+                    .buttonStyle(MeetupPillStyle(height: size.pillHeight, minWidth: x ? size.pillHeight : size.pillMinWidth,
+                                                 grey: x, sidePadding: x ? 0 : 20))
                     .turnBackShake(failures: failures, shakes: !reduceMotion && tappedAt != failures)
-                    .accessibilityLabel(shown == .invite ? "Invite" : "Attend")
+                    .accessibilityLabel(shown == .invite ? "Invite" : x ? "Can't go" : "Attend")
+                    .accessibilityHint(x ? "Takes you off the going list" : "")
                     .accessibilityValue(going.isGoing ? "Going" : "")
             }
         }
@@ -250,6 +270,11 @@ struct AttendPill: View {
                 Text("Canceled")
             } else if pill == .invite {
                 RSVPArea.invite(size)
+            } else if pill == .leave {
+                // Apple's xmark at the calendar's size and weight.
+                Image(systemName: "xmark")
+                    .font(.glyph(size.calendar, weight: .semibold))
+                    .accessibilityHidden(true)
             } else {
                 // Apple's calendar, white, where Meetup's page draws one (Jesse, 2026-10-17). A tap
                 // swaps in Apple's checked twin, its badge drawn in by Magic Replace (2026-10-19).
@@ -267,6 +292,11 @@ struct AttendPill: View {
     /// refuses turns back and shakes the pill.
     private func attend() {
         checking = true
+        toggleGoing()
+    }
+
+    /// Attend's tap, or the X's: off the going list in one tap, back to Attend.
+    private func toggleGoing() {
         tappedAt = actions.failureCount(item.id)
         actions.toggleGoing(item)
     }

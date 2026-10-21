@@ -36,6 +36,9 @@ struct MeetupPillStyle: ButtonStyle {
     /// The card's Joined (Figma "Meetup depth", Club header): white with a hairline and ink
     /// words, flat. It cross-fades with the charcoal on its caller's timing.
     var light = false
+    /// Town's round X (attend-x): light grey, flat, with an ink glyph. It cross-fades with the
+    /// charcoal on its caller's timing too.
+    var grey = false
     /// Words (and glyph) in from each end: 20 pt, the Club size's 16.
     var sidePadding: CGFloat = 20
 
@@ -52,7 +55,7 @@ struct MeetupPillStyle: ButtonStyle {
         // the spring (the review's frames, 2026-10-17).
         let press = FeedMarkPress.animation(reduceMotion: reduceMotion)
         return configuration.label
-            .foregroundStyle(light ? Hue.ink : .white)
+            .foregroundStyle(light || grey ? Hue.ink : .white)
             .padding(.horizontal, sidePadding)
             .frame(minWidth: minWidth)
             .frame(height: height)
@@ -60,11 +63,14 @@ struct MeetupPillStyle: ButtonStyle {
                 Capsule()
                     .fill(fill.map(AnyShapeStyle.init) ?? AnyShapeStyle(charcoal))
                     .animation(press) { $0.meetupPillDepth(pressed: pressed) }
-                    .opacity(light ? 0 : 1)
+                    .opacity(light || grey ? 0 : 1)
                 if light {
                     Capsule()
                         .fill(Hue.surface)
                         .overlay { Capsule().strokeBorder(Hue.hairline, lineWidth: 1) }
+                }
+                if grey {
+                    Capsule().fill(Hue.fill)
                 }
             }
             .contentShape(Capsule().inset(by: min(0, (height - Self.minTarget) / 2)))

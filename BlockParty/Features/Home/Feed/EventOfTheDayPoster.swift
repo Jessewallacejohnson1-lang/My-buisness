@@ -135,7 +135,7 @@ struct EventOfTheDayPoster: View {
     // MARK: - The words and buttons over it
 
     private var copy: some View {
-        let words = actions.rsvp(item)
+        let words = actions.rsvp(item, town: true)
         return VStack(alignment: .leading, spacing: 0) {
             Group {
                 if !item.hostName.isEmpty {
@@ -216,7 +216,8 @@ struct EventOfTheDayPoster: View {
     }
 
     /// "41 going · Sam and Marlene" (the names alone, as the Event page's bar says them), or once
-    /// you're going, "You're going!" with "Can't go?" beside it.
+    /// you're going, "You're going!" while the pill is the X that leaves; called off, with
+    /// "Can't go?" beside it.
     private func goingLine(_ words: RSVPWords) -> some View {
         HStack(spacing: 8) {
             if !item.friendsGoing.isEmpty {
@@ -227,7 +228,7 @@ struct EventOfTheDayPoster: View {
                 .foregroundStyle(.white)
                 .monospacedDigit()
                 .contentTransition(.numericText())
-                .id(words.canLeave)
+                .id(words.goingLine)
                 // The link reads the count, and Attend's value says Going.
                 .accessibilityHidden(true)
             if words.canLeave, let leave = words.second {
