@@ -273,6 +273,8 @@ struct CommunityAPI {
             let inClub: Bool?
             /// A game's teams (game-card 01); one that doesn't decode leaves a photo card.
             let game: Game.Lenient?
+            /// What it is in one to three words (event-card 05).
+            let what: String?
         }
         struct Friend: Decodable {
             let name: String
@@ -298,7 +300,8 @@ struct CommunityAPI {
                                       isAllDay: row.allDay, sourceName: row.sourceName,
                                       cancelled: row.cancelled ?? false,
                                       placePicture: row.placePicture?.value,
-                                      description: row.description, game: row.game?.value)
+                                      description: row.description, game: row.game?.value,
+                                      what: row.what)
             return TownFeedRow(event: event, recurrence: row.recurrence, leavesAt: leavesAt,
                                reason: row.reason, reasonName: row.reasonName, score: row.score?.value,
                                heartCount: row.heartCount ?? 0, hearted: row.hearted ?? false,

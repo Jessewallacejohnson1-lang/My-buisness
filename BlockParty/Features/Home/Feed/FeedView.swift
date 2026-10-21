@@ -200,7 +200,7 @@ struct FeedView: View {
                         // the next takes its place within the minute, and with none left it goes.
                         // Scrolled down it holds as the list under it does, and moves on at the top.
                         TimelineView(.everyMinute) { context in
-                            let now = townFeed.holding ? townFeed.heldClock : DailyClock.now(context.date)
+                            let now = DailyClock.now(townFeed.holding ? townFeed.heldAt : context.date)
                             let top = DailyEvent.showing(eventOfTheDay.events ?? [], now: now, limit: 1).first
                             DailyFeedColumn(items: DailyFeedItem.town(townFeed.cards, eventOfTheDay: top),
                                             entrance: entrance,

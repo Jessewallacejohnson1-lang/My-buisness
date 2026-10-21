@@ -238,6 +238,11 @@ enum DailyFixtures {
         )
     }
 
+    /// What each sample is, as the morning tagger writes it (event-card 05). Most titles here already
+    /// say it, so only the park concert's and the trail cleanup's cards show theirs.
+    private static let whats = ["e1": "Concert", "e2": "Market", "e3": "Volunteer day", "e4": "Recital",
+                                "e5": "Council meeting", "e6": "Concert", "e7": "Pancake breakfast"]
+
     private static func event(
         id: String, title: String, host: String, hostAvatar: Bool,
         chip: String, meta: String, photo: Bool,
@@ -268,6 +273,7 @@ enum DailyFixtures {
         // Why each is in the feed, as `get_town_feed` would say it by default: the day.
         let day = reason ?? (hoursUntil < 18 ? "today" : hoursUntil < 42 ? "tomorrow" : "soon")
         item.why = FeedCardMenu.line(reason: day, name: reasonName)
+        item.what = whats[id]
         item.score = score
         item.friendsGoing = friends.map { friend in
             FeedFriend(name: friend.name,
