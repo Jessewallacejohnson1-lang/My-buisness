@@ -170,7 +170,11 @@ struct EventOfTheDayPoster: View {
             if let words, words.top != nil {
                 goingLine(words)
                     .padding(.top, Metric.goingTop)
-                    .transition(.opacity)
+                    // It comes in where the place stood: it fades in once the words above have moved
+                    // up to make room, and out before they come back down over it.
+                    .transition(.asymmetric(
+                        insertion: .opacity.animation(.easeInOut(duration: flip).delay(flip)),
+                        removal: .opacity.animation(.easeOut(duration: flip / 2))))
             }
 
             HStack(spacing: Metric.rowGap) {
@@ -187,9 +191,11 @@ struct EventOfTheDayPoster: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(Metric.copyInset)
-        .animation(.easeInOut(duration: reduceMotion ? 0.15 : RealLifeActions.flip),
-                   value: actions.going(item).isGoing)
+        .animation(.easeInOut(duration: flip), value: actions.going(item).isGoing)
     }
+
+    /// The going words' turn: `RealLifeActions.flip`, or 0.15 s with Reduce Motion, as the pill's.
+    private var flip: TimeInterval { reduceMotion ? 0.15 : RealLifeActions.flip }
 
     /// "Today · 2 PM", in BP yellow; while it's on, "Now" behind Apple's green dot, as a Town
     /// card's chip says it (Jesse at Check-in 1, 2026-10-21).
