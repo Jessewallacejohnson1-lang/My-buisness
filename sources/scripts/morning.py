@@ -7,8 +7,12 @@ docs/plans/watch-every-place, ticket 05). The routine's steps are sources/models
             fingerprints in the database), read the feeds and data sources (read_events.py),
             and lay out only the changed pages in batches of 12 for the cheap model, with
             the events already listed for the judge
-  write     merge the feed items with the judge's items, write them (public.apply_judged
-            over the service role key) and print the morning's summary
+  titles    list the event titles still over 40 characters once tidied (games aside) in
+            .runs/morning/titles.txt, for the routine's model to shorten into titles.json
+            (.claude/skills/title-and-place; Jesse, 2026-10-21)
+  write     merge the feed items with the judge's items, give long titles their short ones
+            (titles.json), write them (public.apply_judged over the service role key) and print
+            the morning's summary
   untagged  lay out the Events no tagger has read yet (or that have no draw), upcoming or still
             running, in batches of 40 for the cheap model (town-feed tickets 33 and 34;
             sources/models/tag.md)
@@ -24,6 +28,7 @@ Everything lands in .runs/morning/. Both steps need SUPABASE_URL and
 SUPABASE_SERVICE_ROLE_KEY in the environment; `write --dry-run` writes nothing.
 
   python3 sources/scripts/morning.py prepare [--today YYYY-MM-DD]
+  python3 sources/scripts/morning.py titles
   python3 sources/scripts/morning.py write [--dry-run]
   python3 sources/scripts/morning.py untagged
   python3 sources/scripts/morning.py tag [--dry-run]
@@ -160,12 +165,31 @@ def summary_lines(prep, items, result, written):
     return lines
 
 
+def long_titles(out):
+    items = read_items(out / "feeds.jsonl") + read_items(out / "judged.jsonl")
+    titles = write_judged.long_titles(items, write_judged.listed_in_db())
+    (out / "titles.txt").write_text("".join(t + "\n" for t in titles))
+    print(f"[morning] {len(titles)} titles over {write_judged.TITLE_MAX} characters ({out / 'titles.txt'})")
+
+
+def short_titles(out):
+    """titles.json, {long: short}: only shorter ones, so a slip never makes a title longer."""
+    path = out / "titles.json"
+    try:
+        got = json.loads(path.read_text()) if path.exists() else {}
+    except ValueError:
+        print(f"[morning] {path} unreadable: titles kept as they are")
+        return {}
+    return {k: v.strip() for k, v in got.items() if isinstance(k, str) and isinstance(v, str)
+            and 0 < len(v.strip()) < len(k)} if isinstance(got, dict) else {}
+
+
 def write(out, dry_run, today):
     prep = json.loads((out / "prepare.json").read_text())
     feeds, judged = read_items(out / "feeds.jsonl"), read_items(out / "judged.jsonl")
     items = feeds + judged
     existing = write_judged.listed_in_db()
-    result = write_judged.plan(items, existing, today, write_judged.interest_ids())
+    result = write_judged.plan(items, existing, today, write_judged.interest_ids(), titles=short_titles(out))
     write_judged.report(items, result)
     written = None if dry_run else write_judged.apply(result)
     print("\n".join(summary_lines(prep, items, result, written)))
@@ -326,6 +350,13 @@ def selftest():
     tmp.write_text("---\nentry_id: milk\nurl: https://m\n---\n\nPlant Bingo Oct 24\n")
     checks.append((snapshot_text(tmp) == "Plant Bingo Oct 24\n", "the snapshot's text without its header"))
     tmp.unlink()
+    tmp.write_text('{"Anniversary of the Dedication of Sacred Heart Chapel": "Sacred Heart Chapel Anniversary", '
+                   '"Short": "Longer than it was", "Kept": 3}')
+    tmp.rename(tmp.with_name("titles.json"))
+    checks.append((short_titles(tmp.parent) == {"Anniversary of the Dedication of Sacred Heart Chapel":
+                                                "Sacred Heart Chapel Anniversary"},
+                   "only shorter titles are taken from titles.json"))
+    tmp.with_name("titles.json").unlink()
     prep = {"today": "2026-10-15", "fetched": 12, "changed": 3, "to_read": 1, "failed": ["x https://x: HTTP 403"],
             "readers": ["[read] ok     City (ical): 6 items", "[read] FAILED Stearns County (civicplus-hcms): TimeoutError"]}
     result = {"outcomes": [("published", ""), ("held", "unsure"), ("news", ""), ("merged", "into x")]}
@@ -392,7 +423,7 @@ def selftest():
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("step", nargs="?", choices=["prepare", "write", "untagged", "tag", "today", "standouts"])
+    ap.add_argument("step", nargs="?", choices=["prepare", "titles", "write", "untagged", "tag", "today", "standouts"])
     ap.add_argument("--today", help="YYYY-MM-DD; default today in Chicago")
     ap.add_argument("--dry-run", action="store_true", help="write, tag, standouts: print what would be written, write nothing")
     ap.add_argument("--selftest", action="store_true")
@@ -400,11 +431,13 @@ def main():
     if args.selftest:
         return selftest()
     if not args.step:
-        ap.error("prepare, write, untagged, tag, today or standouts")
+        ap.error("prepare, titles, write, untagged, tag, today or standouts")
     today = date.fromisoformat(args.today) if args.today else datetime.now(LOCAL).date()
     out = find_root() / ".runs" / "morning"
     if args.step == "prepare":
         prepare(today, out)
+    elif args.step == "titles":
+        long_titles(out)
     elif args.step == "write":
         write(out, args.dry_run, today)
     elif args.step == "untagged":

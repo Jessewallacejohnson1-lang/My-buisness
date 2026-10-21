@@ -17,7 +17,11 @@ skill covers the calls the code can't make.
 ## The title
 
 - **The event's own name, in 40 characters or fewer.** When a page's title runs longer, keep
-  the part a neighbour would recognise: the speaker, the show or the main name.
+  the part a neighbour would recognise: the speaker, the show or the main name. Shorten by
+  keeping the source's own words, never by cutting mid-word: over 40 is three lines on the Town's
+  Event of the day poster (Jesse, 2026-10-21). The morning job lists every one still over 40
+  (`morning.py titles`) and its model gives each a short one; the writer keeps a listed short
+  title when its source sends the long one again.
 - **Games:** `<School> <Sport> vs <Opponent>`, then `: <name>` when the game has one ("CSB
   Soccer vs Hamline: Senior Night"). Keep the team's level words (JV, varsity, girls,
   boys): the merge rule tells games apart by them.
@@ -61,6 +65,11 @@ skill covers the calls the code can't make.
 | Koch Chair in Catholic Thought and Teaching Presents the Reverend Daniel G. Groody | Rev. Daniel Groody: Koch Chair Lecture |
 | Advent Sacred Pause • Virtual · 104 Chapel Lane, Saint Joseph, MN | Advent Sacred Pause · Online |
 | Gorecki Center at the College of Saint Benedict, College Avenue South, Saint Joseph, MN | Gorecki Center |
+| Anniversary of the Dedication of Sacred Heart Chapel (2026-10-21) | Sacred Heart Chapel Anniversary |
+| "What is the price of liberty?" by the Humanities Institute | What is the price of liberty? |
+| The Great Pumpkin Returns to Saint John's Abbey! | The Great Pumpkin Returns |
+| Christmas Craft Sale at Saint Scholastica Convent (the place line says where) | Christmas Craft Sale |
+| Festival of Cultures Student Showcase and Fashion Show | Festival of Cultures Fashion Show |
 
 ## Done
 
