@@ -1040,13 +1040,14 @@ test("a game's final rides its game, host first, and keeps its card a day past t
   await add('Fall fair', '2026-10-07');
   await db.query(`update public.club_events set sport = 'Girls Soccer', team_ids = array['sartell', 'sauk-rapids-rice']
     where id = $1`, [game]);
-  const at = async (t) => (await db.query(`select title, game, leaves_at
+  const at = async (t) => (await db.query(`select title, game, leaves_at, reason, reason_name
     from public.get_town_feed(($1::timestamp at time zone 'America/Chicago')) order by title`, [t])).rows;
   // Over at 7 PM with no final yet: gone, as any Event.
   assert.deepEqual((await at('2026-10-06 19:30')).map((r) => r.title), ['Fall fair']);
   await db.query(`update public.club_events set final_score = array[6, 0] where id = $1`, [game]);
   const [row] = (await at('2026-10-06 19:30')).filter((r) => r.game);
   assert.deepEqual(row.game.final, [6, 0], 'in team_ids order, the host first');
+  assert.deepEqual([row.reason, row.reason_name], ['final', null], 'its menu says Final score, not Happening today');
   assert.equal(row.leaves_at.toISOString(), '2026-10-08T00:00:00.000Z', 'a day past its 7 PM end');
   assert.deepEqual((await at('2026-10-07 18:59')).map((r) => r.title), ['Fall fair', 'Sartell Girls Soccer vs Sauk Rapids-Rice']);
   assert.deepEqual((await at('2026-10-07 19:01')).map((r) => r.title), ['Fall fair']);
