@@ -107,7 +107,8 @@ private struct FinalScore: View {
                 .frame(height: 22)
                 .background(.white.opacity(0.22), in: Capsule())
         }
-        .frame(width: GameMatchup.Metric.column, height: GameMatchup.Metric.disc)
+        // Up to the mock's 112 pt, narrower on a 375 pt phone, where three columns would overrun the card.
+        .frame(maxWidth: GameMatchup.Metric.column, minHeight: GameMatchup.Metric.disc, maxHeight: GameMatchup.Metric.disc)
     }
 }
 

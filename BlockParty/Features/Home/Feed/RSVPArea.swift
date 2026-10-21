@@ -171,6 +171,8 @@ struct RSVPArea: View {
         // a failed Attend's turn back included; a count that moves rolls.
         .animation(.easeInOut(duration: reduceMotion ? 0.15 : RealLifeActions.flip), value: going.isGoing)
         .animation(.easeInOut(duration: reduceMotion ? 0.15 : RealLifeActions.flip), value: checking)
+        // A final that comes in while it's on screen fades Attend out and "went" in (game-card 02).
+        .animation(.easeInOut(duration: reduceMotion ? 0.15 : RealLifeActions.flip), value: words.pill)
         .animation(reduceMotion ? .easeInOut(duration: 0.15) : Motion.smooth, value: going.count)
         // The check holds, then Invite comes up. Changed only after the sleep, so it never cancels itself.
         .task(id: checking) {

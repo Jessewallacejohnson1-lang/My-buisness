@@ -273,6 +273,7 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(FeedCardMenu.line(reason: "size", name: nil), "Big in town")
         XCTAssertEqual(FeedCardMenu.line(reason: "tomorrow", name: nil), "Happening tomorrow")
         XCTAssertEqual(FeedCardMenu.line(reason: "soon", name: nil), "Coming up soon")
+        XCTAssertEqual(FeedCardMenu.line(reason: "final", name: nil), "Final score", "a game that's over (game-card 02)")
         XCTAssertEqual(FeedCardMenu.line(reason: "friend", name: "Sam"), "Sam is going")
         XCTAssertEqual(FeedCardMenu.line(reason: "tapped", name: "Sal's Bar and Grill"),
                        "You've been into Sal's Bar and Grill lately")
