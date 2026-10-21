@@ -123,7 +123,8 @@ struct YouPage: View {
     }
 
     private func page(now: Date, days: [Date], today: Date, day: Date, going: [DailyEvent]?) -> some View {
-        ScrollView(showsIndicators: false) {
+        let groups = YouCalendar.groups(model.groups ?? [], isMember: { actions.member($0).isMember })
+        return ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
                 bar
                 calendar(days: days, today: today, day: day, going: going ?? [])
@@ -137,7 +138,6 @@ struct YouPage: View {
                     .padding(.top, YouMetric.labelToCards)
                     .padding(.horizontal, YouMetric.side)
                 // Left out until they join one, as Places is.
-                let groups = YouCalendar.groups(model.groups ?? [], isMember: { actions.member($0).isMember })
                 if !groups.isEmpty {
                     DailySectionLabel(title: "Groups", ink: Hue.ink)
                         .padding(.top, YouMetric.calendarToLabel)
@@ -155,6 +155,9 @@ struct YouPage: View {
                 }
                 Color.clear.frame(height: DailyMetric.tabBarClearance)
             }
+            // The first groups read of a visit lands after the page is up: the row comes in
+            // and Places moves down for it, rather than jumping.
+            .animation(reduceMotion ? nil : Motion.smooth, value: groups.map(\.id))
         }
         .onScrollGeometryChange(for: CGFloat.self) { geometry in
             min(max(geometry.contentOffset.y + geometry.contentInsets.top, 0), DailyMetric.edgeFade)
