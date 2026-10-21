@@ -236,12 +236,15 @@ struct CommunityAPI {
     /// Your Event of the day: today's standouts for you, one for each part of the day, worked
     /// out by `get_event_of_the_day` (BP app daily-tab 14) from the morning's picks, in the
     /// Town feed's own rows. Signed out, it reads with the public key, as the feed does.
-    func getEventOfTheDay() async throws -> [TownFeedRow] {
+    /// Given a moment (Daily's week, daily-tab 16), it reads that moment's Town day instead:
+    /// with no morning picks written ahead, the Town's top pick there. Only today's go on disk.
+    func getEventOfTheDay(at moment: Date? = nil) async throws -> [TownFeedRow] {
+        let body = try moment.map { try JSONSerialization.data(withJSONObject: ["p_now": ISO8601DateFormatter().string(from: $0)]) }
         let (data, _) = try await SupabaseHTTP.rest("rpc/get_event_of_the_day", method: "POST",
                                                     accessToken: await readToken(),
-                                                    body: Data("{}".utf8))
+                                                    body: body ?? Data("{}".utf8))
         let rows = try Self.townFeedRows(from: data)
-        TownFeedCache.save(data, .eventOfTheDay)
+        if moment == nil { TownFeedCache.save(data, .eventOfTheDay) }
         return rows
     }
 

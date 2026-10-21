@@ -265,23 +265,15 @@ final class EventOfTheDay {
 }
 
 /// The section: its label, then the card, or on a busy day the cards in a row that
-/// the finger pages through, one card at a time, with the next one's edge showing. With no
-/// Spotlight above it, its first card marks where the page's yellow fades out.
+/// the finger pages through, one card at a time, with the next one's edge showing.
 struct EventOfTheDaySection: View {
     let events: [DailyEvent]
     let now: Date
-    var marksYellowEdge = false
 
     var body: some View {
         VStack(spacing: 0) {
             DailySectionLabel(title: "Event of the day", ink: Hue.ink)
-            // Only with no Spotlight: any guide here, even one at its own top, would move the
-            // yellow's edge off the Spotlight.
-            if marksYellowEdge {
-                row.alignmentGuide(.dailyYellowEdge) { $0[.top] + DailyMetric.eventLabelToCard + DailyMetric.yellowIntoCard }
-            } else {
-                row
-            }
+            row
         }
     }
 
