@@ -322,6 +322,49 @@ final class YouCalendarTests: XCTestCase {
         XCTAssertNil(model.going)
     }
 
+    // MARK: Groups (ticket 09)
+
+    private func group(_ id: String, joined: Bool = false) -> TownGroup {
+        var group = TownGroup(id: id, name: id)
+        group.joined = joined
+        return group
+    }
+
+    /// The row is the read's groups the neighbour is in, in its order: a Join group anywhere
+    /// adds one at once and leaving takes it off, without a read.
+    func testAJoinOrLeaveChangesGroupsAtOnce() {
+        let actions = RealLifeActions(signedIn: true, needsAccount: false, hold: .milliseconds(1), flip: .milliseconds(1),
+                                      setGoing: { _, _ in }, setHeart: { _, _ in }, setSave: { _, _ in },
+                                      knownEvents: { _ in [] })
+        let read = [group("legion", joined: true), group("lions"), group("yarnovers", joined: true)]
+        actions.read(read)
+        func shown() -> [String] { read.filter { actions.member($0).isMember }.map(\.id) }
+        XCTAssertEqual(shown(), ["legion", "yarnovers"])
+        actions.toggleMember(read[1])
+        XCTAssertEqual(shown(), ["legion", "lions", "yarnovers"])
+        actions.toggleMember(read[0])
+        XCTAssertEqual(shown(), ["lions", "yarnovers"])
+    }
+
+    /// The groups read fills the list and a failed one keeps it, but hands back nothing, so an
+    /// old list never overwrites who's in what; a new account starts from none.
+    func testTheModelKeepsItsGroupsThroughAFailedRead() async {
+        var fail = false
+        let model = YouModel(read: { _, _ in [] }, groups: {
+            if fail { throw URLError(.notConnectedToInternet) }
+            return [self.group("legion", joined: true)]
+        })
+        let fresh = await model.refreshGroups()
+        XCTAssertEqual(fresh?.map(\.id), ["legion"])
+        XCTAssertEqual(model.groups?.map(\.id), ["legion"])
+        fail = true
+        let failed = await model.refreshGroups()
+        XCTAssertNil(failed)
+        XCTAssertEqual(model.groups?.map(\.id), ["legion"])
+        model.accountChanged()
+        XCTAssertNil(model.groups)
+    }
+
     #if DEBUG
     /// The samples sit in the three weeks around today, today busy, and their photos are bundled.
     func testSamplesFallInTheThreeWeeks() {
