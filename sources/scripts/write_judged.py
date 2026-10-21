@@ -172,6 +172,11 @@ def within_hour(a, b):
 def same_event(a, b):
     if not a["place"] and not b["place"] and a["at"] is not None:
         return a["at"] == b["at"] and same_title(a["title"], b["title"])
+    if not (a["place"] and b["place"]):
+        # One gives no place: the same registry place (where()) and the very same start, or the
+        # same day with both all day.
+        return bool(a["entry"]) and a["entry"] == b["entry"] and (a["day"], a["at"]) == (b["day"], b["at"]) \
+            and same_title(a["title"], b["title"])
     return within_hour(a, b) and same_place(a["place"], b["place"]) and same_title(a["title"], b["title"])
 
 
@@ -327,13 +332,21 @@ def parse_clock(text):
     return m and time(int(m[1]) % 12 + (12 if m[3].upper() == "P" else 0), int(m[2] or 0))
 
 
+def where(place, poster):
+    """The registry place an event is at. A listing with no place is at its poster's own: the
+    sisters' calendar names none, the campus calendar says Saint Benedict's Monastery, one of
+    their names (2026-10-21). A place the registry doesn't know gives None."""
+    entry, found = registry.place_for(place, poster, places())
+    return entry if found or not words(place, PLACE_STOP) else None
+
+
 def listed_facts(row, home="St. Joseph MN"):
     day = date.fromisoformat(str(row["event_date"])[:10])
     t = None if row.get("all_day") else parse_clock(row.get("start_time"))
-    return {"day": day, "at": t and datetime.combine(day, t),
-            "place": words(meets_at(tidy_place(row.get("location"), home), row.get("source_name") or "",
-                                    tidy_title(row["title"], row.get("source_name") or "")), PLACE_STOP),
-            "title": words(tidy_title(row["title"], row.get("source_name") or ""))}
+    poster = row.get("source_name") or ""
+    place = meets_at(tidy_place(row.get("location"), home), poster, tidy_title(row["title"], poster))
+    return {"day": day, "at": t and datetime.combine(day, t), "place": words(place, PLACE_STOP),
+            "entry": where(place, poster), "title": words(tidy_title(row["title"], poster))}
 
 
 def show_from(day, size, signup_by):
@@ -458,7 +471,8 @@ def event_of(it, today, interests, home, notes):
     if game:
         row.update(sport=game["sport"], team_ids=[team_id(t) for t in game["teams"]], team_names=game["teams"],
                    occasion=game["occasion"])
-    facts = {"day": day, "at": at, "place": words(place, PLACE_STOP), "title": words(title)}
+    facts = {"day": day, "at": at, "place": words(place, PLACE_STOP), "entry": where(place, it["source_name"]),
+             "title": words(title)}
     return {"row": row, "facts": facts}, None
 
 
@@ -832,6 +846,28 @@ def t_same_time_no_place():
     assert run([later], [park])["events"][0]["id"] is None, "half an hour later, with no place to go on, stays apart"
 
 
+def t_no_place_is_its_posters_own():
+    """The sisters' calendar names no place; the campus calendar lists the same evening at
+    Saint Benedict's Monastery, one of their names. That is one Event (Jesse, 2026-10-21)."""
+    campus = listed(title="Anniversary of the Dedication of Sacred Heart Chapel", event_date="2026-10-23",
+                    start_time="7 PM", location="Saint Benedict's Monastery",
+                    source_name="Saint Benedict's Monastery", source_uid="4770133")
+    sisters = item(title="Anniversary of the Dedication of Sacred Heart Chapel", start="2026-10-23T19:00:00-05:00",
+                   end=None, place="", source_name="Sisters of the Order of Saint Benedict",
+                   source_uid="10000638-1792782000-1792785600@sbm.osb.org", interest=None, size="everyday")
+    r = run([sisters], [campus])
+    assert len(r["events"]) == 1 and r["events"][0]["id"] == campus["id"], r["events"]
+    all_day = run([dict(sisters, start="2026-10-24", all_day=True)],
+                  [dict(campus, event_date="2026-10-24", start_time=None, all_day=True)])
+    assert all_day["events"][0]["id"] == campus["id"], "both all day, the same day"
+    later = dict(sisters, start="2026-10-23T19:30:00-05:00")
+    assert run([later], [campus])["events"][0]["id"] is None, "with no place, only the very same start"
+    city = dict(sisters, source_name="City of St. Joseph", source_url="https://www.stjosephmn.gov/")
+    assert run([city], [campus])["events"][0]["id"] is None, "the City's own place is not the monastery"
+    unknown = dict(campus, location="Lakeside Bandshell")
+    assert run([sisters], [unknown])["events"][0]["id"] is None, "a place not in the registry tells nothing"
+
+
 def t_reread_updates():
     old = listed(title="Fare for All", event_date="2026-12-07", start_time="3:30 PM", location="610 County Rd 2",
                  source_name="City of St. Joseph", source_uid="2336", shows_from="2026-11-23")
@@ -1117,7 +1153,7 @@ def t_game():
 
 
 TESTS = [t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_secondhand_needs_two, t_unsure_held, t_merge_true_pair,
-         t_merge_near_miss_kept_apart, t_same_time_no_place, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
+         t_merge_near_miss_kept_apart, t_same_time_no_place, t_no_place_is_its_posters_own, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
          t_interest_checked, t_area, t_past_and_invalid_skipped, t_writes_are_one_safe_call,
          t_description_cut_at_a_word, t_city_meeting_end_and_place, t_game, t_all_day_run_keeps_its_last_day]
 

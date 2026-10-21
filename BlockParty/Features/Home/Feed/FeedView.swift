@@ -198,8 +198,9 @@ struct FeedView: View {
                     if townFeed.entries != nil {
                         // Your Event of the day on top, the one Daily shows first: when it's over
                         // the next takes its place within the minute, and with none left it goes.
+                        // Scrolled down it holds as the list under it does, and moves on at the top.
                         TimelineView(.everyMinute) { context in
-                            let now = DailyClock.now(context.date)
+                            let now = townFeed.holding ? townFeed.heldClock : DailyClock.now(context.date)
                             let top = DailyEvent.showing(eventOfTheDay.events ?? [], now: now, limit: 1).first
                             DailyFeedColumn(items: DailyFeedItem.town(townFeed.cards, eventOfTheDay: top),
                                             entrance: entrance,
@@ -212,6 +213,8 @@ struct FeedView: View {
                         // A card whose time is up goes, and a series' next date
                         // comes in, rather than popping.
                         .animation(Motion.smooth, value: townFeed.clock)
+                        // and back at the top, the finished ones held while scrolled down go.
+                        .animation(Motion.smooth, value: townFeed.holding)
                         .transition(.opacity)
                     } else if townFeed.failed {
                         FeedUnavailableBody(title: FeedStateCopy.townEventsUnavailable) {
