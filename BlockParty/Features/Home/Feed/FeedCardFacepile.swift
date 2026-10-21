@@ -110,12 +110,14 @@ private extension FeedCardFacepile {
 /// from VoiceOver.
 struct FriendFaces: View {
     let friends: [FeedFriend]
+    /// The ring that parts the faces: the page under them (the poster's dark on event-card 03).
+    var ring: Color = Hue.paper
 
     var body: some View {
         HStack(spacing: -8) {
             ForEach(Array(friends.prefix(3).enumerated()), id: \.offset) { index, friend in
                 FeedAuthorAvatar(url: friend.photo, name: friend.name, side: 24, initialSize: 10)
-                    .overlay(Circle().strokeBorder(Hue.paper, lineWidth: 1.5))
+                    .overlay(Circle().strokeBorder(ring, lineWidth: 1.5))
                     .zIndex(Double(3 - index))
             }
         }
