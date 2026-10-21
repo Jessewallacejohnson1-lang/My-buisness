@@ -27,10 +27,6 @@ enum AgendaMetric {
     static let rowGap: CGFloat = 12
     /// Room the open card keeps on its right for the arrow.
     static let arrowRoom: CGFloat = 22
-    /// The friends' faces (`FriendFaces`, ticket 07): 24pt, each one after the first 16pt on,
-    /// set in from the card's edge as far as the arrow, so they sit where it comes in.
-    static let face: CGFloat = 24
-    static let faceStep: CGFloat = 16
 }
 
 /// What an Agenda shows, on the You page and in Profile's Saved (ticket 04): two skeleton
@@ -176,13 +172,13 @@ private struct AgendaCard: View {
             // A read that brings other friends fades the faces over, never pops them.
             if !friends.isEmpty {
                 FriendFaces(friends: friends, ring: Hue.surface)
-                    .id(friends.map(\.name))
+                    .id(friends)
                     .transition(.opacity)
                     .padding(.trailing, AgendaMetric.textGap)
                     .opacity(open ? 0 : 1)
             }
         }
-        .animation(reduceMotion ? nil : Motion.smooth, value: friends.map(\.name))
+        .animation(reduceMotion ? nil : Motion.smooth, value: friends)
         // The lines an opening card adds start at their final place; this keeps them
         // inside the card while it grows to reach them.
         .clipShape(card)
@@ -202,7 +198,9 @@ private struct AgendaCard: View {
     /// is left between the title and the faces.
     private var facesRoom: CGFloat {
         guard !friends.isEmpty else { return 0 }
-        let faces = AgendaMetric.face + AgendaMetric.faceStep * CGFloat(min(friends.count, 3) - 1)
+        // `FriendFaces`, set in from the card's edge as far as the arrow, so they sit where it comes in.
+        let step = FriendFaces.side - FriendFaces.overlap
+        let faces = FriendFaces.side + step * CGFloat(min(friends.count, 3) - 1)
         return faces + AgendaMetric.textGap
     }
 

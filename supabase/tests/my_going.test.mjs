@@ -16,13 +16,13 @@ const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
 const files = creating(migrations, ['public.get_my_going', 'public.place_picture', 'public.get_my_saves',
   'private.going_count', 'private.heart_count']);
 // Friends Going (you-tab 07) read the Town feed's helper and the Friends builds' rule for who may be
-// shown, as they are now: each function alone, cut from the file that makes it.
-const cut = (suffix, fn) => readdirSync(migrations).filter((f) => f.endsWith(suffix)).sort()
+// shown, as they are now: each function alone, its newest definition in any migration.
+const cut = (fn) => readdirSync(migrations).filter((f) => f.endsWith('.sql')).sort()
   .map((f) => readFileSync(join(migrations, f), 'utf8'))
   .map((sql) => sql.match(new RegExp(`create or replace function ${fn.replace('.', '\\.')}\\([\\s\\S]*?\\$\\$;`)))
   .filter(Boolean).pop()[0];
-const findable = cut('_unfriend_and_block.sql', 'private.findable');
-const friendsGoing = cut('_friends_shape_feed.sql', 'private.friends_going');
+const findable = cut('private.findable');
+const friendsGoing = cut('private.friends_going');
 
 const db = await PGlite.create();
 await db.exec(`
