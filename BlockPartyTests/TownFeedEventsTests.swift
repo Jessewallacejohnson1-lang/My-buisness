@@ -140,6 +140,34 @@ final class TownFeedEventsTests: XCTestCase {
         var game = cards[0]
         game.game = try JSONDecoder().decode(Game.self, from: Data(#"{"sport":"Football","teams":[]}"#.utf8))
         XCTAssertNil(game.whatLine, "a game's title is already its sport")
+        func card(_ title: String, what: String) -> FeedCardItem {
+            var item = FeedCardItem(id: "c", title: title, dateChip: "", metaLine: "", image: .fallback,
+                                    recurrence: nil, goingCount: 0, goingAvatars: [], likeCount: 0,
+                                    isLiked: false, isSaved: false, isJoined: false)
+            item.what = what
+            return item
+        }
+        XCTAssertNil(card("City Council — regular meeting", what: "Council meeting").whatLine,
+                     "every word already in the title, though not side by side")
+        XCTAssertEqual(card("Martin's exhibit", what: "Art exhibit").whatLine, "Art exhibit",
+                       "whole words: \"art\" isn't in \"Martin's\"")
+    }
+
+    /// Scrolled down, the Event of the day poster holds at when the feed left the top (event-card
+    /// 03): scrolling further doesn't move that moment, and back at the top it lets go.
+    @MainActor
+    func testThePosterHoldsFromWhenTheFeedLeftTheTop() async {
+        let town = feed([row("a")])
+        town.scrollY = 120
+        XCTAssertTrue(town.holding)
+        let left = town.heldAt
+        try? await Task.sleep(for: .milliseconds(20))
+        town.scrollY = 640
+        XCTAssertEqual(town.heldAt, left, "scrolling further keeps the moment it left the top")
+        town.scrollY = 0
+        XCTAssertFalse(town.holding)
+        town.scrollY = 50
+        XCTAssertGreaterThan(town.heldAt, left, "leaving the top again holds from then")
     }
 
     /// The recipe's columns (ticket 18): the reason becomes the card's line, and the

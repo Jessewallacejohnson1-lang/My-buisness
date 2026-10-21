@@ -61,10 +61,16 @@ struct FeedCardItem: Identifiable, Hashable {
     var what: String? = nil
 
     /// The words as a card shows them, beside the title: none on a game, whose title is already its
-    /// sport, and none when the title already says them ("Christmas Craft Sale", "Craft sale").
+    /// sport, and none when the title already has every one of them ("Christmas Craft Sale", "Craft
+    /// sale"; "City Council — regular meeting", "Council meeting").
     var whatLine: String? {
-        guard game == nil, let what, !title.localizedCaseInsensitiveContains(what) else { return nil }
-        return what
+        guard game == nil, let what else { return nil }
+        let titleWords = Set(Self.words(title))
+        return Self.words(what).allSatisfy(titleWords.contains) ? nil : what
+    }
+
+    private static func words(_ text: String) -> [String] {
+        text.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init)
     }
 
     var shareTime: String? {

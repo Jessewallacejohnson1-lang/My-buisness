@@ -238,8 +238,8 @@ enum DailyFixtures {
         )
     }
 
-    /// What each sample is, as the morning tagger writes it (event-card 05). The recital's and the
-    /// concert's titles already say it, so their cards show none.
+    /// What each sample is, as the morning tagger writes it (event-card 05). Most titles here already
+    /// say it, so only the park concert's and the trail cleanup's cards show theirs.
     private static let whats = ["e1": "Concert", "e2": "Market", "e3": "Volunteer day", "e4": "Recital",
                                 "e5": "Council meeting", "e6": "Concert", "e7": "Pancake breakfast"]
 

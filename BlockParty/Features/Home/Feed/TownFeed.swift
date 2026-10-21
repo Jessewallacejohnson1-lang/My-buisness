@@ -50,10 +50,13 @@ final class TownFeed {
     @ObservationIgnored var scrollY: CGFloat = 0 {
         didSet {
             guard atTop == holding else { return }
-            if !atTop { heldClock = clock }
+            if !atTop { heldClock = clock; heldAt = Date() }
             holding = !atTop
         }
     }
+    /// When the screen left the top: the Event of the day poster holds at what it showed then, as
+    /// the list under it holds (event-card 03), and moves on back at the top.
+    @ObservationIgnored private(set) var heldAt = Date()
     /// Scrolled down from the top: nothing leaves the list under the finger. A card whose
     /// time is up stays where it is until the top, a pull or a fresh order (Jesse,
     /// 2026-10-21: at 7 PM a finished game above dropped out and the feed jumped).

@@ -60,9 +60,6 @@ struct FeedView: View {
     /// Fixed for this view's life: whether the Town feed's first cards rise in. Not
     /// when it comes back partway down (`TownFeed.returnY`).
     @State private var entrance: Bool
-    /// When the feed left the top (`TownFeed.holding`): the Event of the day poster holds at what
-    /// it showed then, as the list under it holds, and moves on back at the top.
-    @State private var posterHeldAt: Date?
 
     /// A read failed while a list is showing: the bar says so (ticket 11).
     private var offline: Bool { townFeed.failed && townFeed.entries != nil }
@@ -203,7 +200,7 @@ struct FeedView: View {
                         // the next takes its place within the minute, and with none left it goes.
                         // Scrolled down it holds as the list under it does, and moves on at the top.
                         TimelineView(.everyMinute) { context in
-                            let now = posterHeldAt ?? DailyClock.now(context.date)
+                            let now = DailyClock.now(townFeed.holding ? townFeed.heldAt : context.date)
                             let top = DailyEvent.showing(eventOfTheDay.events ?? [], now: now, limit: 1).first
                             DailyFeedColumn(items: DailyFeedItem.town(townFeed.cards, eventOfTheDay: top),
                                             entrance: entrance,
@@ -218,9 +215,6 @@ struct FeedView: View {
                         .animation(Motion.smooth, value: townFeed.clock)
                         // and back at the top, the finished ones held while scrolled down go.
                         .animation(Motion.smooth, value: townFeed.holding)
-                        .onChange(of: townFeed.holding) { _, holding in
-                            posterHeldAt = holding ? DailyClock.now(Date()) : nil
-                        }
                         .transition(.opacity)
                     } else if townFeed.failed {
                         FeedUnavailableBody(title: FeedStateCopy.townEventsUnavailable) {
