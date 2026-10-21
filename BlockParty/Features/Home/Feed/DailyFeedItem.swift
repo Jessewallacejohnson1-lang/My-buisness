@@ -46,9 +46,18 @@ enum DailyFeedItem: Identifiable {
     }
 
     /// The Town feed's column: your Event of the day on top, then the cards in the feed's order,
-    /// leaving out the one the poster shows, so it never shows twice (Jesse, 2026-10-21).
+    /// leaving out the one the poster shows, so it never shows twice (Jesse, 2026-10-21). The
+    /// admin's Score names each card's place as it sits on screen, the poster's first (taste.md).
     static func town(_ cards: [FeedCardItem], eventOfTheDay: DailyEvent?) -> [DailyFeedItem] {
-        guard let eventOfTheDay else { return cards.map { .event($0) } }
-        return [.eventOfTheDay(eventOfTheDay)] + cards.filter { $0.id != eventOfTheDay.id }.map { .event($0) }
+        guard var top = eventOfTheDay else { return cards.map { .event($0) } }
+        let below = cards.filter { $0.id != top.id }
+        top.item.score?.spot = 1
+        top.item.score?.of = below.count + 1
+        return [.eventOfTheDay(top)] + below.enumerated().map { place, card in
+            var card = card
+            card.score?.spot = place + 2
+            card.score?.of = below.count + 1
+            return .event(card)
+        }
     }
 }

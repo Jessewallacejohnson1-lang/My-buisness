@@ -220,10 +220,14 @@ final class EventOfTheDay {
     }
 
     func refresh(now: Date = Date()) async {
-        // Today's kept picks show while the first read is out; yesterday's are all over.
+        // Today's kept picks show while the first read is out. Picks are the Town day's own
+        // events, so one that started another day is yesterday's, even if it's still on.
         if events == nil, !keptChecked {
             keptChecked = true
-            if let kept = kept()?.filter({ $0.ends > now }), !kept.isEmpty { events = kept }
+            let today = Town.day(now)
+            if let kept = kept()?.filter({ $0.ends > now && Town.day($0.starts) == today }), !kept.isEmpty {
+                events = kept
+            }
         }
         guard needsRead(now: now) else { return }
         latestRead += 1
@@ -248,10 +252,11 @@ final class EventOfTheDay {
             || events.contains { $0.ends <= now }
     }
 
-    /// A new account gets its own picks.
+    /// A new account gets its own picks: read again at once, keeping these on screen until they
+    /// land, as the Town feed keeps its list, so the poster on top of it doesn't blink out while a
+    /// saved sign-in comes back at launch (event-card 03).
     func accountChanged() {
         latestRead += 1
-        events = nil
         readAt = nil
     }
 }
