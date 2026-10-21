@@ -13,12 +13,13 @@ docs/plans/watch-every-place, ticket 05). The routine's steps are sources/models
   write     merge the feed items with the judge's items, give long titles their short ones
             (titles.json), write them (public.apply_judged over the service role key) and print
             the morning's summary
-  untagged  lay out the Events no tagger has read yet (or that have no draw), upcoming or still
-            running, in batches of 40 for the cheap model (town-feed tickets 33 and 34;
-            sources/models/tag.md)
+  untagged  lay out the Events no tagger has read yet (or that have no draw, or no words saying
+            what they are), upcoming or still running, in batches of 40 for the cheap model
+            (town-feed tickets 33 and 34, BP app event-card 05; sources/models/tag.md)
   tag       write the cheap model's tags (.runs/morning/tags.jsonl) onto those Events: only
-            ids from the shared interest list, a draw of 1, 2 or 3, and an Event's first
-            interest becomes its category when it has none
+            ids from the shared interest list, a draw of 1, 2 or 3, an Event's first interest
+            becomes its category when it has none, and what it is in one to three words; an
+            Event tagged before only gets its words, so nobody's feed reshuffles
   today     lay out today's Events as the Town feed takes them, for the routine's model to pick
             the day's standouts (BP app docs/plans/daily-tab, ticket 14; sources/models/standouts.md)
   standouts write the model's standouts (.runs/morning/standouts.jsonl) as today's
@@ -196,20 +197,38 @@ def write(out, dry_run, today):
 
 
 def to_tag(today):
-    """Approved Events no tagger has read or rated, still to come or still running, as the tagger
-    reads them."""
-    rows = Supabase().call("GET", "club_events?select=id,title,location,description,category,source_name,clubs(name)"
+    """Approved Events no tagger has read or rated, or with no words saying what they are, still to
+    come or still running, as the tagger reads them. `tagged`: read and rated before, so only its
+    words are written."""
+    rows = Supabase().call("GET", "club_events?select=id,title,location,description,category,source_name,"
+                                  "interests_tagged_at,draw,clubs(name)"
                            "&status=eq.approved&kind=eq.event"
-                           f"&and={quote(f'(or(interests_tagged_at.is.null,draw.is.null),or(event_date.gte.{today},end_at.gte.{today}))')}"
+                           f"&and={quote(f'(or(interests_tagged_at.is.null,draw.is.null,what.is.null),or(event_date.gte.{today},end_at.gte.{today}))')}"
                            "&order=event_date&limit=1000")
     return [{"id": r["id"], "title": r["title"], "host": (r.get("clubs") or {}).get("name") or r.get("source_name") or "",
              "place": r.get("location") or "", "about": " ".join((r.get("description") or "").split())[:300],
-             "category": r.get("category")} for r in rows]
+             "category": r.get("category"),
+             "tagged": bool(r.get("interests_tagged_at") and r.get("draw"))} for r in rows]
 
 
 def tag_message(events, interests):
     return ("Interests: " + ", ".join(interests) + "\n\nEvents:\n"
-            + "\n".join(json.dumps(e, ensure_ascii=False) for e in events) + "\n")
+            + "\n".join(json.dumps({k: v for k, v in e.items() if k != "tagged"}, ensure_ascii=False)
+                        for e in events) + "\n")
+
+
+WHAT_MAX = 24  # characters, as club_events_what_short
+
+
+def what_words(what):
+    """What an Event is, in one to three words, its first letter a capital ("Cross country meet"),
+    else None."""
+    if not isinstance(what, str):
+        return None
+    w = " ".join(what.split()).strip(" .")
+    if not w or len(w) > WHAT_MAX or len(w.split()) > 3:
+        return None
+    return w[0].upper() + w[1:]
 
 
 def untagged(out, today):
@@ -230,7 +249,16 @@ def plan_tags(lines, events, known):
     for tomorrow; one with no usable draw is read again tomorrow for it."""
     given, known, writes = {e["id"]: e for e in events}, set(known), {}
     for ln in lines:
-        if not isinstance(ln, dict) or ln.get("id") not in given or not isinstance(ln.get("interests"), list):
+        if not isinstance(ln, dict) or ln.get("id") not in given:
+            continue
+        what = what_words(ln.get("what"))
+        if given[ln["id"]].get("tagged"):
+            # Read and rated before: only its words, so its interests and draw stay as they were.
+            # ponytail: one with no usable words is asked again each morning; mark it if that grows.
+            if what:
+                writes[ln["id"]] = {"what": what}
+            continue
+        if not isinstance(ln.get("interests"), list):
             continue
         tags = list(dict.fromkeys(t for t in ln["interests"] if t in known))
         write = {"interests": tags}
@@ -238,6 +266,8 @@ def plan_tags(lines, events, known):
             write["draw"] = ln["draw"]
         if not given[ln["id"]].get("category") and tags:
             write["category"] = tags[0]
+        if what:
+            write["what"] = what
         writes[ln["id"]] = write
     return writes
 
@@ -248,12 +278,13 @@ def tag(out, dry_run):
     if not dry_run:
         db, now = Supabase(), datetime.now(LOCAL).isoformat()
         for event_id, write in writes.items():
-            db.call("PATCH", f"club_events?id=eq.{event_id}", {**write, "interests_tagged_at": now},
-                    prefer="return=minimal")
-    empty = sum(1 for w in writes.values() if not w["interests"])
+            stamp = {} if set(write) == {"what"} else {"interests_tagged_at": now}
+            db.call("PATCH", f"club_events?id=eq.{event_id}", {**write, **stamp}, prefer="return=minimal")
+    empty = sum(1 for w in writes.values() if "interests" in w and not w["interests"])
+    words = sum(1 for w in writes.values() if "what" in w)
     draws = {d: sum(1 for w in writes.values() if w.get("draw") == d) for d in (3, 2, 1)}
     print(f"[morning] tagged {len(writes)} events ({empty} with no interest; draw 3/2/1: "
-          f"{draws[3]}/{draws[2]}/{draws[1]}), "
+          f"{draws[3]}/{draws[2]}/{draws[1]}), {words} with what they are in words, "
           f"{len(events) - len(writes)} left for tomorrow" + (" (dry run: nothing written)" if dry_run else ""))
 
 
@@ -390,6 +421,16 @@ def selftest():
                    "tags keep known interests once each and a draw of 1-3, fill an empty category, and skip Events not given or not answered"))
     checks.append((plan_tags([{"id": "e1", "interests": [], "draw": 1}], events, ["dining"]) == {"e1": {"interests": [], "draw": 1}},
                    "an Event nothing fits is tagged with none, so it isn't read again"))
+    words = plan_tags([{"id": "e1", "interests": ["dining"], "draw": 2, "what": "  cross  country meet. "},
+                       {"id": "t1", "interests": ["faith"], "draw": 3, "what": "Lecture"},
+                       {"id": "t2", "interests": ["faith"], "draw": 3, "what": "A talk about a lot of things"},
+                       {"id": "e3", "interests": [], "draw": 1, "what": 7}],
+                      events + [{"id": "t1", "tagged": True}, {"id": "t2", "tagged": True}], ["dining", "faith"])
+    checks.append((words == {"e1": {"interests": ["dining"], "draw": 2, "category": "dining", "what": "Cross country meet"},
+                             "t1": {"what": "Lecture"}, "e3": {"interests": [], "draw": 1}},
+                   "what it is: one to three words, tidied; an Event tagged before only gets its words"))
+    checks.append(('"tagged"' not in tag_message([{"id": "e1", "tagged": True}], ["dining"]),
+                   "the model never sees the tagged mark"))
     checks.append(("Interests: dining, faith" in tag_message([{"id": "e1"}], ["dining", "faith"]),
                    "each batch carries the interest list"))
     today = [{"id": "g"}, {"id": "t"}, {"id": "b"}]
