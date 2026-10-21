@@ -1108,10 +1108,14 @@ final class FeedWhenLineTests: XCTestCase {
         XCTAssertFalse(card("2026-09-24", "8 AM", endAt: at(24, 16, 30), cancelled: true).isNow(at: at(24, 9), calendar: calendar))
     }
 
-    /// A game whose final is in (game-card 02) is over: never Now, and its chip shows the day alone.
+    /// A game is Now for three hours (game-card 02); once its final is in it is over: never Now, and its
+    /// chip shows the day alone.
     func testAGameWhoseFinalIsInShowsItsDayAndIsNeverNow() throws {
         var game = card("2026-09-24", "7 PM")
-        XCTAssertTrue(game.isNow(at: at(24, 19, 30), calendar: calendar))
+        game.game = try JSONDecoder().decode(Game.self, from: Data(
+            #"{"sport":"Football","teams":[{"name":"Saint John's"},{"name":"Concordia"}]}"#.utf8))
+        XCTAssertTrue(game.isNow(at: at(24, 21, 30), calendar: calendar), "a game runs three hours, not two")
+        XCTAssertFalse(game.isNow(at: at(24, 22), calendar: calendar))
         game.game = try JSONDecoder().decode(Game.self, from: Data(
             #"{"sport":"Football","final":[33,23],"teams":[{"name":"Saint John's"},{"name":"Concordia"}]}"#.utf8))
         XCTAssertFalse(game.isNow(at: at(24, 19, 30), calendar: calendar))

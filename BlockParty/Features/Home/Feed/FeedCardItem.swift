@@ -97,7 +97,9 @@ struct FeedCardItem: Identifiable, Hashable {
             else { return false }
             return now >= day && now < endAt
         }
-        return now >= start && now < (endAt ?? start.addingTimeInterval(YourDayLogic.assumedEventDuration))
+        // A game runs three hours, as the Town feed keeps it (Jesse at game-card 02's Check-in 2).
+        let lasts = game == nil ? YourDayLogic.assumedEventDuration : 3 * 60 * 60
+        return now >= start && now < (endAt ?? start.addingTimeInterval(lasts))
     }
 
     /// The where line under the when line: just the venue, because the when line
