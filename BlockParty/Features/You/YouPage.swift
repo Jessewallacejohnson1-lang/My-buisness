@@ -62,14 +62,19 @@ enum YouMetric {
     static let emptyLine: CGFloat = 18
     /// Cards the Agenda's skeleton draws while the first read is out.
     static let skeletonCards = 2
-    /// The Places row, Instagram's highlights as the mock draws them: a 62pt photo in a
-    /// 70pt ring (2pt line, 2pt gap), the name 6pt under it in a 72pt column, 14pt apart.
-    static let placePhoto: CGFloat = 62
-    static let placeRing: CGFloat = 70
-    static let placeRingLine: CGFloat = 2
-    static let placeColumn: CGFloat = 72
-    static let placeNameTop: CGFloat = 6
-    static let placeGap: CGFloat = 14
+    /// The Groups and Places rows, Instagram's highlights as the mock draws them: a 62pt
+    /// photo in a 70pt ring (2pt line, 2pt gap), the name 6pt under it in a 72pt column, 14pt apart.
+    static let highlightPhoto: CGFloat = 62
+    static let highlightRing: CGFloat = 70
+    static let highlightRingLine: CGFloat = 2
+    static let highlightColumn: CGFloat = 72
+    static let highlightNameTop: CGFloat = 6
+    static let highlightGap: CGFloat = 14
+    /// A group's logo in its circle: Search's row logo (`SearchMetric.avatarLogo`), which
+    /// leaves its 44pt square the margin a 62pt circle's own 44pt square leaves.
+    static let groupLogo: CGFloat = SearchMetric.avatarLogo
+    /// Search's group icon, grown with the circle from its 17pt in a 44pt square.
+    static let groupGlyph: CGFloat = 24
 }
 
 struct YouPage: View {
@@ -107,11 +112,13 @@ struct YouPage: View {
                 // On every visit and each new week: the list on screen stays meanwhile.
                 .task(id: first) { await model.refresh(now: now) }
         }
+        // On every visit: the row on screen stays meanwhile.
+        .task { await refreshGroups() }
         .navigationDestination(item: $pushed) { FeedEventDetailDestination(item: $0) }
         // An event page opened mid-peek: back on You, the photo is already there.
         .onChange(of: pushed) { _, item in if item != nil { fold() } }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { Task { await model.refresh() } }
+            if phase == .active { Task { await model.refresh(); await refreshGroups() } }
         }
     }
 
@@ -129,6 +136,14 @@ struct YouPage: View {
                 agenda(going: going, day: day, now: now)
                     .padding(.top, YouMetric.labelToCards)
                     .padding(.horizontal, YouMetric.side)
+                // Left out until they join one, as Places is.
+                let groups = YouCalendar.groups(model.groups ?? [], isMember: { actions.member($0).isMember })
+                if !groups.isEmpty {
+                    DailySectionLabel(title: "Groups", ink: Hue.ink)
+                        .padding(.top, YouMetric.calendarToLabel)
+                    YouGroups(groups: groups)
+                        .padding(.top, YouMetric.labelToCards)
+                }
                 // Left out while there's nowhere to go, as on Daily.
                 let places = YouCalendar.places(going ?? [], now: now)
                 if !places.isEmpty {
@@ -180,6 +195,12 @@ struct YouPage: View {
             guard (try? await Task.sleep(for: YouMetric.peek)) != nil else { return }
             fold()
         }
+    }
+
+    /// The groups again, and whether the neighbour is in each for every page that shows them.
+    private func refreshGroups() async {
+        await model.refreshGroups()
+        if let groups = model.groups { actions.read(groups) }
     }
 
     private func fold() {
@@ -255,32 +276,21 @@ struct YouPage: View {
 }
 
 /// Where the neighbour's plans are, as Instagram's highlights: each place's next Event's
-/// photo in a ring with the place's name under it, cut at the column's width, never
-/// reworded. A tap opens that Event. No photo of its own: a grey circle, as on the Calendar.
+/// photo with the place's name under it. A tap opens that Event. No photo of its own: a grey
+/// circle, as on the Calendar.
 private struct YouPlaces: View {
     let events: [DailyEvent]
     let open: (FeedCardItem) -> Void
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            LazyHStack(alignment: .top, spacing: YouMetric.placeGap) {
+            LazyHStack(alignment: .top, spacing: YouMetric.highlightGap) {
                 ForEach(events) { event in
                     let place = YouCalendar.place(of: event) ?? ""
                     Button { open(event.item) } label: {
-                        VStack(spacing: YouMetric.placeNameTop) {
-                            Hue.fill
-                                .overlay { if let url = event.photo { FeedCardURLPhoto(url: url) } }
-                                .frame(width: YouMetric.placePhoto, height: YouMetric.placePhoto)
-                                .clipShape(Circle())
-                                .frame(width: YouMetric.placeRing, height: YouMetric.placeRing)
-                                .overlay(Circle().strokeBorder(Hue.ink.opacity(0.14), lineWidth: YouMetric.placeRingLine))
-                            Text(place)
-                                .font(.sans(12))
-                                .foregroundStyle(Hue.ink)
-                                .lineLimit(1)
+                        YouHighlight(name: place) {
+                            if let url = event.photo { FeedCardURLPhoto(url: url) }
                         }
-                        .frame(width: YouMetric.placeColumn)
-                        .contentShape(Rectangle())
                     }
                     .buttonStyle(PressableCardStyle())
                     .accessibilityLabel("\(place), \(event.item.title), \(DailyEvent.townTime("EEEEMMMMd", event.starts))")
@@ -288,6 +298,72 @@ private struct YouPlaces: View {
             }
         }
         .contentMargins(.horizontal, YouMetric.side, for: .scrollContent)
+    }
+}
+
+/// The groups the neighbour is in, as the same highlights, in Search's order. A tap opens
+/// the Group page, as Search's Groups shelf does.
+private struct YouGroups: View {
+    let groups: [TownGroup]
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(alignment: .top, spacing: YouMetric.highlightGap) {
+                ForEach(groups) { group in
+                    NavigationLink(value: group) {
+                        YouHighlight(name: group.name) { YouGroupPicture(group: group) }
+                    }
+                    .buttonStyle(PressableCardStyle())
+                    .accessibilityLabel(group.name)
+                }
+            }
+        }
+        .contentMargins(.horizontal, YouMetric.side, for: .scrollContent)
+    }
+}
+
+/// One of Instagram's highlights: the picture in a ring with the name under it, cut at the
+/// column's width, never reworded. Places and Groups share it.
+private struct YouHighlight<Picture: View>: View {
+    let name: String
+    @ViewBuilder let picture: () -> Picture
+
+    var body: some View {
+        VStack(spacing: YouMetric.highlightNameTop) {
+            Hue.fill
+                .overlay { picture() }
+                .frame(width: YouMetric.highlightPhoto, height: YouMetric.highlightPhoto)
+                .clipShape(Circle())
+                .frame(width: YouMetric.highlightRing, height: YouMetric.highlightRing)
+                .overlay(Circle().strokeBorder(Hue.ink.opacity(0.14), lineWidth: YouMetric.highlightRingLine))
+            Text(name)
+                .font(.sans(12))
+                .foregroundStyle(Hue.ink)
+                .lineLimit(1)
+        }
+        .frame(width: YouMetric.highlightColumn)
+        .contentShape(Rectangle())
+    }
+}
+
+/// A group's picture: its logo on its backdrop as Search draws it, else Search's group icon on
+/// the grey. Never its photos: a saved photo carries its credit wherever it shows (MEMORY.md,
+/// 2026-10-16) and a circle this size has no room for one (Jesse, ticket 09 Check-in 1).
+private struct YouGroupPicture: View {
+    let group: TownGroup
+
+    var body: some View {
+        if let logo = group.logo.flatMap({ FeedCardImageSource($0).logo }) {
+            ZStack {
+                SearchBackdrop(colors: logo.backdrop)
+                SearchFloor()
+                CastLogo(logo: logo, side: YouMetric.groupLogo)
+            }
+        } else {
+            Image(systemName: "person.2")
+                .font(.glyph(YouMetric.groupGlyph))
+                .foregroundStyle(Hue.inkSecondary)
+        }
     }
 }
 
