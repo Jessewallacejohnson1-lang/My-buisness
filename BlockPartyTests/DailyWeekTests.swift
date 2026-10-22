@@ -109,6 +109,26 @@ final class DailyWeekTests: XCTestCase {
         XCTAssertEqual(reads.count, 5)
     }
 
+    /// A read called off (Daily left mid-read) leaves the day loading, not empty, and it reads again.
+    @MainActor
+    func testACalledOffReadLeavesTheDayLoading() async {
+        let saturday = DailyWeek.days(from: wednesday)[3]
+        var reads = 0
+        let model = DailyDayPicks(read: { _ in
+            reads += 1
+            try await Task.sleep(for: .seconds(30))
+            return []
+        })
+        let leaving = Task { await model.refresh(saturday, now: wednesday) }
+        leaving.cancel()
+        await leaving.value
+        XCTAssertNil(model.picks["2026-10-24"], "still loading, so Daily shows paper, not the empty slot")
+        let again = Task { await model.refresh(saturday, now: wednesday) }
+        again.cancel()
+        await again.value
+        XCTAssertEqual(reads, 2, "a called-off read doesn't count as read")
+    }
+
     /// Another day's chip counts calendar days from now, as people do; today's still counts hours.
     @MainActor
     func testAnotherDaysChipCountsDays() {

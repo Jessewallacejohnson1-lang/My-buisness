@@ -94,7 +94,9 @@ nonisolated enum DailyMetric {
     /// week over a page like this one.
     static let weekTop: CGFloat = 4
     static let weekToSection: CGFloat = 24
-    /// Another day's page fades over the last one this fast (guessed; no Reference recording).
+    /// Another day's page: the last one fades out this fast, then the picked one fades in
+    /// (guessed; no Reference recording).
+    static let dayFadeOut: Double = 0.1
     static let dayFade: Double = 0.2
     /// The reserved slot's height under the week on a day with nothing in it.
     static let emptyHeight: CGFloat = 420
@@ -312,14 +314,19 @@ struct DailyPage: View {
                         }
                     }
                     .padding(.top, DailyMetric.weekTop)
-                    // The picked day's page fades over the last one in the same spot.
+                    // The system's selection tick on a tap, and only then (not at midnight).
+                    .sensoryFeedback(.selection, trigger: picked)
+                    // The last day's page fades out, then the picked day's fades in, in the same
+                    // spot, so the two never sit on top of each other.
                     ZStack(alignment: .top) {
                         // The cards' chips count from now ("In 3 days"), though the day's are
                         // picked from its midnight.
                         sections(spotlight: spotlight, events: events, suggestions: suggestions,
                                  following: following, empty: empty, loading: loading, now: now)
                             .id(day.id)
-                            .transition(.opacity.animation(reduceMotion ? nil : .easeOut(duration: DailyMetric.dayFade)))
+                            .transition(reduceMotion ? .identity : .asymmetric(
+                                insertion: .opacity.animation(.easeOut(duration: DailyMetric.dayFade).delay(DailyMetric.dayFadeOut)),
+                                removal: .opacity.animation(.easeIn(duration: DailyMetric.dayFadeOut))))
                     }
                     Color.clear.frame(height: DailyMetric.tabBarClearance)
                 }
@@ -331,7 +338,13 @@ struct DailyPage: View {
         // Today's are `EventOfTheDay`'s; a picked day reads at once, and the rest of the week reads
         // behind it, one day at a time, so a tap usually finds its day already there.
         .task(id: day.id) { if !isToday { await dayPicks.refresh(day) } }
-        .task(id: days[0].id) { for other in days.dropFirst() { await dayPicks.refresh(other) } }
+        .task(id: days[0].id) {
+            for other in days.dropFirst() {
+                // Leaving Daily calls the rest off; they read when Daily opens again.
+                guard !Task.isCancelled else { return }
+                await dayPicks.refresh(other)
+            }
+        }
         // The Town feed's frosted band behind the clock, so the page blurs under it;
         // it comes in with the first bit of scroll.
         .statusEdge(opacity: scrolled / DailyMetric.edgeFade)
@@ -347,33 +360,24 @@ struct DailyPage: View {
             BlankTab(tab: .daily)
                 .frame(height: DailyMetric.emptyHeight)
         } else {
-            VStack(spacing: 0) {
+            VStack(spacing: DailyMetric.eventSectionTop) {
                 if let spotlight {
-                    // The logo's face, standing in for the small caps label (Jesse, 2026-10-19).
-                    Text("Spotlight")
-                        .font(.logoSerif(DailyMetric.wordSize))
-                        .tracking(DailyMetric.wordTracking)
-                        .foregroundStyle(Hue.ink)
-                        .accessibilityAddTraits(.isHeader)
-                        .padding(.top, DailyMetric.weekToSection)
-                    SpotlightCard(spotlight: spotlight, tilt: tilt)
-                        .padding(.top, DailyMetric.wordToCard)
-                        .padding(.horizontal, DailyMetric.side)
+                    VStack(spacing: DailyMetric.wordToCard) {
+                        // The logo's face, standing in for the small caps label (Jesse, 2026-10-19).
+                        Text("Spotlight")
+                            .font(.logoSerif(DailyMetric.wordSize))
+                            .tracking(DailyMetric.wordTracking)
+                            .foregroundStyle(Hue.ink)
+                            .accessibilityAddTraits(.isHeader)
+                        SpotlightCard(spotlight: spotlight, tilt: tilt)
+                            .padding(.horizontal, DailyMetric.side)
+                    }
                 }
-                if !events.isEmpty {
-                    EventOfTheDaySection(events: events, now: now)
-                        .padding(.top, spotlight == nil ? DailyMetric.weekToSection : DailyMetric.eventSectionTop)
-                }
-                if !suggestions.isEmpty {
-                    SuggestionsSection(events: suggestions, now: now)
-                        .padding(.top, events.isEmpty && spotlight == nil ? DailyMetric.weekToSection : DailyMetric.eventSectionTop)
-                }
-                if !following.isEmpty {
-                    FollowingSection(items: following, now: now)
-                        .padding(.top, events.isEmpty && suggestions.isEmpty && spotlight == nil
-                                 ? DailyMetric.weekToSection : DailyMetric.eventSectionTop)
-                }
+                if !events.isEmpty { EventOfTheDaySection(events: events, now: now) }
+                if !suggestions.isEmpty { SuggestionsSection(events: suggestions, now: now) }
+                if !following.isEmpty { FollowingSection(items: following, now: now) }
             }
+            .padding(.top, DailyMetric.weekToSection)
         }
     }
 }

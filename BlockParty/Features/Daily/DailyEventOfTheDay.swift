@@ -388,7 +388,9 @@ private struct EventOfTheDayFace: View {
                 .aspectRatio(DailyMetric.eventPhotoAspect, contentMode: .fit)
                 .overlay {
                     if let url = picture.url {
-                        FeedCardURLPhoto(url: url, onReady: { photoShown = true })
+                        // The grey behind it while it loads, not ink: a day tapped in the week
+                        // brings a photo not yet loaded, and ink flashed black (daily-tab 16).
+                        FeedCardURLPhoto(url: url, onReady: { photoShown = true }, loadingFill: Hue.fill)
                     } else if let logo = picture.logo {
                         FeedCardPlaceLogo(logo: logo, topClear: PhotoChip.inset + PhotoChip.height)
                     }

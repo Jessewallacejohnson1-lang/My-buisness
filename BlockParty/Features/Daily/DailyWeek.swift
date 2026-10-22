@@ -107,8 +107,10 @@ final class DailyDayPicks {
         do {
             picks[day.id] = try await read(day)
         } catch {
-            // A failed read keeps what the day had, or shows nothing for it, and tries again next time.
             readAt[day.id] = nil
+            // Called off (Daily left mid-read): no answer, so the day still reads as loading.
+            guard !Task.isCancelled else { return }
+            // A failed read keeps what the day had, or shows nothing for it, and tries again next time.
             if picks[day.id] == nil { picks[day.id] = [] }
         }
     }
@@ -128,6 +130,7 @@ private nonisolated enum DailyWeekMetric {
     static let gap: CGFloat = 6
     static let bubbleHeight: CGFloat = 64
     static let radius: CGFloat = 24
+    static var shape: RoundedRectangle { RoundedRectangle(cornerRadius: radius, style: .continuous) }
     /// Between the weekday and the number inside a bubble, and from the bubble to its faces.
     static let lineGap: CGFloat = 3
     static let facesTop: CGFloat = 6
@@ -144,9 +147,11 @@ private nonisolated enum DailyWeekMetric {
     static let pickedShadowOpacity: Double = 0.22
 }
 
-/// The row of day bubbles. The picked day is the black bubble, which slides to the day you tap
-/// (one shape, `matchedGeometryEffect`), with the system's selection tick; today keeps a thin ring
-/// while another day is picked.
+/// The row of day bubbles. The picked day is the black bubble, which slides to the day you tap;
+/// today keeps a thin ring while another day is picked. The bubbles draw under the row's words in
+/// two layers, the white ones and then the one black one over them, each following its day's place
+/// (`matchedGeometryEffect`), so the black one moves as one solid shape over the days between:
+/// drawn inside each day, it was two that cross-faded grey, or one that jumped.
 struct DailyWeekRow: View {
     let days: [DailyWeekDay]
     /// The day the page shows.
@@ -154,33 +159,59 @@ struct DailyWeekRow: View {
     let friends: [String: [FeedFriend]]
     let pick: (DailyWeekDay) -> Void
     @Namespace private var bubble
+    /// The day under the finger, so its bubble squishes with its words.
+    @State private var pressed: String?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(alignment: .top, spacing: DailyWeekMetric.gap) {
             ForEach(Array(days.enumerated()), id: \.element.id) { index, day in
                 DailyWeekBubble(day: day, isToday: index == 0, isShown: day.id == shown,
-                                friends: friends[day.id] ?? [], bubble: bubble) { pick(day) }
+                                friends: friends[day.id] ?? [], bubble: bubble, pressed: $pressed) { pick(day) }
             }
         }
+        .background {
+            ZStack {
+                ForEach(days) { day in
+                    if day.id != shown {
+                        DailyWeekMetric.shape.fill(Hue.surface)
+                            .overlay { DailyWeekMetric.shape.strokeBorder(Hue.hairline, lineWidth: 0.5) }
+                            .modifier(CardShadow())
+                            .matchedGeometryEffect(id: day.id, in: bubble, isSource: false)
+                            .scaleEffect(squish(day.id))
+                    }
+                }
+                DailyWeekMetric.shape.fill(Hue.ink)
+                    .shadow(color: .black.opacity(DailyWeekMetric.pickedShadowOpacity),
+                            radius: DailyWeekMetric.pickedShadowRadius, y: DailyWeekMetric.pickedShadowY)
+                    .matchedGeometryEffect(id: shown, in: bubble, isSource: false)
+                    .scaleEffect(squish(shown))
+            }
+            .animation(PressableCardStyle.press, value: pressed)
+        }
         .padding(.horizontal, DailyWeekMetric.side)
-        .sensoryFeedback(.selection, trigger: shown)
+    }
+
+    private func squish(_ day: String) -> CGFloat {
+        pressed == day && !reduceMotion ? PressableCardStyle.pressedScale : 1
     }
 }
 
+/// One day: its words in the bubble's place, today's ring, and the faces under it. Its bubble
+/// draws in the row's layers under it (`DailyWeekRow`), placed by this day's frame.
 private struct DailyWeekBubble: View {
     let day: DailyWeekDay
     let isToday: Bool
     let isShown: Bool
     let friends: [FeedFriend]
     let bubble: Namespace.ID
+    @Binding var pressed: String?
     let tap: () -> Void
-
-    private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: DailyWeekMetric.radius, style: .continuous) }
 
     var body: some View {
         VStack(spacing: DailyWeekMetric.facesTop) {
             Button(action: tap) { face }
-                .buttonStyle(PressableCardStyle())
+                .buttonStyle(DailyWeekPressStyle(day: day.id, pressed: $pressed))
             DailyWeekFaces(friends: friends)
         }
         .frame(maxWidth: .infinity)
@@ -201,22 +232,12 @@ private struct DailyWeekBubble: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: DailyWeekMetric.bubbleHeight)
-        .background {
-            if isShown {
-                shape.fill(Hue.ink)
-                    .shadow(color: .black.opacity(DailyWeekMetric.pickedShadowOpacity),
-                            radius: DailyWeekMetric.pickedShadowRadius, y: DailyWeekMetric.pickedShadowY)
-                    .matchedGeometryEffect(id: "picked", in: bubble)
-            } else {
-                shape.fill(Hue.surface)
-                    .overlay { shape.strokeBorder(Hue.hairline, lineWidth: 0.5) }
-                    .modifier(CardShadow())
-            }
-        }
+        // Where this day's bubble goes, for the row's layers.
+        .background { Color.clear.matchedGeometryEffect(id: day.id, in: bubble) }
         .overlay {
-            if isToday && !isShown { shape.strokeBorder(Hue.ink, lineWidth: DailyWeekMetric.todayRing) }
+            if isToday && !isShown { DailyWeekMetric.shape.strokeBorder(Hue.ink, lineWidth: DailyWeekMetric.todayRing) }
         }
-        .contentShape(shape)
+        .contentShape(DailyWeekMetric.shape)
     }
 
     /// "Wednesday 21, today, Sam and Marlene going".
@@ -229,6 +250,23 @@ private struct DailyWeekBubble: View {
             words.append("\(who) going")
         }
         return words.joined(separator: ", ")
+    }
+}
+
+/// The card press (`PressableCardStyle`'s scale and spring) on a day's words, telling the row
+/// which day is down so its bubble, in the layer under them, squishes with them.
+private struct DailyWeekPressStyle: ButtonStyle {
+    let day: String
+    @Binding var pressed: String?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed && !reduceMotion ? PressableCardStyle.pressedScale : 1)
+            .animation(PressableCardStyle.press, value: configuration.isPressed)
+            .onChange(of: configuration.isPressed) { _, isDown in
+                if isDown { pressed = day } else if pressed == day { pressed = nil }
+            }
     }
 }
 
