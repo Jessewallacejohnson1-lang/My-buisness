@@ -45,6 +45,14 @@ final class AuthStore: ObservableObject, TokenProviding {
                 try? await refresh()
             }
         }
+        #if DEBUG
+        // bp-build's proof_login.sh: a throwaway proof account, logged in from the launch's
+        // environment. Typing on the simulator's keyboard stopped landing (2026-10-21).
+        let env = ProcessInfo.processInfo.environment
+        if session == nil, let email = env["BP_PROOF_EMAIL"], let password = env["BP_PROOF_PASSWORD"] {
+            _ = await signIn(email: email, password: password)
+        }
+        #endif
         booting = false
     }
 
