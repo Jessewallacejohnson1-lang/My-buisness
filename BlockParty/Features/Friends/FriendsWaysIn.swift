@@ -47,8 +47,8 @@ enum FriendsInvite {
     static let message = words + " blockpartymn.com"
 }
 
-/// The card of round buttons under the Friends page's search: Messages, Copy link, More.
-/// Contacts and Your code take More's place when tickets 06 and 07 land. Messages shows only
+/// The card of round buttons under the Friends page's search: Messages, Copy link, Contacts
+/// (friends 06), More. Your code takes More's place when ticket 07 lands. Messages shows only
 /// where the phone can send texts, as the share row's does.
 struct FriendsWaysCard: View {
     @State private var copied = false
@@ -74,6 +74,13 @@ struct FriendsWaysCard: View {
             }
             .accessibilityLabel("Copy link")
             .accessibilityValue(copied ? "Copied" : "")
+            // Pushed, and only there does iPhone ask for contacts.
+            NavigationLink(value: FriendsRoute.contacts) {
+                face("Contacts") {
+                    Image(systemName: "person.text.rectangle").font(.glyph(21, weight: .medium)).foregroundStyle(Hue.ink)
+                }
+            }
+            .buttonStyle(PressableStyle(scale: 0.9))
             ShareLink(item: FriendsInvite.link, message: Text(FriendsInvite.words)) {
                 face("More") {
                     Image(systemName: "ellipsis").font(.glyph(21, weight: .bold)).foregroundStyle(Hue.ink)
@@ -169,12 +176,19 @@ struct FriendsEmptyInvite: View {
     }
 }
 
-/// Messages: Apple's message composer with the message filled in.
+/// Messages: Apple's message composer with the message filled in, to `phone` when Contacts gives
+/// one. Where the phone can't text, Contacts' Invite opens Apple's share sheet with the same words.
 @MainActor
 enum FriendsInvitePresenter {
-    static func messages() {
+    static func messages(to phone: String? = nil) {
         guard let top = topController() else { return }
-        MessagesComposer.present(from: top, text: FriendsInvite.message, image: nil)
+        if MessagesComposer.canSend {
+            MessagesComposer.present(from: top, text: FriendsInvite.message, image: nil, recipients: phone.map { [$0] } ?? [])
+        } else {
+            let sheet = UIActivityViewController(activityItems: [FriendsInvite.message], applicationActivities: nil)
+            sheet.popoverPresentationController?.sourceView = top.view
+            top.present(sheet, animated: true)
+        }
     }
 
     private static func topController() -> UIViewController? {
