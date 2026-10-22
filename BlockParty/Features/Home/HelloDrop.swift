@@ -187,23 +187,32 @@ struct HelloDropView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    static let top: CGFloat = 56
+    /// The pill's top sits 6 pt above the safe area's: 56 pt on a 16 Pro, just under its island.
+    static let aboveSafeTop: CGFloat = 6
     static let height: CGFloat = 58
+    /// More than any phone's safe area top: hidden, the pill waits this far above it.
+    static let offscreen: CGFloat = 100
     static let side: CGFloat = 12
     static let holdHello: Duration = .seconds(1.2)
-    static let stay: Duration = .seconds(4)
+    /// 4 s; DEBUG `-hello-drop-hold` keeps it 10 s, so a recorded tap lands on the message.
+    static var stay: Duration {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-hello-drop-hold") { return .seconds(10) }
+        #endif
+        return .seconds(4)
+    }
 
     var body: some View {
         ZStack(alignment: .top) {
             if step != .hidden {
                 pill
-                    .padding(.top, Self.top)
+                    .padding(.top, -Self.aboveSafeTop)
                     .offset(y: dragY)
-                    .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+                    // Up past the screen's top and back the same way.
+                    .transition(reduceMotion ? .opacity : .offset(y: -(Self.offscreen + Self.height)))
             }
         }
         .frame(maxWidth: .infinity, alignment: .top)
-        .ignoresSafeArea()
         .task { start() }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { start() }
@@ -217,7 +226,9 @@ struct HelloDropView: View {
                 Text(hello)
                     .font(.sansSemibold(17))
                     .padding(.horizontal, 24)
-                    .transition(.opacity)
+                    // Gone before the message comes in, so the two never show at once.
+                    .transition(.asymmetric(insertion: .opacity,
+                                            removal: .opacity.animation(.easeOut(duration: 0.12))))
             }
             if step == .message, let said {
                 Text(said.text)
@@ -226,7 +237,8 @@ struct HelloDropView: View {
                     .minimumScaleFactor(0.8)
                     .padding(.horizontal, 22)
                     .frame(maxWidth: .infinity)
-                    .transition(.opacity)
+                    .transition(.asymmetric(insertion: .opacity.animation(.easeIn(duration: 0.2).delay(0.12)),
+                                            removal: .opacity))
             }
         }
         .foregroundStyle(.white)
@@ -274,6 +286,8 @@ struct HelloDropView: View {
         hello = greeting.text
         run = Task {
             Task { await prepare() }
+            // DEBUG `-hello-drop` waits 4 s, so a recording that starts after launch sees it drop.
+            if HelloDrop.forced { try? await Task.sleep(for: .seconds(4)) }
             withAnimation(reduceMotion ? Motion.smooth : Motion.sheet) { step = .hello }
             AccessibilityNotification.Announcement(greeting.text).post()
             try? await Task.sleep(for: Self.holdHello)
