@@ -77,11 +77,12 @@ extension View {
     /// pull in, to 1 pt / 2 pt and 3 pt / 10 pt at 16%. Each falls from its own copy of the
     /// capsule, so the wide one doesn't blur the tight one too. Figma's blur is twice
     /// SwiftUI's radius.
-    func meetupPillDepth(pressed: Bool) -> some View {
+    /// `strength`: the light buttons (Town's grey X, the yellow share) cast a lighter shadow (event-card 06).
+    func meetupPillDepth(pressed: Bool, strength: Double = 1) -> some View {
         background {
             ZStack {
-                Capsule().shadow(color: .black.opacity(0.30), radius: pressed ? 1 : 1.5, x: 0, y: pressed ? 1 : 1.5)
-                Capsule().shadow(color: .black.opacity(pressed ? 0.16 : 0.22), radius: pressed ? 5 : 12,
+                Capsule().shadow(color: .black.opacity(0.30 * strength), radius: pressed ? 1 : 1.5, x: 0, y: pressed ? 1 : 1.5)
+                Capsule().shadow(color: .black.opacity((pressed ? 0.16 : 0.22) * strength), radius: pressed ? 5 : 12,
                                  x: 0, y: pressed ? 3 : 8)
             }
         }

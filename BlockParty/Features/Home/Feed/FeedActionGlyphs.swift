@@ -25,13 +25,15 @@ struct FeedActionGlyphView: View {
     var size: CGFloat = 24
     /// Fills the shape as well as stroking it — the liked heart.
     var filled = false
+    /// Times the family's stroke: the yellow share draws its send heavier (Jesse, event-card 06).
+    var weight: CGFloat = 1
 
     var body: some View {
         let shape = FeedActionGlyphShape(glyph: glyph)
         ZStack {
             if filled { shape.fill() }
             shape.stroke(style: StrokeStyle(
-                lineWidth: size * FeedActionGlyph.strokeFraction,
+                lineWidth: size * FeedActionGlyph.strokeFraction * weight,
                 lineCap: .round,
                 lineJoin: .round
             ))

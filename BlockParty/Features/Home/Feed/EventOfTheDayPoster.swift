@@ -174,8 +174,9 @@ struct EventOfTheDayPoster: View {
 
             HStack(spacing: Metric.rowGap) {
                 if let words {
+                    // Going, the yellow share pops up right of the X (event-card 06).
                     AttendPill(item: item, words: words,
-                               onInvite: { ShareCenter.shared.present(.event(item)) })
+                               onInvite: { ShareCenter.shared.present(.event(item)) }, shareBeside: .trailing)
                 }
                 Spacer(minLength: 0)
                 if actions.canAct { heartButton }

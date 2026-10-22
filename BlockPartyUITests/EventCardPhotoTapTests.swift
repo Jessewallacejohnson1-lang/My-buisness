@@ -43,12 +43,12 @@ final class EventCardPhotoTapTests: XCTestCase {
         link.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
     }
 
-    /// The heart in the action row directly under that card.
+    /// The heart in that card's photo, bottom right (event-card 06).
     private func likeButton(under link: XCUIElement) -> XCUIElement? {
         app.buttons
             .matching(NSPredicate(format: "label BEGINSWITH 'Like,'"))
             .allElementsBoundByIndex
-            .first { $0.frame.minY >= link.frame.maxY }
+            .first { link.frame.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY)) }
     }
 
     /// Pushed = Town's card is no longer on screen to be tapped. A push waits out the

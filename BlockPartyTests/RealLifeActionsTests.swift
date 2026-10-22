@@ -1014,7 +1014,7 @@ final class RSVPWordsTests: XCTestCase {
 
     /// On Town, Going turns the pill into the round X that leaves, with no "Can't go?" (attend-x,
     /// 2026-10-21); the check shows on Attend first, as before Invite. Called off, the pill stays
-    /// Canceled and "Can't go?" still leaves. Not going reads as everywhere else.
+    /// Canceled and "Can't go?" still leaves. Not going, the count without the friends' names.
     func testOnTownThePillTurnsIntoTheXThatLeaves() {
         func town(_ isGoing: Bool, cancelled: Bool = false) -> RSVPWords {
             RSVPWords.make(isGoing: isGoing, count: 42, friends: ["Avery"], cancelled: cancelled, town: true)
@@ -1023,7 +1023,8 @@ final class RSVPWordsTests: XCTestCase {
         XCTAssertTrue(town(true).goingLine, "You're going! cross-fades in over the count")
         XCTAssertEqual(town(true).shownPill(checking: true), .rsvp, "the check shows on Attend")
         XCTAssertEqual(town(true).shownPill(checking: false), .leave, "then the X")
-        XCTAssertEqual(town(false), RSVPWords.make(isGoing: false, count: 42, friends: ["Avery"], cancelled: false))
+        XCTAssertEqual(town(false), RSVPWords(top: "42 going", second: nil, canLeave: false, pill: .rsvp),
+                       "the count alone: the names don't fit on the card's one line (event-card 06)")
         XCTAssertFalse(town(false).goingLine)
         XCTAssertEqual(town(true, cancelled: true),
                        RSVPWords(top: "You're going!", second: "Can't go?", canLeave: true, pill: .canceled))
