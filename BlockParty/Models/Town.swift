@@ -25,6 +25,9 @@ nonisolated enum Town {
     /// Long form, for the places that name the state.
     static let display = "St. Joseph, Minnesota"
 
+    /// How a message to a friend names it: "St. Joseph's events" (friends 05).
+    static let everyday = "St. Joseph"
+
     /// What neighbours call it: Daily's first topic is "Best of St. Joe".
     static let nickname = "St. Joe"
 

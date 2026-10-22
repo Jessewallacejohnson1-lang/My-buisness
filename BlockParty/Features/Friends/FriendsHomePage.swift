@@ -93,15 +93,10 @@ struct FriendsHomePage: View {
             // Drawn last so it sits over the rows, read first so Back comes first.
             FriendsTitleBar(title: "Friends", titleUnder: titleUnder).accessibilitySortPriority(1)
         }
-        // Nobody found, or no friends after a read that worked: Apple's empty page, in the
-        // middle of the screen.
+        // Nobody found: Apple's empty page, in the middle of the screen.
         .overlay {
             if typing, found == .none {
                 ContentUnavailableView("No results found", systemImage: "magnifyingglass")
-                    .allowsHitTesting(false)
-            } else if !typing, search.state != .needsAccount, book.loaded, book.isEmpty {
-                ContentUnavailableView("No friends yet", systemImage: "person.2",
-                                       description: Text("Search for neighbors you know and add them."))
                     .allowsHitTesting(false)
             }
         }
@@ -127,10 +122,16 @@ struct FriendsHomePage: View {
     @ViewBuilder private var home: some View {
         if search.state == .needsAccount {
             LogInToFindRow { signingIn = true }
-        } else if !book.loaded {
-            if book.failed { FailedLine() } else { LoadingRows() }
         } else {
-            ForEach(rows) { row in
+            // Ways in under the search, for a real account (friends 05).
+            FriendsWaysCard()
+            if !book.loaded {
+                if book.failed { FailedLine() } else { LoadingRows() }
+            } else if book.isEmpty {
+                // No friends and no requests: the page that invites, in place of Apple's empty page.
+                FriendsEmptyInvite()
+            }
+            ForEach(book.loaded ? rows : []) { row in
                 switch row {
                 case .accepted(let person): AcceptedLine(person: person)
                 case .title(let title): FriendsSectionTitle(text: title)
