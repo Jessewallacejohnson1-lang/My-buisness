@@ -61,8 +61,8 @@ struct EventOfTheDayPoster: View {
 
     private var item: FeedCardItem { event.item }
 
-    /// The event's own photo, else its place's, credited, else its place's logo, as Daily's card
-    /// and the Town card show them. One photo: the poster doesn't swipe.
+    /// The event's own photo, else its place's, credited, else its place's logo, as the Town card
+    /// shows them. One photo: the poster doesn't swipe.
     private var picture: FeedCardImageSource { photoFailed ? .fallback : item.image }
 
     var body: some View {
@@ -75,7 +75,6 @@ struct EventOfTheDayPoster: View {
             .scaleEffect(FeedMotion.pressScale(isPressed: linkPressed, reduceMotion: reduceMotion))
             .opacity(FeedMotion.pressOpacity(isPressed: linkPressed, reduceMotion: reduceMotion))
             .animation(FeedMotion.pressAnimation(reduceMotion: reduceMotion), value: linkPressed)
-            .padding(.horizontal, DailyFeedMetric.contentInset)
             .sheet(isPresented: $menuPresented) {
                 if let why = item.why {
                     FeedCardMenu(why: why, score: item.score, report: picture.report(place: item.whereLine))
@@ -194,7 +193,8 @@ struct EventOfTheDayPoster: View {
     private var flip: TimeInterval { reduceMotion ? 0.15 : RealLifeActions.flip }
 
     /// "Today · 2 PM", in BP yellow; while it's on, "Now" behind Apple's green dot, as a Town
-    /// card's chip says it (Jesse at Check-in 1, 2026-10-21).
+    /// card's chip says it (Jesse at Check-in 1, 2026-10-21). Another day's, on Daily, says the
+    /// day short, "Sat · 4 PM" (`DailyEvent.dayLine`).
     @ViewBuilder
     private var when: some View {
         if item.isNow(at: now) {
@@ -204,8 +204,8 @@ struct EventOfTheDayPoster: View {
             }
             .font(.sans(16))
             .foregroundStyle(Hue.brandDisc)
-        } else if let when = item.whenLine {
-            Text(when.text)
+        } else if let when = event.dayLine(now: now) ?? item.whenLine?.text {
+            Text(when)
                 .font(.sans(16))
                 .foregroundStyle(Hue.brandDisc)
         }

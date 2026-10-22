@@ -182,8 +182,7 @@ enum YouCalendar {
         let starts = minutes.flatMap { calendar.date(bySettingHour: $0 / 60, minute: $0 % 60, second: 0, of: midnight) }
         let nextMidnight = calendar.date(byAdding: .day, value: 1, to: midnight) ?? midnight
         var event = DailyEvent(item: item, starts: starts ?? midnight,
-                               ends: endAt ?? starts?.addingTimeInterval(2 * 3600) ?? nextMidnight,
-                               town: "")
+                               ends: endAt ?? starts?.addingTimeInterval(2 * 3600) ?? nextMidnight)
         event.timed = starts != nil
         return event
     }

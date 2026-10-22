@@ -143,6 +143,26 @@ final class DailyWeekTests: XCTestCase {
         XCTAssertEqual(at(3, 16).startsLabel(now: wednesday), "In 3 days", "Saturday 4 PM")
     }
 
+    /// Another day's poster says its day short, the week above naming the date (Jesse at daily-tab
+    /// 18's Check-in 1); today's keeps the Town feed's words.
+    @MainActor
+    func testAnotherDaysPosterSaysItsDayShort() {
+        let days = DailyWeek.days(from: wednesday)
+        func at(_ day: Int, _ hour: Double) -> DailyEvent {
+            DailyEvent.sample(id: "e", title: "Plant Bingo", host: "Milk & Honey Ciders", photo: "farmers-market",
+                              place: "Milk & Honey Ciders", starts: days[day].start.addingTimeInterval(hour * 3600),
+                              ends: days[day].start.addingTimeInterval((hour + 1) * 3600), category: .food, description: "")
+        }
+        // Foundation puts a narrow no-break space before AM and PM.
+        func line(_ event: DailyEvent) -> String? { event.dayLine(now: wednesday)?.replacingOccurrences(of: "\u{202F}", with: " ") }
+        XCTAssertNil(line(at(0, 19)), "today's says Tonight · 7 PM, as on Town")
+        XCTAssertEqual(line(at(1, 9.5)), "Thu · 9:30 AM", "tomorrow is named by its day too")
+        XCTAssertEqual(line(at(3, 16)), "Sat · 4 PM")
+        var allDay = at(3, 0)
+        allDay.timed = false
+        XCTAssertEqual(line(allDay), "Saturday", "no clock: the whole day's name")
+    }
+
     private func event(_ id: String) -> DailyEvent {
         DailyEvent.sample(id: id, title: "Plant Bingo", host: "Milk & Honey Ciders", photo: "farmers-market",
                           place: "Milk & Honey Ciders", starts: wednesday, ends: wednesday.addingTimeInterval(3600),
