@@ -388,4 +388,26 @@ final class SearchModelTests: XCTestCase {
         // The studio backdrop's top, hsl(34 9% 94%): #F1F0EE.
         near(Hue.hslToRGB(34, 9, 94), (0.9454, 0.9407, 0.9346))
     }
+
+    /// A logo pops in a wave: 44 ms apart, no more than ten deep, once per app open; a logo
+    /// that comes on screen later starts a wave of its own.
+    func testLogoPopStaggersOncePerLogo() {
+        let reveal = LogoReveal(), start = Date()
+        let urls = (0..<12).map { URL(string: "https://example.com/logo-\($0).webp")! }
+        let delays = urls.map { reveal.slot(for: $0, now: start) }
+        XCTAssertEqual(delays[0], 0)
+        XCTAssertEqual(delays[1]!, 0.044, accuracy: 1e-9)
+        XCTAssertEqual(delays[11]!, 0.44, accuracy: 1e-9)
+        XCTAssertNil(reveal.slot(for: urls[0], now: start))
+        XCTAssertEqual(reveal.slot(for: URL(string: "https://example.com/late.webp")!, now: start + 1), 0)
+    }
+
+    /// The elastic swings past its spot, back, and has settled by the pop's end.
+    func testElasticSwingsAndSettles() {
+        XCTAssertEqual(elasticOffset(0, from: -24, response: 0.7, damping: 0.42), -24, accuracy: 1e-9)
+        let swing = stride(from: 0.0, to: 1.2, by: 0.01).map { elasticOffset($0, from: -24, response: 0.7, damping: 0.42) }
+        XCTAssertGreaterThan(swing.max()!, 5)
+        XCTAssertLessThan(abs(elasticOffset(1.2, from: -24, response: 0.7, damping: 0.42)), 0.5)
+        XCTAssertLessThan(abs(elasticOffset(1.2, from: -0.5, response: 0.61, damping: 0.5)), 0.005)
+    }
 }

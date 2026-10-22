@@ -235,7 +235,9 @@ final class SearchModel {
         fixed = Self.parks(photos: photos ?? [:]) + Self.samples()
         placesLoaded = true
         photosLoaded = photos != nil
-        POILogoCache.shared.prefetch(places.compactMap(\.logo?.url))
+        let logos = places.compactMap(\.logo?.url)
+        POILogoCache.shared.prefetch(logos)
+        Task { await LogoReveal.shared.open(after: logos) }
     }
 
     func show(_ groups: [TownGroup]) {
