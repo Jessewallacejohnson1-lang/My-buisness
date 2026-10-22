@@ -81,6 +81,10 @@ final class FriendsBook {
     /// One more each time a failed tap on that person flips back while a screen with the
     /// button is open; that screen's button shakes. Never goes down.
     private(set) var failures: [String: Int] = [:]
+    /// People you may know as the last read gave them (daily-tab 22).
+    private(set) var suggestionsRead: [Neighbor] = []
+    /// Hidden with the X since that read, so they go at once.
+    private var hidden: Set<String> = []
     /// Where you stand with each person you tapped, over what reads gave, until a read agrees.
     private var chosen: [String: Neighbor.Relation] = [:]
     @ObservationIgnored private var writing: Set<String> = []
@@ -92,6 +96,8 @@ final class FriendsBook {
     private let readDot: () async throws -> Bool
     private let markSeen: () async throws -> Void
     private let write: (Action, String) async throws -> Neighbor.Relation
+    private let readSuggestions: () async throws -> [Neighbor]
+    private let writeHide: (String) async throws -> Void
     /// No real account: nothing is asked, and taps open Log in.
     let isAnonymous: () -> Bool
     private let hold: Duration
@@ -102,6 +108,8 @@ final class FriendsBook {
          readDot: @escaping () async throws -> Bool,
          markSeen: @escaping () async throws -> Void,
          write: @escaping (Action, String) async throws -> Neighbor.Relation,
+         readSuggestions: @escaping () async throws -> [Neighbor] = { [] },
+         writeHide: @escaping (String) async throws -> Void = { _ in },
          isAnonymous: @escaping () -> Bool,
          hold: Duration? = nil, flip: Duration? = nil) {
         self.read = read
@@ -109,6 +117,8 @@ final class FriendsBook {
         self.readDot = readDot
         self.markSeen = markSeen
         self.write = write
+        self.readSuggestions = readSuggestions
+        self.writeHide = writeHide
         self.isAnonymous = isAnonymous
         // Join's hold and flip unless a test passes shorter ones.
         self.hold = hold ?? RealLifeActions.hold
@@ -127,6 +137,8 @@ final class FriendsBook {
                       readDot: { try await api().friendsDot() },
                       markSeen: { try await api().markFriendsSeen() },
                       write: { try await api().friendWrite($0, $1) },
+                      readSuggestions: { try await api().peopleYouMayKnow() },
+                      writeHide: { try await api().hideSuggestion($0) },
                       isAnonymous: { !AuthStore.shared.isSignedIn || AuthStore.shared.isAnonymous })
         case .samples:
             // DEBUG `-friends-fail` makes every tap fail, `-friends-limit` every Add friend hit
@@ -141,12 +153,15 @@ final class FriendsBook {
                           if limited, action == .add { throw SupabaseError(message: "friend_limit", status: 400) }
                           return Self.answer(to: action)
                       },
+                      readSuggestions: { Neighbor.sampleSuggestions },
+                      writeHide: { _ in if fails { throw URLError(.notConnectedToInternet) } },
                       isAnonymous: { false })
         case .offline:
             let offline = URLError(.notConnectedToInternet)
             self.init(read: { throw offline }, readBlocked: { throw offline },
                       readDot: { throw offline }, markSeen: { throw offline },
-                      write: { _, _ in throw offline }, isAnonymous: { false })
+                      write: { _, _ in throw offline }, readSuggestions: { throw offline },
+                      writeHide: { _ in throw offline }, isAnonymous: { false })
         }
     }
 
@@ -187,6 +202,12 @@ final class FriendsBook {
     /// Nothing to show: no accepted line, no request, no friend.
     var isEmpty: Bool { accepted.isEmpty && requests.isEmpty && friends.isEmpty }
 
+    /// People you may know: less anyone you hid, and anyone who became more than a stranger
+    /// since the read, but a request you just sent stays, so its Cancel is right there.
+    var suggested: [Neighbor] {
+        suggestionsRead.filter { !hidden.contains($0.id) && [.stranger, .sent].contains(relation($0)) }
+    }
+
     /// Profile's Blocked list: the people you blocked, less any you just unblocked.
     var blocked: [Neighbor] {
         blockedRead.filter { relation($0) == .blocked }
@@ -198,6 +219,39 @@ final class FriendsBook {
     }
 
     // MARK: What screens tell it
+
+    /// Daily opened (or came back): read People you may know again. A failed read keeps the
+    /// last one; an Anonymous account has none.
+    func refreshSuggestions() async {
+        guard !isAnonymous() else { suggestionsRead = []; return }
+        guard let people = try? await readSuggestions() else { return }
+        // The read is the truth for whom it returned; a tap still being sent keeps its answer.
+        let read = Set(people.map(\.id))
+        chosen = chosen.filter { !read.contains($0.key) || writing.contains($0.key) || $0.value == .blocked }
+        // The server lists strangers only, so someone you just asked keeps their card, and its
+        // Cancel, until the app closes.
+        let asked = suggestionsRead.filter { !read.contains($0.id) && relation($0) == .sent }
+        withAnimation(.easeInOut(duration: RealLifeActions.flip)) { suggestionsRead = asked + people }
+    }
+
+    /// The X: they go at once, with a light tick, and never come back. A hide that fails brings
+    /// them back where they were with the error buzz, while a screen with the card is open.
+    func hide(_ person: Neighbor) {
+        Haptics.light()
+        withAnimation(Motion.smooth) { _ = hidden.insert(person.id) }
+        Task {
+            do {
+                try await writeHide(person.id)
+            } catch {
+                try? await Task.sleep(for: hold)
+                withAnimation(Motion.smooth) { _ = hidden.remove(person.id) }
+                guard open > 0 else { return }
+                Haptics.error()
+                // `friend-fail-vo`'s kind of line.
+                AccessibilityNotification.Announcement("Couldn't remove \(person.firstName)").post()
+            }
+        }
+    }
 
     /// The Friends page opened (or came back): read it again.
     func refresh() async {
@@ -265,6 +319,8 @@ final class FriendsBook {
         blockedRead = []
         blockedLoaded = false
         blockedFailed = false
+        suggestionsRead = []
+        hidden = []
     }
 
     func screenOpened() { open += 1 }

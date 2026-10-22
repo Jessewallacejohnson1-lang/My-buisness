@@ -475,6 +475,19 @@ struct CommunityAPI {
         return try decode(data)
     }
 
+    /// People you may know, strongest first, at most 20 (daily-tab 22).
+    func peopleYouMayKnow() async throws -> [Neighbor] {
+        let (data, _) = try await SupabaseHTTP.rest("rpc/get_people_you_may_know", method: "POST",
+                                                    accessToken: try await token(), body: try body([:]))
+        return try decode(data)
+    }
+
+    /// The X on a suggestion: that person never comes back on your list.
+    func hideSuggestion(_ userID: String) async throws {
+        try await SupabaseHTTP.rest("rpc/hide_suggestion", method: "POST",
+                                    accessToken: try await token(), body: try body(["p_user": userID]))
+    }
+
     /// A request newer than your last visit to Friends: the dot on the friends mark.
     func friendsDot() async throws -> Bool {
         let (data, _) = try await SupabaseHTTP.rest("rpc/friends_dot", method: "POST",

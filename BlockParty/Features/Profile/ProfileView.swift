@@ -179,6 +179,9 @@ struct ProfileView: View {
                 if !friendsBook.isAnonymous() {
                     plansRow
                     ProfileRowDivider()
+                    // `suggest-me-switch` (daily-tab 22).
+                    suggestRow
+                    ProfileRowDivider()
                 }
                 if model.isAdmin {
                     ProfileRow(icon: "checkmark.shield", title: "Review queue",
@@ -247,24 +250,36 @@ struct ProfileView: View {
     }
 
     /// Whether friends see your Going on the Events themselves (town-feed 28), on by default.
-    /// Apple's switch, laid out as the Calendar row; it waits for the server's answer.
     private var plansRow: some View {
+        switchRow("Show my plans to friends", icon: "person.2", value: model.plansToFriends,
+                  failures: model.plansFailures) { on in await model.setPlansToFriends(on) }
+    }
+
+    /// Whether you show on others' People you may know (daily-tab 22), on by default.
+    private var suggestRow: some View {
+        switchRow("Suggest me to people I may know", icon: "person.line.dotted.person", value: model.suggestMe,
+                  failures: model.suggestFailures) { on in await model.setSuggestMe(on) }
+    }
+
+    /// Apple's switch, laid out as the Calendar row; it waits for the server's answer.
+    private func switchRow(_ title: String, icon: String, value: Bool?, failures: Int,
+                           set: @escaping (Bool) async -> Void) -> some View {
         HStack(spacing: 13) {
-            Image(systemName: "person.2")
+            Image(systemName: icon)
                 .font(.sansSemibold(16))
                 .foregroundStyle(Hue.ink)
                 .frame(width: 26)
-            Text("Show my plans to friends")
+            Text(title)
                 .font(.sansMedium(16))
                 .foregroundStyle(Hue.ink)
                 .accessibilityHidden(true)
             Spacer(minLength: 8)
-            Toggle("Show my plans to friends", isOn: Binding(
-                get: { model.plansToFriends ?? true },
-                set: { on in Task { await model.setPlansToFriends(on) } }))
+            Toggle(title, isOn: Binding(
+                get: { value ?? true },
+                set: { on in Task { await set(on) } }))
                 .labelsHidden()
-                .disabled(model.plansToFriends == nil)
-                .turnBackShake(failures: model.plansFailures, shakes: !reduceMotion)
+                .disabled(value == nil)
+                .turnBackShake(failures: failures, shakes: !reduceMotion)
         }
         .frame(minHeight: 52)                   // the rows' height (`ProfileRow`)
     }

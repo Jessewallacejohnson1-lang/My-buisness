@@ -234,6 +234,7 @@ struct DailyPage: View {
     /// The Town feed's cards, which Friends are going and Suggestions read (daily-tab 20 and 21).
     let cards: [FeedCardItem]
     @Environment(RealLifeActions.self) private var actions
+    @Environment(FriendsBook.self) private var book
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var tilt = PhoneTilt()
     /// How far the page has scrolled, held only up to `edgeFade`.
@@ -294,9 +295,11 @@ struct DailyPage: View {
         let onPage = topic == nil ? all : lists(topic)
         // The Spotlight is a person, not an event: a topic leaves it out (picked).
         let spotlight = isToday && topic == nil ? self.spotlight : nil
+        // People, not events, as the Spotlight: today only, and a topic leaves them out (daily-tab 22).
+        let people = isToday && topic == nil ? book.suggested : []
         // A day whose pick is still being read shows paper, not the reserved slot.
         let loading = !isToday && dayPicks.picks[day.id] == nil
-        let empty = !loading && spotlight == nil && onPage.items.isEmpty && onPage.following.isEmpty
+        let empty = !loading && spotlight == nil && people.isEmpty && onPage.items.isEmpty && onPage.following.isEmpty
         return ZStack {
             Hue.paper.ignoresSafeArea()
             ScrollView(showsIndicators: false) {
@@ -322,7 +325,8 @@ struct DailyPage: View {
                     ZStack(alignment: .top) {
                         // The cards' chips count from now ("In 3 days"), though the day's are
                         // picked from its midnight.
-                        sections(spotlight: spotlight, lists: onPage, empty: empty, loading: loading, now: now)
+                        sections(spotlight: spotlight, lists: onPage, people: people, empty: empty, loading: loading,
+                                 now: now)
                             .id("\(day.id) \(topic ?? "")")
                             .transition(reduceMotion ? .identity : .asymmetric(
                                 insertion: .opacity.animation(.easeOut(duration: DailyMetric.dayFade).delay(DailyMetric.dayFadeOut)),
@@ -338,6 +342,10 @@ struct DailyPage: View {
         // Today's are `EventOfTheDay`'s; a picked day reads at once, and the rest of the week reads
         // behind it, one day at a time, so a tap usually finds its day already there.
         .task(id: day.id) { if !isToday { await dayPicks.refresh(day) } }
+        .task { await book.refreshSuggestions() }
+        // A failed Add friend or X shakes and buzzes only while a screen with it is open.
+        .onAppear { book.screenOpened() }
+        .onDisappear { book.screenClosed() }
         .task(id: days[0].id) {
             for other in days.dropFirst() {
                 // Leaving Daily calls the rest off; they read when Daily opens again.
@@ -351,8 +359,8 @@ struct DailyPage: View {
     }
 
     @ViewBuilder
-    private func sections(spotlight: DailySpotlight?, lists: DailyLists, empty: Bool, loading: Bool,
-                          now: Date) -> some View {
+    private func sections(spotlight: DailySpotlight?, lists: DailyLists, people: [Neighbor], empty: Bool,
+                          loading: Bool, now: Date) -> some View {
         if loading {
             Color.clear.frame(height: DailyMetric.emptyHeight)
         } else if empty {
@@ -377,6 +385,8 @@ struct DailyPage: View {
                 }
                 if !lists.friendsGoing.isEmpty { FriendsGoingSection(events: lists.friendsGoing, now: now) }
                 if !lists.suggestions.isEmpty { SuggestionsSection(events: lists.suggestions, now: now) }
+                // Fades in once read, never popping (taste.md, Chrome over content).
+                if !people.isEmpty { PeopleYouMayKnowSection(people: people).transition(.opacity) }
                 if !lists.following.isEmpty { FollowingSection(items: lists.following, now: now) }
             }
             .padding(.top, DailyMetric.weekToSection)

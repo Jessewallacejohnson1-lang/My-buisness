@@ -24,6 +24,8 @@ struct Neighbor: Identifiable, Hashable, Decodable {
     var mutualFriends: Int
     /// When you became friends, as the server stores it; nil when you aren't (ticket 04).
     var friendsSince: String? = nil
+    /// An approved group you're both in, on a People you may know card (daily-tab 22).
+    var sharedGroup: String? = nil
     var id: String { userId }
 
     /// "Sam" of "Sam Rivera", for the friend sheet's words.
@@ -35,6 +37,13 @@ struct Neighbor: Identifiable, Hashable, Decodable {
     /// `suggest-reason`: "1 mutual friend", "4 mutual friends", nothing at none.
     var mutualLine: String? {
         mutualFriends == 0 ? nil : mutualFriends == 1 ? "1 mutual friend" : "\(mutualFriends) mutual friends"
+    }
+
+    /// A suggestion's reason (`suggest-reason`): the friends you share, else the group you're both
+    /// in, else Instagram's "Suggested for you" (`suggest-header`) for someone who follows you,
+    /// which is never said.
+    var suggestLine: String {
+        mutualLine ?? sharedGroup.map { "Both in \($0)" } ?? "Suggested for you"
     }
 }
 
@@ -145,7 +154,20 @@ extension Neighbor {
                  since: "2026-03-02T10:00:00Z", relation: relation, mutualFriends: mutual,
                  friendsSince: relation == .friends ? "2026-08-14T18:00:00Z" : nil)
     }
+
+    /// INVENTED, for `-town-samples`: People you may know, strongest first, as the server orders
+    /// them: shared friends, then a group, then someone who follows you (no photo).
+    static let sampleSuggestions: [Neighbor] = [
+        ("Kim Thao", "farmers-market", 4, nil), ("Hal Pedersen", "rivers-bend-park", 2, nil),
+        ("Ana Samuels", "saint-bens", 1, nil), ("Joe Brandt", "downtown", 0, "Lions Club"),
+        ("Liv Norberg", nil, 0, nil),
+    ].map { name, photo, mutual, group in
+        Neighbor(userId: "sample:suggest:\(name)", displayName: name,
+                 avatarUrl: photo.flatMap { Bundle.main.url(forResource: $0, withExtension: "jpg")?.absoluteString },
+                 since: "2026-05-11T10:00:00Z", relation: .stranger, mutualFriends: mutual, sharedGroup: group)
+    }
     #else
     static let samples: [Neighbor] = []
+    static let sampleSuggestions: [Neighbor] = []
     #endif
 }

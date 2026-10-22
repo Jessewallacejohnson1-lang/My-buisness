@@ -128,6 +128,27 @@ final class ProfilePlansSwitchTests: XCTestCase {
         XCTAssertEqual(model.plansFailures, 0)
     }
 
+    /// "Suggest me to people I may know" (daily-tab 22) is the same switch on its own column:
+    /// it answers at once, a refused write flips it back and shakes it, and the other switch
+    /// never moves.
+    func testSuggestMeAnswersAtOnceAndFlipsBackOnAFailure() async {
+        var written: [Bool] = []
+        let model = ProfileModel(writeSuggest: { written.append($0) })
+        model.suggestMe = true
+        model.plansToFriends = true
+        await model.setSuggestMe(false)
+        XCTAssertEqual(model.suggestMe, false)
+        XCTAssertEqual(model.plansToFriends, true)
+        XCTAssertEqual(written, [false])
+
+        let refusing = ProfileModel(writeSuggest: { _ in throw Refused() })
+        refusing.suggestMe = true
+        await refusing.setSuggestMe(false)
+        XCTAssertEqual(refusing.suggestMe, true, "flipped back")
+        XCTAssertEqual(refusing.suggestFailures, 1, "and shaken once")
+        XCTAssertEqual(refusing.plansFailures, 0)
+    }
+
     func testBeforeTheServerSaysNothingIsWritten() async {
         var written: [Bool] = []
         let model = ProfileModel(writePlans: { written.append($0) })

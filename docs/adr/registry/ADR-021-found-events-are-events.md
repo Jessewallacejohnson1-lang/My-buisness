@@ -17,6 +17,11 @@ queue stays and still takes a decline with its reason, but nothing waits in it, 
 two-week 1-in-20 measurement below is not running. Turning review back on is one word in
 `read_events.py` (`approved` back to `pending`).
 
+**Amended 2026-10-22 (Jesse):** events read from places' Facebook and Instagram posts
+(ADR-020's schedule) also publish the moment they are read, credited to the post with a
+link, and are listed in the Review queue so a wrong one can be declined afterwards. The
+point of those checks is same-evening events; waiting for review would defeat it.
+
 ## Context
 
 ADR-013 split events from places and left their table, review, dedupe and repeats for
