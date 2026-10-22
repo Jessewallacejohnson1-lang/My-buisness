@@ -76,6 +76,8 @@ struct FeedEventCard: View {
     /// The link's press, so the whole card squishes. Set on touch-down by
     /// `FeedTouchDownTracker`, the one writer.
     @State private var linkPressed = false
+    /// `actions.heartFailureCount` at the last tap on the photo's heart: a tap mid-shake stills it.
+    @State private var heartTappedAt = 0
     /// Going and Heart, shared with the event page, so a Join there shows here at once.
     @Environment(RealLifeActions.self) private var actions
     /// Joined from this card: it keeps saying Joined after a read that says you're in.
@@ -127,25 +129,35 @@ struct FeedEventCard: View {
             // tap holds the link's own press until it fails, so the card squishes the
             // moment a finger lands, photo included.
             .gesture(FeedTouchDownTracker(isPressed: $linkPressed))
+            // The heart on the photo's bottom right, over the link as its own button (event-card 06).
+            .overlay(alignment: .bottomTrailing) {
+                if actions.canAct {
+                    photoHeart
+                        .padding(.trailing, DailyFeedMetric.contentInset + Self.photoHeartInset)
+                        .padding(.bottom, Self.photoHeartInset)
+                }
+            }
 
             // Under a photo that swipes, the dots that say which one is up (Instagram's).
             if swipes {
                 PageDots(count: cardPhotos.count, page: pageShown)
             }
 
-            // RSVP under the photo (rsvp-and-groups 01; Figma "Meetup depth": 12 pt below the
-            // photo, 2 pt above the row), or under the dots' row. Called off, a red "Canceled"
-            // pill and no count. Going, the pill turns into the X that leaves (attend-x).
+            // One line under the photo (event-card 06): the send, the faces, the count and Attend
+            // (rsvp-and-groups 01; 12 pt below the photo), or under the dots' row. Called off, a red
+            // "Canceled" pill and no count. Going, the pill turns into the X that leaves (attend-x)
+            // and the send into the yellow share beside it. The heart is on the photo.
             if let rsvp = actions.rsvp(item, town: true) {
-                RSVPArea(item: item, words: rsvp, onInvite: onShare)
+                RSVPArea(item: item, words: rsvp, onInvite: onShare, leadingSend: true)
                     .padding(.top, swipes ? 0 : 12)
                     .padding(.horizontal, DailyFeedMetric.contentInset)
                     .transition(.opacity)
+            } else {
+                // Signed out: no Attend and no heart, the send alone.
+                actionRow
+                    .padding(.top, 2)
+                    .padding(.horizontal, DailyFeedMetric.contentInset)
             }
-
-            actionRow
-                .padding(.top, 2)
-                .padding(.horizontal, DailyFeedMetric.contentInset)
         }
         // Over the host row's end, outside the link: pressing it neither squishes nor
         // opens the card.
@@ -407,10 +419,12 @@ struct FeedEventCard: View {
                 Spacer(minLength: 0)
             }
             .padding(16)
+            // Clear of the heart in the bottom right corner.
+            .padding(.trailing, actions.canAct ? Self.photoHeartSide + Self.photoHeartInset - 8 : 0)
         }
         .contentShape(Rectangle())
-        // Both kinds carry a heart in the row below, so the double-tap always has a
-        // control to mirror — and something on screen you can undo it with.
+        // The heart in the photo's corner is the double-tap's control to mirror, and
+        // something on screen you can undo it with (event-card 06).
         // The link waits for this to fail before it pushes, so a single tap on the
         // photo opens the page `PhotoDoubleTap.window` after the finger lifts, and a
         // double tap likes without opening it (`EventCardPhotoTapTests`).
@@ -515,6 +529,46 @@ struct FeedEventCard: View {
             onComment: { commentsPresented = true },
             onShare: onShare
         )
+    }
+
+    /// The heart on the photo (event-card 06): a 38 pt grey glass circle, the white heart in it, red
+    /// once yours. Its pop and its shake on a refused write are the action row's.
+    static let photoHeartSide: CGFloat = 38
+    static let photoHeartInset: CGFloat = 12
+    static let photoHeartGlyph: CGFloat = 20
+
+    private var photoHeart: some View {
+        let hearted = actions.heart(item).isHearted
+        let failures = actions.heartFailureCount(item.id)
+        return Button {
+            heartTappedAt = failures
+            withAnimation(motionIsReduced ? .easeInOut(duration: 0.15) : .spring(response: 0.3, dampingFraction: 0.5)) {
+                actions.toggleHeart(item)
+            }
+        } label: {
+            FeedActionGlyphView(glyph: .heart, size: Self.photoHeartGlyph, filled: hearted)
+                .foregroundStyle(hearted ? Hue.heart : .white)
+                .phaseAnimator([1, 1.3], trigger: hearted) { glyph, scale in
+                    glyph.scaleEffect(motionIsReduced ? 1 : scale)
+                } animation: { _ in .spring(response: 0.3, dampingFraction: 0.5) }
+                .frame(width: Self.photoHeartSide, height: Self.photoHeartSide)
+                // Grey glass: the photo blurred through a dark tint, a line of light inside the top.
+                .background {
+                    Circle()
+                        .fill(.black.opacity(0.22))
+                        .background(.ultraThinMaterial, in: Circle())
+                        .overlay { Circle().strokeBorder(.white.opacity(0.18), lineWidth: 0.5) }
+                        .environment(\.colorScheme, .dark)
+                }
+                .frame(width: MeetupPillStyle.minTarget, height: MeetupPillStyle.minTarget)
+                .contentShape(Circle())
+                .padding(-(MeetupPillStyle.minTarget - Self.photoHeartSide) / 2)
+        }
+        .buttonStyle(MenuPressStyle())
+        .turnBackShake(failures: failures, shakes: !motionIsReduced && heartTappedAt != failures)
+        .accessibilityLabel("Like, \(actions.heart(item).count) likes")
+        .accessibilityValue(hearted ? "Liked" : "Not liked")
+        .accessibilityAddTraits(hearted ? .isSelected : [])
     }
 
     /// The row's heart is the shared one (`RealLifeActions`), kept on the server.

@@ -31,11 +31,22 @@ nonisolated struct RSVPWords: Equatable {
     /// no "Can't go?" (leaving stays on the Town card), and beside the friends' faces only
     /// their names, which fit by its bigger words where "… are going" didn't.
     /// `town`: the Town card and the poster on top of Town. Going, the pill turns into a round X
-    /// that leaves, so there's no "Can't go?"; sharing stays on the card's send (Jesse, 2026-10-21).
+    /// that leaves, so there's no "Can't go?", and a yellow share comes up beside it (event-card 06).
+    /// No friends' names: the count alone.
     /// Called off, the pill says Canceled and "Can't go?" still leaves.
     /// `over`: a game whose final is in, "212 went" and no pill, whoever went (game-card 02).
     static func make(isGoing: Bool, count: Int, friends: [String], cancelled: Bool, bar: Bool = false,
                      town: Bool = false, over: Bool = false) -> RSVPWords {
+        var words = unshortened(isGoing: isGoing, count: count, friends: friends, cancelled: cancelled, bar: bar,
+                                town: town, over: over)
+        // On Town the words share one line with the send and the pill, so the friends' names go and
+        // the count stays (Jesse at event-card 06's Check-in 1, 2026-10-21). "Can't go?" stays.
+        if town && !words.canLeave { words.second = nil }
+        return words
+    }
+
+    private static func unshortened(isGoing: Bool, count: Int, friends: [String], cancelled: Bool, bar: Bool,
+                                    town: Bool, over: Bool) -> RSVPWords {
         if over {
             let total = max(count, friends.count)
             return RSVPWords(top: total > 0 ? "\(total) went" : nil, second: friendsLine(friends, bar: bar, went: true),
@@ -109,9 +120,18 @@ struct RSVPArea: View {
     var size: Size = .card
     /// The card's send: Invite opens the same invite card.
     let onInvite: (() -> Void)?
+    /// The Town card: its send leads the line, and once you're going it leaves for the yellow share
+    /// beside the X (event-card 06).
+    var leadingSend = false
+
+    /// The yellow share is up beside the X, so the send at the left has gone.
+    @State private var shareUp = false
 
     /// The glyph sits 7 pt from the word (Figma "Meetup depth").
     static let glyphGap: CGFloat = 7
+    /// The send at the line's left: the action row's 24 pt glyph in its 28 pt target.
+    static let sendGlyph: CGFloat = 24
+    static let sendWidth: CGFloat = 28
 
     @Environment(RealLifeActions.self) private var actions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -120,6 +140,20 @@ struct RSVPArea: View {
     var body: some View {
         let going = actions.going(item)
         HStack(spacing: 8) {
+            if leadingSend && !shareUp, let onInvite {
+                Button(action: onInvite) {
+                    FeedActionGlyphView(glyph: .send, size: Self.sendGlyph)
+                        .foregroundStyle(Hue.ink)
+                        .frame(width: Self.sendWidth, height: MeetupPillStyle.minTarget)
+                        // Apple's 44 pt wide, past the glyph's own 28 into the gap beside it.
+                        .contentShape(Rectangle().inset(by: (Self.sendWidth - MeetupPillStyle.minTarget) / 2))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Share")
+                // Out the way it came: to the left, as the share pops up beside the X.
+                .transition(.move(edge: .leading).combined(with: .opacity))
+            }
+
             // Faces only beside words: a called-off card with no "You're going!" has none.
             if words.top != nil {
                 faces(count: going.count)
@@ -155,7 +189,8 @@ struct RSVPArea: View {
             Spacer(minLength: 12)
 
             if words.pill != nil {
-                AttendPill(item: item, words: words, size: size, onInvite: onInvite)
+                AttendPill(item: item, words: words, size: size, onInvite: onInvite,
+                           shareBeside: leadingSend ? .leading : nil, shareUp: $shareUp)
             }
         }
         // The pill's height with no pill too, so a game's "212 went" sits where its Attend did.
@@ -209,6 +244,11 @@ struct AttendPill: View {
     let words: RSVPWords
     var size: RSVPArea.Size = .card
     let onInvite: (() -> Void)?
+    /// On Town, which side of the X the yellow share pops up on once you're going (event-card 06):
+    /// the card's, before it; the poster's, after it. Its tap is `onInvite`'s.
+    var shareBeside: HorizontalEdge? = nil
+    /// Set while the yellow share is up, so the card's send can leave as it comes.
+    var shareUp: Binding<Bool> = .constant(false)
 
     @Environment(RealLifeActions.self) private var actions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -220,7 +260,9 @@ struct AttendPill: View {
     var body: some View {
         let going = actions.going(item)
         let shown = words.shownPill(checking: checking)
-        Group {
+        let share = shown == .leave && onInvite != nil ? shareBeside : nil
+        HStack(spacing: Self.shareGap) {
+            if share == .leading { yellowShare }
             if shown == .canceled {
                 Button {} label: { face(.canceled) }
                     .buttonStyle(MeetupPillStyle(height: size.pillHeight, minWidth: size.pillMinWidth, fill: Hue.canceled))
@@ -249,6 +291,13 @@ struct AttendPill: View {
                     .accessibilityHint(x ? "Takes you off the going list" : "")
                     .accessibilityValue(going.isGoing && !x ? "Going" : "")
             }
+            if share == .trailing { yellowShare }
+        }
+        // The card's send leaves on the same beat the share comes in.
+        // Set without motion as the card comes on screen: a going card scrolled back into view
+        // shows the share already up instead of playing the send out again (the review).
+        .onChange(of: share != nil, initial: true) { was, up in
+            withAnimation(was == up ? nil : shareAnimation) { shareUp.wrappedValue = up }
         }
         // The pill turns into Invite or the X over `RealLifeActions.flip`, both ways, a failed
         // Attend's turn back included.
@@ -265,6 +314,21 @@ struct AttendPill: View {
         .onChange(of: going.isGoing) { _, isGoing in
             if !isGoing { checking = false }
         }
+    }
+
+    /// The yellow share and the X sit 8 pt apart.
+    static let shareGap: CGFloat = 8
+
+    /// It pops up as the X lands, on a spring that overshoots a little, and shrinks away as you leave.
+    private var shareAnimation: Animation {
+        reduceMotion ? .easeInOut(duration: 0.15) : .spring(response: 0.35, dampingFraction: 0.62)
+    }
+
+    private var yellowShare: some View {
+        YellowShareButton { onInvite?() }
+            .transition(.asymmetric(insertion: reduceMotion ? .opacity : .scale(scale: 0.4).combined(with: .opacity),
+                                    removal: reduceMotion ? .opacity : .scale(scale: 0.6).combined(with: .opacity))
+                .animation(shareAnimation))
     }
 
     private func face(_ pill: RSVPWords.Pill) -> some View {

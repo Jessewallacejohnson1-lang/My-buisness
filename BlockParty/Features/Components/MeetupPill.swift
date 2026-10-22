@@ -73,12 +73,71 @@ struct MeetupPillStyle: ButtonStyle {
                         .overlay { Capsule().strokeBorder(Hue.hairline, lineWidth: 1) }
                 }
                 // Always there, so it shrinks and grows with the charcoal instead of popping in at
-                // the circle's size.
-                Capsule().fill(Hue.fill).opacity(grey ? 1 : 0)
+                // the circle's size. Lit like the charcoal (Jesse at event-card 06's Check-in 1): white
+                // at its top into the app's light fill, a touch darker at its foot, a line of light
+                // inside the top and the charcoal's two shadows, lighter.
+                Capsule()
+                    .fill(LinearGradient(stops: [.init(color: Hue.surface, location: 0),
+                                                 .init(color: Hue.fill, location: 0.4)],
+                                         startPoint: .top, endPoint: .bottom)
+                        .shadow(.inner(color: Hue.surface, radius: 0, x: 0, y: 1)))
+                    .overlay {
+                        Capsule().fill(LinearGradient(colors: [.clear, .black.opacity(0.05)],
+                                                      startPoint: .center, endPoint: .bottom))
+                    }
+                    .animation(press) { $0.meetupPillDepth(pressed: pressed, strength: 0.55) }
+                    .opacity(grey ? 1 : 0)
             }
             .contentShape(Capsule().inset(by: min(0, (height - Self.minTarget) / 2)))
             .animation(press) {
                 $0.scaleEffect(pressed && !reduceMotion ? Self.pressedScale : 1)
+                    .opacity(FeedMotion.pressOpacity(isPressed: pressed, reduceMotion: reduceMotion))
+            }
+    }
+}
+
+/// Town's share beside the round X once you're going (event-card 06): a 38 pt BP yellow circle, the
+/// X's size, with the card's send in ink, drawn heavier. Lit as the pill is: the exact yellow under a
+/// white sheen over its top, a line of light inside the top, the pill's two shadows lighter; pressed
+/// it sinks and the shadows pull in.
+struct YellowShareButton: View {
+    let action: () -> Void
+
+    static let side: CGFloat = 38
+    /// The send at 18 pt, its stroke 1.36 times the family's (3 of 24 units, the approved mock's).
+    static let glyph: CGFloat = 18
+    static let weight: CGFloat = 3 / 2.2
+
+    var body: some View {
+        Button(action: action) {
+            FeedActionGlyphView(glyph: .send, size: Self.glyph, weight: Self.weight)
+        }
+        .buttonStyle(YellowDiscStyle())
+        .accessibilityLabel("Share")
+    }
+}
+
+private struct YellowDiscStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        let pressed = configuration.isPressed
+        let press = FeedMarkPress.animation(reduceMotion: reduceMotion)
+        return configuration.label
+            .foregroundStyle(Hue.onBrandDisc)
+            .frame(width: YellowShareButton.side, height: YellowShareButton.side)
+            .background {
+                Circle()
+                    .fill(Hue.brandDisc.shadow(.inner(color: .white.opacity(0.7), radius: 0, x: 0, y: 1)))
+                    .overlay {
+                        Circle().fill(LinearGradient(colors: [.white.opacity(0.34), .white.opacity(0)],
+                                                     startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.45)))
+                    }
+                    .animation(press) { $0.meetupPillDepth(pressed: pressed, strength: 0.75) }
+            }
+            .contentShape(Circle().inset(by: (YellowShareButton.side - MeetupPillStyle.minTarget) / 2))
+            .animation(press) {
+                $0.scaleEffect(pressed && !reduceMotion ? MeetupPillStyle.pressedScale : 1)
                     .opacity(FeedMotion.pressOpacity(isPressed: pressed, reduceMotion: reduceMotion))
             }
     }
