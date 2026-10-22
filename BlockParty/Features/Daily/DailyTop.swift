@@ -18,8 +18,10 @@ nonisolated enum DailyTopMetric {
     /// From the logo row to the week, and from the week's faces to the topics.
     static let toWeek: CGFloat = 4
     static let toTopics: CGFloat = 12
-    /// A topic: News' 34pt pill, 15pt in from its ends, 8pt apart.
+    /// A topic: News' 34pt pill, 15pt in from its ends, 8pt apart. It grows with the text size,
+    /// and its tap area reaches 5pt above and below it, for 44.
     static let topicHeight: CGFloat = 34
+    static let topicTapExtra: CGFloat = 5
     static let topicPadding: CGFloat = 15
     static let topicGap: CGFloat = 8
     /// At most this many topics after "Best of".
@@ -36,20 +38,31 @@ enum DailyTopic {
     }
 
     static func matches(_ item: FeedCardItem, _ topic: String) -> Bool {
-        Interests.matches(text(item), [topic])
+        matches(text: text(item), topic)
     }
 
     static func matches(_ row: DailyFollowing, _ topic: String) -> Bool {
         if let event = row.event { return matches(event.item, topic) }
-        return Interests.matches("\(row.name) \(row.what)", [topic])
+        return matches(text: "\(row.name) \(row.what)", topic)
+    }
+
+    /// The interest's keywords, each from the start of a word: "art" finds "artists" but not
+    /// "Party", where `Interests.matches` (any part of a word) would.
+    static func matches(text: String, _ topic: String) -> Bool {
+        guard let interest = Interests.all.first(where: { $0.id == topic }) else { return false }
+        return interest.keywords.contains { keyword in
+            text.range(of: "\\b" + NSRegularExpression.escapedPattern(for: keyword),
+                       options: [.regularExpression, .caseInsensitive]) != nil
+        }
     }
 
     /// Your own interests that have something that day, in your order; signed out or with none
     /// picked, the day's busiest interests. A topic with nothing that day isn't offered.
     static func topics(for items: [FeedCardItem], mine: [String],
                        limit: Int = DailyTopMetric.topics) -> [String] {
+        let texts = items.map(text)
         let counts = Dictionary(uniqueKeysWithValues: Interests.all.map { interest in
-            (interest.id, items.filter { matches($0, interest.id) }.count)
+            (interest.id, texts.filter { matches(text: $0, interest.id) }.count)
         })
         let offered = mine.isEmpty
             ? Interests.all.map(\.id).enumerated()
@@ -99,9 +112,8 @@ struct DailyTopicRow: View {
                 ForEach(topics, id: \.self) { chip($0, DailyTopic.label($0)) }
             }
             .padding(.horizontal, DailyTopMetric.side)
-            // Room for the pills' lift, which the scroll view would otherwise clip.
-            .padding(.vertical, DailyTopMetric.topicGap)
         }
+        // The pills' lift reaches past the row.
         .scrollClipDisabled()
     }
 
@@ -113,7 +125,7 @@ struct DailyTopicRow: View {
                 .lineLimit(1)
                 .foregroundStyle(isPicked ? Hue.surface : Hue.ink)
                 .padding(.horizontal, DailyTopMetric.topicPadding)
-                .frame(height: DailyTopMetric.topicHeight)
+                .frame(minHeight: DailyTopMetric.topicHeight)
                 .background {
                     if isPicked {
                         Capsule().fill(Hue.ink).matchedGeometryEffect(id: "picked", in: pill)
@@ -123,7 +135,8 @@ struct DailyTopicRow: View {
                             .modifier(CardShadow())
                     }
                 }
-                .contentShape(Capsule())
+                .padding(.vertical, DailyTopMetric.topicTapExtra)
+                .contentShape(Rectangle())
         }
         .buttonStyle(PressableCardStyle())
         .accessibilityAddTraits(isPicked ? [.isButton, .isSelected] : .isButton)

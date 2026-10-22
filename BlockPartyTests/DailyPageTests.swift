@@ -331,6 +331,9 @@ final class DailyPageTests: XCTestCase {
     func testATopicMatchesItsEvents() {
         XCTAssertTrue(DailyTopic.matches(topicCard("Trivia", host: "Bad Habit Brewing"), "breweries"))
         XCTAssertFalse(DailyTopic.matches(topicCard("Story time"), "breweries"))
+        // From the start of a word only: "art" isn't in "Block Party", "eat" isn't in "great".
+        XCTAssertFalse(DailyTopic.matches(topicCard("Block Party"), "art_exhibits"))
+        XCTAssertTrue(DailyTopic.matches(topicCard("Student artists show"), "art_exhibits"))
         XCTAssertEqual(DailyTopic.label("live_music"), "Live music")
     }
 }

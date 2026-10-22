@@ -271,8 +271,9 @@ struct DailyPage: View {
         let isToday = day == days[0]
         // Another day's sections read from its midnight, so all of that day is still to come.
         let clock = isToday ? now : day.start
-        // Each section leaves out what one above it shows (SPEC.md); `fits` keeps a picked topic's.
-        func lists(fits: (FeedCardItem) -> Bool) -> ([DailyEvent], [DailyEvent], [DailyFollowing]) {
+        // Each section leaves out what one above it shows (SPEC.md); a topic keeps only its own.
+        func lists(_ topic: String?) -> ([DailyEvent], [DailyEvent], [DailyFollowing]) {
+            let fits = { (item: FeedCardItem) in topic.map { DailyTopic.matches(item, $0) } ?? true }
             let events = DailyEvent.showing((isToday ? self.events : dayPicks.picks[day.id] ?? []).filter { fits($0.item) },
                                             now: clock, limit: 3)
             // Suggestions never offer what you're Going to or saved (SPEC.md).
@@ -281,19 +282,17 @@ struct DailyPage: View {
                     fits($0.item) && !actions.going($0.item).isGoing && !actions.saved($0.item)
                 }, now: clock, without: events, limit: 10)
             let following = DailyFollowing.showing(
-                DailyFollowing.today(now: clock).filter { row in row.event.map { fits($0.item) } ?? true },
+                DailyFollowing.today(now: clock).filter { row in topic.map { DailyTopic.matches(row, $0) } ?? true },
                 now: clock, without: events + suggestions, limit: 10)
             return (events, suggestions, following)
         }
-        let all = lists { _ in true }
-        // The day's topics come from all it has; a topic the day lacks reads as "Best of".
+        let all = lists(nil)
+        // The day's topics come from all it has. A topic the day lacks reads as "Best of" there and
+        // comes back on a day that has it: the topic stays picked across the week (picked).
         let topics = DailyTopic.topics(for: (all.0 + all.1).map(\.item) + all.2.compactMap { $0.event?.item },
                                        mine: Interests.get())
         let topic = self.topic.flatMap { topics.contains($0) ? $0 : nil }
-        let (events, suggestions, following) = topic.map { picked in
-            let shown = lists { DailyTopic.matches($0, picked) }
-            return (shown.0, shown.1, shown.2.filter { DailyTopic.matches($0, picked) })
-        } ?? all
+        let (events, suggestions, following) = topic == nil ? all : lists(topic)
         // The Spotlight is a person, not an event: a topic leaves it out (picked).
         let spotlight = isToday && topic == nil ? self.spotlight : nil
         // A day whose pick is still being read shows paper, not the reserved slot.
@@ -312,13 +311,13 @@ struct DailyPage: View {
                     .padding(.top, DailyTopMetric.toWeek)
                     // The system's selection tick on a tap, and only then (not at midnight).
                     .sensoryFeedback(.selection, trigger: picked)
-                    if !topics.isEmpty {
-                        DailyTopicRow(topics: topics, picked: topic) { tapped in
-                            withAnimation(reduceMotion ? nil : Motion.select) { self.topic = tapped }
-                        }
-                        .padding(.top, DailyTopMetric.toTopics - DailyTopMetric.topicGap)
-                        .sensoryFeedback(.selection, trigger: self.topic)
+                    // Always there, "Best of" alone on a day with no topics, so the page under it
+                    // never jumps while another day reads.
+                    DailyTopicRow(topics: topics, picked: topic) { tapped in
+                        withAnimation(reduceMotion ? nil : Motion.select) { self.topic = tapped }
                     }
+                    .padding(.top, DailyTopMetric.toTopics - DailyTopMetric.topicTapExtra)
+                    .sensoryFeedback(.selection, trigger: self.topic)
                     // The last day's page fades out, then the picked day's fades in, in the same
                     // spot, so the two never sit on top of each other.
                     ZStack(alignment: .top) {
