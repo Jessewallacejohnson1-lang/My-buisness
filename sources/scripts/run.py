@@ -12,8 +12,9 @@ Usage:
   python3 run.py --tier watched       # only watched entries (the morning job)
   python3 run.py --include-proposed   # also test proposed entries (never with --write)
   python3 run.py --write              # prod: needs SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY
+  python3 run.py --selftest           # when a page goes through Firecrawl, with fake sites
 """
-import argparse, hashlib, html, json, os, re, socket, sys, threading, time, zlib
+import argparse, hashlib, html, json, os, re, shutil, socket, subprocess, sys, threading, time, zlib
 import urllib.request, urllib.error, urllib.parse
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
@@ -266,6 +267,119 @@ def fetch(url, data=None, headers=None):
             return r.status, body.decode(charset, errors="replace")
 
 
+# Firecrawl names itself as a crawler, so it is not a browser in disguise (ADR-014). It reads a
+# page whose server refuses our address (eight GoDaddy sites and Kwik Trip reset or 403'd the
+# cloud routine from 2026-10-16 while answering the Mac) or builds its text in JavaScript.
+# Jesse, 2026-10-22: "use for blocked and java", and later that day dropped the robots.txt and
+# feed limits: a page our own fetch must stay out of by robots.txt goes through Firecrawl too.
+FIRECRAWL = "https://api.firecrawl.dev/v1/scrape"
+FIRECRAWL_CAP = 30    # ponytail: credits per run (1 a page); the plan has 1,000 a month
+JS_TEXT = 200         # fewer characters than this from a plain fetch = built by JavaScript
+FEED_KINDS = {"ical", "rss"}             # read raw through Firecrawl, so the feed parser still sees items
+SOCIAL_KINDS = {"facebook", "instagram"}  # Firecrawl refuses them ("we do not support this site"); Apify reads them (ADR-020)
+GONE = re.compile(r"HTTP Error (404|410)")  # the page is gone: Firecrawl gets the same 404 and spends a credit
+_firecrawl_used = 0
+_firecrawl_lock = threading.Lock()
+
+
+def firecrawl(url, fmt="markdown"):
+    """One Firecrawl scrape, through FIRECRAWL_API_KEY (the cloud routine) or Composio (the Mac).
+    Link query strings are cut: GoDaddy's banner link carries a fresh timestamp on every read."""
+    global _firecrawl_used
+    with _firecrawl_lock:
+        if _firecrawl_used >= FIRECRAWL_CAP:
+            raise RuntimeError(f"Firecrawl cap of {FIRECRAWL_CAP} pages reached this run")
+        _firecrawl_used += 1
+    body = {"url": url, "formats": [fmt], "onlyMainContent": True}
+    key = os.environ.get("FIRECRAWL_API_KEY")
+    if key:
+        req = urllib.request.Request(FIRECRAWL, data=json.dumps(body).encode(), headers={
+            "Authorization": f"Bearer {key}", "Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=90) as r:
+            d = json.load(r)
+    elif shutil.which("composio"):
+        out = subprocess.run(["composio", "execute", "FIRECRAWL_SCRAPE", "-d", json.dumps(body)],
+                             capture_output=True, text=True, timeout=180, stdin=subprocess.DEVNULL).stdout
+        d = json.loads(out[out.index("{"):]).get("data") or {}
+    else:
+        raise RuntimeError("no FIRECRAWL_API_KEY to read it through Firecrawl")
+    d = d.get("data", d)
+    text = d.get(fmt) or ""
+    code = (d.get("metadata") or {}).get("statusCode") or 200
+    if code >= 400 or not text.strip():
+        raise RuntimeError(f"Firecrawl read nothing (HTTP {code})")
+    return re.sub(r"(\]\([^)\s?]*)\?[^)\s]*", r"\1", text)
+
+
+def read_page(url, kind, get=None, scrape=None):
+    """One page as (http status, text, via), via "fetch" or "firecrawl". Our fetch first; Firecrawl
+    when it is refused (robots.txt included) or reads under JS_TEXT characters. Raises when the page
+    is gone, is social, or neither can read it. `get` and `scrape` stand in for fetch and firecrawl
+    in the self-test."""
+    get, scrape = get or fetch, scrape or firecrawl
+    try:
+        status, raw = get(url)
+    except Exception as ex:
+        if GONE.search(str(ex)) or kind in SOCIAL_KINDS:
+            raise
+        try:
+            text = to_text(scrape(url, "rawHtml")) if kind in FEED_KINDS else scrape(url)
+        except Exception as fc:
+            raise RuntimeError(f"{str(ex)[:150]}; Firecrawl: {str(fc)[:120]}") from None
+        return 200, text, "firecrawl"
+    text = to_text(raw)
+    if len(text) < JS_TEXT and kind not in FEED_KINDS | SOCIAL_KINDS:
+        try:
+            return status, scrape(url), "firecrawl"
+        except Exception:
+            pass  # keep the little the plain fetch read
+    return status, text, "fetch"
+
+
+def selftest():
+    page = "<p>" + "Plant Bingo Oct 24 at the taproom. " * 10 + "</p>"
+
+    def site(answer):
+        def get(url):
+            if isinstance(answer, Exception):
+                raise answer
+            return 200, answer
+        return get
+    calls = []
+
+    def scrape(url, fmt="markdown"):
+        calls.append(fmt)
+        return "BEGIN:VEVENT\nSUMMARY:Bingo" if fmt == "rawHtml" else "Read through Firecrawl"
+
+    def case(answer, kind="website"):
+        calls.clear()
+        try:
+            return read_page("https://x/", kind, site(answer), scrape)
+        except RuntimeError as ex:
+            return str(ex)
+    checks = [
+        (case(page)[2] == "fetch" and not calls, "a normal page is ours, no credit spent"),
+        (case(ConnectionResetError(104, "Connection reset by peer"))[2] == "firecrawl", "a refused page goes through Firecrawl"),
+        (case(RuntimeError("robots.txt disallows -> switch method to search_snippet"))[2] == "firecrawl",
+         "a robots.txt no goes through Firecrawl (Jesse, 2026-10-22)"),
+        (case("<div id=app></div>")[1] == "Read through Firecrawl", "a JavaScript page is read through Firecrawl"),
+        (str(case(RuntimeError("HTTP Error 404: Not Found"))).startswith("HTTP Error 404") and not calls,
+         "a gone page spends no credit"),
+        (str(case(RuntimeError("HTTP Error 403: Forbidden"), "facebook")).startswith("HTTP Error 403") and not calls,
+         "Facebook is left to Apify"),
+        (case(RuntimeError("HTTP Error 403: Forbidden"), "ical")[2] == "firecrawl" and calls == ["rawHtml"],
+         "a refused feed is read raw"),
+        (case("", "ical")[2] == "fetch" and not calls, "a short feed is not taken for a JavaScript page"),
+    ]
+    failed = [why for ok, why in checks if not ok]
+    for why in failed:
+        print(f"FAIL {why}")
+    print(f"{len(checks) - len(failed)} passed, {len(failed)} failed")
+    sys.exit(1 if failed else 0)
+
+
+
+
 class Supabase:
     def __init__(self):
         self.url = os.environ.get("SUPABASE_URL", "").rstrip("/")
@@ -312,7 +426,10 @@ def main():
     ap.add_argument("--town", help="e.g. st-joseph-mn")
     ap.add_argument("--tier", help="only entries of this tier, e.g. watched")
     ap.add_argument("--workers", type=int, default=6)
+    ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args()
+    if a.selftest:
+        return selftest()
     if a.write and a.include_proposed:
         sys.exit("Refusing: --include-proposed is for dry-run tests only (ADR-008).")
 
@@ -378,16 +495,15 @@ def main():
         key = f"{ref['entry_id']}|{ref['url']}"
         t0 = time.time()
         try:
-            status, raw = fetch(ref["url"])
-            text = to_text(raw)
+            status, text, via = read_page(ref["url"], ref["kind"])
             h = fingerprint(text)
             changed = prev.get(key) != h
             fname = f"{ref['entry_id']}--{hashlib.md5(ref['url'].encode()).hexdigest()[:6]}.md"
             if changed:
                 (snap_dir / fname).write_text(
                     f"---\nentry_id: {ref['entry_id']}\nurl: {ref['url']}\nfetched_at: {NOW.isoformat()}\n"
-                    f"hash: {h}\ntrust: {ref['trust']}\n---\n\n{text}\n", encoding="utf-8")
-            return {**ref, "ok": True, "http": status, "hash": h, "changed": changed,
+                    f"hash: {h}\ntrust: {ref['trust']}\nvia: {via}\n---\n\n{text}\n", encoding="utf-8")
+            return {**ref, "ok": True, "http": status, "via": via, "hash": h, "changed": changed,
                     "first_seen": key not in seen, "snapshot": fname if changed else None,
                     "chars": len(text), "secs": round(time.time() - t0, 1)}
         except Exception as ex:
@@ -420,7 +536,8 @@ def main():
     (run_dir / "report.json").write_text(json.dumps(report, indent=1))
 
     print(f"[{report['mode']}] fetched {len(results)} | changed {len(changed)} | "
-          f"failed {len(failed)} | agent tasks {len(agent_tasks)} | skipped {len(skipped)}")
+          f"failed {len(failed)} | agent tasks {len(agent_tasks)} | skipped {len(skipped)} | "
+          f"through Firecrawl {sum(r.get('via') == 'firecrawl' for r in results)}")
     for r in changed:
         print(f"  CHANGED {r['entry_id']} {'(first seen) ' if r['first_seen'] else ''}-> snapshots/{r['snapshot']}")
     for r in failed:
