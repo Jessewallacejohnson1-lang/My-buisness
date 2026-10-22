@@ -118,9 +118,11 @@ enum HelloDrop {
         }
         // The days left of this week, today to Sunday, and its weekend, Friday to Sunday.
         let weekday = calendar.component(.weekday, from: now)
-        let left = weekday == 1 ? 0 : 8 - weekday
+        // Sunday's week is today and the six days after it, so a quiet Sunday still names Monday on.
+        let left = weekday == 1 ? 6 : 8 - weekday
         let days = (0...left).compactMap { calendar.date(byAdding: .day, value: $0, to: now) }
-        let weekend = Set(days.filter { [6, 7, 1].contains(calendar.component(.weekday, from: $0)) }.map(Town.day))
+        let weekend = Set(days.prefix { calendar.component(.weekday, from: $0) != 2 }
+            .filter { [6, 7, 1].contains(calendar.component(.weekday, from: $0)) }.map(Town.day))
         let week = Set(days.map(Town.day))
         let upcoming = town.filter { $0.ends > now && !$0.item.cancelled }
         if [5, 6, 7, 1].contains(weekday) {
@@ -145,9 +147,7 @@ enum HelloDrop {
     /// tests) never does, so other runs' frames stay as they were.
     static var allowed: Bool {
         #if DEBUG
-        let flags = ProcessInfo.processInfo.arguments.dropFirst().filter { $0.hasPrefix("-") }
-        if flags.contains("-hello-drop") { return true }
-        return flags.isEmpty
+        forced || !ProcessInfo.processInfo.arguments.dropFirst().contains { $0.hasPrefix("-") }
         #else
         return true
         #endif
@@ -194,8 +194,10 @@ struct HelloDropView: View {
     static let offscreen: CGFloat = 100
     static let side: CGFloat = 12
     static let holdHello: Duration = .seconds(1.2)
-    /// 4 s; DEBUG `-hello-drop-hold` keeps it 10 s, so a recorded tap lands on the message.
+    /// 4 s; 10 s with VoiceOver on, so there's time to reach it and open it. DEBUG
+    /// `-hello-drop-hold` keeps it 10 s too, so a recorded tap lands on the message.
     static var stay: Duration {
+        if UIAccessibility.isVoiceOverRunning { return .seconds(10) }
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-hello-drop-hold") { return .seconds(10) }
         #endif
@@ -206,7 +208,7 @@ struct HelloDropView: View {
         ZStack(alignment: .top) {
             if step != .hidden {
                 pill
-                    .padding(.top, -Self.aboveSafeTop)
+                    .padding(.top, topGap)
                     .offset(y: dragY)
                     // Up past the screen's top and back the same way.
                     .transition(reduceMotion ? .opacity : .offset(y: -(Self.offscreen + Self.height)))
@@ -218,6 +220,13 @@ struct HelloDropView: View {
             if phase == .active { start() }
             if phase == .background { lastSeen = Date().timeIntervalSince1970 }
         }
+    }
+
+    /// Under a Dynamic Island (a safe area top over 50 pt) it rides 6 pt into the safe area's
+    /// top; on a phone with a notch or a home button, where that is the status bar, 8 pt under it.
+    private var topGap: CGFloat {
+        let top = (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.keyWindow?.safeAreaInsets.top ?? 62
+        return top > 50 ? -Self.aboveSafeTop : 8
     }
 
     private var pill: some View {
@@ -258,7 +267,8 @@ struct HelloDropView: View {
                     // Up follows the finger; down only stretches a little, then stops.
                     let y = value.translation.height
                     dragY = y < 0 ? y : y / 6
-                    run?.cancel()
+                    // Held on the message, it stays; held on the hello, the message still comes.
+                    if step == .message { run?.cancel() }
                 }
                 .onEnded { value in
                     // Let go still raised and heading up: away. Brought back down: it stays.
@@ -266,7 +276,7 @@ struct HelloDropView: View {
                         dismiss()
                     } else {
                         withAnimation(Motion.card) { dragY = 0 }
-                        run = Task { await finish(after: Self.stay) }
+                        if step == .message { run = Task { await finish(after: Self.stay) } }
                     }
                 }
         )
@@ -292,9 +302,11 @@ struct HelloDropView: View {
             withAnimation(reduceMotion ? Motion.smooth : Motion.sheet) { step = .hello }
             AccessibilityNotification.Announcement(greeting.text).post()
             try? await Task.sleep(for: Self.holdHello)
-            // The message waits up to 4 s more for its reads, then says what it can.
-            for _ in 0..<40 where !ready() {
+            // The message waits up to 1 s more for its reads, then says what it can.
+            var waited = 0
+            while !ready(), waited < 10 {
                 try? await Task.sleep(for: .milliseconds(100))
+                waited += 1
             }
             guard !Task.isCancelled else { return }
             guard let message = message(seen) else { dismiss(); return }

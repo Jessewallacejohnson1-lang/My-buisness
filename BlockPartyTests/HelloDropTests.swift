@@ -120,5 +120,12 @@ final class HelloDropTests: XCTestCase {
         XCTAssertEqual(message("2026-10-22 09:00", town: week + [event("f", "2026-10-24", "1 PM")]),
                        "3 events this weekend")
         XCTAssertNil(message("2026-10-21 09:00"), "nothing coming says nothing")
+        // A quiet Sunday: the six days after it, not next weekend.
+        XCTAssertEqual(message("2026-10-25 09:00", town: [event("g", "2026-10-27", "6 PM"),
+                                                          event("h", "2026-10-30", "6 PM")]),
+                       "2 events this week")
+        XCTAssertEqual(message("2026-10-25 09:00", town: [event("i", "2026-10-25", "8 PM", cancelled: true),
+                                                          event("j", "2026-10-31", "6 PM")]),
+                       "1 event this week")
     }
 }
