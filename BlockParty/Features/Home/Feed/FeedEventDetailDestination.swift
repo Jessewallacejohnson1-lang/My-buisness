@@ -40,6 +40,8 @@ struct FeedEventDetailDestination: View {
     /// Photos that could not be loaded. They leave the carousel, so a failure never
     /// holds a skeleton on screen.
     @State private var failedPhotos: Set<URL> = []
+    /// The Event's place's name in its own lettering, once read (follows 02).
+    @State private var placeName: URL?
 
     init(item: FeedCardItem, inSheet: Bool = false) {
         self.item = item
@@ -148,6 +150,14 @@ struct FeedEventDetailDestination: View {
         // used to land on Town after a pop. Leaving never cancels the write itself.
         .onAppear { actions.pageOpened(item.id) }
         .onDisappear { actions.pageClosed(item.id) }
+        .task(id: item.id) { placeName = await Self.readPlaceName(item.id) }
+    }
+
+    /// `event_place_name`; nothing under DEBUG samples or offline.
+    private static func readPlaceName(_ eventID: String) async -> URL? {
+        guard RealLifeActions.backend(for: ProcessInfo.processInfo.arguments) == .live,
+              UUID(uuidString: eventID) != nil else { return nil }
+        return try? await CommunityAPI(auth: AuthStore.shared).eventPlaceName(eventID)
     }
 
     // MARK: Photos
@@ -186,6 +196,16 @@ struct FeedEventDetailDestination: View {
                 .visualEffect { content, proxy in
                     let pull = max(0, proxy.frame(in: .scrollView(axis: .vertical)).minY)
                     return content.scaleEffect(1 + pull / max(proxy.size.height, 1), anchor: .bottom)
+                }
+                // The place's name at the bottom centre, over its photos only: with none, the
+                // hero is its logo, which says it already.
+                .overlay(alignment: .bottom) {
+                    if let placeName, !photos.isEmpty {
+                        PlaceNameArt(name: placeName, photo: photos[min(photoPage ?? 0, photos.count - 1)].url,
+                                     spoken: item.whereLine ?? "")
+                            .padding(.bottom, PlaceNameArt.bottom)
+                            .transition(.opacity)
+                    }
                 }
                 // After the stretch, so they stay put at the hero's bottom corners, unscaled.
                 .overlay(alignment: .bottomLeading) { credit }
@@ -360,7 +380,7 @@ struct FeedEventDetailDestination: View {
             }
 
             // Who hosts it, with Follow (follows 02): Eventbrite's "Organized by".
-            EventHostRow(item: item, top: Metric.pillTop)
+            EventHostRow(item: item, top: Metric.pillTop, placeNamed: placeName != nil && !photos.isEmpty)
 
             if let about = Self.aboutText(item.description) {
                 AboutSection(text: about)

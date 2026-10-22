@@ -121,6 +121,24 @@ struct CommunityAPI {
         return try Self.placePhotos(from: data)
     }
 
+    /// Each place's name in its own lettering (`public.place_names`), by registry entry: a white
+    /// picture the business page tints to read on its photo (BP app follows 02).
+    func getPlaceNames() async throws -> [String: URL] {
+        struct Row: Decodable { let entryId: String; let url: String }
+        let (data, _) = try await SupabaseHTTP.rest("place_names", query: "select=entry_id,url",
+                                                    accessToken: await readToken())
+        let rows: [Row] = try decode(data)
+        return Dictionary(rows.compactMap { row in URL(string: row.url).map { (row.entryId, $0) } },
+                          uniquingKeysWith: { first, _ in first })
+    }
+
+    /// The name over an Event's photo: its place's lettering, or nil.
+    func eventPlaceName(_ eventID: String) async throws -> URL? {
+        let (data, _) = try await SupabaseHTTP.rest("rpc/event_place_name", method: "POST", accessToken: await readToken(),
+                                                    body: try body(["p_event": eventID]))
+        return (try JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) as? String).flatMap(URL.init)
+    }
+
     /// A row that doesn't decode is that one photo gone, never the rest.
     nonisolated static func placePhotos(from data: Data) throws -> [String: [PlacePicture]] {
         struct Row: Decodable {

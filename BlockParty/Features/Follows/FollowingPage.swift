@@ -170,10 +170,13 @@ struct EventHostRow: View {
     let item: FeedCardItem
     /// Paper above it once it shows; none while it doesn't.
     var top: CGFloat = 0
+    /// The place's name is on the photo above: a Place hosting doesn't say it again here.
+    var placeNamed = false
     @Environment(RealLifeActions.self) private var actions
     @State private var host: FollowRow?
 
     static let picture: CGFloat = 44
+    static let smallPicture: CGFloat = 32
     static let gap: CGFloat = 12
 
     var body: some View {
@@ -182,12 +185,15 @@ struct EventHostRow: View {
             Color.clear.frame(height: 0)
             if let host {
                 HStack(spacing: Self.gap) {
-                    FollowPicture(row: host, size: Self.picture)
+                    // Smaller under a named photo: the name has already been said (Jesse's pick).
+                    FollowPicture(row: host, size: placeNamed && host.targetType == .place ? Self.smallPicture : Self.picture)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(host.name)
-                            .font(.sansSemibold(15))
-                            .foregroundStyle(Hue.ink)
-                            .lineLimit(1)
+                        if !(placeNamed && host.targetType == .place) {
+                            Text(host.name)
+                                .font(.sansSemibold(15))
+                                .foregroundStyle(Hue.ink)
+                                .lineLimit(1)
+                        }
                         // `host-line`: "Host · 128 followers"; a person shows no count.
                         Text(["Host", FollowWords.count(actions.follow(host.target).count)]
                             .compactMap { $0 }.joined(separator: " · "))

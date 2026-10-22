@@ -264,7 +264,8 @@ private struct BusinessPageBody: View {
 
                 FlyingLogo(logo: logo, source: source, from: source.logo.offsetBy(dx: -origin.x, dy: -origin.y),
                            corner: BusinessPage.corner(width: full.width, top: insets.top),
-                           middle: BusinessPage.middle(width: full.width), progress: opener.progress, page: page)
+                           middle: BusinessPage.middle(width: full.width), progress: opener.progress, page: page,
+                           named: item.nameArt != nil)
             }
             .frame(width: full.width, height: full.height, alignment: .topLeading)
             .offset(x: -insets.leading, y: -insets.top)
@@ -341,6 +342,14 @@ private struct BusinessPageContent: View {
             .visualEffect { content, proxy in
                 let pull = max(0, proxy.frame(in: .scrollView(axis: .vertical)).minY)
                 return content.scaleEffect(1 + pull / max(proxy.size.height, 1), anchor: .bottom)
+            }
+            // Its name in its own lettering at the bottom centre (follows 02); the corner logo
+            // then fades as it lands, so the place isn't marked twice.
+            .overlay(alignment: .bottom) {
+                if let name = item.nameArt, !photos.isEmpty {
+                    PlaceNameArt(name: name, photo: photos[min(photoPage ?? 0, photos.count - 1)].url, spoken: item.name)
+                        .padding(.bottom, PlaceNameArt.bottom)
+                }
             }
             .overlay(alignment: .bottomLeading) { credit }
             .overlay(alignment: .bottomTrailing) { counter }
@@ -542,16 +551,21 @@ private struct FlyingLogo: View {
     let middle: CGRect
     let progress: LiveSpring
     let page: PageState
+    /// The place's name is on its photo: the logo flies from its tile as before, fading as it
+    /// lands, and stays when every photo fails (it then sits in the middle).
+    let named: Bool
 
     var body: some View {
         let p = progress.value
         let c = min(max(p, 0), 1)
         let lift = sin(.pi * c)
+        let fades = named && page.hasPhotos
         let flying = lerp(from, page.hasPhotos ? corner : middle, p)
         CastLogo(logo: logo, side: flying.width, shadow: source.shadow,
                  stretch: 1 + lift * SearchMetric.liftStretch, strength: 1 - lift * SearchMetric.liftFade)
             .offset(x: flying.minX, y: flying.minY - max(0, page.scrollY) * c)
-            .opacity(source.fades ? min(1, c * 4) : 1)
+            .opacity((source.fades ? min(1, c * 4) : 1) * (fades ? 1 - c : 1))
+            .animation(Motion.smooth, value: fades)
             // Every photo failed after it landed: it moves to the middle, not jumps.
             .animation(Motion.smooth, value: page.hasPhotos)
             .allowsHitTesting(false)
