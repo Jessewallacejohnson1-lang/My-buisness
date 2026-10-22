@@ -257,7 +257,7 @@ struct ProfileView: View {
 
     /// Whether you show on others' People you may know (daily-tab 22), on by default.
     private var suggestRow: some View {
-        switchRow("Suggest me to people I may know", icon: "person.crop.circle.badge.plus", value: model.suggestMe,
+        switchRow("Suggest me to people I may know", icon: "person.line.dotted.person", value: model.suggestMe,
                   failures: model.suggestFailures) { on in await model.setSuggestMe(on) }
     }
 
