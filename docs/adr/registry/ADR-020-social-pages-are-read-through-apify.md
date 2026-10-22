@@ -6,6 +6,38 @@ from its own website: it can be shown as the place's picture before the place sa
 credited to its page and taken down on request, like every place photo. Its file is
 downloaded from Facebook's image server right after the Apify read, under this same
 exception. Posts, their photos and their words still wait for the place's yes.
+**Amended 2026-10-22 (Jesse, in a grilling session on how often to read social pages):**
+- **Budget.** Jesse is on Apify's $19-a-month plan, so "free monthly credit only, never
+  upgraded" below no longer holds: the budget is that plan's $19 cap. Scheduled checks run
+  on their own within it. One-off jobs (a Google Maps pass, logo fetches) still show their
+  price first. Each morning report carries one line ("Apify: $X of $19"), with a heads-up at
+  $15 and at $19. There is no automatic slowdown; Jesse decides what to change.
+- **What a check costs, measured 2026-10-22.** The posts scrapers bill every page they
+  check, new posts or not: a page with nothing new still writes a `no_items` or
+  `not_available` row, billed as a post. That is about 0.5¢ per Facebook page and 0.23¢ per
+  Instagram account per check, so frequency is budgeted per page per check, not per post.
+- **Schedule.** A busy list (about 30 places that post events, plus the town pages; Jesse
+  approves it) is checked at noon, 6pm and 9pm Chicago time; every other place on Thursday
+  at 3pm. Both Facebook and Instagram are checked where a place has both. Each check asks
+  only for posts since the last one. The busy list's Facebook Events tabs are read weekly,
+  and public town groups weekly for tips. Estimated $21 a month; if the cap is hit early,
+  Jesse rethinks the schedule. Checking every 15 minutes was priced at about $590 a month
+  and dropped.
+- **Route.** Apify's own scheduler starts the runs: not Make.com (weighed and skipped, as a
+  second place for the logic that cannot be tested here) and not the 6am routine. Each
+  finished run's posts are read right away by Claude Haiku through the Anthropic API, and
+  what it finds becomes Events and News under ADR-021.
+- **Finding pages.** One Apify Google Maps pass per town, with its contact-details add-on,
+  refreshes and fills places' Facebook and Instagram links. The naming rule below (same
+  phone or street, or a link to the place's own website) still decides.
+- **Hidden pages stay unread.** Pages Facebook shows only to signed-in viewers (bars'
+  21+ pages, pages the owner limited, deleted pages behind an old link) come back
+  `not_available`. A search of Apify's store found that every tool that reads them signs in
+  with a real account's login cookies; the no-login rule stands. These places are reached
+  through a refreshed link, their Instagram or website, and are first in line for Meta's
+  official connection.
+- **Profile pictures.** A place's own Facebook or Instagram profile picture may become its
+  logo where it has none, treated like the cover photo above.
 **Date:** 2026-10-05
 **Decided by:** Jesse, 2026-10-05, in a grilling session on how to use Apify. His reason:
 live posts from businesses are Block Party's essential feature, and taking them straight
