@@ -298,4 +298,39 @@ final class DailyPageTests: XCTestCase {
         XCTAssertEqual(DailyFeedItem.town(cards, eventOfTheDay: nil).map(\.id),
                        ["event:a", "event:\(pick.id)", "event:b"])
     }
+
+    // MARK: Topics (daily-tab 19)
+
+    private func topicCard(_ title: String, host: String = "") -> FeedCardItem {
+        var card = FeedCardItem(id: title, title: title, dateChip: "", metaLine: "", image: .fallback, recurrence: nil,
+                                goingCount: 0, goingAvatars: [], likeCount: 0, isLiked: false, isSaved: false, isJoined: false)
+        card.hostName = host
+        return card
+    }
+
+    /// Your own interests come first, in your order, and only those the day has something for.
+    @MainActor
+    func testTopicsAreYourInterestsThatTheDayHas() {
+        let day = [topicCard("Live jazz", host: "Krewe"), topicCard("Latte art class", host: "Local Blend")]
+        XCTAssertEqual(DailyTopic.topics(for: day, mine: ["coffee", "biking", "live_music"]), ["coffee", "live_music"])
+    }
+
+    /// With no interests picked (signed out), the day's busiest interests lead.
+    @MainActor
+    func testWithNoInterestsTheBusiestTopicsLead() {
+        let day = [topicCard("Yoga in the park"), topicCard("Park cleanup"), topicCard("Open mic")]
+        let topics = DailyTopic.topics(for: day, mine: [])
+        XCTAssertEqual(topics.first, "parks_gardens")
+        XCTAssertTrue(topics.contains("live_music"))
+        XCTAssertFalse(topics.contains("biking"))
+        XCTAssertLessThanOrEqual(DailyTopic.topics(for: day, mine: [], limit: 1).count, 1)
+    }
+
+    /// A topic keeps the events that match it, by the words "Suggested for you" reads.
+    @MainActor
+    func testATopicMatchesItsEvents() {
+        XCTAssertTrue(DailyTopic.matches(topicCard("Trivia", host: "Bad Habit Brewing"), "breweries"))
+        XCTAssertFalse(DailyTopic.matches(topicCard("Story time"), "breweries"))
+        XCTAssertEqual(DailyTopic.label("live_music"), "Live music")
+    }
 }
