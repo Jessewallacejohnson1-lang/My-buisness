@@ -228,6 +228,15 @@ enum YouCalendar {
         going.filter { calendar.isDate($0.starts, inSameDayAs: day) }
     }
 
+    /// The plan an empty today points to (ticket 11): the first of `going` (the three weeks, in
+    /// the Calendar's order) still to start. nil when the Agenda shows another day, when today
+    /// has plans, and when nothing is left ahead.
+    static func next(_ going: [DailyEvent], day: Date, now: Date) -> DailyEvent? {
+        let today = calendar.startOfDay(for: now)
+        guard day == today, on(today, going).isEmpty else { return nil }
+        return going.first { $0.starts > now }
+    }
+
     /// The Going by Town day, once for the whole grid, each day in the order it came.
     static func byDay(_ going: [DailyEvent]) -> [Date: [DailyEvent]] {
         Dictionary(grouping: going) { calendar.startOfDay(for: $0.starts) }
@@ -273,6 +282,9 @@ enum YouCalendar {
         // `-town-cancelled`: Rocktoberfest, three days on, is called off, so the You tab
         // leaves it out and the app opens on the alert (ticket 12).
         let cancelledSample = ProcessInfo.processInfo.arguments.contains("-town-cancelled")
+        // `-you-free-today`: today's two move two days on, so today is empty and the Agenda
+        // points to the next plan (ticket 11).
+        let freeToday = ProcessInfo.processInfo.arguments.contains("-you-free-today")
         let rows: [(Int, String, String, String?, String, EventCategory)] = [
             (-3, "10 AM", "Fall colors hike", "sju-arboretum-trail", "Saint John's Arboretum", .outdoors),
             (-1, "7 PM", "Trivia night", "bad-habit-brewing", "Bad Habit Brewing", .food),
@@ -285,7 +297,7 @@ enum YouCalendar {
             (15, "5 PM", "Trail cleanup", "boardwalk-loop-trail", "Boardwalk Loop Trail", .service),
         ]
         return rows.enumerated().compactMap { index, row in
-            guard let date = day(row.0) else { return nil }
+            guard let date = day(row.0 == 0 && freeToday ? 2 : row.0) else { return nil }
             let photo = row.3.flatMap { Bundle.main.url(forResource: $0, withExtension: "jpg") }
             var event = UpcomingEvent(id: "you-sample-\(index)", title: row.2, eventDate: Town.day(date),
                                       startTime: row.1, location: row.4, goingCount: 3, createdAt: "",

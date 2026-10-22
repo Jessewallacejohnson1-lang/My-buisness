@@ -27,6 +27,13 @@ enum AgendaMetric {
     static let rowGap: CGFloat = 12
     /// Room the open card keeps on its right for the arrow.
     static let arrowRoom: CGFloat = 22
+    /// The next plan's "In 2 days" pill, and the empty line's room above and below it over that
+    /// card: the mock Jesse approved (you-tab 11, https://claude.ai/artifact/XqbVLhDiEH78VNfTz7NnDw),
+    /// MEASURED in its render, 24.7pt from the label's ink to the line's and 16 on to the card.
+    static let pill: CGFloat = 26
+    static let pillSide: CGFloat = 10
+    static let lineAboveNext: CGFloat = 6
+    static let lineBelowNext: CGFloat = 3
 }
 
 /// What an Agenda shows, on the You page and in Profile's Saved (ticket 04): two skeleton
@@ -43,17 +50,33 @@ struct AgendaList: View {
     var withDay = false
     /// The friends Going on each card: the You Agenda's, not Saved's (ticket 07).
     var faces = false
+    /// An empty today's next plan, under the line with how far off it is; a tap goes to its
+    /// day through `pick` (You, ticket 11).
+    var next: DailyEvent?
+    var pick: (DailyEvent) -> Void = { _ in }
     let retry: () -> Void
     let open: (FeedCardItem) -> Void
 
     var body: some View {
         if let events {
             if events.isEmpty {
-                Text(empty)
-                    .font(.sans(15))
-                    .foregroundStyle(Hue.inkSecondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, YouMetric.emptyLine)
+                VStack(spacing: AgendaMetric.rowGap) {
+                    Text(empty)
+                        .font(.sans(15))
+                        .foregroundStyle(Hue.inkSecondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, next == nil ? YouMetric.emptyLine : AgendaMetric.lineAboveNext)
+                        .padding(.bottom, next == nil ? YouMetric.emptyLine : AgendaMetric.lineBelowNext)
+                    if let next {
+                        Button { pick(next) } label: {
+                            AgendaCard(event: next, now: now, withDay: true, friends: [], open: false,
+                                       pill: next.startsLabel(now: now))
+                        }
+                        .buttonStyle(PressableCardStyle())
+                        // Every other card opens its Event; this one turns the Calendar. A working word.
+                        .accessibilityHint("Shows that day")
+                    }
+                }
             } else {
                 AgendaCards(events: events, now: now, withDay: withDay, faces: faces, open: open)
             }
@@ -128,6 +151,9 @@ private struct AgendaCard: View {
     /// card's arrow takes their place (Jesse, ticket 07 Check-in 1).
     let friends: [FeedFriend]
     let open: Bool
+    /// How far off it is ("In 2 days"), at the right in place of the faces: the next plan's
+    /// card (ticket 11).
+    var pill: String?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -164,6 +190,20 @@ private struct AgendaCard: View {
             .multilineTextAlignment(.leading)
             .padding(.vertical, AgendaMetric.textInset)
             .frame(maxWidth: .infinity, minHeight: AgendaMetric.photo, alignment: .topLeading)
+            if let pill {
+                // Centred on the photo, as far in from the card's edge as the faces.
+                Text(pill)
+                    .font(.sansSemibold(13))
+                    .foregroundStyle(Hue.ink)
+                    .lineLimit(1)
+                    .fixedSize()
+                    .padding(.horizontal, AgendaMetric.pillSide)
+                    // Grows with a larger text size rather than spilling out.
+                    .frame(minHeight: AgendaMetric.pill)
+                    .background(Capsule().fill(Hue.fill))
+                    .frame(height: AgendaMetric.photo)
+                    .padding(.trailing, AgendaMetric.textGap - AgendaMetric.photoInset)
+            }
         }
         .padding(AgendaMetric.photoInset)
         .overlay(alignment: .trailing) {
@@ -195,7 +235,8 @@ private struct AgendaCard: View {
         }
         .contentShape(card)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(AgendaCards.spoken(title: event.item.title, when: when.spoken,
+        .accessibilityLabel(AgendaCards.spoken(title: event.item.title,
+                                               when: [when.spoken, pill].compactMap { $0 }.joined(separator: ", "),
                                                friends: friends.map(\.name), more: more))
     }
 
@@ -213,10 +254,11 @@ private struct AgendaCard: View {
     /// When it starts: "Now" while it's on, else its time, or with `withDay` the Town
     /// card's when line from the organizer's own time ("Tonight · 7 PM"; an all-day Event
     /// shows only its day), and how VoiceOver reads it ("Saturday, October 17 at Noon").
+    /// Beside the pill it's always the date, so "Tomorrow" never shows twice.
     private var when: (text: String, spoken: String) {
         if withDay, !event.isOn(now),
            let line = FeedWhenLine(eventDate: event.item.eventDate, startTime: event.item.startTime,
-                                   now: now, calendar: YouCalendar.calendar) {
+                                   now: now, calendar: YouCalendar.calendar, relative: pill == nil) {
             return (line.text, line.spoken)
         }
         let time = event.startTime(now: now)
