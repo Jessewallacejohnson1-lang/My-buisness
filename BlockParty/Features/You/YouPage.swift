@@ -282,6 +282,10 @@ struct YouPage: View {
         // "Nothing planned" is a working line; Jesse writes the final words.
         AgendaList(events: going.map { YouCalendar.on(day, $0) }, failed: model.failed,
                    empty: "Nothing planned", loading: "Loading your plans", now: now, faces: true,
+                   // An empty today points to the next plan; a tap on it picks its day, as a tap
+                   // on that day does (ticket 11).
+                   next: going.flatMap { YouCalendar.next($0, day: day, now: now) },
+                   pick: { pick(YouCalendar.calendar.startOfDay(for: $0.starts), from: day) },
                    retry: { Task { await model.refresh() } }, open: { pushed = $0 })
             // A new day starts with every card closed.
             .id(day)
