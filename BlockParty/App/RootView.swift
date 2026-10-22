@@ -339,6 +339,10 @@ struct MainTabsView: View {
     /// Daily's Event of the day, kept here the same way (BP app daily-tab 14), and the Town
     /// feed's top (event-card 03).
     @State private var eventOfTheDay = EventOfTheDay()
+    /// The day picked in Daily's week (daily-tab 16), nil for today: kept here so it stays while
+    /// you switch tabs, and a new launch opens on today. The other days' picks are kept with it.
+    @State private var dailyDay: String?
+    @State private var dayPicks = DailyDayPicks()
     /// Your Going in your iPhone Calendar, kept up to date from here while its switch in
     /// Profile is on (BP app docs/plans/you-tab, ticket 05).
     @State private var calendarSync = CalendarSync()
@@ -472,6 +476,7 @@ struct MainTabsView: View {
             you.accountChanged()
             saves.accountChanged()
             eventOfTheDay.accountChanged()
+            dayPicks.accountChanged()
             Task { await townFeed.reload() }
             // Whether you're in each group is this account's, once Search has read them.
             if searchModel.groupsLoaded { Task { await searchModel.readGroupsAgain() } }
@@ -536,6 +541,15 @@ struct MainTabsView: View {
         }
     }
 
+    /// The friends going each day under Daily's week: the Town feed's, or under DEBUG
+    /// `-daily-samples` the sample faces.
+    private var dailyFriends: [String: [FeedFriend]] {
+        #if DEBUG
+        if DailySamples.on { return DailyWeek.sampleFriends(from: DailyClock.now(Date())) }
+        #endif
+        return DailyWeek.friendsGoing(in: townFeed.cards)
+    }
+
     /// The friends mark pushes the Friends page, covering the tab bar like an event page.
     private func openFriends() {
         path.append(FriendsRoute.home)
@@ -569,17 +583,16 @@ struct MainTabsView: View {
                                 townFeed: townFeed,
                                 eventOfTheDay: eventOfTheDay
                             )
-                        // Daily shows its page once it has something real to show: paper
-                        // while its first read is out, then the named, reserved slot when
-                        // there is nothing today.
+                        // Daily shows paper while its first read is out, then its page: the week
+                        // on top, and under it the picked day, or the named, reserved slot on a
+                        // day with nothing in it.
                         case .daily:
                             Group {
-                                if DailySpotlight.today != nil || eventOfTheDay.events?.isEmpty == false {
-                                    DailyPage(spotlight: DailySpotlight.today, events: eventOfTheDay.events ?? [])
-                                } else if eventOfTheDay.events == nil {
-                                    Hue.paper.ignoresSafeArea()
+                                if DailySpotlight.today != nil || eventOfTheDay.events != nil {
+                                    DailyPage(spotlight: DailySpotlight.today, events: eventOfTheDay.events ?? [],
+                                              picked: $dailyDay, dayPicks: dayPicks, friends: dailyFriends)
                                 } else {
-                                    BlankTab(tab: .daily)
+                                    Hue.paper.ignoresSafeArea()
                                 }
                             }
                             .task { await eventOfTheDay.refresh() }

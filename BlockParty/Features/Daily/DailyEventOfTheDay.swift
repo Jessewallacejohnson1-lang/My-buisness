@@ -75,6 +75,14 @@ struct DailyEvent: Identifiable {
     /// Working words; Jesse writes the final ones.
     func startsLabel(now: Date) -> String {
         guard starts > now else { return "Now" }
+        // Another Town day counts calendar days, as people do ("In 3 days" on a Wednesday for
+        // Saturday's), not hours (daily-tab 16).
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = Town.timeZone
+        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: now),
+                                           to: calendar.startOfDay(for: starts)).day ?? 0
+        if days == 1 { return "Tomorrow" }
+        if days > 1 { return "In \(days) days" }
         let formatter = RelativeDateTimeFormatter()
         formatter.locale = Locale(identifier: "en_US")
         formatter.unitsStyle = .full
@@ -265,23 +273,15 @@ final class EventOfTheDay {
 }
 
 /// The section: its label, then the card, or on a busy day the cards in a row that
-/// the finger pages through, one card at a time, with the next one's edge showing. With no
-/// Spotlight above it, its first card marks where the page's yellow fades out.
+/// the finger pages through, one card at a time, with the next one's edge showing.
 struct EventOfTheDaySection: View {
     let events: [DailyEvent]
     let now: Date
-    var marksYellowEdge = false
 
     var body: some View {
         VStack(spacing: 0) {
             DailySectionLabel(title: "Event of the day", ink: Hue.ink)
-            // Only with no Spotlight: any guide here, even one at its own top, would move the
-            // yellow's edge off the Spotlight.
-            if marksYellowEdge {
-                row.alignmentGuide(.dailyYellowEdge) { $0[.top] + DailyMetric.eventLabelToCard + DailyMetric.yellowIntoCard }
-            } else {
-                row
-            }
+            row
         }
     }
 
@@ -388,7 +388,9 @@ private struct EventOfTheDayFace: View {
                 .aspectRatio(DailyMetric.eventPhotoAspect, contentMode: .fit)
                 .overlay {
                     if let url = picture.url {
-                        FeedCardURLPhoto(url: url, onReady: { photoShown = true })
+                        // The grey behind it while it loads, not ink: a day tapped in the week
+                        // brings a photo not yet loaded, and ink flashed black (daily-tab 16).
+                        FeedCardURLPhoto(url: url, onReady: { photoShown = true }, loadingFill: Hue.fill)
                     } else if let logo = picture.logo {
                         FeedCardPlaceLogo(logo: logo, topClear: PhotoChip.inset + PhotoChip.height)
                     }

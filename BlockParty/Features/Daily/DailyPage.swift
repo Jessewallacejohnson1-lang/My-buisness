@@ -2,11 +2,11 @@
 //  DailyPage.swift
 //  Block Party — the Daily tab: the neighbour's own page for today.
 //
-//  Top to bottom (`docs/plans/daily-tab/SPEC.md` in the BP app folder): the Spotlight,
-//  under its label, on the yellow, then Event of the day, Suggestions and Following. A
-//  section with nothing in it is left out; with no Spotlight the page opens on Event of the
-//  day, the yellow fading into its card. What you're Going to lives on the You tab (BP app
-//  docs/plans/you-tab).
+//  Top to bottom (`docs/plans/daily-tab/SPEC.md` in the BP app folder): the week, then the
+//  Spotlight under its label, Event of the day, Suggestions and Following, on plain paper (no
+//  yellow: Jesse, 2026-10-21). Tap a day in the week and the page turns to it (daily-tab 16).
+//  A section with nothing in it is left out; the Spotlight is today's alone. What you're Going
+//  to lives on the You tab (BP app docs/plans/you-tab).
 //
 
 import SwiftUI
@@ -65,7 +65,7 @@ struct DailySpotlight {
 /// much as a CSS blur twice its size.
 nonisolated enum DailyMetric {
     static let side: CGFloat = 18
-    /// "Spotlight" over the yellow in the logo's face, and from it to the card. Picked
+    /// "Spotlight" in the logo's face, and from it to the card. Picked
     /// in the Check-in mock (BP app `references/spotlight-card/mock.html`).
     static let wordSize: CGFloat = 28
     static let wordTracking: CGFloat = -0.6
@@ -89,16 +89,19 @@ nonisolated enum DailyMetric {
     /// Clears the floating tab bar: the same 96 the other tab scrollers reserve.
     static let tabBarClearance: CGFloat = 96
 
-    /// The yellow fades into the page over `yellowFade`, ending this far into the card:
-    /// half the height the solid yellow took (Jesse, 2026-10-19).
-    static let yellowIntoCard: CGFloat = 72
-    static let yellowFade: CGFloat = 120
-    /// How far up the solid yellow reaches above the fade: under the clock, and past
-    /// the longest pull, so pulling down never shows paper above it.
-    static let yellowReach: CGFloat = 1600
-    /// The clock's frosted edge comes in over this much scroll, as the Spotlight label
-    /// slides under the clock. At rest and pulled down it is gone, so the yellow under
-    /// the clock stays exact. Picked: no Reference has a yellow top under a clock.
+    /// The week (daily-tab 16) sits this far under the clock, and the first section's label this
+    /// far under the week's faces. Picked on the Figma drafts (2026-10-21): no Reference has a
+    /// week over a page like this one.
+    static let weekTop: CGFloat = 4
+    static let weekToSection: CGFloat = 24
+    /// Another day's page: the last one fades out this fast, then the picked one fades in
+    /// (guessed; no Reference recording).
+    static let dayFadeOut: Double = 0.1
+    static let dayFade: Double = 0.2
+    /// The reserved slot's height under the week on a day with nothing in it.
+    static let emptyHeight: CGFloat = 420
+    /// The clock's frosted edge comes in over this much scroll, as the week slides under the
+    /// clock. At rest and pulled down it is gone. Picked.
     static let edgeFade: CGFloat = 20
 
     /// The low sun's shadow. Sideways it reaches `sunReach` at sunrise and sunset and
@@ -110,7 +113,7 @@ nonisolated enum DailyMetric {
     static let sunBlur: CGFloat = 4
     static let sunBlurLong: CGFloat = 4
     static let sunOpacity: Double = 0.26
-    /// Pressed, the card sinks toward the yellow, so its shadow pulls in this much.
+    /// Pressed, the card sinks toward the page, so its shadow pulls in this much.
     static let sunPressed: CGFloat = 0.7
     /// The Town hours the sun is up; outside them the shadow is the midday one, short
     /// and straight down, like a streetlight overhead (Jesse, 2026-10-01).
@@ -149,8 +152,6 @@ nonisolated enum DailyMetric {
     /// gap under it put the row 19.5 under the divider and 18.5 over the edge.
     static let eventRowTop: CGFloat = 19.5
     static let eventRowBottom: CGFloat = 18.5
-    /// With no Spotlight the section opens the page: its label this far under the clock.
-    static let eventFirstTop: CGFloat = 8
     /// From the Spotlight card to the section's label, and from the label to the card:
     /// Airbnb's gap between one trip's card and the next city's heading, and from that
     /// heading to its card.
@@ -197,7 +198,7 @@ nonisolated enum DailyMetric {
     static let followingLabelToRows: CGFloat = eventLabelToCard - followingRowInset
 }
 
-/// The low sun over the yellow: morning light from the east throws the Spotlight's
+/// The low sun over the page: morning light from the east throws the Spotlight's
 /// shadow right, dinner light throws it left, and midday drops it straight down.
 nonisolated enum DailySun {
     struct Shadow: Equatable {
@@ -250,30 +251,20 @@ nonisolated enum DailyClock {
     }
 }
 
-/// The yellow easing out into the page: exact BP yellow above, the page's own colour
-/// below. Eased at both ends (smoothstep), since a straight ramp drew a line where it
-/// started, under the clock.
-private nonisolated enum DailyYellow {
-    static let fade: [Gradient.Stop] = stride(from: 0.0, through: 1.0, by: 0.125).map { t in
-        .init(color: Hue.brandDisc.mix(with: Hue.paper, by: t * t * (3 - 2 * t)), location: t)
-    }
-}
-
-extension VerticalAlignment {
-    /// The yellow fade's lower edge, set by the Spotlight card, or with none by Event of the
-    /// day's first card.
-    nonisolated enum DailyYellowEdge: AlignmentID {
-        static func defaultValue(in d: ViewDimensions) -> CGFloat { d[.top] }
-    }
-    static let dailyYellowEdge = VerticalAlignment(DailyYellowEdge.self)
-}
-
 struct DailyPage: View {
-    /// None until stories exist: the page opens on Event of the day.
+    /// None until stories exist. It is today's story, so another day opens on Event of the day.
     let spotlight: DailySpotlight?
-    /// Event of the day's picks as read (`EventOfTheDay`); the page leaves out what's over.
+    /// Today's Event of the day picks as read (`EventOfTheDay`); the page leaves out what's over.
     let events: [DailyEvent]
+    /// The day picked in the week, nil for today. Kept in `MainTabsView`, so it stays while you
+    /// switch tabs, and a new launch opens on today.
+    @Binding var picked: String?
+    /// The week's other days' picks.
+    let dayPicks: DailyDayPicks
+    /// The friends going each day (`DailyWeek.friendsGoing`).
+    let friends: [String: [FeedFriend]]
     @Environment(RealLifeActions.self) private var actions
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var tilt = PhoneTilt()
     /// How far the page has scrolled, held only up to `edgeFade`.
     @State private var scrolled: CGFloat = 0
@@ -281,81 +272,113 @@ struct DailyPage: View {
     var body: some View {
         // The phone's tilt only leans the Spotlight; with none it stays off.
         if spotlight != nil {
-            page.following(tilt)
+            timeline.following(tilt)
         } else {
-            // With no Spotlight, once nothing else is left today the page is the placeholder.
-            TimelineView(.everyMinute) { context in
-                let now = DailyClock.now(context.date)
-                if DailyEvent.showing(events, now: now, limit: 3).isEmpty
-                    && DailyEvent.suggestions(now: now).isEmpty && DailyFollowing.today(now: now).isEmpty {
-                    BlankTab(tab: .daily)
-                } else {
-                    page
-                }
-            }
+            timeline
         }
     }
 
-    private var page: some View {
-        ZStack {
+    private var timeline: some View {
+        TimelineView(.everyMinute) { context in
+            let now = DailyClock.now(context.date)
+            let days = DailyWeek.days(from: now)
+            page(now: now, days: days, shown: DailyWeek.shown(picked: picked, today: days[0].id))
+        }
+    }
+
+    private func page(now: Date, days: [DailyWeekDay], shown: String) -> some View {
+        let day = days.first { $0.id == shown } ?? days[0]
+        let isToday = day == days[0]
+        // Another day's sections read from its midnight, so all of that day is still to come.
+        let clock = isToday ? now : day.start
+        let spotlight = isToday ? self.spotlight : nil
+        // Each section leaves out what one above it shows (SPEC.md).
+        let events = DailyEvent.showing(isToday ? self.events : dayPicks.picks[day.id] ?? [], now: clock, limit: 3)
+        // Suggestions never offer what you're Going to or saved (SPEC.md).
+        let suggestions = DailyEvent.showing(
+            DailyEvent.suggestions(now: clock).filter {
+                !actions.going($0.item).isGoing && !actions.saved($0.item)
+            }, now: clock, without: events, limit: 10)
+        let following = DailyFollowing.showing(DailyFollowing.today(now: clock), now: clock,
+                                               without: events + suggestions, limit: 10)
+        // A day whose pick is still being read shows paper, not the reserved slot.
+        let loading = !isToday && dayPicks.picks[day.id] == nil
+        let empty = !loading && spotlight == nil && events.isEmpty && suggestions.isEmpty && following.isEmpty
+        return ZStack {
             Hue.paper.ignoresSafeArea()
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 0) {
-                    if let spotlight {
-                        // The logo's face, standing in for the small caps label (Jesse, 2026-10-19).
-                        Text("Spotlight")
-                            .font(.logoSerif(DailyMetric.wordSize))
-                            .tracking(DailyMetric.wordTracking)
-                            .foregroundStyle(Hue.onBrandDisc)
-                            .accessibilityAddTraits(.isHeader)
-                        SpotlightCard(spotlight: spotlight, tilt: tilt)
-                            .padding(.top, DailyMetric.wordToCard)
-                            .padding(.horizontal, DailyMetric.side)
-                    }
-                    TimelineView(.everyMinute) { context in
-                        let now = DailyClock.now(context.date)
-                        // Each section leaves out what one above it shows (SPEC.md).
-                        let events = DailyEvent.showing(self.events, now: now, limit: 3)
-                        // Suggestions never offer what you're Going to or saved (SPEC.md).
-                        let suggestions = DailyEvent.showing(
-                            DailyEvent.suggestions(now: now).filter {
-                                !actions.going($0.item).isGoing && !actions.saved($0.item)
-                            }, now: now, without: events, limit: 10)
-                        let following = DailyFollowing.showing(DailyFollowing.today(now: now), now: now,
-                                                               without: events + suggestions, limit: 10)
-                        VStack(spacing: 0) {
-                            if !events.isEmpty {
-                                EventOfTheDaySection(events: events, now: now, marksYellowEdge: spotlight == nil)
-                                    .padding(.top, spotlight == nil ? DailyMetric.eventFirstTop : DailyMetric.eventSectionTop)
-                            }
-                            if !suggestions.isEmpty {
-                                SuggestionsSection(events: suggestions, now: now)
-                                    .padding(.top, DailyMetric.eventSectionTop)
-                            }
-                            if !following.isEmpty {
-                                FollowingSection(items: following, now: now)
-                                    .padding(.top, DailyMetric.eventSectionTop)
-                            }
+                    DailyWeekRow(days: days, shown: shown, friends: friends) { tapped in
+                        withAnimation(reduceMotion ? nil : Motion.select) {
+                            picked = tapped == days[0] ? nil : tapped.id
                         }
                     }
-                    Color.clear.frame(height: DailyMetric.tabBarClearance)
-                }
-                .background(alignment: Alignment(horizontal: .center, vertical: .dailyYellowEdge)) {
-                    VStack(spacing: 0) {
-                        Hue.brandDisc.frame(height: DailyMetric.yellowReach)
-                        LinearGradient(stops: DailyYellow.fade, startPoint: .top, endPoint: .bottom)
-                            .frame(height: DailyMetric.yellowFade)
+                    .padding(.top, DailyMetric.weekTop)
+                    // The system's selection tick on a tap, and only then (not at midnight).
+                    .sensoryFeedback(.selection, trigger: picked)
+                    // The last day's page fades out, then the picked day's fades in, in the same
+                    // spot, so the two never sit on top of each other.
+                    ZStack(alignment: .top) {
+                        // The cards' chips count from now ("In 3 days"), though the day's are
+                        // picked from its midnight.
+                        sections(spotlight: spotlight, events: events, suggestions: suggestions,
+                                 following: following, empty: empty, loading: loading, now: now)
+                            .id(day.id)
+                            .transition(reduceMotion ? .identity : .asymmetric(
+                                insertion: .opacity.animation(.easeOut(duration: DailyMetric.dayFade).delay(DailyMetric.dayFadeOut)),
+                                removal: .opacity.animation(.easeIn(duration: DailyMetric.dayFadeOut))))
                     }
-                    .alignmentGuide(.dailyYellowEdge) { $0[.bottom] }
+                    Color.clear.frame(height: DailyMetric.tabBarClearance)
                 }
             }
             .onScrollGeometryChange(for: CGFloat.self) { geometry in
                 min(max(geometry.contentOffset.y + geometry.contentInsets.top, 0), DailyMetric.edgeFade)
             } action: { _, offset in scrolled = offset }
         }
+        // Today's are `EventOfTheDay`'s; a picked day reads at once, and the rest of the week reads
+        // behind it, one day at a time, so a tap usually finds its day already there.
+        .task(id: day.id) { if !isToday { await dayPicks.refresh(day) } }
+        .task(id: days[0].id) {
+            for other in days.dropFirst() {
+                // Leaving Daily calls the rest off; they read when Daily opens again.
+                guard !Task.isCancelled else { return }
+                await dayPicks.refresh(other)
+            }
+        }
         // The Town feed's frosted band behind the clock, so the page blurs under it;
-        // it comes in with the first bit of scroll, so at rest the yellow stays exact.
+        // it comes in with the first bit of scroll.
         .statusEdge(opacity: scrolled / DailyMetric.edgeFade)
+    }
+
+    @ViewBuilder
+    private func sections(spotlight: DailySpotlight?, events: [DailyEvent], suggestions: [DailyEvent],
+                          following: [DailyFollowing], empty: Bool, loading: Bool, now: Date) -> some View {
+        if loading {
+            Color.clear.frame(height: DailyMetric.emptyHeight)
+        } else if empty {
+            // Nothing that day: Daily's named, reserved slot, under the week.
+            BlankTab(tab: .daily)
+                .frame(height: DailyMetric.emptyHeight)
+        } else {
+            VStack(spacing: DailyMetric.eventSectionTop) {
+                if let spotlight {
+                    VStack(spacing: DailyMetric.wordToCard) {
+                        // The logo's face, standing in for the small caps label (Jesse, 2026-10-19).
+                        Text("Spotlight")
+                            .font(.logoSerif(DailyMetric.wordSize))
+                            .tracking(DailyMetric.wordTracking)
+                            .foregroundStyle(Hue.ink)
+                            .accessibilityAddTraits(.isHeader)
+                        SpotlightCard(spotlight: spotlight, tilt: tilt)
+                            .padding(.horizontal, DailyMetric.side)
+                    }
+                }
+                if !events.isEmpty { EventOfTheDaySection(events: events, now: now) }
+                if !suggestions.isEmpty { SuggestionsSection(events: suggestions, now: now) }
+                if !following.isEmpty { FollowingSection(items: following, now: now) }
+            }
+            .padding(.top, DailyMetric.weekToSection)
+        }
     }
 }
 
@@ -442,7 +465,6 @@ private struct SpotlightCardFace: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .alignmentGuide(.dailyYellowEdge) { $0[.top] + DailyMetric.yellowIntoCard }
             .rotation3DEffect(.degrees(lean.x * DailyMetric.tiltLean), axis: (x: 0, y: 1, z: 0),
                               perspective: DailyMetric.tiltPerspective)
             .rotation3DEffect(.degrees(-lean.y * DailyMetric.tiltLean), axis: (x: 1, y: 0, z: 0),
