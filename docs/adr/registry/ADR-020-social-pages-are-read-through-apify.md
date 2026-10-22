@@ -16,13 +16,15 @@ exception. Posts, their photos and their words still wait for the place's yes.
   check, new posts or not: a page with nothing new still writes a `no_items` or
   `not_available` row, billed as a post. That is about 0.5¢ per Facebook page and 0.23¢ per
   Instagram account per check, so frequency is budgeted per page per check, not per post.
-- **Schedule.** A busy list (about 30 places that post events, plus the town pages; Jesse
-  approves it) is checked at noon, 6pm and 9pm Chicago time; every other place on Thursday
-  at 3pm. Both Facebook and Instagram are checked where a place has both. Each check asks
-  only for posts since the last one. The busy list's Facebook Events tabs are read weekly,
-  and public town groups weekly for tips. Estimated $21 a month; if the cap is hit early,
-  Jesse rethinks the schedule. Checking every 15 minutes was priced at about $590 a month
-  and dropped.
+- **Schedule.** A busy list (26 places that post events, town pages included, approved by
+  Jesse on 2026-10-22: 24 Facebook pages and 13 Instagram accounts) is checked at 6pm and
+  9pm Chicago time; every other place on Thursday at 3pm. Both Facebook and Instagram are
+  checked where a place has both. Each check asks only for posts since the last one. The
+  busy list's Facebook Events tabs are read weekly, and public town groups weekly for tips.
+  Estimated $19 a month with real page counts (busy list $9.40, everyone else weekly $8.50,
+  Events tabs about $1); a noon check was dropped because it took the total to about $24.
+  If the cap is hit early, Jesse rethinks the schedule. Checking every 15 minutes was priced
+  at about $590 a month and dropped.
 - **Route.** Apify's own scheduler starts the runs: not Make.com (weighed and skipped, as a
   second place for the logic that cannot be tested here) and not the 6am routine. Each
   finished run's posts are read right away by Claude Haiku through the Anthropic API, and
