@@ -12,6 +12,8 @@ source is a line in the summary; carry on with the rest.
    that `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set with
    `test -n "$SUPABASE_URL" && test -n "$SUPABASE_SERVICE_ROLE_KEY" && echo keys set`; their
    values stay out of every command's output and your answer. Without them, stop and say so.
+   `FIRECRAWL_API_KEY` should be set too (same check, same secrecy): without it, pages that
+   refuse the cloud's address or are built by JavaScript fail or read empty; say so and go on.
 2. **Prepare.** Start `(python3 sources/scripts/morning.py prepare; echo "prepare exit $?") >
    /tmp/prepare.log 2>&1` with `run_in_background: true`. It fetches every watched page the
    polite way, reads the feeds and data sources, and writes the changed pages in batches to
