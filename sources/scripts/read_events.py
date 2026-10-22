@@ -512,7 +512,7 @@ SPORT_WORDS = {"Cross Country Running": "Cross Country", "Swimming and Diving": 
 # A row naming an event rather than an opponent: a meet, a tournament, an invitational.
 NAMED = re.compile(r"\b(meet|tournament|tourney|invite|invitational|championships?|classic|jamboree|scrimmage|"
                    r"relays|section|conference|true team|tri|triangular|quadrangular|individuals|race|festival|"
-                   r"showcase|state)\b", re.I)
+                   r"showcase|show|competition|state)\b", re.I)
 PLAYOFF = re.compile(r"\b(section|state|true team|championships?|playoffs?)\b", re.I)
 # The league lists varsity games; a row naming only a lower level, or a practice, is left out.
 LOWER = re.compile(r"\b(jv|junior varsity|c-?squad|b-?squad|9th|freshman|practice|tryouts?)\b", re.I)
@@ -620,7 +620,7 @@ def games(listings, today):
         if key[0] == "meet":
             name = next((l["opponent"] for l in sorted(ls, key=lambda l: (not l["named"], l["lister"]))
                          if l["named"]), f"{short_team(first['team'])} {first['sport']} Tournament")
-            if not re.search(rf"\b({re.escape(first['family'])}|swim|dive|diving|ski|xc|cc)\b", name, re.I):
+            if not re.search(rf"\b({re.escape(first['family'].split()[0])}|swim|dive|diving|ski|xc|cc)\b", name, re.I):
                 name = re.sub(r"\b(Meet|Invite|Invitational)\b", lambda m: f"{first['family']} {m[1]}", name, count=1) \
                     if re.search(r"\b(Meet|Invite|Invitational)\b", name) else f"{name}: {first['sport']}"
             title, uid = name, f"mshsl:meet:{first['family'].lower()}:{first['day']}:{first['venue'].lower()}"
@@ -927,6 +927,19 @@ def t_league_tournament_and_moves():
     assert league_start(LEAGUE_DAY, "12:00 AM") == ("2026-10-15", True)
 
 
+
+def t_league_dance_show():
+    """A dance show is one Event, not a game per team and per dance (jazz and high kick are two
+    league activities): "Crush Dance Show" made four "vs" Events on 2026-10-22."""
+    show = [{"lister": lister, "page": f"{LEAGUE}/group/635/full-schedule", "activity": a, "family": "Dance Team",
+             "sport": "Dance Team", "day": LEAGUE_DAY, "time": "10:00 AM", "team": team,
+             "opponent": "Crush Dance Show", "named": bool(NAMED.search("Crush Dance Show")),
+             "venue": "St. Cloud Apollo High School", "n": 1}
+            for lister, team in (("Apollo High School", "St. Cloud Apollo"), ("Tech High School", "St. Cloud Tech"))
+            for a in (126, 346)]
+    got = games(show, LEAGUE_DAY)[0]
+    assert [(i["title"], i["source_name"]) for i in got] == [("Crush Dance Show", "Apollo High School")], got
+
 def t_league_schedule_line():
     def school(s, e, t):
         return [{"listing": l} for l in league_sample() if l["lister"] == e["_name"]]
@@ -984,7 +997,7 @@ def t_items_fit_the_writer():
 
 
 TESTS = [t_robots, t_ical, t_pathify, t_roads, t_kennedy_calendar, t_kennedy_news, t_county, t_league,
-         t_league_tournament_and_moves, t_league_schedule_line, t_nearby_hosts_are_registry_schools,
+         t_league_tournament_and_moves, t_league_dance_show, t_league_schedule_line, t_nearby_hosts_are_registry_schools,
          t_failure_in_summary, t_items_fit_the_writer]
 
 
