@@ -718,6 +718,7 @@ struct MainTabsView: View {
             }
             .environment(calendarSync)
             .environment(friendsBook)
+            .environment(townFeed)
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
             .presentationBackground(Hue.paper)   // the You tab mock's paper sheet under white rows
