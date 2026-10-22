@@ -289,8 +289,8 @@ struct YouPage: View {
 }
 
 /// Where the neighbour's plans are, as Instagram's highlights: each place's next Event's
-/// photo with the place's name under it. A tap opens that Event. No photo of its own: a grey
-/// circle, as on the Calendar.
+/// photo with the place's name under it. A tap opens that Event. No photo of its own: the
+/// place's first letter on the grey (ticket 10).
 private struct YouPlaces: View {
     let events: [DailyEvent]
     let open: (FeedCardItem) -> Void
@@ -304,9 +304,9 @@ private struct YouPlaces: View {
                         YouHighlight(name: place) {
                             if let url = event.photo {
                                 FeedCardURLPhoto(url: url)
-                            } else if let letter = place.first {
+                            } else if let letter = place.first(where: \.isLetter) {
                                 // No photo: its first letter, as the game card's schools without a
-                                // logo show theirs (ticket 10).
+                                // logo show theirs (ticket 10); "123 Main St" shows M, never a digit.
                                 Text(String(letter).uppercased())
                                     .font(.eventDisplay(26))
                                     .foregroundStyle(Hue.ink)
