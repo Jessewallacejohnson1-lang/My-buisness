@@ -287,6 +287,37 @@ final class YouCalendarTests: XCTestCase {
         XCTAssertEqual(places(going: ["joined"]), ["joined"])
     }
 
+    // MARK: The next plan (ticket 11)
+
+    /// An empty today points to the first plan still to come, in the Calendar's order, and its
+    /// card says how far off it is beside the date, never "Tomorrow" twice. Another day picked,
+    /// a today with a plan (even one that's over) and nothing ahead in the three weeks show the
+    /// line alone.
+    func testAnEmptyTodayPointsToTheNextPlan() {
+        let now = town("2026-10-21 12:00")
+        let first = YouCalendar.firstDay(of: now)
+        let today = town("2026-10-21 00:00")
+        func going(_ rows: [UpcomingEvent]) -> [DailyEvent] {
+            YouCalendar.going(read: rows.compactMap(YouCalendar.event(from:)), tapped: [],
+                              isGoing: { _ in true }, first: first)
+        }
+        let plans = going([row("past", "2026-10-19", "7 PM"), row("fri", "2026-10-23", "7:30 PM"),
+                           row("thu", "2026-10-22", "8 AM"), row("sat", "2026-10-24", "9 AM")])
+        let next = YouCalendar.next(plans, day: today, now: now)
+        XCTAssertEqual(next?.id, "thu")
+        XCTAssertEqual(next?.startsLabel(now: now), "Tomorrow")
+        XCTAssertEqual(FeedWhenLine(eventDate: "2026-10-22", startTime: "8 AM", now: now, calendar: calendar,
+                                    relative: false)?.text, "Thu, Oct 22 · 8 AM")
+        XCTAssertEqual(YouCalendar.next(going([row("fri", "2026-10-23", "7:30 PM")]), day: today, now: now)?
+            .startsLabel(now: now), "In 2 days")
+
+        XCTAssertNil(YouCalendar.next(plans, day: town("2026-10-22 00:00"), now: now))
+        XCTAssertNil(YouCalendar.next(going([row("morning", "2026-10-21", "8 AM"), row("fri", "2026-10-23", "7:30 PM")]),
+                                      day: today, now: now))
+        XCTAssertNil(YouCalendar.next(going([row("past", "2026-10-19", "7 PM"), row("far", "2026-11-10", "7 PM")]),
+                                      day: today, now: now))
+    }
+
     // MARK: The model
 
     /// The first read fills the list; a failed one after it keeps the list and says so;
