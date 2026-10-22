@@ -299,7 +299,9 @@ struct DailyPage: View {
             }, now: clock, without: events, limit: 10)
         let following = DailyFollowing.showing(DailyFollowing.today(now: clock), now: clock,
                                                without: events + suggestions, limit: 10)
-        let empty = spotlight == nil && events.isEmpty && suggestions.isEmpty && following.isEmpty
+        // A day whose pick is still being read shows paper, not the reserved slot.
+        let loading = !isToday && dayPicks.picks[day.id] == nil
+        let empty = !loading && spotlight == nil && events.isEmpty && suggestions.isEmpty && following.isEmpty
         return ZStack {
             Hue.paper.ignoresSafeArea()
             ScrollView(showsIndicators: false) {
@@ -312,8 +314,10 @@ struct DailyPage: View {
                     .padding(.top, DailyMetric.weekTop)
                     // The picked day's page fades over the last one in the same spot.
                     ZStack(alignment: .top) {
+                        // The cards' chips count from now ("In 3 days"), though the day's are
+                        // picked from its midnight.
                         sections(spotlight: spotlight, events: events, suggestions: suggestions,
-                                 following: following, empty: empty, now: clock)
+                                 following: following, empty: empty, loading: loading, now: now)
                             .id(day.id)
                             .transition(.opacity.animation(reduceMotion ? nil : .easeOut(duration: DailyMetric.dayFade)))
                     }
@@ -324,8 +328,10 @@ struct DailyPage: View {
                 min(max(geometry.contentOffset.y + geometry.contentInsets.top, 0), DailyMetric.edgeFade)
             } action: { _, offset in scrolled = offset }
         }
-        // Today's are `EventOfTheDay`'s; another day's are read when it's picked.
+        // Today's are `EventOfTheDay`'s; a picked day reads at once, and the rest of the week reads
+        // behind it, one day at a time, so a tap usually finds its day already there.
         .task(id: day.id) { if !isToday { await dayPicks.refresh(day) } }
+        .task(id: days[0].id) { for other in days.dropFirst() { await dayPicks.refresh(other) } }
         // The Town feed's frosted band behind the clock, so the page blurs under it;
         // it comes in with the first bit of scroll.
         .statusEdge(opacity: scrolled / DailyMetric.edgeFade)
@@ -333,8 +339,10 @@ struct DailyPage: View {
 
     @ViewBuilder
     private func sections(spotlight: DailySpotlight?, events: [DailyEvent], suggestions: [DailyEvent],
-                          following: [DailyFollowing], empty: Bool, now: Date) -> some View {
-        if empty {
+                          following: [DailyFollowing], empty: Bool, loading: Bool, now: Date) -> some View {
+        if loading {
+            Color.clear.frame(height: DailyMetric.emptyHeight)
+        } else if empty {
             // Nothing that day: Daily's named, reserved slot, under the week.
             BlankTab(tab: .daily)
                 .frame(height: DailyMetric.emptyHeight)

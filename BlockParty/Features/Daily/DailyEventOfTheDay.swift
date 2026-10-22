@@ -75,6 +75,14 @@ struct DailyEvent: Identifiable {
     /// Working words; Jesse writes the final ones.
     func startsLabel(now: Date) -> String {
         guard starts > now else { return "Now" }
+        // Another Town day counts calendar days, as people do ("In 3 days" on a Wednesday for
+        // Saturday's), not hours (daily-tab 16).
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = Town.timeZone
+        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: now),
+                                           to: calendar.startOfDay(for: starts)).day ?? 0
+        if days == 1 { return "Tomorrow" }
+        if days > 1 { return "In \(days) days" }
         let formatter = RelativeDateTimeFormatter()
         formatter.locale = Locale(identifier: "en_US")
         formatter.unitsStyle = .full
