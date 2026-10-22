@@ -32,7 +32,8 @@ enum AgendaMetric {
     /// MEASURED in its render, 24.7pt from the label's ink to the line's and 16 on to the card.
     static let pill: CGFloat = 26
     static let pillSide: CGFloat = 10
-    static let lineOverNext = EdgeInsets(top: 6, leading: 0, bottom: 3, trailing: 0)
+    static let lineAboveNext: CGFloat = 6
+    static let lineBelowNext: CGFloat = 3
 }
 
 /// What an Agenda shows, on the You page and in Profile's Saved (ticket 04): two skeleton
@@ -64,14 +65,16 @@ struct AgendaList: View {
                         .font(.sans(15))
                         .foregroundStyle(Hue.inkSecondary)
                         .frame(maxWidth: .infinity)
-                        .padding(.top, next == nil ? YouMetric.emptyLine : AgendaMetric.lineOverNext.top)
-                        .padding(.bottom, next == nil ? YouMetric.emptyLine : AgendaMetric.lineOverNext.bottom)
+                        .padding(.top, next == nil ? YouMetric.emptyLine : AgendaMetric.lineAboveNext)
+                        .padding(.bottom, next == nil ? YouMetric.emptyLine : AgendaMetric.lineBelowNext)
                     if let next {
                         Button { pick(next) } label: {
                             AgendaCard(event: next, now: now, withDay: true, friends: [], open: false,
                                        pill: next.startsLabel(now: now))
                         }
                         .buttonStyle(PressableCardStyle())
+                        // Every other card opens its Event; this one turns the Calendar. A working word.
+                        .accessibilityHint("Shows that day")
                     }
                 }
             } else {
@@ -195,7 +198,8 @@ private struct AgendaCard: View {
                     .lineLimit(1)
                     .fixedSize()
                     .padding(.horizontal, AgendaMetric.pillSide)
-                    .frame(height: AgendaMetric.pill)
+                    // Grows with a larger text size rather than spilling out.
+                    .frame(minHeight: AgendaMetric.pill)
                     .background(Capsule().fill(Hue.fill))
                     .frame(height: AgendaMetric.photo)
                     .padding(.trailing, AgendaMetric.textGap - AgendaMetric.photoInset)
