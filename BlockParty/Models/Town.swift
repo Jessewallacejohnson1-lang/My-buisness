@@ -25,6 +25,12 @@ nonisolated enum Town {
     /// Long form, for the places that name the state.
     static let display = "St. Joseph, Minnesota"
 
+    /// What neighbours call it: Daily's first topic is "Best of St. Joe".
+    static let nickname = "St. Joe"
+
+    /// The Town's own round logo, top right on Daily: Joetown's for St. Joseph (Jesse's file).
+    static let logo = "TownLogo"
+
     static let latitude = 45.565
     static let longitude = -94.3186
 

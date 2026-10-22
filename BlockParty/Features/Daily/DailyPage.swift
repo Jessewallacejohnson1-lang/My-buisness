@@ -2,7 +2,8 @@
 //  DailyPage.swift
 //  Block Party — the Daily tab: the neighbour's own page for today.
 //
-//  Top to bottom (`docs/plans/daily-tab/SPEC.md` in the BP app folder): the week, Event of the
+//  Top to bottom (`docs/plans/daily-tab/SPEC.md` in the BP app folder): the wordmark and the
+//  Town's logo, the week, the topics (daily-tab 19, `DailyTop.swift`), Event of the
 //  day as the Town tab's poster, then the Spotlight under its label, Suggestions and Following,
 //  on plain paper (no yellow: Jesse, 2026-10-21). Tap a day in the week and the page turns to it
 //  (daily-tab 16).
@@ -90,10 +91,9 @@ nonisolated enum DailyMetric {
     /// Clears the floating tab bar: the same 96 the other tab scrollers reserve.
     static let tabBarClearance: CGFloat = 96
 
-    /// The week (daily-tab 16) sits this far under the clock, and the first section's label this
-    /// far under the week's faces. Picked on the Figma drafts (2026-10-21): no Reference has a
-    /// week over a page like this one.
-    static let weekTop: CGFloat = 4
+    /// The first section sits this far under the week's faces, or the topics under them. Picked on
+    /// the Figma drafts (2026-10-21): no Reference has a week over a page like this one. Above the
+    /// week, the wordmark and the Town's logo (`DailyTopMetric`, daily-tab 19).
     static let weekToSection: CGFloat = 24
     /// Another day's page: the last one fades out this fast, then the picked one fades in
     /// (guessed; no Reference recording).
@@ -246,6 +246,8 @@ struct DailyPage: View {
     @State private var tilt = PhoneTilt()
     /// How far the page has scrolled, held only up to `edgeFade`.
     @State private var scrolled: CGFloat = 0
+    /// The topic picked under the week (daily-tab 19), nil for "Best of": everything.
+    @State private var topic: String?
 
     var body: some View {
         // The phone's tilt only leans the Spotlight; with none it stays off.
@@ -269,16 +271,30 @@ struct DailyPage: View {
         let isToday = day == days[0]
         // Another day's sections read from its midnight, so all of that day is still to come.
         let clock = isToday ? now : day.start
-        let spotlight = isToday ? self.spotlight : nil
-        // Each section leaves out what one above it shows (SPEC.md).
-        let events = DailyEvent.showing(isToday ? self.events : dayPicks.picks[day.id] ?? [], now: clock, limit: 3)
-        // Suggestions never offer what you're Going to or saved (SPEC.md).
-        let suggestions = DailyEvent.showing(
-            DailyEvent.suggestions(now: clock).filter {
-                !actions.going($0.item).isGoing && !actions.saved($0.item)
-            }, now: clock, without: events, limit: 10)
-        let following = DailyFollowing.showing(DailyFollowing.today(now: clock), now: clock,
-                                               without: events + suggestions, limit: 10)
+        // Each section leaves out what one above it shows (SPEC.md); a topic keeps only its own.
+        func lists(_ topic: String?) -> ([DailyEvent], [DailyEvent], [DailyFollowing]) {
+            let fits = { (item: FeedCardItem) in topic.map { DailyTopic.matches(item, $0) } ?? true }
+            let events = DailyEvent.showing((isToday ? self.events : dayPicks.picks[day.id] ?? []).filter { fits($0.item) },
+                                            now: clock, limit: 3)
+            // Suggestions never offer what you're Going to or saved (SPEC.md).
+            let suggestions = DailyEvent.showing(
+                DailyEvent.suggestions(now: clock).filter {
+                    fits($0.item) && !actions.going($0.item).isGoing && !actions.saved($0.item)
+                }, now: clock, without: events, limit: 10)
+            let following = DailyFollowing.showing(
+                DailyFollowing.today(now: clock).filter { row in topic.map { DailyTopic.matches(row, $0) } ?? true },
+                now: clock, without: events + suggestions, limit: 10)
+            return (events, suggestions, following)
+        }
+        let all = lists(nil)
+        // The day's topics come from all it has. A topic the day lacks reads as "Best of" there and
+        // comes back on a day that has it: the topic stays picked across the week (picked).
+        let topics = DailyTopic.topics(for: (all.0 + all.1).map(\.item) + all.2.compactMap { $0.event?.item },
+                                       mine: Interests.get())
+        let topic = self.topic.flatMap { topics.contains($0) ? $0 : nil }
+        let (events, suggestions, following) = topic == nil ? all : lists(topic)
+        // The Spotlight is a person, not an event: a topic leaves it out (picked).
+        let spotlight = isToday && topic == nil ? self.spotlight : nil
         // A day whose pick is still being read shows paper, not the reserved slot.
         let loading = !isToday && dayPicks.picks[day.id] == nil
         let empty = !loading && spotlight == nil && events.isEmpty && suggestions.isEmpty && following.isEmpty
@@ -286,14 +302,22 @@ struct DailyPage: View {
             Hue.paper.ignoresSafeArea()
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 0) {
+                    DailyMasthead()
                     DailyWeekRow(days: days, shown: shown, friends: friends) { tapped in
                         withAnimation(reduceMotion ? nil : Motion.select) {
                             picked = tapped == days[0] ? nil : tapped.id
                         }
                     }
-                    .padding(.top, DailyMetric.weekTop)
+                    .padding(.top, DailyTopMetric.toWeek)
                     // The system's selection tick on a tap, and only then (not at midnight).
                     .sensoryFeedback(.selection, trigger: picked)
+                    // Always there, "Best of" alone on a day with no topics, so the page under it
+                    // never jumps while another day reads.
+                    DailyTopicRow(topics: topics, picked: topic) { tapped in
+                        withAnimation(reduceMotion ? nil : Motion.select) { self.topic = tapped }
+                    }
+                    .padding(.top, DailyTopMetric.toTopics - DailyTopMetric.topicTapExtra)
+                    .sensoryFeedback(.selection, trigger: self.topic)
                     // The last day's page fades out, then the picked day's fades in, in the same
                     // spot, so the two never sit on top of each other.
                     ZStack(alignment: .top) {
@@ -301,7 +325,7 @@ struct DailyPage: View {
                         // picked from its midnight.
                         sections(spotlight: spotlight, events: events, suggestions: suggestions,
                                  following: following, empty: empty, loading: loading, now: now)
-                            .id(day.id)
+                            .id("\(day.id) \(topic ?? "")")
                             .transition(reduceMotion ? .identity : .asymmetric(
                                 insertion: .opacity.animation(.easeOut(duration: DailyMetric.dayFade).delay(DailyMetric.dayFadeOut)),
                                 removal: .opacity.animation(.easeIn(duration: DailyMetric.dayFadeOut))))
