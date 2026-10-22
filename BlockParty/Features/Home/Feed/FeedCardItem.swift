@@ -59,6 +59,9 @@ struct FeedCardItem: Identifiable, Hashable {
     var game: Game? = nil
     /// What it is in one to three words ("Lecture"), the morning tagger's (event-card 05).
     var what: String? = nil
+    /// When it was added (`club_events.created_at`): the hello drop counts what's new since your
+    /// last open (BP app hello-drop 01). nil on cards not read from the database.
+    var createdAt: Date? = nil
 
     /// The words as a card shows them, beside the title: none on a game, whose title is already its
     /// sport, and none when the title already has every one of them ("Christmas Craft Sale", "Craft

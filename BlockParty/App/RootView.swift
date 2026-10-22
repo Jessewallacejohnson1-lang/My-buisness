@@ -423,6 +423,28 @@ struct MainTabsView: View {
                 // A group's page, from Search's Groups shelf (rsvp-and-groups 05).
                 .navigationDestination(for: TownGroup.self) { GroupPage(group: $0) }
         }
+        // The day's first open says hello, then one thing about the town (hello-drop 01).
+        .overlay(alignment: .top) {
+            HelloDropView(
+                prepare: {
+                    if you.going == nil { await you.refresh() }
+                    if you.groups == nil, let groups = await you.refreshGroups() { actions.read(groups) }
+                },
+                ready: { townFeed.entries != nil && you.going != nil },
+                message: { lastSeen in
+                    HelloDrop.message(now: Date(), lastSeen: lastSeen, going: you.going ?? [],
+                                      groups: you.groups ?? [],
+                                      town: townFeed.cards.compactMap(YouCalendar.event(from:)))
+                },
+                open: { target in
+                    switch target {
+                    case .event(let card): path.append(card)
+                    case .group(let group): path.append(group)
+                    case .town: if tab != .town { select(.town) }
+                    }
+                }
+            )
+        }
         // The iPhone Calendar follows the Going (ticket 05).
         .background { CalendarFollower(sync: calendarSync) }
         // Outside the stack, so pushed pages and sheets read the same one.
