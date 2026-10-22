@@ -139,29 +139,6 @@ nonisolated enum DailyMetric {
     /// much less than the page margin. Picked.
     static let eventGap: CGFloat = 10
 
-    /// Suggestions, MEASURED from Jesse's Reference: Airbnb's "Happening today" row
-    /// (`references/daily-suggestions/airbnb-happening-today.jpg` in the BP app folder,
-    /// an @3x 393pt screen), copied 1:1 (Jesse, 2026-10-05). The cards start at `side`
-    /// (18) where Airbnb's start at 24, as Event of the day's do. The photo's corner is
-    /// `Radius.bento`: measured edge to edge against Airbnb's, it rounds the same.
-    static let suggestionWidth: CGFloat = 167
-    static let suggestionPhoto: CGFloat = 158
-    static let suggestionGap: CGFloat = 13
-    /// The time chip: 24 tall, 10 in from the photo's corner, as wide as "11 AM" there.
-    /// The photo floats on the one soft card shadow, as Airbnb's does.
-    static let suggestionChipInset: CGFloat = 10
-    static let suggestionChipHeight: CGFloat = 24
-    static let suggestionChipPadding: CGFloat = 8
-    /// The bookmark sits where Airbnb's heart does, its middle 26pt in from the corner:
-    /// this, plus half its 44pt tap area.
-    static let suggestionSaveInset: CGFloat = 4
-    /// From the photo to the title's frame: 11pt to its capitals, as measured.
-    static let suggestionTitleTop: CGFloat = 8
-    /// Between the title and each grey line under it.
-    static let suggestionLineGap: CGFloat = 2
-    /// The words sit this far in from the photo's edges, as Airbnb's do.
-    static let suggestionTextInset: CGFloat = 3
-
     /// Following, MEASURED from Jesse's Reference: Instagram's activity rows
     /// (`references/daily-following/instagram-activity.jpg` in the BP app folder, an
     /// @3x 393pt screen): a 44pt round photo, 13pt to the words, a 44pt photo with 8pt
@@ -229,6 +206,19 @@ nonisolated enum DailyClock {
     }
 }
 
+/// What one day's page shows under the week, section by section.
+struct DailyLists {
+    var events: [DailyEvent]
+    var friendsGoing: [DailyEvent]
+    var suggestions: [DailyEvent]
+    var following: [DailyFollowing]
+
+    /// Every event on the page, for its topics.
+    var items: [FeedCardItem] {
+        (events + friendsGoing + suggestions).map(\.item) + following.compactMap { $0.event?.item }
+    }
+}
+
 struct DailyPage: View {
     /// None until stories exist. It is today's story, so another day opens on Event of the day.
     let spotlight: DailySpotlight?
@@ -241,6 +231,8 @@ struct DailyPage: View {
     let dayPicks: DailyDayPicks
     /// The friends going each day (`DailyWeek.friendsGoing`).
     let friends: [String: [FeedFriend]]
+    /// The Town feed's cards, which Friends are going and Suggestions read (daily-tab 20 and 21).
+    let cards: [FeedCardItem]
     @Environment(RealLifeActions.self) private var actions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var tilt = PhoneTilt()
@@ -271,33 +263,40 @@ struct DailyPage: View {
         let isToday = day == days[0]
         // Another day's sections read from its midnight, so all of that day is still to come.
         let clock = isToday ? now : day.start
+        let interests = Interests.get()
         // Each section leaves out what one above it shows (SPEC.md); a topic keeps only its own.
-        func lists(_ topic: String?) -> ([DailyEvent], [DailyEvent], [DailyFollowing]) {
+        func lists(_ topic: String?) -> DailyLists {
             let fits = { (item: FeedCardItem) in topic.map { DailyTopic.matches(item, $0) } ?? true }
             let events = DailyEvent.showing((isToday ? self.events : dayPicks.picks[day.id] ?? []).filter { fits($0.item) },
                                             now: clock, limit: 3)
+            // Today looks a week ahead; a day picked in the week, that day (Jesse, daily-tab 21).
+            let friendDays = Set(isToday ? days.map(\.id) : [day.id])
+            let friendsGoing = (DailyEvent.sampleFriendsGoing(now: clock)
+                ?? DailyEvent.friendsGoing(from: cards, days: friendDays, now: clock, without: events))
+                .filter { fits($0.item) }
             // Suggestions never offer what you're Going to or saved (SPEC.md).
-            let suggestions = DailyEvent.showing(
-                DailyEvent.suggestions(now: clock).filter {
-                    fits($0.item) && !actions.going($0.item).isGoing && !actions.saved($0.item)
-                }, now: clock, without: events, limit: 10)
+            let left = { (item: FeedCardItem) in fits(item) && !actions.going(item).isGoing && !actions.saved(item) }
+            let suggestions = DailyEvent.sampleSuggestions(now: clock).map {
+                DailyEvent.showing($0.filter { left($0.item) }, now: clock, without: events + friendsGoing,
+                                   limit: DailyRowMetric.limit)
+            } ?? DailyEvent.suggestions(from: cards, day: day.id, interests: interests, now: clock,
+                                        without: events + friendsGoing, left: left)
             let following = DailyFollowing.showing(
                 DailyFollowing.today(now: clock).filter { row in topic.map { DailyTopic.matches(row, $0) } ?? true },
-                now: clock, without: events + suggestions, limit: 10)
-            return (events, suggestions, following)
+                now: clock, without: events + friendsGoing + suggestions, limit: 10)
+            return DailyLists(events: events, friendsGoing: friendsGoing, suggestions: suggestions, following: following)
         }
         let all = lists(nil)
         // The day's topics come from all it has. A topic the day lacks reads as "Best of" there and
         // comes back on a day that has it: the topic stays picked across the week (picked).
-        let topics = DailyTopic.topics(for: (all.0 + all.1).map(\.item) + all.2.compactMap { $0.event?.item },
-                                       mine: Interests.get())
+        let topics = DailyTopic.topics(for: all.items, mine: interests)
         let topic = self.topic.flatMap { topics.contains($0) ? $0 : nil }
-        let (events, suggestions, following) = topic == nil ? all : lists(topic)
+        let onPage = topic == nil ? all : lists(topic)
         // The Spotlight is a person, not an event: a topic leaves it out (picked).
         let spotlight = isToday && topic == nil ? self.spotlight : nil
         // A day whose pick is still being read shows paper, not the reserved slot.
         let loading = !isToday && dayPicks.picks[day.id] == nil
-        let empty = !loading && spotlight == nil && events.isEmpty && suggestions.isEmpty && following.isEmpty
+        let empty = !loading && spotlight == nil && onPage.items.isEmpty && onPage.following.isEmpty
         return ZStack {
             Hue.paper.ignoresSafeArea()
             ScrollView(showsIndicators: false) {
@@ -323,8 +322,7 @@ struct DailyPage: View {
                     ZStack(alignment: .top) {
                         // The cards' chips count from now ("In 3 days"), though the day's are
                         // picked from its midnight.
-                        sections(spotlight: spotlight, events: events, suggestions: suggestions,
-                                 following: following, empty: empty, loading: loading, now: now)
+                        sections(spotlight: spotlight, lists: onPage, empty: empty, loading: loading, now: now)
                             .id("\(day.id) \(topic ?? "")")
                             .transition(reduceMotion ? .identity : .asymmetric(
                                 insertion: .opacity.animation(.easeOut(duration: DailyMetric.dayFade).delay(DailyMetric.dayFadeOut)),
@@ -353,8 +351,8 @@ struct DailyPage: View {
     }
 
     @ViewBuilder
-    private func sections(spotlight: DailySpotlight?, events: [DailyEvent], suggestions: [DailyEvent],
-                          following: [DailyFollowing], empty: Bool, loading: Bool, now: Date) -> some View {
+    private func sections(spotlight: DailySpotlight?, lists: DailyLists, empty: Bool, loading: Bool,
+                          now: Date) -> some View {
         if loading {
             Color.clear.frame(height: DailyMetric.emptyHeight)
         } else if empty {
@@ -364,7 +362,7 @@ struct DailyPage: View {
         } else {
             VStack(spacing: DailyMetric.eventSectionTop) {
                 // Event of the day first, Spotlight under it (Jesse, daily-tab 18).
-                if !events.isEmpty { EventOfTheDaySection(events: events, now: now) }
+                if !lists.events.isEmpty { EventOfTheDaySection(events: lists.events, now: now) }
                 if let spotlight {
                     VStack(spacing: DailyMetric.wordToCard) {
                         // The logo's face, standing in for the small caps label (Jesse, 2026-10-19).
@@ -377,8 +375,9 @@ struct DailyPage: View {
                             .padding(.horizontal, DailyMetric.side)
                     }
                 }
-                if !suggestions.isEmpty { SuggestionsSection(events: suggestions, now: now) }
-                if !following.isEmpty { FollowingSection(items: following, now: now) }
+                if !lists.friendsGoing.isEmpty { FriendsGoingSection(events: lists.friendsGoing, now: now) }
+                if !lists.suggestions.isEmpty { SuggestionsSection(events: lists.suggestions, now: now) }
+                if !lists.following.isEmpty { FollowingSection(items: lists.following, now: now) }
             }
             .padding(.top, DailyMetric.weekToSection)
         }

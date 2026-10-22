@@ -60,7 +60,7 @@ enum DailyTopic {
     /// picked, the day's busiest interests. A topic with nothing that day isn't offered.
     static func topics(for items: [FeedCardItem], mine: [String],
                        limit: Int = DailyTopMetric.topics) -> [String] {
-        let texts = items.map(text)
+        let texts = items.map { text($0) }
         let counts = Dictionary(uniqueKeysWithValues: Interests.all.map { interest in
             (interest.id, texts.filter { matches(text: $0, interest.id) }.count)
         })

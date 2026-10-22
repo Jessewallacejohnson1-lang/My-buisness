@@ -144,8 +144,9 @@ struct FollowingSection: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            DailySectionLabel(title: "Following", ink: Hue.ink)
-                .padding(.bottom, DailyMetric.followingLabelToRows)
+            // In the logo's face, as the rows above it are (Jesse at daily-tab 20's Check-in 2).
+            DailyRowTitle(title: "Following")
+                .padding(.bottom, DailyRowMetric.titleToCards - DailyMetric.followingRowInset)
             ForEach(items) { item in
                 FollowingRow(item: item, now: now)
             }

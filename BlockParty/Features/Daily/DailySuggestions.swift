@@ -1,21 +1,36 @@
 //
 //  DailySuggestions.swift
-//  Block Party — Daily's fourth section: today's events that match your interests, in a
-//  sideways row (`docs/plans/daily-tab/SPEC.md` §4 in the BP app folder).
+//  Block Party — Daily's Suggestions and Friends are going: the day's events that match your
+//  interests, and the ones friends are going to, as rows of Town cards (`DailyRows.swift`;
+//  `docs/plans/daily-tab/SPEC.md` §4 and tickets 20 and 21 in the BP app folder).
 //
 
 import SwiftUI
 
 extension DailyEvent {
-    /// Today's events that match your interests. There is no read for them yet, so there
-    /// are none, which hides the section; DEBUG `-daily-samples` gets the samples. When the
-    /// read exists, this is the one function that changes. A quiet day's standing things
-    /// (the trail, a park) wait for a real list of places (Jesse, 2026-10-05).
-    static func suggestions(now: Date) -> [DailyEvent] {
+    /// DEBUG `-daily-samples`: the sample Suggestions, in place of the Town feed's
+    /// (`suggestions(from:…)`, daily-tab 20). nil otherwise.
+    static func sampleSuggestions(now: Date) -> [DailyEvent]? {
         #if DEBUG
-        return DailySamples.on ? suggestionSamples(on: now) : []
+        return DailySamples.on ? suggestionSamples(on: now) : nil
         #else
-        return []
+        return nil
+        #endif
+    }
+
+    /// DEBUG `-daily-samples`: three of the sample Suggestions with friends going, in place of the
+    /// Town feed's (`friendsGoing(from:…)`, daily-tab 21). nil otherwise. INVENTED names.
+    static func sampleFriendsGoing(now: Date) -> [DailyEvent]? {
+        #if DEBUG
+        guard DailySamples.on else { return nil }
+        let names = [["Kim", "Tom", "Joe"], ["Ana", "Ben"], ["Sam"]]
+        return zip(suggestionSamples(on: now).suffix(3), names).map { event, names in
+            var event = event
+            event.item.friendsGoing = names.map { FeedFriend(name: $0, photo: nil) }
+            return event
+        }
+        #else
+        return nil
         #endif
     }
 
@@ -61,93 +76,25 @@ extension DailyEvent {
     #endif
 }
 
-/// The section: its label, then Airbnb's "Happening today" row, copied 1:1 (Jesse,
-/// 2026-10-05): photo cards the finger slides sideways, each stopping at the margin.
+/// The section: "For you today" over a row of the smaller Town cards (Jesse at daily-tab 20's
+/// Check-in 1; it was Airbnb's "Happening today" row under a "Suggestions" label).
 struct SuggestionsSection: View {
     let events: [DailyEvent]
     let now: Date
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(spacing: 0) {
-            DailySectionLabel(title: "Suggestions", ink: Hue.ink)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .top, spacing: DailyMetric.suggestionGap) {
-                    ForEach(events) { event in
-                        SuggestionCard(event: event, now: now)
-                    }
-                }
-                .scrollTargetLayout()
-                // A finished event's card closes up instead of vanishing.
-                .animation(reduceMotion ? nil : Motion.smooth, value: events.map(\.id))
-            }
-            .contentMargins(.horizontal, DailyMetric.side, for: .scrollContent)
-            .scrollTargetBehavior(.viewAligned)
-            // The photos' shadows reach past the row; don't cut them off.
-            .scrollClipDisabled()
-            .padding(.top, DailyMetric.eventLabelToCard)
-        }
+        DailyCardRow(title: "For you today", events: events, size: DailyRowMetric.suggestionSize,
+                     titleSize: DailyRowMetric.suggestionTitle, showsFriends: false, now: now)
     }
 }
 
-/// One card: the photo with when it starts and the save bookmark on it, then the title
-/// on up to two lines, the place, and who hosts it.
-private struct SuggestionCard: View {
-    let event: DailyEvent
+/// Friends are going: the bigger Town cards, the friends' faces on each (daily-tab 21).
+struct FriendsGoingSection: View {
+    let events: [DailyEvent]
     let now: Date
 
     var body: some View {
-        NavigationLink(value: event.item) {
-            VStack(alignment: .leading, spacing: 0) {
-                Hue.fill
-                    .frame(width: DailyMetric.suggestionWidth, height: DailyMetric.suggestionPhoto)
-                    .overlay { if let url = event.photo { FeedCardURLPhoto(url: url) } }
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.bento, style: .continuous))
-                    .modifier(CardShadow())
-                    .overlay(alignment: .topLeading) { chip.padding(DailyMetric.suggestionChipInset) }
-                VStack(alignment: .leading, spacing: DailyMetric.suggestionLineGap) {
-                    // 13, Airbnb's title size, the same as the grey lines under it.
-                    Text(event.item.title)
-                        .font(.sansSemibold(13))
-                        .foregroundStyle(Hue.ink)
-                        .lineLimit(2)
-                    Group {
-                        if let place = event.item.location { Text(place) }
-                        if let host { Text("Hosted by \(host)") }
-                    }
-                    .font(.sans(13))
-                    .foregroundStyle(Hue.inkSecondary)
-                    .lineLimit(1)
-                }
-                .padding(.top, DailyMetric.suggestionTitleTop)
-                .padding(.horizontal, DailyMetric.suggestionTextInset)
-            }
-            .multilineTextAlignment(.leading)
-            .frame(width: DailyMetric.suggestionWidth, alignment: .leading)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(PressableCardStyle())
-        // The title first; drawn, the time comes before it.
-        .accessibilityLabel([event.item.title, event.startTime(now: now), event.item.location,
-                             host.map { "Hosted by \($0)" }].compactMap { $0 }.joined(separator: ", "))
-        // The bookmark answers its own taps, over the link, never opening the page.
-        .overlay(alignment: .topTrailing) {
-            SaveBookmarkButton(item: event.item).padding(DailyMetric.suggestionSaveInset)
-        }
-    }
-
-    /// Who hosts it, unless that is the place again ("Saint John's Arboretum" twice).
-    private var host: String? {
-        let name = event.item.hostName
-        return name.isEmpty || name == event.item.location ? nil : name
-    }
-
-    private var chip: some View {
-        Text(event.startTime(now: now))
-            .font(.sansMedium(13))
-            .foregroundStyle(Hue.ink)
-            .padding(.horizontal, DailyMetric.suggestionChipPadding)
-            .frame(minHeight: DailyMetric.suggestionChipHeight)
-            .background(Capsule().fill(Hue.surface))
+        DailyCardRow(title: "Friends are going", events: events, size: DailyRowMetric.friendsSize,
+                     titleSize: DailyRowMetric.friendsTitle, showsFriends: true, now: now)
     }
 }

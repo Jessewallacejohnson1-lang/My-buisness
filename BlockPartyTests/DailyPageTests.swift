@@ -338,4 +338,58 @@ final class DailyPageTests: XCTestCase {
         XCTAssertFalse(DailyTopic.matches(topicCard("Market in the church parking lot"), "parks_gardens"))
         XCTAssertEqual(DailyTopic.label("live_music"), "Live music")
     }
+
+    // MARK: Friends are going and Suggestions from the Town feed (daily-tab 20, 21)
+
+    private func dayCard(_ title: String, day: String, at time: String, friends: [String] = []) -> FeedCardItem {
+        var card = topicCard(title)
+        card.eventDate = day
+        card.startTime = time
+        card.friendsGoing = friends.map { FeedFriend(name: $0, photo: nil) }
+        return card
+    }
+
+    private var dayStart: Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = Town.timeZone
+        return calendar.date(from: DateComponents(year: 2026, month: 10, day: 22))!
+    }
+
+    /// The day's events that match your interests, in the feed's order; with none, the day's all.
+    @MainActor
+    func testSuggestionsAreTheDaysEventsForYourInterestsInFeedOrder() {
+        let cards = [dayCard("Live jazz", day: "2026-10-22", at: "7 PM"),
+                     dayCard("Live band", day: "2026-10-23", at: "7 PM"),
+                     dayCard("Book club", day: "2026-10-22", at: "6 PM"),
+                     dayCard("Latte art", day: "2026-10-22", at: "9 AM")]
+        func titles(_ interests: [String], without: [DailyEvent] = [], left: (FeedCardItem) -> Bool = { _ in true }) -> [String] {
+            DailyEvent.suggestions(from: cards, day: "2026-10-22", interests: interests, now: dayStart,
+                                   without: without, left: left).map(\.item.title)
+        }
+        XCTAssertEqual(titles(["live_music", "coffee"]), ["Live jazz", "Latte art"])
+        XCTAssertEqual(titles([]), ["Live jazz", "Book club", "Latte art"])
+        XCTAssertEqual(titles(["live_music", "coffee"], left: { $0.title != "Latte art" }), ["Live jazz"])
+        let shown = DailyEvent.suggestions(from: [cards[0]], day: "2026-10-22", interests: [], now: dayStart,
+                                           without: [], left: { _ in true })
+        XCTAssertEqual(titles(["live_music", "coffee"], without: shown), ["Latte art"])
+    }
+
+    /// Most friends first, then soonest; only the days asked for, only events with friends.
+    @MainActor
+    func testFriendsAreGoingLeadsWithMostFriendsThenSoonest() {
+        let cards = [dayCard("Two friends", day: "2026-10-22", at: "7 PM", friends: ["Kim", "Tom"]),
+                     dayCard("Three, Thursday", day: "2026-10-22", at: "9 AM", friends: ["Kim", "Tom", "Joe"]),
+                     dayCard("Three, Friday", day: "2026-10-23", at: "8 AM", friends: ["Ana", "Ben", "Sam"]),
+                     dayCard("Nobody", day: "2026-10-22", at: "8 AM")]
+        let week = DailyEvent.friendsGoing(from: cards, days: ["2026-10-22", "2026-10-23"], now: dayStart, without: [])
+        XCTAssertEqual(week.map(\.item.title), ["Three, Thursday", "Three, Friday", "Two friends"])
+        var off = dayCard("Called off", day: "2026-10-22", at: "6 PM", friends: ["Kim", "Tom", "Joe", "Ana"])
+        off.cancelled = true
+        XCTAssertFalse(DailyEvent.friendsGoing(from: cards + [off], days: ["2026-10-22"], now: dayStart, without: [])
+            .contains { $0.item.title == "Called off" })
+        XCTAssertTrue(DailyEvent.suggestions(from: [off], day: "2026-10-22", interests: [], now: dayStart,
+                                             without: [], left: { _ in true }).isEmpty)
+        let friday = DailyEvent.friendsGoing(from: cards, days: ["2026-10-23"], now: dayStart, without: [])
+        XCTAssertEqual(friday.map(\.item.title), ["Three, Friday"])
+    }
 }
