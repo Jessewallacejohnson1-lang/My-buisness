@@ -25,10 +25,15 @@ exception. Posts, their photos and their words still wait for the place's yes.
   Events tabs about $1); a noon check was dropped because it took the total to about $24.
   If the cap is hit early, Jesse rethinks the schedule. Checking every 15 minutes was priced
   at about $590 a month and dropped.
-- **Route.** Apify's own scheduler starts the runs: not Make.com (weighed and skipped, as a
-  second place for the logic that cannot be tested here) and not the 6am routine. Each
-  finished run's posts are read right away by Claude Haiku through the Anthropic API, and
-  what it finds becomes Events and News under ADR-021.
+- **Route.** A Claude routine like the 6am job, "Block Party social watch", starts the
+  checks and reads them right away (`sources/models/social.md`, `sources/scripts/social.py`):
+  each post goes through the morning job's own cheap-model flags, judge and writer, so the
+  title, place, merging and trust rules are the same for every source. Not Make.com (weighed
+  and skipped, as a second place for the logic that cannot be tested here), and not a
+  Supabase function calling the Anthropic API (first approved, then dropped the same day:
+  Jesse, "Yes, run the social watch as a routine like the 6am job", because it would have
+  rewritten or skipped the writer's rules). The routine reaches Apify with `APIFY_TOKEN` in
+  its cloud environment and runs on Jesse's Claude plan.
 - **Finding pages.** One Apify Google Maps pass per town, with its contact-details add-on,
   refreshes and fills places' Facebook and Instagram links. The naming rule below (same
   phone or street, or a link to the place's own website) still decides.

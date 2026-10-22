@@ -152,7 +152,7 @@ def summary_lines(prep, items, result, written):
     for what, _ in result["outcomes"]:
         count[what] = count.get(what, 0) + 1
     held = [it["title"] for it, (what, _) in zip(items, result["outcomes"]) if what in ("held", "news held")]
-    lines = [f"Morning watch, {prep['today']}",
+    lines = [f"Social watch ({prep['run']}), {prep['today']}" if prep.get("run") else f"Morning watch, {prep['today']}",
              f"- Pages: {prep['fetched']} fetched, {prep['changed']} changed, {prep['to_read']} read by the cheap model"
              + (f", {prep['first_seen']} new kept as a starting copy" if prep.get("first_seen") else ""),
              f"- Events: {count.get('published', 0)} new, {count.get('merged', 0)} already listed, "
