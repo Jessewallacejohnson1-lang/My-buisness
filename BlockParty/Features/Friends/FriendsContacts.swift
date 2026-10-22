@@ -22,8 +22,11 @@ struct PhoneContact: Identifiable, Equatable {
     /// The first phone number, as typed: who Invite writes to. Nil: not on the Invite list.
     let phone: String?
     let thumbnail: Data?
-    /// The scrambled codes of every email and phone number on the card.
-    let codes: Set<String>
+    /// The scrambled codes of the card's emails and phone numbers (`ContactCodes`).
+    var emailCodes: [String] = []
+    var phoneCodes: [String] = []
+
+    var codes: Set<String> { Set(emailCodes + phoneCodes) }
 
     var initials: String {
         String(name.split(separator: " ").prefix(2).compactMap(\.first)).uppercased()
@@ -52,21 +55,23 @@ nonisolated enum ContactCodes {
         SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
     }
 
-    /// The emails' codes, then the phones', A to Z by contact, cut at `cap`.
-    static func payload(_ contacts: [PhoneContact], emails: (PhoneContact) -> [String],
-                        phones: (PhoneContact) -> [String]) -> (emails: [String], phones: [String]) {
+    /// The emails' codes, then the phones', contact by contact in the order given, cut at `cap`.
+    static func payload(_ contacts: [PhoneContact]) -> (emails: [String], phones: [String]) {
         var e: [String] = [], p: [String] = []
         for c in contacts {
-            for code in emails(c) where e.count + p.count < cap { e.append(code) }
-            for code in phones(c) where e.count + p.count < cap { p.append(code) }
+            for code in c.emailCodes where e.count + p.count < cap { e.append(code) }
+            for code in c.phoneCodes where e.count + p.count < cap { p.append(code) }
         }
         return (e, p)
     }
 
-    /// Invite: contacts with a phone number whose codes found nobody, A to Z.
+    /// Invite: contacts with a phone number whose codes found nobody, A to Z, a number saved twice
+    /// listed once (the review: two "Kate Lieser" cards).
     static func invite(_ contacts: [PhoneContact], matched: Set<String>) -> [PhoneContact] {
-        contacts.filter { $0.phone != nil && $0.codes.isDisjoint(with: matched) }
+        var seen = Set<String>()
+        return contacts.filter { $0.phone != nil && $0.codes.isDisjoint(with: matched) }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            .filter { seen.insert($0.phoneCodes.first ?? $0.id).inserted }
     }
 }
 
@@ -83,6 +88,9 @@ final class ContactsMatch {
     }
 
     private(set) var state = State.asking
+    /// Checked once a visit: back from a neighbour's page, the list stays as it was and no check
+    /// is spent (the review: five profiles opened used up the day's five).
+    private var started = false
     private let match: ([String], [String]) async throws -> [(code: String, neighbor: Neighbor)]
 
     init(match: @escaping ([String], [String]) async throws -> [(code: String, neighbor: Neighbor)] = {
@@ -91,7 +99,9 @@ final class ContactsMatch {
         self.match = match
     }
 
-    func load() async {
+    func load(again: Bool = false) async {
+        guard again || !started else { return }
+        started = true
         state = .asking
         let store = CNContactStore()
         switch CNContactStore.authorizationStatus(for: .contacts) {
@@ -102,14 +112,14 @@ final class ContactsMatch {
         default:
             break
         }
-        let read = await Task.detached { Self.read(store) }.value
-        await show(read.contacts, emails: read.emails, phones: read.phones)
+        let contacts = await Task.detached { Self.read(store) }.value
+        await show(contacts)
     }
 
     /// Asks the server and splits the contacts. Apart from `load` so tests drive it with contacts.
-    func show(_ contacts: [PhoneContact], emails: [String: [String]], phones: [String: [String]]) async {
+    func show(_ contacts: [PhoneContact]) async {
         let sorted = contacts.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-        let send = ContactCodes.payload(sorted, emails: { emails[$0.id] ?? [] }, phones: { phones[$0.id] ?? [] })
+        let send = ContactCodes.payload(sorted)
         do {
             let found = send.emails.isEmpty && send.phones.isEmpty ? [] : try await match(send.emails, send.phones)
             state = .ready(onApp: found.map(\.neighbor),
@@ -121,24 +131,21 @@ final class ContactsMatch {
         }
     }
 
-    /// Every contact with a name, its codes by kind kept apart so emails go before phones.
-    nonisolated private static func read(_ store: CNContactStore)
-        -> (contacts: [PhoneContact], emails: [String: [String]], phones: [String: [String]]) {
+    /// Every contact with a name, and its codes.
+    nonisolated private static func read(_ store: CNContactStore) -> [PhoneContact] {
         let keys: [CNKeyDescriptor] = [CNContactFormatter.descriptorForRequiredKeys(for: .fullName),
                                        CNContactPhoneNumbersKey as CNKeyDescriptor,
                                        CNContactEmailAddressesKey as CNKeyDescriptor,
                                        CNContactThumbnailImageDataKey as CNKeyDescriptor]
-        var contacts: [PhoneContact] = [], emails: [String: [String]] = [:], phones: [String: [String]] = [:]
+        var contacts: [PhoneContact] = []
         try? store.enumerateContacts(with: CNContactFetchRequest(keysToFetch: keys)) { c, _ in
             guard let name = CNContactFormatter.string(from: c, style: .fullName), !name.isEmpty else { return }
-            let e = c.emailAddresses.compactMap { ContactCodes.email($0.value as String) }
-            let p = c.phoneNumbers.compactMap { ContactCodes.phone($0.value.stringValue) }
-            emails[c.identifier] = e
-            phones[c.identifier] = p
             contacts.append(PhoneContact(id: c.identifier, name: name, phone: c.phoneNumbers.first?.value.stringValue,
-                                         thumbnail: c.thumbnailImageData, codes: Set(e + p)))
+                                         thumbnail: c.thumbnailImageData,
+                                         emailCodes: c.emailAddresses.compactMap { ContactCodes.email($0.value as String) },
+                                         phoneCodes: c.phoneNumbers.compactMap { ContactCodes.phone($0.value.stringValue) }))
         }
-        return (contacts, emails, phones)
+        return contacts
     }
 }
 
@@ -175,15 +182,15 @@ struct FriendsContactsPage: View {
             }
         case .failed:
             ContactsNote(title: nil, line: "Check your connection and try again.", button: "Try again") {
-                Task { await model.load() }
+                Task { await model.load(again: true) }
             }
         case .limit:
-            ContactsNote(title: nil, line: "You've checked your contacts 5 times today. Try again tomorrow.",
-                         button: nil) {}
+            ContactsNote(title: nil, line: "You've checked your contacts 5 times today. Try again tomorrow.")
         case .ready(let onApp, let invite):
             promise
-            let shown = book.visible(.found(onApp))
-            if case .found(let people) = shown, !people.isEmpty {
+            // Less anyone you just blocked.
+            let people: [Neighbor] = if case .found(let people) = book.visible(.found(onApp)) { people } else { [] }
+            if !people.isEmpty {
                 ContactsSectionTitle(text: "On Block Party")
                 ForEach(people) { ResultRow(person: $0) { signingIn = true } }
             }
@@ -191,15 +198,15 @@ struct FriendsContactsPage: View {
                 ContactsSectionTitle(text: "Invite")
                 ForEach(invite) { InviteRow(contact: $0) }
             }
-            if onApp.isEmpty, invite.isEmpty {
-                ContactsNote(title: nil, line: "No contacts with a phone number or email.", button: nil) {}
+            if people.isEmpty, invite.isEmpty {
+                ContactsNote(title: nil, line: "No contacts with a phone number or email.")
             }
         }
     }
 
     /// Read first, under the bar.
     private var promise: some View {
-        Label("Only scrambled emails leave your phone.", systemImage: "lock.fill")
+        Label("Only scrambled emails and numbers leave your phone.", systemImage: "lock.fill")
             .font(.sans(13))
             .foregroundStyle(Hue.inkSecondary)
             .frame(maxWidth: .infinity)
@@ -271,8 +278,8 @@ private struct InviteRow: View {
 private struct ContactsNote: View {
     let title: String?
     let line: String
-    let button: String?
-    let action: () -> Void
+    var button: String?
+    var action: () -> Void = {}
 
     var body: some View {
         VStack(spacing: 0) {

@@ -537,43 +537,43 @@ final class ContactsMatchTests: XCTestCase {
     }
 
     func testAtMost2000CodesEmailsFirst() {
-        let contacts = (0..<1500).map { PhoneContact(id: "\($0)", name: "P\($0)", phone: "1", thumbnail: nil, codes: []) }
-        let sent = ContactCodes.payload(contacts, emails: { ["e\($0.id)"] }, phones: { ["p\($0.id)"] })
+        let contacts = (0..<1500).map { PhoneContact(id: "\($0)", name: "P\($0)", phone: "1", thumbnail: nil,
+                                                     emailCodes: ["e\($0)"], phoneCodes: ["p\($0)"]) }
+        let sent = ContactCodes.payload(contacts)
         XCTAssertEqual(sent.emails.count + sent.phones.count, ContactCodes.cap)
         XCTAssertEqual(sent.emails.first, "e0")
     }
 
     func testMatchedContactsLeaveInviteAndInviteNeedsAPhone() async {
-        let ana = PhoneContact(id: "a", name: "Ana Lee", phone: "555 123 0001", thumbnail: nil, codes: ["ea"])
-        let ben = PhoneContact(id: "b", name: "ben ortiz", phone: "555 123 0002", thumbnail: nil, codes: ["eb"])
-        let cal = PhoneContact(id: "c", name: "Cal Ruiz", phone: nil, thumbnail: nil, codes: ["ec"])
+        let ana = PhoneContact(id: "a", name: "Ana Lee", phone: "555 123 0001", thumbnail: nil, emailCodes: ["ea"])
+        let ben = PhoneContact(id: "b", name: "ben ortiz", phone: "555 123 0002", thumbnail: nil, emailCodes: ["eb"],
+                               phoneCodes: ["pb"])
+        let ben2 = PhoneContact(id: "b2", name: "Ben Ortiz", phone: "(555) 123-0002", thumbnail: nil, phoneCodes: ["pb"])
+        let cal = PhoneContact(id: "c", name: "Cal Ruiz", phone: nil, thumbnail: nil, emailCodes: ["ec"])
         var asked: ([String], [String])?
         let model = ContactsMatch(match: { emails, phones in
             asked = (emails, phones)
             return [(code: "ea", neighbor: Neighbor.samples[0])]
         })
-        await model.show([cal, ben, ana], emails: ["a": ["ea"], "b": ["eb"], "c": ["ec"]], phones: [:])
+        await model.show([cal, ben2, ben, ana])
         XCTAssertEqual(asked?.0, ["ea", "eb", "ec"], "A to Z, case aside")
         guard case .ready(let onApp, let invite) = model.state else { return XCTFail("\(model.state)") }
         XCTAssertEqual(onApp, [Neighbor.samples[0]])
-        XCTAssertEqual(invite.map(\.name), ["ben ortiz"], "Ana matched; Cal has no phone")
+        XCTAssertEqual(invite.count, 1, "Ana matched; Cal has no phone; Ben's number saved twice shows once")
     }
 
     func testTheSixthCheckOfTheDaySaysSoAndOfflineSaysTryAgain() async {
         let limited = ContactsMatch(match: { _, _ in throw SupabaseError(message: "contacts_limit", status: 400) })
-        await limited.show([PhoneContact(id: "a", name: "Ana", phone: "1", thumbnail: nil, codes: ["e"])],
-                           emails: ["a": ["e"]], phones: [:])
+        await limited.show([PhoneContact(id: "a", name: "Ana", phone: "1", thumbnail: nil, emailCodes: ["e"])])
         XCTAssertEqual(limited.state, .limit)
         let offline = ContactsMatch(match: { _, _ in throw URLError(.notConnectedToInternet) })
-        await offline.show([PhoneContact(id: "a", name: "Ana", phone: "1", thumbnail: nil, codes: ["e"])],
-                           emails: ["a": ["e"]], phones: [:])
+        await offline.show([PhoneContact(id: "a", name: "Ana", phone: "1", thumbnail: nil, emailCodes: ["e"])])
         XCTAssertEqual(offline.state, .failed)
     }
 
     func testNoCodesAsksNobody() async {
         let model = ContactsMatch(match: { _, _ in XCTFail("asked"); return [] })
-        await model.show([PhoneContact(id: "a", name: "Ana", phone: "1", thumbnail: nil, codes: [])],
-                         emails: [:], phones: [:])
+        await model.show([PhoneContact(id: "a", name: "Ana", phone: "1", thumbnail: nil)])
         guard case .ready(let onApp, let invite) = model.state else { return XCTFail() }
         XCTAssertTrue(onApp.isEmpty)
         XCTAssertEqual(invite.count, 1)

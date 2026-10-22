@@ -27,7 +27,8 @@ await db.exec(`
   create function auth.uid() returns uuid language sql stable as
     $$ select nullif(auth.jwt() ->> 'sub', '')::uuid $$;
   create table auth.users (id uuid primary key, is_anonymous boolean not null default false,
-    banned_until timestamptz, email text, phone text, phone_confirmed_at timestamptz);
+    banned_until timestamptz, email text, email_confirmed_at timestamptz default now(),
+    phone text, phone_confirmed_at timestamptz);
   create table public.town_profiles (
     user_id uuid primary key, display_name text, avatar_url text,
     onboarded_at timestamptz, created_at timestamptz not null default now());
@@ -43,7 +44,8 @@ await db.exec(`
 `);
 await db.exec(realAccount);
 for (const sql of [...read('_find_neighbors.sql'), ...read('_friend_requests.sql'), ...read('_unfriend_and_block.sql'),
-                   ...read('_people_you_may_know.sql'), ...read('_match_contacts.sql')]) {
+                   ...read('_people_you_may_know.sql'), ...read('_match_contacts.sql'),
+                   ...read('_match_contacts_town_day.sql')]) {
   await db.exec(sql);
 }
 
@@ -103,6 +105,19 @@ test('an email finds its account, whatever its case and spaces, A to Z', async (
 test('a phone number finds its account only once a text code checked it', async () => {
   await reset();
   assert.deepEqual(await match(ANA, [], [code('15551230003'), code('15551230004')]), ['Cal Ruiz']);
+});
+
+test('an email nobody confirmed matches nothing', async () => {
+  await reset();
+  await db.query('update auth.users set email_confirmed_at = null where id = $1', [EVE]);
+  assert.deepEqual(await match(ANA, [email('eve@example.com'), email('ben@example.com')]), ['Ben Ortiz']);
+});
+
+test('the day of the count is St. Joseph\'s', async () => {
+  await reset();
+  await match(ANA, [email('eve@example.com')]);
+  const { rows } = await db.query(`select day = (now() at time zone 'America/Chicago')::date as ours from private.contact_checks`);
+  assert.equal(rows[0].ours, true);
 });
 
 test('never yourself, anonymous, nameless, blocked either way, or someone who turned suggestions off', async () => {
