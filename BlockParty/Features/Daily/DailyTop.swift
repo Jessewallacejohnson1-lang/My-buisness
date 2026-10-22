@@ -46,12 +46,12 @@ enum DailyTopic {
         return matches(text: "\(row.name) \(row.what)", topic)
     }
 
-    /// The interest's keywords, each from the start of a word: "art" finds "artists" but not
-    /// "Party", where `Interests.matches` (any part of a word) would.
+    /// The interest's keywords as whole words, plural too: "park" finds "parks" but not "parking",
+    /// "art" not "Party", where `Interests.matches` (any part of a word) would.
     static func matches(text: String, _ topic: String) -> Bool {
         guard let interest = Interests.all.first(where: { $0.id == topic }) else { return false }
         return interest.keywords.contains { keyword in
-            text.range(of: "\\b" + NSRegularExpression.escapedPattern(for: keyword),
+            text.range(of: "\\b" + NSRegularExpression.escapedPattern(for: keyword) + "(s|es)?\\b",
                        options: [.regularExpression, .caseInsensitive]) != nil
         }
     }

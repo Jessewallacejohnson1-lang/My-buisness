@@ -329,11 +329,13 @@ final class DailyPageTests: XCTestCase {
     /// A topic keeps the events that match it, by the words "Suggested for you" reads.
     @MainActor
     func testATopicMatchesItsEvents() {
-        XCTAssertTrue(DailyTopic.matches(topicCard("Trivia", host: "Bad Habit Brewing"), "breweries"))
+        XCTAssertTrue(DailyTopic.matches(topicCard("Beer and trivia", host: "Bad Habit"), "breweries"))
         XCTAssertFalse(DailyTopic.matches(topicCard("Story time"), "breweries"))
-        // From the start of a word only: "art" isn't in "Block Party", "eat" isn't in "great".
+        // Whole words only: "art" isn't in "Block Party", "park" isn't in "parking".
         XCTAssertFalse(DailyTopic.matches(topicCard("Block Party"), "art_exhibits"))
-        XCTAssertTrue(DailyTopic.matches(topicCard("Student artists show"), "art_exhibits"))
+        XCTAssertTrue(DailyTopic.matches(topicCard("Student art show"), "art_exhibits"))
+        XCTAssertTrue(DailyTopic.matches(topicCard("Two parks cleanup"), "parks_gardens"))
+        XCTAssertFalse(DailyTopic.matches(topicCard("Market in the church parking lot"), "parks_gardens"))
         XCTAssertEqual(DailyTopic.label("live_music"), "Live music")
     }
 }
