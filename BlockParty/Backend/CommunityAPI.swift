@@ -495,6 +495,17 @@ struct CommunityAPI {
         return try decode(data)
     }
 
+    /// Which of your contacts are on Block Party (`match_contacts`, friends 06): the scrambled
+    /// emails and phone numbers go, each neighbour comes back with the code that found them.
+    func matchContacts(emails: [String], phones: [String]) async throws -> [(code: String, neighbor: Neighbor)] {
+        struct Code: Decodable { let code: String }
+        let (data, _) = try await SupabaseHTTP.rest("rpc/match_contacts", method: "POST", accessToken: try await token(),
+                                                    body: try body(["p_emails": emails, "p_phones": phones]))
+        let codes: [Code] = try decode(data)
+        let people: [Neighbor] = try decode(data)
+        return zip(codes, people).map { ($0.code, $1) }
+    }
+
     /// People you may know, strongest first, at most 20 (daily-tab 22).
     func peopleYouMayKnow() async throws -> [Neighbor] {
         let (data, _) = try await SupabaseHTTP.rest("rpc/get_people_you_may_know", method: "POST",

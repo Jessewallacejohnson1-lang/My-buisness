@@ -16,17 +16,24 @@ exception. Posts, their photos and their words still wait for the place's yes.
   check, new posts or not: a page with nothing new still writes a `no_items` or
   `not_available` row, billed as a post. That is about 0.5¢ per Facebook page and 0.23¢ per
   Instagram account per check, so frequency is budgeted per page per check, not per post.
-- **Schedule.** A busy list (about 30 places that post events, plus the town pages; Jesse
-  approves it) is checked at noon, 6pm and 9pm Chicago time; every other place on Thursday
-  at 3pm. Both Facebook and Instagram are checked where a place has both. Each check asks
-  only for posts since the last one. The busy list's Facebook Events tabs are read weekly,
-  and public town groups weekly for tips. Estimated $21 a month; if the cap is hit early,
-  Jesse rethinks the schedule. Checking every 15 minutes was priced at about $590 a month
-  and dropped.
-- **Route.** Apify's own scheduler starts the runs: not Make.com (weighed and skipped, as a
-  second place for the logic that cannot be tested here) and not the 6am routine. Each
-  finished run's posts are read right away by Claude Haiku through the Anthropic API, and
-  what it finds becomes Events and News under ADR-021.
+- **Schedule.** A busy list (26 places that post events, town pages included, approved by
+  Jesse on 2026-10-22: 24 Facebook pages and 13 Instagram accounts) is checked at 6pm and
+  9pm Chicago time; every other place on Thursday at 3pm. Both Facebook and Instagram are
+  checked where a place has both. Each check asks only for posts since the last one. The
+  busy list's Facebook Events tabs are read weekly, and public town groups weekly for tips.
+  Estimated $19 a month with real page counts (busy list $9.40, everyone else weekly $8.50,
+  Events tabs about $1); a noon check was dropped because it took the total to about $24.
+  If the cap is hit early, Jesse rethinks the schedule. Checking every 15 minutes was priced
+  at about $590 a month and dropped.
+- **Route.** A Claude routine like the 6am job, "Block Party social watch", starts the
+  checks and reads them right away (`sources/models/social.md`, `sources/scripts/social.py`):
+  each post goes through the morning job's own cheap-model flags, judge and writer, so the
+  title, place, merging and trust rules are the same for every source. Not Make.com (weighed
+  and skipped, as a second place for the logic that cannot be tested here), and not a
+  Supabase function calling the Anthropic API (first approved, then dropped the same day:
+  Jesse, "Yes, run the social watch as a routine like the 6am job", because it would have
+  rewritten or skipped the writer's rules). The routine reaches Apify with `APIFY_TOKEN` in
+  its cloud environment and runs on Jesse's Claude plan.
 - **Finding pages.** One Apify Google Maps pass per town, with its contact-details add-on,
   refreshes and fills places' Facebook and Instagram links. The naming rule below (same
   phone or street, or a link to the place's own website) still decides.
@@ -38,6 +45,13 @@ exception. Posts, their photos and their words still wait for the place's yes.
   official connection.
 - **Profile pictures.** A place's own Facebook or Instagram profile picture may become its
   logo where it has none, treated like the cover photo above.
+- **Keep everything.** From social posts, every item a neighbour could know or do is kept:
+  events as Events, and specials, deals, new products, menu items, pre-orders and contests as
+  News (category `business`), shown to the people who care rather than dropped (Jesse: "we
+  kind of want everything"). Only posts with nothing to know or do, things already over, and
+  posts about a private person's health or troubles are dropped (`sources/models/social.md`).
+  Still facts in Block Party's words with a link to the post: the post itself waits for the
+  place's yes.
 **Date:** 2026-10-05
 **Decided by:** Jesse, 2026-10-05, in a grilling session on how to use Apify. His reason:
 live posts from businesses are Block Party's essential feature, and taking them straight

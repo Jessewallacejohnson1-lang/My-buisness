@@ -56,8 +56,10 @@ source is a line in the summary; carry on with the rest.
    `.runs/morning/today.txt`, writing your lines to `.runs/morning/standouts.jsonl`. Run
    `python3 sources/scripts/morning.py standouts`. Done when it prints its `[morning] standouts …`
    line. A failure here is a line in the answer; Daily then shows the Town feed's top pick.
-9. **Answer** with the summary as `write` printed it, `tag`'s line and the `standouts` lines,
-   then one line per flag you dropped that a neighbour might have wanted, and why.
+9. **Answer** with the summary as `write` printed it, `tag`'s line, the `standouts` lines and
+   the line `python3 sources/scripts/social.py spend` prints (the social watch's Apify spend:
+   Jesse, 2026-10-22), then one line per flag you dropped that a neighbour might have wanted,
+   and why.
 
 ## Rules
 

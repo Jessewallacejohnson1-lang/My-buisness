@@ -412,6 +412,7 @@ struct MainTabsView: View {
                     Group {
                         switch route {
                         case .home: FriendsHomePage()
+                        case .contacts: FriendsContactsPage()
                         case .inbox: FriendsPage()
                         case .chat(let id): FriendChatPage(id: id)
                         }
