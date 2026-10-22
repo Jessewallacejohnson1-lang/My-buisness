@@ -544,4 +544,6 @@ struct TownProfile: Decodable {
     let onboardedAt: String?
     /// "Show my plans to friends" (town-feed 28): nil when the read didn't carry it.
     var plansToFriends: Bool? = nil
+    /// "Suggest me to people I may know" (daily-tab 22): nil when the read didn't carry it.
+    var suggestMe: Bool? = nil
 }

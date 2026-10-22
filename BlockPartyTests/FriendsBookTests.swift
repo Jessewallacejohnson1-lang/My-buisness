@@ -425,3 +425,81 @@ final class FriendsBookTests: XCTestCase {
         XCTAssertTrue(b.blockedFailed)
     }
 }
+
+/// People you may know on Daily (daily-tab 22): the X takes someone off at once and a failed
+/// one brings them back; Add friend keeps the card for its Cancel; a friend made elsewhere goes.
+@MainActor
+final class FriendsBookSuggestionTests: XCTestCase {
+    private struct Offline: Error {}
+
+    private static func person(_ name: String, mutual: Int = 0, group: String? = nil) -> Neighbor {
+        Neighbor(userId: name, displayName: name, avatarUrl: nil, since: nil, relation: .stranger,
+                 mutualFriends: mutual, sharedGroup: group)
+    }
+
+    private func book(_ people: [Neighbor], hides: @escaping (String) async throws -> Void = { _ in },
+                      write: @escaping (FriendsBook.Action, String) async throws -> Neighbor.Relation = {
+                          action, _ in FriendsBook.answer(to: action) },
+                      anonymous: Bool = false) -> FriendsBook {
+        FriendsBook(read: { [] }, readDot: { false }, markSeen: {}, write: write,
+                    readSuggestions: { people }, writeHide: hides,
+                    isAnonymous: { anonymous }, hold: .milliseconds(50), flip: .milliseconds(30))
+    }
+
+    func testTheReasonLineIsFriendsSharedThenTheGroupThenInstagramsLine() {
+        XCTAssertEqual(Self.person("A", mutual: 4).suggestLine, "4 mutual friends")
+        XCTAssertEqual(Self.person("A", mutual: 1, group: "Lions Club").suggestLine, "1 mutual friend")
+        XCTAssertEqual(Self.person("A", group: "Lions Club").suggestLine, "Both in Lions Club")
+        XCTAssertEqual(Self.person("A").suggestLine, "Suggested for you")
+    }
+
+    func testTheReadFillsTheRowInTheServersOrder() async {
+        let b = book([Self.person("Kim", mutual: 4), Self.person("Hal", mutual: 2)])
+        XCTAssertEqual(b.suggested, [])
+        await b.refreshSuggestions()
+        XCTAssertEqual(b.suggested.map(\.displayName), ["Kim", "Hal"])
+    }
+
+    func testAnAnonymousAccountHasNone() async {
+        let b = book([Self.person("Kim")], anonymous: true)
+        await b.refreshSuggestions()
+        XCTAssertEqual(b.suggested, [])
+    }
+
+    func testTheXTakesThemOffAtOnceAndTellsTheServer() async {
+        var hidden: [String] = []
+        let b = book([Self.person("Kim"), Self.person("Hal")], hides: { hidden.append($0) })
+        await b.refreshSuggestions()
+        b.hide(Self.person("Kim"))
+        XCTAssertEqual(b.suggested.map(\.displayName), ["Hal"])
+        try? await Task.sleep(for: .milliseconds(30))
+        XCTAssertEqual(hidden, ["Kim"])
+    }
+
+    func testAnXThatFailsBringsThemBackWhereTheyWere() async {
+        let b = book([Self.person("Kim"), Self.person("Hal")], hides: { _ in throw Offline() })
+        await b.refreshSuggestions()
+        b.hide(Self.person("Kim"))
+        XCTAssertEqual(b.suggested.map(\.displayName), ["Hal"])
+        try? await Task.sleep(for: .milliseconds(200))
+        XCTAssertEqual(b.suggested.map(\.displayName), ["Kim", "Hal"])
+    }
+
+    func testAddFriendKeepsTheCardForItsCancelButAFriendGoes() async {
+        let b = book([Self.person("Kim"), Self.person("Hal")])
+        await b.refreshSuggestions()
+        b.act(.add, Self.person("Kim"))
+        b.act(.confirm, Self.person("Hal"))
+        try? await Task.sleep(for: .milliseconds(60))
+        XCTAssertEqual(b.suggested.map(\.displayName), ["Kim"])
+        XCTAssertEqual(b.relation(b.suggested[0]), .sent)
+    }
+
+    func testAnotherAccountKeepsNoneOfThem() async {
+        let b = book([Self.person("Kim")])
+        await b.refreshSuggestions()
+        b.hide(Self.person("Kim"))
+        b.reset()
+        XCTAssertEqual(b.suggested, [])
+    }
+}

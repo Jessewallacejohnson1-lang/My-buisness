@@ -22,6 +22,9 @@ final class ProfileModel: ObservableObject {
     @Published var plansToFriends: Bool?
     /// Counts writes that failed and flipped the switch back; each one shakes it.
     @Published private(set) var plansFailures = 0
+    /// "Suggest me to people I may know" (daily-tab 22), as `plansToFriends`.
+    @Published var suggestMe: Bool?
+    @Published private(set) var suggestFailures = 0
 
     // Lifecycle
     @Published var loading = false
@@ -31,19 +34,25 @@ final class ProfileModel: ObservableObject {
     private var profiles: ProfileAPI { ProfileAPI(auth: auth) }
     private var storage: Storage { Storage(auth: auth) }
     private var writePlans: ((Bool) async throws -> Void)?
-    private var plansWriting = false
+    private var writeSuggest: ((Bool) async throws -> Void)?
+    /// The switches with a write out, so taps queue behind it.
+    private var writing: Set<PartialKeyPath<ProfileModel>> = []
 
     // Default arg is nil (not `.shared`) so the main-actor singleton is only
     // touched inside this @MainActor init body — no cross-isolation warning.
     // `writePlans` stands in for the server in tests.
-    init(auth: AuthStore? = nil, writePlans: ((Bool) async throws -> Void)? = nil) {
+    init(auth: AuthStore? = nil, writePlans: ((Bool) async throws -> Void)? = nil,
+         writeSuggest: ((Bool) async throws -> Void)? = nil) {
         self.auth = auth ?? .shared
         self.writePlans = writePlans
+        self.writeSuggest = writeSuggest
         #if DEBUG
         // `-town-samples`: the switch shows on and its taps write nowhere, as Join's do.
         if writePlans == nil, ProcessInfo.processInfo.arguments.contains("-town-samples") {
             plansToFriends = true
             self.writePlans = { _ in }
+            suggestMe = true
+            self.writeSuggest = { _ in }
         }
         #endif
     }
@@ -73,6 +82,7 @@ final class ProfileModel: ObservableObject {
             Interests.set(p.interests)
             sinceLabel = ProfileModel.since(from: p.onboardedAt)
             plansToFriends = p.plansToFriends ?? true
+            suggestMe = p.suggestMe ?? true
         }
 
         loading = false
@@ -140,21 +150,36 @@ final class ProfileModel: ObservableObject {
     /// write the server refuses flips the switch back, unless a newer tap moved it, then
     /// shakes it with an error buzz (taste.md, 2026-09-27), as the Calendar switch does.
     func setPlansToFriends(_ on: Bool) async {
-        guard let shown = plansToFriends, shown != on else { return }
-        plansToFriends = on
-        guard !plansWriting else { return }
-        plansWriting = true
-        defer { plansWriting = false }
+        await flip(\.plansToFriends, to: on, failures: \.plansFailures) { [self] in
+            if let writePlans { try await writePlans($0) } else { try await profiles.setSwitch("plans_to_friends", $0) }
+        }
+    }
+
+    /// "Suggest me to people I may know": the same switch, its own column.
+    func setSuggestMe(_ on: Bool) async {
+        await flip(\.suggestMe, to: on, failures: \.suggestFailures) { [self] in
+            if let writeSuggest { try await writeSuggest($0) } else { try await profiles.setSwitch("suggest_me", $0) }
+        }
+    }
+
+    private func flip(_ value: ReferenceWritableKeyPath<ProfileModel, Bool?>, to on: Bool,
+                      failures: ReferenceWritableKeyPath<ProfileModel, Int>,
+                      write: (Bool) async throws -> Void) async {
+        guard let shown = self[keyPath: value], shown != on else { return }
+        self[keyPath: value] = on
+        guard !writing.contains(value) else { return }
+        writing.insert(value)
+        defer { writing.remove(value) }
         var saved = shown
-        while let want = plansToFriends, want != saved {
+        while let want = self[keyPath: value], want != saved {
             do {
-                if let writePlans { try await writePlans(want) } else { try await profiles.setPlansToFriends(want) }
+                try await write(want)
                 saved = want
             } catch {
-                guard plansToFriends == want else { continue }
-                withAnimation(.easeInOut(duration: RealLifeActions.flip)) { plansToFriends = saved }
+                guard self[keyPath: value] == want else { continue }
+                withAnimation(.easeInOut(duration: RealLifeActions.flip)) { self[keyPath: value] = saved }
                 try? await Task.sleep(for: .seconds(RealLifeActions.flip))
-                plansFailures += 1
+                self[keyPath: failures] += 1
                 Haptics.error()
                 // The shake and the buzz are silent to VoiceOver; this says it.
                 AccessibilityNotification.Announcement("Couldn't change that. Try again.").post()
