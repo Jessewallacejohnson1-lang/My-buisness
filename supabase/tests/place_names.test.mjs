@@ -23,13 +23,16 @@ await db.exec(`
 `);
 await db.exec(readFileSync(join(migrations, file), 'utf8'));
 await db.exec(`insert into public.place_names (entry_id, url) values ('krewe', 'https://x/krewe/name-1.png')`);
+await db.exec(`insert into public.club_events values ('00000000-0000-0000-0000-000000000004', 'well')`);
+await db.exec(`insert into public.place_names (entry_id, url, kind) values ('well', 'https://x/well/logo.webp', 'emblem')`);
 
 const name = async (event) => (await db.query('select public.event_place_name($1) as u', [event])).rows[0].u;
 
 test("an Event gets its place's name, or none", async () => {
   await db.exec('set role anon');
   try {
-    assert.equal(await name('00000000-0000-0000-0000-000000000001'), 'https://x/krewe/name-1.png');
+    assert.deepEqual(await name('00000000-0000-0000-0000-000000000001'), { url: 'https://x/krewe/name-1.png', kind: 'name' });
+    assert.deepEqual(await name('00000000-0000-0000-0000-000000000004'), { url: 'https://x/well/logo.webp', kind: 'emblem' });
     assert.equal(await name('00000000-0000-0000-0000-000000000002'), null, 'a place with no name cut yet');
     assert.equal(await name('00000000-0000-0000-0000-000000000003'), null, 'an Event at no place');
   } finally { await db.exec('reset role'); }
@@ -39,7 +42,7 @@ test('everyone reads the names; nobody signed in writes them', async () => {
   for (const role of ['anon', 'authenticated']) {
     await db.exec(`set role ${role}`);
     try {
-      assert.equal((await db.query('select count(*)::int as n from public.place_names')).rows[0].n, 1);
+      assert.equal((await db.query('select count(*)::int as n from public.place_names')).rows[0].n, 2);
       await assert.rejects(db.query(`insert into public.place_names (entry_id, url) values ('x', 'y')`));
     } finally { await db.exec('reset role'); }
   }

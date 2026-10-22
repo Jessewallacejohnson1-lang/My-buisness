@@ -54,8 +54,8 @@ struct SearchItem: Identifiable, Hashable {
     var townGroup: TownGroup? = nil
     /// A place's `places.id`, which its page follows (BP app follows 02).
     var placeID: String? = nil
-    /// Its name in its own lettering, drawn over its page's photos (`public.place_names`).
-    var nameArt: URL? = nil
+    /// Its name over its page's photos (`public.place_names`): lettering, or its logo landing there.
+    var nameArt: PlaceName? = nil
 
     /// A business or food place with a logo opens onto its own page of photos; the
     /// logo flies there (Jesse, 2026-10-04: restaurants and coffee open like logos).
@@ -182,7 +182,7 @@ final class SearchModel {
     private var pois: [POI] = []
     private var savedPhotos: [String: [PlacePicture]]?
     /// Each place's name in its own lettering, by registry entry; read once, and none if it fails.
-    private var names: [String: URL] = [:]
+    private var names: [String: PlaceName] = [:]
     /// The Town's groups, in `get_groups`' order, and whether they have been read.
     private(set) var groups: [SearchItem] = []
     private(set) var groupsLoaded = false
@@ -335,7 +335,7 @@ final class SearchModel {
     /// `photos`: what Block Party saved of each place, by registry entry (`places.entry_id`). A
     /// food card shows the cover; a business shows its logo on the row, its photos on its page.
     static func places(from pois: [POI], photos: [String: [PlacePicture]] = [:],
-                       names: [String: URL] = [:]) -> [SearchItem] {
+                       names: [String: PlaceName] = [:]) -> [SearchItem] {
         pois.map { poi in
             let key = poi.placeId ?? poi.id
             let logo = poi.searchLogo.map { SearchLogo(placeId: key, row: $0) }

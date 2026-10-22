@@ -417,6 +417,14 @@ struct FollowCard: Decodable, Equatable {
     let friendsCount: Int
 }
 
+/// A place's name over its photo (`public.place_names`, BP app follows 02): its own lettering, a white
+/// picture tinted to read on the photo, or, where its letters couldn't be cut, its logo in its own colours.
+struct PlaceName: Hashable, Sendable {
+    let url: URL
+    /// The logo, untinted, rather than lettering.
+    let emblem: Bool
+}
+
 /// Something you follow, in Profile's Following list (`my_follows`), or an Event's host
 /// (`event_host`): its name, a Place's Google type, and its picture, a photo or a logo.
 struct FollowRow: Decodable, Identifiable, Hashable {

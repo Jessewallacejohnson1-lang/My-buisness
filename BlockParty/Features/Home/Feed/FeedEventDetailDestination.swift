@@ -41,7 +41,7 @@ struct FeedEventDetailDestination: View {
     /// holds a skeleton on screen.
     @State private var failedPhotos: Set<URL> = []
     /// The Event's place's name in its own lettering, once read (follows 02).
-    @State private var placeName: URL?
+    @State private var placeName: PlaceName?
 
     init(item: FeedCardItem, inSheet: Bool = false) {
         self.item = item
@@ -154,7 +154,7 @@ struct FeedEventDetailDestination: View {
     }
 
     /// `event_place_name`; nothing under DEBUG samples or offline.
-    private static func readPlaceName(_ eventID: String) async -> URL? {
+    private static func readPlaceName(_ eventID: String) async -> PlaceName? {
         guard RealLifeActions.backend(for: ProcessInfo.processInfo.arguments) == .live,
               UUID(uuidString: eventID) != nil else { return nil }
         return try? await CommunityAPI(auth: AuthStore.shared).eventPlaceName(eventID)
@@ -380,7 +380,7 @@ struct FeedEventDetailDestination: View {
             }
 
             // Who hosts it, with Follow (follows 02): Eventbrite's "Organized by".
-            EventHostRow(item: item, top: Metric.pillTop, placeNamed: placeName != nil && !photos.isEmpty)
+            EventHostRow(item: item, top: Metric.pillTop, placeNamed: placeName?.emblem == false && !photos.isEmpty)
 
             if let about = Self.aboutText(item.description) {
                 AboutSection(text: about)

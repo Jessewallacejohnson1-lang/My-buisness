@@ -200,6 +200,14 @@ struct BusinessPage: View {
                       width: side, height: side)
     }
 
+    /// Where a place's emblem rests over its photos, standing in for its name (follows 02): the bottom
+    /// centre, as `PlaceNameArt` sits, 84 pt square.
+    static func bottomCentre(width: CGFloat) -> CGRect {
+        let side = PlaceNameArt.maxHeight
+        let edge = width / FeedEventDetailDestination.Metric.heroAspect
+        return CGRect(x: (width - side) / 2, y: edge - PlaceNameArt.bottom - side, width: side, height: side)
+    }
+
     /// Where it rests with no photo: where the Event page draws a place's logo in a hero it has no
     /// photo for (`FeedCardPlaceLogo`, 29% down a hero as tall as the photos and the sheet's
     /// underlap, at most 43% of it), so the two pages agree.
@@ -265,7 +273,8 @@ private struct BusinessPageBody: View {
                 FlyingLogo(logo: logo, source: source, from: source.logo.offsetBy(dx: -origin.x, dy: -origin.y),
                            corner: BusinessPage.corner(width: full.width, top: insets.top),
                            middle: BusinessPage.middle(width: full.width), progress: opener.progress, page: page,
-                           named: item.nameArt != nil)
+                           named: item.nameArt?.emblem == false,
+                           bottom: item.nameArt?.emblem == true ? BusinessPage.bottomCentre(width: full.width) : nil)
             }
             .frame(width: full.width, height: full.height, alignment: .topLeading)
             .offset(x: -insets.leading, y: -insets.top)
@@ -346,7 +355,8 @@ private struct BusinessPageContent: View {
             // Its name in its own lettering at the bottom centre (follows 02); the corner logo
             // then fades as it lands, so the place isn't marked twice.
             .overlay(alignment: .bottom) {
-                if let name = item.nameArt, !photos.isEmpty {
+                // An emblem is the flying logo itself, landing there (`FlyingLogo`).
+                if let name = item.nameArt, !name.emblem, !photos.isEmpty {
                     PlaceNameArt(name: name, photo: photos[min(photoPage ?? 0, photos.count - 1)].url, spoken: item.name)
                         .padding(.bottom, PlaceNameArt.bottom)
                 }
@@ -554,13 +564,15 @@ private struct FlyingLogo: View {
     /// The place's name is on its photo: the logo flies from its tile as before, fading as it
     /// lands, and stays when every photo fails (it then sits in the middle).
     let named: Bool
+    /// Where an emblem lands instead of the corner: the bottom centre of the photos (follows 02).
+    let bottom: CGRect?
 
     var body: some View {
         let p = progress.value
         let c = min(max(p, 0), 1)
         let lift = sin(.pi * c)
         let fades = named && page.hasPhotos
-        let flying = lerp(from, page.hasPhotos ? corner : middle, p)
+        let flying = lerp(from, page.hasPhotos ? bottom ?? corner : middle, p)
         CastLogo(logo: logo, side: flying.width, shadow: source.shadow,
                  stretch: 1 + lift * SearchMetric.liftStretch, strength: 1 - lift * SearchMetric.liftFade)
             .offset(x: flying.minX, y: flying.minY - max(0, page.scrollY) * c)

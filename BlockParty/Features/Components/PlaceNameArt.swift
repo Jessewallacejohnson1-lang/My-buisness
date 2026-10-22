@@ -5,7 +5,8 @@
 //  in whatever their font is that they use on their website"). The lettering is cut out of the
 //  place's own logo as a white picture (`public.place_names`, `references/place-name/cut_names.py`)
 //  and tinted here: white over a dark photo, ink over a light one, as the part of the photo it sits
-//  on decides (Jesse: "white or black, whatever works with the photo"). Mock Jesse said yes to:
+//  on decides (Jesse: "white or black, whatever works with the photo"). A place whose letters
+//  couldn't be cut or rebuilt shows its logo there instead, in its own colours. Mock Jesse said yes to:
 //  https://claude.ai/artifact/BRrG2EJX2d6nJhYPRdHxKU
 //
 
@@ -21,7 +22,7 @@ extension PlaceNameArt {
 }
 
 struct PlaceNameArt: View {
-    let name: URL
+    let name: PlaceName
     /// The photo under it now; nil while none is on screen.
     let photo: URL?
     /// The place's name, for VoiceOver.
@@ -34,14 +35,15 @@ struct PlaceNameArt: View {
         ZStack {
             if let lettering {
                 Image(uiImage: lettering)
-                    .renderingMode(.template)
+                    // An emblem keeps its own colours; lettering takes the photo's.
+                    .renderingMode(name.emblem ? .original : .template)
                     .resizable()
                     .interpolation(.high)
                     .scaledToFit()
                     .foregroundStyle(onDark ? Hue.nameOnDark : Hue.nameOnLight)
                     // A soft shadow lifts it off a busy photo: dark under white, faint under ink.
-                    .shadow(color: Hue.nameShadow.opacity(onDark ? 0.45 : 0.12), radius: 1, y: 1)
-                    .shadow(color: Hue.nameShadow.opacity(onDark ? 0.35 : 0), radius: 7, y: 3)
+                    .shadow(color: Hue.nameShadow.opacity(onDark || name.emblem ? 0.45 : 0.12), radius: 1, y: 1)
+                    .shadow(color: Hue.nameShadow.opacity(onDark || name.emblem ? 0.35 : 0), radius: 7, y: 3)
                     .transition(.opacity)
             }
         }
@@ -51,9 +53,9 @@ struct PlaceNameArt: View {
         .allowsHitTesting(false)
         .accessibilityElement()
         .accessibilityLabel(spoken)
-        .task(id: name) { lettering = await Self.image(name) }
+        .task(id: name) { lettering = await Self.image(name.url) }
         .task(id: photo) {
-            guard let photo, let dark = await Self.isDark(photo) else { return }
+            guard !name.emblem, let photo, let dark = await Self.isDark(photo) else { return }
             onDark = dark
         }
     }
