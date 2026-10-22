@@ -269,15 +269,16 @@ def fetch(url, data=None, headers=None):
 # Firecrawl names itself as a crawler, so it is not a browser in disguise (ADR-014). It reads a
 # page whose server refuses our address (eight GoDaddy sites and Kwik Trip reset or 403'd the
 # cloud routine from 2026-10-16 while answering the Mac) or builds its text in JavaScript.
-# Jesse, 2026-10-22: "use for blocked and java". Never for a page robots.txt disallows.
+# Jesse, 2026-10-22: "use for blocked and java", and later that day dropped the robots.txt and
+# feed limits: a page our own fetch must stay out of by robots.txt goes through Firecrawl too.
 FIRECRAWL = "https://api.firecrawl.dev/v1/scrape"
 FIRECRAWL_CAP = 30    # ponytail: credits per run (1 a page); the plan has 1,000 a month
 JS_TEXT = 200         # fewer characters than this from a plain fetch = built by JavaScript
-NO_FIRECRAWL_KINDS = {"ical", "rss", "facebook", "instagram"}  # feeds read exactly; social is Apify (ADR-020)
-GONE = re.compile(r"disallows|HTTP Error (404|410)")  # not a block: robots said no, or the page is gone
+FEED_KINDS = {"ical", "rss"}             # read raw through Firecrawl, so the feed parser still sees items
+SOCIAL_KINDS = {"facebook", "instagram"}  # Firecrawl refuses them ("we do not support this site"); Apify reads them (ADR-020)
+GONE = re.compile(r"HTTP Error (404|410)")  # the page is gone: Firecrawl gets the same 404 and spends a credit
 _firecrawl_used = 0
 _firecrawl_lock = threading.Lock()
-_firecrawl_robots = {}  # base -> rules read through Firecrawl, when ours could not be
 
 
 def firecrawl(url, fmt="markdown"):
@@ -309,21 +310,6 @@ def firecrawl(url, fmt="markdown"):
     return re.sub(r"(\]\([^)\s?]*)\?[^)\s]*", r"\1", text)
 
 
-def read_blocked(url, why):
-    """A page our fetch couldn't reach, through Firecrawl. When robots.txt couldn't be read
-    either, it is read through Firecrawl first and obeyed."""
-    p = urlparse(url)
-    base = f"{p.scheme}://{p.netloc}"
-    if "robots.txt could not be read" in why:
-        if base not in _firecrawl_robots:
-            try:
-                _firecrawl_robots[base] = parse_robots(firecrawl(base + "/robots.txt", "rawHtml"))
-            except RuntimeError as ex:
-                _firecrawl_robots[base] = None if "HTTP 404" in str(ex) else STAY_OUT
-        rules = _firecrawl_robots[base]
-        if rules is not None and not allowed(rules, (p.path or "/") + (f"?{p.query}" if p.query else "")):
-            raise RuntimeError(f"{why}; through Firecrawl it disallows -> switch method to search_snippet")
-    return firecrawl(url)
 
 
 class Supabase:
@@ -443,13 +429,15 @@ def main():
                 status, raw = fetch(ref["url"])
                 text = to_text(raw)
             except Exception as ex:
-                if GONE.search(str(ex)) or ref["kind"] in NO_FIRECRAWL_KINDS:
+                if GONE.search(str(ex)) or ref["kind"] in SOCIAL_KINDS:
                     raise
                 try:
-                    status, text, via = 200, read_blocked(ref["url"], str(ex)), "firecrawl"
+                    text = (to_text(firecrawl(ref["url"], "rawHtml")) if ref["kind"] in FEED_KINDS
+                            else firecrawl(ref["url"]))
+                    status, via = 200, "firecrawl"
                 except Exception as fc:
                     raise RuntimeError(f"{str(ex)[:150]}; Firecrawl: {str(fc)[:120]}") from None
-            if len(text) < JS_TEXT and via == "fetch" and ref["kind"] not in NO_FIRECRAWL_KINDS:
+            if len(text) < JS_TEXT and via == "fetch" and ref["kind"] not in FEED_KINDS | SOCIAL_KINDS:
                 try:
                     text, via = firecrawl(ref["url"]), "firecrawl"
                 except Exception:
