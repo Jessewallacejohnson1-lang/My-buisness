@@ -30,11 +30,11 @@ final class LogoReveal {
     static let stagger = 0.044
     static let staggerCap = 10
 
-    /// Opens once every one of `urls` is in the logo cache, or after `gateWait`.
+    /// Opens once every one of `urls` has loaded or failed, or after `gateWait`.
     func open(after urls: [URL]) async {
         let clock = ContinuousClock(), end = clock.now + Self.gateWait
         // ponytail: polls every 50 ms; the cache's publisher if this ever shows in a profile.
-        while !open, clock.now < end, !urls.allSatisfy({ POILogoCache.shared.image(for: $0) != nil }) {
+        while !open, clock.now < end, !urls.allSatisfy({ POILogoCache.shared.image(for: $0) != nil || POILogoCache.shared.failed.contains($0) }) {
             try? await Task.sleep(for: .milliseconds(50))
         }
         open = true
@@ -54,6 +54,9 @@ final class LogoReveal {
             for (wait, delay) in zip(batch, delays(for: batch.map { ($0.url, $0.at()) })) { wait.start(delay) }
         }
     }
+
+    /// Already popped this app open: a lazy row rebuilt on scrolling back draws it settled.
+    func hasPopped(_ url: URL) -> Bool { popped.contains(url) }
 
     /// Each logo's delay, in the order given. Logos asking within 0.3 s of the last wave join it.
     func delays(for logos: [(url: URL, at: CGPoint)], now: Date = .now) -> [Double?] {
@@ -98,11 +101,13 @@ private struct LogoPop<Skeleton: View>: ViewModifier {
     @State private var origin = CGPoint.zero
 
     func body(content: Content) -> some View {
-        let ready = LogoReveal.shared.open && cache.image(for: url) != nil
+        // A logo whose fetch failed pops too, as its tile without the logo, so it can still be opened.
+        let ready = LogoReveal.shared.open && (cache.image(for: url) != nil || cache.failed.contains(url))
+        let settled = !shown && LogoReveal.shared.hasPopped(url)
         ZStack {
-            if shown { content.modifier(Elastic(t: t, still: reduceMotion)) }
+            if shown || settled { content.modifier(Elastic(t: settled ? Elastic.done : t, still: reduceMotion)) }
             // Stays until this logo's turn in the wave, so its place is never empty.
-            if !skeletonGone { skeleton.shimmering().accessibilityHidden(true).transition(.opacity) }
+            if !skeletonGone && !settled { skeleton.shimmering().accessibilityHidden(true).transition(.opacity) }
         }
         .onGeometryChange(for: CGPoint.self) { $0.frame(in: .global).origin } action: { origin = $0 }
         .onChange(of: ready, initial: true) { _, ready in
