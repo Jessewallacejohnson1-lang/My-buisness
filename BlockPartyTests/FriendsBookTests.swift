@@ -495,6 +495,22 @@ final class FriendsBookSuggestionTests: XCTestCase {
         XCTAssertEqual(b.relation(b.suggested[0]), .sent)
     }
 
+    /// The server leaves out anyone you asked; coming back to Daily keeps their card and Cancel.
+    func testSomeoneYouAskedKeepsTheirCardWhenDailyReadsAgain() async {
+        var people = [Self.person("Kim"), Self.person("Hal")]
+        let b = FriendsBook(read: { [] }, readDot: { false }, markSeen: {},
+                            write: { action, _ in FriendsBook.answer(to: action) },
+                            readSuggestions: { people }, isAnonymous: { false },
+                            hold: .milliseconds(50), flip: .milliseconds(30))
+        await b.refreshSuggestions()
+        b.act(.add, Self.person("Kim"))
+        try? await Task.sleep(for: .milliseconds(60))
+        people = [Self.person("Hal")]
+        await b.refreshSuggestions()
+        XCTAssertEqual(b.suggested.map(\.displayName), ["Kim", "Hal"])
+        XCTAssertEqual(b.relation(b.suggested[0]), .sent)
+    }
+
     func testAnotherAccountKeepsNoneOfThem() async {
         let b = book([Self.person("Kim")])
         await b.refreshSuggestions()

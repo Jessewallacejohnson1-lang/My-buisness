@@ -228,7 +228,10 @@ final class FriendsBook {
         // The read is the truth for whom it returned; a tap still being sent keeps its answer.
         let read = Set(people.map(\.id))
         chosen = chosen.filter { !read.contains($0.key) || writing.contains($0.key) || $0.value == .blocked }
-        withAnimation(.easeInOut(duration: RealLifeActions.flip)) { suggestionsRead = people }
+        // The server lists strangers only, so someone you just asked keeps their card, and its
+        // Cancel, until the app closes.
+        let asked = suggestionsRead.filter { !read.contains($0.id) && relation($0) == .sent }
+        withAnimation(.easeInOut(duration: RealLifeActions.flip)) { suggestionsRead = asked + people }
     }
 
     /// The X: they go at once, with a light tick, and never come back. A hide that fails brings

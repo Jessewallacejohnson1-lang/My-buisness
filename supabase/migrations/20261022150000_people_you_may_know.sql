@@ -24,6 +24,8 @@ revoke all on private.suggestion_hides from public, anon, authenticated;
 
 -- At most 20, strongest first. The candidates are counted and cut to 20 before each is made into
 -- a row, as `search_neighbors` does, so the work stays small in a big Town.
+-- ponytail: every member of every approved group you're in is a candidate, each checked before the
+-- cut. Fine at a Town's size; cap members per group in `via_groups` once a group passes ~500.
 create function public.get_people_you_may_know()
 returns table (user_id uuid, display_name text, avatar_url text, since timestamptz,
                relation text, mutual_friends int, friends_since timestamptz, shared_group text)
