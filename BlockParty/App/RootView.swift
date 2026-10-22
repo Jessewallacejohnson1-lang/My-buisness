@@ -612,7 +612,8 @@ struct MainTabsView: View {
                             Group {
                                 if DailySpotlight.today != nil || eventOfTheDay.events != nil {
                                     DailyPage(spotlight: DailySpotlight.today, events: eventOfTheDay.events ?? [],
-                                              picked: $dailyDay, dayPicks: dayPicks, friends: dailyFriends)
+                                              picked: $dailyDay, dayPicks: dayPicks, friends: dailyFriends,
+                                              cards: townFeed.cards)
                                 } else {
                                     Hue.paper.ignoresSafeArea()
                                 }
