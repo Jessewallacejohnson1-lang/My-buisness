@@ -53,6 +53,7 @@ struct AgendaPager<Page: View>: View {
     @ViewBuilder let page: (Date) -> Page
     @State private var heights: [Date: CGFloat] = [:]
     @State private var travel: AgendaTravel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(pages: [Date], day: Date, pick: @escaping (Date) -> Void, @ViewBuilder page: @escaping (Date) -> Page) {
         self.pages = pages
@@ -73,7 +74,13 @@ struct AgendaPager<Page: View>: View {
                             .padding(.horizontal, YouMetric.side)
                             .padding(.top, AgendaMetric.shadowAbove)
                             .padding(.bottom, AgendaMetric.shadowBelow)
-                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { heights[date] = $0 }
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                                // A card opening or closing: the pager grows on the card's own spring,
+                                // so what's below moves with it. The first measure lands at once.
+                                withAnimation(heights[date] == nil || reduceMotion ? nil : Motion.bentoExpand) {
+                                    heights[date] = height
+                                }
+                            }
                             .containerRelativeFrame(.horizontal)
                             // VoiceOver reads the day shown; the Calendar takes it to another.
                             .accessibilityHidden(date != day)
@@ -89,15 +96,17 @@ struct AgendaPager<Page: View>: View {
             // Only where it comes to rest: the ring and the tick follow the settled day, never a
             // page passing under the finger.
             .onScrollPhaseChange { _, phase in
-                guard phase == .idle, !pages.isEmpty else { return }
+                guard phase == .idle else { return }
                 let settled = pages[min(max(Int(travel.page.rounded()), 0), pages.count - 1)]
                 if settled != day { pick(settled) }
             }
-            // A tapped day, and the day shown when a page comes or goes, jump at once.
+            // A tapped day, and the day shown when a page comes or goes before it, jump at once.
             .onAppear { proxy.scrollTo(day, anchor: .leading) }
-            .onChange(of: day) { _, day in proxy.scrollTo(day, anchor: .leading) }
-            .onChange(of: pages) { proxy.scrollTo(day, anchor: .leading) }
+            .onChange(of: pages.firstIndex(of: day)) { proxy.scrollTo(day, anchor: .leading) }
         }
+        // The scroll itself stays as tall as its tallest page; only the frame around it follows the
+        // finger. Resizing the scroll mid-flick threw it a quarter page past its page.
+        .fixedSize(horizontal: false, vertical: true)
         .modifier(AgendaHeight(travel: travel, heights: pages.map { heights[$0] }))
         // The shadow room overlaps the gaps above and below, which keep their sizes.
         .padding(.top, -AgendaMetric.shadowAbove)
@@ -121,11 +130,11 @@ private struct AgendaHeight: ViewModifier {
     let heights: [CGFloat?]
 
     func body(content: Content) -> some View {
-        content.frame(height: height, alignment: .top)
+        content.frame(height: height, alignment: .top).clipped()
     }
 
     private var height: CGFloat? {
-        guard !heights.isEmpty else { return nil }
+        // Never empty: today always has a page.
         let page = min(max(travel.page, 0), CGFloat(heights.count - 1))
         let below = Int(page.rounded(.down)), above = min(below + 1, heights.count - 1)
         guard let low = heights[below], let high = heights[above] else { return nil }
