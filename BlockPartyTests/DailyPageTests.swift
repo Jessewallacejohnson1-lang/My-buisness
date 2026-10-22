@@ -102,6 +102,14 @@ final class DailyPageTests: XCTestCase {
         XCTAssertEqual(DailyEvent.showing(four, now: town(7), limit: 3).count, 3)
     }
 
+    /// The pill says how soon, then "Now" once it has started.
+    @MainActor
+    func testEventOfTheDayPillSaysHowSoon() {
+        let recital = DailyEvent.samples(on: day)[1]
+        XCTAssertEqual(recital.startsLabel(now: town(14)), "In 2 hours")
+        XCTAssertEqual(recital.startsLabel(now: town(16.25)), "Now")
+    }
+
     // MARK: Suggestions
 
     /// Soonest first, ten at most, and never one a section above already shows. The

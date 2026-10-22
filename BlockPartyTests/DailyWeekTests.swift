@@ -129,6 +129,20 @@ final class DailyWeekTests: XCTestCase {
         XCTAssertEqual(reads, 2, "a called-off read doesn't count as read")
     }
 
+    /// Another day's chip counts calendar days from now, as people do; today's still counts hours.
+    @MainActor
+    func testAnotherDaysChipCountsDays() {
+        let days = DailyWeek.days(from: wednesday)
+        func at(_ day: Int, _ hour: Double) -> DailyEvent {
+            DailyEvent.sample(id: "e", title: "Plant Bingo", host: "Milk & Honey Ciders", photo: "farmers-market",
+                              place: "Milk & Honey Ciders", starts: days[day].start.addingTimeInterval(hour * 3600),
+                              ends: days[day].start.addingTimeInterval((hour + 1) * 3600), category: .food, description: "")
+        }
+        XCTAssertEqual(at(0, 19).startsLabel(now: wednesday), "In 4 hours")
+        XCTAssertEqual(at(1, 9).startsLabel(now: wednesday), "Tomorrow", "Thursday 9 AM, 18 hours away")
+        XCTAssertEqual(at(3, 16).startsLabel(now: wednesday), "In 3 days", "Saturday 4 PM")
+    }
+
     /// Another day's poster says its day short, the week above naming the date (Jesse at daily-tab
     /// 18's Check-in 1); today's keeps the Town feed's words.
     @MainActor

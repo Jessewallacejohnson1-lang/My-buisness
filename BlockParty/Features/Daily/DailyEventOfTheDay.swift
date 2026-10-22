@@ -69,6 +69,26 @@ struct DailyEvent: Identifiable {
             .sorted { $0.starts < $1.starts }.prefix(limit))
     }
 
+    /// How soon it starts, as Airbnb's "In 3 months" pill says it: the You tab's next plan
+    /// (you-tab 11).
+    /// Working words; Jesse writes the final ones.
+    func startsLabel(now: Date) -> String {
+        guard starts > now else { return "Now" }
+        // Another Town day counts calendar days, as people do ("In 3 days" on a Wednesday for
+        // Saturday's), not hours (daily-tab 16).
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = Town.timeZone
+        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: now),
+                                           to: calendar.startOfDay(for: starts)).day ?? 0
+        if days == 1 { return "Tomorrow" }
+        if days > 1 { return "In \(days) days" }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.locale = Locale(identifier: "en_US")
+        formatter.unitsStyle = .full
+        let text = formatter.localizedString(for: starts, relativeTo: now)
+        return text.prefix(1).uppercased() + text.dropFirst()
+    }
+
     /// Another day's when, as Daily's poster says it in yellow: the day short, since the week
     /// above already names the date, "Sat · 4 PM", or "Saturday" with no clock (Jesse at
     /// daily-tab 18's Check-in 1). nil for today's, which keeps the Town feed's "Today · 4 PM".
