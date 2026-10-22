@@ -135,8 +135,8 @@ struct FeedEventCard: View {
 
             // RSVP under the photo (rsvp-and-groups 01; Figma "Meetup depth": 12 pt below the
             // photo, 2 pt above the row), or under the dots' row. Called off, a red "Canceled"
-            // pill and no count.
-            if let rsvp = actions.rsvp(item) {
+            // pill and no count. Going, the pill turns into the X that leaves (attend-x).
+            if let rsvp = actions.rsvp(item, town: true) {
                 RSVPArea(item: item, words: rsvp, onInvite: onShare)
                     .padding(.top, swipes ? 0 : 12)
                     .padding(.horizontal, DailyFeedMetric.contentInset)

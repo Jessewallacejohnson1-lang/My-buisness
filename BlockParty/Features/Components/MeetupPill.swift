@@ -36,6 +36,9 @@ struct MeetupPillStyle: ButtonStyle {
     /// The card's Joined (Figma "Meetup depth", Club header): white with a hairline and ink
     /// words, flat. It cross-fades with the charcoal on its caller's timing.
     var light = false
+    /// Town's round X (attend-x): light grey, flat, with an ink glyph. It cross-fades with the
+    /// charcoal on its caller's timing too.
+    var grey = false
     /// Words (and glyph) in from each end: 20 pt, the Club size's 16.
     var sidePadding: CGFloat = 20
 
@@ -52,20 +55,26 @@ struct MeetupPillStyle: ButtonStyle {
         // the spring (the review's frames, 2026-10-17).
         let press = FeedMarkPress.animation(reduceMotion: reduceMotion)
         return configuration.label
-            .foregroundStyle(light ? Hue.ink : .white)
+            .foregroundStyle(light || grey ? Hue.ink : .white)
             .padding(.horizontal, sidePadding)
             .frame(minWidth: minWidth)
             .frame(height: height)
+            // A face on its way out fades where it stood; the clip keeps it inside the pill as the
+            // pill shrinks into the X or grows back (attend-x's frames).
+            .clipShape(Capsule())
             .background {
                 Capsule()
                     .fill(fill.map(AnyShapeStyle.init) ?? AnyShapeStyle(charcoal))
                     .animation(press) { $0.meetupPillDepth(pressed: pressed) }
-                    .opacity(light ? 0 : 1)
+                    .opacity(light || grey ? 0 : 1)
                 if light {
                     Capsule()
                         .fill(Hue.surface)
                         .overlay { Capsule().strokeBorder(Hue.hairline, lineWidth: 1) }
                 }
+                // Always there, so it shrinks and grows with the charcoal instead of popping in at
+                // the circle's size.
+                Capsule().fill(Hue.fill).opacity(grey ? 1 : 0)
             }
             .contentShape(Capsule().inset(by: min(0, (height - Self.minTarget) / 2)))
             .animation(press) {

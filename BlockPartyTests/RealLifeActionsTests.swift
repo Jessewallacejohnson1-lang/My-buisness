@@ -240,6 +240,8 @@ final class RealLifeActionsTests: XCTestCase {
         XCTAssertEqual(actions.going(item).count, 4, "the count includes you")
         XCTAssertEqual(actions.rsvp(item, bar: true), RSVPWords(top: "You're going!", second: nil, canLeave: false, pill: .invite),
                        "the Event page's bar reads the same Going, in fewer words")
+        XCTAssertEqual(actions.rsvp(item, town: true), RSVPWords(top: "You're going!", second: nil, canLeave: false, pill: .leave),
+                       "and the Town card's, with the X that leaves")
         actions.toggleGoing(item)
         XCTAssertEqual(actions.rsvp(item)?.top, "3 going", "Can't go? takes you off in one tap")
     }
@@ -1008,6 +1010,23 @@ final class RSVPWordsTests: XCTestCase {
             XCTAssertEqual(RSVPWords.make(isGoing: isGoing, count: count, friends: friends, cancelled: cancelled, bar: true),
                            want, name)
         }
+    }
+
+    /// On Town, Going turns the pill into the round X that leaves, with no "Can't go?" (attend-x,
+    /// 2026-10-21); the check shows on Attend first, as before Invite. Called off, the pill stays
+    /// Canceled and "Can't go?" still leaves. Not going reads as everywhere else.
+    func testOnTownThePillTurnsIntoTheXThatLeaves() {
+        func town(_ isGoing: Bool, cancelled: Bool = false) -> RSVPWords {
+            RSVPWords.make(isGoing: isGoing, count: 42, friends: ["Avery"], cancelled: cancelled, town: true)
+        }
+        XCTAssertEqual(town(true), RSVPWords(top: "You're going!", second: nil, canLeave: false, pill: .leave))
+        XCTAssertTrue(town(true).goingLine, "You're going! cross-fades in over the count")
+        XCTAssertEqual(town(true).shownPill(checking: true), .rsvp, "the check shows on Attend")
+        XCTAssertEqual(town(true).shownPill(checking: false), .leave, "then the X")
+        XCTAssertEqual(town(false), RSVPWords.make(isGoing: false, count: 42, friends: ["Avery"], cancelled: false))
+        XCTAssertFalse(town(false).goingLine)
+        XCTAssertEqual(town(true, cancelled: true),
+                       RSVPWords(top: "You're going!", second: "Can't go?", canLeave: true, pill: .canceled))
     }
 
     /// After a tap on Attend the pill keeps Attend, its calendar checked, until the check's hold
