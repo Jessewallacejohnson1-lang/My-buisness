@@ -37,10 +37,12 @@ final class EventCardPhotoTapTests: XCTestCase {
         return link
     }
 
-    /// The link's middle is its photo: the host row above is well under a fifth of its
-    /// height.
-    private func photo(of link: XCUIElement) -> XCUICoordinate {
-        link.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+    /// A point on the card's photo, `y` points below the link's top (the host row is 42 pt), and
+    /// `x` a fraction of its width. Points from the top, not a fraction of its height: on GitHub's
+    /// iPhone 17 (874 pt tall) the first card runs under the tab bar, and its middle sat behind it
+    /// (event-card 06, 99d825e: the swipe and the drag up started on the tab bar).
+    private func photo(of link: XCUIElement, x: CGFloat = 0.5, y: CGFloat = 120) -> XCUICoordinate {
+        link.coordinate(withNormalizedOffset: CGVector(dx: x, dy: 0)).withOffset(CGVector(dx: 0, dy: y))
     }
 
     /// The heart in that card's photo, bottom right (event-card 06).
@@ -51,14 +53,13 @@ final class EventCardPhotoTapTests: XCTestCase {
             .first { link.frame.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY)) }
     }
 
-    /// Pushed = Town's card is no longer on screen to be tapped. A push waits out the
-    /// photo's double-tap window first, and GitHub's runner can be far slower than a Mac:
-    /// on 2026-10-17 one look-up of the card took 31 s there, and the page wasn't up 2 s
-    /// after the tap. The wait ends as soon as the page is up, so a long one costs nothing.
+    /// Pushed = the Event page is up. A push waits out the photo's double-tap window first, and
+    /// GitHub's runner can be far slower than a Mac: on 2026-10-17 one look-up of the card took
+    /// 31 s there. The wait ends as soon as the page is up, so a long one costs nothing.
+    /// Not "the card isn't hittable": with the card's middle under the tab bar, XCTest can't
+    /// work out whether it's hittable and fails the test (GitHub, 99d825e).
     private func waitForPush(from link: XCUIElement, timeout: TimeInterval = 15) -> Bool {
-        let gone = NSPredicate(format: "exists == false OR hittable == false")
-        let expectation = XCTNSPredicateExpectation(predicate: gone, object: link)
-        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+        pageOpened(timeout: timeout)
     }
 
     /// The Event page is up: its own Back button shows. A drag up that scrolls Town's card
@@ -96,8 +97,7 @@ final class EventCardPhotoTapTests: XCTestCase {
         let link = firstCardLink()
         XCTAssertEqual(link.value as? String, "Photo 1 of 2", "the first card has no second photo to swipe to")
 
-        link.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.55))
-            .press(forDuration: 0.05, thenDragTo: link.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.55)))
+        photo(of: link, x: 0.85).press(forDuration: 0.05, thenDragTo: photo(of: link, x: 0.1))
         XCTAssertFalse(pageOpened(timeout: 2), "a swipe on the photo pushed the event page")
         // Ends as soon as the dots say so; GitHub's runner takes seconds over each look.
         let second = NSPredicate(format: "value == 'Photo 2 of 2'")
@@ -105,8 +105,7 @@ final class EventCardPhotoTapTests: XCTestCase {
                        .completed, "the swipe didn't bring the second photo up")
 
         let top = link.frame.minY
-        link.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8))
-            .press(forDuration: 0.05, thenDragTo: link.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)))
+        photo(of: link, y: 120).press(forDuration: 0.05, thenDragTo: photo(of: link, y: -80))
         XCTAssertFalse(pageOpened(timeout: 2), "a drag up on the photo pushed the event page")
         XCTAssertLessThan(link.frame.minY, top - 50, "a drag up that started on the photo didn't scroll the feed")
     }
@@ -120,8 +119,7 @@ final class EventCardPhotoTapTests: XCTestCase {
         let link = firstCardLink()
         XCTAssertEqual(link.value as? String ?? "", "", "the first sample card has more than one photo")
 
-        link.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.55))
-            .press(forDuration: 0.05, thenDragTo: link.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.55)))
+        photo(of: link, x: 0.85).press(forDuration: 0.05, thenDragTo: photo(of: link, x: 0.1))
         XCTAssertFalse(waitForPush(from: link, timeout: 2), "a sideways swipe on a one-photo card opened its page")
 
         photo(of: link).tap()
