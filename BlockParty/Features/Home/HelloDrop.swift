@@ -261,7 +261,8 @@ struct HelloDropView: View {
                     run?.cancel()
                 }
                 .onEnded { value in
-                    if value.predictedEndTranslation.height < -30 {
+                    // Let go still raised and heading up: away. Brought back down: it stays.
+                    if value.translation.height < -12, value.predictedEndTranslation.height < -30 {
                         dismiss()
                     } else {
                         withAnimation(Motion.card) { dragY = 0 }
