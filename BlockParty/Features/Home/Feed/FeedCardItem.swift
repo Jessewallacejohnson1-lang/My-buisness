@@ -156,13 +156,16 @@ struct FeedWhenLine: Equatable {
     /// `eventDate` is `yyyy-MM-dd`. `startTime` is the free-text display time that
     /// `DateHelpers.minutesOf` reads. A time it can't read is shown as written rather
     /// than dropped. `fallbackDate` is the old uppercase chip, used only when the item
-    /// has no `eventDate` (fixtures). nil when there is neither a date nor a time.
+    /// has no `eventDate` (fixtures). nil when there is neither a date nor a time. `relative`
+    /// false always writes the date, never "Today" or "Tomorrow", for a card whose pill already
+    /// says how far off it is (You's next plan, ticket 11).
     init?(
         eventDate: String?,
         startTime: String?,
         fallbackDate: String = "",
         now: Date = .now,
-        calendar: Calendar = Self.localCalendar
+        calendar: Calendar = Self.localCalendar,
+        relative: Bool = true
     ) {
         let rawTime = startTime?.trimmingCharacters(in: .whitespacesAndNewlines)
         let timeRaw = (rawTime?.isEmpty ?? true) ? nil : rawTime
@@ -177,11 +180,11 @@ struct FeedWhenLine: Equatable {
                 [.day], from: calendar.startOfDay(for: now), to: date
             ).day ?? 0
             switch offset {
-            case 0 where (parsedMinutes ?? 0) >= 17 * 60:
+            case 0 where relative && (parsedMinutes ?? 0) >= 17 * 60:
                 dayText = "Tonight"
-            case 0:
+            case 0 where relative:
                 dayText = "Today"
-            case 1:
+            case 1 where relative:
                 dayText = "Tomorrow"
             default:
                 let withYear = abs(offset) > 183
