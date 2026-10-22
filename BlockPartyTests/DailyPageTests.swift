@@ -383,6 +383,12 @@ final class DailyPageTests: XCTestCase {
                      dayCard("Nobody", day: "2026-10-22", at: "8 AM")]
         let week = DailyEvent.friendsGoing(from: cards, days: ["2026-10-22", "2026-10-23"], now: dayStart, without: [])
         XCTAssertEqual(week.map(\.item.title), ["Three, Thursday", "Three, Friday", "Two friends"])
+        var off = dayCard("Called off", day: "2026-10-22", at: "6 PM", friends: ["Kim", "Tom", "Joe", "Ana"])
+        off.cancelled = true
+        XCTAssertFalse(DailyEvent.friendsGoing(from: cards + [off], days: ["2026-10-22"], now: dayStart, without: [])
+            .contains { $0.item.title == "Called off" })
+        XCTAssertTrue(DailyEvent.suggestions(from: [off], day: "2026-10-22", interests: [], now: dayStart,
+                                             without: [], left: { _ in true }).isEmpty)
         let friday = DailyEvent.friendsGoing(from: cards, days: ["2026-10-23"], now: dayStart, without: [])
         XCTAssertEqual(friday.map(\.item.title), ["Three, Friday"])
     }
