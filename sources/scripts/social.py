@@ -14,8 +14,10 @@ and `morning.py write` write Events and News. The routine's steps are sources/mo
                   heads-up past $15 and at the cap (Jesse, 2026-10-22: no slowdown, just say)
 
 Everything lands in .runs/morning/, the morning job's folder (each routine runs in its own copy
-of the repository). Apify is reached with APIFY_TOKEN from the environment; without it (a Mac)
-the same calls go through Composio. Each actor run is started once and has its own spending
+of the repository). In the cloud, Apify's REST API is called with no key: the environment's
+network secret for api.apify.com adds it on the way out, so the token never enters the session.
+APIFY_TOKEN in the environment is used when set; on a Mac with neither, the calls go through
+Composio. Each actor run is started once and has its own spending
 cap: a retried start is a second paid run (2026-10-05).
 
   python3 sources/scripts/social.py prepare busy|weekly [--since ISO] [--today YYYY-MM-DD]
@@ -23,7 +25,7 @@ cap: a retried start is a second paid run (2026-10-05).
   python3 sources/scripts/social.py --selftest
 """
 
-import argparse, json, os, shutil, subprocess, sys, time, urllib.request
+import argparse, json, os, shutil, subprocess, sys, time, urllib.error, urllib.request
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -78,11 +80,16 @@ def actor_input(kind, urls, since):
     return {"startUrls": [{"url": events_tab(u)} for u in urls], "maxEvents": 10}
 
 
-# ---- Apify: the REST API with APIFY_TOKEN, else Composio on a Mac ----
+# ---- Apify: the REST API (the network secret, or APIFY_TOKEN), else Composio on a Mac ----
+
+def direct():
+    return bool(os.environ.get("APIFY_TOKEN")) or not shutil.which("composio")
+
 
 def _http(method, path, body=None):
     req = urllib.request.Request(API + path, method=method, data=json.dumps(body).encode() if body is not None else None,
-                                 headers={"Authorization": f"Bearer {os.environ['APIFY_TOKEN']}", "Content-Type": "application/json"})
+                                 headers={"Content-Type": "application/json", **({"Authorization": f"Bearer {os.environ['APIFY_TOKEN']}"}
+                                                                           if os.environ.get("APIFY_TOKEN") else {})})
     with urllib.request.urlopen(req, timeout=60) as r:
         return json.loads(r.read())
 
@@ -100,20 +107,20 @@ def _composio(slug, args):
 
 
 def start(actor, body, cap):
-    if os.environ.get("APIFY_TOKEN"):
+    if direct():
         return _http("POST", f"/acts/{actor}/runs?maxTotalChargeUsd={cap}&timeout=600", body)["data"]
     return _composio("APIFY_RUN_ACTOR", {"actorId": actor, "body": body, "waitForFinish": 0,
                                         "maxTotalChargeUsd": cap, "timeout": 600})
 
 
 def status(run_id):
-    if os.environ.get("APIFY_TOKEN"):
+    if direct():
         return _http("GET", f"/actor-runs/{run_id}")["data"]
     return _composio("APIFY_ACTOR_RUN_GET", {"runId": run_id})
 
 
 def items(dataset):
-    if os.environ.get("APIFY_TOKEN"):
+    if direct():
         out, offset = [], 0
         while True:
             page = _http("GET", f"/datasets/{dataset}/items?clean=true&offset={offset}&limit=1000")
@@ -132,7 +139,7 @@ def items(dataset):
 
 
 def limits():
-    if os.environ.get("APIFY_TOKEN"):
+    if direct():
         return _http("GET", "/users/me/limits")["data"]
     return _composio("APIFY_USERS_ME_LIMITS_GET", {})
 
@@ -269,8 +276,8 @@ def spend_line(used, cap):
 def spend():
     try:
         d = limits()
-    except FileNotFoundError:  # no APIFY_TOKEN and no Composio: a cloud copy set up without the token
-        return print("Apify: spend unknown, APIFY_TOKEN isn't set in this environment")
+    except urllib.error.HTTPError as e:  # 401: the environment's Apify network secret is missing or wrong
+        return print(f"Apify: spend unknown, Apify refused the request (HTTP {e.code}): check the routine's network secret")
     end = d.get("monthlyUsageCycle", {}).get("endAt", "")[:10]
     print(spend_line(float(d["current"]["monthlyUsageUsd"]), float(d["limits"]["maxMonthlyUsageUsd"]))
           + (f" (resets after {end})" if end else ""))

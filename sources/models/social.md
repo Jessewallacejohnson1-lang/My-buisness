@@ -11,10 +11,12 @@ carry on with the rest.
 ## Steps
 
 1. **Ready the tools.** Run `python3 -c "import yaml" || python3 -m pip install --quiet pyyaml`.
-   Check that `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and `APIFY_TOKEN` are set with
-   `test -n "$SUPABASE_URL" && test -n "$SUPABASE_SERVICE_ROLE_KEY" && test -n "$APIFY_TOKEN" && echo keys set`;
-   their values stay out of every command's output and your answer. Without them, stop and say
-   which is missing.
+   Check that `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set with
+   `test -n "$SUPABASE_URL" && test -n "$SUPABASE_SERVICE_ROLE_KEY" && echo keys set`; their
+   values stay out of every command's output and your answer. Without them, stop and say so.
+   Apify's key is the environment's network secret for `api.apify.com`, which the session never
+   sees: check it with `python3 sources/scripts/social.py spend`. A line saying Apify refused
+   the request means the secret is missing or wrong: stop and say so.
 2. **Prepare.** Start `(python3 sources/scripts/social.py prepare <busy|weekly>; echo "prepare exit $?") >
    /tmp/prepare.log 2>&1` with `run_in_background: true`. It starts the Apify checks, waits for
    them and lays out each new post as a page in `.runs/morning/batches/`. Wait for it in the
