@@ -426,8 +426,6 @@ struct FollowRow: Decodable, Identifiable, Hashable {
     let kind: String?
     let picture: String?
     let pictureKind: String?
-    /// An Event's host who is your friend, and already followed: no Follow. Nil in the list.
-    var friend: Bool? = nil
 
     var id: String { targetId }
     var target: FollowTarget { FollowTarget(type: targetType, id: targetId) }

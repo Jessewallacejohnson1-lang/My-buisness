@@ -10,7 +10,7 @@
 //  the You tab's Groups row holds them.
 //
 //  The host line: Eventbrite's "Organized by", under where an Event is: the Place or person who
-//  hosts it, "Host · 128 followers", and Follow (none for a friend, who already follows).
+//  hosts it, "Host · 128 followers", and Follow.
 //
 
 import SwiftUI
@@ -197,9 +197,8 @@ struct EventHostRow: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityElement(children: .combine)
-                    if host.friend != true {
-                        FollowButton(target: host.target, name: host.name, size: .row)
-                    }
+                    // A friend you follow reads Following; one you unfollowed can follow again here.
+                    FollowButton(target: host.target, name: host.name, size: .row)
                 }
                 .animation(Motion.smooth, value: actions.follow(host.target).count)
                 .padding(.top, top)
