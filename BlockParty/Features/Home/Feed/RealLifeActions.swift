@@ -286,7 +286,11 @@ final class RealLifeActions {
     /// `-town-samples`: Krewe's numbers off the Check-in 1 mock (128 followers, Sam and two more
     /// friends), and a person's, with no count.
     private static func sampleFollowCard(_ target: FollowTarget) -> FollowCard {
-        guard target.type == .place else { return FollowCard(following: false, followers: nil, friends: [], friendsCount: 0) }
+        guard target.type == .place else {
+            // Friends follow each other.
+            let friend = Neighbor.samples.contains { $0.id == target.id && $0.relation == .friends }
+            return FollowCard(following: friend, followers: nil, friends: [], friendsCount: 0)
+        }
         let friends = Neighbor.samples.filter { $0.relation == .friends }.prefix(3)
             .map { FollowCard.Friend(name: $0.displayName, avatarUrl: $0.avatarUrl) }
         return FollowCard(following: false, followers: 128, friends: Array(friends), friendsCount: friends.count)
@@ -366,8 +370,9 @@ final class RealLifeActions {
 
     /// Whether the neighbour follows the Place or person, and how many do: the last read's, with
     /// their own choice over it, the count moving with it, as Going.
-    func follow(_ target: FollowTarget) -> Follow {
-        let tally = tally(Self.key(target), else: Tally(on: false, count: 0))
+    /// `unread`: what to show before any read, true for a friend, whom you follow as friends.
+    func follow(_ target: FollowTarget, unread: Bool = false) -> Follow {
+        let tally = tally(Self.key(target), else: Tally(on: unread, count: 0))
         return Follow(isFollowing: tally.on, count: tally.count)
     }
 
@@ -407,8 +412,8 @@ final class RealLifeActions {
 
     /// Follow or unfollow, shown at once with a light tick, turned back the same way as Join. One
     /// tap undoes it, with no question.
-    func toggleFollow(_ target: FollowTarget) {
-        toggle(Self.key(target), from: follow(target).isFollowing)
+    func toggleFollow(_ target: FollowTarget, unread: Bool = false) {
+        toggle(Self.key(target), from: follow(target, unread: unread).isFollowing)
     }
 
     /// The photo's double tap: hearts, never un-hearts (taste.md, 2026-09-27). One

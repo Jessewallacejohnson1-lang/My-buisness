@@ -111,9 +111,9 @@ struct FriendMenu: View {
     /// `friend-unfollow`: "Unfollow Sam", "Stay friends" under it, as Facebook's. Unfollowed, it
     /// offers Follow back. One tap, no question.
     private var followRow: some View {
-        let following = actions.follow(follow).isFollowing
+        let following = actions.follow(follow, unread: true).isFollowing
         return Button {
-            actions.toggleFollow(follow)
+            actions.toggleFollow(follow, unread: true)
             dismiss()
         } label: {
             HStack(spacing: FriendsMetric.menuGap) {
