@@ -102,36 +102,6 @@ final class DailyPageTests: XCTestCase {
         XCTAssertEqual(DailyEvent.showing(four, now: town(7), limit: 3).count, 3)
     }
 
-    /// The pill says how soon, then "Now" once it has started.
-    @MainActor
-    func testEventOfTheDayPillSaysHowSoon() {
-        let recital = DailyEvent.samples(on: day)[1]
-        XCTAssertEqual(recital.startsLabel(now: town(14)), "In 2 hours")
-        XCTAssertEqual(recital.startsLabel(now: town(16.25)), "Now")
-    }
-
-    /// The time line keeps the Town's clock, names the host, and shows minutes only when
-    /// there are some ("4 – 5 PM", but "7:30 – 9:00 PM").
-    @MainActor
-    func testEventOfTheDayTimeLineIsInTownTime() {
-        var recital = DailyEvent.samples(on: day)[1]
-        XCTAssertTrue(recital.timeLine.hasPrefix("4"), recital.timeLine)
-        XCTAssertFalse(recital.timeLine.contains(":"), recital.timeLine)
-        XCTAssertTrue(recital.timeLine.hasSuffix(" · Hosted by Saint John's Abbey"), recital.timeLine)
-
-        recital.starts = town(19.5)
-        recital.ends = town(21)
-        XCTAssertTrue(recital.timeLine.hasPrefix("7:30"), recital.timeLine)
-        XCTAssertTrue(recital.timeLine.contains("9:00"), recital.timeLine)
-
-        // Past midnight it still reads as times, never two dates written out.
-        recital.starts = town(21)
-        recital.ends = town(25)
-        // Foundation puts a narrow no-break space before AM and PM.
-        let line = recital.timeLine.replacingOccurrences(of: "\u{202F}", with: " ")
-        XCTAssertTrue(line.hasPrefix("9 PM – 1 AM"), line)
-    }
-
     // MARK: Suggestions
 
     /// Soonest first, ten at most, and never one a section above already shows. The
@@ -197,8 +167,8 @@ final class DailyPageTests: XCTestCase {
         return try XCTUnwrap(rows.first)
     }
 
-    /// A pick becomes Daily's card: it starts at its own time in the Town, stays until it leaves
-    /// the feed, shows its place on one line, and keeps its Going.
+    /// A pick becomes Daily's poster: it starts at its own time in the Town, stays until it leaves
+    /// the feed, shows its place, and keeps its Going.
     func testAnEventOfTheDayRowIsDailysCard() throws {
         // 7 PM in St. Joseph on Oct 20 is midnight UTC; the feed lets it go two hours on.
         let row = try eventOfTheDayRow(start: "7 PM", leaves: "2026-10-21T02:00:00+00:00")
@@ -206,7 +176,7 @@ final class DailyPageTests: XCTestCase {
         XCTAssertEqual(event.starts, Date(timeIntervalSince1970: 1_792_540_800))
         XCTAssertEqual(event.ends, Date(timeIntervalSince1970: 1_792_548_000))
         XCTAssertTrue(event.timed)
-        XCTAssertEqual(event.address, "Sartell High School")
+        XCTAssertEqual(event.item.whereLine, "Sartell High School")
         XCTAssertTrue(event.item.isJoined)
     }
 

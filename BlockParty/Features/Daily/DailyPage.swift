@@ -2,9 +2,10 @@
 //  DailyPage.swift
 //  Block Party — the Daily tab: the neighbour's own page for today.
 //
-//  Top to bottom (`docs/plans/daily-tab/SPEC.md` in the BP app folder): the week, then the
-//  Spotlight under its label, Event of the day, Suggestions and Following, on plain paper (no
-//  yellow: Jesse, 2026-10-21). Tap a day in the week and the page turns to it (daily-tab 16).
+//  Top to bottom (`docs/plans/daily-tab/SPEC.md` in the BP app folder): the week, Event of the
+//  day as the Town tab's poster, then the Spotlight under its label, Suggestions and Following,
+//  on plain paper (no yellow: Jesse, 2026-10-21). Tap a day in the week and the page turns to it
+//  (daily-tab 16).
 //  A section with nothing in it is left out; the Spotlight is today's alone. What you're Going
 //  to lives on the You tab (BP app docs/plans/you-tab).
 //
@@ -129,36 +130,13 @@ nonisolated enum DailyMetric {
     static let tiltShadowX: CGFloat = 16
     static let tiltShadowY: CGFloat = 12
 
-    /// Event of the day, MEASURED from Jesse's Reference: Airbnb's "Apartment in New
-    /// York" trip card (`airbnb-trip-5.jpg` in the Daily spec's reference assets, an
-    /// @3x 393pt screen). Two departures, picked to match the Spotlight above it: the
-    /// card's sides sit at `side` (18) where Airbnb's sit at 24, and its corner is
-    /// `Radius.bento` (22) where Airbnb's is 24.
-    static let eventPhotoInset: CGFloat = 8
-    static let eventPhotoAspect: CGFloat = 3.0 / 2.0
-    // Its chip is `PhotoChip`, which the Town card shares since 2026-10-19.
-    /// The text and the divider sit this far in from the card's edges.
-    static let eventTextInset: CGFloat = 21
-    /// Gaps between the text's frames, set so the glyphs sit the Reference's distances
-    /// apart (measured in the frames, 2026-10-02): photo to the title's capitals 24,
-    /// the title's baseline to the time's capitals 16, and the time's baseline to the
-    /// divider 20. Jost's tall line box is most of the difference.
-    static let eventTitleTop: CGFloat = 15
-    static let eventTimeTop: CGFloat = 2
-    static let eventDividerTop: CGFloat = 16
-    /// Attend's row, where Airbnb's grey button sits, MEASURED the same way: the button's
-    /// middle 38.5 under the divider and its bottom 16 over the card's edge. Our pill is 38
-    /// tall (the Town card's) where Airbnb's button is 43, so the same middle and the same
-    /// gap under it put the row 19.5 under the divider and 18.5 over the edge.
-    static let eventRowTop: CGFloat = 19.5
-    static let eventRowBottom: CGFloat = 18.5
-    /// From the Spotlight card to the section's label, and from the label to the card:
-    /// Airbnb's gap between one trip's card and the next city's heading, and from that
-    /// heading to its card.
+    /// Between the sections, and from a section's label to what it labels: MEASURED from
+    /// Airbnb's trips page (the gap between one trip's card and the next city's heading,
+    /// and from that heading to its card), Daily's first Reference.
     static let eventSectionTop: CGFloat = 38
     static let eventLabelToCard: CGFloat = 15
-    /// Between the cards on a busy day; the next card's edge shows by this much less
-    /// than the page margin. Picked: Airbnb's trip card never sits in a row.
+    /// Between Event of the day's posters on a busy day; the next one's edge shows by this
+    /// much less than the page margin. Picked.
     static let eventGap: CGFloat = 10
 
     /// Suggestions, MEASURED from Jesse's Reference: Airbnb's "Happening today" row
@@ -361,6 +339,8 @@ struct DailyPage: View {
                 .frame(height: DailyMetric.emptyHeight)
         } else {
             VStack(spacing: DailyMetric.eventSectionTop) {
+                // Event of the day first, Spotlight under it (Jesse, daily-tab 18).
+                if !events.isEmpty { EventOfTheDaySection(events: events, now: now) }
                 if let spotlight {
                     VStack(spacing: DailyMetric.wordToCard) {
                         // The logo's face, standing in for the small caps label (Jesse, 2026-10-19).
@@ -373,7 +353,6 @@ struct DailyPage: View {
                             .padding(.horizontal, DailyMetric.side)
                     }
                 }
-                if !events.isEmpty { EventOfTheDaySection(events: events, now: now) }
                 if !suggestions.isEmpty { SuggestionsSection(events: suggestions, now: now) }
                 if !following.isEmpty { FollowingSection(items: following, now: now) }
             }
