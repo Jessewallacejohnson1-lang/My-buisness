@@ -194,6 +194,12 @@ struct ProfileView: View {
                 // `blocked-row` (BP app docs/plans/friends, ticket 04): only a real account can
                 // have blocked anyone.
                 if !friendsBook.isAnonymous() {
+                    // `following-row` (follows 02), beside Blocked.
+                    NavigationLink { FollowingPage() } label: {
+                        ProfileRow(icon: "person.2", title: "Following")
+                    }
+                    .buttonStyle(PressableStyle())
+                    ProfileRowDivider()
                     NavigationLink { BlockedPage() } label: {
                         ProfileRow(icon: "hand.raised", title: "Blocked")
                     }

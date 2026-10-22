@@ -147,16 +147,20 @@ end;
 $$;
 
 -- Who hosts an Event, for its page's host line: the neighbour who posted it when they may be
--- found, else the Place it's at. Nothing for a Group's own Events (they have Join) or for an
--- Event at no known Place.
+-- found, else the Place it's at. `friend`: the host is the caller's friend, who already follows
+-- them and gets no Follow. Nothing for a Group's own Events (they have Join) or for an Event at
+-- no known Place.
 create function public.event_host(p_event uuid)
-returns table (target_type text, target_id uuid, name text, kind text, picture text, picture_kind text)
+returns table (target_type text, target_id uuid, name text, kind text, picture text, picture_kind text,
+               friend boolean)
 language sql
 stable
 security definer
 set search_path = ''
 as $$
-  select h.target_type, h.target_id, h.name, h.kind, h.picture, h.picture_kind
+  select h.target_type, h.target_id, h.name, h.kind, h.picture, h.picture_kind,
+         h.target_type = 'profile' and auth.uid() is not null
+           and private.relation(auth.uid(), h.target_id) = 'friends'
   from public.club_events e
   cross join lateral (
     select 'profile'::text, p.user_id, p.display_name, null::text, p.avatar_url, 'photo'::text, 0

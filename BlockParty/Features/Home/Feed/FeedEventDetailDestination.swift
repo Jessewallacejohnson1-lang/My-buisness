@@ -359,6 +359,9 @@ struct FeedEventDetailDestination: View {
                     .padding(.top, Metric.pillTop)
             }
 
+            // Who hosts it, with Follow (follows 02): Eventbrite's "Organized by".
+            EventHostRow(item: item, top: Metric.pillTop)
+
             if let about = Self.aboutText(item.description) {
                 AboutSection(text: about)
                     .padding(.top, Metric.aboutTop)

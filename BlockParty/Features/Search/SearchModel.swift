@@ -52,6 +52,8 @@ struct SearchItem: Identifiable, Hashable {
     var links: [PlaceLink] = []
     /// A group opens onto its Group page (BP app rsvp-and-groups 05).
     var townGroup: TownGroup? = nil
+    /// A place's `places.id`, which its page follows (BP app follows 02).
+    var placeID: String? = nil
 
     /// A business or food place with a logo opens onto its own page of photos; the
     /// logo flies there (Jesse, 2026-10-04: restaurants and coffee open like logos).
@@ -338,7 +340,7 @@ final class SearchModel {
                               photo: kind == .business ? nil : saved.first.map { .saved($0) },
                               keywords: [type.replacingOccurrences(of: "_", with: " ")],
                               rank: logo?.rank ?? .max, photos: saved, street: street(poi.address),
-                              about: nonempty(poi.about), links: poi.links ?? [])
+                              about: nonempty(poi.about), links: poi.links ?? [], placeID: poi.id)
         }
     }
 

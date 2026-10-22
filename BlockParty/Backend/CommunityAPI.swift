@@ -522,6 +522,41 @@ struct CommunityAPI {
         return relation
     }
 
+    // MARK: - Follows (BP app docs/plans/follows, ticket 02)
+
+    /// Follow or unfollow a Place or person: `follow_target` and `unfollow_target`, for a real
+    /// account only. Following twice, or unfollowing twice, is fine.
+    func followWrite(_ target: FollowTarget, _ on: Bool) async throws {
+        try await SupabaseHTTP.rest("rpc/\(on ? "follow_target" : "unfollow_target")", method: "POST",
+                                    accessToken: try await token(),
+                                    body: try body(["p_type": target.type.rawValue, "p_id": target.id]))
+    }
+
+    /// What a page shows of it: the count, your friends who follow it, and whether you do.
+    /// Signed out too: then the count alone.
+    func followCard(_ target: FollowTarget) async throws -> FollowCard {
+        let (data, _) = try await SupabaseHTTP.rest("rpc/follow_card", method: "POST", accessToken: await readToken(),
+                                                    body: try body(["p_type": target.type.rawValue, "p_id": target.id]))
+        let rows: [FollowCard] = try decode(data)
+        guard let card = rows.first else { throw SupabaseError(message: "Unexpected answer", status: nil) }
+        return card
+    }
+
+    /// Everyone and everything you follow, A to Z: Profile's Following list.
+    func myFollows() async throws -> [FollowRow] {
+        let (data, _) = try await SupabaseHTTP.rest("rpc/my_follows", method: "POST",
+                                                    accessToken: try await token(), body: try body([:]))
+        return try decode(data)
+    }
+
+    /// Who hosts an Event, for its page's host line: nil for a Group's Event or one at no known Place.
+    func eventHost(_ eventID: String) async throws -> FollowRow? {
+        let (data, _) = try await SupabaseHTTP.rest("rpc/event_host", method: "POST", accessToken: await readToken(),
+                                                    body: try body(["p_event": eventID]))
+        let rows: [FollowRow] = try decode(data)
+        return rows.first
+    }
+
     // MARK: - My Going (the You tab)
 
     /// The neighbour's Going from `from` to `to`, Town days as "yyyy-MM-dd", both ends

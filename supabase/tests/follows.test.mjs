@@ -246,6 +246,10 @@ test("an Event's host: who posted it if they may be found, else its Place, never
   assert.deepEqual(await host(BY_BEN, BEN), ['place:Krewe'], 'your own Event names its Place');
   assert.deepEqual(await host(BY_GROUP), [], "a Group's Event has Join");
   assert.deepEqual(await host(NOWHERE), []);
+  assert.equal((await as(ANA, 'select friend from public.event_host($1)', [BY_BEN]))[0].friend, false);
+  await makeFriends(ANA, BEN);
+  assert.equal((await as(ANA, 'select friend from public.event_host($1)', [BY_BEN]))[0].friend, true,
+               'a friend already follows: no Follow');
   await as(BEN, 'select public.block_neighbor($1)', [ANA]);
   assert.deepEqual(await host(BY_BEN), ['place:Krewe']);
   await db.exec('set role anon');

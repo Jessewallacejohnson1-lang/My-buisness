@@ -126,6 +126,7 @@ struct PinDetailSheet: View {
     var onClose: () -> Void
 
     @ObservedObject private var saved = SavedStore.shared
+    @Environment(RealLifeActions.self) private var actions
     @Environment(\.openURL) private var openURL
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -179,6 +180,10 @@ struct PinDetailSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             header
+            // A place's follow line, as on its page (follows 02). Civic spots have no Place.
+            if let follow {
+                FollowLine(target: follow, name: detail.name)
+            }
             statusCard
             Spacer(minLength: 8)
             actionBar
@@ -290,12 +295,21 @@ struct PinDetailSheet: View {
         HStack(spacing: 6) {
             Image(systemName: detail.glyph)
                 .font(.sansSemibold(11))
-            Text(PinDetailCopy.secondaryLine(address: detail.poi?.address).uppercased())
+            Text(secondaryText.uppercased())
                 .font(.mono(11))
                 .tracking(1.2)
                 .lineLimit(1)
         }
         .foregroundStyle(Hue.inkSecondary)
+    }
+
+    private var follow: FollowTarget? { detail.poi.map { FollowTarget(type: .place, id: $0.id) } }
+
+    /// The street, then its real count once read: "24 COLLEGE AVE N · 128 FOLLOWERS".
+    private var secondaryText: String {
+        let street = PinDetailCopy.secondaryLine(address: detail.poi?.address)
+        guard let follow, let count = FollowWords.count(actions.follow(follow).count) else { return street }
+        return "\(street) · \(count)"
     }
 
     private var headerAccessibilityLabel: String {

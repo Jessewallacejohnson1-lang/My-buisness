@@ -393,12 +393,44 @@ struct Trail: Identifiable, Hashable {
 // New tables (town_follows, event_likes, event_comments) live on the shared
 // Supabase project; see docs/superpowers/specs/2026-07-11-today-tab-remake-design.md §5.
 
-/// What a follow points at: a club, or a community member's town_profile.
-enum FollowTargetType: String, Codable { case club, profile }
+/// What a follow points at: a club, a community member's town_profile, or a Place
+/// (`public.places`, BP app docs/plans/follows ticket 02).
+enum FollowTargetType: String, Codable { case club, profile, place }
 
 struct FollowTarget: Hashable, Codable {
     let type: FollowTargetType
     let id: String
+}
+
+/// What a page shows of a Place or person it can follow (`follow_card`): whether you follow it,
+/// how many do (nil for a person, who never shows a count), and up to three of your friends who
+/// follow it, with how many in all.
+struct FollowCard: Decodable, Equatable {
+    struct Friend: Decodable, Equatable {
+        let name: String
+        let avatarUrl: String?
+    }
+
+    let following: Bool
+    let followers: Int?
+    let friends: [Friend]
+    let friendsCount: Int
+}
+
+/// Something you follow, in Profile's Following list (`my_follows`), or an Event's host
+/// (`event_host`): its name, a Place's Google type, and its picture, a photo or a logo.
+struct FollowRow: Decodable, Identifiable, Hashable {
+    let targetType: FollowTargetType
+    let targetId: String
+    let name: String
+    let kind: String?
+    let picture: String?
+    let pictureKind: String?
+    /// An Event's host who is your friend, and already followed: no Follow. Nil in the list.
+    var friend: Bool? = nil
+
+    var id: String { targetId }
+    var target: FollowTarget { FollowTarget(type: targetType, id: targetId) }
 }
 
 /// A flat comment ("note") on a posting (club_events row). No threading — see

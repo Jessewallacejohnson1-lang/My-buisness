@@ -1,6 +1,6 @@
 //
 //  SocialAPI.swift
-//  Block Party — the social layer (follow / like / save / comment writes), hand-rolled
+//  Block Party — the social layer (like / save / comment writes), hand-rolled
 //  over PostgREST like CommunityAPI and ProfileAPI. Net-new tables introduced by
 //  the Today tab remake: `town_follows`, `event_likes`, `event_comments` (all on
 //  the shared Supabase project — see
@@ -12,8 +12,6 @@ import Foundation
 
 struct SocialAPI {
     let auth: AuthStore
-
-    private struct IdRow: Decodable { let id: String }
 
     // MARK: - Plumbing
 
@@ -49,39 +47,6 @@ struct SocialAPI {
 
     private func jsonBody(_ dict: [String: Any]) throws -> Data {
         try JSONSerialization.data(withJSONObject: dict)
-    }
-
-    // MARK: - Follows
-
-    func follow(_ target: FollowTarget) async throws {
-        let t = try await token()
-        let uid = try await uidOrThrow()
-        // ignore-duplicates, not merge: a follow is presence, with no payload to
-        // merge. merge-duplicates makes PostgREST emit ON CONFLICT DO UPDATE, and
-        // town_follows has no UPDATE policy (by design — the row is immutable), so
-        // re-following would fail RLS 42501. DO NOTHING needs no UPDATE policy.
-        _ = try await SupabaseHTTP.rest("town_follows", method: "POST",
-                                        query: "on_conflict=follower_id,target_type,target_id", accessToken: t,
-                                        body: try jsonBody(["follower_id": uid, "target_type": target.type.rawValue, "target_id": target.id]),
-                                        prefer: "resolution=ignore-duplicates,return=minimal")
-    }
-
-    func unfollow(_ target: FollowTarget) async throws {
-        let t = try await token()
-        let uid = try await uidOrThrow()
-        _ = try await SupabaseHTTP.rest("town_follows", method: "DELETE",
-                                        query: "follower_id=eq.\(uid)&target_type=eq.\(target.type.rawValue)&target_id=eq.\(target.id)",
-                                        accessToken: t)
-    }
-
-    func isFollowing(_ target: FollowTarget) async throws -> Bool {
-        let t = try await token()
-        let uid = try await uidOrThrow()
-        let (data, _) = try await SupabaseHTTP.rest("town_follows",
-            query: "select=id&follower_id=eq.\(uid)&target_type=eq.\(target.type.rawValue)&target_id=eq.\(target.id)&limit=1",
-            accessToken: t)
-        let rows: [IdRow] = try decode(data)
-        return !rows.isEmpty
     }
 
     // MARK: - Likes

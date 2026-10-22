@@ -297,6 +297,16 @@ private struct BusinessPageContent: View {
 
     private var photos: [PlacePicture] { item.photos.filter { !failed.contains($0.url) } }
 
+    @Environment(RealLifeActions.self) private var actions
+
+    /// What its Follow follows: the place itself.
+    private var follow: FollowTarget? { item.placeID.map { FollowTarget(type: .place, id: $0) } }
+
+    private var kindLine: String? {
+        let parts = [item.sub, follow.flatMap { FollowWords.count(actions.follow($0).count) }].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 0) {
@@ -377,11 +387,19 @@ private struct BusinessPageContent: View {
                 .accessibilityAddTraits(.isHeader)
                 .padding(.top, Metric.titleTop)
 
-            if let sub = item.sub {
-                Text(sub)
+            // What it is, and its real count once read: "Cajun · 128 followers" (follows 02).
+            if let kind = kindLine {
+                Text(kind)
                     .font(.sans(17))
                     .foregroundStyle(Hue.inkSecondary)
+                    .contentTransition(.numericText())
+                    .animation(Motion.smooth, value: kind)
                     .padding(.top, Metric.categoryTop)
+            }
+
+            if let follow {
+                FollowLine(target: follow, name: item.name)
+                    .padding(.top, Metric.pillTop)
             }
 
             if let street = item.street {

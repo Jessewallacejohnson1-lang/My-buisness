@@ -443,6 +443,7 @@ struct RelationButtons: View {
 struct NeighborPage: View {
     let neighbor: Neighbor
     @Environment(FriendsBook.self) private var book
+    @Environment(RealLifeActions.self) private var actions
     @Environment(\.dismiss) private var dismiss
     @State private var signingIn = false
 
@@ -454,8 +455,17 @@ struct NeighborPage: View {
                     ProfileHead(url: neighbor.avatarUrl, name: neighbor.displayName,
                                 line: [neighbor.sinceLine, neighbor.mutualLine].compactMap { $0 }
                                     .joined(separator: "  ·  "))
-                    RelationButtons(person: neighbor, onPage: true) { signingIn = true }
-                        .padding(.top, FriendsMetric.pageButtonTop)
+                    HStack(spacing: FriendsMetric.buttonGap) {
+                        RelationButtons(person: neighbor, onPage: true) { signingIn = true }
+                        // Facebook's way: Add friend stays the main button, and a smaller grey
+                        // Follow sits beside it. Friends already follow each other (follows 02).
+                        if [.stranger, .sent].contains(book.relation(neighbor)) {
+                            FollowButton(target: follow, name: neighbor.displayName, size: .beside)
+                                .transition(.opacity)
+                        }
+                    }
+                    .animation(.easeInOut(duration: RealLifeActions.flip), value: book.relation(neighbor))
+                    .padding(.top, FriendsMetric.pageButtonTop)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, FriendsMetric.side)
@@ -473,8 +483,11 @@ struct NeighborPage: View {
         }
         .onAppear { book.screenOpened() }
         .onDisappear { book.screenClosed() }
+        .task { await actions.refreshFollow(follow) }
         .signInSheet(isPresented: $signingIn)
     }
+
+    private var follow: FollowTarget { FollowTarget(type: .profile, id: neighbor.id) }
 }
 
 /// A neighbour's round photo, or the person icon your own Profile shows without one.
