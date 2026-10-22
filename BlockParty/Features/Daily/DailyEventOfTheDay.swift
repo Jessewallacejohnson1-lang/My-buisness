@@ -150,7 +150,7 @@ struct DailyEvent: Identifiable {
 }
 
 extension DailyEvent {
-    /// A row of `get_event_of_the_day` (the Town feed's own row) as Daily's card: the Town
+    /// A row of `get_event_of_the_day` (the Town feed's own row) as Daily's poster: the Town
     /// card's item, from its start until it leaves the feed. Untimed or all day, it runs the
     /// whole day, as the You tab reads it.
     init?(row: TownFeedRow) {

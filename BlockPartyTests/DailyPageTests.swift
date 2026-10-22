@@ -177,7 +177,7 @@ final class DailyPageTests: XCTestCase {
 
     /// A pick becomes Daily's poster: it starts at its own time in the Town, stays until it leaves
     /// the feed, shows its place, and keeps its Going.
-    func testAnEventOfTheDayRowIsDailysCard() throws {
+    func testAnEventOfTheDayRowIsDailysPoster() throws {
         // 7 PM in St. Joseph on Oct 20 is midnight UTC; the feed lets it go two hours on.
         let row = try eventOfTheDayRow(start: "7 PM", leaves: "2026-10-21T02:00:00+00:00")
         let event = try XCTUnwrap(DailyEvent(row: row))
