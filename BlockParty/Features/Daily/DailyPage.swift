@@ -291,12 +291,12 @@ struct DailyPage: View {
         // comes back on a day that has it: the topic stays picked across the week (picked).
         let topics = DailyTopic.topics(for: all.items, mine: interests)
         let topic = self.topic.flatMap { topics.contains($0) ? $0 : nil }
-        let shown = topic == nil ? all : lists(topic)
+        let onPage = topic == nil ? all : lists(topic)
         // The Spotlight is a person, not an event: a topic leaves it out (picked).
         let spotlight = isToday && topic == nil ? self.spotlight : nil
         // A day whose pick is still being read shows paper, not the reserved slot.
         let loading = !isToday && dayPicks.picks[day.id] == nil
-        let empty = !loading && spotlight == nil && shown.items.isEmpty && shown.following.isEmpty
+        let empty = !loading && spotlight == nil && onPage.items.isEmpty && onPage.following.isEmpty
         return ZStack {
             Hue.paper.ignoresSafeArea()
             ScrollView(showsIndicators: false) {
@@ -322,7 +322,7 @@ struct DailyPage: View {
                     ZStack(alignment: .top) {
                         // The cards' chips count from now ("In 3 days"), though the day's are
                         // picked from its midnight.
-                        sections(spotlight: spotlight, lists: shown, empty: empty, loading: loading, now: now)
+                        sections(spotlight: spotlight, lists: onPage, empty: empty, loading: loading, now: now)
                             .id("\(day.id) \(topic ?? "")")
                             .transition(reduceMotion ? .identity : .asymmetric(
                                 insertion: .opacity.animation(.easeOut(duration: DailyMetric.dayFade).delay(DailyMetric.dayFadeOut)),
