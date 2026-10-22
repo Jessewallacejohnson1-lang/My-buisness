@@ -557,6 +557,8 @@ private struct Shelf: View {
         }
         .contentMargins(.horizontal, SearchMetric.side, for: .scrollContent)
         .scrollTargetBehavior(.viewAligned)
+        // A logo swings in from above its tile (`LogoPop`): the row mustn't cut its top off.
+        .scrollClipDisabled(kind == .business)
     }
 
     static func gap(_ kind: SearchItem.Kind) -> CGFloat {
@@ -650,6 +652,7 @@ private struct LogoTile: View {
             .trackFrame(frame)
         }
         .buttonStyle(SquishStyle())
+        .logoPop(logo.url, skeleton: SkeletonBlock(cornerRadius: Radius.logoTile).frame(width: side, height: side))
         .accessibilityLabel(item.name)
     }
 }
@@ -693,6 +696,7 @@ private struct WallLogo: View {
                 .overlay {
                     GeometryReader { cell in
                         CastLogo(logo: logo, side: size, shadow: shadow)
+                            .logoPop(logo.url, skeleton: SkeletonBlock(cornerRadius: Radius.logoTile).frame(width: size, height: size))
                             .position(x: cell.size.width / 2, y: cell.size.height * SearchMetric.logoCenterY)
                     }
                 }
@@ -866,6 +870,7 @@ struct ItemRow: View {
                     .animation(nil, value: opener.isAway(item))
             }
             .clipShape(RoundedRectangle(cornerRadius: Radius.searchField, style: .continuous))
+            .logoPop(logo.url, skeleton: SkeletonBlock(cornerRadius: Radius.searchField))
         } else if item.photo?.credited ?? true {
             // No logo, and a saved photo carries its credit, with no room for one at this
             // size: what kind of place it is instead.
