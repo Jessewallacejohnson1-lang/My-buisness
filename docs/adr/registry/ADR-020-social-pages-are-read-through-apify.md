@@ -45,6 +45,13 @@ exception. Posts, their photos and their words still wait for the place's yes.
   official connection.
 - **Profile pictures.** A place's own Facebook or Instagram profile picture may become its
   logo where it has none, treated like the cover photo above.
+- **Keep everything.** From social posts, every item a neighbour could know or do is kept:
+  events as Events, and specials, deals, new products, menu items, pre-orders and contests as
+  News (category `business`), shown to the people who care rather than dropped (Jesse: "we
+  kind of want everything"). Only posts with nothing to know or do, things already over, and
+  posts about a private person's health or troubles are dropped (`sources/models/social.md`).
+  Still facts in Block Party's words with a link to the post: the post itself waits for the
+  place's yes.
 **Date:** 2026-10-05
 **Decided by:** Jesse, 2026-10-05, in a grilling session on how to use Apify. His reason:
 live posts from businesses are Block Party's essential feature, and taking them straight
