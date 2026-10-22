@@ -378,6 +378,16 @@ final class YouCalendarTests: XCTestCase {
     #endif
 
     /// VoiceOver reads a day as its date and how many plans it has.
+    /// Only the 1st of a month the three weeks run into says its month (ticket 10).
+    func testTheFirstOfANewMonthSaysItsMonth() {
+        let days = YouCalendar.days(from: YouCalendar.firstDay(of: town("2026-10-21 12:00")))
+        let said = days.compactMap { day in YouCalendar.month(on: day, first: days.first).map { "\(Town.day(day)) \($0)" } }
+        XCTAssertEqual(said, ["2026-11-01 NOV"])
+        // Three weeks that start on the 1st need no month on it.
+        let november = YouCalendar.days(from: YouCalendar.firstDay(of: town("2026-11-03 12:00")))
+        XCTAssertEqual(november.compactMap { YouCalendar.month(on: $0, first: november.first) }, [])
+    }
+
     func testVoiceOverReadsTheDayAndItsPlans() {
         XCTAssertEqual(YouPage.spoken(town("2026-10-13 00:00"), plans: 2), "Tuesday, October 13, 2 plans")
         XCTAssertEqual(YouPage.spoken(town("2026-10-13 00:00"), plans: 0), "Tuesday, October 13, nothing planned")

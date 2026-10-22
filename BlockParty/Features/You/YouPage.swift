@@ -248,7 +248,8 @@ struct YouPage: View {
                 ForEach(days, id: \.self) { date in
                     let events = byDay[date] ?? []
                     Button { pick(date, from: day) } label: {
-                        YouDay(date: date, events: events, isToday: date == today,
+                        YouDay(date: date, month: YouCalendar.month(on: date, first: days.first),
+                               events: events, isToday: date == today,
                                isPast: date < today, isPicked: date == day, ring: ring)
                     }
                     .buttonStyle(PressableCardStyle())
@@ -301,7 +302,15 @@ private struct YouPlaces: View {
                     let place = YouCalendar.place(of: event) ?? ""
                     Button { open(event.item) } label: {
                         YouHighlight(name: place) {
-                            if let url = event.photo { FeedCardURLPhoto(url: url) }
+                            if let url = event.photo {
+                                FeedCardURLPhoto(url: url)
+                            } else if let letter = place.first {
+                                // No photo: its first letter, as the game card's schools without a
+                                // logo show theirs (ticket 10).
+                                Text(String(letter).uppercased())
+                                    .font(.eventDisplay(26))
+                                    .foregroundStyle(Hue.ink)
+                            }
                         }
                     }
                     .buttonStyle(PressableCardStyle())
@@ -462,6 +471,8 @@ private struct YouPhoto: View {
 /// disc; any other day, its number in grey.
 private struct YouDay: View {
     let date: Date
+    /// "NOV" on the 1st of a new month, over a smaller number (ticket 10); nil on every other day.
+    let month: String?
     let events: [DailyEvent]
     let isToday: Bool
     let isPast: Bool
@@ -480,10 +491,17 @@ private struct YouDay: View {
             } else if isToday {
                 Hue.ink
             }
-            Text(DailyEvent.townTime("d", date))
-                .font(.sansSemibold(20))
-                .foregroundStyle(numberInk(photo: photo != nil))
-                .shadow(color: photo != nil ? .black.opacity(0.35) : .clear, radius: 2, y: 1)
+            // The month is Apple Fitness's "Oct" where a month starts, inside the circle, since the
+            // three weeks are one block (Jesse, ticket 10 Check-in 1); its sizes are picked.
+            VStack(spacing: 0) {
+                if let month {
+                    Text(month).font(.sansBold(11))
+                }
+                Text(DailyEvent.townTime("d", date))
+                    .font(.sansSemibold(month == nil ? 20 : 17))
+            }
+            .foregroundStyle(numberInk(photo: photo != nil))
+            .shadow(color: photo != nil ? .black.opacity(0.35) : .clear, radius: 2, y: 1)
         }
         .frame(width: YouMetric.day, height: YouMetric.day)
         .clipShape(Circle())

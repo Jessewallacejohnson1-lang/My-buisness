@@ -140,9 +140,15 @@ private struct AgendaCard: View {
                 .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
             // Opening only adds below: the time and the title's first line stay put.
             VStack(alignment: .leading, spacing: 0) {
-                Text(when.text)
-                    .font(started ? .sansMedium(13) : .sans(13))
-                    .foregroundStyle(started ? Hue.ink : Hue.inkSecondary)
+                // "Now" behind the Town card's green dot while it's on (Jesse, ticket 10 Check-in 1).
+                HStack(spacing: PhotoChip.dotGap) {
+                    if started {
+                        Circle().fill(Hue.now).frame(width: PhotoChip.dotSide, height: PhotoChip.dotSide)
+                    }
+                    Text(when.text)
+                        .font(started ? .sansMedium(13) : .sans(13))
+                        .foregroundStyle(started ? Hue.ink : Hue.inkSecondary)
+                }
                 title
                 if open {
                     VStack(alignment: .leading, spacing: 0) {

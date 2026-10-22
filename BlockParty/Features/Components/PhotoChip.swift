@@ -20,8 +20,8 @@ struct PhotoChip: View {
     static let height: CGFloat = 30
     private static let padding: CGFloat = 15
     /// The game card plan's measures (BP app docs/plans/game-card): an 8 pt dot, 6 pt before the words.
-    private static let dotSide: CGFloat = 8
-    private static let dotGap: CGFloat = 6
+    static let dotSide: CGFloat = 8
+    static let dotGap: CGFloat = 6
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 

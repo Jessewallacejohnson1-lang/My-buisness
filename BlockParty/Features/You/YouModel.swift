@@ -246,6 +246,13 @@ enum YouCalendar {
         }
     }
 
+    /// The short month over the 1st of a month the three weeks run into ("NOV"), so Nov 1 never
+    /// reads as Oct 32 (ticket 10); nil on any other day, and on the first day shown.
+    static func month(on date: Date, first: Date?) -> String? {
+        guard date != first, calendar.component(.day, from: date) == 1 else { return nil }
+        return DailyEvent.townTime("MMM", date).uppercased()
+    }
+
     static func place(of event: DailyEvent) -> String? {
         let place = event.item.location?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return place.isEmpty ? nil : place
