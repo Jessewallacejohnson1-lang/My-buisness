@@ -5,7 +5,7 @@
 //  first name and folds into the photo after 2 seconds. Under it the Calendar, Lapse's: three rows
 //  of seven days from this week's Sunday, each day they're Going to something showing
 //  that Event's photo. Right under it the Agenda for the day picked there, today until
-//  they tap another. Only they ever see it.
+//  they tap another or swipe the Agenda to it. Only they ever see it.
 //
 
 import SwiftUI
@@ -136,11 +136,10 @@ struct YouPage: View {
                 // A working word; Jesse writes the final one.
                 DailySectionLabel(title: "Agenda", ink: Hue.ink)
                     .padding(.top, YouMetric.calendarToLabel)
-                // Another day's cards come in at once; only the ring travels (`calendar`),
+                // A tapped day's cards come in at once; only the ring travels (`calendar`),
                 // so two days' cards never show over each other mid-fade.
-                agenda(going: going, day: day, now: now)
+                agenda(going: going, days: days, today: today, day: day, now: now)
                     .padding(.top, YouMetric.labelToCards)
-                    .padding(.horizontal, YouMetric.side)
                 // Left out until they join one, as Places is.
                 if !groups.isEmpty {
                     VStack(spacing: 0) {
@@ -278,7 +277,22 @@ struct YouPage: View {
 
     // MARK: The Agenda
 
-    private func agenda(going: [DailyEvent]?, day: Date, now: Date) -> some View {
+    /// The day's cards, swiped day to day once the read is in (ticket 12): every day with plans,
+    /// today, and the day picked. Before that, the skeleton or the retry.
+    @ViewBuilder
+    private func agenda(going: [DailyEvent]?, days: [Date], today: Date, day: Date, now: Date) -> some View {
+        if let going {
+            AgendaPager(pages: YouCalendar.pages(going, days: days, today: today, day: day), day: day,
+                        pick: { pick($0, from: day) }) { page in
+                agendaList(going, day: page, now: now)
+            }
+        } else {
+            agendaList(nil, day: day, now: now)
+                .padding(.horizontal, YouMetric.side)
+        }
+    }
+
+    private func agendaList(_ going: [DailyEvent]?, day: Date, now: Date) -> some View {
         // "Nothing planned" is a working line; Jesse writes the final words.
         AgendaList(events: going.map { YouCalendar.on(day, $0) }, failed: model.failed,
                    empty: "Nothing planned", loading: "Loading your plans", now: now, faces: true,
@@ -287,8 +301,6 @@ struct YouPage: View {
                    next: going.flatMap { YouCalendar.next($0, day: day, now: now) },
                    pick: { pick(YouCalendar.calendar.startOfDay(for: $0.starts), from: day) },
                    retry: { Task { await model.refresh() } }, open: { pushed = $0 })
-            // A new day starts with every card closed.
-            .id(day)
     }
 }
 

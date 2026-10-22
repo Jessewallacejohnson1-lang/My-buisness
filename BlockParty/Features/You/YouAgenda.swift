@@ -34,6 +34,112 @@ enum AgendaMetric {
     static let pillSide: CGFloat = 10
     static let lineAboveNext: CGFloat = 6
     static let lineBelowNext: CGFloat = 3
+    /// Room the pager keeps above and below the cards so it doesn't cut off their shadow
+    /// (`CardShadow`: a 10pt blur, 4pt down).
+    static let shadowAbove: CGFloat = 6
+    static let shadowBelow: CGFloat = 14
+}
+
+/// You's Agenda as pages, one per day in `pages`, that the finger swipes between (ticket 12):
+/// Apple's paging scroll, as the Event page's photos page, so it follows the finger, flicks,
+/// bounces at the ends and can be caught mid-slide. A page that settles picks its day, as a tap
+/// on the Calendar does; a tap there jumps here at once. The pager is as tall as the day it
+/// shows, and between two days its height follows the finger, so nothing below is cut off or
+/// jumps (Jesse, ticket 12 Check-in 1).
+struct AgendaPager<Page: View>: View {
+    let pages: [Date]
+    let day: Date
+    let pick: (Date) -> Void
+    @ViewBuilder let page: (Date) -> Page
+    @State private var heights: [Date: CGFloat] = [:]
+    @State private var travel: AgendaTravel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    init(pages: [Date], day: Date, pick: @escaping (Date) -> Void, @ViewBuilder page: @escaping (Date) -> Page) {
+        self.pages = pages
+        self.day = day
+        self.pick = pick
+        self.page = page
+        _travel = State(initialValue: AgendaTravel(page: CGFloat(pages.firstIndex(of: day) ?? 0)))
+    }
+
+    // No `scrollPosition(id:)`: it holds the scroll on its page whenever the layout changes, and the
+    // height changing under the finger made every swipe spring back to the first page.
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .top, spacing: 0) {
+                    ForEach(pages, id: \.self) { date in
+                        page(date)
+                            .padding(.horizontal, YouMetric.side)
+                            .padding(.top, AgendaMetric.shadowAbove)
+                            .padding(.bottom, AgendaMetric.shadowBelow)
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                                // A card opening or closing: the pager grows on the card's own spring,
+                                // so what's below moves with it. The first measure lands at once.
+                                withAnimation(heights[date] == nil || reduceMotion ? nil : Motion.bentoExpand) {
+                                    heights[date] = height
+                                }
+                            }
+                            .containerRelativeFrame(.horizontal)
+                            // VoiceOver reads the day shown; the Calendar takes it to another.
+                            .accessibilityHidden(date != day)
+                            .id(date)
+                    }
+                }
+                .scrollTargetLayout()
+            }
+            .scrollTargetBehavior(.paging)
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                geometry.contentOffset.x / max(geometry.containerSize.width, 1)
+            } action: { _, page in travel.page = page }
+            // Only where it comes to rest: the ring and the tick follow the settled day, never a
+            // page passing under the finger.
+            .onScrollPhaseChange { _, phase in
+                guard phase == .idle else { return }
+                let settled = pages[min(max(Int(travel.page.rounded()), 0), pages.count - 1)]
+                if settled != day { pick(settled) }
+            }
+            // A tapped day, and the day shown when a page comes or goes before it, jump at once.
+            .onAppear { proxy.scrollTo(day, anchor: .leading) }
+            .onChange(of: pages.firstIndex(of: day)) { proxy.scrollTo(day, anchor: .leading) }
+        }
+        // The scroll itself stays as tall as its tallest page; only the frame around it follows the
+        // finger. Resizing the scroll mid-flick threw it a quarter page past its page.
+        .fixedSize(horizontal: false, vertical: true)
+        .modifier(AgendaHeight(travel: travel, heights: pages.map { heights[$0] }))
+        // The shadow room overlaps the gaps above and below, which keep their sizes.
+        .padding(.top, -AgendaMetric.shadowAbove)
+        .padding(.bottom, -AgendaMetric.shadowBelow)
+    }
+}
+
+/// Where the pager is, in pages, written as the finger moves. Only `AgendaHeight` reads it, so
+/// the swipe re-draws the height alone, not the pages or the You page.
+@Observable
+private final class AgendaTravel {
+    var page: CGFloat
+
+    init(page: CGFloat) { self.page = page }
+}
+
+/// The pager's height: the page shown, or between two, the share of each the finger has brought
+/// in. Its own natural height (the tallest page) until every page has measured.
+private struct AgendaHeight: ViewModifier {
+    let travel: AgendaTravel
+    let heights: [CGFloat?]
+
+    func body(content: Content) -> some View {
+        content.frame(height: height, alignment: .top).clipped()
+    }
+
+    private var height: CGFloat? {
+        // Never empty: today always has a page.
+        let page = min(max(travel.page, 0), CGFloat(heights.count - 1))
+        let below = Int(page.rounded(.down)), above = min(below + 1, heights.count - 1)
+        guard let low = heights[below], let high = heights[above] else { return nil }
+        return low + (high - low) * (page - CGFloat(below))
+    }
 }
 
 /// What an Agenda shows, on the You page and in Profile's Saved (ticket 04): two skeleton

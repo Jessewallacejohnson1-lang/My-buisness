@@ -287,6 +287,24 @@ final class YouCalendarTests: XCTestCase {
         XCTAssertEqual(places(going: ["joined"]), ["joined"])
     }
 
+    // MARK: Swiping the Agenda (ticket 12)
+
+    /// The pages are the days with plans, past ones this week too, plus today and the day picked
+    /// even when empty; every other empty day is skipped.
+    func testTheAgendaPagesSkipEmptyDaysButKeepTodayAndThePickedDay() {
+        let now = town("2026-10-22 09:00")
+        let first = YouCalendar.firstDay(of: now)
+        let days = YouCalendar.days(from: first)
+        let today = town("2026-10-22 00:00")
+        let going = YouCalendar.going(read: [row("mon", "2026-10-19", "6 PM"), row("fri", "2026-10-23", "7 PM"),
+                                             row("fri2", "2026-10-23", "8 PM"), row("tue", "2026-10-27", "7 PM")]
+            .compactMap(YouCalendar.event(from:)), tapped: [], isGoing: { _ in true }, first: first)
+        XCTAssertEqual(YouCalendar.pages(going, days: days, today: today, day: today).map(Town.day),
+                       ["2026-10-19", "2026-10-22", "2026-10-23", "2026-10-27"])
+        XCTAssertEqual(YouCalendar.pages(going, days: days, today: today, day: town("2026-10-29 00:00")).map(Town.day),
+                       ["2026-10-19", "2026-10-22", "2026-10-23", "2026-10-27", "2026-10-29"])
+    }
+
     // MARK: The next plan (ticket 11)
 
     /// An empty today points to the first plan still to come, in the Calendar's order, and its

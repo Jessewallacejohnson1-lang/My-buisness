@@ -227,6 +227,13 @@ enum YouCalendar {
         going.filter { calendar.isDate($0.starts, inSameDayAs: day) }
     }
 
+    /// The Agenda's pages (ticket 12): the days of `days` with plans, today and the picked `day`, in
+    /// order. A swipe skips the empty days between them.
+    static func pages(_ going: [DailyEvent], days: [Date], today: Date, day: Date) -> [Date] {
+        let planned = Set(going.map { calendar.startOfDay(for: $0.starts) })
+        return days.filter { planned.contains($0) || $0 == today || $0 == day }
+    }
+
     /// The plan an empty today points to (ticket 11): the first of `going` (the three weeks, in
     /// the Calendar's order) still to start. nil when the Agenda shows another day, when today
     /// has plans, and when nothing is left ahead.
