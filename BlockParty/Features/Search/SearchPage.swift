@@ -557,6 +557,8 @@ private struct Shelf: View {
         }
         .contentMargins(.horizontal, SearchMetric.side, for: .scrollContent)
         .scrollTargetBehavior(.viewAligned)
+        // A logo swings in from above its tile (`LogoPop`): the row mustn't cut its top off.
+        .scrollClipDisabled(kind == .business)
     }
 
     static func gap(_ kind: SearchItem.Kind) -> CGFloat {

@@ -40,14 +40,35 @@ final class LogoReveal {
         open = true
     }
 
-    /// The delay before `url` pops, or nil when it already popped this app open. Logos that
-    /// ask within 0.3 s of each other are one wave, staggered in the order they asked.
-    func slot(for url: URL, now: Date = .now) -> Double? {
-        guard popped.insert(url).inserted else { return nil }
+    @ObservationIgnored private var waiting: [(url: URL, at: () -> CGPoint, start: (Double?) -> Void)] = []
+
+    /// Pops the logo at `url`, whose top left on screen `at` reads once the moment's asks are in: `start` gets its delay, or nil
+    /// when it already popped this app open. Logos that ask in the same moment are sorted top
+    /// to bottom, left to right, so the wave runs from the top left whatever order they asked in.
+    func pop(_ url: URL, at: @escaping () -> CGPoint, start: @escaping (Double?) -> Void) {
+        waiting.append((url, at, start))
+        guard waiting.count == 1 else { return }
+        Task { @MainActor in
+            let batch = waiting
+            waiting = []
+            for (wait, delay) in zip(batch, delays(for: batch.map { ($0.url, $0.at()) })) { wait.start(delay) }
+        }
+    }
+
+    /// Each logo's delay, in the order given. Logos asking within 0.3 s of the last wave join it.
+    func delays(for logos: [(url: URL, at: CGPoint)], now: Date = .now) -> [Double?] {
         if now.timeIntervalSince(lastSlot) > 0.3 { run = 0 }
         lastSlot = now
-        defer { run += 1 }
-        return Double(min(run, Self.staggerCap)) * Self.stagger
+        let order = logos.indices.sorted { a, b in
+            let (p, q) = (logos[a].at, logos[b].at)
+            return abs(p.y - q.y) > 1 ? p.y < q.y : p.x < q.x
+        }
+        var out = [Double?](repeating: nil, count: logos.count)
+        for i in order where popped.insert(logos[i].url).inserted {
+            out[i] = Double(min(run, Self.staggerCap)) * Self.stagger
+            run += 1
+        }
+        return out
     }
 }
 
@@ -73,21 +94,29 @@ private struct LogoPop<Skeleton: View>: ViewModifier {
     /// Seconds into the pop; `Elastic.done` once it has settled.
     @State private var t = 0.0
     @State private var shown = false
+    @State private var skeletonGone = false
+    @State private var origin = CGPoint.zero
 
     func body(content: Content) -> some View {
         let ready = LogoReveal.shared.open && cache.image(for: url) != nil
         ZStack {
-            if shown {
-                content.modifier(Elastic(t: t, still: reduceMotion))
-            } else {
-                skeleton.shimmering().accessibilityHidden(true)
-            }
+            if shown { content.modifier(Elastic(t: t, still: reduceMotion)) }
+            // Stays until this logo's turn in the wave, so its place is never empty.
+            if !skeletonGone { skeleton.shimmering().accessibilityHidden(true).transition(.opacity) }
         }
+        .onGeometryChange(for: CGPoint.self) { $0.frame(in: .global).origin } action: { origin = $0 }
         .onChange(of: ready, initial: true) { _, ready in
             guard ready, !shown else { return }
             shown = true
-            guard let delay = LogoReveal.shared.slot(for: url) else { t = Elastic.done; return }
-            withAnimation(.linear(duration: Elastic.done).delay(delay)) { t = Elastic.done }
+            LogoReveal.shared.pop(url, at: { origin }) { delay in
+                guard let delay else {
+                    t = Elastic.done
+                    skeletonGone = true
+                    return
+                }
+                withAnimation(.linear(duration: Elastic.done).delay(delay)) { t = Elastic.done }
+                withAnimation(.linear(duration: 0.14).delay(delay)) { skeletonGone = true }
+            }
         }
         // The logo itself isn't drawn until it pops, so it is asked for here; one whose fetch
         // failed asks again when it is next on screen.
