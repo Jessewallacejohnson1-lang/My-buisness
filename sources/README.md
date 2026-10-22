@@ -194,6 +194,12 @@ his ticks (ADR-022). Discovery never re-tiers on its own.
   to get past it is forbidden.
   `mblsportal.sos.mn.gov` (Minnesota Secretary of State filings) has `Disallow: /` for
   every agent (measured 2026-10-04): never fetched; filings count only as search snippets.
+- **A page our fetch can't reach, or that is built by JavaScript, goes through Firecrawl**
+  (`run.py`, Jesse 2026-10-22). Firecrawl names itself as a crawler, so it is not a browser
+  in disguise. It never reads a page robots.txt disallows (when ours can't load, it reads
+  robots.txt first and obeys it), a 404, a feed or a social page, and stops at 30 pages a run
+  (1 credit each; the plan has 1,000 a month). The cloud routine needs `FIRECRAWL_API_KEY`;
+  on the Mac it goes through Composio.
 - **A 403 usually means "slow down", not "go away" (ADR-014).** `stjosephchamber.com` was
   written off as blocking us and is not: it serves our honest bot user-agent HTTP 200 and
   **403s a Chrome user-agent**, which is an anti-scraper rule, not a wall. Its robots.txt
