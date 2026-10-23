@@ -59,7 +59,7 @@ import SwiftUI
 ///
 /// Mapbox draws LIGHT cartography in both appearances (`BasemapPalette` recolors
 /// light-v11 and nothing about that follows the system), so a marker over it is not
-/// over a dark page in dark mode — it is over the same warm paper it always was.
+/// over a dark page in dark mode — it is over the same light ground it always was.
 /// Following `Hue` into dark would turn a civic badge white-on-white and its glyph
 /// black-on-white, which is the inverse of the value ladder documented above.
 ///

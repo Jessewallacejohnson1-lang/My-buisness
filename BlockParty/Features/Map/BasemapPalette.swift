@@ -24,7 +24,7 @@
 //  same at every hour, by design — one calm base layer. (The old "Living Basemap"
 //  that shifted the palette by time-of-day · season · weather was retired here —
 //  see docs/archive/MAP_BUILD_LOG.md. Its summer·noon·clear anchor preserved the ROUND-1 muted
-//  palette; the values below are the round-2 colorful palette and are now the
+//  palette; the values below are the round-3 Uber palette and are now the
 //  regression anchor. If a screenshot ever renders paler than these, the recolor
 //  didn't land — see the race note on `recolor`.)
 //
@@ -89,7 +89,7 @@ enum BasemapPalette {
         //     town zoom no matter its hue. Dropped: the map lives at z11–15, and vector
         //     tiles already generalize away what's too small for a given zoom.
         // Residential keeps its stock step (visible only below z12) but recolors to the
-        // land cream, so the low-zoom town wash warms instead of graying.
+        // land grey, so the low-zoom town wash melts into the ground.
         let classFilter: [Any] = [
             "all",
             [">=", ["to-number", ["get", "sizerank"]], 0],

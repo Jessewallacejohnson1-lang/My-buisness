@@ -240,6 +240,7 @@ nonisolated enum Hue {
     static let mapPark       = Color(hex: 0xACE0B8)
     /// The map's top and bottom edge washes: the land in light mode, so the edges
     /// fade into the ground instead of a lighter band; the dark page in dark mode.
+    /// Its light value must stay `mapLand`'s.
     static let mapEdge       = Color(light: 0xECECF4, dark: 0x141412)
     /// The logo wall's one studio backdrop, and the hue the cast shadows take on it.
     nonisolated static let searchStudioHue: Double = 34
