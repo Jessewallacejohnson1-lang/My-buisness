@@ -232,6 +232,9 @@ struct RootView: View {
 /// The authed shell: the four tabs and the sheets and covers they open.
 struct MainTabsView: View {
     /// The hello pill's one line (hello-drop 01, 03).
+    /// The hello pill's news post, when its app isn't on the phone.
+    @State private var helloLink: SafariLink?
+
     @MainActor
     private func helloMessage(_ lastSeen: Date?) -> HelloDrop.Message? {
         let news = townFeed.shown.compactMap { entry -> TownNews? in
@@ -249,11 +252,11 @@ struct MainTabsView: View {
         case .event(let card): path.append(card)
         case .group(let group): path.append(group)
         case .town: if tab != .town { select(.town) }
-        // ponytail: Safari when the post's app isn't on the phone; the card's in-app browser if it matters.
+        // As the news card: the post's own app when it's on the phone, else the in-app browser.
         case .news(let post):
             Task {
                 if await !UIApplication.shared.open(post.post, options: [.universalLinksOnly: true]) {
-                    await UIApplication.shared.open(post.post)
+                    helloLink = SafariLink(url: post.post)
                 }
             }
         }
@@ -479,6 +482,7 @@ struct MainTabsView: View {
                 attended: Self.attendedCount,
                 finals: Self.teamFinals
             )
+            .sheet(item: $helloLink) { link in SafariView(url: link.url).ignoresSafeArea() }
         }
         // The iPhone Calendar follows the Going (ticket 05).
         .background { CalendarFollower(sync: calendarSync) }

@@ -367,7 +367,8 @@ nonisolated struct TownNews: Hashable, Identifiable, Sendable {
     let post: URL
     var picture: PlacePicture? = nil
     let leavesAt: Date
-    /// When the post went up; the hello pill says news newer than your last open (hello-drop 03).
+    /// When Block Party added it (the morning watch's read, not the post's own date); the hello pill
+    /// says news added since your last open (hello-drop 03).
     var published: Date? = nil
 }
 
