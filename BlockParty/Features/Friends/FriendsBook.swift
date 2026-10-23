@@ -344,6 +344,7 @@ final class FriendsBook {
             do {
                 let answer = try await write(action, person.id)
                 writing.remove(person.id)
+                if answer == .friends { HelloMoments.shared.reach(.firstFriend) }
                 withAnimation(.easeInOut(duration: RealLifeActions.flip)) { chosen[person.id] = answer }
             } catch {
                 await turnBack(person, to: before, after: action, error: error)

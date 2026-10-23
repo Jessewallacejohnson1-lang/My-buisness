@@ -59,15 +59,18 @@ enum MessagesComposer {
 
     private final class Delegate: NSObject, MFMessageComposeViewControllerDelegate {
         static var retained: Delegate?
+        var sent: () -> Void = {}
         func messageComposeViewController(_ controller: MFMessageComposeViewController,
                                           didFinishWith result: MessageComposeResult) {
             controller.dismiss(animated: true)
+            if result == .sent { sent() }
             MessagesComposer.Delegate.retained = nil
         }
     }
 
     @MainActor
-    static func present(from presenter: UIViewController, text: String, image: UIImage?, recipients: [String] = []) {
+    static func present(from presenter: UIViewController, text: String, image: UIImage?, recipients: [String] = [],
+                        sent: @escaping () -> Void = {}) {
         guard canSend else { return }
         let vc = MFMessageComposeViewController()
         vc.body = text
@@ -76,6 +79,7 @@ enum MessagesComposer {
             vc.addAttachmentData(data, typeIdentifier: "public.png", filename: "blockparty.png")
         }
         let delegate = Delegate()
+        delegate.sent = sent
         Delegate.retained = delegate
         vc.messageComposeDelegate = delegate
         presenter.present(vc, animated: true)

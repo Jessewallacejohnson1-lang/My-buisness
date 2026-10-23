@@ -62,12 +62,61 @@ final class HelloDropTests: XCTestCase {
         XCTAssertEqual(hello("2026-10-31 08:00", lastSeen: "2026-10-30 20:00"), "Happy Halloween, Jesse")
         XCTAssertEqual(hello("2026-11-26 08:00", lastSeen: "2026-11-25 20:00"), "Happy Thanksgiving, Jesse")
         XCTAssertEqual(hello("2026-10-21 08:00", lastSeen: "2026-10-17 20:00"), "Welcome back, Jesse")
-        XCTAssertEqual(hello("2026-10-21 08:00", lastSeen: nil), "Welcome, Jesse")
+        XCTAssertEqual(hello("2026-10-21 08:00", lastSeen: nil), "Welcome to Block Party, Jesse")
     }
 
     func testNoNameSaysTheHelloAlone() {
         XCTAssertEqual(HelloDrop.hello(name: nil, now: town("2026-10-21 08:00"),
                                        lastSeen: town("2026-10-20 20:00"), yesterday: nil).text, "Morning")
+    }
+
+    // MARK: Firsts and milestones (hello-drop 02)
+
+    func testEachMomentSaysOneShortLine() {
+        XCTAssertEqual(HelloMoment.firstEvent.text, "Attended your first event!")
+        XCTAssertEqual(HelloMoment.tenthEvent.text, "Attended your 10th event!")
+        XCTAssertEqual(HelloMoment.firstFriend.text, "Added your first friend!")
+        for moment in HelloMoment.allCases {
+            XCTAssertTrue(moment.text.hasSuffix("!"), moment.text)
+        }
+    }
+
+    /// Confetti only on the 10th and 100th; firsts get the tick alone.
+    func testOnlyTheTenthAndHundredthGetConfetti() {
+        XCTAssertEqual(HelloMoment.allCases.filter(\.confetti), [.tenthEvent, .hundredthEvent])
+    }
+
+    /// Attended: Going, not called off, and over.
+    func testAttendedCountsOnlyEventsThatAreOver() {
+        let now = town("2026-10-21 20:00")
+        let over = event("Over", "2026-10-21", "4 PM")
+        let later = event("Later", "2026-10-22", "4 PM")
+        let off = event("Off", "2026-10-20", "4 PM", cancelled: true)
+        XCTAssertEqual(HelloMoment.attendedCount([over, later, off], now: now), 1)
+    }
+
+    func testEachMomentIsSaidOnceEver() {
+        let defaults = UserDefaults(suiteName: "HelloMomentsTests")!
+        defaults.removePersistentDomain(forName: "HelloMomentsTests")
+        let moments = HelloMoments(said: defaults)
+        moments.reach(.firstFriend)
+        XCTAssertEqual(moments.take(), .firstFriend)
+        moments.reach(.firstFriend)
+        XCTAssertNil(moments.take())
+    }
+
+    /// A neighbour already past 10 hears "10th", never "first", and never both.
+    func testOnlyTheHighestAttendedMilestoneShows() {
+        let defaults = UserDefaults(suiteName: "HelloMomentsTests2")!
+        defaults.removePersistentDomain(forName: "HelloMomentsTests2")
+        let moments = HelloMoments(said: defaults)
+        moments.attended(12)
+        XCTAssertEqual(moments.take(), .tenthEvent)
+        moments.attended(13)
+        XCTAssertNil(moments.take())
+        XCTAssertTrue(moments.hasSaid(.firstEvent))
+        moments.attended(100)
+        XCTAssertEqual(moments.take(), .hundredthEvent)
     }
 
     // MARK: The message

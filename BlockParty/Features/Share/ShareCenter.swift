@@ -130,6 +130,10 @@ final class ShareCenter: ObservableObject {
         guard let presenter = overlayPresenter else { return }
         Haptics.light()
         let vc = UIActivityViewController(activityItems: activityItems(), applicationActivities: nil)
+        let event = isEvent
+        vc.completionWithItemsHandler = { _, completed, _, _ in
+            if completed, event { Task { @MainActor in HelloMoments.shared.reach(.firstShare) } }
+        }
         vc.popoverPresentationController?.sourceView = presenter.view
         vc.popoverPresentationController?.sourceRect = CGRect(x: presenter.view.bounds.midX,
                                                               y: presenter.view.bounds.maxY - 60,
@@ -141,9 +145,11 @@ final class ShareCenter: ObservableObject {
     func sendMessages() {
         guard let presenter = overlayPresenter else { return }
         Haptics.light()
+        let event = isEvent
         MessagesComposer.present(from: presenter,
                                  text: payload?.shareText ?? "",
-                                 image: (payload?.includesImage ?? false) ? renderedImage() : nil)
+                                 image: (payload?.includesImage ?? false) ? renderedImage() : nil,
+                                 sent: { if event { HelloMoments.shared.reach(.firstShare) } })
     }
 
     /// "Save image" → write the rendered card to Photos (add-only auth).
@@ -152,6 +158,9 @@ final class ShareCenter: ObservableObject {
         Haptics.light()
         PhotoSaver.save(img)
     }
+
+    /// An Event's share (`SharePayload.event`), the one that counts toward "Shared your first event!".
+    private var isEvent: Bool { payload?.title == "Share this event" }
 
     /// Messages target only makes sense on a device that can send texts.
     var canSendMessages: Bool { MessagesComposer.canSend }

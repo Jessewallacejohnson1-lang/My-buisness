@@ -443,6 +443,12 @@ struct MainTabsView: View {
                     case .group(let group): path.append(group)
                     case .town: if tab != .town { select(.town) }
                     }
+                },
+                attended: {
+                    // Every Going this account has had, to count the ones that are over.
+                    guard let rows = try? await CommunityAPI(auth: AuthStore.shared)
+                        .getMyGoing(from: "2000-01-01", to: Town.day(Date())) else { return nil }
+                    return HelloMoment.attendedCount(rows.compactMap(YouCalendar.event(from:)), now: Date())
                 }
             )
         }

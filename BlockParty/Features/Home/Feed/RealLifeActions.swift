@@ -413,7 +413,15 @@ final class RealLifeActions {
     /// Follow or unfollow, shown at once with a light tick, turned back the same way as Join. One
     /// tap undoes it, with no question.
     func toggleFollow(_ target: FollowTarget, unread: Bool = false) {
-        toggle(Self.key(target), from: follow(target, unread: unread).isFollowing)
+        let wasFollowing = follow(target, unread: unread).isFollowing
+        toggle(Self.key(target), from: wasFollowing)
+        guard !wasFollowing, canAct else { return }
+        let first: HelloMoment = switch target.type {
+        case .place: .firstPlace
+        case .profile: .firstPerson
+        case .club: .firstGroup
+        }
+        HelloMoments.shared.reach(first)
     }
 
     /// The photo's double tap: hearts, never un-hearts (taste.md, 2026-09-27). One

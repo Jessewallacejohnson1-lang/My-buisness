@@ -38,7 +38,7 @@ enum HelloDrop {
         func said(_ words: String, _ key: String? = nil) -> Hello {
             Hello(text: name.map { "\(words), \($0)" } ?? words, key: key ?? words)
         }
-        guard let lastSeen else { return said("Welcome") }
+        guard let lastSeen else { return said("Welcome to Block Party") }
         if now.timeIntervalSince(lastSeen) >= 3 * 86_400 { return said("Welcome back") }
         if let holiday = holiday(now, calendar: calendar) { return said(holiday) }
         let weekday = calendar.component(.weekday, from: now)
@@ -147,7 +147,7 @@ enum HelloDrop {
     /// tests) never does, so other runs' frames stay as they were.
     static var allowed: Bool {
         #if DEBUG
-        forced || !ProcessInfo.processInfo.arguments.dropFirst().contains { $0.hasPrefix("-") }
+        forced || debugMoment != nil || !ProcessInfo.processInfo.arguments.dropFirst().contains { $0.hasPrefix("-") }
         #else
         return true
         #endif
@@ -155,9 +155,31 @@ enum HelloDrop {
 
     static var forced: Bool {
         #if DEBUG
-        return ProcessInfo.processInfo.arguments.contains("-hello-drop")
+        let arguments = ProcessInfo.processInfo.arguments
+        return arguments.contains("-hello-drop") || arguments.contains("-hello-welcome")
         #else
         return false
+        #endif
+    }
+
+    /// DEBUG `-hello-welcome`: the very first open's welcome, whatever this phone has seen.
+    static var forcedWelcome: Bool {
+        #if DEBUG
+        return ProcessInfo.processInfo.arguments.contains("-hello-welcome")
+        #else
+        return false
+        #endif
+    }
+
+    /// DEBUG `-hello-moment <name>` (`firstEvent`, `tenthEvent`, `firstFriend`...): that moment
+    /// drops 8 s after launch, said or not, and the day's hello stays away.
+    static var debugMoment: HelloMoment? {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let flag = arguments.firstIndex(of: "-hello-moment"), flag + 1 < arguments.count else { return nil }
+        return HelloMoment(rawValue: arguments[flag + 1])
+        #else
+        return nil
         #endif
     }
 }
@@ -172,6 +194,8 @@ struct HelloDropView: View {
     let ready: @MainActor () -> Bool
     let message: @MainActor (_ lastSeen: Date?) -> HelloDrop.Message?
     let open: @MainActor (HelloDrop.Target) -> Void
+    /// Events attended (hello-drop 02), read on each open; nil when the read failed.
+    let attended: @MainActor () async -> Int?
 
     private enum Step { case hidden, hello, message }
 
@@ -180,6 +204,11 @@ struct HelloDropView: View {
     @State private var said: HelloDrop.Message?
     @State private var dragY: CGFloat = 0
     @State private var run: Task<Void, Never>?
+    /// A first or milestone on the pill: it hugs its words and the tick (hello-drop 02).
+    @State private var moment: HelloMoment?
+    @State private var tick = 0
+    @State private var confetti = 0
+    private let moments = HelloMoments.shared
     @AppStorage("helloDrop.day") private var shownDay = ""
     @AppStorage("helloDrop.lastHello") private var lastHello = ""
     /// When the app last left the screen; 0 before the very first open.
@@ -206,6 +235,9 @@ struct HelloDropView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
+            HelloConfetti(burst: confetti)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
             if step != .hidden {
                 pill
                     .padding(.top, topGap)
@@ -215,10 +247,24 @@ struct HelloDropView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .top)
-        .task { start() }
+        .task {
+            #if DEBUG
+            if let shown = HelloDrop.debugMoment {
+                try? await Task.sleep(for: .seconds(8))
+                moments.show(shown)
+                return
+            }
+            #endif
+            start()
+            await checkAttended()
+        }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { start() }
+            if phase == .active, HelloDrop.debugMoment == nil { start(); Task { await checkAttended() } }
             if phase == .background { lastSeen = Date().timeIntervalSince1970 }
+        }
+        // A first reached while the app is open (a friend, a follow, a share) drops at once.
+        .onChange(of: moments.waiting) { _, waiting in
+            if waiting != nil { showMoment() }
         }
     }
 
@@ -239,7 +285,19 @@ struct HelloDropView: View {
                     .transition(.asymmetric(insertion: .opacity,
                                             removal: .opacity.animation(.easeOut(duration: 0.12))))
             }
-            if step == .message, let said {
+            if step == .message, let moment {
+                HStack(spacing: 10) {
+                    Text(moment.text)
+                        .font(.sansSemibold(15))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                    HelloTick(stage: tick)
+                }
+                .padding(.leading, 22)
+                .padding(.trailing, 10)
+                .transition(.asymmetric(insertion: .opacity.animation(.easeIn(duration: 0.2).delay(0.12)),
+                                        removal: .opacity))
+            } else if step == .message, let said {
                 Text(said.text)
                     .font(.sansSemibold(15))
                     .lineLimit(1)
@@ -254,9 +312,10 @@ struct HelloDropView: View {
         .frame(height: Self.height)
         .background(Hue.ink, in: Capsule())
         .shadow(color: .black.opacity(0.18), radius: 9, y: 6)
-        .padding(.horizontal, step == .message ? Self.side : 0)
+        .padding(.horizontal, step == .message && moment == nil ? Self.side : 0)
         .contentShape(Capsule())
         .onTapGesture {
+            if moment != nil { dismiss(); return }
             guard step == .message, let said else { return }
             open(said.target)
             dismiss()
@@ -281,26 +340,32 @@ struct HelloDropView: View {
                 }
         )
         .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(step == .message ? .isButton : [])
+        .accessibilityAddTraits(step == .message && moment == nil ? .isButton : [])
     }
 
     /// The day's first open shows it once; a second open that day shows nothing.
     private func start() {
         let today = Town.day(Date())
-        guard HelloDrop.allowed, step == .hidden, run == nil,
+        guard HelloDrop.allowed, HelloDrop.debugMoment == nil, step == .hidden, run == nil,
               HelloDrop.forced || shownDay != today else { return }
         shownDay = today
-        let seen = lastSeen > 0 ? Date(timeIntervalSince1970: lastSeen) : nil
+        let seen = lastSeen > 0 && !HelloDrop.forcedWelcome ? Date(timeIntervalSince1970: lastSeen) : nil
         let greeting = HelloDrop.hello(name: YouPage.firstName(Interests.displayName), now: Date(),
                                        lastSeen: seen, yesterday: lastHello)
         lastHello = greeting.key
         hello = greeting.text
         run = Task {
             Task { await prepare() }
-            // DEBUG `-hello-drop` waits 4 s, so a recording that starts after launch sees it drop.
-            if HelloDrop.forced { try? await Task.sleep(for: .seconds(4)) }
+            // DEBUG `-hello-drop` waits 8 s, so a recording that starts after launch (eyes.py
+            // settles 6 s) sees it drop.
+            if HelloDrop.forced { try? await Task.sleep(for: .seconds(8)) }
             withAnimation(reduceMotion ? Motion.smooth : Motion.sheet) { step = .hello }
             AccessibilityNotification.Announcement(greeting.text).post()
+            // The very first open: "Welcome to Block Party" with confetti (hello-drop 02).
+            if seen == nil, !reduceMotion {
+                confetti += 1
+                Haptics.success()
+            }
             try? await Task.sleep(for: Self.holdHello)
             // The message waits up to 1 s more for its reads, then says what it can.
             var waited = 0
@@ -309,12 +374,48 @@ struct HelloDropView: View {
                 waited += 1
             }
             guard !Task.isCancelled else { return }
+            // A first or milestone waiting takes the message's place.
+            if let next = moments.take() {
+                moment = next
+                tick = 0
+                withAnimation(reduceMotion ? Motion.smooth : Motion.bentoExpand) { step = .message }
+                AccessibilityNotification.Announcement(next.text).post()
+                try? await Task.sleep(for: .seconds(0.3))
+                await celebrate(next)
+                await finish(after: Self.stay)
+                return
+            }
             guard let message = message(seen) else { dismiss(); return }
             said = message
             withAnimation(reduceMotion ? Motion.smooth : Motion.bentoExpand) { step = .message }
             AccessibilityNotification.Announcement(message.text).post()
             await finish(after: Self.stay)
         }
+    }
+
+    /// A first or milestone with the hello already said today: the pill drops straight to it.
+    private func showMoment() {
+        guard HelloDrop.allowed, step == .hidden, run == nil, let next = moments.take() else { return }
+        moment = next
+        tick = 0
+        run = Task {
+            withAnimation(reduceMotion ? Motion.smooth : Motion.sheet) { step = .message }
+            AccessibilityNotification.Announcement(next.text).post()
+            try? await Task.sleep(for: .seconds(0.38))
+            await celebrate(next)
+            await finish(after: Self.stay)
+        }
+    }
+
+    /// The tick, its haptics, then confetti for the 10th and 100th.
+    private func celebrate(_ moment: HelloMoment) async {
+        await HelloTick.play(reduceMotion: reduceMotion, stage: $tick)
+        if moment.confetti, !reduceMotion { confetti += 1 }
+    }
+
+    private func checkAttended() async {
+        guard HelloDrop.allowed, let count = await attended() else { return }
+        moments.attended(count)
     }
 
     private func finish(after wait: Duration) async {
@@ -331,7 +432,11 @@ struct HelloDropView: View {
         } completion: {
             dragY = 0
             said = nil
+            moment = nil
+            tick = 0
             run = nil
+            // One reached while this pill was up comes next.
+            if moments.waiting != nil { showMoment() }
         }
     }
 }
