@@ -334,6 +334,25 @@ nonisolated struct TownFeedRow: Hashable {
     var inGroup = false
 }
 
+/// Town news in the Town feed (BP app town-feed 35): a place's special, deal or new thing, or town
+/// news, in Block Party's words, with the post it came from to open. Its place's logo (else its
+/// photo) is its avatar; with neither, the place's first letter.
+nonisolated struct TownNews: Hashable, Identifiable, Sendable {
+    let id: String
+    let place: String
+    /// Its one line of facts, else its title.
+    let words: String
+    let post: URL
+    var picture: PlacePicture? = nil
+    let leavesAt: Date
+}
+
+/// One line of `get_town_feed`, in its order: an Event, or news under them (town-feed 35).
+nonisolated enum TownFeedLine: Hashable {
+    case event(TownFeedRow)
+    case news(TownNews)
+}
+
 /// A friend Going to an Event, as the Town feed names them: first name, and their photo when
 /// they have one in our bucket. Only friends who show their plans to friends (town-feed 28).
 nonisolated struct FeedFriend: Hashable, Sendable {

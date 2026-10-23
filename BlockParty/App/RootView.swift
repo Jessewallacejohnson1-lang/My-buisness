@@ -554,7 +554,7 @@ struct MainTabsView: View {
                 let id = args[i + 1]
                 Task {
                     for _ in 0..<120 {
-                        if let card = townFeed.entries?.first(where: { $0.card.id == id })?.card {
+                        if let card = townFeed.entries?.lazy.compactMap(\.card).first(where: { $0.id == id }) {
                             path.append(card)
                             return
                         }

@@ -21,11 +21,36 @@
 
 import Foundation
 
-/// One event in the Town feed: its card, and when it leaves.
+/// One line of the Town feed: an event's card or town news (ticket 35), and when it leaves.
 struct TownFeedEntry: Identifiable {
-    let card: FeedCardItem
+    enum Item {
+        case event(FeedCardItem)
+        case news(TownNews)
+    }
+    let item: Item
     let leavesAt: Date
-    var id: String { card.id }
+
+    init(card: FeedCardItem, leavesAt: Date) {
+        self.init(item: .event(card), leavesAt: leavesAt)
+    }
+
+    init(item: Item, leavesAt: Date) {
+        self.item = item
+        self.leavesAt = leavesAt
+    }
+
+    var id: String {
+        switch item {
+        case .event(let card): card.id
+        case .news(let news): news.id
+        }
+    }
+
+    /// The event's card; nil for news.
+    var card: FeedCardItem? {
+        if case .event(let card) = item { return card }
+        return nil
+    }
 }
 
 /// What the feed showed (a view) or what was opened, for `feed_actions` (ticket 20).
@@ -140,10 +165,15 @@ final class TownFeed {
                   send: { batch in if !testRun { try await Self.sendLive(batch) } })
     }
 
-    /// The cards still on, in the database's order. The admin's Score names each card's
+    /// What's still on, events and news, in the database's order.
+    var shown: [TownFeedEntry] {
+        (entries ?? []).filter { $0.leavesAt > (holding ? heldClock : clock) }
+    }
+
+    /// The events still on, in the database's order. The admin's Score names each card's
     /// place as it is on screen, so it holds after a read that kept the order.
     var cards: [FeedCardItem] {
-        let on = (entries ?? []).filter { $0.leavesAt > (holding ? heldClock : clock) }.map(\.card)
+        let on = shown.compactMap(\.card)
         return on.enumerated().map { place, card in
             var card = card
             card.score?.spot = place + 1
@@ -206,7 +236,7 @@ final class TownFeed {
         if entries == nil, !keptChecked {
             keptChecked = true
             if let kept = kept(), kept.contains(where: { $0.leavesAt > now }) {
-                actions?.read(kept.map(\.card))
+                actions?.read(kept.compactMap(\.card))
                 entries = kept
                 clock = now
             }
@@ -224,7 +254,7 @@ final class TownFeed {
                 Log.ui("TownFeed: read in \(ms) ms after the feed opened, \(entries == nil ? "nothing" : "a kept list") on screen meanwhile")
                 self.cameBackAt = nil
             }
-            actions?.read(new.map(\.card))
+            actions?.read(new.compactMap(\.card))
             if entries == nil || freshOrder || (freshDue && atTop) {
                 entries = new
                 viewed = []  // a new feed load: each card may count once more
@@ -233,7 +263,7 @@ final class TownFeed {
                 // Scrolled down, a card the read no longer has (called off, say) keeps its place,
                 // marked to leave at the top with the finished ones.
                 entries = entries?.compactMap {
-                    byID[$0.id] ?? (holding ? TownFeedEntry(card: $0.card, leavesAt: min($0.leavesAt, now)) : nil)
+                    byID[$0.id] ?? (holding ? TownFeedEntry(item: $0.item, leavesAt: min($0.leavesAt, now)) : nil)
                 }
             }
             freshDue = false
@@ -314,14 +344,26 @@ final class TownFeed {
     /// longer decodes.
     private static func keptOnDisk() -> [TownFeedEntry]? {
         guard let data = TownFeedCache.load(),
-              let rows = try? CommunityAPI.townFeedRows(from: data) else { return nil }
-        return rows.map(entry)
+              let lines = try? CommunityAPI.townFeedLines(from: data) else { return nil }
+        return lines.map(entry)
+    }
+
+    /// A line of the feed as its entry: an event's card, or news as it came (ticket 35).
+    static func entry(_ line: TownFeedLine) -> TownFeedEntry {
+        switch line {
+        case .event(let row): entry(row)
+        case .news(let news): TownFeedEntry(item: .news(news), leavesAt: news.leavesAt)
+        }
     }
 
     /// A row as the card a club's event gets. Whether its Going and Heart may be shown
     /// or changed is `RealLifeActions.canAct`'s, so a card read before the quiet account
     /// arrived offers Join and the heart once it has.
     static func entry(_ row: TownFeedRow) -> TownFeedEntry {
+        TownFeedEntry(card: card(row), leavesAt: row.leavesAt)
+    }
+
+    static func card(_ row: TownFeedRow) -> FeedCardItem {
         var card = FeedCardItem(row.event, recurrence: row.recurrence)
         card.why = row.reason.flatMap { FeedCardMenu.line(reason: $0, name: row.reasonName) }
         card.score = row.score
@@ -331,6 +373,6 @@ final class TownFeed {
         card.friendsGoing = row.friendsGoing
         card.groupID = row.groupID
         card.inGroup = row.inGroup
-        return TownFeedEntry(card: card, leavesAt: row.leavesAt)
+        return card
     }
 }

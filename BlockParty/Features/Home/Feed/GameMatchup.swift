@@ -118,7 +118,7 @@ private struct TeamColumn: View {
 
     var body: some View {
         VStack(spacing: GameMatchup.Metric.nameGap) {
-            TeamDisc(team: team, logoSide: GameMatchup.Metric.logo, letter: .eventDisplay(34))
+            LogoDisc(logo: team.logo, initial: team.initial, logoSide: GameMatchup.Metric.logo, letter: .eventDisplay(34))
                 .frame(width: GameMatchup.Metric.disc, height: GameMatchup.Metric.disc)
                 // The mock's two shadows: a tight one where it sits, a soft one under it.
                 .shadow(color: .black.opacity(0.18), radius: 1, y: 1)
@@ -141,23 +141,24 @@ struct GameHostMark: View {
     let side: CGFloat
 
     var body: some View {
-        TeamDisc(team: team, logoSide: side * 0.75, letter: .sansSemibold(14))
+        LogoDisc(logo: team.logo, initial: team.initial, logoSide: side * 0.75, letter: .sansSemibold(14))
             .frame(width: side, height: side)
             .overlay(Circle().strokeBorder(Hue.hairline.onLightCanvas, lineWidth: 0.5))
     }
 }
 
-/// A school's logo fitted on a white disc, or its first letter: while the logo loads, for a
-/// school with none yet, and for one that fails.
-private struct TeamDisc: View {
-    let team: Game.Team
+/// A logo fitted on a white disc, or its first letter: while the logo loads, for a school or
+/// place with none yet, and for one that fails. A game's schools, and town news's places.
+struct LogoDisc: View {
+    let logo: URL?
+    let initial: String
     let logoSide: CGFloat
     let letter: Font
 
     @ObservedObject private var logos = POILogoCache.shared
 
     var body: some View {
-        let image = team.logo.flatMap(logos.image(for:))
+        let image = logo.flatMap(logos.image(for:))
         ZStack {
             Circle().fill(.white)
             if let image {
@@ -168,13 +169,13 @@ private struct TeamDisc: View {
                     .frame(width: logoSide, height: logoSide)
                     .transition(.opacity)
             } else {
-                Text(team.initial)
+                Text(initial)
                     .font(letter)
                     .foregroundStyle(Hue.ink.onLightCanvas)
                     .transition(.opacity)
             }
         }
         .animation(Motion.smooth, value: image != nil)
-        .task(id: team.logo) { if let url = team.logo { logos.prefetch([url]) } }
+        .task(id: logo) { if let logo { logos.prefetch([logo]) } }
     }
 }

@@ -202,7 +202,7 @@ struct FeedView: View {
                         TimelineView(.everyMinute) { context in
                             let now = DailyClock.now(townFeed.holding ? townFeed.heldAt : context.date)
                             let top = DailyEvent.showing(eventOfTheDay.events ?? [], now: now, limit: 1).first
-                            DailyFeedColumn(items: DailyFeedItem.town(townFeed.cards, eventOfTheDay: top),
+                            DailyFeedColumn(items: DailyFeedItem.town(townFeed.shown, eventOfTheDay: top),
                                             entrance: entrance,
                                             onCardOnScreen: { townFeed.cardOnScreen($0, $1) },
                                             now: now)
