@@ -17,9 +17,10 @@ Read these first:
 ## Each flag
 
 1. **Keep or drop.** Drop it when the page doesn't back it up, when it is in the past, when it
-   is more than 90 days out, when it is a product, a standing menu, an ad or a business's how-to
+   is a product, a standing menu, an ad or a business's how-to
    or sales post (a blog's news feed is mostly those), or when it repeats another flag (same
-   thing, same day). An event with no day the page states is dropped,
+   thing, same day). Keep an event however far out it is: the writer hides it until its
+   show-from day, and the page may not change again before then (Jesse, 2026-10-23). An event with no day the page states is dropped,
    unless the page gives its rule ("Fridays through Oct 16"): then write one item for its next
    date.
 2. **Event or News.** An Event is something a neighbour can go to, at a time and a place;
