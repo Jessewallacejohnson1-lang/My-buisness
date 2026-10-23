@@ -15,6 +15,8 @@ enum HelloDrop {
         case group(TownGroup)
         /// Town on that day: the Town tab.
         case town
+        /// A town news post, in Instagram or Facebook (hello-drop 03).
+        case news(TownNews)
     }
 
     struct Message: Hashable {
@@ -23,6 +25,8 @@ enum HelloDrop {
         /// A team's final (hello-drop 03): its logo on the left, and on a win its colour behind and
         /// its colours in the confetti.
         var logo: URL? = nil
+        /// The picture on the left is a photo, round and filled, not a logo on white.
+        var photo = false
         var tint: UInt32? = nil
         var confetti: [UInt32]? = nil
     }
@@ -94,7 +98,7 @@ enum HelloDrop {
     /// (Thu to Sun) and the week's count. nil when the Town has nothing coming this week.
     /// `going` is your Going, `town` the Town feed's cards as the screen shows them.
     static func message(now: Date, lastSeen: Date?, going: [DailyEvent], groups: [TownGroup],
-                        town: [DailyEvent]) -> Message? {
+                        town: [DailyEvent], news: [TownNews] = []) -> Message? {
         let calendar = Town.calendar
         let today = Town.day(now)
         let tomorrow = Town.day(calendar.date(byAdding: .day, value: 1, to: now) ?? now)
@@ -124,6 +128,13 @@ enum HelloDrop {
         }
         if let event = mine.filter({ Town.day($0.starts) == tomorrow }).min(by: { $0.starts < $1.starts }) {
             return Message(text: "\(event.item.title) is tomorrow", target: .event(event.item))
+        }
+        // The town's top news for you, new since your last open, in the feed's own order.
+        if let lastSeen, let post = news.first(where: { ($0.published ?? .distantPast) > lastSeen }) {
+            // The picture says who posted it, so the words stand alone beside it (Jesse, 2026-10-23).
+            let text = post.picture == nil ? "\(post.place): \(post.words)" : post.words
+            return Message(text: text, target: .news(post), logo: post.picture?.url,
+                           photo: post.picture?.kind == .photo)
         }
         if let lastSeen {
             let new = town.filter { ($0.item.createdAt ?? .distantPast) > lastSeen }.count
@@ -351,8 +362,14 @@ struct HelloDropView: View {
                                         removal: .opacity))
             } else if step == .message, let said, let logo = said.logo {
                 HStack(spacing: 10) {
-                    LogoDisc(logo: logo, initial: "", logoSide: 26, letter: .sansSemibold(12))
-                        .frame(width: 34, height: 34)
+                    Group {
+                        if said.photo {
+                            FeedAuthorAvatar(url: logo, name: "", side: 34)
+                        } else {
+                            LogoDisc(logo: logo, initial: "", logoSide: 26, letter: .sansSemibold(12))
+                        }
+                    }
+                    .frame(width: 34, height: 34)
                     Text(said.text)
                         .font(.sansSemibold(15))
                         .lineLimit(1)
@@ -415,7 +432,15 @@ struct HelloDropView: View {
         guard HelloDrop.allowed, HelloDrop.debugMoment == nil, HelloDrop.debugFinal == nil, step == .hidden, run == nil,
               HelloDrop.forced || shownDay != today else { return }
         shownDay = today
-        let seen = lastSeen > 0 && !HelloDrop.forcedWelcome ? Date(timeIntervalSince1970: lastSeen) : nil
+        var seen = lastSeen > 0 && !HelloDrop.forcedWelcome ? Date(timeIntervalSince1970: lastSeen) : nil
+        #if DEBUG
+        // `-hello-seen-days N`: as if the last open was N days ago, so recent news and finals show.
+        let arguments = ProcessInfo.processInfo.arguments
+        if let flag = arguments.firstIndex(of: "-hello-seen-days"), flag + 1 < arguments.count,
+           let days = Double(arguments[flag + 1]) {
+            seen = Date().addingTimeInterval(-days * 86_400)
+        }
+        #endif
         let greeting = HelloDrop.hello(name: YouPage.firstName(Interests.displayName), now: Date(),
                                        lastSeen: seen, yesterday: lastHello)
         lastHello = greeting.key

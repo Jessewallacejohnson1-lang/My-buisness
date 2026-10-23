@@ -338,7 +338,8 @@ struct CommunityAPI {
                 let words = row.description?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                 return .news(TownNews(id: row.id, place: row.sourceName ?? "",
                                       words: words.isEmpty ? row.title : words, post: post,
-                                      picture: row.placePicture?.value, leavesAt: leavesAt))
+                                      picture: row.placePicture?.value, leavesAt: leavesAt,
+                                      published: DateHelpers.timestamp(row.createdAt)))
             }
             guard let eventDate = row.eventDate else { return nil }
             let event = UpcomingEvent(id: row.id, title: row.title, eventDate: eventDate,

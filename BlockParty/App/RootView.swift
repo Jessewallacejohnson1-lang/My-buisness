@@ -231,6 +231,37 @@ struct RootView: View {
 
 /// The authed shell: the four tabs and the sheets and covers they open.
 struct MainTabsView: View {
+    /// The hello pill's one line (hello-drop 01, 03).
+    /// The hello pill's news post, when its app isn't on the phone.
+    @State private var helloLink: SafariLink?
+
+    @MainActor
+    private func helloMessage(_ lastSeen: Date?) -> HelloDrop.Message? {
+        let news = townFeed.shown.compactMap { entry -> TownNews? in
+            if case .news(let post) = entry.item { post } else { nil }
+        }
+        return HelloDrop.message(now: Date(), lastSeen: lastSeen, going: you.going ?? [],
+                                 groups: you.groups ?? [],
+                                 town: townFeed.cards.compactMap(YouCalendar.event(from:)), news: news)
+    }
+
+    /// Where a tap on the hello pill goes.
+    @MainActor
+    private func openHello(_ target: HelloDrop.Target) {
+        switch target {
+        case .event(let card): path.append(card)
+        case .group(let group): path.append(group)
+        case .town: if tab != .town { select(.town) }
+        // As the news card: the post's own app when it's on the phone, else the in-app browser.
+        case .news(let post):
+            Task {
+                if await !UIApplication.shared.open(post.post, options: [.universalLinksOnly: true]) {
+                    helloLink = SafariLink(url: post.post)
+                }
+            }
+        }
+    }
+
     /// Every Going this account has had, counted once over (hello-drop 02).
     private static func attendedCount() async -> Int? {
         guard let rows = try? await CommunityAPI(auth: AuthStore.shared)
@@ -446,21 +477,12 @@ struct MainTabsView: View {
                     if you.groups == nil, let groups = await you.refreshGroups() { actions.read(groups) }
                 },
                 ready: { townFeed.entries != nil && you.going != nil },
-                message: { lastSeen in
-                    HelloDrop.message(now: Date(), lastSeen: lastSeen, going: you.going ?? [],
-                                      groups: you.groups ?? [],
-                                      town: townFeed.cards.compactMap(YouCalendar.event(from:)))
-                },
-                open: { target in
-                    switch target {
-                    case .event(let card): path.append(card)
-                    case .group(let group): path.append(group)
-                    case .town: if tab != .town { select(.town) }
-                    }
-                },
+                message: helloMessage,
+                open: openHello,
                 attended: Self.attendedCount,
                 finals: Self.teamFinals
             )
+            .sheet(item: $helloLink) { link in SafariView(url: link.url).ignoresSafeArea() }
         }
         // The iPhone Calendar follows the Going (ticket 05).
         .background { CalendarFollower(sync: calendarSync) }
