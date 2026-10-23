@@ -774,7 +774,9 @@ final class TownFeedEventsTests: XCTestCase {
         var told: [FeedChoice] = []
         var error: Error?
         var muted: [MutedHost] = []
+        var delay: Duration?
         func choose(_ choice: FeedChoice) async throws -> String? {
+            if let delay { try await Task.sleep(for: delay) }
             if let error { throw error }
             told.append(choice)
             if case .mute = choice { return "parks-key" }
@@ -824,6 +826,21 @@ final class TownFeedEventsTests: XCTestCase {
         await town.undoHide()
         XCTAssertEqual(chooser.told, [.notInterested("a"), .undoNotInterested("a"), .mute("b"), .unmute("parks-key")])
         XCTAssertNil(town.undo)
+        XCTAssertEqual(ids(town), ["a", "b", "c"])
+    }
+
+    /// A slow network: Undo tapped while the Mute is still on its way waits for it, so the server
+    /// gets the Mute first and Undo knows which host to unmute.
+    func testUndoWaitsForTheChoiceStillOnItsWay() async {
+        let chooser = Chooser()
+        let town = await choosingFeed(chooser)
+        chooser.delay = .milliseconds(200)
+        let card = town.cards[0]
+        let hiding = Task { await town.hide(card, mute: true) }
+        while town.undo == nil { await Task.yield() }
+        await town.undoHide()
+        await hiding.value
+        XCTAssertEqual(chooser.told, [.mute("a"), .unmute("parks-key")])
         XCTAssertEqual(ids(town), ["a", "b", "c"])
     }
 

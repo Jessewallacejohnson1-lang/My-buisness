@@ -125,7 +125,8 @@ struct DailyFeedColumn: View {
 }
 
 /// Where a card said Not interested to or muted stood (ticket 21): "Hidden", or "Muted" and the
-/// host, with Undo, for 5 seconds; then it folds away too. Undo brings the card back.
+/// host, with Undo, for 5 seconds (until Undo with VoiceOver on); then it folds away too. Undo
+/// brings the card back.
 struct FeedUndoLine: View {
     let hide: FeedHide
     let feed: TownFeed
@@ -156,12 +157,8 @@ struct FeedUndoLine: View {
         .padding(.horizontal, DailyFeedMetric.contentInset)
         .frame(height: Self.height)
         .transition(.opacity)
-        .task(id: hide) {
-            AccessibilityNotification.Announcement(said).post()
-            try? await Task.sleep(for: TownFeed.undoFor)
-            guard !Task.isCancelled else { return }
-            feed.undoEnded(hide.id)
-        }
+        // The feed ends the line after 5 seconds (`TownFeed.hide`), so scrolling it away can't keep it.
+        .task(id: hide) { AccessibilityNotification.Announcement("\(said). Undo").post() }
     }
 }
 

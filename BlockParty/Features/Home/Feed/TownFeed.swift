@@ -25,6 +25,7 @@
 //
 
 import Foundation
+import UIKit
 
 /// One event in the Town feed: its card, and when it leaves.
 struct TownFeedEntry: Identifiable {
@@ -130,6 +131,10 @@ final class TownFeed {
     static let undoFor: Duration = .seconds(5)
     /// The host each Mute this session muted, by name, so its Undo can unmute it.
     @ObservationIgnored private var muteKeys: [String: String] = [:]
+    /// The last choice on its way: Undo waits for it, so the take-back never lands first.
+    @ObservationIgnored private var sending: Task<String?, Error>?
+    /// Ends the Undo line after 5 seconds, wherever the line has scrolled to.
+    @ObservationIgnored private var undoTimer: Task<Void, Never>?
     /// The Muted list as the last read gave it; nil until read.
     private(set) var muted: [MutedHost]?
     private(set) var mutedFailed = false
@@ -343,6 +348,7 @@ final class TownFeed {
         hiddenIDs = []
         mutedNames = []
         muteKeys = [:]
+        undoTimer?.cancel()
         undo = nil
         muted = nil
     }
@@ -361,8 +367,21 @@ final class TownFeed {
     func hide(_ card: FeedCardItem, mute: Bool) async {
         if mute { mutedNames.insert(card.hostName) } else { hiddenIDs.insert(card.id) }
         undo = FeedHide(id: card.id, hostName: card.hostName, mute: mute)
+        undoTimer?.cancel()
+        // With VoiceOver on, the line waits for Undo or the next choice: 5 seconds is too short to
+        // find it by swiping.
+        if !UIAccessibility.isVoiceOverRunning {
+            undoTimer = Task { [weak self] in
+                try? await Task.sleep(for: Self.undoFor)
+                guard !Task.isCancelled else { return }
+                self?.undoEnded(card.id)
+            }
+        }
+        let choose = self.choose
+        let send = Task { try await choose(mute ? .mute(card.id) : .notInterested(card.id)) }
+        sending = send
         do {
-            let host = try await choose(mute ? .mute(card.id) : .notInterested(card.id))
+            let host = try await send.value
             if mute, let host { muteKeys[card.hostName] = host }
             muted = nil
         } catch {
@@ -377,13 +396,17 @@ final class TownFeed {
     func undoHide() async {
         guard let hide = undo else { return }
         undo = nil
+        undoTimer?.cancel()
+        let earlier = sending
+        if hide.mute { mutedNames.remove(hide.hostName) } else { hiddenIDs.remove(hide.id) }
+        // The choice lands before it is taken back (a slow network sent both at once).
+        let answer = (try? await earlier?.value) ?? nil
         if hide.mute {
-            mutedNames.remove(hide.hostName)
-            guard let host = muteKeys.removeValue(forKey: hide.hostName) else { return }
+            // The Mute's own answer, when its `hide` hasn't kept it yet.
+            guard let host = muteKeys.removeValue(forKey: hide.hostName) ?? answer else { return }
             _ = try? await choose(.unmute(host))
             muted = nil
         } else {
-            hiddenIDs.remove(hide.id)
             _ = try? await choose(.undoNotInterested(hide.id))
         }
     }
