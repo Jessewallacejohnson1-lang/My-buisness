@@ -87,21 +87,9 @@ all live there now. This file carries what is newer than that, or narrower than 
   A single house was rejected as too occupied (Nextdoor, Zillow, Redfin).
 - 2026-09-10 — Logo is the plain name for now: "BlockParty." (no space, trailing period),
   heavy rounded retro serif, black on bright yellow. No additional mark.
-- App palette comes from the Joetown city logo: orange `#E67633` (buttons, progress,
-  splash), teal `#72C5B6` (selected states — locked), gray `#707174` (secondary,
-  disabled). **Superseded 2026-09-27:** teal and orange survive only as category-gradient
-  stops; selected states aren't teal, buttons aren't orange, and `#707174` is gone. The
-  palette is in `DESIGN.md`.
-- The old cream / terracotta / sage / rosewood hand-drawn earthy palette is dead in the
-  app. Ask for the current direction rather than reusing it. The waitlist site is the one
-  exception — it still runs cream with a terracotta accent.
-- The app is not monochrome. Color is part of the design direction, not an exception.
-  **Superseded 2026-09-27:** chrome is ink on paper with small yellow accents, and colour
-  comes from photos and the map (`DESIGN.md`).
-- Jesse dislikes the current static splash (coral script wordmark on black). Direction
-  under consideration is Duolingo-style: BP mark centered, full wordmark near the bottom.
-  **Superseded 2026-09-27:** there has been no splash since 2026-09-18
-  (`docs/rules/architecture.md`).
+- 2026-10-22 — Block Party is neutral like Instagram (paper, white, greys), black/ink,
+  Liquid Glass and touches of exact BP yellow `#FCE804`. Coral, plum, orange and peach
+  were the old Hygge brand: never use or mention them (Jesse: "none of the Coral, Plum, Orange, or Peach should be referenced anymore").
 
 ## Per-surface direction lives with the surface
 
