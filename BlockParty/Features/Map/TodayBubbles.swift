@@ -379,8 +379,8 @@ private struct LiveBleed: View {
     private var disc: some View {
         Circle()
             .fill(RadialGradient(stops: [
-                .init(color: MapBubbleInk.ink.opacity(0.42), location: 0.55),
-                .init(color: MapBubbleInk.ink.opacity(0.18), location: 0.78),
+                .init(color: MapBubbleInk.ink.opacity(0.6), location: 0.55),    // 1.5x the mock's 0.42:
+                .init(color: MapBubbleInk.ink.opacity(0.26), location: 0.78),   // faint on tan (Jesse, Check-in 2)
                 .init(color: .clear, location: 1),
             ], center: .center, startRadius: 0, endRadius: bead / 2))
             .frame(width: bead, height: bead)
