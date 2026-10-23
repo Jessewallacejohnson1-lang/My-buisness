@@ -406,16 +406,17 @@ final class TownFeed {
 
     /// Unmute from the Muted list: off the list at once; the host's Events come back with a fresh
     /// read. One that doesn't go through comes back and shakes.
-    func unmute(_ host: MutedHost) async {
+    func unmute(_ host: MutedHost, at now: Date = Date()) async {
         guard let at = muted?.firstIndex(of: host) else { return }
         muted?.remove(at: at)
         do {
             _ = try await choose(.unmute(host.host))
             mutedNames.remove(host.name)
-            await reload()
+            await reload(at: now)
         } catch {
             Log.network("TownFeed: Unmute not sent: \(error)")
-            muted?.insert(host, at: min(at, muted?.count ?? 0))
+            let count = muted?.count ?? 0
+            muted?.insert(host, at: min(at, count))
             unmuteFailures[host.host, default: 0] += 1
             Haptics.error()
         }

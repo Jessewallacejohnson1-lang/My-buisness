@@ -853,7 +853,7 @@ final class TownFeedEventsTests: XCTestCase {
         town.undoEnded("a")
         XCTAssertEqual(ids(town), ["c"])
         await town.refreshMuted()
-        await town.unmute(chooser.muted[0])
+        await town.unmute(chooser.muted[0], at: now)
         XCTAssertEqual(town.muted, [MutedHost(host: "x", name: "Loso's")])
         XCTAssertEqual(chooser.told.last, .unmute("parks-key"))
         XCTAssertEqual(ids(town), ["a", "b", "c"])
