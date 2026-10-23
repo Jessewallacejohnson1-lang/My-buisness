@@ -110,6 +110,22 @@ final class EventCardPhotoTapTests: XCTestCase {
         XCTAssertLessThan(link.frame.minY, top - 50, "a drag up that started on the photo didn't scroll the feed")
     }
 
+    /// A swipe that starts on the title over the photo's bottom pages too: the shade and the words
+    /// there used to catch the finger, and the swipe opened nothing or the page (Jesse, 2026-10-23).
+    func testASwipeOnTheTitlePagesThePhoto() {
+        let link = firstCardLink()
+        XCTAssertEqual(link.value as? String, "Photo 1 of 2", "the first card has no second photo to swipe to")
+        let title = app.staticTexts["Music in Millstream Park"].firstMatch
+        XCTAssertTrue(title.waitForExistence(timeout: 10), "no title on the first card")
+
+        title.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5))
+            .press(forDuration: 0.05, thenDragTo: title.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)))
+        XCTAssertFalse(pageOpened(timeout: 2), "a swipe on the title pushed the event page")
+        let second = NSPredicate(format: "value == 'Photo 2 of 2'")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: second, object: link)], timeout: 15),
+                       .completed, "a swipe on the title didn't bring the second photo up")
+    }
+
     /// A card with one photo: a sideways swipe on it rubber-bands and opens nothing (it used to
     /// open the Event page as if it were a tap), and a tap then still opens the page.
     func testASidewaysSwipeOnAOnePhotoCardOpensNothing() {

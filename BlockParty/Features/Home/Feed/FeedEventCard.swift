@@ -424,6 +424,7 @@ struct FeedEventCard: View {
             .padding(PhotoChip.inset)
             // VoiceOver reads the title first, then when.
             .accessibilitySortPriority(-1)
+            .allowsHitTesting(false)
         }
         .overlay(alignment: .bottom) {
             HStack(alignment: .bottom, spacing: 0) {
@@ -437,6 +438,8 @@ struct FeedEventCard: View {
             .padding(16)
             // Clear of the heart in the bottom right corner.
             .padding(.trailing, actions.canAct ? Self.photoHeartSide + Self.photoHeartInset - 8 : 0)
+            // Words only: a swipe that starts on the title pages the photo under it (Jesse, 2026-10-23).
+            .allowsHitTesting(false)
         }
         .contentShape(Rectangle())
         // The heart in the photo's corner is the double-tap's control to mirror, and

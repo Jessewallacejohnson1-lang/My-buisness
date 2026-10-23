@@ -216,14 +216,10 @@ struct FeedCardPhotoScrim: View {
     ]
 
     var body: some View {
-        switch edge {
-        case .bottom:
-            LinearGradient(stops: Self.stops, startPoint: .top, endPoint: .bottom)
-                .frame(height: imageHeight * Self.coverage)
-        case .top:
-            LinearGradient(stops: Self.topStops, startPoint: .top, endPoint: .bottom)
-                .frame(height: imageHeight * Self.topCoverage)
-        }
+        LinearGradient(stops: edge == .bottom ? Self.stops : Self.topStops, startPoint: .top, endPoint: .bottom)
+            .frame(height: imageHeight * (edge == .bottom ? Self.coverage : Self.topCoverage))
+            // Shade only: a swipe or tap on it reaches the photo under it (Jesse, 2026-10-23).
+            .allowsHitTesting(false)
     }
 }
 
