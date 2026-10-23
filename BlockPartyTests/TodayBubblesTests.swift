@@ -61,6 +61,17 @@ final class TodayBubblesTests: XCTestCase {
         XCTAssertEqual(TodayBubbleRules.stretch(distance: 12, speed: 4000), 0.13)
     }
 
+    func testStretchMatrixStretchesAlongThePullAboutTheCentre() {
+        let m = TodayEventBubble.stretchMatrix(angle: 0, along: 1.1, across: 1 / 1.1, size: 64)
+        let centre = CGPoint(x: 32, y: 32).applying(m)
+        XCTAssertEqual(centre.x, 32, accuracy: 0.001); XCTAssertEqual(centre.y, 32, accuracy: 0.001)
+        let right = CGPoint(x: 42, y: 32).applying(m)
+        XCTAssertEqual(right.x, 43, accuracy: 0.001)                    // 10 pt along the pull becomes 11
+        let diag = TodayEventBubble.stretchMatrix(angle: .pi / 4, along: 1.2, across: 1, size: 64)
+        let p = CGPoint(x: 42, y: 42).applying(diag)                   // along the 45° pull
+        XCTAssertEqual(p.x, 44, accuracy: 0.001); XCTAssertEqual(p.y, 44, accuracy: 0.001)
+    }
+
     func testClemensLibraryEventsLandAtSaintBens() {
         XCTAssertNotNil(KnownVenues.coordinate(for: "Clemens Library"))
         XCTAssertTrue(MapSpots.all.first { $0.id == "saintbens" }!.keywords.contains("clemens"))

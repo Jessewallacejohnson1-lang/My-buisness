@@ -205,13 +205,33 @@ struct TodayEventBubble: View {
                 // the finger on top of our own squish, which washed the photo out (frames
                 // 2026-10-22). The squish below is the touch response Jesse tuned.
                 .glassEffect(.regular, in: Circle())
+                // The glass never takes the touch itself: when it did, iOS lit it up and
+                // swelled it white over the photo and the ring (frames 2026-10-22). The
+                // clear disc on top takes the drag instead.
+                .allowsHitTesting(false)
+            Circle()
+                .fill(.clear)
+                .frame(width: Self.bead * 1.2, height: Self.bead * 1.2)
+                .contentShape(Circle())
+                .gesture(squish)
         }
-        .rotationEffect(angle)
-        .scaleEffect(x: base * (1 + stretch), y: base / (1 + stretch))
-        .rotationEffect(-angle)
+        .frame(width: 64, height: 64)
+        // One affine matrix (stretch along the pull, thin across it) rather than rotate,
+        // scale, rotate back: the glass layer took the scale but not the rotations, so it
+        // stretched sideways while the photo stretched along the pull (frames 2026-10-22).
+        .transformEffect(Self.stretchMatrix(angle: angle.radians, along: base * (1 + stretch),
+                                            across: base / (1 + stretch), size: 64))
         .offset(pull)
-        .contentShape(Circle().scale(1.2))
-        .gesture(squish)
+    }
+
+    /// Scale by `along` in the pull's direction and `across` at right angles, about the
+    /// centre of a `size` square view.
+    static func stretchMatrix(angle: Double, along: CGFloat, across: CGFloat, size: CGFloat) -> CGAffineTransform {
+        let c = CGFloat(cos(angle)), s = CGFloat(sin(angle)), h = size / 2
+        let m = CGAffineTransform(a: along * c * c + across * s * s, b: (along - across) * c * s,
+                                  c: (along - across) * c * s, d: along * s * s + across * c * c,
+                                  tx: 0, ty: 0)
+        return CGAffineTransform(translationX: -h, y: -h).concatenating(m).concatenating(CGAffineTransform(translationX: h, y: h))
     }
 
     @ViewBuilder
