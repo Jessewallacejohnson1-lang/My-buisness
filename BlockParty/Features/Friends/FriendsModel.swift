@@ -59,6 +59,8 @@ enum FriendsFilter: String, CaseIterable, Hashable {
 enum FriendsRoute: Hashable {
     /// The Friends page (BP app docs/plans/friends): search, then requests and friends.
     case home
+    /// Your phone's contacts on Block Party, and the rest to invite (friends 06).
+    case contacts
     case inbox
     case chat(String)
 }

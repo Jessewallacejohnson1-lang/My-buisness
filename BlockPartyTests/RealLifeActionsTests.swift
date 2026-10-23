@@ -64,6 +64,22 @@ final class RealLifeActionsTests: XCTestCase {
             try answer()
         }
 
+        /// Each follow or unfollow written, as "<type> <id> <following>".
+        var follows: [String] = []
+        /// What `follow_card` answers.
+        var card = FollowCard(following: false, followers: 128, friends: [], friendsCount: 0)
+
+        func follow(_ target: FollowTarget, _ following: Bool) async throws {
+            if delay > .zero { try? await Task.sleep(for: delay) }
+            follows.append("\(target.type.rawValue) \(target.id) \(following)")
+            try answer()
+        }
+
+        func followCard(_ target: FollowTarget) async throws -> FollowCard {
+            try answer()
+            return card
+        }
+
         /// Answers like `club_events`: only real Event ids, and only UUIDs reach it.
         func knownEvents(_ ids: [String]) async throws -> Set<String> {
             lookups += 1
@@ -73,13 +89,15 @@ final class RealLifeActionsTests: XCTestCase {
         }
     }
 
-    private func actions(_ server: Server, signedIn: Bool = true, keep: UserDefaults? = nil,
-                         flip: Duration? = nil,
+    private func actions(_ server: Server, signedIn: Bool = true, anonymous: Bool = false,
+                         keep: UserDefaults? = nil, flip: Duration? = nil,
                          owner: @escaping () -> String? = { nil }) -> RealLifeActions {
-        RealLifeActions(signedIn: signedIn, needsAccount: true, hold: Self.hold, flip: flip ?? Self.flip,
+        RealLifeActions(signedIn: signedIn, needsAccount: true, isAnonymous: { anonymous },
+                        hold: Self.hold, flip: flip ?? Self.flip,
                         retry: Self.retry, keep: keep, owner: owner,
                         setGoing: server.write, setHeart: server.heart, setSave: server.save,
-                        setMember: server.member, knownEvents: server.knownEvents)
+                        setMember: server.member, setFollow: server.follow, readFollow: server.followCard,
+                        knownEvents: server.knownEvents)
     }
 
     /// A phone of its own for one test, emptied when it ends.
@@ -934,6 +952,139 @@ final class RealLifeActionsTests: XCTestCase {
         XCTAssertTrue(after.member(group()).isMember, "still in after the relaunch")
         try await waitWhile(server.memberships.isEmpty)
         XCTAssertEqual(server.memberships, ["\(Self.groupID) true"])
+    }
+
+    // MARK: Following a Place or a person (follows 02)
+
+    private static let krewe = FollowTarget(type: .place, id: "5b0c6f1e-2d3a-4b5c-8d9e-0f1a2b3c4d5e")
+    private static let sam = FollowTarget(type: .profile, id: "7e1d2c3b-4a59-4687-9a0b-1c2d3e4f5a6b")
+
+    /// A page opens: its count and friends come in, and Follow says what the read said.
+    func testAPageReadsItsCountAndFriends() async throws {
+        let server = Server()
+        server.card = FollowCard(following: false, followers: 128,
+                                 friends: [.init(name: "Sam Rivera", avatarUrl: nil), .init(name: "Ana Lee", avatarUrl: nil)],
+                                 friendsCount: 3)
+        let actions = actions(server)
+
+        XCTAssertEqual(actions.follow(Self.krewe), .init(isFollowing: false, count: 0), "nothing before the read")
+        await actions.refreshFollow(Self.krewe)
+        XCTAssertEqual(actions.follow(Self.krewe), .init(isFollowing: false, count: 128))
+        XCTAssertEqual(actions.followFriends[Self.krewe]?.friends.map(\.name), ["Sam Rivera", "Ana Lee"])
+        XCTAssertEqual(actions.followFriends[Self.krewe]?.count, 3)
+    }
+
+    /// One tap: Following at once, counting you, and written once. One more tap undoes it.
+    func testFollowShowsAtOnceAndOneTapUndoesIt() async throws {
+        let server = Server()
+        let actions = actions(server)
+        await actions.refreshFollow(Self.krewe)
+
+        actions.toggleFollow(Self.krewe)
+        XCTAssertEqual(actions.follow(Self.krewe), .init(isFollowing: true, count: 129), "Following at once, counting you")
+        try await Task.sleep(for: Self.hold * 3)
+        actions.toggleFollow(Self.krewe)
+        XCTAssertEqual(actions.follow(Self.krewe), .init(isFollowing: false, count: 128), "undone with one tap")
+        try await Task.sleep(for: Self.hold * 3)
+        XCTAssertEqual(server.follows, ["place \(Self.krewe.id) true", "place \(Self.krewe.id) false"])
+        XCTAssertEqual(server.memberships, [], "a Place is followed, not joined")
+    }
+
+    /// As a failed Join: it holds, turns back, then shakes the button that's on screen once.
+    func testAFailedFollowHoldsThenTurnsBackThenShakesOnce() async throws {
+        let server = Server()
+        let actions = actions(server)
+        await actions.refreshFollow(Self.krewe)
+        server.failing = true
+        actions.followOpened(Self.krewe)
+
+        let tapped = ContinuousClock.now
+        actions.toggleFollow(Self.krewe)
+        try await waitWhile(actions.follow(Self.krewe).isFollowing)
+        XCTAssertGreaterThanOrEqual(ContinuousClock.now - tapped, Self.hold, "turned back before it could be seen")
+        XCTAssertEqual(actions.follow(Self.krewe), .init(isFollowing: false, count: 128), "back to Follow, count and all")
+        try await waitWhile(actions.followFailureCount(Self.krewe) == 0)
+        XCTAssertEqual(actions.followFailureCount(Self.krewe), 1, "one turn back, one shake")
+
+        actions.followClosed(Self.krewe)
+        actions.toggleFollow(Self.krewe)
+        try await waitWhile(actions.follow(Self.krewe).isFollowing)
+        try await Task.sleep(for: Self.flip * 2)
+        XCTAssertEqual(actions.followFailureCount(Self.krewe), 1, "no shake with no button on screen")
+    }
+
+    /// A Place and a person are kept apart, each written as its own kind.
+    func testAPersonsFollowIsTheirsAlone() async throws {
+        let server = Server()
+        let actions = actions(server)
+
+        actions.toggleFollow(Self.sam)
+        XCTAssertTrue(actions.follow(Self.sam).isFollowing)
+        XCTAssertFalse(actions.follow(Self.krewe).isFollowing)
+        try await Task.sleep(for: Self.hold * 3)
+        XCTAssertEqual(server.follows, ["profile \(Self.sam.id) true"])
+    }
+
+    /// Following needs a signed-up account: the quiet Anonymous one, or none, opens sign-up.
+    func testOnlyASignedUpAccountFollowsOrJoins() {
+        XCTAssertTrue(actions(Server(), anonymous: true).needsSignUp, "Anonymous: sign up first")
+        XCTAssertTrue(actions(Server(), signedIn: false).needsSignUp, "no account at all")
+        XCTAssertFalse(actions(Server()).needsSignUp)
+        let samples = RealLifeActions(signedIn: false, needsAccount: false, isAnonymous: { true }, hold: Self.hold,
+                                      flip: Self.flip, setGoing: { _, _ in }, setHeart: { _, _ in },
+                                      setSave: { _, _ in }, knownEvents: { _ in [] })
+        XCTAssertFalse(samples.needsSignUp, "sample writes go nowhere and need none")
+    }
+
+    /// The Following list: everything on it is followed. A tap there unfollows at once, and the
+    /// next read of the list is the truth.
+    func testTheFollowingListReadsAsFollowed() async throws {
+        let server = Server()
+        let actions = actions(server)
+
+        actions.read(following: [Self.krewe, Self.sam])
+        XCTAssertTrue(actions.follow(Self.krewe).isFollowing)
+        XCTAssertTrue(actions.follow(Self.sam).isFollowing)
+        actions.toggleFollow(Self.sam)
+        XCTAssertFalse(actions.follow(Self.sam).isFollowing, "Follow again at once, still on the list")
+        try await Task.sleep(for: Self.hold * 3)
+        actions.read(following: [Self.krewe])
+        XCTAssertFalse(actions.follow(Self.sam).isFollowing)
+        XCTAssertEqual(server.follows, ["profile \(Self.sam.id) false"])
+    }
+
+    /// A follow made offline is kept on the phone, shown after a relaunch and sent.
+    func testAnOfflineFollowSurvivesARelaunch() async throws {
+        let server = Server()
+        server.offline = true
+        let store = phoneStore()
+        let before = launched(server, store, as: "anna")
+
+        before.toggleFollow(Self.krewe)
+        try await Task.sleep(for: Self.retry * 2)
+        before.accountChanged(signedIn: false)
+        try await Task.sleep(for: Self.retry * 8)
+
+        server.offline = false
+        server.follows = []
+        let after = launched(server, store, as: "anna")
+        XCTAssertTrue(after.follow(Self.krewe).isFollowing, "still Following after the relaunch")
+        try await waitWhile(server.follows.isEmpty)
+        XCTAssertEqual(server.follows, ["place \(Self.krewe.id) true"])
+    }
+
+    func testFollowWords() {
+        XCTAssertNil(FollowWords.count(0), "never a zero")
+        XCTAssertEqual(FollowWords.count(1), "1 follower")
+        XCTAssertEqual(FollowWords.count(128), "128 followers")
+        XCTAssertEqual(FollowWords.count(2_200), "2,200 followers")
+        XCTAssertNil(FollowWords.followedBy([], count: 0))
+        XCTAssertEqual(FollowWords.followedBy(["Sam Rivera"], count: 1), "Followed by Sam")
+        XCTAssertEqual(FollowWords.followedBy(["Sam Rivera", "Ana Lee"], count: 2), "Followed by Sam and Ana")
+        XCTAssertEqual(FollowWords.followedBy(["Sam Rivera", "Ana Lee", "Dee Moss"], count: 3),
+                       "Followed by Sam and 2 others")
+        XCTAssertEqual(FollowWords.followedBy(["Sam Rivera", "Ana Lee", "Dee Moss"], count: 7),
+                       "Followed by Sam and 6 others")
     }
 
     /// Polls every 5 ms until `condition` is false, for at most 5 s.

@@ -2,9 +2,10 @@
 //  FriendMenu.swift
 //  Block Party — the friend sheet (BP app docs/plans/friends, ticket 04), from the ••• on a
 //  friend's row, the ••• at the top right of anyone's page, and the Friends button: their
-//  photo, name and since when, then Unfriend and Block for a friend, Block for anyone else.
-//  Each asks once in Apple's alert over the sheet; saying yes closes the sheet and
-//  `FriendsBook` acts. Nobody is told.
+//  photo, name and since when, then Unfollow, Unfriend and Block for a friend, Block for anyone
+//  else. Unfollow (follows 02) keeps the friendship and asks nothing: one tap, and the sheet
+//  closes. Unfriend and Block each ask once in Apple's alert over the sheet; saying yes closes
+//  the sheet and `FriendsBook` acts. Nobody is told.
 //
 //  Reference: Facebook's friend sheet (BP app references/friends/fb-requests-4.jpg, 375pt at
 //  1:1): the photo 31pt under the sheet's top, 48pt, 13pt to a 20pt bold name over a 17pt
@@ -33,6 +34,7 @@ struct FriendMenu: View {
     /// slides away.
     @State private var relation: Neighbor.Relation
     @Environment(FriendsBook.self) private var book
+    @Environment(RealLifeActions.self) private var actions
     @Environment(\.dismiss) private var dismiss
     /// The question up, and the last one asked, kept while the alert fades so its words don't change.
     @State private var asking: FriendsBook.Action?
@@ -75,6 +77,7 @@ struct FriendMenu: View {
             .accessibilityAddTraits(.isHeader)
             Rectangle().fill(Hue.hairline).frame(height: FriendsMetric.hairline)
             VStack(spacing: 0) {
+                if relation == .friends { followRow }
                 ForEach(FriendsBook.menuChoices(for: relation), id: \.self) { row($0) }
             }
             .padding(.vertical, FriendsMetric.menuRowsPad)
@@ -86,6 +89,7 @@ struct FriendMenu: View {
         .presentationDetents([.height(height)])
         .presentationDragIndicator(.visible)
         .presentationBackground(Hue.surface)
+        .task { if relation == .friends { await actions.refreshFollow(follow) } }
         .onAppear { book.menuOnScreen = true }
         .onDisappear { book.menuOnScreen = false }
         // `unfriend-confirm` and `block-confirm`, in Apple's alert.
@@ -100,6 +104,44 @@ struct FriendMenu: View {
         } message: { action in
             if action == .block { Text("They won't be able to find you or add you. They won't be told.") }
         }
+    }
+
+    private var follow: FollowTarget { FollowTarget(type: .profile, id: person.id) }
+
+    /// `friend-unfollow`: "Unfollow Sam", "Stay friends" under it, as Facebook's. Unfollowed, it
+    /// offers Follow back. One tap, no question.
+    private var followRow: some View {
+        let following = actions.follow(follow, unread: true).isFollowing
+        return Button {
+            actions.toggleFollow(follow, unread: true)
+            dismiss()
+        } label: {
+            HStack(spacing: FriendsMetric.menuGap) {
+                Image(systemName: following ? "person.fill.badge.minus" : "person.fill.badge.plus")
+                    .font(.glyph(17, weight: .semibold))
+                    .foregroundStyle(Hue.ink)
+                    .frame(width: FriendsMetric.menuCircle, height: FriendsMetric.menuCircle)
+                    .background(Hue.fill, in: Circle())
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("\(following ? "Unfollow" : "Follow") \(person.firstName)")
+                        .font(.sans(17))
+                        .foregroundStyle(Hue.ink)
+                    if following {
+                        Text("Stay friends")
+                            .font(.sans(13))
+                            .foregroundStyle(Hue.inkSecondary)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, FriendsMetric.side)
+            .frame(height: FriendsMetric.menuRow)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(RowPressStyle())
+        .onAppear { actions.followOpened(follow) }
+        .onDisappear { actions.followClosed(follow) }
     }
 
     /// One choice: Facebook's grey circle and title, the whole row to the finger.

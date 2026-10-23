@@ -24,6 +24,8 @@ struct GroupPage: View {
     @Environment(RealLifeActions.self) private var actions
     /// `actions.memberFailureCount` at the last tap: a tap mid-shake stills it (as `RSVPArea`'s).
     @State private var tappedAt = 0
+    /// Join group with no signed-up account opens sign-up (follows 02).
+    @State private var signingIn = false
     @State private var photoPage: Int? = 0
     /// Photos whose bitmaps are on screen: until then a photo shimmers, and its credit waits.
     @State private var shownPhotos: Set<URL> = []
@@ -90,6 +92,7 @@ struct GroupPage: View {
         // A failed join shakes and buzzes only while the page is open.
         .onAppear { actions.pageOpened(group.id) }
         .onDisappear { actions.pageClosed(group.id) }
+        .signInSheet(isPresented: $signingIn)
     }
 
     // MARK: Pictures
@@ -363,6 +366,7 @@ struct GroupPage: View {
     /// Join group and "Leave group?" both flip being in it; a write the server refuses turns back
     /// and shakes the pill.
     private func toggle() {
+        guard actions.member(group).isMember || !actions.needsSignUp else { signingIn = true; return }
         tappedAt = actions.memberFailureCount(group.id)
         actions.toggleMember(group)
     }

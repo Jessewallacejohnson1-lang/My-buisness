@@ -67,10 +67,11 @@ enum MessagesComposer {
     }
 
     @MainActor
-    static func present(from presenter: UIViewController, text: String, image: UIImage?) {
+    static func present(from presenter: UIViewController, text: String, image: UIImage?, recipients: [String] = []) {
         guard canSend else { return }
         let vc = MFMessageComposeViewController()
         vc.body = text
+        vc.recipients = recipients
         if let image, let data = image.pngData() {
             vc.addAttachmentData(data, typeIdentifier: "public.png", filename: "blockparty.png")
         }

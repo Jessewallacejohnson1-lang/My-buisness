@@ -250,6 +250,11 @@ nonisolated enum Hue {
     static let searchFloor   = Color(hex: 0x46321E)
     /// The light a logo catches as the phone tilts (`LogoShine`): white, faded by the band.
     static let logoShine     = Color(hex: 0xFFFFFF)
+    /// A place's name over its photo (`PlaceNameArt`): white on a dark photo, ink on a light one,
+    /// in either theme, as the photo decides; and the soft shadow under each.
+    static let nameOnDark    = Color(hex: 0xFFFFFF)
+    static let nameOnLight   = Color(hex: 0x111111)
+    static let nameShadow    = Color(hex: 0x000000)
     /// The logo wall's one studio backdrop, and the hue the cast shadows take on it.
     nonisolated static let searchStudioHue: Double = 34
 

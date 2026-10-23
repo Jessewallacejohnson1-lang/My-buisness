@@ -121,6 +121,26 @@ struct CommunityAPI {
         return try Self.placePhotos(from: data)
     }
 
+    /// Each place's name over its photo (`public.place_names`), by registry entry (BP app follows 02).
+    func getPlaceNames() async throws -> [String: PlaceName] {
+        struct Row: Decodable { let entryId: String; let url: String; let kind: String }
+        let (data, _) = try await SupabaseHTTP.rest("place_names", query: "select=entry_id,url,kind",
+                                                    accessToken: await readToken())
+        let rows: [Row] = try decode(data)
+        return Dictionary(rows.compactMap { row in
+            URL(string: row.url).map { (row.entryId, PlaceName(url: $0, emblem: row.kind == "emblem")) }
+        }, uniquingKeysWith: { first, _ in first })
+    }
+
+    /// The name over an Event's photo: its place's, or nil.
+    func eventPlaceName(_ eventID: String) async throws -> PlaceName? {
+        struct Row: Decodable { let url: String; let kind: String }
+        let (data, _) = try await SupabaseHTTP.rest("rpc/event_place_name", method: "POST", accessToken: await readToken(),
+                                                    body: try body(["p_event": eventID]))
+        guard let row = try? decode(data) as Row, let url = URL(string: row.url) else { return nil }
+        return PlaceName(url: url, emblem: row.kind == "emblem")
+    }
+
     /// A row that doesn't decode is that one photo gone, never the rest.
     nonisolated static func placePhotos(from data: Data) throws -> [String: [PlacePicture]] {
         struct Row: Decodable {
@@ -507,6 +527,17 @@ struct CommunityAPI {
         return try decode(data)
     }
 
+    /// Which of your contacts are on Block Party (`match_contacts`, friends 06): the scrambled
+    /// emails and phone numbers go, each neighbour comes back with the code that found them.
+    func matchContacts(emails: [String], phones: [String]) async throws -> [(code: String, neighbor: Neighbor)] {
+        struct Code: Decodable { let code: String }
+        let (data, _) = try await SupabaseHTTP.rest("rpc/match_contacts", method: "POST", accessToken: try await token(),
+                                                    body: try body(["p_emails": emails, "p_phones": phones]))
+        let codes: [Code] = try decode(data)
+        let people: [Neighbor] = try decode(data)
+        return zip(codes, people).map { ($0.code, $1) }
+    }
+
     /// People you may know, strongest first, at most 20 (daily-tab 22).
     func peopleYouMayKnow() async throws -> [Neighbor] {
         let (data, _) = try await SupabaseHTTP.rest("rpc/get_people_you_may_know", method: "POST",
@@ -552,6 +583,41 @@ struct CommunityAPI {
             throw SupabaseError(message: "Unexpected answer", status: nil)
         }
         return relation
+    }
+
+    // MARK: - Follows (BP app docs/plans/follows, ticket 02)
+
+    /// Follow or unfollow a Place or person: `follow_target` and `unfollow_target`, for a real
+    /// account only. Following twice, or unfollowing twice, is fine.
+    func followWrite(_ target: FollowTarget, _ on: Bool) async throws {
+        try await SupabaseHTTP.rest("rpc/\(on ? "follow_target" : "unfollow_target")", method: "POST",
+                                    accessToken: try await token(),
+                                    body: try body(["p_type": target.type.rawValue, "p_id": target.id]))
+    }
+
+    /// What a page shows of it: the count, your friends who follow it, and whether you do.
+    /// Signed out too: then the count alone.
+    func followCard(_ target: FollowTarget) async throws -> FollowCard {
+        let (data, _) = try await SupabaseHTTP.rest("rpc/follow_card", method: "POST", accessToken: await readToken(),
+                                                    body: try body(["p_type": target.type.rawValue, "p_id": target.id]))
+        let rows: [FollowCard] = try decode(data)
+        guard let card = rows.first else { throw SupabaseError(message: "Unexpected answer", status: nil) }
+        return card
+    }
+
+    /// Everyone and everything you follow, A to Z: Profile's Following list.
+    func myFollows() async throws -> [FollowRow] {
+        let (data, _) = try await SupabaseHTTP.rest("rpc/my_follows", method: "POST",
+                                                    accessToken: try await token(), body: try body([:]))
+        return try decode(data)
+    }
+
+    /// Who hosts an Event, for its page's host line: nil for a Group's Event or one at no known Place.
+    func eventHost(_ eventID: String) async throws -> FollowRow? {
+        let (data, _) = try await SupabaseHTTP.rest("rpc/event_host", method: "POST", accessToken: await readToken(),
+                                                    body: try body(["p_event": eventID]))
+        let rows: [FollowRow] = try decode(data)
+        return rows.first
     }
 
     // MARK: - My Going (the You tab)
