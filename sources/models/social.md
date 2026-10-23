@@ -1,9 +1,11 @@
 # The social watch
 
 Places' public Facebook and Instagram posts become Events and News in the Town feed (registry
-ADR-020, amended 2026-10-22). Two routines follow this file in the cloud, each in a fresh copy of
-this repository: the busy list at 6pm and 9pm Chicago (`busy`), and every other page on
-Thursdays at 3pm (`weekly`). The routine's prompt names which. Scripts read Apify and write the
+ADR-020, amended 2026-10-22). Apify reads the pages on its own schedule (the busy list at 6pm and 9pm
+Chicago, every other page on Thursdays at 3pm) and saves what it finds; two routines follow
+this file in the cloud half an hour or more later, each in a fresh copy of this repository, and
+read what Apify saved: `busy` at 6:30pm and 9:30pm, `weekly` on Thursdays at 3:45pm. The
+routine's prompt names which. Scripts read Apify and write the
 database; the cheap model reads the posts and you judge what it flags, exactly as the morning job
 does. Work through the steps in order. A step that fails for one source is a line in the summary;
 carry on with the rest.
@@ -18,12 +20,13 @@ carry on with the rest.
    sees: check it with `python3 sources/scripts/social.py spend`. A line saying Apify refused
    the request means the secret is missing or wrong: stop and say so.
 2. **Prepare.** Start `(python3 sources/scripts/social.py prepare <busy|weekly>; echo "prepare exit $?") >
-   /tmp/prepare.log 2>&1` with `run_in_background: true`. It starts the Apify checks, waits for
-   them and lays out each new post as a page in `.runs/morning/batches/`. Wait for it in the
+   /tmp/prepare.log 2>&1` with `run_in_background: true`. It reads every Apify run of this list
+   that finished since the last check, waits for one still going, and lays out each new post as
+   a page in `.runs/morning/batches/`. Wait for it in the
    foreground 9 minutes at a time (timeout 600000 ms):
    `for i in $(seq 36); do grep -q '^prepare exit' /tmp/prepare.log && break; sleep 15; done; tail -20 /tmp/prepare.log`.
-   Repeat until `prepare exit` shows, without ending your turn in between. Run it once only: each
-   run is a paid check. Done when `prepare exit 0` shows under its `[social]` line. No batches
+   Repeat until `prepare exit` shows, without ending your turn in between. It starts nothing paid, but run it
+   once. Done when `prepare exit 0` shows under its `[social]` line. No batches
    means nothing new was posted: run step 4's `done`, answer with the `[social]` lines and stop.
 3. **Read, judge, title, write.** Follow steps 3 to 6 of `sources/models/morning.md`: the
    cheap model flags each batch (`flag.md`), you judge the flags (`judge.md`), shorten long
@@ -50,9 +53,9 @@ carry on with the rest.
      (a job at another location); and any post about a private person's health or troubles
      (ADR-020).
 4. **Mark it finished.** Only after `morning.py write` has printed its summary, run
-   `python3 sources/scripts/social.py done`. It saves when this check started, so the next one
-   reads from there; a check that stops before this line (a usage limit, a failure) is read
-   again by the next. Run it once, at the end, and never before the write.
+   `python3 sources/scripts/social.py done`. It marks this check's Apify runs read, so the next
+   one starts after them; runs a check stopped before this line on (a usage limit, a failure)
+   are read by the next. Run it once, at the end, and never before the write.
 5. **Answer** with the summary as `write` printed it, `done`'s line, every `[social] FAILED` line
    from step 2 (a page Facebook now hides belongs on the hidden list in
    `sources/social/st-joseph-mn.json`), then one line per flag you dropped that a neighbour might
@@ -60,7 +63,7 @@ carry on with the rest.
 
 ## Rules
 
-- Apify is reached only by `social.py`, which starts each check once with its own spending cap.
-  A check that fails or runs long is a line in the answer, never a second start.
+- Apify's own schedules start every paid run, each task with its own spending cap; the routine
+  starts none. A run that failed or is still going is a line in the answer.
 - The database is written only by `morning.py write`. SQL by hand stays unused.
 - Nothing is committed or pushed; `.runs/` is scratch.

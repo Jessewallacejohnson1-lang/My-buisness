@@ -6,27 +6,33 @@ as morning.py lays out changed pages, so the routine's next steps are the mornin
 the cheap model flags (flag.md), the routine's model judges (judge.md), and `morning.py titles`
 and `morning.py write` write Events and News. The routine's steps are sources/models/social.md.
 
-  prepare busy    the busy list's pages (sources/social/<town>.json, "busy": true), at 6pm and
-                  9pm Chicago: posts since the last busy check that finished
-  prepare weekly  every other page, Thursdays at 3pm: posts since the last weekly check that
-                  finished (7 days the first time), plus the busy list's Facebook Events tabs
-  done            after `morning.py write`: marks this check finished, so the next one reads
-                  from when it started. A check that stopped early (the plan's usage limit hit
-                  the 9pm one on 2026-10-22) never marks, and the next reads its posts too.
+Apify reads the pages on its own clock (Jesse, 2026-10-23: "apify has direct sourcing"), so a
+check never waits on the Claude plan: saved tasks `bp-<run>-<kind>` hold each list's pages, and
+schedules start them, the busy list at 6pm and 9pm Chicago and every other page (plus the busy
+list's Facebook Events tabs) on Thursdays at 3pm. The routines come half an hour or more later
+and read whatever Apify saved since the last check they finished, so one the plan's usage limit
+skipped (the 9pm one on 2026-10-22) is read by the next.
+
+  setup           makes or updates the tasks and schedules from sources/social/<town>.json; run it
+                  after the list changes (prepare also refreshes the tasks' pages)
+  prepare busy    the busy list's Apify runs that finished since the last busy check
+  prepare weekly  the weekly runs that finished since the last weekly check
+  done            after `morning.py write`: marks those runs read, so the next check starts after
+                  them. A check that stopped early never marks, and the next reads its runs too.
   spend           one line for the morning report, "Apify: $X of $19 this month", with a
                   heads-up past $15 and at the cap (Jesse, 2026-10-22: no slowdown, just say)
 
 The mark lives in Apify's own storage (the named key-value store `bp-social-watch`, records
-`last-busy` and `last-weekly`), so it survives each routine's throwaway copy.
+`read-busy` and `read-weekly`), so it survives each routine's throwaway copy.
 
 Everything lands in .runs/morning/, the morning job's folder (each routine runs in its own copy
 of the repository). In the cloud, Apify's REST API is called with no key: the environment's
 network secret for api.apify.com adds it on the way out, so the token never enters the session.
 APIFY_TOKEN in the environment is used when set; on a Mac with neither, the calls go through
-Composio. Each actor run is started once and has its own spending
-cap: a retried start is a second paid run (2026-10-05).
+Composio. Only Apify's schedules start paid runs; each task has its own spending cap.
 
-  python3 sources/scripts/social.py prepare busy|weekly [--since ISO] [--today YYYY-MM-DD]
+  python3 sources/scripts/social.py setup
+  python3 sources/scripts/social.py prepare busy|weekly [--today YYYY-MM-DD]
   python3 sources/scripts/social.py done
   python3 sources/scripts/social.py spend
   python3 sources/scripts/social.py --selftest
@@ -43,7 +49,6 @@ from check_flags import batches, message
 
 TOWN = "st-joseph-mn"
 API = "https://api.apify.com/v2"
-SLOTS = ((18, 0), (21, 0))  # the busy list's checks, Chicago time
 POSTS = 20  # most posts read per page per check; a busy page posts a few a day at most
 ACTORS = {  # (actor, spending cap in USD per run) for each kind of read
     ("busy", "facebook"): ("apify~facebook-posts-scraper", 0.40),
@@ -52,26 +57,20 @@ ACTORS = {  # (actor, spending cap in USD per run) for each kind of read
     ("weekly", "instagram"): ("apify~instagram-post-scraper", 0.75),
     ("weekly", "events"): ("apify~facebook-events-scraper", 1.00),
 }
+# Apify's clock, Chicago time: (schedule, cron, run, how far back each read goes). A window
+# reaches an hour past the last one, so a post that lands while a run starts is never lost.
+SCHEDULES = [("bp-busy-6pm", "0 18 * * *", "busy", "22 hours"),
+             ("bp-busy-9pm", "0 21 * * *", "busy", "4 hours"),
+             ("bp-weekly", "0 15 * * 4", "weekly", "169 hours")]
 EMPTY = {"no_items", "not_available", "not_found", "Restricted profile"}
 HEADS_UP = 15.0
 STORE = "bp-social-watch"
-OVERLAP = timedelta(minutes=10)  # a post that lands while the last check ran is read again, never lost
-LOOKBACK = {"busy": timedelta(days=8), "weekly": timedelta(days=15)}  # a mark older than this is a broken one
+LOOKBACK = {"busy": timedelta(days=8), "weekly": timedelta(days=15)}  # never reads runs older than this
+DONE = ("SUCCEEDED", "FAILED", "ABORTED", "TIMED-OUT")
 
 
-def since_for(run, now, last=None):
-    """Where a check starts reading. With the last finished check's start (`last`): from there,
-    less a few minutes, but never further back than LOOKBACK. Without one (the first check, or the
-    store unreadable), the schedule's: the busy list from the last 6pm or 9pm check at least two
-    and a half hours back, the weekly run from 7 days and an hour back."""
-    if last:
-        return max(last - OVERLAP, now - LOOKBACK[run]).astimezone(LOCAL)
-    if run == "weekly":
-        return now - timedelta(days=7, hours=1)
-    local = now.astimezone(LOCAL)
-    slots = [datetime(d.year, d.month, d.day, h, m, tzinfo=LOCAL)
-             for d in (local.date() - timedelta(days=1), local.date()) for h, m in SLOTS]
-    return max(s for s in slots if s <= local - timedelta(hours=2, minutes=30))
+def task_name(run, kind):
+    return f"bp-{run}-{kind}"
 
 
 def pages_for(run, root):
@@ -84,12 +83,12 @@ def events_tab(url):
     return url.rstrip("/") + "/upcoming_hosted_events"
 
 
-def actor_input(kind, urls, since):
-    stamp = since.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+def actor_input(kind, urls, window):
+    """A task's input: the pages, and how far back to read ("22 hours"); a schedule overrides the window."""
     if kind == "facebook":
-        return {"startUrls": [{"url": u} for u in urls], "resultsLimit": POSTS, "onlyPostsNewerThan": stamp}
+        return {"startUrls": [{"url": u} for u in urls], "resultsLimit": POSTS, "onlyPostsNewerThan": window}
     if kind == "instagram":
-        return {"username": urls, "resultsLimit": POSTS, "onlyPostsNewerThan": stamp}
+        return {"username": urls, "resultsLimit": POSTS, "onlyPostsNewerThan": window}
     return {"startUrls": [{"url": events_tab(u)} for u in urls], "maxEvents": 10}
 
 
@@ -119,19 +118,6 @@ def _composio(slug, args):
     return d.get("data", d) if isinstance(d, dict) else d
 
 
-def start(actor, body, cap):
-    if direct():
-        return _http("POST", f"/acts/{actor}/runs?maxTotalChargeUsd={cap}&timeout=600", body)["data"]
-    return _composio("APIFY_RUN_ACTOR", {"actorId": actor, "body": body, "waitForFinish": 0,
-                                        "maxTotalChargeUsd": cap, "timeout": 600})
-
-
-def status(run_id):
-    if direct():
-        return _http("GET", f"/actor-runs/{run_id}")["data"]
-    return _composio("APIFY_ACTOR_RUN_GET", {"runId": run_id})
-
-
 def items(dataset):
     if direct():
         out, offset = [], 0
@@ -157,8 +143,8 @@ def limits():
     return _composio("APIFY_USERS_ME_LIMITS_GET", {})
 
 
-def _store(method, path, body=None):
-    """The mark's store: the REST API in the cloud, Composio's proxy on a Mac. None for a missing record."""
+def api(method, path, body=None):
+    """Any Apify call: the REST API in the cloud, Composio's proxy on a Mac. None for a missing record."""
     if direct():
         try:
             return _http(method, path, body)
@@ -174,43 +160,96 @@ def _store(method, path, body=None):
     if isinstance(d, dict) and d.get("error"):
         if "not-found" in str(d["error"].get("type", "")):
             return None
-        raise RuntimeError(f"Apify store: {d['error']}")
+        raise RuntimeError(f"Apify: {d['error']}")
     return d
 
 
 def _store_id():
-    return _store("POST", f"/key-value-stores?name={STORE}")["data"]["id"]  # makes it the first time, finds it after
+    return api("POST", f"/key-value-stores?name={STORE}")["data"]["id"]  # makes it the first time, finds it after
 
 
-def last_check(run):
-    rec = _store("GET", f"/key-value-stores/{_store_id()}/records/last-{run}")
-    return datetime.fromisoformat(rec["started_at"]) if rec and rec.get("started_at") else None
+def last_read(run):
+    rec = api("GET", f"/key-value-stores/{_store_id()}/records/read-{run}")
+    return datetime.fromisoformat(rec["finished_at"]) if rec and rec.get("finished_at") else None
 
 
-def mark_check(run, started_at):
-    _store("PUT", f"/key-value-stores/{_store_id()}/records/last-{run}", {"started_at": started_at})
+def mark_read(run, finished_at):
+    api("PUT", f"/key-value-stores/{_store_id()}/records/read-{run}", {"finished_at": finished_at})
 
 
-def run_all(jobs, wait_s=480):
-    """Start every job once, then wait for all of them: {name: (status, cost, items)}."""
-    started, done = {}, {}
-    for name, (actor, body, cap) in jobs.items():
-        try:
-            started[name] = start(actor, body, cap)["id"]
-        except Exception as e:  # never retried: a second start is a second paid run
-            done[name] = (f"start failed: {e}", 0.0, [])
+def by_name(path):
+    return {x["name"]: x for x in api("GET", f"{path}?limit=1000")["data"]["items"]}
+
+
+def page_lists(root):
+    """{(run, kind): pages} for every task: each list's own pages, and the busy list's Facebook
+    pages again for the weekly Events tabs."""
+    category = {e["id"]: e.get("category") for e in load(root)[0]}
+    out = {}
+    for run in ("busy", "weekly"):
+        for p in pages_for(run, root):
+            p["category"] = category.get(p["entry_id"])
+            out.setdefault((run, p["kind"]), []).append(p)
+    out[("weekly", "events")] = [p for p in out.get(("busy", "facebook"), [])]
+    return {k: v for k, v in out.items() if k in ACTORS}
+
+
+def sync_tasks(root):
+    """Each task's pages as the list now has them; makes a task that is missing."""
+    tasks, ids = by_name("/actor-tasks"), {}
+    for (run, kind), pages in page_lists(root).items():
+        actor, cap = ACTORS[(run, kind)]
+        body = {"input": actor_input(kind, [p["url"] for p in pages], next(w for _, _, r, w in SCHEDULES if r == run)),
+                "options": {"timeoutSecs": 600, "maxTotalChargeUsd": cap}}
+        name = task_name(run, kind)
+        if name in tasks:
+            api("PUT", f"/actor-tasks/{tasks[name]['id']}", body)
+            ids[name] = tasks[name]["id"]
+        else:
+            ids[name] = api("POST", "/actor-tasks", {"actId": actor, "name": name, **body})["data"]["id"]
+    return ids
+
+
+def setup():
+    root = find_root()
+    ids = sync_tasks(root)
+    have = by_name("/schedules")
+    for name, cron, run, window in SCHEDULES:
+        actions = [{"type": "RUN_ACTOR_TASK", "actorTaskId": tid,
+                    **({} if n.endswith("-events") else {"input": {"onlyPostsNewerThan": window}})}  # merged over the task's own input
+                   for n, tid in ids.items() if n.startswith(f"bp-{run}-")]
+        body = {"name": name, "cronExpression": cron, "timezone": "America/Chicago", "isEnabled": True,
+                "isExclusive": True, "actions": actions}
+        if name in have:
+            api("PUT", f"/schedules/{have[name]['id']}", body)
+        else:
+            api("POST", "/schedules", body)
+        print(f"[social] schedule {name}: {cron} Chicago, {len(actions)} tasks, reading {window} back")
+    now = datetime.now(timezone.utc).isoformat()
+    for run in ("busy", "weekly"):
+        if not last_read(run):  # the first setup: start from now, never from runs made before it
+            mark_read(run, now)
+
+
+def runs_since(run, mark, now, wait_s=480):
+    """{kind: [finished runs]} of a run's tasks since the mark, waiting up to wait_s for one that
+    started within the last 90 minutes and is still going. Runs older than LOOKBACK are never read."""
+    tasks = {n: x for n, x in by_name("/actor-tasks").items() if n.startswith(f"bp-{run}-")}
+    floor = max(mark, now - LOOKBACK[run]) if mark else now - LOOKBACK[run]
     deadline = time.time() + wait_s
-    while started and time.time() < deadline:
-        for name, run_id in list(started.items()):
-            s = status(run_id)
-            if s["status"] in ("SUCCEEDED", "FAILED", "ABORTED", "TIMED-OUT"):
-                done[name] = (s["status"], float(s.get("usageTotalUsd") or 0), items(s["defaultDatasetId"]))
-                del started[name]
-        if started:
-            time.sleep(15)
-    for name, run_id in started.items():
-        done[name] = (f"still running after {wait_s} s (run {run_id}); its posts wait for the next check", 0.0, [])
-    return done
+    while True:
+        out, waiting = {}, []
+        for name, task in tasks.items():
+            for r in api("GET", f"/actor-tasks/{task['id']}/runs?desc=true&limit=30")["data"]["items"]:
+                started = datetime.fromisoformat(r["startedAt"].replace("Z", "+00:00"))
+                if r["status"] in DONE and r.get("finishedAt"):
+                    if datetime.fromisoformat(r["finishedAt"].replace("Z", "+00:00")) > floor:
+                        out.setdefault(name.split("-", 2)[2], []).append(r)
+                elif now - started < timedelta(minutes=90):
+                    waiting.append(name)
+        if not waiting or time.time() > deadline:
+            return out, waiting
+        time.sleep(15)
 
 
 # ---- posts become pages, the way the cheap model reads them ----
@@ -258,39 +297,44 @@ def post_pages(kind, rows, by_url):
     return pages, hidden
 
 
-def prepare(run, today, since, out, started):
+def prepare(run, today, out, now):
     root = find_root()
     if out.exists():
         shutil.rmtree(out)
     (out / "batches").mkdir(parents=True)
-    category = {e["id"]: e.get("category") for e in load(root)[0]}
-    pages = pages_for(run, root)
-    for p in pages:
-        p["category"] = category.get(p["entry_id"])
-    by_kind = {k: [p for p in pages if p["kind"] == k] for k in ("facebook", "instagram")}
-    jobs = {k: (*ACTORS[(run, k)][:1], actor_input(k, [p["url"] for p in ps], since), ACTORS[(run, k)][1])
-            for k, ps in by_kind.items() if ps}
-    if run == "weekly":
-        busy_fb = [p for p in pages_for("busy", root) if p["kind"] == "facebook"]
-        for p in busy_fb:
-            p["category"] = category.get(p["entry_id"])
-        if busy_fb:
-            jobs["events"] = (ACTORS[("weekly", "events")][0], actor_input("events", [p["url"] for p in busy_fb], since),
-                              ACTORS[("weekly", "events")][1])
-        by_kind["events"] = busy_fb
-    done = run_all(jobs)
+    lists = page_lists(root)
+    failed = []
+    try:
+        sync_tasks(root)  # the next run reads the list as it is now
+    except Exception as e:
+        failed.append(f"task pages not refreshed: {e}")
+    try:
+        mark = last_read(run)
+    except Exception as e:  # the store unreadable: the last LOOKBACK of runs, and say so
+        mark, _ = None, failed.append(f"last read unreadable ({e}); reading every run of the last {LOOKBACK[run].days} days")
+    found, waiting = runs_since(run, mark, now)
+    failed += [f"{n} still running after 8 minutes; its posts wait for the next check" for n in waiting]
 
-    posts, failed, cost = [], [], 0.0
-    for kind, (state, spent, rows) in done.items():
-        cost += spent
-        by_url = {p["url"].rstrip("/").lower(): p for p in by_kind[kind]}
+    posts, cost, until, states = [], 0.0, mark, []
+    for kind, runs in found.items():
+        by_url = {p["url"].rstrip("/").lower(): p for p in lists.get((run, kind), [])}
         if kind == "events":
             by_url = {events_tab(u): p for u, p in by_url.items()} | by_url
-        got, hidden = post_pages(kind, rows, by_url)
-        posts += got
-        failed += [f"{kind}: {h}" for h in hidden]
-        if state != "SUCCEEDED":
-            failed.append(f"{kind} check: {state}")
+        for r in runs:
+            cost += float(r.get("usageTotalUsd") or 0)
+            finished = datetime.fromisoformat(r["finishedAt"].replace("Z", "+00:00"))
+            until = max(until, finished) if until else finished
+            states.append(r["status"])
+            got, hidden = post_pages(kind, items(r["defaultDatasetId"]), by_url)
+            posts += got
+            failed += [f"{kind}: {h}" for h in hidden]
+            if r["status"] != "SUCCEEDED":
+                failed.append(f"{kind} run {r['id']} at {finished.astimezone(LOCAL):%a %-I:%M %p}: {r['status']}")
+    seen, unique = set(), []
+    for p in posts:  # overlapping windows read a post twice; one page each
+        if p["file"] not in seen:
+            seen.add(p["file"]), unique.append(p)
+    posts = unique
     for i, b in enumerate(batches(posts), 1):
         (out / "batches" / f"batch-{i}.txt").write_text(message(b, today))
     (out / "pages.json").write_text(json.dumps([{k: v for k, v in p.items() if k != "text"} for p in posts], indent=1))
@@ -300,31 +344,32 @@ def prepare(run, today, since, out, started):
         interests = write_judged.interest_ids()
     except Exception as e:  # no database keys (a dry run on a Mac): the judge then uses null
         interests, _ = [], failed.append(f"interest ids unread: {e}")
-    summary = {"today": str(today), "run": run, "since": since.isoformat(), "fetched": len(pages) + (len(by_kind.get("events", [])) if run == "weekly" else 0),
-               "changed": len(posts), "first_seen": 0, "to_read": len(posts),
+    runs = sum(len(v) for v in found.values())
+    checked = sum(len(v) for (r, _), v in lists.items() if r == run)
+    summary = {"today": str(today), "run": run, "since": mark.isoformat() if mark else None,
+               "fetched": checked, "changed": len(posts), "first_seen": 0, "to_read": len(posts),
                "batches": len(list((out / "batches").iterdir())), "failed": failed, "readers": [],
-               "interests": interests, "apify_usd": round(cost, 3), "started_at": started.isoformat(),
-               "complete": all(state == "SUCCEEDED" for state, _, _ in done.values()) and len(done) == len(jobs)}
+               "interests": interests, "apify_usd": round(cost, 3), "apify_runs": runs,
+               "read_until": until.isoformat() if until and runs else None}
     (out / "prepare.json").write_text(json.dumps(summary, indent=1))
-    print(f"[social] {run}: {summary['fetched']} pages checked since {since.astimezone(LOCAL):%a %b %-d %-I:%M %p}, "
-          f"{len(posts)} new posts in {summary['batches']} batches ({out / 'batches'}), Apify ${cost:.2f}")
+    since = f"since {mark.astimezone(LOCAL):%a %b %-d %-I:%M %p}" if mark else "of the last days"
+    print(f"[social] {run}: {runs} Apify runs {since}, {checked} pages, {len(posts)} new posts in "
+          f"{summary['batches']} batches ({out / 'batches'}), Apify ${cost:.2f}")
     for f in failed:
         print(f"[social] FAILED {f}")
 
 
 def finish(out):
-    """After the write: mark this check finished, unless one of its Apify reads failed, in which
-    case the next check reads its window again."""
+    """After the write: mark this check's runs read, so the next check starts after them."""
     prep = json.loads((out / "prepare.json").read_text())
-    if not prep.get("complete"):
-        return print(f"[social] {prep['run']}: not marked finished (a read failed), so the next check reads from "
-                     f"{datetime.fromisoformat(prep['since']).astimezone(LOCAL):%a %b %-d %-I:%M %p} again")
+    if not prep.get("read_until"):
+        return print(f"[social] {prep['run']}: no Apify runs to mark")
     try:
-        mark_check(prep["run"], prep["started_at"])
-    except Exception as e:  # the next check then reads the schedule's window, which may miss a skipped one
-        return print(f"[social] FAILED marking {prep['run']} finished ({e}): check the Apify network secret")
-    print(f"[social] {prep['run']}: marked finished; the next check reads from "
-          f"{datetime.fromisoformat(prep['started_at']).astimezone(LOCAL) - OVERLAP:%a %b %-d %-I:%M %p}")
+        mark_read(prep["run"], prep["read_until"])
+    except Exception as e:  # the next check then reads these runs again; the writer merges repeats
+        return print(f"[social] FAILED marking {prep['run']} read ({e}): check the Apify network secret")
+    print(f"[social] {prep['run']}: {prep['apify_runs']} runs marked read, up to "
+          f"{datetime.fromisoformat(prep['read_until']).astimezone(LOCAL):%a %b %-d %-I:%M %p}")
 
 
 def spend_line(used, cap):
@@ -354,16 +399,9 @@ def selftest():
             sys.exit(f"selftest failed: {what}")
         ok += 1
     t = lambda d, h, m: datetime(2026, 10, d, h, m, tzinfo=LOCAL)
-    check(since_for("busy", t(22, 18, 2)) == t(21, 21, 0), "a 6pm check reads from last night's 9pm")
-    check(since_for("busy", t(22, 21, 1)) == t(22, 18, 0), "a 9pm check reads from 6pm")
-    check(since_for("busy", t(22, 15, 30)) == t(21, 21, 0), "a hand-started afternoon run reads from last night")
-    check(since_for("busy", t(22, 20, 25)) == t(21, 21, 0), "a 6pm run that starts late still reads from last night")
-    check(since_for("weekly", t(22, 15, 0)) == t(15, 14, 0), "the weekly run reads 7 days and an hour")
-    check(since_for("busy", t(23, 18, 0), last=t(22, 18, 17)) == t(22, 18, 7), "after a skipped 9pm check, 6pm reads from the last finished one")
-    check(since_for("busy", t(22, 21, 0), last=t(22, 18, 1)) == t(22, 17, 51), "a normal 9pm check reads from 6pm, a little overlap")
-    check(since_for("busy", t(23, 18, 0), last=t(1, 18, 0)) == t(15, 18, 0), "a mark weeks old reads 8 days back at most")
-    check(since_for("weekly", t(29, 15, 0), last=t(22, 15, 2)) == t(22, 14, 52), "the weekly run reads from last week's")
-    check(actor_input("facebook", ["u"], t(22, 18, 0))["onlyPostsNewerThan"] == "2026-10-22T23:00:00", "the window is sent in UTC")
+    check(actor_input("facebook", ["u"], "4 hours")["onlyPostsNewerThan"] == "4 hours", "a task reads a window back from now")
+    check([w for _, _, r, w in SCHEDULES if r == "busy"] == ["22 hours", "4 hours"], "6pm reads back past last night's 9pm, 9pm past 6pm")
+    check(task_name("weekly", "events") == "bp-weekly-events", "a task's name")
     by_url = {"https://www.facebook.com/krewe": {"name": "Krewe", "entry_id": "krewe", "url": "https://www.facebook.com/krewe"}}
     rows = [{"inputUrl": "https://www.facebook.com/krewe/", "postId": "1", "url": "https://fb/p/1", "text": "Trivia tonight at 7!",
              "time": "2026-10-22T23:05:00.000Z"},
@@ -384,9 +422,8 @@ def selftest():
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("step", nargs="?", choices=["prepare", "done", "spend"])
+    ap.add_argument("step", nargs="?", choices=["setup", "prepare", "done", "spend"])
     ap.add_argument("run", nargs="?", choices=["busy", "weekly"])
-    ap.add_argument("--since", help="ISO time to read from, instead of the schedule's")
     ap.add_argument("--today", help="YYYY-MM-DD; default today in Chicago")
     ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args()
@@ -394,21 +431,15 @@ def main():
         return selftest()
     if args.step == "spend":
         return spend()
+    if args.step == "setup":
+        return setup()
     if args.step == "done":
         return finish(find_root() / ".runs" / "morning")
     if args.step != "prepare" or not args.run:
-        ap.error("prepare busy|weekly, done, or spend")
+        ap.error("setup, prepare busy|weekly, done, or spend")
     now = datetime.now(timezone.utc)
-    if args.since:
-        since = datetime.fromisoformat(args.since).astimezone(LOCAL)
-    else:
-        try:
-            last = last_check(args.run)
-        except Exception as e:  # the store unreadable: the schedule's window, and say so
-            last, _ = None, print(f"[social] last finished check unreadable ({e}); reading the schedule's window")
-        since = since_for(args.run, now, last)
     today = date.fromisoformat(args.today) if args.today else now.astimezone(LOCAL).date()
-    prepare(args.run, today, since, find_root() / ".runs" / "morning", now)
+    prepare(args.run, today, find_root() / ".runs" / "morning", now)
 
 
 if __name__ == "__main__":
