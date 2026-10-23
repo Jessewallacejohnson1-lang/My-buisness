@@ -963,7 +963,7 @@ final class DayPaletteTokenTests: XCTestCase {
         let tokens: [(String, Color)] = [
             ("ink", Hue.ink), ("paper", Hue.paper), ("surface", Hue.surface),
             ("inkSecondary", Hue.inkSecondary), ("hairline", Hue.hairline),
-            ("fill", Hue.fill), ("accent", Hue.accent), ("edge", Hue.edge),
+            ("fill", Hue.fill), ("edge", Hue.edge),
         ]
 
         for (name, color) in tokens {
@@ -981,22 +981,6 @@ final class DayPaletteTokenTests: XCTestCase {
         XCTAssertEqual(hex(Hue.surface, .dark), "#1D1D1A")
         // A card is still a lighter object sitting on the page, not a darker hole.
         XCTAssertNotEqual(hex(Hue.surface, .dark), hex(Hue.paper, .dark))
-    }
-
-    /// Category colour is an identity. Every gradient steps down in the dark; none
-    /// of them is re-picked, and none of them stays put.
-    func testEveryCategoryGradientHasADarkBranch() {
-        for gradient in CategoryGradient.allCases {
-            let stops = gradient.stops
-            XCTAssertNotEqual(
-                hex(stops.top, .light), hex(stops.top, .dark),
-                "\(gradient.rawValue) top stop does not move in the dark"
-            )
-            XCTAssertNotEqual(
-                hex(stops.bottom, .light), hex(stops.bottom, .dark),
-                "\(gradient.rawValue) bottom stop does not move in the dark"
-            )
-        }
     }
 
     /// The map is light cartography in BOTH appearances, so anything drawn on it

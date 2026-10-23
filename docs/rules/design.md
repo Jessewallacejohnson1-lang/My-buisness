@@ -32,11 +32,8 @@ allowlist of the palettes named below). A call split across lines is still caugh
 
 - **`BlockPartyColor`** (`Hue.*`) `[hook]` — six neutral tokens (`ink`, `paper`, `surface`,
   `inkSecondary`, `hairline`, `fill`) plus scoped colour:
-  - **`accent`** plum/berry #8E3B6B — the one meaning-scoped accent. Live events, active
-    filters, selected states and primary CTAs only. Never decorative washes, never
-    body copy. **Not saved:** a saved bookmark is the brand yellow (below) since
-    2026-09-27.
-  - **`statusTint`** #FDECE8 — the pin-detail status card's wash and nothing else.
+  - Selected states are **ink**; "live" is **`now`**, Apple's green.
+  - **`statusTint`** #F1F1EF — the pin-detail status card's light grey wash and nothing else.
   - **`canceled`** — Apple's red (`.systemRed`), for a called-off Event's "Canceled" pill and
     nothing else (Jesse, 2026-10-17; `DECISIONS.md`).
   - **`heart`** #FF3040 — a liked heart and nothing else: state, not chrome. Pass it *into*
@@ -61,8 +58,7 @@ allowlist of the palettes named below). A call split across lines is still caugh
     the app from going idle and the UI tests waited minutes per step (2026-10-01).
   - The rule is **white ground + small yellow accents, every yellow derived from
     `brandYellowHex`** — never a second yellow, never a call-site hex. These are scoped
-    surface tints, not second accents. The retired coral and `moss`/`sky`/`honey`/`clay`
-    ramps stay deleted.
+    surface tints, not second accents.
   - **What sits ON the yellow is not a free choice.** `[test]` #FCE804 has luminance 0.784,
     so white measures 1.26:1 and the dark ramp's `ink` 1.11:1 — only the light ink clears,
     at 15.0:1. Hence **`onBrandDisc`**, pinned to the light ramp. `BrandDiscContrastTests`

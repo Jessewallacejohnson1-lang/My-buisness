@@ -1,7 +1,7 @@
 //
 //  InterestPickerView.swift
 //  Block Party — "What are you into around town?" The reference's photo-card grid,
-//  grouped into sections. Gentle: pick a few (min 1). Sticky coral CTA with a
+//  grouped into sections. Gentle: pick a few (min 1). Sticky ink CTA with a
 //  live count. Cards fade+rise in on first appear.
 //
 

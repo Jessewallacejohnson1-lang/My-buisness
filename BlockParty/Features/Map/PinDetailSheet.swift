@@ -95,8 +95,8 @@ nonisolated enum PinDetailCopy {
 
 // MARK: - Status-card ink (pinned to the light ramp)
 
-/// The status card's wash (`Hue.statusTint`) is a fixed LIGHT pale-coral in both
-/// appearances (Jesse's explicit 2026-08-14 pick), so everything drawn ON it pins
+/// The status card's wash (`Hue.statusTint`) is a fixed LIGHT grey in both
+/// appearances, so everything drawn ON it pins
 /// to the light ramp — dark-mode `Hue.ink` is near-white (#F2F1EC) and measured
 /// ~1.1:1 on the wash, an invisible header (caught by dark-mode screenshot, round
 /// 2 Phase D). Same scoping rule as the map canvas (`Color.onLightCanvas`,
@@ -106,7 +106,6 @@ private enum CardInk {
     static let ink = Hue.ink.onLightCanvas
     static let inkSecondary = Hue.inkSecondary.onLightCanvas
     static let hairline = Hue.hairline.onLightCanvas
-    static let accent = Hue.accent.onLightCanvas
 }
 
 // MARK: - Sheet
@@ -126,6 +125,7 @@ struct PinDetailSheet: View {
     var onClose: () -> Void
 
     @ObservedObject private var saved = SavedStore.shared
+    @Environment(RealLifeActions.self) private var actions
     @Environment(\.openURL) private var openURL
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -179,6 +179,10 @@ struct PinDetailSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             header
+            // A place's follow line, as on its page (follows 02). Civic spots have no Place.
+            if let follow {
+                FollowLine(target: follow, name: detail.name)
+            }
             statusCard
             Spacer(minLength: 8)
             actionBar
@@ -290,12 +294,21 @@ struct PinDetailSheet: View {
         HStack(spacing: 6) {
             Image(systemName: detail.glyph)
                 .font(.sansSemibold(11))
-            Text(PinDetailCopy.secondaryLine(address: detail.poi?.address).uppercased())
+            Text(secondaryText.uppercased())
                 .font(.mono(11))
                 .tracking(1.2)
                 .lineLimit(1)
         }
         .foregroundStyle(Hue.inkSecondary)
+    }
+
+    private var follow: FollowTarget? { detail.poi.map { FollowTarget(type: .place, id: $0.id) } }
+
+    /// The street, then its real count once read: "24 COLLEGE AVE N · 128 FOLLOWERS".
+    private var secondaryText: String {
+        let street = PinDetailCopy.secondaryLine(address: detail.poi?.address)
+        guard let follow, let count = FollowWords.count(actions.follow(follow).count) else { return street }
+        return "\(street) · \(count)"
     }
 
     private var headerAccessibilityLabel: String {
@@ -354,12 +367,12 @@ struct PinDetailSheet: View {
         )
     }
 
-    /// Header: dot + status word + sparkle. The dot goes plum only for
-    /// LIVE (the accent's meaning scope); the wash stays statusTint.
+    /// Header: dot + status word + sparkle. The dot goes green only for LIVE
+    /// (`Hue.now`); the wash stays statusTint.
     private var statusHeader: some View {
         HStack(spacing: 8) {
             Circle()
-                .fill(isLive ? CardInk.accent : CardInk.ink)
+                .fill(isLive ? Hue.now : CardInk.ink)
                 .frame(width: 8, height: 8)
             Text(PinDetailCopy.statusWord(isLive: isLive, todayCount: happenings.count))
                 .font(.sansSemibold(15))
@@ -650,7 +663,7 @@ struct PinFullDetailsView: View {
                 let time = happening.startTime ?? "all day"
                 HStack(spacing: 8) {
                     Circle()
-                        .fill(isLive ? Hue.accent : Hue.inkSecondary)
+                        .fill(isLive ? Hue.now : Hue.inkSecondary)
                         .frame(width: 6, height: 6)
                     Text(happening.title)
                         .font(.sansMedium(15))

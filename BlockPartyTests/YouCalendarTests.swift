@@ -221,7 +221,10 @@ final class YouCalendarTests: XCTestCase {
         fail = true
         actions.toggleSave(card)
         XCTAssertEqual(shown(), ["card"])
-        try await Task.sleep(for: .milliseconds(200))
+        // Wait on the turn back itself, not a fixed time: GitHub's runner once outlasted 200 ms
+        // (2026-10-22, 0e8da6c).
+        let deadline = ContinuousClock.now + .seconds(5)
+        while shown() != [], ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
         XCTAssertEqual(shown(), [])
         actions.accountChanged(signedIn: true)
         XCTAssertTrue(actions.savedTapped.isEmpty)

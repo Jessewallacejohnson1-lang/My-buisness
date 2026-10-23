@@ -156,7 +156,7 @@ extension DailyEvent {
     init?(row: TownFeedRow) {
         // A game whose final is in is over, though the Town feed keeps its card a day (game-card 02).
         guard row.event.game?.final == nil else { return nil }
-        var item = TownFeed.entry(row).card
+        var item = TownFeed.card(row)
         if row.event.isAllDay { item.startTime = nil }
         guard var event = YouCalendar.event(from: item) else { return nil }
         event.ends = row.leavesAt

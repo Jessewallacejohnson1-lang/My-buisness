@@ -33,7 +33,7 @@ enum KnownLocalPhoto {
         "Millstream Arts Festival": "millstream-arts-festival",
         "RocktoberFest": "rocktoberfest",
         // "Kidtoberfest" has no bundled photo yet (first-year 2026 event; assets not
-        // published as of July 2026) — omitted so its card shows the coral photo-glyph
+        // published as of July 2026) — omitted so its card shows the photo-glyph
         // placeholder rather than a blank linen box. Add the key + a Resources/Images
         // file once real imagery exists.
     ]

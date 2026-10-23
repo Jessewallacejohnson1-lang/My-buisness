@@ -121,6 +121,26 @@ struct CommunityAPI {
         return try Self.placePhotos(from: data)
     }
 
+    /// Each place's name over its photo (`public.place_names`), by registry entry (BP app follows 02).
+    func getPlaceNames() async throws -> [String: PlaceName] {
+        struct Row: Decodable { let entryId: String; let url: String; let kind: String }
+        let (data, _) = try await SupabaseHTTP.rest("place_names", query: "select=entry_id,url,kind",
+                                                    accessToken: await readToken())
+        let rows: [Row] = try decode(data)
+        return Dictionary(rows.compactMap { row in
+            URL(string: row.url).map { (row.entryId, PlaceName(url: $0, emblem: row.kind == "emblem")) }
+        }, uniquingKeysWith: { first, _ in first })
+    }
+
+    /// The name over an Event's photo: its place's, or nil.
+    func eventPlaceName(_ eventID: String) async throws -> PlaceName? {
+        struct Row: Decodable { let url: String; let kind: String }
+        let (data, _) = try await SupabaseHTTP.rest("rpc/event_place_name", method: "POST", accessToken: await readToken(),
+                                                    body: try body(["p_event": eventID]))
+        guard let row = try? decode(data) as Row, let url = URL(string: row.url) else { return nil }
+        return PlaceName(url: url, emblem: row.kind == "emblem")
+    }
+
     /// A row that doesn't decode is that one photo gone, never the rest.
     nonisolated static func placePhotos(from data: Data) throws -> [String: [PlacePicture]] {
         struct Row: Decodable {
@@ -225,14 +245,15 @@ struct CommunityAPI {
     /// The Town feed, in its order: what's in it, when each event leaves, and a series
     /// once with how it repeats, all worked out by `get_town_feed`, the one function
     /// iOS and Android both call. Signed out, it reads with the public key, as
-    /// `getPlaces` does.
-    func getTownFeed() async throws -> [TownFeedRow] {
+    /// `getPlaces` does. It asks for town news too (town-feed 35); an app that doesn't
+    /// gets the events alone.
+    func getTownFeed() async throws -> [TownFeedLine] {
         let (data, _) = try await SupabaseHTTP.rest("rpc/get_town_feed", method: "POST",
                                                     accessToken: await readToken(),
-                                                    body: Data("{}".utf8))
-        let rows = try Self.townFeedRows(from: data)
+                                                    body: Data(#"{"p_news":true}"#.utf8))
+        let lines = try Self.townFeedLines(from: data)
         TownFeedCache.save(data)
-        return rows
+        return lines
     }
 
     /// Your Event of the day: today's standouts for you, one for each part of the day, worked
@@ -250,13 +271,23 @@ struct CommunityAPI {
         return rows
     }
 
-    /// `get_town_feed`'s rows as events. A row whose `leaves_at` doesn't parse is
-    /// dropped: it would have no moment to leave.
+    /// `get_town_feed`'s Events, without its news.
     static func townFeedRows(from data: Data) throws -> [TownFeedRow] {
+        try townFeedLines(from: data).compactMap { line -> TownFeedRow? in
+            if case .event(let row) = line { return row }
+            return nil
+        }
+    }
+
+    /// `get_town_feed`'s rows as Events and news, in its order. A row whose `leaves_at`
+    /// doesn't parse is dropped: it would have no moment to leave; so is news with no
+    /// post to open.
+    static func townFeedLines(from data: Data) throws -> [TownFeedLine] {
         struct Row: Decodable {
             let id: String
             let title: String
-            let eventDate: String
+            /// nil on a news row (town-feed 35).
+            let eventDate: String?
             let startTime: String?
             let location: String?
             let imageUrl: String?
@@ -288,6 +319,9 @@ struct CommunityAPI {
             let game: Game.Lenient?
             /// What it is in one to three words (event-card 05).
             let what: String?
+            /// "news" for town news, else an Event (town-feed 35), and the post it came from.
+            let kind: String?
+            let sourceUrl: String?
         }
         /// The admin's breakdown, or nil when it doesn't decode: a score never costs the
         /// feed.
@@ -297,9 +331,17 @@ struct CommunityAPI {
         }
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return try decoder.decode([Row].self, from: data).compactMap { row in
+        return try decoder.decode([Row].self, from: data).compactMap { row -> TownFeedLine? in
             guard let leavesAt = DateHelpers.timestamp(row.leavesAt) else { return nil }
-            let event = UpcomingEvent(id: row.id, title: row.title, eventDate: row.eventDate,
+            if row.kind == "news" {
+                guard let post = row.sourceUrl.flatMap(URL.init(string:)) else { return nil }
+                let words = row.description?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                return .news(TownNews(id: row.id, place: row.sourceName ?? "",
+                                      words: words.isEmpty ? row.title : words, post: post,
+                                      picture: row.placePicture?.value, leavesAt: leavesAt))
+            }
+            guard let eventDate = row.eventDate else { return nil }
+            let event = UpcomingEvent(id: row.id, title: row.title, eventDate: eventDate,
                                       startTime: row.startTime, location: row.location,
                                       goingCount: row.goingCount, createdAt: row.createdAt,
                                       imageUrl: row.imageUrl, rsvpd: row.rsvpd,
@@ -311,12 +353,12 @@ struct CommunityAPI {
                                       placePicture: row.placePicture?.value,
                                       description: row.description, game: row.game?.value,
                                       what: row.what)
-            return TownFeedRow(event: event, recurrence: row.recurrence, leavesAt: leavesAt,
-                               reason: row.reason, reasonName: row.reasonName, score: row.score?.value,
-                               heartCount: row.heartCount ?? 0, hearted: row.hearted ?? false,
-                               saved: row.saved ?? false,
-                               friendsGoing: (row.friendsGoing ?? []).map(\.feed),
-                               groupID: row.clubId, inGroup: row.inClub ?? false)
+            return .event(TownFeedRow(event: event, recurrence: row.recurrence, leavesAt: leavesAt,
+                                      reason: row.reason, reasonName: row.reasonName, score: row.score?.value,
+                                      heartCount: row.heartCount ?? 0, hearted: row.hearted ?? false,
+                                      saved: row.saved ?? false,
+                                      friendsGoing: (row.friendsGoing ?? []).map(\.feed),
+                                      groupID: row.clubId, inGroup: row.inClub ?? false))
         }
     }
 
@@ -341,6 +383,38 @@ struct CommunityAPI {
         _ = try await SupabaseHTTP.rest("feed_actions", method: "POST", accessToken: t,
                                         body: try JSONSerialization.data(withJSONObject: rows),
                                         prefer: "return=minimal")
+    }
+
+    /// Not interested, Mute and their undoing (town-feed 21), straight away. A Mute answers with
+    /// the host it muted, which Unmute names. Ids that aren't Events (samples) send nothing.
+    func feedChoice(_ choice: FeedChoice) async throws -> String? {
+        let t = try await token()
+        switch choice {
+        case .notInterested(let id), .undoNotInterested(let id):
+            guard UUID(uuidString: id) != nil else { return nil }
+            let on = choice == .notInterested(id)
+            _ = try await SupabaseHTTP.rest("rpc/set_not_interested", method: "POST", accessToken: t,
+                                            body: try body(["p_item": id, "p_on": on]))
+            return nil
+        case .mute(let id):
+            guard UUID(uuidString: id) != nil else { return nil }
+            let (data, _) = try await SupabaseHTTP.rest("rpc/mute_host", method: "POST", accessToken: t,
+                                                        body: try body(["p_item": id]))
+            return try JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) as? String
+        case .unmute(let host):
+            var allowed = CharacterSet.urlQueryAllowed
+            allowed.remove(charactersIn: "&=+,()")
+            let value = host.addingPercentEncoding(withAllowedCharacters: allowed) ?? host
+            _ = try await SupabaseHTTP.rest("feed_mutes", method: "DELETE", query: "host=eq.\(value)", accessToken: t)
+            return nil
+        }
+    }
+
+    /// The hosts you muted, newest first: Profile's Muted list (town-feed 21).
+    func mutedHosts() async throws -> [MutedHost] {
+        let (data, _) = try await SupabaseHTTP.rest("feed_mutes", query: "select=host,name&order=at.desc",
+                                                    accessToken: try await token())
+        return try decode(data)
     }
 
     func unRsvpEvent(_ eventId: String) async throws {
@@ -535,6 +609,41 @@ struct CommunityAPI {
         return relation
     }
 
+    // MARK: - Follows (BP app docs/plans/follows, ticket 02)
+
+    /// Follow or unfollow a Place or person: `follow_target` and `unfollow_target`, for a real
+    /// account only. Following twice, or unfollowing twice, is fine.
+    func followWrite(_ target: FollowTarget, _ on: Bool) async throws {
+        try await SupabaseHTTP.rest("rpc/\(on ? "follow_target" : "unfollow_target")", method: "POST",
+                                    accessToken: try await token(),
+                                    body: try body(["p_type": target.type.rawValue, "p_id": target.id]))
+    }
+
+    /// What a page shows of it: the count, your friends who follow it, and whether you do.
+    /// Signed out too: then the count alone.
+    func followCard(_ target: FollowTarget) async throws -> FollowCard {
+        let (data, _) = try await SupabaseHTTP.rest("rpc/follow_card", method: "POST", accessToken: await readToken(),
+                                                    body: try body(["p_type": target.type.rawValue, "p_id": target.id]))
+        let rows: [FollowCard] = try decode(data)
+        guard let card = rows.first else { throw SupabaseError(message: "Unexpected answer", status: nil) }
+        return card
+    }
+
+    /// Everyone and everything you follow, A to Z: Profile's Following list.
+    func myFollows() async throws -> [FollowRow] {
+        let (data, _) = try await SupabaseHTTP.rest("rpc/my_follows", method: "POST",
+                                                    accessToken: try await token(), body: try body([:]))
+        return try decode(data)
+    }
+
+    /// Who hosts an Event, for its page's host line: nil for a Group's Event or one at no known Place.
+    func eventHost(_ eventID: String) async throws -> FollowRow? {
+        let (data, _) = try await SupabaseHTTP.rest("rpc/event_host", method: "POST", accessToken: await readToken(),
+                                                    body: try body(["p_event": eventID]))
+        let rows: [FollowRow] = try decode(data)
+        return rows.first
+    }
+
     // MARK: - My Going (the You tab)
 
     /// The neighbour's Going from `from` to `to`, Town days as "yyyy-MM-dd", both ends
@@ -684,15 +793,6 @@ struct CommunityAPI {
             // separator can never collide two distinct rows into one.
             let key = [r.title.lowercased(), r.startsAt ?? "", r.sourceName.lowercased()]
             return seen.insert(key).inserted
-        }
-    }
-
-    /// The Today card's content — the first 3 of (today's events + around town),
-    /// built from the same fetch the Board uses.
-    func getTodayInStJoe() async throws -> [BoardItem] {
-        let s = try await getBoardSections()
-        return (s.today + s.around).prefix(3).map {
-            BoardItem(id: $0.id, title: $0.title, timeLabel: $0.timeLabel, url: $0.url)
         }
     }
 

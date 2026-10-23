@@ -86,6 +86,8 @@ struct FeedEventCard: View {
     @State private var groupTappedAt = 0
     /// The Join pill's width, which the host's name stops short of.
     @State private var groupPillWidth: CGFloat = 0
+    /// Join with no signed-up account opens sign-up (follows 02).
+    @State private var signingIn = false
 
     init(
         item: FeedCardItem,
@@ -171,11 +173,9 @@ struct FeedEventCard: View {
         .scaleEffect(FeedMotion.pressScale(isPressed: linkPressed, reduceMotion: motionIsReduced))
         .opacity(FeedMotion.pressOpacity(isPressed: linkPressed, reduceMotion: motionIsReduced))
         .animation(FeedMotion.pressAnimation(reduceMotion: motionIsReduced), value: linkPressed)
-        .sheet(isPresented: $menuPresented) {
-            if let why = item.why {
-                FeedCardMenu(why: why, score: item.score, report: currentPhoto.report(place: item.whereLine))
-            }
-        }
+        .signInSheet(isPresented: $signingIn)
+        .modifier(FeedCardMenuSheet(isPresented: $menuPresented, item: item,
+                                    report: currentPhoto.report(place: item.whereLine)))
         .sheet(isPresented: $commentsPresented) {
             FeedCommentSheet(
                 commentState: $commentState,
@@ -245,6 +245,7 @@ struct FeedEventCard: View {
             let failures = actions.memberFailureCount(groupID)
             Button {
                 guard !isMember else { return }
+                guard !actions.needsSignUp else { signingIn = true; return }
                 groupTappedAt = failures
                 joinedHere = true
                 actions.toggleMember(groupID: groupID, inGroup: item.inGroup)

@@ -65,30 +65,6 @@ Its UDID is in `.bp-sim-udid` (gitignored). Status bar is pinned to the referenc
 
 Note the iPhone **16** Pro is 402×874, not 393×852 — the 6.3" redesign. Do not use it.
 
-### Sample large SOLID areas when checking colour
-
-Our solid fills render at **exactly** their token values. Verified: the splash ground,
-the S02 GET STARTED face and the bench's Continue face all read `#E67633`, matching
-`BP.orange` to the byte.
-
-An earlier pass in this repo's history concluded there was a systematic colour shift
-(`#E67633` reading as `#E88347`). **That was a measurement error and is not true.** It
-came from a `Counter.most_common()` census over a coarse grid, which is dominated by
-antialiased pixels: a 2pt border and text glyphs are mostly edge, so they read
-persistently lighter than their token. `BP.teal` "reading" `#80CBBD` was a 2pt row
-border; `Hue.ink` "reading" `#282828` was antialiased label text.
-
-So: **sample the middle of a large solid region**, not a census. And note that colour
-fidelity against the *reference* is not a goal anyway — the spec dictates `bpOrange`
-and `bpTeal` rather than deriving them from Duolingo's green and blue.
-
-### One capture trap that does bite
-
-A screen mid-transition composites over the flow's paper ground and reads washed out —
-S01's orange sampled as pale peach until `-bp-hold` was added to park the splash past
-its 1.2s auto-advance. If a colour looks desaturated, check you are not screenshotting
-during an animation before you touch a token.
-
 ---
 
 ## 3. Measured component metrics
@@ -207,26 +183,6 @@ per the SPEC (bar present). Open question for Jesse.
 ---
 
 ## 7. Phase 4 audit results
-
-### Contrast (WCAG 2.1)
-
-| Pair | Ratio | Threshold | Verdict |
-|---|---|---|---|
-| `bpTealText` on `bpTealTint` (selected row label) | **5.36:1** | 4.5 normal | PASS |
-| `bpGray` on `paper` (taglines, captions) | 4.88:1 | 4.5 normal | PASS |
-| `bpGray` on `fill` (disabled button label) | 4.51:1 | 4.5 normal | PASS |
-| `ink` on `paper` (row labels) | 18.06:1 | 4.5 normal | PASS |
-| **white on `bpOrange`** (primary button, 15pt bold caps) | **2.998:1** | 3.0 large | **marginal FAIL** |
-| `bpOrange` on `surface` (secondary button label) | 2.998:1 | 3.0 large | **marginal FAIL** |
-
-The white-on-orange pair misses by **0.07%** — a rounding-scale shortfall, not a visible
-one. Left UNCHANGED because `bpOrange` is spec-locked and brand-derived (the Joetown
-logo). For context, Duolingo's own green is **2.09:1** against white, so the reference
-fails this far harder than we do.
-
-One-character fix if wanted: `#E67633` → `#E47533` gives 3.05:1 and is 0.9% darker,
-i.e. visually indistinguishable. `bpTealText` was already tuned to clear 4.5:1 as the
-spec instructed.
 
 ### Reduce Motion — PASS
 

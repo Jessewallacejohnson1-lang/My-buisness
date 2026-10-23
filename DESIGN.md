@@ -57,14 +57,12 @@ glyph is `Hue.onBrandDisc`, pinned to the light ramp the way the map canvas's in
 and a white glyph is never an option. `BrandDiscContrastTests` pins all four of those
 numbers.
 
-The plum `Hue.accent` (#8E3B6B) still ships where it already carries meaning — live
-events, active filters, selected map state — and stays until Jesse says otherwise.
-Saved is no longer one of them: the pin sheet's saved bookmark turned yellow on
-2026-09-27. The brand accent going forward is the yellow.
+Selected states are ink, and "live" is `Hue.now`, Apple's green, as on a Town card's
+"Now" dot. The brand accent is the yellow.
 
 ## Theme
 
-**Ink on paper (July 2026 rebrand), now white-and-yellow at the top level.** White cards lift off a warm near-white page; near-black ink carries text, buttons, active states and pins. **The only accent is the brand yellow, scoped small** (see Colour direction above) — photographs otherwise carry all the colour in the app, and that contrast against near-monochrome chrome is the point of the system. The earlier coral accent, the warm-linen surfaces, and the green buttons are all retired; do not reintroduce any of them. Warmth comes from the paper tone and the copy.
+**Ink on paper (July 2026 rebrand), now white-and-yellow at the top level.** White cards lift off a warm near-white page; near-black ink carries text, buttons, active states and pins. **The only accent is the brand yellow, scoped small** (see Colour direction above) — photographs otherwise carry all the colour in the app, and that contrast against near-monochrome chrome is the point of the system. The warm-linen surfaces and the green buttons are retired; do not reintroduce any of them. Warmth comes from the paper tone and the copy.
 
 If a design seems to need an accent, it needs hierarchy instead — weight, size, value, or fill-vs-outline.
 
@@ -174,7 +172,7 @@ The icon is **the wordmark lockup** (Sep 19, 2026 revision): black "BlockParty."
 yellow field, shipped 1:1 from `docs/brand/source-logo-1254.png`. It replaced the Aug
 25 wave figure — a painted figure inside broadcast arcs — which Jesse cut on
 2026-09-19 ("remove that logo with a person, totally delete it"); that master and the
-coral "bp" render before it are gone from the repo, along with the dead `MarkTemplate`
+"bp" render before it are gone from the repo, along with the dead `MarkTemplate`
 and `LaunchWordmark` imagesets.
 
 Unlike the painted renders, this art is **flat two-colour**, so it can be separated:
@@ -259,7 +257,7 @@ for Jesse, not a licence to ship coloured status chips.
 
 ## Bans (this project)
 
-- No accent colour of any kind. No coral, no cream/linen/sand body background, no green primary button — all retired.
+- No accent colour beyond BP yellow. No cream/linen/sand body background, no green primary button.
 - No pill-shaped buttons; buttons are rounded squares at `Radius.button`. Recorded exceptions: Meetup's charcoal pill for RSVP, Invite and Join group (`MeetupPillStyle`, `DECISIONS.md` 2026-10-17) and the Event page's floating glass RSVP capsule (`DECISIONS.md` 2026-10-18).
 - No fabricated counts or seeded demo data in any surface.
 - No AI-drawn mascots/illustrations as final art (real photos or vector UI only).

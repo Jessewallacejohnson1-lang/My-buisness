@@ -338,6 +338,25 @@ nonisolated struct TownFeedRow: Hashable {
     var inGroup = false
 }
 
+/// Town news in the Town feed (BP app town-feed 35): a place's special, deal or new thing, or town
+/// news, in Block Party's words, with the post it came from to open. Its place's logo (else its
+/// photo) is its avatar; with neither, the place's first letter.
+nonisolated struct TownNews: Hashable, Identifiable, Sendable {
+    let id: String
+    let place: String
+    /// Its one line of facts, else its title.
+    let words: String
+    let post: URL
+    var picture: PlacePicture? = nil
+    let leavesAt: Date
+}
+
+/// One line of `get_town_feed`, in its order: an Event, or news under them (town-feed 35).
+nonisolated enum TownFeedLine: Hashable {
+    case event(TownFeedRow)
+    case news(TownNews)
+}
+
 /// A friend Going to an Event, as the Town feed names them: first name, and their photo when
 /// they have one in our bucket. Only friends who show their plans to friends (town-feed 28).
 nonisolated struct FeedFriend: Hashable, Sendable {
@@ -371,6 +390,8 @@ nonisolated struct FeedScore: Decodable, Hashable, Sendable {
     var tapped: Double? = nil
     var draw: Double? = nil
     var topicSpacing: Double? = nil
+    /// Like something you said Not interested to: × 0.3 fading to × 1 over 90 days (ticket 21).
+    var notInterested: Double? = nil
 }
 
 struct AgendaEvent: Identifiable, Hashable {
@@ -397,12 +418,50 @@ struct Trail: Identifiable, Hashable {
 // New tables (town_follows, event_likes, event_comments) live on the shared
 // Supabase project; see docs/superpowers/specs/2026-07-11-today-tab-remake-design.md §5.
 
-/// What a follow points at: a club, or a community member's town_profile.
-enum FollowTargetType: String, Codable { case club, profile }
+/// What a follow points at: a club, a community member's town_profile, or a Place
+/// (`public.places`, BP app docs/plans/follows ticket 02).
+enum FollowTargetType: String, Codable { case club, profile, place }
 
 struct FollowTarget: Hashable, Codable {
     let type: FollowTargetType
     let id: String
+}
+
+/// What a page shows of a Place or person it can follow (`follow_card`): whether you follow it,
+/// how many do (nil for a person, who never shows a count), and up to three of your friends who
+/// follow it, with how many in all.
+struct FollowCard: Decodable, Equatable {
+    struct Friend: Decodable, Equatable {
+        let name: String
+        let avatarUrl: String?
+    }
+
+    let following: Bool
+    let followers: Int?
+    let friends: [Friend]
+    let friendsCount: Int
+}
+
+/// A place's name over its photo (`public.place_names`, BP app follows 02): its own lettering, a white
+/// picture tinted to read on the photo, or, where its letters couldn't be cut, its logo in its own colours.
+struct PlaceName: Hashable, Sendable {
+    let url: URL
+    /// The logo, untinted, rather than lettering.
+    let emblem: Bool
+}
+
+/// Something you follow, in Profile's Following list (`my_follows`), or an Event's host
+/// (`event_host`): its name, a Place's Google type, and its picture, a photo or a logo.
+struct FollowRow: Decodable, Identifiable, Hashable {
+    let targetType: FollowTargetType
+    let targetId: String
+    let name: String
+    let kind: String?
+    let picture: String?
+    let pictureKind: String?
+
+    var id: String { targetId }
+    var target: FollowTarget { FollowTarget(type: targetType, id: targetId) }
 }
 
 /// A flat comment ("note") on a posting (club_events row). No threading — see

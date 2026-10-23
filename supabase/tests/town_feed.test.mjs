@@ -62,6 +62,12 @@ await db.exec(`
   -- photos Block Party keeps (loaded from their migrations below).
   create table public.places (id uuid primary key default gen_random_uuid(), name text, entry_id text,
     logo_url text, search_logo jsonb);
+  -- Town news (town-feed 35), as schema.sql makes it; the migration adds interests and its place.
+  create table public.board_items (id uuid primary key default gen_random_uuid(), title text not null,
+    blurb text, category text not null, source_name text not null, source_url text,
+    tier numeric not null default 1, status text not null default 'staging', starts_at timestamptz,
+    created_at timestamptz not null default now(), published_at timestamptz, image_url text,
+    fetched_at timestamptz);
   create table public.event_rsvps (
     id uuid primary key default gen_random_uuid(), event_id uuid not null,
     user_id uuid not null, created_at timestamptz not null default now());
@@ -96,6 +102,9 @@ await db.exec(`
   alter table public.town_profiles enable row level security;
   alter table public.club_members enable row level security;
   alter table public.sources enable row level security;
+  alter table public.board_items enable row level security;
+  create policy "read published items" on public.board_items for select to public
+    using (status = 'published');
   create policy "read memberships" on public.club_members for select to authenticated using (true);
   create policy "read events" on public.club_events for select to public
     using (status = 'approved' or submitted_by = auth.uid() or is_admin());
@@ -127,6 +136,7 @@ async function reset() {
                  delete from public.town_profiles; delete from private.friendships;
                  delete from private.blocks; delete from public.club_members;
                  delete from public.clubs; delete from public.sources; delete from public.teams;
+                 delete from public.board_items; delete from public.feed_mutes;
                  reset request.jwt.claim.sub; reset test.admin;`);
 }
 
@@ -703,7 +713,7 @@ test('the score breakdown is filled for the admin and null for everyone else', a
   const { score } = (await feed('2026-10-08 12:00'))[0];
   assert.deepEqual(score, {
     interest: 3, friend: 0, follow: 0, popular: 0, viewers: 0, size: 0, sizeStep: 1, draw: 1.5, tapped: 0, daysAway: 1,
-    soon: 0.9057, acted: 1, spacing: 1, topicSpacing: 1, newSpot: false, total: 4.9815, spot: 1, of: 1,
+    soon: 0.9057, acted: 1, notInterested: 1, spacing: 1, topicSpacing: 1, newSpot: false, total: 4.9815, spot: 1, of: 1,
   });
 });
 
@@ -1283,4 +1293,223 @@ test('Event of the day: neighbours read the standouts and never write them', asy
   await db.query('delete from public.daily_standouts');
   await db.exec('reset role');
   assert.equal((await db.query('select count(*)::int as n from public.daily_standouts')).rows[0].n, 5);
+});
+
+// Town news (town-feed 35): published at a Town time, by a place, with a post to open.
+async function news(title, published, more = {}) {
+  const row = { category: 'business', source_name: 'The Wandering Cow', source_url: 'https://www.instagram.com/p/x/',
+                status: 'published', starts_at: null, interests: null, place_entry_id: null, ...more };
+  await db.exec('reset role');
+  await db.query(
+    `insert into public.board_items (title, blurb, category, source_name, source_url, status, starts_at,
+       published_at, interests, place_entry_id)
+     values ($1, $1 || ', in a line.', $2, $3, $4, $5, $6::timestamp at time zone 'America/Chicago',
+             $7::timestamp at time zone 'America/Chicago', $8, $9)`,
+    [title, row.category, row.source_name, row.source_url, row.status, row.starts_at, published,
+     row.interests, row.place_entry_id]);
+}
+// The feed with news, as the app asks for it.
+async function withNews(at) {
+  const { rows } = await db.query(
+    `select title, kind, reason, reason_name, source_url, description, place_picture
+     from public.get_town_feed(($1::timestamp at time zone 'America/Chicago'), true)`, [at]);
+  return rows;
+}
+const newsTitles = async (at) => (await withNews(at)).map((r) => r.title);
+
+test('an app that does not ask for news gets none, and signed out all news sits under the events', async () => {
+  await reset();
+  await add('Bake sale', '2026-10-09', { start_time: '11 AM' });
+  await news('Flight Friday', '2026-10-08 18:00', { interests: ['dining'] });
+  await db.exec('set role anon');
+  assert.deepEqual(await titles('2026-10-08 20:00'), ['Bake sale']);
+  const rows = await withNews('2026-10-08 20:00');
+  assert.deepEqual(rows.map((r) => [r.title, r.kind]), [['Bake sale', 'event'], ['Flight Friday', 'news']]);
+  assert.equal(rows[1].source_url, 'https://www.instagram.com/p/x/');
+  assert.equal(rows[1].description, 'Flight Friday, in a line.');
+});
+
+test('news sharing your interests sits below an equal event, above one days off, and the rest goes last', async () => {
+  await reset();
+  await add('Fish fry dinner', '2026-10-08', { start_time: '7 PM', category: 'dining' });
+  await add('Council meeting', '2026-10-20', { start_time: '6 PM' });
+  await news('Taco Tuesday', '2026-10-08 17:00', { interests: ['dining'], source_name: 'Neighbors Route 75' });
+  await news('Fall arrivals', '2026-10-08 17:50', { source_name: 'White Peony Boutique' });
+  await news('Halloween cookies', '2026-10-08 17:40', { interests: ['coffee'], source_name: 'The Local Blend' });
+  await signIn(ME, ['dining']);
+  const rows = await withNews('2026-10-08 18:00');
+  assert.deepEqual(rows.map((r) => r.title),
+                   ['Fish fry dinner', 'Taco Tuesday', 'Council meeting', 'Fall arrivals', 'Halloween cookies']);
+  assert.deepEqual([rows[1].reason, rows[1].reason_name], ['interest', 'dining']);
+  assert.equal(rows[3].reason, null);
+});
+
+test('a place\'s news spreads apart at the bottom, newest first', async () => {
+  await reset();
+  await news('Milkshake Monday', '2026-10-08 17:00');
+  await news('Flight Friday', '2026-10-08 17:10');
+  await news('Taco Tuesday', '2026-10-08 16:00', { source_name: 'Neighbors Route 75' });
+  await db.exec('set role anon');
+  assert.deepEqual(await newsTitles('2026-10-08 18:00'), ['Flight Friday', 'Taco Tuesday', 'Milkshake Monday']);
+});
+
+test('news leaves after 7 days, or once the day it is about is over', async () => {
+  await reset();
+  await news('Pumpkin Pie Shake', '2026-10-01 12:00');
+  await news('Layer Up drop tonight', '2026-10-08 09:00', { starts_at: '2026-10-08 00:00' });
+  await news('Life Saving Awards', '2026-10-08 09:00', { starts_at: '2026-10-05 00:00', category: 'announcement' });
+  await db.exec('set role anon');
+  assert.deepEqual((await newsTitles('2026-10-08 11:59')).sort(),
+                   ['Layer Up drop tonight', 'Life Saving Awards', 'Pumpkin Pie Shake']);
+  assert.deepEqual((await newsTitles('2026-10-08 12:01')).sort(), ['Layer Up drop tonight', 'Life Saving Awards']);
+  assert.deepEqual(await newsTitles('2026-10-09 00:01'), ['Life Saving Awards']);
+  assert.deepEqual(await newsTitles('2026-10-15 09:01'), []);
+});
+
+test('road alerts, unpublished news and news with no post to open stay out', async () => {
+  await reset();
+  await news('I-94 crash', '2026-10-08 17:00', { category: 'road', source_name: 'Minnesota 511' });
+  await news('Still being checked', '2026-10-08 17:00', { status: 'staging' });
+  await news('No link', '2026-10-08 17:00', { source_url: ' ' });
+  await news('Taco Tuesday', '2026-10-08 17:00', { source_name: 'Neighbors Route 75' });
+  await db.exec('set role anon');
+  assert.deepEqual(await newsTitles('2026-10-08 18:00'), ['Taco Tuesday']);
+});
+
+test('a host you muted keeps its news out too', async () => {
+  await reset();
+  await news('Taco Tuesday', '2026-10-08 17:00', { source_name: 'Neighbors Route 75', interests: ['dining'] });
+  await news('Flight Friday', '2026-10-08 17:00', { interests: ['dining'] });
+  await signIn(ME, ['dining']);
+  await db.exec('reset role');
+  await db.query(`insert into public.feed_mutes (user_id, host, name) values ($1, 'Neighbors Route 75', 'Neighbors Route 75')`, [ME]);
+  await db.exec('set role authenticated');
+  assert.deepEqual(await newsTitles('2026-10-08 18:00'), ['Flight Friday']);
+});
+
+test('a news item shows its place\'s logo before its photo', async () => {
+  await reset();
+  await db.exec(`delete from public.place_photos; delete from public.places;
+    insert into public.place_photos (entry_id, url, source_url, position, kind, status, width, height) values
+      ('cow-wandering', 'https://x/cow-photo.webp', 'https://cow', 0, 'photo', 'live', 800, 600);
+    insert into public.places (name, entry_id, search_logo) values
+      ('The Wandering Cow', 'cow-wandering', '{"url": "https://x/cow-logo.webp", "hue": 19}');`);
+  await news('Flight Friday', '2026-10-08 17:00', { place_entry_id: 'cow-wandering' });
+  await news('Taco Tuesday', '2026-10-08 16:00', { source_name: 'Neighbors Route 75' });
+  await db.exec('set role anon');
+  const rows = await withNews('2026-10-08 18:00');
+  assert.deepEqual(rows[0].place_picture, { url: 'https://x/cow-logo.webp', kind: 'logo', hue: 19 });
+  assert.equal(rows[1].place_picture, null, 'no place: no picture, and the app shows its first letter');
+  await db.exec('reset role; delete from public.place_photos; delete from public.places;');
+});
+
+test('there is one get_town_feed, so every app\'s call finds it', async () => {
+  // A later `create or replace function public.get_town_feed(p_now timestamptz ...)` with one
+  // argument would make a second, and `{}` would fail as ambiguous for every app.
+  const { rows } = await db.query(`select count(*)::int as n from pg_proc where proname = 'get_town_feed'`);
+  assert.equal(rows[0].n, 1);
+});
+
+// Not interested and Mute (ticket 21). A Not interested row `at` a Town time, written as the
+// database would; set_not_interested and mute_host as the app calls them.
+async function notInterested(event, who, at) {
+  await db.exec('reset role');
+  await db.query(`insert into public.feed_actions (user_id, item_id, action, at)
+                  values ($1, $2, 'not_interested', ($3::timestamp at time zone 'America/Chicago'))`, [who, event, at]);
+}
+
+test('Not interested keeps the item and every week of its series out; other hosts stay', async () => {
+  await reset();
+  const trivia = await add('Trivia', '2026-10-13', { start_time: '7 PM', source_name: "Loso's" });
+  await add('Trivia', '2026-10-20', { start_time: '7 PM', source_name: "Loso's" });
+  await add('Trivia', '2026-10-13', { start_time: '7 PM', source_name: 'Bad Habit' });
+  await add('Bake sale', '2026-10-09', { start_time: '12 PM', source_name: 'Church' });
+  await signIn(YOU);
+  assert.equal((await titles('2026-10-08 12:00')).length, 3);
+  await db.query('select public.set_not_interested($1)', [trivia]);
+  const rows = await feed('2026-10-08 12:00');
+  assert.deepEqual(rows.map((r) => r.title).sort(), ['Bake sale', 'Trivia']);
+  // The next week's Trivia from the same host would take its place; it doesn't.
+  assert.ok((await feed('2026-10-15 12:00')).every((r) => r.title !== 'Trivia' || r.day !== '2026-10-20'));
+  // Undo takes it back.
+  await db.query('select public.set_not_interested($1, false)', [trivia]);
+  assert.equal((await titles('2026-10-08 12:00')).length, 3);
+});
+
+test("Not interested lowers its host's and its main interest's other Events × 0.3, back to × 1 by day 90", async () => {
+  await reset();
+  const fair = await add('Craft fair', '2026-10-09', { start_time: '10 AM', source_name: 'Parks', category: 'arts' });
+  await add('Zoo day', '2026-10-09', { start_time: '11 AM', source_name: 'Parks', category: 'outdoors' });
+  await add('Gallery night', '2026-10-09', { start_time: '6 PM', source_name: 'Gallery', category: 'arts' });
+  await add('Bingo', '2026-10-09', { start_time: '7 PM', source_name: "Sal's", category: 'games' });
+  // Arts is only its second interest: a shared tag that isn't the main one lowers nothing (Jesse,
+  // 2026-10-22: a broad tag would dim much of the feed).
+  const quilts = await add('Quilt show', '2026-10-09', { start_time: '1 PM', source_name: 'Church' });
+  await db.query(`update public.club_events set interests = '{community,arts}', interests_tagged_at = now() where id = $1`, [quilts]);
+  await notInterested(fair, YOU, '2026-10-08 12:00');
+  const x = async (at) => {
+    await signIn(YOU);
+    await db.exec(`set test.admin = 'on'`);
+    return Object.fromEntries((await feed(at)).map((r) => [r.title, r.score.notInterested]));
+  };
+  assert.deepEqual(await x('2026-10-08 12:00'), { 'Zoo day': 0.3, 'Gallery night': 0.3, Bingo: 1, 'Quilt show': 1 });
+  // Halfway through the 90 days: halfway back.
+  await db.exec(`reset role; update public.feed_actions set at = at - interval '45 days'`);
+  assert.deepEqual(await x('2026-10-08 12:00'), { 'Zoo day': 0.65, 'Gallery night': 0.65, Bingo: 1, 'Quilt show': 1 });
+  await db.exec(`reset role; update public.feed_actions set at = at - interval '46 days'`);
+  assert.deepEqual(await x('2026-10-08 12:00'), { 'Zoo day': 1, 'Gallery night': 1, Bingo: 1, 'Quilt show': 1 });
+});
+
+test('Not interested on a host beats its "been into" lift', async () => {
+  await reset();
+  const fair = await add('Craft fair', '2026-10-04', { start_time: '10 AM', source_name: 'Parks' });
+  const movie = await add('Movie night', '2026-10-07', { start_time: '7 PM', source_name: 'Parks' });
+  await add('Zoo day', '2026-10-09', { start_time: '10 AM', source_name: 'Parks' });
+  await add('Bingo', '2026-10-09', { start_time: '10 AM', source_name: "Sal's" });
+  await tap('event_likes', fair, YOU, '2026-10-04 12:00');
+  await tap('event_likes', movie, YOU, '2026-10-07 12:00');
+  await notInterested(movie, YOU, '2026-10-08 12:00');
+  await signIn(YOU);
+  await db.exec(`set test.admin = 'on'`);
+  const rows = await feed('2026-10-08 12:00');
+  const zoo = rows.find((r) => r.title === 'Zoo day');
+  assert.deepEqual([zoo.score.tapped, zoo.score.notInterested], [3, 0.3]);
+  assert.deepEqual(rows.map((r) => r.title), ['Bingo', 'Zoo day'], 'the lift (1 + 3) × 0.3 sits under a plain 1');
+});
+
+test('a muted host never shows, to the one who muted it only; unmuting brings it back', async () => {
+  await reset();
+  const zoo = await add('Zoo day', '2026-10-09', { start_time: '10 AM', source_name: 'Parks' });
+  await add('Movie night', '2026-10-10', { start_time: '7 PM', source_name: 'Parks' });
+  await add('Bingo', '2026-10-09', { start_time: '10 AM', source_name: "Sal's" });
+  await signIn(YOU);
+  const { rows: [{ host }] } = await db.query('select public.mute_host($1) as host', [zoo]);
+  assert.equal(host, 'Parks');
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Bingo']);
+  assert.deepEqual((await db.query('select host, name from public.feed_mutes')).rows, [{ host: 'Parks', name: 'Parks' }]);
+  // Someone else, and a signed-out read, still see Parks.
+  await signIn('00000000-0000-0000-0000-0000000000c9');
+  assert.equal((await titles('2026-10-08 12:00')).length, 3);
+  assert.deepEqual((await db.query('select host from public.feed_mutes')).rows, [], "nobody reads another's mutes");
+  await db.exec('reset role; reset request.jwt.claim.sub; set role anon');
+  assert.equal((await titles('2026-10-08 12:00')).length, 3);
+  // Unmute from the Muted list: a delete of your own row.
+  await signIn(YOU);
+  await db.query(`delete from public.feed_mutes where host = 'Parks'`);
+  assert.equal((await titles('2026-10-08 12:00')).length, 3);
+});
+
+test("a group's Event mutes the group by the name its card shows; signed out can't hide or mute", async () => {
+  await reset();
+  await db.exec('reset role');
+  const { rows: [{ id: club }] } = await db.query(`insert into public.clubs (name) values ('Rod and Gun Club') returning id`);
+  const shoot = await add('Trap shoot', '2026-10-09', { start_time: '10 AM' });
+  await db.query('update public.club_events set club_id = $1, source_name = null where id = $2', [club, shoot]);
+  await signIn(YOU);
+  assert.equal((await db.query('select public.mute_host($1) as host', [shoot])).rows[0].host, club);
+  assert.deepEqual((await db.query('select name from public.feed_mutes')).rows, [{ name: 'Rod and Gun Club' }]);
+  await db.exec('reset role; reset request.jwt.claim.sub; set role anon');
+  await assert.rejects(db.query('select public.set_not_interested($1)', [shoot]));
+  await assert.rejects(db.query('select public.mute_host($1)', [shoot]));
+  await db.exec('reset role');
 });

@@ -200,6 +200,14 @@ struct BusinessPage: View {
                       width: side, height: side)
     }
 
+    /// Where a place's emblem rests over its photos, standing in for its name (follows 02): the bottom
+    /// centre, as `PlaceNameArt` sits, 84 pt square.
+    static func bottomCentre(width: CGFloat) -> CGRect {
+        let side = PlaceNameArt.maxHeight
+        let edge = width / FeedEventDetailDestination.Metric.heroAspect
+        return CGRect(x: (width - side) / 2, y: edge - PlaceNameArt.bottom - side, width: side, height: side)
+    }
+
     /// Where it rests with no photo: where the Event page draws a place's logo in a hero it has no
     /// photo for (`FeedCardPlaceLogo`, 29% down a hero as tall as the photos and the sheet's
     /// underlap, at most 43% of it), so the two pages agree.
@@ -264,7 +272,9 @@ private struct BusinessPageBody: View {
 
                 FlyingLogo(logo: logo, source: source, from: source.logo.offsetBy(dx: -origin.x, dy: -origin.y),
                            corner: BusinessPage.corner(width: full.width, top: insets.top),
-                           middle: BusinessPage.middle(width: full.width), progress: opener.progress, page: page)
+                           middle: BusinessPage.middle(width: full.width), progress: opener.progress, page: page,
+                           named: item.nameArt?.emblem == false,
+                           bottom: item.nameArt?.emblem == true ? BusinessPage.bottomCentre(width: full.width) : nil)
             }
             .frame(width: full.width, height: full.height, alignment: .topLeading)
             .offset(x: -insets.leading, y: -insets.top)
@@ -296,6 +306,16 @@ private struct BusinessPageContent: View {
     private typealias Metric = FeedEventDetailDestination.Metric
 
     private var photos: [PlacePicture] { item.photos.filter { !failed.contains($0.url) } }
+
+    @Environment(RealLifeActions.self) private var actions
+
+    /// What its Follow follows: the place itself.
+    private var follow: FollowTarget? { item.placeID.map { FollowTarget(type: .place, id: $0) } }
+
+    private var kindLine: String? {
+        let parts = [item.sub, follow.flatMap { FollowWords.count(actions.follow($0).count) }].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -331,6 +351,15 @@ private struct BusinessPageContent: View {
             .visualEffect { content, proxy in
                 let pull = max(0, proxy.frame(in: .scrollView(axis: .vertical)).minY)
                 return content.scaleEffect(1 + pull / max(proxy.size.height, 1), anchor: .bottom)
+            }
+            // Its name in its own lettering at the bottom centre (follows 02); the corner logo
+            // then fades as it lands, so the place isn't marked twice.
+            .overlay(alignment: .bottom) {
+                // An emblem is the flying logo itself, landing there (`FlyingLogo`).
+                if let name = item.nameArt, !name.emblem, !photos.isEmpty {
+                    PlaceNameArt(name: name, photo: photos[min(photoPage ?? 0, photos.count - 1)].url, spoken: item.name)
+                        .padding(.bottom, PlaceNameArt.bottom)
+                }
             }
             .overlay(alignment: .bottomLeading) { credit }
             .overlay(alignment: .bottomTrailing) { counter }
@@ -377,11 +406,19 @@ private struct BusinessPageContent: View {
                 .accessibilityAddTraits(.isHeader)
                 .padding(.top, Metric.titleTop)
 
-            if let sub = item.sub {
-                Text(sub)
+            // What it is, and its real count once read: "Cajun · 128 followers" (follows 02).
+            if let kind = kindLine {
+                Text(kind)
                     .font(.sans(17))
                     .foregroundStyle(Hue.inkSecondary)
+                    .contentTransition(.numericText())
+                    .animation(Motion.smooth, value: kind)
                     .padding(.top, Metric.categoryTop)
+            }
+
+            if let follow {
+                FollowLine(target: follow, name: item.name)
+                    .padding(.top, Metric.pillTop)
             }
 
             if let street = item.street {
@@ -524,16 +561,23 @@ private struct FlyingLogo: View {
     let middle: CGRect
     let progress: LiveSpring
     let page: PageState
+    /// The place's name is on its photo: the logo flies from its tile as before, fading as it
+    /// lands, and stays when every photo fails (it then sits in the middle).
+    let named: Bool
+    /// Where an emblem lands instead of the corner: the bottom centre of the photos (follows 02).
+    let bottom: CGRect?
 
     var body: some View {
         let p = progress.value
         let c = min(max(p, 0), 1)
         let lift = sin(.pi * c)
-        let flying = lerp(from, page.hasPhotos ? corner : middle, p)
+        let fades = named && page.hasPhotos
+        let flying = lerp(from, page.hasPhotos ? bottom ?? corner : middle, p)
         CastLogo(logo: logo, side: flying.width, shadow: source.shadow,
                  stretch: 1 + lift * SearchMetric.liftStretch, strength: 1 - lift * SearchMetric.liftFade)
             .offset(x: flying.minX, y: flying.minY - max(0, page.scrollY) * c)
-            .opacity(source.fades ? min(1, c * 4) : 1)
+            .opacity((source.fades ? min(1, c * 4) : 1) * (fades ? 1 - c : 1))
+            .animation(Motion.smooth, value: fades)
             // Every photo failed after it landed: it moves to the middle, not jumps.
             .animation(Motion.smooth, value: page.hasPhotos)
             .allowsHitTesting(false)

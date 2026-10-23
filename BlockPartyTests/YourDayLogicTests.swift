@@ -729,33 +729,6 @@ final class YourDayRailSpecTests: XCTestCase {
         XCTAssertEqual(YourDayRailMetrics.addTileWidth, 100)
     }
 
-    // MARK: - Category colour is a system, not a per-view choice
-
-    func testEveryCategoryResolvesToAGradientAndUncategorisedReadsAsATownEvent() {
-        // Today EVERY live row is `.other`, so this mapping is what the app
-        // actually looks like until categories are backfilled.
-        XCTAssertEqual(CategoryGradient.of(.other), .eventsFestivals)
-        XCTAssertEqual(CategoryGradient.of(.outdoors), .outdoorsTrails)
-        XCTAssertEqual(CategoryGradient.of(.sports), .outdoorsTrails)
-        XCTAssertEqual(CategoryGradient.of(.musicArts), .eventsFestivals)
-        XCTAssertEqual(CategoryGradient.of(.food), .foodDrink)
-        XCTAssertEqual(CategoryGradient.of(.families), .clubsGroups)
-        XCTAssertEqual(CategoryGradient.of(.books), .clubsGroups)
-        XCTAssertEqual(CategoryGradient.of(.games), .clubsGroups)
-        XCTAssertEqual(CategoryGradient.of(.faith), .civicTown)
-        XCTAssertEqual(CategoryGradient.of(.service), .civicTown)
-    }
-
-    func testTheSameCategoryAlwaysResolvesToTheSameTwoStops() {
-        for category in EventCategory.allCases {
-            XCTAssertEqual(
-                CategoryGradient.of(category),
-                CategoryGradient.of(category),
-                "Category colour must be stable — it is a system, not decoration."
-            )
-        }
-    }
-
     // MARK: - Helper
 
     private func makeItem(

@@ -32,6 +32,52 @@ final class TownFeedEventsTests: XCTestCase {
         TownFeed { rows.map(TownFeed.entry) }
     }
 
+    /// Town news comes in the feed's own rows, kind "news", under the events (town-feed 35): it
+    /// keeps its place, its facts line (else its title), its post and its place's picture. News
+    /// with no post to open is dropped, and the events' cards never count it.
+    func testNewsRowsBecomeTownNewsInTheirPlace() async throws {
+        let json = """
+        [{"id":"e1","title":"Fish fry","event_date":"2026-10-23","start_time":"5 PM","location":null,
+          "image_url":null,"category":"dining","club_name":null,"source_name":"Church of St. Joseph",
+          "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,
+          "rsvpd":false,"recurrence":null,"leaves_at":"2099-10-24T00:00:00+00:00","kind":"event","source_url":null},
+         {"id":"n1","title":"Flight Friday","event_date":null,"start_time":null,"location":null,
+          "image_url":null,"category":"business","club_name":null,"source_name":"The Wandering Cow",
+          "end_at":null,"all_day":false,"created_at":"2026-10-22T23:44:07+00:00","going_count":0,
+          "rsvpd":false,"recurrence":null,"leaves_at":"2099-10-29T23:44:07+00:00","reason":"interest",
+          "reason_name":"dining","description":"Four scoops for $5 at Wandering Cow on Fridays.",
+          "place_picture":{"url":"https://x/cow-logo.webp","kind":"logo","hue":19},
+          "kind":"news","source_url":"https://www.instagram.com/p/Deki5CwgiQG/"},
+         {"id":"n2","title":"Happy hour","event_date":null,"start_time":null,"location":null,
+          "image_url":null,"category":"business","club_name":null,"source_name":"Neighbors Route 75",
+          "end_at":null,"all_day":false,"created_at":"2026-10-22T23:44:07+00:00","going_count":0,
+          "rsvpd":false,"recurrence":null,"leaves_at":"2099-10-29T23:44:07+00:00","description":" ",
+          "place_picture":null,"kind":"news","source_url":"https://www.facebook.com/x/posts/1"},
+         {"id":"n3","title":"No link","event_date":null,"start_time":null,"location":null,"image_url":null,
+          "category":"business","club_name":null,"source_name":"Somewhere","end_at":null,"all_day":false,
+          "created_at":"2026-10-22T23:44:07+00:00","going_count":0,"rsvpd":false,"recurrence":null,
+          "leaves_at":"2099-10-29T23:44:07+00:00","kind":"news","source_url":null}]
+        """
+        let lines = try CommunityAPI.townFeedLines(from: Data(json.utf8))
+        XCTAssertEqual(lines.count, 3)
+        guard case .event(let fish) = lines[0], case .news(let flight) = lines[1], case .news(let happy) = lines[2]
+        else { return XCTFail("\(lines)") }
+        XCTAssertEqual(fish.event.title, "Fish fry")
+        XCTAssertEqual(flight.place, "The Wandering Cow")
+        XCTAssertEqual(flight.words, "Four scoops for $5 at Wandering Cow on Fridays.")
+        XCTAssertEqual(flight.post.absoluteString, "https://www.instagram.com/p/Deki5CwgiQG/")
+        XCTAssertEqual(flight.picture?.kind, .logo)
+        XCTAssertEqual(happy.words, "Happy hour", "no facts line: its title")
+        XCTAssertNil(happy.picture)
+        // The events' own readers (the Event of the day, a kept list) never see news.
+        XCTAssertEqual(try CommunityAPI.townFeedRows(from: Data(json.utf8)).map(\.event.id), ["e1"])
+
+        let town = TownFeed { lines.map(TownFeed.entry) }
+        await town.refresh()
+        XCTAssertEqual(town.shown.map(\.id), ["e1", "n1", "n2"])
+        XCTAssertEqual(town.cards.map(\.id), ["e1"])
+    }
+
     /// The columns `get_town_feed` returns, as PostgREST sends them. A renamed column
     /// on either side fails here rather than emptying the feed.
     func testTheFunctionsRowsBecomeEventsWithTheirRepeatAndLeavingTime() throws {
@@ -51,7 +97,7 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(rows[0].event.goingCount, 2)
         XCTAssertTrue(rows[0].event.rsvpd)
 
-        let card = TownFeed.entry(rows[0]).card
+        let card = TownFeed.card(rows[0])
         XCTAssertEqual(card.recurrence, "Every 1st & 3rd Monday")
         XCTAssertEqual(card.hostName, "City of St. Joseph")
         // A row from before the recipe (a kept list) says no reason: no ••• menu.
@@ -73,7 +119,7 @@ final class TownFeedEventsTests: XCTestCase {
           "place_picture":{"url":"https://x/hall.webp","kind":"photo","site":"https://csbsju.edu",
                            "credit":null,"w":1600,"h":1067}}]
         """
-        let card = TownFeed.entry(try CommunityAPI.townFeedRows(from: Data(json.utf8))[0]).card
+        let card = TownFeed.card(try CommunityAPI.townFeedRows(from: Data(json.utf8))[0])
         XCTAssertEqual(card.image.cardAspect, 1600.0 / 1067.0, accuracy: 0.0001)
 
         let photo = { (w: Int?, h: Int?) in
@@ -107,7 +153,7 @@ final class TownFeedEventsTests: XCTestCase {
                                    {"url":"https://x/c.webp","kind":"photo","site":"https://www.sju.edu/x",
                                     "credit":null}]}}]
         """
-        let card = TownFeed.entry(try CommunityAPI.townFeedRows(from: Data(json.utf8))[0]).card
+        let card = TownFeed.card(try CommunityAPI.townFeedRows(from: Data(json.utf8))[0])
         XCTAssertEqual(card.photos().compactMap { $0.url?.lastPathComponent }, ["a.webp", "b.webp", "c.webp"])
         XCTAssertEqual(card.photos()[1].attribution, "Ada Lovelace · CC BY 4.0")
         XCTAssertEqual(card.photos()[2].attribution, "sju")
@@ -134,7 +180,7 @@ final class TownFeedEventsTests: XCTestCase {
           "created_at":"2026-10-06T16:08:20+00:00","going_count":0,"rsvpd":false,
           "recurrence":null,"leaves_at":"2026-11-06T17:00:00+00:00"}]
         """
-        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.entry($0).card }
+        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.card($0) }
         XCTAssertEqual(cards.map(\.what), ["Talk", "Craft sale", nil], "a feed read before the words still decodes")
         XCTAssertEqual(cards.map(\.whatLine), ["Talk", nil, nil], "none when the title already says it")
         var game = cards[0]
@@ -197,7 +243,7 @@ final class TownFeedEventsTests: XCTestCase {
           "recurrence":null,"leaves_at":"2026-10-08T20:00:00+00:00",
           "reason":"today","reason_name":null,"score":{"spot":3,"newSpot":null}}]
         """
-        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.entry($0).card }
+        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.card($0) }
         XCTAssertEqual(cards.map(\.why), ["Matches Live music", "Happening today", "Happening today"])
         XCTAssertEqual(cards[0].score?.spot, 2)
         XCTAssertEqual(cards[0].score?.spacing, 0.5)
@@ -235,7 +281,7 @@ final class TownFeedEventsTests: XCTestCase {
           "recurrence":null,"leaves_at":"2026-10-08T18:00:00+00:00",
           "reason":"today","reason_name":null,"score":null}]
         """
-        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.entry($0).card }
+        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.card($0) }
         XCTAssertEqual(cards[0].friendsGoing, [FeedFriend(name: "Anna", photo: URL(string: "https://example.com/anna.jpg")),
                                                FeedFriend(name: "Ben", photo: nil)])
         XCTAssertEqual(cards[0].why, "Anna is going")
@@ -259,7 +305,7 @@ final class TownFeedEventsTests: XCTestCase {
           "recurrence":null,"leaves_at":"2026-10-19T18:00:00+00:00",
           "reason":"today","reason_name":null,"score":null}]
         """
-        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.entry($0).card }
+        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.card($0) }
         XCTAssertEqual(cards[0].groupID, "6f1c2c43-6b4b-4a4e-9f43-1f2d3c4b5a69")
         XCTAssertTrue(cards[0].inGroup)
         XCTAssertEqual(cards[0].hostName, "St. Joe Rod and Gun Club", "the group's own name")
@@ -283,7 +329,7 @@ final class TownFeedEventsTests: XCTestCase {
             row("e3", ##","game":null"##),
             row("e4", ""),
         ].joined(separator: ",") + "]"
-        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.entry($0).card }
+        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.card($0) }
         let game = try XCTUnwrap(cards[0].game)
         XCTAssertEqual(game.sport, "Football")
         XCTAssertEqual(game.occasion, "Homecoming")
@@ -361,7 +407,7 @@ final class TownFeedEventsTests: XCTestCase {
         let town = TownFeed(read: { [TownFeed.entry(self.row("a", going: going))] },
                             kept: { [TownFeed.entry(self.row("a", going: 1))] },
                             actions: actions)
-        let pushed = TownFeed.entry(row("a", going: 0)).card
+        let pushed = TownFeed.card(row("a", going: 0))
 
         going = 5
         await town.reload(at: now)
@@ -764,6 +810,142 @@ final class TownFeedEventsTests: XCTestCase {
         town.opened("a")
         await town.send(at: now, always: true)
         XCTAssertEqual(town.unsent, [])
+    }
+
+    // MARK: Not interested and Mute (ticket 21)
+
+    /// Keeps every choice it's told, answers a Mute with its host, and fails when told to.
+    @MainActor
+    private final class Chooser {
+        var told: [FeedChoice] = []
+        var error: Error?
+        var muted: [MutedHost] = []
+        var delay: Duration?
+        func choose(_ choice: FeedChoice) async throws -> String? {
+            if let delay { try await Task.sleep(for: delay) }
+            if let error { throw error }
+            told.append(choice)
+            if case .mute = choice { return "parks-key" }
+            return nil
+        }
+    }
+
+    /// Cards a and b from Parks, c from the City, on screen.
+    private func choosingFeed(_ chooser: Chooser, rows extra: [TownFeedRow] = []) async -> TownFeed {
+        let rows = [row("a", source: "Parks"), row("b", source: "Parks"), row("c")] + extra
+        let town = TownFeed(read: { rows.map(TownFeed.entry) }, choose: chooser.choose,
+                            readMuted: { chooser.muted })
+        await town.reload(at: now)
+        return town
+    }
+
+    private func ids(_ town: TownFeed) -> [String] { town.cards.map(\.id) }
+
+    func testNotInterestedFoldsTheCardToItsUndoLineThenItGoesAndIsSent() async {
+        let chooser = Chooser()
+        let town = await choosingFeed(chooser)
+        await town.hide(town.cards[0], mute: false)
+        XCTAssertEqual(chooser.told, [.notInterested("a")], "sent straight away")
+        XCTAssertEqual(town.undo, FeedHide(id: "a", hostName: "Parks", mute: false))
+        XCTAssertEqual(ids(town), ["a", "b", "c"], "a stays in, drawn as its Undo line")
+        town.undoEnded("a")
+        XCTAssertNil(town.undo)
+        XCTAssertEqual(ids(town), ["b", "c"])
+    }
+
+    func testMuteTakesEveryCardFromTheHost() async {
+        let chooser = Chooser()
+        let town = await choosingFeed(chooser)
+        await town.hide(town.cards[1], mute: true)
+        XCTAssertEqual(chooser.told, [.mute("b")])
+        XCTAssertEqual(ids(town), ["b", "c"], "a goes at once; b shows its Undo line")
+        town.undoEnded("b")
+        XCTAssertEqual(ids(town), ["c"])
+    }
+
+    func testUndoBringsTheCardBackAndTakesTheChoiceBack() async {
+        let chooser = Chooser()
+        let town = await choosingFeed(chooser)
+        await town.hide(town.cards[0], mute: false)
+        await town.undoHide()
+        await town.hide(town.cards[1], mute: true)
+        await town.undoHide()
+        XCTAssertEqual(chooser.told, [.notInterested("a"), .undoNotInterested("a"), .mute("b"), .unmute("parks-key")])
+        XCTAssertNil(town.undo)
+        XCTAssertEqual(ids(town), ["a", "b", "c"])
+    }
+
+    /// A slow network: Undo tapped while the Mute is still on its way waits for it, so the server
+    /// gets the Mute first and Undo knows which host to unmute.
+    func testUndoWaitsForTheChoiceStillOnItsWay() async {
+        let chooser = Chooser()
+        let town = await choosingFeed(chooser)
+        chooser.delay = .milliseconds(200)
+        let card = town.cards[0]
+        let hiding = Task { await town.hide(card, mute: true) }
+        while town.undo == nil { await Task.yield() }
+        await town.undoHide()
+        await hiding.value
+        XCTAssertEqual(chooser.told, [.mute("a"), .unmute("parks-key")])
+        XCTAssertEqual(ids(town), ["a", "b", "c"])
+    }
+
+    func testAChoiceThatDoesntGoThroughBringsTheCardBack() async {
+        let chooser = Chooser()
+        chooser.error = URLError(.notConnectedToInternet)
+        let town = await choosingFeed(chooser)
+        await town.hide(town.cards[0], mute: true)
+        XCTAssertNil(town.undo)
+        XCTAssertEqual(ids(town), ["a", "b", "c"])
+    }
+
+    func testAReadThatRacedTheChoiceDoesntBringTheCardBack() async {
+        let chooser = Chooser()
+        let town = await choosingFeed(chooser)
+        await town.hide(town.cards[2], mute: false)
+        town.undoEnded("c")
+        await town.reload(at: now)
+        XCTAssertEqual(ids(town), ["a", "b"])
+    }
+
+    func testUnmuteTakesTheHostOffTheListAndBringsItsCardsBack() async {
+        let chooser = Chooser()
+        chooser.muted = [MutedHost(host: "parks-key", name: "Parks"), MutedHost(host: "x", name: "Loso's")]
+        let town = await choosingFeed(chooser)
+        await town.hide(town.cards[0], mute: true)
+        town.undoEnded("a")
+        XCTAssertEqual(ids(town), ["c"])
+        await town.refreshMuted()
+        await town.unmute(chooser.muted[0], at: now)
+        XCTAssertEqual(town.muted, [MutedHost(host: "x", name: "Loso's")])
+        XCTAssertEqual(chooser.told.last, .unmute("parks-key"))
+        XCTAssertEqual(ids(town), ["a", "b", "c"])
+    }
+
+    func testAFailedUnmuteKeepsTheRowAndCountsAFailure() async {
+        let chooser = Chooser()
+        chooser.muted = [MutedHost(host: "parks-key", name: "Parks")]
+        let town = await choosingFeed(chooser)
+        await town.refreshMuted()
+        chooser.error = URLError(.notConnectedToInternet)
+        await town.unmute(chooser.muted[0])
+        XCTAssertEqual(town.muted, chooser.muted)
+        XCTAssertEqual(town.unmuteFailures["parks-key"], 1)
+    }
+
+    func testANewAccountForgetsTheLastOnesHiddenCards() async {
+        let town = await choosingFeed(Chooser())
+        await town.hide(town.cards[0], mute: true)
+        town.accountChanged()
+        XCTAssertNil(town.undo)
+        XCTAssertEqual(ids(town), ["a", "b", "c"])
+    }
+
+    func testAScoreFromBeforeNotInterestedStillReads() throws {
+        let json = #"{"interest":0,"friend":0,"follow":0,"popular":0,"viewers":0,"size":0,"sizeStep":1,"daysAway":1,"soon":1,"acted":1,"spacing":1,"newSpot":false,"total":1,"spot":1,"of":1}"#
+        XCTAssertNil(try JSONDecoder().decode(FeedScore.self, from: Data(json.utf8)).notInterested)
+        let newer = #"{"interest":0,"friend":0,"follow":0,"popular":0,"viewers":0,"size":0,"sizeStep":1,"daysAway":1,"soon":1,"acted":1,"notInterested":0.3,"spacing":1,"newSpot":false,"total":1,"spot":1,"of":1}"#
+        XCTAssertEqual(try JSONDecoder().decode(FeedScore.self, from: Data(newer.utf8)).notInterested, 0.3)
     }
 }
 

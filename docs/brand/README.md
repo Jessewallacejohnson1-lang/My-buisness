@@ -69,5 +69,4 @@ failing when stale — a wrong value mis-sizes marks instead of crashing.
 - **`BlockPartyMark` means the app icon** (field and all, squircle-clipped);
   **`BlockPartyWordmark` means the logo on our own page** (ink letterforms, no tile).
   Picking the wrong one is how a square of the wrong paper ends up on the page.
-- `scripts/brand/*.swift` and the other scripts beside `wordmark.py` drove the retired
-  bp tile pipeline. They are historical artifacts, **not** a current export path.
+- `scripts/brand/wordmark.py` is the only brand script.

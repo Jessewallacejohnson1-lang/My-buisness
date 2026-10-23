@@ -476,7 +476,9 @@ struct MainTabsView: View {
         }
         // The friend sheet, from a friend's •••, anyone's page and the Friends button (ticket 04).
         .sheet(item: Binding(get: { friendsBook.menu }, set: { friendsBook.menu = $0 })) { person in
-            FriendMenu(person: person, relation: friendsBook.relation(person)).environment(friendsBook)
+            FriendMenu(person: person, relation: friendsBook.relation(person))
+                .environment(friendsBook)
+                .environment(actions)
         }
         .onChange(of: friendsBook.problem) { _, problem in if let problem { said = problem } }
         .sheet(isPresented: $addingName) { AddNameSheet() }
@@ -552,7 +554,7 @@ struct MainTabsView: View {
                 let id = args[i + 1]
                 Task {
                     for _ in 0..<120 {
-                        if let card = townFeed.entries?.first(where: { $0.card.id == id })?.card {
+                        if let card = townFeed.entries?.lazy.compactMap(\.card).first(where: { $0.id == id }) {
                             path.append(card)
                             return
                         }
@@ -719,6 +721,8 @@ struct MainTabsView: View {
             }
             .environment(calendarSync)
             .environment(friendsBook)
+            .environment(townFeed)
+            .environment(actions)
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
             .presentationBackground(Hue.paper)   // the You tab mock's paper sheet under white rows
@@ -730,6 +734,8 @@ struct MainTabsView: View {
         // fight each other for the same gesture.
         .fullScreenCover(isPresented: $showMap) {
             SJMapView(onClose: { showMap = false })
+                .environment(actions)
+                .environment(friendsBook)
         }
         // The Your Day sheet's own lane, applied LAST so it sits above the tab bar
         // and the town menu. Injects the namespace and the presenter the Your Day

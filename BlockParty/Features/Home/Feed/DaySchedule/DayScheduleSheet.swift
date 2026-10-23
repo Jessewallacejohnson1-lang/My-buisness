@@ -4,7 +4,7 @@
 //
 //  The Today rail is deliberately terse: three cards, a title and a time each. This
 //  is where that terseness is paid back — the same items on a clock, in order, with
-//  the day's shape visible at a glance and one live orange line showing where it has
+//  the day's shape visible at a glance and one live now line showing where it has
 //  got to.
 //
 //  PRESENTATION. This is the day's CONTENT only. It carries no `.presentation*`

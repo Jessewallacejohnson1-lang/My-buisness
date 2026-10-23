@@ -2,8 +2,8 @@
 //  ProfileComponents.swift
 //  Block Party — the warm-frosted-glass building blocks for the profile screen:
 //  a translucent glass panel, the avatar (with a clean blank slot — no gradient
-//  placeholder), coral interest chips in a flow layout, and list rows. All
-//  coral-on-white per the house system; readable ink text keeps contrast on the frost.
+//  placeholder), interest chips in a flow layout, and list rows. Ink on paper per
+//  the house system; readable ink text keeps contrast on the frost.
 //
 
 import SwiftUI
@@ -102,7 +102,7 @@ struct ProfileHead: View {
 
 // MARK: - Interest chips
 
-/// A coral-soft interest pill (matches the app's "Now" badge tone).
+/// A soft grey interest pill.
 func interestChip(_ label: String) -> some View {
     Text(label)
         .font(.sansMedium(13))

@@ -3,7 +3,7 @@
 //  Block Party — the map's north indicator.
 //
 //  The built-in Mapbox compass is deliberately suppressed (SJMapView's OrnamentOptions): its
-//  needle is coral, which the monochrome ink-on-paper brand deletes, its fade is a fixed 0.3s,
+//  needle's colour isn't ours, its fade is a fixed 0.3s,
 //  and its tap resets bearing only. This is the on-brand replacement — the same 44pt chrome
 //  bubble the map's other controls use (surface fill, hairline, float shadow), carrying the one
 //  signature detail: a two-tone needle (ink north / grey south) that tracks the live bearing so

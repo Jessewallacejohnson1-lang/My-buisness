@@ -1,7 +1,7 @@
 //
 //  InterestCard.swift
 //  Block Party — a photo interest card (reference-faithful): image, bottom scrim +
-//  label, and a top-right selection circle. Selecting rings it coral, checks it,
+//  label, and a top-right selection circle. Selecting rings it in ink, checks it,
 //  and zooms the photo a touch. Full Reduce-Motion path (no zoom when set).
 //
 

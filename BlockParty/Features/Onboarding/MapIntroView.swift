@@ -3,17 +3,17 @@
 //  Block Party — the onboarding crescendo: an introduction to the town Map.
 //
 //  The last first-run beat (Welcome → Interests → this). Blooms back into the
-//  coral brand field of the splash, then a real Mapbox porthole of downtown Saint
+//  ink field, then a real Mapbox porthole of downtown Saint
 //  Joseph — centered on Minnesota St & College Ave, by the Church of St. Joseph
 //  and Local Blend — assembles itself. Life360-style teardrop pins drop onto the
 //  real venues by name, and one glows "live," teaching the map's single most
-//  important idea (coral = happening right now) before the user reaches the tab.
+//  important idea (the pulse = happening right now) before the user reaches the tab.
 //
 //  Faithful to the Life360 "create your Circle" composition (title · circular map
-//  · supporting line · pill button), in Block Party's coral+white system. The map is the
+//  · supporting line · pill button), in Block Party's ink-on-paper system. The map is the
 //  real thing (same cartography as SJMapView); the pins are art-directed overlays
 //  — spread for legibility like the reference, not GPS-exact — so the download
-//  reads clean. Motion mirrors the app's house rules: ease-out springs, a coral
+//  reads clean. Motion mirrors the app's house rules: ease-out springs, a
 //  pulse identical to the map's, and a full Reduce-Motion path (everything renders
 //  in its final state, no pulse, no drift).
 //
@@ -54,9 +54,7 @@ struct MapIntroView: View {
 
     var body: some View {
         ZStack {
-            // The field: brand coral across the top (matches the splash hand-off),
-            // deepening toward the bottom so the support line + button clear a
-            // legible contrast without leaving the coral identity.
+            // The field: ink top to bottom.
             LinearGradient(
                 stops: [
                     .init(color: Hue.ink, location: 0.0),
@@ -304,9 +302,9 @@ private struct PinWithLabel: View {
     }
 }
 
-/// A rounded map pin — a white (or coral, when live) head with a pointed tail,
+/// A rounded map pin — a white (or ink, when live) head with a pointed tail,
 /// built from a circle over a 45°-rotated rounded square so the point stays soft.
-/// The live head is solid coral with a white glyph and carries the same pulse ring
+/// The live head is solid ink with a white glyph and carries the same pulse ring
 /// the map uses.
 private struct TeardropPin: View {
     let icon: String
@@ -351,7 +349,7 @@ private struct TeardropPin: View {
     private var fill: Color { live ? Hue.ink : Hue.surface }
 }
 
-/// The live heartbeat — coral 0.35 → 0, scale 1 → 2.2, 1.5s loop. Identical to the
+/// The live heartbeat — ink 0.35 → 0, scale 1 → 2.2, 1.5s loop. Identical to the
 /// map's `PulseRing`. Only mounted when motion is allowed.
 private struct IntroPulseRing: View {
     @State private var pulsing = false

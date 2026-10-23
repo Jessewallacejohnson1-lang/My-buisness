@@ -52,6 +52,10 @@ struct SearchItem: Identifiable, Hashable {
     var links: [PlaceLink] = []
     /// A group opens onto its Group page (BP app rsvp-and-groups 05).
     var townGroup: TownGroup? = nil
+    /// A place's `places.id`, which its page follows (BP app follows 02).
+    var placeID: String? = nil
+    /// Its name over its page's photos (`public.place_names`): lettering, or its logo landing there.
+    var nameArt: PlaceName? = nil
 
     /// A business or food place with a logo opens onto its own page of photos; the
     /// logo flies there (Jesse, 2026-10-04: restaurants and coffee open like logos).
@@ -177,6 +181,8 @@ final class SearchModel {
     /// The last places and saved photos read, so a retry reads only what is missing.
     private var pois: [POI] = []
     private var savedPhotos: [String: [PlacePicture]]?
+    /// Each place's name in its own lettering, by registry entry; read once, and none if it fails.
+    private var names: [String: PlaceName] = [:]
     /// The Town's groups, in `get_groups`' order, and whether they have been read.
     private(set) var groups: [SearchItem] = []
     private(set) var groupsLoaded = false
@@ -218,7 +224,9 @@ final class SearchModel {
             async let readPlaces = needPlaces ? try? await api.getPlaces() : nil
             async let readPhotos = needPhotos ? try? await api.getPlacePhotos() : nil
             async let readGroups = needGroups ? try? await api.getGroups() : nil
+            async let readNames = needPlaces ? try? await api.getPlaceNames() : nil
             let (newPlaces, newPhotos, newGroups) = await (readPlaces, readPhotos, readGroups)
+            if let newNames = await readNames { names = newNames }
             if let newPlaces { pois = newPlaces }
             if let newPhotos { savedPhotos = newPhotos }
             if newPlaces != nil || (newPhotos != nil && placesLoaded) { show(pois, photos: savedPhotos) }
@@ -231,7 +239,7 @@ final class SearchModel {
 
     /// `photos` by registry entry; nil when they couldn't be read.
     func show(_ pois: [POI], photos: [String: [PlacePicture]]? = [:]) {
-        places = Self.places(from: pois, photos: photos ?? [:])
+        places = Self.places(from: pois, photos: photos ?? [:], names: names)
         fixed = Self.parks(photos: photos ?? [:]) + Self.samples()
         placesLoaded = true
         photosLoaded = photos != nil
@@ -326,7 +334,8 @@ final class SearchModel {
 
     /// `photos`: what Block Party saved of each place, by registry entry (`places.entry_id`). A
     /// food card shows the cover; a business shows its logo on the row, its photos on its page.
-    static func places(from pois: [POI], photos: [String: [PlacePicture]] = [:]) -> [SearchItem] {
+    static func places(from pois: [POI], photos: [String: [PlacePicture]] = [:],
+                       names: [String: PlaceName] = [:]) -> [SearchItem] {
         pois.map { poi in
             let key = poi.placeId ?? poi.id
             let logo = poi.searchLogo.map { SearchLogo(placeId: key, row: $0) }
@@ -338,7 +347,8 @@ final class SearchModel {
                               photo: kind == .business ? nil : saved.first.map { .saved($0) },
                               keywords: [type.replacingOccurrences(of: "_", with: " ")],
                               rank: logo?.rank ?? .max, photos: saved, street: street(poi.address),
-                              about: nonempty(poi.about), links: poi.links ?? [])
+                              about: nonempty(poi.about), links: poi.links ?? [], placeID: poi.id,
+                              nameArt: poi.entryId.flatMap { names[$0] })
         }
     }
 

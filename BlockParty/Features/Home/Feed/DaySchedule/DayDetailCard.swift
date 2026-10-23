@@ -93,7 +93,7 @@ struct DayDetailCard: View {
     // MARK: - The category spine
 
     private var accentBar: some View {
-        CategoryGradient.of(item.event.category).linear
+        LinearGradient(colors: [Hue.ink, Hue.inkSecondary], startPoint: .top, endPoint: .bottom)
             .frame(width: DayScheduleMetrics.accentBarWidth)
             .frame(maxHeight: .infinity)
             // Its own leading corners, so it can be drawn outside the card's ground
