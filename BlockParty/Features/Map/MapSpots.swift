@@ -86,7 +86,7 @@ enum MapSpots {
              blurb: "Shops & cafés on Minnesota St"),
         Spot(id: "saintbens", name: "Saint Ben's", category: .college,
              coordinate: .init(latitude: 45.5604, longitude: -94.3218), // Gorecki Center, CSB campus
-             keywords: ["saint ben", "st. ben", "st ben", "csb", "benedict", "gorecki"],
+             keywords: ["saint ben", "st. ben", "st ben", "csb", "benedict", "gorecki", "clemens"],
              blurb: "College of Saint Benedict"),
         Spot(id: "chapel", name: "Sacred Heart Chapel", category: .chapel,
              coordinate: .init(latitude: 45.5631, longitude: -94.3189), // the chapel building itself

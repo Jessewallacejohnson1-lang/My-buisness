@@ -24,6 +24,9 @@ final class MapModel: ObservableObject {
     /// The town's permanent food/business venues (Supabase `places`). Loaded once —
     /// they don't change with today's events or the Realtime pipeline.
     @Published private(set) var pois: [POI] = []
+    /// Block Party's photos and logos of each place, by registry entry (`place_photos`):
+    /// the picture a today bubble falls back to when its event has none.
+    @Published private(set) var placePictures: [String: [PlacePicture]] = [:]
     @Published private(set) var state: LoadState = .loading
     /// A 1-minute wall-clock heartbeat. Bumped on a timer so any view observing this
     /// model re-evaluates DateHelpers.isLiveNow off the current time even when no
@@ -166,6 +169,7 @@ final class MapModel: ObservableObject {
             guard gen == loadGeneration else { return }   // a newer load superseded us
             todayEvents = events
             state = events.isEmpty ? .empty : .loaded
+            prefetchBubblePictures()
         } catch {
             guard gen == loadGeneration else { return }
             // A URLError means the network is down; keep any cached events visible.
@@ -196,6 +200,26 @@ final class MapModel: ObservableObject {
         } catch {
             // Leave pois empty; foreground / retry will try again. The map still works.
         }
+        if placePictures.isEmpty, let pictures = try? await api.getPlacePhotos() {
+            placePictures = pictures
+            prefetchBubblePictures()
+        }
+    }
+
+    /// The picture a today bubble shows for an event: its own photo, else its place's
+    /// photo, else its place's logo (MEMORY.md 2026-10-16: every automated event shows its
+    /// place's photo, else the place's logo). `isLogo` sizes a logo to sit inside the glass.
+    func bubblePicture(for event: TimelineEvent) -> (url: URL, isLogo: Bool)? {
+        if let own = event.imageURL { return (own, false) }
+        guard let entry = event.placeEntryId else { return nil }
+        if let photo = placePictures[entry]?.first(where: { $0.kind == .photo }) { return (photo.url, false) }
+        if let logo = pois.first(where: { $0.entryId == entry })?.logoURL { return (logo, true) }
+        return nil
+    }
+
+    /// Warm today's bubble pictures so each bubble pops in with its photo, not empty glass.
+    private func prefetchBubblePictures() {
+        POILogoCache.shared.prefetch(todayEvents.compactMap { bubblePicture(for: $0)?.url })
     }
 
     /// Public retry hook for the error / offline states.

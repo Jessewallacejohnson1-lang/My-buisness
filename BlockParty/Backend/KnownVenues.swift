@@ -41,7 +41,7 @@ enum KnownVenues {
         Venue(kw: ["sacred heart", "chapel", "monastery"], coord: .init(latitude: 45.5631, longitude: -94.3189)),
         Venue(kw: ["saint john", "st. john", "st john", "sju", "abbey", "collegeville"],
               coord: .init(latitude: 45.5800, longitude: -94.3923)),                             // Abbey church
-        Venue(kw: ["saint ben", "st. ben", "st ben", "csb", "benedict", "gorecki"],
+        Venue(kw: ["saint ben", "st. ben", "st ben", "csb", "benedict", "gorecki", "clemens"],
               coord: .init(latitude: 45.5604, longitude: -94.3218)),                             // Gorecki Center
 
         // — broad areas last —

@@ -110,6 +110,10 @@ struct TimelineEvent: Identifiable, Hashable {
     /// The event's category → its calendar icon (tint + glyph). Defaults to `.other`
     /// so existing constructors compile unchanged and null/legacy rows read cleanly.
     var category: EventCategory = .other
+    /// The event's own photo (club_events.image_url) and its place's registry entry
+    /// (club_events.place_entry_id), which the map's bubbles read for a picture.
+    var imageURL: URL? = nil
+    var placeEntryId: String? = nil
 }
 
 /// nonisolated: a plain value carried by `DayItem`, which the pure `nonisolated`
@@ -510,6 +514,8 @@ struct RawEvent: Decodable {
     /// `source_url`; ADR-021). Nil for events a club or neighbour posted.
     let sourceName: String?
     let sourceUrl: String?
+    /// club_events.place_entry_id: the registry entry this event happens at, when known.
+    let placeEntryId: String?
     let clubs: ClubRef?
 
     struct ClubRef: Decodable { let name: String? }

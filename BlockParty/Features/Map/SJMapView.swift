@@ -342,6 +342,10 @@ struct SJMapView: View {
     static let civicPriority = 0
     static let selectedPriority = 10
     static let clusterPriority = 20
+    static let bubblePriority = 30
+
+    /// The curated spots that have a today bubble on them.
+    var bubbledSpotIDs: Set<String> { Set(todayBubbles.compactMap { $0.spot?.id }) }
 
     /// DEBUG-only: `-map-open-poi [name-substring | id]` opens a POI's detail
     /// sheet once `places` loads. With no value, it deterministically uses the first
@@ -506,6 +510,48 @@ struct SJMapView: View {
     private func spot(for ev: TimelineEvent) -> Spot? {
         let haystack = [ev.title, ev.location].compactMap { $0 }.joined(separator: " ").lowercased()
         return MapSpots.all.first { $0.keywords.contains { haystack.contains($0) } }
+    }
+
+    /// Today's events as bubbles, one per place (TodayBubbles.swift): the place's lead
+    /// event (on now, else next to start), at its curated spot, else at its known venue.
+    /// Events with no known place, and ended ones, stay off the map. Only under All and
+    /// Events. Re-read each minute (`clockTick`) so an ended event drops off.
+    var todayBubbles: [TodayBubble] {
+        _ = model.clockTick
+        guard filter == .all || filter == .events else { return [] }
+        let now = TodayBubbleRules.seconds(of: TodayBubbleClock.now())
+        var byPlace: [String: (CLLocationCoordinate2D, Spot?, [TimelineEvent])] = [:]
+        var order: [String] = []
+        for ev in model.todayEvents {
+            let place: (String, CLLocationCoordinate2D, Spot?)
+            if let s = spot(for: ev) {
+                place = (s.id, s.coordinate, s)
+            } else if let c = KnownVenues.coordinate(for: [ev.location, ev.title].compactMap { $0 }.joined(separator: " ")) {
+                place = (String(format: "%.4f,%.4f", c.latitude, c.longitude), c, nil)
+            } else { continue }
+            if byPlace[place.0] == nil { order.append(place.0); byPlace[place.0] = (place.1, place.2, []) }
+            byPlace[place.0]?.2.append(ev)
+        }
+        var bubbles: [TodayBubble] = []
+        for id in order {
+            guard let place = byPlace[id],
+                  let lead = TodayBubbleRules.lead(place.2, now: now) else { continue }
+            let pic = model.bubblePicture(for: lead)
+            bubbles.append(TodayBubble(id: id, coordinate: place.0, spot: place.1, event: lead,
+                                       picture: pic?.url, isLogo: pic?.isLogo ?? false))
+        }
+        bubbles.sort { DateHelpers.minutesOf($0.event.startTime) < DateHelpers.minutesOf($1.event.startTime) }
+        for i in bubbles.indices { bubbles[i].order = i }
+        return bubbles
+    }
+
+    /// A bubble tap opens its place's card, as a pin tap does; a bubble at a venue with
+    /// no curated pin just brings it to the middle.
+    private func tapBubble(_ b: TodayBubble) {
+        if let spot = b.spot { selectSpot(spot); return }
+        Haptics.light()
+        let move = { viewport = liftedViewport(b.coordinate, zoom: Self.selectZoom) }
+        if reduceMotion { move() } else { withViewportAnimation(.easeOut(duration: 0.5)) { move() } }
     }
 
     /// A spot glows only while one of its events is actually happening.
@@ -762,6 +808,9 @@ struct SJMapView: View {
                     // Computed once and reused below — isLive(spot) scans today's events,
                     // no need to repeat that scan for the badge tint and the a11y label.
                     let spotIsLive = isLive(spot)
+                    // A place with a today bubble lets the bubble carry "on now"; its pin
+                    // underneath stays calm (no plum pulse) — Jesse at Check-in 1, 2026-10-22.
+                    let bubbled = bubbledSpotIDs.contains(spot.id)
                     let markerID = ClusterMarkerID.civic(spot.id)
                     let isSelected = selectedClusterMarkerID == markerID
                     // While any detail is open, every OTHER pin calms down (label
@@ -777,7 +826,7 @@ struct SJMapView: View {
                             MapPinBadge(
                                 spot: spot,
                                 base: PinDisplay.resolve(
-                                    isLive: spotIsLive,
+                                    isLive: spotIsLive && !bubbled,
                                     isSaved: isSavedSpot(spot)
                                 ),
                                 selected: isSelected,
@@ -804,6 +853,16 @@ struct SJMapView: View {
                     }
                     .allowOverlap(true)
                     .priority(Self.selectedPriority)
+                }
+                // Today's events, over everything else on the map.
+                ForEvery(todayBubbles) { bubble in
+                    MapViewAnnotation(coordinate: bubble.coordinate) {
+                        TodayEventBubble(bubble: bubble, order: bubble.order) {
+                            tapBubble(bubble)
+                        }
+                    }
+                    .allowOverlap(true)
+                    .priority(Self.bubblePriority)
                 }
             }
             .mapStyle(MapStyle(uri: StyleURI(rawValue: MAP_STYLE_URL)!))

@@ -216,7 +216,9 @@ struct CommunityAPI {
                           clubName: e.clubs?.name,
                           fromJoinedClub: e.clubId != nil ? joined.contains(e.clubId!) : false,
                           details: e.description,
-                          category: EventCategory.from(e.category))
+                          category: EventCategory.from(e.category),
+                          imageURL: e.imageUrl.flatMap(URL.init(string:)),
+                          placeEntryId: e.placeEntryId)
         }
     }
 
