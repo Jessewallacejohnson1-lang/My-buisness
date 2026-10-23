@@ -233,6 +233,14 @@ nonisolated enum Hue {
     static let nameOnDark    = Color(hex: 0xFFFFFF)
     static let nameOnLight   = Color(hex: 0x111111)
     static let nameShadow    = Color(hex: 0x000000)
+    /// The map's ground, buildings and greens, Uber's (`BasemapPalette`; Jesse, 2026-10-23).
+    /// One value each: the map is light cartography in both appearances.
+    static let mapLand       = Color(hex: 0xECECF4)
+    static let mapBuilding   = Color(hex: 0xE0E0E4)
+    static let mapPark       = Color(hex: 0xACE0B8)
+    /// The map's top and bottom edge washes: the land in light mode, so the edges
+    /// fade into the ground instead of a lighter band; the dark page in dark mode.
+    static let mapEdge       = Color(light: 0xECECF4, dark: 0x141412)
     /// The logo wall's one studio backdrop, and the hue the cast shadows take on it.
     nonisolated static let searchStudioHue: Double = 34
 

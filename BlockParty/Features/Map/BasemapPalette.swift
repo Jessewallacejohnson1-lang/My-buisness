@@ -5,12 +5,9 @@
 //  THE MAP IS CONTENT, NOT CHROME. The app's UI is monochrome ink-on-paper and
 //  photographs carry the colour; the map is the same kind of thing — a picture of
 //  the town — so its NATURAL features keep their real colours, and they keep them
-//  generously. Round 2 (2026-08-14, Jesse's Subway store-finder reference) widened
-//  this from a muted watercolor to a genuinely colorful town map: lively leaf-green
-//  vegetation wherever green exists, a clear confident blue river, and warm
-//  tan patches over campus/institutional ground — the reference's College-Terrace
-//  read, which here is St. Ben's. Friendly and saturated-but-soft, like a printed
-//  neighborhood map; never neon, never a traffic app.
+//  generously. Round 3 (2026-10-23, Jesse's Uber reference) replaced round 2's
+//  Subway store-finder palette: a cool grey ground, one mint green, a clear blue
+//  river, and no tan or campus patches.
 //
 //  This palette REPLACED a fully grayscale ramp that made land, parks and water sit
 //  within ~6% luminance of each other. It was elegant and it did not work: the Sauk
@@ -36,25 +33,24 @@ import Foundation
 import MapboxMaps
 
 enum BasemapPalette {
-    // MARK: Ground
-    // Land stays the app's paper so the map reads as continuous with the app.
-    static let land     = Hue.paper.onLightCanvas.hexString   // app background continues into the map
-    static let building = Hue.fill.onLightCanvas.hexString    // built form stays neutral, on token
+    // MARK: Ground — Uber's map (Jesse, 2026-10-23; sampled off Mobbin, references/uber-map/)
+    // One cool grey ground and one darker grey for buildings. The map no longer
+    // continues the app's paper; Jesse picked Uber's look over that continuity.
+    static let land     = Hue.mapLand.hexString
+    static let building = Hue.mapBuilding.hexString
 
-    // MARK: Vegetation — one leaf-green family, tiered by how "kept" the ground is
-    // Parks are the loudest, lawns lighter, farm fields a whisper — so green coverage
-    // reads everywhere green exists without the whole townscape going monotone.
-    static let park      = "#A9D584"   // parks, gardens, playgrounds — the headline green
-    static let pitch     = "#B9DB8F"   // ball fields / courts — kin to park, one step lighter
-    static let wood      = "#B0D291"   // woods & scrub — softer, slightly muted canopy
-    static let grass     = "#C3DFA2"   // open lawns — light tint of the same family
-    static let farmland  = "#DFEAC5"   // agriculture — big-area soft green, a real tint not a whisper
-    static let cemetery  = "#CBDCB4"   // kept lawn with trees — quiet natural, not park-bright
+    // MARK: Vegetation — Uber's one mint green for every kind of green ground
+    static let park      = Hue.mapPark.hexString
+    static let pitch     = park
+    static let wood      = park
+    static let grass     = park
+    static let cemetery  = park
+    static let farmland  = land        // Uber draws no farm fields
 
-    // MARK: Warm patches — the reference's campus/institution tan
-    static let campus   = "#F3E3C8"   // school · university · hospital — St. Ben's warm field
-    static let commerce = "#EEEDE8"   // commercial districts — a neutral grey step off the land
-    static let sand     = "#F0E3C0"   // beaches / sand — warm natural
+    // MARK: Patches — none, as in Uber: campus, shops and sand melt into the ground
+    static let campus   = land
+    static let commerce = land
+    static let sand     = land
 
     // MARK: Water — clear and confident; the Sauk River must read instantly
     static let water    = "#7FBFE8"
@@ -67,7 +63,7 @@ enum BasemapPalette {
     // against the style's actual JSON (`GET styles/v1/mapbox/light-v11`), not assumed
     // from Mapbox Streets' richer per-class layer set. So there's one road color, not
     // a fill/casing/motorway hierarchy. Quiet white roads read as light channels and
-    // let the greens/tans carry the scene.
+    // let the greens carry the scene.
     static let road = Hue.surface.onLightCanvas.hexString
 
     // MARK: Labels — shared with the app's own ink ramp (not map-only)

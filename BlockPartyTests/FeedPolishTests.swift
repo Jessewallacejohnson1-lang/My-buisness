@@ -989,7 +989,7 @@ final class DayPaletteTokenTests: XCTestCase {
     func testMarkersOverTheMapDoNotFollowTheSystemAppearance() {
         XCTAssertEqual(hex(Hue.ink.onLightCanvas, .dark), hex(Hue.ink, .light))
         XCTAssertEqual(hex(Hue.surface.onLightCanvas, .dark), hex(Hue.surface, .light))
-        XCTAssertEqual(BasemapPalette.land, "#FAFAF7")
+        XCTAssertEqual(BasemapPalette.land, "#ECECF4")
         XCTAssertEqual(BasemapPalette.road, "#FFFFFF")
     }
 }

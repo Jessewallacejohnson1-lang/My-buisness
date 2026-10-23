@@ -1165,8 +1165,8 @@ struct SJMapView: View {
     ///   1. `.ultraThinMaterial` — the same material language as the glass chrome —
     ///      blurs the live map (labels/roads/pins) into softness color-agnostically,
     ///      so it reads right over land, water AND parks.
-    ///   2. a paper wash (`Hue.paper`, the basemap's own land tone) — a bare material
-    ///      goes cold-grey over the warm map, so this keeps the frost warm and seals
+    ///   2. a wash in the basemap's own land tone (`Hue.mapEdge`) — a bare material
+    ///      reads off-tone over the map, so this keeps the frost on its ground and seals
     ///      the home-indicator strip.
     /// A dissolve (invisible top → present at the bottom), never a bar.
     /// Non-interactive; taps pass through to the map.
@@ -1186,9 +1186,9 @@ struct SJMapView: View {
                 )
             LinearGradient(
                 stops: [
-                    .init(color: Hue.paper.opacity(0),    location: 0.0),
-                    .init(color: Hue.paper.opacity(0.32), location: 0.55),
-                    .init(color: Hue.paper.opacity(0.82), location: 1.0),
+                    .init(color: Hue.mapEdge.opacity(0),    location: 0.0),
+                    .init(color: Hue.mapEdge.opacity(0.32), location: 0.55),
+                    .init(color: Hue.mapEdge.opacity(0.82), location: 1.0),
                 ],
                 startPoint: .top, endPoint: .bottom
             )
@@ -1200,19 +1200,19 @@ struct SJMapView: View {
     }
 
     /// The top twin of `mapBottomFade` (round 2, Jesse's edge-fade ask): a soft
-    /// paper wash from the physical top edge dying out through the pill row, so the
+    /// land-tone wash from the physical top edge dying out through the pill row, so the
     /// status bar and floating chrome sit on a gently faded edge (Apple Maps /
     /// Subway store-finder read) instead of raw cartography. Colour only — no
     /// material: pin labels legitimately pass under this band (it is NOT chrome and
     /// deliberately joins no `chromeRects`), and a blur would smear them where a
-    /// light wash keeps them readable. `Hue.paper` is dynamic, so dark mode fades
+    /// light wash keeps them readable. `Hue.mapEdge` is dynamic, so dark mode fades
     /// to the dark page exactly like the bottom band. Non-interactive.
     private var mapTopFade: some View {
         LinearGradient(
             stops: [
-                .init(color: Hue.paper.opacity(0.85), location: 0.0),
-                .init(color: Hue.paper.opacity(0.45), location: 0.4),
-                .init(color: Hue.paper.opacity(0),    location: 1.0),
+                .init(color: Hue.mapEdge.opacity(0.85), location: 0.0),
+                .init(color: Hue.mapEdge.opacity(0.45), location: 0.4),
+                .init(color: Hue.mapEdge.opacity(0),    location: 1.0),
             ],
             startPoint: .top, endPoint: .bottom
         )
