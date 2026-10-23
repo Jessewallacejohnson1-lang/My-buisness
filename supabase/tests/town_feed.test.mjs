@@ -1312,24 +1312,28 @@ test('Not interested keeps the item and every week of its series out; other host
   assert.equal((await titles('2026-10-08 12:00')).length, 3);
 });
 
-test("Not interested lowers its host's and its interest's other Events × 0.3, back to × 1 by day 90", async () => {
+test("Not interested lowers its host's and its main interest's other Events × 0.3, back to × 1 by day 90", async () => {
   await reset();
   const fair = await add('Craft fair', '2026-10-09', { start_time: '10 AM', source_name: 'Parks', category: 'arts' });
   await add('Zoo day', '2026-10-09', { start_time: '11 AM', source_name: 'Parks', category: 'outdoors' });
   await add('Gallery night', '2026-10-09', { start_time: '6 PM', source_name: 'Gallery', category: 'arts' });
   await add('Bingo', '2026-10-09', { start_time: '7 PM', source_name: "Sal's", category: 'games' });
+  // Arts is only its second interest: a shared tag that isn't the main one lowers nothing (Jesse,
+  // 2026-10-22: a broad tag would dim much of the feed).
+  const quilts = await add('Quilt show', '2026-10-09', { start_time: '1 PM', source_name: 'Church' });
+  await db.query(`update public.club_events set interests = '{community,arts}', interests_tagged_at = now() where id = $1`, [quilts]);
   await notInterested(fair, YOU, '2026-10-08 12:00');
   const x = async (at) => {
     await signIn(YOU);
     await db.exec(`set test.admin = 'on'`);
     return Object.fromEntries((await feed(at)).map((r) => [r.title, r.score.notInterested]));
   };
-  assert.deepEqual(await x('2026-10-08 12:00'), { 'Zoo day': 0.3, 'Gallery night': 0.3, Bingo: 1 });
+  assert.deepEqual(await x('2026-10-08 12:00'), { 'Zoo day': 0.3, 'Gallery night': 0.3, Bingo: 1, 'Quilt show': 1 });
   // Halfway through the 90 days: halfway back.
   await db.exec(`reset role; update public.feed_actions set at = at - interval '45 days'`);
-  assert.deepEqual(await x('2026-10-08 12:00'), { 'Zoo day': 0.65, 'Gallery night': 0.65, Bingo: 1 });
+  assert.deepEqual(await x('2026-10-08 12:00'), { 'Zoo day': 0.65, 'Gallery night': 0.65, Bingo: 1, 'Quilt show': 1 });
   await db.exec(`reset role; update public.feed_actions set at = at - interval '46 days'`);
-  assert.deepEqual(await x('2026-10-08 12:00'), { 'Zoo day': 1, 'Gallery night': 1, Bingo: 1 });
+  assert.deepEqual(await x('2026-10-08 12:00'), { 'Zoo day': 1, 'Gallery night': 1, Bingo: 1, 'Quilt show': 1 });
 });
 
 test('Not interested on a host beats its "been into" lift', async () => {
