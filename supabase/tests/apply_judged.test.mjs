@@ -117,5 +117,7 @@ test('a dropped game is marked cancelled once, and restored by a re-read or anot
 
   const { rows: [{ n }] } = await db.query(`select count(*)::int as n from pg_proc where proname = 'apply_judged'`);
   assert.equal(n, 1, 'one apply_judged, no second one with four lists');
+  // The writer's list runs from yesterday on, and the game above has a fixed date: today it is.
+  await db.exec('update public.club_events set event_date = current_date');
   assert.ok('cancelled_at' in (await db.query('select public.listed_for_writer() as l')).rows[0].l[0]);
 });
