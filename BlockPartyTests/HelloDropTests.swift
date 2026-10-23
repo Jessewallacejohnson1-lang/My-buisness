@@ -191,6 +191,11 @@ final class HelloDropTests: XCTestCase {
         let new = post("new", published: "2026-10-21 07:00")
         XCTAssertEqual(message("2026-10-21 09:00", lastSeen: "2026-10-20 20:00", news: [old, new]),
                        "Sal's: Meat raffle moved to Saturday")
+        // With the place's picture beside them, the words stand alone.
+        var pictured = new
+        pictured.picture = PlacePicture(url: URL(string: "https://x/sals.png")!, kind: .logo)
+        XCTAssertEqual(message("2026-10-21 09:00", lastSeen: "2026-10-20 20:00", news: [pictured]),
+                       "Meat raffle moved to Saturday")
         XCTAssertNotEqual(message("2026-10-21 09:00", lastSeen: "2026-10-21 08:00", news: [old, new]),
                           "Sal's: Meat raffle moved to Saturday")
     }

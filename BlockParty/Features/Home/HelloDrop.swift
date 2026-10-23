@@ -131,7 +131,9 @@ enum HelloDrop {
         }
         // The town's top news for you, new since your last open, in the feed's own order.
         if let lastSeen, let post = news.first(where: { ($0.published ?? .distantPast) > lastSeen }) {
-            return Message(text: "\(post.place): \(post.words)", target: .news(post), logo: post.picture?.url,
+            // The picture says who posted it, so the words stand alone beside it (Jesse, 2026-10-23).
+            let text = post.picture == nil ? "\(post.place): \(post.words)" : post.words
+            return Message(text: text, target: .news(post), logo: post.picture?.url,
                            photo: post.picture?.kind == .photo)
         }
         if let lastSeen {
