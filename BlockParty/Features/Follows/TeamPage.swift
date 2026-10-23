@@ -42,7 +42,8 @@ struct TeamPage: View {
             }
             .padding(.bottom, 40)
         }
-        .ignoresSafeArea(edges: .top)
+        // The band starts under the status bar, so the clock stays ink on paper over every colour.
+        .refreshable { await load() }
         .overlay(alignment: .topLeading) {
             // On a white disc, so it reads over any team's colours (the mock's).
             FriendsBackButton { dismiss() }
@@ -83,6 +84,10 @@ struct TeamPage: View {
                 }
                 .background(Hue.surface, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Hue.hairline, lineWidth: 1))
+            } else if profile != nil {
+                Text("No games coming up")
+                    .font(.sans(15))
+                    .foregroundStyle(Hue.inkSecondary)
             } else if failed {
                 Text("Check your connection and try again.")
                     .font(.sans(15))

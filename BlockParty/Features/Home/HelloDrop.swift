@@ -229,7 +229,8 @@ struct HelloDropView: View {
     /// Events attended (hello-drop 02), read on each open; nil when the read failed.
     let attended: @MainActor () async -> Int?
     /// Your followed teams' finals read since a time (hello-drop 03), newest first.
-    let finals: @MainActor (_ since: Date) async -> [TeamFinal]
+    /// nil when the read failed.
+    let finals: @MainActor (_ since: Date) async -> [TeamFinal]?
 
     private enum Step { case hidden, hello, message }
 
@@ -513,9 +514,12 @@ struct HelloDropView: View {
     /// New finals since the last read; the newest not yet said waits for the pill.
     private func checkFinals() async {
         guard HelloDrop.allowed else { return }
-        let since = finalsSince > 0 ? Date(timeIntervalSince1970: finalsSince) : Date().addingTimeInterval(-36 * 3600)
-        let read = await finals(since)
-        finalsSince = Date().timeIntervalSince1970
+        // An hour back from the last read: the finals job stamps a final when its run starts and
+        // saves it minutes later, so a read in between would step past it. The said ids stop repeats.
+        let since = finalsSince > 0 ? Date(timeIntervalSince1970: finalsSince - 3600) : Date().addingTimeInterval(-36 * 3600)
+        let started = Date()
+        guard let read = await finals(since) else { return }
+        finalsSince = started.timeIntervalSince1970
         let said = Set(saidFinals.split(separator: ",").map(String.init))
         guard let final = read.first(where: { !said.contains($0.eventId) && $0.text != nil }) else { return }
         pendingFinal = final

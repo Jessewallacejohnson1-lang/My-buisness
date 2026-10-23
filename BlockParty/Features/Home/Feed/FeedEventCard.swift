@@ -136,11 +136,11 @@ struct FeedEventCard: View {
             .overlay(alignment: .topLeading) {
                 if !item.hostName.isEmpty, item.hostAvatar == nil, let team = item.game?.teams.first, team.logo != nil, team.hasPage {
                     NavigationLink(value: team) {
-                        Color.clear
+                        GameHostMark(team: team, side: Self.hostAvatarSide)
                             .frame(width: SearchMetric.tapMin, height: SearchMetric.tapMin)
                             .contentShape(Circle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(PressableStyle())
                     .padding(.leading, DailyFeedMetric.contentInset - (SearchMetric.tapMin - Self.hostAvatarSide) / 2)
                     .offset(y: -(SearchMetric.tapMin - Self.hostAvatarSide) / 2)
                     .accessibilityLabel("\(team.short), team page")

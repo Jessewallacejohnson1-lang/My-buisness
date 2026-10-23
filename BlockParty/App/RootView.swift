@@ -239,8 +239,8 @@ struct MainTabsView: View {
     }
 
     /// Your followed teams' finals read since a time (hello-drop 03).
-    private static func teamFinals(since: Date) async -> [TeamFinal] {
-        (try? await CommunityAPI(auth: AuthStore.shared).myTeamFinals(since: since)) ?? []
+    private static func teamFinals(since: Date) async -> [TeamFinal]? {
+        try? await CommunityAPI(auth: AuthStore.shared).myTeamFinals(since: since)
     }
 
     /// A one-shot starting tab. nil → the usual default (Town, or a DEBUG `-open-tab`
