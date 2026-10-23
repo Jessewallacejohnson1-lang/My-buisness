@@ -175,7 +175,10 @@ final class TownFeed {
             return
         }
         if arguments.contains("-town-samples") {
-            self.init(read: { DailyFixtures.townEntries() }, actions: actions)
+            // Mute and the Muted list kept in memory, so the Eyes pass shows both (ticket 21).
+            let mutes = SampleMutes()
+            self.init(read: { DailyFixtures.townEntries() }, actions: actions,
+                      choose: mutes.choose, readMuted: { mutes.list })
             return
         }
         #endif
@@ -463,3 +466,27 @@ final class TownFeed {
         return TownFeedEntry(card: card, leavesAt: row.leavesAt)
     }
 }
+
+#if DEBUG
+/// `-town-samples`' Muted list: a Mute keeps the host by name, an Unmute drops it.
+@MainActor
+private final class SampleMutes {
+    var list = [MutedHost(host: "sample-library", name: "St. Joe Public Library")]
+    private let names = Dictionary(DailyFixtures.townEntries().map { ($0.card.id, $0.card.hostName) },
+                                   uniquingKeysWith: { first, _ in first })
+
+    func choose(_ choice: FeedChoice) async throws -> String? {
+        switch choice {
+        case .mute(let id):
+            let name = names[id] ?? id
+            list.insert(MutedHost(host: name, name: name), at: 0)
+            return name
+        case .unmute(let host):
+            list.removeAll { $0.host == host }
+        case .notInterested, .undoNotInterested:
+            break
+        }
+        return nil
+    }
+}
+#endif
