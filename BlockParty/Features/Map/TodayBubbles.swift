@@ -154,7 +154,9 @@ struct TodayEventBubble: View {
                 tag(phase)
                     .offset(y: Self.bead / 2 + 20)
             }
-            .frame(width: 64, height: 64)
+            // Room for the shadow bleed to spread (2.1x the bead) without being clipped
+            // by the annotation's frame; only the bead itself takes touches.
+            .frame(width: 104, height: 104)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(a11yLabel(phase))
             .accessibilityAddTraits(.isButton)
@@ -182,7 +184,10 @@ struct TodayEventBubble: View {
                 .offset(y: 5)
             photo
                 .frame(width: Self.bead, height: Self.bead)
-                .glassEffect(.regular.interactive(), in: Circle())
+                // Plain, not .interactive(): the interactive glass swells and whitens under
+                // the finger on top of our own squish, which washed the photo out (frames
+                // 2026-10-22). The squish below is the touch response Jesse tuned.
+                .glassEffect(.regular, in: Circle())
         }
         .rotationEffect(angle)
         .scaleEffect(x: base * (1 + stretch), y: base / (1 + stretch))

@@ -832,7 +832,7 @@ struct SJMapView: View {
                                 selected: isSelected,
                                 calmed: calmed,
                                 expanded: isSelected || model.pinsExpanded,
-                                showsLabel: model.pinsExpanded && !calmed
+                                showsLabel: model.pinsExpanded && !calmed && !bubbled
                                     && labelledMarkers.contains(markerID),
                                 a11yLabel: accessibilityLabel(for: spot, live: spotIsLive)
                             )
