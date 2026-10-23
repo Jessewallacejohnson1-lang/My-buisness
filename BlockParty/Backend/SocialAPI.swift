@@ -23,8 +23,7 @@ struct SocialAPI {
     }
 
     /// Dual ISO-8601 fallback (plain, then fractional-seconds) — the same
-    /// pattern used at CommunityAPI.swift's `BoardRow.timeLabel` and
-    /// `ProfileModel.since`, wired here into the decoder itself so every
+    /// pattern used at `ProfileModel.since`, wired here into the decoder itself so every
     /// `Date` field on a decoded row parses a Postgres timestamptz string.
     private static let isoPlain: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter(); f.formatOptions = [.withInternetDateTime]; return f

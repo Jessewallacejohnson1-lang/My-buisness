@@ -2,7 +2,8 @@
 //  SafariView.swift
 //  Block Party — shared in-app browser wrapper (SFSafariViewController).
 //
-//  Used by the Board to open a board item's source_url without leaving the app.
+//  Opens a town news post (when its own app isn't on the phone) or a found event's page
+//  without leaving the app.
 //  No SPM dependency — SafariServices ships with iOS.
 //
 

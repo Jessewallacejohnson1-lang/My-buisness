@@ -121,7 +121,7 @@ struct SkeletonGalleryPreview: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
-                // The four MOUNTED skeletons — these are what a user actually sees
+                // The three MOUNTED skeletons — these are what a user actually sees
                 // while a screen fetches, and they are the reason `ProgressView` no
                 // longer stands in for content anywhere.
                 Text("Comments").font(.displaySemi(16)).foregroundStyle(Hue.inkSecondary)
@@ -130,9 +130,6 @@ struct SkeletonGalleryPreview: View {
                 Text("Review queue").font(.displaySemi(16)).foregroundStyle(Hue.inkSecondary)
                     .padding(.horizontal, 18)
                 ModerationQueueSkeleton().padding(.horizontal, 18)
-                Text("Town board").font(.displaySemi(16)).foregroundStyle(Hue.inkSecondary)
-                    .padding(.horizontal, 18)
-                BoardSkeleton().padding(.horizontal, 18)
                 Text("Edit profile").font(.displaySemi(16)).foregroundStyle(Hue.inkSecondary)
                     .padding(.horizontal, 18)
                 EditProfileSkeleton()

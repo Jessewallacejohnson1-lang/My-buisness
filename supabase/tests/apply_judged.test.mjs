@@ -117,9 +117,7 @@ test('a dropped game is marked cancelled once, and restored by a re-read or anot
 
   const { rows: [{ n }] } = await db.query(`select count(*)::int as n from pg_proc where proname = 'apply_judged'`);
   assert.equal(n, 1, 'one apply_judged, no second one with four lists');
-  // listed_for_writer lists from yesterday on, so the fixed 2026-10-21 rows above dropped out of
-  // it on 2026-10-23 and this line failed every push; give it a row dated today to read.
-  await db.exec(`insert into public.club_events (title, event_date, status)
-    values ('Listed today', (now() at time zone 'America/Chicago')::date, 'approved')`);
+  // The writer's list runs from yesterday on, and the game above has a fixed date: today it is.
+  await db.exec('update public.club_events set event_date = current_date');
   assert.ok('cancelled_at' in (await db.query('select public.listed_for_writer() as l')).rows[0].l[0]);
 });

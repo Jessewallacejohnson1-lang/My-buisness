@@ -62,7 +62,6 @@ final class DynamicTypeAuditCoverageTests: XCTestCase {
         "ProfileView.swift:$showAbout": .notYetAudited(reason: "About. Long copy."),
         "ProfileView.swift:$showModeration": .notYetAudited(reason: "Moderation. Long copy."),
         "EditProfileView.swift:$showInterests": .notYetAudited(reason: "Interest picker; a grid of chips, which is what breaks first at AX5."),
-        "BoardView.swift:$link": .notYetAudited(reason: "Safari view — system UI, scales on its own."),
         "ModerationView.swift:$link": .notYetAudited(reason: "Safari view on a found event's page — system UI, scales on its own."),
         "TownNewsCard.swift:$link": .notYetAudited(reason: "Safari view on a town news post (town-feed 35) — system UI, scales on its own."),
         "UtilityRowView.swift:$model.showCustomize": .notYetAudited(reason: "Utility customise sheet."),
