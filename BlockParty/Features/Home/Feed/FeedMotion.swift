@@ -4,7 +4,7 @@
 //
 //  Two moments in this app are allowed to feel good: the "+" press, and a Town
 //  Notes card opening. This file owns the second one. Everything else in the feed
-//  routes through `quietPressScale`, which is deliberately too small to notice.
+//  routes through `quietPress`, one small press for the whole card.
 //
 //  Reduce Motion is not a dimmer here — it is a different animation. Every branch
 //  below collapses to a CROSS-FADE: no spring, no scale, no offset. `Spec` exists
@@ -85,9 +85,10 @@ nonisolated enum FeedMotion {
 
     // MARK: Everything else stays quiet
 
-    /// The only press scale allowed on a feed surface. Small enough to feel like
-    /// contact and nothing more; exactly 1 under Reduce Motion.
-    static let quietPress: CGFloat = 0.985
+    /// The only press scale allowed on a feed surface; exactly 1 under Reduce Motion.
+    /// 0.97, guessed: at 0.985 only the photo's edge visibly moved, and Jesse saw the
+    /// words, Attend and the send stay put (2026-10-23).
+    static let quietPress: CGFloat = 0.97
 
     static func quietPressSpec(reduceMotion: Bool) -> Spec {
         reduceMotion
