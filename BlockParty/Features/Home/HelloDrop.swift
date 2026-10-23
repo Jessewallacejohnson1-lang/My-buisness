@@ -208,6 +208,7 @@ struct HelloDropView: View {
     @State private var moment: HelloMoment?
     @State private var tick = 0
     @State private var confetti = 0
+    @State private var attendedAt = Date.distantPast
     private let moments = HelloMoments.shared
     @AppStorage("helloDrop.day") private var shownDay = ""
     @AppStorage("helloDrop.lastHello") private var lastHello = ""
@@ -362,8 +363,8 @@ struct HelloDropView: View {
             withAnimation(reduceMotion ? Motion.smooth : Motion.sheet) { step = .hello }
             AccessibilityNotification.Announcement(greeting.text).post()
             // The very first open: "Welcome to Block Party" with confetti (hello-drop 02).
-            if seen == nil, !reduceMotion {
-                confetti += 1
+            if seen == nil {
+                if !reduceMotion { confetti += 1 }
                 Haptics.success()
             }
             try? await Task.sleep(for: Self.holdHello)
@@ -414,7 +415,10 @@ struct HelloDropView: View {
     }
 
     private func checkAttended() async {
-        guard HelloDrop.allowed, let count = await attended() else { return }
+        // Launch brings both the first task and an active phase: one read is enough.
+        guard HelloDrop.allowed, Date().timeIntervalSince(attendedAt) > 30 else { return }
+        attendedAt = Date()
+        guard let count = await attended() else { return }
         moments.attended(count)
     }
 

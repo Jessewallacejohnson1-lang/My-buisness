@@ -26,6 +26,8 @@ struct SharePayload: Identifiable {
     let title: String
     let shareText: String
     let includesImage: Bool
+    /// An Event's share, the one that counts toward "Shared your first event!" (hello-drop 02).
+    var isEvent = false
 
     init<V: View>(title: String,
                   shareText: String,
@@ -159,8 +161,7 @@ final class ShareCenter: ObservableObject {
         PhotoSaver.save(img)
     }
 
-    /// An Event's share (`SharePayload.event`), the one that counts toward "Shared your first event!".
-    private var isEvent: Bool { payload?.title == "Share this event" }
+    private var isEvent: Bool { payload?.isEvent ?? false }
 
     /// Messages target only makes sense on a device that can send texts.
     var canSendMessages: Bool { MessagesComposer.canSend }
@@ -172,9 +173,11 @@ extension SharePayload {
         if let time, !time.isEmpty { text += " at \(time)" }
         if let location, !location.isEmpty { text += ", \(location)" }
         text += ". Shared from Block Party."
-        return SharePayload(title: "Share this event", shareText: text, includesImage: true) {
+        var payload = SharePayload(title: "Share this event", shareText: text, includesImage: true) {
             InviteCard(title: title, dateLabel: dateLabel, time: time, location: location)
         }
+        payload.isEvent = true
+        return payload
     }
 
     /// A feed card's event: the card's share, and its event page's.

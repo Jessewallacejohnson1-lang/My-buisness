@@ -47,8 +47,11 @@ enum HelloMoment: String, CaseIterable {
 final class HelloMoments {
     static let shared = HelloMoments()
 
-    private(set) var waiting: HelloMoment?
+    /// In the order reached; the pill shows the first and the rest after it.
+    private(set) var queue: [HelloMoment] = []
+    var waiting: HelloMoment? { queue.first }
     // ponytail: once ever per phone (UserDefaults); per account if two people share a phone.
+    // ponytail: "first friend" fires when you confirm a request, not when yours is accepted.
     private let said: UserDefaults
 
     init(said: UserDefaults = .standard) { self.said = said }
@@ -61,7 +64,7 @@ final class HelloMoments {
     func reach(_ moment: HelloMoment) {
         guard !hasSaid(moment) else { return }
         said.set(true, forKey: key(moment))
-        waiting = moment
+        queue.append(moment)
     }
 
     /// The attended count, after the events it counts are over. Only the highest milestone
@@ -75,12 +78,11 @@ final class HelloMoments {
 
     #if DEBUG
     /// `-hello-moment`: shows one whether or not it was said.
-    func show(_ moment: HelloMoment) { waiting = moment }
+    func show(_ moment: HelloMoment) { queue.append(moment) }
     #endif
 
     func take() -> HelloMoment? {
-        defer { waiting = nil }
-        return waiting
+        queue.isEmpty ? nil : queue.removeFirst()
     }
 }
 
@@ -154,6 +156,7 @@ struct HelloTick: View {
 enum TickHaptics {
     private static var engine: CHHapticEngine?
 
+    /// Silent in Low Power Mode, as every buzz in the app is (`Haptics`, spec §10).
     static func play() {
         guard !ProcessInfo.processInfo.isLowPowerModeEnabled,
               CHHapticEngine.capabilitiesForHardware().supportsHaptics else { return }

@@ -105,6 +105,18 @@ final class HelloDropTests: XCTestCase {
         XCTAssertNil(moments.take())
     }
 
+    /// Two reached together both show, in order.
+    func testTwoMomentsAtOnceBothShow() {
+        let defaults = UserDefaults(suiteName: "HelloMomentsTests3")!
+        defaults.removePersistentDomain(forName: "HelloMomentsTests3")
+        let moments = HelloMoments(said: defaults)
+        moments.attended(1)
+        moments.reach(.firstPlace)
+        XCTAssertEqual(moments.take(), .firstEvent)
+        XCTAssertEqual(moments.take(), .firstPlace)
+        XCTAssertNil(moments.take())
+    }
+
     /// A neighbour already past 10 hears "10th", never "first", and never both.
     func testOnlyTheHighestAttendedMilestoneShows() {
         let defaults = UserDefaults(suiteName: "HelloMomentsTests2")!
