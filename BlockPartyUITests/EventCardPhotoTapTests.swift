@@ -117,6 +117,10 @@ final class EventCardPhotoTapTests: XCTestCase {
         XCTAssertEqual(link.value as? String, "Photo 1 of 2", "the first card has no second photo to swipe to")
         let title = app.staticTexts["Music in Millstream Park"].firstMatch
         XCTAssertTrue(title.waitForExistence(timeout: 10), "no title on the first card")
+        // On GitHub's iPhone 17 (874 pt tall) the title sits behind the tab bar: bring it up first,
+        // as the drag-up check above does, and let the feed settle.
+        photo(of: link, y: 120).press(forDuration: 0.05, thenDragTo: photo(of: link, y: -80))
+        XCTAssertLessThan(title.frame.maxY, app.frame.maxY - 140, "the title is still behind the tab bar")
 
         title.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5))
             .press(forDuration: 0.05, thenDragTo: title.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)))
