@@ -201,7 +201,9 @@ struct FeedView: View {
                         // Scrolled down it holds as the list under it does, and moves on at the top.
                         TimelineView(.everyMinute) { context in
                             let now = DailyClock.now(townFeed.holding ? townFeed.heldAt : context.date)
-                            let top = DailyEvent.showing(eventOfTheDay.events ?? [], now: now, limit: 1).first
+                            // Not one you hid or whose host you muted (ticket 21).
+                            let top = DailyEvent.showing((eventOfTheDay.events ?? []).filter { !townFeed.isHidden($0.item) },
+                                                         now: now, limit: 1).first
                             DailyFeedColumn(items: DailyFeedItem.town(townFeed.shown, eventOfTheDay: top),
                                             entrance: entrance,
                                             onCardOnScreen: { townFeed.cardOnScreen($0, $1) },
@@ -215,6 +217,12 @@ struct FeedView: View {
                         .animation(Motion.smooth, value: townFeed.clock)
                         // and back at the top, the finished ones held while scrolled down go.
                         .animation(Motion.smooth, value: townFeed.holding)
+                        // A card hidden or muted folds into its Undo line, then away, and the cards
+                        // under it slide up; Undo brings it back the same way (ticket 21).
+                        .animation(Motion.sheet, value: townFeed.undo)
+                        .animation(Motion.sheet, value: townFeed.hiddenIDs)
+                        .animation(Motion.sheet, value: townFeed.mutedNames)
+                        .environment(townFeed)
                         .transition(.opacity)
                     } else if townFeed.failed {
                         FeedUnavailableBody(title: FeedStateCopy.townEventsUnavailable) {

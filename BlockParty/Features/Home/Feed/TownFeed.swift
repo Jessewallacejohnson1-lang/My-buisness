@@ -18,8 +18,14 @@
 //  Event page is an open. They go up in one batch at most every 30 seconds and when the
 //  app leaves the screen; the server turns views into popularity per view.
 //
+//  Not interested and Mute (ticket 21) take a card out at once and go to the server straight
+//  away. The card folds into a "Hidden · Undo" line for 5 seconds, then goes; Undo brings it
+//  back and takes the choice back. The ids and host names hidden this session stay out of
+//  every list, so a read that raced the write, or a kept list, can't bring a card back.
+//
 
 import Foundation
+import UIKit
 
 /// One line of the Town feed: an event's card or town news (ticket 35), and when it leaves.
 struct TownFeedEntry: Identifiable {
@@ -55,6 +61,26 @@ struct FeedAction: Equatable {
     enum Kind: String { case view, open }
     let itemID: String
     let kind: Kind
+}
+
+/// Not interested, Mute and their undoing, for the server (ticket 21). Mute names an Event and
+/// gets back the host it muted; Unmute names that host.
+enum FeedChoice: Equatable {
+    case notInterested(String), undoNotInterested(String), mute(String), unmute(String)
+}
+
+/// A host you muted, as the Muted list shows it.
+struct MutedHost: Identifiable, Equatable, Decodable {
+    let host: String
+    let name: String
+    var id: String { host }
+}
+
+/// A card just hidden, showing its Undo line.
+struct FeedHide: Equatable {
+    let id: String
+    let hostName: String
+    let mute: Bool
 }
 
 @MainActor @Observable
@@ -118,6 +144,25 @@ final class TownFeed {
     @ObservationIgnored private(set) var unsent: [FeedAction] = []
     @ObservationIgnored private var lastSent: Date = .distantPast
 
+    /// Events said Not interested to and host names muted this session (ticket 21).
+    private(set) var hiddenIDs: Set<String> = []
+    private(set) var mutedNames: Set<String> = []
+    /// The card showing "Hidden · Undo" in its place, for 5 seconds.
+    private(set) var undo: FeedHide?
+    /// How long the Undo line stays.
+    static let undoFor: Duration = .seconds(5)
+    /// The host each Mute this session muted, by name, so its Undo can unmute it.
+    @ObservationIgnored private var muteKeys: [String: String] = [:]
+    /// The last choice on its way: Undo waits for it, so the take-back never lands first.
+    @ObservationIgnored private var sending: Task<String?, Error>?
+    /// Ends the Undo line after 5 seconds, wherever the line has scrolled to.
+    @ObservationIgnored private var undoTimer: Task<Void, Never>?
+    /// The Muted list as the last read gave it; nil until read.
+    private(set) var muted: [MutedHost]?
+    private(set) var mutedFailed = false
+    /// Unmutes that didn't go through, by host: the row comes back and shakes.
+    private(set) var unmuteFailures: [String: Int] = [:]
+
     private let read: () async throws -> [TownFeedEntry]
     private let kept: () -> [TownFeedEntry]?
     /// Told each Event's Going and Heart from every list the feed takes, in the same
@@ -125,17 +170,24 @@ final class TownFeed {
     private let actions: RealLifeActions?
     /// Where views and opens go: the live table, or nowhere (tests, sample modes).
     private let sender: ([FeedAction]) async throws -> Void
+    /// Where Not interested, Mute and their undoing go; a Mute answers with its host.
+    private let choose: (FeedChoice) async throws -> String?
+    private let readMuted: () async throws -> [MutedHost]
 
     /// `kept` is the list the last session left on the phone, asked for once, at the
     /// first read, so it is built with the account that read sees.
     init(read: @escaping () async throws -> [TownFeedEntry],
          kept: @escaping () -> [TownFeedEntry]? = { nil },
          actions: RealLifeActions? = nil,
-         send: @escaping ([FeedAction]) async throws -> Void = { _ in }) {
+         send: @escaping ([FeedAction]) async throws -> Void = { _ in },
+         choose: @escaping (FeedChoice) async throws -> String? = { _ in nil },
+         readMuted: @escaping () async throws -> [MutedHost] = { [] }) {
         self.read = read
         self.kept = kept
         self.actions = actions
         self.sender = send
+        self.choose = choose
+        self.readMuted = readMuted
     }
 
     /// The live feed, or under DEBUG `-town-samples` the sample events, so design
@@ -150,7 +202,10 @@ final class TownFeed {
             return
         }
         if arguments.contains("-town-samples") {
-            self.init(read: { DailyFixtures.townEntries() }, actions: actions)
+            // Mute and the Muted list kept in memory, so the Eyes pass shows both (ticket 21).
+            let mutes = SampleMutes()
+            self.init(read: { DailyFixtures.townEntries() }, actions: actions,
+                      choose: mutes.choose, readMuted: { mutes.list })
             return
         }
         #endif
@@ -159,12 +214,21 @@ final class TownFeed {
         // GitHub's check builds with, gave up on that (red from 2026-10-13).
         let testRun = AuthStore.isTestRun
         self.init(read: Self.live, kept: Self.keptOnDisk, actions: actions,
-                  send: { batch in if !testRun { try await Self.sendLive(batch) } })
+                  send: { batch in if !testRun { try await Self.sendLive(batch) } },
+                  choose: { try await CommunityAPI(auth: AuthStore.shared).feedChoice($0) },
+                  readMuted: { try await CommunityAPI(auth: AuthStore.shared).mutedHosts() })
     }
 
-    /// What's still on, events and news, in the database's order.
+    /// What's still on, events and news, in the database's order: not an event you hid, nor
+    /// anything from a host you muted (ticket 21).
     var shown: [TownFeedEntry] {
-        (entries ?? []).filter { $0.leavesAt > (holding ? heldClock : clock) }
+        (entries ?? []).filter { entry in
+            guard entry.leavesAt > (holding ? heldClock : clock) else { return false }
+            switch entry.item {
+            case .event(let card): return !isHidden(card)
+            case .news(let news): return !mutedNames.contains(news.place)
+            }
+        }
     }
 
     /// The events still on, in the database's order. The admin's Score names each card's
@@ -310,10 +374,108 @@ final class TownFeed {
         }
     }
 
-    /// A new account: the last one's waiting views are not this one's.
+    /// A new account: the last one's waiting views and hidden cards are not this one's.
     func accountChanged() {
         unsent = []
         viewed = []
+        hiddenIDs = []
+        mutedNames = []
+        muteKeys = [:]
+        undoTimer?.cancel()
+        undo = nil
+        muted = nil
+    }
+
+    // MARK: Not interested and Mute (ticket 21)
+
+    /// Out of the feed: said Not interested to, or its host muted. The card showing Undo stays
+    /// in, drawn as its Undo line.
+    func isHidden(_ card: FeedCardItem) -> Bool {
+        guard undo?.id != card.id else { return false }
+        return hiddenIDs.contains(card.id) || (!card.hostName.isEmpty && mutedNames.contains(card.hostName))
+    }
+
+    /// Not interested (`mute` false) or Mute on a card: out at once, then to the server. One that
+    /// doesn't go through comes back. A newer one ends the last one's Undo.
+    func hide(_ card: FeedCardItem, mute: Bool) async {
+        if mute { mutedNames.insert(card.hostName) } else { hiddenIDs.insert(card.id) }
+        undo = FeedHide(id: card.id, hostName: card.hostName, mute: mute)
+        undoTimer?.cancel()
+        // With VoiceOver on, the line waits for Undo or the next choice: 5 seconds is too short to
+        // find it by swiping.
+        if !UIAccessibility.isVoiceOverRunning {
+            undoTimer = Task { [weak self] in
+                try? await Task.sleep(for: Self.undoFor)
+                guard !Task.isCancelled else { return }
+                self?.undoEnded(card.id)
+            }
+        }
+        let choose = self.choose
+        let send = Task { try await choose(mute ? .mute(card.id) : .notInterested(card.id)) }
+        sending = send
+        do {
+            let host = try await send.value
+            if mute, let host { muteKeys[card.hostName] = host }
+            muted = nil
+        } catch {
+            Log.network("TownFeed: \(mute ? "Mute" : "Not interested") not sent: \(error)")
+            if mute { mutedNames.remove(card.hostName) } else { hiddenIDs.remove(card.id) }
+            if undo?.id == card.id { undo = nil }
+            Haptics.error()
+        }
+    }
+
+    /// Undo on the line: the card comes back, and the choice is taken back on the server.
+    func undoHide() async {
+        guard let hide = undo else { return }
+        undo = nil
+        undoTimer?.cancel()
+        let earlier = sending
+        if hide.mute { mutedNames.remove(hide.hostName) } else { hiddenIDs.remove(hide.id) }
+        // The choice lands before it is taken back (a slow network sent both at once).
+        let answer = (try? await earlier?.value) ?? nil
+        if hide.mute {
+            // The Mute's own answer, when its `hide` hasn't kept it yet.
+            guard let host = muteKeys.removeValue(forKey: hide.hostName) ?? answer else { return }
+            _ = try? await choose(.unmute(host))
+            muted = nil
+        } else {
+            _ = try? await choose(.undoNotInterested(hide.id))
+        }
+    }
+
+    /// The Undo line's 5 seconds are up: the card goes.
+    func undoEnded(_ id: String) {
+        if undo?.id == id { undo = nil }
+    }
+
+    /// The Muted list, read when it opens.
+    func refreshMuted() async {
+        do {
+            muted = try await readMuted()
+            mutedFailed = false
+        } catch {
+            Log.network("TownFeed: Muted list: \(error)")
+            mutedFailed = muted == nil
+        }
+    }
+
+    /// Unmute from the Muted list: off the list at once; the host's Events come back with a fresh
+    /// read. One that doesn't go through comes back and shakes.
+    func unmute(_ host: MutedHost, at now: Date = Date()) async {
+        guard let at = muted?.firstIndex(of: host) else { return }
+        muted?.remove(at: at)
+        do {
+            _ = try await choose(.unmute(host.host))
+            mutedNames.remove(host.name)
+            await reload(at: now)
+        } catch {
+            Log.network("TownFeed: Unmute not sent: \(error)")
+            let count = muted?.count ?? 0
+            muted?.insert(host, at: min(at, count))
+            unmuteFailures[host.host, default: 0] += 1
+            Haptics.error()
+        }
     }
 
     nonisolated static func triesAgain(_ error: Error) -> Bool {
@@ -373,3 +535,27 @@ final class TownFeed {
         return card
     }
 }
+
+#if DEBUG
+/// `-town-samples`' Muted list: a Mute keeps the host by name, an Unmute drops it.
+@MainActor
+private final class SampleMutes {
+    var list = [MutedHost(host: "sample-library", name: "St. Joe Public Library")]
+    private let names = Dictionary(DailyFixtures.townEntries().compactMap(\.card).map { ($0.id, $0.hostName) },
+                                   uniquingKeysWith: { first, _ in first })
+
+    func choose(_ choice: FeedChoice) async throws -> String? {
+        switch choice {
+        case .mute(let id):
+            let name = names[id] ?? id
+            list.insert(MutedHost(host: name, name: name), at: 0)
+            return name
+        case .unmute(let host):
+            list.removeAll { $0.host == host }
+        case .notInterested, .undoNotInterested:
+            break
+        }
+        return nil
+    }
+}
+#endif

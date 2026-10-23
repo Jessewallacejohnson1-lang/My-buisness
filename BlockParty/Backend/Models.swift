@@ -386,6 +386,8 @@ nonisolated struct FeedScore: Decodable, Hashable, Sendable {
     var tapped: Double? = nil
     var draw: Double? = nil
     var topicSpacing: Double? = nil
+    /// Like something you said Not interested to: × 0.3 fading to × 1 over 90 days (ticket 21).
+    var notInterested: Double? = nil
 }
 
 struct AgendaEvent: Identifiable, Hashable {

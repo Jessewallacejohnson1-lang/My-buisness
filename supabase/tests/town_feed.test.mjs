@@ -136,7 +136,7 @@ async function reset() {
                  delete from public.town_profiles; delete from private.friendships;
                  delete from private.blocks; delete from public.club_members;
                  delete from public.clubs; delete from public.sources; delete from public.teams;
-                 delete from public.board_items;
+                 delete from public.board_items; delete from public.feed_mutes;
                  reset request.jwt.claim.sub; reset test.admin;`);
 }
 
@@ -713,7 +713,7 @@ test('the score breakdown is filled for the admin and null for everyone else', a
   const { score } = (await feed('2026-10-08 12:00'))[0];
   assert.deepEqual(score, {
     interest: 3, friend: 0, follow: 0, popular: 0, viewers: 0, size: 0, sizeStep: 1, draw: 1.5, tapped: 0, daysAway: 1,
-    soon: 0.9057, acted: 1, spacing: 1, topicSpacing: 1, newSpot: false, total: 4.9815, spot: 1, of: 1,
+    soon: 0.9057, acted: 1, notInterested: 1, spacing: 1, topicSpacing: 1, newSpot: false, total: 4.9815, spot: 1, of: 1,
   });
 });
 
@@ -1376,6 +1376,17 @@ test('road alerts, unpublished news and news with no post to open stay out', asy
   assert.deepEqual(await newsTitles('2026-10-08 18:00'), ['Taco Tuesday']);
 });
 
+test('a host you muted keeps its news out too', async () => {
+  await reset();
+  await news('Taco Tuesday', '2026-10-08 17:00', { source_name: 'Neighbors Route 75', interests: ['dining'] });
+  await news('Flight Friday', '2026-10-08 17:00', { interests: ['dining'] });
+  await signIn(ME, ['dining']);
+  await db.exec('reset role');
+  await db.query(`insert into public.feed_mutes (user_id, host, name) values ($1, 'Neighbors Route 75', 'Neighbors Route 75')`, [ME]);
+  await db.exec('set role authenticated');
+  assert.deepEqual(await newsTitles('2026-10-08 18:00'), ['Flight Friday']);
+});
+
 test('a news item shows its place\'s logo before its photo', async () => {
   await reset();
   await db.exec(`delete from public.place_photos; delete from public.places;
@@ -1397,4 +1408,108 @@ test('there is one get_town_feed, so every app\'s call finds it', async () => {
   // argument would make a second, and `{}` would fail as ambiguous for every app.
   const { rows } = await db.query(`select count(*)::int as n from pg_proc where proname = 'get_town_feed'`);
   assert.equal(rows[0].n, 1);
+});
+
+// Not interested and Mute (ticket 21). A Not interested row `at` a Town time, written as the
+// database would; set_not_interested and mute_host as the app calls them.
+async function notInterested(event, who, at) {
+  await db.exec('reset role');
+  await db.query(`insert into public.feed_actions (user_id, item_id, action, at)
+                  values ($1, $2, 'not_interested', ($3::timestamp at time zone 'America/Chicago'))`, [who, event, at]);
+}
+
+test('Not interested keeps the item and every week of its series out; other hosts stay', async () => {
+  await reset();
+  const trivia = await add('Trivia', '2026-10-13', { start_time: '7 PM', source_name: "Loso's" });
+  await add('Trivia', '2026-10-20', { start_time: '7 PM', source_name: "Loso's" });
+  await add('Trivia', '2026-10-13', { start_time: '7 PM', source_name: 'Bad Habit' });
+  await add('Bake sale', '2026-10-09', { start_time: '12 PM', source_name: 'Church' });
+  await signIn(YOU);
+  assert.equal((await titles('2026-10-08 12:00')).length, 3);
+  await db.query('select public.set_not_interested($1)', [trivia]);
+  const rows = await feed('2026-10-08 12:00');
+  assert.deepEqual(rows.map((r) => r.title).sort(), ['Bake sale', 'Trivia']);
+  // The next week's Trivia from the same host would take its place; it doesn't.
+  assert.ok((await feed('2026-10-15 12:00')).every((r) => r.title !== 'Trivia' || r.day !== '2026-10-20'));
+  // Undo takes it back.
+  await db.query('select public.set_not_interested($1, false)', [trivia]);
+  assert.equal((await titles('2026-10-08 12:00')).length, 3);
+});
+
+test("Not interested lowers its host's and its main interest's other Events × 0.3, back to × 1 by day 90", async () => {
+  await reset();
+  const fair = await add('Craft fair', '2026-10-09', { start_time: '10 AM', source_name: 'Parks', category: 'arts' });
+  await add('Zoo day', '2026-10-09', { start_time: '11 AM', source_name: 'Parks', category: 'outdoors' });
+  await add('Gallery night', '2026-10-09', { start_time: '6 PM', source_name: 'Gallery', category: 'arts' });
+  await add('Bingo', '2026-10-09', { start_time: '7 PM', source_name: "Sal's", category: 'games' });
+  // Arts is only its second interest: a shared tag that isn't the main one lowers nothing (Jesse,
+  // 2026-10-22: a broad tag would dim much of the feed).
+  const quilts = await add('Quilt show', '2026-10-09', { start_time: '1 PM', source_name: 'Church' });
+  await db.query(`update public.club_events set interests = '{community,arts}', interests_tagged_at = now() where id = $1`, [quilts]);
+  await notInterested(fair, YOU, '2026-10-08 12:00');
+  const x = async (at) => {
+    await signIn(YOU);
+    await db.exec(`set test.admin = 'on'`);
+    return Object.fromEntries((await feed(at)).map((r) => [r.title, r.score.notInterested]));
+  };
+  assert.deepEqual(await x('2026-10-08 12:00'), { 'Zoo day': 0.3, 'Gallery night': 0.3, Bingo: 1, 'Quilt show': 1 });
+  // Halfway through the 90 days: halfway back.
+  await db.exec(`reset role; update public.feed_actions set at = at - interval '45 days'`);
+  assert.deepEqual(await x('2026-10-08 12:00'), { 'Zoo day': 0.65, 'Gallery night': 0.65, Bingo: 1, 'Quilt show': 1 });
+  await db.exec(`reset role; update public.feed_actions set at = at - interval '46 days'`);
+  assert.deepEqual(await x('2026-10-08 12:00'), { 'Zoo day': 1, 'Gallery night': 1, Bingo: 1, 'Quilt show': 1 });
+});
+
+test('Not interested on a host beats its "been into" lift', async () => {
+  await reset();
+  const fair = await add('Craft fair', '2026-10-04', { start_time: '10 AM', source_name: 'Parks' });
+  const movie = await add('Movie night', '2026-10-07', { start_time: '7 PM', source_name: 'Parks' });
+  await add('Zoo day', '2026-10-09', { start_time: '10 AM', source_name: 'Parks' });
+  await add('Bingo', '2026-10-09', { start_time: '10 AM', source_name: "Sal's" });
+  await tap('event_likes', fair, YOU, '2026-10-04 12:00');
+  await tap('event_likes', movie, YOU, '2026-10-07 12:00');
+  await notInterested(movie, YOU, '2026-10-08 12:00');
+  await signIn(YOU);
+  await db.exec(`set test.admin = 'on'`);
+  const rows = await feed('2026-10-08 12:00');
+  const zoo = rows.find((r) => r.title === 'Zoo day');
+  assert.deepEqual([zoo.score.tapped, zoo.score.notInterested], [3, 0.3]);
+  assert.deepEqual(rows.map((r) => r.title), ['Bingo', 'Zoo day'], 'the lift (1 + 3) × 0.3 sits under a plain 1');
+});
+
+test('a muted host never shows, to the one who muted it only; unmuting brings it back', async () => {
+  await reset();
+  const zoo = await add('Zoo day', '2026-10-09', { start_time: '10 AM', source_name: 'Parks' });
+  await add('Movie night', '2026-10-10', { start_time: '7 PM', source_name: 'Parks' });
+  await add('Bingo', '2026-10-09', { start_time: '10 AM', source_name: "Sal's" });
+  await signIn(YOU);
+  const { rows: [{ host }] } = await db.query('select public.mute_host($1) as host', [zoo]);
+  assert.equal(host, 'Parks');
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Bingo']);
+  assert.deepEqual((await db.query('select host, name from public.feed_mutes')).rows, [{ host: 'Parks', name: 'Parks' }]);
+  // Someone else, and a signed-out read, still see Parks.
+  await signIn('00000000-0000-0000-0000-0000000000c9');
+  assert.equal((await titles('2026-10-08 12:00')).length, 3);
+  assert.deepEqual((await db.query('select host from public.feed_mutes')).rows, [], "nobody reads another's mutes");
+  await db.exec('reset role; reset request.jwt.claim.sub; set role anon');
+  assert.equal((await titles('2026-10-08 12:00')).length, 3);
+  // Unmute from the Muted list: a delete of your own row.
+  await signIn(YOU);
+  await db.query(`delete from public.feed_mutes where host = 'Parks'`);
+  assert.equal((await titles('2026-10-08 12:00')).length, 3);
+});
+
+test("a group's Event mutes the group by the name its card shows; signed out can't hide or mute", async () => {
+  await reset();
+  await db.exec('reset role');
+  const { rows: [{ id: club }] } = await db.query(`insert into public.clubs (name) values ('Rod and Gun Club') returning id`);
+  const shoot = await add('Trap shoot', '2026-10-09', { start_time: '10 AM' });
+  await db.query('update public.club_events set club_id = $1, source_name = null where id = $2', [club, shoot]);
+  await signIn(YOU);
+  assert.equal((await db.query('select public.mute_host($1) as host', [shoot])).rows[0].host, club);
+  assert.deepEqual((await db.query('select name from public.feed_mutes')).rows, [{ name: 'Rod and Gun Club' }]);
+  await db.exec('reset role; reset request.jwt.claim.sub; set role anon');
+  await assert.rejects(db.query('select public.set_not_interested($1)', [shoot]));
+  await assert.rejects(db.query('select public.mute_host($1)', [shoot]));
+  await db.exec('reset role');
 });

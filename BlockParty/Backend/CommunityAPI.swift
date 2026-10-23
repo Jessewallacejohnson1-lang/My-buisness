@@ -383,6 +383,38 @@ struct CommunityAPI {
                                         prefer: "return=minimal")
     }
 
+    /// Not interested, Mute and their undoing (town-feed 21), straight away. A Mute answers with
+    /// the host it muted, which Unmute names. Ids that aren't Events (samples) send nothing.
+    func feedChoice(_ choice: FeedChoice) async throws -> String? {
+        let t = try await token()
+        switch choice {
+        case .notInterested(let id), .undoNotInterested(let id):
+            guard UUID(uuidString: id) != nil else { return nil }
+            let on = choice == .notInterested(id)
+            _ = try await SupabaseHTTP.rest("rpc/set_not_interested", method: "POST", accessToken: t,
+                                            body: try body(["p_item": id, "p_on": on]))
+            return nil
+        case .mute(let id):
+            guard UUID(uuidString: id) != nil else { return nil }
+            let (data, _) = try await SupabaseHTTP.rest("rpc/mute_host", method: "POST", accessToken: t,
+                                                        body: try body(["p_item": id]))
+            return try JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) as? String
+        case .unmute(let host):
+            var allowed = CharacterSet.urlQueryAllowed
+            allowed.remove(charactersIn: "&=+,()")
+            let value = host.addingPercentEncoding(withAllowedCharacters: allowed) ?? host
+            _ = try await SupabaseHTTP.rest("feed_mutes", method: "DELETE", query: "host=eq.\(value)", accessToken: t)
+            return nil
+        }
+    }
+
+    /// The hosts you muted, newest first: Profile's Muted list (town-feed 21).
+    func mutedHosts() async throws -> [MutedHost] {
+        let (data, _) = try await SupabaseHTTP.rest("feed_mutes", query: "select=host,name&order=at.desc",
+                                                    accessToken: try await token())
+        return try decode(data)
+    }
+
     func unRsvpEvent(_ eventId: String) async throws {
         let t = try await token()
         let uid = try await uidOrThrow()

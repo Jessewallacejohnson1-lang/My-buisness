@@ -811,5 +811,141 @@ final class TownFeedEventsTests: XCTestCase {
         await town.send(at: now, always: true)
         XCTAssertEqual(town.unsent, [])
     }
+
+    // MARK: Not interested and Mute (ticket 21)
+
+    /// Keeps every choice it's told, answers a Mute with its host, and fails when told to.
+    @MainActor
+    private final class Chooser {
+        var told: [FeedChoice] = []
+        var error: Error?
+        var muted: [MutedHost] = []
+        var delay: Duration?
+        func choose(_ choice: FeedChoice) async throws -> String? {
+            if let delay { try await Task.sleep(for: delay) }
+            if let error { throw error }
+            told.append(choice)
+            if case .mute = choice { return "parks-key" }
+            return nil
+        }
+    }
+
+    /// Cards a and b from Parks, c from the City, on screen.
+    private func choosingFeed(_ chooser: Chooser, rows extra: [TownFeedRow] = []) async -> TownFeed {
+        let rows = [row("a", source: "Parks"), row("b", source: "Parks"), row("c")] + extra
+        let town = TownFeed(read: { rows.map(TownFeed.entry) }, choose: chooser.choose,
+                            readMuted: { chooser.muted })
+        await town.reload(at: now)
+        return town
+    }
+
+    private func ids(_ town: TownFeed) -> [String] { town.cards.map(\.id) }
+
+    func testNotInterestedFoldsTheCardToItsUndoLineThenItGoesAndIsSent() async {
+        let chooser = Chooser()
+        let town = await choosingFeed(chooser)
+        await town.hide(town.cards[0], mute: false)
+        XCTAssertEqual(chooser.told, [.notInterested("a")], "sent straight away")
+        XCTAssertEqual(town.undo, FeedHide(id: "a", hostName: "Parks", mute: false))
+        XCTAssertEqual(ids(town), ["a", "b", "c"], "a stays in, drawn as its Undo line")
+        town.undoEnded("a")
+        XCTAssertNil(town.undo)
+        XCTAssertEqual(ids(town), ["b", "c"])
+    }
+
+    func testMuteTakesEveryCardFromTheHost() async {
+        let chooser = Chooser()
+        let town = await choosingFeed(chooser)
+        await town.hide(town.cards[1], mute: true)
+        XCTAssertEqual(chooser.told, [.mute("b")])
+        XCTAssertEqual(ids(town), ["b", "c"], "a goes at once; b shows its Undo line")
+        town.undoEnded("b")
+        XCTAssertEqual(ids(town), ["c"])
+    }
+
+    func testUndoBringsTheCardBackAndTakesTheChoiceBack() async {
+        let chooser = Chooser()
+        let town = await choosingFeed(chooser)
+        await town.hide(town.cards[0], mute: false)
+        await town.undoHide()
+        await town.hide(town.cards[1], mute: true)
+        await town.undoHide()
+        XCTAssertEqual(chooser.told, [.notInterested("a"), .undoNotInterested("a"), .mute("b"), .unmute("parks-key")])
+        XCTAssertNil(town.undo)
+        XCTAssertEqual(ids(town), ["a", "b", "c"])
+    }
+
+    /// A slow network: Undo tapped while the Mute is still on its way waits for it, so the server
+    /// gets the Mute first and Undo knows which host to unmute.
+    func testUndoWaitsForTheChoiceStillOnItsWay() async {
+        let chooser = Chooser()
+        let town = await choosingFeed(chooser)
+        chooser.delay = .milliseconds(200)
+        let card = town.cards[0]
+        let hiding = Task { await town.hide(card, mute: true) }
+        while town.undo == nil { await Task.yield() }
+        await town.undoHide()
+        await hiding.value
+        XCTAssertEqual(chooser.told, [.mute("a"), .unmute("parks-key")])
+        XCTAssertEqual(ids(town), ["a", "b", "c"])
+    }
+
+    func testAChoiceThatDoesntGoThroughBringsTheCardBack() async {
+        let chooser = Chooser()
+        chooser.error = URLError(.notConnectedToInternet)
+        let town = await choosingFeed(chooser)
+        await town.hide(town.cards[0], mute: true)
+        XCTAssertNil(town.undo)
+        XCTAssertEqual(ids(town), ["a", "b", "c"])
+    }
+
+    func testAReadThatRacedTheChoiceDoesntBringTheCardBack() async {
+        let chooser = Chooser()
+        let town = await choosingFeed(chooser)
+        await town.hide(town.cards[2], mute: false)
+        town.undoEnded("c")
+        await town.reload(at: now)
+        XCTAssertEqual(ids(town), ["a", "b"])
+    }
+
+    func testUnmuteTakesTheHostOffTheListAndBringsItsCardsBack() async {
+        let chooser = Chooser()
+        chooser.muted = [MutedHost(host: "parks-key", name: "Parks"), MutedHost(host: "x", name: "Loso's")]
+        let town = await choosingFeed(chooser)
+        await town.hide(town.cards[0], mute: true)
+        town.undoEnded("a")
+        XCTAssertEqual(ids(town), ["c"])
+        await town.refreshMuted()
+        await town.unmute(chooser.muted[0], at: now)
+        XCTAssertEqual(town.muted, [MutedHost(host: "x", name: "Loso's")])
+        XCTAssertEqual(chooser.told.last, .unmute("parks-key"))
+        XCTAssertEqual(ids(town), ["a", "b", "c"])
+    }
+
+    func testAFailedUnmuteKeepsTheRowAndCountsAFailure() async {
+        let chooser = Chooser()
+        chooser.muted = [MutedHost(host: "parks-key", name: "Parks")]
+        let town = await choosingFeed(chooser)
+        await town.refreshMuted()
+        chooser.error = URLError(.notConnectedToInternet)
+        await town.unmute(chooser.muted[0])
+        XCTAssertEqual(town.muted, chooser.muted)
+        XCTAssertEqual(town.unmuteFailures["parks-key"], 1)
+    }
+
+    func testANewAccountForgetsTheLastOnesHiddenCards() async {
+        let town = await choosingFeed(Chooser())
+        await town.hide(town.cards[0], mute: true)
+        town.accountChanged()
+        XCTAssertNil(town.undo)
+        XCTAssertEqual(ids(town), ["a", "b", "c"])
+    }
+
+    func testAScoreFromBeforeNotInterestedStillReads() throws {
+        let json = #"{"interest":0,"friend":0,"follow":0,"popular":0,"viewers":0,"size":0,"sizeStep":1,"daysAway":1,"soon":1,"acted":1,"spacing":1,"newSpot":false,"total":1,"spot":1,"of":1}"#
+        XCTAssertNil(try JSONDecoder().decode(FeedScore.self, from: Data(json.utf8)).notInterested)
+        let newer = #"{"interest":0,"friend":0,"follow":0,"popular":0,"viewers":0,"size":0,"sizeStep":1,"daysAway":1,"soon":1,"acted":1,"notInterested":0.3,"spacing":1,"newSpot":false,"total":1,"spot":1,"of":1}"#
+        XCTAssertEqual(try JSONDecoder().decode(FeedScore.self, from: Data(newer.utf8)).notInterested, 0.3)
+    }
 }
 

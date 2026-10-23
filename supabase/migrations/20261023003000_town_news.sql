@@ -6,8 +6,8 @@
 -- News now carries its interests (the ids of Interests.all, as an Event's) and the registry entry that
 -- posted it (its logo), and get_town_feed brings it under the Events for an app that asks: p_news,
 -- off by default, since an older app can't read a row without a date. A new returned column changes the
--- function's type, so it is dropped and made again: 20261021200000_what_it_is.sql line for line but for
--- the news CTEs, the pool and tail placed beside the Events, and the two columns at the end.
+-- function's type, so it is dropped and made again: 20261022235000_not_interested_main_interest.sql line
+-- for line but for the news CTEs (muted hosts' news kept out too), the pool and tail placed beside the Events, and the two columns at the end.
 -- get_event_of_the_day reads get_town_feed(p_now), news off, and needs no change.
 --
 -- One get_town_feed only: a later `create or replace function public.get_town_feed(p_now timestamptz ...)`
@@ -136,6 +136,20 @@ as $$
     where coalesce(e.club_id::text, e.source_name) is not null and coalesce(e.draw, 2) > 1
     group by 1
   ),
+  -- What the caller said Not interested to (ticket 21): its series and host as real_events keys them,
+  -- its interests as shown reads them, and when.
+  hidden as (
+    select lower(btrim(e.title)) || '|' || coalesce(e.club_id::text, e.source_name, e.submitted_by::text, '') as series,
+           coalesce(e.club_id::text, e.source_name, e.submitted_by::text, '') as host,
+           case when e.interests_tagged_at is not null then e.interests else array[e.category] end as tags,
+           n.at
+    from private.my_not_interested() n
+    join public.club_events e on e.id = n.item_id
+  ),
+  -- Hosts the caller muted (ticket 21).
+  muted as (
+    select m.host from public.feed_mutes m where m.user_id = auth.uid()
+  ),
   real_events as (
     select e.*,
            coalesce(e.club_id::text, e.source_name, e.submitted_by::text, '') as host,
@@ -213,6 +227,9 @@ as $$
                               else array[e.category] end as tags) tg
     where e.nth = 1
       and town.today >= coalesce(e.shows_from, e.event_date - 14)
+      -- Not interested keeps out the item and every week of its series; Mute its host (ticket 21).
+      and not exists (select 1 from muted m where m.host = e.host)
+      and not exists (select 1 from hidden h where h.series = lower(btrim(e.title)) || '|' || e.host)
   ),
   counted as (
     -- Going counted once (every account's, from the private helper), the people who saw it
@@ -259,7 +276,13 @@ as $$
            -- 0, 1.5 or 3 points; one not rated yet counts as 2.
            (w->>'draw')::float8 * (coalesce(c.draw, 2) - 1) as draw_pts,
            power(0.5, c.days_away / (w->>'soonHalf')::float8) as soon,
-           case when c.going or c.saved then (w->>'acted')::float8 else 1 end as acted
+           case when c.going or c.saved then (w->>'acted')::float8 else 1 end as acted,
+           -- Like something you said Not interested to, by host or main interest (ticket 21): × 0.3 the
+           -- day you said it, back to × 1 in a straight line over 90 days; the newest one counts.
+           coalesce((select min(1 - (1 - (w->>'notInterested')::float8)
+                                  * greatest(0, least(1, 1 - extract(epoch from p_now - h.at) / 86400 / 90)))
+                     from hidden h
+                     where (h.host <> '' and h.host = c.host) or h.tags[1] = c.tags[1]), 1) as hidden_x
     from counted c, weights
   ),
   totals as (
@@ -268,7 +291,7 @@ as $$
            case when c.cancelled_at is null
                 then (1 + c.interest_pts + c.friend_pts + c.follow_pts + c.tapped_pts + c.popular_pts + c.size_pts
                       + c.draw_pts)
-                     * c.soon * c.acted
+                     * c.soon * c.acted * c.hidden_x
                 else 0 end as base,
            -- New: under 2 days old with under 30 viewers and not acted on.
            c.created_at > p_now - interval '2 days' and c.viewers < 30 and not c.going and not c.saved
@@ -300,6 +323,8 @@ as $$
       and b.status = 'published'
       and b.category in ('business', 'announcement', 'campus', 'school')
       and nullif(btrim(b.source_url), '') is not null
+      -- Not from a host you muted (ticket 21): a found Event's host is its place's name, as news's is.
+      and not exists (select 1 from muted m where m.host = b.source_name)
       and b.published_at > p_now - interval '7 days' and b.published_at <= p_now
   ),
   news_scored as (
@@ -378,7 +403,7 @@ as $$
            'popular', e.popular_pts, 'viewers', e.viewers, 'size', e.size_pts, 'sizeStep', e.size,
            'draw', e.draw_pts, 'tapped', e.tapped_pts,
            'daysAway', round(e.days_away::numeric, 2), 'soon', round(e.soon::numeric, 4),
-           'acted', e.acted, 'spacing', p.spacing, 'topicSpacing', round(p.topic_spacing::numeric, 4),
+           'acted', e.acted, 'notInterested', round(e.hidden_x::numeric, 4), 'spacing', p.spacing, 'topicSpacing', round(p.topic_spacing::numeric, 4),
            'newSpot', p.moved,
            'total', round((e.base * p.spacing * p.topic_spacing)::numeric, 4),
            'spot', p.spot, 'of', count(*) over ())
