@@ -17,7 +17,7 @@ test('the story below loads every migration that makes the writer\'s functions',
                             ['public.apply_judged', 'public.listed_for_writer']),
                    ['20261015120000_apply_judged.sql', '20261015200100_apply_judged_cancelled.sql',
                     '20261016090200_apply_judged_title_kept.sql', '20261016160000_event_places.sql',
-                    '20261020120000_game_card.sql']);
+                    '20261020120000_game_card.sql', '20261023003100_town_news_writer.sql']);
 });
 
 test('a dropped game is marked cancelled once, and restored by a re-read or another mention', async () => {
@@ -100,6 +100,20 @@ test('a dropped game is marked cancelled once, and restored by a re-read or anot
   assert.deepEqual((await db.query(`select sport, team_ids, occasion from public.club_events`)).rows,
                    [{ sport: null, team_ids: null, occasion: null }], 'a game read wrong once clears');
   await assert.rejects(db.exec(`update public.club_events set team_ids = array['a']`), /team_ids_pair/);
+
+  // News carries its interests and the place that posted it (town-feed 35); a re-read keeps the
+  // interests it had and takes the place again, and a writer from before them changes neither.
+  await db.exec(migration('20261023003100_town_news_writer.sql'));
+  const special = (more = {}) => [{ title: 'Flight Friday', blurb: 'Four scoops for $5 on Fridays.', category: 'business',
+    source_name: 'The Wandering Cow', source_url: 'https://www.instagram.com/p/x/', tier: 1, status: 'published',
+    starts_at: null, ...more }];
+  const stored = async () => (await db.query(
+    `select interests, place_entry_id as place, status from public.board_items where title = 'Flight Friday'`)).rows;
+  assert.equal((await apply([], [], [], special({ interests: ['dining'], place_entry_id: 'cow-wandering' }))).news, 1);
+  assert.deepEqual(await stored(), [{ interests: ['dining'], place: 'cow-wandering', status: 'published' }]);
+  await apply([], [], [], special({ interests: ['coffee'], place_entry_id: 'cow-wandering' }));
+  await apply([], [], [], special());
+  assert.deepEqual(await stored(), [{ interests: ['dining'], place: 'cow-wandering', status: 'published' }]);
 
   const { rows: [{ n }] } = await db.query(`select count(*)::int as n from pg_proc where proname = 'apply_judged'`);
   assert.equal(n, 1, 'one apply_judged, no second one with four lists');

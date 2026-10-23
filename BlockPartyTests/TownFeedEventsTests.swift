@@ -32,6 +32,52 @@ final class TownFeedEventsTests: XCTestCase {
         TownFeed { rows.map(TownFeed.entry) }
     }
 
+    /// Town news comes in the feed's own rows, kind "news", under the events (town-feed 35): it
+    /// keeps its place, its facts line (else its title), its post and its place's picture. News
+    /// with no post to open is dropped, and the events' cards never count it.
+    func testNewsRowsBecomeTownNewsInTheirPlace() async throws {
+        let json = """
+        [{"id":"e1","title":"Fish fry","event_date":"2026-10-23","start_time":"5 PM","location":null,
+          "image_url":null,"category":"dining","club_name":null,"source_name":"Church of St. Joseph",
+          "end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00","going_count":0,
+          "rsvpd":false,"recurrence":null,"leaves_at":"2099-10-24T00:00:00+00:00","kind":"event","source_url":null},
+         {"id":"n1","title":"Flight Friday","event_date":null,"start_time":null,"location":null,
+          "image_url":null,"category":"business","club_name":null,"source_name":"The Wandering Cow",
+          "end_at":null,"all_day":false,"created_at":"2026-10-22T23:44:07+00:00","going_count":0,
+          "rsvpd":false,"recurrence":null,"leaves_at":"2099-10-29T23:44:07+00:00","reason":"interest",
+          "reason_name":"dining","description":"Four scoops for $5 at Wandering Cow on Fridays.",
+          "place_picture":{"url":"https://x/cow-logo.webp","kind":"logo","hue":19},
+          "kind":"news","source_url":"https://www.instagram.com/p/Deki5CwgiQG/"},
+         {"id":"n2","title":"Happy hour","event_date":null,"start_time":null,"location":null,
+          "image_url":null,"category":"business","club_name":null,"source_name":"Neighbors Route 75",
+          "end_at":null,"all_day":false,"created_at":"2026-10-22T23:44:07+00:00","going_count":0,
+          "rsvpd":false,"recurrence":null,"leaves_at":"2099-10-29T23:44:07+00:00","description":" ",
+          "place_picture":null,"kind":"news","source_url":"https://www.facebook.com/x/posts/1"},
+         {"id":"n3","title":"No link","event_date":null,"start_time":null,"location":null,"image_url":null,
+          "category":"business","club_name":null,"source_name":"Somewhere","end_at":null,"all_day":false,
+          "created_at":"2026-10-22T23:44:07+00:00","going_count":0,"rsvpd":false,"recurrence":null,
+          "leaves_at":"2099-10-29T23:44:07+00:00","kind":"news","source_url":null}]
+        """
+        let lines = try CommunityAPI.townFeedLines(from: Data(json.utf8))
+        XCTAssertEqual(lines.count, 3)
+        guard case .event(let fish) = lines[0], case .news(let flight) = lines[1], case .news(let happy) = lines[2]
+        else { return XCTFail("\(lines)") }
+        XCTAssertEqual(fish.event.title, "Fish fry")
+        XCTAssertEqual(flight.place, "The Wandering Cow")
+        XCTAssertEqual(flight.words, "Four scoops for $5 at Wandering Cow on Fridays.")
+        XCTAssertEqual(flight.post.absoluteString, "https://www.instagram.com/p/Deki5CwgiQG/")
+        XCTAssertEqual(flight.picture?.kind, .logo)
+        XCTAssertEqual(happy.words, "Happy hour", "no facts line: its title")
+        XCTAssertNil(happy.picture)
+        // The events' own readers (the Event of the day, a kept list) never see news.
+        XCTAssertEqual(try CommunityAPI.townFeedRows(from: Data(json.utf8)).map(\.event.id), ["e1"])
+
+        let town = TownFeed { lines.map(TownFeed.entry) }
+        await town.refresh()
+        XCTAssertEqual(town.shown.map(\.id), ["e1", "n1", "n2"])
+        XCTAssertEqual(town.cards.map(\.id), ["e1"])
+    }
+
     /// The columns `get_town_feed` returns, as PostgREST sends them. A renamed column
     /// on either side fails here rather than emptying the feed.
     func testTheFunctionsRowsBecomeEventsWithTheirRepeatAndLeavingTime() throws {
@@ -51,7 +97,7 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(rows[0].event.goingCount, 2)
         XCTAssertTrue(rows[0].event.rsvpd)
 
-        let card = TownFeed.entry(rows[0]).card
+        let card = TownFeed.card(rows[0])
         XCTAssertEqual(card.recurrence, "Every 1st & 3rd Monday")
         XCTAssertEqual(card.hostName, "City of St. Joseph")
         // A row from before the recipe (a kept list) says no reason: no ••• menu.
@@ -73,7 +119,7 @@ final class TownFeedEventsTests: XCTestCase {
           "place_picture":{"url":"https://x/hall.webp","kind":"photo","site":"https://csbsju.edu",
                            "credit":null,"w":1600,"h":1067}}]
         """
-        let card = TownFeed.entry(try CommunityAPI.townFeedRows(from: Data(json.utf8))[0]).card
+        let card = TownFeed.card(try CommunityAPI.townFeedRows(from: Data(json.utf8))[0])
         XCTAssertEqual(card.image.cardAspect, 1600.0 / 1067.0, accuracy: 0.0001)
 
         let photo = { (w: Int?, h: Int?) in
@@ -107,7 +153,7 @@ final class TownFeedEventsTests: XCTestCase {
                                    {"url":"https://x/c.webp","kind":"photo","site":"https://www.sju.edu/x",
                                     "credit":null}]}}]
         """
-        let card = TownFeed.entry(try CommunityAPI.townFeedRows(from: Data(json.utf8))[0]).card
+        let card = TownFeed.card(try CommunityAPI.townFeedRows(from: Data(json.utf8))[0])
         XCTAssertEqual(card.photos().compactMap { $0.url?.lastPathComponent }, ["a.webp", "b.webp", "c.webp"])
         XCTAssertEqual(card.photos()[1].attribution, "Ada Lovelace · CC BY 4.0")
         XCTAssertEqual(card.photos()[2].attribution, "sju")
@@ -134,7 +180,7 @@ final class TownFeedEventsTests: XCTestCase {
           "created_at":"2026-10-06T16:08:20+00:00","going_count":0,"rsvpd":false,
           "recurrence":null,"leaves_at":"2026-11-06T17:00:00+00:00"}]
         """
-        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.entry($0).card }
+        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.card($0) }
         XCTAssertEqual(cards.map(\.what), ["Talk", "Craft sale", nil], "a feed read before the words still decodes")
         XCTAssertEqual(cards.map(\.whatLine), ["Talk", nil, nil], "none when the title already says it")
         var game = cards[0]
@@ -197,7 +243,7 @@ final class TownFeedEventsTests: XCTestCase {
           "recurrence":null,"leaves_at":"2026-10-08T20:00:00+00:00",
           "reason":"today","reason_name":null,"score":{"spot":3,"newSpot":null}}]
         """
-        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.entry($0).card }
+        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.card($0) }
         XCTAssertEqual(cards.map(\.why), ["Matches Live music", "Happening today", "Happening today"])
         XCTAssertEqual(cards[0].score?.spot, 2)
         XCTAssertEqual(cards[0].score?.spacing, 0.5)
@@ -235,7 +281,7 @@ final class TownFeedEventsTests: XCTestCase {
           "recurrence":null,"leaves_at":"2026-10-08T18:00:00+00:00",
           "reason":"today","reason_name":null,"score":null}]
         """
-        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.entry($0).card }
+        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.card($0) }
         XCTAssertEqual(cards[0].friendsGoing, [FeedFriend(name: "Anna", photo: URL(string: "https://example.com/anna.jpg")),
                                                FeedFriend(name: "Ben", photo: nil)])
         XCTAssertEqual(cards[0].why, "Anna is going")
@@ -259,7 +305,7 @@ final class TownFeedEventsTests: XCTestCase {
           "recurrence":null,"leaves_at":"2026-10-19T18:00:00+00:00",
           "reason":"today","reason_name":null,"score":null}]
         """
-        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.entry($0).card }
+        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.card($0) }
         XCTAssertEqual(cards[0].groupID, "6f1c2c43-6b4b-4a4e-9f43-1f2d3c4b5a69")
         XCTAssertTrue(cards[0].inGroup)
         XCTAssertEqual(cards[0].hostName, "St. Joe Rod and Gun Club", "the group's own name")
@@ -283,7 +329,7 @@ final class TownFeedEventsTests: XCTestCase {
             row("e3", ##","game":null"##),
             row("e4", ""),
         ].joined(separator: ",") + "]"
-        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.entry($0).card }
+        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.card($0) }
         let game = try XCTUnwrap(cards[0].game)
         XCTAssertEqual(game.sport, "Football")
         XCTAssertEqual(game.occasion, "Homecoming")
@@ -361,7 +407,7 @@ final class TownFeedEventsTests: XCTestCase {
         let town = TownFeed(read: { [TownFeed.entry(self.row("a", going: going))] },
                             kept: { [TownFeed.entry(self.row("a", going: 1))] },
                             actions: actions)
-        let pushed = TownFeed.entry(row("a", going: 0)).card
+        let pushed = TownFeed.card(row("a", going: 0))
 
         going = 5
         await town.reload(at: now)

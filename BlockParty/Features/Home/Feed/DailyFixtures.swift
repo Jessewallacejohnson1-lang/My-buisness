@@ -93,7 +93,7 @@ enum DailyFixtures {
 
     /// The sample events still on, as feed items (`-daily-feed-preview`).
     static func events(now: Date = Date()) -> [DailyFeedItem] {
-        townEntries(now: now).filter { $0.leavesAt > now }.map { .event($0.card) }
+        townEntries(now: now).filter { $0.leavesAt > now }.compactMap { $0.card.map(DailyFeedItem.event) }
     }
 
     /// The sample events as the Town feed gets them (`-town-samples`): soonest first,
@@ -101,7 +101,34 @@ enum DailyFixtures {
     /// with no end time does.
     static func townEntries(now: Date = Date()) -> [TownFeedEntry] {
         let games = ProcessInfo.processInfo.arguments.contains("-town-games") ? gameSamples(now: now) : []
-        return games + sampleEvents(now: now).sorted { $0.leavesAt < $1.leavesAt }
+        let events = games + sampleEvents(now: now).sorted { $0.leavesAt < $1.leavesAt }
+        guard ProcessInfo.processInfo.arguments.contains("-town-news") else { return events }
+        // `-town-news`: tonight's social watch posts as the feed places them (town-feed 35): one that
+        // shares your interests among the events, the rest after the last one. Logos read from Storage.
+        let news = newsSamples(now: now)
+        return Array(events.prefix(2)) + news.prefix(1) + events.dropFirst(2) + news.dropFirst()
+    }
+
+    private static func newsSamples(now: Date) -> [TownFeedEntry] {
+        let logos = "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/st-joseph/"
+        let samples: [(String, String, String, String?)] = [
+            ("The Wandering Cow", "Four scoops for $5 at Wandering Cow on Fridays.",
+             "https://www.instagram.com/p/Deki5CwgiQG/", "ChIJFfdMxRVZtFIR77H-NqLzUTc/logo-7225f2ed.webp"),
+            ("City of St. Joseph", "St. Joseph police, fire and Mayo Ambulance members received Life Saving Awards at the Oct 19 council meeting.",
+             "https://www.facebook.com/CityofStJosephMN/", "city-of-st-joseph/logo-009e4537f4.webp"),
+            ("White Peony Boutique", "White Peony's Layer Up collection of fall jackets and layers goes on sale tonight at 7 PM, in store and online.",
+             "https://www.instagram.com/p/DezQTPEjSr0/", "stjoe-white-peony-boutique/logo-65fd9c1b.webp"),
+            ("Neighbors Route 75", "Taco Tuesday at Neighbors Route 75, with a drink purchase, dine in only.",
+             "https://www.facebook.com/NeighborsEateryandSaloon/", "ChIJz-W_cL1ZtFIRnuug5NtJwqA/logo-ffdc8eb9.webp"),
+            ("Stearns County", "Early voting locations open Friday, October 16, with extended hours before Election Day.",
+             "https://www.stearnscountymn.gov/", nil),
+        ]
+        return samples.enumerated().map { i, s in
+            let news = TownNews(id: "n\(i + 1)", place: s.0, words: s.1, post: URL(string: s.2)!,
+                                picture: s.3.flatMap { URL(string: logos + $0) }.map { PlacePicture(url: $0, kind: .logo) },
+                                leavesAt: now.addingTimeInterval(7 * 86_400))
+            return TownFeedEntry(item: .news(news), leavesAt: news.leavesAt)
+        }
     }
 
     /// `-town-games`: four games first, as `get_town_feed` sends them (game-card 02): SJU vs
@@ -122,7 +149,7 @@ enum DailyFixtures {
         return samples.map { g in
             let entry = event(id: g.id, title: g.title, host: g.host, hostAvatar: false, chip: "", meta: g.place,
                               photo: false, hoursUntil: g.hoursUntil, going: g.went, now: now)
-            var card = entry.card
+            guard var card = entry.card else { return entry }
             card.eventDate = g.day
             card.startTime = g.time
             card.location = g.place

@@ -243,14 +243,15 @@ struct CommunityAPI {
     /// The Town feed, in its order: what's in it, when each event leaves, and a series
     /// once with how it repeats, all worked out by `get_town_feed`, the one function
     /// iOS and Android both call. Signed out, it reads with the public key, as
-    /// `getPlaces` does.
-    func getTownFeed() async throws -> [TownFeedRow] {
+    /// `getPlaces` does. It asks for town news too (town-feed 35); an app that doesn't
+    /// gets the events alone.
+    func getTownFeed() async throws -> [TownFeedLine] {
         let (data, _) = try await SupabaseHTTP.rest("rpc/get_town_feed", method: "POST",
                                                     accessToken: await readToken(),
-                                                    body: Data("{}".utf8))
-        let rows = try Self.townFeedRows(from: data)
+                                                    body: Data(#"{"p_news":true}"#.utf8))
+        let lines = try Self.townFeedLines(from: data)
         TownFeedCache.save(data)
-        return rows
+        return lines
     }
 
     /// Your Event of the day: today's standouts for you, one for each part of the day, worked
@@ -268,13 +269,23 @@ struct CommunityAPI {
         return rows
     }
 
-    /// `get_town_feed`'s rows as events. A row whose `leaves_at` doesn't parse is
-    /// dropped: it would have no moment to leave.
+    /// `get_town_feed`'s Events, without its news.
     static func townFeedRows(from data: Data) throws -> [TownFeedRow] {
+        try townFeedLines(from: data).compactMap { line -> TownFeedRow? in
+            if case .event(let row) = line { return row }
+            return nil
+        }
+    }
+
+    /// `get_town_feed`'s rows as Events and news, in its order. A row whose `leaves_at`
+    /// doesn't parse is dropped: it would have no moment to leave; so is news with no
+    /// post to open.
+    static func townFeedLines(from data: Data) throws -> [TownFeedLine] {
         struct Row: Decodable {
             let id: String
             let title: String
-            let eventDate: String
+            /// nil on a news row (town-feed 35).
+            let eventDate: String?
             let startTime: String?
             let location: String?
             let imageUrl: String?
@@ -306,6 +317,9 @@ struct CommunityAPI {
             let game: Game.Lenient?
             /// What it is in one to three words (event-card 05).
             let what: String?
+            /// "news" for town news, else an Event (town-feed 35), and the post it came from.
+            let kind: String?
+            let sourceUrl: String?
         }
         /// The admin's breakdown, or nil when it doesn't decode: a score never costs the
         /// feed.
@@ -315,9 +329,17 @@ struct CommunityAPI {
         }
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return try decoder.decode([Row].self, from: data).compactMap { row in
+        return try decoder.decode([Row].self, from: data).compactMap { row -> TownFeedLine? in
             guard let leavesAt = DateHelpers.timestamp(row.leavesAt) else { return nil }
-            let event = UpcomingEvent(id: row.id, title: row.title, eventDate: row.eventDate,
+            if row.kind == "news" {
+                guard let post = row.sourceUrl.flatMap(URL.init(string:)) else { return nil }
+                let words = row.description?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                return .news(TownNews(id: row.id, place: row.sourceName ?? "",
+                                      words: words.isEmpty ? row.title : words, post: post,
+                                      picture: row.placePicture?.value, leavesAt: leavesAt))
+            }
+            guard let eventDate = row.eventDate else { return nil }
+            let event = UpcomingEvent(id: row.id, title: row.title, eventDate: eventDate,
                                       startTime: row.startTime, location: row.location,
                                       goingCount: row.goingCount, createdAt: row.createdAt,
                                       imageUrl: row.imageUrl, rsvpd: row.rsvpd,
@@ -329,12 +351,12 @@ struct CommunityAPI {
                                       placePicture: row.placePicture?.value,
                                       description: row.description, game: row.game?.value,
                                       what: row.what)
-            return TownFeedRow(event: event, recurrence: row.recurrence, leavesAt: leavesAt,
-                               reason: row.reason, reasonName: row.reasonName, score: row.score?.value,
-                               heartCount: row.heartCount ?? 0, hearted: row.hearted ?? false,
-                               saved: row.saved ?? false,
-                               friendsGoing: (row.friendsGoing ?? []).map(\.feed),
-                               groupID: row.clubId, inGroup: row.inClub ?? false)
+            return .event(TownFeedRow(event: event, recurrence: row.recurrence, leavesAt: leavesAt,
+                                      reason: row.reason, reasonName: row.reasonName, score: row.score?.value,
+                                      heartCount: row.heartCount ?? 0, hearted: row.hearted ?? false,
+                                      saved: row.saved ?? false,
+                                      friendsGoing: (row.friendsGoing ?? []).map(\.feed),
+                                      groupID: row.clubId, inGroup: row.inClub ?? false))
         }
     }
 
@@ -769,15 +791,6 @@ struct CommunityAPI {
             // separator can never collide two distinct rows into one.
             let key = [r.title.lowercased(), r.startsAt ?? "", r.sourceName.lowercased()]
             return seen.insert(key).inserted
-        }
-    }
-
-    /// The Today card's content — the first 3 of (today's events + around town),
-    /// built from the same fetch the Board uses.
-    func getTodayInStJoe() async throws -> [BoardItem] {
-        let s = try await getBoardSections()
-        return (s.today + s.around).prefix(3).map {
-            BoardItem(id: $0.id, title: $0.title, timeLabel: $0.timeLabel, url: $0.url)
         }
     }
 

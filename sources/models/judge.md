@@ -43,8 +43,10 @@ Read these first:
      or may be about another town (a chain's promotion, a business with two locations).
    - Events: `size`, `signup_by` when sign-ups or tickets close, `closed: true` when nobody
      can still go (sign-ups or tickets closed, sold out, registration full, members or
-     invitation only), `interest` (one id from the list, or null when none fits). News: `category` (`announcement`, `road`, `school`,
-     `campus` or `business`). Both: `blurb`, one line in plain words.
+     invitation only). News: `category` (`announcement`, `road`, `school`,
+     `campus` or `business`). Both: `interest` (one id from the list, or null when none fits: a
+     taco night is `dining`, a new latte `coffee`, a road closure null; the Town feed shows News to
+     the neighbours who picked it first, town-feed 35), and `blurb`, one line in plain words.
 
 ## Event size
 

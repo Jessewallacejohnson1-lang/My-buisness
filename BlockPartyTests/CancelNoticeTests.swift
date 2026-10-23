@@ -41,7 +41,7 @@ final class CancelNoticeTests: XCTestCase {
         """
         let rows = try CommunityAPI.townFeedRows(from: Data(feed.utf8))
         XCTAssertEqual(rows.map(\.event.cancelled), [true, false], "a kept list from before says nothing: on")
-        XCTAssertEqual(rows.map { TownFeed.entry($0).card.cancelled }, [true, false])
+        XCTAssertEqual(rows.map { TownFeed.card($0).cancelled }, [true, false])
 
         let going = """
         [{"id":"e1","title":"Sartell Volleyball vs ROCORI","event_date":"2026-10-20","start_time":"7 PM",

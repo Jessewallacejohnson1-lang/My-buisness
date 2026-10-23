@@ -43,8 +43,8 @@ THE JUDGED ITEM: the contract the judge (ticket 05) produces, one JSON object pe
   signup_by    events, optional: the date sign-ups or tickets close
   closed       events, optional: true when nobody can still go (sign-ups or tickets closed, sold
                out, registration full, members or invitation only)
-  interest     events: one id from Interests.all (BlockParty/Backend/Interests.swift), or null
-               when none fits (a council meeting)
+  interest     one id from Interests.all (BlockParty/Backend/Interests.swift), or null when none
+               fits (a council meeting, a road closure); News matches neighbours by it (town-feed 35)
   category     news: "announcement" (default) | "road" | "school" | "campus" | "business"
   blurb        one line
   game         events, optional: a game between two teams, {"sport": "Girls Soccer", "teams": ["Sartell",
@@ -496,18 +496,24 @@ def event_of(it, today, interests, home, notes, titles=None):
     return {"row": row, "facts": facts}, None
 
 
-def news_of(it):
+def news_of(it, interests, notes):
     start = it.get("start")
     try:
         day, at = when(start, it.get("all_day")) if start else (None, None)
     except ValueError as e:
         return None, f"invalid: unreadable date ({e})"
+    interest = it.get("interest")
+    if interest is not None and interest not in interests:
+        notes.append(f"interest {interest!r} is not on the list ({it['title']!r}): left empty")
+        interest = None
     return {"title": tidy_title(it["title"], it["source_name"], event=False), "blurb": (it.get("blurb") or "").strip() or None,
             "category": it.get("category") if it.get("category") in NEWS_CATEGORIES else "announcement",
             "source_name": it["source_name"].strip(), "source_url": it["source_url"].strip(),
             # The board's tiers as the old curator wrote them: 1 the City, 1.5 Newsleaders.
             "tier": 1 if it["trust"] == "official" else 1.5, "status": None,
-            "starts_at": day and (at or datetime.combine(day, time())).replace(tzinfo=LOCAL).isoformat()}, None
+            "starts_at": day and (at or datetime.combine(day, time())).replace(tzinfo=LOCAL).isoformat(),
+            # Who it matches in the Town feed, and the place whose logo it shows (town-feed 35).
+            "interests": [interest] if interest else None, "place_entry_id": where(None, it["source_name"])}, None
 
 
 def mention(it, uid):
@@ -547,7 +553,7 @@ def plan(items, existing, today, interests, town=TOWNS["st-joseph-mn"], titles=N
             continue
         why = skip_reason(it, town)
         if not why and it["kind"] == "news":
-            n, why = news_of(it)
+            n, why = news_of(it, interests, out["notes"])
         elif not why:
             ev, why = event_of(it, today, interests, home, out["notes"], titles)
         if why:
@@ -797,6 +803,10 @@ def t_event_or_news():
     assert [n["title"] for n in r["news"]] == ["St. Joseph office closed"], r["news"]
     assert r["news"][0]["category"] == "business" and r["news"][0]["status"] == "published"
     assert outcome(r, 0) == "published" and outcome(r, 1) == "news"
+    # News matches neighbours by its interest and shows its place's logo (town-feed 35).
+    assert r["news"][0]["interests"] == ["breweries"] and r["news"][0]["place_entry_id"] == "milk-and-honey-ciders", r["news"]
+    r = run([item(kind="news", title="Pumpkin latte", start=None, category="business", interest="lattes")])
+    assert r["news"][0]["interests"] is None and "'lattes' is not on the list" in r["notes"][0], r
 
 
 def t_official_one_mention():

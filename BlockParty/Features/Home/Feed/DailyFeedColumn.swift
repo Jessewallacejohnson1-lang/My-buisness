@@ -101,6 +101,8 @@ struct DailyFeedColumn: View {
         case .eventOfTheDay(let event):
             EventOfTheDayPoster(event: event, now: now)
                 .padding(.horizontal, DailyFeedMetric.contentInset)
+        case .news(let news):
+            TownNewsCard(news: news)
         }
     }
 

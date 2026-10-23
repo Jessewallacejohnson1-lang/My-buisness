@@ -204,7 +204,7 @@ struct FeedView: View {
                             // Not one you hid or whose host you muted (ticket 21).
                             let top = DailyEvent.showing((eventOfTheDay.events ?? []).filter { !townFeed.isHidden($0.item) },
                                                          now: now, limit: 1).first
-                            DailyFeedColumn(items: DailyFeedItem.town(townFeed.cards, eventOfTheDay: top),
+                            DailyFeedColumn(items: DailyFeedItem.town(townFeed.shown, eventOfTheDay: top),
                                             entrance: entrance,
                                             onCardOnScreen: { townFeed.cardOnScreen($0, $1) },
                                             now: now)
