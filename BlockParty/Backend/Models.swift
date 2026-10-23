@@ -483,11 +483,13 @@ extension TeamFinal {
     /// `-hello-final`: Saint John's 33–23 over Gustavus, or the other way round.
     static func sample(won: Bool) -> TeamFinal {
         let score = won ? "[33, 23]" : "[23, 33]"
+        // Saint John's logo colours, as hex without the mark (colour literals stay in Hue).
+        let red = "BC0E33", blue = "02A2E2"
         let json = """
         {"event_id": "debug", "mine": 0, "game": {"sport": "Football", "occasion": null, "final": \(score),
           "teams": [{"name": "Saint John's", "short": "Saint John's",
                      "logo": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/saint-johns/logo-36d1a2aa13.png",
-                     "color": "#C20430", "local": true, "colors": ["#BC0E33", "#02A2E2"]},
+                     "color": "#\(red)", "local": true, "colors": ["#\(red)", "#\(blue)"]},
                     {"name": "Gustavus Adolphus", "short": "Gustavus", "logo": null, "color": null}]}}
         """
         let decoder = JSONDecoder()
