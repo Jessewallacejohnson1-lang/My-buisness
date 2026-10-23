@@ -53,7 +53,7 @@ enum BasemapPalette {
 
     // MARK: Warm patches — the reference's campus/institution tan
     static let campus   = "#F3E3C8"   // school · university · hospital — St. Ben's warm field
-    static let commerce = "#F6E0C4"   // commercial districts — a peach step off campus tan
+    static let commerce = "#EEEDE8"   // commercial districts — a neutral grey step off the land
     static let sand     = "#F0E3C0"   // beaches / sand — warm natural
 
     // MARK: Water — clear and confident; the Sauk River must read instantly

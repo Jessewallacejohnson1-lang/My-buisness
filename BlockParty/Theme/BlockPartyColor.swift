@@ -17,7 +17,7 @@
 //  THE EXCEPTIONS ARE THE TWO FIXED-LIGHT GROUNDS. Mapbox renders LIGHT
 //  cartography in both appearances (`BasemapPalette`), so ink drawn ON the map
 //  canvas must stay ink or a pin badge turns white-on-white; and since round 2
-//  Phase D the pin card's status wash (`statusTint`) is the same pale coral in
+//  Phase D the pin card's status wash (`statusTint`) is the same light grey in
 //  both appearances, so its content pins to the light ramp too
 //  (`PinDetailSheet.CardInk`). Those call sites resolve their tokens through
 //  `onLightCanvas` below rather than following the system. That is scoping, not
@@ -31,7 +31,7 @@ extension Color {
     /// Build a Color from a 0xRRGGBB hex literal.
     ///
     /// `nonisolated` because the module defaults to MainActor isolation and a
-    /// palette is not main-actor state: `CategoryGradient` and the other pure
+    /// palette is not main-actor state: the pure
     /// `nonisolated` token tables build their colours here, and an isolated
     /// initializer would trip the 0-warning bar at every one of those call sites.
     /// See the MainActor-default gotcha in CLAUDE.md.
@@ -93,13 +93,11 @@ extension UIColor {
 /// Block Party palette. One namespace so call sites read `Hue.paper`, `Hue.ink`, etc.
 ///
 /// Every token carries both appearances. The dark column is measured, not guessed:
-/// `ink` on `paper` is 16.3:1, `inkSecondary` on `surface` 6.0:1, and the accent
-/// 5.0:1 — the light column's plum is only 2.7:1 on a dark page, which is why the
-/// accent is the one token whose dark value moves in the opposite direction.
+/// `ink` on `paper` is 16.3:1 and `inkSecondary` on `surface` 6.0:1.
 ///
 /// `nonisolated` (the module defaults to MainActor): a palette is not main-actor
 /// state, and the pure token tables that build on it — `YourDayRailPalette`,
-/// `CategoryGradient` — are themselves `nonisolated`. See the MainActor-default
+/// are themselves `nonisolated`. See the MainActor-default
 /// gotcha in CLAUDE.md.
 nonisolated enum Hue {
     // primary text, buttons, FABs, active states, pins
@@ -128,18 +126,11 @@ nonisolated enum Hue {
     /// white and 4.89:1 on the dark card, so one value serves both appearances.
     static let control       = Color(hex: 0x8C8A82)
 
-    /// The pin-detail sheet's status-card wash — the ONE token that card's
-    /// background routes through, and nothing else. Jesse's call (2026-08-14):
-    /// the BP mark's own orange. The mark's lockup samples to #F78067 (mean of
-    /// the render's coral pixels, `scripts/brand`-style sweep); at full strength
-    /// that overwhelms a card background, so this is that hue mixed to a pale
-    /// wash — the Flighty pale-rose treatment in our coral. LIGHT ink ≈17:1 and
-    /// light `inkSecondary` ≈4.5:1 on it, so AA holds — but the wash is the same
-    /// pale colour in BOTH appearances, so the card's content pins to the light
-    /// ramp via `onLightCanvas` (`PinDetailSheet.CardInk`; dark ink measured
-    /// ~1.1:1 here). The card's header dot and status word stay ink (plum only
-    /// while live). See DECISIONS.md (map polish Q3).
-    static let statusTint    = Color(hex: 0xFDECE8)
+    /// The pin-detail sheet's status-card wash: a plain light grey, the light `fill`
+    /// value. It is the same in BOTH appearances, so the card's content pins to the light
+    /// ramp via `onLightCanvas` (`PinDetailSheet.CardInk`). The header dot is ink, and
+    /// `now` green while live.
+    static let statusTint    = Color(hex: 0xF1F1EF)
 
     /// The like state, and nothing else. A heart that stays ink reads as a shape;
     /// a heart that turns red reads as something you did — which is the whole job of
@@ -196,19 +187,6 @@ nonisolated enum Hue {
     /// together so the restated value cannot drift from `ink`'s light column.
     nonisolated static let onBrandDiscHex: UInt32 = 0x111111
     static let onBrandDisc   = Color(hex: onBrandDiscHex)
-
-    /// The one brand accent — meaning-scoped ONLY (live events, active filters,
-    /// selected state, primary CTAs; saved moved to `brandDisc` on 2026-09-27), never decoration, body copy, or a
-    /// background wash. Plum/berry: distinct from the retired coral ramp AND from the
-    /// basemap's sage parks / sky water, so it never reads as terrain. On the map
-    /// CANVAS the accent means "live" (routed via `MarkerRole`); in sheet/chrome it
-    /// marks the active/selected/primary control. Not the retired coral 0xFF6B57.
-    /// See DECISIONS.md.
-    ///
-    /// The dark value is the SAME plum lightened (hue 325° → 329°), not a different
-    /// colour: #8E3B6B on a #141412 page is 2.67:1, which is under the 3:1 an
-    /// indicator needs, and #C06A96 is 5.04:1.
-    static let accent        = Color(light: 0x8E3B6B, dark: 0xC06A96)
 
     // MARK: The Meetup pill (RSVP and Invite; Jesse picked Meetup's black, 2026-10-17)
 

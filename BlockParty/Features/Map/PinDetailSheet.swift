@@ -95,8 +95,8 @@ nonisolated enum PinDetailCopy {
 
 // MARK: - Status-card ink (pinned to the light ramp)
 
-/// The status card's wash (`Hue.statusTint`) is a fixed LIGHT pale-coral in both
-/// appearances (Jesse's explicit 2026-08-14 pick), so everything drawn ON it pins
+/// The status card's wash (`Hue.statusTint`) is a fixed LIGHT grey in both
+/// appearances, so everything drawn ON it pins
 /// to the light ramp — dark-mode `Hue.ink` is near-white (#F2F1EC) and measured
 /// ~1.1:1 on the wash, an invisible header (caught by dark-mode screenshot, round
 /// 2 Phase D). Same scoping rule as the map canvas (`Color.onLightCanvas`,
@@ -106,7 +106,6 @@ private enum CardInk {
     static let ink = Hue.ink.onLightCanvas
     static let inkSecondary = Hue.inkSecondary.onLightCanvas
     static let hairline = Hue.hairline.onLightCanvas
-    static let accent = Hue.accent.onLightCanvas
 }
 
 // MARK: - Sheet
@@ -368,12 +367,12 @@ struct PinDetailSheet: View {
         )
     }
 
-    /// Header: dot + status word + sparkle. The dot goes plum only for
-    /// LIVE (the accent's meaning scope); the wash stays statusTint.
+    /// Header: dot + status word + sparkle. The dot goes green only for LIVE
+    /// (`Hue.now`); the wash stays statusTint.
     private var statusHeader: some View {
         HStack(spacing: 8) {
             Circle()
-                .fill(isLive ? CardInk.accent : CardInk.ink)
+                .fill(isLive ? Hue.now : CardInk.ink)
                 .frame(width: 8, height: 8)
             Text(PinDetailCopy.statusWord(isLive: isLive, todayCount: happenings.count))
                 .font(.sansSemibold(15))
@@ -664,7 +663,7 @@ struct PinFullDetailsView: View {
                 let time = happening.startTime ?? "all day"
                 HStack(spacing: 8) {
                     Circle()
-                        .fill(isLive ? Hue.accent : Hue.inkSecondary)
+                        .fill(isLive ? Hue.now : Hue.inkSecondary)
                         .frame(width: 6, height: 6)
                     Text(happening.title)
                         .font(.sansMedium(15))

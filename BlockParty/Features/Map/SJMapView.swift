@@ -11,7 +11,7 @@
 //  pill · search top-right, with the filter chip row beneath — MapFilterChips, map
 //  polish Phase 4), one static warm basemap (BasemapPalette — no time/season/
 //  weather modulation), a persistent draggable bottom sheet (MapSheet), and
-//  coral reserved for live indicators + primary/tappable elements. Soft paper
+//  `Hue.now` green reserved for live indicators. Soft paper
 //  edge fades top and bottom seat the chrome (round 2); recenter floats alone
 //  bottom-right. The map has NO compose entry — event creation lives on the
 //  other tabs (round 2, Jesse's call; QuickAddSheet deleted with it).
@@ -832,8 +832,7 @@ struct SJMapView: View {
             // concrete Map type).
             .ornamentOptions(OrnamentOptions(
                 scaleBar: ScaleBarViewOptions(visibility: .hidden),
-                // Suppress the built-in compass: its needle is coral (the monochrome brand
-                // deletes that hue) and its 0.3s fade / bearing-only tap aren't the spec. Our
+                // Suppress the built-in compass: its needle's colour isn't ours and its 0.3s fade / bearing-only tap aren't the spec. Our
                 // own `MapCompass` overlay replaces it (adaptive, 0.25s fade, resets bearing
                 // AND pitch). Without this the SDK's default `.adaptive` compass would surface
                 // at top-trailing the moment rotation is enabled.
@@ -1538,8 +1537,8 @@ struct SJMapView: View {
 //
 // Self-contained — @State is local so the animation loop never propagates updates
 // to sibling pins or the parent map. Core Animation renders each frame off the
-// main thread. Coral, opacity 0.35 → 0, scale 1 → 2.2, 1.5 s loop. Static under
-// Reduce Motion (no pulse; the coral fill still marks "live").
+// main thread. Green, opacity 0.35 → 0, scale 1 → 2.2, 1.5 s loop. Static under
+// Reduce Motion (no pulse; the green fill still marks "live").
 
 private struct PulseRing: View {
     let diameter: CGFloat
@@ -1548,11 +1547,8 @@ private struct PulseRing: View {
 
     var body: some View {
         Circle()
-            // In mono this halo IS the liveness signal — there is no coral left to
-            // carry it, so the pin's only "something is happening here" cue is this
-            // expanding ink ring plus the always-on name label. Held at 0.35 in both
-            // skins: ink at 35% over paper lands close to the coral's weight, so the
-            // pulse reads with the same urgency it always did.
+            // The expanding green ring plus the always-on name label carry "something
+            // is happening here". Held at 0.35 in both skins.
             .fill(MarkerRole.liveRing.opacity(pulsing ? 0 : 0.35))
             .frame(width: diameter, height: diameter)
             .scaleEffect(pulsing ? 2.2 : 1.0)
@@ -1568,7 +1564,7 @@ private struct PulseRing: View {
 // MARK: - Selected pulse ring (map polish Phase 5)
 //
 // The "you opened this" ring under the detail sheet — PulseRing's recipe, but
-// INK (plum stays live-only), slower and quieter: selection is confirmation,
+// INK (green stays live-only), slower and quieter: selection is confirmation,
 // not urgency (2.4s vs live's 1.5s; 0.22 vs 0.35; 1.9× vs 2.2×). Shared by the
 // selected civic badge and the selected-POI overlay. Under Reduce Motion it
 // renders as a STATIC ink ring instead — the live-ring discipline: meaning
@@ -1612,7 +1608,7 @@ private struct SelectedPulseRing: View {
 //           label beside it, same as before.
 // saved:    + a small bookmark corner accent, brand yellow in an ink outline (expanded
 //           only — too cramped compact).
-// live:     coral fill + pulse ring + coral label (live always wins the tint; the
+// live:     green fill + pulse ring + label (live always wins the tint; the
 //           pulse still shows compact — it's the one thing worth keeping glanceable
 //           at any zoom).
 // selected: scale 1.25 (Motion.select), lifted marker shadow, always expanded, plus
@@ -1719,8 +1715,8 @@ private struct MapPinBadge: View {
             // STATIC live ring. The pulse alone cannot carry "happening now" for three
             // separate reasons: it is suppressed while selected; Reduce Motion renders it
             // as a same-size disc fully occluded by the opaque badge above; and in any
-            // still frame it may be caught mid-cycle at zero opacity. Coral used to be the
-            // real signal — without it a Reduce Motion user could not tell a live spot from
+            // still frame it may be caught mid-cycle at zero opacity. Without a static cue
+            // a Reduce Motion user could not tell a live spot from
             // a dormant one at all. This ring is GEOMETRY, not colour, so it survives every
             // one of those cases, and it is deliberately NOT gated on `expanded`: a compact
             // dot is exactly where a glanceable live cue matters most.

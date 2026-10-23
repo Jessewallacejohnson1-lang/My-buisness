@@ -316,9 +316,8 @@ struct POIClusterBubbleView: View {
                 .overlay(Circle().strokeBorder(MarkerRole.clusterStroke(family), lineWidth: 1.8))
                 // A live civic pin is absorbed like every other non-selected marker. Its
                 // static signal moves onto the aggregate instead of surviving as an orphan.
-                // Plum on the ink disc is well under 3:1 — invisible — so a thin surface
-                // seam sits between the disc edge and the ring to give the plum a light
-                // edge to read against. See `MarkerRole.liveRingGap`.
+                // A thin surface seam sits between the disc edge and the ring to give
+                // the green a light edge to read against. See `MarkerRole.liveRingGap`.
                 .overlay {
                     if containsLive {
                         Circle()

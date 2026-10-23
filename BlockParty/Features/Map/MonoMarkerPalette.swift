@@ -4,10 +4,9 @@
 //
 //  WHY ROLES AND NOT TOKENS AT THE CALL SITE
 //  The map overhaul (Phases A–C, ported from `feat/map-poi-markers`) encoded almost
-//  everything in HUE: civic category tint, POI family tint, and the live coral. At the
-//  time this app had no accent — six tokens, all greys (the plum accent arrived later,
-//  meaning-scoped to live) — so that encoding had to move onto what monochrome still
-//  has: VALUE, SHAPE and MOTION. Routing every marker colour through one role table is
+//  everything in HUE: civic category tint, POI family tint, and a live tint. Block Party
+//  is ink on paper, so that encoding had to move onto what monochrome still has: VALUE,
+//  SHAPE and MOTION. Routing every marker colour through one role table is
 //  what let that swap happen without touching a single renderer, and it is what will
 //  let the next rebrand happen the same way.
 //
@@ -16,7 +15,7 @@
 //    1. POI (food / business)  surface / inkSecondary   lightest
 //    2. civic (landmark)       ink                      darkest
 //    3. cluster (many places)  ink                      darkest — separated by SHAPE
-//    4. live                   plum fill (the meaning-scoped accent) + a STATIC plum ring + the pulse
+//    4. live                   `Hue.now` green fill + a STATIC green ring + the pulse
 //
 //  Clusters originally held a mid-grey tier of their own so they could not be confused
 //  with the light POI discs (defect 1 below). They now share the ink tier, and what
@@ -46,7 +45,7 @@
 //   1. Clusters and POI pins were both light discs with a hairline ring, so two
 //      different object classes read as one. Clusters left the light tier (mid grey
 //      first, ink now), so only POIs are light.
-//   2. Liveness carried by the pulse ALONE vanished in a still frame. Coral had been a
+//   2. Liveness carried by the pulse ALONE vanished in a still frame. A colour fill had been a
 //      STATIC signal that the pulse merely amplified; `liveStaticRing` restores that,
 //      with the pulse riding on top. Motion must never be the ONLY channel.
 //   3. A compact POI dot drops its glyph at 12pt, and a surface-filled dot on
@@ -71,7 +70,6 @@ private enum MapInk {
     static let surface = Hue.surface.onLightCanvas
     static let inkSecondary = Hue.inkSecondary.onLightCanvas
     static let hairline = Hue.hairline.onLightCanvas
-    static let accent = Hue.accent.onLightCanvas
 }
 
 /// Every colour a map marker needs, named by role.
@@ -129,25 +127,21 @@ enum MarkerRole {
 
     // — Live —
 
-    // The live cue routes through `Hue.accent` — the real brand plum/berry
-    // (#8E3B6B light / #C06A96 dark), the one colour a marker may carry, and only
-    // to mean "happening now" (live events top the brand's meaning-scoped accent
-    // list).
+    // The live cue is `Hue.now`, Apple's green, as on a Town card's "Now" dot: the one
+    // colour a marker may carry, and only to mean "happening now".
 
-    /// Fill of a live pin: the meaning-scoped plum accent — the one hue a marker
-    /// may carry, and only to mean "happening now". The static ring + pulse
-    /// reinforce the same signal around it.
-    static var liveFill: Color { MapInk.accent }
+    /// Fill of a live pin. The static ring + pulse reinforce the same signal around it.
+    static var liveFill: Color { Hue.now }
 
     /// The expanding halo behind a live pin — the motion half of the live signal.
-    static var liveRing: Color { MapInk.accent }
+    static var liveRing: Color { Hue.now }
 
     /// A STATIC concentric ring outside a live badge — the half of the live signal that
     /// survives a still frame. See defect 2; do not remove without replacing the cue.
-    static var liveStaticRing: Color { MapInk.accent }
+    static var liveStaticRing: Color { Hue.now }
 
-    /// The thin surface seam between an ink cluster disc and its inset live ring: plum
-    /// on ink is well under 3:1, so the ring only reads against this light edge. The
+    /// The thin surface seam between an ink cluster disc and its inset live ring, so the
+    /// green ring reads against a light edge rather than straight on the ink. The
     /// civic pin needs no seam — its live ring draws OUTSIDE the badge, over the light
     /// map.
     static var liveRingGap: Color { MapInk.surface }
@@ -155,7 +149,7 @@ enum MarkerRole {
     // — Selected —
 
     /// The slow pulse ring behind THE selected pin while its detail sheet is open
-    /// (map polish Phase 5). Ink, never plum: the accent is meaning-scoped to
+    /// (map polish Phase 5). Ink, never green: green is scoped to
     /// "happening now", and selection is confirmation, not urgency — value carries
     /// it. Under Reduce Motion the same role draws as a static ring (geometry, not
     /// motion, carries the meaning — the live-ring discipline, defect 2).

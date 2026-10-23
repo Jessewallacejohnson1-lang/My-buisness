@@ -13,7 +13,7 @@
 //  the call site (`SJMapView`'s `selectedSpot?.id == spot.id`, passed to MapPinBadge
 //  alongside this enum) because it's a scale/shadow accent layered on TOP of
 //  whichever color this resolves to, not a fourth color of its own; a selected+live
-//  spot must keep its live coral/pulse, which a `.selected` case would have to
+//  spot must keep its live green/pulse, which a `.selected` case would have to
 //  re-derive or lose. An earlier version threaded selection through this enum too
 //  (`resolve(isSelected:isLive:isSaved:)` / `.selected` case) but every call site
 //  always passed `isSelected: false` — dead precedence a future edit could "fix"

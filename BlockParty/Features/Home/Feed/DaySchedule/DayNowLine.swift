@@ -2,14 +2,14 @@
 //  DayNowLine.swift
 //  Block Party — where the day has got to.
 //
-//  The one live thing on the page: an orange rule across the timeline with a dot
+//  The one live thing on the page: a green rule across the timeline with a dot
 //  riding the spine, sitting between the rows that have started and the ones that
 //  have not. Its label takes the gutter, in the same column as the clock times, so
 //  it reads as another entry on the scale rather than as an annotation floating
 //  over the cards.
 //
-//  The orange is `DaySchedulePalette.now`, which is the same hue as the default
-//  category gradient's top stop — the page never carries two oranges.
+//  The green is `DaySchedulePalette.now`, `Hue.now`: Apple's green, as on a Town
+//  card's "Now" dot.
 //
 
 import SwiftUI

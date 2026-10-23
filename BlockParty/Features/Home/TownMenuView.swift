@@ -189,7 +189,7 @@ struct TownMenuView: View {
                     // Radius.button is 12 and is a ROUNDED SQUARE. At 44pt tall a
                     // pill would be 22 — it must not become one.
                     RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
-                        .fill(isSelected ? Hue.accent : Hue.fill)
+                        .fill(isSelected ? Hue.ink : Hue.fill)
                 )
                 .overlay {
                     // An unselected segment sits on ultra-thin material over a page

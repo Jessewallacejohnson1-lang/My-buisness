@@ -5,7 +5,7 @@
 //  Unveils an AttributedString by a growing prefix — by character (typewriter, for
 //  the greeting) or by word (for the read-of-the-day) — over a RESERVED final
 //  layout, so the card never reflows and words never jump to a new line mid-write.
-//  A soft coral caret can ride the frontier while it types.
+//  An ink caret can ride the frontier while it types.
 //
 //  Craft (Emil Kowalski's animation framework):
 //   • This is a RARE, first-open-of-the-day moment — the one place delight earns its

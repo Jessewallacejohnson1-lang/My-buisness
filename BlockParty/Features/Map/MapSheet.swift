@@ -10,7 +10,7 @@
 //
 //  Peek shows a single glanceable status line; as you pull up it cross-fades into
 //  the list. All content is REAL (no invented counts):
-//    • today  — today's happenings from MapModel.todayEvents (coral dot = live now)
+//    • today  — today's happenings from MapModel.todayEvents (green dot = live now)
 //    • places — the curated MapSpots catalogue, with each spot's live count today
 //
 //  Place detail belongs to `PinDetailSheet` (this sheet unmounts while it shows).
@@ -656,7 +656,7 @@ struct MapSheet: View {
                 .background {
                     if isSelected {
                         RoundedRectangle(cornerRadius: Radius.button - 2, style: .continuous)
-                            .fill(Hue.accent)
+                            .fill(Hue.ink)
                             .matchedGeometryEffect(id: "segmentPill", in: segment)
                     }
                 }
@@ -779,13 +779,13 @@ private struct StatusDot: View {
         ZStack {
             if live && !reduceMotion {
                 Circle()
-                    .stroke(Hue.accent, lineWidth: 1.5)
+                    .stroke(Hue.now, lineWidth: 1.5)
                     .frame(width: 12, height: 12)
                     .scaleEffect(pulsing ? 2.2 : 1)
                     .opacity(pulsing ? 0 : 0.5)
             }
             Circle()
-                .fill(live ? Hue.accent : Hue.inkSecondary)
+                .fill(live ? Hue.now : Hue.inkSecondary)
                 .frame(width: 9, height: 9)
         }
         .frame(width: 26, height: 26)          // stable slot so text never shifts
@@ -825,7 +825,7 @@ private struct TodayEventRow: View {
                 Circle().fill(live ? Hue.fill : Hue.paper).frame(width: 38, height: 38)
                 Image(systemName: live ? "dot.radiowaves.left.and.right" : "clock")
                     .font(.sansMedium(15))
-                    .foregroundStyle(live ? Hue.accent : Hue.inkSecondary)
+                    .foregroundStyle(live ? Hue.now : Hue.inkSecondary)
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(event.title).font(.sansMedium(15)).foregroundStyle(Hue.ink).lineLimit(1)
@@ -836,7 +836,7 @@ private struct TodayEventRow: View {
             Spacer(minLength: 8)
             if live {
                 Text("Now")
-                    .font(.sansSemibold(12)).foregroundStyle(Hue.accent)
+                    .font(.sansSemibold(12)).foregroundStyle(Hue.ink)
                     .padding(.horizontal, 8).padding(.vertical, 3)
                     .background(Hue.fill, in: Capsule())
             } else if let t = event.startTime {
@@ -871,7 +871,7 @@ private struct PlaceRow: View {
             Spacer(minLength: 8)
             if liveCount > 0 {
                 Text("^[\(liveCount) live](inflect: true)")
-                    .font(.sansSemibold(12)).foregroundStyle(Hue.accent)
+                    .font(.sansSemibold(12)).foregroundStyle(Hue.ink)
                     .padding(.horizontal, 8).padding(.vertical, 3)
                     .background(Hue.fill, in: Capsule())
             }
