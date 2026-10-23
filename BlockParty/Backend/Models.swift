@@ -215,8 +215,13 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
         var local = false
         /// Up to three colours read from its logo, most used first.
         var colors: [UInt32] = []
+        /// What neighbours call it ("Johnnies"); nil when it has none.
+        var nickname: String? = nil
 
-        private enum CodingKeys: String, CodingKey { case name, short, logo, color, id, local, colors }
+        /// The name the pill says: its nickname, else its short name.
+        var called: String { nickname ?? short }
+
+        private enum CodingKeys: String, CodingKey { case name, short, logo, color, id, local, colors, nickname }
 
         /// A logo or color that doesn't read is none: it never costs the card.
         init(from decoder: Decoder) throws {
@@ -228,6 +233,7 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
             id = (try? c.decodeIfPresent(String.self, forKey: .id)) ?? nil
             local = ((try? c.decodeIfPresent(Bool.self, forKey: .local)) ?? nil) ?? false
             colors = (((try? c.decodeIfPresent([String].self, forKey: .colors)) ?? nil) ?? []).compactMap(Self.rgb(hex:))
+            nickname = (try? c.decodeIfPresent(String.self, forKey: .nickname)) ?? nil
         }
 
         /// The page and the Follow: a local team the server named.
@@ -468,13 +474,13 @@ struct TeamFinal: Decodable, Hashable {
     var other: Game.Team? { game.teams.indices.contains(1 - mine) ? game.teams[1 - mine] : nil }
     var won: Bool { game.winner == mine }
 
-    /// "Johnnies beat Gustavus 33–23", "Johnnies lost to Gustavus 23–33", "Johnnies tied Gustavus 7–7":
-    /// your team's score first.
+    /// "Johnnies beat Gusties 33–23", "Johnnies lost to Gusties 23–33", "Johnnies tied Gusties 7–7":
+    /// your team's score first, each by its nickname when it has one.
     var text: String? {
         guard let final = game.final, let team, let other else { return nil }
         let score = "\(final[mine])–\(final[1 - mine])"
-        guard let winner = game.winner else { return "\(team.short) tied \(other.short) \(score)" }
-        return winner == mine ? "\(team.short) beat \(other.short) \(score)" : "\(team.short) lost to \(other.short) \(score)"
+        guard let winner = game.winner else { return "\(team.called) tied \(other.called) \(score)" }
+        return winner == mine ? "\(team.called) beat \(other.called) \(score)" : "\(team.called) lost to \(other.called) \(score)"
     }
 }
 
@@ -489,8 +495,8 @@ extension TeamFinal {
         {"event_id": "debug", "mine": 0, "game": {"sport": "Football", "occasion": null, "final": \(score),
           "teams": [{"name": "Saint John's", "short": "Saint John's",
                      "logo": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/saint-johns/logo-36d1a2aa13.png",
-                     "color": "#\(red)", "local": true, "colors": ["#\(red)", "#\(blue)"]},
-                    {"name": "Gustavus Adolphus", "short": "Gustavus", "logo": null, "color": null}]}}
+                     "color": "#\(red)", "local": true, "colors": ["#\(red)", "#\(blue)"], "nickname": "Johnnies"},
+                    {"name": "Gustavus Adolphus", "short": "Gustavus", "logo": null, "color": null, "nickname": "Gusties"}]}}
         """
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase

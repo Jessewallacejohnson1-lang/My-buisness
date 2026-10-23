@@ -148,6 +148,7 @@ final class HelloDropTests: XCTestCase {
 
     func testYourTeamsScoreComesFirst() {
         XCTAssertEqual(final([33, 23], mine: 0).text, "Saint John's beat Gustavus 33–23")
+        XCTAssertEqual(TeamFinal.sample(won: true).text, "Johnnies beat Gusties 33–23")
         XCTAssertEqual(final([33, 23], mine: 1).text, "Gustavus lost to Saint John's 23–33")
         XCTAssertEqual(final([7, 7], mine: 0).text, "Saint John's tied Gustavus 7–7")
     }

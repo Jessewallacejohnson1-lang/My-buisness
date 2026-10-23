@@ -58,7 +58,7 @@ await db.exec(`
   -- The schools a game card names (game-card 01, 20261020120000_game_card.sql).
   create table public.teams (id text primary key, name text not null, short_name text not null,
     logo_url text, color text, uuid uuid not null default gen_random_uuid(), colors text[],
-    local boolean not null default false);
+    local boolean not null default false, nickname text);
   -- Where events happen, with their pictures (place-photos): the app's places rows, then the
   -- photos Block Party keeps (loaded from their migrations below).
   create table public.places (id uuid primary key default gen_random_uuid(), name text, entry_id text,
@@ -1059,12 +1059,12 @@ test('a game carries its sport, special night and both teams, the host first; an
   const games = rows.map((r) => [r.title, r.game && { ...r.game, teams: r.game.teams.map(({ id, ...t }) => t) }]);
   assert.deepEqual(games, [
     ['Albany Volleyball vs Foley', { sport: 'Volleyball', occasion: null, teams: [
-      { name: 'albany', short: 'albany', logo: null, color: null, local: false, colors: null },
-      { name: 'foley', short: 'foley', logo: null, color: null, local: false, colors: null }], final: null }],
+      { name: 'albany', short: 'albany', logo: null, color: null, local: false, colors: null, nickname: null },
+      { name: 'foley', short: 'foley', logo: null, color: null, local: false, colors: null, nickname: null }], final: null }],
     ['Fall fair', null],
     ['SJU Football vs Concordia: Homecoming', { sport: 'Football', occasion: 'Homecoming', teams: [
-      { name: "Saint John's", short: "Saint John's", logo: 'https://x/sju.png', color: '#C20430', local: false, colors: null },
-      { name: 'Concordia', short: 'Concordia', logo: null, color: null, local: false, colors: null }], final: null }]]);
+      { name: "Saint John's", short: "Saint John's", logo: 'https://x/sju.png', color: '#C20430', local: false, colors: null, nickname: null },
+      { name: 'Concordia', short: 'Concordia', logo: null, color: null, local: false, colors: null, nickname: null }], final: null }]]);
 });
 
 test("a game's final rides its game, host first, and keeps its card a day past the game", async () => {
