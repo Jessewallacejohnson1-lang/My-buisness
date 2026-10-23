@@ -131,6 +131,21 @@ struct FeedEventCard: View {
             // tap holds the link's own press until it fails, so the card squishes the
             // moment a finger lands, photo included.
             .gesture(FeedTouchDownTracker(isPressed: $linkPressed))
+            // A local team's picture opens its page, Follow there (hello-drop 03); the rest of the
+            // card still opens the event.
+            .overlay(alignment: .topLeading) {
+                if !item.hostName.isEmpty, item.hostAvatar == nil, let team = item.game?.teams.first, team.logo != nil, team.hasPage {
+                    NavigationLink(value: team) {
+                        Color.clear
+                            .frame(width: SearchMetric.tapMin, height: SearchMetric.tapMin)
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.leading, DailyFeedMetric.contentInset - (SearchMetric.tapMin - Self.hostAvatarSide) / 2)
+                    .offset(y: -(SearchMetric.tapMin - Self.hostAvatarSide) / 2)
+                    .accessibilityLabel("\(team.short), team page")
+                }
+            }
             // The heart on the photo's bottom right, over the link as its own button (event-card 06).
             .overlay(alignment: .bottomTrailing) {
                 if actions.canAct {

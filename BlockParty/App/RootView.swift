@@ -231,6 +231,18 @@ struct RootView: View {
 
 /// The authed shell: the four tabs and the sheets and covers they open.
 struct MainTabsView: View {
+    /// Every Going this account has had, counted once over (hello-drop 02).
+    private static func attendedCount() async -> Int? {
+        guard let rows = try? await CommunityAPI(auth: AuthStore.shared)
+            .getMyGoing(from: "2000-01-01", to: Town.day(Date())) else { return nil }
+        return HelloMoment.attendedCount(rows.compactMap(YouCalendar.event(from:)), now: Date())
+    }
+
+    /// Your followed teams' finals read since a time (hello-drop 03).
+    private static func teamFinals(since: Date) async -> [TeamFinal] {
+        (try? await CommunityAPI(auth: AuthStore.shared).myTeamFinals(since: since)) ?? []
+    }
+
     /// A one-shot starting tab. nil → the usual default (Town, or a DEBUG `-open-tab`
     /// override).
     let startTab: Tab?
@@ -421,6 +433,8 @@ struct MainTabsView: View {
                 }
                 // A neighbour's page, from any name or face: the Friends page or Search.
                 .navigationDestination(for: Neighbor.self) { NeighborPage(neighbor: $0) }
+                // A local team's page, from its picture on a game card (hello-drop 03).
+                .navigationDestination(for: Game.Team.self) { TeamPage(team: $0) }
                 // A group's page, from Search's Groups shelf (rsvp-and-groups 05).
                 .navigationDestination(for: TownGroup.self) { GroupPage(group: $0) }
         }
@@ -444,12 +458,8 @@ struct MainTabsView: View {
                     case .town: if tab != .town { select(.town) }
                     }
                 },
-                attended: {
-                    // Every Going this account has had, to count the ones that are over.
-                    guard let rows = try? await CommunityAPI(auth: AuthStore.shared)
-                        .getMyGoing(from: "2000-01-01", to: Town.day(Date())) else { return nil }
-                    return HelloMoment.attendedCount(rows.compactMap(YouCalendar.event(from:)), now: Date())
-                }
+                attended: Self.attendedCount,
+                finals: Self.teamFinals
             )
         }
         // The iPhone Calendar follows the Going (ticket 05).

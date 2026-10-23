@@ -20,6 +20,26 @@ enum HelloDrop {
     struct Message: Hashable {
         let text: String
         let target: Target
+        /// A team's final (hello-drop 03): its logo on the left, and on a win its colour behind and
+        /// its colours in the confetti.
+        var logo: URL? = nil
+        var tint: UInt32? = nil
+        var confetti: [UInt32]? = nil
+    }
+
+    /// Your followed team's final as the pill says it; nil when it can't be worded.
+    static func final(_ final: TeamFinal) -> Message? {
+        guard let text = final.text, let team = final.team else { return nil }
+        let colors = team.colors.isEmpty ? team.rgb.map { [$0] } ?? [] : team.colors
+        return Message(text: text, target: .town, logo: team.logo,
+                       tint: final.won ? colors.first : nil,
+                       confetti: final.won ? colors : nil)
+    }
+
+    /// White words on a dark tint, ink on a light one (Cathedral's gold).
+    nonisolated static func light(_ rgb: UInt32) -> Bool {
+        let r = Double((rgb >> 16) & 0xFF), g = Double((rgb >> 8) & 0xFF), b = Double(rgb & 0xFF)
+        return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.62
     }
 
     /// The hello and the key kept for tomorrow's "never the same one two days running".
@@ -147,7 +167,8 @@ enum HelloDrop {
     /// tests) never does, so other runs' frames stay as they were.
     static var allowed: Bool {
         #if DEBUG
-        forced || debugMoment != nil || !ProcessInfo.processInfo.arguments.dropFirst().contains { $0.hasPrefix("-") }
+        forced || debugMoment != nil || debugFinal != nil
+            || !ProcessInfo.processInfo.arguments.dropFirst().contains { $0.hasPrefix("-") }
         #else
         return true
         #endif
@@ -168,6 +189,17 @@ enum HelloDrop {
         return ProcessInfo.processInfo.arguments.contains("-hello-welcome")
         #else
         return false
+        #endif
+    }
+
+    /// DEBUG `-hello-final win|loss`: Saint John's final against Gustavus drops 8 s after launch.
+    static var debugFinal: Bool? {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let flag = arguments.firstIndex(of: "-hello-final"), flag + 1 < arguments.count else { return nil }
+        return arguments[flag + 1] == "win"
+        #else
+        return nil
         #endif
     }
 
@@ -196,6 +228,8 @@ struct HelloDropView: View {
     let open: @MainActor (HelloDrop.Target) -> Void
     /// Events attended (hello-drop 02), read on each open; nil when the read failed.
     let attended: @MainActor () async -> Int?
+    /// Your followed teams' finals read since a time (hello-drop 03), newest first.
+    let finals: @MainActor (_ since: Date) async -> [TeamFinal]
 
     private enum Step { case hidden, hello, message }
 
@@ -209,6 +243,12 @@ struct HelloDropView: View {
     @State private var tick = 0
     @State private var confetti = 0
     @State private var attendedAt = Date.distantPast
+    /// A followed team's final not yet said, and the confetti's colours for it (empty: BP's).
+    @State private var pendingFinal: TeamFinal?
+    @State private var confettiColors: [UInt32] = []
+    @AppStorage("helloDrop.finalsSince") private var finalsSince: Double = 0
+    /// The finals already said, so a final read again later isn't said twice.
+    @AppStorage("helloDrop.saidFinals") private var saidFinals = ""
     private let moments = HelloMoments.shared
     @AppStorage("helloDrop.day") private var shownDay = ""
     @AppStorage("helloDrop.lastHello") private var lastHello = ""
@@ -236,7 +276,7 @@ struct HelloDropView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            HelloConfetti(burst: confetti)
+            HelloConfetti(burst: confetti, colors: confettiColors)
                 .ignoresSafeArea()
                 .allowsHitTesting(false)
             if step != .hidden {
@@ -250,6 +290,12 @@ struct HelloDropView: View {
         .frame(maxWidth: .infinity, alignment: .top)
         .task {
             #if DEBUG
+            if let won = HelloDrop.debugFinal {
+                try? await Task.sleep(for: .seconds(8))
+                pendingFinal = TeamFinal.sample(won: won)
+                showFinal()
+                return
+            }
             if let shown = HelloDrop.debugMoment {
                 try? await Task.sleep(for: .seconds(8))
                 moments.show(shown)
@@ -258,9 +304,13 @@ struct HelloDropView: View {
             #endif
             start()
             await checkAttended()
+            await checkFinals()
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active, HelloDrop.debugMoment == nil { start(); Task { await checkAttended() } }
+            if phase == .active, HelloDrop.debugMoment == nil, HelloDrop.debugFinal == nil {
+                start()
+                Task { await checkAttended(); await checkFinals() }
+            }
             if phase == .background { lastSeen = Date().timeIntervalSince1970 }
         }
         // A first reached while the app is open (a friend, a follow, a share) drops at once.
@@ -298,6 +348,20 @@ struct HelloDropView: View {
                 .padding(.trailing, 10)
                 .transition(.asymmetric(insertion: .opacity.animation(.easeIn(duration: 0.2).delay(0.12)),
                                         removal: .opacity))
+            } else if step == .message, let said, let logo = said.logo {
+                HStack(spacing: 10) {
+                    LogoDisc(logo: logo, initial: "", logoSide: 26, letter: .sansSemibold(12))
+                        .frame(width: 34, height: 34)
+                    Text(said.text)
+                        .font(.sansSemibold(15))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+                .padding(.leading, 12)
+                .padding(.trailing, 22)
+                .frame(maxWidth: .infinity)
+                .transition(.asymmetric(insertion: .opacity.animation(.easeIn(duration: 0.2).delay(0.12)),
+                                        removal: .opacity))
             } else if step == .message, let said {
                 Text(said.text)
                     .font(.sansSemibold(15))
@@ -309,9 +373,9 @@ struct HelloDropView: View {
                                             removal: .opacity))
             }
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(said?.tint.map { HelloDrop.light($0) } == true ? Hue.ink.onLightCanvas : .white)
         .frame(height: Self.height)
-        .background(Hue.ink, in: Capsule())
+        .background(said?.tint.map { Color(hex: $0) } ?? Hue.ink, in: Capsule())
         .shadow(color: .black.opacity(0.18), radius: 9, y: 6)
         .padding(.horizontal, step == .message && moment == nil ? Self.side : 0)
         .contentShape(Capsule())
@@ -347,7 +411,7 @@ struct HelloDropView: View {
     /// The day's first open shows it once; a second open that day shows nothing.
     private func start() {
         let today = Town.day(Date())
-        guard HelloDrop.allowed, HelloDrop.debugMoment == nil, step == .hidden, run == nil,
+        guard HelloDrop.allowed, HelloDrop.debugMoment == nil, HelloDrop.debugFinal == nil, step == .hidden, run == nil,
               HelloDrop.forced || shownDay != today else { return }
         shownDay = today
         let seen = lastSeen > 0 && !HelloDrop.forcedWelcome ? Date(timeIntervalSince1970: lastSeen) : nil
@@ -386,6 +450,12 @@ struct HelloDropView: View {
                 await finish(after: Self.stay)
                 return
             }
+            // Then a followed team's final, ahead of the day's line (hello-drop 03).
+            if let final = takeFinal() {
+                withAnimation(reduceMotion ? Motion.smooth : Motion.bentoExpand) { step = .message }
+                await sayFinal(final)
+                return
+            }
             guard let message = message(seen) else { dismiss(); return }
             said = message
             withAnimation(reduceMotion ? Motion.smooth : Motion.bentoExpand) { step = .message }
@@ -406,6 +476,50 @@ struct HelloDropView: View {
             await celebrate(next)
             await finish(after: Self.stay)
         }
+    }
+
+    /// A followed team's final with the hello already said today: the pill drops straight to it.
+    private func showFinal() {
+        guard HelloDrop.allowed, step == .hidden, run == nil, pendingFinal != nil else { return }
+        run = Task {
+            guard let final = takeFinal() else { run = nil; return }
+            withAnimation(reduceMotion ? Motion.smooth : Motion.sheet) { step = .message }
+            await sayFinal(final)
+        }
+    }
+
+    /// The pill's words and colour for a final; a win's confetti in the team's colours.
+    private func sayFinal(_ final: HelloDrop.Message) async {
+        AccessibilityNotification.Announcement(final.text).post()
+        if let colors = final.confetti {
+            try? await Task.sleep(for: .seconds(0.3))
+            confettiColors = colors
+            if !reduceMotion { confetti += 1 }
+            Haptics.success()
+        }
+        await finish(after: Self.stay)
+    }
+
+    /// The final waiting, as the pill shows it, marked said.
+    private func takeFinal() -> HelloDrop.Message? {
+        guard let final = pendingFinal else { return nil }
+        pendingFinal = nil
+        saidFinals = ([final.eventId] + saidFinals.split(separator: ",").map(String.init)).prefix(50).joined(separator: ",")
+        guard let message = HelloDrop.final(final) else { return nil }
+        said = message
+        return message
+    }
+
+    /// New finals since the last read; the newest not yet said waits for the pill.
+    private func checkFinals() async {
+        guard HelloDrop.allowed else { return }
+        let since = finalsSince > 0 ? Date(timeIntervalSince1970: finalsSince) : Date().addingTimeInterval(-36 * 3600)
+        let read = await finals(since)
+        finalsSince = Date().timeIntervalSince1970
+        let said = Set(saidFinals.split(separator: ",").map(String.init))
+        guard let final = read.first(where: { !said.contains($0.eventId) && $0.text != nil }) else { return }
+        pendingFinal = final
+        showFinal()
     }
 
     /// The tick, its haptics, then confetti for the 10th and 100th.
@@ -439,8 +553,9 @@ struct HelloDropView: View {
             moment = nil
             tick = 0
             run = nil
+            confettiColors = []
             // One reached while this pill was up comes next.
-            if moments.waiting != nil { showMoment() }
+            if moments.waiting != nil { showMoment() } else if pendingFinal != nil { showFinal() }
         }
     }
 }

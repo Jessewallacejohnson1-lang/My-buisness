@@ -131,6 +131,52 @@ final class HelloDropTests: XCTestCase {
         XCTAssertEqual(moments.take(), .hundredthEvent)
     }
 
+    // MARK: A followed team's final (hello-drop 03)
+
+    private func final(_ score: [Int], mine: Int, colors: [String]? = ["#BC0E33", "#02A2E2"]) -> TeamFinal {
+        let colorsJSON = colors.map { "[" + $0.map { "\"\($0)\"" }.joined(separator: ",") + "]" } ?? "null"
+        let json = """
+        {"event_id": "e1", "mine": \(mine), "game": {"sport": "Football", "occasion": null, "final": [\(score[0]), \(score[1])],
+          "teams": [{"name": "Saint John's", "short": "Saint John's", "logo": "https://x/sju.png", "color": "#C20430",
+                     "id": "4f0b2c1e-0000-4000-8000-000000000001", "local": true, "colors": \(colorsJSON)},
+                    {"name": "Gustavus Adolphus", "short": "Gustavus", "logo": null, "color": null, "local": false}]}}
+        """
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return try! decoder.decode(TeamFinal.self, from: Data(json.utf8))
+    }
+
+    func testYourTeamsScoreComesFirst() {
+        XCTAssertEqual(final([33, 23], mine: 0).text, "Saint John's beat Gustavus 33–23")
+        XCTAssertEqual(final([33, 23], mine: 1).text, "Gustavus lost to Saint John's 23–33")
+        XCTAssertEqual(final([7, 7], mine: 0).text, "Saint John's tied Gustavus 7–7")
+    }
+
+    /// A win takes the team's logo colours, the pill the first and the confetti all; a loss neither.
+    func testAWinTakesTheTeamsColours() {
+        let win = HelloDrop.final(final([33, 23], mine: 0))
+        XCTAssertEqual(win?.tint, 0xBC0E33)
+        XCTAssertEqual(win?.confetti, [0xBC0E33, 0x02A2E2])
+        XCTAssertNotNil(win?.logo)
+        let loss = HelloDrop.final(final([23, 33], mine: 0))
+        XCTAssertNil(loss?.tint)
+        XCTAssertNil(loss?.confetti)
+        // No logo colours yet: its one colour.
+        XCTAssertEqual(HelloDrop.final(final([33, 23], mine: 0, colors: nil))?.tint, 0xC20430)
+    }
+
+    func testTheTeamsPageIsOnlyForLocalTeams() {
+        let game = final([1, 0], mine: 0).game
+        XCTAssertTrue(game.teams[0].hasPage)
+        XCTAssertFalse(game.teams[1].hasPage)
+    }
+
+    /// Cathedral's gold takes ink words; Saint John's red takes white.
+    func testLightTintsTakeInk() {
+        XCTAssertTrue(HelloDrop.light(0xFEE291))
+        XCTAssertFalse(HelloDrop.light(0xBC0E33))
+    }
+
     // MARK: The message
 
     /// Top down, the first true one wins.

@@ -629,6 +629,23 @@ struct CommunityAPI {
         return card
     }
 
+    /// A local team's page: who it is and its next games (hello-drop 03). nil for a team that
+    /// isn't local.
+    func teamPage(_ id: String) async throws -> TeamProfile? {
+        let (data, _) = try await SupabaseHTTP.rest("rpc/team_page", method: "POST", accessToken: await readToken(),
+                                                    body: try body(["p_team": id]))
+        return try? decode(data)
+    }
+
+    /// Finals your followed teams played, read since `since`, newest first: the hello pill's
+    /// "Johnnies beat Gustavus 33–23".
+    func myTeamFinals(since: Date) async throws -> [TeamFinal] {
+        let (data, _) = try await SupabaseHTTP.rest("rpc/my_team_finals", method: "POST",
+                                                    accessToken: try await token(),
+                                                    body: try body(["p_since": ISO8601DateFormatter().string(from: since)]))
+        return try decode(data)
+    }
+
     /// Everyone and everything you follow, A to Z: Profile's Following list.
     func myFollows() async throws -> [FollowRow] {
         let (data, _) = try await SupabaseHTTP.rest("rpc/my_follows", method: "POST",

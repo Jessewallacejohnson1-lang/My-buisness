@@ -12,7 +12,7 @@ import UIKit
 enum HelloMoment: String, CaseIterable {
     case firstEvent, tenthEvent, hundredthEvent
     case firstFriend, firstShare
-    case firstPlace, firstPerson, firstGroup
+    case firstPlace, firstPerson, firstGroup, firstTeam
 
     var text: String {
         switch self {
@@ -24,6 +24,7 @@ enum HelloMoment: String, CaseIterable {
         case .firstPlace: "Followed your first place!"
         case .firstPerson: "Followed your first person!"
         case .firstGroup: "Followed your first group!"
+        case .firstTeam: "Followed your first team!"
         }
     }
 
@@ -194,13 +195,15 @@ enum TickHaptics {
 /// Touches pass through it. Each new `burst` value fires once.
 struct HelloConfetti: UIViewRepresentable {
     let burst: Int
+    /// A team's colours, in equal shares; empty for BP's yellow and black.
+    var colors: [UInt32] = []
 
     func makeUIView(context: Context) -> ConfettiView { ConfettiView() }
 
     func updateUIView(_ view: ConfettiView, context: Context) {
         guard burst != view.fired else { return }
         view.fired = burst
-        if burst > 0 { view.fire() }
+        if burst > 0 { view.fire(colors.map { UIColor(Color(hex: $0)) }) }
     }
 
     final class ConfettiView: UIView {
@@ -224,11 +227,13 @@ struct HelloConfetti: UIViewRepresentable {
             emitter.emitterSize = CGSize(width: bounds.width, height: 1)
         }
 
-        func fire() {
+        func fire(_ team: [UIColor] = []) {
             let yellow = UIColor(Hue.brandDisc)
             let ink = UIColor(Hue.ink.onLightCanvas)
-            // 7 yellow to 3 black, by birth rate.
-            emitter.emitterCells = [(yellow, 7), (ink, 3)].flatMap { color, share in
+            // 7 yellow to 3 black, by birth rate; a team's colours share 10 evenly.
+            let shares: [(UIColor, Int)] = team.isEmpty ? [(yellow, 7), (ink, 3)]
+                : team.map { ($0, max(1, 10 / team.count)) }
+            emitter.emitterCells = shares.flatMap { color, share in
                 [Self.piece(round: false), Self.piece(round: true)].map { image in
                     let cell = CAEmitterCell()
                     cell.contents = image.cgImage

@@ -160,7 +160,11 @@ struct FollowPicture: View {
 
     /// What it is, under its name: "Neighbor", or a Place's kind ("Cajun").
     static func what(_ row: FollowRow) -> String? {
-        row.targetType == .profile ? "Neighbor" : row.kind.flatMap(SearchModel.label)
+        switch row.targetType {
+        case .profile: "Neighbor"
+        case .team: "Team"
+        default: row.kind.flatMap(SearchModel.label)
+        }
     }
 }
 

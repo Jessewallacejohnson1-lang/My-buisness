@@ -209,8 +209,14 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
         let logo: URL?
         /// The school's color as 0xRRGGBB; nil until it's known, or misread.
         let rgb: UInt32?
+        /// The team's uuid, what a follow keys it by (hello-drop 03); nil for an old read.
+        var id: String? = nil
+        /// A team around St. Joseph: only these have a page and a Follow.
+        var local = false
+        /// Up to three colours read from its logo, most used first.
+        var colors: [UInt32] = []
 
-        private enum CodingKeys: String, CodingKey { case name, short, logo, color }
+        private enum CodingKeys: String, CodingKey { case name, short, logo, color, id, local, colors }
 
         /// A logo or color that doesn't read is none: it never costs the card.
         init(from decoder: Decoder) throws {
@@ -219,7 +225,13 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
             short = (try? c.decodeIfPresent(String.self, forKey: .short)) ?? name
             logo = (try? c.decodeIfPresent(String.self, forKey: .logo)).flatMap(URL.init(string:))
             rgb = (try? c.decodeIfPresent(String.self, forKey: .color)).flatMap(Self.rgb(hex:))
+            id = (try? c.decodeIfPresent(String.self, forKey: .id)) ?? nil
+            local = ((try? c.decodeIfPresent(Bool.self, forKey: .local)) ?? nil) ?? false
+            colors = (((try? c.decodeIfPresent([String].self, forKey: .colors)) ?? nil) ?? []).compactMap(Self.rgb(hex:))
         }
+
+        /// The page and the Follow: a local team the server named.
+        var hasPage: Bool { local && id != nil }
 
         /// "#C20430" as 0xC20430; nil for anything else.
         static func rgb(hex: String) -> UInt32? {
@@ -420,12 +432,70 @@ struct Trail: Identifiable, Hashable {
 
 /// What a follow points at: a club, a community member's town_profile, or a Place
 /// (`public.places`, BP app docs/plans/follows ticket 02).
-enum FollowTargetType: String, Codable { case club, profile, place }
+enum FollowTargetType: String, Codable { case club, profile, place, team }
 
 struct FollowTarget: Hashable, Codable {
     let type: FollowTargetType
     let id: String
 }
+
+/// A local team's page (`team_page`, hello-drop 03).
+struct TeamProfile: Decodable, Hashable {
+    let id: String
+    let name: String
+    let short: String
+    let logo: String?
+    let colors: [String]?
+    let games: [Game]
+
+    struct Game: Decodable, Hashable, Identifiable {
+        let id: String
+        let sport: String?
+        let date: String
+        let time: String?
+        let location: String?
+        let other: String
+    }
+}
+
+/// A final one of your followed teams played (`my_team_finals`). `mine` is its side in `game.teams`.
+struct TeamFinal: Decodable, Hashable {
+    let eventId: String
+    let game: Game
+    let mine: Int
+
+    var team: Game.Team? { game.teams.indices.contains(mine) ? game.teams[mine] : nil }
+    var other: Game.Team? { game.teams.indices.contains(1 - mine) ? game.teams[1 - mine] : nil }
+    var won: Bool { game.winner == mine }
+
+    /// "Johnnies beat Gustavus 33–23", "Johnnies lost to Gustavus 23–33", "Johnnies tied Gustavus 7–7":
+    /// your team's score first.
+    var text: String? {
+        guard let final = game.final, let team, let other else { return nil }
+        let score = "\(final[mine])–\(final[1 - mine])"
+        guard let winner = game.winner else { return "\(team.short) tied \(other.short) \(score)" }
+        return winner == mine ? "\(team.short) beat \(other.short) \(score)" : "\(team.short) lost to \(other.short) \(score)"
+    }
+}
+
+#if DEBUG
+extension TeamFinal {
+    /// `-hello-final`: Saint John's 33–23 over Gustavus, or the other way round.
+    static func sample(won: Bool) -> TeamFinal {
+        let score = won ? "[33, 23]" : "[23, 33]"
+        let json = """
+        {"event_id": "debug", "mine": 0, "game": {"sport": "Football", "occasion": null, "final": \(score),
+          "teams": [{"name": "Saint John's", "short": "Saint John's",
+                     "logo": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/saint-johns/logo-36d1a2aa13.png",
+                     "color": "#C20430", "local": true, "colors": ["#BC0E33", "#02A2E2"]},
+                    {"name": "Gustavus Adolphus", "short": "Gustavus", "logo": null, "color": null}]}}
+        """
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return try! decoder.decode(TeamFinal.self, from: Data(json.utf8))
+    }
+}
+#endif
 
 /// What a page shows of a Place or person it can follow (`follow_card`): whether you follow it,
 /// how many do (nil for a person, who never shows a count), and up to three of your friends who
