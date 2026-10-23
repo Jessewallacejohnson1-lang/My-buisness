@@ -28,6 +28,14 @@ final class TodayBubblesTests: XCTestCase {
         XCTAssertEqual(TodayBubbleRules.countdown(-3), "0:00")
     }
 
+    func testVoiceOverSaysTheCountdownInWords() {
+        XCTAssertEqual(TodayBubbleRules.spokenCountdown(37 * 60 + 30), "37 minutes")
+        XCTAssertEqual(TodayBubbleRules.spokenCountdown(3600 + 23 * 60), "1 hour 23 minutes")
+        XCTAssertEqual(TodayBubbleRules.spokenCountdown(2 * 3600 + 30), "2 hours")
+        XCTAssertEqual(TodayBubbleRules.spokenCountdown(61), "1 minute")
+        XCTAssertEqual(TodayBubbleRules.spokenCountdown(20), "under a minute")
+    }
+
     func testRingOnlyInTheLastHourAndEmptiesToTheStart() {
         XCTAssertNil(TodayBubbleRules.ringLeft(3601))
         XCTAssertEqual(TodayBubbleRules.ringLeft(3600), 1)

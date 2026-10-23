@@ -344,8 +344,6 @@ struct SJMapView: View {
     static let clusterPriority = 20
     static let bubblePriority = 30
 
-    /// The curated spots that have a today bubble on them.
-    var bubbledSpotIDs: Set<String> { Set(todayBubbles.compactMap { $0.spot?.id }) }
 
     /// DEBUG-only: `-map-open-poi [name-substring | id]` opens a POI's detail
     /// sheet once `places` loads. With no value, it deterministically uses the first
@@ -749,7 +747,10 @@ struct SJMapView: View {
     // MARK: Map
 
     private var mapLayer: some View {
-        MapReader { proxy in
+        // Worked out once per redraw, not once per pin.
+        let bubbles = todayBubbles
+        let bubbledSpots = Set(bubbles.compactMap { $0.spot?.id })
+        return MapReader { proxy in
             Map(viewport: $viewport) {
                 // POIs now cluster client-side and render as SwiftUI view annotations that
                 // GLIDE on merge/split (POIClusterMarker + POIClusterBubbleView) — the old
@@ -810,7 +811,7 @@ struct SJMapView: View {
                     let spotIsLive = isLive(spot)
                     // A place with a today bubble lets the bubble carry "on now"; its pin
                     // underneath stays calm (no plum pulse) — Jesse at Check-in 1, 2026-10-22.
-                    let bubbled = bubbledSpotIDs.contains(spot.id)
+                    let bubbled = bubbledSpots.contains(spot.id)
                     let markerID = ClusterMarkerID.civic(spot.id)
                     let isSelected = selectedClusterMarkerID == markerID
                     // While any detail is open, every OTHER pin calms down (label
@@ -837,6 +838,8 @@ struct SJMapView: View {
                                 a11yLabel: accessibilityLabel(for: spot, live: spotIsLive)
                             )
                             .onTapGesture { selectSpot(spot) }
+                            // The bubble on top speaks for this place.
+                            .accessibilityHidden(bubbled)
                         }
                     }
                     // Never cull; clustered leaves must stay mounted to complete their glide.
@@ -855,9 +858,9 @@ struct SJMapView: View {
                     .priority(Self.selectedPriority)
                 }
                 // Today's events, over everything else on the map.
-                ForEvery(todayBubbles) { bubble in
+                ForEvery(bubbles) { bubble in
                     MapViewAnnotation(coordinate: bubble.coordinate) {
-                        TodayEventBubble(bubble: bubble, order: bubble.order) {
+                        TodayEventBubble(bubble: bubble) {
                             tapBubble(bubble)
                         }
                     }

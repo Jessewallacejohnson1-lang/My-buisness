@@ -46,6 +46,16 @@ enum TodayBubbleRules {
         return "\(s / 60):\(String(format: "%02d", s % 60))"
     }
 
+    /// The countdown as VoiceOver says it: "1 hour 23 minutes", "37 minutes", "under a minute".
+    static func spokenCountdown(_ secondsLeft: Int) -> String {
+        let m = max(0, secondsLeft) / 60, h = m / 60, rest = m % 60
+        if m == 0 { return "under a minute" }
+        let mins = rest == 1 ? "1 minute" : "\(rest) minutes"
+        if h == 0 { return mins }
+        let hours = h == 1 ? "1 hour" : "\(h) hours"
+        return rest == 0 ? hours : "\(hours) \(mins)"
+    }
+
     /// How much of the ring is left: full an hour out, empty at the start; nil before the last hour.
     static func ringLeft(_ secondsLeft: Int) -> Double? {
         guard secondsLeft <= 3600 else { return nil }
@@ -67,8 +77,8 @@ enum TodayBubbleRules {
         return phased.first { $0.1 == .untimed }?.0
     }
 
-    /// Rubber-band pull: follows the finger at first, then resists; never past about 12 pt
-    /// (Jesse, 2026-10-22: "move half as much").
+    /// Rubber-band pull: follows the finger at first, then resists. A 40 pt drag moves it about
+    /// 11 pt, a 100 pt drag 16 pt (Jesse's tuned mock, 2026-10-22: "move half as much").
     static func rubber(_ distance: CGFloat, dimension: CGFloat = 23, constant: CGFloat = 0.55) -> CGFloat {
         (distance * dimension * constant) / (dimension + constant * abs(distance))
     }
@@ -125,8 +135,6 @@ struct TodayBubble: Identifiable {
 
 struct TodayEventBubble: View {
     let bubble: TodayBubble
-    /// Its place in the opening pop-in, earliest start first.
-    let order: Int
     let onTap: () -> Void
 
     @ObservedObject private var images = POILogoCache.shared
@@ -144,13 +152,12 @@ struct TodayEventBubble: View {
     private static let swell: CGFloat = 0.04      // 4% bigger at the peak
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { tick in
+        TimelineView(.periodic(from: .now, by: tickSeconds)) { tick in
             let now = TodayBubbleRules.seconds(of: TodayBubbleClock.now(tick.date))
             let phase = TodayBubbleRules.phase(startTime: bubble.event.startTime, now: now)
             ZStack {
                 if phase == .live { LiveBleed(bead: Self.bead, period: Self.breath, still: reduceMotion) }
-                ring(phase)
-                breathing(phase == .live, gel)
+                breathing(phase == .live, gel(phase))
                 tag(phase)
                     .offset(y: Self.bead / 2 + 20)
             }
@@ -165,15 +172,24 @@ struct TodayEventBubble: View {
         .scaleEffect(shown ? 1 : 0.01)
         .onAppear {
             let pop = reduceMotion ? Motion.smooth : Animation.spring(response: 0.34, dampingFraction: 0.6)
-            withAnimation(pop.delay(0.65 + Double(order) * 0.11)) { shown = true }
+            withAnimation(pop.delay(0.65 + Double(bubble.order) * 0.11)) { shown = true }
         }
+    }
+
+    /// The countdown only shows seconds in the last hour (and the ring only moves then),
+    /// so before that the bubble redraws once a minute, not every second.
+    private var tickSeconds: TimeInterval {
+        let now = TodayBubbleRules.seconds(of: TodayBubbleClock.now())
+        if case .upcoming(let left) = TodayBubbleRules.phase(startTime: bubble.event.startTime, now: now),
+           left > 3600 + 60 { return 60 }
+        return 1
     }
 
     // MARK: Parts
 
     /// The bead: a Liquid Glass disc with the photo on it, bent like a dome and fading
     /// into the clear glass at the rim, squished and stretched by the finger.
-    private var gel: some View {
+    private func gel(_ phase: TodayBubbleRules.Phase) -> some View {
         let angle = Angle(radians: atan2(pull.height, pull.width))
         let base: CGFloat = pressed ? 0.95 : 1
         return ZStack {
@@ -182,6 +198,7 @@ struct TodayEventBubble: View {
                 .frame(width: Self.bead - 6, height: Self.bead - 6)
                 .blur(radius: 7)
                 .offset(y: 5)
+            ring(phase)
             photo
                 .frame(width: Self.bead, height: Self.bead)
                 // Plain, not .interactive(): the interactive glass swells and whitens under
@@ -301,7 +318,6 @@ struct TodayEventBubble: View {
             }
             .onEnded { v in
                 let moved = hypot(v.translation.width, v.translation.height)
-                let quick = Date().timeIntervalSince(dragStart ?? Date()) < 0.35
                 dragStart = nil
                 // Stiffness 300, damping 15: home in about half a second with one small overshoot.
                 withAnimation(.interpolatingSpring(stiffness: 300, damping: 15)) {
@@ -309,14 +325,14 @@ struct TodayEventBubble: View {
                     stretch = 0
                     pressed = false
                 }
-                if moved < 6 && quick { onTap() }
+                if moved < 6 { onTap() }
             }
     }
 
     private func a11yLabel(_ phase: TodayBubbleRules.Phase) -> String {
         switch phase {
         case .live: return "\(bubble.event.title), happening now"
-        case .upcoming(let left): return "\(bubble.event.title), starts in \(TodayBubbleRules.countdown(left))"
+        case .upcoming(let left): return "\(bubble.event.title), starts in \(TodayBubbleRules.spokenCountdown(left))"
         default: return bubble.event.title
         }
     }
@@ -353,16 +369,8 @@ private struct LiveBleed: View {
 
     /// The mock's cubic-bezier(.2, .6, .35, 1): quick out, long soft tail.
     static func ease(_ p: Double) -> Double {
-        // Solve x(t) = p for the bezier by bisection, then return y(t).
-        func bez(_ t: Double, _ a: Double, _ b: Double) -> Double {
-            3 * (1 - t) * (1 - t) * t * a + 3 * (1 - t) * t * t * b + t * t * t
-        }
-        var lo = 0.0, hi = 1.0
-        for _ in 0..<18 {
-            let mid = (lo + hi) / 2
-            if bez(mid, 0.2, 0.35) < p { lo = mid } else { hi = mid }
-        }
-        return bez((lo + hi) / 2, 0.6, 1)
+        UnitCurve.bezier(startControlPoint: UnitPoint(x: 0.2, y: 0.6),
+                         endControlPoint: UnitPoint(x: 0.35, y: 1)).value(at: p)
     }
 }
 
