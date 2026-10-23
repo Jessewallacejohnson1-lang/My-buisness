@@ -16,7 +16,7 @@ Then open the printed HTML (and/or montage) and look at every tile.
 Resolves, per park:
   • bundled  — a KnownLocalPhoto entry with a real file in Resources/Images
   • google   — the live confident-match scenic pick (what users actually see)
-  • none     — no photo; the card shows the coral fallback
+  • none     — no photo; the card shows the grey fallback
 No Google photo bytes are persisted here beyond this local review folder.
 """
 import json, urllib.request, math, re, struct, pathlib, sys
@@ -103,7 +103,7 @@ for title, lat, lon in parks:
             fn = OUT / f"g_{title.lower().replace(' ', '_')}.jpg"; fn.write_bytes(data)
             rows.append((title, "google", fn.name)); print(f"  {title:20} google   {fn.name}")
         else:
-            rows.append((title, "none (coral fallback)", None)); print(f"  {title:20} NONE — coral fallback")
+            rows.append((title, "none (grey fallback)", None)); print(f"  {title:20} NONE — grey fallback")
 
 html = ["<html><head><meta charset=utf-8><title>Park photo review</title>",
         "<style>body{font:14px system-ui;background:#faf8f5;margin:24px}",
@@ -113,7 +113,7 @@ html = ["<html><head><meta charset=utf-8><title>Park photo review</title>",
         ".m{padding:8px 12px}.s{color:#999;font-size:12px}</style></head><body>",
         "<h2>Park photos — does each actually look good?</h2><div class=g>"]
 for title, src, fn in rows:
-    img = f'<img src="{fn}">' if fn else '<div style="height:180px;background:#FF6B571a;display:flex;align-items:center;justify-content:center;color:#FF6B57">coral fallback</div>'
+    img = f'<img src="{fn}">' if fn else '<div style="height:180px;background:#F1F1EF;display:flex;align-items:center;justify-content:center;color:#6E6E6E">grey fallback</div>'
     html.append(f'<div class=c>{img}<div class=m><b>{title}</b><div class=s>{src}</div></div></div>')
 html.append("</div></body></html>")
 (OUT / "index.html").write_text("\n".join(html))
