@@ -72,7 +72,8 @@ final class FeedMotionTests: XCTestCase {
         let plus = FeedMarkPress.scale(isPressed: true, reduceMotion: false)
 
         XCTAssertEqual(quiet, FeedMotion.quietPress)
-        XCTAssertGreaterThan(quiet, 0.97, "A whole card must barely move")
+        // Jesse, 2026-10-23: at 0.985 only the photo looked pressed; the whole card moves now.
+        XCTAssertGreaterThanOrEqual(quiet, 0.97, "A whole card presses in a little, never more")
         XCTAssertLessThan(plus, quiet, "Only the + press is allowed to be felt")
     }
 }
