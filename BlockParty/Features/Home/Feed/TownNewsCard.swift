@@ -13,6 +13,8 @@ import SwiftUI
 
 struct TownNewsCard: View {
     let news: TownNews
+    /// Off in the share reveal's picture, which draws the post without its controls.
+    var sendable = true
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -30,7 +32,8 @@ struct TownNewsCard: View {
         VStack(alignment: .leading, spacing: 0) {
             Button { link = SafariLink(url: news.post) } label: {
                 HStack(alignment: .top, spacing: Self.avatarGap) {
-                    avatar
+                    // The name says whose post it is: VoiceOver skips the avatar's letter.
+                    avatar.accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(news.place)
                             .font(.sansSemibold(14))
@@ -50,20 +53,22 @@ struct TownNewsCard: View {
             .accessibilityElement(children: .combine)
             .accessibilityHint("Opens the post")
 
-            FeedEventCardActionRow(
-                kind: .event,
-                showsHeart: false,
-                showsSave: false,
-                state: .constant(FeedCardActionState(likeCount: 0, isLiked: false, isSaved: false)),
-                reduceMotion: reduceMotion,
-                autoplayStep: 0,
-                onLike: nil,
-                onSave: nil,
-                onComment: {},
-                onShare: share
-            )
-            .padding(.leading, Self.sendInset)
-            .padding(.top, 2)
+            if sendable {
+                FeedEventCardActionRow(
+                    kind: .event,
+                    showsHeart: false,
+                    showsSave: false,
+                    state: .constant(FeedCardActionState(likeCount: 0, isLiked: false, isSaved: false)),
+                    reduceMotion: reduceMotion,
+                    autoplayStep: 0,
+                    onLike: nil,
+                    onSave: nil,
+                    onComment: {},
+                    onShare: share
+                )
+                .padding(.leading, Self.sendInset)
+                .padding(.top, 2)
+            }
         }
         .padding(.horizontal, DailyFeedMetric.contentInset)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -95,7 +100,7 @@ struct TownNewsCard: View {
             SharePayload(title: news.place,
                          shareText: "\(news.place): \(news.words) \(news.post.absoluteString)",
                          includesImage: false) {
-                TownNewsCard(news: news)
+                TownNewsCard(news: news, sendable: false)
                     .frame(width: 320)
                     .padding(.vertical, 16)
                     .background(Hue.surface)

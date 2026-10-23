@@ -30,15 +30,6 @@ struct TownFeedEntry: Identifiable {
     let item: Item
     let leavesAt: Date
 
-    init(card: FeedCardItem, leavesAt: Date) {
-        self.init(item: .event(card), leavesAt: leavesAt)
-    }
-
-    init(item: Item, leavesAt: Date) {
-        self.item = item
-        self.leavesAt = leavesAt
-    }
-
     var id: String {
         switch item {
         case .event(let card): card.id
@@ -50,6 +41,12 @@ struct TownFeedEntry: Identifiable {
     var card: FeedCardItem? {
         if case .event(let card) = item { return card }
         return nil
+    }
+}
+
+extension TownFeedEntry {
+    init(card: FeedCardItem, leavesAt: Date) {
+        self.init(item: .event(card), leavesAt: leavesAt)
     }
 }
 
