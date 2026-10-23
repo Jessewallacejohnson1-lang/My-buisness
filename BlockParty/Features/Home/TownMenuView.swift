@@ -178,9 +178,7 @@ struct TownMenuView: View {
                 .font(.sansMedium(13))
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
-                // The selected fill is the accent's own job description — a selected
-                // state. `Hue.paper` on it measures 6.8:1 in light and 5.1:1 in dark,
-                // because the token moves with the appearance and the accent does too.
+                // Selected is ink with `Hue.paper` on it; both move with the appearance.
                 .foregroundStyle(isSelected ? Hue.paper : Hue.ink)
                 .padding(.horizontal, Self.segmentInset)
                 // 44pt: the tap target guideline wins over the panel's compactness.

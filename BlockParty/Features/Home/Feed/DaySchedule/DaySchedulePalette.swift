@@ -28,8 +28,6 @@ enum DaySchedulePalette {
     static let muted = Hue.inkSecondary
     /// The spine and the in-card divider.
     static let rule = Hue.hairline
-    /// The now line, its dot, and its label: Apple's green, as a Town card's "Now" dot.
-    static let now = Hue.now
     /// An unchecked completion box. `Hue.control`, not `Hue.edge`: an empty control
     /// has to clear WCAG 1.4.11's 3:1, and the border it used to wear measured
     /// 1.46:1 on a white card.

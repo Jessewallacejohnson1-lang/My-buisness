@@ -296,7 +296,7 @@ final class TodayHeaderTests: XCTestCase {
 
     // MARK: - What the bar carries
 
-    /// The leading lane stays quiet. The old coral bP glyph lived there, and the
+    /// The leading lane stays quiet. The old bP glyph lived there, and the
     /// current header deliberately puts nothing on that side — the mark is centred
     /// and the map disc is trailing.
     func testBrandLockupLeavesTheLeadingHeaderAreaBlank() throws {
@@ -313,7 +313,7 @@ final class TodayHeaderTests: XCTestCase {
         XCTAssertLessThan(
             colouredPixelCount,
             20,
-            "The Today header must not render the old coral bP glyph at leading"
+            "The Today header must not render the old bP glyph at leading"
         )
     }
 

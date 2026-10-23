@@ -628,8 +628,7 @@ struct MapSheet: View {
 
     /// A visible two-segment switch — both destinations always shown — replacing the old
     /// blind flip-button (you had to read the label to know where it'd take you). The
-    /// SELECTED segment takes the brand accent; "selected state" is one of the accent's
-    /// meaning-scoped seams. The selected segment slides between the two on a
+    /// SELECTED segment is ink. The selected segment slides between the two on a
     /// `matchedGeometryEffect`.
     private var segmentedControl: some View {
         HStack(spacing: 4) {
@@ -650,7 +649,7 @@ struct MapSheet: View {
         } label: {
             Text(title)
                 .font(.sansSemibold(14))
-                .foregroundStyle(isSelected ? .white : Hue.inkSecondary)
+                .foregroundStyle(isSelected ? Hue.paper : Hue.inkSecondary)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
                 .background {
@@ -767,9 +766,9 @@ struct MapSheet: View {
 
 // MARK: - Status dot (peek line)
 
-/// A small dot that reads as "live" (accent, with a slow breathing ring) or "quiet"
-/// (soft gray). The ring is gated by Reduce Motion — calm by default, alive on live.
-/// Accent = "live" here, matching the live pins on the map canvas.
+/// A small dot that reads as "live" (`Hue.now` green, with a slow breathing ring) or
+/// "quiet" (soft gray). The ring is gated by Reduce Motion — calm by default, alive on
+/// live, matching the live pins on the map canvas.
 private struct StatusDot: View {
     let live: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

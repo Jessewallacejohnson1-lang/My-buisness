@@ -70,6 +70,7 @@ private enum MapInk {
     static let surface = Hue.surface.onLightCanvas
     static let inkSecondary = Hue.inkSecondary.onLightCanvas
     static let hairline = Hue.hairline.onLightCanvas
+    static let now = Hue.now.onLightCanvas
 }
 
 /// Every colour a map marker needs, named by role.
@@ -131,14 +132,14 @@ enum MarkerRole {
     // colour a marker may carry, and only to mean "happening now".
 
     /// Fill of a live pin. The static ring + pulse reinforce the same signal around it.
-    static var liveFill: Color { Hue.now }
+    static var liveFill: Color { MapInk.now }
 
     /// The expanding halo behind a live pin — the motion half of the live signal.
-    static var liveRing: Color { Hue.now }
+    static var liveRing: Color { MapInk.now }
 
     /// A STATIC concentric ring outside a live badge — the half of the live signal that
     /// survives a still frame. See defect 2; do not remove without replacing the cue.
-    static var liveStaticRing: Color { Hue.now }
+    static var liveStaticRing: Color { MapInk.now }
 
     /// The thin surface seam between an ink cluster disc and its inset live ring, so the
     /// green ring reads against a light edge rather than straight on the ink. The

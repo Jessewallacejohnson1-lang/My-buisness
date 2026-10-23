@@ -85,7 +85,7 @@ final class POILogoCache: ObservableObject {
             UIColor(red: 0.13, green: 0.29, blue: 0.53, alpha: 1),   // navy
             UIColor(red: 0.16, green: 0.42, blue: 0.27, alpha: 1),   // pine
             UIColor(red: 0.83, green: 0.53, blue: 0.10, alpha: 1),   // amber
-            UIColor(red: 0.35, green: 0.20, blue: 0.47, alpha: 1),   // plum
+            UIColor(red: 0.35, green: 0.20, blue: 0.47, alpha: 1),   // purple
         ]
         let hash = abs(poi.id.hashValue)
         let color = palette[hash % palette.count]
