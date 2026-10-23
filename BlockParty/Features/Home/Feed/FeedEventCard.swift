@@ -174,11 +174,8 @@ struct FeedEventCard: View {
         .opacity(FeedMotion.pressOpacity(isPressed: linkPressed, reduceMotion: motionIsReduced))
         .animation(FeedMotion.pressAnimation(reduceMotion: motionIsReduced), value: linkPressed)
         .signInSheet(isPresented: $signingIn)
-        .sheet(isPresented: $menuPresented) {
-            if let why = item.why {
-                FeedCardMenu(why: why, score: item.score, report: currentPhoto.report(place: item.whereLine))
-            }
-        }
+        .modifier(FeedCardMenuSheet(isPresented: $menuPresented, item: item,
+                                    report: currentPhoto.report(place: item.whereLine)))
         .sheet(isPresented: $commentsPresented) {
             FeedCommentSheet(
                 commentState: $commentState,

@@ -205,6 +205,12 @@ struct ProfileView: View {
                     }
                     .buttonStyle(PressableStyle())
                     ProfileRowDivider()
+                    // `muted-row` (town-feed 21): the hosts you muted from a Town card.
+                    NavigationLink { MutedPage() } label: {
+                        ProfileRow(icon: "speaker.slash", title: "Muted")
+                    }
+                    .buttonStyle(PressableStyle())
+                    ProfileRowDivider()
                 }
                 ProfileRow(icon: "info.circle", title: "About Block Party",
                            action: { showAbout = true })

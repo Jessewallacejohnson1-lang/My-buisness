@@ -75,11 +75,8 @@ struct EventOfTheDayPoster: View {
             .scaleEffect(FeedMotion.pressScale(isPressed: linkPressed, reduceMotion: reduceMotion))
             .opacity(FeedMotion.pressOpacity(isPressed: linkPressed, reduceMotion: reduceMotion))
             .animation(FeedMotion.pressAnimation(reduceMotion: reduceMotion), value: linkPressed)
-            .sheet(isPresented: $menuPresented) {
-                if let why = item.why {
-                    FeedCardMenu(why: why, score: item.score, report: picture.report(place: item.whereLine))
-                }
-            }
+            .modifier(FeedCardMenuSheet(isPresented: $menuPresented, item: item,
+                                        report: picture.report(place: item.whereLine)))
             // On screen, a heart or Attend that fails may shake here.
             .onAppear { actions.cardOpened(item.id) }
             .onDisappear { actions.cardClosed(item.id) }

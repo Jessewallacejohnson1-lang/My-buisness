@@ -721,6 +721,7 @@ struct MainTabsView: View {
             }
             .environment(calendarSync)
             .environment(friendsBook)
+            .environment(townFeed)
             .environment(actions)
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)

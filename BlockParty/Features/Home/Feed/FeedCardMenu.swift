@@ -15,6 +15,10 @@
 //  Apple's sheet carries it, so it drags down under the finger and can be stopped
 //  halfway; a solid surface keeps iOS 26 and 27 alike.
 //
+//  Not interested and Mute (ticket 21, mock https://claude.ai/artifact/HAJWN4Zj2Xh4wAeJA5UNcg)
+//  sit in their own group under Edit your interests, Instagram's crossed-out eye beside the
+//  first. Either closes the sheet; the card goes once it has closed (`FeedCardMenuSheet`).
+//
 
 import SwiftUI
 
@@ -22,6 +26,10 @@ struct FeedCardMenu: View {
     let why: String
     let score: FeedScore?
     var report: PhotoReport? = nil
+    /// The host Mute names; nil, no Mute (a neighbour's own posting names none).
+    var hostName: String? = nil
+    /// Not interested (false) or Mute (true); nil, neither row (signed out, or off the Town feed).
+    var onHide: ((Bool) -> Void)? = nil
 
     @State private var height: CGFloat = 220
     @State private var editingInterests = false
@@ -76,6 +84,20 @@ struct FeedCardMenu: View {
                 .buttonStyle(RowPressStyle())
             }
 
+            if let onHide {
+                group {
+                    VStack(spacing: 0) {
+                        // `menu-not-interested`
+                        hideRow("eye.slash", "Not interested") { onHide(false) }
+                        if let hostName {
+                            // `menu-mute`
+                            hideRow("speaker.slash", "Mute \(hostName)") { onHide(true) }
+                        }
+                    }
+                }
+                .padding(.top, 12)
+            }
+
             if let report {
                 group {
                     Button {
@@ -114,6 +136,29 @@ struct FeedCardMenu: View {
         .presentationDragIndicator(.visible)
         .presentationBackground(Hue.surface)
         .sheet(isPresented: $editingInterests) { FeedInterestEditorDestination() }
+    }
+
+    private func hideRow(_ icon: String, _ title: String, action: @escaping () -> Void) -> some View {
+        Button {
+            action()
+            dismiss()
+        } label: {
+            HStack(spacing: Metric.iconGap) {
+                Image(systemName: icon)
+                    .font(.sans(20))
+                    .frame(width: Metric.iconWidth)
+                Text(title)
+                    .font(.sans(17))
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .foregroundStyle(Hue.ink)
+            .padding(.leading, Metric.rowLeading)
+            .padding(.trailing, 16)
+            .frame(minHeight: Metric.rowHeight)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(RowPressStyle())
     }
 
     private func group<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
@@ -174,6 +219,7 @@ private struct ScoreBox: View {
             row("Draws the town out", "+" + Self.number(score.draw ?? 0), idle: (score.draw ?? 0) == 0)
             row(startsIn, "×" + Self.number(score.soon), idle: score.soon == 1)
             row("You're going or saved it", "×" + Self.number(score.acted), idle: score.acted == 1)
+            row("Like one you hid", "×" + Self.number(score.notInterested ?? 1), idle: (score.notInterested ?? 1) == 1)
             row(sameHost, "×" + Self.number(score.spacing), idle: score.spacing == 1)
             row("Same interest again", "×" + Self.number(score.topicSpacing ?? 1), idle: (score.topicSpacing ?? 1) == 1)
 
@@ -219,5 +265,35 @@ private struct ScoreBox: View {
 
     private static func number(_ value: Double) -> String {
         value.formatted(.number.precision(.fractionLength(0...2)))
+    }
+}
+
+/// A Town card's ••• sheet with Not interested and Mute (ticket 21): the choice waits until the
+/// sheet has closed, so the card it hangs on isn't taken away under it. Off the Town feed (no
+/// `TownFeed` around) or signed out, the sheet has neither row.
+struct FeedCardMenuSheet: ViewModifier {
+    @Binding var isPresented: Bool
+    let item: FeedCardItem
+    let report: PhotoReport?
+
+    @Environment(TownFeed.self) private var feed: TownFeed?
+    @Environment(RealLifeActions.self) private var actions
+    @State private var chosen: Bool?
+
+    func body(content: Content) -> some View {
+        content.sheet(isPresented: $isPresented, onDismiss: hide) {
+            if let why = item.why {
+                FeedCardMenu(why: why, score: item.score, report: report,
+                             hostName: item.hostName.isEmpty ? nil : item.hostName,
+                             onHide: feed != nil && actions.canAct ? { (mute: Bool) in chosen = mute } : nil)
+            }
+        }
+    }
+
+    private func hide() {
+        guard let mute = chosen, let feed else { return }
+        chosen = nil
+        Haptics.light()
+        Task { await feed.hide(item, mute: mute) }
     }
 }

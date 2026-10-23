@@ -41,6 +41,8 @@ struct DailyFeedColumn: View {
     var now = Date()
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The Town feed, for a hidden card's Undo line (ticket 21); nil elsewhere.
+    @Environment(TownFeed.self) private var feed: TownFeed?
     @State private var revealedIDs: Set<String> = []
 
     /// How many cards get the entrance cascade. Past this the delay would outlast
@@ -75,6 +77,15 @@ struct DailyFeedColumn: View {
 
     @ViewBuilder
     private func card(for item: DailyFeedItem) -> some View {
+        if let feed, let hide = feed.undo, hide.id == item.eventID {
+            FeedUndoLine(hide: hide, feed: feed)
+        } else {
+            plainCard(for: item)
+        }
+    }
+
+    @ViewBuilder
+    private func plainCard(for item: DailyFeedItem) -> some View {
         switch item {
         case .posting(let posting):
             PostingCard(
@@ -110,6 +121,44 @@ struct DailyFeedColumn: View {
                     .background(Hue.surface)
             }
         )
+    }
+}
+
+/// Where a card said Not interested to or muted stood (ticket 21): "Hidden", or "Muted" and the
+/// host, with Undo, for 5 seconds (until Undo with VoiceOver on); then it folds away too. Undo
+/// brings the card back.
+struct FeedUndoLine: View {
+    let hide: FeedHide
+    let feed: TownFeed
+
+    private static let height: CGFloat = 52
+
+    private var said: String { hide.mute ? "Muted \(hide.hostName)" : "Hidden" }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(said)
+                .font(.sans(15))
+                .foregroundStyle(Hue.inkSecondary)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button {
+                Haptics.light()
+                Task { await feed.undoHide() }
+            } label: {
+                Text("Undo")
+                    .font(.sansSemibold(15))
+                    .foregroundStyle(Hue.ink)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(PressableStyle())
+        }
+        .padding(.horizontal, DailyFeedMetric.contentInset)
+        .frame(height: Self.height)
+        .transition(.opacity)
+        // The feed ends the line after 5 seconds (`TownFeed.hide`), so scrolling it away can't keep it.
+        .task(id: hide) { AccessibilityNotification.Announcement("\(said). Undo").post() }
     }
 }
 
