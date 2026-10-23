@@ -5,8 +5,9 @@
 //  Threads' text post in the event card's own sizes (Reference: BP app references/town-news/):
 //  the place's logo where a host's photo goes, its name, its one line of facts beside the
 //  avatar from 58 pt in, and the send under them. No time: Block Party knows when it saved a
-//  post, not when the place posted it. A tap opens the post in Apple's in-app browser; the card
-//  squishes the instant a finger lands, as an event card does.
+//  post, not when the place posted it. A tap opens the post in Instagram or Facebook when that
+//  app is on the phone, else in Apple's in-app browser; the card squishes the instant a finger
+//  lands, as an event card does.
 //
 
 import SwiftUI
@@ -30,7 +31,7 @@ struct TownNewsCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Button { link = SafariLink(url: news.post) } label: {
+            Button(action: open) {
                 HStack(alignment: .top, spacing: Self.avatarGap) {
                     // The name says whose post it is: VoiceOver skips the avatar's letter.
                     avatar.accessibilityHidden(true)
@@ -88,6 +89,19 @@ struct TownNewsCard: View {
                 .overlay(Circle().strokeBorder(Hue.hairline.onLightCanvas, lineWidth: 0.5))
         } else {
             FeedAuthorAvatar(url: news.picture?.url, name: news.place, side: Self.avatarSide)
+        }
+    }
+
+    /// The post in its own app, Instagram or Facebook, when that app is on the phone; else in
+    /// Apple's in-app browser. Jesse at Check-in 2, after Instagram's web page showed "Watch this
+    /// reel in the app" instead of the reel: "open the post in the Instagram or Facebook app when
+    /// it's on the phone, else the in-app browser".
+    private func open() {
+        let post = news.post
+        Task {
+            if await !UIApplication.shared.open(post, options: [.universalLinksOnly: true]) {
+                link = SafariLink(url: post)
+            }
         }
     }
 
