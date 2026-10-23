@@ -33,9 +33,9 @@ final class HelloDropTests: XCTestCase {
     }
 
     private func message(_ now: String, lastSeen: String? = nil, going: [DailyEvent] = [],
-                         groups: [TownGroup] = [], town towns: [DailyEvent] = []) -> String? {
+                         groups: [TownGroup] = [], town towns: [DailyEvent] = [], news: [TownNews] = []) -> String? {
         HelloDrop.message(now: town(now), lastSeen: lastSeen.map(town), going: going,
-                          groups: groups, town: towns)?.text
+                          groups: groups, town: towns, news: news)?.text
     }
 
     // MARK: The hello
@@ -176,6 +176,23 @@ final class HelloDropTests: XCTestCase {
     func testLightTintsTakeInk() {
         XCTAssertTrue(HelloDrop.light(0xFEE291))
         XCTAssertFalse(HelloDrop.light(0xBC0E33))
+    }
+
+    // MARK: Town news (hello-drop 03)
+
+    private func post(_ id: String, published: String) -> TownNews {
+        TownNews(id: id, place: "Sal's", words: "Meat raffle moved to Saturday", post: URL(string: "https://instagram.com/p/x")!,
+                 leavesAt: town("2026-10-30 00:00"), published: town(published))
+    }
+
+    /// The feed's first post newer than your last open; one you saw before stays quiet.
+    func testTownNewsSinceYourLastOpen() {
+        let old = post("old", published: "2026-10-20 09:00")
+        let new = post("new", published: "2026-10-21 07:00")
+        XCTAssertEqual(message("2026-10-21 09:00", lastSeen: "2026-10-20 20:00", news: [old, new]),
+                       "Sal's: Meat raffle moved to Saturday")
+        XCTAssertNotEqual(message("2026-10-21 09:00", lastSeen: "2026-10-21 08:00", news: [old, new]),
+                          "Sal's: Meat raffle moved to Saturday")
     }
 
     // MARK: The message
