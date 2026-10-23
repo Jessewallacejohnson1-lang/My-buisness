@@ -7,11 +7,17 @@ the cheap model flags (flag.md), the routine's model judges (judge.md), and `mor
 and `morning.py write` write Events and News. The routine's steps are sources/models/social.md.
 
   prepare busy    the busy list's pages (sources/social/<town>.json, "busy": true), at 6pm and
-                  9pm Chicago: posts since the last of those checks
-  prepare weekly  every other page, Thursdays at 3pm: posts from the last 7 days, plus the busy
-                  list's Facebook Events tabs
+                  9pm Chicago: posts since the last busy check that finished
+  prepare weekly  every other page, Thursdays at 3pm: posts since the last weekly check that
+                  finished (7 days the first time), plus the busy list's Facebook Events tabs
+  done            after `morning.py write`: marks this check finished, so the next one reads
+                  from when it started. A check that stopped early (the plan's usage limit hit
+                  the 9pm one on 2026-10-22) never marks, and the next reads its posts too.
   spend           one line for the morning report, "Apify: $X of $19 this month", with a
                   heads-up past $15 and at the cap (Jesse, 2026-10-22: no slowdown, just say)
+
+The mark lives in Apify's own storage (the named key-value store `bp-social-watch`, records
+`last-busy` and `last-weekly`), so it survives each routine's throwaway copy.
 
 Everything lands in .runs/morning/, the morning job's folder (each routine runs in its own copy
 of the repository). In the cloud, Apify's REST API is called with no key: the environment's
@@ -21,6 +27,7 @@ Composio. Each actor run is started once and has its own spending
 cap: a retried start is a second paid run (2026-10-05).
 
   python3 sources/scripts/social.py prepare busy|weekly [--since ISO] [--today YYYY-MM-DD]
+  python3 sources/scripts/social.py done
   python3 sources/scripts/social.py spend
   python3 sources/scripts/social.py --selftest
 """
@@ -47,12 +54,18 @@ ACTORS = {  # (actor, spending cap in USD per run) for each kind of read
 }
 EMPTY = {"no_items", "not_available", "not_found", "Restricted profile"}
 HEADS_UP = 15.0
+STORE = "bp-social-watch"
+OVERLAP = timedelta(minutes=10)  # a post that lands while the last check ran is read again, never lost
+LOOKBACK = {"busy": timedelta(days=8), "weekly": timedelta(days=15)}  # a mark older than this is a broken one
 
 
-def since_for(run, now):
-    """Where a check starts reading. The busy list: the last 6pm or 9pm check at least two and a
-    half hours back, so a 6pm run reads from last night's 9pm and a 9pm run from 6pm. The weekly
-    run: the last 7 days and an hour. A late or hand-started run only reads further back."""
+def since_for(run, now, last=None):
+    """Where a check starts reading. With the last finished check's start (`last`): from there,
+    less a few minutes, but never further back than LOOKBACK. Without one (the first check, or the
+    store unreadable), the schedule's: the busy list from the last 6pm or 9pm check at least two
+    and a half hours back, the weekly run from 7 days and an hour back."""
+    if last:
+        return max(last - OVERLAP, now - LOOKBACK[run]).astimezone(LOCAL)
     if run == "weekly":
         return now - timedelta(days=7, hours=1)
     local = now.astimezone(LOCAL)
@@ -144,6 +157,40 @@ def limits():
     return _composio("APIFY_USERS_ME_LIMITS_GET", {})
 
 
+def _store(method, path, body=None):
+    """The mark's store: the REST API in the cloud, Composio's proxy on a Mac. None for a missing record."""
+    if direct():
+        try:
+            return _http(method, path, body)
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return None
+            raise
+    cmd = ["composio", "proxy", API + path, "--toolkit", "apify", "-X", method]
+    if body is not None:
+        cmd += ["-H", "Content-Type: application/json", "-d", json.dumps(body)]
+    r = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=60)
+    d = json.loads(r.stdout) if r.stdout.strip() else {}
+    if isinstance(d, dict) and d.get("error"):
+        if "not-found" in str(d["error"].get("type", "")):
+            return None
+        raise RuntimeError(f"Apify store: {d['error']}")
+    return d
+
+
+def _store_id():
+    return _store("POST", f"/key-value-stores?name={STORE}")["data"]["id"]  # makes it the first time, finds it after
+
+
+def last_check(run):
+    rec = _store("GET", f"/key-value-stores/{_store_id()}/records/last-{run}")
+    return datetime.fromisoformat(rec["started_at"]) if rec and rec.get("started_at") else None
+
+
+def mark_check(run, started_at):
+    _store("PUT", f"/key-value-stores/{_store_id()}/records/last-{run}", {"started_at": started_at})
+
+
 def run_all(jobs, wait_s=480):
     """Start every job once, then wait for all of them: {name: (status, cost, items)}."""
     started, done = {}, {}
@@ -211,7 +258,7 @@ def post_pages(kind, rows, by_url):
     return pages, hidden
 
 
-def prepare(run, today, since, out):
+def prepare(run, today, since, out, started):
     root = find_root()
     if out.exists():
         shutil.rmtree(out)
@@ -256,12 +303,28 @@ def prepare(run, today, since, out):
     summary = {"today": str(today), "run": run, "since": since.isoformat(), "fetched": len(pages) + (len(by_kind.get("events", [])) if run == "weekly" else 0),
                "changed": len(posts), "first_seen": 0, "to_read": len(posts),
                "batches": len(list((out / "batches").iterdir())), "failed": failed, "readers": [],
-               "interests": interests, "apify_usd": round(cost, 3)}
+               "interests": interests, "apify_usd": round(cost, 3), "started_at": started.isoformat(),
+               "complete": all(state == "SUCCEEDED" for state, _, _ in done.values()) and len(done) == len(jobs)}
     (out / "prepare.json").write_text(json.dumps(summary, indent=1))
     print(f"[social] {run}: {summary['fetched']} pages checked since {since.astimezone(LOCAL):%a %b %-d %-I:%M %p}, "
           f"{len(posts)} new posts in {summary['batches']} batches ({out / 'batches'}), Apify ${cost:.2f}")
     for f in failed:
         print(f"[social] FAILED {f}")
+
+
+def finish(out):
+    """After the write: mark this check finished, unless one of its Apify reads failed, in which
+    case the next check reads its window again."""
+    prep = json.loads((out / "prepare.json").read_text())
+    if not prep.get("complete"):
+        return print(f"[social] {prep['run']}: not marked finished (a read failed), so the next check reads from "
+                     f"{datetime.fromisoformat(prep['since']).astimezone(LOCAL):%a %b %-d %-I:%M %p} again")
+    try:
+        mark_check(prep["run"], prep["started_at"])
+    except Exception as e:  # the next check then reads the schedule's window, which may miss a skipped one
+        return print(f"[social] FAILED marking {prep['run']} finished ({e}): check the Apify network secret")
+    print(f"[social] {prep['run']}: marked finished; the next check reads from "
+          f"{datetime.fromisoformat(prep['started_at']).astimezone(LOCAL) - OVERLAP:%a %b %-d %-I:%M %p}")
 
 
 def spend_line(used, cap):
@@ -296,6 +359,10 @@ def selftest():
     check(since_for("busy", t(22, 15, 30)) == t(21, 21, 0), "a hand-started afternoon run reads from last night")
     check(since_for("busy", t(22, 20, 25)) == t(21, 21, 0), "a 6pm run that starts late still reads from last night")
     check(since_for("weekly", t(22, 15, 0)) == t(15, 14, 0), "the weekly run reads 7 days and an hour")
+    check(since_for("busy", t(23, 18, 0), last=t(22, 18, 17)) == t(22, 18, 7), "after a skipped 9pm check, 6pm reads from the last finished one")
+    check(since_for("busy", t(22, 21, 0), last=t(22, 18, 1)) == t(22, 17, 51), "a normal 9pm check reads from 6pm, a little overlap")
+    check(since_for("busy", t(23, 18, 0), last=t(1, 18, 0)) == t(15, 18, 0), "a mark weeks old reads 8 days back at most")
+    check(since_for("weekly", t(29, 15, 0), last=t(22, 15, 2)) == t(22, 14, 52), "the weekly run reads from last week's")
     check(actor_input("facebook", ["u"], t(22, 18, 0))["onlyPostsNewerThan"] == "2026-10-22T23:00:00", "the window is sent in UTC")
     by_url = {"https://www.facebook.com/krewe": {"name": "Krewe", "entry_id": "krewe", "url": "https://www.facebook.com/krewe"}}
     rows = [{"inputUrl": "https://www.facebook.com/krewe/", "postId": "1", "url": "https://fb/p/1", "text": "Trivia tonight at 7!",
@@ -317,7 +384,7 @@ def selftest():
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("step", nargs="?", choices=["prepare", "spend"])
+    ap.add_argument("step", nargs="?", choices=["prepare", "done", "spend"])
     ap.add_argument("run", nargs="?", choices=["busy", "weekly"])
     ap.add_argument("--since", help="ISO time to read from, instead of the schedule's")
     ap.add_argument("--today", help="YYYY-MM-DD; default today in Chicago")
@@ -327,12 +394,21 @@ def main():
         return selftest()
     if args.step == "spend":
         return spend()
+    if args.step == "done":
+        return finish(find_root() / ".runs" / "morning")
     if args.step != "prepare" or not args.run:
-        ap.error("prepare busy|weekly, or spend")
+        ap.error("prepare busy|weekly, done, or spend")
     now = datetime.now(timezone.utc)
-    since = datetime.fromisoformat(args.since).astimezone(LOCAL) if args.since else since_for(args.run, now)
+    if args.since:
+        since = datetime.fromisoformat(args.since).astimezone(LOCAL)
+    else:
+        try:
+            last = last_check(args.run)
+        except Exception as e:  # the store unreadable: the schedule's window, and say so
+            last, _ = None, print(f"[social] last finished check unreadable ({e}); reading the schedule's window")
+        since = since_for(args.run, now, last)
     today = date.fromisoformat(args.today) if args.today else now.astimezone(LOCAL).date()
-    prepare(args.run, today, since, find_root() / ".runs" / "morning")
+    prepare(args.run, today, since, find_root() / ".runs" / "morning", now)
 
 
 if __name__ == "__main__":

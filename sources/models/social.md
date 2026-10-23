@@ -24,7 +24,7 @@ carry on with the rest.
    `for i in $(seq 36); do grep -q '^prepare exit' /tmp/prepare.log && break; sleep 15; done; tail -20 /tmp/prepare.log`.
    Repeat until `prepare exit` shows, without ending your turn in between. Run it once only: each
    run is a paid check. Done when `prepare exit 0` shows under its `[social]` line. No batches
-   means nothing new was posted: answer with the `[social]` lines and stop.
+   means nothing new was posted: run step 4's `done`, answer with the `[social]` lines and stop.
 3. **Read, judge, title, write.** Follow steps 3 to 6 of `sources/models/morning.md`: the
    cheap model flags each batch (`flag.md`), you judge the flags (`judge.md`), shorten long
    titles, and `morning.py write` writes them. Each page is one post, and its first line says
@@ -49,9 +49,14 @@ carry on with the rest.
      a place's daily "here's what we've got" list; anything in another town that isn't an event
      (a job at another location); and any post about a private person's health or troubles
      (ADR-020).
-4. **Answer** with the summary as `write` printed it, every `[social] FAILED` line from step 2
-   (a page Facebook now hides belongs on the hidden list in `sources/social/st-joseph-mn.json`),
-   then one line per flag you dropped that a neighbour might have wanted, and why.
+4. **Mark it finished.** Only after `morning.py write` has printed its summary, run
+   `python3 sources/scripts/social.py done`. It saves when this check started, so the next one
+   reads from there; a check that stops before this line (a usage limit, a failure) is read
+   again by the next. Run it once, at the end, and never before the write.
+5. **Answer** with the summary as `write` printed it, `done`'s line, every `[social] FAILED` line
+   from step 2 (a page Facebook now hides belongs on the hidden list in
+   `sources/social/st-joseph-mn.json`), then one line per flag you dropped that a neighbour might
+   have wanted, and why.
 
 ## Rules
 
