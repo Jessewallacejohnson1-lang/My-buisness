@@ -1165,3 +1165,37 @@ final class FeedShortCountTests: XCTestCase {
         }
     }
 }
+
+/// A host's logo in its small circle (`LogoFit`, Jesse 2026-10-24): a round badge fills the circle,
+/// anything else only loses its empty border.
+final class LogoFitTests: XCTestCase {
+    /// A 200-pixel picture with `draw` inside a 40-pixel empty border.
+    private func logo(transparent: Bool = false, _ draw: (CGContext, CGRect) -> Void) -> UIImage {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = !transparent
+        return UIGraphicsImageRenderer(size: CGSize(width: 200, height: 200), format: format).image { ctx in
+            if !transparent { UIColor.white.setFill(); ctx.fill(CGRect(x: 0, y: 0, width: 200, height: 200)) }
+            UIColor(red: 0.9, green: 0.4, blue: 0.1, alpha: 1).setFill()
+            draw(ctx.cgContext, CGRect(x: 40, y: 40, width: 120, height: 120))
+        }
+    }
+
+    func testARoundBadgeFillsTheCircleAndLosesItsBorder() {
+        let fit = LogoFit(logo { $0.fillEllipse(in: $1) })
+        XCTAssertTrue(fit.round)
+        XCTAssertEqual(fit.image.size.width, 120, accuracy: 6)
+    }
+
+    func testATransparentRoundBadgeIsRoundToo() {
+        XCTAssertTrue(LogoFit(logo(transparent: true) { $0.fillEllipse(in: $1) }).round)
+    }
+
+    func testASquareOrAWordmarkStaysInsideTheCircle() {
+        XCTAssertFalse(LogoFit(logo { $0.fill($1) }).round, "a square's corners are full")
+        let word = LogoFit(logo { ctx, _ in ctx.fill(CGRect(x: 20, y: 90, width: 160, height: 20)) })
+        XCTAssertFalse(word.round)
+        XCTAssertEqual(word.image.size.width, 160, accuracy: 6)
+        XCTAssertEqual(word.image.size.height, 20, accuracy: 6)
+    }
+}

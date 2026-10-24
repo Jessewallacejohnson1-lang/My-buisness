@@ -84,7 +84,8 @@ struct TownNewsCard: View {
     @ViewBuilder
     private var avatar: some View {
         if let picture = news.picture, picture.kind == .logo {
-            LogoDisc(logo: picture.url, initial: initial, logoSide: Self.avatarSide * 0.75, letter: .sansSemibold(14))
+            LogoDisc(logo: picture.url, initial: initial, logoSide: Self.avatarSide * 0.875, letter: .sansSemibold(14),
+                     fits: true)
                 .frame(width: Self.avatarSide, height: Self.avatarSide)
                 .overlay(Circle().strokeBorder(Hue.hairline.onLightCanvas, lineWidth: 0.5))
         } else {

@@ -154,14 +154,26 @@ struct LogoDisc: View {
     let initial: String
     let logoSide: CGFloat
     let letter: Font
+    /// A host's picture beside its name (Town cards, Town news): the logo's empty border trimmed,
+    /// and a round badge filling the whole circle (`LogoFit`, Jesse 2026-10-24).
+    var fits = false
 
     @ObservedObject private var logos = POILogoCache.shared
 
     var body: some View {
-        let image = logo.flatMap(logos.image(for:))
+        let loaded = logo.flatMap(logos.image(for:))
+        let fit = fits ? loaded.flatMap { image in logo.map { LogoFit.of(image, url: $0) } } : nil
+        let image = fit?.image ?? loaded
         ZStack {
             Circle().fill(.white)
-            if let image {
+            if let image, fit?.round == true {
+                Image(uiImage: image)
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFill()
+                    .clipShape(Circle())
+                    .transition(.opacity)
+            } else if let image {
                 Image(uiImage: image)
                     .resizable()
                     .interpolation(.high)

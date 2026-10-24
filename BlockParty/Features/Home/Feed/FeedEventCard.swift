@@ -312,7 +312,7 @@ struct FeedEventCard: View {
         } else if item.hostAvatar == nil, let picture = item.hostPicture, picture.kind == .logo {
             // A place's logo on a white disc, as Town news shows a place (Jesse, 2026-10-23).
             LogoDisc(logo: picture.url, initial: item.hostName.first(where: \.isLetter).map { String($0).uppercased() } ?? "",
-                     logoSide: Self.hostAvatarSide * 0.75, letter: .sansSemibold(14))
+                     logoSide: Self.hostAvatarSide * 0.875, letter: .sansSemibold(14), fits: true)
                 .frame(width: Self.hostAvatarSide, height: Self.hostAvatarSide)
                 .overlay(Circle().strokeBorder(Hue.hairline.onLightCanvas, lineWidth: 0.5))
         } else {
