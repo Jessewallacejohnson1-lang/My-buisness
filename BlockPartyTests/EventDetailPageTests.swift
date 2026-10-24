@@ -16,28 +16,6 @@ final class EventDetailPageTests: XCTestCase {
 
     private static let photoURL = URL(string: "https://example.com/walk.jpg")!
 
-    // MARK: The place's name on its photo (follows 02)
-
-    /// A test photo: `top` over the upper 70%, `bottom` under it, 40 x 40 px.
-    private func photo(top: UIColor, bottom: UIColor) -> CGImage {
-        UIGraphicsImageRenderer(size: CGSize(width: 40, height: 40), format: {
-            let f = UIGraphicsImageRendererFormat(); f.scale = 1; return f
-        }()).image { ctx in
-            top.setFill(); ctx.fill(CGRect(x: 0, y: 0, width: 40, height: 28))
-            bottom.setFill(); ctx.fill(CGRect(x: 0, y: 28, width: 40, height: 12))
-        }.cgImage!
-    }
-
-    /// The lettering reads the band it covers, at the bottom centre, not the whole photo: white over
-    /// a dark band under a bright sky, ink over a light band under a dark one.
-    func testTheNamesColourComesFromTheBandItCovers() throws {
-        let band = CGRect(x: 0.25, y: 0.70, width: 0.5, height: 0.25)
-        let darkFloor = try XCTUnwrap(PlaceNameArt.lightness(photo(top: .white, bottom: .black), in: band))
-        XCTAssertLessThan(darkFloor, 0.1, "a dark band under a white sky: white lettering")
-        let lightFloor = try XCTUnwrap(PlaceNameArt.lightness(photo(top: .black, bottom: .white), in: band))
-        XCTAssertGreaterThan(lightFloor, 0.9, "a light band under a black sky: ink lettering")
-    }
-
     func testUpcomingEventBecomesFeedCardItem() {
         let item = FeedCardItem(event(imageUrl: Self.photoURL.absoluteString))
 

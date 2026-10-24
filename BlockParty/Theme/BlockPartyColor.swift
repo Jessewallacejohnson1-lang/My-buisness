@@ -228,10 +228,9 @@ nonisolated enum Hue {
     static let searchFloor   = Color(hex: 0x46321E)
     /// The light a logo catches as the phone tilts (`LogoShine`): white, faded by the band.
     static let logoShine     = Color(hex: 0xFFFFFF)
-    /// A place's name over its photo (`PlaceNameArt`): white on a dark photo, ink on a light one,
-    /// in either theme, as the photo decides; and the soft shadow under each.
+    /// A place's name over its photo (`PlaceNameArt`): white on the dark fade, in either theme; and
+    /// the fade and soft shadow under it.
     static let nameOnDark    = Color(hex: 0xFFFFFF)
-    static let nameOnLight   = Color(hex: 0x111111)
     static let nameShadow    = Color(hex: 0x000000)
     /// The map's ground, buildings and greens, Uber's (`BasemapPalette`; Jesse, 2026-10-23).
     /// One value each: the map is light cartography in both appearances.

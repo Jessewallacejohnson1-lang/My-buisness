@@ -203,7 +203,7 @@ struct BusinessPage: View {
     /// Where a place's emblem rests over its photos, standing in for its name (follows 02): the bottom
     /// centre, as `PlaceNameArt` sits, 84 pt square.
     static func bottomCentre(width: CGFloat) -> CGRect {
-        let side = PlaceNameArt.maxHeight
+        let side = PlaceNameArt.emblemSide
         let edge = width / FeedEventDetailDestination.Metric.heroAspect
         return CGRect(x: (width - side) / 2, y: edge - PlaceNameArt.bottom - side, width: side, height: side)
     }
@@ -357,8 +357,11 @@ private struct BusinessPageContent: View {
             .overlay(alignment: .bottom) {
                 // An emblem is the flying logo itself, landing there (`FlyingLogo`).
                 if let name = item.nameArt, !name.emblem, !photos.isEmpty {
-                    PlaceNameArt(name: name, photo: photos[min(photoPage ?? 0, photos.count - 1)].url, spoken: item.name)
-                        .padding(.bottom, PlaceNameArt.bottom)
+                    ZStack(alignment: .bottom) {
+                        PlaceNameArt.fade
+                        PlaceNameArt(name: name, spoken: item.name)
+                            .padding(.bottom, PlaceNameArt.bottom)
+                    }
                 }
             }
             .overlay(alignment: .bottomLeading) { credit }

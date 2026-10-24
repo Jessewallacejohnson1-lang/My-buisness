@@ -201,10 +201,12 @@ struct FeedEventDetailDestination: View {
                 // hero is its logo, which says it already.
                 .overlay(alignment: .bottom) {
                     if let placeName, !photos.isEmpty {
-                        PlaceNameArt(name: placeName, photo: photos[min(photoPage ?? 0, photos.count - 1)].url,
-                                     spoken: item.whereLine ?? "")
-                            .padding(.bottom, PlaceNameArt.bottom)
-                            .transition(.opacity)
+                        ZStack(alignment: .bottom) {
+                            if !placeName.emblem { PlaceNameArt.fade }
+                            PlaceNameArt(name: placeName, spoken: item.whereLine ?? "")
+                                .padding(.bottom, PlaceNameArt.bottom)
+                        }
+                        .transition(.opacity)
                     }
                 }
                 // After the stretch, so they stay put at the hero's bottom corners, unscaled.
