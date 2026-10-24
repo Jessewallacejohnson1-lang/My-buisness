@@ -309,9 +309,15 @@ struct FeedEventCard: View {
         // A game's host is its first team: the school's logo, as the Reference draws it.
         if item.hostAvatar == nil, let team = item.game?.teams.first, team.logo != nil {
             GameHostMark(team: team, side: Self.hostAvatarSide)
+        } else if item.hostAvatar == nil, let picture = item.hostPicture, picture.kind == .logo {
+            // A place's logo on a white disc, as Town news shows a place (Jesse, 2026-10-23).
+            LogoDisc(logo: picture.url, initial: item.hostName.first(where: \.isLetter).map { String($0).uppercased() } ?? "",
+                     logoSide: Self.hostAvatarSide * 0.75, letter: .sansSemibold(14))
+                .frame(width: Self.hostAvatarSide, height: Self.hostAvatarSide)
+                .overlay(Circle().strokeBorder(Hue.hairline.onLightCanvas, lineWidth: 0.5))
         } else {
             FeedAuthorAvatar(
-                url: item.hostAvatar,
+                url: item.hostAvatar ?? item.hostPicture?.url,
                 name: item.hostName,
                 side: Self.hostAvatarSide
             )

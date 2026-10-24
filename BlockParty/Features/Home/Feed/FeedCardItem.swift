@@ -17,6 +17,8 @@ struct FeedCardItem: Identifiable, Hashable {
     /// card. Empty means the source is unknown and the line is simply not drawn.
     var hostName: String = ""
     var hostAvatar: URL? = nil
+    /// A place host's picture (`UpcomingEvent.hostPicture`): its logo goes on a white disc.
+    var hostPicture: PlacePicture? = nil
     /// Going as the read gave it. What a card and its page show is
     /// `RealLifeActions.going`, which lays the neighbour's own taps over this.
     let goingCount: Int

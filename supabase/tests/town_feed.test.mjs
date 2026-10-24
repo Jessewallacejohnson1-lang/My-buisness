@@ -17,7 +17,7 @@ const migrations = process.env.MIGRATIONS ?? join(here, '..', 'migrations');
 // counting helpers it reads.
 const files = creating(migrations, ['public.get_town_feed', 'public.place_picture', 'public.town_feed_series_label',
   'private.town_feed_place', 'private.going_count', 'private.heart_count', 'private.friends_going',
-  'private.event_game', 'public.get_event_of_the_day']);
+  'private.event_game', 'public.get_event_of_the_day', 'private.entry_picture', 'private.host_picture']);
 // Friends (ticket 28) read the Friends builds' rule for who may be shown, as it is now.
 const findable = readdirSync(migrations).filter((f) => f.endsWith('_unfriend_and_block.sql'))
   .map((f) => readFileSync(join(migrations, f), 'utf8'))[0]
@@ -1406,6 +1406,24 @@ test('a news item shows its place\'s logo before its photo', async () => {
   assert.deepEqual(rows[0].place_picture, { url: 'https://x/cow-logo.webp', kind: 'logo', hue: 19 });
   assert.equal(rows[1].place_picture, null, 'no place: no picture, and the app shows its first letter');
   await db.exec('reset role; delete from public.place_photos; delete from public.places;');
+});
+
+test('an Event shows who puts it on: the logo of the place it was found on, else its group\'s place', async () => {
+  await reset();
+  await db.exec(`delete from public.place_photos; delete from public.places; delete from public.sources;
+    insert into public.places (name, entry_id, search_logo) values
+      ('The Wandering Cow', 'cow-wandering', '{"url": "https://x/cow-logo.webp", "hue": 19}');
+    insert into public.sources (entry_id, url, name) values ('cow-wandering', 'https://cow/events', 'The Wandering Cow');`);
+  await add('Sundae Social', '2026-10-09', { start_time: '6 PM', source_name: 'The Wandering Cow' });
+  await add('Bake sale', '2026-10-09', { start_time: '7 PM', source_name: 'Nobody Known' });
+  await db.exec('set role anon');
+  const { rows } = await db.query(`select title, host_picture
+     from public.get_town_feed(('2026-10-08 18:00'::timestamp at time zone 'America/Chicago'))`);
+  const by = Object.fromEntries(rows.map((r) => [r.title, r.host_picture]));
+  assert.deepEqual(by['Sundae Social'], { url: 'https://x/cow-logo.webp', kind: 'logo', hue: 19 },
+    'sources has no read rule for neighbours, and the logo still shows');
+  assert.equal(by['Bake sale'], null, 'no known host: the app shows its first letter');
+  await db.exec('reset role; delete from public.place_photos; delete from public.places; delete from public.sources;');
 });
 
 test('there is one get_town_feed, so every app\'s call finds it', async () => {
