@@ -35,8 +35,9 @@ Read these first:
      the card says Now the whole time (Jesse, 2026-10-20).
    - `area`: `town` when it happens in St. Joseph; `campus` for any CSB or SJU event; `game`
      for a high school game within 20 miles; `announced` for anything else a St. Joseph place
-     posts, wherever it is. Every page here comes from a St. Joseph place, so nothing is
-     `outside`.
+     posts, wherever it is. `outside` for an event at a business's location in another town
+     (Neighbors Route 75's Albertville bar, a chain's other stores): it is not St. Joseph's,
+     so it is skipped (Jesse, 2026-10-24).
    - `source_name` (the page's registry name), `source_url` (the flag's link, else the page's
      URL), `source_uid` empty.
    - `trust`: the page's trust (`squishy` means `secondhand`).
@@ -47,7 +48,11 @@ Read these first:
      invitation only). News: `category` (`announcement`, `road`, `school`,
      `campus` or `business`). Both: `interest` (one id from the list, or null when none fits: a
      taco night is `dining`, a new latte `coffee`, a road closure null; the Town feed shows News to
-     the neighbours who picked it first, town-feed 35), and `blurb`, one line in plain words.
+     the neighbours who picked it first, town-feed 35), and `blurb` in plain words. An Event's
+     `blurb` is its Event page's About: 2 to 4 sentences, about 300 to 500 characters, that
+     answer "should I go?": what it is, who it is for, what it costs, what to bring or know.
+     Only facts the page gives, never a guess or an ad's words; a page that gives only the
+     title and time gets one short line or none. News gets one line (Jesse, 2026-10-23).
 
 ## Event size
 

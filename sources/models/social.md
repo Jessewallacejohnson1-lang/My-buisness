@@ -50,7 +50,8 @@ carry on with the rest.
    - Drop only: a post with nothing to know or do (a quote, a joke, nostalgia, a thank-you,
      behind-the-scenes, a plain photo); something already over; a teaser that doesn't say what;
      a place's daily "here's what we've got" list; anything in another town that isn't an event
-     (a job at another location); and any post about a private person's health or troubles
+     (a job at another location); and anything at a business's location in another town,
+     events included (Jesse, 2026-10-24: Neighbors' Albertville bar is out of the area); and any post about a private person's health or troubles
      (ADR-020).
 4. **Mark it finished.** Only after `morning.py write` has printed its summary, run
    `python3 sources/scripts/social.py done`. It marks this check's Apify runs read, so the next

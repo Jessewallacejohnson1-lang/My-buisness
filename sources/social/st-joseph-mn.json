@@ -1925,5 +1925,68 @@
   "kind": "facebook",
   "url": "https://www.facebook.com/yamryconstruction",
   "busy": false
+ },
+ {
+  "entry_id": "st-johns-prep",
+  "name": "St. John's Prep",
+  "kind": "facebook",
+  "url": "https://www.facebook.com/SaintJohnsPrepMN",
+  "busy": false
+ },
+ {
+  "entry_id": "st-johns-prep",
+  "name": "St. John's Prep",
+  "kind": "instagram",
+  "url": "https://www.instagram.com/saintjohnsprep",
+  "busy": false
+ },
+ {
+  "entry_id": "activities-athletic-csb",
+  "name": "CSB Athletic Activities",
+  "kind": "facebook",
+  "url": "https://www.facebook.com/CSBAthletics",
+  "busy": false
+ },
+ {
+  "entry_id": "activities-athletic-csb",
+  "name": "CSB Athletic Activities",
+  "kind": "instagram",
+  "url": "https://www.instagram.com/csb_athletics",
+  "busy": false
+ },
+ {
+  "entry_id": "activities-athletic-sju",
+  "name": "SJU Athletic Activities",
+  "kind": "facebook",
+  "url": "https://www.facebook.com/SJUJohnnies",
+  "busy": false
+ },
+ {
+  "entry_id": "activities-athletic-sju",
+  "name": "SJU Athletic Activities",
+  "kind": "instagram",
+  "url": "https://www.instagram.com/johnnieathletics",
+  "busy": false
+ },
+ {
+  "entry_id": "clemens-library",
+  "name": "Clemens Library",
+  "kind": "instagram",
+  "url": "https://www.instagram.com/csbsjulibraries",
+  "busy": false
+ },
+ {
+  "entry_id": "st-joseph-catholic-school",
+  "name": "St. Joseph Catholic School",
+  "kind": "facebook",
+  "url": "https://www.facebook.com/ccsstcloud",
+  "busy": false
+ },
+ {
+  "entry_id": "st-joseph-catholic-school",
+  "name": "St. Joseph Catholic School",
+  "kind": "instagram",
+  "url": "https://www.instagram.com/catholicschools_mn",
+  "busy": false
  }
 ]
