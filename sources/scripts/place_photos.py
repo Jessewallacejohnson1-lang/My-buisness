@@ -8,6 +8,8 @@ place-photos skill imports its picture-finding from here, so there is one copy.
     python3 sources/scripts/place_photos.py candidates           the pages of each stale photo and of every place
                                                                   still without a real photo, their pictures drawn
                                                                   on .runs/photos/sheet-<n>.png
+    python3 sources/scripts/place_photos.py live-sheets          every live photo drawn, numbered by row id, on
+                                                                  .runs/photos/live-<n>.png, for the monthly look
     python3 sources/scripts/place_photos.py propose <key> <n>    candidate n saved as a proposal: <key> is a stale
                                                                   row's id (it takes that slot) or an entry id (a
                                                                   first photo); the app shows none until Jesse's yes
@@ -457,11 +459,9 @@ def candidates(minutes=None):
             break
         folder = OUT / r['key']
         folder.mkdir(parents=True, exist_ok=True)
-        known = [r['hash']] if r['hash'] is not None else []
-        for x in live:
-            if x['entry_id'] == r['entry_id']:
-                with urllib.request.urlopen(x['url'], timeout=30) as f:
-                    known.append(dhash(Image.open(io.BytesIO(f.read()))))
+        # Every place's live photos, not just this one's: a picture another place already shows is
+        # that place's, not this one's (2026-10-24: Frontgate showed Five Star Transport's trucks).
+        known = ([r['hash']] if r['hash'] is not None else []) + live_hashes(live)
         found, why = [], None
         for page in r['pages']:
             try:
@@ -483,7 +483,7 @@ def candidates(minutes=None):
                 im = Image.open(folder / f'c{n}.png')
             except Exception:
                 continue
-            if min(w, h) < MIN_PHOTO or any(same_picture(dhash(im), k) for k in known):
+            if not new_photo(dhash(im), w, h, known):
                 (folder / f'c{n}.png').unlink()
                 continue
             cands.append({**f, 'n': n, 'px': [w, h], 'kind': kind(im)})
@@ -503,6 +503,54 @@ def candidates(minutes=None):
         if not v['cands']:
             print(f"  {v['name']} ({k}): nothing found" + (f" ({v['why']})" if v['why'] else ''))
     return result
+
+
+def new_photo(h, w, height, known):
+    """A candidate worth showing: big enough, and not a picture any place already shows."""
+    return min(w, height) >= MIN_PHOTO and not any(same_picture(h, k) for k in known)
+
+
+def live_hashes(live):
+    """The fingerprints of these live photos, kept for the day in .runs/photos/live-hashes.json."""
+    f = OUT / 'live-hashes.json'
+    saved = json.loads(f.read_text()) if f.exists() else {}
+    if saved.get('_day') != str(date.today()):
+        saved = {'_day': str(date.today())}
+    for x in live:
+        if x['url'] not in saved:
+            try:
+                with urllib.request.urlopen(x['url'], timeout=30) as r:
+                    saved[x['url']] = dhash(Image.open(io.BytesIO(r.read())))
+            except Exception:
+                continue
+    f.write_text(json.dumps(saved))
+    return [saved[x['url']] for x in live if x['url'] in saved]
+
+
+def live_sheets(per=24, cols=6):
+    """Every live photo, numbered by its row id and place, on .runs/photos/live-<n>.png: the monthly
+    look for photos that slipped through (a video still, an ad, another company's watermark)."""
+    rows = api('GET', '/rest/v1/place_photos?select=id,entry_id,url&status=eq.live&kind=eq.photo&order=entry_id,position')
+    tw, th = 240, 180
+    files = []
+    for s in range(0, len(rows), per):
+        sheet = Image.new('RGB', (cols * tw, -(-len(rows[s:s + per]) // cols) * (th + 20)), 'white')
+        d = ImageDraw.Draw(sheet)
+        for i, r in enumerate(rows[s:s + per]):
+            x, y = (i % cols) * tw, (i // cols) * (th + 20)
+            try:
+                with urllib.request.urlopen(r['url'], timeout=30) as f:
+                    im = Image.open(io.BytesIO(f.read())).convert('RGB')
+                im.thumbnail((tw - 4, th))
+                sheet.paste(im, (x + (tw - im.width) // 2, y))
+            except Exception:
+                pass
+            label(d, (x + 2, y + th + 2), f"{r['id']} {r['entry_id']}", font(12), tw - 4)
+        f = OUT / f'live-{s // per + 1}.png'
+        sheet.save(f)
+        files.append(str(f))
+    print(f'{len(rows)} live photos on', *files)
+    return files
 
 
 def sheets(result, per=6, cols=5):
@@ -618,6 +666,9 @@ def selftest():
          credit({'author': 'Tomruen', 'licence': 'CC BY-SA 4.0'}) == 'Tomruen · CC BY-SA 4.0' and credit({}) is None),
         ('a logo cut out and squared is still the logo on its white page',
          same_picture(dhash(drawn(logo_on_white)), dhash(drawn(squared_cut)))),
+        ("a candidate another place already shows is left out, as is one too small; a new one is kept",
+         not new_photo(dhash(noise.resize((800, 800))), 800, 800, [dhash(noise)])
+         and not new_photo(dhash(red), 800, 100, []) and new_photo(dhash(noise), 800, 800, [dhash(red)])),
         ('a Facebook or Instagram page is skipped, a website is not',
          bool(SOCIAL.search('www.facebook.com')) and bool(SOCIAL.search('instagram.com')) and not SOCIAL.search('myfacebookfan.com')),
     ]
@@ -634,6 +685,8 @@ if __name__ == '__main__':
         selftest()
     elif a[:1] == ['check']:
         check('--logos' in a, minutes=6)  # each part ends within 9 minutes: the cloud stops a command at 10
+    elif a == ['live-sheets']:
+        live_sheets()
     elif a == ['candidates']:
         candidates(minutes=6)
     elif a[:1] == ['propose'] and len(a) == 3:

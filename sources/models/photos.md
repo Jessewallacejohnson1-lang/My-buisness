@@ -29,14 +29,23 @@ that fails is a line in the answer, and you carry on with the rest.
    real photos and get no proposal: stock photos (posed models, a smiling couple, a generic
    handshake), a chain's photo used at every store, a realtor's houses for sale, textures, ads,
    banners, screenshots, maps, logos, clip art, and another person's or organisation's picture.
+   Nor are: a video's still frame (a play button, a progress bar, a player's controls), a photo with
+   words, prices or a slogan printed over it, one carrying another company's name or watermark, and
+   one too dark or blurred to make out (Jesse, 2026-10-24, after Trobec's showed a play button).
+   `candidates` already leaves out any picture a place shows now, this one's or another's.
    An owner's headshot counts but is weaker than the place. When no candidate is clearly real,
    propose nothing for that block: Jesse sees every proposal, and a wrong one costs his time.
-5. **Propose.** For each pick run `python3 sources/scripts/place_photos.py propose <key> <n>`. It
+5. **Look over the live photos.** Run `python3 sources/scripts/place_photos.py live-sheets` and open
+   every `.runs/photos/live-<n>.png` the same way. Each tile is labelled with its row id and place.
+   List every live photo that isn't a real photo by step 4's rules, and every picture shown on two
+   places (name both), with the row id and one plain reason. Take nothing down: Jesse decides.
+6. **Propose.** For each pick run `python3 sources/scripts/place_photos.py propose <key> <n>`. It
    saves the picture as a proposal; the app never shows a proposal.
-6. **Answer** with `check`'s line; then one line per stale photo (the place, why it is stale, what
+7. **Answer** with `check`'s line; then one line per stale photo (the place, why it is stale, what
    you proposed or why nothing); then the places without a photo you proposed one for; then, if
-   you made any proposals, "Swaps waiting for Jesse: N". With any proposals, also send Jesse one push
-   notification saying how many swaps wait on his review page; none otherwise.
+   you made any proposals, "Swaps waiting for Jesse: N"; then step 5's list under "To take down?".
+   With any proposals or any photo to take down, also send Jesse one push notification saying how
+   many of each wait for him; none otherwise.
 
 ## Rules
 
