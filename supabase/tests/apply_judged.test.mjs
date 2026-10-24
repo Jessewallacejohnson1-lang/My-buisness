@@ -17,7 +17,8 @@ test('the story below loads every migration that makes the writer\'s functions',
                             ['public.apply_judged', 'public.listed_for_writer']),
                    ['20261015120000_apply_judged.sql', '20261015200100_apply_judged_cancelled.sql',
                     '20261016090200_apply_judged_title_kept.sql', '20261016160000_event_places.sql',
-                    '20261020120000_game_card.sql', '20261023003100_town_news_writer.sql']);
+                    '20261020120000_game_card.sql', '20261023003100_town_news_writer.sql',
+                    '20261024090000_keep_longer_description.sql']);
 });
 
 test('a dropped game is marked cancelled once, and restored by a re-read or another mention', async () => {
@@ -114,6 +115,16 @@ test('a dropped game is marked cancelled once, and restored by a re-read or anot
   await apply([], [], [], special({ interests: ['coffee'], place_entry_id: 'cow-wandering' }));
   await apply([], [], [], special());
   assert.deepEqual(await stored(), [{ interests: ['dining'], place: 'cow-wandering', status: 'published' }]);
+
+  // A re-read keeps a fuller About researched by hand (Jesse, 2026-10-23), and takes a longer one.
+  await db.exec(migration('20261024090000_keep_longer_description.sql'));
+  const about = async () => (await db.query('select description as d from public.club_events')).rows[0].d;
+  await db.exec(`update public.club_events set description = 'Senior night: the Storm honors its seniors before the game.'`);
+  await apply(placed('2026-10-21'), [], [], []);
+  assert.equal(await about(), 'Senior night: the Storm honors its seniors before the game.', 'an empty re-read keeps it');
+  const longer = 'Senior night: the Storm honors its seniors before the game, then hosts Sartell in a Central Lakes match.';
+  await apply(placed('2026-10-21').map((g) => ({ ...g, description: longer })), [], [], []);
+  assert.equal(await about(), longer, 'a longer one replaces it');
 
   const { rows: [{ n }] } = await db.query(`select count(*)::int as n from pg_proc where proname = 'apply_judged'`);
   assert.equal(n, 1, 'one apply_judged, no second one with four lists');
