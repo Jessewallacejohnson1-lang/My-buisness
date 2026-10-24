@@ -57,6 +57,7 @@ extension FeedCardItem {
             image: Self.imageSource(imageUrl: event.imageUrl, title: event.title, place: place),
             recurrence: recurrence,
             hostName: Self.nonempty(event.clubName) ?? Self.nonempty(event.sourceName) ?? "",
+            hostPicture: event.hostPicture,
             goingCount: event.goingCount,
             goingAvatars: [],
             likeCount: 0,

@@ -322,6 +322,8 @@ struct CommunityAPI {
             /// "news" for town news, else an Event (town-feed 35), and the post it came from.
             let kind: String?
             let sourceUrl: String?
+            /// Who puts it on, its logo first (Jesse, 2026-10-23).
+            let hostPicture: PlacePicture.Lenient?
         }
         /// The admin's breakdown, or nil when it doesn't decode: a score never costs the
         /// feed.
@@ -352,6 +354,7 @@ struct CommunityAPI {
                                       isAllDay: row.allDay, sourceName: row.sourceName,
                                       cancelled: row.cancelled ?? false,
                                       placePicture: row.placePicture?.value,
+                                      hostPicture: row.hostPicture?.value,
                                       description: row.description, game: row.game?.value,
                                       what: row.what)
             return .event(TownFeedRow(event: event, recurrence: row.recurrence, leavesAt: leavesAt,

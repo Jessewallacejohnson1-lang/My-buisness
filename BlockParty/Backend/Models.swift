@@ -156,6 +156,10 @@ nonisolated struct UpcomingEvent: Identifiable, Hashable {
     /// (`public.place_picture`): nil for an event at no known place, and on rows read
     /// before the feeds sent it.
     var placePicture: PlacePicture? = nil
+    /// Who puts it on, as a picture beside its name on the Town card: the logo of the place it was
+    /// found on, else its photo (`private.host_picture`). nil for an unknown host, and on rows read
+    /// before the feed sent it.
+    var hostPicture: PlacePicture? = nil
     /// The organizer's own words (`club_events.description`), the Event page's About: nil for
     /// an event without them (a game), and on rows read before the feeds sent them.
     var description: String? = nil
