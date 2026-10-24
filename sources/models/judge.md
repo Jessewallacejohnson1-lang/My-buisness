@@ -35,8 +35,9 @@ Read these first:
      the card says Now the whole time (Jesse, 2026-10-20).
    - `area`: `town` when it happens in St. Joseph; `campus` for any CSB or SJU event; `game`
      for a high school game within 20 miles; `announced` for anything else a St. Joseph place
-     posts, wherever it is. Every page here comes from a St. Joseph place, so nothing is
-     `outside`.
+     posts, wherever it is. `outside` for an event at a business's location in another town
+     (Neighbors Route 75's Albertville bar, a chain's other stores): it is not St. Joseph's,
+     so it is skipped (Jesse, 2026-10-24).
    - `source_name` (the page's registry name), `source_url` (the flag's link, else the page's
      URL), `source_uid` empty.
    - `trust`: the page's trust (`squishy` means `secondhand`).
