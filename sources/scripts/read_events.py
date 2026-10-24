@@ -20,6 +20,8 @@ exact dates, no model. A source is read when its entry is active and it names a 
   civicplus-hcms      CivicPlus's content service: news, notices and events, read with the
                       read-only token the county's own page gives every visitor, taken fresh
                       each run and never stored (Stearns County; Jesse, 2026-10-14)
+  rec1                a Rec1 registration catalog's programs (the City's rec sign-ups), read from
+                      the JSON its own page loads; each program once, at its next date
   mshsl               the Minnesota State High School League's schedule data for one school
                       (`league_id`, `team` as the league names it): varsity games, meets and
                       tournaments in the next four weeks at venues within 20 miles (NEARBY)
@@ -654,11 +656,114 @@ def read_league(src, entry, today):
     return [{"listing": l} for l in league_listings(rows, sports, entry, src, today)]
 
 
+# Rec1: a city's registration catalog ------------------------------------------------------
+
+REC1_KEY = re.compile(r'data-page-data="([^"]+)"')
+REC1_NO_PLACE = {"location tbd", "multiple", "tbd", "tba"}
+WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+
+
+def rec1_clock(text):
+    """"7pm", "9:30am" as (hour, minute), else None."""
+    m = re.fullmatch(r"(\d{1,2})(?::(\d\d))?\s*([ap])m", (text or "").strip().lower())
+    if not m:
+        return None
+    hour = int(m.group(1)) % 12 + (12 if m.group(3) == "p" else 0)
+    return hour, int(m.group(2) or 0)
+
+
+def rec1_next(dates, days, today):
+    """The program's next day from today: "12/11/26" is that day; "10/06-12/29" with days "Mon"
+    is the next Monday in that run. None when it has no dates yet ("Open TBD") or is over."""
+    one = re.fullmatch(r"(\d\d)/(\d\d)/(\d\d)", dates or "")
+    if one:
+        day = date(2000 + int(one.group(3)), int(one.group(1)), int(one.group(2)))
+        return day if day >= today else None
+    run = re.fullmatch(r"(\d\d)/(\d\d)-(\d\d)/(\d\d)", dates or "")
+    if not run:
+        return None
+    m1, d1, m2, d2 = map(int, run.groups())
+    # ponytail: a run's year is guessed from today (the catalog leaves it out); a run listed
+    # more than a season ahead would read a year early.
+    first = date(today.year, m1, d1)
+    if first > today + timedelta(days=DAYS_AHEAD):
+        first = date(today.year - 1, m1, d1)
+    last = date(first.year + (1 if (m2, d2) < (m1, d1) else 0), m2, d2)
+    wanted = {WEEKDAYS.index(d[:3].lower()) for d in re.split(r"[,\s/]+", days or "") if d[:3].lower() in WEEKDAYS}
+    day = max(first, today)
+    while day <= last:
+        if not wanted or day.weekday() in wanted:
+            return day
+        day += timedelta(days=1)
+    return None
+
+
+def rec1_title(text, youth):
+    """The session's own name; a youth program says so ("Volleyball" is the kids' league)."""
+    title = re.sub(r"\s*\((youth|kids)\)", "", text, flags=re.I).strip()
+    return f"Youth {title[0].lower()}{title[1:]}" if youth and not re.search(r"\b(youth|kids?)\b", title, re.I) else title
+
+
+def rec1_items(catalog, entry, src, today):
+    """`catalog`: [{section, group, description, sessions}] as read_rec1 gathers them. A program
+    listed under several sections (Youth and Toddler) is one item, called youth only when every
+    section listing it is Youth."""
+    seen, sections = {}, {}
+    for g in catalog:
+        for s in g["sessions"]:
+            seen.setdefault(s["id"], (g, s))
+            sections.setdefault(s["id"], set()).add(g["section"].lower().startswith("youth"))
+    out = []
+    for sid, (g, s) in seen.items():
+        if s.get("canceled"):
+            continue
+        f = {x["name"]: x["value"] for x in s.get("features") or []}
+        day = rec1_next(f.get("dates"), f.get("days"), today)
+        if not day or not ahead(day, today):
+            continue
+        times = [rec1_clock(t) for t in (f.get("times") or "").split("-")]
+        start = times[0] and datetime.combine(day, time(*times[0]), LOCAL)
+        end = start and len(times) > 1 and times[1] and datetime.combine(day, time(*times[1]), LOCAL)
+        place = f.get("location") or ""
+        price = s.get("price") or 0
+        cost = f"${price:g}; sign up on the City's registration site." if price else "Free; sign up on the City's registration site."
+        # A group's text is about its one program; a group of several (Senior Citizen Activities) says nothing of each.
+        about = said(plain(g.get("description"))) if len(g["sessions"]) == 1 else None
+        out.append(judged(entry, src, title=rec1_title(s["text"], sections[sid] == {True}),
+                          start=start.isoformat() if start else day.isoformat(), end=end.isoformat() if end else None,
+                          all_day=not start, place="" if place.lower() in REC1_NO_PLACE else place,
+                          blurb=" ".join(p for p in (about, cost) if p),
+                          closed=bool(s.get("sessionFull") or s.get("registrationOver")),
+                          source_url=src["url"], source_uid=f"rec1:{sid}"))
+    return out
+
+
+def read_rec1(src, entry, today):
+    """The catalog page carries a visitor key; its programs come from the same JSON calls the
+    page makes: the tabs, the all-programs tab's groups, each group's sessions."""
+    base = src["url"].rstrip("/")
+    root = base.rsplit("/catalog", 1)[0]
+    page = REC1_KEY.search(fetch(base)[1])
+    if not page:
+        raise RuntimeError("the catalog page no longer carries its page data")
+    key = json.loads(html.unescape(page.group(1)))["checkoutData"]["key"]
+    form = {"Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json"}
+    post = lambda path: json.loads(fetch(f"{root}/catalog/{path}", b"page=1", form)[1])
+    tab = next(t["id"] for t in post(f"getTabs/{key}")["tabs"] if t["label"].lower().startswith("all"))
+    catalog = []
+    for section in post(f"getItems/{key}/{tab}")["sections"]:
+        for g in section["groups"]:
+            if g.get("type") == "activity":
+                catalog.append({"section": section["name"], "group": g["name"], "description": g.get("description"),
+                                "sessions": post(f"getActivitySessions/{key}/{tab}/{g['id']}")["items"]})
+    return rec1_items(catalog, entry, src, today)
+
+
 # The run ---------------------------------------------------------------------------------
 
 READERS = {"ical": read_ical, "pathify": read_pathify, "cars511": read_roads,
            "finalsite-calendar": read_finalsite_calendar, "finalsite-news": read_finalsite_news,
-           "civicplus-hcms": read_hcms, "mshsl": read_league}
+           "civicplus-hcms": read_hcms, "rec1": read_rec1, "mshsl": read_league}
 
 
 def reader_of(src):
@@ -964,6 +1069,25 @@ def t_nearby_hosts_are_registry_schools():
     assert len(names) == 12 and all(s.get("league_id") and s.get("team") for s in names.values()), names
 
 
+def t_rec1():
+    """The City's rec catalog, read 2026-10-24: each dated program once, at its next date."""
+    src = {"url": "https://secure.rec1.com/MN/st-joseph-mn/catalog", "trust": "official"}
+    got = {i["title"]: i for i in rec1_items(json.loads(sample("rec1-catalog.json")), CITY, src, date(2026, 10, 24))}
+    assert sorted(got) == ["Chanhassen Dinner Theatre Day Trip", "Fall Craft Day", "Fall Puzzle Competition",
+                           "Halloween Adult Dodgeball Tournament", "Pilates Class", "Winter Paint and Sip",
+                           "Youth dodgeball", "Youth volleyball"], sorted(got)
+    paint, pilates = got["Winter Paint and Sip"], got["Pilates Class"]
+    assert (paint["start"], paint["end"], paint["place"]) == ("2026-12-11T19:00:00-06:00", "2026-12-11T21:00:00-06:00",
+                                                             "Bad Habit Brewing Co"), paint
+    assert paint["blurb"] == "$50; sign up on the City's registration site." and paint["source_uid"].startswith("rec1:")
+    assert pilates["start"] == "2026-10-26T10:00:00-05:00", "a weekly run is read at its next Monday"
+    assert got["Fall Puzzle Competition"]["place"] == "", "Location TBD is no place"
+    assert got["Chanhassen Dinner Theatre Day Trip"]["blurb"].startswith("$91"), "a shared group text is left out"
+    assert rec1_next("10/06-12/29", "Mon", date(2026, 12, 30)) is None and rec1_next("Open TBD", "", TODAY) is None
+    assert rec1_next("12/28-01/04", "Sat", date(2026, 12, 29)) == date(2027, 1, 2), "a run over New Year"
+    assert rec1_clock("9:30am") == (9, 30) and rec1_clock("12pm") == (12, 0) and rec1_clock("TBD") is None
+
+
 def t_failure_in_summary():
     def boom(*_):
         raise TimeoutError("the site took too long")
@@ -996,7 +1120,7 @@ def t_items_fit_the_writer():
     assert rows["Sartell Girls Soccer vs St. Cloud"]["category"] == "sports_leagues"
 
 
-TESTS = [t_robots, t_ical, t_pathify, t_roads, t_kennedy_calendar, t_kennedy_news, t_county, t_league,
+TESTS = [t_robots, t_ical, t_pathify, t_roads, t_kennedy_calendar, t_kennedy_news, t_county, t_rec1, t_league,
          t_league_tournament_and_moves, t_league_dance_show, t_league_schedule_line, t_nearby_hosts_are_registry_schools,
          t_failure_in_summary, t_items_fit_the_writer]
 
