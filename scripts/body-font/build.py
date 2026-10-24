@@ -18,6 +18,8 @@ from fontTools.pens.recordingPen import RecordingPen
 from fontTools.pens.transformPen import TransformPen
 from fontTools.pens.cu2quPen import Cu2QuPen
 from fontTools.pens.boundsPen import BoundsPen
+from fontTools.pens.reverseContourPen import ReverseContourPen
+import unicodedata
 from fontTools.svgLib.path import parse_path
 from fontTools.misc.transform import Transform
 from fontTools.feaLib.builder import addOpenTypeFeaturesFromString
@@ -111,6 +113,76 @@ def side_bearings(ch, x0, x1, y0, y1):
     return edge(slice(0, 3)), edge(slice(-3, None))
 
 
+ACCENTS = {"\u0300": "grave", "\u0301": "acute", "\u0302": "circumflex", "\u0303": "tilde",
+           "\u0308": "dieresis", "\u030A": "ring", "\u0327": "cedilla"}
+ACCENTED = "ÀÁÂÃÄÅÇÈÉÊËÌÍÎÏÑÒÓÔÕÖÙÚÛÜÝàáâãäåçèéêëìíîïñòóôõöùúûüýÿ"
+
+
+def contours(glyph):
+    """A glyph's outline as one RecordingPen per contour."""
+    rec = RecordingPen(); glyph.draw(rec, None)
+    out, cur = [], RecordingPen()
+    for op, args in rec.value:
+        cur.value.append((op, args))
+        if op in ("closePath", "endPath"):
+            out.append(cur); cur = RecordingPen()
+    return out
+
+
+def joined(recs):
+    r = RecordingPen()
+    for c in recs: r.value += c.value
+    return r
+
+
+def add_accents(glyphs, adv, cmap):
+    """The sheet has no accented letters. Build them from its own marks: ` for
+    the grave (mirrored for the acute), ^, ~ and ° shrunk, i's dot twice for the
+    dieresis, and the comma under the letter for the cedilla."""
+    g = lambda ch: glyphs[cmap[ord(ch)]]
+    i_parts = sorted(contours(g("i")), key=lambda c: bounds(c)[1])
+    stem, dot = joined(i_parts[:-1]), i_parts[-1]
+    pen = TTGlyphPen(None); stem.replay(pen)
+    glyphs["uni0131"], adv["uni0131"] = pen.glyph(), adv[cmap[ord("i")]]
+    cmap[0x131] = "uni0131"
+
+    def mark(ch, scale):
+        r = RecordingPen()
+        g(ch).draw(TransformPen(r, Transform().scale(scale)), None)
+        return r
+    grave = mark("`", 1.0)
+    acute = RecordingPen()
+    grave.replay(TransformPen(ReverseContourPen(acute), Transform().scale(-1, 1)))
+    dx0, _, dx1, _ = bounds(dot)
+    two = RecordingPen()
+    dot.replay(two)
+    dot.replay(TransformPen(two, Transform().translate((dx1 - dx0) * 1.9, 0)))
+    marks = {"grave": grave, "acute": acute, "circumflex": mark("^", 0.6),
+             "tilde": mark("~", 0.72), "ring": mark("\u00B0", 0.78), "dieresis": two,
+             "cedilla": mark(",", 0.8)}
+
+    for ch in ACCENTED:
+        base_ch, acc = unicodedata.normalize("NFD", ch)[:2]
+        base_name = "uni0131" if base_ch == "i" else cmap[ord(base_ch)]
+        cap = base_ch.isupper()
+        m = marks[ACCENTS[acc]]
+        s = 0.9 if cap else 1.0
+        base = joined(contours(glyphs[base_name]))
+        bx0, _, bx1, _ = bounds(base)
+        mx0, my0, mx1, my1 = bounds(m)
+        if ACCENTS[acc] == "cedilla":
+            ty = -my1 * s + 10          # hangs from the baseline
+        else:
+            ty = (706 + 50 if cap else 537 + 70) - my0 * s
+        tx = (bx0 + bx1) / 2 - (mx0 + mx1) / 2 * s
+        pen = TTGlyphPen(None)
+        base.replay(pen)
+        m.replay(TransformPen(pen, Transform().translate(tx, ty).scale(s)))
+        name = f"uni{ord(ch):04X}"
+        glyphs[name], adv[name] = pen.glyph(), adv[base_name]
+        cmap[ord(ch)] = name
+
+
 def build(style, weight, grow, work):
     glyphs, adv = {}, {}
     cmap = {}
@@ -144,6 +216,7 @@ def build(style, weight, grow, work):
     glyphs[q].draw(TransformPen(pen, Transform().translate(w + SB * 0.6, 0)), None)
     glyphs["uni0022"], adv["uni0022"] = pen.glyph(), round(adv[q] + w + SB * 0.6)
     cmap[0x22] = "uni0022"
+    add_accents(glyphs, adv, cmap)
     for name, width, cps in [("space", SPACE, (0x20, 0xA0)), (".notdef", SPACE, ())]:
         glyphs[name], adv[name] = TTGlyphPen(None).glyph(), width
         for cp in cps: cmap[cp] = name

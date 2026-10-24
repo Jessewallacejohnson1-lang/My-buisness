@@ -31,6 +31,8 @@ screens keep their spacing.
 
 ## What the sheet does not contain
 
-Accented letters, and a straight double quote (`build.py` makes one from two
-straight singles). A word with an accent falls back to the system face for that
-letter alone ("Café"). Draw them on the sheet and add a band to `BANDS`.
+Accented letters and a straight double quote. `build.py` makes them from the
+sheet's own marks: the Western European letters (à through ÿ, À through Ý, ç, ñ)
+from ` ^ ~ ° , and i's dot, and " from two straight singles. Anything else
+(ø, ß, Polish or Czech letters) falls back to the system face for that letter
+alone. Draw them on the sheet and add a band to `BANDS`.
