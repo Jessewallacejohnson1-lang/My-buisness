@@ -1423,6 +1423,13 @@ test('an Event shows who puts it on: the logo of the place it was found on, else
   assert.deepEqual(by['Sundae Social'], { url: 'https://x/cow-logo.webp', kind: 'logo', hue: 19 },
     'sources has no read rule for neighbours, and the logo still shows');
   assert.equal(by['Bake sale'], null, 'no known host: the app shows its first letter');
+  // A host the registry names differently (host-names): its entry, by the name the card shows.
+  await db.exec(`reset role; insert into public.host_entries (name, entry_id) values ('Nobody Known', 'cow-wandering')`);
+  await db.exec('set role anon');
+  const again = await db.query(`select title, host_picture
+     from public.get_town_feed(('2026-10-08 18:00'::timestamp at time zone 'America/Chicago'))`);
+  assert.equal(again.rows.find((r) => r.title === 'Bake sale').host_picture.url, 'https://x/cow-logo.webp');
+  await db.exec('reset role; delete from public.host_entries;');
   await db.exec('reset role; delete from public.place_photos; delete from public.places; delete from public.sources;');
 });
 
