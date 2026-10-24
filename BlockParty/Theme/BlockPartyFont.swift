@@ -2,12 +2,13 @@
 //  BlockPartyFont.swift
 //  Block Party — design tokens (typography)
 //
-//  Jost is the display, headline, and wordmark face; SF Pro stays the body, UI, and
-//  data face through the system helpers; BP Event Heading is scoped to the one role
+//  Jost is the display, headline, and wordmark face; BP Body is the body, UI, and
+//  data face through the sans and mono helpers; BP Event Heading is scoped to the one role
 //  it was drawn for, the event headline (`eventDisplay`), and Fraunces Black to the
 //  one word that stands in for the logo (`logoSerif`). Atkinson Hyperlegible Bold
 //  remains bundled but is no longer referenced. Numbers keep tabular figures by
-//  pairing the mono helpers with `.monospacedDigit()` at the call site.
+//  pairing the mono helpers with `.monospacedDigit()` at the call site (BP Body
+//  carries a `tnum` feature for it). SF Pro is left only in `glyph`, for symbols.
 //
 //  EVERY helper here scales with Dynamic Type except the three that say, in their
 //  own doc comment, why they must not. That is the whole point of this file, and
@@ -42,6 +43,13 @@ enum Face {
     /// Fraunces at Black, fully soft, its 144 pt cut: one static instance of the OFL
     /// variable font (`Fraunces-OFL.txt`), made with fontTools' instancer.
     static let logoSerif      = "Fraunces-144ptSuperSoftBlackNonWonky"
+
+    /// BP Body, traced from Jesse's sheet (`scripts/body-font/`). Four weights;
+    /// the sheet has one, the rest are grown from it.
+    static let bodyRegular    = "BPBody-Regular"
+    static let bodyMedium     = "BPBody-Medium"
+    static let bodySemi       = "BPBody-SemiBold"
+    static let bodyBold       = "BPBody-Bold"
 }
 
 /// Register every bundled .ttf so its PostScript name resolves. Idempotent.
@@ -65,11 +73,10 @@ extension Font {
     /// the user who asked for larger text and the cost of a point too big is lower
     /// than the cost of a point too small.
     ///
-    /// Custom faces keep their exact size and use this only as the rate at which
-    /// they grow. The SF helpers cannot: SwiftUI has no `system(size:relativeTo:)`,
-    /// so a system font either names a frozen size or names a style. They name a
-    /// style, which means a size that is not one of the ten steps lands on its
-    /// neighbour — `sans(14)` renders at 15.
+    /// Display faces keep their exact size and use this only as the rate at which
+    /// they grow. The body helpers land on the step instead — `sans(14)` renders
+    /// at 15 — because they were SF Pro, which can only name a style, and every
+    /// screen was approved at those sizes.
     ///
     /// ponytail: the app currently spends 22 distinct sizes across these 10 steps,
     /// so the argument is closer to a hint than a measurement. Collapsing the call
@@ -138,19 +145,32 @@ extension Font {
         .custom(Face.logoSerif, size: size, relativeTo: style ?? nearestTextStyle(to: size))
     }
 
-    // MARK: - UI / body — system
+    // MARK: - UI / body — BP Body
 
-    static func sansLight(_ size: CGFloat) -> Font { .system(nearestTextStyle(to: size)).weight(.light) }
-    static func sans(_ size: CGFloat) -> Font { .system(nearestTextStyle(to: size)) }
-    static func sansMedium(_ size: CGFloat) -> Font { .system(nearestTextStyle(to: size)).weight(.medium) }
-    static func sansSemibold(_ size: CGFloat) -> Font { .system(nearestTextStyle(to: size)).weight(.semibold) }
-    static func sansBold(_ size: CGFloat) -> Font { .system(nearestTextStyle(to: size)).weight(.bold) }
+    /// BP Body at the nearest text style's size, scaling with it. The sheet has
+    /// no light weight, so `sansLight` is Regular.
+    private static func body(_ face: String, _ size: CGFloat) -> Font {
+        let style = nearestTextStyle(to: size)
+        return .custom(face, size: stepSize[style] ?? size, relativeTo: style)
+    }
 
-    // Data — system, paired with `.monospacedDigit()` at the call site for tabular
-    // figures (was Geist Mono). Same metrics as the sans helpers by design; the
-    // separate name records the intent at the call site.
-    static func mono(_ size: CGFloat) -> Font { .system(nearestTextStyle(to: size)) }
-    static func monoMedium(_ size: CGFloat) -> Font { .system(nearestTextStyle(to: size)).weight(.medium) }
+    /// Apple's sizes for each step at the default content size.
+    private static let stepSize: [TextStyle: CGFloat] = [
+        .caption2: 11, .caption: 12, .footnote: 13, .subheadline: 15, .callout: 16,
+        .body: 17, .title3: 20, .title2: 22, .title: 28, .largeTitle: 34,
+    ]
+
+    static func sansLight(_ size: CGFloat) -> Font { body(Face.bodyRegular, size) }
+    static func sans(_ size: CGFloat) -> Font { body(Face.bodyRegular, size) }
+    static func sansMedium(_ size: CGFloat) -> Font { body(Face.bodyMedium, size) }
+    static func sansSemibold(_ size: CGFloat) -> Font { body(Face.bodySemi, size) }
+    static func sansBold(_ size: CGFloat) -> Font { body(Face.bodyBold, size) }
+
+    // Data — paired with `.monospacedDigit()` at the call site for tabular figures
+    // (was Geist Mono). Same metrics as the sans helpers by design; the separate
+    // name records the intent at the call site.
+    static func mono(_ size: CGFloat) -> Font { body(Face.bodyRegular, size) }
+    static func monoMedium(_ size: CGFloat) -> Font { body(Face.bodyMedium, size) }
 
     // MARK: - The three that must not scale
 
