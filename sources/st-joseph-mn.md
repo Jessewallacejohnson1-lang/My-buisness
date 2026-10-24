@@ -4388,12 +4388,12 @@ address: "8274 Delta Circle"
 phone: "3204334391"
 added_by: agent:town-verify
 sources:
-  - url: https://www.fivestarlogistics.com/
+  - url: TODO
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: 2026-10-24: its website was Five Star Transport's (fivestarlogistics.com), whose trucks then showed as Frontgate's photos; same phone as `five-star-transport-solutions`, so it may be a stale name for that company. No site of its own found; `url: TODO` until one is. Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
 
 ## Full Circle - Photo Booth
 ```yaml
@@ -6897,12 +6897,12 @@ address: "12564 County Road 160"
 phone: "+13202606519"
 added_by: agent:town-verify
 sources:
-  - url: http://www.kdperformancehorses.com/
+  - url: TODO
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.69). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: 2026-10-24: its website was KD Performance Horses' (kdperformancehorses.com), whose horses then showed as its photos; same address and phone as `kd-performance-horses`, so it may be an old name for that farm. No site of its own found; `url: TODO` until one is. Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.69). Unreviewed — tier `listed`, so it publishes nothing until promoted.
 
 ## Ross Nesbit Agencies
 ```yaml
