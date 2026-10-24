@@ -4380,7 +4380,7 @@ Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Goo
 ## Frontgate Inc.
 ```yaml
 id: frontgate
-status: proposed
+status: retired
 tier: listed
 category: "travel_service"
 place_type: "Business"
@@ -4393,7 +4393,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: 2026-10-24: its website was Five Star Transport's (fivestarlogistics.com), whose trucks then showed as Frontgate's photos; same phone as `five-star-transport-solutions`, so it may be a stale name for that company. No site of its own found; `url: TODO` until one is. Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Retired 2026-10-24 (Jesse): a duplicate of `five-star-transport-solutions` under an old name. 2026-10-24: its website was Five Star Transport's (fivestarlogistics.com), whose trucks then showed as Frontgate's photos; same phone as `five-star-transport-solutions`, so it may be a stale name for that company. No site of its own found; `url: TODO` until one is. Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
 
 ## Full Circle - Photo Booth
 ```yaml
@@ -6889,7 +6889,7 @@ Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Goo
 ## Rosie's Gyps Ranch
 ```yaml
 id: rosies-gyps-ranch
-status: proposed
+status: retired
 tier: listed
 category: "sports_and_recreation"
 place_type: "Business"
@@ -6902,7 +6902,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: 2026-10-24: its website was KD Performance Horses' (kdperformancehorses.com), whose horses then showed as its photos; same address and phone as `kd-performance-horses`, so it may be an old name for that farm. No site of its own found; `url: TODO` until one is. Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.69). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Retired 2026-10-24 (Jesse): a duplicate of `kd-performance-horses` under an old name. 2026-10-24: its website was KD Performance Horses' (kdperformancehorses.com), whose horses then showed as its photos; same address and phone as `kd-performance-horses`, so it may be an old name for that farm. No site of its own found; `url: TODO` until one is. Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.69). Unreviewed — tier `listed`, so it publishes nothing until promoted.
 
 ## Ross Nesbit Agencies
 ```yaml
