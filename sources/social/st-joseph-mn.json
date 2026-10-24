@@ -1988,5 +1988,47 @@
   "kind": "instagram",
   "url": "https://www.instagram.com/catholicschools_mn",
   "busy": false
+ },
+ {
+  "entry_id": "cathedral-high-school",
+  "name": "Cathedral High School",
+  "kind": "instagram",
+  "url": "https://www.instagram.com/cathedralhighschoolsc",
+  "busy": false
+ },
+ {
+  "entry_id": "sartell-high-school",
+  "name": "Sartell High School",
+  "kind": "instagram",
+  "url": "https://www.instagram.com/isd748",
+  "busy": false
+ },
+ {
+  "entry_id": "sartell-high-school",
+  "name": "Sartell High School",
+  "kind": "instagram",
+  "url": "https://www.instagram.com/sartelltheatre",
+  "busy": false
+ },
+ {
+  "entry_id": "rocori-high-school",
+  "name": "ROCORI High School",
+  "kind": "instagram",
+  "url": "https://www.instagram.com/rocoridistrict",
+  "busy": false
+ },
+ {
+  "entry_id": "rocori-high-school",
+  "name": "ROCORI High School",
+  "kind": "instagram",
+  "url": "https://www.instagram.com/rocorihighschoolmusical",
+  "busy": false
+ },
+ {
+  "entry_id": "sauk-rapids-rice-high-school",
+  "name": "Sauk Rapids-Rice High School",
+  "kind": "instagram",
+  "url": "https://www.instagram.com/srrschoolsisd47",
+  "busy": false
  }
 ]
