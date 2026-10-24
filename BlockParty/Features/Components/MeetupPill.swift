@@ -39,6 +39,10 @@ struct MeetupPillStyle: ButtonStyle {
     /// Town's round X (attend-x): light grey, flat, with an ink glyph. It cross-fades with the
     /// charcoal on its caller's timing too.
     var grey = false
+    /// Attend on a dark ground, the Event of the day poster (attend-yellow): BP yellow lit as the yellow
+    /// share is, with ink words (white on this yellow is 1.26:1). It cross-fades with the X on its caller's
+    /// timing.
+    var yellow = false
     /// Words (and glyph) in from each end: 20 pt, the Club size's 16.
     var sidePadding: CGFloat = 20
 
@@ -55,7 +59,7 @@ struct MeetupPillStyle: ButtonStyle {
         // the spring (the review's frames, 2026-10-17).
         let press = FeedMarkPress.animation(reduceMotion: reduceMotion)
         return configuration.label
-            .foregroundStyle(light || grey ? Hue.ink : .white)
+            .foregroundStyle(light || grey ? Hue.ink : yellow ? Hue.onBrandDisc : .white)
             .padding(.horizontal, sidePadding)
             .frame(minWidth: minWidth)
             .frame(height: height)
@@ -66,7 +70,11 @@ struct MeetupPillStyle: ButtonStyle {
                 Capsule()
                     .fill(fill.map(AnyShapeStyle.init) ?? AnyShapeStyle(charcoal))
                     .animation(press) { $0.meetupPillDepth(pressed: pressed) }
-                    .opacity(light || grey ? 0 : 1)
+                    .opacity(light || grey || yellow ? 0 : 1)
+                // Always there too, so the pill fades to the X instead of flashing charcoal between them.
+                YellowDiscStyle.lit(Capsule())
+                    .animation(press) { $0.meetupPillDepth(pressed: pressed, strength: 0.75) }
+                    .opacity(yellow ? 1 : 0)
                 if light {
                     Capsule()
                         .fill(Hue.surface)
@@ -117,7 +125,18 @@ struct YellowShareButton: View {
     }
 }
 
-private struct YellowDiscStyle: ButtonStyle {
+struct YellowDiscStyle: ButtonStyle {
+    /// The exact yellow under a white sheen over its top and a line of light inside the top; the yellow
+    /// Attend draws it too.
+    static func lit<S: Shape>(_ shape: S) -> some View {
+        shape
+            .fill(Hue.brandDisc.shadow(.inner(color: .white.opacity(0.7), radius: 0, x: 0, y: 1)))
+            .overlay {
+                shape.fill(LinearGradient(colors: [.white.opacity(0.34), .white.opacity(0)],
+                                          startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.45)))
+            }
+    }
+
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeBody(configuration: Configuration) -> some View {
@@ -127,12 +146,7 @@ private struct YellowDiscStyle: ButtonStyle {
             .foregroundStyle(Hue.onBrandDisc)
             .frame(width: YellowShareButton.side, height: YellowShareButton.side)
             .background {
-                Circle()
-                    .fill(Hue.brandDisc.shadow(.inner(color: .white.opacity(0.7), radius: 0, x: 0, y: 1)))
-                    .overlay {
-                        Circle().fill(LinearGradient(colors: [.white.opacity(0.34), .white.opacity(0)],
-                                                     startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.45)))
-                    }
+                Self.lit(Circle())
                     .animation(press) { $0.meetupPillDepth(pressed: pressed, strength: 0.75) }
             }
             .contentShape(Circle().inset(by: (YellowShareButton.side - MeetupPillStyle.minTarget) / 2))

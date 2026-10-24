@@ -249,6 +249,8 @@ struct AttendPill: View {
     var shareBeside: HorizontalEdge? = nil
     /// Set while the yellow share is up, so the card's send can leave as it comes.
     var shareUp: Binding<Bool> = .constant(false)
+    /// On a dark ground (the Event of the day poster), Attend is BP yellow (Jesse, attend-yellow).
+    var yellow = false
 
     @Environment(RealLifeActions.self) private var actions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -284,7 +286,7 @@ struct AttendPill: View {
                     // The X is the pill shrunk to a circle its own height, light grey with an ink X
                     // (Jesse at attend-x's Check-in 1, 2026-10-21).
                     .buttonStyle(MeetupPillStyle(height: size.pillHeight, minWidth: x ? size.pillHeight : size.pillMinWidth,
-                                                 grey: x, sidePadding: x ? 0 : 20))
+                                                 grey: x, yellow: yellow && !x, sidePadding: x ? 0 : 20))
                     .turnBackShake(failures: failures, shakes: !reduceMotion && tappedAt != failures)
                     // The X reads "Going" with how to leave, not "Can't go, Going" (the review).
                     .accessibilityLabel(shown == .invite ? "Invite" : x ? "Going" : "Attend")
