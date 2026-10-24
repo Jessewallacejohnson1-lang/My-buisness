@@ -1,0 +1,700 @@
+[
+ {
+  "section": "Adult Activities",
+  "group": "Adult Paint and Sip",
+  "description": "",
+  "sessions": [
+   {
+    "id": 4553613,
+    "text": "Winter Paint and Sip",
+    "price": 50,
+    "canceled": false,
+    "sessionFull": false,
+    "registrationOver": false,
+    "features": [
+     {
+      "name": "location",
+      "icon": "location",
+      "value": "Bad Habit Brewing Co",
+      "polymerIcon": "communication:location-on"
+     },
+     {
+      "name": "ageGender",
+      "icon": "user",
+      "value": "18/up",
+      "polymerIcon": "account-circle"
+     },
+     {
+      "name": "days",
+      "icon": "calendar2",
+      "value": "Fri",
+      "polymerIcon": "today"
+     },
+     {
+      "name": "dates",
+      "icon": "calendar3",
+      "value": "12/11/26",
+      "polymerIcon": "event"
+     },
+     {
+      "name": "times",
+      "icon": "clock",
+      "value": "7pm-9pm",
+      "polymerIcon": "schedule"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "section": "Adult Activities",
+  "group": "Adult Dodgeball Tournament",
+  "description": "",
+  "sessions": [
+   {
+    "id": 4452336,
+    "text": "Halloween Adult Dodgeball Tournament",
+    "price": 30,
+    "canceled": false,
+    "sessionFull": false,
+    "registrationOver": false,
+    "features": [
+     {
+      "name": "location",
+      "icon": "location",
+      "value": "Kennedy Community School",
+      "polymerIcon": "communication:location-on"
+     },
+     {
+      "name": "ageGender",
+      "icon": "user",
+      "value": "16/up",
+      "polymerIcon": "account-circle"
+     },
+     {
+      "name": "days",
+      "icon": "calendar2",
+      "value": "Thu",
+      "polymerIcon": "today"
+     },
+     {
+      "name": "dates",
+      "icon": "calendar3",
+      "value": "10/29/26",
+      "polymerIcon": "event"
+     },
+     {
+      "name": "times",
+      "icon": "clock",
+      "value": "6pm-8pm",
+      "polymerIcon": "schedule"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "section": "Adult Activities",
+  "group": "Adult Puzzle Competition",
+  "description": "",
+  "sessions": [
+   {
+    "id": 4426571,
+    "text": "Fall Puzzle Competition",
+    "price": 50,
+    "canceled": false,
+    "sessionFull": false,
+    "registrationOver": false,
+    "features": [
+     {
+      "name": "location",
+      "icon": "location",
+      "value": "Location TBD",
+      "polymerIcon": "communication:location-on"
+     },
+     {
+      "name": "ageGender",
+      "icon": "user",
+      "value": "All Ages",
+      "polymerIcon": "account-circle"
+     },
+     {
+      "name": "days",
+      "icon": "calendar2",
+      "value": "Sun",
+      "polymerIcon": "today"
+     },
+     {
+      "name": "dates",
+      "icon": "calendar3",
+      "value": "11/22/26",
+      "polymerIcon": "event"
+     },
+     {
+      "name": "times",
+      "icon": "clock",
+      "value": "11am-1pm",
+      "polymerIcon": "schedule"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "section": "Adult Activities",
+  "group": "Pilates",
+  "description": "Simple Healthy Active: Weekly Pilates with Kristen Join us for a weekly Pilates movement class designed to support your body through every season of life. This gentle yet effective class focuses on core strength, mobility, posture, and mindful movement, all in an encouraging and inclusive environment. Led by certified instructor Kristen Moncrief, this class blends classical Pilates principles with",
+  "sessions": [
+   {
+    "id": 3920573,
+    "text": "Pilates Class",
+    "price": 10,
+    "canceled": false,
+    "sessionFull": false,
+    "registrationOver": false,
+    "features": [
+     {
+      "name": "location",
+      "icon": "location",
+      "value": "City Hall",
+      "polymerIcon": "communication:location-on"
+     },
+     {
+      "name": "ageGender",
+      "icon": "user",
+      "value": "All Ages",
+      "polymerIcon": "account-circle"
+     },
+     {
+      "name": "days",
+      "icon": "calendar2",
+      "value": "Mon",
+      "polymerIcon": "today"
+     },
+     {
+      "name": "dates",
+      "icon": "calendar3",
+      "value": "10/06-12/29",
+      "polymerIcon": "event"
+     },
+     {
+      "name": "times",
+      "icon": "clock",
+      "value": "10am-11am",
+      "polymerIcon": "schedule"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "section": "Senior Programming",
+  "group": "Adult Puzzle Competition",
+  "description": "",
+  "sessions": [
+   {
+    "id": 4426571,
+    "text": "Fall Puzzle Competition",
+    "price": 50,
+    "canceled": false,
+    "sessionFull": false,
+    "registrationOver": false,
+    "features": [
+     {
+      "name": "location",
+      "icon": "location",
+      "value": "Location TBD",
+      "polymerIcon": "communication:location-on"
+     },
+     {
+      "name": "ageGender",
+      "icon": "user",
+      "value": "All Ages",
+      "polymerIcon": "account-circle"
+     },
+     {
+      "name": "days",
+      "icon": "calendar2",
+      "value": "Sun",
+      "polymerIcon": "today"
+     },
+     {
+      "name": "dates",
+      "icon": "calendar3",
+      "value": "11/22/26",
+      "polymerIcon": "event"
+     },
+     {
+      "name": "times",
+      "icon": "clock",
+      "value": "11am-1pm",
+      "polymerIcon": "schedule"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "section": "Senior Programming",
+  "group": "Pilates",
+  "description": "Simple Healthy Active: Weekly Pilates with Kristen Join us for a weekly Pilates movement class designed to support your body through every season of life. This gentle yet effective class focuses on core strength, mobility, posture, and mindful movement, all in an encouraging and inclusive environment. Led by certified instructor Kristen Moncrief, this class blends classical Pilates principles with",
+  "sessions": [
+   {
+    "id": 3920573,
+    "text": "Pilates Class",
+    "price": 10,
+    "canceled": false,
+    "sessionFull": false,
+    "registrationOver": false,
+    "features": [
+     {
+      "name": "location",
+      "icon": "location",
+      "value": "City Hall",
+      "polymerIcon": "communication:location-on"
+     },
+     {
+      "name": "ageGender",
+      "icon": "user",
+      "value": "All Ages",
+      "polymerIcon": "account-circle"
+     },
+     {
+      "name": "days",
+      "icon": "calendar2",
+      "value": "Mon",
+      "polymerIcon": "today"
+     },
+     {
+      "name": "dates",
+      "icon": "calendar3",
+      "value": "10/06-12/29",
+      "polymerIcon": "event"
+     },
+     {
+      "name": "times",
+      "icon": "clock",
+      "value": "10am-11am",
+      "polymerIcon": "schedule"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "section": "Senior Programming",
+  "group": "Senior Citizen Activities",
+  "description": "Monthly senior programming varies throughout year. The second Thursday of each month is senior programming. Many monthly get-togethers include playing cards \"500\" at the fire hall",
+  "sessions": [
+   {
+    "id": 4346717,
+    "text": "Cards",
+    "price": 0,
+    "canceled": false,
+    "sessionFull": false,
+    "registrationOver": false,
+    "features": [
+     {
+      "name": "location",
+      "icon": "location",
+      "value": "Multiple",
+      "polymerIcon": "communication:location-on"
+     },
+     {
+      "name": "ageGender",
+      "icon": "user",
+      "value": "All Ages",
+      "polymerIcon": "account-circle"
+     },
+     {
+      "name": "days",
+      "icon": "calendar2",
+      "value": "TBD",
+      "polymerIcon": "today"
+     },
+     {
+      "name": "dates",
+      "icon": "calendar3",
+      "value": "Open",
+      "polymerIcon": "event"
+     },
+     {
+      "name": "times",
+      "icon": "clock",
+      "value": "Time TBD",
+      "polymerIcon": "schedule"
+     }
+    ]
+   },
+   {
+    "id": 4491427,
+    "text": "Chanhassen Dinner Theatre Day Trip",
+    "price": 91,
+    "canceled": false,
+    "sessionFull": false,
+    "registrationOver": false,
+    "features": [
+     {
+      "name": "location",
+      "icon": "location",
+      "value": "Location TBD",
+      "polymerIcon": "communication:location-on"
+     },
+     {
+      "name": "ageGender",
+      "icon": "user",
+      "value": "All Ages",
+      "polymerIcon": "account-circle"
+     },
+     {
+      "name": "days",
+      "icon": "calendar2",
+      "value": "Wed",
+      "polymerIcon": "today"
+     },
+     {
+      "name": "dates",
+      "icon": "calendar3",
+      "value": "11/04/26",
+      "polymerIcon": "event"
+     },
+     {
+      "name": "times",
+      "icon": "clock",
+      "value": "9:30am-4pm",
+      "polymerIcon": "schedule"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "section": "Teens",
+  "group": "Adult Puzzle Competition",
+  "description": "",
+  "sessions": [
+   {
+    "id": 4426571,
+    "text": "Fall Puzzle Competition",
+    "price": 50,
+    "canceled": false,
+    "sessionFull": false,
+    "registrationOver": false,
+    "features": [
+     {
+      "name": "location",
+      "icon": "location",
+      "value": "Location TBD",
+      "polymerIcon": "communication:location-on"
+     },
+     {
+      "name": "ageGender",
+      "icon": "user",
+      "value": "All Ages",
+      "polymerIcon": "account-circle"
+     },
+     {
+      "name": "days",
+      "icon": "calendar2",
+      "value": "Sun",
+      "polymerIcon": "today"
+     },
+     {
+      "name": "dates",
+      "icon": "calendar3",
+      "value": "11/22/26",
+      "polymerIcon": "event"
+     },
+     {
+      "name": "times",
+      "icon": "clock",
+      "value": "11am-1pm",
+      "polymerIcon": "schedule"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "section": "Teens",
+  "group": "Pilates",
+  "description": "Simple Healthy Active: Weekly Pilates with Kristen Join us for a weekly Pilates movement class designed to support your body through every season of life. This gentle yet effective class focuses on core strength, mobility, posture, and mindful movement, all in an encouraging and inclusive environment. Led by certified instructor Kristen Moncrief, this class blends classical Pilates principles with",
+  "sessions": [
+   {
+    "id": 3920573,
+    "text": "Pilates Class",
+    "price": 10,
+    "canceled": false,
+    "sessionFull": false,
+    "registrationOver": false,
+    "features": [
+     {
+      "name": "location",
+      "icon": "location",
+      "value": "City Hall",
+      "polymerIcon": "communication:location-on"
+     },
+     {
+      "name": "ageGender",
+      "icon": "user",
+      "value": "All Ages",
+      "polymerIcon": "account-circle"
+     },
+     {
+      "name": "days",
+      "icon": "calendar2",
+      "value": "Mon",
+      "polymerIcon": "today"
+     },
+     {
+      "name": "dates",
+      "icon": "calendar3",
+      "value": "10/06-12/29",
+      "polymerIcon": "event"
+     },
+     {
+      "name": "times",
+      "icon": "clock",
+      "value": "10am-11am",
+      "polymerIcon": "schedule"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "section": "Youth Activities",
+  "group": "Fall Crafts",
+  "description": "",
+  "sessions": [
+   {
+    "id": 4434014,
+    "text": "Fall Craft Day",
+    "price": 5,
+    "canceled": false,
+    "sessionFull": false,
+    "registrationOver": false,
+    "features": [
+     {
+      "name": "location",
+      "icon": "location",
+      "value": "Fire Hall",
+      "polymerIcon": "communication:location-on"
+     },
+     {
+      "name": "ageGender",
+      "icon": "user",
+      "value": "2-14",
+      "polymerIcon": "account-circle"
+     },
+     {
+      "name": "days",
+      "icon": "calendar2",
+      "value": "Sat",
+      "polymerIcon": "today"
+     },
+     {
+      "name": "dates",
+      "icon": "calendar3",
+      "value": "10/31/26",
+      "polymerIcon": "event"
+     },
+     {
+      "name": "times",
+      "icon": "clock",
+      "value": "10am-11am",
+      "polymerIcon": "schedule"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "section": "Youth Activities",
+  "group": "Volleyball",
+  "description": "",
+  "sessions": [
+   {
+    "id": 4429084,
+    "text": "Volleyball",
+    "price": 20,
+    "canceled": false,
+    "sessionFull": false,
+    "registrationOver": false,
+    "features": [
+     {
+      "name": "location",
+      "icon": "location",
+      "value": "Kennedy Community School",
+      "polymerIcon": "communication:location-on"
+     },
+     {
+      "name": "ageGender",
+      "icon": "user",
+      "value": "6-14",
+      "polymerIcon": "account-circle"
+     },
+     {
+      "name": "days",
+      "icon": "calendar2",
+      "value": "Thu",
+      "polymerIcon": "today"
+     },
+     {
+      "name": "dates",
+      "icon": "calendar3",
+      "value": "11/12-12/10",
+      "polymerIcon": "event"
+     },
+     {
+      "name": "times",
+      "icon": "clock",
+      "value": "6pm-7pm",
+      "polymerIcon": "schedule"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "section": "Youth Activities",
+  "group": "Dodgeball",
+  "description": "",
+  "sessions": [
+   {
+    "id": 4429103,
+    "text": "Dodgeball (youth)",
+    "price": 20,
+    "canceled": false,
+    "sessionFull": false,
+    "registrationOver": false,
+    "features": [
+     {
+      "name": "location",
+      "icon": "location",
+      "value": "Kennedy Community School",
+      "polymerIcon": "communication:location-on"
+     },
+     {
+      "name": "ageGender",
+      "icon": "user",
+      "value": "6-14",
+      "polymerIcon": "account-circle"
+     },
+     {
+      "name": "days",
+      "icon": "calendar2",
+      "value": "Thu",
+      "polymerIcon": "today"
+     },
+     {
+      "name": "dates",
+      "icon": "calendar3",
+      "value": "11/12-12/10",
+      "polymerIcon": "event"
+     },
+     {
+      "name": "times",
+      "icon": "clock",
+      "value": "7pm-8pm",
+      "polymerIcon": "schedule"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "section": "Toddler Activities",
+  "group": "Fall Crafts",
+  "description": "",
+  "sessions": [
+   {
+    "id": 4434014,
+    "text": "Fall Craft Day",
+    "price": 5,
+    "canceled": false,
+    "sessionFull": false,
+    "registrationOver": false,
+    "features": [
+     {
+      "name": "location",
+      "icon": "location",
+      "value": "Fire Hall",
+      "polymerIcon": "communication:location-on"
+     },
+     {
+      "name": "ageGender",
+      "icon": "user",
+      "value": "2-14",
+      "polymerIcon": "account-circle"
+     },
+     {
+      "name": "days",
+      "icon": "calendar2",
+      "value": "Sat",
+      "polymerIcon": "today"
+     },
+     {
+      "name": "dates",
+      "icon": "calendar3",
+      "value": "10/31/26",
+      "polymerIcon": "event"
+     },
+     {
+      "name": "times",
+      "icon": "clock",
+      "value": "10am-11am",
+      "polymerIcon": "schedule"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "section": "Other",
+  "group": "Welcome",
+  "description": "",
+  "sessions": [
+   {
+    "id": 2845213,
+    "text": "Welcome",
+    "price": 0,
+    "canceled": false,
+    "sessionFull": false,
+    "registrationOver": false,
+    "features": [
+     {
+      "name": "location",
+      "icon": "location",
+      "value": "Location TBD",
+      "polymerIcon": "communication:location-on"
+     },
+     {
+      "name": "ageGender",
+      "icon": "user",
+      "value": "All Ages",
+      "polymerIcon": "account-circle"
+     },
+     {
+      "name": "days",
+      "icon": "calendar2",
+      "value": "TBD",
+      "polymerIcon": "today"
+     },
+     {
+      "name": "dates",
+      "icon": "calendar3",
+      "value": "Open",
+      "polymerIcon": "event"
+     },
+     {
+      "name": "times",
+      "icon": "clock",
+      "value": "Time TBD",
+      "polymerIcon": "schedule"
+     }
+    ]
+   }
+  ]
+ }
+]

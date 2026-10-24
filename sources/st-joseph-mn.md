@@ -243,8 +243,18 @@ sources:
     kind: ical
     method: fetch
     trust: official
+  - url: https://secure.rec1.com/MN/st-joseph-mn/catalog
+    method: api
+    trust: official
+    reader: rec1
 ```
 Notes: Council meetings, public notices, city-run events like Rocktoberfest.
+
+The Recreation Department page (`/313/Recreation-Department-Events`) forwards to the City's Rec1
+registration catalog, where every rec program is listed for sign-up; some never reach the
+calendars (Winter Paint and Sip, Pilates, the seniors' trips, a youth league posted late). Its
+page is built in the browser, so `read_events.py`'s `rec1` reader reads the JSON the page loads
+(Jesse, 2026-10-24).
 
 **This entry was `search_snippet` on `calendar.aspx` until 2026-09-23, on the belief that
 stjosephmn.gov disallows robots. It does not** — see ADR-012. Its robots.txt blocks
