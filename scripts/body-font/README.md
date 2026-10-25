@@ -7,10 +7,10 @@ doesn't license). Every `sans` and `mono` helper in `BlockPartyFont.swift` uses 
 
 ## Rebuild
 
-Needs `potrace` (`brew install potrace`) and `pip install fonttools pillow numpy`.
+Needs `potrace` (`brew install potrace`) and `uv`, which fetches the Python packages for the run.
 
 ```sh
-python3 scripts/body-font/build.py /tmp/body-font
+uv run --with fonttools --with pillow --with numpy python scripts/body-font/build.py /tmp/body-font
 cp /tmp/body-font/BPBody-*.ttf BlockParty/Resources/Fonts/
 ```
 

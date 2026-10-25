@@ -5,7 +5,7 @@ Each glyph is cut out, upsampled, thresholded and traced with potrace. The heavi
 weights are the same raster grown by a few pixels before tracing, then fitted back
 to the regular glyph's height so x-height and cap height stay put.
 
-    python3 build.py [out_dir]      # needs potrace, fonttools, pillow, numpy
+    uv run --with fonttools --with pillow --with numpy python build.py [out_dir]   # and potrace
 
 See README.md for what the sheet lacks.
 """

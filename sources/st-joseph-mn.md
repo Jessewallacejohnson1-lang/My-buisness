@@ -3645,7 +3645,7 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists
 ## Contardo Laser Dentistry
 ```yaml
 id: contardo-laser-dentistry
-status: active
+status: retired
 tier: watched
 category: "dental_clinic"
 place_type: "Business"
@@ -3659,6 +3659,8 @@ sources:
     method: fetch
     trust: official
 ```
+Notes: Retired 2026-10-24 (Jesse): its own site says Dr. Contardo retired and the practice now
+runs from 13734 1st St., Becker; no St. Joseph office is listed.
 Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.92). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
 ## Cost Cutters
