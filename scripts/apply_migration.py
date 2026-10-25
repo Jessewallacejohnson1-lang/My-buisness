@@ -18,11 +18,13 @@ With --apply it then applies the file through Composio and checks each remade fu
 as the file wrote it.
 """
 import difflib
-import json
 import re
 import subprocess
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'sources' / 'scripts'))
+from composio import ComposioError, execute  # noqa: E402
 
 REF = 'lxdgwhvqjqmqliobwjpi'  # Block Party's project (docs/rules/identifiers.md)
 FUNCTION = re.compile(r'create\s+(?:or\s+replace\s+)?function\s+(\w+)\.(\w+)\s*\(', re.I)
@@ -33,20 +35,8 @@ def sh(*cmd, cwd=None):
     return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
 
 
-def composio(slug, args, timeout=120):
-    r = subprocess.run(['composio', 'execute', slug, '-d', json.dumps(args)], stdin=subprocess.DEVNULL,
-                       capture_output=True, text=True, timeout=timeout)
-    return json.loads(r.stdout)
-
-
 def query(sql):
-    out = composio('SUPABASE_BETA_RUN_SQL_QUERY', {'ref': REF, 'query': sql, 'read_only': True}, 80)
-    if not out.get('successful'):
-        raise RuntimeError((out.get('data') or {}).get('message') or out.get('error'))
-    data = out['data']
-    if data.get('storedInFile'):
-        data = json.loads(Path(data['outputFilePath']).read_text())['data']
-    return data['result']
+    return execute('SUPABASE_BETA_RUN_SQL_QUERY', {'ref': REF, 'query': sql, 'read_only': True}, 80)['result']
 
 
 def bodies(sql):
@@ -126,9 +116,12 @@ def main():
         print('checks pass; apply with --apply')
         return
 
-    out = composio('SUPABASE_APPLY_A_MIGRATION', {'ref': REF, 'name': name, 'query': sql,
-                                                    'idempotency_key': path.stem})
-    if not (out.get('data') or {}).get('success'):
+    try:
+        out = execute('SUPABASE_APPLY_A_MIGRATION', {'ref': REF, 'name': name, 'query': sql,
+                                                     'idempotency_key': path.stem}, 120)
+    except ComposioError as ex:
+        sys.exit(f'apply failed: {ex}')
+    if not out.get('success'):
         sys.exit(f'apply failed: {out}')
     after = live_bodies(list(made))
     wrong = [fn for fn, body in made.items() if after.get(fn, '').strip() != body.strip()]

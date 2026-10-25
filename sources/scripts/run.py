@@ -14,7 +14,7 @@ Usage:
   python3 run.py --write              # prod: needs SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY
   python3 run.py --selftest           # when a page goes through Firecrawl, with fake sites
 """
-import argparse, hashlib, html, json, os, re, shutil, socket, subprocess, sys, threading, time, zlib
+import argparse, hashlib, html, json, os, re, shutil, socket, sys, threading, time, zlib
 import urllib.request, urllib.error, urllib.parse
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
@@ -24,6 +24,7 @@ from urllib.parse import urlparse
 
 sys.path.insert(0, str(Path(__file__).parent))
 from registry import find_root, load, validate, is_todo
+import composio
 
 UA = "BlockPartyBot/1.0 (+https://blockpartystjoe.com)"
 MAX_BYTES = 2_000_000
@@ -298,9 +299,7 @@ def firecrawl(url, fmt="markdown"):
         with urllib.request.urlopen(req, timeout=90) as r:
             d = json.load(r)
     elif shutil.which("composio"):
-        out = subprocess.run(["composio", "execute", "FIRECRAWL_SCRAPE", "-d", json.dumps(body)],
-                             capture_output=True, text=True, timeout=180, stdin=subprocess.DEVNULL).stdout
-        d = json.loads(out[out.index("{"):]).get("data") or {}
+        d = composio.execute("FIRECRAWL_SCRAPE", body) or {}
     else:
         raise RuntimeError("no FIRECRAWL_API_KEY to read it through Firecrawl")
     d = d.get("data", d)

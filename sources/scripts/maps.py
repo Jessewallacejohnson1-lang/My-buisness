@@ -9,8 +9,10 @@ Composio holds the credentials, so nothing here needs a key. Every answer is cac
 disk, which is what makes a rerun cost nothing and keeps a sweep resumable after a
 network blip.
 """
-import json, re, subprocess
+import json, re
 from pathlib import Path
+
+from composio import ComposioError, execute
 
 
 def answered(text):
@@ -33,19 +35,16 @@ def search(q, cache_dir, ll=None, start=0, refresh=False):
         args = {"q": q, "start": start}
         if ll:
             args["ll"] = ll
-        # stdin closed: composio waits on an open one until the timeout.
-        r = subprocess.run(["composio", "execute", "COMPOSIO_SEARCH_GOOGLE_MAPS",
-                            "-d", json.dumps(args)], capture_output=True, text=True,
-                           timeout=180, stdin=subprocess.DEVNULL)
-        out = r.stdout.strip()
-        if not answered(out):
+        try:
+            data = execute("COMPOSIO_SEARCH_GOOGLE_MAPS", args)
+        except ComposioError as ex:
             # Leave no cache file behind, so the next run asks again.
             f.unlink(missing_ok=True)
-            raise RuntimeError(f"maps search failed for {q!r}: {(r.stderr or out)[:200]}")
-        f.write_text(out)
+            raise RuntimeError(f"maps search failed for {q!r}: {str(ex)[:200]}") from None
+        f.write_text(json.dumps({"successful": True, "data": data}))
     raw = json.loads(f.read_text())
     if raw.get("storedInFile"):
-        # Large answers arrive as a pointer to a temp file; keep a real copy in the cache.
+        # A cache from before composio.py may still be a pointer to a temp file; keep a real copy.
         raw = json.loads(Path(raw["outputFilePath"]).read_text())
         f.write_text(json.dumps(raw))
     return (raw.get("data") or {}).get("results") or {}

@@ -55,7 +55,7 @@ if missing:
 EOF
             sh sources/validate
             python3 sources/scripts/test_census.py
-            for s in accounts batch check_flags find_calendars morning place_photos read_events run social verify write_judged; do
+            for s in accounts batch check_flags composio find_calendars morning place_photos read_events run social verify write_judged; do
                 python3 "sources/scripts/$s.py" --selftest
             done
             ;;

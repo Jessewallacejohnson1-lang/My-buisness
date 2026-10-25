@@ -31,9 +31,10 @@ on Jesse's yes only (Firecrawl spends credits, one per page, 23 pages in 2026-09
 that failed to harvest is simply missing from the new one.
 """
 
-import argparse, json, re, subprocess, sys, time
+import argparse, json, re, sys, time
 from pathlib import Path
 
+from composio import execute
 from discover import RUNS
 
 DIRECTORY = "https://stjosephchamber.com/member-directory/"
@@ -44,13 +45,10 @@ MEMBER = re.compile(r'\[([^\]]+)\]\((https://stjosephchamber\.com/member/(?!cate
 
 def firecrawl(url, tries=2):
     """One Firecrawl scrape. Returns markdown, or None."""
-    payload = json.dumps({"url": url, "formats": ["markdown"], "onlyMainContent": True})
+    payload = {"url": url, "formats": ["markdown"], "onlyMainContent": True}
     for attempt in range(tries):
         try:
-            r = subprocess.run(["composio", "execute", "FIRECRAWL_SCRAPE", "-d", payload],
-                               capture_output=True, text=True, timeout=180,
-                               stdin=subprocess.DEVNULL)
-            data = json.loads(r.stdout)
+            data = execute("FIRECRAWL_SCRAPE", payload)
         except Exception as ex:
             print(f"    call failed: {type(ex).__name__} {ex}", flush=True)
             data = None

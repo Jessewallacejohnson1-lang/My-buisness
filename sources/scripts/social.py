@@ -38,7 +38,7 @@ Composio. Only Apify's schedules start paid runs; each task has its own spending
   python3 sources/scripts/social.py --selftest
 """
 
-import argparse, json, os, shutil, subprocess, sys, time, urllib.error, urllib.request
+import argparse, json, os, shutil, sys, time, urllib.error, urllib.request
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -46,6 +46,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from registry import find_root, load
 from read_events import LOCAL
 from batch import layout
+import composio
 
 TOWN = "st-joseph-mn"
 API = "https://api.apify.com/v2"
@@ -107,14 +108,7 @@ def _http(method, path, body=None):
 
 
 def _composio(slug, args):
-    r = subprocess.run(["composio", "execute", slug, "-d", json.dumps(args)], stdin=subprocess.DEVNULL,
-                       capture_output=True, text=True, timeout=120)
-    d = json.loads(r.stdout)
-    if d.get("storedInFile"):
-        d = json.loads(Path(d["outputFilePath"]).read_text())
-    if not d.get("successful", True):
-        raise RuntimeError(f"{slug}: {str(d.get('error'))[:200]}")
-    d = d.get("data", d)
+    d = composio.execute(slug, args, timeout=120)
     return d.get("data", d) if isinstance(d, dict) else d
 
 
@@ -152,11 +146,7 @@ def api(method, path, body=None):
             if e.code == 404:
                 return None
             raise
-    cmd = ["composio", "proxy", API + path, "--toolkit", "apify", "-X", method]
-    if body is not None:
-        cmd += ["-H", "Content-Type: application/json", "-d", json.dumps(body)]
-    r = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=60)
-    d = json.loads(r.stdout) if r.stdout.strip() else {}
+    d = composio.proxy(API + path, "apify", method, body)
     if isinstance(d, dict) and d.get("error"):
         if "not-found" in str(d["error"].get("type", "")):
             return None
