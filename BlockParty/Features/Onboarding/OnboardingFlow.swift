@@ -146,6 +146,7 @@ final class OnboardingStore {
         lastName = ""
         photo = nil
         birthday = nil
+        interests = []   // kept under bp.interests, not onboarding.
         for key in defaults.dictionaryRepresentation().keys where key.hasPrefix("onboarding.") {
             defaults.removeObject(forKey: key)
         }
