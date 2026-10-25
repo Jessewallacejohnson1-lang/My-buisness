@@ -25,6 +25,9 @@ exact dates, no model. A source is read when its entry is active and it names a 
   mshsl               the Minnesota State High School League's schedule data for one school
                       (`league_id`, `team` as the league names it): varsity games, meets and
                       tournaments in the next four weeks at venues within 20 miles (NEARBY)
+  gobound             a school's Bound activities calendar (its iCal export): plays, concerts and
+                      clubs, plus games at the levels in `game_levels` (Kennedy's middle school),
+                      within 20 miles; varsity games stay the league's
 
 Every request goes through run.py's fetch, so robots rules and Crawl-delay are obeyed on
 every run, not only on the day a reader was written (ADR-014). A source that fails is named
@@ -674,6 +677,99 @@ def read_league(src, entry, today):
     return [{"listing": l} for l in league_listings(rows, sports, entry, src, today)]
 
 
+# Bound: a school's activities calendar ---------------------------------------------------
+
+# Bound (gobound.com) posts every activity of seven nearby schools (BP app school-activities, ticket 05).
+# Its iCal export carries each event's activity in fields of its own (X-BND-ACTIVITYKEY "volleyball",
+# -ACTIVITYNAME "Volleyball, Girls", -ACTIVITYLEVEL "Varsity", -ACTIVITYSEX), the venue's GEO and
+# STATUS:CANCELLED; robots allows it, and the calendar page itself 403s a headless browser (REA, 2026-10-25).
+# Varsity games keep coming from the league reader; Bound adds the plays, concerts and clubs, and the
+# levels a source names in `game_levels` (Kennedy's "Middle School") as games (Jesse, 2026-10-25).
+BOUND_ARTS = {"band", "jazzband", "choir", "orchestra", "theatre", "drama", "speech", "knowledgebowl", "robotics",
+              "math", "studentcouncil"}
+# An event with no activity is a school's own: kept when it is a show people go to, never a ticket pass.
+BOUND_SHOW = re.compile(r"\b(play|musical|concert|orchestra|band|choir|theat(er|re)|art club|art show)\b", re.I)
+BOUND_PASS = re.compile(r"\b(pass|banquet|practice|tryouts?)\b", re.I)
+# The level Bound adds to a title: "(Varsity)", "(Middle School)", "(High School Choir)".
+BOUND_LEVEL = re.compile(r"\s*\((varsity|jv|junior varsity|middle school|high school[^)]*|c|b)\)$", re.I)
+BOUND_TEAMS = {"Kennedy Community MS": "Kennedy"}
+HOME = (45.5647, -94.3183)  # St. Joseph
+
+
+def miles(a, b):
+    (la1, lo1), (la2, lo2) = [(math.radians(x), math.radians(y)) for x, y in (a, b)]
+    h = math.sin((la2 - la1) / 2) ** 2 + math.cos(la1) * math.cos(la2) * math.sin((lo2 - lo1) / 2) ** 2
+    return 7918 * math.asin(math.sqrt(h))
+
+
+def bound_sport(name):
+    """Bound's "Soccer, Boys" as the league's words, "Boys Soccer"; a one-gender sport bare."""
+    family, _, sex = name.partition(", ")
+    family = SPORT_WORDS.get(family, family)
+    return f"{sex} {family}" if sex in ("Boys", "Girls") and family not in ONE_GENDER else family
+
+
+def bound_items(text, entry, src, today):
+    out, levels = [], set(src.get("game_levels") or ())
+    for ev in parse_ics(text):
+        get = lambda k: unescape(ev.get(k, ("", ""))[1])
+        title, key, level = get("SUMMARY"), get("X-BND-ACTIVITYKEY"), get("X-BND-ACTIVITYLEVEL")
+        geo = re.fullmatch(r"(-?[\d.]+);(-?[\d.]+)", ev.get("GEO", ("", ""))[1].strip())
+        if "DTSTART" not in ev or "UID" not in ev or get("STATUS").upper() == "CANCELLED" or BOUND_PASS.search(title) \
+                or not geo or miles(HOME, (float(geo[1]), float(geo[2]))) > 20:
+            continue
+        start, all_day = when(ev["DTSTART"])
+        if not ahead(start if all_day else start.date(), today):
+            continue
+        uid, place = f"bound:{ev['UID'][1].strip()}", get("LOCATION")
+        name = BOUND_LEVEL.sub("", re.sub(rf"\s*\({re.escape(level)}\)$", "", title) if level else title)
+        name = name.split(": ", 1)[1].strip() if ": " in name and key else name
+        if not re.sub(r"\bvs\b", "", name).strip():
+            # Posted with no name ("Choir:  vs"): its level may be the name ("Fall Show"), else skip it.
+            if not level or BOUND_LEVEL.fullmatch(f" ({level})"):
+                continue
+            name = level
+        start_at = start.isoformat()
+        if key in BOUND_ARTS or (not key and BOUND_SHOW.search(title)):
+            out.append(judged(entry, src, title=name, start=start_at, all_day=all_day, place=place,
+                              source_url=page_url(ev, src["url"]), source_uid=uid, same=(start_at, key or name, place[:25])))
+        elif key and level in levels and " vs " in name:
+            teams = [BOUND_TEAMS.get(t.strip(), short_team(t)) for t in name.split(" vs ", 1)]
+            if {t.lower() for t in teams} & PLACEHOLDERS:
+                continue  # an opponent not named yet
+            sport = bound_sport(get("X-BND-ACTIVITYNAME"))
+            out.append(judged(entry, src, title=f"{teams[0]} {sport} vs {teams[1]}", start=start_at, all_day=all_day,
+                              place=place, area="game", interest="watch_sports", blurb=f"{level} game",
+                              source_url=page_url(ev, src["url"]), source_uid=uid,
+                              game={"sport": sport, "teams": teams}, same=(start_at, key, place[:25])))
+    # The whole schedule was read: an event of this school's gone from it was called off.
+    return out + [{"kind": "schedule", "uid_prefix": "bound:", "from": today.isoformat(),
+                   "through": (today + timedelta(DAYS_AHEAD)).isoformat(), "sources": [entry["_name"]]}]
+
+
+def one_each(items):
+    """Bound lists a shared event on every school in it (the conference jazz festival on five), and a
+    meet once per school entered: one Event each, by its id or its start, activity and venue, posted by
+    the school whose venue it is."""
+    keep, seen = [], {}
+    for it in items:
+        same = it.pop("same", None)
+        if same is None:
+            keep.append(it)
+            continue
+        k = seen.get(it["source_uid"]) or seen.get(same)
+        if k is None:
+            seen[it["source_uid"]] = seen[same] = len(keep)
+            keep.append(it)
+        elif short_team(it["source_name"].replace(" High School", "")).split()[0].lower() in it["place"].lower():
+            keep[k] = it  # the school whose venue it is hosts it
+    return keep
+
+
+def read_bound(src, entry, today):
+    return bound_items(fetch(src["url"])[1], entry, src, today)
+
+
 # Rec1: a city's registration catalog ------------------------------------------------------
 
 REC1_KEY = re.compile(r'data-page-data="([^"]+)"')
@@ -781,7 +877,7 @@ def read_rec1(src, entry, today):
 
 READERS = {"ical": read_ical, "pathify": read_pathify, "cars511": read_roads,
            "finalsite-calendar": read_finalsite_calendar, "finalsite-news": read_finalsite_news,
-           "civicplus-hcms": read_hcms, "rec1": read_rec1, "mshsl": read_league}
+           "civicplus-hcms": read_hcms, "rec1": read_rec1, "mshsl": read_league, "gobound": read_bound}
 
 
 def reader_of(src):
@@ -809,6 +905,7 @@ def read_all(entries, today, readers=READERS):
             except Exception as ex:  # a site down or changed is a line in the summary
                 row["error"] = f"{type(ex).__name__}: {ex}"[:300]
             summary.append(row)
+    items = one_each(items)
     schools = [r for r in summary if r["reader"] == "mshsl"]
     if schools:
         found, left = games(listings, today)
@@ -1170,7 +1267,49 @@ def t_items_fit_the_writer():
     assert rows["Sartell Girls Soccer vs St. Cloud"]["category"] == "watch_sports"
 
 
-TESTS = [t_robots, t_ical, t_pathify, t_roads, t_league_retries, t_kennedy_calendar, t_kennedy_news, t_county, t_rec1, t_league,
+def t_gobound():
+    def ev(uid, summary, key="", level="", name="", geo="45.570271;-94.210471", status="CONFIRMED",
+           start="20261120T190000", place="St. Cloud Apollo High School Performing Arts Center"):
+        return (f"BEGIN:VEVENT\r\nDTSTART;TZID=America/Chicago:{start}\r\nGEO:{geo}\r\nLOCATION:{place}\r\n"
+                f"STATUS:{status}\r\nSUMMARY:{summary}\r\nUID:{uid}\r\nURL:https://gobound.com/direct/comps/{uid}/show\r\n"
+                f"X-BND-ACTIVITYKEY:{key}\r\nX-BND-ACTIVITYLEVEL:{level}\r\nX-BND-ACTIVITYNAME:{name}\r\nEND:VEVENT\r\n")
+    ics = "".join([
+        ev("a1", "Drama: Apollo Theater Presents: The SpongeBob Musical (Varsity)", "theatre", "Varsity", "Drama"),
+        ev("a2", "Volleyball\\, Girls: Brainerd vs St. Cloud Apollo (Varsity)", "volleyball", "Varsity", "Volleyball\\, Girls"),
+        ev("a3", "Apollo Boys Soccer Season Pass", "soccer", "", "Soccer\\, Boys"),
+        ev("a4", "Choir: Apollo Choir Concert (Varsity)", "choir", "Varsity", "Choir", status="CANCELLED"),
+        ev("a5", "Band: Detroit Lakes Band Festival (Varsity)", "band", "Varsity", "Band", geo="46.808275;-95.837446"),
+        ev("a6", "Choir:  vs  (Fall Show)", "choir", "Fall Show", "Choir"),
+        ev("a7", "Choir:  vs  (High School Choir)", "choir", "High School Choir", "Choir"),
+        ev("a8", "Fall Play", start="20261029T190000"),
+        ev("a9", "Prom", start="20270501T190000"),
+        ev("k1", "Soccer\\, Boys: Melrose Area vs Kennedy Community MS (Middle School)", "soccer", "Middle School",
+           "Soccer\\, Boys", place="Kennedy Community School Kennedy Field"),
+        ev("k2", "Volleyball\\, Girls: TBD vs Kennedy Community MS (Middle School)", "volleyball", "Middle School",
+           "Volleyball\\, Girls"),
+    ])
+    src = {"url": "https://www.gobound.com/mn/schools/stcloudapollo/calendar/ical", "trust": "official"}
+    got = bound_items(ics, {"_name": "Apollo High School"}, src, date(2026, 10, 25))
+    assert [i["title"] for i in got if i["kind"] == "event"] == [
+        "Apollo Theater Presents: The SpongeBob Musical", "Fall Show", "Fall Play"], got
+    assert got[0]["source_uid"] == "bound:a1" and got[0]["start"] == "2026-11-20T19:00:00-06:00"
+    assert got[-1] == {"kind": "schedule", "uid_prefix": "bound:", "from": "2026-10-25", "through": "2027-01-23",
+                       "sources": ["Apollo High School"]}, "the schedule line: a dropped event was called off"
+    kennedy = bound_items(ics, {"_name": "Kennedy Community School"}, {**src, "game_levels": ["Middle School"]},
+                          date(2026, 10, 25))
+    game = [i for i in kennedy if "game" in i]
+    assert [(i["title"], i["game"]) for i in game] == [
+        ("Melrose Boys Soccer vs Kennedy", {"sport": "Boys Soccer", "teams": ["Melrose", "Kennedy"]})], game
+    # One Event for a festival every school lists, posted by the school whose venue it is.
+    jazz = ev("j1", "Jazzband: Central Lakes Jazz Festival (Varsity)", "jazzband", "Varsity", "Jazz Band",
+              place="St. Cloud Tech High School Performing Arts Center")
+    both = [i for s in ("Apollo High School", "Tech High School")
+            for i in bound_items(jazz, {"_name": s}, src, date(2026, 10, 25)) if i["kind"] == "event"]
+    assert [i["source_name"] for i in one_each(both)] == ["Tech High School"]
+    assert "same" not in one_each(both)[0], "the merge key never reaches the writer"
+
+
+TESTS = [t_gobound, t_robots, t_ical, t_pathify, t_roads, t_league_retries, t_kennedy_calendar, t_kennedy_news, t_county, t_rec1, t_league,
          t_league_tournament_and_moves, t_league_dance_show, t_league_schedule_line, t_nearby_hosts_are_registry_schools,
          t_failure_in_summary, t_items_fit_the_writer]
 
