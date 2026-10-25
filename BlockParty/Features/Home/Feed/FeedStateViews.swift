@@ -17,7 +17,7 @@
 
 import SwiftUI
 
-/// The words. Shared so the three modules cannot drift apart a sentence at a time.
+/// The words. Shared so the feed's states cannot drift apart a sentence at a time.
 nonisolated enum FeedStateCopy {
     /// The same second line everywhere. It names the likeliest cause and the fix,
     /// and nothing else — a neighbour telling you the wifi dropped.
@@ -26,8 +26,6 @@ nonisolated enum FeedStateCopy {
     /// A label that matches what tapping it does: it runs the load again.
     static let retryAction = "Try again"
 
-    static let yourDayUnavailable = "Your day didn’t load."
-    static let townNotesUnavailable = "Town notes didn’t load."
     /// Working words; Jesse writes the final ones.
     static let townEventsUnavailable = "Events didn’t load."
     /// The Town feed's pill when a read fails over a kept list: the map sheet's words
@@ -59,20 +57,6 @@ struct FeedUnavailableBody: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .contain)
-    }
-}
-
-/// The same body on the feed's standard white card, for modules whose content is
-/// itself a card or a strip of cards.
-struct FeedUnavailableCard: View {
-    let title: String
-    var message: String = FeedStateCopy.retryMessage
-    let retry: () -> Void
-
-    var body: some View {
-        FeedUnavailableBody(title: title, message: message, retry: retry)
-            .padding(18)
-            .blockPartyCard(padding: nil)
     }
 }
 
@@ -120,33 +104,5 @@ struct FeedSkeletonSection<Heading: View, Content: View>: View {
                 .accessibilityHidden(true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-/// Placeholder cards for a module whose content is a horizontal strip.
-///
-/// It has to be a real (locked) horizontal ScrollView, not an HStack: fixed-width
-/// blocks in a plain HStack make their parent wider than the screen, which centres
-/// the whole section and pushes its heading off the left edge. `scrollClipDisabled`
-/// matches the live strips, so the last card bleeds off the right edge exactly as
-/// the real one does.
-struct FeedSkeletonStrip: View {
-    let widths: [CGFloat]
-    let height: CGFloat
-    var spacing: CGFloat = 12
-    var verticalPadding: CGFloat = 2
-
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(alignment: .top, spacing: spacing) {
-                ForEach(Array(widths.enumerated()), id: \.offset) { _, width in
-                    SkeletonBlock(cornerRadius: Radius.card)
-                        .frame(width: width, height: height)
-                }
-            }
-            .padding(.vertical, verticalPadding)
-        }
-        .scrollDisabled(true)
-        .scrollClipDisabled()
     }
 }

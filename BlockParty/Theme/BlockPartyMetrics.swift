@@ -42,19 +42,6 @@ struct CardShadow: ViewModifier {
 }
 
 extension View {
-    /// A white card: surface fill, hairline border, card radius, the one soft shadow.
-    func blockPartyCard(radius: CGFloat = Radius.card, padding: CGFloat? = 16) -> some View {
-        self
-            .padding(padding ?? 0)
-            .background(Hue.surface)
-            .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .stroke(Hue.hairline, lineWidth: 1)
-            )
-            .modifier(CardShadow())
-    }
-
     /// Hairline-bordered surface with no shadow (chips, inputs, flat tiles).
     func blockPartyHairline(radius: CGFloat = Radius.button) -> some View {
         self.overlay(
