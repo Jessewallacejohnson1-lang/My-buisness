@@ -13,7 +13,7 @@
 -- its columns don't change, so it is replaced in place. Daily's rows and Event of the day read it.
 
 alter table public.town_profiles add column if not exists birthday date
-  check (birthday between date '1900-01-01' and current_date);
+  check (birthday >= date '1900-01-01');   -- no upper bound: a phone with its clock ahead must still save
 
 alter table public.places add column if not exists adults_only boolean not null default false;
 
@@ -29,7 +29,7 @@ stable
 security definer
 set search_path = public
 as $$
-  select coalesce(p_words ~* '\m(18|21) ?\+|\m(18|21) (and|&) (over|older|up)\M|\mmust be (18|21)\M', false)
+  select coalesce(p_words ~* '(?<!\$)\m(18|21) ?\+|(?<!\$)\m(18|21) (and|&) (over|older|up)\M|\mmust be (18|21)\M', false)
       or exists (select 1 from public.places pl
                  where pl.adults_only
                    and pl.entry_id in (p_place, (select c.place_entry_id from public.clubs c where c.id = p_club)));
