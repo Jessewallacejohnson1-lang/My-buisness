@@ -3,8 +3,8 @@
 //  Block Party — a place's weekly hours (`places.hours`) and what its business page says about
 //  them right now: a green dot "Open till 9 PM", an orange "Closes soon · 9 PM" in its last half
 //  hour, a red "Closed till Tue 4 PM" (Jesse, 2026-10-25; Reference Google Maps and Facebook,
-//  BP app references/business-hours). Read once from each place's own website or Facebook, never
-//  from Google. Times are the Town's clock (`Town.calendar`), not the phone's.
+//  BP app references/business-hours). Saved once from Google Maps, else the place's own website or
+//  Facebook (Jesse: hours are a fact). Times are the Town's clock (`Town.calendar`), not the phone's.
 //
 
 import Foundation
@@ -25,10 +25,14 @@ nonisolated struct PlaceHours: Decodable, Hashable, Sendable {
     init(days: [[Range<Int>]]) { self.days = days }
 
     init(from decoder: Decoder) throws {
-        // A shape it can't read is a week with no hours, so one bad row never costs the place.
-        let raw = (try? [String: [[String]]](from: decoder)) ?? [:]
+        // A day it can't read is a closed day, so one bad entry never costs the week.
+        struct Day: Decodable {
+            let pairs: [[String]]
+            init(from decoder: Decoder) { pairs = (try? [[String]](from: decoder)) ?? [] }
+        }
+        let raw = (try? [String: Day](from: decoder)) ?? [:]
         days = Self.keys.map { key in
-            (raw[key] ?? []).compactMap { pair in
+            (raw[key]?.pairs ?? []).compactMap { pair in
                 guard pair.count == 2, let start = Self.minutes(pair[0]), let end = Self.minutes(pair[1]) else { return nil }
                 return start ..< (end <= start ? end + Self.day : end)
             }
@@ -38,13 +42,15 @@ nonisolated struct PlaceHours: Decodable, Hashable, Sendable {
     static func minutes(_ text: String) -> Int? {
         let parts = text.split(separator: ":").compactMap { Int($0) }
         guard parts.count == 2, (0...24).contains(parts[0]), (0..<60).contains(parts[1]) else { return nil }
-        return parts[0] * 60 + parts[1]
+        let minutes = parts[0] * 60 + parts[1]
+        return minutes <= day ? minutes : nil
     }
 
     enum Status: Equatable {
         case open(closes: Int)
         case closesSoon(closes: Int)
-        /// `weekday` only when it isn't today, or tomorrow morning after a night closed.
+        /// `weekday` only when it isn't today, or tomorrow morning after a day it was open: on a
+        /// closed Monday, "Closed till 9 AM" would read as this morning.
         case closed(opens: Int, weekday: Int?)
         case always
     }
@@ -52,11 +58,14 @@ nonisolated struct PlaceHours: Decodable, Hashable, Sendable {
     /// Open ranges across the week in minutes from Sunday midnight, joined where one runs into
     /// the next, so a bar open till 2 AM Saturday closes at 2, not at midnight.
     private var spans: [Range<Int>] {
-        let all = days.enumerated().flatMap { day, ranges in
+        Self.join(days.enumerated().flatMap { day, ranges in
             ranges.map { ($0.lowerBound + day * Self.day) ..< ($0.upperBound + day * Self.day) }
-        }.sorted { $0.lowerBound < $1.lowerBound }
+        })
+    }
+
+    private static func join(_ spans: [Range<Int>]) -> [Range<Int>] {
         var joined: [Range<Int>] = []
-        for span in all {
+        for span in spans.sorted(by: { $0.lowerBound < $1.lowerBound }) {
             if let last = joined.last, span.lowerBound <= last.upperBound {
                 joined[joined.count - 1] = last.lowerBound ..< max(last.upperBound, span.upperBound)
             } else {
@@ -74,18 +83,19 @@ nonisolated struct PlaceHours: Decodable, Hashable, Sendable {
         let weekday = calendar.component(.weekday, from: now) - 1
         let minute = calendar.component(.hour, from: now) * 60 + calendar.component(.minute, from: now)
         let t = weekday * Self.day + minute
-        // A span from late Saturday reaches into the next week; look a week back and ahead too.
-        let shifted = spans.flatMap { span in
+        // A span from late Saturday reaches into the next week; lay last week and next week beside
+        // this one and join them again, so Saturday night runs on into Sunday.
+        let shifted = Self.join(spans.flatMap { span in
             [-Self.week, 0, Self.week].map { (span.lowerBound + $0) ..< (span.upperBound + $0) }
-        }
+        })
         if let span = shifted.first(where: { $0.contains(t) }) {
             let closes = span.upperBound % Self.day
             return span.upperBound - t <= Self.soon ? .closesSoon(closes: closes) : .open(closes: closes)
         }
         guard let next = shifted.map(\.lowerBound).filter({ $0 > t }).min() else { return nil }
         let opens = next % Self.day
-        let days = next / Self.day - t / Self.day
-        let sameDay = days == 0 || (days == 1 && opens < 12 * 60)
+        let ahead = next / Self.day - t / Self.day
+        let sameDay = ahead == 0 || (ahead == 1 && opens < 12 * 60 && !days[weekday].isEmpty)
         return .closed(opens: opens, weekday: sameDay ? nil : (next / Self.day) % 7 + 1)
     }
 

@@ -62,6 +62,28 @@ final class PlaceHoursTests: XCTestCase {
         XCTAssertEqual(words(at(25, 17), shop), "Closed till 9 AM")
     }
 
+    func testMorningOpeningAfterAClosedDayNamesTheDay() {
+        // Monday 1 PM at a shop closed Mondays: tomorrow's 9 AM is Tuesday's.
+        var days = Array(repeating: [9 * 60 ..< 17 * 60], count: 7)
+        days[1] = []
+        XCTAssertEqual(words(at(26, 13), PlaceHours(days: days)), "Closed till Tue 9 AM")
+        XCTAssertEqual(words(at(26, 19), PlaceHours(days: days)), "Closed till Tue 9 AM")
+    }
+
+    func testSaturdayNightRunsIntoSunday() {
+        var days = Array(repeating: [Range<Int>](), count: 7)
+        days[6] = [18 * 60 ..< 24 * 60]
+        days[0] = [0 ..< 2 * 60]
+        XCTAssertEqual(words(at(24, 22), PlaceHours(days: days)), "Open till 2 AM")
+    }
+
+    func testOneBadDayKeepsTheRest() throws {
+        let hours = try JSONDecoder().decode(PlaceHours.self, from: Data(#"{"mon": "closed", "tue": [["09:00","17:00"]], "wed": [["24:30","25:00"]]}"#.utf8))
+        XCTAssertEqual(hours.days[1], [])
+        XCTAssertEqual(hours.days[2], [540 ..< 1020])
+        XCTAssertEqual(hours.days[3], [])
+    }
+
     func testAlwaysOpenAndNeverOpen() {
         XCTAssertEqual(words(at(25, 3), PlaceHours(days: Array(repeating: [0 ..< 1440], count: 7))), "Open 24 hours")
         XCTAssertNil(words(at(25, 3), PlaceHours(days: Array(repeating: [], count: 7))))

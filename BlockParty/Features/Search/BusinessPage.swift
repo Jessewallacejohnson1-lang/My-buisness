@@ -486,7 +486,9 @@ private struct HoursPill: View {
                         row(status)
                         if expanded {
                             week(context.date)
-                                .transition(.opacity.combined(with: .move(edge: .top)))
+                                // Fades in place as the row grows: a slide drew the days over
+                                // the status line on the way.
+                                .transition(.opacity)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -496,7 +498,8 @@ private struct HoursPill: View {
                 }
                 .buttonStyle(FeedCardPressStyle())
                 .accessibilityLabel(PlaceHours.words(status))
-                .accessibilityValue(expanded ? "Showing the week" : "")
+                .accessibilityValue(expanded ? hours.week(from: context.date).map { "\($0.day) \($0.hours)" }
+                    .joined(separator: ", ") : "")
                 .accessibilityHint(expanded ? "Hides the week's hours" : "Shows the week's hours")
             }
         }
