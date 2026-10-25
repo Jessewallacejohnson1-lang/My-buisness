@@ -386,7 +386,7 @@ private struct YouHighlight<Picture: View>: View {
 /// A group's picture: its logo on its backdrop as Search draws it, else Search's group icon on
 /// the grey. Never its photos: a saved photo carries its credit wherever it shows (MEMORY.md,
 /// 2026-10-16) and a circle this size has no room for one (Jesse, ticket 09 Check-in 1).
-private struct YouGroupPicture: View {
+struct YouGroupPicture: View {
     let group: TownGroup
 
     var body: some View {

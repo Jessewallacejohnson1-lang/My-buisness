@@ -17,6 +17,11 @@ final class ProfileModel: ObservableObject {
     @Published var email: String?
     @Published var sinceLabel: String?
     @Published var isAdmin = false
+    /// Profile's bio and cover photo, and the counts and groups `get_profile` sends (BP app
+    /// references/profile-remake). Nil until read; an anonymous account has none.
+    @Published var bio = ""
+    @Published var coverUrl: String?
+    @Published var extras: ProfileExtras?
     /// "Show my plans to friends" (town-feed 28): nil until the server row says. Till then the
     /// switch shows the default, On, greyed, and can't be changed.
     @Published var plansToFriends: Bool?
@@ -46,6 +51,8 @@ final class ProfileModel: ObservableObject {
         self.auth = auth ?? .shared
         self.writePlans = writePlans
         self.writeSuggest = writeSuggest
+        // The name at once, so the sheet never opens on "Add your name" and fades to it.
+        displayName = Interests.displayName ?? ""
         #if DEBUG
         // `-town-samples`: the switch shows on and its taps write nowhere, as Join's do.
         if writePlans == nil, ProcessInfo.processInfo.arguments.contains("-town-samples") {
@@ -77,17 +84,28 @@ final class ProfileModel: ObservableObject {
             avatarUrl = p.avatarUrl
             // The server row is authoritative — adopt its interests even when empty
             // (a deliberate clear elsewhere must sync, not get resurrected on Save),
-            // and mirror locally so Home's matching agrees.
-            interestIds = p.interests
-            Interests.set(p.interests)
-            sinceLabel = ProfileModel.since(from: p.onboardedAt)
+            // and mirror locally so Home's matching agrees. Old ids come back as the new 21, so
+            // a Save never drops what someone picked before the list changed.
+            interestIds = Interests.migrate(p.interests)
+            Interests.set(interestIds)
+            // Onboarding went away for a while; a row made then has only its own stamp.
+            sinceLabel = ProfileModel.since(from: p.onboardedAt ?? p.createdAt)
+            bio = p.bio ?? ""
+            coverUrl = p.coverUrl
             plansToFriends = p.plansToFriends ?? true
             suggestMe = p.suggestMe ?? true
+        }
+
+        if canDescribe, let uid = auth.userId, let read = try? await profiles.getProfile(uid) {
+            extras = read
         }
 
         loading = false
         loaded = true
     }
+
+    /// Only a real account has a bio, a cover, friends and a `get_profile` to read.
+    var canDescribe: Bool { auth.isSignedIn && !auth.isAnonymous }
 
     // MARK: - Edit / save
 
@@ -96,7 +114,8 @@ final class ProfileModel: ObservableObject {
     /// local mirror + published state are committed only on success, so the editor
     /// can surface a real failure instead of falsely reporting "saved" and then
     /// silently reverting on the next load.
-    func save(name: String, image: UIImage?, interests: [String]) async -> Bool {
+    func save(name: String, image: UIImage?, interests: [String],
+              bio: String? = nil, cover: UIImage? = nil) async -> Bool {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
 
         // A newly picked photo must upload successfully; otherwise we'd save a
@@ -106,10 +125,18 @@ final class ProfileModel: ObservableObject {
             guard let uploaded = await storage.uploadAvatar(data, userId: uid) else { return false }
             newUrl = uploaded
         }
+        // A cover, as wide as the phone at 3x (`coverJPEG`), into the same folder.
+        var newCover: String?
+        if let cover, let data = Self.coverJPEG(cover), let uid = auth.userId {
+            guard let uploaded = await storage.uploadAvatar(data, userId: uid, name: "cover") else { return false }
+            newCover = uploaded
+        }
+        let newBio = bio.map { Self.clampBio($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
 
         do {
             try await profiles.upsert(displayName: trimmed.isEmpty ? nil : trimmed,
-                                      avatarUrl: newUrl, interests: interests, onboarded: false)
+                                      avatarUrl: newUrl, interests: interests, onboarded: false,
+                                      bio: canDescribe ? newBio : nil, coverUrl: canDescribe ? newCover : nil)
         } catch {
             return false
         }
@@ -120,7 +147,41 @@ final class ProfileModel: ObservableObject {
         displayName = trimmed
         avatarUrl = newUrl
         interestIds = interests
+        if canDescribe, let newBio { self.bio = newBio }
+        if let newCover { coverUrl = newCover }
         return true
+    }
+
+    /// Nextdoor's 150 letters; the database holds the same line.
+    static let bioLimit = 150
+
+    /// Letters as the database counts them (`char_length`, one per Unicode scalar): a family emoji
+    /// is one to Swift but up to seven there, and a bio Swift let through was refused.
+    nonisolated static func bioLength(_ text: String) -> Int { text.unicodeScalars.count }
+
+    /// The bio cut to `bioLimit` the database's way, never mid-emoji.
+    nonisolated static func clampBio(_ text: String) -> String {
+        var out = "", used = 0
+        for letter in text {
+            used += letter.unicodeScalars.count
+            guard used <= bioLimit else { break }
+            out.append(letter)
+        }
+        return out
+    }
+
+    /// The cover as it uploads: at most 1290 px wide (a 430 pt phone at 3x), as a JPEG.
+    nonisolated static func coverJPEG(_ image: UIImage) -> Data? {
+        let wide = image.size.width
+        guard wide > 0 else { return nil }
+        let k = min(1, 1290 / (wide * image.scale)) * image.scale
+        let size = CGSize(width: (wide * k).rounded(.down), height: (image.size.height * k).rounded(.down))
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = true
+        return UIGraphicsImageRenderer(size: size, format: format).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: size))
+        }.jpegData(compressionQuality: 0.8)
     }
 
     /// The photo as it uploads: its middle square, at most 400 px a side, as a JPEG. Every

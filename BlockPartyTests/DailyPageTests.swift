@@ -158,7 +158,7 @@ final class DailyPageTests: XCTestCase {
         let json: [String: Any] = [
             "id": "11111111-2222-3333-4444-555555555555", "title": "Sartell Boys Soccer vs ROCORI",
             "event_date": "2026-10-20", "start_time": start ?? NSNull(), "location": "Sartell High School",
-            "image_url": NSNull(), "category": "sports_leagues", "club_name": NSNull(),
+            "image_url": NSNull(), "category": "watch_sports", "club_name": NSNull(),
             "source_name": "Sartell High School", "end_at": NSNull(), "all_day": allDay,
             "created_at": "2026-10-01T12:00:00+00:00", "going_count": 2, "rsvpd": true,
             "recurrence": NSNull(), "leaves_at": leaves]
@@ -310,7 +310,7 @@ final class DailyPageTests: XCTestCase {
     @MainActor
     func testTopicsAreYourInterestsThatTheDayHas() {
         let day = [topicCard("Live jazz", host: "Krewe"), topicCard("Latte art class", host: "Local Blend")]
-        XCTAssertEqual(DailyTopic.topics(for: day, mine: ["coffee", "biking", "live_music"]), ["coffee", "live_music"])
+        XCTAssertEqual(DailyTopic.topics(for: day, mine: ["coffee", "lakes_biking", "live_music"]), ["coffee", "live_music"])
     }
 
     /// With no interests picked (signed out), the day's busiest interests lead.
@@ -318,22 +318,22 @@ final class DailyPageTests: XCTestCase {
     func testWithNoInterestsTheBusiestTopicsLead() {
         let day = [topicCard("Yoga in the park"), topicCard("Park cleanup"), topicCard("Open mic")]
         let topics = DailyTopic.topics(for: day, mine: [])
-        XCTAssertEqual(topics.first, "parks_gardens")
+        XCTAssertEqual(topics.first, "outdoors")
         XCTAssertTrue(topics.contains("live_music"))
-        XCTAssertFalse(topics.contains("biking"))
+        XCTAssertFalse(topics.contains("lakes_biking"))
         XCTAssertLessThanOrEqual(DailyTopic.topics(for: day, mine: [], limit: 1).count, 1)
     }
 
     /// A topic keeps the events that match it, by the words "Suggested for you" reads.
     @MainActor
     func testATopicMatchesItsEvents() {
-        XCTAssertTrue(DailyTopic.matches(topicCard("Beer and trivia", host: "Bad Habit"), "breweries"))
-        XCTAssertFalse(DailyTopic.matches(topicCard("Story time"), "breweries"))
+        XCTAssertTrue(DailyTopic.matches(topicCard("Beer and trivia", host: "Bad Habit"), "bars"))
+        XCTAssertFalse(DailyTopic.matches(topicCard("Story time"), "bars"))
         // Whole words only: "art" isn't in "Block Party", "park" isn't in "parking".
-        XCTAssertFalse(DailyTopic.matches(topicCard("Block Party"), "art_exhibits"))
-        XCTAssertTrue(DailyTopic.matches(topicCard("Student art show"), "art_exhibits"))
-        XCTAssertTrue(DailyTopic.matches(topicCard("Two parks cleanup"), "parks_gardens"))
-        XCTAssertFalse(DailyTopic.matches(topicCard("Market in the church parking lot"), "parks_gardens"))
+        XCTAssertFalse(DailyTopic.matches(topicCard("Block Party"), "art_theater"))
+        XCTAssertTrue(DailyTopic.matches(topicCard("Student art show"), "art_theater"))
+        XCTAssertTrue(DailyTopic.matches(topicCard("Two parks cleanup"), "outdoors"))
+        XCTAssertFalse(DailyTopic.matches(topicCard("Market in the church parking lot"), "outdoors"))
         XCTAssertEqual(DailyTopic.label("live_music"), "Live music")
     }
 

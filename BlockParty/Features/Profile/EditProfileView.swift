@@ -1,7 +1,8 @@
 //
 //  EditProfileView.swift
-//  Block Party — edit your community profile: photo · name · interests. Mirrors the
-//  onboarding steps (same avatar well, the shared interest grid) and saves through
+//  Block Party — edit your community profile: cover · photo · name · bio · interests (the
+//  cover and bio for a real account only, BP app references/profile-remake). Mirrors the
+//  onboarding steps (same avatar well, the shared interest chips) and saves through
 //  ProfileModel.save (upload avatar → town_profiles upsert). A clean opaque form —
 //  glass is for the profile display, input reads calmer on paper.
 //
@@ -15,8 +16,12 @@ struct EditProfileView: View {
 
     @State private var name = ""
     @State private var image: UIImage?
-    @State private var interests: Set<String> = []
+    @State private var interests: [String] = []
+    @State private var popular: [String] = []
     @State private var pick: PhotosPickerItem?
+    @State private var bio = ""
+    @State private var cover: UIImage?
+    @State private var coverPick: PhotosPickerItem?
     @State private var showInterests = EditProfileView.debugOpenInterests()
     @State private var saving = false
     @State private var saveFailed = false
@@ -38,10 +43,15 @@ struct EditProfileView: View {
             header
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 26) {
+                    if model.canDescribe {
+                        PhotosPicker(selection: $coverPick, matching: .images, photoLibrary: .shared()) { coverWell }
+                            .buttonStyle(PressableStyle())
+                    }
                     PhotosPicker(selection: $pick, matching: .images, photoLibrary: .shared()) { avatarWell }
                         .buttonStyle(.plain)
                         .padding(.top, 8)
                     nameField
+                    if model.canDescribe { bioField }
                     interestsSection
                 }
                 .padding(24)
@@ -52,7 +62,18 @@ struct EditProfileView: View {
         .presentationDetents([.large])
         .onAppear {
             if name.isEmpty { name = model.displayName }
-            if interests.isEmpty { interests = Set(model.interestIds) }
+            if interests.isEmpty { interests = model.interestIds }
+            if bio.isEmpty { bio = model.bio }
+        }
+        // Opened before Profile's read landed: its bio comes in then, unless you've typed one.
+        .onChange(of: model.bio) { old, new in if bio == old { bio = new } }
+        .onChange(of: coverPick) { _, item in
+            guard let item else { return }
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self), let ui = UIImage(data: data) {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { cover = ui }
+                }
+            }
         }
         .onChange(of: pick) { _, item in
             guard let item else { return }
@@ -63,9 +84,12 @@ struct EditProfileView: View {
             }
         }
         .sheet(isPresented: $showInterests) {
-            InterestPickerView(selected: $interests, name: name,
-                               onBack: { showInterests = false },
-                               onContinue: { showInterests = false })
+            InterestsSheet(picked: $interests, popular: popular)
+        }
+        .task {
+            if let events = try? await CommunityAPI(auth: AuthStore.shared).upcomingInterests() {
+                popular = Interests.popular(events)
+            }
         }
     }
 
@@ -105,7 +129,8 @@ struct EditProfileView: View {
                 saveFailed = false
                 saving = true
                 Task {
-                    let ok = await model.save(name: name, image: image, interests: Array(interests))
+                    let ok = await model.save(name: name, image: image, interests: interests,
+                                              bio: model.canDescribe ? bio : nil, cover: cover)
                     saving = false
                     if ok {
                         Haptics.success()
@@ -180,6 +205,50 @@ struct EditProfileView: View {
         }
     }
 
+    /// The cover, as wide as the field, at the profile's own shape; a tap picks a new one.
+    private var coverWell: some View {
+        Hue.fill
+            .aspectRatio(GroupPage.Metric.heroAspect, contentMode: .fit)
+            .overlay {
+                if let cover {
+                    Image(uiImage: cover).resizable().scaledToFill()
+                } else if let url = model.coverUrl.flatMap(URL.init(string:)) {
+                    FeedCardURLPhoto(url: url, loadingFill: Hue.fill)
+                } else if let town = ProfileFace.town {
+                    Image(uiImage: town).resizable().scaledToFill()
+                }
+            }
+            .overlay {
+                Label("Change cover", systemImage: "photo")
+                    .font(.sansSemibold(15))
+                    .foregroundStyle(Hue.ink)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 9)
+                    .background(Hue.surface, in: Capsule())
+            }
+            .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+            .accessibilityLabel("Change cover photo")
+    }
+
+    /// Nextdoor's bio: their words for the empty box, 150 letters, the count under it.
+    private var bioField: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Bio").font(.mono(11)).tracking(1.5).foregroundStyle(Hue.inkSecondary)
+            TextField("Tell your neighbors a little about yourself", text: $bio, axis: .vertical)
+                .font(.sans(17)).foregroundStyle(Hue.ink)
+                .lineLimit(3...5)
+                .padding(.horizontal, 14).padding(.vertical, 13)
+                .background(Hue.surface, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
+                .onChange(of: bio) { _, v in
+                    if ProfileModel.bioLength(v) > ProfileModel.bioLimit { bio = ProfileModel.clampBio(v) }
+                }
+            Text("\(ProfileModel.bioLength(bio))/\(ProfileModel.bioLimit)")
+                .font(.sans(12)).foregroundStyle(Hue.inkSecondary).monospacedDigit()
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+    }
+
     private var interestsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Interests").font(.mono(11)).tracking(1.5).foregroundStyle(Hue.inkSecondary)
@@ -205,5 +274,38 @@ struct EditProfileView: View {
             }
             .buttonStyle(PressableStyle())
         }
+    }
+}
+
+/// Edit Profile's interests: onboarding's chips, keeping at least one.
+private struct InterestsSheet: View {
+    @Binding var picked: [String]
+    let popular: [String]
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Interests")
+                .font(.sansSemibold(17))
+                .foregroundStyle(Hue.ink)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 18)
+            InterestChips(picked: $picked, popular: popular, bottomInset: 120)
+        }
+        .padding(.horizontal, 24)
+        .overlay(alignment: .bottom) {
+            ContinueButton(title: picked.isEmpty ? "Pick 1" : "Done", enabled: !picked.isEmpty) {
+                Haptics.selection(); dismiss()
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 32)
+            .padding(.bottom, 8)
+            // The chips scroll away under a paper fade, as onboarding's do under its Next bar.
+            .background(LinearGradient(colors: [Hue.paper.opacity(0), Hue.paper], startPoint: .top, endPoint: .center)
+                .ignoresSafeArea())
+        }
+        .background(Hue.paper.ignoresSafeArea())
+        .presentationDragIndicator(.visible)
+        .interactiveDismissDisabled(picked.isEmpty)
     }
 }

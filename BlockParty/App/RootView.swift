@@ -248,8 +248,8 @@ struct RootView: View {
         onboarding.birthday = nil
     }
 
-    /// Onboarding's name and photo reach `town_profiles` once the flow is done and an account
-    /// exists; till then they wait on the phone (BP app onboarding 18). The photo uploads to
+    /// Onboarding's name, photo and interests reach `town_profiles` once the flow is done and an
+    /// account exists; till then they wait on the phone (BP app onboarding 18, 20). The photo uploads to
     /// the avatar the app already shows.
     private func saveOnboardingAnswers() async {
         guard onboarding.finished else { return }
@@ -261,8 +261,10 @@ struct RootView: View {
                 url = await Storage(auth: auth).uploadAvatar(photo, userId: uid)
                 if url == nil { throw SupabaseError(message: "The photo didn't upload.", status: 0) }
             }
-            try await ProfileAPI(auth: auth).setNameAndPhoto(displayName: name, avatarUrl: url)
+            let picks = onboarding.interests
+            try await ProfileAPI(auth: auth).setNameAndPhoto(displayName: name, avatarUrl: url, interests: picks)
             if let name { Interests.displayName = name }
+            if !picks.isEmpty { Interests.set(picks) }
         }
     }
 
@@ -551,6 +553,8 @@ struct MainTabsView: View {
         // Outside the stack, so pushed pages and sheets read the same one.
         .environment(actions)
         .environment(friendsBook)
+        // A neighbour's page lays their groups and your shared plans over the You tab's reads.
+        .environment(you)
         // `friend-limit`, `friend-name-needed` and a Block that didn't go through, in Apple's alert.
         .alert((friendsBook.problem ?? said).title,
                isPresented: Binding(get: { friendsBook.problem != nil },
@@ -821,6 +825,7 @@ struct MainTabsView: View {
             }
             .environment(calendarSync)
             .environment(friendsBook)
+            .environment(you)
             .environment(townFeed)
             .environment(actions)
             .presentationDetents([.large])

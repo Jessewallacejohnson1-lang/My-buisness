@@ -110,6 +110,16 @@ final class OnboardingStoreTests: XCTestCase {
         XCTAssertEqual(calls.count, 1, "saved answers aren't sent again")
     }
 
+    func testInterestPicksWaitToBeSaved() {
+        let saved = Interests.get()
+        defer { Interests.set(saved) }
+        let store = OnboardingStore(defaults: defaults)
+        XCTAssertFalse(store.answersPending)
+        store.interests = ["coffee", "campus", "faith"]
+        XCTAssertTrue(OnboardingStore(defaults: defaults).answersPending, "picks wait for the account")
+        XCTAssertEqual(Interests.get(), ["coffee", "campus", "faith"], "every screen reads them at once")
+    }
+
     func testTwoSavesAtOnceSendOnce() async {
         let store = OnboardingStore(defaults: defaults)
         store.photo = Data([7])
@@ -164,7 +174,10 @@ final class OnboardingStoreTests: XCTestCase {
     }
 
     func testCloseClearsEverythingTheDeviceKeptAndStartsOver() {
+        let saved = Interests.get()
+        defer { Interests.set(saved) }
         let store = onBirthday()
+        store.interests = ["coffee", "campus", "faith"]   // picked, then back to the birthday
         store.birthday = day("2015-01-01")
         defaults.set("Avery", forKey: "onboarding.name")   // another step's answer
         defaults.set("keep", forKey: "other.setting")
@@ -172,6 +185,9 @@ final class OnboardingStoreTests: XCTestCase {
         store.leaveTooYoung()
         XCTAssertEqual(store.step, .welcome)
         XCTAssertNil(store.birthday)
+        XCTAssertEqual(store.interests, [])
+        XCTAssertEqual(Interests.get(), [], "a kid's picks don't stay behind")
+        XCTAssertFalse(store.answersPending)
         XCTAssertFalse(store.tooYoung)
         XCTAssertTrue(defaults.dictionaryRepresentation().keys.filter { $0.hasPrefix("onboarding.") }.isEmpty)
         XCTAssertEqual(defaults.string(forKey: "other.setting"), "keep")

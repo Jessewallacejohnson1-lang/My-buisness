@@ -62,6 +62,15 @@ final class OnboardingStore {
     var lastName: String { didSet { keep(lastName, Self.lastKey) } }
     /// The picked photo as it uploads (`ProfileModel.avatarJPEG`), nil until one is picked.
     var photo: Data? { didSet { keep(photo, Self.photoKey) } }
+    /// Interests' picks (ticket 20), in the order made. They live where every screen reads
+    /// interests (`Interests`), and reach the server with the name and photo.
+    var interests: [String] {
+        didSet {
+            Interests.set(interests)
+            answersPending = true
+            defaults.set(true, forKey: Self.pendingKey)
+        }
+    }
     /// An answer changed since the last save reached the server.
     private(set) var answersPending: Bool
     /// A save is out, so a second caller doesn't upload the photo again.
@@ -87,6 +96,7 @@ final class OnboardingStore {
         photo = defaults.data(forKey: Self.photoKey)
         answersPending = defaults.bool(forKey: Self.pendingKey)
         birthday = defaults.string(forKey: Self.birthdayKey).flatMap { try? OnboardingAge.day.parse($0) }
+        interests = Interests.get()
     }
 
     /// 1 to 9 on the question steps, 0 on the Welcome.
@@ -136,6 +146,7 @@ final class OnboardingStore {
         lastName = ""
         photo = nil
         birthday = nil
+        interests = []   // kept under bp.interests, not onboarding.
         for key in defaults.dictionaryRepresentation().keys where key.hasPrefix("onboarding.") {
             defaults.removeObject(forKey: key)
         }
@@ -179,6 +190,8 @@ struct OnboardingFlow: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AccessibilityFocusState private var questionFocused: Bool
     @State private var keyboardUp = false
+    /// "Popular in St. Joseph", read while the earlier steps are up.
+    @State private var popular: [String] = []
 
     /// Out-quint over 0.34 s, the mock's question slide.
     private static let slide: Animation = .timingCurve(0.22, 1, 0.36, 1, duration: 0.34)
@@ -203,6 +216,11 @@ struct OnboardingFlow: View {
                                    })
                     .zIndex(2)
                     .transition(reduceMotion ? .opacity : .move(edge: .trailing))
+            }
+        }
+        .task {
+            if let events = try? await CommunityAPI(auth: AuthStore.shared).upcomingInterests() {
+                popular = Interests.popular(events)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
@@ -235,6 +253,8 @@ struct OnboardingFlow: View {
             .padding(.trailing, 32)
             .padding(.top, 56)
             .ignoresSafeArea(.container)
+
+            if store.step == .interests { foot.transition(.opacity) }
         }
         .overlay(alignment: .bottom) {
             if store.step == .birthday {
@@ -252,6 +272,22 @@ struct OnboardingFlow: View {
         Binding(get: { [store] in store.birthday ?? .now }, set: { [store] in store.birthday = $0 })
     }
 
+    /// Over a list that scrolls under the Next bar, the backdrop comes back over the bottom
+    /// 190 pt, clear at the top and solid from 38% down (the mock's foot).
+    private var foot: some View {
+        OnboardingBackdrop()
+            .mask {
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.38)],
+                                   startPoint: .top, endPoint: .bottom)
+                        .frame(height: 190)
+                }
+                .ignoresSafeArea()
+            }
+            .allowsHitTesting(false)
+    }
+
     private var question: some View {
         VStack(alignment: .leading, spacing: 32) {
             BlockPartyWordmark(height: 33)
@@ -266,7 +302,7 @@ struct OnboardingFlow: View {
                 answer
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(.horizontal, 32)
         .padding(.top, 128)
         .ignoresSafeArea(.container)
@@ -287,6 +323,13 @@ struct OnboardingFlow: View {
         case .birthday:
             OnboardingBirthdayField(date: store.birthday ?? .now, now: .now)
                 .padding(.top, 32)
+        case .interests:
+            Text("We'll show events, groups and places that match.")
+                .font(.sans(15))
+                .foregroundStyle(Hue.inkSecondary)
+                .padding(.top, 8)
+            InterestChips(picked: Binding(get: { store.interests }, set: { store.interests = $0 }),
+                          popular: popular)
         default:
             EmptyView()
         }
@@ -296,7 +339,7 @@ struct OnboardingFlow: View {
     /// open keyboard (the slot hides behind the keyboard then).
     private var bottom: some View {
         VStack(spacing: 6) {
-            OnboardingNextBar(title: "Next", allowed: nextAllowed, action: go { [store] in store.next() })
+            OnboardingNextBar(title: nextTitle, allowed: nextAllowed, action: go { [store] in store.next() })
             if !keyboardUp && store.step != .birthday { slot.frame(height: 44) }
         }
         .padding(.horizontal, 24)
@@ -318,6 +361,12 @@ struct OnboardingFlow: View {
         }
     }
 
+    /// "Pick 2 more" until step 7 has its 3.
+    private var nextTitle: String {
+        if store.step == .interests, store.interests.count < 3 { return "Pick \(3 - store.interests.count) more" }
+        return "Next"
+    }
+
     /// Placeholders always allow Next; a step that asks something says when it may (17 to 24).
     /// Name waits for a first name, Photo for a photo (Skip moves on without one).
     /// DEBUG `-onboarding-not-yet` holds it grey, to show the shake.
@@ -329,6 +378,7 @@ struct OnboardingFlow: View {
         case .name:  return store.displayName != nil
         case .photo: return store.photo != nil
         case .birthday: return store.birthday != nil
+        case .interests: return store.interests.count >= 3
         default:     return true
         }
     }

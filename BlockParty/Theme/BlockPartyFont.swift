@@ -173,6 +173,13 @@ extension Font {
         .custom(Face.bodyBold, size: size, relativeTo: nearestTextStyle(to: size))
     }
 
+    /// SF Pro at the nearest text style, scaling with it: Profile's text under the name, the
+    /// one screen off BP Body (Jesse, 2026-10-25: "use same font as group page", the Group
+    /// page's SF Pro before BP Body; BP app taste/you.md).
+    static func apple(_ size: CGFloat, weight: Weight = .regular) -> Font {
+        .system(nearestTextStyle(to: size), weight: weight)
+    }
+
     // Data — paired with `.monospacedDigit()` at the call site for tabular figures
     // (was Geist Mono). Same metrics as the sans helpers by design; the separate
     // name records the intent at the call site.

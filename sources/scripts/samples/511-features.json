@@ -1,0 +1,95 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "CARSx-129007",
+    "title": "MN 24 in both directions: Construction work.",
+    "description": "<div data-test-desc-type='roadReports' data-test-desc-segments=''><p> Between 160th Street Northwest and 179th Street (Clearwater). Look out for construction work. Consider using an alternate route. Until November 20, 2026 at about 5:00PM CDT. </p> </div>",
+    "startTime": {
+     "time": 1786363200000,
+     "timeZoneId": "America/Chicago",
+     "utcOffset": -18000000
+    },
+    "active": true
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -94.066260163908,
+      45.3839690377312
+     ],
+     [
+      -94.063922473744,
+      45.38877543964189
+     ],
+     [
+      -94.06243039646475,
+      45.392593290376574
+     ],
+     [
+      -94.06082563872364,
+      45.40296242166262
+     ],
+     [
+      -94.06037194080302,
+      45.40575793998859
+     ],
+     [
+      -94.06008924739659,
+      45.407518518728956
+     ],
+     [
+      -94.05959590187146,
+      45.40929095219725
+     ],
+     [
+      -94.05890526728247,
+      45.41055548249963
+     ],
+     [
+      -94.05890526728247,
+      45.41055548249963
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "CARSx-142773",
+    "title": "MN 55 in both directions: Road closed.",
+    "description": "<div data-test-desc-type='roadReports' data-test-desc-segments=''><p> Between County Road 130 and West Mill Street (Paynesville). The road is closed because of construction work and because the bridge is closed. <strong>Please follow the Minnesota DOT-recommended detour around the closure. See map for detour(s)</strong>. All lanes are closed in both directions of travel. Until July 2, 2027 at about 5:00PM CDT. </p> <p><i>Comment:</i> For additional information on this project,  <a href=\"https://www.dot.state.mn.us/d3/projects/paynesville/index.html\">Click Here</a> </p> </div>",
+    "startTime": {
+     "time": 1790607600000,
+     "timeZoneId": "America/Chicago",
+     "utcOffset": -18000000
+    },
+    "active": true
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -94.73028036949009,
+      45.38041257523589
+     ],
+     [
+      -94.72975755823737,
+      45.37956176511621
+     ],
+     [
+      -94.72921731614036,
+      45.37868331219499
+     ],
+     [
+      -94.72921731614036,
+      45.37868331219499
+     ]
+    ]
+   }
+  }
+ ]
+}

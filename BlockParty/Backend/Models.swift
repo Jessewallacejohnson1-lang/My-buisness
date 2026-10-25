@@ -775,4 +775,19 @@ struct TownProfile: Decodable {
     var plansToFriends: Bool? = nil
     /// "Suggest me to people I may know" (daily-tab 22): nil when the read didn't carry it.
     var suggestMe: Bool? = nil
+    /// Profile's bio and cover photo (BP app references/profile-remake).
+    var bio: String? = nil
+    var coverUrl: String? = nil
+    /// When the row was made: "Neighbor since" for an account that never onboarded.
+    var createdAt: String? = nil
+}
+
+/// A profile's page beyond its name and photo (`get_profile`): the bio, the cover, how many
+/// friends, the groups they're in, and for a friend, the Events you're both Going to.
+struct ProfileExtras: Decodable, Equatable {
+    var bio: String? = nil
+    var coverUrl: String? = nil
+    var friends = 0
+    var groupIds: [String] = []
+    var bothGoing: [String] = []
 }

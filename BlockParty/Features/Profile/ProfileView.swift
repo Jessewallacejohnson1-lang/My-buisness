@@ -1,11 +1,12 @@
 //
 //  ProfileView.swift
-//  Block Party — Profile: your photo, name, Edit profile, your saved Events and settings, in
-//  Apple's standard sheet from your photo at the top left of the You tab (BP app
-//  docs/plans/you-tab). What you're Going to lives on the You page; your interests are edited
-//  in Edit profile. Saved pushes inside the sheet's own stack (`RootView`).
+//  Block Party — Profile, in Apple's standard sheet from your photo at the top left of the You
+//  tab (BP app docs/plans/you-tab): your own profile page (`ProfilePage`, BP app
+//  references/profile-remake), with Edit profile and Settings in white circles on the cover. Your
+//  settings, Saved among them, push from ☰ inside the sheet's own stack (`RootView`), as Saved
+//  did, so nothing stacks a sheet on the sheet.
 //
-//  Motion: the house SpringReveal cascade on appear; press-scale on every control.
+//  Motion: the house SpringReveal cascade on Settings; press-scale on every control.
 //
 
 import SwiftUI
@@ -16,14 +17,20 @@ struct ProfileView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(CalendarSync.self) private var calendarSync
     @Environment(FriendsBook.self) private var friendsBook
+    @Environment(RealLifeActions.self) private var actions
+    /// Your three weeks of Going and the Town's groups, the You tab's (`RootView`).
+    @Environment(YouModel.self) private var you
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var model = ProfileModel()
 
     @State private var revealed = false
     @State private var editing = ProfileView.debugEdit()
+    @State private var settings = ProfileView.debugSettings()
     @State private var showAbout = false
     @State private var showModeration = ProfileView.debugModeration()
     @State private var confirmSignOut = false
+    @State private var pushedEvent: FeedCardItem?
+    @State private var pushedGroup: TownGroup?
 
     /// DEBUG-only: force the edit sheet open on launch so it can be screenshotted
     /// headlessly. No effect in release.
@@ -42,14 +49,74 @@ struct ProfileView: View {
         return false
         #endif
     }
+    /// DEBUG-only: `-profile-settings` (and `-profile-bottom`, scrolled to Sign out) opens Settings.
+    private static func debugSettings() -> Bool {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        return arguments.contains("-profile-settings") || arguments.contains("-profile-bottom")
+        #else
+        return false
+        #endif
+    }
+
     var body: some View {
-        ScrollViewReader { proxy in
-            content.onAppear {
-                revealed = true
-                debugScrollBottom(proxy)
-                debugAutoClose()
-            }
+        TimelineView(.everyMinute) { context in
+            ProfilePage(face: face(now: context.date)) {
+                HStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    FeedEventDetailDestination.circleButton(glyph: Image(systemName: "pencil"), label: "Edit profile",
+                                                            reduceMotion: reduceMotion) {
+                        Haptics.selection()
+                        editing = true
+                    }
+                    FeedEventDetailDestination.circleButton(glyph: Image(systemName: "line.3.horizontal"),
+                                                            label: "Settings", reduceMotion: reduceMotion) {
+                        Haptics.selection()
+                        settings = true
+                    }
+                }
+            } bar: {
+                EmptyView()
+            } addBio: {
+                Haptics.selection()
+                editing = true
+            } openEvent: { pushedEvent = $0 } openGroup: { pushedGroup = $0 }
         }
+        .onAppear { debugAutoClose() }
+        .task { await model.load() }
+        .task {
+            if you.going == nil { await you.refresh() }
+            if you.groups == nil { await you.refreshGroups() }
+        }
+        .navigationDestination(isPresented: $settings) { settingsPage }
+        .navigationDestination(item: $pushedEvent) { FeedEventDetailDestination(item: $0) }
+        .navigationDestination(item: $pushedGroup) { GroupPage(group: $0) }
+        .sheet(isPresented: $editing) { EditProfileView(model: model) }
+    }
+
+    /// Your page: your next three plans and how many in the three weeks, the groups you're in
+    /// (this session's joins laid over the read, as You's row), your bio or "+ Add bio".
+    private func face(now: Date) -> ProfileFace {
+        let first = YouCalendar.firstDay(of: now)
+        let going = you.going.map {
+            YouCalendar.going(read: $0, tapped: Array(actions.goingTapped.values),
+                              isGoing: { actions.going($0).isGoing }, first: first)
+        }
+        let plans = going.map { ProfileFace.nextPlans($0, now: now) }
+        let bio = model.bio.trimmingCharacters(in: .whitespacesAndNewlines)
+        return ProfileFace(
+            name: model.displayName.isEmpty ? "Add your name" : model.displayName,
+            avatarUrl: model.avatarUrl,
+            coverUrl: model.coverUrl,
+            bio: bio.isEmpty ? nil : bio,
+            line: subLine,
+            friends: model.extras?.friends,
+            groups: (you.groups ?? []).filter { actions.member($0).isMember },
+            going: plans?.rows,
+            goingCount: plans?.count,
+            addsBio: bio.isEmpty && model.canDescribe,
+            coverKnown: model.loaded,
+            now: now)
     }
 
     /// DEBUG-only: `-profile-autoclose` dismisses the sheet ~1.6s after open so the
@@ -61,31 +128,41 @@ struct ProfileView: View {
         #endif
     }
 
-    private var content: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(spacing: 22) {
-                header.springReveal(0, revealed: revealed)
-                rows.springReveal(1, revealed: revealed)
-                // Hidden when there is no session to end. Sign-in is switched off
-                // (`RootView.requiresSignIn`), so for most people this screen is now
-                // reached without ever having signed in, and a "Sign out" button that
-                // can only clear something that was never set reads as a broken
-                // control. It comes back with the gate. The quiet anonymous account
-                // every install gets counts as not signed in: signing out would only
-                // throw away its Going.
-                if AuthStore.shared.isSignedIn && !AuthStore.shared.isAnonymous {
-                    signOutButton.springReveal(2, revealed: revealed).id("bottom")
+    private var subLine: String {
+        var parts = [Town.display.components(separatedBy: ",").first ?? Town.display]
+        if let s = model.sinceLabel { parts.append("Neighbor since \(s)") }
+        return parts.joined(separator: " · ")
+    }
+
+    // MARK: - Settings
+
+    /// Today's rows, pushed from ☰ under Saved's top (`SavedPage`): the sheet's own stack.
+    private var settingsPage: some View {
+        ScrollViewReader { proxy in
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 22) {
+                    if model.isAdmin { organizerBadge.springReveal(0, revealed: revealed) }
+                    rows.springReveal(1, revealed: revealed)
+                    // Hidden when there is no session to end. The quiet anonymous account every
+                    // install gets counts as not signed in: signing out would only throw away
+                    // its Going.
+                    if AuthStore.shared.isSignedIn && !AuthStore.shared.isAnonymous {
+                        signOutButton.springReveal(2, revealed: revealed).id("bottom")
+                    }
+                    // A sheet has no tab bar under it and only needs breathing room.
+                    Color.clear.frame(height: 40)
                 }
-                // A sheet has no tab bar under it and only needs breathing room.
-                Color.clear.frame(height: 40)
+                .padding(.horizontal, 18)
+                .padding(.top, 12)
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 39)                         // the mock's sheet edge to photo, under the grabber
+            .safeAreaInset(edge: .top, spacing: 0) { settingsBar }
+            .onAppear {
+                revealed = true
+                debugScrollBottom(proxy)
+            }
         }
-        // The sheet's stack draws its own ground under a page; the paper sheet shows through none.
         .background(Hue.paper.ignoresSafeArea())
-        .task { await model.load() }
-        .sheet(isPresented: $editing) { EditProfileView(model: model) }
+        .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showAbout) {
             AboutBlockPartySheet()
                 .presentationDetents([.medium])
@@ -96,6 +173,25 @@ struct ProfileView: View {
             Button("Sign out", role: .destructive) { Task { await model.signOut(); dismiss() } }
             Button("Cancel", role: .cancel) {}
         }
+    }
+
+    /// Saved's top: a back chevron and the title in the middle.
+    private var settingsBar: some View {
+        ZStack {
+            Text("Settings")
+                .font(.sansSemibold(17))
+                .foregroundStyle(Hue.ink)
+                .accessibilityAddTraits(.isHeader)
+            HStack {
+                FriendsBackButton { settings = false }
+                Spacer()
+            }
+            .padding(.leading, SearchMetric.pageBackLead)
+        }
+        .frame(height: SearchMetric.pageBar)
+        .padding(.top, SavedPage.barTop)
+        .frame(maxWidth: .infinity)
+        .background(Hue.paper)
     }
 
     /// DEBUG-only: `-profile-bottom` scrolls to the sign-out row on appear so the
@@ -109,41 +205,6 @@ struct ProfileView: View {
         #endif
     }
 
-    // MARK: - Header
-
-    /// The mock's head: photo, name, town line, then Edit profile, the one way into
-    /// Edit profile (BP app docs/plans/you-tab/issues/08).
-    private var header: some View {
-        VStack(spacing: 0) {
-            ProfileHead(url: model.avatarUrl,
-                        name: model.displayName.isEmpty ? "Add your name" : model.displayName,
-                        nameInk: model.displayName.isEmpty ? Hue.inkSecondary : Hue.ink,
-                        line: subLine)
-
-            if model.isAdmin { organizerBadge }
-
-            Button { Haptics.selection(); editing = true } label: {
-                Text("Edit profile")
-                    .font(.sansSemibold(15))
-                    .foregroundStyle(Hue.ink)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 9)
-                    .background(Hue.fill, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).strokeBorder(Hue.ink.opacity(0.12), lineWidth: 1))
-            }
-            .contentShape(Rectangle().inset(by: -4))   // 44pt tap target around the mock's 36pt button
-            .buttonStyle(PressableStyle())
-            .padding(.top, 14)
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    private var subLine: String {
-        var parts = ["Saint Joseph, MN"]
-        if let s = model.sinceLabel { parts.append("Neighbor since \(s)") }
-        return parts.joined(separator: "  ·  ")
-    }
-
     private var organizerBadge: some View {
         HStack(spacing: 5) {
             Image(systemName: "checkmark.seal.fill").font(.sansBold(11))
@@ -153,7 +214,6 @@ struct ProfileView: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
         .background(Hue.fill.opacity(0.92), in: Capsule())
-        .padding(.top, 8)
     }
 
     // MARK: - Rows
