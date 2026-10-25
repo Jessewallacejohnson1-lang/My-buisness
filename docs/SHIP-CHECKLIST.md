@@ -144,6 +144,18 @@ command or without a pass condition is a reminder, not a check, and reminders ro
 
 ---
 
+### Age assurance for state app-store laws
+
+- **What it proves:** Block Party meets the Texas, Utah and Louisiana app-store age laws before it is
+  listed nationwide. Onboarding asks a birthday on its own wheel (BP app onboarding ticket 19); Apple's
+  Declared Age Range sheet was left out on purpose for the Minnesota launch (Jesse, 2026-10-25).
+- **Command:** `grep -rn "DeclaredAgeRange\|AgeRangeService" BlockParty/`
+- **Pass looks like:** either a hit, with the sheet shown where Apple says the account is in a covered
+  state, or Jesse's dated "not needed" in BP app `docs/plans/onboarding/issues/19-birthday.md`.
+- **Re-run if:** another state passes an app-store age law, or the app is listed outside Minnesota.
+
+---
+
 ## Confirmed — do not recheck
 
 | Item | Confirmed | Evidence | Re-run if |

@@ -48,6 +48,13 @@ final class OnboardingStore {
     private(set) var finished: Bool
     /// The way the last move went, so the next question slides in from the right side.
     private(set) var forward = true
+    /// The birthday the wheel is on, nil until it turns (ticket 19). Kept on the device, and saved to
+    /// the account with the onboarded stamp, so an under-13 who stops here leaves nothing behind.
+    var birthday: Date? {
+        didSet { defaults.set(birthday.map { OnboardingAge.day.format($0) }, forKey: Self.birthdayKey) }
+    }
+    /// "Come back when you're 13" is up over the birthday step.
+    private(set) var tooYoung = false
 
     /// Name and Photo's answers (ticket 18), kept on the phone until they reach
     /// `town_profiles` (`saveAnswers`).
@@ -76,6 +83,7 @@ final class OnboardingStore {
     private static let lastKey = "onboarding.lastName"
     private static let photoKey = "onboarding.photo"
     private static let pendingKey = "onboarding.answersPending"
+    private static let birthdayKey = "onboarding.birthday"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -87,6 +95,7 @@ final class OnboardingStore {
         lastName = defaults.string(forKey: Self.lastKey) ?? ""
         photo = defaults.data(forKey: Self.photoKey)
         answersPending = defaults.bool(forKey: Self.pendingKey)
+        birthday = defaults.string(forKey: Self.birthdayKey).flatMap { try? OnboardingAge.day.parse($0) }
         interests = Interests.get()
     }
 
@@ -113,7 +122,11 @@ final class OnboardingStore {
         defaults.set(false, forKey: Self.pendingKey)
     }
 
-    func next() {
+    func next(now: Date = .now) {
+        if step == .birthday, let birthday, OnboardingAge.years(from: birthday, to: now) < 13 {
+            tooYoung = true
+            return
+        }
         guard let after = OnboardingStep(rawValue: step.rawValue + 1) else { return finish() }
         move(to: after, forward: true)
     }
@@ -121,6 +134,25 @@ final class OnboardingStore {
     func back() {
         guard let before = OnboardingStep(rawValue: step.rawValue - 1) else { return }
         move(to: before, forward: false)
+    }
+
+    /// Back from "Come back when you're 13" to the wheel.
+    func notTooYoung() { tooYoung = false }
+
+    /// Close on "Come back when you're 13": every answer is dropped, then every `onboarding.` key the
+    /// device kept, and the flow starts over on the Welcome.
+    func leaveTooYoung() {
+        firstName = ""
+        lastName = ""
+        photo = nil
+        birthday = nil
+        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix("onboarding.") {
+            defaults.removeObject(forKey: key)
+        }
+        answersPending = false
+        tooYoung = false
+        forward = false
+        step = .welcome
     }
 
     /// "Not now" on Find your friends skips Contacts too (SPEC step 9).
@@ -174,6 +206,16 @@ struct OnboardingFlow: View {
                     .zIndex(1)
                     .transition(.opacity)
             }
+            if store.tooYoung {
+                OnboardingTooYoung(back: go { [store] in store.notTooYoung() },
+                                   close: go { [store] in
+                                       store.leaveTooYoung()
+                                       // An account made before this step goes too: nothing stays.
+                                       if AuthStore.shared.userId != nil { Task { await AuthStore.shared.signOut() } }
+                                   })
+                    .zIndex(2)
+                    .transition(reduceMotion ? .opacity : .move(edge: .trailing))
+            }
         }
         .task {
             if let events = try? await CommunityAPI(auth: AuthStore.shared).upcomingInterests() {
@@ -213,7 +255,20 @@ struct OnboardingFlow: View {
 
             if store.step == .interests { foot.transition(.opacity) }
         }
+        .overlay(alignment: .bottom) {
+            if store.step == .birthday {
+                OnboardingBirthdayWheel(date: birthday, now: .now)
+                    .ignoresSafeArea(.container, edges: .bottom)
+                    .transition(.move(edge: .bottom))
+            }
+        }
         .overlay(alignment: .bottom) { bottom }
+        .accessibilityHidden(store.tooYoung)
+    }
+
+    /// The wheel's date: today until it turns, as Instagram's starts.
+    private var birthday: Binding<Date> {
+        Binding(get: { [store] in store.birthday ?? .now }, set: { [store] in store.birthday = $0 })
     }
 
     /// Over a list that scrolls under the Next bar, the backdrop comes back over the bottom
@@ -264,6 +319,9 @@ struct OnboardingFlow: View {
                 .foregroundStyle(Hue.inkSecondary)
                 .padding(.top, 8)
             OnboardingPhotoCircle(store: store)
+        case .birthday:
+            OnboardingBirthdayField(date: store.birthday ?? .now, now: .now)
+                .padding(.top, 32)
         case .interests:
             Text("We'll show events, groups and places that match.")
                 .font(.sans(15))
@@ -281,9 +339,11 @@ struct OnboardingFlow: View {
     private var bottom: some View {
         VStack(spacing: 6) {
             OnboardingNextBar(title: nextTitle, allowed: nextAllowed, action: go { [store] in store.next() })
-            if !keyboardUp { slot.frame(height: 44) }
+            if !keyboardUp && store.step != .birthday { slot.frame(height: 44) }
         }
         .padding(.horizontal, 24)
+        // Over the birthday wheel as over a keyboard, at the mock's 302 pt from the bottom.
+        .padding(.bottom, store.step == .birthday ? 302 - 34 : 0)
         // The home indicator's 34 pt safe area is the mock's 34 under the slot; the keyboard's
         // safe area carries the bar up with it.
         .padding(.bottom, keyboardUp ? 12 : 0)
@@ -316,6 +376,7 @@ struct OnboardingFlow: View {
         switch store.step {
         case .name:  return store.displayName != nil
         case .photo: return store.photo != nil
+        case .birthday: return store.birthday != nil
         case .interests: return store.interests.count >= 3
         default:     return true
         }

@@ -1543,3 +1543,55 @@ test("a group's Event mutes the group by the name its card shows; signed out can
   await assert.rejects(db.query('select public.mute_host($1)', [shoot]));
   await db.exec('reset role');
 });
+
+// Onboarding ticket 19: under 18 never sees what its place keeps to 18+ or 21+.
+async function born(id, birthday) {
+  await signIn(id);
+  await db.exec('reset role');
+  await db.query('update public.town_profiles set birthday = $2 where user_id = $1', [id, birthday]);
+  await db.exec(`set role authenticated; set request.jwt.claim.sub = '${id}'`);
+}
+
+test('under 18 never sees an Event or news its place or host keeps to 18+ or 21+', async () => {
+  await reset();
+  await db.exec(`delete from public.place_photos; delete from public.places;
+    insert into public.places (name, entry_id, adults_only) values ('The Middy', 'middy', true),
+      ('Sal''s Bar & Grill', 'bar-grill-sals', false);`);
+  const middy = await add('Trivia night', '2026-10-09', { start_time: '7 PM', source_name: 'The Middy' });
+  await add('Bingo Night', '2026-10-09', { start_time: '6 PM', source_name: "Sal's Bar and Grill" });
+  const label = await add('Comedy show', '2026-10-09', { start_time: '8 PM', source_name: "Sal's Bar and Grill" });
+  await add('Bake sale', '2026-10-09', { start_time: '11 AM' });
+  await add('Haunted hayride', '2026-10-09', { start_time: '5 PM' });
+  await db.exec('reset role');
+  await db.query(`update public.club_events set description = 'Tickets $18 and up at the door.' where title = 'Haunted hayride'`);
+  await db.query(`update public.club_events set place_entry_id = 'middy' where id = $1`, [middy]);
+  await db.query(`update public.club_events set place_entry_id = 'bar-grill-sals', description = 'Ages 21+ only.' where id = $1`, [label]);
+  await news('Happy hour', '2026-10-08 17:00', { source_name: 'The Middy', place_entry_id: 'middy' });
+  await news('Flight Friday', '2026-10-08 17:00');
+  const grown = ['Bake sale', 'Bingo Night', 'Comedy show', 'Haunted hayride', 'Trivia night', 'Flight Friday', 'Happy hour'];
+
+  await db.exec('set role anon');
+  assert.deepEqual((await newsTitles('2026-10-08 18:00')).sort(), [...grown].sort());
+  await born(ME, '2010-03-01');   // 16
+  assert.deepEqual((await newsTitles('2026-10-08 18:00')).sort(), ['Bake sale', 'Bingo Night', 'Flight Friday', 'Haunted hayride']);
+  assert.deepEqual((await titles('2026-10-08 18:00')).sort(), ['Bake sale', 'Bingo Night', 'Haunted hayride']);
+  await born(ME, '2008-10-08');   // 18 today
+  assert.deepEqual((await newsTitles('2026-10-08 18:00')).sort(), [...grown].sort());
+  await born(ME, '2008-10-09');   // 18 tomorrow
+  assert.equal((await newsTitles('2026-10-08 18:00')).length, 4);
+  await db.exec('reset role; update public.town_profiles set birthday = null');
+  await db.exec(`set role authenticated; set request.jwt.claim.sub = '${ME}'`);
+  assert.equal((await newsTitles('2026-10-08 18:00')).length, 7);
+  await db.exec('reset role; delete from public.places');
+});
+
+test('a birthday is read by its own account only', async () => {
+  await reset();
+  const other = '00000000-0000-0000-0000-00000000000b';
+  await born(ME, '1990-05-04');
+  assert.deepEqual((await db.query('select birthday::text as b from public.town_profiles')).rows, [{ b: '1990-05-04' }]);
+  await signIn(other);
+  assert.deepEqual((await db.query('select birthday from public.town_profiles where user_id = $1', [ME])).rows, []);
+  await db.exec('reset role');
+  await assert.rejects(db.query(`update public.town_profiles set birthday = '1899-12-31' where user_id = $1`, [ME]));
+});
