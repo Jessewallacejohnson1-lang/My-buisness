@@ -57,8 +57,8 @@ struct OnboardingNameFields: View {
     }
 }
 
-/// "Add a profile picture": a 176 pt white circle with a dashed control-grey rim and a grey
-/// figure, 48 pt under the line below the question. A tap opens Apple's photo picker, or
+/// "Add a profile picture": Instagram's blank profile picture at 176 pt (Jesse, 2026-10-25), a
+/// blue-grey circle with a near-white figure, 48 pt under the line below the question. A tap opens Apple's photo picker, or
 /// asks library or camera when the phone has one; the picked photo fills the circle.
 struct OnboardingPhotoCircle: View {
     @Bindable var store: OnboardingStore
@@ -111,34 +111,25 @@ struct OnboardingPhotoCircle: View {
                 Image(uiImage: image).resizable().scaledToFill()
                     .transition(.opacity)
             } else {
-                Hue.surface
-                OnboardingFigure()
-                    .fill(Hue.edge)
-                    .frame(width: 150, height: 150)
+                Hue.blankAvatar
+                BlankFigure().fill(Hue.blankAvatarFigure)
             }
         }
         .frame(width: Self.side, height: Self.side)
         .clipShape(Circle())
-        .overlay {
-            if store.photo == nil {
-                Circle().strokeBorder(Hue.control, style: StrokeStyle(lineWidth: 1.5, dash: [4.5, 4.5]))
-            }
-        }
         .contentShape(Circle())
     }
 }
 
-/// The mock's grey figure in a 100-unit box: a head of radius 17 at (50, 38) over shoulders
-/// that curve from (18, 86) to (82, 86).
-private struct OnboardingFigure: Shape {
+/// Instagram's blank figure, measured as fractions of the circle: a head 0.284 wide whose top
+/// sits 0.268 down, and shoulders, an ellipse 0.72 wide and 0.86 tall centred on the bottom
+/// edge, which the circle cuts off.
+private struct BlankFigure: Shape {
     func path(in rect: CGRect) -> Path {
-        let k = min(rect.width, rect.height) / 100
-        func p(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: rect.minX + x * k, y: rect.minY + y * k) }
-        var path = Path(ellipseIn: CGRect(x: rect.minX + 33 * k, y: rect.minY + 21 * k, width: 34 * k, height: 34 * k))
-        path.move(to: p(18, 86))
-        path.addCurve(to: p(50, 59), control1: p(22, 68), control2: p(35, 59))
-        path.addCurve(to: p(82, 86), control1: p(65, 59), control2: p(78, 68))
-        path.closeSubpath()
+        let d = min(rect.width, rect.height)
+        let x = rect.midX
+        var path = Path(ellipseIn: CGRect(x: x - 0.142 * d, y: rect.minY + 0.268 * d, width: 0.284 * d, height: 0.284 * d))
+        path.addEllipse(in: CGRect(x: x - 0.36 * d, y: rect.minY + 0.57 * d, width: 0.72 * d, height: 0.86 * d))
         return path
     }
 }
