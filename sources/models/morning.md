@@ -51,12 +51,21 @@ source is a line in the summary; carry on with the rest.
    helpers return to `.runs/morning/tags.jsonl`, then run `python3 sources/scripts/morning.py
    tag`. No batches means nothing to tag: skip the helpers. Done when `tag` prints its
    `[morning] tagged …` line.
-8. **Pick today's standouts** (Daily's Event of the day). Run `python3 sources/scripts/morning.py
+8. **Describe.** Run `python3 sources/scripts/morning.py thin`. It lays out the upcoming Events
+   whose About is empty or under a sentence, at most 30, in batches in `.runs/morning/describe/`.
+   For each batch file, start one helper on your own model, all at once, each with this prompt:
+   "Read `sources/models/describe.md` and follow it for the Events in
+   `.runs/morning/describe/batch-N.txt`. Answer with the JSON lines only." Write every line the
+   helpers return to `.runs/morning/describe.jsonl`, then run `python3 sources/scripts/morning.py
+   describe`. No batches: skip the helpers. Done when `describe` prints its `[morning] described …`
+   line.
+9. **Pick today's standouts** (Daily's Event of the day). Run `python3 sources/scripts/morning.py
    today`, then read `sources/models/standouts.md` and follow it yourself for
    `.runs/morning/today.txt`, writing your lines to `.runs/morning/standouts.jsonl`. Run
    `python3 sources/scripts/morning.py standouts`. Done when it prints its `[morning] standouts …`
    line. A failure here is a line in the answer; Daily then shows the Town feed's top pick.
-9. **Answer** with the summary as `write` printed it, `tag`'s line, the `standouts` lines and
+10. **Answer** with the summary as `write` printed it, `tag`'s line, `describe`'s line and its
+   `[check]` lines, the `standouts` lines and
    the line `python3 sources/scripts/social.py spend` prints (the social watch's Apify spend:
    Jesse, 2026-10-22), then one line per flag you dropped that a neighbour might have wanted,
    and why.
@@ -65,6 +74,6 @@ source is a line in the summary; carry on with the rest.
 
 - Pages are fetched only by `morning.py` (the registry's fetcher obeys robots rules and
   Crawl-delay). WebFetch, curl and the like stay unused: some sites refuse them.
-- The database is written only by `morning.py write`, `morning.py tag` and `morning.py standouts`.
+- The database is written only by `morning.py write`, `tag`, `describe` and `standouts`.
   SQL by hand stays unused.
 - Nothing is committed or pushed; `.runs/` is scratch.

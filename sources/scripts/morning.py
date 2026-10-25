@@ -20,6 +20,11 @@ docs/plans/watch-every-place, ticket 05). The routine's steps are sources/models
             ids from the shared interest list, a draw of 1, 2 or 3, an Event's first interest
             becomes its category when it has none, and what it is in one to three words; an
             Event tagged before only gets its words, so nobody's feed reshuffles
+  thin      lay out the upcoming Events found in the last two days whose About is empty or under a
+            sentence (feed, game and catalog events skip the judge), at most 30 a morning, in batches of 10 for the
+            routine's helpers to research (sources/models/describe.md; Jesse, 2026-10-24)
+  describe  write the helpers' Abouts (.runs/morning/describe.jsonl) onto those Events, each
+            only when longer than the one it has, and print their CHECK lines
   today     lay out today's Events as the Town feed takes them, for the routine's model to pick
             the day's standouts (BP app docs/plans/daily-tab, ticket 14; sources/models/standouts.md)
   standouts write the model's standouts (.runs/morning/standouts.jsonl) as today's
@@ -33,13 +38,15 @@ SUPABASE_SERVICE_ROLE_KEY in the environment; `write --dry-run` writes nothing.
   python3 sources/scripts/morning.py write [--dry-run]
   python3 sources/scripts/morning.py untagged
   python3 sources/scripts/morning.py tag [--dry-run]
+  python3 sources/scripts/morning.py thin
+  python3 sources/scripts/morning.py describe [--dry-run]
   python3 sources/scripts/morning.py today
   python3 sources/scripts/morning.py standouts [--dry-run]
   python3 sources/scripts/morning.py --selftest
 """
 
 import argparse, json, re, shutil, subprocess, sys
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from urllib.parse import quote
 
@@ -54,6 +61,10 @@ SCRIPTS = Path(__file__).resolve().parent
 TAG_BATCH = 40
 TOWN = "st-joseph-mn"  # daily_standouts.town, as town_status names it
 STANDOUTS = 9
+THIN = 120        # characters: an About under this says less than a sentence
+DESCRIBE_MAX = 30  # Events a morning; the rest wait for tomorrow
+DESCRIBE_BATCH = 10
+ABOUT_MAX = 1000   # as write_judged.clip
 FEEDS = {"ical"}  # the feed reader's; an RSS feed is posts, read like a page (run.py keeps their dates)
 
 
@@ -288,6 +299,63 @@ def tag(out, dry_run):
           f"{len(events) - len(writes)} left for tomorrow" + (" (dry run: nothing written)" if dry_run else ""))
 
 
+def to_describe(today):
+    """Approved upcoming Events found in the last two days whose About is empty or under a
+    sentence, soonest first. Older ones were researched already (the 2026-10-24 backfill, or an
+    earlier morning), so a thin one stays thin rather than being searched again every day."""
+    since = (today - timedelta(days=2)).isoformat()
+    rows = Supabase().call("GET", "club_events?select=id,title,event_date,start_time,location,description,source_name,"
+                                  "source_url,clubs(name)&status=eq.approved&kind=eq.event"
+                           f"&event_date=gte.{today}&created_at=gte.{since}&order=event_date&limit=1000")
+    thin = [r for r in rows if len((r.get("description") or "").strip()) < THIN]
+    return [{"id": r["id"], "title": r["title"], "date": r["event_date"], "start": r.get("start_time") or "",
+             "place": r.get("location") or "", "host": (r.get("clubs") or {}).get("name") or r.get("source_name") or "",
+             "link": r.get("source_url") or "", "about": (r.get("description") or "").strip()}
+            for r in thin[:DESCRIBE_MAX]]
+
+
+def thin(out, today):
+    d = out / "describe"
+    if d.exists():
+        shutil.rmtree(d)
+    d.mkdir(parents=True)
+    events = to_describe(today)
+    for i in range(0, len(events), DESCRIBE_BATCH):
+        (d / f"batch-{i // DESCRIBE_BATCH + 1}.txt").write_text(
+            "\n".join(json.dumps(e, ensure_ascii=False) for e in events[i:i + DESCRIBE_BATCH]) + "\n")
+    (d / "events.json").write_text(json.dumps(events, indent=1, ensure_ascii=False))
+    print(f"[morning] {len(events)} events to describe in {len(list(d.glob('batch-*.txt')))} batches ({d})")
+
+
+def plan_descriptions(lines, events):
+    """The helpers' lines as writes: only Events they were given, each once, an About that is
+    text and longer than the one it has (a fuller About is never shortened). CHECK lines are
+    kept for the answer, never written."""
+    given, writes, checks = {e["id"]: e for e in events}, {}, []
+    for ln in lines:
+        if not isinstance(ln, dict) or ln.get("id") not in given:
+            continue
+        e = given[ln["id"]]
+        if isinstance(ln.get("check"), str) and ln["check"].strip():
+            checks.append(f"{e['title']} ({e['date']}): {ln['check'].strip()}")
+        about = " ".join(ln["about"].split()) if isinstance(ln.get("about"), str) else ""
+        if len(about) > len(e["about"]) and ln["id"] not in writes:
+            writes[ln["id"]] = write_judged.clip(about, ABOUT_MAX)
+    return writes, checks
+
+
+def describe(out, dry_run):
+    events = json.loads((out / "describe" / "events.json").read_text())
+    writes, checks = plan_descriptions(read_items(out / "describe.jsonl"), events)
+    if not dry_run:
+        db = Supabase()
+        for event_id, about in writes.items():
+            db.call("PATCH", f"club_events?id=eq.{event_id}", {"description": about}, prefer="return=minimal")
+    print(f"[morning] described {len(writes)} of {len(events)} thin events" + (" (dry run: nothing written)" if dry_run else ""))
+    for c in checks:
+        print(f"[check] {c}")
+
+
 def todays_events(today):
     """Today's Events as the Town feed takes them (approved, posted by a neighbour or found by a
     source, not called off), with what the model weighs: interests, draw, Going and hearts. The
@@ -455,6 +523,14 @@ def selftest():
                    == {"id": "x", "title": "Fair", "start": "all day", "place": "", "host": "Fair board",
                        "interests": ["festivals"], "draw": None, "going": 0, "hearts": 0, "about": ""},
                    "an all-day Event says so, and a group's name is its host"))
+    given = [{"id": "a", "title": "Pilates", "date": "2026-10-26", "about": "$10."},
+             {"id": "b", "title": "Game", "date": "2026-10-27", "about": "A long About already here."}]
+    writes, found = plan_descriptions([{"id": "a", "about": "  Weekly Pilates\n at City Hall. "},
+                                       {"id": "a", "about": "a second answer"},
+                                       {"id": "b", "about": "Short.", "check": "Starts at 4, not 7."},
+                                       {"id": "z", "about": "not given"}, "junk"], given)
+    checks.append((writes == {"a": "Weekly Pilates at City Hall."} and found == ["Game (2026-10-27): Starts at 4, not 7."],
+                   "Abouts are written once, only for given Events and only when longer; CHECK lines are kept"))
     failed = [why for ok, why in checks if not ok]
     for why in failed:
         print(f"FAIL {why}")
@@ -464,15 +540,15 @@ def selftest():
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("step", nargs="?", choices=["prepare", "titles", "write", "untagged", "tag", "today", "standouts"])
+    ap.add_argument("step", nargs="?", choices=["prepare", "titles", "write", "untagged", "tag", "thin", "describe", "today", "standouts"])
     ap.add_argument("--today", help="YYYY-MM-DD; default today in Chicago")
-    ap.add_argument("--dry-run", action="store_true", help="write, tag, standouts: print what would be written, write nothing")
+    ap.add_argument("--dry-run", action="store_true", help="write, tag, describe, standouts: print what would be written, write nothing")
     ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args()
     if args.selftest:
         return selftest()
     if not args.step:
-        ap.error("prepare, titles, write, untagged, tag, today or standouts")
+        ap.error("prepare, titles, write, untagged, tag, thin, describe, today or standouts")
     today = date.fromisoformat(args.today) if args.today else datetime.now(LOCAL).date()
     out = find_root() / ".runs" / "morning"
     if args.step == "prepare":
@@ -483,6 +559,10 @@ def main():
         write(out, args.dry_run, today)
     elif args.step == "untagged":
         untagged(out, today)
+    elif args.step == "thin":
+        thin(out, today)
+    elif args.step == "describe":
+        describe(out, args.dry_run)
     elif args.step == "today":
         lay_out_today(out, today)
     elif args.step == "standouts":
