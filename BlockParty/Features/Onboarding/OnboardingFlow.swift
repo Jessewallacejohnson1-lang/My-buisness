@@ -212,8 +212,8 @@ struct OnboardingFlow: View {
 
 /// Step 1, Nextdoor's welcome in BP's words (ticket 25 mock, Jesse 2026-10-24): a St. Joseph
 /// photo full bleed (a stand-in until Jesse's comes), the white wordmark and headline top
-/// left, two white pills where Nextdoor's last two sit, the Terms line and Log in. Until
-/// ticket 25 wires Apple, both pills go to the first question. Log in opens the existing
+/// left, three white pills where Nextdoor's last three sit, the Terms line and Log in. Until
+/// ticket 25 wires Apple and Google, all three pills go to the first question. Log in opens the existing
 /// sign-in.
 struct OnboardingWelcome: View {
     let start: () -> Void
@@ -260,14 +260,16 @@ struct OnboardingWelcome: View {
         return Text("By continuing, you agree to our \(terms) and \(privacy).")
     }
 
-    /// The two pills, the Terms line and Log in, from the bottom up.
+    /// The three pills, the Terms line and Log in, from the bottom up.
     private var actions: some View {
         VStack(spacing: 0) {
             VStack(spacing: 8) {
-                WelcomePill(title: "Continue with Apple", symbol: "apple.logo", action: start)
+                WelcomePill(title: "Continue with Apple", icon: Image(systemName: "apple.logo"), action: start)
                     .rise(shown, delay: 0.16)
-                WelcomePill(title: "Continue with phone", symbol: "iphone", action: start)
+                WelcomePill(title: "Continue with Google", icon: Image("GoogleG").resizable(), action: start)
                     .rise(shown, delay: 0.22)
+                WelcomePill(title: "Continue with phone", icon: Image(systemName: "iphone"), action: start)
+                    .rise(shown, delay: 0.28)
             }
             .padding(.horizontal, 24)
             terms
@@ -276,11 +278,11 @@ struct OnboardingWelcome: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
                 .padding(.top, 18)
-                .rise(shown, delay: 0.3)
+                .rise(shown, delay: 0.34)
             Button { loggingIn = true } label: { logIn }
                 .buttonStyle(OnboardingPress(scale: 0.96, dim: 0.7))
                 .padding(.top, 10)
-                .rise(shown, delay: 0.3)
+                .rise(shown, delay: 0.34)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         .padding(.bottom, 61)
@@ -320,12 +322,13 @@ struct OnboardingWelcome: View {
 /// A white 48 pt pill on the Welcome: sinks to 97% and greys a touch under the finger.
 private struct WelcomePill: View {
     let title: String
-    let symbol: String
+    /// Apple's and the phone's SF Symbols, or Google's four-colour G.
+    let icon: Image
     let action: () -> Void
     var body: some View {
         Button(action: action) {
             HStack(spacing: 10) {
-                Image(systemName: symbol).font(.glyph(19, weight: .medium))
+                icon.scaledToFit().font(.glyph(19, weight: .medium)).frame(width: 19, height: 19)
                 Text(title).font(.sansSemibold(17))
             }
             .foregroundStyle(Hue.onBrandDisc)
