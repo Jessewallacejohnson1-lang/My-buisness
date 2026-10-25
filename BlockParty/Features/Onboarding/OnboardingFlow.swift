@@ -57,6 +57,8 @@ final class OnboardingStore {
     var photo: Data? { didSet { keep(photo, Self.photoKey) } }
     /// An answer changed since the last save reached the server.
     private(set) var answersPending: Bool
+    /// A save is out, so a second caller doesn't upload the photo again.
+    private var saving = false
 
     private let defaults: UserDefaults
     private static let stepKey = "onboarding.step"
@@ -93,7 +95,9 @@ final class OnboardingStore {
     /// changed since it last succeeded. A failure, or no account yet, keeps them waiting on
     /// the phone for the next try.
     func saveAnswers(_ write: (_ name: String?, _ photo: Data?) async throws -> Void) async {
-        guard answersPending, displayName != nil || photo != nil else { return }
+        guard answersPending, !saving, displayName != nil || photo != nil else { return }
+        saving = true
+        defer { saving = false }
         do { try await write(displayName, photo) } catch { return }
         answersPending = false
         defaults.set(false, forKey: Self.pendingKey)

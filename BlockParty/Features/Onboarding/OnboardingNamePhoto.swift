@@ -36,7 +36,7 @@ struct OnboardingNameFields: View {
         .onSubmit {
             if focus == .first { focus = .last } else if store.displayName != nil { done() }
         }
-        .onAppear { focus = store.firstName.isEmpty || store.displayName == nil ? .first : .last }
+        .onAppear { focus = store.displayName == nil ? .first : .last }
     }
 
     private func field(_ placeholder: String, text: Binding<String>, _ which: Field) -> some View {

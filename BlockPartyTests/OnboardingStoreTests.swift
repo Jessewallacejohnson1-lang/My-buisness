@@ -109,4 +109,14 @@ final class OnboardingStoreTests: XCTestCase {
         await store.saveAnswers { calls.append(($0, $1)) }
         XCTAssertEqual(calls.count, 1, "saved answers aren't sent again")
     }
+
+    func testTwoSavesAtOnceSendOnce() async {
+        let store = OnboardingStore(defaults: defaults)
+        store.photo = Data([7])
+        var calls = 0
+        async let first: Void = store.saveAnswers { _, _ in calls += 1; try await Task.sleep(for: .milliseconds(50)) }
+        async let second: Void = store.saveAnswers { _, _ in calls += 1 }
+        _ = await (first, second)
+        XCTAssertEqual(calls, 1)
+    }
 }

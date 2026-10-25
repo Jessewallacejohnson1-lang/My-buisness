@@ -255,6 +255,7 @@ struct RootView: View {
                 if url == nil { throw SupabaseError(message: "The photo didn't upload.", status: 0) }
             }
             try await ProfileAPI(auth: auth).setNameAndPhoto(displayName: name, avatarUrl: url)
+            if let name { Interests.displayName = name }
         }
     }
 
@@ -273,11 +274,13 @@ struct RootView: View {
         if fetched?.onboardedAt == nil, onboarding.finished {
             try? await ProfileAPI(auth: .shared).markOnboarded()
         }
+        if let profile = fetched {
+            if profile.onboardedAt != nil { stampedOnServer = true; onboarding.serverSaysFinished() }
+            if !profile.interests.isEmpty { Interests.set(profile.interests) }
+            if let n = profile.displayName, !n.isEmpty { Interests.displayName = n }
+        }
+        // After the mirror, so a name typed in onboarding beats the one read before it saved.
         await saveOnboardingAnswers()
-        guard let profile = fetched else { return }
-        if profile.onboardedAt != nil { stampedOnServer = true; onboarding.serverSaysFinished() }
-        if !profile.interests.isEmpty { Interests.set(profile.interests) }
-        if let n = profile.displayName, !n.isEmpty { Interests.displayName = n }
     }
 }
 
