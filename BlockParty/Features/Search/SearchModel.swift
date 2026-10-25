@@ -50,6 +50,7 @@ struct SearchItem: Identifiable, Hashable {
     var street: String? = nil
     var about: String? = nil
     var links: [PlaceLink] = []
+    var hours: PlaceHours? = nil
     /// A group opens onto its Group page (BP app rsvp-and-groups 05).
     var townGroup: TownGroup? = nil
     /// A place's `places.id`, which its page follows (BP app follows 02).
@@ -347,7 +348,8 @@ final class SearchModel {
                               photo: kind == .business ? nil : saved.first.map { .saved($0) },
                               keywords: [type.replacingOccurrences(of: "_", with: " ")],
                               rank: logo?.rank ?? .max, photos: saved, street: street(poi.address),
-                              about: nonempty(poi.about), links: poi.links ?? [], placeID: poi.id,
+                              about: nonempty(poi.about), links: poi.links ?? [],
+                              hours: poi.hours.flatMap { $0.days.allSatisfy(\.isEmpty) ? nil : $0 }, placeID: poi.id,
                               nameArt: poi.entryId.flatMap { names[$0] })
         }
     }

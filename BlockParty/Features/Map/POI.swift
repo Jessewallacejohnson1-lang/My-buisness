@@ -34,6 +34,8 @@ struct POI: Identifiable, Decodable, Hashable {
     /// description (`places.about`) and its website and social pages (`places.links`).
     var about: String? = nil
     var links: [PlaceLink]? = nil
+    /// Its weekly hours (`places.hours`), read from its own website or Facebook.
+    var hours: PlaceHours? = nil
 
     var coordinate: CLLocationCoordinate2D { .init(latitude: lat, longitude: lon) }
 

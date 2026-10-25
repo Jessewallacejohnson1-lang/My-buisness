@@ -424,10 +424,15 @@ private struct BusinessPageContent: View {
                     .padding(.top, Metric.pillTop)
             }
 
+            if let hours = item.hours {
+                HoursPill(hours: hours)
+                    .padding(.top, Metric.pillTop)
+            }
+
             if let street = item.street {
                 InfoPill(glyph: "mappin", text: street, url: DayScheduleLogic.directionsURL(forPlace: street),
                          hint: "Opens in Maps", glyphBox: SearchMetric.bizGlyphBox)
-                    .padding(.top, Metric.pillTop)
+                    .padding(.top, item.hours != nil ? SearchMetric.bizLinkGap : Metric.pillTop)
             }
 
             if let about = item.about {
@@ -456,6 +461,106 @@ private struct BusinessPageContent: View {
                                    style: .continuous)
                 .fill(Hue.paper)
                 .padding(.bottom, -size.height)
+        }
+    }
+}
+
+/// Whether it's open now, on the row the street and links use: a green dot "Open till 9 PM",
+/// orange "Closes soon · 9 PM", red "Closed till Tue 4 PM" (Jesse, 2026-10-25; Reference Google
+/// Maps, BP app references/business-hours). A tap drops the week open inside it, today first and
+/// in bold, and folds it back; the spring turns around mid-way. It rereads the clock each minute.
+private struct HoursPill: View {
+    let hours: PlaceHours
+
+    @State private var expanded = false
+
+    private typealias Metric = FeedEventDetailDestination.Metric
+
+    var body: some View {
+        TimelineView(.everyMinute) { context in
+            if let status = hours.status(at: context.date) {
+                Button {
+                    withAnimation(Motion.bentoExpand) { expanded.toggle() }
+                } label: {
+                    VStack(alignment: .leading, spacing: 0) {
+                        row(status)
+                        if expanded {
+                            week(context.date)
+                                .transition(.opacity.combined(with: .move(edge: .top)))
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Hue.fill)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(FeedCardPressStyle())
+                .accessibilityLabel(PlaceHours.words(status))
+                .accessibilityValue(expanded ? "Showing the week" : "")
+                .accessibilityHint(expanded ? "Hides the week's hours" : "Shows the week's hours")
+            }
+        }
+    }
+
+    private func row(_ status: PlaceHours.Status) -> some View {
+        let words = PlaceHours.words(status)
+        let lead = Self.lead(status)
+        return HStack(spacing: Metric.pinGap) {
+            Circle()
+                .fill(Self.dot(status))
+                .frame(width: Self.dotSize, height: Self.dotSize)
+                .frame(width: SearchMetric.bizGlyphBox)
+            Text("\(Text(lead).font(.sansSemibold(15)))\(String(words.dropFirst(lead.count)))")
+                .font(.sans(15))
+                .foregroundStyle(Hue.ink)
+                .lineLimit(1)
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.down")
+                .font(.sans(12))
+                .foregroundStyle(Hue.inkSecondary)
+                .rotationEffect(.degrees(expanded ? 180 : 0))
+        }
+        .padding(.horizontal, Metric.pillInset)
+        .frame(height: Metric.pillHeight)
+    }
+
+    /// Tight rows, the hours lined up under the row's words (Jesse: "remove the excess space").
+    private func week(_ now: Date) -> some View {
+        VStack(alignment: .leading, spacing: Self.weekRowGap) {
+            ForEach(hours.week(from: now), id: \.day) { day in
+                HStack {
+                    Text(day.day)
+                    Spacer(minLength: Metric.pinGap)
+                    Text(day.hours).monospacedDigit()
+                }
+                .font(day.today ? .sansSemibold(15) : .sans(15))
+                .foregroundStyle(day.today ? Hue.ink : Hue.inkSecondary)
+            }
+        }
+        .padding(.leading, Metric.pillInset + SearchMetric.bizGlyphBox + Metric.pinGap)
+        .padding(.trailing, Metric.pillInset)
+        .padding(.bottom, Self.weekBottom)
+    }
+
+    static let dotSize: CGFloat = 9
+    static let weekRowGap: CGFloat = 6
+    static let weekBottom: CGFloat = 12
+
+    static func dot(_ status: PlaceHours.Status) -> Color {
+        switch status {
+        case .open, .always: Hue.open
+        case .closesSoon: Hue.closesSoon
+        case .closed: Hue.closed
+        }
+    }
+
+    /// The words set in bold: "Open", "Closes soon", "Closed", "Open 24 hours".
+    static func lead(_ status: PlaceHours.Status) -> String {
+        switch status {
+        case .open: "Open"
+        case .closesSoon: "Closes soon"
+        case .closed: "Closed"
+        case .always: "Open 24 hours"
         }
     }
 }
