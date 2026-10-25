@@ -428,29 +428,18 @@ struct CommunityAPI {
                                         query: "event_id=eq.\(eventId)&user_id=eq.\(uid)", accessToken: t)
     }
 
-    func addEvent(_ input: NewEventInput, clubId: String? = nil, status: ClubStatus = .approved) async throws {
+    func addEvent(_ input: NewEventInput, clubId: String? = nil, status: ClubStatus = .pending) async throws {
         let t = try await token()
         let uid = try await uidOrThrow()
-        func makeBody(includeImage: Bool) -> [String: Any] {
-            var b: [String: Any] = [
-                "title": input.title, "event_date": input.eventDate, "start_time": input.startTime,
-                "location": input.location, "submitted_by": uid, "status": status.rawValue,
-                "club_id": clubId ?? NSNull(), "category": input.category,
-            ]
-            if let v = input.description { b["description"] = v }
-            if includeImage, let v = input.imageUrl { b["image_url"] = v }
-            return b
-        }
-        do {
-            _ = try await SupabaseHTTP.rest("club_events", method: "POST", accessToken: t,
-                                            body: try body(makeBody(includeImage: true)), prefer: "return=minimal")
-        } catch let err as SupabaseError {
-            // Retry once without image_url if that column doesn't exist yet.
-            if input.imageUrl != nil, err.message.contains("image_url") {
-                _ = try await SupabaseHTTP.rest("club_events", method: "POST", accessToken: t,
-                                                body: try body(makeBody(includeImage: false)), prefer: "return=minimal")
-            } else { throw err }
-        }
+        var b: [String: Any] = [
+            "title": input.title, "event_date": input.eventDate, "start_time": input.startTime,
+            "location": input.location, "submitted_by": uid, "status": status.rawValue,
+            "club_id": clubId ?? NSNull(), "category": input.category,
+        ]
+        if let v = input.description { b["description"] = v }
+        if let v = input.imageUrl { b["image_url"] = v }
+        _ = try await SupabaseHTTP.rest("club_events", method: "POST", accessToken: t,
+                                        body: try body(b), prefer: "return=minimal")
     }
 
     // MARK: - Calendar
