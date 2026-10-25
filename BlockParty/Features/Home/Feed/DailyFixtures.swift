@@ -146,16 +146,29 @@ enum DailyFixtures {
         guard let url = Bundle.main.url(forResource: "town-games", withExtension: "json"),
               let data = try? Data(contentsOf: url),
               let samples = try? JSONDecoder().decode([Sample].self, from: data) else { return [] }
-        return samples.map { g in
+        // `-town-live`: the first game started an hour ago today; TownFeed plays its score (game-card 03).
+        let live = ProcessInfo.processInfo.arguments.contains("-town-live")
+        let today = Self.townClock("yyyy-MM-dd", now)
+        return samples.enumerated().map { i, g in
+            let started = live && i == 0
             let entry = event(id: g.id, title: g.title, host: g.host, hostAvatar: false, chip: "", meta: g.place,
-                              photo: false, hoursUntil: g.hoursUntil, going: g.went, now: now)
+                              photo: false, hoursUntil: started ? -1 : g.hoursUntil, going: g.went, now: now)
             guard var card = entry.card else { return entry }
-            card.eventDate = g.day
-            card.startTime = g.time
+            card.eventDate = started ? today : g.day
+            card.startTime = started ? Self.townClock("h:mm a", now.addingTimeInterval(-3600)) : g.time
             card.location = g.place
             card.game = g.game
             return TownFeedEntry(card: card, leavesAt: entry.leavesAt)
         }
+    }
+
+    /// A date in St. Joseph's time, as the feed writes it ("2026-10-31", "1:05 PM").
+    private static func townClock(_ format: String, _ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = Town.timeZone
+        f.dateFormat = format
+        return f.string(from: date)
     }
 
     private static func sampleEvents(now: Date) -> [TownFeedEntry] {

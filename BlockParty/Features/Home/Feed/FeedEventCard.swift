@@ -406,7 +406,12 @@ struct FeedEventCard: View {
                         // A ZStack, not a Group: a Group hands the transition to each chip, and
                         // the one coming in never sees `now` change, so it would cut.
                         ZStack(alignment: .leading) {
-                            if now {
+                            // A game with its score coming in says Live behind the red dot, not
+                            // Now (taste/town.md, 2026-10-20).
+                            if item.game?.live != nil {
+                                PhotoChip(text: "Live", spoken: "Live", dot: Hue.live)
+                                    .transition(.opacity)
+                            } else if now {
                                 PhotoChip(text: "Now", spoken: "Happening now", dot: Hue.now)
                                     .transition(.opacity)
                             } else {
@@ -415,6 +420,7 @@ struct FeedEventCard: View {
                             }
                         }
                         .animation(motionIsReduced ? nil : Motion.smooth, value: now)
+                        .animation(motionIsReduced ? nil : Motion.smooth, value: item.game?.live != nil)
                     }
                     .layoutPriority(1)
                 }

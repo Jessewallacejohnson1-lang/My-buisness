@@ -227,6 +227,9 @@ nonisolated enum Hue {
     /// The dot before "Now" on a Town card whose event is on (Jesse, 2026-10-20: "use the word
     /// now with green dot"): Apple's own green. A game's "Live" keeps Apple's red.
     static let now           = Color(uiColor: .systemGreen)
+    /// The dot before "Live" on a game card while its score comes in (BP app game-card 03, the
+    /// mock's Live phone): Apple's own red, as Apple Sports marks a game being played.
+    static let live          = Color(uiColor: .systemRed)
     /// The Town's Event of the day poster, DICE's dark card (the approved Round 3 page, BP app
     /// event-card 03), which its photo fades into. The same in both appearances: a poster.
     static let poster        = Color(hex: 0x1A1A1A)

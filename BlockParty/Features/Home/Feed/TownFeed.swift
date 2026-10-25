@@ -23,6 +23,10 @@
 //  back and takes the choice back. The ids and host names hidden this session stay out of
 //  every list, so a read that raced the write, or a kept list, can't bring a card back.
 //
+//  While a game on today's list has no final, its card's score comes in as it changes (BP app
+//  game-card 03): the realtime feed `club_events` already has sends the row the server wrote, and
+//  only that card changes, in place.
+//
 
 import Foundation
 import UIKit
@@ -129,6 +133,8 @@ final class TownFeed {
     @ObservationIgnored private var latestRead = 0
     /// When the feed last came on screen, for the speed log.
     @ObservationIgnored private var cameBackAt: Date?
+    /// Today's games' scores as they come in, on while one is on the list and the feed is showing.
+    @ObservationIgnored private var scores: RealtimeClient?
 
     /// A card at least half on screen this long is one view (ticket 20).
     static let viewAfter: TimeInterval = 1
@@ -261,6 +267,7 @@ final class TownFeed {
         if viewGone { onScreen = [:] }
         awaySince = now
         returnY = scrollY
+        scores?.stop()
     }
 
     /// The feed is back on screen. After 30 minutes away the next read may bring a
@@ -275,6 +282,7 @@ final class TownFeed {
             freshDue = true
             returnY = 0
         }
+        watchScores(at: now)
     }
 
     /// Reads behind the list on screen (coming back, a card leaving).
@@ -329,6 +337,7 @@ final class TownFeed {
             }
             freshDue = false
             failed = false
+            watchScores(at: now)
         } catch {
             // Left mid-read (the tab went away): not a failure; the read runs again
             // when the feed comes back.
@@ -338,6 +347,66 @@ final class TownFeed {
         }
         clock = now
     }
+
+    // MARK: Live scores (game-card 03)
+
+    /// Listens while a game today has no final and the feed is showing; stops otherwise.
+    private func watchScores(at now: Date) {
+        let today = Town.calendar.startOfDay(for: now)
+        let playing = entries?.contains { entry in
+            guard let card = entry.card, card.game != nil, card.game?.final == nil else { return false }
+            return FeedWhenLine.day(from: card.eventDate, calendar: Town.calendar) == today
+        } ?? false
+        guard playing, awaySince == nil else { scores?.stop(); return }
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-town-live") { replayLiveGame(); return }
+        #endif
+        if scores == nil {
+            let client = RealtimeClient(table: "club_events") { try? await AuthStore.shared.validAccessToken() }
+            client.onChange = { [weak self] change in self?.scored(change) }
+            scores = client
+        }
+        scores?.start()
+    }
+
+    /// A game's row changed: its card takes the new scores. Anything else waits for the next read.
+    private func scored(_ change: RealtimeClient.Change) {
+        guard change.kind == .update, let row = change.new, let id = row.id else { return }
+        let live = row.liveScore.flatMap { try? JSONDecoder().decode(Game.Live.self, from: $0) }
+        score(id, final: row.finalScore, live: live)
+    }
+
+    private func score(_ id: String, final: [Int]?, live: Game.Live?) {
+        guard let index = entries?.firstIndex(where: { $0.id == id }),
+              let entry = entries?[index], var card = entry.card, let game = card.game else { return }
+        let scored = game.with(final: final, live: live)
+        guard scored != game else { return }
+        card.game = scored
+        entries?[index] = TownFeedEntry(card: card, leavesAt: entry.leavesAt)
+    }
+
+    #if DEBUG
+    @ObservationIgnored private var replaying = false
+
+    /// `-town-live` (with `-town-samples -town-games`): SJU vs Gustavus is on today, and its score
+    /// changes every 4 seconds through the same path a realtime update takes, to its final.
+    private func replayLiveGame() {
+        guard !replaying else { return }
+        replaying = true
+        let steps = [#"[0,0],"period":"Q1","clock":"15:00""#, #"[7,0],"period":"Q1","clock":"9:41""#,
+                     #"[7,3],"period":"Q2","clock":"2:10""#, #"[14,3],"period":"Q3","clock":"4:12""#,
+                     #"[14,10],"period":"Q4","clock":"6:05""#, #"[21,10],"period":"Q4","clock":"0:45""#]
+        Task { @MainActor [weak self] in
+            for step in steps {
+                let json = #"{"score":"# + step + #","complete":false,"at":""#
+                    + ISO8601DateFormatter().string(from: .now) + #""}"#
+                self?.score("g1", final: nil, live: try? JSONDecoder().decode(Game.Live.self, from: Data(json.utf8)))
+                try? await Task.sleep(for: .seconds(4))
+            }
+            self?.score("g1", final: [21, 10], live: nil)
+        }
+    }
+    #endif
 
     // MARK: Views and opens (ticket 20)
 

@@ -177,17 +177,62 @@ nonisolated struct UpcomingEvent: Identifiable, Hashable {
 }
 
 /// A game between two teams, as `get_town_feed` sends it (`private.event_game`): the sport
-/// ("Girls Soccer"), its special night ("Homecoming") and both schools, the host's first, and its
-/// final once it's in.
+/// ("Girls Soccer"), its special night ("Homecoming") and both schools, the host's first, its live
+/// score while it's on, and its final once it's in.
 nonisolated struct Game: Decodable, Hashable, Sendable {
     let sport: String
     let occasion: String?
     let teams: [Team]
     /// The final score in `teams` order (BP app docs/plans/game-card, ticket 02); nil before it's in,
-    /// and for one that doesn't read, so the card stays VS.
-    let final: [Int]?
+    /// and for one that doesn't read, so the card stays VS. A live score that says complete counts
+    /// as the final at once, before the server's second read makes it one (ticket 03).
+    private(set) var final: [Int]?
+    /// The score while it's being played (ticket 03); nil before, after, and for a high school game.
+    private(set) var live: Live?
 
-    private enum CodingKeys: String, CodingKey { case sport, occasion, teams, final }
+    /// SIDEARM's score as `club_events.live_score` keeps it (`private.sidearm_live`): `teams` order,
+    /// the period as the sport says it ("Q3", "2nd half", "Set 3"), and the clock ("4:12", "67'").
+    nonisolated struct Live: Decodable, Hashable, Sendable {
+        let score: [Int]
+        let period: String
+        let clock: String?
+        let complete: Bool
+        /// When the server last wrote it: a clock older than `staleAfter` is hidden, not frozen.
+        let at: Date?
+
+        static let staleAfter: TimeInterval = 120
+
+        /// "Q3 · 4:12", or just the period once the clock is stale or the sport has none.
+        func line(at now: Date) -> String {
+            guard let clock, let at, now.timeIntervalSince(at) < Self.staleAfter else { return period }
+            return "\(period) · \(clock)"
+        }
+
+        private enum CodingKeys: String, CodingKey { case score, period, clock, complete, at }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            score = try c.decode([Int].self, forKey: .score)
+            guard score.count == 2, score.allSatisfy({ $0 >= 0 }) else {
+                throw DecodingError.dataCorruptedError(forKey: .score, in: c, debugDescription: "two scores")
+            }
+            period = try c.decode(String.self, forKey: .period)
+            clock = (try? c.decodeIfPresent(String.self, forKey: .clock)) ?? nil
+            complete = ((try? c.decodeIfPresent(Bool.self, forKey: .complete)) ?? nil) ?? false
+            at = ((try? c.decodeIfPresent(String.self, forKey: .at)) ?? nil).flatMap(Self.parse)
+        }
+
+        /// Postgres's timestamptz in JSON: "2026-10-24T18:21:32.123456+00:00".
+        private static func parse(_ text: String) -> Date? {
+            let f = ISO8601DateFormatter()
+            f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let d = f.date(from: text) { return d }
+            f.formatOptions = [.withInternetDateTime]
+            return f.date(from: text)
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey { case sport, occasion, teams, final, live }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -195,7 +240,20 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
         occasion = try c.decodeIfPresent(String.self, forKey: .occasion)
         teams = try c.decode([Team].self, forKey: .teams)
         let final = (try? c.decodeIfPresent([Int].self, forKey: .final)) ?? nil
-        self.final = final.flatMap { $0.count == 2 && $0.allSatisfy { $0 >= 0 } ? $0 : nil }
+        setScores(final: final, live: (try? c.decodeIfPresent(Live.self, forKey: .live)) ?? nil)
+    }
+
+    /// The same game with a realtime update's scores (`club_events.final_score`, `live_score`).
+    func with(final: [Int]?, live: Live?) -> Game {
+        var game = self
+        game.setScores(final: final, live: live)
+        return game
+    }
+
+    private mutating func setScores(final: [Int]?, live: Live?) {
+        let final = final.flatMap { $0.count == 2 && $0.allSatisfy { $0 >= 0 } ? $0 : nil }
+        self.final = final ?? (live?.complete == true ? live?.score : nil)
+        self.live = self.final == nil ? live : nil
     }
 
     /// The side with more, 0 or 1; nil before the final and on a tie, which fades neither side.
@@ -255,9 +313,14 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
 
     /// The card's title as VoiceOver says it, naming the teams the discs show: "Football,
     /// Saint John's versus Gustavus", and once it's over "Football, Saint John's 33, Concordia 23, final".
+    /// While it's on: "Football, Saint John's 14, Concordia 7, Q3, live".
     var spoken: String {
-        guard let final, teams.count == 2 else { return "\(sport), \(teams.map(\.short).joined(separator: " versus "))" }
-        return "\(sport), \(teams[0].short) \(final[0]), \(teams[1].short) \(final[1]), final"
+        guard teams.count == 2 else { return sport }
+        if let final { return "\(sport), \(teams[0].short) \(final[0]), \(teams[1].short) \(final[1]), final" }
+        if let live {
+            return "\(sport), \(teams[0].short) \(live.score[0]), \(teams[1].short) \(live.score[1]), \(live.period), live"
+        }
+        return "\(sport), \(teams.map(\.short).joined(separator: " versus "))"
     }
 
     /// Only a game with exactly two teams: anything else is no game, and the card stays a

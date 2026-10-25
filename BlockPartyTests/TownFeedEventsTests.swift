@@ -368,6 +368,43 @@ final class TownFeedEventsTests: XCTestCase {
         }
     }
 
+    /// A game's live score (game-card 03) reads in its teams' order with the period and clock; the
+    /// clock goes once it's two minutes old; complete counts as the final at once; a bad one is none.
+    func testAGamesLiveScoreReadsAndCompleteCountsAsTheFinal() throws {
+        func game(_ more: String) throws -> Game {
+            let json = #"{"sport":"Football","teams":[{"name":"Saint John's"},{"name":"Concordia"}]"# + more + "}"
+            return try XCTUnwrap(try JSONDecoder().decode(Game.Lenient.self, from: Data(json.utf8)).value)
+        }
+        let on = try game(#","final":null,"live":{"score":[14,7],"period":"Q3","clock":"4:12","complete":false,"at":"2026-10-31T19:40:00.123456+00:00"}"#)
+        let live = try XCTUnwrap(on.live)
+        XCTAssertEqual(live.score, [14, 7])
+        XCTAssertNil(on.final)
+        XCTAssertNil(on.winner, "nobody fades while it's on")
+        XCTAssertEqual(on.spoken, "Football, Saint John's 14, Concordia 7, Q3, live")
+        let at = try XCTUnwrap(live.at)
+        XCTAssertEqual(live.line(at: at.addingTimeInterval(60)), "Q3 · 4:12")
+        XCTAssertEqual(live.line(at: at.addingTimeInterval(121)), "Q3", "a clock that stopped coming in is hidden")
+        let volleyball = try game(#","live":{"score":[2,0],"period":"Set 3","clock":null,"complete":false}"#)
+        XCTAssertEqual(volleyball.live?.line(at: .now), "Set 3")
+
+        let over = try game(#","live":{"score":[3,0],"period":"Set 3","clock":null,"complete":true}"#)
+        XCTAssertEqual(over.final, [3, 0], "complete is the final before the server's second read")
+        XCTAssertNil(over.live)
+        let both = try game(#","final":[33,23],"live":{"score":[30,23],"period":"Q4","complete":false}"#)
+        XCTAssertEqual(both.final, [33, 23], "a final always wins over a live score")
+        XCTAssertNil(both.live)
+        for bad in [#","live":{"score":[1],"period":"Q1"}"#, #","live":{"score":[1,-2],"period":"Q1"}"#, #","live":"7-0""#] {
+            XCTAssertNil(try game(bad).live, bad)
+        }
+
+        // A realtime update moves the scores on the card's game, and back to none.
+        let updated = on.with(final: nil, live: try JSONDecoder().decode(Game.Live.self, from: Data(
+            #"{"score":[21,7],"period":"Q4","clock":"0:45","complete":false}"#.utf8)))
+        XCTAssertEqual(updated.live?.score, [21, 7])
+        XCTAssertEqual(updated.with(final: [21, 7], live: nil).final, [21, 7])
+        XCTAssertNil(updated.with(final: [21, 7], live: nil).live)
+    }
+
     /// Every reason the database sends has a line; one this app doesn't know has none,
     /// so a newer database never puts a wrong line on an older app.
     func testEachReasonHasItsLine() {
