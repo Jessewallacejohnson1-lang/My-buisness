@@ -51,6 +51,17 @@ final class TypographyScalingGuardTests: XCTestCase {
     private static var colourLiteral: Regex<Substring> { #/Color\(\s*\.sRGB\s*,|Color\(\s*red\s*:|Color\(\s*hue\s*:|UIColor\(\s*white\s*:|#[0-9A-Fa-f]{6}"|#colorLiteral\(/# }
 
     /// A colour written at a call site, outside the token layer and the palettes above.
+    /// Every bundled face resolves by PostScript name. A missing .ttf or a wrong name falls
+    /// back to the system font with no error, and the screens quietly lose their type.
+    func testEveryFaceIsBundled() {
+        registerBlockPartyFonts()
+        for face in [Face.displayRegular, Face.displayMedium, Face.displaySemi, Face.displayBold,
+                     Face.logo, Face.eventHeadline, Face.logoSerif,
+                     Face.bodyRegular, Face.bodyMedium, Face.bodySemi, Face.bodyBold] {
+            XCTAssertNotNil(UIFont(name: face, size: 17), face)
+        }
+    }
+
     func testNoColourLiterals() throws {
         let offenders = try scanSources(allowlist: Self.colourAllowlist) { line in
             line.contains(Self.colourLiteral)

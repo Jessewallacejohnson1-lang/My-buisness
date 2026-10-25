@@ -8,7 +8,7 @@ than being an unexplained binary in the repo.
 
 ## Rebuild
 
-Needs `potrace` (`brew install potrace`) and `fonttools` (`pip install fonttools`).
+Needs `potrace` (`brew install potrace`) and `uv`, which fetches fonttools for the run.
 
 ```sh
 cd scripts/event-font
@@ -18,7 +18,7 @@ mkdir -p "$WORK/glyphs"
 swift segment.swift alphabet-sheet.png "$WORK" > "$WORK/glyphs.tsv"
 swift rasterize.swift alphabet-sheet.png "$WORK"
 for f in "$WORK"/glyphs/*.pbm; do potrace -b svg --flat -a 1.0 -O 0.2 -t 2 -o "${f%.pbm}.svg" "$f"; done
-EVENT_FONT_WORK="$WORK" python3 build.py
+EVENT_FONT_WORK="$WORK" uv run --with fonttools python build.py
 
 cp "$WORK/BPEventHeading-Regular.ttf" ../../BlockParty/Resources/Fonts/
 ```
