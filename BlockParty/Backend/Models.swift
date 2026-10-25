@@ -207,6 +207,11 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
 
         /// "Q3 · 4:12", or the period alone.
         var when: String { clock.map { "\(period) · \($0)" } ?? period }
+
+        /// A list of them as JSON, one that doesn't read left out; nil when it isn't a list.
+        static func list(from data: Data) -> [Play]? {
+            (try? JSONDecoder().decode([LenientItem<Play>].self, from: data))?.compactMap(\.value)
+        }
     }
 
     /// SIDEARM's score as `club_events.live_score` keeps it (`private.sidearm_live`): `teams` order,

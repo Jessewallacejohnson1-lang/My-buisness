@@ -267,7 +267,8 @@ final class TownFeed {
         if viewGone { onScreen = [:] }
         awaySince = now
         returnY = scrollY
-        scores?.stop()
+        // A game's Event page pushed over the feed keeps them coming (game-card 05).
+        watchScores(at: now)
     }
 
     /// The feed is back on screen. After 30 minutes away the next read may bring a
@@ -384,11 +385,7 @@ final class TownFeed {
     private func scored(_ change: RealtimeClient.Change) {
         guard change.kind == .update, let row = change.new, let id = row.id else { return }
         let live = row.liveScore.flatMap { try? JSONDecoder().decode(Game.Live.self, from: $0) }
-        var plays: [Game.Play]?
-        if let data = row.scoringPlays,
-           let read = try? JSONDecoder().decode([Game.LenientItem<Game.Play>].self, from: data) {
-            plays = read.compactMap { (entry: Game.LenientItem<Game.Play>) in entry.value }
-        }
+        let plays = row.scoringPlays.flatMap(Game.Play.list(from:))
         score(id, final: row.finalScore, live: live, plays: plays)
     }
 

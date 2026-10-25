@@ -198,7 +198,7 @@ struct GameScoring: View {
     private func section<Rows: View>(_ title: String, @ViewBuilder rows: () -> Rows) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title)
-                .font(.sansBold(20))
+                .font(.sansSemibold(17))
                 .foregroundStyle(Hue.ink)
                 .accessibilityAddTraits(.isHeader)
             VStack(spacing: Self.rowGap) { rows() }

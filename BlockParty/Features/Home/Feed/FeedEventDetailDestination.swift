@@ -208,6 +208,9 @@ struct FeedEventDetailDestination: View {
             .padding(.leading, Metric.bandInset)
             GameMatchup(game: game, rowTop: Metric.bandRowGap, swipes: false)
                 .frame(height: Metric.bandMatchup)
+                // The matchup hides itself (the card's title says it); here it says the score.
+                .accessibilityElement()
+                .accessibilityLabel(game.spoken + (game.live?.clock.map { ", \($0)" } ?? ""))
         }
         .padding(.top, Metric.buttonTop + Metric.tapBox + Metric.bandChipGap)
         .frame(maxWidth: .infinity, alignment: .leading)
