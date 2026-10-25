@@ -337,22 +337,22 @@ test('a called-off event leaves the feed unless someone Hearted it, and then is 
   await add('Bake sale', '2026-10-09', { start_time: '11 AM' });
   // Today, a picked interest and new: it would lead the feed if it were on.
   const off = await add('Sartell Volleyball vs ROCORI', '2026-10-08',
-                        { start_time: '7 PM', source_name: 'ROCORI High School', category: 'sports_leagues',
+                        { start_time: '7 PM', source_name: 'ROCORI High School', category: 'watch_sports',
                           created_at: '2026-10-07 12:00-05' });
   await db.query(`update public.club_events set cancelled_at = now() where id = $1`, [off]);
-  await signIn(ME, ['sports_leagues']);
+  await signIn(ME, ['watch_sports']);
   assert.deepEqual(await titles('2026-10-08 12:00'), ['Bake sale']);
   await db.exec('reset role');
   await db.query(`insert into public.event_likes (event_id, user_id) values ($1, $2)`,
                  [off, '00000000-0000-0000-0000-0000000000c4']);
-  await signIn(ME, ['sports_leagues']);
+  await signIn(ME, ['watch_sports']);
   // It says it's called off, so the card shows the Canceled tag (ticket 12).
   assert.deepEqual((await feed('2026-10-08 12:00')).map((r) => [r.title, r.reason, r.cancelled]),
                    [['Bake sale', 'tomorrow', false], ['Sartell Volleyball vs ROCORI', 'today', true]]);
   // Back on its schedule, it is an event like any other again.
   await db.exec('reset role');
   await db.query(`update public.club_events set cancelled_at = null where id = $1`, [off]);
-  await signIn(ME, ['sports_leagues']);
+  await signIn(ME, ['watch_sports']);
   const [first] = await feed('2026-10-08 12:00');
   assert.deepEqual([first.title, first.cancelled], ['Sartell Volleyball vs ROCORI', false]);
 });
@@ -379,7 +379,7 @@ test('a picked interest lifts an event, and only a picked one', async () => {
   await add('Bake sale', '2026-10-09', { start_time: '11 AM', category: 'dining', source_name: 'Parish' });
   // Signed out, or with other picks, sooner wins.
   assert.deepEqual(await titles('2026-10-08 12:00'), ['Bake sale', 'Choir concert']);
-  await signIn(YOU, ['biking']);
+  await signIn(YOU, ['lakes_biking']);
   assert.deepEqual(await titles('2026-10-08 12:00'), ['Bake sale', 'Choir concert']);
   await signIn(YOU, ['live_music']);
   const rows = await feed('2026-10-08 12:00');
@@ -478,15 +478,15 @@ test("every interest the tagger gave an Event matches, two at most; an untagged 
   const trivia = await add('Trivia at the taproom', '2026-10-09', { start_time: '7 PM' });
   await add('Pancake breakfast', '2026-10-09', { start_time: '8 AM', category: 'dining', source_name: 'Fire hall' });
   const council = await add('Council meeting', '2026-10-09', { start_time: '6 PM', source_name: 'Council' });
-  await db.query(`update public.club_events set interests = '{breweries,live_music,dining}', category = 'live_music',
+  await db.query(`update public.club_events set interests = '{bars,live_music,dining}', category = 'live_music',
                   interests_tagged_at = now() where id = $1`, [trivia]);
   // The writer guessed dining; the tagger said nothing fits, and the tagger wins.
   await db.query(`update public.club_events set category = 'dining', interests_tagged_at = now() where id = $1`, [council]);
-  await signIn(YOU, ['breweries', 'dining', 'live_music']);
+  await signIn(YOU, ['bars', 'dining', 'live_music']);
   await db.exec(`set test.admin = 'on'`);
   const rows = await feed('2026-10-08 12:00');
   assert.deepEqual(rows.map((r) => [r.title, r.reason, r.reason_name, r.score.interest]),
-                   [['Trivia at the taproom', 'interest', 'breweries', 6], ['Pancake breakfast', 'interest', 'dining', 3],
+                   [['Trivia at the taproom', 'interest', 'bars', 6], ['Pancake breakfast', 'interest', 'dining', 3],
                     ['Council meeting', 'tomorrow', null, 0]]);
 });
 
@@ -494,7 +494,7 @@ test("one interest can't flood the feed: each further Event on the same interest
   await reset();
   // Six games from six schools at the same hour, and two other things a little later.
   for (let n = 1; n <= 6; n++)
-    await add(`Game ${n}`, '2026-10-09', { start_time: '6 PM', category: 'sports_leagues', source_name: `School ${n}` });
+    await add(`Game ${n}`, '2026-10-09', { start_time: '6 PM', category: 'watch_sports', source_name: `School ${n}` });
   await add('Book club', '2026-10-09', { start_time: '7 PM', category: 'books', source_name: 'Library' });
   await add('Choir concert', '2026-10-09', { start_time: '7 PM', category: 'live_music', source_name: 'Arts center' });
   await db.exec(`set test.admin = 'on'`);
@@ -909,7 +909,7 @@ test('the feed is read in under 100 ms with 5,000 people', async () => {
   await reset();
   // About eight weeks of a busy Town: 200 events, 5,000 people with three picks each,
   // 50,000 Going, 10,000 saves and 50,000 hearts.
-  const picks = ['live_music', 'dining', 'biking', 'families_kids', 'breweries', 'trails_hiking'];
+  const picks = ['live_music', 'dining', 'lakes_biking', 'families_kids', 'bars', 'outdoors'];
   await db.query(`
     insert into public.club_events (title, event_date, source_name, start_time, category, created_at)
     select 'Event ' || g, date '2026-10-08' + (g % 56), 'Host ' || (g % 40), (g % 12 + 1) || ' PM',
@@ -1205,9 +1205,9 @@ async function busyFriday() {
   await reset();
   const e = {};
   for (const [title, start, interests] of [
-    ['Pancake breakfast', '8 AM', ['dining']], ['Bird walk', '9 AM', ['trails_hiking']],
+    ['Pancake breakfast', '8 AM', ['dining']], ['Bird walk', '9 AM', ['outdoors']],
     ['Fix-It Clinic', '2 PM', ['books']],
-    ['Home game', '7 PM', ['sports_leagues']], ['Theology on Tap', '8 PM', ['faith']],
+    ['Home game', '7 PM', ['watch_sports']], ['Theology on Tap', '8 PM', ['faith']],
     ['Late show', '10 PM', ['live_music']]]) {
     e[title] = await add(title, '2026-10-09', { start_time: start, source_name: title });
     await tagged(e[title], interests);
@@ -1223,9 +1223,9 @@ test('Event of the day: each part of the day gets the standout that fits you, el
   assert.deepEqual(await picks('2026-10-09 07:00'), ['Pancake breakfast', 'Fix-It Clinic', 'Home game'], 'signed out');
   await signIn(ME, []);
   assert.deepEqual(await picks('2026-10-09 07:00'), ['Pancake breakfast', 'Fix-It Clinic', 'Home game'], 'no interests');
-  await signIn(YOU, ['faith', 'trails_hiking']);
+  await signIn(YOU, ['faith', 'outdoors']);
   assert.deepEqual(await picks('2026-10-09 07:00'), ['Bird walk', 'Fix-It Clinic', 'Theology on Tap']);
-  await signIn(ME, ['sports_leagues', 'coffee']);
+  await signIn(ME, ['watch_sports', 'coffee']);
   assert.deepEqual(await picks('2026-10-09 07:00'), ['Pancake breakfast', 'Fix-It Clinic', 'Home game']);
 });
 
@@ -1542,4 +1542,56 @@ test("a group's Event mutes the group by the name its card shows; signed out can
   await assert.rejects(db.query('select public.set_not_interested($1)', [shoot]));
   await assert.rejects(db.query('select public.mute_host($1)', [shoot]));
   await db.exec('reset role');
+});
+
+// Onboarding ticket 19: under 18 never sees what its place keeps to 18+ or 21+.
+async function born(id, birthday) {
+  await signIn(id);
+  await db.exec('reset role');
+  await db.query('update public.town_profiles set birthday = $2 where user_id = $1', [id, birthday]);
+  await db.exec(`set role authenticated; set request.jwt.claim.sub = '${id}'`);
+}
+
+test('under 18 never sees an Event or news its place or host keeps to 18+ or 21+', async () => {
+  await reset();
+  await db.exec(`delete from public.place_photos; delete from public.places;
+    insert into public.places (name, entry_id, adults_only) values ('The Middy', 'middy', true),
+      ('Sal''s Bar & Grill', 'bar-grill-sals', false);`);
+  const middy = await add('Trivia night', '2026-10-09', { start_time: '7 PM', source_name: 'The Middy' });
+  await add('Bingo Night', '2026-10-09', { start_time: '6 PM', source_name: "Sal's Bar and Grill" });
+  const label = await add('Comedy show', '2026-10-09', { start_time: '8 PM', source_name: "Sal's Bar and Grill" });
+  await add('Bake sale', '2026-10-09', { start_time: '11 AM' });
+  await add('Haunted hayride', '2026-10-09', { start_time: '5 PM' });
+  await db.exec('reset role');
+  await db.query(`update public.club_events set description = 'Tickets $18 and up at the door.' where title = 'Haunted hayride'`);
+  await db.query(`update public.club_events set place_entry_id = 'middy' where id = $1`, [middy]);
+  await db.query(`update public.club_events set place_entry_id = 'bar-grill-sals', description = 'Ages 21+ only.' where id = $1`, [label]);
+  await news('Happy hour', '2026-10-08 17:00', { source_name: 'The Middy', place_entry_id: 'middy' });
+  await news('Flight Friday', '2026-10-08 17:00');
+  const grown = ['Bake sale', 'Bingo Night', 'Comedy show', 'Haunted hayride', 'Trivia night', 'Flight Friday', 'Happy hour'];
+
+  await db.exec('set role anon');
+  assert.deepEqual((await newsTitles('2026-10-08 18:00')).sort(), [...grown].sort());
+  await born(ME, '2010-03-01');   // 16
+  assert.deepEqual((await newsTitles('2026-10-08 18:00')).sort(), ['Bake sale', 'Bingo Night', 'Flight Friday', 'Haunted hayride']);
+  assert.deepEqual((await titles('2026-10-08 18:00')).sort(), ['Bake sale', 'Bingo Night', 'Haunted hayride']);
+  await born(ME, '2008-10-08');   // 18 today
+  assert.deepEqual((await newsTitles('2026-10-08 18:00')).sort(), [...grown].sort());
+  await born(ME, '2008-10-09');   // 18 tomorrow
+  assert.equal((await newsTitles('2026-10-08 18:00')).length, 4);
+  await db.exec('reset role; update public.town_profiles set birthday = null');
+  await db.exec(`set role authenticated; set request.jwt.claim.sub = '${ME}'`);
+  assert.equal((await newsTitles('2026-10-08 18:00')).length, 7);
+  await db.exec('reset role; delete from public.places');
+});
+
+test('a birthday is read by its own account only', async () => {
+  await reset();
+  const other = '00000000-0000-0000-0000-00000000000b';
+  await born(ME, '1990-05-04');
+  assert.deepEqual((await db.query('select birthday::text as b from public.town_profiles')).rows, [{ b: '1990-05-04' }]);
+  await signIn(other);
+  assert.deepEqual((await db.query('select birthday from public.town_profiles where user_id = $1', [ME])).rows, []);
+  await db.exec('reset role');
+  await assert.rejects(db.query(`update public.town_profiles set birthday = '1899-12-31' where user_id = $1`, [ME]));
 });

@@ -84,9 +84,10 @@ final class ProfileModel: ObservableObject {
             avatarUrl = p.avatarUrl
             // The server row is authoritative — adopt its interests even when empty
             // (a deliberate clear elsewhere must sync, not get resurrected on Save),
-            // and mirror locally so Home's matching agrees.
-            interestIds = p.interests
-            Interests.set(p.interests)
+            // and mirror locally so Home's matching agrees. Old ids come back as the new 21, so
+            // a Save never drops what someone picked before the list changed.
+            interestIds = Interests.migrate(p.interests)
+            Interests.set(interestIds)
             // Onboarding went away for a while; a row made then has only its own stamp.
             sinceLabel = ProfileModel.since(from: p.onboardedAt ?? p.createdAt)
             bio = p.bio ?? ""

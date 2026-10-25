@@ -52,7 +52,7 @@ test('a dropped game is marked cancelled once, and restored by a re-read or anot
   const game = (day) => [{ status: 'approved', title: 'Sartell Volleyball vs ROCORI', event_date: day,
     start_time: '7 PM', end_at: null, all_day: false, location: 'ROCORI High School, Cold Spring',
     description: null, source_name: 'ROCORI High School', source_url: 'u',
-    source_uid: 'mshsl:153:rocori|sartell:1', category: 'sports_leagues', shows_from: '2026-10-06' }];
+    source_uid: 'mshsl:153:rocori|sartell:1', category: 'watch_sports', shows_from: '2026-10-06' }];
   const apply = async (...lists) => (await db.query(
     `select public.apply_judged(${lists.map((_, i) => `$${i + 1}`).join(', ')}) as r`,
     lists.map((l) => JSON.stringify(l)))).rows[0].r;

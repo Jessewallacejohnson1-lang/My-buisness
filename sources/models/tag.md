@@ -13,14 +13,14 @@ empty) and `category` (one interest the writer already gave it, or null).
 ## How to tag
 
 - Tag what the Event is about, as a neighbour would say it: a trivia night at a taproom is
-  `breweries`; a fall concert by the college choir is `live_music`; a fish fry at a church is
-  `dining` and `faith`; a 5K fun run for a school is `fitness_yoga` and `families_kids`.
+  `bars`; a fall concert by the college choir is `live_music`; a fish fry at a church is
+  `dining` and `faith`; a 5K fun run for a school is `play_sports` and `families_kids`.
 - As many interests as it is really about, and no more: most Events have one or two, a few
   have three or four. Every extra tag shows the Event to people who may not care, so leave
   out what is only nearby or possible ("people might bring kids" is not `families_kids`).
 - `families_kids` means made for children or families: story time, a kids' craft, trick or
   treat, a family day. A school's board meeting is not.
-- Games of any sport, at any level, are `sports_leagues`.
+- Games of any sport, at any level, are `watch_sports`.
 - Meetings of a city council, board or commission fit no interest: an empty list.
 - Keep the writer's `category` when it fits, and add to it; drop it only when it is wrong.
 - Only ids from the list. When nothing fits, an empty list.

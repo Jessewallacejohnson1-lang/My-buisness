@@ -2,7 +2,7 @@
 //  EditProfileView.swift
 //  Block Party — edit your community profile: cover · photo · name · bio · interests (the
 //  cover and bio for a real account only, BP app references/profile-remake). Mirrors the
-//  onboarding steps (same avatar well, the shared interest grid) and saves through
+//  onboarding steps (same avatar well, the shared interest chips) and saves through
 //  ProfileModel.save (upload avatar → town_profiles upsert). A clean opaque form —
 //  glass is for the profile display, input reads calmer on paper.
 //
@@ -16,7 +16,8 @@ struct EditProfileView: View {
 
     @State private var name = ""
     @State private var image: UIImage?
-    @State private var interests: Set<String> = []
+    @State private var interests: [String] = []
+    @State private var popular: [String] = []
     @State private var pick: PhotosPickerItem?
     @State private var bio = ""
     @State private var cover: UIImage?
@@ -61,7 +62,7 @@ struct EditProfileView: View {
         .presentationDetents([.large])
         .onAppear {
             if name.isEmpty { name = model.displayName }
-            if interests.isEmpty { interests = Set(model.interestIds) }
+            if interests.isEmpty { interests = model.interestIds }
             if bio.isEmpty { bio = model.bio }
         }
         // Opened before Profile's read landed: its bio comes in then, unless you've typed one.
@@ -83,9 +84,12 @@ struct EditProfileView: View {
             }
         }
         .sheet(isPresented: $showInterests) {
-            InterestPickerView(selected: $interests, name: name,
-                               onBack: { showInterests = false },
-                               onContinue: { showInterests = false })
+            InterestsSheet(picked: $interests, popular: popular)
+        }
+        .task {
+            if let events = try? await CommunityAPI(auth: AuthStore.shared).upcomingInterests() {
+                popular = Interests.popular(events)
+            }
         }
     }
 
@@ -125,7 +129,7 @@ struct EditProfileView: View {
                 saveFailed = false
                 saving = true
                 Task {
-                    let ok = await model.save(name: name, image: image, interests: Array(interests),
+                    let ok = await model.save(name: name, image: image, interests: interests,
                                               bio: model.canDescribe ? bio : nil, cover: cover)
                     saving = false
                     if ok {
@@ -270,5 +274,38 @@ struct EditProfileView: View {
             }
             .buttonStyle(PressableStyle())
         }
+    }
+}
+
+/// Edit Profile's interests: onboarding's chips, keeping at least one.
+private struct InterestsSheet: View {
+    @Binding var picked: [String]
+    let popular: [String]
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Interests")
+                .font(.sansSemibold(17))
+                .foregroundStyle(Hue.ink)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 18)
+            InterestChips(picked: $picked, popular: popular, bottomInset: 120)
+        }
+        .padding(.horizontal, 24)
+        .overlay(alignment: .bottom) {
+            ContinueButton(title: picked.isEmpty ? "Pick 1" : "Done", enabled: !picked.isEmpty) {
+                Haptics.selection(); dismiss()
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 32)
+            .padding(.bottom, 8)
+            // The chips scroll away under a paper fade, as onboarding's do under its Next bar.
+            .background(LinearGradient(colors: [Hue.paper.opacity(0), Hue.paper], startPoint: .top, endPoint: .center)
+                .ignoresSafeArea())
+        }
+        .background(Hue.paper.ignoresSafeArea())
+        .presentationDragIndicator(.visible)
+        .interactiveDismissDisabled(picked.isEmpty)
     }
 }

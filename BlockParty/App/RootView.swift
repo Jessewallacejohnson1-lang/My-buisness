@@ -236,13 +236,20 @@ struct RootView: View {
         .onChange(of: onboarding.finished) { _, done in
             guard done else { return }
             if let name = onboarding.displayName { Interests.displayName = name }
-            if !stampedOnServer { Task { try? await ProfileAPI(auth: .shared).markOnboarded() } }
+            if !stampedOnServer { Task { await stampOnboarded() } }
             Task { await saveOnboardingAnswers() }
         }
     }
 
-    /// Onboarding's name and photo reach `town_profiles` once the flow is done and an account
-    /// exists; till then they wait on the phone (BP app onboarding 18). The photo uploads to
+    /// The onboarded stamp, with the birthday (onboarding 19). Once it's on the account the birthday
+    /// leaves the device, so another account signing in here later can't take it.
+    private func stampOnboarded() async {
+        guard (try? await ProfileAPI(auth: .shared).markOnboarded(birthday: onboarding.birthday)) != nil else { return }
+        onboarding.birthday = nil
+    }
+
+    /// Onboarding's name, photo and interests reach `town_profiles` once the flow is done and an
+    /// account exists; till then they wait on the phone (BP app onboarding 18, 20). The photo uploads to
     /// the avatar the app already shows.
     private func saveOnboardingAnswers() async {
         guard onboarding.finished else { return }
@@ -254,8 +261,10 @@ struct RootView: View {
                 url = await Storage(auth: auth).uploadAvatar(photo, userId: uid)
                 if url == nil { throw SupabaseError(message: "The photo didn't upload.", status: 0) }
             }
-            try await ProfileAPI(auth: auth).setNameAndPhoto(displayName: name, avatarUrl: url)
+            let picks = onboarding.interests
+            try await ProfileAPI(auth: auth).setNameAndPhoto(displayName: name, avatarUrl: url, interests: picks)
             if let name { Interests.displayName = name }
+            if !picks.isEmpty { Interests.set(picks) }
         }
     }
 
@@ -272,7 +281,7 @@ struct RootView: View {
         do { fetched = try await ProfileAPI(auth: .shared).getMyProfile() } catch { return }
         // Finished here but never stamped (offline at the time, or no account yet): stamp now.
         if fetched?.onboardedAt == nil, onboarding.finished {
-            try? await ProfileAPI(auth: .shared).markOnboarded()
+            await stampOnboarded()
         }
         if let profile = fetched {
             if profile.onboardedAt != nil { stampedOnServer = true; onboarding.serverSaysFinished() }

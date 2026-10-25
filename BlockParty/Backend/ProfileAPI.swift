@@ -73,26 +73,30 @@ struct ProfileAPI {
     /// Stamp `onboarded_at` on the caller's row, making it if there is none yet (the quiet
     /// anonymous account has none). Only those two columns travel, so a name, photo or
     /// interests already there are left alone (BP app onboarding 16).
-    func markOnboarded() async throws {
+    func markOnboarded(birthday: Date? = nil) async throws {
         let t = try await token()
         guard let uid = auth.userId else { throw SupabaseError(message: "Your session ended. Sign in and try again.", status: 401) }
         let iso = ISO8601DateFormatter()
         iso.formatOptions = [.withInternetDateTime]
-        let body = try JSONSerialization.data(withJSONObject: ["user_id": uid, "onboarded_at": iso.string(from: Date())])
+        var row = ["user_id": uid, "onboarded_at": iso.string(from: Date())]
+        // Onboarding's birthday (ticket 19), private to this account.
+        if let birthday { row["birthday"] = OnboardingAge.day.format(birthday) }
+        let body = try JSONSerialization.data(withJSONObject: row)
         _ = try await SupabaseHTTP.rest("town_profiles", method: "POST",
             query: "on_conflict=user_id", accessToken: t, body: body,
             prefer: "resolution=merge-duplicates,return=minimal")
     }
 
-    /// Onboarding's name and photo (BP app onboarding 18) on the caller's row, making it if
-    /// there is none yet. Only the answers given travel, so interests and the onboarded stamp
-    /// are left alone.
-    func setNameAndPhoto(displayName: String?, avatarUrl: String?) async throws {
+    /// Onboarding's name, photo and interests (BP app onboarding 18, 20) on the caller's row,
+    /// making it if there is none yet. Only the answers given travel, so the onboarded stamp and
+    /// anything left blank are left alone.
+    func setNameAndPhoto(displayName: String?, avatarUrl: String?, interests: [String] = []) async throws {
         let t = try await token()
         guard let uid = auth.userId else { throw SupabaseError(message: "Your session ended. Sign in and try again.", status: 401) }
         var b: [String: Any] = ["user_id": uid]
         if let displayName { b["display_name"] = displayName }
         if let avatarUrl { b["avatar_url"] = avatarUrl }
+        if !interests.isEmpty { b["interests"] = interests }
         let body = try JSONSerialization.data(withJSONObject: b)
         _ = try await SupabaseHTTP.rest("town_profiles", method: "POST",
             query: "on_conflict=user_id", accessToken: t, body: body,
