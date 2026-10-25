@@ -234,7 +234,7 @@ struct RootView: View {
         .animation(.smooth(duration: 0.35), value: onboardingUp)
         .task(id: auth.userId) { await hydrateIfNeeded() }
         .onChange(of: onboarding.finished) { _, done in
-            if done, !stampedOnServer { Task { try? await ProfileAPI(auth: .shared).markOnboarded() } }
+            if done, !stampedOnServer { Task { [birthday = onboarding.birthday] in try? await ProfileAPI(auth: .shared).markOnboarded(birthday: birthday) } }
         }
     }
 
@@ -251,7 +251,7 @@ struct RootView: View {
         do { fetched = try await ProfileAPI(auth: .shared).getMyProfile() } catch { return }
         // Finished here but never stamped (offline at the time, or no account yet): stamp now.
         if fetched?.onboardedAt == nil, onboarding.finished {
-            try? await ProfileAPI(auth: .shared).markOnboarded()
+            try? await ProfileAPI(auth: .shared).markOnboarded(birthday: onboarding.birthday)
         }
         guard let profile = fetched else { return }
         if profile.onboardedAt != nil { stampedOnServer = true; onboarding.serverSaysFinished() }

@@ -63,4 +63,64 @@ final class OnboardingStoreTests: XCTestCase {
         midway.serverSaysFinished()
         XCTAssertTrue(midway.finished)
     }
+
+    // Ticket 19: the birthday and under 13.
+
+    private func day(_ s: String) -> Date { try! OnboardingAge.day.parse(s) }
+
+    func testAgeCountsWholeYearsInTownTime() {
+        XCTAssertEqual(OnboardingAge.years(from: day("2012-10-25"), to: day("2025-10-24")), 12)
+        XCTAssertEqual(OnboardingAge.years(from: day("2012-10-25"), to: day("2025-10-25")), 13)
+        XCTAssertEqual(OnboardingAge.years(from: day("2012-02-29"), to: day("2025-03-01")), 13)
+        XCTAssertEqual(OnboardingAge.years(from: day("2026-10-25"), to: day("2026-10-25")), 0)
+    }
+
+    private func onBirthday() -> OnboardingStore {
+        let store = OnboardingStore(defaults: defaults)
+        while store.step != .birthday { store.next() }
+        return store
+    }
+
+    func testUnder13StaysOnTheBirthdayWithComeBackUp() {
+        let store = onBirthday()
+        store.birthday = day("2013-10-26")
+        store.next(now: day("2026-10-25"))
+        XCTAssertEqual(store.step, .birthday)
+        XCTAssertTrue(store.tooYoung)
+        store.notTooYoung()
+        XCTAssertFalse(store.tooYoung)
+    }
+
+    func testThirteenTodayGoesOnToInterests() {
+        let store = onBirthday()
+        store.birthday = day("2013-10-25")
+        store.next(now: day("2026-10-25"))
+        XCTAssertEqual(store.step, .interests)
+        XCTAssertFalse(store.tooYoung)
+    }
+
+    func testBirthdaySurvivesRelaunch() {
+        let store = onBirthday()
+        store.birthday = day("2001-10-24")
+        let again = OnboardingStore(defaults: defaults)
+        XCTAssertEqual(again.birthday.map { OnboardingAge.day.format($0) }, "2001-10-24")
+        XCTAssertEqual(again.step, .birthday)
+    }
+
+    func testCloseClearsEverythingTheDeviceKeptAndStartsOver() {
+        let store = onBirthday()
+        store.birthday = day("2015-01-01")
+        defaults.set("Avery", forKey: "onboarding.name")   // another step's answer
+        defaults.set("keep", forKey: "other.setting")
+        store.next(now: day("2026-10-25"))
+        store.leaveTooYoung()
+        XCTAssertEqual(store.step, .welcome)
+        XCTAssertNil(store.birthday)
+        XCTAssertFalse(store.tooYoung)
+        XCTAssertTrue(defaults.dictionaryRepresentation().keys.filter { $0.hasPrefix("onboarding.") }.isEmpty)
+        XCTAssertEqual(defaults.string(forKey: "other.setting"), "keep")
+        let again = OnboardingStore(defaults: defaults)
+        XCTAssertEqual(again.step, .welcome)
+        XCTAssertNil(again.birthday)
+    }
 }

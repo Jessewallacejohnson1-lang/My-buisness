@@ -48,10 +48,18 @@ final class OnboardingStore {
     private(set) var finished: Bool
     /// The way the last move went, so the next question slides in from the right side.
     private(set) var forward = true
+    /// The birthday the wheel is on, nil until it turns (ticket 19). Kept on the device, and saved to
+    /// the account with the rest at the end, so an under-13 who stops here leaves nothing behind.
+    var birthday: Date? {
+        didSet { defaults.set(birthday.map { OnboardingAge.day.format($0) }, forKey: Self.birthdayKey) }
+    }
+    /// "Come back when you're 13" is up over the birthday step.
+    private(set) var tooYoung = false
 
     private let defaults: UserDefaults
     private static let stepKey = "onboarding.step"
     private static let finishedKey = "onboarding.finished"
+    private static let birthdayKey = "onboarding.birthday"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -59,12 +67,17 @@ final class OnboardingStore {
         let saved = defaults.string(forKey: Self.stepKey)
         step = OnboardingStep.allCases.first { "\($0)" == saved } ?? .welcome
         finished = defaults.bool(forKey: Self.finishedKey)
+        birthday = defaults.string(forKey: Self.birthdayKey).flatMap { try? OnboardingAge.day.parse($0) }
     }
 
     /// 1 to 9 on the question steps, 0 on the Welcome.
     var barIndex: Int { step.rawValue }
 
-    func next() {
+    func next(now: Date = .now) {
+        if step == .birthday, let birthday, OnboardingAge.years(from: birthday, to: now) < 13 {
+            tooYoung = true
+            return
+        }
         guard let after = OnboardingStep(rawValue: step.rawValue + 1) else { return finish() }
         move(to: after, forward: true)
     }
@@ -72,6 +85,21 @@ final class OnboardingStore {
     func back() {
         guard let before = OnboardingStep(rawValue: step.rawValue - 1) else { return }
         move(to: before, forward: false)
+    }
+
+    /// Back from "Come back when you're 13" to the wheel.
+    func notTooYoung() { tooYoung = false }
+
+    /// Close on "Come back when you're 13": every answer the device kept is cleared (each step's
+    /// `onboarding.` key) and the flow starts over on the Welcome.
+    func leaveTooYoung() {
+        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix("onboarding.") {
+            defaults.removeObject(forKey: key)
+        }
+        birthday = nil
+        tooYoung = false
+        forward = false
+        step = .welcome
     }
 
     /// "Not now" on Find your friends skips Contacts too (SPEC step 9).
@@ -117,6 +145,16 @@ struct OnboardingFlow: View {
                     .zIndex(1)
                     .transition(.opacity)
             }
+            if store.tooYoung {
+                OnboardingTooYoung(back: go { [store] in store.notTooYoung() },
+                                   close: go { [store] in
+                                       store.leaveTooYoung()
+                                       // An account made before this step goes too: nothing stays.
+                                       if AuthStore.shared.userId != nil { Task { await AuthStore.shared.signOut() } }
+                                   })
+                    .zIndex(2)
+                    .transition(reduceMotion ? .opacity : .move(edge: .trailing))
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
             withAnimation(Motion.sheet) { keyboardUp = true }
@@ -149,7 +187,20 @@ struct OnboardingFlow: View {
             .padding(.top, 56)
             .ignoresSafeArea(.container)
         }
+        .overlay(alignment: .bottom) {
+            if store.step == .birthday {
+                OnboardingBirthdayWheel(date: birthday, now: .now)
+                    .ignoresSafeArea(.container, edges: .bottom)
+                    .transition(.move(edge: .bottom))
+            }
+        }
         .overlay(alignment: .bottom) { bottom }
+        .accessibilityHidden(store.tooYoung)
+    }
+
+    /// The wheel's date: today until it turns, as Instagram's starts.
+    private var birthday: Binding<Date> {
+        Binding(get: { [store] in store.birthday ?? .now }, set: { [store] in store.birthday = $0 })
     }
 
     private var question: some View {
@@ -162,6 +213,9 @@ struct OnboardingFlow: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityFocused($questionFocused)
+            if store.step == .birthday {
+                OnboardingBirthdayField(date: store.birthday ?? .now, now: .now)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 32)
@@ -175,9 +229,11 @@ struct OnboardingFlow: View {
     private var bottom: some View {
         VStack(spacing: 6) {
             OnboardingNextBar(title: "Next", allowed: nextAllowed, action: go { [store] in store.next() })
-            if !keyboardUp { slot.frame(height: 44) }
+            if !keyboardUp && store.step != .birthday { slot.frame(height: 44) }
         }
         .padding(.horizontal, 24)
+        // Over the birthday wheel as over a keyboard, at the mock's 302 pt from the bottom.
+        .padding(.bottom, store.step == .birthday ? 302 - 34 : 0)
         // The home indicator's 34 pt safe area is the mock's 34 under the slot; the keyboard's
         // safe area carries the bar up with it.
         .padding(.bottom, keyboardUp ? 12 : 0)
@@ -200,7 +256,7 @@ struct OnboardingFlow: View {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-onboarding-not-yet") { return false }
         #endif
-        return true
+        return store.step != .birthday || store.birthday != nil
     }
 
     /// A move between steps, on the slide's timing.
