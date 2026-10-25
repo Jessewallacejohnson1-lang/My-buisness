@@ -12,7 +12,7 @@ exact dates, no model. A source is read when its entry is active and it names a 
   ical                an iCal feed (the City's)
   pathify             a Pathify campus portal's public events JSON (CSB/SJU's my.csbsju.edu);
                       the calendars to read are in the source's own url
-  cars511             Minnesota 511's road reports within `miles` of `around` (its GraphQL)
+  cars511             Minnesota 511's road reports within `miles` of `around` (its map's feed)
   finalsite-calendar  a Finalsite calendar page, this month and next (?cal_date=). Its iCal
                       export sits under the robots-disallowed /fs/, so never that (Kennedy)
   finalsite-news      a Finalsite news page: titles only, dated the day first seen; the story
@@ -53,7 +53,8 @@ and writes the SQL; it sets each event's show-from day too:
   python3 sources/scripts/read_events.py --selftest
 """
 
-import argparse, html, json, math, re, sys
+import argparse, html, json, math, re, sys, urllib.error
+from time import sleep
 from urllib.parse import quote, urlencode, urljoin, urlparse
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
@@ -285,11 +286,10 @@ def read_pathify(src, entry, today):
 
 # Minnesota 511 ---------------------------------------------------------------------------
 
-ROADS_MAP = """query MapFeatures($input: MapFeaturesArgs!) { mapFeaturesQuery(input: $input) {
-  mapFeatures { uri title __typename } error { message type } } }"""
-ROAD_EVENT = """query Event($layerSlugs: [String!]!, $eventId: ID!) {
-  eventQuery(eventId: $eventId, layerSlugs: $layerSlugs) {
-    event { uri title description beginTime { timestamp } active } error { type } } }"""
+# 511mn.org moved to a new map on 2026-10-21 and its old GraphQL address now answers with the
+# map's page. The new map loads every road report in the state from one address; the ones on a
+# road inside the box are kept. Incidents, closures and work zones are what the old map called
+# road reports (crashes came through it from 2026-10-17).
 
 
 def box(lat, lon, miles):
@@ -297,44 +297,39 @@ def box(lat, lon, miles):
     return {"north": lat + dlat, "south": lat - dlat, "east": lon + dlon, "west": lon - dlon}
 
 
-def graphql(url, query, variables):
-    body = json.dumps({"query": query, "variables": variables}).encode()
-    answer = json.loads(fetch(url, data=body, headers={"Content-Type": "application/json",
-                                                       "Accept": "application/json"})[1])
-    if answer.get("errors"):
-        raise RuntimeError(f"GraphQL: {answer['errors'][0].get('message')}")
-    return answer["data"]
+def points(coords):
+    if isinstance(coords[0], (int, float)):
+        yield coords
+    else:
+        for c in coords:
+            yield from points(c)
 
 
-def road_items(events, entry, src):
+def inside(geometry, b):
+    """A report's point, or any point along its stretch of road, in the box."""
+    return any(b["south"] <= lat <= b["north"] and b["west"] <= lon <= b["east"]
+               for lon, lat in points(geometry["coordinates"]))
+
+
+def road_items(features, entry, src, b):
     out = []
-    for e in events:
-        if not e or e.get("active") is False:
+    for f in features:
+        e = f["properties"]
+        if e.get("active") is False or not inside(f["geometry"], b):
             continue
         about = re.sub(r"\s+", " ", to_text(e.get("description") or "").split("Comment:")[0]).strip()
         near = re.search(r"\((?:near )?([^)]+)\)", about)
         out.append(judged(entry, src, kind="news", category="road", all_day=True,
                           title=e["title"].strip().rstrip(".") + (f" near {near.group(1)}" if near else ""),
-                          start=datetime.fromtimestamp(e["beginTime"]["timestamp"] / 1000, LOCAL).date().isoformat(),
-                          blurb=about or None, source_url=f"https://511mn.org/{e['uri']}",
-                          source_uid=e["uri"].rsplit("/", 1)[-1]))
+                          start=datetime.fromtimestamp(e["startTime"]["time"] / 1000, LOCAL).date().isoformat(),
+                          blurb=about or None, source_url=f"https://511mn.org/events/{e['id']}",
+                          source_uid=e["id"]))
     return out
 
 
 def read_roads(src, entry, today):
     lat, lon = src["around"]
-    found = graphql(src["url"], ROADS_MAP, {"input": dict(box(lat, lon, src.get("miles", 10)), zoom=14,
-                                                          layerSlugs=["roadReports"])})["mapFeaturesQuery"]
-    if found.get("error"):
-        raise RuntimeError(f"511: {found['error']}")
-    events = []
-    for f in found["mapFeatures"]:
-        if f["__typename"] == "Cluster":
-            raise RuntimeError("511 grouped road reports into a cluster: ask at a higher zoom")
-        if f["__typename"] == "Event":
-            events.append(graphql(src["url"], ROAD_EVENT, {"layerSlugs": ["roadReports"],
-                                                           "eventId": f["uri"].rsplit("/", 1)[-1]})["eventQuery"]["event"])
-    return road_items(events, entry, src)
+    return road_items(json.loads(fetch(src["url"])[1])["features"], entry, src, box(lat, lon, src.get("miles", 10)))
 
 
 # Kennedy: Finalsite ----------------------------------------------------------------------
@@ -645,14 +640,37 @@ def games(listings, today):
     return sorted(items, key=lambda i: (i["start"], i["title"])), left
 
 
+# The league answers most calls in half a second, but about one in six hangs or comes back 502:
+# on 2026-10-25 six of twelve schools failed, from the cloud and from the Mac alike. One school
+# failing keeps every school's called-off games up that morning (read_all's schedule line), so
+# each call gets three more tries, a while apart. A hang is given up after 8 seconds, not
+# run.py's 20: with 20, the retries made a read of the schools 11 to 18 minutes, and the
+# morning's prepare is stopped at 30.
+LEAGUE_WAITS = (3, 10, 20)
+LEAGUE_TIMEOUT = 8
+
+
+def league_fetch(url, wait=sleep):
+    for pause in (*LEAGUE_WAITS, None):
+        try:
+            return fetch(url, timeout=LEAGUE_TIMEOUT)[1]
+        except urllib.error.HTTPError as ex:
+            if ex.code < 500 or pause is None:
+                raise
+        except (urllib.error.URLError, ConnectionError, TimeoutError):
+            if pause is None:
+                raise
+        wait(pause)
+
+
 def read_league(src, entry, today):
     """One school's listings: its page (for its sports and their seasons), then each sport in
     season, the whole season, so a game keeps its number. games() turns them into items."""
-    sports = league_sports(fetch(src["url"])[1], today)
+    sports = league_sports(league_fetch(src["url"]), today)
     rows = []
     for a, (_, _, start, end) in sports.items():
-        rows += json.loads(fetch(f"{LEAGUE}/api/team-data/schedule/{src['league_id']}/varsity/{a}"
-                                 f"?start_date={start}&end_date={end}")[1])
+        rows += json.loads(league_fetch(f"{LEAGUE}/api/team-data/schedule/{src['league_id']}/varsity/{a}"
+                                        f"?start_date={start}&end_date={end}"))
     return [{"listing": l} for l in league_listings(rows, sports, entry, src, today)]
 
 
@@ -915,17 +933,49 @@ def t_pathify():
 
 
 def t_roads():
-    events = [r["data"]["eventQuery"]["event"] for r in json.loads(sample("511-events.json")).values()]
-    got = road_items(events + [dict(events[0], active=False)], {"_name": "Minnesota 511"}, {"trust": "official"})
-    assert [i["title"] for i in got] == ["I-94 eastbound: Construction work near Clearwater",
-                                         "MN 55 in both directions: Road closed near Paynesville"], got
-    assert all(i["kind"] == "news" and i["category"] == "road" for i in got)
-    assert got[0]["start"] == "2026-10-13" and "Left lane closed" in got[0]["blurb"] and "Comment" not in got[0]["blurb"]
-    assert got[0]["source_url"] == "https://511mn.org/event/CARSx-149782"
+    features = json.loads(sample("511-features.json"))["features"]
+    near = box(45.5647, -94.3183, 15)
+    got = road_items(features + [dict(features[0], properties=dict(features[0]["properties"], active=False))],
+                     {"_name": "Minnesota 511"}, {"trust": "official"}, near)
+    assert [i["title"] for i in got] == ["MN 24 in both directions: Construction work near Clearwater"], \
+        "Paynesville's closure is outside a 15-mile box; an ended report is dropped"
+    assert got[0]["kind"] == "news" and got[0]["category"] == "road" and got[0]["start"] == "2026-08-10", got
+    assert "Until November 20" in got[0]["blurb"] and "<" not in got[0]["blurb"]
+    assert got[0]["source_url"] == "https://511mn.org/events/CARSx-129007" and got[0]["source_uid"] == "CARSx-129007"
+    assert not road_items(features, {"_name": "Minnesota 511"}, {}, box(45.5647, -94.3183, 10))
     b = box(45.5647, -94.3183, 10)
     assert round(b["north"], 3) == 45.710 and round(b["west"], 3) == -94.525, b
-    assert [f["uri"] for f in json.loads(sample("511-mapfeatures.json"))["data"]["mapFeaturesQuery"]["mapFeatures"]] \
-        == ["event/CARSx-149782", "event/CARSx-142773"]
+
+
+def t_league_retries():
+    real, calls, waits = fetch, [], []
+    def flaky(answers):
+        def f(u, timeout=None):
+            calls.append(u)
+            a = answers.pop(0)
+            if isinstance(a, Exception):
+                raise a
+            return 200, a
+        return f
+    busy = urllib.error.HTTPError("u", 502, "Bad Gateway", {}, None)
+    try:
+        globals()["fetch"] = flaky([busy, TimeoutError("read"), busy, "ok"])
+        assert league_fetch("u", waits.append) == "ok" and waits == [3, 10, 20] and len(calls) == 4
+        globals()["fetch"] = flaky([busy, busy, busy, busy])
+        try:
+            league_fetch("u", waits.append)
+            raise AssertionError("a fourth 502 is the school's failure")
+        except urllib.error.HTTPError:
+            pass
+        calls.clear()
+        globals()["fetch"] = flaky([urllib.error.HTTPError("u", 404, "Not Found", {}, None)])
+        try:
+            league_fetch("u", waits.append)
+            raise AssertionError("a 404 is never retried")
+        except urllib.error.HTTPError:
+            assert len(calls) == 1
+    finally:
+        globals()["fetch"] = real
 
 
 def t_kennedy_calendar():
@@ -1102,7 +1152,7 @@ def t_items_fit_the_writer():
     from write_judged import plan, interest_ids
     entry = {"_name": "Kennedy Community School"}
     items = (pathify_items(json.loads(sample("csbsju-events.json")), entry, {"url": "https://my.csbsju.edu/api"}, TODAY)
-             + road_items([r["data"]["eventQuery"]["event"] for r in json.loads(sample("511-events.json")).values()], entry, {})
+             + road_items(json.loads(sample("511-features.json"))["features"], entry, {}, box(45.5647, -94.3183, 30))
              + finalsite_calendar_items(sample("kennedy-calendar.html"), "u", entry, {}, TODAY)
              + finalsite_news_items(sample("kennedy-news.html"), "u", entry, {})
              + hcms_items(json.loads(sample("stearns-news.json")), json.loads(sample("stearns-events.json")),
@@ -1120,7 +1170,7 @@ def t_items_fit_the_writer():
     assert rows["Sartell Girls Soccer vs St. Cloud"]["category"] == "watch_sports"
 
 
-TESTS = [t_robots, t_ical, t_pathify, t_roads, t_kennedy_calendar, t_kennedy_news, t_county, t_rec1, t_league,
+TESTS = [t_robots, t_ical, t_pathify, t_roads, t_league_retries, t_kennedy_calendar, t_kennedy_news, t_county, t_rec1, t_league,
          t_league_tournament_and_moves, t_league_dance_show, t_league_schedule_line, t_nearby_hosts_are_registry_schools,
          t_failure_in_summary, t_items_fit_the_writer]
 
@@ -1146,6 +1196,7 @@ def main():
                     help="also read proposed entries: a dry run to look at, never a live write (ADR-008)")
     ap.add_argument("--today", help="YYYY-MM-DD; default today in Chicago")
     ap.add_argument("--reader", help="read only the sources with this reader, e.g. mshsl")
+    ap.add_argument("--skip-reader", help="read every source but those with this reader")
     ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args()
     if args.selftest:
@@ -1153,7 +1204,9 @@ def main():
 
     today = date.fromisoformat(args.today) if args.today else datetime.now(LOCAL).date()
     statuses = {"active", "proposed"} if args.include_proposed else {"active"}
-    entries = [dict(e, sources=[s for s in e.get("sources") or [] if not args.reader or reader_of(s) == args.reader])
+    entries = [dict(e, sources=[s for s in e.get("sources") or []
+                                if (not args.reader or reader_of(s) == args.reader)
+                                and (not args.skip_reader or reader_of(s) != args.skip_reader)])
                for e in load(find_root(args.root))[0] if e.get("_town") == args.town and e.get("status") in statuses]
     items, summary = read_all(entries, today)
     shown = [i for i in items if i["kind"] != "schedule"]
