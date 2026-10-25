@@ -41,8 +41,12 @@ set search_path = ''
 as $$
 begin
   new.interests := private.interests_21(new.interests, tg_table_name <> 'town_profiles');
-  if tg_table_name = 'club_events' and new.category is not null then
-    new.category := (private.interests_21(array[new.category], true))[1];
+  -- Nested, not `and`: PL/pgSQL reads new.category even when the first half is false, and only
+  -- club_events has one.
+  if tg_table_name = 'club_events' then
+    if new.category is not null then
+      new.category := (private.interests_21(array[new.category], true))[1];
+    end if;
   end if;
   return new;
 end
