@@ -32,12 +32,20 @@ struct ProfileFace {
     var goingCount: Int?
     /// Your own page with no bio: "+ Add bio" where About would be.
     var addsBio = false
+    /// A neighbour's friends you share: "2 mutual" in the counts line.
+    var mutual = 0
+    /// False until the read that says whether they picked a cover has come back: the plain fill
+    /// until then, never the town photo first and theirs after.
+    var coverKnown = true
+    /// The time the Going rows' "Now" and start times are read at.
+    var now = Date()
 
     /// The counts line's parts, "24 friends", "1 group", "9 going": a zero or an unknown is left
     /// out, never said.
-    static func counts(friends: Int?, groups: Int, going: Int?) -> [(number: Int, word: String)] {
+    static func counts(friends: Int?, mutual: Int = 0, groups: Int, going: Int?) -> [(number: Int, word: String)] {
         var parts: [(number: Int, word: String)] = []
         if let friends, friends > 0 { parts.append((friends, friends == 1 ? "friend" : "friends")) }
+        if mutual > 0 { parts.append((mutual, "mutual")) }
         if groups > 0 { parts.append((groups, groups == 1 ? "group" : "groups")) }
         if let going, going > 0 { parts.append((going, "going")) }
         return parts
@@ -135,7 +143,7 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
                     Group {
                         if let url = face.coverUrl.flatMap(URL.init(string:)) {
                             FeedCardURLPhoto(url: url, loadingFill: Hue.fill)
-                        } else if let town = ProfileFace.town {
+                        } else if face.coverKnown, let town = ProfileFace.town {
                             Image(uiImage: town).resizable().scaledToFill()
                         } else {
                             Hue.fill
@@ -171,7 +179,8 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
                     .padding(.top, Sizes.kindTop)
             }
 
-            let counts = ProfileFace.counts(friends: face.friends, groups: face.groups.count, going: face.goingCount)
+            let counts = ProfileFace.counts(friends: face.friends, mutual: face.mutual, groups: face.groups.count,
+                                            going: face.goingCount)
             if !counts.isEmpty {
                 countsLine(counts)
                     .padding(.top, Sizes.membersTop)
@@ -237,6 +246,8 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
         }
         .buttonStyle(PressableStyle())
         .disabled(face.avatarUrl == nil)
+        // No photo to open: the person icon says nothing, so VoiceOver skips it, never "dimmed".
+        .accessibilityHidden(face.avatarUrl == nil)
         .matchedTransitionSource(id: "photo", in: zoom)
         .offset(x: Event.inset - ProfileMetric.ring, y: -(ProfileMetric.photo / 2 + ProfileMetric.ring))
         .accessibilityLabel("\(face.name)'s photo")
@@ -283,7 +294,7 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
             .background(Hue.fill, in: RoundedRectangle(cornerRadius: Sizes.tileCorner, style: .continuous))
             .accessibilityHidden(true)
             rowWords(event.item.title) {
-                TimelineView(.everyMinute) { Text(ProfileFace.goingLine(event, now: $0.date)) }
+                Text(ProfileFace.goingLine(event, now: face.now))
             }
         }
         .accessibilityElement(children: .combine)

@@ -130,7 +130,7 @@ final class ProfileModel: ObservableObject {
             guard let uploaded = await storage.uploadAvatar(data, userId: uid, name: "cover") else { return false }
             newCover = uploaded
         }
-        let newBio = bio.map { String($0.trimmingCharacters(in: .whitespacesAndNewlines).prefix(Self.bioLimit)) }
+        let newBio = bio.map { Self.clampBio($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
 
         do {
             try await profiles.upsert(displayName: trimmed.isEmpty ? nil : trimmed,
@@ -153,6 +153,21 @@ final class ProfileModel: ObservableObject {
 
     /// Nextdoor's 150 letters; the database holds the same line.
     static let bioLimit = 150
+
+    /// Letters as the database counts them (`char_length`, one per Unicode scalar): a family emoji
+    /// is one to Swift but up to seven there, and a bio Swift let through was refused.
+    nonisolated static func bioLength(_ text: String) -> Int { text.unicodeScalars.count }
+
+    /// The bio cut to `bioLimit` the database's way, never mid-emoji.
+    nonisolated static func clampBio(_ text: String) -> String {
+        var out = "", used = 0
+        for letter in text {
+            used += letter.unicodeScalars.count
+            guard used <= bioLimit else { break }
+            out.append(letter)
+        }
+        return out
+    }
 
     /// The cover as it uploads: at most 1290 px wide (a 430 pt phone at 3x), as a JPEG.
     nonisolated static func coverJPEG(_ image: UIImage) -> Data? {

@@ -114,7 +114,9 @@ struct ProfileView: View {
             groups: (you.groups ?? []).filter { actions.member($0).isMember },
             going: plans?.rows,
             goingCount: plans?.count,
-            addsBio: bio.isEmpty && model.canDescribe)
+            addsBio: bio.isEmpty && model.canDescribe,
+            coverKnown: model.loaded,
+            now: now)
     }
 
     /// DEBUG-only: `-profile-autoclose` dismisses the sheet ~1.6s after open so the

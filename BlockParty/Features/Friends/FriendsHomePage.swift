@@ -524,10 +524,13 @@ struct NeighborPage: View {
             avatarUrl: neighbor.avatarUrl,
             coverUrl: extras?.coverUrl,
             bio: extras?.bio,
-            line: ([town] + [neighbor.sinceLine, neighbor.mutualLine].compactMap { $0 }).joined(separator: " · "),
+            line: ([town] + [neighbor.sinceLine].compactMap { $0 }).joined(separator: " · "),
             friends: extras?.friends,
             groups: (extras?.groupIds ?? []).compactMap { byId[$0] },
-            going: shared.map { ProfileFace.nextPlans($0, now: now).rows })
+            going: shared.map { ProfileFace.nextPlans($0, now: now).rows },
+            mutual: neighbor.mutualFriends,
+            coverKnown: extras != nil,
+            now: now)
     }
 
     /// Their extras, again when where you stand changes (a new friend sees your shared plans).

@@ -237,9 +237,9 @@ struct EditProfileView: View {
                 .background(Hue.surface, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
                 .onChange(of: bio) { _, v in
-                    if v.count > ProfileModel.bioLimit { bio = String(v.prefix(ProfileModel.bioLimit)) }
+                    if ProfileModel.bioLength(v) > ProfileModel.bioLimit { bio = ProfileModel.clampBio(v) }
                 }
-            Text("\(bio.count)/\(ProfileModel.bioLimit)")
+            Text("\(ProfileModel.bioLength(bio))/\(ProfileModel.bioLimit)")
                 .font(.sans(12)).foregroundStyle(Hue.inkSecondary).monospacedDigit()
                 .frame(maxWidth: .infinity, alignment: .trailing)
         }

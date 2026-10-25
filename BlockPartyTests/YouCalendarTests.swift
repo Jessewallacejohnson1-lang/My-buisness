@@ -540,4 +540,19 @@ final class YouCalendarTests: XCTestCase {
         let allDay = YouCalendar.event(from: row("b", "2026-11-01", nil, allDay: true))!
         XCTAssertEqual(ProfileFace.goingLine(allDay, now: now), "Sun, Nov 1 · All day")
     }
+
+    /// A neighbour's friends you share sit in the counts line, after their friends.
+    func testProfileCountsCarryMutualFriends() {
+        let words = ProfileFace.counts(friends: 31, mutual: 2, groups: 0, going: nil).map { "\($0.number) \($0.word)" }
+        XCTAssertEqual(words, ["31 friends", "2 mutual"])
+    }
+
+    /// A bio is cut as the database counts it, one per Unicode scalar, never mid-emoji.
+    func testBioIsCountedAndCutTheDatabasesWay() {
+        let family = "👨‍👩‍👧"     // one letter to Swift, five scalars to Postgres
+        XCTAssertEqual(ProfileModel.bioLength(family), 5)
+        let long = String(repeating: "a", count: 147) + family
+        XCTAssertEqual(ProfileModel.clampBio(long), String(repeating: "a", count: 147))
+        XCTAssertEqual(ProfileModel.clampBio("Hi " + family), "Hi " + family)
+    }
 }
