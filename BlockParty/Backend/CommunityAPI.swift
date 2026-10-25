@@ -92,7 +92,6 @@ struct CommunityAPI {
 
     // MARK: - User / admin
 
-    func currentUserId() async -> String? { auth.userId }
     func isAdmin() async -> Bool { Admin.isAdmin(auth.email) }
 
     // MARK: - Places (permanent food/business POI markers)
@@ -189,32 +188,10 @@ struct CommunityAPI {
                                         query: "club_id=eq.\(clubId)&user_id=eq.\(uid)", accessToken: t)
     }
 
-    func submitClub(_ input: ClubInput) async throws -> ClubRow {
-        let t = try await token()
-        let uid = try await uidOrThrow()
-        let status: ClubStatus = Admin.isAdmin(auth.email) ? .approved : .pending
-        var b: [String: Any] = ["name": input.name, "submitted_by": uid, "status": status.rawValue]
-        if let v = input.host { b["host"] = v }
-        if let v = input.schedule { b["schedule"] = v }
-        if let v = input.location { b["location"] = v }
-        if let v = input.vibe { b["vibe"] = v }
-        if let v = input.description { b["description"] = v }
-        if let v = input.expectations { b["expectations"] = v }
-        let (data, _) = try await SupabaseHTTP.rest("clubs", method: "POST", accessToken: t,
-                                                    body: try body(b), prefer: "return=representation")
-        let rows: [ClubRow] = try decode(data)
-        guard let row = rows.first else { throw SupabaseError(message: "The server didn't return the new group. Refresh before posting it again.", status: nil) }
-        return row
-    }
-
     // MARK: - Events (timeline)
 
     func getTodayEvents() async throws -> [TimelineEvent] {
         try await timelineEvents(forDate: DateHelpers.localDate())
-    }
-
-    func getEventsByDate(_ date: String) async throws -> [TimelineEvent] {
-        try await timelineEvents(forDate: date)
     }
 
     private func timelineEvents(forDate date: String) async throws -> [TimelineEvent] {
@@ -442,42 +419,6 @@ struct CommunityAPI {
                                         body: try body(b), prefer: "return=minimal")
     }
 
-    // MARK: - Calendar
-
-    func getMonthEventCounts(year: Int, month: Int) async throws -> [String: Int] {
-        let rows = try await monthDateRows(year: year, month: month)
-        var counts: [String: Int] = [:]
-        for r in rows { counts[r.eventDate, default: 0] += 1 }
-        return counts
-    }
-
-    func getMonthEventDates(year: Int, month: Int) async throws -> [String] {
-        let rows = try await monthDateRows(year: year, month: month)
-        return Array(Set(rows.map(\.eventDate)))
-    }
-
-    private func monthDateRows(year: Int, month: Int) async throws -> [DateRow] {
-        let t = try await token()
-        let from = String(format: "%04d-%02d-01", year, month)
-        var comps = DateComponents(); comps.year = year; comps.month = month
-        let cal = Calendar(identifier: .gregorian)
-        let lastDay = cal.date(from: comps).flatMap { cal.range(of: .day, in: .month, for: $0)?.count } ?? 28
-        let to = String(format: "%04d-%02d-%02d", year, month, lastDay)
-        let (data, _) = try await SupabaseHTTP.rest("club_events",
-            query: "select=event_date&status=eq.approved&kind=eq.event&event_date=gte.\(from)&event_date=lte.\(to)\(Self.realOnly)",
-            accessToken: t)
-        return try decode(data)
-    }
-
-    func getEventsForRange(from: String, to: String) async throws -> [AgendaEvent] {
-        let t = try await token()
-        let (data, _) = try await SupabaseHTTP.rest("club_events",
-            query: "select=id,title,event_date,start_time,location&status=eq.approved&kind=eq.event&event_date=gte.\(from)&event_date=lte.\(to)\(Self.realOnly)&order=event_date.asc,start_time.asc",
-            accessToken: t)
-        let rows: [AgendaRow] = try decode(data)
-        return rows.map { AgendaEvent(id: $0.id, title: $0.title, eventDate: $0.eventDate, startTime: $0.startTime, location: $0.location) }
-    }
-
     /// Each upcoming Event's interests (its tags once tagged, else its one category), for the
     /// interest chips' "Popular in St. Joseph" (BP app onboarding 20).
     func upcomingInterests() async throws -> [[String]] {
@@ -485,20 +426,10 @@ struct CommunityAPI {
         // Before the account exists (step 7 comes before phone sign-in lands), the public key reads.
         let t = await readToken()
         let (data, _) = try await SupabaseHTTP.rest("club_events",
-            query: "select=interests,category,interests_tagged_at&status=eq.approved&kind=eq.event&cancelled_at=is.null&event_date=gte.\(BriefingModel.townToday())\(Self.realOnly)",
+            query: "select=interests,category,interests_tagged_at&status=eq.approved&kind=eq.event&cancelled_at=is.null&event_date=gte.\(Town.day(Date()))\(Self.realOnly)",
             accessToken: t)
         let rows: [Row] = try decode(data)
         return rows.map { $0.interestsTaggedAt == nil ? [$0.category].compactMap { $0 } : $0.interests ?? [] }
-    }
-
-    // MARK: - Quests
-
-    func setQuest(title: String, description: String, date: String) async throws {
-        let t = try await token()
-        let uid = try await uidOrThrow()
-        _ = try await SupabaseHTTP.rest("daily_quests", method: "POST", query: "on_conflict=date", accessToken: t,
-                                        body: try body(["title": title, "description": description, "date": date, "created_by": uid]),
-                                        prefer: "resolution=merge-duplicates,return=minimal")
     }
 
     // MARK: - Your Day (the Today rail — one day, town time)
@@ -742,14 +673,6 @@ struct CommunityAPI {
     }
 
     // MARK: - Trails
-
-    func getTrails() async throws -> [Trail] {
-        let t = try await token()
-        let (data, _) = try await SupabaseHTTP.rest("club_events",
-            query: "select=*&status=eq.approved&kind=eq.trail&order=created_at.desc", accessToken: t)
-        let rows: [RawEvent] = try decode(data)
-        return rows.map(mapTrail)
-    }
 
     func addTrail(_ input: NewTrailInput, status: ClubStatus = .approved) async throws {
         let t = try await token()

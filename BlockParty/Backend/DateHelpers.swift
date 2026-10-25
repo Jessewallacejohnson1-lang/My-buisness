@@ -37,19 +37,6 @@ enum DateHelpers {
         return f.string(from: date)
     }
 
-    /// Short weekday ("Sat") for a YYYY-MM-DD string, parsed as a local date.
-    static func weekdayLabel(_ ymd: String) -> String {
-        let parts = ymd.split(separator: "-").compactMap { Int($0) }
-        guard parts.count == 3 else { return "" }
-        var c = DateComponents()
-        c.year = parts[0]; c.month = parts[1]; c.day = parts[2]
-        guard let date = Calendar.current.date(from: c) else { return "" }
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US")
-        f.dateFormat = "EEE"
-        return f.string(from: date)
-    }
-
     /// Whole-day difference between two YYYY-MM-DD strings (b − a), parsed local.
     /// nil on parse failure. Used to detect an event's recurrence cadence.
     nonisolated static func daysBetween(_ a: String, _ b: String) -> Int? {
@@ -131,14 +118,4 @@ enum Admin {
         guard let email, !email.isEmpty else { return false }
         return email.lowercased() == defaultEmail.lowercased()
     }
-}
-
-/// firstNameFromEmail — strip trailing digits, take the first token, capitalize.
-func firstNameFromEmail(_ email: String?) -> String? {
-    guard let email, !email.isEmpty else { return nil }
-    let local = email.split(separator: "@").first.map(String.init) ?? ""
-    let noDigits = local.replacingOccurrences(of: "[0-9]+$", with: "", options: .regularExpression)
-    let token = noDigits.split(whereSeparator: { $0 == "." || $0 == "_" || $0 == "-" }).first.map(String.init) ?? ""
-    guard !token.isEmpty, token.count <= 12 else { return nil }
-    return token.prefix(1).uppercased() + token.dropFirst()
 }

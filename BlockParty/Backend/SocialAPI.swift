@@ -85,14 +85,4 @@ struct SocialAPI {
         _ = try await SupabaseHTTP.rest("event_saves", method: "DELETE",
                                         query: "event_id=eq.\(id)&user_id=eq.\(uid)", accessToken: t)
     }
-
-    // MARK: - Comments
-
-    func deleteComment(_ id: String) async throws {
-        let t = try await token()
-        _ = try await SupabaseHTTP.rest("event_comments", method: "DELETE", query: "id=eq.\(id)", accessToken: t)
-    }
-
-    // MARK: - Feed
-
 }
