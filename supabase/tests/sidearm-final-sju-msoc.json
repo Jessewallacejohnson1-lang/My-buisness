@@ -1,0 +1,174 @@
+{
+ "Type": "SoccerGame",
+ "HasStarted": true,
+ "IsComplete": true,
+ "Source": "sidearm",
+ "Date": "10/24/2026",
+ "DateUTC": null,
+ "StartTime": "1:00 PM",
+ "EndTime": "7:57 PM",
+ "UseLiveStatsAutomation": "false",
+ "NcaaGameId": "393507",
+ "SidearmGameId": "",
+ "ClientId": "218",
+ "ClientAbbrev": "csbsju",
+ "ClientLiveStatsUrl": "https://gojohnnies.com/sidearmstats/msoc",
+ "Notes": [],
+ "Location": "Haws Field",
+ "GlobalSportShortname": "msoc",
+ "BannerMessage": "Haws Field | Collegeville, Minn. | Watch live at miacsportsnetwork.com/saintjohns",
+ "StadiumImage": "https://sidearmstats.com/csbsju/msoc/stadiumimages/all-high-2.jpg",
+ "SiteImage": null,
+ "ClientHostname": "gojohnnies.com",
+ "Officials": "Referee: Bryce Bockin",
+ "Attendance": 238,
+ "PeriodsRegulation": 2,
+ "Period": 2,
+ "ClockSeconds": 5400,
+ "Context": "",
+ "Rules": {
+  "PeriodMinutes": 45,
+  "PeriodName": "Half",
+  "OTMinutes": 10,
+  "ShowExtraPeriodsAsOT": true,
+  "ClockDirection": "Up",
+  "ClockSegmentation": "Continuous"
+ },
+ "HomeTeam": {
+  "Id": "SJU",
+  "Name": "#22 Saint John's",
+  "Score": 2,
+  "CurrentRecord": "",
+  "PostgameRecord": "",
+  "NcaaSchoolCode": "602",
+  "Color": "#C20430",
+  "TextColor": "#FFFFFF",
+  "Logo": "https://sidearmstats.com/csbsju/msoc/logos/SJU_RGB_New_012225.png",
+  "Url": "http://gojohnnies.com",
+  "PeriodScores": [
+   1,
+   1
+  ],
+  "PeriodTimeouts": []
+ },
+ "VisitingTeam": {
+  "Id": "CAR",
+  "Name": "Carleton",
+  "Score": 1,
+  "CurrentRecord": "",
+  "PostgameRecord": "",
+  "NcaaSchoolCode": "118",
+  "Color": "#0B3960",
+  "TextColor": "#FFFFFF",
+  "Logo": "https://sidearmstats.com/csbsju/msoc/logos/Carleton-College.png",
+  "Url": "http://athletics.carleton.edu",
+  "PeriodScores": [
+   1,
+   0
+  ],
+  "PeriodTimeouts": []
+ },
+ "LastPlays": [
+  {
+   "Player": null,
+   "InvolvedPlayers": [],
+   "Team": null,
+   "Narrative": "Game end",
+   "Context": "",
+   "Id": "223+9EC0EBA9",
+   "Type": "GAME",
+   "Action": null,
+   "Period": 2,
+   "ClockSeconds": 5400,
+   "Coordinate": null,
+   "Qualifiers": [
+    "confirmed"
+   ],
+   "Score": null
+  },
+  {
+   "Player": null,
+   "InvolvedPlayers": [],
+   "Team": null,
+   "Narrative": "Period end",
+   "Context": "",
+   "Id": "222+4B807B8F",
+   "Type": "PRD",
+   "Action": null,
+   "Period": 2,
+   "ClockSeconds": 5400,
+   "Coordinate": null,
+   "Qualifiers": [
+    "confirmed"
+   ],
+   "Score": null
+  },
+  {
+   "Player": null,
+   "InvolvedPlayers": [],
+   "Team": "HomeTeam",
+   "Narrative": "Throw in by Saint John's",
+   "Context": "",
+   "Id": "221+95C662A5",
+   "Type": "THROWIN",
+   "Action": null,
+   "Period": 2,
+   "ClockSeconds": 5369,
+   "Coordinate": null,
+   "Qualifiers": null,
+   "Score": null
+  },
+  {
+   "Player": null,
+   "InvolvedPlayers": [],
+   "Team": "HomeTeam",
+   "Narrative": "Corner kick by Saint John's",
+   "Context": "",
+   "Id": "220+237F9EAA",
+   "Type": "CORNER",
+   "Action": null,
+   "Period": 2,
+   "ClockSeconds": 5365,
+   "Coordinate": null,
+   "Qualifiers": null,
+   "Score": null
+  },
+  {
+   "Player": {
+    "Team": "HomeTeam",
+    "FirstName": "Gabe",
+    "LastName": "Franzman",
+    "UniformNumber": "4",
+    "Photo": "https://gojohnnies.com/services/stat_handler.aspx?path=msoc&uni=4&name=Franzman%2cGabe",
+    "PersonId": "1190615"
+   },
+   "InvolvedPlayers": [
+    {
+     "Team": "VisitingTeam",
+     "FirstName": "Adam",
+     "LastName": "Ouachani",
+     "UniformNumber": "31",
+     "Photo": "https://athletics.carleton.edu/services/stat_handler.aspx?path=msoc&uni=31&name=Ouachani%2cAdam",
+     "PersonId": "1394473"
+    }
+   ],
+   "Team": "HomeTeam",
+   "Narrative": "Shot by SJU Franzman,Gabe, low right, Save by CAR Ouachani,Adam",
+   "Context": "",
+   "Id": "219+3F984E64",
+   "Type": "SHOT",
+   "Action": null,
+   "Period": 2,
+   "ClockSeconds": 5332,
+   "Coordinate": {
+    "X": 81.0,
+    "Y": 45.0,
+    "Side": "left"
+   },
+   "Qualifiers": [
+    "goalmouth:lowright"
+   ],
+   "Score": null
+  }
+ ]
+}

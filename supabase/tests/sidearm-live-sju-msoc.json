@@ -1,0 +1,152 @@
+{
+ "Type": "SoccerGame",
+ "HasStarted": true,
+ "IsComplete": false,
+ "Source": "sidearm",
+ "Date": "10/24/2026",
+ "DateUTC": null,
+ "StartTime": "1:00 PM",
+ "EndTime": "",
+ "UseLiveStatsAutomation": "false",
+ "NcaaGameId": "393507",
+ "SidearmGameId": "",
+ "ClientId": "218",
+ "ClientAbbrev": "csbsju",
+ "ClientLiveStatsUrl": "https://gojohnnies.com/sidearmstats/msoc",
+ "Notes": [],
+ "Location": "Haws Field",
+ "GlobalSportShortname": "msoc",
+ "BannerMessage": "Haws Field | Collegeville, Minn. | Watch live at miacsportsnetwork.com/saintjohns",
+ "StadiumImage": "https://sidearmstats.com/csbsju/msoc/stadiumimages/all-high-2.jpg",
+ "SiteImage": null,
+ "ClientHostname": "gojohnnies.com",
+ "Officials": "Referee: Bryce Bockin",
+ "Attendance": 0,
+ "PeriodsRegulation": 2,
+ "Period": 1,
+ "ClockSeconds": 94,
+ "Context": "",
+ "Rules": {
+  "PeriodMinutes": 45,
+  "PeriodName": "Half",
+  "OTMinutes": 10,
+  "ShowExtraPeriodsAsOT": true,
+  "ClockDirection": "Up",
+  "ClockSegmentation": "Continuous"
+ },
+ "HomeTeam": {
+  "Id": "SJU",
+  "Name": "#22 Saint John's",
+  "Score": 0,
+  "CurrentRecord": "",
+  "PostgameRecord": "",
+  "NcaaSchoolCode": "602",
+  "Color": "#C20430",
+  "TextColor": "#FFFFFF",
+  "Logo": "https://sidearmstats.com/csbsju/msoc/logos/SJU_RGB_New_012225.png",
+  "Url": "http://gojohnnies.com",
+  "PeriodScores": [
+   0
+  ],
+  "PeriodTimeouts": []
+ },
+ "VisitingTeam": {
+  "Id": "CAR",
+  "Name": "Carleton",
+  "Score": 0,
+  "CurrentRecord": "",
+  "PostgameRecord": "",
+  "NcaaSchoolCode": "118",
+  "Color": "#0B3960",
+  "TextColor": "#FFFFFF",
+  "Logo": "https://sidearmstats.com/csbsju/msoc/logos/Carleton-College.png",
+  "Url": "http://athletics.carleton.edu",
+  "PeriodScores": [
+   0
+  ],
+  "PeriodTimeouts": []
+ },
+ "LastPlays": [
+  {
+   "Player": null,
+   "InvolvedPlayers": [],
+   "Team": "HomeTeam",
+   "Narrative": "Throw in by Saint John's",
+   "Context": "",
+   "Id": "4+3BA00928",
+   "Type": "THROWIN",
+   "Action": null,
+   "Period": 1,
+   "ClockSeconds": 78,
+   "Coordinate": null,
+   "Qualifiers": null,
+   "Score": null
+  },
+  {
+   "Player": null,
+   "InvolvedPlayers": [],
+   "Team": "HomeTeam",
+   "Narrative": "Kickoff by Saint John's",
+   "Context": "",
+   "Id": "3+7EC40E9",
+   "Type": "KICKOFF",
+   "Action": null,
+   "Period": 1,
+   "ClockSeconds": 0,
+   "Coordinate": {
+    "X": 50.0,
+    "Y": 50.0,
+    "Side": "right"
+   },
+   "Qualifiers": null,
+   "Score": null
+  },
+  {
+   "Player": null,
+   "InvolvedPlayers": [],
+   "Team": null,
+   "Narrative": "Period start",
+   "Context": "",
+   "Id": "2+79269D4B",
+   "Type": "PRD",
+   "Action": null,
+   "Period": 1,
+   "ClockSeconds": 0,
+   "Coordinate": null,
+   "Qualifiers": null,
+   "Score": null
+  },
+  {
+   "Player": null,
+   "InvolvedPlayers": [],
+   "Team": null,
+   "Narrative": "Game start",
+   "Context": "",
+   "Id": "1+39AE4C45",
+   "Type": "GAME",
+   "Action": null,
+   "Period": 1,
+   "ClockSeconds": 0,
+   "Coordinate": null,
+   "Qualifiers": null,
+   "Score": null
+  },
+  {
+   "Player": null,
+   "InvolvedPlayers": [],
+   "Team": "HomeTeam",
+   "Narrative": "Kickoff by Saint John's",
+   "Context": "",
+   "Id": "0+3291CDE",
+   "Type": "KICKOFFTEAM",
+   "Action": null,
+   "Period": 1,
+   "ClockSeconds": 0,
+   "Coordinate": null,
+   "Qualifiers": [
+    "startgame"
+   ],
+   "Score": null
+  }
+ ]
+}
