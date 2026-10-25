@@ -23,9 +23,10 @@ source is a line in the summary; carry on with the rest.
    Repeat that wait until `prepare exit` shows, without ending your turn in between. Don't wait
    with `pgrep -f` (it finds the wait itself) or through a `tail` pipe (it prints nothing until
    the end). Done when `prepare exit 0` shows under its `[morning] fetched …` line. A background
-   command is stopped at 30 minutes; a prepare that nears that needs splitting into parts. Run
-   it once only: a second run finds nothing changed and loses the morning's pages. Its counts
-   are in `.runs/morning/prepare.json` if you need them again.
+   command is stopped at 30 minutes; a prepare that nears that needs splitting into parts. A
+   changed page's fingerprint moves only at step 6's write, so a second prepare finds the same
+   pages, and a morning that stops early reads them again tomorrow. Its counts are in
+   `.runs/morning/prepare.json` if you need them again.
 3. **The cheap model reads.** For each batch file, start one helper on the cheap model (Haiku),
    all at once, each with this prompt: "Read `sources/models/flag.md` and follow it for the
    pages in `.runs/morning/batches/batch-N.txt`. Answer with the JSON lines only." Write every

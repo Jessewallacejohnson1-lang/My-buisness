@@ -3,16 +3,17 @@
 morning.py: the parts of the morning job that need no model (BP app
 docs/plans/watch-every-place, ticket 05). The routine's steps are sources/models/morning.md.
 
-  prepare   fetch every watched page the polite way (run.py --write keeps yesterday's
-            fingerprints in the database), read the feeds and data sources (read_events.py),
+  prepare   fetch every watched page the polite way (run.fetch_watched; yesterday's
+            fingerprints are in the database), read the feeds and data sources (read_events.py),
             and lay out only the changed pages in batches of 12 for the cheap model, with
             the events already listed for the judge
   titles    list the event titles still over 40 characters once tidied (games aside) in
             .runs/morning/titles.txt, for the routine's model to shorten into titles.json
             (.claude/skills/title-and-place; Jesse, 2026-10-21)
   write     merge the feed items with the judge's items, give long titles their short ones
-            (titles.json), write them (public.apply_judged over the service role key) and print
-            the morning's summary
+            (titles.json), write them (public.apply_judged over the service role key), then save
+            the changed pages' new fingerprints (fingerprints.json) and print the morning's
+            summary: a morning that stops before this reads the same pages again tomorrow
   untagged  lay out the Events no tagger has read yet (or that have no draw, or no words saying
             what they are), upcoming or still running, in batches of 40 for the cheap model
             (town-feed tickets 33 and 34, BP app event-card 05; sources/models/tag.md)
@@ -45,7 +46,7 @@ SUPABASE_SERVICE_ROLE_KEY in the environment; `write --dry-run` writes nothing.
   python3 sources/scripts/morning.py --selftest
 """
 
-import argparse, json, re, shutil, subprocess, sys
+import argparse, contextlib, json, shutil, subprocess, sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from urllib.parse import quote
@@ -55,7 +56,7 @@ from registry import find_root, load
 from read_events import LOCAL
 from check_flags import batches, message
 import write_judged
-from run import Supabase
+from run import Supabase, fetch_watched
 
 SCRIPTS = Path(__file__).resolve().parent
 TAG_BATCH = 40
@@ -108,7 +109,10 @@ def prepare(today, out):
         shutil.rmtree(out)
     (out / "batches").mkdir(parents=True)
     root = find_root()
-    entries = [e for e in load(root)[0] if e.get("status") == "active"]
+    every, errors = load(root)
+    if errors:
+        sys.exit("[morning] registry invalid:\n" + "\n".join(errors))
+    entries = [e for e in every if e.get("status") == "active"]
 
     # The league's site is slow and no other source's server (twelve minutes for the schools
     # on 2026-10-25, with its retries), so the schools are read while the pages are fetched.
@@ -116,13 +120,17 @@ def prepare(today, out):
     games = subprocess.Popen([sys.executable, str(SCRIPTS / "read_events.py"), "--reader", "mshsl", "--items",
                               str(out / "games.jsonl"), "--today", str(today)],
                              stdout=games_log, stderr=subprocess.STDOUT, text=True, cwd=find_root())
-    fetched = run([str(SCRIPTS / "run.py"), "--write", "--tier", "watched"], out, "fetch")
-    report_path = re.search(r"^report: (.+)$", fetched.stdout, re.M)
-    if fetched.returncode or not report_path:
+    db = Supabase()
+    try:
+        with open(out / "fetch.log", "w") as log, contextlib.redirect_stdout(log):
+            report = fetch_watched(every, db)
+    except BaseException:
         games.kill()
-        sys.exit(f"[morning] fetching failed:\n{(fetched.stdout + fetched.stderr)[-1500:]}")
-    report = json.loads(Path(report_path.group(1)).read_text())
+        raise
     run_dir = Path(report["run_dir"])
+    # Saved by `write` once the events are in (db.commit_fingerprints), never here.
+    (out / "fingerprints.json").write_text(json.dumps(
+        [{k: c[k] for k in ("entry_id", "url", "hash", "first_seen")} for c in report["changed"]], indent=1))
 
     feeds = run([str(SCRIPTS / "read_events.py"), "--skip-reader", "mshsl", "--items", str(out / "feeds.jsonl"),
                  "--today", str(today)], out, "feeds")
@@ -221,6 +229,18 @@ def write(out, dry_run, today):
     write_judged.report(items, result)
     written = None if dry_run else write_judged.apply(result)
     print("\n".join(summary_lines(prep, items, result, written)))
+    if not dry_run:
+        save_fingerprints(out)
+
+
+def save_fingerprints(out):
+    """After the write: the changed pages' new fingerprints, so tomorrow sees them unchanged.
+    No file (a social check) has none."""
+    path = out / "fingerprints.json"
+    changed = json.loads(path.read_text()) if path.exists() else []
+    if changed:
+        Supabase().commit_fingerprints(changed)
+        print(f"[morning] {sum(not c.get('first_seen') for c in changed)} changed pages' fingerprints saved")
 
 
 def to_tag(today):
@@ -547,11 +567,76 @@ def selftest():
                                        {"id": "z", "about": "not given"}, "junk"], given)
     checks.append((writes == {"a": "Weekly Pilates at City Hall."} and found == ["Game (2026-10-27): Starts at 4, not 7."],
                    "Abouts are written once, only for given Events and only when longer; CHECK lines are kept"))
+    checks.append((fingerprints_wait_for_write(), "a page's new fingerprint moves only after its events are "
+                   "written: a write that fails leaves it, so prepare finds the same pages again"))
     failed = [why for ok, why in checks if not ok]
     for why in failed:
         print(f"FAIL {why}")
     print(f"{len(checks) - len(failed)} passed, {len(failed)} failed")
     sys.exit(1 if failed else 0)
+
+
+def fingerprints_wait_for_write():
+    """prepare's fetch and write's save against a fake database and fake sites, offline."""
+    import io, tempfile, run as runner
+    global Supabase
+
+    class FakeDb(runner.Supabase):
+        rows = {"milk|https://m/events": {"last_hash": "old", "last_checked_at": "2026-10-24"}}
+
+        def __init__(self):
+            pass
+
+        def upsert_registry(self, rows):
+            pass
+
+        def state(self):
+            return ({k: r.get("last_hash") for k, r in self.rows.items()},
+                    {k for k, r in self.rows.items() if r.get("last_checked_at")})
+
+        def record(self, entry_id, url, fields):
+            self.rows.setdefault(f"{entry_id}|{url}", {}).update(fields)
+
+    entries = [{"id": i, "_name": i, "_town": "st-joseph-mn", "_extra": {}, "status": "active", "tier": "watched",
+                "sources": [{"url": u, "method": "fetch"}]} for i, u in [("milk", "https://m/events"), ("new", "https://n/")]]
+    names = ("apply", "listed_in_db", "interest_ids")
+    saved = (runner.read_page, runner.validate, runner.find_root, Supabase, *(getattr(write_judged, n) for n in names))
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            runner.read_page = lambda url, kind: (200, f"Plant Bingo Oct 24 at {url}", "fetch")
+            runner.validate, runner.find_root, Supabase = (lambda e: []), (lambda *a: Path(tmp)), FakeDb
+            write_judged.listed_in_db, write_judged.interest_ids = (lambda: []), (lambda: [])
+            out = Path(tmp) / "morning"
+            out.mkdir()
+            (out / "prepare.json").write_text(json.dumps({"today": "2026-10-25", "fetched": 2, "changed": 1,
+                                                          "to_read": 1, "failed": [], "readers": []}))
+
+            def prepare_fetch():
+                with contextlib.redirect_stdout(io.StringIO()):
+                    report = runner.fetch_watched(entries, FakeDb())
+                (out / "fingerprints.json").write_text(json.dumps(report["changed"]))
+                return sorted(c["entry_id"] for c in report["changed"] if not c["first_seen"])
+
+            def write_with(apply):
+                write_judged.apply = apply
+                with contextlib.redirect_stdout(io.StringIO()):
+                    write(out, False, date(2026, 10, 25))
+
+            def boom(result):
+                raise RuntimeError("apply_judged failed")
+            first = prepare_fetch()
+            try:
+                write_with(boom)
+            except RuntimeError:
+                pass
+            unmoved = FakeDb.rows["milk|https://m/events"]["last_hash"] == "old"
+            starting_copy = FakeDb.rows["new|https://n/"].get("last_hash") is not None
+            again = prepare_fetch()
+            write_with(lambda result: {"events": 0})
+            return first == again == ["milk"] and unmoved and starting_copy and prepare_fetch() == []
+    finally:
+        (runner.read_page, runner.validate, runner.find_root, Supabase,
+         write_judged.apply, write_judged.listed_in_db, write_judged.interest_ids) = saved
 
 
 def main():

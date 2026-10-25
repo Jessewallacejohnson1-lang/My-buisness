@@ -417,38 +417,31 @@ class Supabase:
         q = f"sources?entry_id=eq.{entry_id}&url=eq.{urllib.parse.quote(url, safe='')}"
         self.call("PATCH", q, fields, prefer="return=minimal")
 
+    def commit_fingerprints(self, changed):
+        """Changed pages' new fingerprints (fetch_watched's report["changed"]), saved once
+        their events are written, so the next run sees them unchanged. A first-seen page's
+        starting copy was saved when it was fetched."""
+        now = datetime.now(timezone.utc).isoformat()
+        for r in changed:
+            if not r.get("first_seen"):
+                self.record(r["entry_id"], r["url"], {"last_hash": r["hash"], "last_changed_at": now})
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--write", action="store_true")
-    ap.add_argument("--include-proposed", action="store_true")
-    ap.add_argument("--only", help="entry id")
-    ap.add_argument("--town", help="e.g. st-joseph-mn")
-    ap.add_argument("--tier", help="only entries of this tier, e.g. watched")
-    ap.add_argument("--workers", type=int, default=6)
-    ap.add_argument("--selftest", action="store_true")
-    a = ap.parse_args()
-    if a.selftest:
-        return selftest()
-    if a.write and a.include_proposed:
-        sys.exit("Refusing: --include-proposed is for dry-run tests only (ADR-008).")
 
-    root = find_root()
-    entries, errors = load(root)
-    errors += validate(entries)
+def fetch_watched(entries, db, picked=None, workers=6):
+    """Validate the registry, sync it (with `db`), fetch `picked` (default: every active watched
+    entry), save the changed pages' snapshots and return the report (also in report.json).
+
+    A page's check time and error are recorded now, but a changed page's new fingerprint waits
+    for db.commit_fingerprints, which the caller runs once the page's events are written: a
+    morning that dies after fetching then reads the same pages again tomorrow. A page seen for
+    the first time saves its starting copy now; nothing is read from it (ADR-022)."""
+    errors = validate(entries)
     if errors:
         print("\n".join("ERROR " + e for e in errors))
         sys.exit("Registry invalid. Fix before running.")
-
-    statuses = {"active", "proposed"} if a.include_proposed else {"active"}
-    picked = [e for e in entries if e["status"] in statuses
-              and (not a.only or e["id"] == a.only)
-              and (not a.town or e["_town"] == a.town)
-              and (not a.tier or e.get("tier", "listed") == a.tier)]
-    if not picked:
-        sys.exit("Nothing selected. Check --only/--town, or entries are still status: proposed.")
-
-    db = Supabase() if a.write else None  # fail fast on missing env, before touching disk
+    if picked is None:
+        picked = [e for e in entries if e["status"] == "active" and e.get("tier", "listed") == "watched"]
+    root = find_root()
     run_dir = root / ".runs" / NOW.strftime("%Y%m%d-%H%M%S")
     n = 1
     while run_dir.exists():
@@ -509,7 +502,7 @@ def main():
         except Exception as ex:
             return {**ref, "ok": False, "error": str(ex)[:300], "secs": round(time.time() - t0, 1)}
 
-    with ThreadPoolExecutor(max_workers=a.workers) as pool:
+    with ThreadPoolExecutor(max_workers=workers) as pool:
         results = list(pool.map(work, jobs))
 
     new_state = dict(prev)
@@ -519,10 +512,9 @@ def main():
             new_state[key] = r["hash"]
         if db:
             fields = {"last_checked_at": NOW.isoformat()}
-            fields.update({"last_hash": r["hash"], "last_error": None} if r["ok"]
-                          else {"last_error": r["error"]})
-            if r["ok"] and r["changed"]:
-                fields["last_changed_at"] = NOW.isoformat()
+            fields.update({"last_error": None} if r["ok"] else {"last_error": r["error"]})
+            if r["ok"] and r["changed"] and r["first_seen"]:
+                fields.update({"last_hash": r["hash"], "last_changed_at": NOW.isoformat()})
             db.record(r["entry_id"], r["url"], fields)
     if not db:
         local_state_path.write_text(json.dumps(new_state, indent=1))
@@ -545,6 +537,40 @@ def main():
     for t in agent_tasks:
         print(f"  SEARCH  {t['entry_id']}: \"{t['query']}\" site:{t['site']}")
     print(f"report: {run_dir / 'report.json'}")
+    return report
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--write", action="store_true")
+    ap.add_argument("--include-proposed", action="store_true")
+    ap.add_argument("--only", help="entry id")
+    ap.add_argument("--town", help="e.g. st-joseph-mn")
+    ap.add_argument("--tier", help="only entries of this tier, e.g. watched")
+    ap.add_argument("--workers", type=int, default=6)
+    ap.add_argument("--selftest", action="store_true")
+    a = ap.parse_args()
+    if a.selftest:
+        return selftest()
+    if a.write and a.include_proposed:
+        sys.exit("Refusing: --include-proposed is for dry-run tests only (ADR-008).")
+
+    entries, errors = load(find_root())
+    if errors:
+        print("\n".join("ERROR " + e for e in errors))
+        sys.exit("Registry invalid. Fix before running.")
+    statuses = {"active", "proposed"} if a.include_proposed else {"active"}
+    picked = [e for e in entries if e["status"] in statuses
+              and (not a.only or e["id"] == a.only)
+              and (not a.town or e["_town"] == a.town)
+              and (not a.tier or e.get("tier", "listed") == a.tier)]
+    if not picked:
+        sys.exit("Nothing selected. Check --only/--town, or entries are still status: proposed.")
+
+    db = Supabase() if a.write else None  # fail fast on missing env, before touching disk
+    report = fetch_watched(entries, db, picked, a.workers)
+    if db:  # by hand nothing reads the pages after, so their fingerprints move now
+        db.commit_fingerprints(report["changed"])
 
 
 if __name__ == "__main__":
